@@ -1,6 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
-
-const CHROMATIC_SCALE = Array.from({ length: 128 }, (_, i) => i);
+import { useCallback, useRef, useEffect, MutableRefObject } from 'react';
 
 function midiToFreq(midi: number) {
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -11,16 +9,16 @@ function getMagneticFrequency(x: number, p: number, scale: number[]) {
 
   const midiMin = scale[0];
   const midiMax = scale[scale.length - 1];
-  
+
   // 1. Base linear mapping: x (0-1) -> continuous MIDI note
   const v = midiMin + x * (midiMax - midiMin);
-  
+
   if (p === 0) return midiToFreq(v);
-  
+
   // 2. Find surrounding scale notes
   let n_a = scale[0];
   let n_b = scale[scale.length - 1];
-  
+
   for (let i = 0; i < scale.length - 1; i++) {
     if (v >= scale[i] && v <= scale[i+1]) {
       n_a = scale[i];
@@ -28,12 +26,12 @@ function getMagneticFrequency(x: number, p: number, scale: number[]) {
       break;
     }
   }
-  
+
   // Prevent division by zero if scale has duplicate notes or v is exactly an integer
   if (n_a === n_b) {
     return midiToFreq(n_a);
   }
-  
+
   // 3. Calculate fractional distance 't'
   const _t = (v - n_a) / (n_b - n_a);
 
@@ -46,7 +44,7 @@ function getMagneticFrequency(x: number, p: number, scale: number[]) {
     const sign = u >= 0 ? 1 : -1;
     tMapped = 0.5 + 0.5 * sign * Math.pow(Math.abs(u), 1 - p);
   }
-  
+
   const vMapped = n_a + tMapped * (n_b - n_a);
   return midiToFreq(vMapped);
 }
@@ -66,15 +64,24 @@ interface Voice {
   instrument: InstrumentType;
 }
 
-export function useAudioEngine() {
-  const audioCtxRef = useRef<AudioContext | null>(null);
+interface UseAudioEngineOptions {
+  audioContextRef?: MutableRefObject<AudioContext | null>;
+  masterGainRef?: MutableRefObject<GainNode | null>;
+}
+
+export function useAudioEngine(options?: UseAudioEngineOptions) {
+  const internalAudioCtxRef = useRef<AudioContext | null>(null);
+  const internalMasterGainRef = useRef<GainNode | null>(null);
   const voicesRef = useRef<Map<number, Voice>>(new Map());
-  const masterGainRef = useRef<GainNode | null>(null);
+
+  const audioCtxRef = options?.audioContextRef ?? internalAudioCtxRef;
+  const masterGainRef = options?.masterGainRef ?? internalMasterGainRef;
 
   useEffect(() => {
     return () => {
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close();
+      // Only close if we own the context (no external ref provided)
+      if (!options?.audioContextRef && internalAudioCtxRef.current) {
+        internalAudioCtxRef.current.close();
       }
     };
   }, []);
@@ -89,7 +96,7 @@ export function useAudioEngine() {
     if (audioCtxRef.current.state === 'suspended') {
       audioCtxRef.current.resume();
     }
-  }, []);
+  }, [audioCtxRef, masterGainRef]);
 
   const updateVoice = useCallback((id: number, x: number, y: number, isPresent: boolean, settings: VoiceSettings) => {
     if (!audioCtxRef.current || !masterGainRef.current) return;
@@ -100,10 +107,10 @@ export function useAudioEngine() {
       if (!voice) {
         const osc = audioCtxRef.current.createOscillator();
         const gain = audioCtxRef.current.createGain();
-        
+
         osc.type = settings.instrument;
         gain.gain.setValueAtTime(0, audioCtxRef.current.currentTime);
-        
+
         osc.connect(gain);
         gain.connect(masterGainRef.current);
         osc.start();
@@ -125,9 +132,9 @@ export function useAudioEngine() {
 
       // Map X to frequency using Magnetic Pitch Mapper
       const targetFreq = getMagneticFrequency(x, settings.magnetism, settings.scale);
-      
+
       voice.oscillator.frequency.setTargetAtTime(targetFreq, audioCtxRef.current.currentTime, 0.03);
-      
+
       // Map Y to volume (0 to 1, inverted since Y=0 is top)
       const volume = (1 - y) * 0.5;
       voice.gainNode.gain.setTargetAtTime(volume, audioCtxRef.current.currentTime, 0.1);
@@ -137,8 +144,7 @@ export function useAudioEngine() {
       voice.gainNode.gain.setTargetAtTime(0, audioCtxRef.current.currentTime, 0.1);
       voice.active = false;
     }
-  }, []);
-
+  }, [audioCtxRef, masterGainRef]);
 
   // Cleanup inactive voices
   useEffect(() => {
@@ -154,7 +160,7 @@ export function useAudioEngine() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [audioCtxRef]);
 
-  return { initAudio, updateVoice };
+  return { initAudio, updateVoice, audioContextRef: audioCtxRef, masterGainRef };
 }
