@@ -4,12 +4,14 @@
  */
 
 import Theremin from './components/Theremin';
+import { PluginProvider } from './plugins/PluginProvider';
 
 export default function App() {
   return (
     <div className="min-h-screen bg-black">
-      <Theremin />
+      <PluginProvider>
+        <Theremin />
+      </PluginProvider>
     </div>
   );
 }
-
