@@ -1,0 +1,7 @@
+{
+  "name": "Thoremin",
+  "description": "A polyphonic camera-based theremin with hand tracking and tempered scale snapping.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
