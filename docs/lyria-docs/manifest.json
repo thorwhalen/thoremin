@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://ai.google.dev/gemini-api/docs/music-generation",
+    "title": null,
+    "ref": null,
+    "status": "ok",
+    "output_file": "/Users/thorwhalen/Downloads/lyria-docs/music-generation.md",
+    "format": "md",
+    "error": null
+  },
+  {
+    "url": "https://ai.google.dev/gemini-api/docs/models/lyria-realtime-exp",
+    "title": null,
+    "ref": null,
+    "status": "ok",
+    "output_file": "/Users/thorwhalen/Downloads/lyria-docs/lyria-realtime-exp.md",
+    "format": "md",
+    "error": null
+  },
+  {
+    "url": "https://ai.google.dev/api/live_music",
+    "title": null,
+    "ref": null,
+    "status": "ok",
+    "output_file": "/Users/thorwhalen/Downloads/lyria-docs/live-music.md",
+    "format": "md",
+    "error": null
+  },
+  {
+    "url": "https://deepmind.google/models/lyria/lyria-realtime/",
+    "title": null,
+    "ref": null,
+    "status": "ok",
+    "output_file": "/Users/thorwhalen/Downloads/lyria-docs/lyria-realtime.md",
+    "format": "md",
+    "error": null
+  },
+  {
+    "url": "https://dev.to/googleai/lyria-realtime-the-developers-guide-to-infinite-music-streaming-4m1h",
+    "title": null,
+    "ref": null,
+    "status": "ok",
+    "output_file": "/Users/thorwhalen/Downloads/lyria-docs/lyria-realtime-the-developers-guide-to-infinite-music-streaming-4m1h.md",
+    "format": "md",
+    "error": null
+  }
+]
