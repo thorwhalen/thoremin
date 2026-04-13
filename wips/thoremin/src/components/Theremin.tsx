@@ -25,6 +25,7 @@ export default function Theremin() {
   const [handsCount, setHandsCount] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [audioInitialized, setAudioInitialized] = useState(false);
 
   const [rightSettings, setRightSettings] = useState<HandSettings>(defaultSettings);
   const [leftSettings, setLeftSettings] = useState<HandSettings>(defaultSettings);
@@ -154,8 +155,9 @@ export default function Theremin() {
     };
   }, [isReady, detect]);
 
-  const handleStart = () => {
-    initAudio();
+  const handleStart = async () => {
+    await initAudio();
+    setAudioInitialized(true);
   };
 
   return (
@@ -267,9 +269,9 @@ export default function Theremin() {
 
       <footer className="absolute bottom-0 left-0 w-full p-8 flex justify-between items-end z-20">
         <div className="flex flex-col gap-6">
-          <button onClick={handleStart} className="group relative px-8 py-4 bg-white text-black rounded-xl font-bold uppercase tracking-widest text-xs overflow-hidden transition-all hover:scale-105 active:scale-95">
-            <span className="relative z-10">Initialize Audio Engine</span>
-            <div className="absolute inset-0 bg-emerald-500 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+          <button onClick={handleStart} className={`group relative px-8 py-4 rounded-xl font-bold uppercase tracking-widest text-xs overflow-hidden transition-all active:scale-95 ${audioInitialized ? 'bg-emerald-500 text-black' : 'bg-white text-black hover:scale-105'}`}>
+            <span className="relative z-10">{audioInitialized ? 'Audio Engine Active' : 'Initialize Audio Engine'}</span>
+            {!audioInitialized && <div className="absolute inset-0 bg-emerald-500 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />}
           </button>
         </div>
         <div className="text-right">

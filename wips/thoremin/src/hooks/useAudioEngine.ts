@@ -86,7 +86,7 @@ export function useAudioEngine(options?: UseAudioEngineOptions) {
     };
   }, []);
 
-  const initAudio = useCallback(() => {
+  const initAudio = useCallback(async () => {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       masterGainRef.current = audioCtxRef.current.createGain();
@@ -94,7 +94,7 @@ export function useAudioEngine(options?: UseAudioEngineOptions) {
       masterGainRef.current.connect(audioCtxRef.current.destination);
     }
     if (audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
+      await audioCtxRef.current.resume();
     }
   }, [audioCtxRef, masterGainRef]);
 
