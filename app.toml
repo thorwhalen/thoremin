@@ -1,0 +1,18 @@
+# Thoremin — gesture-controlled theremin with optional AI-DJ plugin.
+# Pure frontend: no Python backend. Lyria is called directly from the
+# browser with a user-supplied GEMINI_API_KEY (see WHY_YOUR_API_KEY_IS_SAFE.md).
+display_name = "Thoremin"
+description = "From anything to music."
+access = "public"
+
+# Vite emits to `frontend/` (see vite.config.ts). enlace discovers this as
+# the app's frontend_dir and mounts the SPA at /thoremin/.
+frontend_dir = "frontend"
+
+# Build step honored by tw_platform/deploy.py. enlace itself does not run
+# this yet; the deployer injects VITE_PUBLIC_BASE=/thoremin/ at build time
+# so the emitted index.html references assets under the correct prefix.
+[build]
+install  = ["npm", "ci", "--no-audit", "--no-fund", "--no-progress"]
+build    = ["npm", "run", "build"]
+env_vars = ["VITE_PUBLIC_BASE"]
