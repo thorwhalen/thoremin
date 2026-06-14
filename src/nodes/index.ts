@@ -13,12 +13,15 @@ import { replaySourceNode } from './sources/replay';
 import { handFeaturesNode } from './features/hand_features';
 import { voiceMappingNode } from './mapping/voice_mapping';
 import { keyboardControlNode } from './mapping/keyboard_control';
+import { indirectMapNode } from './mapping/indirect_map';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
 export { handFeaturesNode } from './features/hand_features';
 export { voiceMappingNode } from './mapping/voice_mapping';
 export { keyboardControlNode } from './mapping/keyboard_control';
+export { indirectMapNode } from './mapping/indirect_map';
+export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt } from './output/generative';
 export * from './domain';
 
 /** The pure node definitions, safe to instantiate anywhere (incl. Node tests). */
@@ -28,6 +31,7 @@ export const CORE_NODES = [
   handFeaturesNode,
   voiceMappingNode,
   keyboardControlNode,
+  indirectMapNode,
 ];
 
 /** Build a registry pre-loaded with the pure node library. */
