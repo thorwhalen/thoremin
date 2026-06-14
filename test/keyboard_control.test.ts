@@ -15,7 +15,9 @@ describe('keyboard-control', () => {
       ['m'], // mute off
     ];
     const outs = await replayNode(
-      keyboardControlNode.make({ magnetismStep: 0.1, magnetismStart: 0.8, octaveMin: -2, octaveMax: 2 }),
+      keyboardControlNode.make(
+        keyboardControlNode.params.parse({ magnetismStep: 0.1, magnetismStart: 0.8, octaveMin: -2, octaveMax: 2 }),
+      ),
       { pressed: pressedFrames },
     );
 

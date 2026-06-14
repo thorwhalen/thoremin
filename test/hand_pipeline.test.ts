@@ -35,6 +35,11 @@ const MAP_PARAMS = {
   left: { scale: { root: 0, type: 'major' as const, octaves: 2, baseOctave: 3 }, instrument: 'triangle' as const },
 };
 
+// Parse params through each node's Zod schema (as the engine does) before any
+// direct make() call — applies defaults/validation, not just the raw object.
+const FEAT_PARSED = handFeaturesNode.params.parse(FEAT_PARAMS);
+const MAP_PARSED = voiceMappingNode.params.parse(MAP_PARAMS);
+
 function rightHandFrame(spread: number, pinch: number): HandsFrame {
   return {
     width: 640,
@@ -51,7 +56,7 @@ function rightHandFrame(spread: number, pinch: number): HandsFrame {
 describe('hand-features node', () => {
   it('open hand has higher openness than a fist; pinch detects thumb-index contact', async () => {
     const run = (spread: number, pinch: number) =>
-      replayNode(handFeaturesNode.make(FEAT_PARAMS), { hands: [rightHandFrame(spread, pinch)] });
+      replayNode(handFeaturesNode.make(FEAT_PARSED), { hands: [rightHandFrame(spread, pinch)] });
 
     const [fist] = await run(0, 0);
     const [open] = await run(1, 0);
@@ -68,7 +73,7 @@ describe('hand-features node', () => {
   });
 
   it('reports both hands absent when no hands present', async () => {
-    const [out] = await replayNode(handFeaturesNode.make(FEAT_PARAMS), {
+    const [out] = await replayNode(handFeaturesNode.make(FEAT_PARSED), {
       hands: [{ width: 640, height: 480, hands: [] } as HandsFrame],
     });
     const f = out.features as HandFeatures;
@@ -111,9 +116,33 @@ describe('synthetic → features → mapping DAG', () => {
     const recordedFeatures = recorder.values('feat.features');
     const liveFreqs = (recorder.values('map.params') as SynthParams[]).map((p) => p.voices[0].freq);
 
-    const replayParams = await replayNode(voiceMappingNode.make(MAP_PARAMS), { features: recordedFeatures }, { dt: 1 / 30 });
+    const replayParams = await replayNode(voiceMappingNode.make(MAP_PARSED), { features: recordedFeatures }, { dt: 1 / 30 });
     const replayedFreqs = replayParams.map((p) => (p.params as SynthParams).voices[0].freq);
 
     expect(replayedFreqs).toEqual(liveFreqs);
+  });
+});
+
+describe('hand-features param robustness (review fix)', () => {
+  it('rejects degenerate openness/pinch ranges at parse time', () => {
+    expect(() => handFeaturesNode.params.parse({ opennessMin: 2, opennessMax: 2 })).toThrow();
+    expect(() => handFeaturesNode.params.parse({ pinchTouch: 1, pinchApart: 1 })).toThrow();
+  });
+
+  it('never emits NaN even if params bypass parsing (defensive guard)', async () => {
+    // Degenerate ranges (max === min) that Zod would reject; here we bypass parse
+    // to confirm the normRange guard still yields finite features, not NaN.
+    const degenerate = {
+      mirrorX: false,
+      mirrorHandedness: false,
+      opennessMin: 1.3,
+      opennessMax: 1.3,
+      pinchTouch: 1.2,
+      pinchApart: 1.2,
+    } as unknown as Parameters<typeof handFeaturesNode.make>[0];
+    const [out] = await replayNode(handFeaturesNode.make(degenerate), { hands: [rightHandFrame(0.5, 0.5)] });
+    const f = (out.features as HandFeatures).right;
+    expect(Number.isFinite(f.openness)).toBe(true);
+    expect(Number.isFinite(f.pinch)).toBe(true);
   });
 });

@@ -51,8 +51,12 @@ export const lyriaNode = defineNode<Params>({
         // ---- lifecycle ----
         if (playing && !started) {
           started = true;
-          // The engine is responsible for connect-once idempotency.
-          void Promise.resolve(engine.connect()).then(() => engine.play());
+          // The engine is responsible for connect-once idempotency. Guard play()
+          // with the *current* started state: if the transport was paused
+          // between connect() resolving and this microtask, don't start playing.
+          void Promise.resolve(engine.connect()).then(() => {
+            if (started) engine.play();
+          });
         } else if (!playing && started) {
           started = false;
           void engine.pause();
