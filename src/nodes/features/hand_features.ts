@@ -37,11 +37,31 @@ const Params = z.object({
   pinchTouch: z.number().default(0.25),
   /** pinchDist/handScale at/above which pinch=0 (apart). */
   pinchApart: z.number().default(1.2),
-});
+})
+  // Fail fast on degenerate ranges (the openness/pinch maps divide by these).
+  .refine((p) => p.opennessMax > p.opennessMin, {
+    message: 'opennessMax must be greater than opennessMin',
+    path: ['opennessMax'],
+  })
+  .refine((p) => p.pinchApart > p.pinchTouch, {
+    message: 'pinchApart must be greater than pinchTouch',
+    path: ['pinchApart'],
+  });
 type Params = z.infer<typeof Params>;
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+/**
+ * Normalize `value` from [lo, hi] to [0, 1], clamped. Guards a zero range so a
+ * misconfigured param (lo === hi) can never produce NaN, even if params bypass
+ * Zod parsing (e.g. a direct node.make() call).
+ */
+function normRange(value: number, lo: number, hi: number): number {
+  const denom = hi - lo;
+  if (Math.abs(denom) < 1e-9) return 0;
+  return clamp01((value - lo) / denom);
 }
 
 function handScaleOf(hand: Hand): number {
@@ -71,7 +91,7 @@ function extractOne(hand: Hand, frame: HandsFrame, p: Params): SingleHandFeature
   if (tips.length) {
     const meanTipDist = tips.reduce((s, t) => s + dist2d(t, wrist), 0) / tips.length;
     const openRaw = meanTipDist / handScale;
-    openness = clamp01((openRaw - p.opennessMin) / (p.opennessMax - p.opennessMin));
+    openness = normRange(openRaw, p.opennessMin, p.opennessMax);
   }
 
   // Pinch: thumb-tip to index-tip distance, scaled by hand size, inverted.
@@ -79,7 +99,8 @@ function extractOne(hand: Hand, frame: HandsFrame, p: Params): SingleHandFeature
   let pinch = 0;
   if (thumbTip) {
     const pinchDist = dist2d(thumbTip, indexTip) / handScale;
-    pinch = clamp01((p.pinchApart - pinchDist) / (p.pinchApart - p.pinchTouch));
+    // Inverted range: pinchDist=pinchTouch → 1, pinchDist=pinchApart → 0.
+    pinch = normRange(pinchDist, p.pinchApart, p.pinchTouch);
   }
 
   return { present: true, x, y, openness, pinch };

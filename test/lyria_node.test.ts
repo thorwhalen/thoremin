@@ -45,14 +45,14 @@ function steer(weight: number, bpm: number): GenerativeSteer {
 
 describe('lyria node (contract logic, mock engine)', () => {
   it('no-ops without an engine', () => {
-    const handlers = lyriaNode.make({ throttleSec: 0.2 });
+    const handlers = lyriaNode.make(lyriaNode.params.parse({ throttleSec: 0.2 }));
     const out = handlers.process({ playing: true, steer: steer(1, 120) }, { tick: 0, time: 0, dt: 0, resources: {} });
     expect(out.state).toBe('no-engine');
   });
 
   it('connects+plays once, throttles steer updates, resets context on bpm change', async () => {
     const engine = new MockEngine();
-    const handlers = lyriaNode.make({ throttleSec: 0.2 });
+    const handlers = lyriaNode.make(lyriaNode.params.parse({ throttleSec: 0.2 }));
     const resources = { generativeEngine: engine };
     const dt = 1 / 30;
 
@@ -85,7 +85,7 @@ describe('lyria node (contract logic, mock engine)', () => {
 
   it('pauses when transport stops', () => {
     const engine = new MockEngine();
-    const handlers = lyriaNode.make({ throttleSec: 0.2 });
+    const handlers = lyriaNode.make(lyriaNode.params.parse({ throttleSec: 0.2 }));
     const resources = { generativeEngine: engine };
     handlers.process({ playing: true, steer: steer(1, 120) }, { tick: 0, time: 0, dt: 0, resources });
     handlers.process({ playing: false }, { tick: 1, time: 0.1, dt: 0.1, resources });
