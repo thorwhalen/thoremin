@@ -30,12 +30,14 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 |-------------|-------|--------|---------|---------|
 | `voice-mapping` | ✅ | `features`; live overrides: `magnetism`, `octaveShift`, `mute`, `scaleRight`, `scaleLeft`, `instrumentRight`, `instrumentLeft` | `params: SynthParams` | **Direct** mapping: x→pitch (scale-snapped by magnetism), y→volume. Two voices (0=right, 1=left). |
 | `keyboard-control` | ✅ | `pressed: string[]` | `octaveShift`, `magnetism`, `mute` | Interprets key presses (arrows, `m`) into musical control values. |
+| `indirect-map` | ✅ | `features` | `steer: GenerativeSteer` | **Indirect** mapping: gesture features → weighted text prompts + config dials (density/brightness/bpm), with optional smoothing + throttle. Steers a generative engine. |
 
 ## Synthesis / output
 
 | Node `type` | Pure? | Inputs | Outputs | Purpose |
 |-------------|-------|--------|---------|---------|
 | `webaudio-synth` | browser | `params: SynthParams` | — | One oscillator+gain voice per `SynthParams` voice, smoothed ramps. Uses `ctx.resources.audioContext` + `masterGain`; silent no-op until the host wires audio. |
+| `lyria` | ✅ (node) | `steer: GenerativeSteer`, `playing: boolean` | `state: string` | Drives a generative engine (Lyria RealTime) — lifecycle + throttled/diffed steer + tempo-reset. The engine is injected via `ctx.resources.generativeEngine` (the browser-only `LyriaEngine` implements the `GenerativeEngine` facade in `src/nodes/output/`). The node logic is unit-tested with a mock engine. |
 | `canvas-overlay` | browser | `hands`, `features` | — | Draws mirrored video + landmark dots + control markers (openness=ring, pinch=fill) + feature HUD onto `ctx.resources.canvas`. |
 
 ## Domain types (`src/nodes/domain.ts`)
@@ -47,8 +49,7 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 
 ## Planned nodes (see ROADMAP)
 
-`lyria` (steerable AI generation), `indirect-map` (gesture → weighted prompts +
-dials), `face-features` (52 blendshapes), `pose-features`, `gesture-classifier`
+`face-features` (52 blendshapes), `pose-features`, `gesture-classifier`
 (discrete events), `chord`/`voicing`/`progression` (Tonal.js), `score` +
 `performance` (conductor mode), `midi-in`/`midi-out` (WEBMIDI.js), signal
 conditioners (one-euro filter, hysteresis, debounce).
