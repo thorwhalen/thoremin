@@ -1,0 +1,9 @@
+{
+  "scenario": "video_hand_pinch",
+  "source": "video",
+  "frames": 121,
+  "handDetectedFrames": 121,
+  "detectionRate": 100,
+  "srcHash": "c4662dcd59e0",
+  "recorderVersion": 1
+}
