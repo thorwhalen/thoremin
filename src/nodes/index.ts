@@ -16,6 +16,8 @@ import { voiceMappingNode } from './mapping/voice_mapping';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { indirectMapNode } from './mapping/indirect_map';
 import { lyriaNode } from './output/lyria';
+import { chordNode } from './music/chord';
+import { progressionNode } from './music/progression';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
@@ -25,6 +27,8 @@ export { voiceMappingNode } from './mapping/voice_mapping';
 export { keyboardControlNode } from './mapping/keyboard_control';
 export { indirectMapNode } from './mapping/indirect_map';
 export { lyriaNode } from './output/lyria';
+export { chordNode, voiceChord } from './music/chord';
+export { progressionNode } from './music/progression';
 export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt } from './output/generative';
 export * from './domain';
 
@@ -38,6 +42,8 @@ export const CORE_NODES = [
   keyboardControlNode,
   indirectMapNode,
   lyriaNode,
+  chordNode,
+  progressionNode,
 ];
 
 /** Build a registry pre-loaded with the pure node library. */
