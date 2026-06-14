@@ -96,3 +96,18 @@ deterministically.
 `test/fixture_replay.test.ts` doubles as a **regression gate**: replaying recorded
 features must reproduce the recorded synth params; if `voice-mapping` logic
 changes intentionally, re-record (`npm run record`) to update the baseline.
+
+## Audible spot-check (offline render)
+
+`scripts/render_audio.ts` turns any `SynthParams` stream into a WAV with a tiny
+no-deps offline synth — so the audio output can be *heard* headlessly (no
+browser):
+
+```bash
+vite-node scripts/render_audio.ts test/fixtures/video_hand_sweep/map.params.ndjson media/audio/sweep.wav
+vite-node scripts/gen_chord_demo.ts media/chord_demo.params.ndjson   # I–IV–V–vi in C
+vite-node scripts/render_audio.ts media/chord_demo.params.ndjson media/audio/chords.wav
+```
+
+`test/render_audio.test.ts` covers the DSP (non-silent tone, silence→silence,
+chord louder than single voice). WAVs land in gitignored `media/audio/`.
