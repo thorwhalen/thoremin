@@ -33,6 +33,13 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 | `keyboard-control` | ✅ | `pressed: string[]` | `octaveShift`, `magnetism`, `mute` | Interprets key presses (arrows, `m`) into musical control values. |
 | `indirect-map` | ✅ | `features` (hand), `face` (expressions) | `steer: GenerativeSteer` | **Indirect** mapping: hand features AND/OR face expressions → weighted text prompts + config dials (density/brightness/bpm), with optional smoothing + throttle. Each strain/dial picks its `source` (`hand`/`face`) + `feature`. Steers a generative engine. |
 
+## Music-logic (tonal guidance — Tonal.js)
+
+| Node `type` | Pure? | Inputs | Outputs | Purpose |
+|-------------|-------|--------|---------|---------|
+| `chord` | ✅ | `chord` (symbol, e.g. "Cmaj7"), `gain` | `params: SynthParams` | Voices a chord symbol into one synth voice per chord tone (stacked ascending from `baseOctave`), so it drives `webaudio-synth` directly. Lets you *express harmony*. |
+| `progression` | ✅ | `position` (0..1) | `chord` (symbol), `index` | Holds a diatonic progression (Roman numerals in a `key`, correct qualities via `Key.majorKey().triads`) and selects the current chord from a continuous position — keeps harmony in-key while the player moves freely. Pair with `chord`: gesture → position → chord → notes. |
+
 ## Synthesis / output
 
 | Node `type` | Pure? | Inputs | Outputs | Purpose |
@@ -52,6 +59,7 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 ## Planned nodes (see ROADMAP)
 
 `webcam-face` (browser FaceLandmarker source), `pose-features`, `gesture-classifier`
-(discrete events), `chord`/`voicing`/`progression` (Tonal.js), `score` +
-`performance` (conductor mode), `midi-in`/`midi-out` (WEBMIDI.js), signal
-conditioners (one-euro filter, hysteresis, debounce).
+(discrete events), `voicing` (smarter voice-leading), `score` + `performance`
+(conductor mode), `midi-in`/`midi-out` (WEBMIDI.js), signal conditioners
+(one-euro filter, hysteresis, debounce), and a small adapter to feed a scalar
+feature (e.g. hand x) into `progression.position`.

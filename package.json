@@ -19,6 +19,7 @@
     "@mediapipe/hands": "^0.4.1675469240",
     "@tailwindcss/vite": "^4.1.14",
     "zod": "^3.24.1",
+    "tonal": "^6.4.0",
     "@tensorflow-models/hand-pose-detection": "^2.0.1",
     "@tensorflow/tfjs-backend-webgl": "^4.22.0",
     "@tensorflow/tfjs-converter": "^4.22.0",
