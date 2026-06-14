@@ -1,123 +1,92 @@
-# Thoremin Architecture Notes
+# Thoremin Architecture
 
-For AI agents and developers working on this codebase.
+> From anything to music: a DAG-based real-time sonification platform that maps
+> live sensor streams (video gestures, computer keyboard, later MIDI) to a live
+> audiovisual stream (musical audio + the captured video with overlaid guides).
 
-## Tech Stack
+## The big idea: everything is a dataflow graph
 
-- **React 19** + **TypeScript 5.8** + **Vite 6**
-- **Tailwind CSS v4** (with `@theme` syntax, not tailwind.config)
-- **Framer Motion** via `motion/react` for animations
-- **TensorFlow.js** + **MediaPipe Hands** for hand tracking (runs in browser via WebGL)
-- **Web Audio API** for oscillator synthesis
-- **@google/genai** SDK for Lyria Realtime music generation (WebSocket-based)
-- No backend — 100% client-side static app
+Thoremin is built around a small, typed **dataflow DAG** (`src/dag/`). Sensor
+inputs flow through feature extraction, mapping, music logic, and synthesis
+nodes to audiovisual outputs. Components are small, parameterizable, and wired
+by edges — so you compose new instruments by re-wiring, not rewriting.
 
-## Directory Structure
+The DAG is a deliberate TypeScript mirror of the Python [`meshed`](https://github.com/i2mint/meshed)
+library used in the sibling [`theremin`](https://github.com/thorwhalen/theremin)
+project (a set of typed nodes wired by ports, evaluated in dependency order).
+Keeping that parity means a Python backend can later be slotted behind the same
+node interfaces if/when frontend tools are insufficient — but **v0 is
+frontend-only**: the live instrument loop stays on-device for lowest latency.
 
-```
-src/
-  main.tsx              # Entry point
-  App.tsx               # Root: wraps Theremin with PluginProvider
-  index.css             # Tailwind imports + custom theme (Inter, JetBrains Mono)
-  constants.ts          # Shared: NOTES, SCALE_TYPES, INSTRUMENTS, HandSettings, generateScale
-
-  components/
-    Theremin.tsx         # Core: camera, hand tracking, canvas, header/footer
-    HandSettingsForm.tsx # Synth settings form for one hand
-    SettingsPanel.tsx    # Slide-in settings drawer with Synth/Plugins tabs
-    InfoModal.tsx        # How-to-play overlay
-    PluginListPanel.tsx  # Plugin toggle switches (rendered in Settings → Plugins tab)
-
-  hooks/
-    useAudioEngine.ts   # Core oscillator synth (polyphonic, 2 voices, magnetic pitch)
-    useLocalStorage.ts   # Generic localStorage<->state hook
-
-  plugins/
-    types.ts            # PluginDefinition, PluginInstance, PluginContext, SetupDialogProps
-    registry.ts         # Static array of all plugin definitions
-    PluginProvider.tsx   # React context: lifecycle, settings, setup dialogs, overlay rendering
-
-    ai-dj/
-      types.ts          # Strain, Vibe, AiDjSettings, PlaybackState, defaults
-      definition.ts     # Plugin definition (id, name, icon, activate, SetupDialog)
-      ApiKeyDialog.tsx   # API key entry + validation modal
-      LyriaSession.ts   # WebSocket session manager (connect, play, pause, stop, prompts, config)
-      audioUtils.ts     # Base64 PCM → AudioBuffer decoding
-      AiDjOverlayPanel.tsx  # Main panel: volume, vibes, strains, settings, transport
-      AiDjSettingsPanel.tsx # (Retained for potential future use; content now in overlay)
-      VibeEditor.tsx    # CRUD modal for managing vibes
-```
-
-## Plugin System
-
-### Contract
-
-A plugin implements `PluginDefinition<TSettings>`:
-- `id`, `name`, `description`, `icon` — metadata
-- `defaultSettings` — persisted to `localStorage` at `thoremin:plugin:{id}:settings`
-- `SetupDialog?` — React component shown before first activation (e.g., API key entry)
-- `activate(ctx)` → `PluginInstance` — async; receives AudioContext, masterGain, settings access
-
-A `PluginInstance` provides:
-- `deactivate()` — cleanup (close WebSockets, disconnect audio nodes)
-- `OverlayPanel?` — React component rendered floating on the main screen
-- `SettingsPanel?` — React component rendered inside the Plugins settings tab
-
-### Lifecycle
-
-1. User toggles plugin on in Settings → Plugins
-2. If `SetupDialog` exists and prerequisites not met → show dialog
-3. On dialog success (or if no dialog needed) → call `activate(ctx)`
-4. Plugin status: `disabled` → `activating` → `active` (or `error`)
-5. Toggle off → `deactivate()` → `disabled`
-
-### Shared Audio
-
-`PluginProvider` owns the `AudioContext` and `masterGain` refs. Both the core synth (`useAudioEngine`) and plugins connect to the same audio graph:
+### The six layers
 
 ```
-[Oscillator voices] → masterGain → destination
-[Lyria audio chunks] → plugin outputNode → masterGain → destination
+INPUT ──▶ FEATURE ──▶ MAPPING ──▶ MUSIC-LOGIC ──▶ SYNTHESIS/GEN ──▶ OUTPUT
+sensors   normalized   feature→     tonal           sound            audio +
+          control      param        guidance        (direct) or      video +
+          signals      (direct↔                     steered-AI       overlays
+                        indirect)                    (indirect)
 ```
 
-### Adding a New Plugin
+| Layer | Responsibility | Tools (chosen) |
+|-------|---------------|----------------|
+| **Input** | Capture raw sensor data | `getUserMedia`+`<video>`, Web keyboard events, (later WEBMIDI.js); camera-free `synthetic-hands` + `replay-source` for tests |
+| **Feature** | Raw data → normalized control signals | `@mediapipe/tasks-vision` (hands now; face 52-blendshapes & pose later); pure `hand-features` node |
+| **Mapping** | Features → engine params, across the direct↔indirect spectrum | pure `voice-mapping` (direct); `indirect-map` → prompt weights (planned) |
+| **Music-logic** | Tonal guidance: scale snap, chords, rhythm | pure `src/music/theory.ts` (magnetic snapping); Tonal.js for chords/voicing (planned) |
+| **Synthesis / Generation** | Make sound | `webaudio-synth` (direct); Lyria RealTime via `@google/genai` (steerable AI, planned port from `wips/`) |
+| **Output** | Audio + video + visual guides | Web Audio out; `canvas-overlay` (landmarks, markers, HUD); (later WEBMIDI.js out) |
 
-1. Create `src/plugins/{name}/` directory
-2. Define types and `defaultSettings`
-3. Implement `PluginDefinition` in `definition.ts`
-4. Add to `pluginRegistry` array in `src/plugins/registry.ts`
+## The DAG runtime (`src/dag/`)
 
-### Storage Keys
+Framework-agnostic (no React/DOM/audio) so it runs in plain Node for fast tests.
 
-| Key | Content |
-|-----|---------|
-| `thoremin:plugins:enabled` | `string[]` of enabled plugin IDs |
-| `thoremin:plugin:{id}:settings` | Plugin settings JSON |
-| `thoremin:plugin:ai-dj:apiKey` | Gemini API key (string) |
-| `thoremin:plugin:ai-dj:vibes` | Vibe[] JSON |
-| `thoremin:plugin:ai-dj:activeVibe` | Active vibe ID (string) |
+- **`types.ts`** — `NodeDef`, `PortSpec`, `NodeContext`, `GraphSpec`, `Tap`, `StreamRecord`.
+- **`node.ts`** — `defineNode({...})`: author a node from a pure `process(inputs, params, ctx)` or a stateful `make(params) => handlers`.
+- **`registry.ts`** — `NodeRegistry`: name → `NodeDef`. Explicit (not global) so tests are hermetic.
+- **`engine.ts`** — `Engine`: validates params (Zod), wires edges, topo-sorts (rejects cycles + fan-in to one input port), and `tick(time)` evaluates every node once in dependency order. Async sources (e.g. ML inference) run their own loop and cache the latest value; `process` returns the cache, decoupling detection rate from tick rate.
+- **`recorder.ts`** — `StreamRecorder` (a `Tap` that records every edge), NDJSON serialize/parse, `replayNode` (drive one node from recorded inputs).
+- **`runHeadless(spec, registry, {ticks})`** — build + init + tick N times with a recorder attached. The driver for headless tests and the fixture recorder.
 
-## Key Implementation Details
+### Node contract
 
-### Hand Tracking
+A node declares typed input/output **ports**, a **Zod params schema** (validated
++ defaulted at build), and a `process(inputs, ctx) → outputs` run each tick.
+Pure nodes (features, mapping, music-logic) are trivially testable. Stateful
+nodes (synth voices, websocket sessions, recorder) own resources via
+`init`/`process`/`dispose` and read host resources (AudioContext, canvas, video)
+from `ctx.resources`. **Static params** are build-time defaults; **input ports**
+are live overrides — e.g. `voice-mapping` takes `scale`/`instrument`/`magnetism`
+on input ports so the UI changes them without rebuilding the graph or reloading
+the ML model.
 
-- MediaPipe Hands with `full` model via CDN
-- Detection runs in `requestAnimationFrame` loop
-- Handedness is inverted due to mirrored camera feed
-- Index finger tip keypoint → normalized (x, y) coordinates
+## The default instrument (`src/app/graph.ts`)
 
-### Audio Engine
+```
+webcam ─┬─▶ hand-features ─┬─▶ voice-mapping ─▶ webaudio-synth
+        │                  │        ▲ ▲ ▲
+        └──────▶ overlay ◀─┘        │ │ └── store-controls (scale/instrument from UI)
+                  (video+guides)    │ └──── keyboard-control (magnetism/octave/mute)
+                                    └────── keyboard-source ─▶ keyboard-control
+```
 
-- `getMagneticFrequency()` maps x position to frequency with configurable snap-to-scale
-- Smooth frequency ramps (30ms time constant) and volume ramps (100ms)
-- Inactive voices cleaned up every 1 second
+Hand x → pitch (snapped toward a scale by a `magnetism` amount), hand y →
+volume; openness/pinch are extracted for future mappings. Keyboard arrows/​`m`
+adjust octave/magnetism/mute live; the UI panel changes scale/key/wave live.
+The overlay draws the mirrored video, landmarks, per-hand control markers
+(openness = ring size, pinch = fill), and a feature HUD.
 
-### Lyria Realtime Integration
+## Prior art being folded in (`wips/`)
 
-- Model: `lyria-realtime-exp` via `v1alpha` API version
-- WebSocket connection: `ai.live.music.connect()`
-- Audio: 48kHz stereo PCM streamed in ~2s chunks, scheduled ahead via Web Audio
-- 2-second playback buffer to handle jitter
-- `setWeightedPrompts` throttled to 200ms
-- `applyConfig` sends `setMusicGenerationConfig`; calls `resetContext()` when BPM or Scale changes
-- Sessions max out at 10 minutes
+`wips/thoremin/` is the working React app this architecture grows from: MediaPipe
+hands + Web Audio synth + a **Lyria RealTime** plugin (`lyria-realtime-exp`,
+`@google/genai` WebSocket, 48 kHz PCM, weighted "strain" prompts throttled to
+200 ms, BPM/density/brightness/guidance config, 10-min sessions). Its
+`LyriaSession`, `audioUtils` (base64 PCM → AudioBuffer), and vibe/strain UI are
+being ported into a `lyria` generative node + `indirect-map` mapping node (M3).
+
+## Roadmap
+
+See `docs/ROADMAP.md` (milestones M0–M7) and the GitHub issues. v0 status: M0
+(baseline) and M1 (browser video→sound vertical slice) implemented; M2 (fixture
+record/replay) implemented. Next: M3 (Lyria generative node + indirect mapping).
