@@ -17,6 +17,10 @@ export { keyboardSourceNode } from './sources/keyboard';
 export { storeControlsNode } from './sources/store_controls';
 export { webAudioSynthNode } from './output/webaudio_synth';
 export { canvasOverlayNode } from './output/canvas_overlay';
+// The browser-only Lyria engine (implements the GenerativeEngine facade the
+// `lyria` node drives). The node itself is Node-safe and lives in CORE_NODES.
+export { LyriaEngine } from './output/lyria_engine';
+export type { LyriaEngineOptions } from './output/lyria_engine';
 
 export const BROWSER_NODES = [
   webcamHandsNode,
