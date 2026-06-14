@@ -49,3 +49,5 @@ Thumbs.db
 # Only ignore if you aren't using a monorepo or specific config
 # *.js
 # *.map
+# Agent session scratch (handoffs may contain local paths)
+.claude/
