@@ -71,6 +71,42 @@ export interface SynthParams {
   voices: VoiceParams[];
 }
 
+// ---- Face (MediaPipe Face Landmarker blendshapes) ------------------------
+
+/**
+ * One frame of face data: the 52 MediaPipe blendshape scores (each 0..1),
+ * keyed by name (e.g. `mouthSmileLeft`, `jawOpen`, `browInnerUp`). Produced by
+ * the browser `webcam-face` node or by `scripts/video_to_face.py`.
+ */
+export interface FaceFrame {
+  present: boolean;
+  blendshapes: Record<string, number>;
+}
+
+/** Normalized expression controls derived from blendshapes, all 0..1. */
+export interface FaceFeatures {
+  present: boolean;
+  /** Smile amount (mouth corners up). */
+  smile: number;
+  /** Jaw drop / open mouth. */
+  mouthOpen: number;
+  /** Eyebrows raised. */
+  browRaise: number;
+  /** Eyebrows furrowed/lowered. */
+  browFurrow: number;
+  /** Both eyes closed (blink). */
+  eyeBlink: number;
+}
+
+export const ABSENT_FACE: FaceFeatures = {
+  present: false,
+  smile: 0,
+  mouthOpen: 0,
+  browRaise: 0,
+  browFurrow: 0,
+  eyeBlink: 0,
+};
+
 // ---- MediaPipe Hands landmark indices ------------------------------------
 
 export const LM = {

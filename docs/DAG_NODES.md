@@ -23,6 +23,7 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 | Node `type` | Pure? | Inputs | Outputs | Purpose |
 |-------------|-------|--------|---------|---------|
 | `hand-features` | ✅ | `hands: HandsFrame` | `features: HandFeatures` | Landmarks → per-hand normalized `{present, x, y, openness, pinch}`. openness/pinch are scaled by per-hand size for camera-distance invariance. |
+| `face-features` | ✅ | `face: FaceFrame` | `features: FaceFeatures` | 52 blendshapes → normalized expression controls `{present, smile, mouthOpen, browRaise, browFurrow, eyeBlink}`, with gain + smoothing. Tested against the `video_face_expressions` fixture. (Browser `webcam-face` source feeds it; M4 wiring.) |
 
 ## Mapping (mapping layer — the direct↔indirect spectrum)
 
@@ -44,12 +45,13 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 
 - `Keypoint {x,y,z?,name?}`, `Hand {handedness, keypoints[]}`, `HandsFrame {width,height,hands[]}` — MediaPipe Hands 21-landmark layout (indices in `LM`).
 - `SingleHandFeatures {present, x, y, openness, pinch}` (all 0..1); `HandFeatures {left, right}`.
+- `FaceFrame {present, blendshapes: Record<string,number>}` (52 MediaPipe blendshapes); `FaceFeatures {present, smile, mouthOpen, browRaise, browFurrow, eyeBlink}` (all 0..1).
 - `VoiceParams {id, present, freq, gain, instrument}`; `SynthParams {voices[]}`.
 - `makeHandKeypoints(spec)` builds a plausible 21-point hand for synthetic data/tests.
 
 ## Planned nodes (see ROADMAP)
 
-`face-features` (52 blendshapes), `pose-features`, `gesture-classifier`
+`webcam-face` (browser FaceLandmarker source), `pose-features`, `gesture-classifier`
 (discrete events), `chord`/`voicing`/`progression` (Tonal.js), `score` +
 `performance` (conductor mode), `midi-in`/`midi-out` (WEBMIDI.js), signal
 conditioners (one-euro filter, hysteresis, debounce).
