@@ -1,0 +1,13 @@
+{
+  "scenario": "sweep_right",
+  "source": "synthetic",
+  "graphSpecHash": "2f5ab82804bf",
+  "ticks": 90,
+  "fps": 30,
+  "recordedKeys": [
+    "feat.features",
+    "map.params",
+    "src.hands"
+  ],
+  "recorderVersion": 1
+}
