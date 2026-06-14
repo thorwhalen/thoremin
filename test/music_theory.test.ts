@@ -1,0 +1,89 @@
+import { describe, it, expect } from 'vitest';
+import {
+  midiToFreq,
+  freqToMidi,
+  generateScale,
+  magneticPitch,
+  nearestScaleNote,
+  rangeMap,
+  midiToName,
+  DEFAULT_SCALE,
+} from '@/music/theory';
+
+describe('pitch conversions', () => {
+  it('midiToFreq / freqToMidi are inverse, A4 = 440', () => {
+    expect(midiToFreq(69)).toBeCloseTo(440, 6);
+    expect(midiToFreq(60)).toBeCloseTo(261.6256, 3);
+    expect(freqToMidi(440)).toBeCloseTo(69, 6);
+    expect(freqToMidi(midiToFreq(73))).toBeCloseTo(73, 6);
+  });
+  it('names notes', () => {
+    expect(midiToName(60)).toBe('C4');
+    expect(midiToName(69)).toBe('A4');
+    expect(midiToName(61)).toBe('C#4');
+  });
+});
+
+describe('scale generation', () => {
+  it('C major over 2 octaves, base octave 3', () => {
+    const s = generateScale(DEFAULT_SCALE);
+    // base = (3+1)*12 + 0 = 48 (C3); 7 notes/oct + completing top note
+    expect(s[0]).toBe(48);
+    expect(s).toContain(60); // C4
+    expect(s[s.length - 1]).toBe(48 + 24); // top C
+    expect(s).toEqual([...s].sort((a, b) => a - b)); // ascending
+    expect(new Set(s).size).toBe(s.length); // no dupes
+  });
+  it('pentatonic has 5 notes per octave', () => {
+    const s = generateScale({ root: 0, type: 'pentatonic', octaves: 1, baseOctave: 4 });
+    expect(s.length).toBe(6); // 5 + completing octave
+  });
+});
+
+describe('magneticPitch (tonal guidance)', () => {
+  const scale = generateScale({ root: 0, type: 'major', octaves: 1, baseOctave: 4 }); // C4..C5
+
+  it('magnetism 0 = free continuous glide spanning the scale range', () => {
+    expect(magneticPitch(0, scale, 0)).toBeCloseTo(scale[0], 6);
+    expect(magneticPitch(1, scale, 0)).toBeCloseTo(scale[scale.length - 1], 6);
+    const mid = magneticPitch(0.5, scale, 0);
+    expect(mid).toBeGreaterThan(scale[0]);
+    expect(mid).toBeLessThan(scale[scale.length - 1]);
+  });
+
+  it('magnetism 1 = hard snap to an actual scale note', () => {
+    for (const x of [0.07, 0.21, 0.33, 0.5, 0.7, 0.9]) {
+      const midi = magneticPitch(x, scale, 1);
+      expect(scale).toContain(Math.round(midi));
+      expect(midi).toBeCloseTo(Math.round(midi), 6);
+    }
+  });
+
+  it('is monotonic non-decreasing in x for any magnetism', () => {
+    for (const mag of [0, 0.5, 0.8, 1]) {
+      let prev = -Infinity;
+      for (let i = 0; i <= 50; i++) {
+        const v = magneticPitch(i / 50, scale, mag);
+        expect(v).toBeGreaterThanOrEqual(prev - 1e-9);
+        prev = v;
+      }
+    }
+  });
+
+  it('clamps x outside [0,1]', () => {
+    expect(magneticPitch(-1, scale, 0.5)).toBeCloseTo(scale[0], 6);
+    expect(magneticPitch(2, scale, 0.5)).toBeCloseTo(scale[scale.length - 1], 6);
+  });
+});
+
+describe('helpers', () => {
+  it('nearestScaleNote picks the closest member', () => {
+    expect(nearestScaleNote(61.4, [60, 62, 64])).toBe(62);
+    expect(nearestScaleNote(60.4, [60, 62, 64])).toBe(60);
+  });
+  it('rangeMap maps and clamps', () => {
+    expect(rangeMap(0.5, 0, 1, 0, 100)).toBe(50);
+    expect(rangeMap(-1, 0, 1, 0, 100)).toBe(0);
+    expect(rangeMap(2, 0, 1, 10, 20)).toBe(20);
+  });
+});

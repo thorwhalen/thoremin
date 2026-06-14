@@ -1,0 +1,13 @@
+{
+  "scenario": "two_hands",
+  "source": "synthetic",
+  "graphSpecHash": "2a75eaa9aba1",
+  "ticks": 90,
+  "fps": 30,
+  "recordedKeys": [
+    "feat.features",
+    "map.params",
+    "src.hands"
+  ],
+  "recorderVersion": 1
+}
