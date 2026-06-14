@@ -51,10 +51,35 @@ npm run record sweep_right
 and writes per-edge NDJSON + `meta.json`. Synthetic scenarios are camera-free,
 so committed fixtures are fully reproducible and diff-stable.
 
-**From a real webcam video:** decoding video → landmarks needs a browser, so it
-is a browser-side job — the live app can tap the `webcam-hands → hand-features`
-edges and download the NDJSON, which then drops into the same `test/fixtures/`
-layout and becomes a durable fixture. (Planned UI affordance; see ROADMAP M2/M4.)
+**From video (headless toolchain).** Real (or AI-generated) video is decoded
+into fixtures entirely headlessly with the MediaPipe Tasks models (same family as
+the JS `@mediapipe/tasks-vision`), run from an isolated venv so the shared pyenv
+env is never perturbed:
+
+```bash
+python3 -m venv media/.venv && media/.venv/bin/pip install mediapipe opencv-python
+
+# 1. (optional) generate targeted clips via falaw — needs FAL_KEY
+python scripts/gen_test_videos.py hand_sweep hand_open_close hand_pinch face_expressions
+
+# 2. video → hand landmarks (HandsFrame NDJSON)
+media/.venv/bin/python scripts/video_to_landmarks.py media/videos/hand_sweep.mp4 /tmp/hand_sweep.hands.ndjson
+
+# 3. landmarks → committed fixture (src.hands + feat.features + map.params + meta.json)
+vite-node scripts/build_video_fixture.ts video_hand_sweep /tmp/hand_sweep.hands.ndjson
+
+# faces (M4 prep): video → 52 blendshapes
+media/.venv/bin/python scripts/video_to_face.py media/videos/face_expressions.mp4 \
+  test/fixtures/video_face_expressions/face.blendshapes.ndjson
+```
+
+Raw `.mp4`s stay gitignored under `media/`; only the derived NDJSON is committed
+(`test/fixtures/video_*/`) and replayed by `test/video_fixtures.test.ts` — no
+camera/GPU in CI. Current committed video fixtures: `video_hand_sweep`,
+`video_hand_open_close`, `video_hand_pinch` (full hand pipeline) and
+`video_face_expressions` (blendshapes, for the M4 `face-features` node). All
+tracked at ~100% detection on the generated clips. A live in-app "record this
+edge → download NDJSON" affordance is still a nice-to-have (ROADMAP).
 
 ## Replaying in tests
 

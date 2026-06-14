@@ -51,3 +51,6 @@ Thumbs.db
 # *.map
 # Agent session scratch (handoffs may contain local paths)
 .claude/
+
+# Generated/large test media (commit derived NDJSON fixtures, not raw video)
+/media/

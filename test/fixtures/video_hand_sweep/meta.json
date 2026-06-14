@@ -1,0 +1,9 @@
+{
+  "scenario": "video_hand_sweep",
+  "source": "video",
+  "frames": 121,
+  "handDetectedFrames": 121,
+  "detectionRate": 100,
+  "srcHash": "2e4f3d6522ae",
+  "recorderVersion": 1
+}
