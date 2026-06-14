@@ -12,12 +12,19 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import { rangeMap } from '@/music/theory';
-import { ABSENT_HAND, type HandFeatures, type SingleHandFeatures } from '../domain';
+import { ABSENT_FACE, ABSENT_HAND, type FaceFeatures, type HandFeatures, type SingleHandFeatures } from '../domain';
 import type { GenerativeSteer, WeightedPrompt } from '../output/generative';
 
 const FeatureRef = z.object({
+  /** Which input to read from: a hand feature or a face expression control. */
+  source: z.enum(['hand', 'face']).default('hand'),
+  /** For source='hand': which hand. */
   hand: z.enum(['left', 'right']).default('right'),
-  feature: z.enum(['x', 'y', 'openness', 'pinch']).default('openness'),
+  /**
+   * Feature name. hand: x | y | openness | pinch. face: smile | mouthOpen |
+   * browRaise | browFurrow | eyeBlink.
+   */
+  feature: z.string().default('openness'),
   inMin: z.number().default(0),
   inMax: z.number().default(1),
 });
@@ -44,16 +51,28 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
-function readFeature(f: HandFeatures, hand: 'left' | 'right', key: 'x' | 'y' | 'openness' | 'pinch'): number {
-  const h: SingleHandFeatures = f[hand] ?? ABSENT_HAND;
-  return h.present ? h[key] : 0;
+type Ref = z.infer<typeof FeatureRef>;
+
+function readFeature(hands: HandFeatures, face: FaceFeatures, ref: Ref): number {
+  if (ref.source === 'face') {
+    if (!face.present) return 0;
+    const v = (face as unknown as Record<string, number>)[ref.feature];
+    return typeof v === 'number' ? v : 0;
+  }
+  const h: SingleHandFeatures = hands[ref.hand] ?? ABSENT_HAND;
+  if (!h.present) return 0;
+  const v = (h as unknown as Record<string, number>)[ref.feature];
+  return typeof v === 'number' ? v : 0;
 }
 
 export const indirectMapNode = defineNode<Params>({
   type: 'indirect-map',
   title: 'Indirect Map',
   description: 'Gesture features → weighted prompts + config dials (steers a generative engine).',
-  inputs: [{ name: 'features', kind: 'hand-features' }],
+  inputs: [
+    { name: 'features', kind: 'hand-features' },
+    { name: 'face', kind: 'face-features' },
+  ],
   outputs: [{ name: 'steer', kind: 'generative-steer' }],
   params: Params,
   make(p) {
@@ -72,10 +91,11 @@ export const indirectMapNode = defineNode<Params>({
     return {
       process(inputs, ctx) {
         const f = (inputs.features as HandFeatures | undefined) ?? { left: { ...ABSENT_HAND }, right: { ...ABSENT_HAND } };
+        const face = (inputs.face as FaceFeatures | undefined) ?? { ...ABSENT_FACE };
 
         // Always advance the smoothed state so it tracks even between emits.
         const prompts: WeightedPrompt[] = p.strains.map((s, i) => {
-          const raw = readFeature(f, s.hand, s.feature);
+          const raw = readFeature(f, face, s);
           const target = rangeMap(raw, s.inMin, s.inMax, s.weightMin, s.weightMax);
           const w = smooth(weights.get(i), target);
           weights.set(i, w);
@@ -83,7 +103,7 @@ export const indirectMapNode = defineNode<Params>({
         });
         const config: Record<string, number> = {};
         p.dials.forEach((d, i) => {
-          const raw = readFeature(f, d.hand, d.feature);
+          const raw = readFeature(f, face, d);
           const target = rangeMap(raw, d.inMin, d.inMax, d.outMin, d.outMax);
           const v = smooth(dialVals.get(i), target);
           dialVals.set(i, v);

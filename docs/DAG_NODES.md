@@ -31,7 +31,7 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 |-------------|-------|--------|---------|---------|
 | `voice-mapping` | ✅ | `features`; live overrides: `magnetism`, `octaveShift`, `mute`, `scaleRight`, `scaleLeft`, `instrumentRight`, `instrumentLeft` | `params: SynthParams` | **Direct** mapping: x→pitch (scale-snapped by magnetism), y→volume. Two voices (0=right, 1=left). |
 | `keyboard-control` | ✅ | `pressed: string[]` | `octaveShift`, `magnetism`, `mute` | Interprets key presses (arrows, `m`) into musical control values. |
-| `indirect-map` | ✅ | `features` | `steer: GenerativeSteer` | **Indirect** mapping: gesture features → weighted text prompts + config dials (density/brightness/bpm), with optional smoothing + throttle. Steers a generative engine. |
+| `indirect-map` | ✅ | `features` (hand), `face` (expressions) | `steer: GenerativeSteer` | **Indirect** mapping: hand features AND/OR face expressions → weighted text prompts + config dials (density/brightness/bpm), with optional smoothing + throttle. Each strain/dial picks its `source` (`hand`/`face`) + `feature`. Steers a generative engine. |
 
 ## Synthesis / output
 
