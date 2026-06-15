@@ -3,7 +3,7 @@
  * (non-silent), correctly-sized PCM, and silence in → silence out.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '../scripts/render_audio';
+import { render } from '../scripts/lib_audio';
 import type { SynthParams } from '@/nodes';
 
 const SR = 44100;
