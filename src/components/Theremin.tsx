@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as handPoseDetection from '@tensorflow-models/hand-pose-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import { useAudioEngine, VoiceSettings } from '../hooks/useAudioEngine';
-import { Activity, Sliders, Info } from 'lucide-react';
+import { Activity, Sliders, Info, BookOpen } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { NOTES, SCALE_TYPES, HandSettings, defaultSettings, generateScale } from '../constants';
 import SettingsPanel from './SettingsPanel';
@@ -178,6 +178,15 @@ export default function Theremin() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <a
+            href="manual.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Capabilities manual — all nodes & possibilities"
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <BookOpen className="w-5 h-5" />
+          </a>
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
