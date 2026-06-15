@@ -24,6 +24,7 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 |-------------|-------|--------|---------|---------|
 | `hand-features` | ✅ | `hands: HandsFrame` | `features: HandFeatures` | Landmarks → per-hand normalized `{present, x, y, openness, pinch}`. openness/pinch are scaled by per-hand size for camera-distance invariance. |
 | `face-features` | ✅ | `face: FaceFrame` | `features: FaceFeatures` | 52 blendshapes → normalized expression controls `{present, smile, mouthOpen, browRaise, browFurrow, eyeBlink}`, with gain + smoothing. Tested against the `video_face_expressions` fixture. (Browser `webcam-face` source feeds it; M4 wiring.) |
+| `gesture-classifier` | ✅ | `features: HandFeatures` | `poses`, `events` | Continuous features → DISCRETE poses (fist/open/pinch/neutral) per hand + enter/exit edge events, with hysteresis. The discrete-gesture modality: a pose can trigger things (scale change, chord stab, mute) rather than continuously modulate. |
 
 ## Mapping (mapping layer — the direct↔indirect spectrum)
 
@@ -66,7 +67,7 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 
 ## Planned nodes (see ROADMAP)
 
-`webcam-face` (browser FaceLandmarker source), `pose-features`, `gesture-classifier`
+`webcam-face` (browser FaceLandmarker source), `pose-features`
 (discrete events), `voicing` (smarter voice-leading),
 `midi-in`/`midi-out` (WEBMIDI.js), signal conditioners
 (one-euro filter, hysteresis, debounce), and a small adapter to feed a scalar
