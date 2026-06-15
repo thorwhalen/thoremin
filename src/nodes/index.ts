@@ -12,6 +12,7 @@ import { syntheticHandsNode } from './sources/synthetic_hands';
 import { replaySourceNode } from './sources/replay';
 import { handFeaturesNode } from './features/hand_features';
 import { faceFeaturesNode } from './features/face_features';
+import { gestureClassifierNode } from './features/gesture_classifier';
 import { voiceMappingNode } from './mapping/voice_mapping';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { indirectMapNode } from './mapping/indirect_map';
@@ -27,6 +28,8 @@ export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
 export { handFeaturesNode } from './features/hand_features';
 export { faceFeaturesNode } from './features/face_features';
+export { gestureClassifierNode } from './features/gesture_classifier';
+export type { Pose, GestureEvent } from './features/gesture_classifier';
 export { voiceMappingNode } from './mapping/voice_mapping';
 export { keyboardControlNode } from './mapping/keyboard_control';
 export { indirectMapNode } from './mapping/indirect_map';
@@ -46,6 +49,7 @@ export const CORE_NODES = [
   replaySourceNode,
   handFeaturesNode,
   faceFeaturesNode,
+  gestureClassifierNode,
   voiceMappingNode,
   keyboardControlNode,
   indirectMapNode,
