@@ -19,6 +19,9 @@ import { pickNode } from './mapping/pick';
 import { lyriaNode } from './output/lyria';
 import { chordNode } from './music/chord';
 import { progressionNode } from './music/progression';
+import { transportNode } from './music/transport';
+import { scoreNode } from './music/score';
+import { performanceNode } from './music/performance';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
@@ -31,6 +34,9 @@ export { pickNode } from './mapping/pick';
 export { lyriaNode } from './output/lyria';
 export { chordNode, voiceChord } from './music/chord';
 export { progressionNode } from './music/progression';
+export { transportNode } from './music/transport';
+export { scoreNode } from './music/score';
+export { performanceNode } from './music/performance';
 export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt } from './output/generative';
 export * from './domain';
 
@@ -47,6 +53,9 @@ export const CORE_NODES = [
   lyriaNode,
   chordNode,
   progressionNode,
+  transportNode,
+  scoreNode,
+  performanceNode,
 ];
 
 /** Build a registry pre-loaded with the pure node library. */

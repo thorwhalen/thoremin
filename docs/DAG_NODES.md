@@ -40,6 +40,14 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 | `chord` | ✅ | `chord` (symbol, e.g. "Cmaj7"), `gain` | `params: SynthParams` | Voices a chord symbol into one synth voice per chord tone (stacked ascending from `baseOctave`), so it drives `webaudio-synth` directly. Lets you *express harmony*. |
 | `progression` | ✅ | `position` (0..1) | `chord` (symbol), `index` | Holds a diatonic progression (Roman numerals in a `key`, correct qualities via `Key.majorKey().triads`) and selects the current chord from a continuous position — keeps harmony in-key while the player moves freely. Pair with `chord`: gesture → position → chord → notes. |
 
+## Conductor mode (M5 — direct a fixed piece with gesture)
+
+| Node `type` | Pure? | Inputs | Outputs | Purpose |
+|-------------|-------|--------|---------|---------|
+| `transport` | ✅ | `bpm` | `beat` | Beat clock: integrates BPM over `ctx.dt` into a running beat position. |
+| `score` | ✅ | `beat`, `velocityScale` | `params: SynthParams` | An immutable piece (notes with beat timing) performed live — emits the notes sounding at the current beat as voices, scaled by velocity. Loops. |
+| `performance` | ✅ | `control` (0..1) | `bpm`, `velocityScale` | The conductor's hand: maps a control signal → tempo + dynamics, with optional deterministic *humanization* (jitter). Chain: control → performance → transport → score. |
+
 ## Synthesis / output
 
 | Node `type` | Pure? | Inputs | Outputs | Purpose |
@@ -59,7 +67,7 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 ## Planned nodes (see ROADMAP)
 
 `webcam-face` (browser FaceLandmarker source), `pose-features`, `gesture-classifier`
-(discrete events), `voicing` (smarter voice-leading), `score` + `performance`
-(conductor mode), `midi-in`/`midi-out` (WEBMIDI.js), signal conditioners
+(discrete events), `voicing` (smarter voice-leading),
+`midi-in`/`midi-out` (WEBMIDI.js), signal conditioners
 (one-euro filter, hysteresis, debounce), and a small adapter to feed a scalar
 feature (e.g. hand x) into `progression.position`.
