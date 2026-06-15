@@ -1,0 +1,788 @@
+[
+  {
+    "type": "canvas-overlay",
+    "title": "Canvas Overlay",
+    "description": "Draws mirrored video + landmarks + control markers + HUD.",
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "features",
+        "kind": "hand-features"
+      }
+    ],
+    "outputs": [],
+    "params": [
+      {
+        "name": "showLandmarks",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "showVideo",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "videoAlpha",
+        "type": "number",
+        "default": 0.35
+      }
+    ]
+  },
+  {
+    "type": "chord",
+    "title": "Chord",
+    "description": "Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).",
+    "inputs": [
+      {
+        "name": "chord",
+        "kind": "chord-symbol",
+        "default": "C"
+      },
+      {
+        "name": "gain",
+        "kind": "number",
+        "default": 0.3
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      }
+    ],
+    "params": [
+      {
+        "name": "baseOctave",
+        "type": "number",
+        "default": 4
+      },
+      {
+        "name": "maxVoices",
+        "type": "number",
+        "default": 4
+      },
+      {
+        "name": "instrument",
+        "type": "enum(sine | square | sawtooth | triangle)",
+        "default": "sine"
+      }
+    ]
+  },
+  {
+    "type": "face-features",
+    "title": "Face Features",
+    "description": "Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).",
+    "inputs": [
+      {
+        "name": "face",
+        "kind": "face-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "features",
+        "kind": "face-features"
+      }
+    ],
+    "params": [
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "smoothing",
+        "type": "number",
+        "default": 0
+      }
+    ]
+  },
+  {
+    "type": "gesture-classifier",
+    "title": "Gesture Classifier",
+    "description": "Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.",
+    "inputs": [
+      {
+        "name": "features",
+        "kind": "hand-features"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "poses",
+        "kind": "poses"
+      },
+      {
+        "name": "events",
+        "kind": "gesture-events"
+      }
+    ],
+    "params": [
+      {
+        "name": "pinchOn",
+        "type": "number",
+        "default": 0.6
+      },
+      {
+        "name": "pinchOff",
+        "type": "number",
+        "default": 0.45
+      },
+      {
+        "name": "fistBelow",
+        "type": "number",
+        "default": 0.25
+      },
+      {
+        "name": "openAbove",
+        "type": "number",
+        "default": 0.6
+      },
+      {
+        "name": "hysteresis",
+        "type": "number",
+        "default": 0.05
+      }
+    ]
+  },
+  {
+    "type": "hand-features",
+    "title": "Hand Features",
+    "description": "Landmarks → normalized per-hand position, openness, pinch.",
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "features",
+        "kind": "hand-features"
+      }
+    ],
+    "params": [
+      {
+        "name": "mirrorX",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "opennessMin",
+        "type": "number",
+        "default": 1.3
+      },
+      {
+        "name": "opennessMax",
+        "type": "number",
+        "default": 2.3
+      },
+      {
+        "name": "pinchTouch",
+        "type": "number",
+        "default": 0.25
+      },
+      {
+        "name": "pinchApart",
+        "type": "number",
+        "default": 1.2
+      }
+    ]
+  },
+  {
+    "type": "indirect-map",
+    "title": "Indirect Map",
+    "description": "Gesture features → weighted prompts + config dials (steers a generative engine).",
+    "inputs": [
+      {
+        "name": "features",
+        "kind": "hand-features"
+      },
+      {
+        "name": "face",
+        "kind": "face-features"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "steer",
+        "kind": "generative-steer"
+      }
+    ],
+    "params": [
+      {
+        "name": "strains",
+        "type": "array",
+        "default": []
+      },
+      {
+        "name": "dials",
+        "type": "array",
+        "default": []
+      },
+      {
+        "name": "smoothing",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "throttleSec",
+        "type": "number",
+        "default": 0
+      }
+    ]
+  },
+  {
+    "type": "keyboard-control",
+    "title": "Keyboard Control",
+    "description": "Keyboard key-press events → octave shift, magnetism, mute.",
+    "inputs": [
+      {
+        "name": "pressed",
+        "kind": "string[]",
+        "default": []
+      }
+    ],
+    "outputs": [
+      {
+        "name": "octaveShift",
+        "kind": "number"
+      },
+      {
+        "name": "magnetism",
+        "kind": "number"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean"
+      }
+    ],
+    "params": [
+      {
+        "name": "magnetismStep",
+        "type": "number",
+        "default": 0.1
+      },
+      {
+        "name": "magnetismStart",
+        "type": "number",
+        "default": 0.8
+      },
+      {
+        "name": "octaveMin",
+        "type": "number",
+        "default": -2
+      },
+      {
+        "name": "octaveMax",
+        "type": "number",
+        "default": 2
+      }
+    ]
+  },
+  {
+    "type": "keyboard-source",
+    "title": "Keyboard Source",
+    "description": "Global keyboard input → held / pressed / released key events.",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "held",
+        "kind": "string[]"
+      },
+      {
+        "name": "pressed",
+        "kind": "string[]"
+      },
+      {
+        "name": "released",
+        "kind": "string[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "preventDefaultKeys",
+        "type": "array",
+        "default": [
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          " "
+        ]
+      }
+    ]
+  },
+  {
+    "type": "lyria",
+    "title": "Lyria Generative",
+    "description": "Steers a generative engine (Lyria RealTime) from weighted prompts + config dials.",
+    "inputs": [
+      {
+        "name": "steer",
+        "kind": "generative-steer"
+      },
+      {
+        "name": "playing",
+        "kind": "boolean",
+        "default": false
+      }
+    ],
+    "outputs": [
+      {
+        "name": "state",
+        "kind": "string"
+      }
+    ],
+    "params": [
+      {
+        "name": "throttleSec",
+        "type": "number",
+        "default": 0.2
+      }
+    ]
+  },
+  {
+    "type": "performance",
+    "title": "Performance",
+    "description": "Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.",
+    "inputs": [
+      {
+        "name": "control",
+        "kind": "number",
+        "default": 0.5
+      }
+    ],
+    "outputs": [
+      {
+        "name": "bpm",
+        "kind": "number"
+      },
+      {
+        "name": "velocityScale",
+        "kind": "number"
+      }
+    ],
+    "params": [
+      {
+        "name": "bpmMin",
+        "type": "number",
+        "default": 60
+      },
+      {
+        "name": "bpmMax",
+        "type": "number",
+        "default": 160
+      },
+      {
+        "name": "dynMin",
+        "type": "number",
+        "default": 0.4
+      },
+      {
+        "name": "dynMax",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "humanizeBpm",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "humanizeVel",
+        "type": "number",
+        "default": 0
+      }
+    ]
+  },
+  {
+    "type": "pick",
+    "title": "Pick",
+    "description": "Extract a scalar from a structured input by dotted path (e.g. right.x).",
+    "inputs": [
+      {
+        "name": "in",
+        "kind": "any"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "value",
+        "kind": "number"
+      }
+    ],
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "default": ""
+      },
+      {
+        "name": "default",
+        "type": "number",
+        "default": 0
+      }
+    ]
+  },
+  {
+    "type": "progression",
+    "title": "Progression",
+    "description": "Roman-numeral progression in a key + position (0..1) → current chord symbol.",
+    "inputs": [
+      {
+        "name": "position",
+        "kind": "number",
+        "default": 0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "chord",
+        "kind": "chord-symbol"
+      },
+      {
+        "name": "index",
+        "kind": "number"
+      }
+    ],
+    "params": [
+      {
+        "name": "key",
+        "type": "string",
+        "default": "C"
+      },
+      {
+        "name": "romanNumerals",
+        "type": "array",
+        "default": [
+          "I",
+          "IV",
+          "V",
+          "vi"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "replay-source",
+    "title": "Replay Source",
+    "description": "Emits a recorded value stream, one value per tick.",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "name": "values",
+        "type": "array",
+        "default": []
+      },
+      {
+        "name": "loop",
+        "type": "boolean",
+        "default": false
+      }
+    ]
+  },
+  {
+    "type": "score",
+    "title": "Score",
+    "description": "An immutable piece performed live: beat + velocityScale → sounding synth voices.",
+    "inputs": [
+      {
+        "name": "beat",
+        "kind": "number",
+        "default": 0
+      },
+      {
+        "name": "velocityScale",
+        "kind": "number",
+        "default": 1
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      }
+    ],
+    "params": [
+      {
+        "name": "notes",
+        "type": "array",
+        "default": []
+      },
+      {
+        "name": "loopBeats",
+        "type": "number",
+        "default": 8
+      },
+      {
+        "name": "baseGain",
+        "type": "number",
+        "default": 0.4
+      },
+      {
+        "name": "instrument",
+        "type": "enum(sine | square | sawtooth | triangle)",
+        "default": "triangle"
+      }
+    ]
+  },
+  {
+    "type": "store-controls",
+    "title": "UI Controls",
+    "description": "Reads the live UI control store → scale + instrument port values.",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "scaleRight",
+        "kind": "number[]"
+      },
+      {
+        "name": "scaleLeft",
+        "kind": "number[]"
+      },
+      {
+        "name": "instrumentRight",
+        "kind": "instrument"
+      },
+      {
+        "name": "instrumentLeft",
+        "kind": "instrument"
+      }
+    ],
+    "params": []
+  },
+  {
+    "type": "synthetic-hands",
+    "title": "Synthetic Hands",
+    "description": "Camera-free animated hand landmark source for tests & demos.",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      }
+    ],
+    "params": [
+      {
+        "name": "width",
+        "type": "number",
+        "default": 640
+      },
+      {
+        "name": "height",
+        "type": "number",
+        "default": 480
+      },
+      {
+        "name": "sweepPeriod",
+        "type": "number",
+        "default": 4
+      },
+      {
+        "name": "opennessPeriod",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "pinchPeriod",
+        "type": "number",
+        "default": 2.5
+      },
+      {
+        "name": "hands",
+        "type": "enum(right | left | both)",
+        "default": "right"
+      },
+      {
+        "name": "yNorm",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "scale",
+        "type": "number",
+        "default": 80
+      }
+    ]
+  },
+  {
+    "type": "transport",
+    "title": "Transport",
+    "description": "Beat clock: integrates BPM over time into a running beat position.",
+    "inputs": [
+      {
+        "name": "bpm",
+        "kind": "number",
+        "default": 120
+      }
+    ],
+    "outputs": [
+      {
+        "name": "beat",
+        "kind": "number"
+      }
+    ],
+    "params": [
+      {
+        "name": "startBeat",
+        "type": "number",
+        "default": 0
+      }
+    ]
+  },
+  {
+    "type": "voice-mapping",
+    "title": "Voice Mapping",
+    "description": "Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).",
+    "inputs": [
+      {
+        "name": "features",
+        "kind": "hand-features"
+      },
+      {
+        "name": "magnetism",
+        "kind": "number",
+        "description": "Override magnetism 0..1"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "description": "Transpose by N octaves",
+        "default": 0
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
+      },
+      {
+        "name": "scaleRight",
+        "kind": "number[]"
+      },
+      {
+        "name": "scaleLeft",
+        "kind": "number[]"
+      },
+      {
+        "name": "instrumentRight",
+        "kind": "instrument"
+      },
+      {
+        "name": "instrumentLeft",
+        "kind": "instrument"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      }
+    ],
+    "params": [
+      {
+        "name": "magnetism",
+        "type": "number",
+        "default": 0.8
+      },
+      {
+        "name": "maxGain",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "opennessGatesGain",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "right",
+        "type": "object",
+        "default": {
+          "scale": {
+            "root": 0,
+            "type": "major",
+            "octaves": 2,
+            "baseOctave": 3
+          },
+          "instrument": "sine"
+        }
+      },
+      {
+        "name": "left",
+        "type": "object",
+        "default": {
+          "scale": {
+            "root": 0,
+            "type": "major",
+            "octaves": 2,
+            "baseOctave": 3
+          },
+          "instrument": "triangle"
+        }
+      }
+    ]
+  },
+  {
+    "type": "webaudio-synth",
+    "title": "Web Audio Synth",
+    "description": "Renders synth params to oscillator voices (browser only).",
+    "inputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      }
+    ],
+    "outputs": [],
+    "params": [
+      {
+        "name": "freqGlide",
+        "type": "number",
+        "default": 0.03
+      },
+      {
+        "name": "gainGlide",
+        "type": "number",
+        "default": 0.08
+      }
+    ]
+  },
+  {
+    "type": "webcam-hands",
+    "title": "Webcam Hands",
+    "description": "MediaPipe hand landmark detection from a webcam video element.",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      }
+    ],
+    "params": [
+      {
+        "name": "modelType",
+        "type": "enum(lite | full)",
+        "default": "full"
+      },
+      {
+        "name": "maxHands",
+        "type": "number",
+        "default": 2
+      }
+    ]
+  }
+]
