@@ -352,6 +352,46 @@
     ]
   },
   {
+    "type": "one-euro",
+    "title": "One-Euro Filter",
+    "description": "Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).",
+    "inputs": [
+      {
+        "name": "value",
+        "kind": "number",
+        "default": 0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "value",
+        "kind": "number"
+      }
+    ],
+    "params": [
+      {
+        "name": "minCutoff",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "beta",
+        "type": "number",
+        "default": 0.01
+      },
+      {
+        "name": "dCutoff",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "fallbackDt",
+        "type": "number",
+        "default": 0.016666666666666666
+      }
+    ]
+  },
+  {
     "type": "performance",
     "title": "Performance",
     "description": "Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.",

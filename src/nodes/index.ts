@@ -17,6 +17,7 @@ import { voiceMappingNode } from './mapping/voice_mapping';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { indirectMapNode } from './mapping/indirect_map';
 import { pickNode } from './mapping/pick';
+import { oneEuroNode } from './mapping/one_euro';
 import { lyriaNode } from './output/lyria';
 import { chordNode } from './music/chord';
 import { progressionNode } from './music/progression';
@@ -34,6 +35,7 @@ export { voiceMappingNode } from './mapping/voice_mapping';
 export { keyboardControlNode } from './mapping/keyboard_control';
 export { indirectMapNode } from './mapping/indirect_map';
 export { pickNode } from './mapping/pick';
+export { oneEuroNode } from './mapping/one_euro';
 export { lyriaNode } from './output/lyria';
 export { chordNode, voiceChord } from './music/chord';
 export { progressionNode } from './music/progression';
@@ -54,6 +56,7 @@ export const CORE_NODES = [
   keyboardControlNode,
   indirectMapNode,
   pickNode,
+  oneEuroNode,
   lyriaNode,
   chordNode,
   progressionNode,

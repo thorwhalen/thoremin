@@ -32,7 +32,9 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 |-------------|-------|--------|---------|---------|
 | `voice-mapping` | ✅ | `features`; live overrides: `magnetism`, `octaveShift`, `mute`, `scaleRight`, `scaleLeft`, `instrumentRight`, `instrumentLeft` | `params: SynthParams` | **Direct** mapping: x→pitch (scale-snapped by magnetism), y→volume. Two voices (0=right, 1=left). |
 | `keyboard-control` | ✅ | `pressed: string[]` | `octaveShift`, `magnetism`, `mute` | Interprets key presses (arrows, `m`) into musical control values. |
-| `indirect-map` | ✅ | `features` (hand), `face` (expressions) | `steer: GenerativeSteer` | **Indirect** mapping: hand features AND/OR face expressions → weighted text prompts + config dials (density/brightness/bpm), with optional smoothing + throttle. Each strain/dial picks its `source` (`hand`/`face`) + `feature`. Steers a generative engine. |
+| `indirect-map` | ✅ | `features` (hand), `face` (expressions) | `steer: GenerativeSteer` | **Indirect** mapping: hand features AND/OR face expressions → weighted text prompts + config dials (density/brightness/bpm), with optional smoothing + throttle. Each strain/dial picks its `source` (`hand`/`face`) + `feature` (enum-validated). Steers a generative engine. |
+| `pick` | ✅ | `in` (any) | `value: number` | Adapter: extract a scalar from a structured input by dotted path (e.g. `right.x` from HandFeatures). Bridges object-output nodes to scalar-input nodes. |
+| `one-euro` | ✅ | `value: number` | `value: number` | The 1€ filter — adaptive jitter smoothing (smooth at rest, responsive on fast moves). Drop between a feature and a mapping to de-noise gesture input. |
 
 ## Music-logic (tonal guidance — Tonal.js)
 
@@ -67,8 +69,8 @@ Build a registry with `createCoreRegistry()` (pure nodes) or `createAppRegistry(
 
 ## Planned nodes (see ROADMAP)
 
-`webcam-face` (browser FaceLandmarker source), `pose-features`
-(discrete events), `voicing` (smarter voice-leading),
-`midi-in`/`midi-out` (WEBMIDI.js), signal conditioners
-(one-euro filter, hysteresis, debounce), and a small adapter to feed a scalar
-feature (e.g. hand x) into `progression.position`.
+`webcam-face` (browser FaceLandmarker source), `pose-features` (body pose),
+`voicing` (smarter voice-leading), `midi-in`/`midi-out` (WEBMIDI.js), and other
+signal conditioners (hysteresis, debounce). The biggest remaining piece is the
+**M3 live-app wiring** — running the deployed app through the DAG (needs a
+browser session: camera + Gemini key).
