@@ -19,7 +19,7 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(true);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black font-mono text-white">
+    <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">
       {/* Hidden webcam feed; the DAG draws the mirrored video + overlays to the
           canvas. The buffer is sized to the camera's native resolution in
           useEngine (so the draw is crisp); object-cover then fills the whole
@@ -53,7 +53,7 @@ export default function App() {
       {/* Top-right: collapsible controls — open by default (available), minimize
           to a single gear once you've set things up. */}
       {panelOpen ? (
-        <div className="absolute right-3 top-3 flex max-h-[calc(100vh-1.5rem)] w-72 flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur">
+        <div className="absolute right-3 top-3 flex max-h-[calc(100dvh-1.5rem)] w-72 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
             <span className="text-[11px] font-bold uppercase tracking-widest text-white/70">Controls</span>
             <button
