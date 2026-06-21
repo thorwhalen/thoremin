@@ -1,5 +1,5 @@
 {
-  "//": "Scoped strict typecheck for the DAG engine, node library, music helpers, tests and scripts. The deployable React app is built (and type-erased) by Vite; this config keeps the DAG layer honest without coupling to the app's looser config.",
+  "//": "Scoped strict typecheck for the DAG engine, node library, music helpers, the non-React DAG app glue (src/app/graph.ts; src/app/store.ts is pulled in transitively by tests), tests and scripts. The React layer (src/main.tsx, src/app/{App,ControlsPanel,useEngine}.tsx and the legacy wips app) is built and type-erased by Vite/esbuild — the project ships no @types/react — so it stays out of this config, which is Node-oriented (types: node + vitest).",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strict": true,
