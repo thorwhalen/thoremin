@@ -159,7 +159,7 @@ describe('Recording & replay', () => {
   it('replays a recorded stream into a downstream node in isolation', async () => {
     // Pretend "c.n" was recorded earlier; replay it into a fresh affine node.
     const recordedA = [0, 2, 4, 6];
-    const outs = await replayNode(affine.make({ gain: 5 }), { a: recordedA });
+    const outs = await replayNode(affine.make(affine.params.parse({ gain: 5 })), { a: recordedA });
     expect(outs.map((o) => o.out)).toEqual([0, 10, 20, 30]);
   });
 });

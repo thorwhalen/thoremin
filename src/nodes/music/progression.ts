@@ -11,12 +11,19 @@ import { z } from 'zod';
 import { Key } from 'tonal';
 import { defineNode } from '@/dag';
 
-const Params = z.object({
-  /** Tonic key for the Roman-numeral progression, e.g. "C", "G", "Eb". */
-  key: z.string().default('C'),
-  /** The progression as Roman numerals. */
-  romanNumerals: z.array(z.string()).default(['I', 'IV', 'V', 'vi']),
-});
+const Params = z
+  .object({
+    /** Tonic key for the Roman-numeral progression, e.g. "C", "G", "Eb". */
+    key: z.string().default('C'),
+    /** The progression as Roman numerals. */
+    romanNumerals: z.array(z.string()).default(['I', 'IV', 'V', 'vi']),
+  })
+  // Fail fast on a key Tonal can't resolve to 7 diatonic triads (e.g. 'H',
+  // 'Dm', '') — otherwise it would silently degrade to a single-chord loop.
+  .refine((p) => Key.majorKey(p.key).triads.length === 7, {
+    message: 'key must be a valid major key (e.g. "C", "G", "Eb")',
+    path: ['key'],
+  });
 type Params = z.infer<typeof Params>;
 
 function clamp01(v: number): number {

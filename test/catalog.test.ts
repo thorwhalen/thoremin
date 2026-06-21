@@ -40,12 +40,28 @@ describe('buildCatalog', () => {
     expect(names).toEqual(expect.arrayContaining(['mirrorX', 'opennessMin', 'pinchApart']));
     expect(hf.params.find((p) => p.name === 'opennessMin')).toMatchObject({ type: 'number', default: 1.3 });
 
-    // an enum param surfaces its options
-    const inst = byType['voice-mapping']; // has nested objects; ensure no throw + some params
-    expect(inst.params.length).toBeGreaterThan(0);
+    // voice-mapping has nested ZodObject params (right/left) — introspection
+    // must surface every top-level param name, not silently drop them.
+    const vm = byType['voice-mapping'];
+    expect(vm.params.map((p) => p.name)).toEqual(
+      expect.arrayContaining(['magnetism', 'maxGain', 'opennessGatesGain', 'right', 'left']),
+    );
   });
 
   it('is JSON-serializable (for the frontend manual)', () => {
     expect(() => JSON.stringify(catalog)).not.toThrow();
+  });
+
+  it('introspects the FULL app registry (incl. browser nodes) without dropping or throwing', async () => {
+    // Resilience: buildCatalog must never throw on any registered node's schema,
+    // and must cover every node — guards the try/catch fallback in paramsOf from
+    // silently hiding a broken introspection path.
+    const { createAppRegistry } = await import('@/nodes/browser');
+    const appReg = createAppRegistry();
+    const full = buildCatalog(appReg);
+    expect(full.length).toBe(appReg.list().length);
+    expect(full.every((e) => e.title.length > 0 && e.description.length > 0)).toBe(true);
+    // every entry has well-formed (array) port/param lists
+    expect(full.every((e) => Array.isArray(e.inputs) && Array.isArray(e.outputs) && Array.isArray(e.params))).toBe(true);
   });
 });
