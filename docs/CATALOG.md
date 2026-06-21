@@ -21,7 +21,7 @@ This page catalogs the engine's building blocks — every node and how they conn
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
   Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.
 
-## Nodes (20)
+## Nodes (21)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -115,6 +115,13 @@ Extract a scalar from a structured input by dotted path (e.g. right.x).
 - **in:** in:any
 - **out:** value:number
 - **params:** path (string=""), default (number=0)
+
+#### `one-euro` — One-Euro Filter
+Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).
+
+- **in:** value:number
+- **out:** value:number
+- **params:** minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)
 
 ### Music logic (tonal guidance)
 _Harmony kept in-key._
