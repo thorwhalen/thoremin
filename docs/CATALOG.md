@@ -93,7 +93,7 @@ Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).
 
 - **in:** features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument
 - **out:** params:synth-params
-- **params:** magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"triangle"})
+- **params:** magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"triangle"})
 
 #### `indirect-map` — Indirect Map
 Gesture features → weighted prompts + config dials (steers a generative engine).

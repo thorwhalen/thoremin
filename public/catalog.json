@@ -764,6 +764,11 @@
         "default": true
       },
       {
+        "name": "pinchControlsVibrato",
+        "type": "boolean",
+        "default": true
+      },
+      {
         "name": "right",
         "type": "object",
         "default": {

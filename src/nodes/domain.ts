@@ -73,6 +73,12 @@ export interface VoiceParams {
    * timbre expressively. Optional; absent is treated as 1 (fully open).
    */
   brightness?: number;
+  /**
+   * Live vibrato amount, 0 (none) .. 1 (full). Adds pitch wobble on top of any
+   * preset vibrato, so gestures (e.g. pinch) add expression. Optional; absent
+   * is treated as 0 (no added vibrato).
+   */
+  vibrato?: number;
 }
 
 export interface SynthParams {
