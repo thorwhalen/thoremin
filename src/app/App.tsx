@@ -21,17 +21,12 @@ export default function App() {
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black font-mono text-white">
       {/* Hidden webcam feed; the DAG draws the mirrored video + overlays to the
-          canvas. object-cover fills the whole viewport (the video is the primary
-          cue) by scaling uniformly and cropping the overflow edges — overlay and
-          landmarks scale with it, and hand tracking still runs on the full frame
-          even where edges are cropped from view. */}
+          canvas. The buffer is sized to the camera's native resolution in
+          useEngine (so the draw is crisp); object-cover then fills the whole
+          viewport (the video is the primary cue), scaling uniformly and cropping
+          only the overflow edges. Tracking still runs on the full frame. */}
       <video ref={videoRef} autoPlay playsInline muted className="hidden" />
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={480}
-        className="absolute inset-0 h-full w-full object-cover"
-      />
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
 
       {/* Top-left: minimal brand + status. pointer-events-none so it never
           intercepts clicks over the video. */}
