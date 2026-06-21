@@ -19,6 +19,7 @@ import {
   midiToFreq,
   type ScaleTypeId,
 } from '@/music/theory';
+import { InstrumentSchema, INSTRUMENT_IDS } from '@/music/instruments';
 import { ABSENT_HAND, type HandFeatures, type SynthParams, type VoiceParams } from '../domain';
 
 const ScaleParams = z.object({
@@ -30,7 +31,7 @@ const ScaleParams = z.object({
   baseOctave: z.number().int().min(0).max(7).default(3),
 });
 
-const Instrument = z.enum(['sine', 'square', 'sawtooth', 'triangle']);
+const Instrument = InstrumentSchema;
 
 const Params = z.object({
   /** 0 = free glide, 1 = hard snap to scale notes. */
@@ -112,11 +113,10 @@ export const voiceMappingNode = defineNode<Params>({
       ? inputs.scaleLeft
       : generateScale({ ...p.left.scale, type: p.left.scale.type as ScaleTypeId });
 
-    const INSTRUMENTS = ['sine', 'square', 'sawtooth', 'triangle'];
-    const instR = (INSTRUMENTS.includes(inputs.instrumentRight as string)
+    const instR = ((INSTRUMENT_IDS as string[]).includes(inputs.instrumentRight as string)
       ? (inputs.instrumentRight as VoiceParams['instrument'])
       : p.right.instrument);
-    const instL = (INSTRUMENTS.includes(inputs.instrumentLeft as string)
+    const instL = ((INSTRUMENT_IDS as string[]).includes(inputs.instrumentLeft as string)
       ? (inputs.instrumentLeft as VoiceParams['instrument'])
       : p.left.instrument);
 

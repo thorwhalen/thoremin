@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { Chord, Note } from 'tonal';
 import { defineNode } from '@/dag';
 import { midiToFreq } from '@/music/theory';
+import { InstrumentSchema } from '@/music/instruments';
 import type { SynthParams, VoiceParams } from '../domain';
 
 const Params = z.object({
@@ -20,7 +21,7 @@ const Params = z.object({
   baseOctave: z.number().int().min(0).max(7).default(4),
   /** Cap the number of voices (chord tones) emitted. */
   maxVoices: z.number().int().min(1).max(8).default(4),
-  instrument: z.enum(['sine', 'square', 'sawtooth', 'triangle']).default('sine'),
+  instrument: InstrumentSchema.default('sine'),
 });
 type Params = z.infer<typeof Params>;
 

@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import { midiToFreq } from '@/music/theory';
+import { InstrumentSchema } from '@/music/instruments';
 import type { SynthParams, VoiceParams } from '../domain';
 
 const Note = z.object({
@@ -30,7 +31,7 @@ const Params = z.object({
   loopBeats: z.number().min(0).default(8),
   /** Base output gain multiplier. */
   baseGain: z.number().min(0).max(1).default(0.4),
-  instrument: z.enum(['sine', 'square', 'sawtooth', 'triangle']).default('triangle'),
+  instrument: InstrumentSchema.default('triangle'),
 });
 type Params = z.infer<typeof Params>;
 

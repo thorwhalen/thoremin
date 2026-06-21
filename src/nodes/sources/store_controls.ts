@@ -11,13 +11,14 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { generateScale, type ScaleTypeId } from '@/music/theory';
+import type { InstrumentId } from '@/music/instruments';
 
 export interface VoiceControlSnapshot {
   root: number;
   type: ScaleTypeId;
   octaves: number;
   baseOctave: number;
-  instrument: 'sine' | 'square' | 'sawtooth' | 'triangle';
+  instrument: InstrumentId;
 }
 export interface ControlSnapshot {
   right: VoiceControlSnapshot;

@@ -6,6 +6,7 @@
  * Landmark indices follow MediaPipe Hands (21 points). We also tolerate named
  * keypoints (as emitted by @tensorflow-models/hand-pose-detection).
  */
+import type { InstrumentId } from '@/music/instruments';
 
 export interface Keypoint {
   x: number;
@@ -64,7 +65,8 @@ export interface VoiceParams {
   present: boolean;
   freq: number;
   gain: number;
-  instrument: 'sine' | 'square' | 'sawtooth' | 'triangle';
+  /** Instrument timbre — an id from the {@link InstrumentId} registry. */
+  instrument: InstrumentId;
 }
 
 export interface SynthParams {

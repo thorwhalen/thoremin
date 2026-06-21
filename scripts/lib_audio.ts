@@ -5,12 +5,16 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { getInstrument, type OscType } from '@/music/instruments';
 import type { SynthParams, VoiceParams } from '@/nodes';
 
 export const SR = 44100;
 const MASTER = 0.25;
 
-function wave(phase: number, type: VoiceParams['instrument']): number {
+// Offline rendering is a simple single-oscillator approximation of each preset:
+// it plays the preset's primary partial waveform (no filter/vibrato/reverb),
+// which is enough for headless WAV demos and tests.
+function wave(phase: number, type: OscType): number {
   const p = phase - Math.floor(phase); // 0..1
   switch (type) {
     case 'square':
@@ -58,7 +62,7 @@ export function render(frames: SynthParams[], dt: number): Float32Array {
         const g = lerp(st.gain, curGain, frac); // ramp within tick (declick)
         const f = lerp(st.freq, target.freq, frac);
         st.phase += f / SR;
-        acc += wave(st.phase, target.instrument) * g;
+        acc += wave(st.phase, getInstrument(target.instrument).partials[0].type) * g;
       }
       out[s++] = Math.max(-1, Math.min(1, acc * MASTER));
     }

@@ -131,7 +131,7 @@ Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
 
 - **in:** chord:chord-symbol, gain:number
 - **out:** params:synth-params
-- **params:** baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | square | sawtooth | triangle)="sine")
+- **params:** baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)="sine")
 
 #### `progression` — Progression
 Roman-numeral progression in a key + position (0..1) → current chord symbol.
@@ -155,7 +155,7 @@ An immutable piece performed live: beat + velocityScale → sounding synth voice
 
 - **in:** beat:number, velocityScale:number
 - **out:** params:synth-params
-- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | square | sawtooth | triangle)="triangle")
+- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)="triangle")
 
 #### `performance` — Performance
 Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.
@@ -168,7 +168,7 @@ Control signal → tempo (bpm) + dynamics (velocityScale), with optional humaniz
 _Make sound — direct synthesis or steered AI music._
 
 #### `webaudio-synth` — Web Audio Synth
-Renders synth params to oscillator voices (browser only).
+Renders synth params to instrument-preset voices (browser only).
 
 - **in:** params:synth-params
 - **out:** —

@@ -73,7 +73,14 @@ export function useThoreminEngine() {
         setStatus('ready');
 
         const loop = () => {
-          engine.tick(performance.now() / 1000);
+          // Guard the tick: one node throwing on a frame (e.g. a degenerate
+          // value) must never stop the loop — drop that frame and keep going,
+          // so audio + video recover instead of freezing permanently.
+          try {
+            engine.tick(performance.now() / 1000);
+          } catch (err) {
+            console.error('[thoremin] engine tick error (frame dropped)', err);
+          }
           rafRef.current = requestAnimationFrame(loop);
         };
         rafRef.current = requestAnimationFrame(loop);
