@@ -9,12 +9,15 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { LM, type HandFeatures, type HandsFrame, type SingleHandFeatures } from '../domain';
+import { freqToMidi, midiToName } from '@/music/theory';
+import { LM, type HandFeatures, type HandsFrame, type SingleHandFeatures, type SynthParams } from '../domain';
 
 const Params = z.object({
   showLandmarks: z.boolean().default(true),
   showVideo: z.boolean().default(true),
   videoAlpha: z.number().min(0).max(1).default(0.35),
+  /** Show the note name each hand is currently playing, above its marker. */
+  showNotes: z.boolean().default(true),
 });
 type Params = z.infer<typeof Params>;
 
@@ -24,10 +27,13 @@ const LEFT_COLOR = '#3b82f6';
 export const canvasOverlayNode = defineNode<Params>({
   type: 'canvas-overlay',
   title: 'Canvas Overlay',
-  description: 'Draws mirrored video + landmarks + control markers + HUD.',
+  description: 'Draws mirrored video + landmarks + control markers + per-hand note names.',
   inputs: [
     { name: 'hands', kind: 'hands-frame' },
     { name: 'features', kind: 'hand-features' },
+    // Optional: the synth params (voice 0 = right, 1 = left) so the overlay can
+    // label each hand with the note it is sounding. Unconnected → no labels.
+    { name: 'params', kind: 'synth-params' },
   ],
   outputs: [],
   params: Params,
@@ -82,8 +88,18 @@ export const canvasOverlayNode = defineNode<Params>({
           }
         }
 
-        // Control markers from features (x already mirrored, matches video).
-        const drawMarker = (f: SingleHandFeatures, color: string) => {
+        // The synth params let us label each hand with the note it's sounding
+        // (voice 0 = right, 1 = left, by convention).
+        const sp = inputs.params as SynthParams | undefined;
+        const noteFor = (voiceId: number): string | null => {
+          const v = sp?.voices?.[voiceId];
+          if (!v || !v.present || v.freq <= 0) return null;
+          return midiToName(freqToMidi(v.freq));
+        };
+
+        // Control markers from features (x already mirrored, matches video),
+        // with the current note drawn above each present hand.
+        const drawMarker = (f: SingleHandFeatures, color: string, note: string | null) => {
           if (!f.present) return;
           const sx = f.x * W;
           const sy = f.y * H;
@@ -99,27 +115,17 @@ export const canvasOverlayNode = defineNode<Params>({
           g.arc(sx, sy, 8, 0, Math.PI * 2);
           g.fill();
           g.globalAlpha = 1;
+          if (p.showNotes && note) {
+            g.fillStyle = color;
+            g.font = 'bold 22px monospace';
+            g.textAlign = 'center';
+            g.fillText(note, sx, sy - ring - 10);
+            g.textAlign = 'left';
+          }
         };
         if (feats) {
-          drawMarker(feats.right, RIGHT_COLOR);
-          drawMarker(feats.left, LEFT_COLOR);
-
-          // HUD
-          g.fillStyle = 'rgba(255,255,255,0.7)';
-          g.font = '11px monospace';
-          const hud = (label: string, f: SingleHandFeatures, y: number) => {
-            if (!f.present) {
-              g.fillText(`${label}: --`, 8, y);
-              return;
-            }
-            g.fillText(
-              `${label}  x:${f.x.toFixed(2)} y:${f.y.toFixed(2)} open:${f.openness.toFixed(2)} pinch:${f.pinch.toFixed(2)}`,
-              8,
-              y,
-            );
-          };
-          hud('R', feats.right, H - 24);
-          hud('L', feats.left, H - 8);
+          drawMarker(feats.right, RIGHT_COLOR, noteFor(0));
+          drawMarker(feats.left, LEFT_COLOR, noteFor(1));
         }
 
         return {};

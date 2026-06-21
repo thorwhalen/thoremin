@@ -39,6 +39,8 @@ export function defaultGraph(): GraphSpec {
       { from: { node: 'ui', port: 'instrumentRight' }, to: { node: 'map', port: 'instrumentRight' } },
       { from: { node: 'ui', port: 'instrumentLeft' }, to: { node: 'map', port: 'instrumentLeft' } },
       { from: { node: 'map', port: 'params' }, to: { node: 'synth', port: 'params' } },
+      // Also feed params to the overlay so it can label each hand's note.
+      { from: { node: 'map', port: 'params' }, to: { node: 'overlay', port: 'params' } },
     ],
   };
 }

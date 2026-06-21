@@ -2,7 +2,7 @@
   {
     "type": "canvas-overlay",
     "title": "Canvas Overlay",
-    "description": "Draws mirrored video + landmarks + control markers + HUD.",
+    "description": "Draws mirrored video + landmarks + control markers + per-hand note names.",
     "inputs": [
       {
         "name": "hands",
@@ -11,6 +11,10 @@
       {
         "name": "features",
         "kind": "hand-features"
+      },
+      {
+        "name": "params",
+        "kind": "synth-params"
       }
     ],
     "outputs": [],
@@ -29,6 +33,11 @@
         "name": "videoAlpha",
         "type": "number",
         "default": 0.35
+      },
+      {
+        "name": "showNotes",
+        "type": "boolean",
+        "default": true
       }
     ]
   },
