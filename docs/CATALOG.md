@@ -93,7 +93,7 @@ Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).
 
 - **in:** features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument
 - **out:** params:synth-params
-- **params:** magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"triangle"})
+- **params:** magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"triangle"})
 
 #### `indirect-map` — Indirect Map
 Gesture features → weighted prompts + config dials (steers a generative engine).
@@ -131,7 +131,7 @@ Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
 
 - **in:** chord:chord-symbol, gain:number
 - **out:** params:synth-params
-- **params:** baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)="sine")
+- **params:** baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")
 
 #### `progression` — Progression
 Roman-numeral progression in a key + position (0..1) → current chord symbol.
@@ -155,7 +155,7 @@ An immutable piece performed live: beat + velocityScale → sounding synth voice
 
 - **in:** beat:number, velocityScale:number
 - **out:** params:synth-params
-- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)="triangle")
+- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")
 
 #### `performance` — Performance
 Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.

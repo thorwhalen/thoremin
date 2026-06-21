@@ -40,6 +40,8 @@ const Params = z.object({
   maxGain: z.number().min(0).max(1).default(0.5),
   /** If true, a closed fist mutes the voice (openness gates gain). */
   opennessGatesGain: z.boolean().default(false),
+  /** If true, hand openness shapes tone brightness (open = brighter). */
+  opennessControlsBrightness: z.boolean().default(true),
   right: z.object({ scale: ScaleParams, instrument: Instrument.default('sine') }).default({
     scale: ScaleParams.parse({}),
     instrument: 'sine',
@@ -67,13 +69,16 @@ function voiceFor(
   ctrl: Control,
 ): VoiceParams {
   if (!feat.present || ctrl.mute) {
-    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument };
+    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument, brightness: 1 };
   }
   const midi = magneticPitch(feat.x, scaleMidis, ctrl.magnetism) + ctrl.octaveShift * 12;
   const freq = midiToFreq(midi);
   let gain = (1 - feat.y) * p.maxGain;
   if (p.opennessGatesGain) gain *= feat.openness;
-  return { id, present: true, freq, gain, instrument };
+  // Openness shapes brightness: closed hand stays mellow (0.3) but never fully
+  // muffled; open hand is fully present (1.0). Off → neutral (fully open).
+  const brightness = p.opennessControlsBrightness ? 0.3 + 0.7 * feat.openness : 1;
+  return { id, present: true, freq, gain, instrument, brightness };
 }
 
 export const voiceMappingNode = defineNode<Params>({
