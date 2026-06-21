@@ -8,17 +8,24 @@ import { describe, it, expect } from 'vitest';
 import { replayNode } from '@/dag';
 import { voiceMappingNode, ABSENT_HAND, type HandFeatures, type SynthParams } from '@/nodes';
 
-function feats(openness: number): HandFeatures {
+function feats(openness: number, pinch = 0): HandFeatures {
   return {
     left: { ...ABSENT_HAND },
-    right: { ...ABSENT_HAND, present: true, x: 0.5, y: 0.3, openness, pinch: 0 },
+    right: { ...ABSENT_HAND, present: true, x: 0.5, y: 0.3, openness, pinch },
   };
 }
 
-async function rightBrightness(openness: number, params: Record<string, unknown> = {}): Promise<number> {
+async function rightVoice(
+  feature: HandFeatures,
+  params: Record<string, unknown> = {},
+): Promise<SynthParams['voices'][number]> {
   const node = voiceMappingNode.make(voiceMappingNode.params.parse(params));
-  const out = await replayNode(node, { features: [feats(openness)] });
-  return (out[0].params as SynthParams).voices[0].brightness!;
+  const out = await replayNode(node, { features: [feature] });
+  return (out[0].params as SynthParams).voices[0];
+}
+
+async function rightBrightness(openness: number, params: Record<string, unknown> = {}): Promise<number> {
+  return (await rightVoice(feats(openness), params)).brightness!;
 }
 
 describe('openness → brightness expression', () => {
@@ -39,5 +46,17 @@ describe('openness → brightness expression', () => {
   it('is neutral (1) when opennessControlsBrightness is off', async () => {
     expect(await rightBrightness(0, { opennessControlsBrightness: false })).toBe(1);
     expect(await rightBrightness(1, { opennessControlsBrightness: false })).toBe(1);
+  });
+});
+
+describe('pinch → vibrato expression', () => {
+  it('pinching adds vibrato; an open pinch adds none (default on)', async () => {
+    expect((await rightVoice(feats(0.5, 1))).vibrato).toBeCloseTo(1, 5);
+    expect((await rightVoice(feats(0.5, 0))).vibrato).toBeCloseTo(0, 5);
+  });
+
+  it('clamps to 0..1 and is 0 when pinchControlsVibrato is off', async () => {
+    expect(await (async () => (await rightVoice(feats(0.5, 5))).vibrato)()).toBeLessThanOrEqual(1);
+    expect((await rightVoice(feats(0.5, 1), { pinchControlsVibrato: false })).vibrato).toBe(0);
   });
 });

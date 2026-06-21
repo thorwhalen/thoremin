@@ -42,6 +42,8 @@ const Params = z.object({
   opennessGatesGain: z.boolean().default(false),
   /** If true, hand openness shapes tone brightness (open = brighter). */
   opennessControlsBrightness: z.boolean().default(true),
+  /** If true, pinch (thumb-index) adds vibrato (pinch = more wobble). */
+  pinchControlsVibrato: z.boolean().default(true),
   right: z.object({ scale: ScaleParams, instrument: Instrument.default('sine') }).default({
     scale: ScaleParams.parse({}),
     instrument: 'sine',
@@ -69,7 +71,7 @@ function voiceFor(
   ctrl: Control,
 ): VoiceParams {
   if (!feat.present || ctrl.mute) {
-    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument, brightness: 1 };
+    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument, brightness: 1, vibrato: 0 };
   }
   const midi = magneticPitch(feat.x, scaleMidis, ctrl.magnetism) + ctrl.octaveShift * 12;
   const freq = midiToFreq(midi);
@@ -78,7 +80,9 @@ function voiceFor(
   // Openness shapes brightness: closed hand stays mellow (0.3) but never fully
   // muffled; open hand is fully present (1.0). Off → neutral (fully open).
   const brightness = p.opennessControlsBrightness ? 0.3 + 0.7 * feat.openness : 1;
-  return { id, present: true, freq, gain, instrument, brightness };
+  // Pinch adds vibrato (0 = none .. 1 = full wobble). Off → none.
+  const vibrato = p.pinchControlsVibrato ? Math.max(0, Math.min(1, feat.pinch)) : 0;
+  return { id, present: true, freq, gain, instrument, brightness, vibrato };
 }
 
 export const voiceMappingNode = defineNode<Params>({

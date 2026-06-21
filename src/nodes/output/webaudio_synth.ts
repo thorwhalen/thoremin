@@ -37,7 +37,8 @@ interface Voice {
   /** The instrument id this voice was built for (rebuilt if it changes). */
   instrument: string;
   partials: PartialOsc[];
-  vibrato: { lfo: OscillatorNode } | null;
+  /** Always-on vibrato LFO; `depth` (cents) tracks preset base + live amount. */
+  vibrato: { lfo: OscillatorNode; depth: GainNode; baseCents: number };
   /** Live low-pass whose cutoff tracks the voice's `brightness` (expression). */
   brightnessFilter: BiquadFilterNode;
   /** The amplitude-envelope gain driven by the voice's `gain`. */
@@ -52,6 +53,16 @@ interface Voice {
 function brightnessToCutoff(brightness: number): number {
   const b = Number.isFinite(brightness) ? Math.max(0, Math.min(1, brightness)) : 1;
   return 500 * Math.pow(28, b); // 500 Hz (dark) .. 14 kHz (open)
+}
+
+/** Extra detune (cents) added at full live vibrato, on top of any preset base. */
+const MAX_VIBRATO_CENTS = 35;
+const DFLT_VIBRATO_HZ = 5.5;
+
+/** Total vibrato depth (cents) from a preset base + a live amount (0..1). NaN-safe. */
+function vibratoDepthCents(baseCents: number, amount: number): number {
+  const a = Number.isFinite(amount) ? Math.max(0, Math.min(1, amount)) : 0;
+  return baseCents + a * MAX_VIBRATO_CENTS;
 }
 
 /** Shared per-synth audio infrastructure, built lazily once audio exists. */
@@ -157,19 +168,19 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
     return { osc, ratio: part.ratio ?? 1 };
   });
 
-  // Vibrato: an LFO modulating every partial's detune (cents).
-  let vibrato: Voice['vibrato'] = null;
-  if (preset.vibrato) {
-    const lfo = ac.createOscillator();
-    lfo.frequency.setValueAtTime(preset.vibrato.rateHz, now);
-    const depth = ac.createGain();
-    depth.gain.setValueAtTime(preset.vibrato.depthCents, now);
-    lfo.connect(depth);
-    partials.forEach((pp) => depth.connect(pp.osc.detune));
-    lfo.start();
-    nodes.push(lfo, depth);
-    vibrato = { lfo };
-  }
+  // Vibrato: an always-on LFO modulating every partial's detune (cents). The
+  // depth is the preset's base plus a live amount (e.g. from pinch), so any
+  // instrument can be made to wobble by gesture.
+  const baseCents = preset.vibrato?.depthCents ?? 0;
+  const lfo = ac.createOscillator();
+  lfo.frequency.setValueAtTime(preset.vibrato?.rateHz ?? DFLT_VIBRATO_HZ, now);
+  const depth = ac.createGain();
+  depth.gain.setValueAtTime(vibratoDepthCents(baseCents, v.vibrato ?? 0), now);
+  lfo.connect(depth);
+  partials.forEach((pp) => depth.connect(pp.osc.detune));
+  lfo.start();
+  nodes.push(lfo, depth);
+  const vibrato = { lfo, depth, baseCents };
 
   // Output: voiceGain → trim → (dry) compressor; trim → send → reverb.
   const trim = ac.createGain();
@@ -222,12 +233,10 @@ function teardownVoice(voice: Voice, ac: AudioContext, fade = false): void {
       /* already stopped */
     }
   }
-  if (voice.vibrato) {
-    try {
-      voice.vibrato.lfo.stop(now + tail);
-    } catch {
-      /* already stopped */
-    }
+  try {
+    voice.vibrato.lfo.stop(now + tail);
+  } catch {
+    /* already stopped */
   }
   const disconnectAll = () => {
     for (const n of voice.nodes) {
@@ -288,6 +297,11 @@ export const webAudioSynthNode = defineNode<Params>({
               brightnessToCutoff(v.brightness ?? 1),
               now,
               0.04,
+            );
+            voice.vibrato.depth.gain.setTargetAtTime(
+              vibratoDepthCents(voice.vibrato.baseCents, v.vibrato ?? 0),
+              now,
+              0.05,
             );
             voice.voiceGain.gain.setTargetAtTime(v.gain, now, voice.attack);
           } else if (voice) {
