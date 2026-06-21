@@ -39,8 +39,10 @@ export function useThoreminEngine() {
       try {
         setStatus('loading');
         const video = videoRef.current!;
+        // Ask for HD 16:9 so the fullscreen video is crisp (the camera returns
+        // the closest mode it supports; `ideal` never fails).
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480 },
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
         if (disposed) {
@@ -56,6 +58,16 @@ export function useThoreminEngine() {
           };
         });
         if (disposed) return; // cleanup stops the now-assigned stream
+
+        // Size the canvas drawing buffer to the camera's native resolution so
+        // the overlay renders at full sharpness (CSS object-cover then scales it
+        // to fill the viewport). Landmarks normalize by the same video dims, so
+        // the overlay stays aligned at any resolution.
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+        }
 
         const resources = resourcesRef.current;
         resources.video = video;
