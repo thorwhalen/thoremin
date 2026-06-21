@@ -39,10 +39,16 @@ export function useThoreminEngine() {
       try {
         setStatus('loading');
         const video = videoRef.current!;
-        // Ask for HD 16:9 so the fullscreen video is crisp (the camera returns
-        // the closest mode it supports; `ideal` never fails).
+        // Ask for HD 16:9 so the fullscreen video is crisp, and the front
+        // (user-facing) camera so the mirrored view shows your own hands on
+        // mobile. All are `ideal` soft constraints: the camera returns the
+        // closest mode it supports and never fails.
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: { ideal: 'user' },
+          },
           audio: false,
         });
         if (disposed) {
