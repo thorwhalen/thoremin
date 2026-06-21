@@ -42,31 +42,39 @@ describe('progression node', () => {
     expect(outs.map((o) => o.chord)).toEqual(['C', 'F', 'G', 'Am']);
     expect(outs.map((o) => o.index)).toEqual([0, 1, 2, 3]);
   });
+
+  it('validates the key — rejects non-major / invalid keys at parse', () => {
+    expect(() => progressionNode.params.parse({ key: 'Eb' })).not.toThrow();
+    for (const bad of ['H', 'Dm', '', 'nonsense']) {
+      expect(() => progressionNode.params.parse({ key: bad })).toThrow();
+    }
+  });
 });
 
 describe('gesture → harmony chain (DAG)', () => {
-  it('hand x sweep walks the progression and the chord notes change', async () => {
+  it('hand x sweep (via pick) walks the progression so the chord changes', async () => {
     const spec: GraphSpec = {
       nodes: [
         { id: 'src', type: 'synthetic-hands', params: { hands: 'right', sweepPeriod: 4 } },
         { id: 'feat', type: 'hand-features', params: { mirrorX: false, mirrorHandedness: false } },
-        // pull the right-hand x out of features into a bare number for `position`
+        { id: 'x', type: 'pick', params: { path: 'right.x' } }, // scalar adapter: features → position
         { id: 'prog', type: 'progression', params: { key: 'C', romanNumerals: ['I', 'IV', 'V', 'vi'] } },
         { id: 'chord', type: 'chord', params: { baseOctave: 4, maxVoices: 4 } },
       ],
       edges: [
         { from: { node: 'src', port: 'hands' }, to: { node: 'feat', port: 'hands' } },
-        // feat.features → prog.position needs the scalar x; an adapter node would
-        // normally do this, but here we drive progression directly in a focused
-        // unit test below. This DAG asserts the chord stage runs end-to-end.
+        { from: { node: 'feat', port: 'features' }, to: { node: 'x', port: 'in' } },
+        { from: { node: 'x', port: 'value' }, to: { node: 'prog', port: 'position' } },
         { from: { node: 'prog', port: 'chord' }, to: { node: 'chord', port: 'chord' } },
       ],
     };
-    const { recorder } = await runHeadless(spec, createCoreRegistry(), { ticks: 30, nominalDt: 1 / 30 });
-    // progression with no position input holds index 0 → chord "C" → 3 voices.
+    const { recorder } = await runHeadless(spec, createCoreRegistry(), { ticks: 60, nominalDt: 1 / 30 });
+
+    const chords = recorder.values('prog.chord') as string[];
+    expect(new Set(chords).size).toBeGreaterThan(1); // the sweep actually changes chords
+    expect(chords.every((c) => ['C', 'F', 'G', 'Am'].includes(c))).toBe(true); // stays in-key
     const params = recorder.values('chord.params') as SynthParams[];
-    expect(params.length).toBe(30);
-    expect(params[10].voices.length).toBeGreaterThanOrEqual(3);
+    expect(params.every((p) => p.voices.length >= 3)).toBe(true); // each chord is voiced
   });
 
   it('driving progression position directly walks chords → distinct chord note sets', async () => {

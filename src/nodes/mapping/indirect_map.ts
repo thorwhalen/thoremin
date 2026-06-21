@@ -24,7 +24,9 @@ const FeatureRef = z.object({
    * Feature name. hand: x | y | openness | pinch. face: smile | mouthOpen |
    * browRaise | browFurrow | eyeBlink.
    */
-  feature: z.string().default('openness'),
+  feature: z
+    .enum(['x', 'y', 'openness', 'pinch', 'smile', 'mouthOpen', 'browRaise', 'browFurrow', 'eyeBlink'])
+    .default('openness'),
   inMin: z.number().default(0),
   inMax: z.number().default(1),
 });
