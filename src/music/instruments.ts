@@ -144,6 +144,60 @@ export const INSTRUMENTS = {
     reverbSend: 0.18,
     gain: 0.8,
   },
+  strings: {
+    name: 'Strings',
+    partials: [
+      { type: 'sawtooth', detuneCents: -9 },
+      { type: 'sawtooth' },
+      { type: 'sawtooth', detuneCents: 9 },
+    ],
+    filter: { type: 'lowpass', cutoff: 2600, q: 0.5 },
+    vibrato: { rateHz: 5.2, depthCents: 7 },
+    attack: 0.22,
+    release: 0.3,
+    reverbSend: 0.4,
+    gain: 0.7,
+  },
+  flute: {
+    name: 'Flute',
+    partials: [
+      { type: 'sine' },
+      { type: 'triangle', gain: 0.15, ratio: 2 },
+    ],
+    filter: { type: 'lowpass', cutoff: 2000, q: 0.7 },
+    vibrato: { rateHz: 5.5, depthCents: 8 },
+    attack: 0.06,
+    release: 0.14,
+    reverbSend: 0.3,
+    gain: 0.85,
+  },
+  brass: {
+    name: 'Brass',
+    partials: [
+      { type: 'sawtooth' },
+      { type: 'square', gain: 0.3, detuneCents: 4 },
+    ],
+    filter: { type: 'lowpass', cutoff: 2400, q: 1 },
+    vibrato: { rateHz: 5, depthCents: 5 },
+    attack: 0.07,
+    release: 0.12,
+    reverbSend: 0.2,
+    gain: 0.75,
+  },
+  choir: {
+    name: 'Choir',
+    partials: [
+      { type: 'triangle', detuneCents: -6 },
+      { type: 'sine' },
+      { type: 'triangle', detuneCents: 6 },
+    ],
+    filter: { type: 'lowpass', cutoff: 1800, q: 1.2 },
+    vibrato: { rateHz: 4.8, depthCents: 10 },
+    attack: 0.16,
+    release: 0.3,
+    reverbSend: 0.45,
+    gain: 0.78,
+  },
 } as const satisfies Record<string, InstrumentPreset>;
 
 /** A valid instrument id (literal union of {@link INSTRUMENTS} keys). */

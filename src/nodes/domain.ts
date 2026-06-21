@@ -67,6 +67,12 @@ export interface VoiceParams {
   gain: number;
   /** Instrument timbre — an id from the {@link InstrumentId} registry. */
   instrument: InstrumentId;
+  /**
+   * Live tone brightness, 0 (dark/mellow) .. 1 (open/present). Drives a
+   * per-voice low-pass in the synth so gestures (e.g. hand openness) shape
+   * timbre expressively. Optional; absent is treated as 1 (fully open).
+   */
+  brightness?: number;
 }
 
 export interface SynthParams {

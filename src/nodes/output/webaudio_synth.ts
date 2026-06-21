@@ -38,12 +38,20 @@ interface Voice {
   instrument: string;
   partials: PartialOsc[];
   vibrato: { lfo: OscillatorNode } | null;
+  /** Live low-pass whose cutoff tracks the voice's `brightness` (expression). */
+  brightnessFilter: BiquadFilterNode;
   /** The amplitude-envelope gain driven by the voice's `gain`. */
   voiceGain: GainNode;
   /** Every node to disconnect on teardown. */
   nodes: AudioNode[];
   attack: number;
   release: number;
+}
+
+/** Map a brightness (0..1) to a low-pass cutoff (Hz), exponentially. NaN-safe. */
+function brightnessToCutoff(brightness: number): number {
+  const b = Number.isFinite(brightness) ? Math.max(0, Math.min(1, brightness)) : 1;
+  return 500 * Math.pow(28, b); // 500 Hz (dark) .. 14 kHz (open)
 }
 
 /** Shared per-synth audio infrastructure, built lazily once audio exists. */
@@ -115,14 +123,23 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
   voiceGain.gain.setValueAtTime(0, now);
   nodes.push(voiceGain);
 
-  // Partials sum into an optional filter, then the amplitude-envelope gain.
-  let sumTarget: AudioNode = voiceGain;
+  // Live brightness low-pass (expression) sits just before the envelope gain,
+  // so every preset responds to gesture even if it has no filter of its own.
+  const brightnessFilter = ac.createBiquadFilter();
+  brightnessFilter.type = 'lowpass';
+  brightnessFilter.frequency.setValueAtTime(brightnessToCutoff(v.brightness ?? 1), now);
+  brightnessFilter.Q.setValueAtTime(0.7, now);
+  brightnessFilter.connect(voiceGain);
+  nodes.push(brightnessFilter);
+
+  // Partials sum into the preset filter (if any), then the brightness filter.
+  let sumTarget: AudioNode = brightnessFilter;
   if (preset.filter) {
     const filter = ac.createBiquadFilter();
     filter.type = preset.filter.type;
     filter.frequency.setValueAtTime(preset.filter.cutoff, now);
     filter.Q.setValueAtTime(preset.filter.q ?? 0.7, now);
-    filter.connect(voiceGain);
+    filter.connect(brightnessFilter);
     nodes.push(filter);
     sumTarget = filter;
   }
@@ -172,6 +189,7 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
     instrument: v.instrument,
     partials,
     vibrato,
+    brightnessFilter,
     voiceGain,
     nodes,
     attack: preset.attack ?? p.gainGlide,
@@ -266,6 +284,11 @@ export const webAudioSynthNode = defineNode<Params>({
             for (const part of voice.partials) {
               part.osc.frequency.setTargetAtTime(v.freq * part.ratio, now, p.freqGlide);
             }
+            voice.brightnessFilter.frequency.setTargetAtTime(
+              brightnessToCutoff(v.brightness ?? 1),
+              now,
+              0.04,
+            );
             voice.voiceGain.gain.setTargetAtTime(v.gain, now, voice.attack);
           } else if (voice) {
             voice.voiceGain.gain.setTargetAtTime(0, now, voice.release);

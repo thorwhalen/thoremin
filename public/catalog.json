@@ -67,7 +67,7 @@
       },
       {
         "name": "instrument",
-        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "sine"
       }
     ]
@@ -576,7 +576,7 @@
       },
       {
         "name": "instrument",
-        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "triangle"
       }
     ]
@@ -748,6 +748,11 @@
         "name": "opennessGatesGain",
         "type": "boolean",
         "default": false
+      },
+      {
+        "name": "opennessControlsBrightness",
+        "type": "boolean",
+        "default": true
       },
       {
         "name": "right",
