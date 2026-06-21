@@ -154,7 +154,7 @@
       <dl>
         <dt>in</dt><dd>chord:chord-symbol, gain:number</dd>
         <dt>out</dt><dd>params:synth-params</dd>
-        <dt>params</dt><dd>baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | square | sawtooth | triangle)="sine")</dd>
+        <dt>params</dt><dd>baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)="sine")</dd>
       </dl>
     </div>
     <div class="node">
@@ -182,7 +182,7 @@
       <dl>
         <dt>in</dt><dd>beat:number, velocityScale:number</dd>
         <dt>out</dt><dd>params:synth-params</dd>
-        <dt>params</dt><dd>notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | square | sawtooth | triangle)="triangle")</dd>
+        <dt>params</dt><dd>notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)="triangle")</dd>
       </dl>
     </div>
     <div class="node">
@@ -197,7 +197,7 @@
 <section><h3>Synthesis &amp; generation</h3><p class="blurb">Make sound — direct synthesis or steered AI music.</p><div class="grid">
     <div class="node">
       <h4><code>webaudio-synth</code> <span class="title">Web Audio Synth</span></h4>
-      <p>Renders synth params to oscillator voices (browser only).</p>
+      <p>Renders synth params to instrument-preset voices (browser only).</p>
       <dl>
         <dt>in</dt><dd>params:synth-params</dd>
         <dt>out</dt><dd>—</dd>

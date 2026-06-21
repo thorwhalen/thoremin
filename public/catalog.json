@@ -67,7 +67,7 @@
       },
       {
         "name": "instrument",
-        "type": "enum(sine | square | sawtooth | triangle)",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)",
         "default": "sine"
       }
     ]
@@ -576,7 +576,7 @@
       },
       {
         "name": "instrument",
-        "type": "enum(sine | square | sawtooth | triangle)",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead)",
         "default": "triangle"
       }
     ]
@@ -780,7 +780,7 @@
   {
     "type": "webaudio-synth",
     "title": "Web Audio Synth",
-    "description": "Renders synth params to oscillator voices (browser only).",
+    "description": "Renders synth params to instrument-preset voices (browser only).",
     "inputs": [
       {
         "name": "params",

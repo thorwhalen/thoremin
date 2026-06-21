@@ -7,6 +7,7 @@
  */
 import { create } from 'zustand';
 import type { ScaleTypeId } from '@/music/theory';
+import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
 import type { VoiceParams } from '@/nodes';
 
 export interface VoiceControl {
@@ -29,17 +30,19 @@ export interface ControlState {
 
 const defaultVoice = (instrument: VoiceParams['instrument']): VoiceControl => ({
   root: 0,
-  type: 'major',
+  // Pentatonic by default: every snapped note sounds consonant, so the
+  // instrument is forgiving and musical out of the box.
+  type: 'pentatonic',
   octaves: 2,
   baseOctave: 3,
   instrument,
 });
 
 export const useControls = create<ControlState>((set) => ({
-  right: defaultVoice('sine'),
-  left: defaultVoice('triangle'),
+  right: defaultVoice(DEFAULT_INSTRUMENT_RIGHT),
+  left: defaultVoice(DEFAULT_INSTRUMENT_LEFT),
   syncHands: true,
-  masterVolume: 0.2,
+  masterVolume: 0.4,
   setVoice: (side, patch) =>
     set((s) => {
       const next = { ...s[side], ...patch };

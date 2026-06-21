@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useControls } from '@/app/store';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
+import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
 import type { NodeContext } from '@/dag';
 
 beforeEach(() => {
@@ -20,10 +21,13 @@ beforeEach(() => {
 describe('control store', () => {
   it('has sensible defaults', () => {
     const s = useControls.getState();
-    expect(s.right.instrument).toBe('sine');
-    expect(s.left.instrument).toBe('triangle');
+    expect(s.right.instrument).toBe(DEFAULT_INSTRUMENT_RIGHT);
+    expect(s.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
+    // Pentatonic by default — every snapped note sounds consonant.
+    expect(s.right.type).toBe('pentatonic');
+    expect(s.left.type).toBe('pentatonic');
     expect(s.syncHands).toBe(true);
-    expect(s.masterVolume).toBeCloseTo(0.2, 6);
+    expect(s.masterVolume).toBeCloseTo(0.4, 6);
   });
 
   it('setVoice with sync ON mirrors both hands but keeps instruments distinct', () => {
@@ -34,8 +38,8 @@ describe('control store', () => {
     expect(s.right.octaves).toBe(4);
     expect(s.left.octaves).toBe(4);
     // Instruments stay per-hand even when synced.
-    expect(s.right.instrument).toBe('sine');
-    expect(s.left.instrument).toBe('triangle');
+    expect(s.right.instrument).toBe(DEFAULT_INSTRUMENT_RIGHT);
+    expect(s.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
   });
 
   it('setVoice with sync ON applies the patched instrument to the addressed hand only', () => {
@@ -45,7 +49,7 @@ describe('control store', () => {
     useControls.getState().setVoice('right', { instrument: 'square' });
     const s = useControls.getState();
     expect(s.right.instrument).toBe('square');
-    expect(s.left.instrument).toBe('triangle');
+    expect(s.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
   });
 
   it('setSync only flips the flag; it does not re-converge already-diverged hands', () => {
@@ -62,8 +66,8 @@ describe('control store', () => {
     const s2 = useControls.getState();
     expect(s2.right.root).toBe(4);
     expect(s2.left.root).toBe(4);
-    expect(s2.right.instrument).toBe('sine');
-    expect(s2.left.instrument).toBe('triangle');
+    expect(s2.right.instrument).toBe(DEFAULT_INSTRUMENT_RIGHT);
+    expect(s2.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
   });
 
   it('setVoice with sync OFF changes only the addressed hand', () => {

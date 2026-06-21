@@ -2,11 +2,15 @@
  * ControlsPanel — schema-light UI bound to the Zustand control store. Changing
  * any value updates the store; the `store-controls` DAG node reads it on the
  * next tick, so edits take effect live without rebuilding the graph.
+ *
+ * Renders just the controls *content* (no outer card); the host (App) wraps it
+ * in a collapsible translucent overlay so the video stays the focus.
  */
 import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
+import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
 import { useControls, type VoiceControl } from './store';
 
-const INSTRUMENTS: VoiceControl['instrument'][] = ['sine', 'square', 'sawtooth', 'triangle'];
+const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 
 function VoiceControls({ side }: { side: 'right' | 'left' }) {
   const voice = useControls((s) => s[side]);
@@ -15,11 +19,23 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
 
   return (
     <div className="space-y-2">
-      <h3 className={`text-xs font-bold uppercase tracking-widest ${color}`}>{side} hand</h3>
+      <h3 className={`text-[11px] font-bold uppercase tracking-widest ${color}`}>{side} hand</h3>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Instrument
+        <select
+          className={selectCls}
+          value={voice.instrument}
+          onChange={(e) => setVoice(side, { instrument: e.target.value as VoiceControl['instrument'] })}
+        >
+          {INSTRUMENT_IDS.map((id) => (
+            <option key={id} value={id}>{INSTRUMENTS[id].name}</option>
+          ))}
+        </select>
+      </label>
       <label className="flex items-center justify-between gap-2 text-xs">
         Root
         <select
-          className="bg-white/10 rounded px-2 py-1"
+          className={selectCls}
           value={voice.root}
           onChange={(e) => setVoice(side, { root: Number(e.target.value) })}
         >
@@ -31,7 +47,7 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
       <label className="flex items-center justify-between gap-2 text-xs">
         Scale
         <select
-          className="bg-white/10 rounded px-2 py-1"
+          className={selectCls}
           value={voice.type}
           onChange={(e) => setVoice(side, { type: e.target.value as ScaleTypeId })}
         >
@@ -54,18 +70,6 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
           onChange={(e) => setVoice(side, { baseOctave: Number(e.target.value) })}
         />
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs">
-        Wave
-        <select
-          className="bg-white/10 rounded px-2 py-1"
-          value={voice.instrument}
-          onChange={(e) => setVoice(side, { instrument: e.target.value as VoiceControl['instrument'] })}
-        >
-          {INSTRUMENTS.map((i) => (
-            <option key={i} value={i}>{i}</option>
-          ))}
-        </select>
-      </label>
     </div>
   );
 }
@@ -77,7 +81,7 @@ export default function ControlsPanel() {
   const setMasterVolume = useControls((s) => s.setMasterVolume);
 
   return (
-    <div className="w-64 shrink-0 space-y-4 rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur">
+    <div className="space-y-4">
       <div>
         <label className="flex items-center justify-between gap-2 text-xs">
           Master volume
