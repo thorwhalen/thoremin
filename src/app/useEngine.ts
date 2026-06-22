@@ -10,6 +10,7 @@ import { Engine } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from './graph';
 import { useControls } from './store';
+import { PerformanceRecorder, recordingFilename, extForMime, downloadBlob } from './recorder';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -19,11 +20,14 @@ export function useThoreminEngine() {
   const engineRef = useRef<Engine | null>(null);
   const resourcesRef = useRef<Record<string, unknown>>({});
   const masterGainRef = useRef<GainNode | null>(null);
+  const recorderRef = useRef<PerformanceRecorder | null>(null);
+  const recBusyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
   const [status, setStatus] = useState<EngineStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [audioOn, setAudioOn] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   const masterVolume = useControls((s) => s.masterVolume);
 
@@ -118,7 +122,15 @@ export function useThoreminEngine() {
       }
       engineRef.current?.dispose();
       engineRef.current = null;
+      recorderRef.current?.dispose();
+      recorderRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());
+      // Close the AudioContext so its nodes (master, recorder tap, voices) are
+      // released instead of leaking one un-closed context per unmount.
+      const ac = resourcesRef.current.audioContext as AudioContext | undefined;
+      if (ac && ac.state !== 'closed') void ac.close().catch(() => {});
+      resourcesRef.current.audioContext = undefined;
+      masterGainRef.current = null;
     };
   }, []);
 
@@ -144,8 +156,33 @@ export function useThoreminEngine() {
       masterGainRef.current = master;
     }
     if (ac.state === 'suspended') await ac.resume();
+    // Set up the recorder once audio exists, tapping the master bus.
+    if (!recorderRef.current && masterGainRef.current) {
+      recorderRef.current = new PerformanceRecorder({ audioContext: ac, source: masterGainRef.current });
+    }
     setAudioOn(true);
   }, []);
 
-  return { videoRef, canvasRef, status, error, audioOn, startAudio };
+  // Start/stop recording the live output; stopping downloads the audio file.
+  // recBusyRef guards against a double-click racing stop() against a new
+  // start() (which would clear the chunks mid-stop and download an empty file).
+  const toggleRecording = useCallback(async () => {
+    const r = recorderRef.current;
+    if (!r || recBusyRef.current) return;
+    recBusyRef.current = true;
+    try {
+      if (r.recording) {
+        const blob = await r.stop();
+        downloadBlob(blob, recordingFilename(new Date().toISOString(), extForMime(r.mimeType)));
+        setIsRecording(false);
+      } else {
+        r.start();
+        setIsRecording(true);
+      }
+    } finally {
+      recBusyRef.current = false;
+    }
+  }, []);
+
+  return { videoRef, canvasRef, status, error, audioOn, isRecording, startAudio, toggleRecording };
 }

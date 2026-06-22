@@ -10,12 +10,13 @@
  * this component is purely presentational + lifecycle.
  */
 import { useState } from 'react';
-import { Settings, X, Play, BookOpen } from 'lucide-react';
+import { Settings, X, Play, BookOpen, Circle, Square } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import ControlsPanel from './ControlsPanel';
 
 export default function App() {
-  const { videoRef, canvasRef, status, error, audioOn, startAudio } = useThoreminEngine();
+  const { videoRef, canvasRef, status, error, audioOn, isRecording, startAudio, toggleRecording } =
+    useThoreminEngine();
   const [panelOpen, setPanelOpen] = useState(true);
 
   return (
@@ -49,6 +50,23 @@ export default function App() {
       >
         <BookOpen className="h-3 w-3" /> manual
       </a>
+
+      {/* Bottom-right: record the live output to a downloadable audio file
+          (available once audio is running). */}
+      {audioOn && (
+        <button
+          onClick={toggleRecording}
+          aria-label={isRecording ? 'Stop recording' : 'Record'}
+          className={`absolute bottom-3 right-3 flex items-center gap-2 rounded-full px-4 py-2 text-[10px] font-bold uppercase tracking-widest backdrop-blur transition ${
+            isRecording
+              ? 'animate-pulse bg-red-500 text-white'
+              : 'bg-black/50 text-white/80 hover:text-white'
+          }`}
+        >
+          {isRecording ? <Square className="h-3 w-3 fill-current" /> : <Circle className="h-3 w-3 fill-red-500 text-red-500" />}
+          {isRecording ? 'Stop' : 'Record'}
+        </button>
+      )}
 
       {/* Top-right: collapsible controls — open by default (available), minimize
           to a single gear once you've set things up. */}
