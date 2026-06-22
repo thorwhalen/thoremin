@@ -13,7 +13,15 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { valuesFromNDJSON, replayNode } from '@/dag';
-import { voiceMappingNode, type HandFeatures, type SynthParams } from '@/nodes';
+import {
+  voiceMappingNode,
+  faceFeaturesNode,
+  ABSENT_HAND,
+  type HandFeatures,
+  type FaceFeatures,
+  type FaceFrame,
+  type SynthParams,
+} from '@/nodes';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -98,6 +106,41 @@ describe('video fixtures drive gesture expression (real tracking)', () => {
     const atMaxPinch = pairs.reduce((a, b) => (b.pinch > a.pinch ? b : a));
     const atMinPinch = pairs.reduce((a, b) => (b.pinch < a.pinch ? b : a));
     expect(atMaxPinch.vibrato).toBeGreaterThan(atMinPinch.vibrato); // pinch → more wobble
+  });
+});
+
+describe('video face fixture drives expression (smile→brightness, mouth→vibrato)', () => {
+  it('a smile brightens and an open mouth adds vibrato, on real face tracking', async () => {
+    const faceFrames = load('video_face_expressions', 'face.blendshapes') as FaceFrame[];
+    // Real blendshapes → normalized face features, via the actual node.
+    const faceFeats = (
+      await replayNode(faceFeaturesNode.make(faceFeaturesNode.params.parse({})), { face: faceFrames })
+    ).map((o) => o.features as FaceFeatures);
+
+    // A constant, lightly-open / low-pinch right hand so the FACE is the only
+    // thing varying frame to frame — isolating its contribution.
+    const hand: HandFeatures = {
+      left: { ...ABSENT_HAND },
+      right: { ...ABSENT_HAND, present: true, x: 0.5, y: 0.3, openness: 0.3, pinch: 0.1 },
+    };
+    const hands = faceFeats.map(() => hand);
+    const parsed = voiceMappingNode.params.parse({});
+    const out = (
+      await replayNode(voiceMappingNode.make(parsed), { features: hands, face: faceFeats })
+    ).map((o) => o.params as SynthParams);
+
+    const rows = out.map((p, i) => ({
+      smile: faceFeats[i].smile,
+      mouthOpen: faceFeats[i].mouthOpen,
+      brightness: p.voices[0].brightness!,
+      vibrato: p.voices[0].vibrato!,
+    }));
+    expect(span(rows.map((r) => r.brightness))).toBeGreaterThan(0.05);
+    expect(span(rows.map((r) => r.vibrato))).toBeGreaterThan(0.05);
+    const by = (k: 'smile' | 'mouthOpen', dir: 1 | -1) =>
+      rows.reduce((a, b) => (dir * (b[k] - a[k]) > 0 ? b : a));
+    expect(by('smile', 1).brightness).toBeGreaterThan(by('smile', -1).brightness);
+    expect(by('mouthOpen', 1).vibrato).toBeGreaterThan(by('mouthOpen', -1).vibrato);
   });
 });
 

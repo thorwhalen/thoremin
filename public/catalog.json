@@ -752,6 +752,10 @@
       {
         "name": "instrumentLeft",
         "kind": "instrument"
+      },
+      {
+        "name": "face",
+        "kind": "face-features"
       }
     ],
     "outputs": [
@@ -783,6 +787,11 @@
       },
       {
         "name": "pinchControlsVibrato",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "faceControlsExpression",
         "type": "boolean",
         "default": true
       },

@@ -17,10 +17,22 @@ import {
   generateScale,
   magneticPitch,
   midiToFreq,
+  clamp01,
   type ScaleTypeId,
 } from '@/music/theory';
 import { InstrumentSchema, INSTRUMENT_IDS } from '@/music/instruments';
-import { ABSENT_HAND, type HandFeatures, type SynthParams, type VoiceParams } from '../domain';
+import { ABSENT_HAND, type FaceFeatures, type HandFeatures, type SynthParams, type VoiceParams } from '../domain';
+
+/** How much a full smile / open mouth add to brightness / vibrato (0..1). */
+const FACE_SMILE_BRIGHTNESS = 0.5;
+const FACE_MOUTH_VIBRATO = 0.6;
+
+/** Additive expression boosts contributed by the face (0 when no face). */
+interface FaceMod {
+  brightness: number;
+  vibrato: number;
+}
+const NO_FACE_MOD: FaceMod = { brightness: 0, vibrato: 0 };
 
 const ScaleParams = z.object({
   root: z.number().int().min(0).max(11).default(0),
@@ -44,6 +56,8 @@ const Params = z.object({
   opennessControlsBrightness: z.boolean().default(true),
   /** If true, pinch (thumb-index) adds vibrato (pinch = more wobble). */
   pinchControlsVibrato: z.boolean().default(true),
+  /** If true, a connected face adds expression (smile→brighter, mouth→vibrato). */
+  faceControlsExpression: z.boolean().default(true),
   right: z.object({ scale: ScaleParams, instrument: Instrument.default('sine') }).default({
     scale: ScaleParams.parse({}),
     instrument: 'sine',
@@ -69,6 +83,7 @@ function voiceFor(
   instrument: VoiceParams['instrument'],
   p: Params,
   ctrl: Control,
+  faceMod: FaceMod,
 ): VoiceParams {
   if (!feat.present || ctrl.mute) {
     return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument, brightness: 1, vibrato: 0 };
@@ -78,10 +93,13 @@ function voiceFor(
   let gain = (1 - feat.y) * p.maxGain;
   if (p.opennessGatesGain) gain *= feat.openness;
   // Openness shapes brightness: closed hand stays mellow (0.3) but never fully
-  // muffled; open hand is fully present (1.0). Off → neutral (fully open).
-  const brightness = p.opennessControlsBrightness ? 0.3 + 0.7 * feat.openness : 1;
-  // Pinch adds vibrato (0 = none .. 1 = full wobble). Off → none.
-  const vibrato = p.pinchControlsVibrato ? Math.max(0, Math.min(1, feat.pinch)) : 0;
+  // muffled; open hand is fully present (1.0). Off → neutral (fully open). A
+  // smile (face) brightens further.
+  const baseBright = p.opennessControlsBrightness ? 0.3 + 0.7 * feat.openness : 1;
+  const brightness = clamp01(baseBright + faceMod.brightness);
+  // Pinch adds vibrato (0 = none .. 1 = full wobble); an open mouth adds more.
+  const baseVib = p.pinchControlsVibrato ? clamp01(feat.pinch) : 0;
+  const vibrato = clamp01(baseVib + faceMod.vibrato);
   return { id, present: true, freq, gain, instrument, brightness, vibrato };
 }
 
@@ -101,6 +119,9 @@ export const voiceMappingNode = defineNode<Params>({
     { name: 'scaleLeft', kind: 'number[]' },
     { name: 'instrumentRight', kind: 'instrument' },
     { name: 'instrumentLeft', kind: 'instrument' },
+    // Optional face expression (from face-features). When present, smile adds
+    // brightness and an open mouth adds vibrato. Unconnected → no effect.
+    { name: 'face', kind: 'face-features' },
   ],
   outputs: [{ name: 'params', kind: 'synth-params' }],
   params: Params,
@@ -129,9 +150,19 @@ export const voiceMappingNode = defineNode<Params>({
       ? (inputs.instrumentLeft as VoiceParams['instrument'])
       : p.left.instrument);
 
+    // Face expression is global (one face modulates both hands).
+    const face = inputs.face as FaceFeatures | undefined;
+    const faceMod: FaceMod =
+      p.faceControlsExpression && face?.present
+        ? {
+            brightness: clamp01(face.smile) * FACE_SMILE_BRIGHTNESS,
+            vibrato: clamp01(face.mouthOpen) * FACE_MOUTH_VIBRATO,
+          }
+        : NO_FACE_MOD;
+
     const voices: VoiceParams[] = [
-      voiceFor(0, f.right, rightScale, instR, p, ctrl),
-      voiceFor(1, f.left, leftScale, instL, p, ctrl),
+      voiceFor(0, f.right, rightScale, instR, p, ctrl, faceMod),
+      voiceFor(1, f.left, leftScale, instL, p, ctrl, faceMod),
     ];
     const out: SynthParams = { voices };
     return { params: out };
