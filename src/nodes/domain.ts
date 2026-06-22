@@ -79,6 +79,11 @@ export interface VoiceParams {
    * is treated as 0 (no added vibrato).
    */
   vibrato?: number;
+  /**
+   * Stereo pan, -1 (hard left) .. +1 (hard right). Lets hand position place the
+   * voice in the stereo field. Optional; absent is treated as 0 (centre).
+   */
+  pan?: number;
 }
 
 export interface SynthParams {
