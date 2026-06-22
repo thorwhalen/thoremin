@@ -38,6 +38,8 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'params', kind: 'synth-params' },
     // Optional: the right hand's scale (MIDI notes) to draw a pitch guide.
     { name: 'scale', kind: 'number[]' },
+    // Optional: the left hand's scale, drawn as a second guide when it differs.
+    { name: 'scaleLeft', kind: 'number[]' },
     // Optional: the live octave shift, so guide labels match the sounding pitch.
     { name: 'octaveShift', kind: 'number', default: 0 },
   ],
@@ -66,30 +68,41 @@ export const canvasOverlayNode = defineNode<Params>({
           g.restore();
         }
 
-        // Pitch guide: a faint vertical line + note name at each note of the
-        // RIGHT hand's scale, drawn at the x where that note sounds. The line
-        // positions match the x→pitch mapping for both hands while synced
-        // (default); when hands are unsynced with different scales, the guide
-        // reflects the right hand. Labels include the live octave shift so they
-        // agree with the per-hand note labels (which read the actual frequency).
-        const scale = inputs.scale as number[] | undefined;
-        if (p.showScaleGuide && Array.isArray(scale) && scale.length > 1) {
-          const shift = typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0;
+        // Pitch guides: a faint vertical line + note name at each scale note,
+        // drawn at the x where that note sounds (positions match the x→pitch
+        // mapping; labels include the live octave shift so they agree with the
+        // per-hand note labels). The right hand's guide is always drawn; the
+        // left's is drawn only when it differs (unsynced, distinct scale), in
+        // the left colour, so each hand has a matching reference.
+        const shift = typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0;
+        const scaleR = inputs.scale as number[] | undefined;
+        const scaleL = inputs.scaleLeft as number[] | undefined;
+        const arrEq = (a?: number[], b?: number[]) =>
+          !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+        const drawGuide = (s: number[], color: string, alpha: number, labelY: number) => {
           g.save();
           g.font = '11px monospace';
           g.textAlign = 'center';
-          for (const { midi, x } of scaleGuide(scale)) {
+          for (const { midi, x } of scaleGuide(s)) {
             const sx = x * W;
-            g.strokeStyle = 'rgba(255,255,255,0.10)';
+            g.globalAlpha = alpha;
+            g.strokeStyle = color;
             g.lineWidth = 1;
             g.beginPath();
             g.moveTo(sx, H * 0.12);
             g.lineTo(sx, H * 0.86);
             g.stroke();
-            g.fillStyle = 'rgba(255,255,255,0.4)';
-            g.fillText(midiToName(midi + shift * 12), sx, H * 0.82);
+            g.globalAlpha = Math.min(1, alpha * 4);
+            g.fillStyle = color;
+            g.fillText(midiToName(midi + shift * 12), sx, labelY);
           }
           g.restore();
+        };
+        if (p.showScaleGuide && Array.isArray(scaleR) && scaleR.length > 1) {
+          drawGuide(scaleR, '#ffffff', 0.1, H * 0.82);
+          if (Array.isArray(scaleL) && scaleL.length > 1 && !arrEq(scaleL, scaleR)) {
+            drawGuide(scaleL, LEFT_COLOR, 0.12, H * 0.18);
+          }
         }
 
         const frame = inputs.hands as HandsFrame | undefined;

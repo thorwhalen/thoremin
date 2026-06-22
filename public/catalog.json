@@ -21,6 +21,10 @@
         "kind": "number[]"
       },
       {
+        "name": "scaleLeft",
+        "kind": "number[]"
+      },
+      {
         "name": "octaveShift",
         "kind": "number",
         "default": 0
