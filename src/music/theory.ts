@@ -76,6 +76,19 @@ export function generateScale(spec: ScaleSpec): number[] {
 }
 
 /**
+ * Where each scale note sits along the normalized control axis (x in 0..1),
+ * matching how {@link magneticPitch} maps x → MIDI (linear across the scale's
+ * MIDI span). Used to draw a pitch/scale guide showing the player where each
+ * note is. Returns ascending x; empty for an empty scale.
+ */
+export function scaleGuide(scale: number[]): { midi: number; x: number }[] {
+  if (scale.length === 0) return [];
+  const min = scale[0];
+  const spanMidi = scale[scale.length - 1] - min;
+  return scale.map((midi) => ({ midi, x: spanMidi > 0 ? (midi - min) / spanMidi : 0 }));
+}
+
+/**
  * Map a normalized control value `x` in [0, 1] to a (possibly fractional) MIDI
  * note, snapping toward scale notes by a `magnetism` amount.
  *

@@ -187,7 +187,7 @@ _Audio + the captured video with overlaid guides._
 #### `canvas-overlay` — Canvas Overlay
 Draws mirrored video + landmarks + control markers + per-hand note names.
 
-- **in:** hands:hands-frame, features:hand-features, params:synth-params
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], octaveShift:number
 - **out:** —
-- **params:** showLandmarks (boolean=true), showVideo (boolean=true), videoAlpha (number=0.35), showNotes (boolean=true)
+- **params:** showLandmarks (boolean=true), showVideo (boolean=true), videoAlpha (number=0.35), showNotes (boolean=true), showScaleGuide (boolean=true)
 

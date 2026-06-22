@@ -41,6 +41,9 @@ export function defaultGraph(): GraphSpec {
       { from: { node: 'map', port: 'params' }, to: { node: 'synth', port: 'params' } },
       // Also feed params to the overlay so it can label each hand's note.
       { from: { node: 'map', port: 'params' }, to: { node: 'overlay', port: 'params' } },
+      // And the right hand's scale + octave shift, for the overlay pitch guide.
+      { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'overlay', port: 'scale' } },
+      { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
     ],
   };
 }

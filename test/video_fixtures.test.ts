@@ -55,6 +55,52 @@ describe('video hand fixtures (real MediaPipe tracking)', () => {
   }
 });
 
+describe('video fixtures drive gesture expression (real tracking)', () => {
+  // Per present frame, pair the hand feature with the voice the synth receives
+  // (voice 0 = right, 1 = left), so we confirm a real gesture moves the
+  // expression value the synth actually consumes.
+  it('hand_open_close: openness drives a varying, correlated brightness', async () => {
+    const feats = load('video_hand_open_close', 'feat.features') as HandFeatures[];
+    const parsed = voiceMappingNode.params.parse({ magnetism: 1 });
+    const out = (await replayNode(voiceMappingNode.make(parsed), { features: feats })).map((o) => o.params as SynthParams);
+    const pairs = feats
+      .map((f, i) => {
+        const side = f.right.present ? 'right' : f.left.present ? 'left' : null;
+        if (!side) return null;
+        const v = out[i].voices[side === 'right' ? 0 : 1];
+        return { openness: f[side].openness, brightness: v.brightness ?? 1 };
+      })
+      .filter((r): r is { openness: number; brightness: number } => !!r);
+
+    expect(pairs.length).toBeGreaterThan(feats.length * 0.5);
+    const brights = pairs.map((p) => p.brightness);
+    expect(span(brights)).toBeGreaterThan(0.2); // brightness actually moves
+    const atMaxOpen = pairs.reduce((a, b) => (b.openness > a.openness ? b : a));
+    const atMinOpen = pairs.reduce((a, b) => (b.openness < a.openness ? b : a));
+    expect(atMaxOpen.brightness).toBeGreaterThan(atMinOpen.brightness); // open → brighter
+  });
+
+  it('hand_pinch: pinch drives a varying, correlated vibrato', async () => {
+    const feats = load('video_hand_pinch', 'feat.features') as HandFeatures[];
+    const parsed = voiceMappingNode.params.parse({ magnetism: 1 });
+    const out = (await replayNode(voiceMappingNode.make(parsed), { features: feats })).map((o) => o.params as SynthParams);
+    const pairs = feats
+      .map((f, i) => {
+        const side = f.right.present ? 'right' : f.left.present ? 'left' : null;
+        if (!side) return null;
+        const v = out[i].voices[side === 'right' ? 0 : 1];
+        return { pinch: f[side].pinch, vibrato: v.vibrato ?? 0 };
+      })
+      .filter((r): r is { pinch: number; vibrato: number } => !!r);
+
+    expect(pairs.length).toBeGreaterThan(feats.length * 0.5);
+    expect(span(pairs.map((p) => p.vibrato))).toBeGreaterThan(0.4); // vibrato moves
+    const atMaxPinch = pairs.reduce((a, b) => (b.pinch > a.pinch ? b : a));
+    const atMinPinch = pairs.reduce((a, b) => (b.pinch < a.pinch ? b : a));
+    expect(atMaxPinch.vibrato).toBeGreaterThan(atMinPinch.vibrato); // pinch → more wobble
+  });
+});
+
 describe('video face fixture (MediaPipe blendshapes — M4 prep)', () => {
   it('detects a face and key expression blendshapes vary', () => {
     type FaceFrame = { present: boolean; blendshapes: Record<string, number> };

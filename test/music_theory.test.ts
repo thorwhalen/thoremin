@@ -7,8 +7,29 @@ import {
   nearestScaleNote,
   rangeMap,
   midiToName,
+  scaleGuide,
   DEFAULT_SCALE,
 } from '@/music/theory';
+
+describe('scaleGuide', () => {
+  it('places notes at ascending normalized x matching the magneticPitch mapping', () => {
+    const scale = generateScale(DEFAULT_SCALE); // C major, 2 octaves
+    const guide = scaleGuide(scale);
+    expect(guide.length).toBe(scale.length);
+    expect(guide[0].x).toBeCloseTo(0, 6); // lowest note at x=0
+    expect(guide[guide.length - 1].x).toBeCloseTo(1, 6); // highest at x=1
+    // x is strictly ascending and each x lands where magneticPitch(x)=that note.
+    for (let i = 1; i < guide.length; i++) expect(guide[i].x).toBeGreaterThan(guide[i - 1].x);
+    for (const { midi, x } of guide) {
+      expect(magneticPitch(x, scale, 0)).toBeCloseTo(midi, 6); // free glide hits the note exactly
+    }
+  });
+
+  it('handles empty and single-note scales', () => {
+    expect(scaleGuide([])).toEqual([]);
+    expect(scaleGuide([60])).toEqual([{ midi: 60, x: 0 }]);
+  });
+});
 
 describe('pitch conversions', () => {
   it('midiToFreq / freqToMidi are inverse, A4 = 440', () => {
