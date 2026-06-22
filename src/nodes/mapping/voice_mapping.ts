@@ -58,6 +58,10 @@ const Params = z.object({
   pinchControlsVibrato: z.boolean().default(true),
   /** If true, a connected face adds expression (smile→brighter, mouth→vibrato). */
   faceControlsExpression: z.boolean().default(true),
+  /** If true, hand x position pans the voice in stereo (left→left, right→right). */
+  panByPosition: z.boolean().default(true),
+  /** Max stereo spread (0..1) at the edges of the frame when panByPosition is on. */
+  panSpread: z.number().min(0).max(1).default(0.5),
   right: z.object({ scale: ScaleParams, instrument: Instrument.default('sine') }).default({
     scale: ScaleParams.parse({}),
     instrument: 'sine',
@@ -86,7 +90,7 @@ function voiceFor(
   faceMod: FaceMod,
 ): VoiceParams {
   if (!feat.present || ctrl.mute) {
-    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument, brightness: 1, vibrato: 0 };
+    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument, brightness: 1, vibrato: 0, pan: 0 };
   }
   const midi = magneticPitch(feat.x, scaleMidis, ctrl.magnetism) + ctrl.octaveShift * 12;
   const freq = midiToFreq(midi);
@@ -100,7 +104,9 @@ function voiceFor(
   // Pinch adds vibrato (0 = none .. 1 = full wobble); an open mouth adds more.
   const baseVib = p.pinchControlsVibrato ? clamp01(feat.pinch) : 0;
   const vibrato = clamp01(baseVib + faceMod.vibrato);
-  return { id, present: true, freq, gain, instrument, brightness, vibrato };
+  // Hand x places the voice in stereo: centre at x=0.5, spreading to ±panSpread.
+  const pan = p.panByPosition ? Math.max(-1, Math.min(1, (feat.x - 0.5) * 2 * p.panSpread)) : 0;
+  return { id, present: true, freq, gain, instrument, brightness, vibrato, pan };
 }
 
 export const voiceMappingNode = defineNode<Params>({

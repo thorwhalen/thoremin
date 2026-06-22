@@ -796,6 +796,16 @@
         "default": true
       },
       {
+        "name": "panByPosition",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "panSpread",
+        "type": "number",
+        "default": 0.5
+      },
+      {
         "name": "right",
         "type": "object",
         "default": {

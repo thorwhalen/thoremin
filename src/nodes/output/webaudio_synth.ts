@@ -41,6 +41,8 @@ interface Voice {
   vibrato: { lfo: OscillatorNode; depth: GainNode; baseCents: number };
   /** Live low-pass whose cutoff tracks the voice's `brightness` (expression). */
   brightnessFilter: BiquadFilterNode;
+  /** Stereo panner on the dry path, tracking the voice's `pan`. */
+  panner: StereoPannerNode;
   /** The amplitude-envelope gain driven by the voice's `gain`. */
   voiceGain: GainNode;
   /** Every node to disconnect on teardown. */
@@ -182,12 +184,17 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
   nodes.push(lfo, depth);
   const vibrato = { lfo, depth, baseCents };
 
-  // Output: voiceGain → trim → (dry) compressor; trim → send → reverb.
+  // Output: voiceGain → trim → panner → (dry) compressor; trim → send → reverb.
+  // The dry signal is panned by hand position; the reverb send stays centred so
+  // the ambience is shared.
   const trim = ac.createGain();
   trim.gain.setValueAtTime(preset.gain ?? 1, now);
   voiceGain.connect(trim);
-  trim.connect(bus.out);
-  nodes.push(trim);
+  const panner = ac.createStereoPanner();
+  panner.pan.setValueAtTime(Math.max(-1, Math.min(1, v.pan ?? 0)), now);
+  trim.connect(panner);
+  panner.connect(bus.out);
+  nodes.push(trim, panner);
   if (preset.reverbSend && preset.reverbSend > 0) {
     const send = ac.createGain();
     send.gain.setValueAtTime(preset.reverbSend, now);
@@ -201,6 +208,7 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
     partials,
     vibrato,
     brightnessFilter,
+    panner,
     voiceGain,
     nodes,
     attack: preset.attack ?? p.gainGlide,
@@ -303,6 +311,8 @@ export const webAudioSynthNode = defineNode<Params>({
               now,
               0.05,
             );
+            const pan = Number.isFinite(v.pan) ? Math.max(-1, Math.min(1, v.pan!)) : 0;
+            voice.panner.pan.setTargetAtTime(pan, now, 0.05);
             voice.voiceGain.gain.setTargetAtTime(v.gain, now, voice.attack);
           } else if (voice) {
             voice.voiceGain.gain.setTargetAtTime(0, now, voice.release);

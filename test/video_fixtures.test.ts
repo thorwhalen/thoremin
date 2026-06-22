@@ -88,6 +88,24 @@ describe('video fixtures drive gesture expression (real tracking)', () => {
     expect(atMaxOpen.brightness).toBeGreaterThan(atMinOpen.brightness); // open → brighter
   });
 
+  it('hand_sweep: the sweeping hand pans across the stereo field', async () => {
+    const feats = load('video_hand_sweep', 'feat.features') as HandFeatures[];
+    const parsed = voiceMappingNode.params.parse({ magnetism: 1 });
+    const out = (await replayNode(voiceMappingNode.make(parsed), { features: feats })).map((o) => o.params as SynthParams);
+    const pairs = feats
+      .map((f, i) => {
+        const side = f.right.present ? 'right' : f.left.present ? 'left' : null;
+        if (!side) return null;
+        return { x: f[side].x, pan: out[i].voices[side === 'right' ? 0 : 1].pan ?? 0 };
+      })
+      .filter((r): r is { x: number; pan: number } => !!r);
+
+    expect(span(pairs.map((p) => p.pan))).toBeGreaterThan(0.2); // pan actually moves
+    const atMaxX = pairs.reduce((a, b) => (b.x > a.x ? b : a));
+    const atMinX = pairs.reduce((a, b) => (b.x < a.x ? b : a));
+    expect(atMaxX.pan).toBeGreaterThan(atMinX.pan); // hand right → pan right
+  });
+
   it('hand_pinch: pinch drives a varying, correlated vibrato', async () => {
     const feats = load('video_hand_pinch', 'feat.features') as HandFeatures[];
     const parsed = voiceMappingNode.params.parse({ magnetism: 1 });

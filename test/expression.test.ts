@@ -8,10 +8,10 @@ import { describe, it, expect } from 'vitest';
 import { replayNode } from '@/dag';
 import { voiceMappingNode, ABSENT_HAND, type HandFeatures, type SynthParams } from '@/nodes';
 
-function feats(openness: number, pinch = 0): HandFeatures {
+function feats(openness: number, pinch = 0, x = 0.5): HandFeatures {
   return {
     left: { ...ABSENT_HAND },
-    right: { ...ABSENT_HAND, present: true, x: 0.5, y: 0.3, openness, pinch },
+    right: { ...ABSENT_HAND, present: true, x, y: 0.3, openness, pinch },
   };
 }
 
@@ -58,5 +58,22 @@ describe('pinch → vibrato expression', () => {
   it('clamps to 0..1 and is 0 when pinchControlsVibrato is off', async () => {
     expect(await (async () => (await rightVoice(feats(0.5, 5))).vibrato)()).toBeLessThanOrEqual(1);
     expect((await rightVoice(feats(0.5, 1), { pinchControlsVibrato: false })).vibrato).toBe(0);
+  });
+});
+
+describe('hand x → stereo pan', () => {
+  it('centres at x=0.5 and spreads to ±panSpread at the frame edges', async () => {
+    expect((await rightVoice(feats(0.3, 0, 0.5))).pan).toBeCloseTo(0, 5);
+    expect((await rightVoice(feats(0.3, 0, 0.0))).pan).toBeCloseTo(-0.5, 5); // default panSpread 0.5
+    expect((await rightVoice(feats(0.3, 0, 1.0))).pan).toBeCloseTo(0.5, 5);
+  });
+
+  it('respects panSpread and clamps to [-1, 1]', async () => {
+    expect((await rightVoice(feats(0.3, 0, 1.0), { panSpread: 1 })).pan).toBeCloseTo(1, 5);
+    expect((await rightVoice(feats(0.3, 0, 0.0), { panSpread: 1 })).pan).toBeCloseTo(-1, 5);
+  });
+
+  it('is centred (0) when panByPosition is off', async () => {
+    expect((await rightVoice(feats(0.3, 0, 0.0), { panByPosition: false })).pan).toBe(0);
   });
 });
