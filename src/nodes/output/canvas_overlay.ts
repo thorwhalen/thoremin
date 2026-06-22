@@ -9,7 +9,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { freqToMidi, midiToName } from '@/music/theory';
+import { freqToMidi, midiToName, scaleGuide } from '@/music/theory';
 import { LM, type HandFeatures, type HandsFrame, type SingleHandFeatures, type SynthParams } from '../domain';
 
 const Params = z.object({
@@ -18,6 +18,8 @@ const Params = z.object({
   videoAlpha: z.number().min(0).max(1).default(0.35),
   /** Show the note name each hand is currently playing, above its marker. */
   showNotes: z.boolean().default(true),
+  /** Show a faint vertical guide at each scale note (a "fretboard"). */
+  showScaleGuide: z.boolean().default(true),
 });
 type Params = z.infer<typeof Params>;
 
@@ -34,6 +36,10 @@ export const canvasOverlayNode = defineNode<Params>({
     // Optional: the synth params (voice 0 = right, 1 = left) so the overlay can
     // label each hand with the note it is sounding. Unconnected → no labels.
     { name: 'params', kind: 'synth-params' },
+    // Optional: the right hand's scale (MIDI notes) to draw a pitch guide.
+    { name: 'scale', kind: 'number[]' },
+    // Optional: the live octave shift, so guide labels match the sounding pitch.
+    { name: 'octaveShift', kind: 'number', default: 0 },
   ],
   outputs: [],
   params: Params,
@@ -57,6 +63,32 @@ export const canvasOverlayNode = defineNode<Params>({
           g.scale(-1, 1);
           g.translate(-W, 0);
           g.drawImage(video, 0, 0, W, H);
+          g.restore();
+        }
+
+        // Pitch guide: a faint vertical line + note name at each note of the
+        // RIGHT hand's scale, drawn at the x where that note sounds. The line
+        // positions match the x→pitch mapping for both hands while synced
+        // (default); when hands are unsynced with different scales, the guide
+        // reflects the right hand. Labels include the live octave shift so they
+        // agree with the per-hand note labels (which read the actual frequency).
+        const scale = inputs.scale as number[] | undefined;
+        if (p.showScaleGuide && Array.isArray(scale) && scale.length > 1) {
+          const shift = typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0;
+          g.save();
+          g.font = '11px monospace';
+          g.textAlign = 'center';
+          for (const { midi, x } of scaleGuide(scale)) {
+            const sx = x * W;
+            g.strokeStyle = 'rgba(255,255,255,0.10)';
+            g.lineWidth = 1;
+            g.beginPath();
+            g.moveTo(sx, H * 0.12);
+            g.lineTo(sx, H * 0.86);
+            g.stroke();
+            g.fillStyle = 'rgba(255,255,255,0.4)';
+            g.fillText(midiToName(midi + shift * 12), sx, H * 0.82);
+          }
           g.restore();
         }
 

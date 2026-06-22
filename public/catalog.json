@@ -15,6 +15,15 @@
       {
         "name": "params",
         "kind": "synth-params"
+      },
+      {
+        "name": "scale",
+        "kind": "number[]"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
       }
     ],
     "outputs": [],
@@ -36,6 +45,11 @@
       },
       {
         "name": "showNotes",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "showScaleGuide",
         "type": "boolean",
         "default": true
       }
