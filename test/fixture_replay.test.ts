@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { valuesFromNDJSON, replayNode } from '@/dag';
 import { voiceMappingNode, type HandFeatures, type SynthParams } from '@/nodes';
+import { freqToMidi, midiToName } from '@/music/theory';
 import { SCENARIOS } from '../scripts/scenarios';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -53,5 +54,38 @@ describe('fixture replay (sweep_right)', () => {
     expect(recordedParams.every((p) => p.voices[0].present)).toBe(true);
     const freqs = recordedParams.map((p) => p.voices[0].freq);
     expect(Math.max(...freqs)).toBeGreaterThan(Math.min(...freqs)); // pitch moved
+  });
+});
+
+describe('fixture replay (two_hands) — both voices end to end', () => {
+  const SC = 'two_hands';
+  const features = loadStream(SC, 'feat.features') as HandFeatures[];
+
+  it('both hands are present and drive two well-formed, expressive voices', async () => {
+    expect(features.length).toBeGreaterThan(50);
+    expect(features.every((f) => f.right.present && f.left.present)).toBe(true);
+
+    const parsed = voiceMappingNode.params.parse(
+      SCENARIOS[SC].graph.nodes.find((n) => n.id === 'map')!.params,
+    );
+    const out = (await replayNode(voiceMappingNode.make(parsed), { features }, { dt: 1 / 30 })).map(
+      (o) => o.params as SynthParams,
+    );
+
+    // Two voices every frame; all synth fields the renderer consumes are finite
+    // and in range; each present voice resolves to a valid note name.
+    for (const p of out) {
+      expect(p.voices).toHaveLength(2);
+      for (const v of p.voices) {
+        expect(Number.isFinite(v.freq) && v.freq > 0).toBe(true);
+        expect(Number.isFinite(v.gain) && v.gain >= 0).toBe(true);
+        expect(v.brightness! >= 0 && v.brightness! <= 1).toBe(true);
+        expect(v.vibrato! >= 0 && v.vibrato! <= 1).toBe(true);
+        expect(midiToName(freqToMidi(v.freq))).toMatch(/^[A-G]#?-?\d+$/);
+      }
+    }
+    // The two hands occupy different x → generally different pitches (distinct voices).
+    const distinct = out.filter((p) => p.voices[0].freq !== p.voices[1].freq).length;
+    expect(distinct).toBeGreaterThan(out.length * 0.5);
   });
 });
