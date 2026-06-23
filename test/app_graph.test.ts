@@ -20,7 +20,10 @@ describe('production app graph', () => {
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('map'));
     expect(order.indexOf('map')).toBeLessThan(order.indexOf('synth'));
     expect(order.indexOf('kbd')).toBeLessThan(order.indexOf('kctrl'));
-    expect(order).toHaveLength(8);
+    // face branch: webcam-face → face-features → voice-mapping
+    expect(order.indexOf('camFace')).toBeLessThan(order.indexOf('faceFeat'));
+    expect(order.indexOf('faceFeat')).toBeLessThan(order.indexOf('map'));
+    expect(order).toHaveLength(10);
   });
 
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {

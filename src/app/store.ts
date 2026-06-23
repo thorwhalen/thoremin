@@ -34,11 +34,19 @@ export interface ControlState {
   left: VoiceControl;
   syncHands: boolean;
   masterVolume: number; // 0..1
+  /**
+   * Whether live face control is enabled. Off by default; when on, the
+   * `webcam-face` node lazy-loads the FaceLandmarker model and drives facial
+   * expression into the mapping (smile→brightness, open mouth→vibrato). Read by
+   * the node each tick via `ctx.resources.controls`.
+   */
+  faceEnabled: boolean;
   /** Composable overlay element config (see canvas_overlay.ts). Live-controlled. */
   overlay: OverlayParams;
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
+  setFaceEnabled(v: boolean): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
   setOverlayElement<K extends keyof OverlayParams>(key: K, patch: Partial<OverlayParams[K]>): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
@@ -65,6 +73,7 @@ export function toSettings(s: ControlState): Settings {
     left: s.left,
     syncHands: s.syncHands,
     masterVolume: s.masterVolume,
+    faceEnabled: s.faceEnabled,
     overlay: s.overlay,
   };
 }
@@ -86,6 +95,7 @@ export const useControls = create<ControlState>()(
       left: defaultVoice(DEFAULT_INSTRUMENT_LEFT),
       syncHands: true,
       masterVolume: 0.4,
+      faceEnabled: false,
       overlay: defaultOverlay(),
       setVoice: (side, patch) =>
         set((s) => {
@@ -104,6 +114,7 @@ export const useControls = create<ControlState>()(
         }),
       setSync: (v) => set({ syncHands: v }),
       setMasterVolume: (v) => set({ masterVolume: v }),
+      setFaceEnabled: (v) => set({ faceEnabled: v }),
       setOverlayElement: (key, patch) =>
         set((s) => ({
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
@@ -114,14 +125,15 @@ export const useControls = create<ControlState>()(
           left: st.left,
           syncHands: st.syncHands,
           masterVolume: st.masterVolume,
+          faceEnabled: st.faceEnabled,
           overlay: st.overlay,
         }),
     }),
     {
       name: 'thoremin-controls',
-      // Version stays 1: `overlay` is additive, and the default shallow merge
-      // keeps the initializer's default overlay when an older persisted blob
-      // omits it (no migrate / no discard of existing voice/volume choices).
+      // Version stays 1: `overlay`/`faceEnabled` are additive, and the default
+      // shallow merge keeps the initializer's defaults when an older persisted
+      // blob omits them (no migrate / no discard of existing voice/volume choices).
       version: 1,
       storage: createJSONStorage(controlsStorage),
       // Persist only the control values, never the setter functions.
@@ -130,6 +142,7 @@ export const useControls = create<ControlState>()(
         left: s.left,
         syncHands: s.syncHands,
         masterVolume: s.masterVolume,
+        faceEnabled: s.faceEnabled,
         overlay: s.overlay,
       }),
     },

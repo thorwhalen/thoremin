@@ -18,7 +18,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Layer grouping for the manual (type → category, in display order).
 const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
-  { name: 'Inputs (sources)', blurb: 'Where signals enter the graph.', types: ['webcam-hands', 'keyboard-source', 'store-controls', 'synthetic-hands', 'replay-source'] },
+  { name: 'Inputs (sources)', blurb: 'Where signals enter the graph.', types: ['webcam-hands', 'webcam-face', 'keyboard-source', 'store-controls', 'synthetic-hands', 'replay-source'] },
   { name: 'Features', blurb: 'Raw sensor data → normalized control signals.', types: ['hand-features', 'face-features', 'gesture-classifier'] },
   { name: 'Mapping (direct ↔ indirect)', blurb: 'Features → engine parameters, across the expression spectrum.', types: ['voice-mapping', 'indirect-map', 'keyboard-control', 'pick', 'one-euro'] },
   { name: 'Music logic (tonal guidance)', blurb: 'Harmony kept in-key.', types: ['chord', 'progression'] },
