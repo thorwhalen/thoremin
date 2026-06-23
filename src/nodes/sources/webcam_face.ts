@@ -90,6 +90,7 @@ type FaceControlsGetter = () => { faceEnabled?: boolean };
 
 export const webcamFaceNode = defineNode<Params>({
   type: 'webcam-face',
+  roles: ['source'],
   title: 'Webcam Face',
   description:
     'MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).',

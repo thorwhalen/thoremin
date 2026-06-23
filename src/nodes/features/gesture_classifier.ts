@@ -41,6 +41,7 @@ function classify(f: SingleHandFeatures, prev: Pose, p: Params): Pose {
 
 export const gestureClassifierNode = defineNode<Params>({
   type: 'gesture-classifier',
+  roles: ['feature'],
   title: 'Gesture Classifier',
   description: 'Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.',
   inputs: [{ name: 'features', kind: 'hand-features' }],

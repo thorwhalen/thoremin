@@ -34,6 +34,7 @@ const Params = z.object({});
 
 export const storeControlsNode = defineNode<Record<string, never>>({
   type: 'store-controls',
+  roles: ['source', 'control'],
   title: 'UI Controls',
   description: 'Reads the live UI control store → scale + instrument + overlay port values.',
   inputs: [],

@@ -10,29 +10,29 @@
  * Both produce a {@link NodeDef}; the engine treats them identically.
  */
 import { z } from 'zod';
-import type { NodeContext, NodeDef, NodeHandlers, ParamsSchema, PortSpec, PortValues } from './types';
+import type { NodeContext, NodeDef, NodeHandlers, ParamsSchema, PortSpec, PortValues, Role } from './types';
 
-/** Spec for a pure (stateless) node. */
-interface PureNodeSpec<P> {
+/** Fields common to both node-spec flavours. */
+interface BaseNodeSpec<P> {
   type: string;
   title?: string;
   description?: string;
+  /** Advisory role tag(s) (see {@link Role}); never gates execution. */
+  roles?: Role[];
   inputs: PortSpec[];
   outputs: PortSpec[];
   /** Defaults to an empty-object schema when omitted. */
   params?: ParamsSchema<P>;
+}
+
+/** Spec for a pure (stateless) node. */
+interface PureNodeSpec<P> extends BaseNodeSpec<P> {
   /** Pure transform: inputs + params -> outputs. */
   process(inputs: PortValues, params: P, ctx: NodeContext): PortValues;
 }
 
 /** Spec for a stateful node (owns per-instance state via a factory). */
-interface StatefulNodeSpec<P> {
-  type: string;
-  title?: string;
-  description?: string;
-  inputs: PortSpec[];
-  outputs: PortSpec[];
-  params?: ParamsSchema<P>;
+interface StatefulNodeSpec<P> extends BaseNodeSpec<P> {
   /** Build per-instance handlers from validated params. */
   make(params: P): NodeHandlers;
 }
@@ -61,6 +61,7 @@ export function defineNode<P = Record<string, never>>(
     type: spec.type,
     title: spec.title,
     description: spec.description,
+    roles: spec.roles,
     inputs: spec.inputs,
     outputs: spec.outputs,
     params,

@@ -111,6 +111,7 @@ function voiceFor(
 
 export const voiceMappingNode = defineNode<Params>({
   type: 'voice-mapping',
+  roles: ['mapping'],
   title: 'Voice Mapping',
   description: 'Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).',
   inputs: [

@@ -8,7 +8,7 @@
  * is unit-testable headlessly.
  */
 import type { NodeRegistry } from '@/dag';
-import type { NodeDef, PortSpec } from '@/dag';
+import type { NodeDef, PortSpec, Role } from '@/dag';
 
 export interface PortInfo {
   name: string;
@@ -27,6 +27,8 @@ export interface CatalogEntry {
   type: string;
   title: string;
   description: string;
+  /** Advisory role tag(s) on the node def (see {@link Role}); [] if untagged. */
+  roles: Role[];
   inputs: PortInfo[];
   outputs: PortInfo[];
   params: ParamInfo[];
@@ -110,6 +112,7 @@ export function buildCatalog(registry: NodeRegistry): CatalogEntry[] {
       type: def.type,
       title: def.title ?? def.type,
       description: def.description ?? '',
+      roles: def.roles ?? [],
       inputs: def.inputs.map(portInfo),
       outputs: def.outputs.map(portInfo),
       params: paramsOf(def),

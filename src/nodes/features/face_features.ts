@@ -27,6 +27,7 @@ function clamp01(v: number): number {
 
 export const faceFeaturesNode = defineNode<Params>({
   type: 'face-features',
+  roles: ['feature'],
   title: 'Face Features',
   description: 'Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).',
   inputs: [{ name: 'face', kind: 'face-frame' }],

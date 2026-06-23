@@ -33,6 +33,7 @@ function osc(time: number, period: number, phase = 0): number {
 
 export const syntheticHandsNode = defineNode<Params>({
   type: 'synthetic-hands',
+  roles: ['source'],
   title: 'Synthetic Hands',
   description: 'Camera-free animated hand landmark source for tests & demos.',
   inputs: [],

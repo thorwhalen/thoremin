@@ -32,6 +32,7 @@ function smoothingAlpha(cutoffHz: number, dt: number): number {
 
 export const oneEuroNode = defineNode<Params>({
   type: 'one-euro',
+  roles: ['mapping'],
   title: 'One-Euro Filter',
   description: 'Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).',
   inputs: [{ name: 'value', kind: 'number', default: 0 }],

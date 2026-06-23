@@ -42,6 +42,7 @@ function romanToDegree(rn: string): number {
 
 export const progressionNode = defineNode<Params>({
   type: 'progression',
+  roles: ['music'],
   title: 'Progression',
   description: 'Roman-numeral progression in a key + position (0..1) → current chord symbol.',
   inputs: [{ name: 'position', kind: 'number', default: 0 }],

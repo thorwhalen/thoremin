@@ -18,6 +18,7 @@ type Params = z.infer<typeof Params>;
 
 export const pickNode = defineNode<Params>({
   type: 'pick',
+  roles: ['mapping'],
   title: 'Pick',
   description: 'Extract a scalar from a structured input by dotted path (e.g. right.x).',
   inputs: [{ name: 'in', kind: 'any' }],
