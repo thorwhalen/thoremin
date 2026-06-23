@@ -18,7 +18,15 @@ Keeping that parity means a Python backend can later be slotted behind the same
 node interfaces if/when frontend tools are insufficient — but **v0 is
 frontend-only**: the live instrument loop stays on-device for lowest latency.
 
-### The six layers
+### The signal-flow story (formerly "the six layers")
+
+> **Superseded framing.** These six names are kept here only as an onboarding
+> *narrative* for the default signal path. They are **not** a code-level
+> abstraction: the engine is a DAG (fan-out + a multi-input merge sink), not a
+> linear stack, so a node sees whatever it is wired to. The durable model is
+> **components carrying roles, composed of elements, swapped via slots** — see
+> [`docs/design/component-model.md`](design/component-model.md). Read the table
+> below as a list of **roles**, not pipeline stages.
 
 ```
 INPUT ──▶ FEATURE ──▶ MAPPING ──▶ MUSIC-LOGIC ──▶ SYNTHESIS/GEN ──▶ OUTPUT
