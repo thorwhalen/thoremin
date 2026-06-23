@@ -7,7 +7,7 @@
  * audio. (The full graph's topology + clean tick are covered by app_graph.test.)
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useControls } from '@/app/store';
+import { useControls, toSettings } from '@/app/store';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
 import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
@@ -82,6 +82,40 @@ describe('control store', () => {
     useControls.getState().setMasterVolume(0.75);
     expect(useControls.getState().masterVolume).toBeCloseTo(0.75, 6);
   });
+
+  it('has overlay element defaults (index-finger guide opt-in/off)', () => {
+    const o = useControls.getState().overlay;
+    expect(o.video.show).toBe(true);
+    expect(o.scaleGuide.show).toBe(true);
+    expect(o.indexGuide.show).toBe(false);
+  });
+
+  it('setOverlayElement patches one element without touching the others', () => {
+    useControls.getState().setOverlayElement('indexGuide', { show: true });
+    const o = useControls.getState().overlay;
+    expect(o.indexGuide.show).toBe(true);
+    expect(o.indexGuide.dashed).toBe(true); // sibling field untouched
+    expect(o.video.show).toBe(true); // sibling element untouched
+  });
+
+  it('toSettings snapshots the live state and applySettings restores it', () => {
+    useControls.getState().setSync(false);
+    useControls.getState().setVoice('right', { root: 3, instrument: 'bell' });
+    useControls.getState().setMasterVolume(0.6);
+    useControls.getState().setOverlayElement('indexGuide', { show: true });
+    const snap = toSettings(useControls.getState());
+
+    // Mutate away, then restore from the snapshot.
+    useControls.getState().setMasterVolume(0.1);
+    useControls.getState().setOverlayElement('indexGuide', { show: false });
+    useControls.getState().applySettings(snap);
+
+    const s = useControls.getState();
+    expect(s.masterVolume).toBeCloseTo(0.6);
+    expect(s.right.instrument).toBe('bell');
+    expect(s.syncHands).toBe(false);
+    expect(s.overlay.indexGuide.show).toBe(true);
+  });
 });
 
 describe('store-controls node reads the store', () => {
@@ -111,5 +145,13 @@ describe('store-controls node reads the store', () => {
   it('emits nothing when no controls getter is injected (safe before host wires it)', () => {
     const node = storeControlsNode.make(storeControlsNode.params.parse({}));
     expect(node.process({}, ctxWith({}))).toEqual({});
+  });
+
+  it('emits the live overlay element config for canvas-overlay', () => {
+    useControls.getState().setOverlayElement('indexGuide', { show: true });
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    const out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    const overlay = out.overlay as { indexGuide: { show: boolean } } | undefined;
+    expect(overlay?.indexGuide.show).toBe(true);
   });
 });

@@ -28,6 +28,10 @@
         "name": "octaveShift",
         "kind": "number",
         "default": 0
+      },
+      {
+        "name": "overlayConfig",
+        "kind": "overlay-config"
       }
     ],
     "outputs": [],
@@ -611,7 +615,7 @@
   {
     "type": "store-controls",
     "title": "UI Controls",
-    "description": "Reads the live UI control store → scale + instrument port values.",
+    "description": "Reads the live UI control store → scale + instrument + overlay port values.",
     "inputs": [],
     "outputs": [
       {
@@ -629,6 +633,10 @@
       {
         "name": "instrumentLeft",
         "kind": "instrument"
+      },
+      {
+        "name": "overlay",
+        "kind": "overlay-config"
       }
     ],
     "params": []

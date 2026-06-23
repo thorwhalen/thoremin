@@ -47,6 +47,8 @@ export function defaultGraph(): GraphSpec {
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'overlay', port: 'scale' } },
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'overlay', port: 'scaleLeft' } },
       { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
+      // Live overlay element config from the UI store (toggle elements without rebuild).
+      { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'overlayConfig' } },
     ],
   };
 }
