@@ -75,6 +75,14 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
+/**
+ * The overlay's per-element params schema, exported so it is the single source
+ * of truth for the overlay portion of saved settings (see src/settings/schema.ts)
+ * and for the overlay settings panel. Reuse this rather than redeclaring shapes.
+ */
+export const OverlayParamsSchema = Params;
+export type OverlayParams = Params;
+
 const RIGHT_COLOR = '#10b981';
 const LEFT_COLOR = '#3b82f6';
 
