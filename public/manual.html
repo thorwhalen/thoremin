@@ -216,11 +216,11 @@
 <section><h3>Output</h3><p class="blurb">Audio + the captured video with overlaid guides.</p><div class="grid">
     <div class="node">
       <h4><code>canvas-overlay</code> <span class="title">Canvas Overlay</span></h4>
-      <p>Draws mirrored video + landmarks + control markers + per-hand note names.</p>
+      <p>Mirrored video + composable overlay elements (guides, landmarks, markers).</p>
       <dl>
         <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number</dd>
         <dt>out</dt><dd>—</dd>
-        <dt>params</dt><dd>showLandmarks (boolean=true), showVideo (boolean=true), videoAlpha (number=0.35), showNotes (boolean=true), showScaleGuide (boolean=true)</dd>
+        <dt>params</dt><dd>video (object={}), scaleGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})</dd>
       </dl>
     </div></div></section>
 </div></body></html>
