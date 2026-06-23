@@ -13,9 +13,10 @@ import { useState } from 'react';
 import { Settings, X, Play, BookOpen, Circle, Square } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import ControlsPanel from './ControlsPanel';
+import Toaster from './Toaster';
 
 export default function App() {
-  const { videoRef, canvasRef, status, error, audioOn, isRecording, startAudio, toggleRecording } =
+  const { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording } =
     useThoreminEngine();
   const [panelOpen, setPanelOpen] = useState(true);
 
@@ -56,15 +57,18 @@ export default function App() {
       {audioOn && (
         <button
           onClick={toggleRecording}
-          aria-label={isRecording ? 'Stop recording' : 'Record'}
+          disabled={isSaving}
+          aria-label={isRecording ? 'Stop recording' : isSaving ? 'Saving recording' : 'Record'}
           className={`absolute bottom-3 right-3 flex items-center gap-2 rounded-full px-4 py-2 text-[10px] font-bold uppercase tracking-widest backdrop-blur transition ${
             isRecording
               ? 'animate-pulse bg-red-500 text-white'
-              : 'bg-black/50 text-white/80 hover:text-white'
+              : isSaving
+                ? 'bg-black/50 text-white/50'
+                : 'bg-black/50 text-white/80 hover:text-white'
           }`}
         >
           {isRecording ? <Square className="h-3 w-3 fill-current" /> : <Circle className="h-3 w-3 fill-red-500 text-red-500" />}
-          {isRecording ? 'Stop' : 'Record'}
+          {isRecording ? 'Stop' : isSaving ? 'Saving…' : 'Record'}
         </button>
       )}
 
@@ -133,6 +137,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Transient "saved as …" notifications (e.g. after a recording). */}
+      <Toaster />
     </div>
   );
 }

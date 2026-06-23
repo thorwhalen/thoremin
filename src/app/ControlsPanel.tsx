@@ -14,6 +14,7 @@ import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
 import { useControls, type VoiceControl } from './store';
 import { usePresets } from './usePresets';
+import { RECORDING_FORMATS } from './recording/formats';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 
@@ -138,6 +139,29 @@ function FaceControls() {
   );
 }
 
+function RecordingControls() {
+  const formats = useControls((s) => s.recordingFormats);
+  const setFormat = useControls((s) => s.setRecordingFormat);
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Recording</h3>
+      {RECORDING_FORMATS.map((f) => (
+        <Toggle
+          key={f.id}
+          label={f.label}
+          checked={formats.includes(f.id)}
+          onChange={(v) => setFormat(f.id, v)}
+        />
+      ))}
+      <p className="text-[10px] leading-relaxed text-white/40">
+        On stop, your take is saved in each selected format. If your browser
+        supports it you'll be asked where to save; otherwise it lands in Downloads.
+      </p>
+    </div>
+  );
+}
+
 function PresetControls() {
   const { presets, busy, save, load, remove } = usePresets();
   const [name, setName] = useState('');
@@ -227,6 +251,9 @@ export default function ControlsPanel() {
       </div>
       <div className="border-t border-white/10 pt-3">
         <FaceControls />
+      </div>
+      <div className="border-t border-white/10 pt-3">
+        <RecordingControls />
       </div>
       <div className="border-t border-white/10 pt-3">
         <PresetControls />
