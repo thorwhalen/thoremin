@@ -48,10 +48,10 @@
     </div>
     <div class="node">
       <h4><code>store-controls</code> <span class="title">UI Controls</span></h4>
-      <p>Reads the live UI control store → scale + instrument port values.</p>
+      <p>Reads the live UI control store → scale + instrument + overlay port values.</p>
       <dl>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -218,7 +218,7 @@
       <h4><code>canvas-overlay</code> <span class="title">Canvas Overlay</span></h4>
       <p>Mirrored video + composable overlay elements (guides, landmarks, markers).</p>
       <dl>
-        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number</dd>
+        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number, overlayConfig:overlay-config</dd>
         <dt>out</dt><dd>—</dd>
         <dt>params</dt><dd>video (object={}), scaleGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})</dd>
       </dl>

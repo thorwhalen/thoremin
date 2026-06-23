@@ -177,6 +177,25 @@ describe('canvas-overlay composable elements', () => {
     expect(noNotes.count('fillText')).toBe(0); // but no note labels
   });
 
+  it('a live overlayConfig input overrides the static params', () => {
+    const rc = makeRecordingCanvas();
+    // Static params: index guide OFF, video ON. Live config flips both.
+    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse({}));
+    const liveConfig = canvasOverlayNode.params.parse({
+      indexGuide: { show: true, dashed: true },
+      video: { show: false },
+    });
+    const ctx: NodeContext = {
+      tick: 0,
+      time: 0,
+      dt: 0,
+      resources: { canvas: rc.canvas, video: rc.video },
+    };
+    handlers.process({ ...fullInputs(), overlayConfig: liveConfig }, ctx);
+    expect(rc.count('setLineDash')).toBeGreaterThan(0); // index guide ON via live config
+    expect(rc.count('drawImage')).toBe(0); // video OFF via live config
+  });
+
   it('no canvas resource → no-op, no throw', () => {
     const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse({}));
     const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: {} };

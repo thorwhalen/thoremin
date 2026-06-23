@@ -41,10 +41,10 @@ Global keyboard input → held / pressed / released key events.
 - **params:** preventDefaultKeys (array=["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "])
 
 #### `store-controls` — UI Controls
-Reads the live UI control store → scale + instrument port values.
+Reads the live UI control store → scale + instrument + overlay port values.
 
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument
+- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -187,7 +187,7 @@ _Audio + the captured video with overlaid guides._
 #### `canvas-overlay` — Canvas Overlay
 Mirrored video + composable overlay elements (guides, landmarks, markers).
 
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number, overlayConfig:overlay-config
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})
 

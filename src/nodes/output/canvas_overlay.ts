@@ -311,6 +311,9 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'scaleLeft', kind: 'number[]' },
     // Optional: the live octave shift, so guide labels match the sounding pitch.
     { name: 'octaveShift', kind: 'number', default: 0 },
+    // Optional: a live overlay element config (from the UI store) that overrides
+    // the static `params`, so toggling elements never rebuilds the graph.
+    { name: 'overlayConfig', kind: 'overlay-config' },
   ],
   outputs: [],
   params: Params,
@@ -327,11 +330,14 @@ export const canvasOverlayNode = defineNode<Params>({
         const H = canvas.height;
         g.clearRect(0, 0, W, H);
 
+        // A live config on the overlayConfig input overrides the static params,
+        // so UI toggles take effect each tick without rebuilding the graph.
+        const liveConfig = inputs.overlayConfig as OverlayParams | undefined;
         const view: OverlayView = {
           W,
           H,
           video,
-          params: p,
+          params: liveConfig ?? p,
           inputs: {
             hands: inputs.hands as HandsFrame | undefined,
             features: inputs.features as HandFeatures | undefined,
