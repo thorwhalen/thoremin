@@ -28,9 +28,6 @@
     "@zodal/core": "^0.1.2",
     "@zodal/store": "^0.1.2",
     "@zodal/store-localstorage": "^0.1.0",
-    "better-sqlite3": "^12.4.1",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.0",
@@ -41,7 +38,6 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
