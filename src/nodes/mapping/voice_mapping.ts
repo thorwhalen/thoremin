@@ -22,6 +22,7 @@ import {
 } from '@/music/theory';
 import { InstrumentSchema, INSTRUMENT_IDS } from '@/music/instruments';
 import { ABSENT_HAND, type FaceFeatures, type HandFeatures, type SynthParams, type VoiceParams } from '../domain';
+import { MAPPING_SLOT_INPUTS, MAPPING_SLOT_OUTPUT } from './mapping_contract';
 
 /** How much a full smile / open mouth add to brightness / vibrato (0..1). */
 const FACE_SMILE_BRIGHTNESS = 0.5;
@@ -114,23 +115,11 @@ export const voiceMappingNode = defineNode<Params>({
   roles: ['mapping'],
   title: 'Voice Mapping',
   description: 'Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).',
-  inputs: [
-    { name: 'features', kind: 'hand-features' },
-    // Optional live control. When unconnected, the static params are used.
-    { name: 'magnetism', kind: 'number', description: 'Override magnetism 0..1' },
-    { name: 'octaveShift', kind: 'number', default: 0, description: 'Transpose by N octaves' },
-    { name: 'mute', kind: 'boolean', default: false },
-    // Optional live scale override (list of MIDI notes). Lets the UI change
-    // scale/key without rebuilding the graph or reloading the ML model.
-    { name: 'scaleRight', kind: 'number[]' },
-    { name: 'scaleLeft', kind: 'number[]' },
-    { name: 'instrumentRight', kind: 'instrument' },
-    { name: 'instrumentLeft', kind: 'instrument' },
-    // Optional face expression (from face-features). When present, smile adds
-    // brightness and an open mouth adds vibrato. Unconnected → no effect.
-    { name: 'face', kind: 'face-features' },
-  ],
-  outputs: [{ name: 'params', kind: 'synth-params' }],
+  // The reference implementation of the mapping slot: declares exactly the
+  // shared input/output contract (src/nodes/mapping/mapping_contract.ts), so any
+  // future hand-features→synth-params mapping is an edge-stable drop-in.
+  inputs: [...MAPPING_SLOT_INPUTS],
+  outputs: [MAPPING_SLOT_OUTPUT],
   params: Params,
   process(inputs, p) {
     const f = (inputs.features as HandFeatures | undefined) ?? {
