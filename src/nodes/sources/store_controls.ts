@@ -26,6 +26,8 @@ export interface ControlSnapshot {
   left: VoiceControlSnapshot;
   /** Live overlay element config; forwarded to canvas-overlay's overlayConfig. */
   overlay?: OverlayParams;
+  /** Whether live face control is on; read directly by the `webcam-face` node. */
+  faceEnabled?: boolean;
 }
 
 const Params = z.object({});

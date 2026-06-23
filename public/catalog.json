@@ -866,6 +866,25 @@
     ]
   },
   {
+    "type": "webcam-face",
+    "title": "Webcam Face",
+    "description": "MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "face",
+        "kind": "face-frame"
+      }
+    ],
+    "params": [
+      {
+        "name": "delegate",
+        "type": "enum(GPU | CPU)",
+        "default": "GPU"
+      }
+    ]
+  },
+  {
     "type": "webcam-hands",
     "title": "Webcam Hands",
     "description": "MediaPipe hand landmark detection from a webcam video element.",

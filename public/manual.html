@@ -23,7 +23,7 @@
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 21 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 22 nodes.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build instruments by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live instrument is in progress.</p>
   <h3>Example pipelines</h3>
   <ul class="examples"><li><b>Theremin (direct)</b> — <code>webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)</code><br/><span class="note">Hand x → scale-snapped pitch, y → volume. Two hands = two voices.</span></li><li><b>Gesture → harmony</b> — <code>hand-features → pick('right.x') → progression → chord → webaudio-synth</code><br/><span class="note">Hand position walks an in-key chord progression.</span></li><li><b>Conductor</b> — <code>control → performance → transport → score → webaudio-synth</code><br/><span class="note">A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).</span></li><li><b>Indirect / AI (gesture or expression)</b> — <code>hand-features / face-features → indirect-map → lyria</code><br/><span class="note">Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.</span></li><li><b>Discrete triggers</b> — <code>hand-features → gesture-classifier → (events)</code><br/><span class="note">Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.</span></li></ul>
@@ -35,6 +35,15 @@
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>hands:hands-frame</dd>
         <dt>params</dt><dd>modelType (enum(lite | full)="full"), maxHands (number=2)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>webcam-face</code> <span class="title">Webcam Face</span></h4>
+      <p>MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).</p>
+      <dl>
+        <dt>in</dt><dd>—</dd>
+        <dt>out</dt><dd>face:face-frame</dd>
+        <dt>params</dt><dd>delegate (enum(GPU | CPU)="GPU")</dd>
       </dl>
     </div>
     <div class="node">

@@ -122,6 +122,22 @@ function OverlayControls() {
   );
 }
 
+function FaceControls() {
+  const faceEnabled = useControls((s) => s.faceEnabled);
+  const setFaceEnabled = useControls((s) => s.setFaceEnabled);
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Face control</h3>
+      <Toggle label="Enable face expression" checked={faceEnabled} onChange={setFaceEnabled} />
+      <p className="text-[10px] leading-relaxed text-white/40">
+        Smile → brighter tone, open mouth → vibrato. Loads a face model on first
+        enable; uses the same camera as hand tracking.
+      </p>
+    </div>
+  );
+}
+
 function PresetControls() {
   const { presets, busy, save, load, remove } = usePresets();
   const [name, setName] = useState('');
@@ -208,6 +224,9 @@ export default function ControlsPanel() {
       {!syncHands && <VoiceControls side="left" />}
       <div className="border-t border-white/10 pt-3">
         <OverlayControls />
+      </div>
+      <div className="border-t border-white/10 pt-3">
+        <FaceControls />
       </div>
       <div className="border-t border-white/10 pt-3">
         <PresetControls />

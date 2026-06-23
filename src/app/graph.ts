@@ -3,10 +3,15 @@
  * play tonal audio with overlays, steerable live by keyboard + UI.
  *
  *   webcam ─┬─▶ hand-features ─┬─▶ voice-mapping ─▶ webaudio-synth
- *           │                  │        ▲ ▲ ▲
- *           └────────▶ overlay ◀┘        │ │ └── store-controls (scale/instrument)
- *                       (video+guides)   │ └──── keyboard-control (magnetism/octave/mute)
- *                                        └────── keyboard-source ─▶ keyboard-control
+ *           │                  │        ▲ ▲ ▲ ▲
+ *           └────────▶ overlay ◀┘        │ │ │ └── store-controls (scale/instrument)
+ *                       (video+guides)   │ │ └──── keyboard-control (magnetism/octave/mute)
+ *                                        │ └────── keyboard-source ─▶ keyboard-control
+ *   webcam-face ─▶ face-features ────────┘ (smile→brightness, mouth→vibrato)
+ *
+ * The face branch is always wired but idle until the player enables face
+ * control: `webcam-face` only loads its model (and emits a present face) when
+ * `faceEnabled` is set in the store, so it costs nothing when off.
  *
  * One output may fan OUT to several inputs (webcam→features & overlay); only
  * fan-IN to a single input port is disallowed.
@@ -18,6 +23,9 @@ export function defaultGraph(): GraphSpec {
     nodes: [
       { id: 'cam', type: 'webcam-hands', params: { modelType: 'full', maxHands: 2 } },
       { id: 'feat', type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
+      // Face branch (idle until the player enables face control in settings).
+      { id: 'camFace', type: 'webcam-face', params: {} },
+      { id: 'faceFeat', type: 'face-features', params: { smoothing: 0.3 } },
       { id: 'kbd', type: 'keyboard-source' },
       { id: 'kctrl', type: 'keyboard-control', params: { magnetismStart: 0.8 } },
       { id: 'ui', type: 'store-controls' },
@@ -30,6 +38,10 @@ export function defaultGraph(): GraphSpec {
     edges: [
       { from: { node: 'cam', port: 'hands' }, to: { node: 'feat', port: 'hands' } },
       { from: { node: 'cam', port: 'hands' }, to: { node: 'overlay', port: 'hands' } },
+      // Face: webcam-face → face-features → voice-mapping's optional `face` input
+      // (smile adds brightness, open mouth adds vibrato). Absent face → no effect.
+      { from: { node: 'camFace', port: 'face' }, to: { node: 'faceFeat', port: 'face' } },
+      { from: { node: 'faceFeat', port: 'features' }, to: { node: 'map', port: 'face' } },
       { from: { node: 'feat', port: 'features' }, to: { node: 'map', port: 'features' } },
       { from: { node: 'feat', port: 'features' }, to: { node: 'overlay', port: 'features' } },
       { from: { node: 'kbd', port: 'pressed' }, to: { node: 'kctrl', port: 'pressed' } },

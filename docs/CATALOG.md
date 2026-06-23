@@ -21,7 +21,7 @@ This page catalogs the engine's building blocks — every node and how they conn
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
   Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.
 
-## Nodes (21)
+## Nodes (22)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -32,6 +32,13 @@ MediaPipe hand landmark detection from a webcam video element.
 - **in:** —
 - **out:** hands:hands-frame
 - **params:** modelType (enum(lite | full)="full"), maxHands (number=2)
+
+#### `webcam-face` — Webcam Face
+MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).
+
+- **in:** —
+- **out:** face:face-frame
+- **params:** delegate (enum(GPU | CPU)="GPU")
 
 #### `keyboard-source` — Keyboard Source
 Global keyboard input → held / pressed / released key events.

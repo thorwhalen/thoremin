@@ -33,6 +33,9 @@ export const SettingsSchema = z.object({
   left: VoiceSettingsSchema,
   syncHands: z.boolean(),
   masterVolume: z.number().min(0).max(1),
+  // `.default(false)` keeps presets saved before face control was added valid
+  // (the field is filled in on parse rather than failing validation).
+  faceEnabled: z.boolean().default(false),
   overlay: OverlayParamsSchema,
 });
 export type Settings = z.infer<typeof SettingsSchema>;
