@@ -4,7 +4,7 @@
  * explicit (rather than a global) makes tests hermetic: a test can build a
  * registry with exactly the nodes it needs.
  */
-import type { NodeDef } from './types';
+import type { NodeDef, Role } from './types';
 
 export class NodeRegistry {
   private defs = new Map<string, NodeDef<any>>();
@@ -36,6 +36,16 @@ export class NodeRegistry {
 
   list(): NodeDef<any>[] {
     return [...this.defs.values()];
+  }
+
+  /**
+   * Filtered view over {@link list}: every registered def whose `roles` include
+   * `role`. A node may carry several roles, so it can appear under more than one.
+   * Advisory only — this powers docs and the future swap UI; it never affects
+   * engine execution. No second storage structure: it scans the existing map.
+   */
+  listByRole(role: Role): NodeDef<any>[] {
+    return [...this.defs.values()].filter((def) => def.roles?.includes(role));
   }
 }
 

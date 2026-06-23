@@ -18,6 +18,7 @@ type Params = z.infer<typeof Params>;
 
 export const replaySourceNode = defineNode<Params>({
   type: 'replay-source',
+  roles: ['source'],
   title: 'Replay Source',
   description: 'Emits a recorded value stream, one value per tick.',
   inputs: [],

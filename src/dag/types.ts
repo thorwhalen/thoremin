@@ -26,6 +26,30 @@ import type { ZodType } from 'zod';
  */
 export type ParamsSchema<P> = ZodType<P, any, any>;
 
+/**
+ * Advisory role tag(s) a node *definition* carries — descriptive metadata, like
+ * {@link PortSpec.kind}, **never enforced by the engine**. A node may carry
+ * several (e.g. `store-controls` is `['source', 'control']`, `lyria` is
+ * `['synth', 'generate']`). Roles power docs/onboarding, `registry.listByRole`,
+ * and (eventually) the settings swap UI. See `docs/design/component-model.md`.
+ *
+ * **Terminology:** `role` is for NODES; `kind` is the PORT data contract
+ * ({@link PortSpec.kind}). Never add a node-level `kind`.
+ *
+ * The first six are primary signal-flow roles (`source → feature → mapping →
+ * music → synth/overlay`); `control` and `generate` are cross-cutting modifiers
+ * that combine with a primary role.
+ */
+export type Role =
+  | 'source'
+  | 'feature'
+  | 'mapping'
+  | 'music'
+  | 'synth'
+  | 'overlay'
+  | 'control'
+  | 'generate';
+
 /** A frame of values flowing on a node's ports, keyed by port name. */
 export type PortValues = Record<string, unknown>;
 
@@ -91,6 +115,12 @@ export interface NodeDef<P = unknown> {
   outputs: PortSpec[];
   /** Zod schema validating (and defaulting) this node's params. */
   params: ParamsSchema<P>;
+  /**
+   * Advisory role tag(s) (see {@link Role}); never gates engine execution. A
+   * node may carry several. Powers `registry.listByRole`, docs, and the future
+   * swap UI. Optional so third-party defs don't have to declare it.
+   */
+  roles?: Role[];
   /** Build the instance behaviour from validated params. */
   make(params: P): NodeHandlers;
 }

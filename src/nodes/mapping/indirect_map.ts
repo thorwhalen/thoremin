@@ -69,6 +69,7 @@ function readFeature(hands: HandFeatures, face: FaceFeatures, ref: Ref): number 
 
 export const indirectMapNode = defineNode<Params>({
   type: 'indirect-map',
+  roles: ['mapping'],
   title: 'Indirect Map',
   description: 'Gesture features → weighted prompts + config dials (steers a generative engine).',
   inputs: [

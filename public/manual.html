@@ -32,6 +32,7 @@
       <h4><code>webcam-hands</code> <span class="title">Webcam Hands</span></h4>
       <p>MediaPipe hand landmark detection from a webcam video element.</p>
       <dl>
+        <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>hands:hands-frame</dd>
         <dt>params</dt><dd>modelType (enum(lite | full)="full"), maxHands (number=2)</dd>
@@ -41,6 +42,7 @@
       <h4><code>webcam-face</code> <span class="title">Webcam Face</span></h4>
       <p>MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).</p>
       <dl>
+        <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>face:face-frame</dd>
         <dt>params</dt><dd>delegate (enum(GPU | CPU)="GPU")</dd>
@@ -50,6 +52,7 @@
       <h4><code>keyboard-source</code> <span class="title">Keyboard Source</span></h4>
       <p>Global keyboard input → held / pressed / released key events.</p>
       <dl>
+        <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>held:string[], pressed:string[], released:string[]</dd>
         <dt>params</dt><dd>preventDefaultKeys (array=["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "])</dd>
@@ -59,6 +62,7 @@
       <h4><code>store-controls</code> <span class="title">UI Controls</span></h4>
       <p>Reads the live UI control store → scale + instrument + overlay port values.</p>
       <dl>
+        <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config</dd>
         <dt>params</dt><dd>—</dd>
@@ -68,6 +72,7 @@
       <h4><code>synthetic-hands</code> <span class="title">Synthetic Hands</span></h4>
       <p>Camera-free animated hand landmark source for tests &amp; demos.</p>
       <dl>
+        <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>hands:hands-frame</dd>
         <dt>params</dt><dd>width (number=640), height (number=480), sweepPeriod (number=4), opennessPeriod (number=3), pinchPeriod (number=2.5), hands (enum(right | left | both)="right"), yNorm (number=0.5), scale (number=80)</dd>
@@ -77,6 +82,7 @@
       <h4><code>replay-source</code> <span class="title">Replay Source</span></h4>
       <p>Emits a recorded value stream, one value per tick.</p>
       <dl>
+        <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>value</dd>
         <dt>params</dt><dd>values (array=[]), loop (boolean=false)</dd>
@@ -87,6 +93,7 @@
       <h4><code>hand-features</code> <span class="title">Hand Features</span></h4>
       <p>Landmarks → normalized per-hand position, openness, pinch.</p>
       <dl>
+        <dt>roles</dt><dd>feature</dd>
         <dt>in</dt><dd>hands:hands-frame</dd>
         <dt>out</dt><dd>features:hand-features</dd>
         <dt>params</dt><dd>mirrorX (boolean=true), mirrorHandedness (boolean=true), opennessMin (number=1.3), opennessMax (number=2.3), pinchTouch (number=0.25), pinchApart (number=1.2)</dd>
@@ -96,6 +103,7 @@
       <h4><code>face-features</code> <span class="title">Face Features</span></h4>
       <p>Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).</p>
       <dl>
+        <dt>roles</dt><dd>feature</dd>
         <dt>in</dt><dd>face:face-frame</dd>
         <dt>out</dt><dd>features:face-features</dd>
         <dt>params</dt><dd>gain (number=1), smoothing (number=0)</dd>
@@ -105,6 +113,7 @@
       <h4><code>gesture-classifier</code> <span class="title">Gesture Classifier</span></h4>
       <p>Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.</p>
       <dl>
+        <dt>roles</dt><dd>feature</dd>
         <dt>in</dt><dd>features:hand-features</dd>
         <dt>out</dt><dd>poses:poses, events:gesture-events</dd>
         <dt>params</dt><dd>pinchOn (number=0.6), pinchOff (number=0.45), fistBelow (number=0.25), openAbove (number=0.6), hysteresis (number=0.05)</dd>
@@ -115,6 +124,7 @@
       <h4><code>voice-mapping</code> <span class="title">Voice Mapping</span></h4>
       <p>Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).</p>
       <dl>
+        <dt>roles</dt><dd>mapping</dd>
         <dt>in</dt><dd>features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, face:face-features</dd>
         <dt>out</dt><dd>params:synth-params</dd>
         <dt>params</dt><dd>magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"triangle"})</dd>
@@ -124,6 +134,7 @@
       <h4><code>indirect-map</code> <span class="title">Indirect Map</span></h4>
       <p>Gesture features → weighted prompts + config dials (steers a generative engine).</p>
       <dl>
+        <dt>roles</dt><dd>mapping</dd>
         <dt>in</dt><dd>features:hand-features, face:face-features</dd>
         <dt>out</dt><dd>steer:generative-steer</dd>
         <dt>params</dt><dd>strains (array=[]), dials (array=[]), smoothing (number=0), throttleSec (number=0)</dd>
@@ -133,6 +144,7 @@
       <h4><code>keyboard-control</code> <span class="title">Keyboard Control</span></h4>
       <p>Keyboard key-press events → octave shift, magnetism, mute.</p>
       <dl>
+        <dt>roles</dt><dd>mapping, control</dd>
         <dt>in</dt><dd>pressed:string[]</dd>
         <dt>out</dt><dd>octaveShift:number, magnetism:number, mute:boolean</dd>
         <dt>params</dt><dd>magnetismStep (number=0.1), magnetismStart (number=0.8), octaveMin (number=-2), octaveMax (number=2)</dd>
@@ -142,6 +154,7 @@
       <h4><code>pick</code> <span class="title">Pick</span></h4>
       <p>Extract a scalar from a structured input by dotted path (e.g. right.x).</p>
       <dl>
+        <dt>roles</dt><dd>mapping</dd>
         <dt>in</dt><dd>in:any</dd>
         <dt>out</dt><dd>value:number</dd>
         <dt>params</dt><dd>path (string=""), default (number=0)</dd>
@@ -151,6 +164,7 @@
       <h4><code>one-euro</code> <span class="title">One-Euro Filter</span></h4>
       <p>Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).</p>
       <dl>
+        <dt>roles</dt><dd>mapping</dd>
         <dt>in</dt><dd>value:number</dd>
         <dt>out</dt><dd>value:number</dd>
         <dt>params</dt><dd>minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)</dd>
@@ -161,6 +175,7 @@
       <h4><code>chord</code> <span class="title">Chord</span></h4>
       <p>Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).</p>
       <dl>
+        <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>chord:chord-symbol, gain:number</dd>
         <dt>out</dt><dd>params:synth-params</dd>
         <dt>params</dt><dd>baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")</dd>
@@ -170,6 +185,7 @@
       <h4><code>progression</code> <span class="title">Progression</span></h4>
       <p>Roman-numeral progression in a key + position (0..1) → current chord symbol.</p>
       <dl>
+        <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>position:number</dd>
         <dt>out</dt><dd>chord:chord-symbol, index:number</dd>
         <dt>params</dt><dd>key (string="C"), romanNumerals (array=["I","IV","V","vi"])</dd>
@@ -180,6 +196,7 @@
       <h4><code>transport</code> <span class="title">Transport</span></h4>
       <p>Beat clock: integrates BPM over time into a running beat position.</p>
       <dl>
+        <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>bpm:number</dd>
         <dt>out</dt><dd>beat:number</dd>
         <dt>params</dt><dd>startBeat (number=0)</dd>
@@ -189,6 +206,7 @@
       <h4><code>score</code> <span class="title">Score</span></h4>
       <p>An immutable piece performed live: beat + velocityScale → sounding synth voices.</p>
       <dl>
+        <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>beat:number, velocityScale:number</dd>
         <dt>out</dt><dd>params:synth-params</dd>
         <dt>params</dt><dd>notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")</dd>
@@ -198,6 +216,7 @@
       <h4><code>performance</code> <span class="title">Performance</span></h4>
       <p>Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.</p>
       <dl>
+        <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>control:number</dd>
         <dt>out</dt><dd>bpm:number, velocityScale:number</dd>
         <dt>params</dt><dd>bpmMin (number=60), bpmMax (number=160), dynMin (number=0.4), dynMax (number=1), humanizeBpm (number=0), humanizeVel (number=0)</dd>
@@ -208,6 +227,7 @@
       <h4><code>webaudio-synth</code> <span class="title">Web Audio Synth</span></h4>
       <p>Renders synth params to instrument-preset voices (browser only).</p>
       <dl>
+        <dt>roles</dt><dd>synth</dd>
         <dt>in</dt><dd>params:synth-params</dd>
         <dt>out</dt><dd>—</dd>
         <dt>params</dt><dd>freqGlide (number=0.03), gainGlide (number=0.08)</dd>
@@ -217,6 +237,7 @@
       <h4><code>lyria</code> <span class="title">Lyria Generative</span></h4>
       <p>Steers a generative engine (Lyria RealTime) from weighted prompts + config dials.</p>
       <dl>
+        <dt>roles</dt><dd>synth, generate</dd>
         <dt>in</dt><dd>steer:generative-steer, playing:boolean</dd>
         <dt>out</dt><dd>state:string</dd>
         <dt>params</dt><dd>throttleSec (number=0.2)</dd>
@@ -227,6 +248,7 @@
       <h4><code>canvas-overlay</code> <span class="title">Canvas Overlay</span></h4>
       <p>Mirrored video + composable overlay elements (guides, landmarks, markers).</p>
       <dl>
+        <dt>roles</dt><dd>overlay</dd>
         <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number, overlayConfig:overlay-config</dd>
         <dt>out</dt><dd>—</dd>
         <dt>params</dt><dd>video (object={}), scaleGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})</dd>

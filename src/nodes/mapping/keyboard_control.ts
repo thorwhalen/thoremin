@@ -28,6 +28,7 @@ function clamp(v: number, lo: number, hi: number): number {
 
 export const keyboardControlNode = defineNode<Params>({
   type: 'keyboard-control',
+  roles: ['mapping', 'control'],
   title: 'Keyboard Control',
   description: 'Keyboard key-press events → octave shift, magnetism, mute.',
   inputs: [{ name: 'pressed', kind: 'string[]', default: [] }],

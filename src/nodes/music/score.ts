@@ -37,6 +37,7 @@ type Params = z.infer<typeof Params>;
 
 export const scoreNode = defineNode<Params>({
   type: 'score',
+  roles: ['music'],
   title: 'Score',
   description: 'An immutable piece performed live: beat + velocityScale → sounding synth voices.',
   inputs: [

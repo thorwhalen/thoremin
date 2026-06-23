@@ -108,6 +108,7 @@ function extractOne(hand: Hand, frame: HandsFrame, p: Params): SingleHandFeature
 
 export const handFeaturesNode = defineNode<Params>({
   type: 'hand-features',
+  roles: ['feature'],
   title: 'Hand Features',
   description: 'Landmarks → normalized per-hand position, openness, pinch.',
   inputs: [{ name: 'hands', kind: 'hands-frame' }],

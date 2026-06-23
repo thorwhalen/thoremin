@@ -3,6 +3,9 @@
     "type": "canvas-overlay",
     "title": "Canvas Overlay",
     "description": "Mirrored video + composable overlay elements (guides, landmarks, markers).",
+    "roles": [
+      "overlay"
+    ],
     "inputs": [
       {
         "name": "hands",
@@ -67,6 +70,9 @@
     "type": "chord",
     "title": "Chord",
     "description": "Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).",
+    "roles": [
+      "music"
+    ],
     "inputs": [
       {
         "name": "chord",
@@ -107,6 +113,9 @@
     "type": "face-features",
     "title": "Face Features",
     "description": "Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).",
+    "roles": [
+      "feature"
+    ],
     "inputs": [
       {
         "name": "face",
@@ -136,6 +145,9 @@
     "type": "gesture-classifier",
     "title": "Gesture Classifier",
     "description": "Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.",
+    "roles": [
+      "feature"
+    ],
     "inputs": [
       {
         "name": "features",
@@ -184,6 +196,9 @@
     "type": "hand-features",
     "title": "Hand Features",
     "description": "Landmarks → normalized per-hand position, openness, pinch.",
+    "roles": [
+      "feature"
+    ],
     "inputs": [
       {
         "name": "hands",
@@ -233,6 +248,9 @@
     "type": "indirect-map",
     "title": "Indirect Map",
     "description": "Gesture features → weighted prompts + config dials (steers a generative engine).",
+    "roles": [
+      "mapping"
+    ],
     "inputs": [
       {
         "name": "features",
@@ -276,6 +294,10 @@
     "type": "keyboard-control",
     "title": "Keyboard Control",
     "description": "Keyboard key-press events → octave shift, magnetism, mute.",
+    "roles": [
+      "mapping",
+      "control"
+    ],
     "inputs": [
       {
         "name": "pressed",
@@ -324,6 +346,9 @@
     "type": "keyboard-source",
     "title": "Keyboard Source",
     "description": "Global keyboard input → held / pressed / released key events.",
+    "roles": [
+      "source"
+    ],
     "inputs": [],
     "outputs": [
       {
@@ -357,6 +382,10 @@
     "type": "lyria",
     "title": "Lyria Generative",
     "description": "Steers a generative engine (Lyria RealTime) from weighted prompts + config dials.",
+    "roles": [
+      "synth",
+      "generate"
+    ],
     "inputs": [
       {
         "name": "steer",
@@ -386,6 +415,9 @@
     "type": "one-euro",
     "title": "One-Euro Filter",
     "description": "Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).",
+    "roles": [
+      "mapping"
+    ],
     "inputs": [
       {
         "name": "value",
@@ -426,6 +458,9 @@
     "type": "performance",
     "title": "Performance",
     "description": "Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.",
+    "roles": [
+      "music"
+    ],
     "inputs": [
       {
         "name": "control",
@@ -480,6 +515,9 @@
     "type": "pick",
     "title": "Pick",
     "description": "Extract a scalar from a structured input by dotted path (e.g. right.x).",
+    "roles": [
+      "mapping"
+    ],
     "inputs": [
       {
         "name": "in",
@@ -509,6 +547,9 @@
     "type": "progression",
     "title": "Progression",
     "description": "Roman-numeral progression in a key + position (0..1) → current chord symbol.",
+    "roles": [
+      "music"
+    ],
     "inputs": [
       {
         "name": "position",
@@ -548,6 +589,9 @@
     "type": "replay-source",
     "title": "Replay Source",
     "description": "Emits a recorded value stream, one value per tick.",
+    "roles": [
+      "source"
+    ],
     "inputs": [],
     "outputs": [
       {
@@ -571,6 +615,9 @@
     "type": "score",
     "title": "Score",
     "description": "An immutable piece performed live: beat + velocityScale → sounding synth voices.",
+    "roles": [
+      "music"
+    ],
     "inputs": [
       {
         "name": "beat",
@@ -616,6 +663,10 @@
     "type": "store-controls",
     "title": "UI Controls",
     "description": "Reads the live UI control store → scale + instrument + overlay port values.",
+    "roles": [
+      "source",
+      "control"
+    ],
     "inputs": [],
     "outputs": [
       {
@@ -645,6 +696,9 @@
     "type": "synthetic-hands",
     "title": "Synthetic Hands",
     "description": "Camera-free animated hand landmark source for tests & demos.",
+    "roles": [
+      "source"
+    ],
     "inputs": [],
     "outputs": [
       {
@@ -699,6 +753,9 @@
     "type": "transport",
     "title": "Transport",
     "description": "Beat clock: integrates BPM over time into a running beat position.",
+    "roles": [
+      "music"
+    ],
     "inputs": [
       {
         "name": "bpm",
@@ -724,6 +781,9 @@
     "type": "voice-mapping",
     "title": "Voice Mapping",
     "description": "Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).",
+    "roles": [
+      "mapping"
+    ],
     "inputs": [
       {
         "name": "features",
@@ -845,6 +905,9 @@
     "type": "webaudio-synth",
     "title": "Web Audio Synth",
     "description": "Renders synth params to instrument-preset voices (browser only).",
+    "roles": [
+      "synth"
+    ],
     "inputs": [
       {
         "name": "params",
@@ -869,6 +932,9 @@
     "type": "webcam-face",
     "title": "Webcam Face",
     "description": "MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).",
+    "roles": [
+      "source"
+    ],
     "inputs": [],
     "outputs": [
       {
@@ -888,6 +954,9 @@
     "type": "webcam-hands",
     "title": "Webcam Hands",
     "description": "MediaPipe hand landmark detection from a webcam video element.",
+    "roles": [
+      "source"
+    ],
     "inputs": [],
     "outputs": [
       {

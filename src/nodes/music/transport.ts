@@ -16,6 +16,7 @@ type Params = z.infer<typeof Params>;
 
 export const transportNode = defineNode<Params>({
   type: 'transport',
+  roles: ['music'],
   title: 'Transport',
   description: 'Beat clock: integrates BPM over time into a running beat position.',
   inputs: [{ name: 'bpm', kind: 'number', default: 120 }],

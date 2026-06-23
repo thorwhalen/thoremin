@@ -25,6 +25,7 @@ type Params = z.infer<typeof Params>;
 
 export const lyriaNode = defineNode<Params>({
   type: 'lyria',
+  roles: ['synth', 'generate'],
   title: 'Lyria Generative',
   description: 'Steers a generative engine (Lyria RealTime) from weighted prompts + config dials.',
   inputs: [

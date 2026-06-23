@@ -47,6 +47,7 @@ export function voiceChord(symbol: string, baseOctave: number, maxVoices: number
 
 export const chordNode = defineNode<Params>({
   type: 'chord',
+  roles: ['music'],
   title: 'Chord',
   description: 'Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).',
   inputs: [

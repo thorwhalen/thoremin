@@ -297,6 +297,7 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
 
 export const canvasOverlayNode = defineNode<Params>({
   type: 'canvas-overlay',
+  roles: ['overlay'],
   title: 'Canvas Overlay',
   description: 'Mirrored video + composable overlay elements (guides, landmarks, markers).',
   inputs: [

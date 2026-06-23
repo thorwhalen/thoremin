@@ -69,7 +69,7 @@ function toMarkdown(catalog: CatalogEntry[]): string {
   for (const g of grouped(catalog)) {
     L.push(`### ${g.name}`, g.blurb ? `_${g.blurb}_` : '', '');
     for (const e of g.entries) {
-      L.push(`#### \`${e.type}\` — ${e.title}`, e.description, '', `- **in:** ${ports(e.inputs)}`, `- **out:** ${ports(e.outputs)}`, `- **params:** ${params(e.params)}`, '');
+      L.push(`#### \`${e.type}\` — ${e.title}`, e.description, '', `- **roles:** ${e.roles.join(', ') || '—'}`, `- **in:** ${ports(e.inputs)}`, `- **out:** ${ports(e.outputs)}`, `- **params:** ${params(e.params)}`, '');
     }
   }
   return L.join('\n');
@@ -83,6 +83,7 @@ function toHtml(catalog: CatalogEntry[]): string {
       <h4><code>${esc(e.type)}</code> <span class="title">${esc(e.title)}</span></h4>
       <p>${esc(e.description)}</p>
       <dl>
+        <dt>roles</dt><dd>${esc(e.roles.join(', ') || '—')}</dd>
         <dt>in</dt><dd>${esc(ports(e.inputs))}</dd>
         <dt>out</dt><dd>${esc(ports(e.outputs))}</dd>
         <dt>params</dt><dd>${esc(params(e.params))}</dd>

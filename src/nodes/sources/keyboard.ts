@@ -19,6 +19,7 @@ type Params = z.infer<typeof Params>;
 
 export const keyboardSourceNode = defineNode<Params>({
   type: 'keyboard-source',
+  roles: ['source'],
   title: 'Keyboard Source',
   description: 'Global keyboard input → held / pressed / released key events.',
   inputs: [],

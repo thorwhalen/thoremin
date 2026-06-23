@@ -27,6 +27,7 @@ const EMPTY: HandsFrame = { width: 640, height: 480, hands: [] };
 
 export const webcamHandsNode = defineNode<Params>({
   type: 'webcam-hands',
+  roles: ['source'],
   title: 'Webcam Hands',
   description: 'MediaPipe hand landmark detection from a webcam video element.',
   inputs: [],

@@ -33,6 +33,7 @@ function hashNoise(t: number): number {
 
 export const performanceNode = defineNode<Params>({
   type: 'performance',
+  roles: ['music'],
   title: 'Performance',
   description: 'Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.',
   inputs: [{ name: 'control', kind: 'number', default: 0.5 }],

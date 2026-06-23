@@ -262,6 +262,7 @@ function teardownVoice(voice: Voice, ac: AudioContext, fade = false): void {
 
 export const webAudioSynthNode = defineNode<Params>({
   type: 'webaudio-synth',
+  roles: ['synth'],
   title: 'Web Audio Synth',
   description: 'Renders synth params to instrument-preset voices (browser only).',
   inputs: [{ name: 'params', kind: 'synth-params' }],
