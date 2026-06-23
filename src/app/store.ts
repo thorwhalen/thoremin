@@ -20,6 +20,7 @@ import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instr
 import { OverlayParamsSchema, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import type { VoiceParams } from '@/nodes';
 import type { Settings } from '@/settings/schema';
+import { DEFAULT_RECORDING_FORMATS } from './recording/formats';
 
 export interface VoiceControl {
   root: number; // 0..11
@@ -43,10 +44,18 @@ export interface ControlState {
   faceEnabled: boolean;
   /** Composable overlay element config (see canvas_overlay.ts). Live-controlled. */
   overlay: OverlayParams;
+  /**
+   * Output formats a recording is saved in (ids from the recording format
+   * registry; always ≥1). A tooling preference — persisted to localStorage but
+   * NOT part of a musical preset (it's orthogonal to the instrument's sound).
+   */
+  recordingFormats: string[];
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
   setFaceEnabled(v: boolean): void;
+  /** Toggle a recording output format on/off (keeps at least one selected). */
+  setRecordingFormat(id: string, on: boolean): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
   setOverlayElement<K extends keyof OverlayParams>(key: K, patch: Partial<OverlayParams[K]>): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
@@ -97,6 +106,7 @@ export const useControls = create<ControlState>()(
       masterVolume: 0.4,
       faceEnabled: false,
       overlay: defaultOverlay(),
+      recordingFormats: [...DEFAULT_RECORDING_FORMATS],
       setVoice: (side, patch) =>
         set((s) => {
           const next = { ...s[side], ...patch };
@@ -115,6 +125,17 @@ export const useControls = create<ControlState>()(
       setSync: (v) => set({ syncHands: v }),
       setMasterVolume: (v) => set({ masterVolume: v }),
       setFaceEnabled: (v) => set({ faceEnabled: v }),
+      setRecordingFormat: (id, on) =>
+        set((s) => {
+          const has = s.recordingFormats.includes(id);
+          if (on && !has) return { recordingFormats: [...s.recordingFormats, id] };
+          if (!on && has) {
+            const next = s.recordingFormats.filter((f) => f !== id);
+            // Keep at least one format selected, so a recording always saves.
+            return next.length ? { recordingFormats: next } : {};
+          }
+          return {};
+        }),
       setOverlayElement: (key, patch) =>
         set((s) => ({
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
@@ -144,6 +165,7 @@ export const useControls = create<ControlState>()(
         masterVolume: s.masterVolume,
         faceEnabled: s.faceEnabled,
         overlay: s.overlay,
+        recordingFormats: s.recordingFormats,
       }),
     },
   ),

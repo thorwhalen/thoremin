@@ -10,9 +10,59 @@ import { Engine } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from './graph';
 import { useControls } from './store';
-import { PerformanceRecorder, recordingFilename, extForMime, downloadBlob } from './recorder';
+import { PerformanceRecorder, recordingFilename, extForMime } from './recorder';
+import { recordingFormat } from './recording/formats';
+import { saveBlob } from './recording/save';
+import { useToasts } from './toasts';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/**
+ * Convert the native (WebM/Opus) recording into each selected output format and
+ * save it, surfacing a toast per saved file. Decodes the audio once if any
+ * selected format needs it. Never throws — a per-format failure toasts and the
+ * remaining formats still save.
+ */
+async function saveRecording(
+  native: Blob,
+  mimeType: string,
+  audioContext: AudioContext | undefined,
+): Promise<void> {
+  const { push } = useToasts.getState();
+  const ids = useControls.getState().recordingFormats;
+  const stamp = new Date().toISOString();
+
+  let audio: AudioBuffer | null = null;
+  if (audioContext && ids.some((id) => recordingFormat(id)?.needsDecode)) {
+    try {
+      // arrayBuffer() returns a fresh copy each call, so decoding here never
+      // detaches the buffer the native passthrough reuses.
+      audio = await audioContext.decodeAudioData(await native.arrayBuffer());
+    } catch (e) {
+      console.error('[thoremin] could not decode recording for conversion', e);
+      push('Could not decode audio for conversion');
+    }
+  }
+
+  // Offer the "Save As" picker for the first saved file only; the rest download
+  // directly, so selecting several formats doesn't trigger one dialog per format.
+  let first = true;
+  for (const id of ids) {
+    const fmt = recordingFormat(id);
+    if (!fmt) continue;
+    try {
+      const convert = await fmt.load();
+      const out = await convert({ native, audio });
+      const ext = id === 'webm' ? extForMime(mimeType) : fmt.ext;
+      const result = await saveBlob(out, recordingFilename(stamp, ext), { allowPicker: first });
+      first = false;
+      if (result) push(`Saved ${result.filename}`);
+    } catch (e) {
+      console.error(`[thoremin] failed to save recording as ${fmt.id}`, e);
+      push(`Couldn't save ${fmt.label}`);
+    }
+  }
+}
 
 export function useThoreminEngine() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -28,6 +78,7 @@ export function useThoreminEngine() {
   const [error, setError] = useState<string | null>(null);
   const [audioOn, setAudioOn] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const masterVolume = useControls((s) => s.masterVolume);
 
@@ -172,9 +223,17 @@ export function useThoreminEngine() {
     recBusyRef.current = true;
     try {
       if (r.recording) {
-        const blob = await r.stop();
-        downloadBlob(blob, recordingFilename(new Date().toISOString(), extForMime(r.mimeType)));
+        const native = await r.stop();
         setIsRecording(false);
+        const ac = resourcesRef.current.audioContext as AudioContext | undefined;
+        // Converting + the save dialog can take a moment; surface a "saving"
+        // state so the UI is honest while a new record is briefly blocked.
+        setIsSaving(true);
+        try {
+          await saveRecording(native, r.mimeType, ac);
+        } finally {
+          setIsSaving(false);
+        }
       } else {
         r.start();
         setIsRecording(true);
@@ -184,5 +243,5 @@ export function useThoreminEngine() {
     }
   }, []);
 
-  return { videoRef, canvasRef, status, error, audioOn, isRecording, startAudio, toggleRecording };
+  return { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording };
 }

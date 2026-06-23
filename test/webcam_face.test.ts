@@ -10,8 +10,11 @@
  *   3. lazy offload on disable + retry on re-enable + idempotent dispose,
  *   4. the GPU→CPU delegate fallback when GPU creation fails.
  */
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NodeContext } from '@/dag';
+
+/** Drain pending microtasks (the mocked async load chain resolves on them). */
+const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 // Mocked MediaPipe runtime — hoisted so the vi.mock factory can reference the spies.
 const { forVisionTasks, createFromOptions, fakeLandmarker } = vi.hoisted(() => {
@@ -47,19 +50,27 @@ const ctx = (faceEnabled?: boolean, video?: unknown): NodeContext =>
 // A truthy <video> stand-in; never "ready" so the inference loop never fires.
 const fakeVideo = () => ({ readyState: 0, videoWidth: 0, currentTime: 0 }) as unknown;
 
-beforeAll(() => {
-  // The node starts a requestAnimationFrame loop once the (mocked) model loads;
-  // a no-op rAF keeps it from recursing or referencing a missing browser global.
-  const g = globalThis as Record<string, unknown>;
-  g.requestAnimationFrame ??= () => 0;
-  g.cancelAnimationFrame ??= () => {};
-});
+// The node starts a requestAnimationFrame loop once the (mocked) model loads.
+// Force a no-op rAF (and restore it after) so the loop never schedules real work
+// and we don't pollute the shared global for other test files.
+const g = globalThis as Record<string, unknown>;
+let savedRaf: unknown;
+let savedCaf: unknown;
 
 beforeEach(() => {
+  savedRaf = g.requestAnimationFrame;
+  savedCaf = g.cancelAnimationFrame;
+  g.requestAnimationFrame = () => 0;
+  g.cancelAnimationFrame = () => {};
   forVisionTasks.mockClear();
   createFromOptions.mockClear();
   createFromOptions.mockImplementation(async () => fakeLandmarker);
   fakeLandmarker.close.mockClear();
+});
+
+afterEach(() => {
+  g.requestAnimationFrame = savedRaf;
+  g.cancelAnimationFrame = savedCaf;
 });
 
 describe('blendshapesToFaceFrame', () => {
@@ -106,7 +117,7 @@ describe('webcam-face node gating', () => {
     expect(createFromOptions).not.toHaveBeenCalled();
   });
 
-  it('offloads on disable, re-enables, and is idempotent on dispose — never throws', () => {
+  it('offloads on disable, re-enables, and is idempotent on dispose — never throws', async () => {
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
     let faceEnabled = true;
     const live = ctx(true, fakeVideo());
@@ -126,22 +137,34 @@ describe('webcam-face node gating', () => {
       inst.dispose?.();
     }).not.toThrow();
     expect(inst.process({}, live)).toEqual(ABSENT);
+    await flush(); // let the dangling mocked load settle (it self-closes)
   });
 });
 
 describe('webcam-face delegate fallback', () => {
   it('falls back to the CPU delegate when GPU model creation fails', async () => {
+    // Resolve exactly when the 2nd (CPU) create is invoked — deterministic under
+    // any load, unlike a timed flush of the import→fileset→create chain.
+    let resolveSecondCall = () => {};
+    const secondCall = new Promise<void>((r) => {
+      resolveSecondCall = r;
+    });
     createFromOptions
       .mockRejectedValueOnce(new Error('no webgl'))
-      .mockResolvedValueOnce(fakeLandmarker);
+      .mockImplementationOnce(async () => {
+        resolveSecondCall();
+        return fakeLandmarker;
+      });
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    inst.process({}, ctx(true, fakeVideo())); // kicks the async load
-    await vi.waitFor(() => expect(createFromOptions).toHaveBeenCalledTimes(2));
+    inst.process({}, ctx(true, fakeVideo())); // kicks the async load (GPU fails → CPU)
+    await secondCall;
+    expect(createFromOptions).toHaveBeenCalledTimes(2);
     const calls = createFromOptions.mock.calls as unknown as Array<
       [unknown, { baseOptions: { delegate: string } }]
     >;
     expect(calls[0][1].baseOptions.delegate).toBe('GPU');
     expect(calls[1][1].baseOptions.delegate).toBe('CPU');
     inst.dispose?.();
+    await flush(); // settle the resolved load (no-op rAF; landmarker set then disposed)
   });
 });
