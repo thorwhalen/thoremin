@@ -8,14 +8,16 @@ no backend compute — the app is a static Vite bundle).
 
 ## Two front-ends in one build
 
-- **Default (legacy) app** — `src/App.tsx`, `src/components/Theremin.tsx`,
-  `src/plugins/ai-dj/` (Lyria RealTime). Loads at the bare URL. This is what is
-  live at https://apps.thorwhalen.com/thoremin/.
-- **DAG instrument view** — opt-in via `?engine=dag` → `src/app/*`, `src/nodes`,
-  `src/dag`, `src/music`. The architecture everything new is built on.
+- **DAG instrument view (default)** — `src/app/*`, `src/nodes`, `src/dag`,
+  `src/music`. The typed dataflow engine everything new is built on. Loads at
+  the bare URL (https://apps.thorwhalen.com/thoremin/). `?engine=dag` is still
+  honored (it equals the default), so older links keep working.
+- **Legacy app** — opt-in via `?engine=legacy` (alias `?engine=classic`) →
+  `src/App.tsx`, `src/components/Theremin.tsx`, `src/plugins/ai-dj/` (Lyria
+  RealTime). The original hand-theremin; kept reachable for the AI-DJ plugin
+  until it is ported onto the DAG. It is the code-split (lazy) view now.
 
-Changes to the DAG view are additive and zero-risk to the live default until we
-deliberately deploy / flip the default (both outward-facing — get the user's OK).
+Outward-facing changes (deploying, moving the default) still get the user's OK.
 
 ## The architecture in one breath (read this first)
 
