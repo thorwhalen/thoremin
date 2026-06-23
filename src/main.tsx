@@ -1,31 +1,32 @@
 /**
  * App entry — selects which front-end to mount.
  *
- * By default mounts the current production hand-theremin app (`./App`), exactly
- * as before: a static import that paints synchronously from the entry bundle —
- * the deployed default is untouched. Append `?engine=dag` to the URL to mount
- * the DAG-driven instrument view (`./app/App`) instead — an opt-in alternate
- * that runs the same gesture→audio path through the typed DAG engine. Only the
- * DAG view is code-split (lazy), so it never weighs on the default path.
+ * By default mounts the DAG-driven instrument view (`./app/App`) — the typed
+ * dataflow engine everything new is built on, and now the default at the bare
+ * URL. Append `?engine=legacy` (alias `?engine=classic`) to mount the original
+ * hand-theremin app (`./App`, including the Lyria AI-DJ plugin). `?engine=dag`
+ * is still honored and equals the default, so existing links keep working.
+ * Only the non-default (legacy) view is code-split, so it never weighs on the
+ * default path.
  */
 import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
-import DefaultApp from './App.tsx';
+import DagApp from './app/App.tsx';
 import './index.css';
 
-const useDagEngine =
-  new URLSearchParams(window.location.search).get('engine') === 'dag';
+const engineParam = new URLSearchParams(window.location.search).get('engine');
+const useLegacyEngine = engineParam === 'legacy' || engineParam === 'classic';
 
-const DagApp = lazy(() => import('./app/App.tsx'));
+const LegacyApp = lazy(() => import('./App.tsx'));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {useDagEngine ? (
+    {useLegacyEngine ? (
       <Suspense fallback={null}>
-        <DagApp />
+        <LegacyApp />
       </Suspense>
     ) : (
-      <DefaultApp />
+      <DagApp />
     )}
   </StrictMode>,
 );

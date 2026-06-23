@@ -84,15 +84,17 @@ adjust octave/magnetism/mute live; the UI panel changes scale/key/wave live.
 The overlay draws the mirrored video, landmarks, per-hand control markers
 (openness = ring size, pinch = fill), and a feature HUD.
 
-## The deployed app being folded in (`src/`)
+## The legacy app being folded in (`src/`)
 
-The **currently deployed app** is the React app at the repo root
-(`src/App.tsx`, `src/components/Theremin.tsx`, `src/hooks/`, `src/plugins/`),
-live at https://apps.thorwhalen.com/thoremin/. It is the working app this DAG
-architecture grows from: MediaPipe hands + Web Audio synth + a **Lyria RealTime**
-plugin (`src/plugins/ai-dj/`: `lyria-realtime-exp`, `@google/genai` WebSocket,
-48 kHz PCM, weighted "strain" prompts throttled to 200 ms,
-BPM/density/brightness/guidance config, 10-min sessions).
+The original React app at the repo root (`src/App.tsx`,
+`src/components/Theremin.tsx`, `src/hooks/`, `src/plugins/`) is now the **legacy
+view**, reachable at `?engine=legacy` (the DAG view is the default at the bare
+URL). It is the working app this DAG architecture grew from: MediaPipe hands +
+Web Audio synth + a **Lyria RealTime** plugin (`src/plugins/ai-dj/`:
+`lyria-realtime-exp`, `@google/genai` WebSocket, 48 kHz PCM, weighted "strain"
+prompts throttled to 200 ms, BPM/density/brightness/guidance config, 10-min
+sessions). It stays reachable until the Lyria AI-DJ plugin is ported onto the
+DAG.
 
 The DAG engine + node library (`src/dag/`, `src/nodes/`, `src/music/`) currently
 live **alongside** that app — fully tested, but not yet wired into it. The next
