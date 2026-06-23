@@ -23,7 +23,9 @@ export function defaultGraph(): GraphSpec {
       { id: 'ui', type: 'store-controls' },
       { id: 'map', type: 'voice-mapping', params: { magnetism: 0.8, maxGain: 0.5 } },
       { id: 'synth', type: 'webaudio-synth' },
-      { id: 'overlay', type: 'canvas-overlay', params: { showLandmarks: true, showVideo: true } },
+      // Overlay elements default on (video/scaleGuide/landmarks/markers); the
+      // opt-in index-finger guide is off by default. See canvas_overlay.ts.
+      { id: 'overlay', type: 'canvas-overlay', params: {} },
     ],
     edges: [
       { from: { node: 'cam', port: 'hands' }, to: { node: 'feat', port: 'hands' } },

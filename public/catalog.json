@@ -2,7 +2,7 @@
   {
     "type": "canvas-overlay",
     "title": "Canvas Overlay",
-    "description": "Draws mirrored video + landmarks + control markers + per-hand note names.",
+    "description": "Mirrored video + composable overlay elements (guides, landmarks, markers).",
     "inputs": [
       {
         "name": "hands",
@@ -33,29 +33,29 @@
     "outputs": [],
     "params": [
       {
-        "name": "showLandmarks",
-        "type": "boolean",
-        "default": true
+        "name": "video",
+        "type": "object",
+        "default": {}
       },
       {
-        "name": "showVideo",
-        "type": "boolean",
-        "default": true
+        "name": "scaleGuide",
+        "type": "object",
+        "default": {}
       },
       {
-        "name": "videoAlpha",
-        "type": "number",
-        "default": 0.35
+        "name": "indexGuide",
+        "type": "object",
+        "default": {}
       },
       {
-        "name": "showNotes",
-        "type": "boolean",
-        "default": true
+        "name": "landmarks",
+        "type": "object",
+        "default": {}
       },
       {
-        "name": "showScaleGuide",
-        "type": "boolean",
-        "default": true
+        "name": "markers",
+        "type": "object",
+        "default": {}
       }
     ]
   },
