@@ -121,7 +121,7 @@ export const voiceMappingNode = defineNode<Params>({
   inputs: [...MAPPING_SLOT_INPUTS],
   outputs: [MAPPING_SLOT_OUTPUT],
   params: Params,
-  process(inputs, p) {
+  process(inputs, p, ctx) {
     const f = (inputs.features as HandFeatures | undefined) ?? {
       left: { ...ABSENT_HAND },
       right: { ...ABSENT_HAND },
@@ -146,10 +146,18 @@ export const voiceMappingNode = defineNode<Params>({
       ? (inputs.instrumentLeft as VoiceParams['instrument'])
       : p.left.instrument);
 
-    // Face expression is global (one face modulates both hands).
+    // Face expression is global (one face modulates both hands). The face→timbre
+    // mapping only applies in the 'timbre' face mode: in 'chord' mode the face
+    // drives chords instead (via `expression-chord`), so suppress timbre here.
+    // The mode is read live from the control store; when it is absent (pure
+    // headless tests, or a host that predates the chooser) timbre applies as
+    // before — preserving the original face→brightness behaviour.
+    const faceMapping = (ctx?.resources?.controls as (() => { faceMapping?: string }) | undefined)?.()
+      ?.faceMapping;
+    const timbreMode = faceMapping === undefined || faceMapping === 'timbre';
     const face = inputs.face as FaceFeatures | undefined;
     const faceMod: FaceMod =
-      p.faceControlsExpression && face?.present
+      timbreMode && p.faceControlsExpression && face?.present
         ? {
             brightness: clamp01(face.smile) * FACE_SMILE_BRIGHTNESS,
             vibrato: clamp01(face.mouthOpen) * FACE_MOUTH_VIBRATO,

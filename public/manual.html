@@ -23,7 +23,7 @@
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 22 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 25 nodes.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build instruments by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live instrument is in progress.</p>
   <h3>Example pipelines</h3>
   <ul class="examples"><li><b>Theremin (direct)</b> — <code>webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)</code><br/><span class="note">Hand x → scale-snapped pitch, y → volume. Two hands = two voices.</span></li><li><b>Gesture → harmony</b> — <code>hand-features → pick('right.x') → progression → chord → webaudio-synth</code><br/><span class="note">Hand position walks an in-key chord progression.</span></li><li><b>Conductor</b> — <code>control → performance → transport → score → webaudio-synth</code><br/><span class="note">A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).</span></li><li><b>Indirect / AI (gesture or expression)</b> — <code>hand-features / face-features → indirect-map → lyria</code><br/><span class="note">Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.</span></li><li><b>Discrete triggers</b> — <code>hand-features → gesture-classifier → (events)</code><br/><span class="note">Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.</span></li></ul>
@@ -44,7 +44,7 @@
       <dl>
         <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>face:face-frame</dd>
+        <dt>out</dt><dd>face:face-frame, status:face-status</dd>
         <dt>params</dt><dd>delegate (enum(GPU | CPU)="GPU")</dd>
       </dl>
     </div>
@@ -64,7 +64,7 @@
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -107,6 +107,16 @@
         <dt>in</dt><dd>face:face-frame</dd>
         <dt>out</dt><dd>features:face-features</dd>
         <dt>params</dt><dd>gain (number=1), smoothing (number=0)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>face-expression</code> <span class="title">Face Expression</span></h4>
+      <p>Face blendshapes → softmax over 7 expressions (happy/sad/angry/surprised/fearful/disgusted/neutral) with smoothing + hysteresis.</p>
+      <dl>
+        <dt>roles</dt><dd>feature</dd>
+        <dt>in</dt><dd>face:face-frame</dd>
+        <dt>out</dt><dd>expression:face-expression</dd>
+        <dt>params</dt><dd>smoothing (number=0.4), temperature (number=0.12), holdMargin (number=0.06)</dd>
       </dl>
     </div>
     <div class="node">
@@ -169,6 +179,16 @@
         <dt>out</dt><dd>value:number</dd>
         <dt>params</dt><dd>minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)</dd>
       </dl>
+    </div>
+    <div class="node">
+      <h4><code>synth-merge</code> <span class="title">Synth Merge</span></h4>
+      <p>Union two synth-params voice streams into one (e.g. hand voices + face-chord voices).</p>
+      <dl>
+        <dt>roles</dt><dd>mapping</dd>
+        <dt>in</dt><dd>a:synth-params, b:synth-params</dd>
+        <dt>out</dt><dd>params:synth-params</dd>
+        <dt>params</dt><dd>—</dd>
+      </dl>
     </div></div></section>
 <section><h3>Music logic (tonal guidance)</h3><p class="blurb">Harmony kept in-key.</p><div class="grid">
     <div class="node">
@@ -189,6 +209,16 @@
         <dt>in</dt><dd>position:number</dd>
         <dt>out</dt><dd>chord:chord-symbol, index:number</dd>
         <dt>params</dt><dd>key (string="C"), romanNumerals (array=["I","IV","V","vi"])</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>expression-chord</code> <span class="title">Expression Chord</span></h4>
+      <p>Facial expression → the diatonic triad on its confusion-aware scale degree (active only in face "chord" mode on seven-note scales).</p>
+      <dl>
+        <dt>roles</dt><dd>music</dd>
+        <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number</dd>
+        <dt>out</dt><dd>params:synth-params, triad:number[]</dd>
+        <dt>params</dt><dd>gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")</dd>
       </dl>
     </div></div></section>
 <section><h3>Conductor mode</h3><p class="blurb">Direct a fixed piece with gesture (tempo + dynamics).</p><div class="grid">
@@ -249,9 +279,9 @@
       <p>Mirrored video + composable overlay elements (guides, landmarks, markers).</p>
       <dl>
         <dt>roles</dt><dd>overlay</dd>
-        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number, overlayConfig:overlay-config</dd>
+        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chord:number[], octaveShift:number, overlayConfig:overlay-config</dd>
         <dt>out</dt><dd>—</dd>
-        <dt>params</dt><dd>video (object={}), scaleGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})</dd>
+        <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})</dd>
       </dl>
     </div></div></section>
 </div></body></html>

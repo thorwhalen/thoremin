@@ -21,7 +21,7 @@ This page catalogs the engine's building blocks — every node and how they conn
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
   Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.
 
-## Nodes (22)
+## Nodes (25)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -39,7 +39,7 @@ MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by
 
 - **roles:** source
 - **in:** —
-- **out:** face:face-frame
+- **out:** face:face-frame, status:face-status
 - **params:** delegate (enum(GPU | CPU)="GPU")
 
 #### `keyboard-source` — Keyboard Source
@@ -55,7 +55,7 @@ Reads the live UI control store → scale + instrument + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config
+- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -92,6 +92,14 @@ Face blendshapes → normalized expression controls (smile, mouthOpen, brow, bli
 - **in:** face:face-frame
 - **out:** features:face-features
 - **params:** gain (number=1), smoothing (number=0)
+
+#### `face-expression` — Face Expression
+Face blendshapes → softmax over 7 expressions (happy/sad/angry/surprised/fearful/disgusted/neutral) with smoothing + hysteresis.
+
+- **roles:** feature
+- **in:** face:face-frame
+- **out:** expression:face-expression
+- **params:** smoothing (number=0.4), temperature (number=0.12), holdMargin (number=0.06)
 
 #### `gesture-classifier` — Gesture Classifier
 Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.
@@ -144,6 +152,14 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 - **out:** value:number
 - **params:** minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)
 
+#### `synth-merge` — Synth Merge
+Union two synth-params voice streams into one (e.g. hand voices + face-chord voices).
+
+- **roles:** mapping
+- **in:** a:synth-params, b:synth-params
+- **out:** params:synth-params
+- **params:** —
+
 ### Music logic (tonal guidance)
 _Harmony kept in-key._
 
@@ -162,6 +178,14 @@ Roman-numeral progression in a key + position (0..1) → current chord symbol.
 - **in:** position:number
 - **out:** chord:chord-symbol, index:number
 - **params:** key (string="C"), romanNumerals (array=["I","IV","V","vi"])
+
+#### `expression-chord` — Expression Chord
+Facial expression → the diatonic triad on its confusion-aware scale degree (active only in face "chord" mode on seven-note scales).
+
+- **roles:** music
+- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number
+- **out:** params:synth-params, triad:number[]
+- **params:** gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")
 
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._
@@ -216,7 +240,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers).
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], octaveShift:number, overlayConfig:overlay-config
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chord:number[], octaveShift:number, overlayConfig:overlay-config
 - **out:** —
-- **params:** video (object={}), scaleGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})
+- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={})
 

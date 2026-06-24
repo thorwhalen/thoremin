@@ -7,7 +7,7 @@
  * audio. (The full graph's topology + clean tick are covered by app_graph.test.)
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useControls, toSettings } from '@/app/store';
+import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
 import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
@@ -28,6 +28,14 @@ describe('control store', () => {
     expect(s.left.type).toBe('pentatonic');
     expect(s.syncHands).toBe(true);
     expect(s.masterVolume).toBeCloseTo(0.4, 6);
+    expect(s.faceMapping).toBe('none'); // face control off by default
+  });
+
+  it('setFaceMapping switches the face mapping mode', () => {
+    useControls.getState().setFaceMapping('chord');
+    expect(useControls.getState().faceMapping).toBe('chord');
+    useControls.getState().setFaceMapping('none');
+    expect(useControls.getState().faceMapping).toBe('none');
   });
 
   it('setVoice with sync ON mirrors both hands but keeps instruments distinct', () => {
@@ -102,11 +110,13 @@ describe('control store', () => {
     useControls.getState().setSync(false);
     useControls.getState().setVoice('right', { root: 3, instrument: 'bell' });
     useControls.getState().setMasterVolume(0.6);
+    useControls.getState().setFaceMapping('chord');
     useControls.getState().setOverlayElement('indexGuide', { show: true });
     const snap = toSettings(useControls.getState());
 
     // Mutate away, then restore from the snapshot.
     useControls.getState().setMasterVolume(0.1);
+    useControls.getState().setFaceMapping('none');
     useControls.getState().setOverlayElement('indexGuide', { show: false });
     useControls.getState().applySettings(snap);
 
@@ -114,7 +124,33 @@ describe('control store', () => {
     expect(s.masterVolume).toBeCloseTo(0.6);
     expect(s.right.instrument).toBe('bell');
     expect(s.syncHands).toBe(false);
+    expect(s.faceMapping).toBe('chord');
     expect(s.overlay.indexGuide.show).toBe(true);
+  });
+});
+
+describe('persist migration (v1 → v2, returning users)', () => {
+  it('migrateControls maps the legacy faceEnabled flag onto faceMapping', () => {
+    const on = migrateControls({ masterVolume: 0.5, faceEnabled: true }, 1) as unknown as Record<string, unknown>;
+    expect(on.faceMapping).toBe('timbre');
+    expect(on.faceEnabled).toBeUndefined();
+    expect(
+      (migrateControls({ faceEnabled: false }, 1) as unknown as Record<string, unknown>).faceMapping,
+    ).toBe('none');
+  });
+
+  it('mergeControls heals a stale overlay (missing chordGuide) so it cannot crash readers', () => {
+    const initial = useControls.getInitialState();
+    // A v1-style overlay blob written before the chordGuide element existed.
+    const legacyOverlay = { video: { show: true, alpha: 0.35 }, scaleGuide: { show: true, showLabels: true } };
+    const merged = mergeControls({ overlay: legacyOverlay }, initial);
+    expect(typeof merged.overlay.chordGuide?.show).toBe('boolean'); // default filled in, no crash
+  });
+
+  it('mergeControls clamps an unknown faceMapping to a safe value', () => {
+    const initial = useControls.getInitialState();
+    expect(mergeControls({ faceMapping: 'rainbow' as never }, initial).faceMapping).toBe('none');
+    expect(mergeControls({ faceMapping: 'chord' }, initial).faceMapping).toBe('chord');
   });
 });
 
@@ -131,6 +167,7 @@ describe('store-controls node reads the store', () => {
     useControls.getState().setVoice('right', { root: 2, type: 'minor', instrument: 'square' });
     useControls.getState().setVoice('left', { root: 9, instrument: 'sawtooth' });
 
+    useControls.getState().setFaceMapping('chord');
     const node = storeControlsNode.make(storeControlsNode.params.parse({}));
     const out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
 
@@ -140,6 +177,9 @@ describe('store-controls node reads the store', () => {
     expect(out.scaleRight).toEqual(generateScale(s.right));
     expect(out.scaleLeft).toEqual(generateScale(s.left));
     expect((out.scaleRight as number[]).length).toBeGreaterThan(0);
+    // The chord-path ports: the right voice's scale spec + the face mode.
+    expect(out.faceMapping).toBe('chord');
+    expect(out.rightSpec).toMatchObject({ root: 2, type: 'minor' });
   });
 
   it('emits nothing when no controls getter is injected (safe before host wires it)', () => {

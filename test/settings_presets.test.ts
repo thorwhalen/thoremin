@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { createPresetStore, presetId } from '@/settings/presets';
-import { SettingsSchema, type Preset, type Settings } from '@/settings/schema';
+import { PresetSchema, SettingsSchema, type Preset, type Settings } from '@/settings/schema';
 
 function sampleSettings(overrides: Partial<Settings> = {}): Settings {
   return SettingsSchema.parse({
@@ -88,5 +88,32 @@ describe('preset persistence', () => {
     expect(() =>
       SettingsSchema.parse({ ...sampleSettings(), right: { ...sampleSettings().right, instrument: 'bogus' } }),
     ).toThrow();
+  });
+
+  it('defaults faceMapping to none when omitted', () => {
+    expect(sampleSettings().faceMapping).toBe('none');
+  });
+
+  it('migrates a pre-#64 preset (boolean faceEnabled) to faceMapping on load', () => {
+    const legacy = {
+      id: 'legacy',
+      name: 'Legacy',
+      createdAt: 1,
+      settings: {
+        right: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'warmPad' },
+        left: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'glass' },
+        syncHands: true,
+        masterVolume: 0.4,
+        faceEnabled: true, // the old boolean flag
+        overlay: {},
+      },
+    };
+    const parsed = PresetSchema.parse(legacy);
+    expect(parsed.settings.faceMapping).toBe('timbre');
+    expect((parsed.settings as Record<string, unknown>).faceEnabled).toBeUndefined();
+
+    // The false branch maps to 'none'.
+    const off = { ...legacy, settings: { ...legacy.settings, faceEnabled: false } };
+    expect(PresetSchema.parse(off).settings.faceMapping).toBe('none');
   });
 });

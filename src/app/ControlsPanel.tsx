@@ -10,9 +10,11 @@
  * in a collapsible translucent overlay so the video stays the focus.
  */
 import { useState } from 'react';
-import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
+import { NOTES, SCALE_TYPES, isSevenNoteScale, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
+import type { FaceMapping } from '@/nodes';
 import { useControls, type VoiceControl } from './store';
+import { useFaceStatus } from './faceStatus';
 import { usePresets } from './usePresets';
 import { RECORDING_FORMATS } from './recording/formats';
 
@@ -114,6 +116,7 @@ function OverlayControls() {
       </label>
       <Toggle label="Scale guide" checked={overlay.scaleGuide.show} onChange={(v) => set('scaleGuide', { show: v })} />
       <Toggle label="Scale guide labels" checked={overlay.scaleGuide.showLabels} onChange={(v) => set('scaleGuide', { showLabels: v })} />
+      <Toggle label="Face chord highlight" checked={overlay.chordGuide.show} onChange={(v) => set('chordGuide', { show: v })} />
       <Toggle label="Index-finger guide" checked={overlay.indexGuide.show} onChange={(v) => set('indexGuide', { show: v })} />
       <Toggle label="Index guide dashed" checked={overlay.indexGuide.dashed} onChange={(v) => set('indexGuide', { dashed: v })} />
       <Toggle label="Hand landmarks" checked={overlay.landmarks.show} onChange={(v) => set('landmarks', { show: v })} />
@@ -123,18 +126,88 @@ function OverlayControls() {
   );
 }
 
+const FACE_MODE_OPTIONS: { value: FaceMapping; label: string }[] = [
+  { value: 'none', label: 'Off' },
+  { value: 'timbre', label: 'Expression → timbre' },
+  { value: 'chord', label: 'Expression → chord' },
+];
+
+const FACE_MODE_HINT: Record<FaceMapping, string> = {
+  none: 'No face detection. Pick a mode to map your expression to sound. Uses the same camera as hand tracking; loads a small face model on first use.',
+  timbre: 'Smile → brighter tone, open mouth → vibrato — shaping the notes your hands play.',
+  chord: "Your expression plays a diatonic triad on the right hand's scale (needs a 7-note scale).",
+};
+
+/** Live face-model status + detected expression, driven by the engine (#65). */
+function FaceStatusReadout({ active }: { active: boolean }) {
+  const status = useFaceStatus((s) => s.status);
+  const label = useFaceStatus((s) => s.label);
+
+  let dot = 'bg-white/30';
+  let text = 'Off';
+  if (active) {
+    switch (status.phase) {
+      case 'loading':
+        dot = 'bg-amber-400 animate-pulse';
+        text = 'Loading face model…';
+        break;
+      case 'error':
+        dot = 'bg-rose-500';
+        text = 'Model failed to load';
+        break;
+      case 'ready':
+        if (status.faceDetected) {
+          dot = 'bg-emerald-400';
+          text = label ? `Face detected — ${label}` : 'Face detected';
+        } else {
+          dot = 'bg-sky-400';
+          text = 'Ready — no face in frame';
+        }
+        break;
+      default:
+        dot = 'bg-white/30';
+        text = 'Starting…';
+    }
+  }
+  return (
+    <div className="flex items-center gap-2 text-[11px] text-white/70">
+      <span className={`inline-block h-2 w-2 rounded-full ${dot}`} aria-hidden />
+      <span>{text}</span>
+    </div>
+  );
+}
+
 function FaceControls() {
-  const faceEnabled = useControls((s) => s.faceEnabled);
-  const setFaceEnabled = useControls((s) => s.setFaceEnabled);
+  const faceMapping = useControls((s) => s.faceMapping);
+  const setFaceMapping = useControls((s) => s.setFaceMapping);
+  const rightType = useControls((s) => s.right.type);
+  const sevenNote = isSevenNoteScale(rightType);
 
   return (
     <div className="space-y-2">
       <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Face control</h3>
-      <Toggle label="Enable face expression" checked={faceEnabled} onChange={setFaceEnabled} />
-      <p className="text-[10px] leading-relaxed text-white/40">
-        Smile → brighter tone, open mouth → vibrato. Loads a face model on first
-        enable; uses the same camera as hand tracking.
-      </p>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Mapping
+        <select
+          className={selectCls}
+          value={faceMapping}
+          onChange={(e) => setFaceMapping(e.target.value as FaceMapping)}
+        >
+          {FACE_MODE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value} disabled={o.value === 'chord' && !sevenNote}>
+              {o.label}
+              {o.value === 'chord' && !sevenNote ? ' (needs 7-note scale)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <FaceStatusReadout active={faceMapping !== 'none'} />
+      {faceMapping === 'chord' && !sevenNote && (
+        <p className="text-[10px] leading-relaxed text-amber-300/80">
+          Chord mode needs a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.
+        </p>
+      )}
+      <p className="text-[10px] leading-relaxed text-white/40">{FACE_MODE_HINT[faceMapping]}</p>
     </div>
   );
 }

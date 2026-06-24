@@ -28,6 +28,10 @@
         "kind": "number[]"
       },
       {
+        "name": "chord",
+        "kind": "number[]"
+      },
+      {
         "name": "octaveShift",
         "kind": "number",
         "default": 0
@@ -46,6 +50,11 @@
       },
       {
         "name": "scaleGuide",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "chordGuide",
         "type": "object",
         "default": {}
       },
@@ -106,6 +115,93 @@
         "name": "instrument",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "sine"
+      }
+    ]
+  },
+  {
+    "type": "expression-chord",
+    "title": "Expression Chord",
+    "description": "Facial expression → the diatonic triad on its confusion-aware scale degree (active only in face \"chord\" mode on seven-note scales).",
+    "roles": [
+      "music"
+    ],
+    "inputs": [
+      {
+        "name": "expression",
+        "kind": "face-expression"
+      },
+      {
+        "name": "spec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "faceMapping",
+        "kind": "face-mapping",
+        "default": "none"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "triad",
+        "kind": "number[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 0.22
+      },
+      {
+        "name": "instrument",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "triangle"
+      }
+    ]
+  },
+  {
+    "type": "face-expression",
+    "title": "Face Expression",
+    "description": "Face blendshapes → softmax over 7 expressions (happy/sad/angry/surprised/fearful/disgusted/neutral) with smoothing + hysteresis.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "face",
+        "kind": "face-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "expression",
+        "kind": "face-expression"
+      }
+    ],
+    "params": [
+      {
+        "name": "smoothing",
+        "type": "number",
+        "default": 0.4
+      },
+      {
+        "name": "temperature",
+        "type": "number",
+        "default": 0.12
+      },
+      {
+        "name": "holdMargin",
+        "type": "number",
+        "default": 0.06
       }
     ]
   },
@@ -688,6 +784,39 @@
       {
         "name": "overlay",
         "kind": "overlay-config"
+      },
+      {
+        "name": "rightSpec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "faceMapping",
+        "kind": "face-mapping"
+      }
+    ],
+    "params": []
+  },
+  {
+    "type": "synth-merge",
+    "title": "Synth Merge",
+    "description": "Union two synth-params voice streams into one (e.g. hand voices + face-chord voices).",
+    "roles": [
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "a",
+        "kind": "synth-params"
+      },
+      {
+        "name": "b",
+        "kind": "synth-params"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
       }
     ],
     "params": []
@@ -940,6 +1069,10 @@
       {
         "name": "face",
         "kind": "face-frame"
+      },
+      {
+        "name": "status",
+        "kind": "face-status"
       }
     ],
     "params": [

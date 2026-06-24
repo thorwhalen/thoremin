@@ -12,8 +12,43 @@
 import { useState } from 'react';
 import { Settings, X, Play, BookOpen, Circle, Square } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
+import { useControls } from './store';
+import { useFaceStatus } from './faceStatus';
 import ControlsPanel from './ControlsPanel';
 import Toaster from './Toaster';
+
+/** A compact face-status chip, visible even when the controls panel is collapsed
+ * (issue #65): only shown once a face mapping is active. */
+function FaceChip() {
+  const faceMapping = useControls((s) => s.faceMapping);
+  const status = useFaceStatus((s) => s.status);
+  const label = useFaceStatus((s) => s.label);
+  if (faceMapping === 'none') return null;
+
+  let dot = 'bg-white/40';
+  let text = 'face starting…';
+  if (status.phase === 'loading') {
+    dot = 'bg-amber-400 animate-pulse';
+    text = 'face loading';
+  } else if (status.phase === 'error') {
+    dot = 'bg-rose-500';
+    text = 'face error';
+  } else if (status.phase === 'ready') {
+    if (status.faceDetected) {
+      dot = 'bg-emerald-400';
+      text = label ?? 'face';
+    } else {
+      dot = 'bg-sky-400';
+      text = 'face ready';
+    }
+  }
+  return (
+    <div className="pointer-events-none absolute left-3 top-12 flex items-center gap-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[9px] uppercase tracking-widest text-white/70 backdrop-blur">
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${dot}`} />
+      {text}
+    </div>
+  );
+}
 
 export default function App() {
   const { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording } =
@@ -43,6 +78,7 @@ export default function App() {
           </div>
         </div>
       </div>
+      <FaceChip />
 
       {/* Bottom-left: link to the generated capabilities manual. */}
       <a

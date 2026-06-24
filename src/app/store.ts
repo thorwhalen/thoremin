@@ -18,7 +18,7 @@ import { persist, createJSONStorage, type StateStorage } from 'zustand/middlewar
 import type { ScaleTypeId } from '@/music/theory';
 import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
 import { OverlayParamsSchema, type OverlayParams } from '@/nodes/output/canvas_overlay';
-import type { VoiceParams } from '@/nodes';
+import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
 import type { Settings } from '@/settings/schema';
 import { DEFAULT_RECORDING_FORMATS } from './recording/formats';
 
@@ -36,12 +36,12 @@ export interface ControlState {
   syncHands: boolean;
   masterVolume: number; // 0..1
   /**
-   * Whether live face control is enabled. Off by default; when on, the
-   * `webcam-face` node lazy-loads the FaceLandmarker model and drives facial
-   * expression into the mapping (smile→brightness, open mouth→vibrato). Read by
-   * the node each tick via `ctx.resources.controls`.
+   * What the player's facial expression maps to: `none` (off, default), `timbre`
+   * (smile→brightness, open mouth→vibrato), or `chord` (expression selects a
+   * diatonic triad). Any non-`none` mode lazy-loads the `webcam-face` model. Read
+   * by the nodes each tick via `ctx.resources.controls`.
    */
-  faceEnabled: boolean;
+  faceMapping: FaceMapping;
   /** Composable overlay element config (see canvas_overlay.ts). Live-controlled. */
   overlay: OverlayParams;
   /**
@@ -53,7 +53,7 @@ export interface ControlState {
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
-  setFaceEnabled(v: boolean): void;
+  setFaceMapping(v: FaceMapping): void;
   /** Toggle a recording output format on/off (keeps at least one selected). */
   setRecordingFormat(id: string, on: boolean): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
@@ -82,9 +82,51 @@ export function toSettings(s: ControlState): Settings {
     left: s.left,
     syncHands: s.syncHands,
     masterVolume: s.masterVolume,
-    faceEnabled: s.faceEnabled,
+    faceMapping: s.faceMapping,
     overlay: s.overlay,
   };
+}
+
+/**
+ * Persist migration (v1 → v2): the #64 face-mapping chooser replaced the boolean
+ * `faceEnabled` with the tri-state `faceMapping`. Maps a saved `faceEnabled:true`
+ * → `faceMapping:'timbre'` so a returning player keeps face control on instead of
+ * silently reverting to off. Exported for direct testing.
+ */
+export function migrateControls(persisted: unknown, version: number): ControlState {
+  const s = { ...(persisted as Record<string, unknown>) };
+  if (version < 2) {
+    if (s.faceMapping === undefined) {
+      s.faceMapping = legacyFaceToMapping(s.faceEnabled as boolean | undefined);
+    }
+    delete s.faceEnabled;
+  }
+  return s as unknown as ControlState;
+}
+
+/**
+ * Merge a rehydrated blob over the current (initializer) state. Beyond zustand's
+ * default shallow merge it HEALS two things so an older/corrupt blob can't crash
+ * newer readers: it re-parses `overlay` through the schema (filling defaults for
+ * overlay elements added since the blob was written — e.g. `chordGuide` in #64,
+ * whose absence would otherwise throw in `overlay.chordGuide.show`), and clamps
+ * `faceMapping` to a known mode (unknown values → derived from any legacy
+ * `faceEnabled`, else `none`). Exported for direct testing.
+ */
+export function mergeControls(persisted: unknown, current: ControlState): ControlState {
+  const p = (persisted ?? {}) as Partial<ControlState> & { faceEnabled?: boolean };
+  let overlay = current.overlay;
+  if (p.overlay) {
+    try {
+      overlay = OverlayParamsSchema.parse(p.overlay);
+    } catch {
+      overlay = current.overlay;
+    }
+  }
+  const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
+    ? (p.faceMapping as FaceMapping)
+    : legacyFaceToMapping(p.faceEnabled);
+  return { ...current, ...p, overlay, faceMapping };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -104,7 +146,7 @@ export const useControls = create<ControlState>()(
       left: defaultVoice(DEFAULT_INSTRUMENT_LEFT),
       syncHands: true,
       masterVolume: 0.4,
-      faceEnabled: false,
+      faceMapping: 'none',
       overlay: defaultOverlay(),
       recordingFormats: [...DEFAULT_RECORDING_FORMATS],
       setVoice: (side, patch) =>
@@ -124,7 +166,7 @@ export const useControls = create<ControlState>()(
         }),
       setSync: (v) => set({ syncHands: v }),
       setMasterVolume: (v) => set({ masterVolume: v }),
-      setFaceEnabled: (v) => set({ faceEnabled: v }),
+      setFaceMapping: (v) => set({ faceMapping: v }),
       setRecordingFormat: (id, on) =>
         set((s) => {
           const has = s.recordingFormats.includes(id);
@@ -146,16 +188,18 @@ export const useControls = create<ControlState>()(
           left: st.left,
           syncHands: st.syncHands,
           masterVolume: st.masterVolume,
-          faceEnabled: st.faceEnabled,
+          faceMapping: st.faceMapping,
           overlay: st.overlay,
         }),
     }),
     {
       name: 'thoremin-controls',
-      // Version stays 1: `overlay`/`faceEnabled` are additive, and the default
-      // shallow merge keeps the initializer's defaults when an older persisted
-      // blob omits them (no migrate / no discard of existing voice/volume choices).
-      version: 1,
+      // Version 2: the face-mapping chooser (#64) replaced the boolean
+      // `faceEnabled` with the tri-state `faceMapping`. See migrateControls (field
+      // rename) and mergeControls (heals a stale `overlay` + clamps `faceMapping`).
+      version: 2,
+      migrate: migrateControls,
+      merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
       // Persist only the control values, never the setter functions.
       partialize: (s) => ({
@@ -163,7 +207,7 @@ export const useControls = create<ControlState>()(
         left: s.left,
         syncHands: s.syncHands,
         masterVolume: s.masterVolume,
-        faceEnabled: s.faceEnabled,
+        faceMapping: s.faceMapping,
         overlay: s.overlay,
         recordingFormats: s.recordingFormats,
       }),
