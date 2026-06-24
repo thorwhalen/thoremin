@@ -101,7 +101,8 @@ describe('preset persistence', () => {
   it('defaults faceExpr when omitted (pre-expression-mapping presets)', () => {
     const fe = sampleSettings().faceExpr;
     expect(fe.sensitivity.angry).toBe(0.45); // DEFAULT_EXPRESSION_SENSITIVITY.angry
-    expect(fe.degrees.neutral).toBe(5); // the confusion-aware default (RECOMMENDED…neutral)
+    expect(fe.degrees.neutral).toBe(-1); // SILENCE_DEGREE — a resting face plays nothing by default
+    expect(fe.degrees.happy).toBe(0); // emotions keep the confusion-aware default (happy → tonic)
   });
 
   it('migrates a pre-#64 preset (boolean faceEnabled) to faceMapping on load', () => {

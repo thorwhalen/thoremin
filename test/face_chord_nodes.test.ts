@@ -175,6 +175,33 @@ describe('expression-chord node', () => {
     expect(out[0].triad).toEqual(diatonicTriad(cMajor, 4)); // V triad, not the default tonic
   });
 
+  it('plays nothing when the expression maps to silence (SILENCE_DEGREE = -1)', async () => {
+    const node = expressionChordNode.make(expressionChordNode.params.parse({}));
+    const out = await replayNode(node, {
+      expression: [happyExpr],
+      spec: [cMajor],
+      faceMapping: ['chord'],
+      degrees: [{ ...DEFAULT_EXPRESSION_TO_DEGREE, happy: -1 }], // happy → silence
+    });
+    expect(out[0].triad).toEqual([]); // no chord
+    expect((out[0].params as SynthParams).voices.every((v) => !v.present)).toBe(true);
+  });
+
+  it('neutral defaults to silence — a neutral face plays no chord', async () => {
+    const neutralExpr: ExpressionScores = {
+      present: true,
+      label: 'neutral',
+      scores: [0, 0, 0, 0, 0, 0],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
+      fired: [false, false, false, false, false, false],
+    };
+    // No `degrees` input → falls back to DEFAULT_EXPRESSION_TO_DEGREE (neutral = -1).
+    const out = await chordVoices(neutralExpr, 'chord');
+    expect(out.triad).toEqual([]);
+    expect((out.params as SynthParams).voices.every((v) => !v.present)).toBe(true);
+    expect(DEFAULT_EXPRESSION_TO_DEGREE.neutral).toBe(-1); // pin the silence default
+  });
+
   it('stays silent on a non-seven-note scale even in chord mode', async () => {
     const out = await chordVoices(happyExpr, 'chord', { ...cMajor, type: 'pentatonic' });
     expect(out.triad).toEqual([]);

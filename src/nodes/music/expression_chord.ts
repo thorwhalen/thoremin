@@ -30,7 +30,12 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
 import { InstrumentSchema } from '@/music/instruments';
-import { DEFAULT_EXPRESSION_TO_DEGREE, type ExpressionScores, type ExpressionLabel } from '@/music/expression';
+import {
+  DEFAULT_EXPRESSION_TO_DEGREE,
+  SILENCE_DEGREE,
+  type ExpressionScores,
+  type ExpressionLabel,
+} from '@/music/expression';
 import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';
 import type { VoiceParams } from '../domain';
 
@@ -117,12 +122,14 @@ export const expressionChordNode = defineNode<Params>({
 
         // Which scale degree the expression plays — the live per-expression map
         // (from the store), falling back to the confusion-aware default per label.
+        // A negative degree (SILENCE_DEGREE) means "play nothing" (e.g. neutral).
         const degrees = inputs.degrees as Partial<Record<ExpressionLabel, number>> | undefined;
         const degreeFor = (label: ExpressionLabel) =>
           degrees?.[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
-        // The un-voiced scale triad (3 tones) for the overlay highlight; [] off a
-        // seven-note scale or when idle.
-        const triad = active ? diatonicTriad(spec!, degreeFor(expr!.label)) : [];
+        const degree = active ? degreeFor(expr!.label) : SILENCE_DEGREE;
+        // The un-voiced scale triad (3 tones) for the overlay highlight; [] when
+        // idle, off a seven-note scale, or when the expression maps to silence.
+        const triad = degree >= 0 ? diatonicTriad(spec!, degree) : [];
         // Voice the chord, then sort ascending by pitch so arpeggios traverse
         // low→high by actual pitch (some voicings stack out of pitch order). The
         // ids stay stable (one per array slot), so the synth still releases all.

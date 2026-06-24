@@ -23,6 +23,7 @@ import {
   type Emotion,
   type ExpressionLabel,
 } from '@/music/expression';
+import { EXPRESSION_HELP } from '@/app/expressionHelp';
 
 const zeroActs = (): Record<Emotion, number> =>
   Object.fromEntries(EMOTIONS.map((e) => [e, 0])) as Record<Emotion, number>;
@@ -133,6 +134,36 @@ describe('decideExpression (per-class thresholds + neutral abstention)', () => {
   });
 });
 
+describe('reachability: sad / disgusted / fearful fire after the prototype/threshold tuning', () => {
+  // The MediaPipe model under-reports mouthFrown / noseSneer / browInnerUp / eyeWide;
+  // the prototypes were rebalanced onto the reliable neighbour channels so a real
+  // (partial on the weak channels) expression clears the bar. These pin that.
+  it('sad fires on a strong frown even with the weak channels only partial', () => {
+    const a = expressionActivations({
+      mouthFrownLeft: 0.25, mouthFrownRight: 0.25, browInnerUp: 0.2,
+      mouthLowerDownLeft: 0.8, mouthLowerDownRight: 0.8,
+    });
+    expect(a.sad).toBeGreaterThan(0.375);
+    expect(decideExpression(a).label).toBe('sad');
+  });
+
+  it('disgusted fires on a strong upper-lip raise even with noseSneer near zero', () => {
+    const a = expressionActivations({
+      noseSneerLeft: 0.1, noseSneerRight: 0.1, mouthUpperUpLeft: 0.8, mouthUpperUpRight: 0.8,
+    });
+    expect(a.disgusted).toBeGreaterThan(0.375);
+    expect(decideExpression(a).label).toBe('disgusted');
+  });
+
+  it('fearful wins at the relaxed 0.40 bar on a wide-eyed, open-jaw, lip-stretched face', () => {
+    const a = expressionActivations({
+      jawOpen: 0.5, eyeWideLeft: 0.7, eyeWideRight: 0.7, browInnerUp: 0.3,
+      mouthStretchLeft: 0.5, mouthStretchRight: 0.5,
+    });
+    expect(decideExpression(a).label).toBe('fearful');
+  });
+});
+
 describe('sensitivity ↔ threshold', () => {
   it('sensitivityToThreshold is monotone DECREASING (more sensitive = lower bar)', () => {
     const b = EXPRESSION_THRESHOLD_BOUNDS.happy;
@@ -210,5 +241,20 @@ describe('confusion-aware assignment', () => {
     m[idx.neutral][idx.happy] = 1;
     const opt = optimalExpressionToDegree(m);
     expect(sharedTriadNotes(opt.happy, opt.neutral)).toBe(2);
+  });
+});
+
+describe('expression help content', () => {
+  it('covers every emotion with a key action + real blendshape channels; flags the hard ones', () => {
+    const helpNames = new Set(EXPRESSION_HELP.map((h) => h.name));
+    for (const e of EMOTIONS) expect(helpNames.has(e)).toBe(true); // one card per emotion
+    for (const h of EXPRESSION_HELP) {
+      expect(h.keyAction.length).toBeGreaterThan(0);
+      expect(h.blendshapes.length).toBeGreaterThan(0);
+      for (const b of h.blendshapes) expect(b).toMatch(/^[a-zA-Z]+$/); // real ARKit channel names
+    }
+    // The model's under-reported emotions are flagged as harder to detect.
+    const hard = new Set(EXPRESSION_HELP.filter((h) => h.hardToDetect).map((h) => h.name));
+    expect(hard).toEqual(new Set(['sad', 'fearful', 'disgusted']));
   });
 });
