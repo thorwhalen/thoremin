@@ -13,6 +13,7 @@ import type { NodeContext } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { canvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes/output/canvas_overlay';
+import { OVERLAY_CONTROLS } from '@/app/overlayControls';
 import {
   makeHandKeypoints,
   type HandFeatures,
@@ -24,6 +25,8 @@ interface Call {
   m: string;
   args: unknown[];
   alpha: number;
+  stroke: string;
+  fill: string;
 }
 
 function makeRecordingCanvas(width = 1280, height = 720) {
@@ -40,7 +43,13 @@ function makeRecordingCanvas(width = 1280, height = 720) {
   const rec =
     (m: string) =>
     (...args: unknown[]) => {
-      calls.push({ m, args, alpha: ctx.globalAlpha as number });
+      calls.push({
+        m,
+        args,
+        alpha: ctx.globalAlpha as number,
+        stroke: ctx.strokeStyle as string,
+        fill: ctx.fillStyle as string,
+      });
     };
   for (const m of [
     'clearRect', 'save', 'restore', 'beginPath', 'arc', 'fill', 'stroke',
@@ -133,6 +142,12 @@ describe('canvas-overlay composable elements', () => {
     }
     expect(names[0]).toBe('video'); // backdrop drawn first (bottom)
     expect(names[names.length - 1]).toBe('faceExpression'); // readout on top
+  });
+
+  it('every overlay element has a UI control descriptor (the panel is data-driven, no silent drop)', () => {
+    const elementNames = new Set(OVERLAY_ELEMENTS.map((e) => e.name));
+    const descNames = new Set(OVERLAY_CONTROLS.map((d) => d.name as string));
+    expect(descNames).toEqual(elementNames); // descriptors ↔ elements, exactly
   });
 
   it('defaults: clears once, draws the video, guide, and markers; index-guide OFF', () => {
@@ -238,6 +253,15 @@ describe('canvas-overlay composable elements', () => {
     expect(rc.count('fill')).toBe(1); // ...all filled in a single path (perf)
   });
 
+  it('faceLandmarks: mirrors x and keeps y (asymmetric landmark pins the geometry)', () => {
+    const rc = drawWith(onlyElement('faceLandmarks'), {
+      faceFrame: { present: true, blendshapes: {}, landmarks: [{ x: 0.1, y: 0.25 }] },
+    });
+    const arc = rc.calls.find((c) => c.m === 'arc')!;
+    expect(arc.args[0] as number).toBeCloseTo((1 - 0.1) * 1280); // x mirrored (matches the video)
+    expect(arc.args[1] as number).toBeCloseTo(0.25 * 720); // y un-mirrored
+  });
+
   it('faceLandmarks: nothing with no face / no landmarks / absent / toggled off', () => {
     const arcs = (params: unknown, faceFrame?: unknown) => drawWith(params, { faceFrame }).count('arc');
     expect(arcs(onlyElement('faceLandmarks'))).toBe(0); // no face frame
@@ -247,11 +271,15 @@ describe('canvas-overlay composable elements', () => {
       { present: true, blendshapes: {}, landmarks: [{ x: 0.5, y: 0.5 }] })).toBe(0); // off
   });
 
-  it('faceExpression (Output): draws the label + a bar per class when present', () => {
+  it('faceExpression (Output): label + a bar per class; the winning class glows gold', () => {
     const expression = { present: true, probs: [0.7, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05], label: 'happy', confidence: 0.7 };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
     expect(rc.count('fillText')).toBe(1); // the label
-    expect(rc.count('stroke')).toBe(7); // one bar per expression class
+    const bars = rc.calls.filter((c) => c.m === 'stroke');
+    expect(bars).toHaveLength(7); // one bar per expression class
+    // 'happy' (argmax index 0) glows gold; the rest are the face cyan.
+    expect(bars[0].stroke).toBe('#f5d142');
+    expect(bars[1].stroke).toBe('#22d3ee');
   });
 
   it('faceExpression: nothing when the expression is absent or toggled off', () => {

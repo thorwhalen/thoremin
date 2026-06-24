@@ -156,12 +156,16 @@ describe('persist migration (v1 → v2, returning users)', () => {
     ).toBe('none');
   });
 
-  it('mergeControls heals a stale overlay (missing chordGuide) so it cannot crash readers', () => {
+  it('mergeControls heals a stale overlay (missing later elements) so it cannot crash readers', () => {
     const initial = useControls.getInitialState();
-    // A v1-style overlay blob written before the chordGuide element existed.
+    // A legacy overlay blob written before chordGuide / face / timbre elements existed.
     const legacyOverlay = { video: { show: true, alpha: 0.35 }, scaleGuide: { show: true, showLabels: true } };
     const merged = mergeControls({ overlay: legacyOverlay }, initial);
-    expect(typeof merged.overlay.chordGuide?.show).toBe('boolean'); // default filled in, no crash
+    // Every element added since the blob was written gets its default (no undefined read).
+    for (const k of ['chordGuide', 'faceLandmarks', 'faceExpression', 'timbreLevels'] as const) {
+      expect(typeof merged.overlay[k]?.show).toBe('boolean');
+    }
+    expect(merged.overlay.timbreLevels.show).toBe(false); // opt-in default survives the heal
   });
 
   it('mergeControls clamps an unknown faceMapping to a safe value', () => {

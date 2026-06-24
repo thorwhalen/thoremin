@@ -423,6 +423,10 @@ const faceExpressionReadout: OverlayElement = {
     if (!params.faceExpression.show) return;
     const expr = inputs.expression;
     if (!expr?.present || !expr.probs?.length) return;
+    // The winner glows on the *held* label (what is actually driving the chord),
+    // not the tallest bar — under the classifier's argmax hysteresis the held
+    // expression can briefly differ from the raw smoothed distribution. (Out-of-set
+    // label → -1 → nothing glows, harmless.)
     const argmax = EXPRESSIONS.indexOf(expr.label);
     g.save();
     g.textAlign = 'center';
@@ -469,8 +473,11 @@ const timbreLevels: OverlayElement = {
       if (!v) return;
       const sx = f.x * W;
       const sy = f.y * H;
+      // Place the bars toward screen-centre so a hand near the right edge doesn't
+      // push them off-canvas.
+      const side = f.x > 0.5 ? -1 : 1;
       const bar = (offset: number, value: number, c: string) => {
-        const bx = sx + 32 + offset;
+        const bx = sx + side * (32 + offset);
         g.globalAlpha = 0.8;
         g.strokeStyle = c;
         g.lineWidth = 5;

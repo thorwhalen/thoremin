@@ -13,8 +13,10 @@ import { useState, type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
 import { VOICINGS, RENDERINGS, isTempoRendering, type VoicingId, type RenderingId } from '@/music/voicing';
+import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import type { FaceMapping } from '@/nodes';
 import { useControls, type VoiceControl } from './store';
+import { OVERLAY_CONTROLS, type OverlayControlDesc } from './overlayControls';
 import { useFaceStatus } from './faceStatus';
 import { usePresets } from './usePresets';
 import { RECORDING_FORMATS } from './recording/formats';
@@ -129,60 +131,69 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
 }
 
 /**
- * Overlay settings, grouped by the element {@link OVERLAY_CATEGORIES} into
- * collapsible sections — the "target space of the mapping" framing: Input
- * features (what the camera detected), Output features (what gestures map to),
- * Guides, and the Backdrop. New overlay elements slot into their category here.
+ * Overlay settings, DATA-DRIVEN by the element categories: a collapsible section
+ * per {@link OVERLAY_CATEGORIES} entry (Input features / Output features / Guides /
+ * Backdrop — the "target space of the mapping" framing), and within each, one
+ * control per element whose {@link OVERLAY_ELEMENTS}.category matches, rendered
+ * from its {@link OVERLAY_CONTROLS} descriptor. Adding an overlay element makes it
+ * appear here automatically (a test enforces every element has a descriptor), so
+ * this is a general framework, not a hand-maintained list.
  */
 function OverlayControls() {
   const overlay = useControls((s) => s.overlay);
-  const set = useControls((s) => s.setOverlayElement);
+  const setEl = useControls((s) => s.setOverlayElement);
   const faceActive = useControls((s) => s.faceMapping) !== 'none';
+  const categoryOf = new Map(OVERLAY_ELEMENTS.map((e) => [e.name, e.category]));
+  // The React layer isn't strict-typechecked; a runtime element key loses the
+  // setOverlayElement generic narrowing, so patch with a loose cast.
+  const patch = (name: keyof OverlayParams, p: object) => setEl(name, p as never);
+
+  const renderControl = (d: OverlayControlDesc) => {
+    const elt = overlay[d.name] as { show: boolean } & Record<string, unknown>;
+    const off = !!d.needsFace && !faceActive;
+    return (
+      <div key={d.name} className="space-y-1.5">
+        <Toggle label={d.label} checked={elt.show} onChange={(v) => patch(d.name, { show: v })} disabled={off} />
+        {off && (
+          <p className="pl-5 text-[10px] leading-relaxed text-white/30">Appears once a face mapping is on.</p>
+        )}
+        {d.toggles?.map((t) => (
+          <div key={t.key} className="pl-5">
+            <Toggle
+              label={t.label}
+              checked={elt[t.key] as boolean}
+              onChange={(v) => patch(d.name, { [t.key]: v })}
+              disabled={off || !elt.show}
+            />
+          </div>
+        ))}
+        {d.slider && (
+          <label className={`flex items-center justify-between gap-2 pl-5 text-xs ${elt.show ? '' : 'opacity-40'}`}>
+            {d.slider.label}
+            <input
+              type="range" min={0} max={1} step={0.01}
+              value={elt[d.slider.key] as number}
+              disabled={!elt.show}
+              onChange={(e) => patch(d.name, { [d.slider!.key]: Number(e.target.value) })}
+            />
+          </label>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-3">
       <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Overlay</h3>
-
-      <CollapsibleSection label="Input features">
-        <Toggle label="Hand landmarks" checked={overlay.landmarks.show} onChange={(v) => set('landmarks', { show: v })} />
-        <Toggle
-          label="Face mesh"
-          checked={overlay.faceLandmarks.show}
-          onChange={(v) => set('faceLandmarks', { show: v })}
-          disabled={!faceActive}
-        />
-        {!faceActive && (
-          <p className="text-[10px] leading-relaxed text-white/30">
-            Face mesh appears once a face mapping is on (the model loads then).
-          </p>
-        )}
-      </CollapsibleSection>
-
-      <CollapsibleSection label="Output features">
-        <Toggle label="Note names" checked={overlay.markers.showNotes} onChange={(v) => set('markers', { showNotes: v })} />
-        <Toggle label="Control markers" checked={overlay.markers.show} onChange={(v) => set('markers', { show: v })} />
-        <Toggle label="Face expression" checked={overlay.faceExpression.show} onChange={(v) => set('faceExpression', { show: v })} />
-        <Toggle label="Timbre levels" checked={overlay.timbreLevels.show} onChange={(v) => set('timbreLevels', { show: v })} />
-        <Toggle label="Chord highlight" checked={overlay.chordGuide.show} onChange={(v) => set('chordGuide', { show: v })} />
-      </CollapsibleSection>
-
-      <CollapsibleSection label="Guides">
-        <Toggle label="Scale guide" checked={overlay.scaleGuide.show} onChange={(v) => set('scaleGuide', { show: v })} />
-        <Toggle label="Scale guide labels" checked={overlay.scaleGuide.showLabels} onChange={(v) => set('scaleGuide', { showLabels: v })} />
-        <Toggle label="Index-finger guide" checked={overlay.indexGuide.show} onChange={(v) => set('indexGuide', { show: v })} />
-        <Toggle label="Index guide dashed" checked={overlay.indexGuide.dashed} onChange={(v) => set('indexGuide', { dashed: v })} />
-      </CollapsibleSection>
-
-      <CollapsibleSection label="Backdrop" defaultOpen={false}>
-        <Toggle label="Video backdrop" checked={overlay.video.show} onChange={(v) => set('video', { show: v })} />
-        <label className="flex items-center justify-between gap-2 text-xs">
-          Background opacity
-          <input
-            type="range" min={0} max={1} step={0.01} value={overlay.video.alpha}
-            onChange={(e) => set('video', { alpha: Number(e.target.value) })}
-          />
-        </label>
-      </CollapsibleSection>
+      {OVERLAY_CATEGORIES.map((cat) => {
+        const descs = OVERLAY_CONTROLS.filter((d) => categoryOf.get(d.name) === cat.id);
+        if (descs.length === 0) return null;
+        return (
+          <CollapsibleSection key={cat.id} label={cat.label} defaultOpen={cat.id !== 'backdrop'}>
+            {descs.map(renderControl)}
+          </CollapsibleSection>
+        );
+      })}
     </div>
   );
 }
