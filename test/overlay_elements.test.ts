@@ -288,6 +288,24 @@ describe('canvas-overlay composable elements', () => {
     expect(strokes[2].stroke).toBe('#22d3ee'); // sad bar — face cyan (not the winner)
   });
 
+  it('faceExpression: abstention (present but neutral) draws bars but glows NONE gold', () => {
+    // The classifier's central new state: a present face that cleared no emotion's
+    // bar → label 'neutral'. 'neutral' is not in EMOTIONS, so no bar should glow.
+    const expression = {
+      present: true,
+      label: 'neutral',
+      scores: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
+      fired: [false, false, false, false, false, false],
+    };
+    const rc = drawWith(onlyElement('faceExpression'), { expression });
+    expect(rc.count('fillText')).toBe(1); // 'neutral' label still renders
+    const strokes = rc.calls.filter((c) => c.m === 'stroke');
+    expect(strokes).toHaveLength(12);
+    // No activation bar (even indices) uses the gold winner colour.
+    expect(strokes.filter((_, i) => i % 2 === 0).every((s) => s.stroke !== '#f5d142')).toBe(true);
+  });
+
   it('faceExpression: nothing when the expression is absent or toggled off', () => {
     expect(drawWith(onlyElement('faceExpression'), {}).count('fillText')).toBe(0); // no expression
     expect(

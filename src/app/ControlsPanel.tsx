@@ -13,7 +13,7 @@ import { useState, type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
 import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, type RenderingId } from '@/music/voicing';
-import { EXPRESSIONS, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
+import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import type { FaceMapping } from '@/nodes';
 import { useControls, type VoiceControl } from './store';
@@ -362,12 +362,14 @@ function ChordControls() {
 }
 
 /**
- * Per-expression mapping editor (advanced): for each expression — sensitivity
- * (how easily it triggers), the scale degree it plays, and that chord's live MIDI
- * notes — all editable. The (global) rendering lives in ChordControls above.
- * Neutral is the rest/fallback (no sensitivity). Shown in chord mode.
+ * Per-expression mapping editor (advanced). The per-emotion SENSITIVITY sliders
+ * apply in any active face mode (the classifier runs in timbre mode too — it
+ * feeds the readout/status there), so they show whenever a mapping is on. The
+ * scale-degree dropdown + live chord MIDI are chord-specific, so they appear only
+ * in chord mode (where `neutral` also gets a row — its rest chord). The (global)
+ * rendering lives in ChordControls above.
  */
-function ExpressionMapping() {
+function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
   const degrees = useControls((s) => s.faceExpr.degrees);
   const sensitivity = useControls((s) => s.faceExpr.sensitivity);
   const setDegree = useControls((s) => s.setExpressionDegree);
@@ -383,18 +385,28 @@ function ExpressionMapping() {
     return triad.length ? voiceTriad(triad, voicing, 0).slice().sort((a, b) => a - b) : [];
   };
 
+  // Chord mode lists all 7 (incl neutral, the rest chord); timbre mode lists only
+  // the 6 scored emotions (neutral has no sensitivity / no audio effect there).
+  const rows = chordMode ? EXPRESSIONS : EMOTIONS;
+
   return (
-    <CollapsibleSection label="Expression mapping" defaultOpen={false}>
+    <CollapsibleSection label={chordMode ? 'Expression mapping' : 'Expression sensitivity'} defaultOpen={false}>
       <p className="text-[10px] leading-relaxed text-white/40">
-        Per expression: how easily it triggers (sensitivity), the scale degree it plays, and the
-        chord’s MIDI notes. <span className="text-white/60">Neutral</span> plays when no expression
-        is detected.
+        {chordMode ? (
+          <>
+            Per expression: how easily it triggers (sensitivity), the scale degree it plays, and the
+            chord’s MIDI notes. <span className="text-white/60">Neutral</span> plays when no
+            expression is detected.
+          </>
+        ) : (
+          'How easily each expression triggers (higher = more hits). Tune if a neutral face reads as an emotion, or one won’t fire.'
+        )}
       </p>
       <div className="space-y-2">
-        {EXPRESSIONS.map((label) => {
-          const degree = degrees[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
-          const midi = chordMidi(degree);
+        {rows.map((label) => {
           const isEmotion = label !== 'neutral';
+          const degree = degrees[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
+          const midi = chordMode ? chordMidi(degree) : [];
           return (
             <div key={label} className="space-y-1">
               <div className="flex items-center gap-2 text-xs">
@@ -410,20 +422,24 @@ function ExpressionMapping() {
                 ) : (
                   <span className="flex-1 text-[10px] italic text-white/30">rest / fallback</span>
                 )}
-                <select
-                  className={selectCls}
-                  value={degree}
-                  title="Scale degree this expression plays"
-                  onChange={(e) => setDegree(label, Number(e.target.value))}
-                >
-                  {[0, 1, 2, 3, 4, 5, 6].map((d) => (
-                    <option key={d} value={d}>{d + 1}</option>
-                  ))}
-                </select>
+                {chordMode && (
+                  <select
+                    className={selectCls}
+                    value={degree}
+                    title="Scale degree this expression plays"
+                    onChange={(e) => setDegree(label, Number(e.target.value))}
+                  >
+                    {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                      <option key={d} value={d}>{d + 1}</option>
+                    ))}
+                  </select>
+                )}
               </div>
-              <div className="pl-16 font-mono text-[10px] text-white/40">
-                {midi.length ? midi.join(' ') : '— (needs a 7-note scale)'}
-              </div>
+              {chordMode && (
+                <div className="pl-16 font-mono text-[10px] text-white/40">
+                  {midi.length ? midi.join(' ') : '— (needs a 7-note scale)'}
+                </div>
+              )}
             </div>
           );
         })}
@@ -463,7 +479,7 @@ function FaceControls() {
       )}
       <p className="text-[10px] leading-relaxed text-white/40">{FACE_MODE_HINT[faceMapping]}</p>
       {faceMapping === 'chord' && <ChordControls />}
-      {faceMapping === 'chord' && <ExpressionMapping />}
+      {faceMapping !== 'none' && <ExpressionMapping chordMode={faceMapping === 'chord'} />}
     </div>
   );
 }

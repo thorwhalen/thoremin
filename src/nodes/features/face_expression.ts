@@ -27,7 +27,6 @@ import {
   ABSENT_EXPRESSION,
   expressionActivations,
   decideExpression,
-  expressionThresholds,
   DEFAULT_EXPRESSION_SENSITIVITY,
   type ExpressionScores,
   type ExpressionSensitivity,
@@ -63,8 +62,11 @@ export const faceExpressionNode = defineNode<Params>({
   make(p) {
     const smoothed = zeroActivations();
     let committed: ExpressionLabel = 'neutral';
-    let candidate: ExpressionLabel | null = null;
-    let candidateCount = 0;
+    // Frames the committed label has been out-voted (a *leave* counter, not a
+    // per-candidate one): so a single blip is debounced, but two emotions trading
+    // the lead can't deadlock the switch — it commits to whoever leads once the
+    // committed label has lost for dwellFrames running.
+    let leaveCount = 0;
 
     /** EMA toward the target activations (target 0 = decay toward rest). */
     const ema = (target: Record<Emotion, number>) => {
@@ -84,16 +86,16 @@ export const faceExpressionNode = defineNode<Params>({
       return out;
     };
 
-    /** Build the output record from the current smoothed state + sensitivities. */
+    /** Build the output record from the current smoothed state + sensitivities.
+     *  `thresholds` and `fired` come from the SAME decision (judged with the
+     *  committed label held), so the readout's tick can't drift from `fired`. */
     const toScores = (sensitivity: ExpressionSensitivity): ExpressionScores => {
-      const thr = expressionThresholds(sensitivity);
-      // `fired` reflects the same hysteresis the committed label uses.
       const decision = decideExpression(smoothed, sensitivity, committed);
       return {
         present: true,
         label: committed,
         scores: EMOTIONS.map((e) => smoothed[e]),
-        thresholds: EMOTIONS.map((e) => thr[e]),
+        thresholds: EMOTIONS.map((e) => decision.thresholds[e]),
         fired: EMOTIONS.map((e) => decision.fired[e]),
       };
     };
@@ -108,30 +110,22 @@ export const faceExpressionNode = defineNode<Params>({
           // freezing the last chord, and report absent.
           ema(zeroActivations());
           committed = 'neutral';
-          candidate = null;
-          candidateCount = 0;
+          leaveCount = 0;
           return { expression: { ...ABSENT_EXPRESSION } };
         }
 
         ema(expressionActivations(face.blendshapes));
 
         // Decide with hysteresis (the committed label is judged against its easier
-        // exit threshold), then commit a switch only after it persists `dwellFrames`.
+        // exit threshold). Commit a switch only after the committed label has been
+        // out-voted for `dwellFrames` running — debounces a blip without deadlocking
+        // when two emotions alternate as the winner (commit to whoever leads now).
         const proposed = decideExpression(smoothed, sensitivity, committed).label;
         if (proposed === committed) {
-          candidate = null;
-          candidateCount = 0;
-        } else {
-          if (proposed === candidate) candidateCount++;
-          else {
-            candidate = proposed;
-            candidateCount = 1;
-          }
-          if (candidateCount >= p.dwellFrames) {
-            committed = proposed;
-            candidate = null;
-            candidateCount = 0;
-          }
+          leaveCount = 0;
+        } else if (++leaveCount >= p.dwellFrames) {
+          committed = proposed;
+          leaveCount = 0;
         }
 
         return { expression: toScores(sensitivity) };

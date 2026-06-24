@@ -191,7 +191,10 @@ export function expressionThresholds(
 ): Record<Emotion, number> {
   const out = {} as Record<Emotion, number>;
   for (const e of EMOTIONS) {
-    out[e] = sensitivityToThreshold(sensitivity[e] ?? 0.5, EXPRESSION_THRESHOLD_BOUNDS[e]);
+    out[e] = sensitivityToThreshold(
+      sensitivity[e] ?? DEFAULT_EXPRESSION_SENSITIVITY[e],
+      EXPRESSION_THRESHOLD_BOUNDS[e],
+    );
   }
   return out;
 }
@@ -199,6 +202,10 @@ export function expressionThresholds(
 export interface ExpressionDecision {
   label: ExpressionLabel;
   fired: Record<Emotion, boolean>;
+  /** The effective threshold each emotion was judged against — the easier EXIT
+   *  threshold for the `held` label, the ENTER threshold otherwise. Returned so a
+   *  readout's threshold line matches `fired` (a single source of truth). */
+  thresholds: Record<Emotion, number>;
 }
 
 /**
@@ -219,12 +226,14 @@ export function decideExpression(
   held?: ExpressionLabel,
 ): ExpressionDecision {
   const fired = {} as Record<Emotion, boolean>;
+  const thresholds = {} as Record<Emotion, number>;
   let winner: Emotion | null = null;
   let bestMargin = -Infinity;
   for (const e of EMOTIONS) {
     const bounds = EXPRESSION_THRESHOLD_BOUNDS[e];
-    const enter = sensitivityToThreshold(sensitivity[e] ?? 0.5, bounds);
+    const enter = sensitivityToThreshold(sensitivity[e] ?? DEFAULT_EXPRESSION_SENSITIVITY[e], bounds);
     const threshold = e === held ? enter - bounds.delta : enter;
+    thresholds[e] = threshold;
     const margin = (activations[e] ?? 0) - threshold;
     fired[e] = margin >= 0;
     if (fired[e] && margin > bestMargin) {
@@ -232,7 +241,7 @@ export function decideExpression(
       winner = e;
     }
   }
-  return { label: winner ?? 'neutral', fired };
+  return { label: winner ?? 'neutral', fired, thresholds };
 }
 
 /** The absent/rest expression: neutral, nothing fired. */

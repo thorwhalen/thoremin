@@ -65,6 +65,40 @@ describe('face-expression node', () => {
     expect(out[out.length - 1].label).toBe('happy');
   });
 
+  it('commits a sustained different expression after the dwell (the positive switch)', async () => {
+    const happy = frame({ mouthSmileLeft: 1, mouthSmileRight: 1 });
+    const sad = frame({ mouthFrownLeft: 1, mouthFrownRight: 1, browInnerUp: 0.7 });
+    const out = await classify([...Array(8).fill(happy), ...Array(8).fill(sad)], { smoothing: 0.3, dwellFrames: 2 });
+    expect(out[7].label).toBe('happy');
+    expect(out[out.length - 1].label).toBe('sad'); // the switch was committed
+  });
+
+  it('does NOT deadlock when two emotions alternate as winner (leave-counter, not per-candidate)', async () => {
+    // Regression for the dwell bug: after happy decays out, sad and angry trade the
+    // lead frame-to-frame. A per-candidate dwell counter never accumulates and stays
+    // stuck on happy; the leave-counter must commit away from it.
+    const happy = frame({ mouthSmileLeft: 1, mouthSmileRight: 1 });
+    const sadF = frame({ mouthFrownLeft: 1, mouthFrownRight: 1, browInnerUp: 0.7 });
+    const angryF = frame({ browDownLeft: 1, browDownRight: 1 });
+    const alt: FaceFrame[] = Array.from({ length: 14 }, (_, i) => (i % 2 ? sadF : angryF));
+    const out = await classify([...Array(8).fill(happy), ...alt], { smoothing: 0.3, dwellFrames: 2 });
+    expect(out[7].label).toBe('happy');
+    expect(out[out.length - 1].label).not.toBe('happy'); // not stuck on the stale label
+  });
+
+  it('resets on an absent frame: relaxes to neutral, then re-commits cleanly after the gap', async () => {
+    const happy = frame({ mouthSmileLeft: 1, mouthSmileRight: 1 });
+    const angry = frame({ browDownLeft: 1, browDownRight: 1 });
+    const out = await classify(
+      [...Array(8).fill(happy), ABSENT_FRAME, ...Array(8).fill(angry)],
+      { smoothing: 0.3, dwellFrames: 2 },
+    );
+    expect(out[7].label).toBe('happy');
+    expect(out[8].present).toBe(false);
+    expect(out[8].label).toBe('neutral'); // absent → neutral immediately (state reset)
+    expect(out[out.length - 1].label).toBe('angry'); // re-commits after the gap
+  });
+
   it('respects the live per-emotion sensitivity input (a strict bar abstains to neutral)', async () => {
     const smile = frame({ mouthSmileLeft: 0.7, mouthSmileRight: 0.7 }); // a clear-ish smile
     const run = async (sensitivity?: Record<string, number>) => {
