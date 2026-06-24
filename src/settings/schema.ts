@@ -57,8 +57,9 @@ export const FaceExprSchema = z
     sensitivity: z
       .record(z.string(), z.number().min(0).max(1))
       .default({ ...DEFAULT_EXPRESSION_SENSITIVITY }),
+    // -1 = silence (SILENCE_DEGREE, play nothing); 0..6 = a scale degree.
     degrees: z
-      .record(z.string(), z.number().int().min(0).max(6))
+      .record(z.string(), z.number().int().min(-1).max(6))
       .default({ ...DEFAULT_EXPRESSION_TO_DEGREE }),
   })
   .default({

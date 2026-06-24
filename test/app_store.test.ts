@@ -58,7 +58,7 @@ describe('control store', () => {
     expect(fe.sensitivity.angry).toBe(0.2);
     expect(fe.sensitivity.happy).toBe(0.5); // sibling sensitivity untouched (default)
     expect(fe.degrees.happy).toBe(4);
-    expect(fe.degrees.neutral).toBe(5); // sibling degree untouched (confusion-aware default)
+    expect(fe.degrees.neutral).toBe(-1); // sibling untouched — neutral's default is silence (-1)
   });
 
   it('setVoice with sync ON mirrors both hands but keeps instruments distinct', () => {
@@ -254,7 +254,8 @@ describe('store-controls node reads the store', () => {
     expect(out.chordConfig).toMatchObject({ voicing: 'spread', gain: 0.22, bpm: 100 });
     // The expression-mapping ports: per-emotion sensitivity + per-expression degrees.
     expect(out.expressionSensitivity).toMatchObject({ happy: 0.5, angry: 0.45 });
-    expect((out.expressionDegrees as Record<string, number>).neutral).toBe(5);
+    expect((out.expressionDegrees as Record<string, number>).neutral).toBe(-1); // silence default
+    expect((out.expressionDegrees as Record<string, number>).happy).toBe(0);
   });
 
   it('emits nothing when no controls getter is injected (safe before host wires it)', () => {

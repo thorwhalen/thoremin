@@ -13,11 +13,12 @@ import { useState, type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
 import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, type RenderingId } from '@/music/voicing';
-import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
+import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE } from '@/music/expression';
 import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import type { FaceMapping } from '@/nodes';
 import { useControls, type VoiceControl } from './store';
 import { OVERLAY_CONTROLS, type OverlayControlDesc } from './overlayControls';
+import { ExpressionHelpButton } from './ExpressionHelpPanel';
 import { useFaceStatus } from './faceStatus';
 import { usePresets } from './usePresets';
 import { RECORDING_FORMATS } from './recording/formats';
@@ -378,6 +379,7 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
   const voicing = useControls((s) => s.faceChord.voicing);
 
   const chordMidi = (degree: number): number[] => {
+    if (degree < 0) return []; // SILENCE_DEGREE → no chord
     const triad = diatonicTriad(
       { root: right.root, type: right.type, octaves: right.octaves, baseOctave: right.baseOctave },
       degree,
@@ -426,18 +428,23 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
                   <select
                     className={selectCls}
                     value={degree}
-                    title="Scale degree this expression plays"
+                    title="Which chord this expression plays (or silence)"
                     onChange={(e) => setDegree(label, Number(e.target.value))}
                   >
+                    <option value={SILENCE_DEGREE}>Silence</option>
                     {[0, 1, 2, 3, 4, 5, 6].map((d) => (
-                      <option key={d} value={d}>{d + 1}</option>
+                      <option key={d} value={d}>{`Degree ${d + 1}`}</option>
                     ))}
                   </select>
                 )}
               </div>
               {chordMode && (
                 <div className="pl-16 font-mono text-[10px] text-white/40">
-                  {midi.length ? midi.join(' ') : '— (needs a 7-note scale)'}
+                  {degree < 0
+                    ? 'silence (no chord)'
+                    : midi.length
+                      ? midi.join(' ')
+                      : '— (needs a 7-note scale)'}
                 </div>
               )}
             </div>
@@ -471,7 +478,10 @@ function FaceControls() {
           ))}
         </select>
       </label>
-      <FaceStatusReadout active={faceMapping !== 'none'} />
+      <div className="flex items-center justify-between gap-2">
+        <FaceStatusReadout active={faceMapping !== 'none'} />
+        {faceMapping !== 'none' && <ExpressionHelpButton />}
+      </div>
       {faceMapping === 'chord' && !sevenNote && (
         <p className="text-[10px] leading-relaxed text-amber-300/80">
           Chord mode needs a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.

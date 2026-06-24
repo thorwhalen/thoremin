@@ -92,9 +92,12 @@ export function isSevenNoteScale(type: ScaleTypeId): boolean {
  * octave wrap up by 12 semitones, keeping the triad ascending.
  *
  * Returns `[]` for non-seven-note scales (see {@link isSevenNoteScale}) so callers
- * degrade gracefully (no chord) rather than indexing out of range.
+ * degrade gracefully (no chord) rather than indexing out of range. A NEGATIVE
+ * degree (the silence sentinel) also returns `[]`, so the sentinel is self-enforcing
+ * — a caller that forgets to gate it gets silence, not a wrong (wrapped) chord.
  */
 export function diatonicTriad(spec: ScaleSpec, degree: number): number[] {
+  if (degree < 0) return [];
   const intervals = SCALE_TYPES[spec.type].intervals;
   if (intervals.length !== 7) return [];
   const baseNote = (spec.baseOctave + 1) * 12 + spec.root;

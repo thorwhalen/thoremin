@@ -12,6 +12,7 @@ import {
   decideExpression,
   sensitivityToThreshold,
   expressionThresholds,
+  EXPRESSION_PROTOTYPES,
   EXPRESSION_THRESHOLD_BOUNDS,
   DEFAULT_EXPRESSION_SENSITIVITY,
   triadDegreeSet,
@@ -23,6 +24,7 @@ import {
   type Emotion,
   type ExpressionLabel,
 } from '@/music/expression';
+import { EXPRESSION_HELP } from '@/app/expressionHelp';
 
 const zeroActs = (): Record<Emotion, number> =>
   Object.fromEntries(EMOTIONS.map((e) => [e, 0])) as Record<Emotion, number>;
@@ -133,6 +135,45 @@ describe('decideExpression (per-class thresholds + neutral abstention)', () => {
   });
 });
 
+describe('reachability: sad / disgusted / fearful fire after the prototype/threshold tuning', () => {
+  // The MediaPipe model under-reports mouthFrown / noseSneer / browInnerUp / eyeWide;
+  // the prototypes were rebalanced onto the reliable neighbour channels so a real
+  // (partial on the weak channels) expression clears the bar. These pin that.
+  it('sad fires on a strong frown even with the weak channels only partial', () => {
+    const a = expressionActivations({
+      mouthFrownLeft: 0.25, mouthFrownRight: 0.25, browInnerUp: 0.2,
+      mouthLowerDownLeft: 0.8, mouthLowerDownRight: 0.8,
+    });
+    expect(a.sad).toBeGreaterThan(expressionThresholds().sad); // clears its own firing bar
+    expect(decideExpression(a).label).toBe('sad');
+  });
+
+  it('disgusted fires on a strong upper-lip raise even with noseSneer near zero', () => {
+    const a = expressionActivations({
+      noseSneerLeft: 0.1, noseSneerRight: 0.1, mouthUpperUpLeft: 0.8, mouthUpperUpRight: 0.8,
+    });
+    expect(a.disgusted).toBeGreaterThan(expressionThresholds().disgusted);
+    expect(decideExpression(a).label).toBe('disgusted');
+    expect(a.angry).toBeLessThan(expressionThresholds().angry); // the browDown component stays under angry
+  });
+
+  it('fearful wins at the relaxed 0.40 bar on a wide-eyed, open-jaw, lip-stretched face', () => {
+    const a = expressionActivations({
+      jawOpen: 0.5, eyeWideLeft: 0.7, eyeWideRight: 0.7, browInnerUp: 0.3,
+      mouthStretchLeft: 0.5, mouthStretchRight: 0.5,
+    });
+    expect(decideExpression(a).label).toBe('fearful');
+  });
+
+  it('does NOT false-fire on non-emotional faces (open mouth → neutral, smile → not disgusted)', () => {
+    // An open mouth drives mouthLowerDown high via jawOpen, but with no frown it
+    // must stay neutral (the lower-lip weight is capped below the bar).
+    expect(decideExpression(expressionActivations({ jawOpen: 1, mouthLowerDownLeft: 1, mouthLowerDownRight: 1 })).label).toBe('neutral');
+    // A broad smile must not leak into disgusted via any upper-lip movement.
+    expect(decideExpression(expressionActivations({ mouthSmileLeft: 1, mouthSmileRight: 1 })).label).not.toBe('disgusted');
+  });
+});
+
 describe('sensitivity ↔ threshold', () => {
   it('sensitivityToThreshold is monotone DECREASING (more sensitive = lower bar)', () => {
     const b = EXPRESSION_THRESHOLD_BOUNDS.happy;
@@ -210,5 +251,23 @@ describe('confusion-aware assignment', () => {
     m[idx.neutral][idx.happy] = 1;
     const opt = optimalExpressionToDegree(m);
     expect(sharedTriadNotes(opt.happy, opt.neutral)).toBe(2);
+  });
+});
+
+describe('expression help content', () => {
+  it('covers every emotion with a key action + real blendshape channels; flags the hard ones', () => {
+    const helpNames = new Set(EXPRESSION_HELP.map((h) => h.name));
+    for (const e of EMOTIONS) expect(helpNames.has(e)).toBe(true); // one card per emotion
+    for (const h of EXPRESSION_HELP) {
+      expect(h.keyAction.length).toBeGreaterThan(0);
+      expect(h.blendshapes.length).toBeGreaterThan(0);
+      // The channels named in each help card are exactly the ones the classifier
+      // scores for that emotion (catches a typo or drift after a prototype retune).
+      const protoKeys = new Set(Object.keys(EXPRESSION_PROTOTYPES[h.name]));
+      for (const b of h.blendshapes) expect(protoKeys.has(b)).toBe(true);
+    }
+    // The model's under-reported emotions are flagged as harder to detect.
+    const hard = new Set(EXPRESSION_HELP.filter((h) => h.hardToDetect).map((h) => h.name));
+    expect(hard).toEqual(new Set(['sad', 'fearful', 'disgusted']));
   });
 });

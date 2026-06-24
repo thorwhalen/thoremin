@@ -73,15 +73,29 @@ function clamp01(x: number): number {
  * units carry weight 1; supporting units less. Seeded from the ARKit-blendshape
  * emotion literature (issue #64 refs [1][2]); swap for a calibrated set. (Neutral
  * has no prototype — it is the abstention fallback, not a scored class.)
+ *
+ * NOTE on `sad`/`disgusted`: the MediaPipe Blendshape model **under-reports**
+ * several channels — `noseSneer`, `mouthFrown`, `browInnerUp`, `eyeWide` cap near
+ * zero even on a strong genuine expression (model card: AR-entertainment grade;
+ * MediaPipe issues #5329, #4450). So these two prototypes deliberately lean on the
+ * RELIABLE neighbouring units (the lower-lip drop for sad, the upper-lip raise for
+ * disgust) rather than the weak primary AU, so a real expression can clear the bar.
  */
 export const EXPRESSION_PROTOTYPES: Record<Emotion, BlendshapeWeights> = {
   happy: { mouthSmileLeft: 1, mouthSmileRight: 1, cheekSquintLeft: 0.4, cheekSquintRight: 0.4 },
   sad: {
-    mouthFrownLeft: 1,
-    mouthFrownRight: 1,
-    browInnerUp: 0.7,
-    mouthLowerDownLeft: 0.2,
-    mouthLowerDownRight: 0.2,
+    // Rebalanced off the under-reported mouthFrown/browInnerUp onto the more
+    // reliable lower-lip drop (den 2.7). The lower-lip weight is CAPPED so it can't
+    // satisfy sad on its own — an open mouth (yawn / loud vowel) drives
+    // mouthLowerDown high via jawOpen, and at 0.45 each it tops out at 0.9/2.7 =
+    // 0.33, below the 0.375 firing bar, so a non-frowning open mouth stays neutral;
+    // a real frown + lip-drop still clears. (Old all-hard-weight prototype was
+    // unreachable; 0.6 each let a yawn false-fire sad — see review.)
+    mouthFrownLeft: 0.7,
+    mouthFrownRight: 0.7,
+    browInnerUp: 0.4,
+    mouthLowerDownLeft: 0.45,
+    mouthLowerDownRight: 0.45,
   },
   angry: {
     browDownLeft: 1,
@@ -110,10 +124,12 @@ export const EXPRESSION_PROTOTYPES: Record<Emotion, BlendshapeWeights> = {
     mouthStretchRight: 0.3,
   },
   disgusted: {
-    noseSneerLeft: 1,
-    noseSneerRight: 1,
-    mouthUpperUpLeft: 0.8,
-    mouthUpperUpRight: 0.8,
+    // Weighted toward the reliable upper-lip raise (the model pins noseSneer near
+    // zero), so a strong sneer fires. den 4.2.
+    noseSneerLeft: 0.7,
+    noseSneerRight: 0.7,
+    mouthUpperUpLeft: 1,
+    mouthUpperUpRight: 1,
     browDownLeft: 0.4,
     browDownRight: 0.4,
   },
@@ -163,7 +179,9 @@ export const EXPRESSION_THRESHOLD_BOUNDS: Record<Emotion, ExpressionThresholdBou
   sad: { min: 0.15, max: 0.6, delta: 0.06 },
   angry: { min: 0.2, max: 0.65, delta: 0.06 },
   surprised: { min: 0.15, max: 0.6, delta: 0.06 },
-  fearful: { min: 0.2, max: 0.65, delta: 0.06 },
+  // Lower max (→ default firing bar 0.40) — a realistic fear face barely clears it
+  // because the eyeWide/browInnerUp channels read weakly on this model.
+  fearful: { min: 0.2, max: 0.6, delta: 0.06 },
   disgusted: { min: 0.15, max: 0.6, delta: 0.06 },
 };
 
@@ -397,5 +415,23 @@ export const RECOMMENDED_EXPRESSION_TO_DEGREE: ExpressionToDegree = {
   angry: 6,
 };
 
-/** The expression→degree assignment the chord mapping ships with. */
-export const DEFAULT_EXPRESSION_TO_DEGREE = RECOMMENDED_EXPRESSION_TO_DEGREE;
+/**
+ * Sentinel degree meaning "play nothing" — an expression mapped to {@link
+ * SILENCE_DEGREE} contributes no chord (an empty note set). Any expression can be
+ * assigned to it; `neutral` defaults to it (a resting face is silence). A negative
+ * value so it survives `?? default` lookups (unlike `null`, which `??` would
+ * replace) and is trivially distinguished from a real scale degree (0..6).
+ */
+export const SILENCE_DEGREE = -1;
+
+/**
+ * The expression→degree assignment the chord mapping ships with: the confusion-aware
+ * {@link RECOMMENDED_EXPRESSION_TO_DEGREE} for the six emotions, but `neutral`
+ * defaults to {@link SILENCE_DEGREE} (silence) — a resting face plays nothing
+ * unless the player assigns it a degree. (RECOMMENDED itself stays the pure 0..6
+ * bijection the optimizer produces, for the confusion-assignment tests.)
+ */
+export const DEFAULT_EXPRESSION_TO_DEGREE: ExpressionToDegree = {
+  ...RECOMMENDED_EXPRESSION_TO_DEGREE,
+  neutral: SILENCE_DEGREE,
+};
