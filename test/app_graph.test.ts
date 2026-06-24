@@ -31,6 +31,14 @@ describe('production app graph', () => {
     expect(order).toHaveLength(13);
   });
 
+  it('wires the face overlays (mesh + expression readout)', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true); // face mesh data
+    expect(has('faceExpr', 'expression', 'overlay', 'expression')).toBe(true); // expression readout
+  });
+
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {
     const recorder = new StreamRecorder();
     // No resources: webcam has no video (emits empty frame), synth has no

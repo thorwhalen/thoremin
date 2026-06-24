@@ -110,6 +110,16 @@ describe('blendshapesToFaceFrame', () => {
     expect(blendshapesToFaceFrame({ faceBlendshapes: [] })).toEqual(absent);
     expect(blendshapesToFaceFrame({ faceBlendshapes: [{ categories: [] }] })).toEqual(absent);
   });
+
+  it('includes the normalized face landmark points when present (for the face mesh)', () => {
+    const frame = blendshapesToFaceFrame({
+      faceBlendshapes: [{ categories: [{ categoryName: 'jawOpen', score: 0.3 }] }],
+      faceLandmarks: [[{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.4 }]],
+    });
+    expect(frame.landmarks).toEqual([{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.4 }]);
+    // No landmarks in the result → the field is omitted (not an empty array).
+    expect(blendshapesToFaceFrame({ faceBlendshapes: [{ categories: [{ categoryName: 'jawOpen', score: 0.3 }] }] }).landmarks).toBeUndefined();
+  });
 });
 
 describe('webcam-face node gating', () => {
