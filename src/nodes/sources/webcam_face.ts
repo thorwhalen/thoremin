@@ -190,6 +190,7 @@ export const webcamFaceNode = defineNode<Params>({
             // GPU/WebGL unavailable on this client → fall back to the CPU delegate
             // (the float16 model runs on CPU). If CPU was already chosen, give up.
             if (p.delegate !== 'GPU') throw gpuErr;
+            console.warn('[thoremin] face model GPU delegate failed; falling back to CPU', gpuErr);
             lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor('CPU'));
           }
           if (disposed || gen !== loadGen) {
@@ -200,10 +201,13 @@ export const webcamFaceNode = defineNode<Params>({
           landmarker = lm;
           failedGen = -1;
           if (raf === null) raf = requestAnimationFrame(loop);
-        } catch {
+        } catch (err) {
           // Load failed (offline / unsupported / blocked). Latch this generation
           // so we don't re-attempt the heavy create every tick; toggling face
-          // control off→on bumps loadGen via offload() and retries once.
+          // control off→on bumps loadGen via offload() and retries once. The error
+          // is logged (in addition to the user-facing toast) so the actual cause
+          // is diagnosable from the console.
+          console.warn('[thoremin] face model failed to load', err);
           failedGen = gen;
         } finally {
           loading = false;
