@@ -105,6 +105,15 @@ describe('preset persistence', () => {
     expect(fe.degrees.happy).toBe(0); // emotions keep the confusion-aware default (happy → tonic)
   });
 
+  it('persists a player-set silence assignment and rejects an out-of-range degree', () => {
+    // A non-neutral expression assigned to silence (-1) must survive the schema.
+    const parsed = SettingsSchema.parse({ ...sampleSettings(), faceExpr: { degrees: { happy: -1 } } });
+    expect(parsed.faceExpr.degrees.happy).toBe(-1);
+    // The new lower bound (min -1) still rejects -2 and the max still rejects 7.
+    expect(SettingsSchema.safeParse({ ...sampleSettings(), faceExpr: { degrees: { happy: -2 } } }).success).toBe(false);
+    expect(SettingsSchema.safeParse({ ...sampleSettings(), faceExpr: { degrees: { happy: 7 } } }).success).toBe(false);
+  });
+
   it('migrates a pre-#64 preset (boolean faceEnabled) to faceMapping on load', () => {
     const legacy = {
       id: 'legacy',

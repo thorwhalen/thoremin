@@ -84,14 +84,18 @@ function clamp01(x: number): number {
 export const EXPRESSION_PROTOTYPES: Record<Emotion, BlendshapeWeights> = {
   happy: { mouthSmileLeft: 1, mouthSmileRight: 1, cheekSquintLeft: 0.4, cheekSquintRight: 0.4 },
   sad: {
-    // Rebalanced off the under-reported mouthFrown/browInnerUp onto the reliable
-    // lower-lip drop (den 3.0): the old all-hard-weight prototype was effectively
-    // unreachable on this model however hard the face was performed.
+    // Rebalanced off the under-reported mouthFrown/browInnerUp onto the more
+    // reliable lower-lip drop (den 2.7). The lower-lip weight is CAPPED so it can't
+    // satisfy sad on its own — an open mouth (yawn / loud vowel) drives
+    // mouthLowerDown high via jawOpen, and at 0.45 each it tops out at 0.9/2.7 =
+    // 0.33, below the 0.375 firing bar, so a non-frowning open mouth stays neutral;
+    // a real frown + lip-drop still clears. (Old all-hard-weight prototype was
+    // unreachable; 0.6 each let a yawn false-fire sad — see review.)
     mouthFrownLeft: 0.7,
     mouthFrownRight: 0.7,
     browInnerUp: 0.4,
-    mouthLowerDownLeft: 0.6,
-    mouthLowerDownRight: 0.6,
+    mouthLowerDownLeft: 0.45,
+    mouthLowerDownRight: 0.45,
   },
   angry: {
     browDownLeft: 1,

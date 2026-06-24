@@ -12,6 +12,7 @@ import {
   decideExpression,
   sensitivityToThreshold,
   expressionThresholds,
+  EXPRESSION_PROTOTYPES,
   EXPRESSION_THRESHOLD_BOUNDS,
   DEFAULT_EXPRESSION_SENSITIVITY,
   triadDegreeSet,
@@ -143,7 +144,7 @@ describe('reachability: sad / disgusted / fearful fire after the prototype/thres
       mouthFrownLeft: 0.25, mouthFrownRight: 0.25, browInnerUp: 0.2,
       mouthLowerDownLeft: 0.8, mouthLowerDownRight: 0.8,
     });
-    expect(a.sad).toBeGreaterThan(0.375);
+    expect(a.sad).toBeGreaterThan(expressionThresholds().sad); // clears its own firing bar
     expect(decideExpression(a).label).toBe('sad');
   });
 
@@ -151,8 +152,9 @@ describe('reachability: sad / disgusted / fearful fire after the prototype/thres
     const a = expressionActivations({
       noseSneerLeft: 0.1, noseSneerRight: 0.1, mouthUpperUpLeft: 0.8, mouthUpperUpRight: 0.8,
     });
-    expect(a.disgusted).toBeGreaterThan(0.375);
+    expect(a.disgusted).toBeGreaterThan(expressionThresholds().disgusted);
     expect(decideExpression(a).label).toBe('disgusted');
+    expect(a.angry).toBeLessThan(expressionThresholds().angry); // the browDown component stays under angry
   });
 
   it('fearful wins at the relaxed 0.40 bar on a wide-eyed, open-jaw, lip-stretched face', () => {
@@ -161,6 +163,14 @@ describe('reachability: sad / disgusted / fearful fire after the prototype/thres
       mouthStretchLeft: 0.5, mouthStretchRight: 0.5,
     });
     expect(decideExpression(a).label).toBe('fearful');
+  });
+
+  it('does NOT false-fire on non-emotional faces (open mouth → neutral, smile → not disgusted)', () => {
+    // An open mouth drives mouthLowerDown high via jawOpen, but with no frown it
+    // must stay neutral (the lower-lip weight is capped below the bar).
+    expect(decideExpression(expressionActivations({ jawOpen: 1, mouthLowerDownLeft: 1, mouthLowerDownRight: 1 })).label).toBe('neutral');
+    // A broad smile must not leak into disgusted via any upper-lip movement.
+    expect(decideExpression(expressionActivations({ mouthSmileLeft: 1, mouthSmileRight: 1 })).label).not.toBe('disgusted');
   });
 });
 
@@ -251,7 +261,10 @@ describe('expression help content', () => {
     for (const h of EXPRESSION_HELP) {
       expect(h.keyAction.length).toBeGreaterThan(0);
       expect(h.blendshapes.length).toBeGreaterThan(0);
-      for (const b of h.blendshapes) expect(b).toMatch(/^[a-zA-Z]+$/); // real ARKit channel names
+      // The channels named in each help card are exactly the ones the classifier
+      // scores for that emotion (catches a typo or drift after a prototype retune).
+      const protoKeys = new Set(Object.keys(EXPRESSION_PROTOTYPES[h.name]));
+      for (const b of h.blendshapes) expect(protoKeys.has(b)).toBe(true);
     }
     // The model's under-reported emotions are flagged as harder to detect.
     const hard = new Set(EXPRESSION_HELP.filter((h) => h.hardToDetect).map((h) => h.name));

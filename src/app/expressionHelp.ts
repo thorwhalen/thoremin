@@ -72,7 +72,7 @@ export const EXPRESSION_HELP: EmotionHelp[] = [
     howTo: 'Open the eyes as wide as you can, knit the inner brows up-and-together, and drop the jaw — all at once, near-maximal. This is the hardest one.',
     commonMistake: 'A moderate, realistic fear face. Eye-widen and inner-brow barely register, so a non-maximal attempt lands just under the bar.',
     avoidConfusion: 'Vs surprised: knit the inner brows up-and-together and stretch the mouth, rather than a calm open-mouth lift.',
-    blendshapes: ['jawOpen', 'eyeWideLeft', 'eyeWideRight', 'browInnerUp', 'mouthStretchLeft', 'mouthStretchRight'],
+    blendshapes: ['jawOpen', 'eyeWideLeft', 'eyeWideRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight', 'mouthStretchLeft', 'mouthStretchRight'],
     hardToDetect: true,
   },
   {

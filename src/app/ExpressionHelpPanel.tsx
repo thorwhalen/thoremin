@@ -6,6 +6,7 @@
  * classifier prototypes). A plain React overlay — not a native dialog.
  */
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { EXPRESSION_HELP, HELP_REFERENCES, MODEL_ORIGIN } from './expressionHelp';
 
 export function ExpressionHelpButton() {
@@ -31,11 +32,16 @@ export function ExpressionHelpButton() {
       >
         i
       </button>
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setOpen(false)}
-        >
+      {open &&
+        createPortal(
+          // Portal to <body>: the controls panel uses backdrop-blur (which makes it
+          // the containing block for fixed descendants) + overflow-hidden, so an
+          // in-tree `fixed inset-0` overlay would be clipped to the panel, not the
+          // viewport. The portal lets the modal cover and dim the whole screen.
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setOpen(false)}
+          >
           <div
             role="dialog"
             aria-modal="true"
@@ -117,8 +123,9 @@ export function ExpressionHelpButton() {
               slider (in Expression sensitivity / mapping) — that lowers its trigger bar.
             </p>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }
