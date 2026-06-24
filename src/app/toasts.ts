@@ -7,15 +7,19 @@
  */
 import { create } from 'zustand';
 
+/** Toast severity — drives the colour (success/info vs failure). */
+export type ToastLevel = 'info' | 'error';
+
 export interface Toast {
   id: number;
   message: string;
+  level: ToastLevel;
 }
 
 interface ToastState {
   toasts: Toast[];
-  /** Show a toast; auto-dismisses after `ttlMs`. */
-  push(message: string, ttlMs?: number): void;
+  /** Show a toast; auto-dismisses after `ttlMs`. `level` styles it (error = red). */
+  push(message: string, ttlMs?: number, level?: ToastLevel): void;
   dismiss(id: number): void;
 }
 
@@ -24,9 +28,9 @@ const DEFAULT_TTL_MS = 4000;
 
 export const useToasts = create<ToastState>((set) => ({
   toasts: [],
-  push: (message, ttlMs = DEFAULT_TTL_MS) => {
+  push: (message, ttlMs = DEFAULT_TTL_MS, level = 'info') => {
     const id = ++seq;
-    set((s) => ({ toasts: [...s.toasts, { id, message }] }));
+    set((s) => ({ toasts: [...s.toasts, { id, message, level }] }));
     if (typeof setTimeout !== 'undefined') {
       setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), ttlMs);
     }

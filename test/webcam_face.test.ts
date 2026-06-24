@@ -50,6 +50,18 @@ const ctx = (faceEnabled?: boolean, video?: unknown): NodeContext =>
 // A truthy <video> stand-in; never "ready" so the inference loop never fires.
 const fakeVideo = () => ({ readyState: 0, videoWidth: 0, currentTime: 0 }) as unknown;
 
+/** Context whose controls snapshot carries the new tri-state face mapping. */
+const ctxMode = (faceMapping: string, video?: unknown): NodeContext =>
+  ({
+    tick: 0,
+    time: 0,
+    dt: 0,
+    resources: {
+      controls: () => ({ faceMapping }),
+      ...(video === undefined ? {} : { video }),
+    },
+  }) as unknown as NodeContext;
+
 // The node starts a requestAnimationFrame loop once the (mocked) model loads.
 // Force a no-op rAF (and restore it after) so the loop never schedules real work
 // and we don't pollute the shared global for other test files.
@@ -105,15 +117,15 @@ describe('webcam-face node gating', () => {
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
     // No controls getter (headless / pre-wired) and explicitly disabled, both
     // with a video present — the loader must not be reached either way.
-    expect(inst.process({}, ctx(undefined, fakeVideo()))).toEqual(ABSENT);
-    expect(inst.process({}, ctx(false, fakeVideo()))).toEqual(ABSENT);
+    expect(inst.process({}, ctx(undefined, fakeVideo()))).toMatchObject(ABSENT);
+    expect(inst.process({}, ctx(false, fakeVideo()))).toMatchObject(ABSENT);
     expect(createFromOptions).not.toHaveBeenCalled();
     expect(forVisionTasks).not.toHaveBeenCalled();
   });
 
   it('does not load the model when enabled but no camera <video> is present', () => {
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    expect(inst.process({}, ctx(true))).toEqual(ABSENT);
+    expect(inst.process({}, ctx(true))).toMatchObject(ABSENT);
     expect(createFromOptions).not.toHaveBeenCalled();
   });
 
@@ -125,19 +137,86 @@ describe('webcam-face node gating', () => {
     (live.resources as Record<string, unknown>).controls = () => ({ faceEnabled });
 
     // Enable + video → loader kicks off (loading set synchronously); absent this tick.
-    expect(inst.process({}, live)).toEqual(ABSENT);
+    expect(inst.process({}, live)).toMatchObject(ABSENT);
     // Disable while still loading → offload() runs via the `loading` branch.
     faceEnabled = false;
-    expect(inst.process({}, live)).toEqual(ABSENT);
+    expect(inst.process({}, live)).toMatchObject(ABSENT);
     // Re-enable → no throw, still absent.
     faceEnabled = true;
-    expect(inst.process({}, live)).toEqual(ABSENT);
+    expect(inst.process({}, live)).toMatchObject(ABSENT);
     expect(() => {
       inst.dispose?.();
       inst.dispose?.();
     }).not.toThrow();
-    expect(inst.process({}, live)).toEqual(ABSENT);
+    expect(inst.process({}, live)).toMatchObject(ABSENT);
     await flush(); // let the dangling mocked load settle (it self-closes)
+  });
+});
+
+/**
+ * Drive the node until its fire-and-forget loader reaches a terminal phase
+ * ('ready' or 'error'), so the load FULLY completes inside the calling test under
+ * any scheduler load — never straggling a late createFromOptions into a sibling
+ * test's mock (the root of a cross-test flake). Returns the terminal phase.
+ */
+const drainLoad = async (inst: ReturnType<typeof webcamFaceNode.make>, ctxArg: NodeContext) => {
+  for (let i = 0; i < 200; i++) {
+    const phase = (inst.process({}, ctxArg) as { status: { phase: string } }).status.phase;
+    if (phase === 'ready' || phase === 'error') return phase;
+    await flush();
+  }
+  return 'loading';
+};
+
+describe('webcam-face mapping-mode gating (#64)', () => {
+  it('enters the load path for timbre and chord, idle for none', async () => {
+    for (const mode of ['timbre', 'chord']) {
+      const inst = webcamFaceNode.make({ delegate: 'GPU' });
+      // `loading` (set synchronously in ensureLoaded) proves the enabled path ran.
+      const out = inst.process({}, ctxMode(mode, fakeVideo())) as { status: { phase: string } };
+      expect(out.status.phase).toBe('loading');
+      await drainLoad(inst, ctxMode(mode, fakeVideo())); // complete the load here, don't leak it
+      inst.dispose?.();
+    }
+    createFromOptions.mockClear();
+    const off = webcamFaceNode.make({ delegate: 'GPU' });
+    const out = off.process({}, ctxMode('none', fakeVideo())) as { status: { phase: string } };
+    expect(out.status.phase).toBe('idle');
+    expect(createFromOptions).not.toHaveBeenCalled();
+  });
+});
+
+describe('webcam-face status port (#65)', () => {
+  it('reports idle when off and loading once a mode + video are present', async () => {
+    const inst = webcamFaceNode.make({ delegate: 'GPU' });
+    expect((inst.process({}, ctxMode('none', fakeVideo())) as { status: unknown }).status).toEqual({
+      phase: 'idle',
+      faceDetected: false,
+    });
+    expect(
+      (inst.process({}, ctxMode('chord', fakeVideo())) as { status: { phase: string } }).status.phase,
+    ).toBe('loading');
+    await drainLoad(inst, ctxMode('chord', fakeVideo())); // complete the load here, don't leak it
+    inst.dispose?.();
+  });
+
+  it('reports ready once the model loads', async () => {
+    const inst = webcamFaceNode.make({ delegate: 'GPU' }); // default mock resolves fakeLandmarker
+    inst.process({}, ctxMode('timbre', fakeVideo())); // kick the load
+    expect(await drainLoad(inst, ctxMode('timbre', fakeVideo()))).toBe('ready');
+    inst.dispose?.();
+  });
+
+  it('reports error when model creation fails on both delegates', async () => {
+    // Persistent throw for this test only; drainLoad completes the failed load
+    // here, and beforeEach restores the resolving default for the next test.
+    createFromOptions.mockImplementation(async () => {
+      throw new Error('no gpu, no cpu');
+    });
+    const inst = webcamFaceNode.make({ delegate: 'GPU' });
+    inst.process({}, ctxMode('chord', fakeVideo())); // kick the load (both delegates reject)
+    expect(await drainLoad(inst, ctxMode('chord', fakeVideo()))).toBe('error');
+    inst.dispose?.();
   });
 });
 

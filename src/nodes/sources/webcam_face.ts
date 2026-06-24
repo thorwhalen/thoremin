@@ -25,7 +25,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import type { FaceFrame } from '../domain';
+import type { FaceFrame, FaceMapping, FaceStatus } from '../domain';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm
@@ -85,8 +85,17 @@ interface TasksVisionModule {
   };
 }
 
-/** Reads just the enable flag off the live controls snapshot. */
-type FaceControlsGetter = () => { faceEnabled?: boolean };
+/** Reads the face-mapping mode off the live controls snapshot. `faceMapping`
+ * supersedes the legacy boolean `faceEnabled` (kept for back-compat / tests). */
+type FaceControlsGetter = () => { faceEnabled?: boolean; faceMapping?: FaceMapping };
+
+/** Is any face mode active? `faceMapping !== 'none'`, falling back to the legacy
+ * `faceEnabled` flag when the newer field is absent (older callers / tests). */
+function faceActive(controls: ReturnType<FaceControlsGetter> | undefined): boolean {
+  if (!controls) return false;
+  if (controls.faceMapping !== undefined) return controls.faceMapping !== 'none';
+  return controls.faceEnabled === true;
+}
 
 export const webcamFaceNode = defineNode<Params>({
   type: 'webcam-face',
@@ -95,7 +104,12 @@ export const webcamFaceNode = defineNode<Params>({
   description:
     'MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).',
   inputs: [],
-  outputs: [{ name: 'face', kind: 'face-frame' }],
+  outputs: [
+    { name: 'face', kind: 'face-frame' },
+    // Lifecycle + detection status, so the UI can surface loading/ready/error
+    // and a face-detected indicator (issue #65).
+    { name: 'status', kind: 'face-status' },
+  ],
   params: Params,
   make(p) {
     let landmarker: FaceLandmarkerLike | null = null;
@@ -176,6 +190,7 @@ export const webcamFaceNode = defineNode<Params>({
             // GPU/WebGL unavailable on this client → fall back to the CPU delegate
             // (the float16 model runs on CPU). If CPU was already chosen, give up.
             if (p.delegate !== 'GPU') throw gpuErr;
+            console.warn('[thoremin] face model GPU delegate failed; falling back to CPU', gpuErr);
             lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor('CPU'));
           }
           if (disposed || gen !== loadGen) {
@@ -186,15 +201,26 @@ export const webcamFaceNode = defineNode<Params>({
           landmarker = lm;
           failedGen = -1;
           if (raf === null) raf = requestAnimationFrame(loop);
-        } catch {
+        } catch (err) {
           // Load failed (offline / unsupported / blocked). Latch this generation
           // so we don't re-attempt the heavy create every tick; toggling face
-          // control off→on bumps loadGen via offload() and retries once.
+          // control off→on bumps loadGen via offload() and retries once. The error
+          // is logged (in addition to the user-facing toast) so the actual cause
+          // is diagnosable from the console.
+          console.warn('[thoremin] face model failed to load', err);
           failedGen = gen;
         } finally {
           loading = false;
         }
       })();
+    };
+
+    /** Snapshot the lazy-load lifecycle for the UI (issue #65). */
+    const statusOf = (enabled: boolean): FaceStatus => {
+      if (!enabled) return { phase: 'idle', faceDetected: false };
+      if (failedGen === loadGen) return { phase: 'error', faceDetected: false };
+      if (landmarker) return { phase: 'ready', faceDetected: latest.present };
+      return { phase: 'loading', faceDetected: false };
     };
 
     return {
@@ -206,17 +232,17 @@ export const webcamFaceNode = defineNode<Params>({
       process(_inputs, ctx: NodeContext) {
         video = (ctx.resources.video as HTMLVideoElement | undefined) ?? video;
         const getControls = ctx.resources.controls as FaceControlsGetter | undefined;
-        const enabled = getControls?.().faceEnabled === true;
+        const enabled = faceActive(getControls?.());
         if (!enabled) {
           // Release the model if one is loaded/loading; also clear a prior
           // failure latch so a deliberate re-enable retries the load.
           if (landmarker || loading || failedGen === loadGen) offload();
-          return { face: ABSENT_FRAME };
+          return { face: ABSENT_FRAME, status: statusOf(false) };
         }
         // Only spin up the model once we actually have a camera feed (so we
         // never download a face model with no <video> — e.g. headless).
         if (video) ensureLoaded();
-        return { face: latest };
+        return { face: latest, status: statusOf(true) };
       },
       dispose() {
         disposed = true;

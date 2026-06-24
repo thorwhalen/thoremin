@@ -17,7 +17,11 @@ export default function Toaster() {
           key={t.id}
           type="button"
           onClick={() => dismiss(t.id)}
-          className="pointer-events-auto rounded-full bg-emerald-600/90 px-4 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur transition hover:bg-emerald-600"
+          className={`pointer-events-auto rounded-full px-4 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur transition ${
+            t.level === 'error'
+              ? 'bg-rose-600/90 hover:bg-rose-600'
+              : 'bg-emerald-600/90 hover:bg-emerald-600'
+          }`}
         >
           {t.message}
         </button>

@@ -51,6 +51,12 @@ const Params = z.object({
       showLabels: z.boolean().default(true),
     })
     .default({}),
+  /** Highlight the face-driven chord's tones on the pitch guide (face chord mode). */
+  chordGuide: z
+    .object({
+      show: z.boolean().default(true),
+    })
+    .default({}),
   /** Dashed vertical line from each index fingertip to the frame edge. Opt-in. */
   indexGuide: z
     .object({
@@ -102,6 +108,8 @@ export interface OverlayView {
     scale?: number[];
     scaleLeft?: number[];
     octaveShift: number;
+    /** The face-driven chord's tones (MIDI), to highlight on the pitch guide. */
+    chord?: number[];
   };
   params: Params;
 }
@@ -176,6 +184,44 @@ const scaleGuideElement: OverlayElement = {
     if (Array.isArray(scaleL) && scaleL.length > 1 && !arrEq(scaleL, scaleR)) {
       drawGuide(scaleL, LEFT_COLOR, 0.12, H * 0.18);
     }
+  },
+};
+
+/**
+ * Highlights the face-driven chord (issue #64): when the player is in face "chord"
+ * mode, each tone of the chosen diatonic triad lights up on the existing pitch
+ * guide, so the player sees which notes their expression is playing. The triad
+ * tones are scale notes, so they align exactly with the scaleGuide lines; this
+ * draws a brighter/thicker band over them. Idle (no chord) → draws nothing.
+ */
+const CHORD_COLOR = '#f5d142'; // warm gold, distinct from the white/blue scale guides
+const chordGuideElement: OverlayElement = {
+  name: 'chordGuide',
+  draw(g, { W, H, inputs, params }) {
+    if (!params.chordGuide.show) return;
+    const chord = inputs.chord;
+    const scale = inputs.scale;
+    if (!Array.isArray(chord) || chord.length === 0) return;
+    if (!Array.isArray(scale) || scale.length <= 1) return;
+    const guide = scaleGuide(scale);
+    g.save();
+    g.globalAlpha = 0.55;
+    g.strokeStyle = CHORD_COLOR;
+    g.lineWidth = 3;
+    const samePitchClass = (a: number, b: number) => (((a - b) % 12) + 12) % 12 === 0;
+    for (const midi of chord) {
+      // Prefer the exact guide line; when the tone is above the displayed range
+      // (e.g. the V/vii° top note in a 1-octave scale) fall back to its pitch
+      // class so it still lights up rather than silently dropping.
+      const entry = guide.find((e) => e.midi === midi) ?? guide.find((e) => samePitchClass(e.midi, midi));
+      if (!entry) continue;
+      const sx = entry.x * W;
+      g.beginPath();
+      g.moveTo(sx, H * 0.12);
+      g.lineTo(sx, H * 0.86);
+      g.stroke();
+    }
+    g.restore();
   },
 };
 
@@ -290,6 +336,7 @@ const controlMarkers: OverlayElement = {
 export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   videoBackdrop,
   scaleGuideElement,
+  chordGuideElement,
   indexFingerGuide,
   landmarkDots,
   controlMarkers,
@@ -310,6 +357,8 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'scale', kind: 'number[]' },
     // Optional: the left hand's scale, drawn as a second guide when it differs.
     { name: 'scaleLeft', kind: 'number[]' },
+    // Optional: the face-driven chord's tones (MIDI), highlighted on the guide.
+    { name: 'chord', kind: 'number[]' },
     // Optional: the live octave shift, so guide labels match the sounding pitch.
     { name: 'octaveShift', kind: 'number', default: 0 },
     // Optional: a live overlay element config (from the UI store) that overrides
@@ -346,6 +395,7 @@ export const canvasOverlayNode = defineNode<Params>({
             scale: inputs.scale as number[] | undefined,
             scaleLeft: inputs.scaleLeft as number[] | undefined,
             octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
+            chord: inputs.chord as number[] | undefined,
           },
         };
 

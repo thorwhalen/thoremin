@@ -14,8 +14,14 @@ import { PerformanceRecorder, recordingFilename, extForMime } from './recorder';
 import { recordingFormat } from './recording/formats';
 import { saveBlob } from './recording/save';
 import { useToasts } from './toasts';
+import { useFaceStatus } from './faceStatus';
+import type { FaceStatus } from '@/nodes';
+import type { ExpressionScores } from '@/music/expression';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/** Min interval (ms) between face-status reports to React (throttle the readout). */
+const FACE_REPORT_MS = 100;
 
 /**
  * Convert the native (WebM/Opus) recording into each selected output format and
@@ -145,12 +151,47 @@ export function useThoreminEngine() {
         engineRef.current = engine;
         setStatus('ready');
 
+        // Bridge the face model's status + classified expression from the DAG
+        // back to React for the indicator/readout (#65), throttled so the bars
+        // don't re-render 60×/s. A transition into 'error' surfaces a toast once.
+        let lastFaceReport = 0;
+        let lastPhase: FaceStatus['phase'] | null = null;
+        let lastDetected = false;
+        const reportFace = (now: number) => {
+          const fs = engine.getOutput('camFace', 'status') as FaceStatus | undefined;
+          if (!fs) return;
+          const phaseChanged = fs.phase !== lastPhase;
+          const detectedChanged = fs.faceDetected !== lastDetected;
+          // The 10/s cadence is only needed while a face is being read (for the
+          // live label); when idle/loading/error we report only on transitions, so
+          // an off/idle face control doesn't re-render the UI every 100ms.
+          const live = fs.phase === 'ready' && fs.faceDetected;
+          if (!phaseChanged && !detectedChanged && (!live || now - lastFaceReport < FACE_REPORT_MS)) {
+            return;
+          }
+          if (fs.phase === 'error' && lastPhase !== null && lastPhase !== 'error') {
+            useToasts.getState().push(
+              'Face model failed to load — check your connection and re-pick a face mode',
+              6000,
+              'error',
+            );
+          }
+          const expr = engine.getOutput('faceExpr', 'expression') as ExpressionScores | undefined;
+          const detected = fs.phase === 'ready' && fs.faceDetected && expr?.present;
+          useFaceStatus.getState().report(fs, detected ? expr!.label : null, expr?.probs ?? []);
+          lastFaceReport = now;
+          lastPhase = fs.phase;
+          lastDetected = fs.faceDetected;
+        };
+
         const loop = () => {
           // Guard the tick: one node throwing on a frame (e.g. a degenerate
           // value) must never stop the loop — drop that frame and keep going,
           // so audio + video recover instead of freezing permanently.
           try {
-            engine.tick(performance.now() / 1000);
+            const t = performance.now();
+            engine.tick(t / 1000);
+            reportFace(t);
           } catch (err) {
             console.error('[thoremin] engine tick error (frame dropped)', err);
           }
@@ -173,6 +214,7 @@ export function useThoreminEngine() {
       }
       engineRef.current?.dispose();
       engineRef.current = null;
+      useFaceStatus.getState().reset();
       recorderRef.current?.dispose();
       recorderRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());

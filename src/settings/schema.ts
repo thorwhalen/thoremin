@@ -12,10 +12,16 @@
 import { z } from 'zod';
 import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENT_IDS, type InstrumentId } from '@/music/instruments';
+import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 
 const ScaleTypeEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const InstrumentEnum = z.enum(INSTRUMENT_IDS as [InstrumentId, ...InstrumentId[]]);
+
+/** What the player's facial expression controls (none / timbre / chord). */
+export const FaceMappingSchema = z.enum(
+  FACE_MAPPINGS as unknown as [FaceMapping, ...FaceMapping[]],
+);
 
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
@@ -33,12 +39,28 @@ export const SettingsSchema = z.object({
   left: VoiceSettingsSchema,
   syncHands: z.boolean(),
   masterVolume: z.number().min(0).max(1),
-  // `.default(false)` keeps presets saved before face control was added valid
+  // `.default('none')` keeps presets saved before the face-mapping chooser valid
   // (the field is filled in on parse rather than failing validation).
-  faceEnabled: z.boolean().default(false),
+  faceMapping: FaceMappingSchema.default('none'),
   overlay: OverlayParamsSchema,
 });
 export type Settings = z.infer<typeof SettingsSchema>;
+
+/**
+ * Migrate a raw settings blob saved with the old boolean `faceEnabled` (pre-#64):
+ * a saved `faceEnabled: true` becomes `faceMapping: 'timbre'` so a returning
+ * player keeps face control on rather than silently reverting to off. New blobs
+ * (which already carry `faceMapping`) pass through untouched.
+ */
+function migrateLegacyFace(raw: unknown): unknown {
+  if (raw && typeof raw === 'object') {
+    const r = raw as Record<string, unknown>;
+    if (r.faceMapping === undefined && r.faceEnabled !== undefined) {
+      return { ...r, faceMapping: legacyFaceToMapping(r.faceEnabled as boolean | undefined) };
+    }
+  }
+  return raw;
+}
 
 /** A named, persisted settings snapshot (one record in the presets collection). */
 export const PresetSchema = z.object({
@@ -48,7 +70,8 @@ export const PresetSchema = z.object({
   name: z.string(),
   /** Creation/last-save time (ms since epoch), for "most recent first" ordering. */
   createdAt: z.number(),
-  settings: SettingsSchema,
+  // Preprocess migrates pre-#64 presets (boolean faceEnabled → faceMapping) on load.
+  settings: z.preprocess(migrateLegacyFace, SettingsSchema),
 });
 export type Preset = z.infer<typeof PresetSchema>;
 

@@ -90,6 +90,24 @@ export interface SynthParams {
   voices: VoiceParams[];
 }
 
+/**
+ * What the player's facial expression maps to (the face-mapping chooser, #64):
+ *  - `none`   : no face detection or mapping (the model never loads).
+ *  - `timbre` : expression continuously shapes the active voices (smile→brightness,
+ *               open mouth→vibrato).
+ *  - `chord`  : expression selects a diatonic triad on the current seven-note scale.
+ */
+export const FACE_MAPPINGS = ['none', 'timbre', 'chord'] as const;
+export type FaceMapping = (typeof FACE_MAPPINGS)[number];
+
+/** Map the legacy boolean `faceEnabled` (pre-#64) onto the tri-state mapping: a
+ * saved `true` becomes `timbre` (the old behaviour), `false`/absent → `none`. The
+ * single source of truth for this migration, shared by the store persist migrate,
+ * the preset preprocess, and the store-controls snapshot fallback. */
+export function legacyFaceToMapping(faceEnabled: boolean | undefined): FaceMapping {
+  return faceEnabled ? 'timbre' : 'none';
+}
+
 // ---- Face (MediaPipe Face Landmarker blendshapes) ------------------------
 
 /**
@@ -125,6 +143,19 @@ export const ABSENT_FACE: FaceFeatures = {
   browFurrow: 0,
   eyeBlink: 0,
 };
+
+/**
+ * Lifecycle + detection status of the lazy `webcam-face` model, surfaced so the
+ * UI can give the player feedback (issue #65): is the model loading, ready, or
+ * did it fail to load, and is a face currently in frame.
+ */
+export type FaceStatusPhase = 'idle' | 'loading' | 'ready' | 'error';
+export interface FaceStatus {
+  phase: FaceStatusPhase;
+  /** A face is currently detected in frame (only meaningful while `ready`). */
+  faceDetected: boolean;
+}
+export const ABSENT_FACE_STATUS: FaceStatus = { phase: 'idle', faceDetected: false };
 
 // ---- MediaPipe Hands landmark indices ------------------------------------
 

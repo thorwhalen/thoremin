@@ -2,16 +2,21 @@
  * The default Thoremin instrument graph — the wiring that makes hand gestures
  * play tonal audio with overlays, steerable live by keyboard + UI.
  *
- *   webcam ─┬─▶ hand-features ─┬─▶ voice-mapping ─▶ webaudio-synth
- *           │                  │        ▲ ▲ ▲ ▲
- *           └────────▶ overlay ◀┘        │ │ │ └── store-controls (scale/instrument)
- *                       (video+guides)   │ │ └──── keyboard-control (magnetism/octave/mute)
+ *   webcam ─┬─▶ hand-features ─┬─▶ voice-mapping ─▶ synth-merge ─▶ webaudio-synth
+ *           │                  │        ▲ ▲ ▲ ▲          ▲
+ *           └────────▶ overlay ◀┘        │ │ │ │         │ (+ face chord)
+ *                       (video+guides)   │ │ │ └── store-controls (scale/instrument)
+ *                                        │ │ └──── keyboard-control (magnetism/octave/mute)
  *                                        │ └────── keyboard-source ─▶ keyboard-control
- *   webcam-face ─▶ face-features ────────┘ (smile→brightness, mouth→vibrato)
+ *   webcam-face ─┬─▶ face-features ──────┘ (timbre: smile→brightness, mouth→vibrato)
+ *                └─▶ face-expression ─▶ expression-chord ─▶ synth-merge
+ *                       (chord: expression → diatonic triad)
  *
- * The face branch is always wired but idle until the player enables face
- * control: `webcam-face` only loads its model (and emits a present face) when
- * `faceEnabled` is set in the store, so it costs nothing when off.
+ * The face branch is always wired but idle until the player picks a face mapping:
+ * `webcam-face` only loads its model (and emits a present face) when `faceMapping`
+ * is not `none`, so it costs nothing when off. The chord path (`expression-chord`)
+ * emits silent voices unless the mode is `chord`, so the merge passes the hand
+ * voices through unchanged otherwise.
  *
  * One output may fan OUT to several inputs (webcam→features & overlay); only
  * fan-IN to a single input port is disallowed.
@@ -109,13 +114,18 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
     nodes: [
       { id: 'cam', type: 'webcam-hands', params: { modelType: 'full', maxHands: 2 } },
       { id: 'feat', type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
-      // Face branch (idle until the player enables face control in settings).
+      // Face branch (idle until the player picks a face mapping in settings).
       { id: 'camFace', type: 'webcam-face', params: {} },
       { id: 'faceFeat', type: 'face-features', params: { smoothing: 0.3 } },
+      // Chord path: classify the expression, then play its diatonic triad.
+      { id: 'faceExpr', type: 'face-expression', params: {} },
+      { id: 'exprChord', type: 'expression-chord', params: {} },
       { id: 'kbd', type: 'keyboard-source' },
       { id: 'kctrl', type: 'keyboard-control', params: { magnetismStart: 0.8 } },
       { id: 'ui', type: 'store-controls' },
       { id: 'map', type: mappingType, params: { magnetism: 0.8, maxGain: 0.5 } },
+      // Union the hand voices with the face-chord voices before the synth.
+      { id: 'merge', type: 'synth-merge', params: {} },
       { id: 'synth', type: 'webaudio-synth' },
       // Overlay elements default on (video/scaleGuide/landmarks/markers); the
       // opt-in index-finger guide is off by default. See canvas_overlay.ts.
@@ -124,10 +134,19 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
     edges: [
       { from: { node: 'cam', port: 'hands' }, to: { node: 'feat', port: 'hands' } },
       { from: { node: 'cam', port: 'hands' }, to: { node: 'overlay', port: 'hands' } },
-      // Face: webcam-face → face-features → voice-mapping's optional `face` input
-      // (smile adds brightness, open mouth adds vibrato). Absent face → no effect.
+      // Face timbre: webcam-face → face-features → voice-mapping's optional `face`
+      // input (smile adds brightness, open mouth adds vibrato). Absent face / chord
+      // mode → no effect.
       { from: { node: 'camFace', port: 'face' }, to: { node: 'faceFeat', port: 'face' } },
       { from: { node: 'faceFeat', port: 'features' }, to: { node: 'map', port: 'face' } },
+      // Face chord: webcam-face → face-expression → expression-chord (fed the live
+      // scale spec + face mode). Emits silent voices unless mode is 'chord'.
+      { from: { node: 'camFace', port: 'face' }, to: { node: 'faceExpr', port: 'face' } },
+      { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'exprChord', port: 'expression' } },
+      { from: { node: 'ui', port: 'rightSpec' }, to: { node: 'exprChord', port: 'spec' } },
+      { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'exprChord', port: 'faceMapping' } },
+      // Keep the face chord in the same register as the hand melody (octave shift).
+      { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'exprChord', port: 'octaveShift' } },
       { from: { node: 'feat', port: 'features' }, to: { node: 'map', port: 'features' } },
       { from: { node: 'feat', port: 'features' }, to: { node: 'overlay', port: 'features' } },
       { from: { node: 'kbd', port: 'pressed' }, to: { node: 'kctrl', port: 'pressed' } },
@@ -138,13 +157,18 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'map', port: 'scaleLeft' } },
       { from: { node: 'ui', port: 'instrumentRight' }, to: { node: 'map', port: 'instrumentRight' } },
       { from: { node: 'ui', port: 'instrumentLeft' }, to: { node: 'map', port: 'instrumentLeft' } },
-      { from: { node: 'map', port: 'params' }, to: { node: 'synth', port: 'params' } },
-      // Also feed params to the overlay so it can label each hand's note.
+      // Merge the hand voices (map) with the face-chord voices, then to the synth.
+      { from: { node: 'map', port: 'params' }, to: { node: 'merge', port: 'a' } },
+      { from: { node: 'exprChord', port: 'params' }, to: { node: 'merge', port: 'b' } },
+      { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
+      // Also feed the hand params to the overlay so it can label each hand's note.
       { from: { node: 'map', port: 'params' }, to: { node: 'overlay', port: 'params' } },
       // And both hands' scales + octave shift, for the overlay pitch guides.
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'overlay', port: 'scale' } },
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'overlay', port: 'scaleLeft' } },
       { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
+      // The face chord's tones, so the overlay can highlight them on the guide.
+      { from: { node: 'exprChord', port: 'triad' }, to: { node: 'overlay', port: 'chord' } },
       // Live overlay element config from the UI store (toggle elements without rebuild).
       { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'overlayConfig' } },
     ],

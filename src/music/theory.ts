@@ -75,6 +75,36 @@ export function generateScale(spec: ScaleSpec): number[] {
   return [...new Set(scale)].sort((a, b) => a - b);
 }
 
+/** True for scales with exactly seven degrees (major / natural minor / harmonic
+ * minor) — the scales on which a diatonic triad (stacked thirds) is well-defined.
+ * Pentatonic (5), blues (6) and chromatic (12) are not seven-note. */
+export function isSevenNoteScale(type: ScaleTypeId): boolean {
+  return SCALE_TYPES[type].intervals.length === 7;
+}
+
+/**
+ * The diatonic triad rooted on scale `degree` (0 = tonic .. 6 = leading tone) of
+ * a seven-note scale, as three ascending MIDI notes. The triad is built by
+ * stacking scale-thirds — degrees `degree`, `degree + 2`, `degree + 4` — within
+ * the scale's own interval set, so it yields the correct chord quality for *any*
+ * seven-note scale (major I/ii/iii…, harmonic-minor's augmented III and
+ * diminished ii°, etc.) without naming the chord. Degrees that step past the
+ * octave wrap up by 12 semitones, keeping the triad ascending.
+ *
+ * Returns `[]` for non-seven-note scales (see {@link isSevenNoteScale}) so callers
+ * degrade gracefully (no chord) rather than indexing out of range.
+ */
+export function diatonicTriad(spec: ScaleSpec, degree: number): number[] {
+  const intervals = SCALE_TYPES[spec.type].intervals;
+  if (intervals.length !== 7) return [];
+  const baseNote = (spec.baseOctave + 1) * 12 + spec.root;
+  const d = ((degree % 7) + 7) % 7;
+  return [0, 2, 4].map((third) => {
+    const idx = d + third;
+    return baseNote + intervals[idx % 7] + 12 * Math.floor(idx / 7);
+  });
+}
+
 /**
  * Where each scale note sits along the normalized control axis (x in 0..1),
  * matching how {@link magneticPitch} maps x → MIDI (linear across the scale's

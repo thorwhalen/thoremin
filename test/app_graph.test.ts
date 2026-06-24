@@ -15,15 +15,20 @@ describe('production app graph', () => {
   it('builds with a valid topology', () => {
     const engine = new Engine(defaultGraph(), createAppRegistry());
     const order = engine.evaluationOrder();
-    // sources must precede mapping which must precede synth
+    // sources must precede mapping which (via the merge) must precede synth
     expect(order.indexOf('cam')).toBeLessThan(order.indexOf('feat'));
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('map'));
-    expect(order.indexOf('map')).toBeLessThan(order.indexOf('synth'));
+    expect(order.indexOf('map')).toBeLessThan(order.indexOf('merge'));
+    expect(order.indexOf('merge')).toBeLessThan(order.indexOf('synth'));
     expect(order.indexOf('kbd')).toBeLessThan(order.indexOf('kctrl'));
-    // face branch: webcam-face → face-features → voice-mapping
+    // face timbre branch: webcam-face → face-features → voice-mapping
     expect(order.indexOf('camFace')).toBeLessThan(order.indexOf('faceFeat'));
     expect(order.indexOf('faceFeat')).toBeLessThan(order.indexOf('map'));
-    expect(order).toHaveLength(10);
+    // face chord branch: webcam-face → face-expression → expression-chord → merge
+    expect(order.indexOf('camFace')).toBeLessThan(order.indexOf('faceExpr'));
+    expect(order.indexOf('faceExpr')).toBeLessThan(order.indexOf('exprChord'));
+    expect(order.indexOf('exprChord')).toBeLessThan(order.indexOf('merge'));
+    expect(order).toHaveLength(13);
   });
 
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {
@@ -42,5 +47,13 @@ describe('production app graph', () => {
     // No hands present → both voices silent.
     expect(params[0].voices.every((v) => !v.present)).toBe(true);
     expect(params[0].voices).toHaveLength(2);
+
+    // The synth's actual input is the merge of hand voices (0,1) + the 3 stable
+    // chord voices (2,3,4) — distinct ids, all silent while the face chord is idle.
+    const merged = recorder.values('merge.params') as SynthParams[];
+    const ids = merged[0].voices.map((v) => v.id);
+    expect(ids).toEqual([0, 1, 2, 3, 4]);
+    expect(new Set(ids).size).toBe(5); // no id collision between hands and chord
+    expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });
 });
