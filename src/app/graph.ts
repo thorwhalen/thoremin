@@ -171,6 +171,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
       // The face chord's tones, so the overlay can highlight them on the guide.
       { from: { node: 'exprChord', port: 'triad' }, to: { node: 'overlay', port: 'chord' } },
+      // The raw face frame (mesh) + classified expression, for the face overlays.
+      { from: { node: 'camFace', port: 'face' }, to: { node: 'overlay', port: 'faceFrame' } },
+      { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
       // Live overlay element config from the UI store (toggle elements without rebuild).
       { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'overlayConfig' } },
     ],

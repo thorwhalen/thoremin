@@ -12,7 +12,7 @@ import { Engine } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
-import { canvasOverlayNode, OVERLAY_ELEMENTS } from '@/nodes/output/canvas_overlay';
+import { canvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes/output/canvas_overlay';
 import {
   makeHandKeypoints,
   type HandFeatures,
@@ -107,14 +107,32 @@ function draw(paramsPartial: unknown, resourcesExtra: Record<string, unknown> = 
   return rc;
 }
 
+/** Draw with extra input-port values merged in (e.g. a faceFrame / expression). */
+function drawWith(paramsPartial: unknown, extraInputs: Record<string, unknown> = {}) {
+  const rc = makeRecordingCanvas();
+  const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(paramsPartial ?? {}));
+  const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
+  handlers.process({ ...fullInputs(), ...extraInputs }, ctx);
+  return rc;
+}
+
+/** Everything off except the named element, so we can count its draws in isolation. */
+const onlyElement = (name: string) =>
+  Object.fromEntries(
+    OVERLAY_ELEMENTS.map((e) => [e.name, { show: e.name === name }]),
+  ) as Record<string, { show: boolean }>;
+
 describe('canvas-overlay composable elements', () => {
-  it('the element list and the params schema agree on names', () => {
+  it('every element has a params key and a known category; z-order is sane', () => {
     const names = OVERLAY_ELEMENTS.map((e) => e.name);
     const paramKeys = Object.keys(canvasOverlayNode.params.parse({}) as Record<string, unknown>);
-    for (const n of names) expect(paramKeys).toContain(n);
-    // z-order: video first, markers last.
-    expect(names[0]).toBe('video');
-    expect(names[names.length - 1]).toBe('markers');
+    const categories = new Set(OVERLAY_CATEGORIES.map((c) => c.id));
+    for (const el of OVERLAY_ELEMENTS) {
+      expect(paramKeys).toContain(el.name); // toggleable via its own params sub-object
+      expect(categories.has(el.category)).toBe(true); // grouped under a known category
+    }
+    expect(names[0]).toBe('video'); // backdrop drawn first (bottom)
+    expect(names[names.length - 1]).toBe('faceExpression'); // readout on top
   });
 
   it('defaults: clears once, draws the video, guide, and markers; index-guide OFF', () => {
@@ -211,6 +229,46 @@ describe('canvas-overlay composable elements', () => {
     expect(drawChord([48, 52, 57], { ...onlyChord, chordGuide: { show: false } }).count('stroke')).toBe(0); // off
     // C# (pitch class 1) is not in the scale {C,D,E,G,A} → no match.
     expect(drawChord([49]).count('stroke')).toBe(0);
+  });
+
+  it('faceLandmarks (Input): one dot per landmark when a present face frame has them', () => {
+    const faceFrame = { present: true, blendshapes: {}, landmarks: [{ x: 0.5, y: 0.5 }, { x: 0.4, y: 0.6 }, { x: 0.6, y: 0.4 }] };
+    const rc = drawWith(onlyElement('faceLandmarks'), { faceFrame });
+    expect(rc.count('arc')).toBe(3); // one arc per landmark
+    expect(rc.count('fill')).toBe(1); // ...all filled in a single path (perf)
+  });
+
+  it('faceLandmarks: nothing with no face / no landmarks / absent / toggled off', () => {
+    const arcs = (params: unknown, faceFrame?: unknown) => drawWith(params, { faceFrame }).count('arc');
+    expect(arcs(onlyElement('faceLandmarks'))).toBe(0); // no face frame
+    expect(arcs(onlyElement('faceLandmarks'), { present: false, blendshapes: {} })).toBe(0); // absent
+    expect(arcs(onlyElement('faceLandmarks'), { present: true, blendshapes: {} })).toBe(0); // no landmarks
+    expect(arcs({ ...onlyElement('faceLandmarks'), faceLandmarks: { show: false } },
+      { present: true, blendshapes: {}, landmarks: [{ x: 0.5, y: 0.5 }] })).toBe(0); // off
+  });
+
+  it('faceExpression (Output): draws the label + a bar per class when present', () => {
+    const expression = { present: true, probs: [0.7, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05], label: 'happy', confidence: 0.7 };
+    const rc = drawWith(onlyElement('faceExpression'), { expression });
+    expect(rc.count('fillText')).toBe(1); // the label
+    expect(rc.count('stroke')).toBe(7); // one bar per expression class
+  });
+
+  it('faceExpression: nothing when the expression is absent or toggled off', () => {
+    expect(drawWith(onlyElement('faceExpression'), {}).count('fillText')).toBe(0); // no expression
+    expect(
+      drawWith(onlyElement('faceExpression'), { expression: { present: false, probs: [], label: 'neutral', confidence: 1 } }).count('fillText'),
+    ).toBe(0);
+    const expression = { present: true, probs: [1, 0, 0, 0, 0, 0, 0], label: 'happy', confidence: 1 };
+    expect(drawWith({ ...onlyElement('faceExpression'), faceExpression: { show: false } }, { expression }).count('stroke')).toBe(0);
+  });
+
+  it('timbreLevels (Output): two bars per present hand; nothing when off', () => {
+    // fullInputs has two present hands + synth voices 0/1.
+    expect(drawWith(onlyElement('timbreLevels')).count('stroke')).toBe(4); // 2 hands × (brightness + vibrato)
+    expect(drawWith({ ...onlyElement('timbreLevels'), timbreLevels: { show: false } }).count('stroke')).toBe(0);
+    // Default is off (opt-in).
+    expect((canvasOverlayNode.params.parse({}) as { timbreLevels: { show: boolean } }).timbreLevels.show).toBe(false);
   });
 
   it('a live overlayConfig input overrides the static params', () => {

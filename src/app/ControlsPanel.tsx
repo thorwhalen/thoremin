@@ -9,7 +9,7 @@
  * Renders just the controls *content* (no outer card); the host (App) wraps it
  * in a collapsible translucent overlay so the video stays the focus.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
 import { VOICINGS, RENDERINGS, isTempoRendering, type VoicingId, type RenderingId } from '@/music/voicing';
@@ -25,16 +25,44 @@ function Toggle({
   label,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-2 text-xs">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    <label className={`flex items-center gap-2 text-xs ${disabled ? 'opacity-40' : ''}`}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
       {label}
     </label>
+  );
+}
+
+/** A collapsible settings group (native <details>), used to group the overlay
+ * elements by their category (Input features / Output features / Guides / …). */
+function CollapsibleSection({
+  label,
+  defaultOpen = true,
+  children,
+}: {
+  label: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details open={defaultOpen}>
+      <summary className="cursor-pointer select-none text-[10px] font-bold uppercase tracking-widest text-white/60 transition hover:text-white/90">
+        {label}
+      </summary>
+      <div className="mt-2 space-y-2 pl-1">{children}</div>
+    </details>
   );
 }
 
@@ -100,29 +128,61 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
   );
 }
 
+/**
+ * Overlay settings, grouped by the element {@link OVERLAY_CATEGORIES} into
+ * collapsible sections — the "target space of the mapping" framing: Input
+ * features (what the camera detected), Output features (what gestures map to),
+ * Guides, and the Backdrop. New overlay elements slot into their category here.
+ */
 function OverlayControls() {
   const overlay = useControls((s) => s.overlay);
   const set = useControls((s) => s.setOverlayElement);
+  const faceActive = useControls((s) => s.faceMapping) !== 'none';
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Overlay</h3>
-      <Toggle label="Video backdrop" checked={overlay.video.show} onChange={(v) => set('video', { show: v })} />
-      <label className="flex items-center justify-between gap-2 text-xs">
-        Background opacity
-        <input
-          type="range" min={0} max={1} step={0.01} value={overlay.video.alpha}
-          onChange={(e) => set('video', { alpha: Number(e.target.value) })}
+
+      <CollapsibleSection label="Input features">
+        <Toggle label="Hand landmarks" checked={overlay.landmarks.show} onChange={(v) => set('landmarks', { show: v })} />
+        <Toggle
+          label="Face mesh"
+          checked={overlay.faceLandmarks.show}
+          onChange={(v) => set('faceLandmarks', { show: v })}
+          disabled={!faceActive}
         />
-      </label>
-      <Toggle label="Scale guide" checked={overlay.scaleGuide.show} onChange={(v) => set('scaleGuide', { show: v })} />
-      <Toggle label="Scale guide labels" checked={overlay.scaleGuide.showLabels} onChange={(v) => set('scaleGuide', { showLabels: v })} />
-      <Toggle label="Face chord highlight" checked={overlay.chordGuide.show} onChange={(v) => set('chordGuide', { show: v })} />
-      <Toggle label="Index-finger guide" checked={overlay.indexGuide.show} onChange={(v) => set('indexGuide', { show: v })} />
-      <Toggle label="Index guide dashed" checked={overlay.indexGuide.dashed} onChange={(v) => set('indexGuide', { dashed: v })} />
-      <Toggle label="Hand landmarks" checked={overlay.landmarks.show} onChange={(v) => set('landmarks', { show: v })} />
-      <Toggle label="Control markers" checked={overlay.markers.show} onChange={(v) => set('markers', { show: v })} />
-      <Toggle label="Note names" checked={overlay.markers.showNotes} onChange={(v) => set('markers', { showNotes: v })} />
+        {!faceActive && (
+          <p className="text-[10px] leading-relaxed text-white/30">
+            Face mesh appears once a face mapping is on (the model loads then).
+          </p>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Output features">
+        <Toggle label="Note names" checked={overlay.markers.showNotes} onChange={(v) => set('markers', { showNotes: v })} />
+        <Toggle label="Control markers" checked={overlay.markers.show} onChange={(v) => set('markers', { show: v })} />
+        <Toggle label="Face expression" checked={overlay.faceExpression.show} onChange={(v) => set('faceExpression', { show: v })} />
+        <Toggle label="Timbre levels" checked={overlay.timbreLevels.show} onChange={(v) => set('timbreLevels', { show: v })} />
+        <Toggle label="Chord highlight" checked={overlay.chordGuide.show} onChange={(v) => set('chordGuide', { show: v })} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Guides">
+        <Toggle label="Scale guide" checked={overlay.scaleGuide.show} onChange={(v) => set('scaleGuide', { show: v })} />
+        <Toggle label="Scale guide labels" checked={overlay.scaleGuide.showLabels} onChange={(v) => set('scaleGuide', { showLabels: v })} />
+        <Toggle label="Index-finger guide" checked={overlay.indexGuide.show} onChange={(v) => set('indexGuide', { show: v })} />
+        <Toggle label="Index guide dashed" checked={overlay.indexGuide.dashed} onChange={(v) => set('indexGuide', { dashed: v })} />
+      </CollapsibleSection>
+
+      <CollapsibleSection label="Backdrop" defaultOpen={false}>
+        <Toggle label="Video backdrop" checked={overlay.video.show} onChange={(v) => set('video', { show: v })} />
+        <label className="flex items-center justify-between gap-2 text-xs">
+          Background opacity
+          <input
+            type="range" min={0} max={1} step={0.01} value={overlay.video.alpha}
+            onChange={(e) => set('video', { alpha: Number(e.target.value) })}
+          />
+        </label>
+      </CollapsibleSection>
     </div>
   );
 }

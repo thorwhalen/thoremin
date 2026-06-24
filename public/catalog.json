@@ -32,6 +32,14 @@
         "kind": "number[]"
       },
       {
+        "name": "faceFrame",
+        "kind": "face-frame"
+      },
+      {
+        "name": "expression",
+        "kind": "face-expression"
+      },
+      {
         "name": "octaveShift",
         "kind": "number",
         "default": 0
@@ -70,6 +78,21 @@
       },
       {
         "name": "markers",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "faceLandmarks",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "faceExpression",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "timbreLevels",
         "type": "object",
         "default": {}
       }

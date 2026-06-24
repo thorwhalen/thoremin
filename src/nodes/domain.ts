@@ -118,6 +118,9 @@ export function legacyFaceToMapping(faceEnabled: boolean | undefined): FaceMappi
 export interface FaceFrame {
   present: boolean;
   blendshapes: Record<string, number>;
+  /** Normalized (0..1) face landmark points in the source frame, for drawing the
+   *  face mesh overlay. Optional — the feature/expression nodes ignore it. */
+  landmarks?: { x: number; y: number }[];
 }
 
 /** Normalized expression controls derived from blendshapes, all 0..1. */

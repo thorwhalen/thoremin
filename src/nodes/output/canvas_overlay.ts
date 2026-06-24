@@ -21,9 +21,11 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { freqToMidi, midiToName, scaleGuide } from '@/music/theory';
+import { EXPRESSIONS, type ExpressionScores } from '@/music/expression';
 import {
   kp,
   LM,
+  type FaceFrame,
   type HandFeatures,
   type HandsFrame,
   type SingleHandFeatures,
@@ -78,6 +80,24 @@ const Params = z.object({
       showNotes: z.boolean().default(true),
     })
     .default({}),
+  /** The detected face mesh (input feature) — available when a face mapping is on. */
+  faceLandmarks: z
+    .object({
+      show: z.boolean().default(true),
+    })
+    .default({}),
+  /** Live readout of the classified facial expression (output feature). */
+  faceExpression: z
+    .object({
+      show: z.boolean().default(true),
+    })
+    .default({}),
+  /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
+  timbreLevels: z
+    .object({
+      show: z.boolean().default(false),
+    })
+    .default({}),
 });
 type Params = z.infer<typeof Params>;
 
@@ -110,17 +130,42 @@ export interface OverlayView {
     octaveShift: number;
     /** The face-driven chord's tones (MIDI), to highlight on the pitch guide. */
     chord?: number[];
+    /** The raw face frame (blendshapes + landmark geometry), for the face mesh. */
+    faceFrame?: FaceFrame;
+    /** The classified facial expression, for the live expression readout. */
+    expression?: ExpressionScores;
   };
   params: Params;
 }
 
 /**
+ * The category an overlay element belongs to — the "target space" framing the
+ * settings panel groups by (extensible; add more as the mapping space grows):
+ *  - `input`    : raw features the camera detected (hand/face landmarks).
+ *  - `output`   : what those inputs are mapped to (sounding note, chord, expression,
+ *                 timbre levels).
+ *  - `guide`    : reference overlays (the pitch fretboard, finger guides).
+ *  - `backdrop` : the video itself.
+ */
+export type OverlayCategory = 'input' | 'output' | 'guide' | 'backdrop';
+
+/** Category display order + labels for the settings panel (the grouping UI). */
+export const OVERLAY_CATEGORIES: { id: OverlayCategory; label: string; blurb: string }[] = [
+  { id: 'input', label: 'Input features', blurb: 'What the camera detected.' },
+  { id: 'output', label: 'Output features', blurb: 'What your gestures are mapped to.' },
+  { id: 'guide', label: 'Guides', blurb: 'Reference overlays.' },
+  { id: 'backdrop', label: 'Backdrop', blurb: 'The video feed.' },
+];
+
+/**
  * One composable piece of the overlay. `draw` is responsible for honoring its
- * own `view.params.<name>.show` toggle. Elements are plain functions held inside
+ * own `view.params.<name>.show` toggle. `category` groups it in the settings
+ * panel (see {@link OVERLAY_CATEGORIES}). Elements are plain functions held inside
  * this node — deliberately NOT DAG nodes (see the module docstring).
  */
 export interface OverlayElement {
   name: string;
+  category: OverlayCategory;
   draw(g: CanvasRenderingContext2D, view: OverlayView): void;
 }
 
@@ -136,6 +181,7 @@ function isDisplayedRight(handedness: string): boolean {
 
 const videoBackdrop: OverlayElement = {
   name: 'video',
+  category: 'backdrop',
   draw(g, { W, H, video, params }) {
     if (!params.video.show) return;
     if (!video || video.readyState < 2) return;
@@ -153,6 +199,7 @@ const arrEq = (a?: number[], b?: number[]) =>
 
 const scaleGuideElement: OverlayElement = {
   name: 'scaleGuide',
+  category: 'guide',
   draw(g, { W, H, inputs, params }) {
     if (!params.scaleGuide.show) return;
     const scaleR = inputs.scale;
@@ -199,6 +246,7 @@ const scaleGuideElement: OverlayElement = {
 const CHORD_COLOR = '#f5d142'; // warm gold, distinct from the white/blue scale guides
 const chordGuideElement: OverlayElement = {
   name: 'chordGuide',
+  category: 'output',
   draw(g, { W, H, inputs, params }) {
     if (!params.chordGuide.show) return;
     const chord = inputs.chord;
@@ -232,6 +280,7 @@ const chordGuideElement: OverlayElement = {
  */
 const indexFingerGuide: OverlayElement = {
   name: 'indexGuide',
+  category: 'guide',
   draw(g, { W, H, inputs, params }) {
     if (!params.indexGuide.show) return;
     const frame = inputs.hands;
@@ -258,6 +307,7 @@ const indexFingerGuide: OverlayElement = {
 
 const landmarkDots: OverlayElement = {
   name: 'landmarks',
+  category: 'input',
   draw(g, { W, H, inputs, params }) {
     if (!params.landmarks.show) return;
     const frame = inputs.hands;
@@ -288,6 +338,7 @@ const landmarkDots: OverlayElement = {
 
 const controlMarkers: OverlayElement = {
   name: 'markers',
+  category: 'output',
   draw(g, { W, H, inputs, params }) {
     if (!params.markers.show) return;
     const feats = inputs.features;
@@ -327,17 +378,132 @@ const controlMarkers: OverlayElement = {
   },
 };
 
+const FACE_COLOR = '#22d3ee'; // cyan — distinct from hands (emerald/blue) + chord (gold)
+
 /**
- * The overlay elements, in draw (z) order. Append here to add a new element;
- * give it a `<name>` sub-object in `Params` with at least a `show` toggle.
+ * The detected face mesh (input feature) — the raw face landmarks, drawn as dots,
+ * so the player can SEE that face detection is working. Only present when a face
+ * mapping is active (the model is loaded); otherwise the face frame is absent.
+ */
+const faceMesh: OverlayElement = {
+  name: 'faceLandmarks',
+  category: 'input',
+  draw(g, { W, H, inputs, params }) {
+    if (!params.faceLandmarks.show) return;
+    const face = inputs.faceFrame;
+    if (!face?.present || !face.landmarks?.length) return;
+    g.save();
+    g.globalAlpha = 0.45;
+    g.fillStyle = FACE_COLOR;
+    // One path for all ~478 dots, filled once (moveTo separates the sub-paths so
+    // they don't connect) — far cheaper than a fill per landmark each frame.
+    const r = 1.1;
+    g.beginPath();
+    for (const lm of face.landmarks) {
+      // Landmarks are normalized (0..1) in the source frame; mirror x like the video.
+      const sx = (1 - lm.x) * W;
+      const sy = lm.y * H;
+      g.moveTo(sx + r, sy);
+      g.arc(sx, sy, r, 0, Math.PI * 2);
+    }
+    g.fill();
+    g.restore();
+  },
+};
+
+/**
+ * Live readout of the classified facial expression (output feature) — the argmax
+ * label plus a small bar per class, so the player sees what their face is being
+ * mapped to. Top-centre; absent when no face is detected.
+ */
+const faceExpressionReadout: OverlayElement = {
+  name: 'faceExpression',
+  category: 'output',
+  draw(g, { W, H, inputs, params }) {
+    if (!params.faceExpression.show) return;
+    const expr = inputs.expression;
+    if (!expr?.present || !expr.probs?.length) return;
+    const argmax = EXPRESSIONS.indexOf(expr.label);
+    g.save();
+    g.textAlign = 'center';
+    g.font = 'bold 15px monospace';
+    g.fillStyle = FACE_COLOR;
+    g.fillText(expr.label, W * 0.5, H * 0.05);
+    // A small bar per expression class; the winning class glows gold.
+    const n = expr.probs.length;
+    const barW = 14;
+    const gap = 5;
+    const baseY = H * 0.05 + 30;
+    const startX = W * 0.5 - (n * (barW + gap) - gap) / 2 + barW / 2;
+    for (let i = 0; i < n; i++) {
+      const p = expr.probs[i];
+      const cx = startX + i * (barW + gap);
+      g.globalAlpha = 0.25 + 0.65 * p;
+      g.strokeStyle = i === argmax ? CHORD_COLOR : FACE_COLOR;
+      g.lineWidth = barW;
+      g.beginPath();
+      g.moveTo(cx, baseY);
+      g.lineTo(cx, baseY - (2 + p * 26));
+      g.stroke();
+    }
+    g.restore();
+  },
+};
+
+/**
+ * Per-hand brightness/vibrato level bars (output feature) — the timbre values the
+ * hand (and, in timbre mode, the face) maps to. NOT the index x/y, which the
+ * marker already cues. Opt-in. Drawn as two thin bars beside each hand's marker.
+ */
+const timbreLevels: OverlayElement = {
+  name: 'timbreLevels',
+  category: 'output',
+  draw(g, { W, H, inputs, params }) {
+    if (!params.timbreLevels.show) return;
+    const sp = inputs.params;
+    const feats = inputs.features;
+    if (!sp || !feats) return;
+    const drawLevels = (f: SingleHandFeatures, voiceId: number, color: string) => {
+      if (!f.present) return;
+      const v = sp.voices?.[voiceId];
+      if (!v) return;
+      const sx = f.x * W;
+      const sy = f.y * H;
+      const bar = (offset: number, value: number, c: string) => {
+        const bx = sx + 32 + offset;
+        g.globalAlpha = 0.8;
+        g.strokeStyle = c;
+        g.lineWidth = 5;
+        g.beginPath();
+        g.moveTo(bx, sy + 18);
+        g.lineTo(bx, sy + 18 - (3 + Math.max(0, Math.min(1, value)) * 32));
+        g.stroke();
+      };
+      bar(0, v.brightness ?? 1, color); // brightness (from openness / smile)
+      bar(9, v.vibrato ?? 0, CHORD_COLOR); // vibrato (from pinch / open mouth)
+    };
+    g.save();
+    drawLevels(feats.right, 0, RIGHT_COLOR);
+    drawLevels(feats.left, 1, LEFT_COLOR);
+    g.restore();
+  },
+};
+
+/**
+ * The overlay elements, in draw (z) order (backdrop first, readouts on top). Each
+ * has a `category` (the settings panel groups by it) and a `<name>` sub-object in
+ * `Params` with at least a `show` toggle. Append here to add an element.
  */
 export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   videoBackdrop,
   scaleGuideElement,
   chordGuideElement,
   indexFingerGuide,
+  faceMesh,
   landmarkDots,
   controlMarkers,
+  timbreLevels,
+  faceExpressionReadout,
 ];
 
 export const canvasOverlayNode = defineNode<Params>({
@@ -357,6 +523,10 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'scaleLeft', kind: 'number[]' },
     // Optional: the face-driven chord's tones (MIDI), highlighted on the guide.
     { name: 'chord', kind: 'number[]' },
+    // Optional: the raw face frame (blendshapes + landmarks), for the face mesh.
+    { name: 'faceFrame', kind: 'face-frame' },
+    // Optional: the classified expression, for the live expression readout.
+    { name: 'expression', kind: 'face-expression' },
     // Optional: the live octave shift, so guide labels match the sounding pitch.
     { name: 'octaveShift', kind: 'number', default: 0 },
     // Optional: a live overlay element config (from the UI store) that overrides
@@ -394,6 +564,8 @@ export const canvasOverlayNode = defineNode<Params>({
             scaleLeft: inputs.scaleLeft as number[] | undefined,
             octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
             chord: inputs.chord as number[] | undefined,
+            faceFrame: inputs.faceFrame as FaceFrame | undefined,
+            expression: inputs.expression as ExpressionScores | undefined,
           },
         };
 

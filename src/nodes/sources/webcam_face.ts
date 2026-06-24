@@ -50,19 +50,25 @@ const ABSENT_FRAME: FaceFrame = { present: false, blendshapes: {} };
 /** The minimal slice of a `FaceLandmarkerResult` this node reads. */
 export interface FaceLandmarkerResultLike {
   faceBlendshapes?: Array<{ categories: Array<{ categoryName: string; score: number }> }>;
+  /** Normalized (0..1) landmark points per detected face, for the face-mesh overlay. */
+  faceLandmarks?: Array<Array<{ x: number; y: number }>>;
 }
 
 /**
- * Pure converter: a MediaPipe FaceLandmarker result → a {@link FaceFrame}.
- * Exported so it can be unit-tested headlessly (the live inference itself is
- * browser-only). Returns the absent frame when no face was detected.
+ * Pure converter: a MediaPipe FaceLandmarker result → a {@link FaceFrame} (the 52
+ * blendshapes plus the normalized landmark points, when present). Exported so it
+ * can be unit-tested headlessly (the live inference itself is browser-only).
+ * Returns the absent frame when no face was detected.
  */
 export function blendshapesToFaceFrame(result: FaceLandmarkerResultLike): FaceFrame {
   const categories = result.faceBlendshapes?.[0]?.categories;
   if (!categories || categories.length === 0) return ABSENT_FRAME;
   const blendshapes: Record<string, number> = {};
   for (const c of categories) blendshapes[c.categoryName] = c.score;
-  return { present: true, blendshapes };
+  const frame: FaceFrame = { present: true, blendshapes };
+  const pts = result.faceLandmarks?.[0];
+  if (pts && pts.length) frame.landmarks = pts.map((p) => ({ x: p.x, y: p.y }));
+  return frame;
 }
 
 /** The minimal runtime surface of MediaPipe used here (browser-only, lazy). */
