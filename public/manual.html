@@ -64,7 +64,7 @@
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -111,12 +111,12 @@
     </div>
     <div class="node">
       <h4><code>face-expression</code> <span class="title">Face Expression</span></h4>
-      <p>Face blendshapes → softmax over 7 expressions (happy/sad/angry/surprised/fearful/disgusted/neutral) with smoothing + hysteresis.</p>
+      <p>Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).</p>
       <dl>
         <dt>roles</dt><dd>feature</dd>
-        <dt>in</dt><dd>face:face-frame</dd>
+        <dt>in</dt><dd>face:face-frame, sensitivity:expression-sensitivity</dd>
         <dt>out</dt><dd>expression:face-expression</dd>
-        <dt>params</dt><dd>smoothing (number=0.4), temperature (number=0.12), holdMargin (number=0.06)</dd>
+        <dt>params</dt><dd>smoothing (number=0.4), dwellFrames (number=2)</dd>
       </dl>
     </div>
     <div class="node">
@@ -216,7 +216,7 @@
       <p>Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).</p>
       <dl>
         <dt>roles</dt><dd>music</dd>
-        <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config</dd>
+        <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees</dd>
         <dt>out</dt><dd>params:synth-params, triad:number[]</dd>
         <dt>params</dt><dd>gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)</dd>
       </dl>

@@ -1,94 +1,140 @@
 /**
- * `face-expression` node — classifies the 52 MediaPipe/ARKit blendshapes of a
- * {@link FaceFrame} into a softmax distribution over the seven canonical
- * expressions (happy / sad / angry / surprised / fearful / disgusted / neutral),
- * the sibling of `face-features`. It uses {@link blendshapesToExpression} (cosine
- * similarity to FACS-grounded prototypes) — no extra model, no extra bytes — and
- * adds temporal stability the raw frame lacks:
+ * `face-expression` node — turns the 52 MediaPipe/ARKit blendshapes of a
+ * {@link FaceFrame} into a decided expression (one of six emotions or `neutral`),
+ * the sibling of `face-features`. No extra model, no extra bytes: it scores the
+ * blendshapes against FACS-grounded prototypes ({@link expressionActivations}) and
+ * applies the research-grounded decision + stabilization stack:
  *
- *  - **per-class EMA smoothing** of the softmax (the simplex is preserved, since
- *    a convex blend of probability vectors is still a probability vector), so the
- *    distribution eases rather than jumps;
- *  - **argmax margin-hold hysteresis**, so the winning expression (which drives
- *    the chord in `expression-chord`) only switches when a challenger leads by a
- *    margin — preventing chord chatter at decision boundaries.
+ *  - **per-emotion EMA smoothing** of the magnitude-aware activations, so each
+ *    emotion's level eases rather than jumps;
+ *  - **per-class thresholds** (from the live, user-tunable sensitivities) with
+ *    **neutral as the abstention fallback** — if no emotion clears its bar the
+ *    decision is `neutral` (the fix for a resting face reading as `angry`);
+ *  - **enter/exit hysteresis** (the held label is judged against an easier exit
+ *    threshold) plus a small **dwell** (a switch must persist a few frames) so the
+ *    expression — which drives the chord in `expression-chord` — does not chatter.
  *
  * Pure + Node-safe (no DOM/MediaPipe): the live `webcam-face` node feeds it the
- * same `{ present, blendshapes }` frames the offline fixture replays.
+ * same `{ present, blendshapes }` frames the offline fixture replays. The live
+ * per-emotion sensitivities arrive on the optional `sensitivity` input (from the
+ * store); absent, the shipped {@link DEFAULT_EXPRESSION_SENSITIVITY} is used.
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { FaceFrame } from '../domain';
 import {
-  EXPRESSIONS,
+  EMOTIONS,
   ABSENT_EXPRESSION,
-  blendshapesToExpression,
+  expressionActivations,
+  decideExpression,
+  expressionThresholds,
+  DEFAULT_EXPRESSION_SENSITIVITY,
   type ExpressionScores,
+  type ExpressionSensitivity,
+  type Emotion,
+  type ExpressionLabel,
 } from '@/music/expression';
 
-const NEUTRAL_INDEX = EXPRESSIONS.indexOf('neutral');
-
 const Params = z.object({
-  /** Per-class EMA smoothing 0..1 (0 = instant, higher = smoother/slower). */
+  /** Per-emotion EMA smoothing 0..1 (0 = instant, higher = smoother/slower). */
   smoothing: z.number().min(0).max(0.999).default(0.4),
-  /** Softmax temperature; lower = sharper distribution. */
-  temperature: z.number().min(0.01).max(2).default(0.12),
-  /** A challenger must lead the held expression by this probability margin
-   *  before the argmax switches (hysteresis against chord flicker). */
-  holdMargin: z.number().min(0).max(1).default(0.06),
+  /** A label switch must persist this many frames before it is committed
+   *  (dwell/debounce, on top of the per-emotion enter/exit hysteresis). */
+  dwellFrames: z.number().int().min(1).max(30).default(2),
 });
 type Params = z.infer<typeof Params>;
 
-/** Rest distribution: certain neutral. */
-const restProbs = (): number[] => EXPRESSIONS.map((l) => (l === 'neutral' ? 1 : 0));
+const zeroActivations = (): Record<Emotion, number> =>
+  Object.fromEntries(EMOTIONS.map((e) => [e, 0])) as Record<Emotion, number>;
 
 export const faceExpressionNode = defineNode<Params>({
   type: 'face-expression',
   roles: ['feature'],
   title: 'Face Expression',
   description:
-    'Face blendshapes → softmax over 7 expressions (happy/sad/angry/surprised/fearful/disgusted/neutral) with smoothing + hysteresis.',
-  inputs: [{ name: 'face', kind: 'face-frame' }],
+    'Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).',
+  inputs: [
+    { name: 'face', kind: 'face-frame' },
+    // Live per-emotion sensitivities [0,1] (from the store); optional → defaults.
+    { name: 'sensitivity', kind: 'expression-sensitivity' },
+  ],
   outputs: [{ name: 'expression', kind: 'face-expression' }],
   params: Params,
   make(p) {
-    const smoothed = restProbs();
-    let held = NEUTRAL_INDEX;
+    const smoothed = zeroActivations();
+    let committed: ExpressionLabel = 'neutral';
+    let candidate: ExpressionLabel | null = null;
+    let candidateCount = 0;
 
-    const ema = (targets: number[]) => {
-      for (let i = 0; i < smoothed.length; i++) {
-        smoothed[i] = smoothed[i] + (1 - p.smoothing) * (targets[i] - smoothed[i]);
+    /** EMA toward the target activations (target 0 = decay toward rest). */
+    const ema = (target: Record<Emotion, number>) => {
+      for (const e of EMOTIONS) {
+        smoothed[e] = smoothed[e] + (1 - p.smoothing) * ((target[e] ?? 0) - smoothed[e]);
       }
+    };
+
+    /** Read the live sensitivities, healing any missing emotion with the default. */
+    const sensitivityFrom = (raw: unknown): ExpressionSensitivity => {
+      const s = raw as Partial<ExpressionSensitivity> | undefined;
+      if (!s) return DEFAULT_EXPRESSION_SENSITIVITY;
+      const out = {} as ExpressionSensitivity;
+      for (const e of EMOTIONS) {
+        out[e] = typeof s[e] === 'number' ? (s[e] as number) : DEFAULT_EXPRESSION_SENSITIVITY[e];
+      }
+      return out;
+    };
+
+    /** Build the output record from the current smoothed state + sensitivities. */
+    const toScores = (sensitivity: ExpressionSensitivity): ExpressionScores => {
+      const thr = expressionThresholds(sensitivity);
+      // `fired` reflects the same hysteresis the committed label uses.
+      const decision = decideExpression(smoothed, sensitivity, committed);
+      return {
+        present: true,
+        label: committed,
+        scores: EMOTIONS.map((e) => smoothed[e]),
+        thresholds: EMOTIONS.map((e) => thr[e]),
+        fired: EMOTIONS.map((e) => decision.fired[e]),
+      };
     };
 
     return {
       process(inputs) {
         const face = inputs.face as FaceFrame | undefined;
+        const sensitivity = sensitivityFrom(inputs.sensitivity);
+
         if (!face || !face.present) {
           // Decay toward rest so a lost face relaxes to neutral rather than
           // freezing the last chord, and report absent.
-          ema(restProbs());
-          held = NEUTRAL_INDEX;
+          ema(zeroActivations());
+          committed = 'neutral';
+          candidate = null;
+          candidateCount = 0;
           return { expression: { ...ABSENT_EXPRESSION } };
         }
 
-        const raw = blendshapesToExpression(face.blendshapes, { temperature: p.temperature });
-        ema(raw.probs);
+        ema(expressionActivations(face.blendshapes));
 
-        // Argmax of the SMOOTHED distribution, with margin-hold hysteresis.
-        let argmax = 0;
-        for (let i = 1; i < smoothed.length; i++) if (smoothed[i] > smoothed[argmax]) argmax = i;
-        if (argmax !== held && smoothed[argmax] - smoothed[held] < p.holdMargin) argmax = held;
-        held = argmax;
+        // Decide with hysteresis (the committed label is judged against its easier
+        // exit threshold), then commit a switch only after it persists `dwellFrames`.
+        const proposed = decideExpression(smoothed, sensitivity, committed).label;
+        if (proposed === committed) {
+          candidate = null;
+          candidateCount = 0;
+        } else {
+          if (proposed === candidate) candidateCount++;
+          else {
+            candidate = proposed;
+            candidateCount = 1;
+          }
+          if (candidateCount >= p.dwellFrames) {
+            committed = proposed;
+            candidate = null;
+            candidateCount = 0;
+          }
+        }
 
-        const probs = [...smoothed];
-        const out: ExpressionScores = {
-          present: true,
-          probs,
-          label: EXPRESSIONS[argmax],
-          confidence: probs[argmax],
-        };
-        return { expression: out };
+        return { expression: toScores(sensitivity) };
       },
     };
   },

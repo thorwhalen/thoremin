@@ -51,6 +51,16 @@ describe('control store', () => {
     expect(c.rendering).toBe('sustained'); // untouched
   });
 
+  it('setExpressionSensitivity / setExpressionDegree patch one entry, leaving siblings', () => {
+    useControls.getState().setExpressionSensitivity('angry', 0.2);
+    useControls.getState().setExpressionDegree('happy', 4);
+    const fe = useControls.getState().faceExpr;
+    expect(fe.sensitivity.angry).toBe(0.2);
+    expect(fe.sensitivity.happy).toBe(0.5); // sibling sensitivity untouched (default)
+    expect(fe.degrees.happy).toBe(4);
+    expect(fe.degrees.neutral).toBe(5); // sibling degree untouched (confusion-aware default)
+  });
+
   it('setVoice with sync ON mirrors both hands but keeps instruments distinct', () => {
     useControls.getState().setVoice('right', { root: 7, octaves: 4 });
     const s = useControls.getState();
@@ -144,6 +154,19 @@ describe('control store', () => {
     expect(s.faceChord.bpm).toBe(140);
     expect(s.overlay.indexGuide.show).toBe(true);
   });
+
+  it('toSettings → applySettings round-trips faceExpr (schema-derived persistence)', () => {
+    useControls.getState().setExpressionSensitivity('angry', 0.2);
+    useControls.getState().setExpressionDegree('neutral', 1);
+    const snap = toSettings(useControls.getState());
+    // Mutate away, then restore from the snapshot.
+    useControls.getState().setExpressionSensitivity('angry', 0.9);
+    useControls.getState().setExpressionDegree('neutral', 6);
+    useControls.getState().applySettings(snap);
+    const fe = useControls.getState().faceExpr;
+    expect(fe.sensitivity.angry).toBe(0.2);
+    expect(fe.degrees.neutral).toBe(1);
+  });
 });
 
 describe('persist migration (v1 → v2, returning users)', () => {
@@ -166,6 +189,14 @@ describe('persist migration (v1 → v2, returning users)', () => {
       expect(typeof merged.overlay[k]?.show).toBe('boolean');
     }
     expect(merged.overlay.timbreLevels.show).toBe(false); // opt-in default survives the heal
+  });
+
+  it('mergeControls heals a partial faceExpr (missing emotions/degrees filled from defaults)', () => {
+    const initial = useControls.getInitialState();
+    const merged = mergeControls({ faceExpr: { sensitivity: { angry: 0.1 } } } as never, initial);
+    expect(merged.faceExpr.sensitivity.angry).toBe(0.1); // kept
+    expect(merged.faceExpr.sensitivity.happy).toBe(0.5); // filled from default
+    expect(typeof merged.faceExpr.degrees.happy).toBe('number'); // degree map filled too
   });
 
   it('mergeControls clamps an unknown faceMapping to a safe value', () => {
@@ -221,6 +252,9 @@ describe('store-controls node reads the store', () => {
     expect(out.rightSpec).toMatchObject({ root: 2, type: 'minor' });
     // chordConfig maps the store's faceChord (volume → gain) for expression-chord.
     expect(out.chordConfig).toMatchObject({ voicing: 'spread', gain: 0.22, bpm: 100 });
+    // The expression-mapping ports: per-emotion sensitivity + per-expression degrees.
+    expect(out.expressionSensitivity).toMatchObject({ happy: 0.5, angry: 0.45 });
+    expect((out.expressionDegrees as Record<string, number>).neutral).toBe(5);
   });
 
   it('emits nothing when no controls getter is injected (safe before host wires it)', () => {

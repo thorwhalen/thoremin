@@ -36,28 +36,45 @@ export const EXPRESSIONS = [
 
 export type ExpressionLabel = (typeof EXPRESSIONS)[number];
 
+/**
+ * The six *scored* emotions. Neutral is the abstention FALLBACK (the decision when
+ * no emotion clears its threshold), not a scored class — for a prototype/cosine
+ * classifier without a strong neutral exemplar, abstention is far more robust than
+ * asking a neutral prototype to out-score everything (Bishop, reject option;
+ * open-set recognition bounds the acceptance region instead of partitioning all of
+ * feature space among the known classes).
+ */
+export const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'fearful', 'disgusted'] as const;
+export type Emotion = (typeof EMOTIONS)[number];
+
 /** A sparse weighting over blendshape names (missing keys = 0). */
 export type BlendshapeWeights = Record<string, number>;
 
-/** The classifier's result: a softmax over {@link EXPRESSIONS} + its argmax. */
+/**
+ * The classifier's per-frame result (flows on the DAG edge). `scores` are the
+ * per-emotion activations and `thresholds` their effective firing thresholds (both
+ * aligned to {@link EMOTIONS}, for the readout); `fired` is score ≥ threshold; and
+ * `label` is the decided expression — one of the six emotions or `neutral`.
+ */
 export interface ExpressionScores {
   present: boolean;
-  /** Softmax probabilities, aligned to {@link EXPRESSIONS} (sums to 1). */
-  probs: number[];
-  /** argmax label. */
   label: ExpressionLabel;
-  /** Probability of {@link label} (= max of {@link probs}); 0 when absent. */
-  confidence: number;
+  scores: number[];
+  thresholds: number[];
+  fired: boolean[];
+}
+
+function clamp01(x: number): number {
+  return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
 /**
- * FACS-grounded prototype blendshape vectors, one per expression. Primary action
- * units carry weight 1; supporting units less. Neutral is anchored on the
- * model's own `_neutral` blendshape, so a resting face scores neutral highest.
- * Seeded from the ARKit-blendshape emotion literature (issue #64 refs [1][2]);
- * override via {@link ExpressionOptions.prototypes} for a calibrated set.
+ * FACS-grounded prototype blendshape vectors, one per emotion. Primary action
+ * units carry weight 1; supporting units less. Seeded from the ARKit-blendshape
+ * emotion literature (issue #64 refs [1][2]); swap for a calibrated set. (Neutral
+ * has no prototype — it is the abstention fallback, not a scored class.)
  */
-export const EXPRESSION_PROTOTYPES: Record<ExpressionLabel, BlendshapeWeights> = {
+export const EXPRESSION_PROTOTYPES: Record<Emotion, BlendshapeWeights> = {
   happy: { mouthSmileLeft: 1, mouthSmileRight: 1, cheekSquintLeft: 0.4, cheekSquintRight: 0.4 },
   sad: {
     mouthFrownLeft: 1,
@@ -100,85 +117,131 @@ export const EXPRESSION_PROTOTYPES: Record<ExpressionLabel, BlendshapeWeights> =
     browDownLeft: 0.4,
     browDownRight: 0.4,
   },
-  neutral: { _neutral: 1 },
 };
 
-/** The blendshape dimensions the classifier scores over (union of all prototype
- * keys). Restricting cosine to these FACS-relevant dims keeps gaze/blink noise
- * out of the norm. */
-const PROTOTYPE_DIMS: string[] = (() => {
-  const dims = new Set<string>();
-  for (const proto of Object.values(EXPRESSION_PROTOTYPES)) {
-    for (const k of Object.keys(proto)) dims.add(k);
+/**
+ * Magnitude-aware activation of each emotion: the weighted-mean activation of its
+ * FACS blendshapes, in [0,1] (0 = those action units at rest, 1 = fully active).
+ * Unlike cosine similarity this is NOT scale-invariant — a faint resting brow
+ * furrow yields a tiny `angry` activation, so it cannot clear a threshold. (That
+ * scale-invariance is exactly why the old cosine classifier read a neutral face
+ * as angry: the direction matched even though the magnitude was negligible.) Pure.
+ */
+export function expressionActivations(
+  blendshapes: BlendshapeWeights,
+  prototypes: Record<Emotion, BlendshapeWeights> = EXPRESSION_PROTOTYPES,
+): Record<Emotion, number> {
+  const out = {} as Record<Emotion, number>;
+  for (const e of EMOTIONS) {
+    let num = 0;
+    let den = 0;
+    for (const k in prototypes[e]) {
+      const w = prototypes[e][k];
+      num += (blendshapes[k] ?? 0) * w;
+      den += w;
+    }
+    out[e] = den > 0 ? clamp01(num / den) : 0;
   }
-  return [...dims];
-})();
-
-export interface ExpressionOptions {
-  /** Override the prototype vectors (e.g. a calibrated set). */
-  prototypes?: Record<ExpressionLabel, BlendshapeWeights>;
-  /** Softmax temperature; lower = sharper. Default 0.12. */
-  temperature?: number;
-}
-
-function dot(a: BlendshapeWeights, b: BlendshapeWeights, dims: string[]): number {
-  let s = 0;
-  for (const k of dims) s += (a[k] ?? 0) * (b[k] ?? 0);
-  return s;
-}
-
-function norm(a: BlendshapeWeights, dims: string[]): number {
-  return Math.sqrt(dot(a, a, dims));
-}
-
-function softmax(xs: number[], temperature: number): number[] {
-  const t = temperature > 0 ? temperature : 1e-6;
-  const scaled = xs.map((x) => x / t);
-  const max = Math.max(...scaled);
-  const exps = scaled.map((x) => Math.exp(x - max));
-  const sum = exps.reduce((a, b) => a + b, 0) || 1;
-  return exps.map((e) => e / sum);
+  return out;
 }
 
 /**
- * Classify a blendshape frame into a softmax distribution over the seven
- * {@link EXPRESSIONS}. Cosine similarity to each {@link EXPRESSION_PROTOTYPES}
- * vector (over the FACS-relevant dims) is passed through a temperature softmax.
- * A near-zero face (no activation) falls back to neutral.
+ * Per-emotion operating-point bounds (calibration constants — NOT calibrated
+ * probabilities; cosine/activation "confidence" is uncalibrated, so these are
+ * tuned operating points). `sensitivity` 0 → `max` (hardest, almost nothing
+ * fires), 1 → `min` (easiest). `delta` is the hysteresis band (enter − delta =
+ * the easier exit threshold). `angry`/`fearful` start slightly stricter (they are
+ * the spurious-prone / overlapping ones).
  */
-export function blendshapesToExpression(
-  blendshapes: BlendshapeWeights,
-  opts: ExpressionOptions = {},
-): ExpressionScores {
-  const prototypes = opts.prototypes ?? EXPRESSION_PROTOTYPES;
-  const temperature = opts.temperature ?? 0.12;
-  const inputNorm = norm(blendshapes, PROTOTYPE_DIMS);
+export interface ExpressionThresholdBounds {
+  min: number;
+  max: number;
+  delta: number;
+}
+export const EXPRESSION_THRESHOLD_BOUNDS: Record<Emotion, ExpressionThresholdBounds> = {
+  happy: { min: 0.15, max: 0.6, delta: 0.06 },
+  sad: { min: 0.15, max: 0.6, delta: 0.06 },
+  angry: { min: 0.2, max: 0.65, delta: 0.06 },
+  surprised: { min: 0.15, max: 0.6, delta: 0.06 },
+  fearful: { min: 0.2, max: 0.65, delta: 0.06 },
+  disgusted: { min: 0.15, max: 0.6, delta: 0.06 },
+};
 
-  let sims: number[];
-  if (inputNorm < 1e-6) {
-    // No measurable expression → certain neutral.
-    sims = EXPRESSIONS.map((label) => (label === 'neutral' ? 1 : 0));
-  } else {
-    sims = EXPRESSIONS.map((label) => {
-      const proto = prototypes[label];
-      const pn = norm(proto, PROTOTYPE_DIMS);
-      if (pn < 1e-6) return 0;
-      return dot(blendshapes, proto, PROTOTYPE_DIMS) / (inputNorm * pn);
-    });
-  }
+export type ExpressionSensitivity = Record<Emotion, number>;
 
-  const probs = softmax(sims, temperature);
-  let argmax = 0;
-  for (let i = 1; i < probs.length; i++) if (probs[i] > probs[argmax]) argmax = i;
-  return { present: true, probs, label: EXPRESSIONS[argmax], confidence: probs[argmax] };
+/** Default per-emotion sensitivity (angry slightly stricter — spurious-prone). */
+export const DEFAULT_EXPRESSION_SENSITIVITY: ExpressionSensitivity = {
+  happy: 0.5,
+  sad: 0.5,
+  angry: 0.45,
+  surprised: 0.5,
+  fearful: 0.5,
+  disgusted: 0.5,
+};
+
+/** A per-emotion sensitivity in [0,1] → its firing threshold, monotone DECREASING
+ *  (more sensitive = lower bar = more hits). */
+export function sensitivityToThreshold(sensitivity: number, bounds: ExpressionThresholdBounds): number {
+  return bounds.max - clamp01(sensitivity) * (bounds.max - bounds.min);
 }
 
-/** The absent/rest expression: certain neutral, no probs to act on. */
+/** The effective (enter) firing threshold for each emotion at the given sensitivities. */
+export function expressionThresholds(
+  sensitivity: ExpressionSensitivity = DEFAULT_EXPRESSION_SENSITIVITY,
+): Record<Emotion, number> {
+  const out = {} as Record<Emotion, number>;
+  for (const e of EMOTIONS) {
+    out[e] = sensitivityToThreshold(sensitivity[e] ?? 0.5, EXPRESSION_THRESHOLD_BOUNDS[e]);
+  }
+  return out;
+}
+
+export interface ExpressionDecision {
+  label: ExpressionLabel;
+  fired: Record<Emotion, boolean>;
+}
+
+/**
+ * Decide the expression from per-emotion activations + per-emotion sensitivities:
+ *  - an emotion *fires* when its activation ≥ its threshold;
+ *  - if NONE fire → `neutral` (the abstention fallback, Chow's reject rule);
+ *  - among those that fire, the winner has the greatest margin OVER ITS OWN
+ *    threshold (so a more-sensitive emotion both fires more often AND wins ties —
+ *    the operating-point generalization of argmax; per-class thresholds don't move
+ *    the underlying scores, only eligibility).
+ * `held` (the currently-committed label, if any) is judged against the easier EXIT
+ * threshold (enter − delta) — a Schmitt-trigger / Canny hysteresis against chatter.
+ * Pure.
+ */
+export function decideExpression(
+  activations: Record<Emotion, number>,
+  sensitivity: ExpressionSensitivity = DEFAULT_EXPRESSION_SENSITIVITY,
+  held?: ExpressionLabel,
+): ExpressionDecision {
+  const fired = {} as Record<Emotion, boolean>;
+  let winner: Emotion | null = null;
+  let bestMargin = -Infinity;
+  for (const e of EMOTIONS) {
+    const bounds = EXPRESSION_THRESHOLD_BOUNDS[e];
+    const enter = sensitivityToThreshold(sensitivity[e] ?? 0.5, bounds);
+    const threshold = e === held ? enter - bounds.delta : enter;
+    const margin = (activations[e] ?? 0) - threshold;
+    fired[e] = margin >= 0;
+    if (fired[e] && margin > bestMargin) {
+      bestMargin = margin;
+      winner = e;
+    }
+  }
+  return { label: winner ?? 'neutral', fired };
+}
+
+/** The absent/rest expression: neutral, nothing fired. */
 export const ABSENT_EXPRESSION: ExpressionScores = {
   present: false,
-  probs: EXPRESSIONS.map((l) => (l === 'neutral' ? 1 : 0)),
   label: 'neutral',
-  confidence: 1,
+  scores: EMOTIONS.map(() => 0),
+  thresholds: EMOTIONS.map(() => 0),
+  fired: EMOTIONS.map(() => false),
 };
 
 // ---- Confusion-aware expression → scale-degree assignment -----------------

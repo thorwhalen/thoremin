@@ -19,8 +19,22 @@ import type { ScaleTypeId } from '@/music/theory';
 import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
 import { OverlayParamsSchema, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
-import { DEFAULT_FACE_CHORD, FaceChordSchema, type Settings, type FaceChord } from '@/settings/schema';
+import {
+  DEFAULT_FACE_CHORD,
+  DEFAULT_FACE_EXPR,
+  FaceChordSchema,
+  FaceExprSchema,
+  SettingsSchema,
+  type Settings,
+  type FaceChord,
+  type FaceExpr,
+} from '@/settings/schema';
 import { DEFAULT_RECORDING_FORMATS } from './recording/formats';
+
+/** The preset keys (derived from the schema — the SSOT). Add a field to
+ *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
+ *  automatically: no hand-edits to toSettings / applySettings / partialize. */
+const SETTINGS_KEYS = Object.keys(SettingsSchema.shape) as (keyof Settings)[];
 
 export interface VoiceControl {
   root: number; // 0..11
@@ -45,6 +59,10 @@ export interface ControlState {
   /** How the face chord sounds (instrument / volume / voicing / rendering / tempo).
    *  Read live by `expression-chord` via the `chordConfig` port. */
   faceChord: FaceChord;
+  /** The expression-mapping config: per-emotion firing sensitivity (read live by
+   *  `face-expression`) + per-expression scale-degree map (read live by
+   *  `expression-chord`). */
+  faceExpr: FaceExpr;
   /** Composable overlay element config (see canvas_overlay.ts). Live-controlled. */
   overlay: OverlayParams;
   /**
@@ -59,6 +77,10 @@ export interface ControlState {
   setFaceMapping(v: FaceMapping): void;
   /** Patch the face-chord settings (e.g. setFaceChord({ voicing: 'spread' })). */
   setFaceChord(patch: Partial<FaceChord>): void;
+  /** Set one emotion's firing sensitivity [0,1] (higher = more hits). */
+  setExpressionSensitivity(emotion: string, value: number): void;
+  /** Set the scale degree (0..6) an expression maps to. */
+  setExpressionDegree(expr: string, degree: number): void;
   /** Toggle a recording output format on/off (keeps at least one selected). */
   setRecordingFormat(id: string, on: boolean): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
@@ -80,17 +102,16 @@ const defaultVoice = (instrument: VoiceParams['instrument']): VoiceControl => ({
 /** The overlay element defaults (all on except the opt-in index-finger guide). */
 const defaultOverlay = (): OverlayParams => OverlayParamsSchema.parse({});
 
+/** Pick exactly the preset fields ({@link SETTINGS_KEYS}) from a state-like object. */
+function pickSettings(s: Record<string, unknown>): Settings {
+  const out: Record<string, unknown> = {};
+  for (const k of SETTINGS_KEYS) out[k] = s[k];
+  return out as unknown as Settings;
+}
+
 /** Snapshot the persistable settings from the live state (for saving a preset). */
 export function toSettings(s: ControlState): Settings {
-  return {
-    right: s.right,
-    left: s.left,
-    syncHands: s.syncHands,
-    masterVolume: s.masterVolume,
-    faceMapping: s.faceMapping,
-    faceChord: s.faceChord,
-    overlay: s.overlay,
-  };
+  return pickSettings(s as unknown as Record<string, unknown>);
 }
 
 /**
@@ -139,10 +160,24 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       faceChord = current.faceChord;
     }
   }
+  // Heal faceExpr the same way: fill the sensitivity/degrees maps from the defaults
+  // so a returning user's older blob can't leave an emotion's slider unbound.
+  let faceExpr = current.faceExpr;
+  if (p.faceExpr) {
+    try {
+      const pe = p.faceExpr as Partial<FaceExpr>;
+      faceExpr = FaceExprSchema.parse({
+        sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity, ...(pe.sensitivity ?? {}) },
+        degrees: { ...DEFAULT_FACE_EXPR.degrees, ...(pe.degrees ?? {}) },
+      });
+    } catch {
+      faceExpr = current.faceExpr;
+    }
+  }
   const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
     ? (p.faceMapping as FaceMapping)
     : legacyFaceToMapping(p.faceEnabled);
-  return { ...current, ...p, overlay, faceMapping, faceChord };
+  return { ...current, ...p, overlay, faceMapping, faceChord, faceExpr };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -164,6 +199,10 @@ export const useControls = create<ControlState>()(
       masterVolume: 0.4,
       faceMapping: 'none',
       faceChord: { ...DEFAULT_FACE_CHORD },
+      faceExpr: {
+        sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity },
+        degrees: { ...DEFAULT_FACE_EXPR.degrees },
+      },
       overlay: defaultOverlay(),
       recordingFormats: [...DEFAULT_RECORDING_FORMATS],
       setVoice: (side, patch) =>
@@ -185,6 +224,14 @@ export const useControls = create<ControlState>()(
       setMasterVolume: (v) => set({ masterVolume: v }),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),
+      setExpressionSensitivity: (emotion, value) =>
+        set((s) => ({
+          faceExpr: { ...s.faceExpr, sensitivity: { ...s.faceExpr.sensitivity, [emotion]: value } },
+        })),
+      setExpressionDegree: (expr, degree) =>
+        set((s) => ({
+          faceExpr: { ...s.faceExpr, degrees: { ...s.faceExpr.degrees, [expr]: degree } },
+        })),
       setRecordingFormat: (id, on) =>
         set((s) => {
           const has = s.recordingFormats.includes(id);
@@ -200,16 +247,9 @@ export const useControls = create<ControlState>()(
         set((s) => ({
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
         })),
-      applySettings: (st) =>
-        set({
-          right: st.right,
-          left: st.left,
-          syncHands: st.syncHands,
-          masterVolume: st.masterVolume,
-          faceMapping: st.faceMapping,
-          faceChord: st.faceChord,
-          overlay: st.overlay,
-        }),
+      // Restore exactly the schema fields (the setters/recordingFormats are left
+      // untouched). Derived from SETTINGS_KEYS, so a new preset field needs no edit.
+      applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
     }),
     {
       name: 'thoremin-controls',
@@ -223,15 +263,10 @@ export const useControls = create<ControlState>()(
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
-      // Persist only the control values, never the setter functions.
+      // Persist the preset fields (schema-derived) + the recordingFormats tooling
+      // pref, never the setter functions.
       partialize: (s) => ({
-        right: s.right,
-        left: s.left,
-        syncHands: s.syncHands,
-        masterVolume: s.masterVolume,
-        faceMapping: s.faceMapping,
-        faceChord: s.faceChord,
-        overlay: s.overlay,
+        ...pickSettings(s as unknown as Record<string, unknown>),
         recordingFormats: s.recordingFormats,
       }),
     },

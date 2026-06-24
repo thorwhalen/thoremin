@@ -170,6 +170,10 @@
       {
         "name": "chordConfig",
         "kind": "chord-config"
+      },
+      {
+        "name": "degrees",
+        "kind": "expression-degrees"
       }
     ],
     "outputs": [
@@ -213,7 +217,7 @@
   {
     "type": "face-expression",
     "title": "Face Expression",
-    "description": "Face blendshapes → softmax over 7 expressions (happy/sad/angry/surprised/fearful/disgusted/neutral) with smoothing + hysteresis.",
+    "description": "Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).",
     "roles": [
       "feature"
     ],
@@ -221,6 +225,10 @@
       {
         "name": "face",
         "kind": "face-frame"
+      },
+      {
+        "name": "sensitivity",
+        "kind": "expression-sensitivity"
       }
     ],
     "outputs": [
@@ -236,14 +244,9 @@
         "default": 0.4
       },
       {
-        "name": "temperature",
+        "name": "dwellFrames",
         "type": "number",
-        "default": 0.12
-      },
-      {
-        "name": "holdMargin",
-        "type": "number",
-        "default": 0.06
+        "default": 2
       }
     ]
   },
@@ -838,6 +841,14 @@
       {
         "name": "chordConfig",
         "kind": "chord-config"
+      },
+      {
+        "name": "expressionSensitivity",
+        "kind": "expression-sensitivity"
+      },
+      {
+        "name": "expressionDegrees",
+        "kind": "expression-degrees"
       }
     ],
     "params": []

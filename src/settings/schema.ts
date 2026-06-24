@@ -15,6 +15,7 @@ import { INSTRUMENT_IDS, type InstrumentId } from '@/music/instruments';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
+import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 
 const ScaleTypeEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const InstrumentEnum = z.enum(INSTRUMENT_IDS as [InstrumentId, ...InstrumentId[]]);
@@ -44,6 +45,35 @@ export const DEFAULT_FACE_CHORD: FaceChord = {
   bpm: 100,
 };
 
+/**
+ * The face-expression mapping config: per-emotion firing `sensitivity` [0,1] (more
+ * sensitive = more hits — see the classifier in music/expression.ts) and a
+ * per-expression scale-`degrees` override (0..6) selecting which diatonic triad
+ * each expression — including `neutral` — plays. Loose `record` shape + full
+ * defaults; consumers heal any missing key, so a partial blob can't crash a reader.
+ */
+export const FaceExprSchema = z
+  .object({
+    sensitivity: z
+      .record(z.string(), z.number().min(0).max(1))
+      .default({ ...DEFAULT_EXPRESSION_SENSITIVITY }),
+    degrees: z
+      .record(z.string(), z.number().int().min(0).max(6))
+      .default({ ...DEFAULT_EXPRESSION_TO_DEGREE }),
+  })
+  .default({
+    sensitivity: { ...DEFAULT_EXPRESSION_SENSITIVITY },
+    degrees: { ...DEFAULT_EXPRESSION_TO_DEGREE },
+  });
+export type FaceExpr = z.infer<typeof FaceExprSchema>;
+
+/** The shipped defaults for the expression mapping (research-grounded sensitivity
+ *  + the confusion-aware degree assignment). */
+export const DEFAULT_FACE_EXPR: FaceExpr = {
+  sensitivity: { ...DEFAULT_EXPRESSION_SENSITIVITY },
+  degrees: { ...DEFAULT_EXPRESSION_TO_DEGREE },
+};
+
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
   root: z.number().int().min(0).max(11),
@@ -65,6 +95,9 @@ export const SettingsSchema = z.object({
   faceMapping: FaceMappingSchema.default('none'),
   // `.default(...)` keeps presets saved before the chord settings existed valid.
   faceChord: FaceChordSchema.default(DEFAULT_FACE_CHORD),
+  // Per-emotion sensitivity + per-expression degree map; `.default(...)` keeps
+  // presets saved before the expression-mapping editor valid.
+  faceExpr: FaceExprSchema,
   overlay: OverlayParamsSchema,
 });
 export type Settings = z.infer<typeof SettingsSchema>;

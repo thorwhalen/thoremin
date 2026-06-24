@@ -11,7 +11,7 @@ import type { NodeContext } from '@/dag';
 import { faceExpressionNode, expressionChordNode, synthMergeNode, voiceMappingNode } from '@/nodes';
 import { MAX_CHORD_VOICES, ABSENT_HAND, ABSENT_FACE } from '@/nodes';
 import type { ExpressionScores } from '@/music/expression';
-import { DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
+import { DEFAULT_EXPRESSION_TO_DEGREE, DEFAULT_EXPRESSION_SENSITIVITY } from '@/music/expression';
 import { voiceTriad } from '@/music/voicing';
 import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
 import type { FaceFrame, FaceFeatures, HandFeatures, SynthParams } from '@/nodes';
@@ -40,7 +40,7 @@ describe('face-expression node', () => {
     expect(out[0].label).toBe('neutral');
   });
 
-  it('keeps the smoothed distribution a valid simplex every tick', async () => {
+  it('keeps the smoothed activation scores in [0,1] every tick', async () => {
     const seq = [
       frame({ mouthSmileLeft: 1, mouthSmileRight: 1 }),
       frame({ jawOpen: 1, eyeWideLeft: 0.8, eyeWideRight: 0.8, browOuterUpLeft: 0.7, browOuterUpRight: 0.7 }),
@@ -49,16 +49,35 @@ describe('face-expression node', () => {
     ];
     const out = await classify(seq, { smoothing: 0.5 });
     for (const o of out) {
-      expect(o.probs.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
+      for (const s of o.scores) {
+        expect(s).toBeGreaterThanOrEqual(0);
+        expect(s).toBeLessThanOrEqual(1);
+      }
     }
   });
 
-  it('hysteresis holds the current label against a sub-margin challenger', async () => {
-    // With a large hold margin, a single off-frame should not flip the label.
+  it('a single off-frame does not flip the committed label (EMA + dwell hysteresis)', async () => {
+    // After settling on happy, one angry blip should not switch the chord: the
+    // slow EMA + the dwell (a switch must persist dwellFrames) both resist it.
     const happy = frame({ mouthSmileLeft: 1, mouthSmileRight: 1 });
-    const blip = frame({ mouthSmileLeft: 0.5, mouthSmileRight: 0.5, browDownLeft: 0.55, browDownRight: 0.55 });
-    const out = await classify([...Array(10).fill(happy), blip], { smoothing: 0.6, holdMargin: 0.9 });
+    const blip = frame({ browDownLeft: 1, browDownRight: 1 });
+    const out = await classify([...Array(10).fill(happy), blip], { smoothing: 0.6, dwellFrames: 3 });
     expect(out[out.length - 1].label).toBe('happy');
+  });
+
+  it('respects the live per-emotion sensitivity input (a strict bar abstains to neutral)', async () => {
+    const smile = frame({ mouthSmileLeft: 0.7, mouthSmileRight: 0.7 }); // a clear-ish smile
+    const run = async (sensitivity?: Record<string, number>) => {
+      const node = faceExpressionNode.make(faceExpressionNode.params.parse({ smoothing: 0.3 }));
+      const inputs: Record<string, unknown[]> = { face: Array(12).fill(smile) };
+      if (sensitivity) inputs.sensitivity = Array(12).fill(sensitivity);
+      const out = await replayNode(node, inputs);
+      return (out[out.length - 1].expression as ExpressionScores).label;
+    };
+    // Default sensitivity → the smile clears happy's bar.
+    expect(await run()).toBe('happy');
+    // Sensitivity 0 for happy raises its threshold above the smile → abstains to neutral.
+    expect(await run({ ...DEFAULT_EXPRESSION_SENSITIVITY, happy: 0 })).toBe('neutral');
   });
 });
 
@@ -79,9 +98,10 @@ async function chordVoices(
 
 const happyExpr: ExpressionScores = {
   present: true,
-  probs: [1, 0, 0, 0, 0, 0, 0],
   label: 'happy',
-  confidence: 1,
+  scores: [1, 0, 0, 0, 0, 0],
+  thresholds: [0.375, 0.375, 0.4475, 0.375, 0.4475, 0.375],
+  fired: [true, false, false, false, false, false],
 };
 
 describe('expression-chord node', () => {
@@ -110,6 +130,17 @@ describe('expression-chord node', () => {
     }
   });
 
+  it('follows the live per-expression degree override (happy → V instead of the default I)', async () => {
+    const node = expressionChordNode.make(expressionChordNode.params.parse({}));
+    const out = await replayNode(node, {
+      expression: [happyExpr],
+      spec: [cMajor],
+      faceMapping: ['chord'],
+      degrees: [{ ...DEFAULT_EXPRESSION_TO_DEGREE, happy: 4 }], // override happy → degree 4 (V)
+    });
+    expect(out[0].triad).toEqual(diatonicTriad(cMajor, 4)); // V triad, not the default tonic
+  });
+
   it('stays silent on a non-seven-note scale even in chord mode', async () => {
     const out = await chordVoices(happyExpr, 'chord', { ...cMajor, type: 'pentatonic' });
     expect(out.triad).toEqual([]);
@@ -117,7 +148,13 @@ describe('expression-chord node', () => {
   });
 
   it('stays silent when the face is absent', async () => {
-    const absent: ExpressionScores = { present: false, probs: [0, 0, 0, 0, 0, 0, 1], label: 'neutral', confidence: 1 };
+    const absent: ExpressionScores = {
+      present: false,
+      label: 'neutral',
+      scores: [0, 0, 0, 0, 0, 0],
+      thresholds: [0, 0, 0, 0, 0, 0],
+      fired: [false, false, false, false, false, false],
+    };
     const out = await chordVoices(absent, 'chord');
     expect((out.params as SynthParams).voices.every((v) => !v.present)).toBe(true);
   });
