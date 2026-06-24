@@ -255,6 +255,12 @@ function ChordControls() {
           onChange={(e) => set({ bpm: Number(e.target.value) })}
         />
       </label>
+      {tempoRelevant && (
+        <p className="text-[10px] leading-relaxed text-white/40">
+          Tempo modes articulate best with a crisp instrument (organ / glass / bell); a slow-attack
+          pad blurs fast arpeggios into a wash.
+        </p>
+      )}
     </div>
   );
 }

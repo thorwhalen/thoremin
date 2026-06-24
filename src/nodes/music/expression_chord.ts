@@ -50,7 +50,7 @@ const Params = z.object({
   /** How the voiced chord is played over time. */
   rendering: z.enum(RENDERINGS).default('sustained'),
   /** Tempo (BPM) for the tempo-based renderings. */
-  bpm: z.number().min(20).max(300).default(100),
+  bpm: z.number().min(40).max(200).default(100),
 });
 type Params = z.infer<typeof Params>;
 
@@ -116,12 +116,19 @@ export const expressionChordNode = defineNode<Params>({
         // The un-voiced scale triad (3 tones) for the overlay highlight; [] off a
         // seven-note scale or when idle.
         const triad = active ? diatonicTriad(spec!, DEFAULT_EXPRESSION_TO_DEGREE[expr!.label]) : [];
-        const voiced = triad.length ? voiceTriad(triad, voicing, shift) : [];
+        // Voice the chord, then sort ascending by pitch so arpeggios traverse
+        // low→high by actual pitch (some voicings stack out of pitch order). The
+        // ids stay stable (one per array slot), so the synth still releases all.
+        const voiced = (triad.length ? voiceTriad(triad, voicing, shift) : []).sort((a, b) => a - b);
 
-        // Beat clock + chord-change detection (a new chord restarts the strum).
-        const dt = typeof ctx?.dt === 'number' ? ctx.dt : 0;
+        // Beat clock (NaN-guarded so a degenerate dt can't poison it) + chord-change
+        // detection. The key is the actual sounding pitches, so ANY genuine chord
+        // change (expression, scale root/type/baseOctave, octave shift, voicing)
+        // restarts the strum. (Switching rendering mid-chord does NOT re-roll — a
+        // live strum re-rolls on a new chord, not on a control tweak.)
+        const dt = typeof ctx?.dt === 'number' && Number.isFinite(ctx.dt) ? ctx.dt : 0;
         beat += (bpm / 60) * dt;
-        const key = voiced.length ? `${expr!.label}:${voicing}:${shift}` : '';
+        const key = voiced.length ? voiced.join(',') : '';
         if (key !== lastKey) {
           timeSinceChange = 0;
           lastKey = key;
@@ -135,7 +142,8 @@ export const expressionChordNode = defineNode<Params>({
         const voices: VoiceParams[] = [];
         for (let i = 0; i < MAX_CHORD_VOICES; i++) {
           const midi = voiced[i];
-          const g = midi !== undefined ? gain * (gains[i] ?? 0) : 0;
+          const raw = gains[i];
+          const g = midi !== undefined && Number.isFinite(raw) ? gain * raw : 0;
           voices.push({
             id: CHORD_VOICE_ID_BASE + i,
             present: g > 0,

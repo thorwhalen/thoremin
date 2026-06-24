@@ -30,7 +30,8 @@ export const FaceChordSchema = z.object({
   volume: z.number().min(0).max(1),
   voicing: z.enum(VOICINGS as unknown as [VoicingId, ...VoicingId[]]),
   rendering: z.enum(RENDERINGS as unknown as [RenderingId, ...RenderingId[]]),
-  bpm: z.number().min(20).max(300),
+  // 40..200 matches the Tempo slider (one source of truth for the bounds).
+  bpm: z.number().min(40).max(200),
 });
 export type FaceChord = z.infer<typeof FaceChordSchema>;
 

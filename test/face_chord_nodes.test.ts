@@ -91,8 +91,8 @@ describe('expression-chord node', () => {
     const triad = diatonicTriad(cMajor, DEFAULT_EXPRESSION_TO_DEGREE.happy); // [48,52,55]
     // The `triad` output is the un-voiced scale triad (for the overlay highlight).
     expect(out.triad).toEqual(triad);
-    // The sounding voices are the spread voicing of that triad (4 notes, low bass).
-    const voiced = voiceTriad(triad, 'spread', 0); // [36,43,52,48]
+    // The sounding voices are the spread voicing, emitted ascending by pitch.
+    const voiced = voiceTriad(triad, 'spread', 0).sort((a, b) => a - b);
     const present = params.voices.filter((v) => v.present);
     expect(present.map((v) => v.id)).toEqual([2, 3, 4, 5]); // 4 stable ids
     expect(present.map((v) => Math.round(v.freq))).toEqual(voiced.map((m) => Math.round(midiToFreq(m))));
@@ -133,7 +133,7 @@ describe('expression-chord node', () => {
     const triad = diatonicTriad(cMajor, DEFAULT_EXPRESSION_TO_DEGREE.happy);
     expect(out[0].triad).toEqual(triad); // overlay triad stays at scale pitch (un-shifted)
     // ...but the voiced chord is an octave up, tracking the hand melody.
-    const voicedShifted = voiceTriad(triad, 'spread', 1);
+    const voicedShifted = voiceTriad(triad, 'spread', 1).sort((a, b) => a - b);
     const present = (out[0].params as SynthParams).voices.filter((v) => v.present);
     expect(present.map((v) => Math.round(v.freq))).toEqual(voicedShifted.map((m) => Math.round(midiToFreq(m))));
   });
@@ -151,6 +151,58 @@ describe('expression-chord node', () => {
     const present = (out[0].params as SynthParams).voices.filter((v) => v.present);
     expect(present).toHaveLength(voiced.length);
     expect(present.every((v) => Math.abs(v.gain - 0.5) < 1e-9)).toBe(true); // live gain
+  });
+});
+
+describe('expression-chord rendering over time (stateful)', () => {
+  const node = () => expressionChordNode.make(expressionChordNode.params.parse({}));
+  const ctx = (dt: number) => ({ tick: 0, time: 0, dt, resources: {} }) as unknown as NodeContext;
+  const aMinor: ScaleSpec = { root: 9, type: 'minor', octaves: 2, baseOctave: 3 };
+  const presentCount = (out: Record<string, unknown>) =>
+    (out.params as SynthParams).voices.filter((v) => v.present).length;
+
+  it('always emits MAX stable-id voices regardless of mode/rendering (no stuck voices)', () => {
+    const n = node();
+    for (const rendering of ['sustained', 'arpUp', 'strum'] as const) {
+      for (const faceMapping of ['none', 'chord']) {
+        const out = n.process(
+          { expression: happyExpr, spec: cMajor, faceMapping, chordConfig: { rendering } },
+          ctx(1 / 60),
+        );
+        expect((out.params as SynthParams).voices.map((v) => v.id)).toEqual([2, 3, 4, 5]);
+      }
+    }
+  });
+
+  it('the beat clock advances an arpeggio through the node (one voice at a time)', () => {
+    const n = node();
+    const ids = new Set<number>();
+    for (let i = 0; i < 40; i++) {
+      const out = n.process(
+        { expression: happyExpr, spec: cMajor, faceMapping: 'chord', chordConfig: { rendering: 'arpUp', bpm: 180 } },
+        ctx(1 / 60),
+      );
+      const present = (out.params as SynthParams).voices.filter((v) => v.present);
+      expect(present.length).toBeLessThanOrEqual(1); // arpeggio = one voice at a time
+      if (present.length === 1) ids.add(present[0].id);
+    }
+    expect(ids.size).toBeGreaterThan(1); // the active voice advanced over time
+  });
+
+  it('strum re-rolls on a real chord change — including a scale change at a fixed expression', () => {
+    const n = node();
+    const strum = (spec: ScaleSpec) =>
+      n.process(
+        { expression: happyExpr, spec, faceMapping: 'chord', chordConfig: { rendering: 'strum' } },
+        ctx(1 / 60),
+      );
+    // Hold the first chord; the strum rolls voices in over a few ticks.
+    let out = strum(cMajor);
+    for (let i = 0; i < 7; i++) out = strum(cMajor);
+    expect(presentCount(out)).toBeGreaterThan(1);
+    // Same expression but a DIFFERENT scale = a genuinely different chord → re-roll.
+    out = strum(aMinor);
+    expect(presentCount(out)).toBe(1); // only the bass at the restart
   });
 });
 

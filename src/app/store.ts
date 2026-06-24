@@ -19,7 +19,7 @@ import type { ScaleTypeId } from '@/music/theory';
 import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
 import { OverlayParamsSchema, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
-import { DEFAULT_FACE_CHORD, type Settings, type FaceChord } from '@/settings/schema';
+import { DEFAULT_FACE_CHORD, FaceChordSchema, type Settings, type FaceChord } from '@/settings/schema';
 import { DEFAULT_RECORDING_FORMATS } from './recording/formats';
 
 export interface VoiceControl {
@@ -129,10 +129,20 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       overlay = current.overlay;
     }
   }
+  // Re-parse faceChord: complete a partial blob from the defaults, then validate,
+  // so a UI control never binds to an undefined/corrupt field (parity with overlay).
+  let faceChord = current.faceChord;
+  if (p.faceChord) {
+    try {
+      faceChord = FaceChordSchema.parse({ ...DEFAULT_FACE_CHORD, ...p.faceChord });
+    } catch {
+      faceChord = current.faceChord;
+    }
+  }
   const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
     ? (p.faceMapping as FaceMapping)
     : legacyFaceToMapping(p.faceEnabled);
-  return { ...current, ...p, overlay, faceMapping };
+  return { ...current, ...p, overlay, faceMapping, faceChord };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -205,7 +215,10 @@ export const useControls = create<ControlState>()(
       name: 'thoremin-controls',
       // Version 2: the face-mapping chooser (#64) replaced the boolean
       // `faceEnabled` with the tri-state `faceMapping`. See migrateControls (field
-      // rename) and mergeControls (heals a stale `overlay` + clamps `faceMapping`).
+      // rename) and mergeControls (heals a stale `overlay`/`faceChord` + clamps
+      // `faceMapping`). The later `faceChord` field is additive and default-safe
+      // (the initializer + mergeControls supply it for a v2 blob that predates it),
+      // so it intentionally needs no version bump or migrate branch.
       version: 2,
       migrate: migrateControls,
       merge: mergeControls,

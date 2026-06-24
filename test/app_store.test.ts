@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
+import { DEFAULT_FACE_CHORD } from '@/settings/schema';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
 import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
@@ -123,12 +124,14 @@ describe('control store', () => {
     useControls.getState().setVoice('right', { root: 3, instrument: 'bell' });
     useControls.getState().setMasterVolume(0.6);
     useControls.getState().setFaceMapping('chord');
+    useControls.getState().setFaceChord({ voicing: 'power', bpm: 140 });
     useControls.getState().setOverlayElement('indexGuide', { show: true });
     const snap = toSettings(useControls.getState());
 
     // Mutate away, then restore from the snapshot.
     useControls.getState().setMasterVolume(0.1);
     useControls.getState().setFaceMapping('none');
+    useControls.getState().setFaceChord({ voicing: 'close', bpm: 90 });
     useControls.getState().setOverlayElement('indexGuide', { show: false });
     useControls.getState().applySettings(snap);
 
@@ -137,6 +140,8 @@ describe('control store', () => {
     expect(s.right.instrument).toBe('bell');
     expect(s.syncHands).toBe(false);
     expect(s.faceMapping).toBe('chord');
+    expect(s.faceChord.voicing).toBe('power'); // faceChord survives toSettings → applySettings
+    expect(s.faceChord.bpm).toBe(140);
     expect(s.overlay.indexGuide.show).toBe(true);
   });
 });
@@ -163,6 +168,24 @@ describe('persist migration (v1 → v2, returning users)', () => {
     const initial = useControls.getInitialState();
     expect(mergeControls({ faceMapping: 'rainbow' as never }, initial).faceMapping).toBe('none');
     expect(mergeControls({ faceMapping: 'chord' }, initial).faceMapping).toBe('chord');
+  });
+
+  it('mergeControls fills the default faceChord for a returning v2 user (blob lacks it)', () => {
+    const initial = useControls.getInitialState();
+    const merged = mergeControls({ masterVolume: 0.5 }, initial); // no faceChord key
+    expect(merged.faceChord).toEqual(DEFAULT_FACE_CHORD);
+  });
+
+  it('mergeControls completes/heals a partial or corrupt faceChord so no UI control binds undefined', () => {
+    const initial = useControls.getInitialState();
+    // A hand-edited partial blob: only volume set.
+    const partial = mergeControls({ faceChord: { volume: 0.5 } as never }, initial).faceChord;
+    expect(partial.volume).toBe(0.5); // kept
+    expect(partial.voicing).toBe(DEFAULT_FACE_CHORD.voicing); // filled from default
+    expect(typeof partial.rendering).toBe('string');
+    expect(typeof partial.instrument).toBe('string');
+    // A corrupt value (out of range) falls back to the default whole.
+    expect(mergeControls({ faceChord: { volume: 99 } as never }, initial).faceChord).toEqual(DEFAULT_FACE_CHORD);
   });
 });
 

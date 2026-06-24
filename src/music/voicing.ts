@@ -77,6 +77,14 @@ export interface RenderOpts {
  *  - `timeSinceChange` (seconds since the chord last changed) drives the strum
  *    stagger and resets the roll on each new chord.
  * Pure: the same inputs always give the same gains (so it replays deterministically).
+ *
+ * These gains say *which voices sound right now*; the synth's per-voice envelope
+ * shapes the edges. NOTE the tradeoff: crisp articulation of the tempo renderings
+ * (arpeggios / pulse / alberti) needs the instrument's attack AND release to be
+ * short relative to the step length (≈ 60 / bpm / subdiv seconds). A long-attack
+ * pad (e.g. `warmPad`) will smear a fast arpeggio into a sustained wash — by
+ * design, not a bug — so pair tempo renderings with a crisp preset (organ / glass
+ * / bell) for clear articulation.
  */
 export function renderGains(
   n: number,
@@ -98,7 +106,7 @@ export function renderGains(
     return g;
   };
 
-  const stepF = beat * subdiv;
+  const stepF = (Number.isFinite(beat) ? beat : 0) * subdiv;
   const step = Math.floor(stepF);
 
   switch (rendering) {

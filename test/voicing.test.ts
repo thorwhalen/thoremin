@@ -50,10 +50,20 @@ describe('renderGains', () => {
     expect(renderGains(4, 'arpUp', 2.0, 0)).toEqual([1, 0, 0, 0]); // step 4 wraps
   });
 
+  it('arpDown walks downward (negative-modulo index)', () => {
+    const idx = (beat: number) => renderGains(4, 'arpDown', beat, 0).indexOf(1);
+    // index 0,3,2,1 then wraps — the descent from the bass through the negative modulo.
+    expect([0, 0.5, 1.0, 1.5, 2.0].map(idx)).toEqual([0, 3, 2, 1, 0]);
+  });
+
   it('arpUpDown ping-pongs without doubling the endpoints', () => {
     const idx = (beat: number) => renderGains(4, 'arpUpDown', beat, 0).indexOf(1);
     // steps 0..5 over a 4-voice ping-pong cycle (length 6): 0,1,2,3,2,1
     expect([0, 0.5, 1.0, 1.5, 2.0, 2.5].map(idx)).toEqual([0, 1, 2, 3, 2, 1]);
+  });
+
+  it('a NaN beat is guarded to step 0 (no crash, no phantom index)', () => {
+    expect(renderGains(4, 'arpUp', NaN, 0)).toEqual([1, 0, 0, 0]);
   });
 
   it('pulse re-articulates: on early in the step, off in the tail', () => {
