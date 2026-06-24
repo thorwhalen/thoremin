@@ -55,7 +55,7 @@ Reads the live UI control store → scale + instrument + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping
+- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -180,12 +180,12 @@ Roman-numeral progression in a key + position (0..1) → current chord symbol.
 - **params:** key (string="C"), romanNumerals (array=["I","IV","V","vi"])
 
 #### `expression-chord` — Expression Chord
-Facial expression → the diatonic triad on its confusion-aware scale degree (active only in face "chord" mode on seven-note scales).
+Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).
 
 - **roles:** music
-- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number
+- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config
 - **out:** params:synth-params, triad:number[]
-- **params:** gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")
+- **params:** gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._

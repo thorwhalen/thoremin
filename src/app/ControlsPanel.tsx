@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
+import { VOICINGS, RENDERINGS, isTempoRendering, type VoicingId, type RenderingId } from '@/music/voicing';
 import type { FaceMapping } from '@/nodes';
 import { useControls, type VoiceControl } from './store';
 import { useFaceStatus } from './faceStatus';
@@ -177,6 +178,87 @@ function FaceStatusReadout({ active }: { active: boolean }) {
   );
 }
 
+const VOICING_LABELS: Record<VoicingId, string> = {
+  spread: 'Open (spread)',
+  bassTriad: 'Bass + triad',
+  close: 'Close',
+  shell: 'Shell (sparse)',
+  power: 'Power (5ths)',
+};
+
+const RENDERING_LABELS: Record<RenderingId, string> = {
+  sustained: 'Sustained pad',
+  strum: 'Strum',
+  arpUp: 'Arpeggio ↑',
+  arpDown: 'Arpeggio ↓',
+  arpUpDown: 'Arpeggio ↑↓',
+  pulse: 'Pulse',
+  alberti: 'Alberti',
+};
+
+/** Sound settings for the face chord — shown when chord mapping is active. */
+function ChordControls() {
+  const chord = useControls((s) => s.faceChord);
+  const set = useControls((s) => s.setFaceChord);
+  const tempoRelevant = isTempoRendering(chord.rendering);
+
+  return (
+    <div className="space-y-2 border-l-2 border-amber-300/30 pl-3">
+      <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-300/70">Chord sound</h4>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Instrument
+        <select
+          className={selectCls}
+          value={chord.instrument}
+          onChange={(e) => set({ instrument: e.target.value as VoiceControl['instrument'] })}
+        >
+          {INSTRUMENT_IDS.map((id) => (
+            <option key={id} value={id}>{INSTRUMENTS[id].name}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Volume
+        <input
+          type="range" min={0} max={1} step={0.01} value={chord.volume}
+          onChange={(e) => set({ volume: Number(e.target.value) })}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Voicing
+        <select
+          className={selectCls}
+          value={chord.voicing}
+          onChange={(e) => set({ voicing: e.target.value as VoicingId })}
+        >
+          {VOICINGS.map((v) => (
+            <option key={v} value={v}>{VOICING_LABELS[v]}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Rendering
+        <select
+          className={selectCls}
+          value={chord.rendering}
+          onChange={(e) => set({ rendering: e.target.value as RenderingId })}
+        >
+          {RENDERINGS.map((r) => (
+            <option key={r} value={r}>{RENDERING_LABELS[r]}</option>
+          ))}
+        </select>
+      </label>
+      <label className={`flex items-center justify-between gap-2 text-xs ${tempoRelevant ? '' : 'opacity-40'}`}>
+        Tempo {chord.bpm} bpm
+        <input
+          type="range" min={40} max={200} step={1} value={chord.bpm}
+          onChange={(e) => set({ bpm: Number(e.target.value) })}
+        />
+      </label>
+    </div>
+  );
+}
+
 function FaceControls() {
   const faceMapping = useControls((s) => s.faceMapping);
   const setFaceMapping = useControls((s) => s.setFaceMapping);
@@ -208,6 +290,7 @@ function FaceControls() {
         </p>
       )}
       <p className="text-[10px] leading-relaxed text-white/40">{FACE_MODE_HINT[faceMapping]}</p>
+      {faceMapping === 'chord' && <ChordControls />}
     </div>
   );
 }

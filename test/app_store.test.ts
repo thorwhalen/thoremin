@@ -29,6 +29,10 @@ describe('control store', () => {
     expect(s.syncHands).toBe(true);
     expect(s.masterVolume).toBeCloseTo(0.4, 6);
     expect(s.faceMapping).toBe('none'); // face control off by default
+    // Chord-sound defaults (open voicing, sustained pad, 100 BPM).
+    expect(s.faceChord.voicing).toBe('spread');
+    expect(s.faceChord.rendering).toBe('sustained');
+    expect(s.faceChord.bpm).toBe(100);
   });
 
   it('setFaceMapping switches the face mapping mode', () => {
@@ -36,6 +40,14 @@ describe('control store', () => {
     expect(useControls.getState().faceMapping).toBe('chord');
     useControls.getState().setFaceMapping('none');
     expect(useControls.getState().faceMapping).toBe('none');
+  });
+
+  it('setFaceChord patches chord settings without touching the rest', () => {
+    useControls.getState().setFaceChord({ voicing: 'power', bpm: 120 });
+    const c = useControls.getState().faceChord;
+    expect(c.voicing).toBe('power');
+    expect(c.bpm).toBe(120);
+    expect(c.rendering).toBe('sustained'); // untouched
   });
 
   it('setVoice with sync ON mirrors both hands but keeps instruments distinct', () => {
@@ -177,9 +189,11 @@ describe('store-controls node reads the store', () => {
     expect(out.scaleRight).toEqual(generateScale(s.right));
     expect(out.scaleLeft).toEqual(generateScale(s.left));
     expect((out.scaleRight as number[]).length).toBeGreaterThan(0);
-    // The chord-path ports: the right voice's scale spec + the face mode.
+    // The chord-path ports: the right voice's scale spec + the face mode + config.
     expect(out.faceMapping).toBe('chord');
     expect(out.rightSpec).toMatchObject({ root: 2, type: 'minor' });
+    // chordConfig maps the store's faceChord (volume → gain) for expression-chord.
+    expect(out.chordConfig).toMatchObject({ voicing: 'spread', gain: 0.22, bpm: 100 });
   });
 
   it('emits nothing when no controls getter is injected (safe before host wires it)', () => {

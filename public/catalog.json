@@ -121,7 +121,7 @@
   {
     "type": "expression-chord",
     "title": "Expression Chord",
-    "description": "Facial expression → the diatonic triad on its confusion-aware scale degree (active only in face \"chord\" mode on seven-note scales).",
+    "description": "Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face \"chord\" mode).",
     "roles": [
       "music"
     ],
@@ -143,6 +143,10 @@
         "name": "octaveShift",
         "kind": "number",
         "default": 0
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
       }
     ],
     "outputs": [
@@ -165,6 +169,21 @@
         "name": "instrument",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "triangle"
+      },
+      {
+        "name": "voicing",
+        "type": "enum(spread | bassTriad | close | shell | power)",
+        "default": "spread"
+      },
+      {
+        "name": "rendering",
+        "type": "enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)",
+        "default": "sustained"
+      },
+      {
+        "name": "bpm",
+        "type": "number",
+        "default": 100
       }
     ]
   },
@@ -792,6 +811,10 @@
       {
         "name": "faceMapping",
         "kind": "face-mapping"
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
       }
     ],
     "params": []

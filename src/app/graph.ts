@@ -145,6 +145,8 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'exprChord', port: 'expression' } },
       { from: { node: 'ui', port: 'rightSpec' }, to: { node: 'exprChord', port: 'spec' } },
       { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'exprChord', port: 'faceMapping' } },
+      // Live chord settings (instrument / volume / voicing / rendering / tempo).
+      { from: { node: 'ui', port: 'chordConfig' }, to: { node: 'exprChord', port: 'chordConfig' } },
       // Keep the face chord in the same register as the hand melody (octave shift).
       { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'exprChord', port: 'octaveShift' } },
       { from: { node: 'feat', port: 'features' }, to: { node: 'map', port: 'features' } },

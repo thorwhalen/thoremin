@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENT_IDS, type InstrumentId } from '@/music/instruments';
+import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 
@@ -22,6 +23,25 @@ const InstrumentEnum = z.enum(INSTRUMENT_IDS as [InstrumentId, ...InstrumentId[]
 export const FaceMappingSchema = z.enum(
   FACE_MAPPINGS as unknown as [FaceMapping, ...FaceMapping[]],
 );
+
+/** How the face chord sounds: instrument, volume, voicing, rendering, tempo. */
+export const FaceChordSchema = z.object({
+  instrument: InstrumentEnum,
+  volume: z.number().min(0).max(1),
+  voicing: z.enum(VOICINGS as unknown as [VoicingId, ...VoicingId[]]),
+  rendering: z.enum(RENDERINGS as unknown as [RenderingId, ...RenderingId[]]),
+  bpm: z.number().min(20).max(300),
+});
+export type FaceChord = z.infer<typeof FaceChordSchema>;
+
+/** The shipped defaults for the face chord (open voicing, sustained pad, 100 BPM). */
+export const DEFAULT_FACE_CHORD: FaceChord = {
+  instrument: 'warmPad',
+  volume: 0.22,
+  voicing: 'spread',
+  rendering: 'sustained',
+  bpm: 100,
+};
 
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
@@ -42,6 +62,8 @@ export const SettingsSchema = z.object({
   // `.default('none')` keeps presets saved before the face-mapping chooser valid
   // (the field is filled in on parse rather than failing validation).
   faceMapping: FaceMappingSchema.default('none'),
+  // `.default(...)` keeps presets saved before the chord settings existed valid.
+  faceChord: FaceChordSchema.default(DEFAULT_FACE_CHORD),
   overlay: OverlayParamsSchema,
 });
 export type Settings = z.infer<typeof SettingsSchema>;

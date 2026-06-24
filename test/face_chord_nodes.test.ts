@@ -9,9 +9,10 @@ import { describe, it, expect } from 'vitest';
 import { replayNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { faceExpressionNode, expressionChordNode, synthMergeNode, voiceMappingNode } from '@/nodes';
-import { CHORD_VOICE_ID_BASE, ABSENT_HAND, ABSENT_FACE } from '@/nodes';
+import { MAX_CHORD_VOICES, ABSENT_HAND, ABSENT_FACE } from '@/nodes';
 import type { ExpressionScores } from '@/music/expression';
 import { DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
+import { voiceTriad } from '@/music/voicing';
 import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
 import type { FaceFrame, FaceFeatures, HandFeatures, SynthParams } from '@/nodes';
 
@@ -84,29 +85,28 @@ const happyExpr: ExpressionScores = {
 };
 
 describe('expression-chord node', () => {
-  it('plays the diatonic triad of the expression-mapped degree in chord mode', async () => {
+  it('voices the diatonic triad with a low bass (default spread voicing, sustained)', async () => {
     const out = await chordVoices(happyExpr, 'chord');
     const params = out.params as SynthParams;
-    const degree = DEFAULT_EXPRESSION_TO_DEGREE.happy; // 0 = tonic
-    const expected = diatonicTriad(cMajor, degree);
-    expect(out.triad).toEqual(expected);
+    const triad = diatonicTriad(cMajor, DEFAULT_EXPRESSION_TO_DEGREE.happy); // [48,52,55]
+    // The `triad` output is the un-voiced scale triad (for the overlay highlight).
+    expect(out.triad).toEqual(triad);
+    // The sounding voices are the spread voicing of that triad (4 notes, low bass).
+    const voiced = voiceTriad(triad, 'spread', 0); // [36,43,52,48]
     const present = params.voices.filter((v) => v.present);
-    expect(present.map((v) => v.id)).toEqual([
-      CHORD_VOICE_ID_BASE,
-      CHORD_VOICE_ID_BASE + 1,
-      CHORD_VOICE_ID_BASE + 2,
-    ]);
-    expect(present.map((v) => Math.round(v.freq))).toEqual(expected.map((m) => Math.round(midiToFreq(m))));
+    expect(present.map((v) => v.id)).toEqual([2, 3, 4, 5]); // 4 stable ids
+    expect(present.map((v) => Math.round(v.freq))).toEqual(voiced.map((m) => Math.round(midiToFreq(m))));
+    expect(Math.min(...voiced)).toBeLessThan(Math.min(...triad)); // bass is below the scale triad
   });
 
-  it('emits three stable-id but silent voices when not in chord mode', async () => {
+  it('emits MAX silent voices on stable ids when not in chord mode', async () => {
     for (const mode of ['none', 'timbre']) {
       const out = await chordVoices(happyExpr, mode);
       const params = out.params as SynthParams;
       expect(out.triad).toEqual([]);
-      expect(params.voices).toHaveLength(3); // stable ids, so the synth can release them
+      expect(params.voices).toHaveLength(MAX_CHORD_VOICES); // stable ids → synth releases them
       expect(params.voices.every((v) => !v.present && v.gain === 0)).toBe(true);
-      expect(params.voices.map((v) => v.id)).toEqual([2, 3, 4]);
+      expect(params.voices.map((v) => v.id)).toEqual([2, 3, 4, 5]);
     }
   });
 
@@ -130,11 +130,27 @@ describe('expression-chord node', () => {
       faceMapping: ['chord'],
       octaveShift: [1],
     });
-    const rawTriad = diatonicTriad(cMajor, DEFAULT_EXPRESSION_TO_DEGREE.happy);
-    expect(out[0].triad).toEqual(rawTriad); // overlay triad stays at scale pitch (un-shifted)
+    const triad = diatonicTriad(cMajor, DEFAULT_EXPRESSION_TO_DEGREE.happy);
+    expect(out[0].triad).toEqual(triad); // overlay triad stays at scale pitch (un-shifted)
+    // ...but the voiced chord is an octave up, tracking the hand melody.
+    const voicedShifted = voiceTriad(triad, 'spread', 1);
     const present = (out[0].params as SynthParams).voices.filter((v) => v.present);
-    // ...but the sounding pitch is an octave up, tracking the hand melody.
-    expect(present.map((v) => Math.round(v.freq))).toEqual(rawTriad.map((m) => Math.round(midiToFreq(m + 12))));
+    expect(present.map((v) => Math.round(v.freq))).toEqual(voicedShifted.map((m) => Math.round(midiToFreq(m))));
+  });
+
+  it('respects a live chordConfig (volume, voicing) over the static params', async () => {
+    const node = expressionChordNode.make(expressionChordNode.params.parse({}));
+    const out = await replayNode(node, {
+      expression: [happyExpr],
+      spec: [cMajor],
+      faceMapping: ['chord'],
+      chordConfig: [{ gain: 0.5, voicing: 'power' }],
+    });
+    const triad = diatonicTriad(cMajor, DEFAULT_EXPRESSION_TO_DEGREE.happy);
+    const voiced = voiceTriad(triad, 'power', 0); // 3 notes
+    const present = (out[0].params as SynthParams).voices.filter((v) => v.present);
+    expect(present).toHaveLength(voiced.length);
+    expect(present.every((v) => Math.abs(v.gain - 0.5) < 1e-9)).toBe(true); // live gain
   });
 });
 

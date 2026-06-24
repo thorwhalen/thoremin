@@ -177,58 +177,40 @@ describe('canvas-overlay composable elements', () => {
     expect(noNotes.count('fillText')).toBe(0); // but no note labels
   });
 
-  it('chordGuide: highlights the chord tones that fall on the scale guide', () => {
+  const onlyChord = {
+    video: { show: false },
+    scaleGuide: { show: false },
+    indexGuide: { show: false },
+    landmarks: { show: false },
+    markers: { show: false },
+  };
+  const drawChord = (chord: number[] | undefined, paramsOverride: unknown = onlyChord) => {
     const rc = makeRecordingCanvas();
-    const onlyChord = {
-      video: { show: false },
-      scaleGuide: { show: false },
-      indexGuide: { show: false },
-      landmarks: { show: false },
-      markers: { show: false },
-    };
-    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(onlyChord));
+    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(paramsOverride));
     const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
-    // Three chord tones, all present in the scale [48,50,52,55,57,60] → 3 bands.
-    handlers.process({ ...fullInputs(), chord: [48, 52, 57] }, ctx);
-    expect(rc.count('stroke')).toBe(3);
-    expect(rc.count('moveTo')).toBe(3);
+    handlers.process({ ...fullInputs(), chord }, ctx);
+    return rc;
+  };
+
+  it('chordGuide: highlights every visible guide line of the chord pitch classes (with octave repetition)', () => {
+    // Scale [48,50,52,55,57,60] = C,D,E,G,A,C → C appears twice (48 and 60).
+    // A C chord {C,E,A} = pcs {0,4,9} lights up 48(C), 52(E), 57(A) AND 60(C) = 4 lines.
+    const rc = drawChord([48, 52, 57]);
+    expect(rc.count('stroke')).toBe(4);
+    expect(rc.count('moveTo')).toBe(4);
   });
 
-  it('chordGuide: draws nothing with no chord, off, or out-of-range tones', () => {
-    const base = {
-      video: { show: false },
-      scaleGuide: { show: false },
-      indexGuide: { show: false },
-      landmarks: { show: false },
-      markers: { show: false },
-    };
-    const run = (params: unknown, chord?: number[]) => {
-      const rc = makeRecordingCanvas();
-      const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(params));
-      const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
-      handlers.process({ ...fullInputs(), chord }, ctx);
-      return rc;
-    };
-    expect(run(base).count('stroke')).toBe(0); // no chord input → idle
-    expect(run({ ...base, chordGuide: { show: false } }, [48, 52, 57]).count('stroke')).toBe(0); // toggled off
-    // C# (pitch class 1) is not in the scale [48,50,52,55,57,60] = {C,D,E,G,A} → no match.
-    expect(run(base, [49]).count('stroke')).toBe(0);
+  it('chordGuide: lights every octave of a chord pitch class regardless of the rendered octave', () => {
+    // 72 = C5 (pitch class 0) — highlights BOTH C guide lines (48=C3, 60=C4),
+    // independent of the rendered voicing's octave.
+    expect(drawChord([72]).count('stroke')).toBe(2);
   });
 
-  it('chordGuide: folds an above-range tone to its pitch class so it still highlights', () => {
-    const rc = makeRecordingCanvas();
-    const onlyChord = {
-      video: { show: false },
-      scaleGuide: { show: false },
-      indexGuide: { show: false },
-      landmarks: { show: false },
-      markers: { show: false },
-    };
-    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(onlyChord));
-    const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
-    // 72 = C5 is above the displayed scale [48..60] but C (pitch class 0) is in it.
-    handlers.process({ ...fullInputs(), chord: [72] }, ctx);
-    expect(rc.count('stroke')).toBe(1);
+  it('chordGuide: draws nothing with no chord, off, or pitch classes absent from the scale', () => {
+    expect(drawChord(undefined).count('stroke')).toBe(0); // no chord input → idle
+    expect(drawChord([48, 52, 57], { ...onlyChord, chordGuide: { show: false } }).count('stroke')).toBe(0); // off
+    // C# (pitch class 1) is not in the scale {C,D,E,G,A} → no match.
+    expect(drawChord([49]).count('stroke')).toBe(0);
   });
 
   it('a live overlayConfig input overrides the static params', () => {
