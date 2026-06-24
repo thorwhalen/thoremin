@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { createPresetStore, presetId } from '@/settings/presets';
-import { PresetSchema, SettingsSchema, type Preset, type Settings } from '@/settings/schema';
+import { PresetSchema, SettingsSchema, DEFAULT_FACE_CHORD, type Preset, type Settings } from '@/settings/schema';
 
 function sampleSettings(overrides: Partial<Settings> = {}): Settings {
   return SettingsSchema.parse({
@@ -92,6 +92,10 @@ describe('preset persistence', () => {
 
   it('defaults faceMapping to none when omitted', () => {
     expect(sampleSettings().faceMapping).toBe('none');
+  });
+
+  it('defaults faceChord when omitted (pre-chord-feature presets)', () => {
+    expect(sampleSettings().faceChord).toEqual(DEFAULT_FACE_CHORD);
   });
 
   it('migrates a pre-#64 preset (boolean faceEnabled) to faceMapping on load', () => {

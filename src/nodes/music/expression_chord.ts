@@ -1,90 +1,159 @@
 /**
- * `expression-chord` node — turns a classified facial expression into the
- * diatonic triad on its confusion-aware scale degree (issue #64). It is the
- * "expression → chord" half of the face-mapping chooser: the player's expression
- * (from `face-expression`) selects a scale degree via
- * {@link DEFAULT_EXPRESSION_TO_DEGREE}, and the triad is built on the active
- * seven-note scale ({@link diatonicTriad}).
+ * `expression-chord` node — turns a classified facial expression into a played
+ * chord (issue #64 + the voicing/rendering follow-up). The expression (from
+ * `face-expression`) selects a scale degree via {@link DEFAULT_EXPRESSION_TO_DEGREE};
+ * the diatonic triad on the active seven-note scale ({@link diatonicTriad}) is then
+ * VOICED (a tasteful arrangement with a low bass fundamental — {@link voiceTriad})
+ * and RENDERED over time (sustained pad or a tempo-based arpeggio/pulse/strum —
+ * {@link renderGains}).
  *
- * It emits chord voices on ids ≥ {@link CHORD_VOICE_ID_BASE}, so they never
- * collide with the two hand voices (0, 1) and can be unioned into the synth
- * alongside the hand melody (see `synth-merge`). The node is the live gate for
- * the chord mode: it emits voices ONLY when `faceMapping === 'chord'`, the
- * expression is present, and the current scale has seven notes — otherwise it
- * emits nothing (silent), so timbre/none modes and pentatonic-style scales
- * degrade gracefully.
+ * It emits chord voices on ids ≥ {@link CHORD_VOICE_ID_BASE}, so they never collide
+ * with the two hand voices (0, 1) and can be unioned into the synth alongside the
+ * hand melody (see `synth-merge`). It is the live gate for chord mode: voices sound
+ * ONLY when `faceMapping === 'chord'`, the expression is present, and the current
+ * scale has seven notes — otherwise all voices are silent.
  *
- * Pure + deterministic — testable from canned expression frames via `replayNode`.
+ * It ALWAYS emits {@link MAX_CHORD_VOICES} voices on stable ids: the synth releases
+ * voices it still sees in the array, so a vanishing voice would leave a chord stuck
+ * sounding. Stable ids also let the synth glide/re-articulate cleanly.
+ *
+ * Live config (instrument / volume / voicing / rendering / tempo) arrives on the
+ * `chordConfig` input (from the UI store via `store-controls`), so changing it
+ * never rebuilds the graph. The `triad` output is the un-voiced scale triad (three
+ * tones), used by the overlay to highlight the chord's pitch classes on the guide.
+ *
+ * Stateful (a beat clock + a strum re-trigger), but deterministic given the tick
+ * timing — so it replays exactly.
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import type { NodeContext } from '@/dag';
 import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
 import { InstrumentSchema } from '@/music/instruments';
 import { DEFAULT_EXPRESSION_TO_DEGREE, type ExpressionScores } from '@/music/expression';
+import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';
 import type { VoiceParams } from '../domain';
 
 /** Chord voices start at this id, above the two hand voices (0 = right, 1 = left). */
 export const CHORD_VOICE_ID_BASE = 2;
 
-/** A diatonic triad has three tones; we always emit exactly this many voices. */
-const TRIAD_SIZE = 3;
+/** The largest voicing is four notes; we always emit this many voices on stable ids. */
+export const MAX_CHORD_VOICES = 4;
 
 const Params = z.object({
-  /** Gain of each chord voice (0..1) — gentle by default so the triad supports,
-   *  rather than overpowers, the hand melody. */
+  /** Volume of the chord (0..1) — gentle by default so it supports the melody. */
   gain: z.number().min(0).max(1).default(0.22),
   /** Instrument timbre for the chord voices. */
   instrument: InstrumentSchema.default('triangle'),
+  /** How the triad is arranged (low bass + upper structure). */
+  voicing: z.enum(VOICINGS).default('spread'),
+  /** How the voiced chord is played over time. */
+  rendering: z.enum(RENDERINGS).default('sustained'),
+  /** Tempo (BPM) for the tempo-based renderings. */
+  bpm: z.number().min(40).max(200).default(100),
 });
 type Params = z.infer<typeof Params>;
+
+/** Live chord settings from the UI store (override the static params each tick). */
+interface ChordConfig {
+  instrument?: VoiceParams['instrument'];
+  gain?: number;
+  voicing?: VoicingId;
+  rendering?: RenderingId;
+  bpm?: number;
+}
 
 export const expressionChordNode = defineNode<Params>({
   type: 'expression-chord',
   roles: ['music'],
   title: 'Expression Chord',
   description:
-    'Facial expression → the diatonic triad on its confusion-aware scale degree (active only in face "chord" mode on seven-note scales).',
+    'Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).',
   inputs: [
     { name: 'expression', kind: 'face-expression' },
     { name: 'spec', kind: 'scale-spec' },
     { name: 'faceMapping', kind: 'face-mapping', default: 'none' },
-    // Live keyboard octave shift, so the chord tracks the same register as the
-    // hand melody (which also applies it). Unconnected → 0 (no shift).
+    // Live keyboard octave shift, so the chord tracks the melody's register.
     { name: 'octaveShift', kind: 'number', default: 0 },
+    // Live chord settings (instrument / volume / voicing / rendering / tempo).
+    { name: 'chordConfig', kind: 'chord-config' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
-    // The chosen triad as *un-shifted* scale MIDI notes, so the overlay highlight
-    // matches the raw scale-guide lines (whose labels already include the shift —
-    // so the highlighted line, its label, and the sounding pitch all agree).
+    // The un-voiced scale triad (three tones), for the overlay to highlight the
+    // chord's pitch classes on the pitch guide — independent of the voicing.
     { name: 'triad', kind: 'number[]' },
   ],
   params: Params,
-  process(inputs, p) {
-    const expr = inputs.expression as ExpressionScores | undefined;
-    const spec = inputs.spec as ScaleSpec | undefined;
-    const active = inputs.faceMapping === 'chord' && !!expr && expr.present && !!spec;
-    const shift = typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0;
-    // diatonicTriad returns 3 notes for seven-note scales, [] otherwise. These are
-    // the un-shifted scale tones (the `triad` output the overlay highlights).
-    const triad = active ? diatonicTriad(spec!, DEFAULT_EXPRESSION_TO_DEGREE[expr!.label]) : [];
-    // ALWAYS emit TRIAD_SIZE voices on stable ids: a present/sounding voice when
-    // active, an absent (gain 0) voice when idle. The synth releases voices it
-    // still sees in the array — so a vanishing voice would leave a chord stuck
-    // sounding. Keeping the ids stable lets it fade the triad out cleanly. The
-    // sounding pitch applies the octave shift so it stays in the melody's register.
-    const voices: VoiceParams[] = [];
-    for (let i = 0; i < TRIAD_SIZE; i++) {
-      const midi = triad[i];
-      const present = midi !== undefined;
-      voices.push({
+  make(p) {
+    let beat = 0;
+    let timeSinceChange = 0;
+    let lastKey = '';
+
+    const silent = (): VoiceParams[] =>
+      Array.from({ length: MAX_CHORD_VOICES }, (_, i) => ({
         id: CHORD_VOICE_ID_BASE + i,
-        present,
-        freq: midiToFreq((present ? midi : 60) + 12 * shift),
-        gain: present ? p.gain : 0,
+        present: false,
+        freq: midiToFreq(60),
+        gain: 0,
         instrument: p.instrument,
-      });
-    }
-    return { params: { voices }, triad };
+      }));
+
+    return {
+      process(inputs, ctx: NodeContext) {
+        const cfg = (inputs.chordConfig as ChordConfig | undefined) ?? {};
+        const instrument = cfg.instrument ?? p.instrument;
+        const gain = cfg.gain ?? p.gain;
+        const voicing = cfg.voicing ?? p.voicing;
+        const rendering = cfg.rendering ?? p.rendering;
+        const bpm = cfg.bpm ?? p.bpm;
+
+        const expr = inputs.expression as ExpressionScores | undefined;
+        const spec = inputs.spec as ScaleSpec | undefined;
+        const shift = typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0;
+        const active = inputs.faceMapping === 'chord' && !!expr && expr.present && !!spec;
+
+        // The un-voiced scale triad (3 tones) for the overlay highlight; [] off a
+        // seven-note scale or when idle.
+        const triad = active ? diatonicTriad(spec!, DEFAULT_EXPRESSION_TO_DEGREE[expr!.label]) : [];
+        // Voice the chord, then sort ascending by pitch so arpeggios traverse
+        // low→high by actual pitch (some voicings stack out of pitch order). The
+        // ids stay stable (one per array slot), so the synth still releases all.
+        const voiced = (triad.length ? voiceTriad(triad, voicing, shift) : []).sort((a, b) => a - b);
+
+        // Beat clock (NaN-guarded so a degenerate dt can't poison it) + chord-change
+        // detection. The key is the actual sounding pitches, so ANY genuine chord
+        // change (expression, scale root/type/baseOctave, octave shift, voicing)
+        // restarts the strum. (Switching rendering mid-chord does NOT re-roll — a
+        // live strum re-rolls on a new chord, not on a control tweak.)
+        const dt = typeof ctx?.dt === 'number' && Number.isFinite(ctx.dt) ? ctx.dt : 0;
+        beat += (bpm / 60) * dt;
+        const key = voiced.length ? voiced.join(',') : '';
+        if (key !== lastKey) {
+          timeSinceChange = 0;
+          lastKey = key;
+        } else {
+          timeSinceChange += dt;
+        }
+
+        if (voiced.length === 0) return { params: { voices: silent() }, triad: [] };
+
+        const gains = renderGains(voiced.length, rendering, beat, timeSinceChange);
+        const voices: VoiceParams[] = [];
+        for (let i = 0; i < MAX_CHORD_VOICES; i++) {
+          const midi = voiced[i];
+          const raw = gains[i];
+          const g = midi !== undefined && Number.isFinite(raw) ? gain * raw : 0;
+          voices.push({
+            id: CHORD_VOICE_ID_BASE + i,
+            present: g > 0,
+            freq: midiToFreq(midi ?? 60),
+            gain: g,
+            instrument,
+          });
+        }
+        return { params: { voices }, triad };
+      },
+    };
   },
 });

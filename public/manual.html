@@ -64,7 +64,7 @@
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -213,12 +213,12 @@
     </div>
     <div class="node">
       <h4><code>expression-chord</code> <span class="title">Expression Chord</span></h4>
-      <p>Facial expression → the diatonic triad on its confusion-aware scale degree (active only in face "chord" mode on seven-note scales).</p>
+      <p>Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).</p>
       <dl>
         <dt>roles</dt><dd>music</dd>
-        <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number</dd>
+        <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config</dd>
         <dt>out</dt><dd>params:synth-params, triad:number[]</dd>
-        <dt>params</dt><dd>gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")</dd>
+        <dt>params</dt><dd>gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)</dd>
       </dl>
     </div></div></section>
 <section><h3>Conductor mode</h3><p class="blurb">Direct a fixed piece with gesture (tempo + dynamics).</p><div class="grid">

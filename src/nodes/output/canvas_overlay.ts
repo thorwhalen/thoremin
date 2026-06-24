@@ -189,10 +189,12 @@ const scaleGuideElement: OverlayElement = {
 
 /**
  * Highlights the face-driven chord (issue #64): when the player is in face "chord"
- * mode, each tone of the chosen diatonic triad lights up on the existing pitch
- * guide, so the player sees which notes their expression is playing. The triad
- * tones are scale notes, so they align exactly with the scaleGuide lines; this
- * draws a brighter/thicker band over them. Idle (no chord) → draws nothing.
+ * mode, the chord's tones light up on the existing pitch guide so the player sees
+ * which notes their expression is playing. The highlight reflects the chord's
+ * PITCH CLASSES (with octave repetition) — for a C chord {C, E, G}, every visible
+ * C, E and G guide line lights up — NOT the specific rendered voicing (which may
+ * add a bass octave, doublings, etc.). It is a subtle tint over the guide lines.
+ * Idle (no chord) → draws nothing.
  */
 const CHORD_COLOR = '#f5d142'; // warm gold, distinct from the white/blue scale guides
 const chordGuideElement: OverlayElement = {
@@ -203,19 +205,15 @@ const chordGuideElement: OverlayElement = {
     const scale = inputs.scale;
     if (!Array.isArray(chord) || chord.length === 0) return;
     if (!Array.isArray(scale) || scale.length <= 1) return;
-    const guide = scaleGuide(scale);
+    const pitchClass = (m: number) => (((m % 12) + 12) % 12);
+    const chordPcs = new Set(chord.map(pitchClass));
     g.save();
-    g.globalAlpha = 0.55;
+    g.globalAlpha = 0.28; // subtle: a visible tint, not a hard band
     g.strokeStyle = CHORD_COLOR;
-    g.lineWidth = 3;
-    const samePitchClass = (a: number, b: number) => (((a - b) % 12) + 12) % 12 === 0;
-    for (const midi of chord) {
-      // Prefer the exact guide line; when the tone is above the displayed range
-      // (e.g. the V/vii° top note in a 1-octave scale) fall back to its pitch
-      // class so it still lights up rather than silently dropping.
-      const entry = guide.find((e) => e.midi === midi) ?? guide.find((e) => samePitchClass(e.midi, midi));
-      if (!entry) continue;
-      const sx = entry.x * W;
+    g.lineWidth = 2;
+    for (const { midi, x } of scaleGuide(scale)) {
+      if (!chordPcs.has(pitchClass(midi))) continue;
+      const sx = x * W;
       g.beginPath();
       g.moveTo(sx, H * 0.12);
       g.lineTo(sx, H * 0.86);

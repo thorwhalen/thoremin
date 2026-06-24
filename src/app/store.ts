@@ -19,7 +19,7 @@ import type { ScaleTypeId } from '@/music/theory';
 import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
 import { OverlayParamsSchema, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
-import type { Settings } from '@/settings/schema';
+import { DEFAULT_FACE_CHORD, FaceChordSchema, type Settings, type FaceChord } from '@/settings/schema';
 import { DEFAULT_RECORDING_FORMATS } from './recording/formats';
 
 export interface VoiceControl {
@@ -42,6 +42,9 @@ export interface ControlState {
    * by the nodes each tick via `ctx.resources.controls`.
    */
   faceMapping: FaceMapping;
+  /** How the face chord sounds (instrument / volume / voicing / rendering / tempo).
+   *  Read live by `expression-chord` via the `chordConfig` port. */
+  faceChord: FaceChord;
   /** Composable overlay element config (see canvas_overlay.ts). Live-controlled. */
   overlay: OverlayParams;
   /**
@@ -54,6 +57,8 @@ export interface ControlState {
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
   setFaceMapping(v: FaceMapping): void;
+  /** Patch the face-chord settings (e.g. setFaceChord({ voicing: 'spread' })). */
+  setFaceChord(patch: Partial<FaceChord>): void;
   /** Toggle a recording output format on/off (keeps at least one selected). */
   setRecordingFormat(id: string, on: boolean): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
@@ -83,6 +88,7 @@ export function toSettings(s: ControlState): Settings {
     syncHands: s.syncHands,
     masterVolume: s.masterVolume,
     faceMapping: s.faceMapping,
+    faceChord: s.faceChord,
     overlay: s.overlay,
   };
 }
@@ -123,10 +129,20 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       overlay = current.overlay;
     }
   }
+  // Re-parse faceChord: complete a partial blob from the defaults, then validate,
+  // so a UI control never binds to an undefined/corrupt field (parity with overlay).
+  let faceChord = current.faceChord;
+  if (p.faceChord) {
+    try {
+      faceChord = FaceChordSchema.parse({ ...DEFAULT_FACE_CHORD, ...p.faceChord });
+    } catch {
+      faceChord = current.faceChord;
+    }
+  }
   const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
     ? (p.faceMapping as FaceMapping)
     : legacyFaceToMapping(p.faceEnabled);
-  return { ...current, ...p, overlay, faceMapping };
+  return { ...current, ...p, overlay, faceMapping, faceChord };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -147,6 +163,7 @@ export const useControls = create<ControlState>()(
       syncHands: true,
       masterVolume: 0.4,
       faceMapping: 'none',
+      faceChord: { ...DEFAULT_FACE_CHORD },
       overlay: defaultOverlay(),
       recordingFormats: [...DEFAULT_RECORDING_FORMATS],
       setVoice: (side, patch) =>
@@ -167,6 +184,7 @@ export const useControls = create<ControlState>()(
       setSync: (v) => set({ syncHands: v }),
       setMasterVolume: (v) => set({ masterVolume: v }),
       setFaceMapping: (v) => set({ faceMapping: v }),
+      setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),
       setRecordingFormat: (id, on) =>
         set((s) => {
           const has = s.recordingFormats.includes(id);
@@ -189,6 +207,7 @@ export const useControls = create<ControlState>()(
           syncHands: st.syncHands,
           masterVolume: st.masterVolume,
           faceMapping: st.faceMapping,
+          faceChord: st.faceChord,
           overlay: st.overlay,
         }),
     }),
@@ -196,7 +215,10 @@ export const useControls = create<ControlState>()(
       name: 'thoremin-controls',
       // Version 2: the face-mapping chooser (#64) replaced the boolean
       // `faceEnabled` with the tri-state `faceMapping`. See migrateControls (field
-      // rename) and mergeControls (heals a stale `overlay` + clamps `faceMapping`).
+      // rename) and mergeControls (heals a stale `overlay`/`faceChord` + clamps
+      // `faceMapping`). The later `faceChord` field is additive and default-safe
+      // (the initializer + mergeControls supply it for a v2 blob that predates it),
+      // so it intentionally needs no version bump or migrate branch.
       version: 2,
       migrate: migrateControls,
       merge: mergeControls,
@@ -208,6 +230,7 @@ export const useControls = create<ControlState>()(
         syncHands: s.syncHands,
         masterVolume: s.masterVolume,
         faceMapping: s.faceMapping,
+        faceChord: s.faceChord,
         overlay: s.overlay,
         recordingFormats: s.recordingFormats,
       }),

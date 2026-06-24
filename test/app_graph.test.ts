@@ -48,12 +48,12 @@ describe('production app graph', () => {
     expect(params[0].voices.every((v) => !v.present)).toBe(true);
     expect(params[0].voices).toHaveLength(2);
 
-    // The synth's actual input is the merge of hand voices (0,1) + the 3 stable
-    // chord voices (2,3,4) — distinct ids, all silent while the face chord is idle.
+    // The synth's actual input is the merge of hand voices (0,1) + the 4 stable
+    // chord voices (2..5) — distinct ids, all silent while the face chord is idle.
     const merged = recorder.values('merge.params') as SynthParams[];
     const ids = merged[0].voices.map((v) => v.id);
-    expect(ids).toEqual([0, 1, 2, 3, 4]);
-    expect(new Set(ids).size).toBe(5); // no id collision between hands and chord
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(new Set(ids).size).toBe(6); // no id collision between hands and chord
     expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });
 });

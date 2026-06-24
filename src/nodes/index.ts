@@ -43,7 +43,7 @@ export { pickNode } from './mapping/pick';
 export { oneEuroNode } from './mapping/one_euro';
 export { lyriaNode } from './output/lyria';
 export { chordNode, voiceChord } from './music/chord';
-export { expressionChordNode, CHORD_VOICE_ID_BASE } from './music/expression_chord';
+export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './music/expression_chord';
 export { progressionNode } from './music/progression';
 export { transportNode } from './music/transport';
 export { scoreNode } from './music/score';
