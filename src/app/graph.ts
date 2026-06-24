@@ -142,8 +142,12 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // Face chord: webcam-face → face-expression → expression-chord (fed the live
       // scale spec + face mode). Emits silent voices unless mode is 'chord'.
       { from: { node: 'camFace', port: 'face' }, to: { node: 'faceExpr', port: 'face' } },
+      // Live per-emotion sensitivities steer the classifier's thresholds.
+      { from: { node: 'ui', port: 'expressionSensitivity' }, to: { node: 'faceExpr', port: 'sensitivity' } },
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'exprChord', port: 'expression' } },
       { from: { node: 'ui', port: 'rightSpec' }, to: { node: 'exprChord', port: 'spec' } },
+      // Live per-expression scale-degree map (which triad each expression plays).
+      { from: { node: 'ui', port: 'expressionDegrees' }, to: { node: 'exprChord', port: 'degrees' } },
       { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'exprChord', port: 'faceMapping' } },
       // Live chord settings (instrument / volume / voicing / rendering / tempo).
       { from: { node: 'ui', port: 'chordConfig' }, to: { node: 'exprChord', port: 'chordConfig' } },

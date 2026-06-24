@@ -13,7 +13,7 @@ import type { NodeContext } from '@/dag';
 import { generateScale, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { InstrumentId } from '@/music/instruments';
 import { legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
-import type { FaceChord } from '@/settings/schema';
+import type { FaceChord, FaceExpr } from '@/settings/schema';
 import type { OverlayParams } from '@/nodes/output/canvas_overlay';
 
 export interface VoiceControlSnapshot {
@@ -36,6 +36,9 @@ export interface ControlSnapshot {
   faceMapping?: FaceMapping;
   /** How the face chord sounds; fed to `expression-chord` as the chordConfig port. */
   faceChord?: FaceChord;
+  /** Per-emotion sensitivity + per-expression degree map; the sensitivity feeds
+   *  `face-expression` and the degree map feeds `expression-chord`. */
+  faceExpr?: FaceExpr;
 }
 
 const Params = z.object({});
@@ -57,6 +60,10 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'faceMapping', kind: 'face-mapping' },
     // Live chord settings (instrument / volume / voicing / rendering / tempo).
     { name: 'chordConfig', kind: 'chord-config' },
+    // Per-emotion firing sensitivity (→ face-expression) and the per-expression
+    // scale-degree map (→ expression-chord).
+    { name: 'expressionSensitivity', kind: 'expression-sensitivity' },
+    { name: 'expressionDegrees', kind: 'expression-degrees' },
   ],
   params: Params,
   make() {
@@ -87,6 +94,10 @@ export const storeControlsNode = defineNode<Record<string, never>>({
             rendering: c.faceChord.rendering,
             bpm: c.faceChord.bpm,
           };
+        }
+        if (c.faceExpr) {
+          out.expressionSensitivity = c.faceExpr.sensitivity;
+          out.expressionDegrees = c.faceExpr.degrees;
         }
         if (c.overlay) out.overlay = c.overlay;
         return out;

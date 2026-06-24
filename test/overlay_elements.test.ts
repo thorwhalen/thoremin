@@ -271,23 +271,55 @@ describe('canvas-overlay composable elements', () => {
       { present: true, blendshapes: {}, landmarks: [{ x: 0.5, y: 0.5 }] })).toBe(0); // off
   });
 
-  it('faceExpression (Output): label + a bar per class; the winning class glows gold', () => {
-    const expression = { present: true, probs: [0.7, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05], label: 'happy', confidence: 0.7 };
+  it('faceExpression (Output): an activation bar + threshold tick per emotion; the winner glows gold', () => {
+    const expression = {
+      present: true,
+      label: 'happy',
+      scores: [0.7, 0.1, 0.1, 0.1, 0.1, 0.1],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
+      fired: [true, false, false, false, false, false],
+    };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
     expect(rc.count('fillText')).toBe(1); // the label
-    const bars = rc.calls.filter((c) => c.m === 'stroke');
-    expect(bars).toHaveLength(7); // one bar per expression class
-    // 'happy' (argmax index 0) glows gold; the rest are the face cyan.
-    expect(bars[0].stroke).toBe('#f5d142');
-    expect(bars[1].stroke).toBe('#22d3ee');
+    const strokes = rc.calls.filter((c) => c.m === 'stroke');
+    expect(strokes).toHaveLength(12); // 6 emotions × (activation bar + threshold tick)
+    expect(strokes[0].stroke).toBe('#f5d142'); // happy bar — the winner glows gold
+    expect(strokes[1].stroke).toBe('#ffffff'); // happy's threshold tick is white
+    expect(strokes[2].stroke).toBe('#22d3ee'); // sad bar — face cyan (not the winner)
+  });
+
+  it('faceExpression: abstention (present but neutral) draws bars but glows NONE gold', () => {
+    // The classifier's central new state: a present face that cleared no emotion's
+    // bar → label 'neutral'. 'neutral' is not in EMOTIONS, so no bar should glow.
+    const expression = {
+      present: true,
+      label: 'neutral',
+      scores: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
+      fired: [false, false, false, false, false, false],
+    };
+    const rc = drawWith(onlyElement('faceExpression'), { expression });
+    expect(rc.count('fillText')).toBe(1); // 'neutral' label still renders
+    const strokes = rc.calls.filter((c) => c.m === 'stroke');
+    expect(strokes).toHaveLength(12);
+    // No activation bar (even indices) uses the gold winner colour.
+    expect(strokes.filter((_, i) => i % 2 === 0).every((s) => s.stroke !== '#f5d142')).toBe(true);
   });
 
   it('faceExpression: nothing when the expression is absent or toggled off', () => {
     expect(drawWith(onlyElement('faceExpression'), {}).count('fillText')).toBe(0); // no expression
     expect(
-      drawWith(onlyElement('faceExpression'), { expression: { present: false, probs: [], label: 'neutral', confidence: 1 } }).count('fillText'),
+      drawWith(onlyElement('faceExpression'), {
+        expression: { present: false, label: 'neutral', scores: [], thresholds: [], fired: [] },
+      }).count('fillText'),
     ).toBe(0);
-    const expression = { present: true, probs: [1, 0, 0, 0, 0, 0, 0], label: 'happy', confidence: 1 };
+    const expression = {
+      present: true,
+      label: 'happy',
+      scores: [1, 0, 0, 0, 0, 0],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
+      fired: [true, false, false, false, false, false],
+    };
     expect(drawWith({ ...onlyElement('faceExpression'), faceExpression: { show: false } }, { expression }).count('stroke')).toBe(0);
   });
 

@@ -8,24 +8,22 @@
  */
 import { create } from 'zustand';
 import { ABSENT_FACE_STATUS, type FaceStatus } from '@/nodes';
-import { EXPRESSIONS, type ExpressionLabel } from '@/music/expression';
-
-const EMPTY_PROBS: number[] = EXPRESSIONS.map(() => 0);
+import { type ExpressionLabel } from '@/music/expression';
 
 export interface FaceStatusState {
   status: FaceStatus;
-  /** Latest classified expression label (null when no face / model not ready). */
+  /** Latest classified expression label (null when no face / model not ready). The
+   *  per-emotion activations/thresholds live on the DAG `expression` output and are
+   *  drawn by the overlay readout directly — this store only carries the label for
+   *  the text status line. */
   label: ExpressionLabel | null;
-  /** Softmax over {@link EXPRESSIONS} (for the live readout bars). */
-  probs: number[];
-  report(status: FaceStatus, label: ExpressionLabel | null, probs: number[]): void;
+  report(status: FaceStatus, label: ExpressionLabel | null): void;
   reset(): void;
 }
 
 export const useFaceStatus = create<FaceStatusState>((set) => ({
   status: ABSENT_FACE_STATUS,
   label: null,
-  probs: EMPTY_PROBS,
-  report: (status, label, probs) => set({ status, label, probs }),
-  reset: () => set({ status: ABSENT_FACE_STATUS, label: null, probs: EMPTY_PROBS }),
+  report: (status, label) => set({ status, label }),
+  reset: () => set({ status: ABSENT_FACE_STATUS, label: null }),
 }));

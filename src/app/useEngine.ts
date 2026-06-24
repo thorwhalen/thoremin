@@ -178,7 +178,7 @@ export function useThoreminEngine() {
           }
           const expr = engine.getOutput('faceExpr', 'expression') as ExpressionScores | undefined;
           const detected = fs.phase === 'ready' && fs.faceDetected && expr?.present;
-          useFaceStatus.getState().report(fs, detected ? expr!.label : null, expr?.probs ?? []);
+          useFaceStatus.getState().report(fs, detected ? expr!.label : null);
           lastFaceReport = now;
           lastPhase = fs.phase;
           lastDetected = fs.faceDetected;

@@ -10,9 +10,10 @@
  * in a collapsible translucent overlay so the video stays the focus.
  */
 import { useState, type ReactNode } from 'react';
-import { NOTES, SCALE_TYPES, isSevenNoteScale, type ScaleTypeId } from '@/music/theory';
+import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
 import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
-import { VOICINGS, RENDERINGS, isTempoRendering, type VoicingId, type RenderingId } from '@/music/voicing';
+import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, type RenderingId } from '@/music/voicing';
+import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import type { FaceMapping } from '@/nodes';
 import { useControls, type VoiceControl } from './store';
@@ -64,6 +65,31 @@ function CollapsibleSection({
         {label}
       </summary>
       <div className="mt-2 space-y-2 pl-1">{children}</div>
+    </details>
+  );
+}
+
+/**
+ * A top-level collapsible group (Sound / Face / Overlay / …) — the accordion that
+ * keeps the panel from overwhelming as settings grow. More prominent than the
+ * inner {@link CollapsibleSection}; a ▸/▾ marker and a divider above.
+ */
+function TopSection({
+  label,
+  defaultOpen = false,
+  children,
+}: {
+  label: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="group border-t border-white/10 pt-3 [&[open]>summary>span.mk]:rotate-90">
+      <summary className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-white/70 transition hover:text-white">
+        <span className="mk inline-block transition-transform">▸</span>
+        {label}
+      </summary>
+      <div className="mt-3 space-y-3">{children}</div>
     </details>
   );
 }
@@ -184,7 +210,6 @@ function OverlayControls() {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Overlay</h3>
       {OVERLAY_CATEGORIES.map((cat) => {
         const descs = OVERLAY_CONTROLS.filter((d) => categoryOf.get(d.name) === cat.id);
         if (descs.length === 0) return null;
@@ -336,6 +361,93 @@ function ChordControls() {
   );
 }
 
+/**
+ * Per-expression mapping editor (advanced). The per-emotion SENSITIVITY sliders
+ * apply in any active face mode (the classifier runs in timbre mode too — it
+ * feeds the readout/status there), so they show whenever a mapping is on. The
+ * scale-degree dropdown + live chord MIDI are chord-specific, so they appear only
+ * in chord mode (where `neutral` also gets a row — its rest chord). The (global)
+ * rendering lives in ChordControls above.
+ */
+function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
+  const degrees = useControls((s) => s.faceExpr.degrees);
+  const sensitivity = useControls((s) => s.faceExpr.sensitivity);
+  const setDegree = useControls((s) => s.setExpressionDegree);
+  const setSens = useControls((s) => s.setExpressionSensitivity);
+  const right = useControls((s) => s.right);
+  const voicing = useControls((s) => s.faceChord.voicing);
+
+  const chordMidi = (degree: number): number[] => {
+    const triad = diatonicTriad(
+      { root: right.root, type: right.type, octaves: right.octaves, baseOctave: right.baseOctave },
+      degree,
+    );
+    return triad.length ? voiceTriad(triad, voicing, 0).slice().sort((a, b) => a - b) : [];
+  };
+
+  // Chord mode lists all 7 (incl neutral, the rest chord); timbre mode lists only
+  // the 6 scored emotions (neutral has no sensitivity / no audio effect there).
+  const rows = chordMode ? EXPRESSIONS : EMOTIONS;
+
+  return (
+    <CollapsibleSection label={chordMode ? 'Expression mapping' : 'Expression sensitivity'} defaultOpen={false}>
+      <p className="text-[10px] leading-relaxed text-white/40">
+        {chordMode ? (
+          <>
+            Per expression: how easily it triggers (sensitivity), the scale degree it plays, and the
+            chord’s MIDI notes. <span className="text-white/60">Neutral</span> plays when no
+            expression is detected.
+          </>
+        ) : (
+          'How easily each expression triggers (higher = more hits). Tune if a neutral face reads as an emotion, or one won’t fire.'
+        )}
+      </p>
+      <div className="space-y-2">
+        {rows.map((label) => {
+          const isEmotion = label !== 'neutral';
+          const degree = degrees[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
+          const midi = chordMode ? chordMidi(degree) : [];
+          return (
+            <div key={label} className="space-y-1">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-16 shrink-0 capitalize">{label}</span>
+                {isEmotion ? (
+                  <input
+                    type="range" min={0} max={1} step={0.01}
+                    value={sensitivity[label] ?? 0.5}
+                    title="Sensitivity (higher = more hits)"
+                    className="flex-1"
+                    onChange={(e) => setSens(label, Number(e.target.value))}
+                  />
+                ) : (
+                  <span className="flex-1 text-[10px] italic text-white/30">rest / fallback</span>
+                )}
+                {chordMode && (
+                  <select
+                    className={selectCls}
+                    value={degree}
+                    title="Scale degree this expression plays"
+                    onChange={(e) => setDegree(label, Number(e.target.value))}
+                  >
+                    {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                      <option key={d} value={d}>{d + 1}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {chordMode && (
+                <div className="pl-16 font-mono text-[10px] text-white/40">
+                  {midi.length ? midi.join(' ') : '— (needs a 7-note scale)'}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 function FaceControls() {
   const faceMapping = useControls((s) => s.faceMapping);
   const setFaceMapping = useControls((s) => s.setFaceMapping);
@@ -344,7 +456,6 @@ function FaceControls() {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Face control</h3>
       <label className="flex items-center justify-between gap-2 text-xs">
         Mapping
         <select
@@ -368,6 +479,7 @@ function FaceControls() {
       )}
       <p className="text-[10px] leading-relaxed text-white/40">{FACE_MODE_HINT[faceMapping]}</p>
       {faceMapping === 'chord' && <ChordControls />}
+      {faceMapping !== 'none' && <ExpressionMapping chordMode={faceMapping === 'chord'} />}
     </div>
   );
 }
@@ -378,7 +490,6 @@ function RecordingControls() {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Recording</h3>
       {RECORDING_FORMATS.map((f) => (
         <Toggle
           key={f.id}
@@ -406,7 +517,6 @@ function PresetControls() {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Presets</h3>
       <div className="flex gap-1">
         <input
           className={`${selectCls} flex-1`}
@@ -463,8 +573,9 @@ export default function ControlsPanel() {
   const setMasterVolume = useControls((s) => s.setMasterVolume);
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="space-y-1">
+      {/* Sound — the live-performance knobs, open by default. */}
+      <TopSection label="Sound" defaultOpen>
         <label className="flex items-center justify-between gap-2 text-xs">
           Master volume
           <input
@@ -472,31 +583,37 @@ export default function ControlsPanel() {
             onChange={(e) => setMasterVolume(Number(e.target.value))}
           />
         </label>
-        <label className="mt-2 flex items-center gap-2 text-xs">
+        <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={syncHands} onChange={(e) => setSync(e.target.checked)} />
           Sync both hands
         </label>
-      </div>
-      <VoiceControls side="right" />
-      {!syncHands && <VoiceControls side="left" />}
-      <div className="border-t border-white/10 pt-3">
-        <OverlayControls />
-      </div>
-      <div className="border-t border-white/10 pt-3">
+        <VoiceControls side="right" />
+        {!syncHands && <VoiceControls side="left" />}
+      </TopSection>
+
+      <TopSection label="Face">
         <FaceControls />
-      </div>
-      <div className="border-t border-white/10 pt-3">
+      </TopSection>
+
+      <TopSection label="Overlay">
+        <OverlayControls />
+      </TopSection>
+
+      <TopSection label="Recording">
         <RecordingControls />
-      </div>
-      <div className="border-t border-white/10 pt-3">
+      </TopSection>
+
+      <TopSection label="Presets">
         <PresetControls />
-      </div>
-      <div className="border-t border-white/10 pt-3 text-[10px] leading-relaxed text-white/50">
-        <p className="mb-1 font-bold uppercase tracking-widest text-white/70">Keyboard</p>
-        <p>↑ / ↓ — octave shift</p>
-        <p>← / → — less / more scale-snap</p>
-        <p>m — mute</p>
-      </div>
+      </TopSection>
+
+      <TopSection label="Keyboard">
+        <div className="text-[10px] leading-relaxed text-white/50">
+          <p>↑ / ↓ — octave shift</p>
+          <p>← / → — less / more scale-snap</p>
+          <p>m — mute</p>
+        </div>
+      </TopSection>
     </div>
   );
 }

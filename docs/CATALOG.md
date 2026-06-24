@@ -55,7 +55,7 @@ Reads the live UI control store → scale + instrument + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config
+- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -94,12 +94,12 @@ Face blendshapes → normalized expression controls (smile, mouthOpen, brow, bli
 - **params:** gain (number=1), smoothing (number=0)
 
 #### `face-expression` — Face Expression
-Face blendshapes → softmax over 7 expressions (happy/sad/angry/surprised/fearful/disgusted/neutral) with smoothing + hysteresis.
+Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).
 
 - **roles:** feature
-- **in:** face:face-frame
+- **in:** face:face-frame, sensitivity:expression-sensitivity
 - **out:** expression:face-expression
-- **params:** smoothing (number=0.4), temperature (number=0.12), holdMargin (number=0.06)
+- **params:** smoothing (number=0.4), dwellFrames (number=2)
 
 #### `gesture-classifier` — Gesture Classifier
 Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.
@@ -183,7 +183,7 @@ Roman-numeral progression in a key + position (0..1) → current chord symbol.
 Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).
 
 - **roles:** music
-- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config
+- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees
 - **out:** params:synth-params, triad:number[]
 - **params:** gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 

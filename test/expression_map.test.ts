@@ -7,15 +7,25 @@ import { describe, it, expect } from 'vitest';
 import { diatonicTriad, isSevenNoteScale, type ScaleSpec } from '@/music/theory';
 import {
   EXPRESSIONS,
-  blendshapesToExpression,
+  EMOTIONS,
+  expressionActivations,
+  decideExpression,
+  sensitivityToThreshold,
+  expressionThresholds,
+  EXPRESSION_THRESHOLD_BOUNDS,
+  DEFAULT_EXPRESSION_SENSITIVITY,
   triadDegreeSet,
   sharedTriadNotes,
   assignmentObjective,
   optimalExpressionToDegree,
   RECOMMENDED_EXPRESSION_TO_DEGREE,
   CONFUSION_FER2013,
+  type Emotion,
   type ExpressionLabel,
 } from '@/music/expression';
+
+const zeroActs = (): Record<Emotion, number> =>
+  Object.fromEntries(EMOTIONS.map((e) => [e, 0])) as Record<Emotion, number>;
 
 const cMajor: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };
 
@@ -50,57 +60,100 @@ describe('diatonicTriad', () => {
   });
 });
 
-describe('blendshapesToExpression', () => {
-  const classify = (bs: Record<string, number>) => blendshapesToExpression(bs);
-
-  it('reads a smile as happy', () => {
-    expect(classify({ mouthSmileLeft: 1, mouthSmileRight: 1 }).label).toBe('happy');
+describe('expressionActivations (magnitude-aware, [0,1])', () => {
+  it('a full smile activates happy strongly and the rest near zero', () => {
+    const a = expressionActivations({ mouthSmileLeft: 1, mouthSmileRight: 1 });
+    expect(a.happy).toBeGreaterThan(0.6);
+    expect(a.angry).toBeLessThan(0.1);
+    expect(a.sad).toBeLessThan(0.1);
   });
 
+  it('a FAINT brow furrow barely activates angry (the fix for cosine scale-invariance)', () => {
+    // The old cosine classifier read this tiny resting furrow as a confident
+    // angry; the magnitude-aware score keeps it near zero so it cannot fire.
+    const a = expressionActivations({ browDownLeft: 0.08, browDownRight: 0.08 });
+    expect(a.angry).toBeLessThan(0.1);
+  });
+
+  it('every emotion scores within [0,1]', () => {
+    const a = expressionActivations({ jawOpen: 1, eyeWideLeft: 1, eyeWideRight: 1, browInnerUp: 1 });
+    for (const e of EMOTIONS) {
+      expect(a[e]).toBeGreaterThanOrEqual(0);
+      expect(a[e]).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe('decideExpression (per-class thresholds + neutral abstention)', () => {
+  const decide = (bs: Record<string, number>) => decideExpression(expressionActivations(bs)).label;
+
+  it('reads a clear smile as happy', () => {
+    expect(decide({ mouthSmileLeft: 1, mouthSmileRight: 1 })).toBe('happy');
+  });
   it('reads furrowed brows as angry (not disgust)', () => {
-    expect(classify({ browDownLeft: 1, browDownRight: 1 }).label).toBe('angry');
+    expect(decide({ browDownLeft: 1, browDownRight: 1 })).toBe('angry');
   });
-
   it('reads a sneer + raised upper lip as disgusted', () => {
-    expect(
-      classify({ noseSneerLeft: 1, noseSneerRight: 1, mouthUpperUpLeft: 0.8, mouthUpperUpRight: 0.8 })
-        .label,
-    ).toBe('disgusted');
+    expect(decide({ noseSneerLeft: 1, noseSneerRight: 1, mouthUpperUpLeft: 0.8, mouthUpperUpRight: 0.8 })).toBe('disgusted');
   });
-
   it('reads a wide-eyed open jaw with outer-brow raise as surprised', () => {
-    expect(
-      classify({
-        jawOpen: 1,
-        eyeWideLeft: 0.8,
-        eyeWideRight: 0.8,
-        browOuterUpLeft: 0.7,
-        browOuterUpRight: 0.7,
-      }).label,
-    ).toBe('surprised');
+    expect(decide({ jawOpen: 1, eyeWideLeft: 0.8, eyeWideRight: 0.8, browOuterUpLeft: 0.7, browOuterUpRight: 0.7, browInnerUp: 0.4 })).toBe('surprised');
   });
-
   it('distinguishes fear from surprise by the inner-brow raise', () => {
-    expect(
-      classify({ jawOpen: 0.7, eyeWideLeft: 0.9, eyeWideRight: 0.9, browInnerUp: 0.9 }).label,
-    ).toBe('fearful');
+    expect(decide({ jawOpen: 0.7, eyeWideLeft: 0.9, eyeWideRight: 0.9, browInnerUp: 0.9, mouthStretchLeft: 0.3, mouthStretchRight: 0.3 })).toBe('fearful');
   });
-
   it('reads a frown + inner-brow raise as sad', () => {
-    expect(classify({ mouthFrownLeft: 1, mouthFrownRight: 1, browInnerUp: 0.7 }).label).toBe('sad');
+    expect(decide({ mouthFrownLeft: 1, mouthFrownRight: 1, browInnerUp: 0.7 })).toBe('sad');
   });
 
-  it('falls back to neutral on a resting face', () => {
-    expect(classify({}).label).toBe('neutral');
-    expect(classify({ _neutral: 0.95 }).label).toBe('neutral');
+  it('falls back to neutral on a resting OR faintly-active face (the angry-bug fix)', () => {
+    expect(decide({})).toBe('neutral');
+    expect(decide({ _neutral: 0.95 })).toBe('neutral'); // a stray model key, no FACS units
+    expect(decide({ browDownLeft: 0.1, browDownRight: 0.1 })).toBe('neutral'); // faint furrow
   });
 
-  it('returns a valid softmax distribution', () => {
-    const r = classify({ mouthSmileLeft: 1, mouthSmileRight: 1 });
-    expect(r.probs).toHaveLength(EXPRESSIONS.length);
-    expect(r.probs.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
-    for (const p of r.probs) expect(p).toBeGreaterThanOrEqual(0);
-    expect(r.confidence).toBeCloseTo(Math.max(...r.probs), 10);
+  it('a higher sensitivity makes an otherwise-neutral faint expression fire', () => {
+    const faint = expressionActivations({ mouthSmileLeft: 0.25, mouthSmileRight: 0.25 });
+    expect(decideExpression(faint, DEFAULT_EXPRESSION_SENSITIVITY).label).toBe('neutral');
+    expect(decideExpression(faint, { ...DEFAULT_EXPRESSION_SENSITIVITY, happy: 1 }).label).toBe('happy');
+  });
+
+  it('breaks ties by margin over each class’s own threshold', () => {
+    // happy at 0.5, sad at 0.5 — both clear; the more-sensitive one (lower bar →
+    // bigger margin) wins, exercising the operating-point tie-break.
+    const acts = { ...zeroActs(), happy: 0.5, sad: 0.5 };
+    expect(decideExpression(acts, { ...DEFAULT_EXPRESSION_SENSITIVITY, happy: 0.9, sad: 0.5 }).label).toBe('happy');
+    expect(decideExpression(acts, { ...DEFAULT_EXPRESSION_SENSITIVITY, happy: 0.5, sad: 0.9 }).label).toBe('sad');
+  });
+
+  it('marks fired flags for the emotions that cleared their bar', () => {
+    const d = decideExpression(expressionActivations({ mouthSmileLeft: 1, mouthSmileRight: 1 }));
+    expect(d.fired.happy).toBe(true);
+    expect(d.fired.angry).toBe(false);
+  });
+});
+
+describe('sensitivity ↔ threshold', () => {
+  it('sensitivityToThreshold is monotone DECREASING (more sensitive = lower bar)', () => {
+    const b = EXPRESSION_THRESHOLD_BOUNDS.happy;
+    expect(sensitivityToThreshold(0, b)).toBeCloseTo(b.max);
+    expect(sensitivityToThreshold(1, b)).toBeCloseTo(b.min);
+    expect(sensitivityToThreshold(0.3, b)).toBeGreaterThan(sensitivityToThreshold(0.7, b));
+  });
+  it('expressionThresholds returns one threshold per emotion', () => {
+    const thr = expressionThresholds(DEFAULT_EXPRESSION_SENSITIVITY);
+    for (const e of EMOTIONS) expect(typeof thr[e]).toBe('number');
+  });
+});
+
+describe('decideExpression hysteresis', () => {
+  it('judges the held label against an easier exit threshold (sticky, anti-chatter)', () => {
+    const b = EXPRESSION_THRESHOLD_BOUNDS.happy;
+    const enter = sensitivityToThreshold(0.5, b);
+    const between = enter - b.delta * 0.5; // below enter, above the exit (enter − delta)
+    const acts = { ...zeroActs(), happy: between };
+    expect(decideExpression(acts, DEFAULT_EXPRESSION_SENSITIVITY).label).toBe('neutral'); // not held
+    expect(decideExpression(acts, DEFAULT_EXPRESSION_SENSITIVITY, 'happy').label).toBe('happy'); // held → sticky
   });
 });
 

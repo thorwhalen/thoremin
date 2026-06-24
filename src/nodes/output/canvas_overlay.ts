@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { freqToMidi, midiToName, scaleGuide } from '@/music/theory';
-import { EXPRESSIONS, type ExpressionScores } from '@/music/expression';
+import { EMOTIONS, type ExpressionScores } from '@/music/expression';
 import {
   kp,
   LM,
@@ -412,9 +412,12 @@ const faceMesh: OverlayElement = {
 };
 
 /**
- * Live readout of the classified facial expression (output feature) — the argmax
- * label plus a small bar per class, so the player sees what their face is being
- * mapped to. Top-centre; absent when no face is detected.
+ * Live readout of the classified facial expression (output feature) — the decided
+ * label plus, per emotion, an activation bar with a white tick at its firing
+ * threshold, so the player SEES each emotion's level against its (user-tunable)
+ * sensitivity. A fired emotion is opaque; the winning one (driving the chord)
+ * glows gold; `neutral` shows no winner (nothing cleared its bar). Top-centre;
+ * absent when no face is detected.
  */
 const faceExpressionReadout: OverlayElement = {
   name: 'faceExpression',
@@ -422,32 +425,39 @@ const faceExpressionReadout: OverlayElement = {
   draw(g, { W, H, inputs, params }) {
     if (!params.faceExpression.show) return;
     const expr = inputs.expression;
-    if (!expr?.present || !expr.probs?.length) return;
-    // The winner glows on the *held* label (what is actually driving the chord),
-    // not the tallest bar — under the classifier's argmax hysteresis the held
-    // expression can briefly differ from the raw smoothed distribution. (Out-of-set
-    // label → -1 → nothing glows, harmless.)
-    const argmax = EXPRESSIONS.indexOf(expr.label);
+    if (!expr?.present || !expr.scores?.length) return;
+    const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
     g.save();
     g.textAlign = 'center';
     g.font = 'bold 15px monospace';
     g.fillStyle = FACE_COLOR;
     g.fillText(expr.label, W * 0.5, H * 0.05);
-    // A small bar per expression class; the winning class glows gold.
-    const n = expr.probs.length;
+    const n = expr.scores.length; // = EMOTIONS.length
     const barW = 14;
     const gap = 5;
+    const maxH = 30;
     const baseY = H * 0.05 + 30;
     const startX = W * 0.5 - (n * (barW + gap) - gap) / 2 + barW / 2;
     for (let i = 0; i < n; i++) {
-      const p = expr.probs[i];
       const cx = startX + i * (barW + gap);
-      g.globalAlpha = 0.25 + 0.65 * p;
-      g.strokeStyle = i === argmax ? CHORD_COLOR : FACE_COLOR;
+      const fired = expr.fired?.[i] ?? false;
+      const isWinner = EMOTIONS[i] === expr.label;
+      // The activation bar — opaque if it fired, dim otherwise; gold if it won.
+      g.globalAlpha = fired ? 0.9 : 0.4;
+      g.strokeStyle = isWinner ? CHORD_COLOR : FACE_COLOR;
       g.lineWidth = barW;
       g.beginPath();
       g.moveTo(cx, baseY);
-      g.lineTo(cx, baseY - (2 + p * 26));
+      g.lineTo(cx, baseY - (2 + clamp01(expr.scores[i]) * maxH));
+      g.stroke();
+      // The firing-threshold tick (lower tick = more sensitive).
+      const ty = baseY - (2 + clamp01(expr.thresholds?.[i] ?? 0) * maxH);
+      g.globalAlpha = 0.85;
+      g.strokeStyle = '#ffffff';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(cx - barW / 2, ty);
+      g.lineTo(cx + barW / 2, ty);
       g.stroke();
     }
     g.restore();
