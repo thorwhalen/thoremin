@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { createPresetStore, presetId } from '@/settings/presets';
 import { PresetSchema, SettingsSchema, DEFAULT_FACE_CHORD, type Preset, type Settings } from '@/settings/schema';
+import { expressionThresholds, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 
 function sampleSettings(overrides: Partial<Settings> = {}): Settings {
   return SettingsSchema.parse({
@@ -103,6 +104,23 @@ describe('preset persistence', () => {
     expect(fe.sensitivity.angry).toBe(0.45); // DEFAULT_EXPRESSION_SENSITIVITY.angry
     expect(fe.degrees.neutral).toBe(-1); // SILENCE_DEGREE — a resting face plays nothing by default
     expect(fe.degrees.happy).toBe(0); // emotions keep the confusion-aware default (happy → tonic)
+  });
+
+  it('a pre-kiss faceExpr blob: the consumer heals the missing kiss key', () => {
+    // The preset schema (z.record.default) does NOT backfill per-key, so a blob with
+    // only the six original emotions leaves `kiss` undefined — the CONSUMERS fill it.
+    const parsed = SettingsSchema.parse({
+      ...sampleSettings(),
+      faceExpr: {
+        sensitivity: { happy: 0.5, sad: 0.5, angry: 0.5, surprised: 0.5, fearful: 0.5, disgusted: 0.5 },
+        degrees: { happy: 0, fearful: 1, disgusted: 2, surprised: 3, angry: 4, sad: 5, neutral: -1 },
+      },
+    });
+    expect(parsed.faceExpr.sensitivity.kiss).toBeUndefined(); // schema leaves it absent
+    // expressionThresholds heals via ?? DEFAULT_EXPRESSION_SENSITIVITY.kiss → bar 0.375.
+    expect(expressionThresholds(parsed.faceExpr.sensitivity as never).kiss).toBeCloseTo(0.375);
+    // expression-chord's degreeFor falls back to the kiss default (vii°) for the missing key.
+    expect(parsed.faceExpr.degrees.kiss ?? DEFAULT_EXPRESSION_TO_DEGREE.kiss).toBe(6);
   });
 
   it('persists a player-set silence assignment and rejects an out-of-range degree', () => {

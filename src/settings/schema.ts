@@ -69,7 +69,7 @@ export const FaceExprSchema = z
 export type FaceExpr = z.infer<typeof FaceExprSchema>;
 
 /** The shipped defaults for the expression mapping (research-grounded sensitivity
- *  + the confusion-aware degree assignment). */
+ *  + the hand-picked degree assignment — one diatonic degree per emotion). */
 export const DEFAULT_FACE_EXPR: FaceExpr = {
   sensitivity: { ...DEFAULT_EXPRESSION_SENSITIVITY },
   degrees: { ...DEFAULT_EXPRESSION_TO_DEGREE },

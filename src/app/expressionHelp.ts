@@ -31,7 +31,7 @@ export interface EmotionHelp {
 export const MODEL_ORIGIN =
   'Expressions are read by Google’s MediaPipe Face Landmarker — it tracks 478 face points and outputs 52 “blendshape” values (named after Apple’s ARKit face shapes, e.g. jawOpen, browInnerUp). Your face is matched against a per-emotion template of expected blendshapes, and an emotion fires when it’s activated enough. These are AR-entertainment-grade signals: a few channels (nose-wrinkle, frown, inner-brow, eye-widen) read weakly, so the emotions that rely on them take more effort — those are marked “harder to detect” below, and you can lower their sensitivity bar in Expression sensitivity / mapping.';
 
-/** Per-emotion how-to, in EMOTIONS order (happy, sad, angry, surprised, fearful, disgusted). */
+/** Per-emotion how-to, in EMOTIONS order (happy, sad, angry, surprised, fearful, disgusted, kiss). */
 export const EXPRESSION_HELP: EmotionHelp[] = [
   {
     name: 'happy',
@@ -83,6 +83,14 @@ export const EXPRESSION_HELP: EmotionHelp[] = [
     avoidConfusion: 'Vs angry: lead with the nose/upper-lip sneer, not the lowered brow.',
     blendshapes: ['noseSneerLeft', 'noseSneerRight', 'mouthUpperUpLeft', 'mouthUpperUpRight', 'browDownLeft', 'browDownRight'],
     hardToDetect: true,
+  },
+  {
+    name: 'kiss',
+    keyAction: 'Push your lips forward into an “ooo” / kiss.',
+    howTo: 'Funnel your lips forward into a rounded “ooo” or kiss shape — push them outward, don’t just squeeze flat — and hold briefly. The model reads this one reliably.',
+    commonMistake: 'Pressing the lips flat instead of funneling them FORWARD; the forward “ooo” shape (mouthFunnel) is what registers.',
+    avoidConfusion: 'Keep the jaw closed and don’t smile — a wide-open or smiling mouth reads as surprised or happy instead.',
+    blendshapes: ['mouthFunnel', 'mouthPucker'],
   },
 ];
 

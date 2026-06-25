@@ -197,6 +197,10 @@ describe('persist migration (v1 → v2, returning users)', () => {
     expect(merged.faceExpr.sensitivity.angry).toBe(0.1); // kept
     expect(merged.faceExpr.sensitivity.happy).toBe(0.5); // filled from default
     expect(typeof merged.faceExpr.degrees.happy).toBe('number'); // degree map filled too
+    // A pre-kiss blob lacks the `kiss` key entirely — it must materialize from the
+    // defaults (else its sensitivity slider / degree would bind undefined).
+    expect(merged.faceExpr.sensitivity.kiss).toBe(0.5);
+    expect(merged.faceExpr.degrees.kiss).toBe(6); // vii°
   });
 
   it('mergeControls clamps an unknown faceMapping to a safe value', () => {

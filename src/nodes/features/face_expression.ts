@@ -1,6 +1,6 @@
 /**
  * `face-expression` node — turns the 52 MediaPipe/ARKit blendshapes of a
- * {@link FaceFrame} into a decided expression (one of six emotions or `neutral`),
+ * {@link FaceFrame} into a decided expression (one of seven emotions or `neutral`),
  * the sibling of `face-features`. No extra model, no extra bytes: it scores the
  * blendshapes against FACS-grounded prototypes ({@link expressionActivations}) and
  * applies the research-grounded decision + stabilization stack:
@@ -51,7 +51,7 @@ export const faceExpressionNode = defineNode<Params>({
   roles: ['feature'],
   title: 'Face Expression',
   description:
-    'Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).',
+    'Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).',
   inputs: [
     { name: 'face', kind: 'face-frame' },
     // Live per-emotion sensitivities [0,1] (from the store); optional → defaults.
