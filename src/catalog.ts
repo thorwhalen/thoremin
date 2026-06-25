@@ -83,6 +83,8 @@ function paramInfo(name: string, field: any): ParamInfo {
       f = f._def.innerType;
     } else if (t === 'optional' || t === 'nullable') {
       f = f._def.innerType;
+    } else if (t === 'pipe') {
+      f = f._def.in ?? f._def.out; // symmetry with unwrapToObject (a future .pipe()/.transform() field)
     } else {
       break;
     }
