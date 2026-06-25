@@ -57,7 +57,7 @@ export type BlendshapeWeights = Record<string, number>;
  * The classifier's per-frame result (flows on the DAG edge). `scores` are the
  * per-emotion activations and `thresholds` their effective firing thresholds (both
  * aligned to {@link EMOTIONS}, for the readout); `fired` is score ≥ threshold; and
- * `label` is the decided expression — one of the six emotions or `neutral`.
+ * `label` is the decided expression — one of the seven emotions or `neutral`.
  */
 export interface ExpressionScores {
   present: boolean;
@@ -140,7 +140,7 @@ export const EXPRESSION_PROTOTYPES: Record<Emotion, BlendshapeWeights> = {
     // Lips funneled forward into an "ooo"/kiss. mouthFunnel is the reliable,
     // load-bearing channel; mouthPucker is noisier so it only assists. These touch
     // NONE of the other prototypes' channels, so kiss neither cross-trips nor is
-    // cross-tripped by the six emotions. den 1.0.
+    // cross-tripped by the other six emotions. den 1.0.
     mouthFunnel: 0.7,
     mouthPucker: 0.3,
   },

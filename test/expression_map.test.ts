@@ -172,6 +172,9 @@ describe('reachability: sad / disgusted / fearful fire after the prototype/thres
     // A smile or an open-mouth surprise (no mouthFunnel) must not read as kiss.
     expect(decideExpression(expressionActivations({ mouthSmileLeft: 1, mouthSmileRight: 1 })).label).not.toBe('kiss');
     expect(decideExpression(expressionActivations({ jawOpen: 1, eyeWideLeft: 0.8, eyeWideRight: 0.8 })).label).not.toBe('kiss');
+    // When kiss CO-FIRES with a weakly-firing emotion, the bigger margin wins —
+    // kiss (0.71, margin 0.335) beats a just-firing happy (0.40, margin 0.025).
+    expect(decideExpression({ ...a, happy: 0.4 }).label).toBe('kiss');
   });
 
   it('does NOT false-fire on non-emotional faces (open mouth → neutral, smile → not disgusted)', () => {

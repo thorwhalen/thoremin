@@ -1,6 +1,6 @@
 /**
  * `face-expression` node — turns the 52 MediaPipe/ARKit blendshapes of a
- * {@link FaceFrame} into a decided expression (one of six emotions or `neutral`),
+ * {@link FaceFrame} into a decided expression (one of seven emotions or `neutral`),
  * the sibling of `face-features`. No extra model, no extra bytes: it scores the
  * blendshapes against FACS-grounded prototypes ({@link expressionActivations}) and
  * applies the research-grounded decision + stabilization stack:
