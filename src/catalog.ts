@@ -42,52 +42,58 @@ const portInfo = (p: PortSpec): PortInfo => ({
 });
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const TYPE_NAMES: Record<string, string> = {
-  ZodNumber: 'number',
-  ZodString: 'string',
-  ZodBoolean: 'boolean',
-  ZodArray: 'array',
-  ZodObject: 'object',
-  ZodAny: 'any',
-  ZodUnknown: 'unknown',
+// Zod 4 introspection: `_def.type` is a lowercase tag ('number'|'string'|'object'|
+// 'enum'|'default'|'optional'|…). Wrapper types expose `.innerType`; a `.refine()`/
+// `.superRefine()` on an object stays `type: 'object'` (no ZodEffects wrapper in v4).
+const TYPE_TAGS: Record<string, string> = {
+  number: 'number',
+  string: 'string',
+  boolean: 'boolean',
+  array: 'array',
+  object: 'object',
+  any: 'any',
+  unknown: 'unknown',
 };
 
-/** Unwrap wrapper Zod types (effects/optional/default/nullable) to the inner ZodObject. */
+/** Unwrap wrapper Zod types (default/optional/nullable/prefault/pipe) to the inner ZodObject. */
 function unwrapToObject(schema: any): any | null {
   let s = schema;
   for (let i = 0; i < 6 && s && s._def; i++) {
-    const tn = s._def.typeName;
-    if (tn === 'ZodObject') return s;
-    if (tn === 'ZodEffects') s = s._def.schema;
-    else if (tn === 'ZodDefault' || tn === 'ZodOptional' || tn === 'ZodNullable') s = s._def.innerType;
+    const t = s._def.type;
+    if (t === 'object') return s;
+    if (t === 'pipe') s = s._def.in ?? s._def.out;
+    else if (t === 'default' || t === 'optional' || t === 'nullable' || t === 'prefault') s = s._def.innerType;
     else break;
   }
-  return s && s._def && s._def.typeName === 'ZodObject' ? s : null;
+  return s && s._def && s._def.type === 'object' ? s : null;
 }
 
 function paramInfo(name: string, field: any): ParamInfo {
   let f = field;
   let def: unknown;
   for (let i = 0; i < 6 && f && f._def; i++) {
-    const tn = f._def.typeName;
-    if (tn === 'ZodDefault') {
+    const t = f._def.type;
+    if (t === 'default' || t === 'prefault') {
+      const dv = f._def.defaultValue;
       try {
-        def = f._def.defaultValue();
+        def = typeof dv === 'function' ? dv() : dv;
       } catch {
         /* ignore */
       }
       f = f._def.innerType;
-    } else if (tn === 'ZodOptional' || tn === 'ZodNullable') {
+    } else if (t === 'optional' || t === 'nullable') {
       f = f._def.innerType;
+    } else if (t === 'pipe') {
+      f = f._def.in ?? f._def.out; // symmetry with unwrapToObject (a future .pipe()/.transform() field)
     } else {
       break;
     }
   }
-  const tn = f && f._def ? f._def.typeName : 'unknown';
-  let type = TYPE_NAMES[tn] ?? String(tn).replace(/^Zod/, '').toLowerCase();
-  if (tn === 'ZodEnum') {
-    const values = (f._def.values as string[]) ?? [];
-    type = `enum(${values.join(' | ')})`;
+  const t = f && f._def ? f._def.type : 'unknown';
+  let type = TYPE_TAGS[t] ?? String(t);
+  if (t === 'enum') {
+    const values = (f.options as string[] | undefined) ?? Object.values(f._def.entries ?? {});
+    type = `enum(${(values as string[]).join(' | ')})`;
   }
   return { name, type, default: def };
 }
@@ -96,7 +102,7 @@ function paramsOf(def: NodeDef): ParamInfo[] {
   try {
     const obj = unwrapToObject(def.params as any);
     if (!obj) return [];
-    const shape = typeof obj._def.shape === 'function' ? obj._def.shape() : obj.shape;
+    const shape = obj.shape;
     return Object.entries(shape).map(([name, field]) => paramInfo(name, field));
   } catch {
     return [];

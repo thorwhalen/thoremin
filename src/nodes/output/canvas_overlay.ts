@@ -44,7 +44,7 @@ const Params = z.object({
       show: z.boolean().default(true),
       alpha: z.number().min(0).max(1).default(0.35),
     })
-    .default({}),
+    .prefault({}),
   /** Faint vertical guide at each scale note (a "fretboard"), with note labels. */
   scaleGuide: z
     .object({
@@ -52,26 +52,26 @@ const Params = z.object({
       /** Draw the note-name labels (split from the lines so each toggles alone). */
       showLabels: z.boolean().default(true),
     })
-    .default({}),
+    .prefault({}),
   /** Highlight the face-driven chord's tones on the pitch guide (face chord mode). */
   chordGuide: z
     .object({
       show: z.boolean().default(true),
     })
-    .default({}),
+    .prefault({}),
   /** Dashed vertical line from each index fingertip to the frame edge. Opt-in. */
   indexGuide: z
     .object({
       show: z.boolean().default(false),
       dashed: z.boolean().default(true),
     })
-    .default({}),
+    .prefault({}),
   /** Hand landmark dots + a ring around each index fingertip. */
   landmarks: z
     .object({
       show: z.boolean().default(true),
     })
-    .default({}),
+    .prefault({}),
   /** Per-hand control marker (openness = ring size, pinch = fill). */
   markers: z
     .object({
@@ -79,25 +79,25 @@ const Params = z.object({
       /** Show the note name each hand is sounding, above its marker. */
       showNotes: z.boolean().default(true),
     })
-    .default({}),
+    .prefault({}),
   /** The detected face mesh (input feature) — available when a face mapping is on. */
   faceLandmarks: z
     .object({
       show: z.boolean().default(true),
     })
-    .default({}),
+    .prefault({}),
   /** Live readout of the classified facial expression (output feature). */
   faceExpression: z
     .object({
       show: z.boolean().default(true),
     })
-    .default({}),
+    .prefault({}),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z
     .object({
       show: z.boolean().default(false),
     })
-    .default({}),
+    .prefault({}),
 });
 type Params = z.infer<typeof Params>;
 
