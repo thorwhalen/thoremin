@@ -40,6 +40,19 @@ describe('face-expression node', () => {
     expect(out[0].label).toBe('neutral');
   });
 
+  it('classifies a funneled-lips kiss as kiss', async () => {
+    const kiss = frame({ mouthFunnel: 0.8, mouthPucker: 0.5 });
+    const out = await classify(Array(12).fill(kiss), { smoothing: 0.4 });
+    expect(out[out.length - 1].label).toBe('kiss');
+  });
+
+  it('emits one score/threshold/fired per scored emotion (7, incl kiss)', async () => {
+    const out = await classify([frame({ mouthSmileLeft: 1, mouthSmileRight: 1 })]);
+    expect(out[0].scores).toHaveLength(7);
+    expect(out[0].thresholds).toHaveLength(7);
+    expect(out[0].fired).toHaveLength(7);
+  });
+
   it('keeps the smoothed activation scores in [0,1] every tick', async () => {
     const seq = [
       frame({ mouthSmileLeft: 1, mouthSmileRight: 1 }),
@@ -133,9 +146,10 @@ async function chordVoices(
 const happyExpr: ExpressionScores = {
   present: true,
   label: 'happy',
-  scores: [1, 0, 0, 0, 0, 0],
-  thresholds: [0.375, 0.375, 0.4475, 0.375, 0.4475, 0.375],
-  fired: [true, false, false, false, false, false],
+  // Aligned to EMOTIONS: happy, sad, angry, surprised, fearful, disgusted, kiss.
+  scores: [1, 0, 0, 0, 0, 0, 0],
+  thresholds: [0.375, 0.375, 0.4475, 0.375, 0.4, 0.375, 0.375],
+  fired: [true, false, false, false, false, false, false],
 };
 
 describe('expression-chord node', () => {
@@ -191,9 +205,9 @@ describe('expression-chord node', () => {
     const neutralExpr: ExpressionScores = {
       present: true,
       label: 'neutral',
-      scores: [0, 0, 0, 0, 0, 0],
-      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
-      fired: [false, false, false, false, false, false],
+      scores: [0, 0, 0, 0, 0, 0, 0],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.4, 0.4, 0.375],
+      fired: [false, false, false, false, false, false, false],
     };
     // No `degrees` input → falls back to DEFAULT_EXPRESSION_TO_DEGREE (neutral = -1).
     const out = await chordVoices(neutralExpr, 'chord');
@@ -212,9 +226,9 @@ describe('expression-chord node', () => {
     const absent: ExpressionScores = {
       present: false,
       label: 'neutral',
-      scores: [0, 0, 0, 0, 0, 0],
-      thresholds: [0, 0, 0, 0, 0, 0],
-      fired: [false, false, false, false, false, false],
+      scores: [0, 0, 0, 0, 0, 0, 0],
+      thresholds: [0, 0, 0, 0, 0, 0, 0],
+      fired: [false, false, false, false, false, false, false],
     };
     const out = await chordVoices(absent, 'chord');
     expect((out.params as SynthParams).voices.every((v) => !v.present)).toBe(true);

@@ -217,7 +217,7 @@
   {
     "type": "face-expression",
     "title": "Face Expression",
-    "description": "Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).",
+    "description": "Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).",
     "roles": [
       "feature"
     ],

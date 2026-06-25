@@ -23,7 +23,9 @@
  * swap them for a model-specific calibration without touching the algorithms.
  */
 
-/** The seven canonical expressions, in a stable index order. */
+/** The canonical expressions, in a stable index order: the scored {@link EMOTIONS}
+ *  followed by `neutral` (the abstention fallback). `kiss` (lips funneled forward)
+ *  is the 7th scored emotion — a reliable, distinct face for the diminished vii. */
 export const EXPRESSIONS = [
   'happy',
   'sad',
@@ -31,20 +33,21 @@ export const EXPRESSIONS = [
   'surprised',
   'fearful',
   'disgusted',
+  'kiss',
   'neutral',
 ] as const;
 
 export type ExpressionLabel = (typeof EXPRESSIONS)[number];
 
 /**
- * The six *scored* emotions. Neutral is the abstention FALLBACK (the decision when
- * no emotion clears its threshold), not a scored class — for a prototype/cosine
- * classifier without a strong neutral exemplar, abstention is far more robust than
- * asking a neutral prototype to out-score everything (Bishop, reject option;
- * open-set recognition bounds the acceptance region instead of partitioning all of
- * feature space among the known classes).
+ * The *scored* emotions. Neutral is the abstention FALLBACK (the decision when no
+ * emotion clears its threshold), not a scored class — for a prototype classifier
+ * without a strong neutral exemplar, abstention is far more robust than asking a
+ * neutral prototype to out-score everything (Bishop, reject option; open-set
+ * recognition bounds the acceptance region instead of partitioning all of feature
+ * space among the known classes).
  */
-export const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'fearful', 'disgusted'] as const;
+export const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'fearful', 'disgusted', 'kiss'] as const;
 export type Emotion = (typeof EMOTIONS)[number];
 
 /** A sparse weighting over blendshape names (missing keys = 0). */
@@ -133,6 +136,14 @@ export const EXPRESSION_PROTOTYPES: Record<Emotion, BlendshapeWeights> = {
     browDownLeft: 0.4,
     browDownRight: 0.4,
   },
+  kiss: {
+    // Lips funneled forward into an "ooo"/kiss. mouthFunnel is the reliable,
+    // load-bearing channel; mouthPucker is noisier so it only assists. These touch
+    // NONE of the other prototypes' channels, so kiss neither cross-trips nor is
+    // cross-tripped by the six emotions. den 1.0.
+    mouthFunnel: 0.7,
+    mouthPucker: 0.3,
+  },
 };
 
 /**
@@ -183,6 +194,8 @@ export const EXPRESSION_THRESHOLD_BOUNDS: Record<Emotion, ExpressionThresholdBou
   // because the eyeWide/browInnerUp channels read weakly on this model.
   fearful: { min: 0.2, max: 0.6, delta: 0.06 },
   disgusted: { min: 0.15, max: 0.6, delta: 0.06 },
+  // Reliable channel → normal bounds.
+  kiss: { min: 0.15, max: 0.6, delta: 0.06 },
 };
 
 export type ExpressionSensitivity = Record<Emotion, number>;
@@ -195,6 +208,7 @@ export const DEFAULT_EXPRESSION_SENSITIVITY: ExpressionSensitivity = {
   surprised: 0.5,
   fearful: 0.5,
   disgusted: 0.5,
+  kiss: 0.5,
 };
 
 /** A per-emotion sensitivity in [0,1] → its firing threshold, monotone DECREASING
@@ -272,6 +286,21 @@ export const ABSENT_EXPRESSION: ExpressionScores = {
 };
 
 // ---- Confusion-aware expression → scale-degree assignment -----------------
+//
+// This is the ORIGINAL confusion-aware auto-assignment (issue #64). The shipped
+// DEFAULT_EXPRESSION_TO_DEGREE is now a hand-picked map (below), so this machinery
+// is a reference/optimizer kept over its original 7-label set — `kiss` (the later
+// 7th emotion) is NOT part of it.
+export const CONFUSION_EXPRESSIONS = [
+  'happy',
+  'sad',
+  'angry',
+  'surprised',
+  'fearful',
+  'disgusted',
+  'neutral',
+] as const;
+type ConfusionLabel = (typeof CONFUSION_EXPRESSIONS)[number];
 
 /**
  * The three scale-degree indices (0..6) of the diatonic triad rooted on
@@ -297,7 +326,7 @@ export function sharedTriadNotes(degreeA: number, degreeB: number): number {
  * FER literature/human studies (issue #64 refs [6]-[9]): higher = more often
  * mistaken for one another. The negative cluster {anger, disgust, fear, sad} +
  * neutral is the confusable core; happy is the most distinct, surprise second.
- * Indexed by {@link EXPRESSIONS} order; only the listed pairs are non-zero.
+ * Indexed by {@link CONFUSION_EXPRESSIONS} order; only the listed pairs are non-zero.
  * Override with a *measured* matrix and re-run {@link optimalExpressionToDegree}.
  */
 export const CONFUSION_FER2013: number[][] = buildConfusionMatrix({
@@ -317,11 +346,11 @@ export const CONFUSION_FER2013: number[][] = buildConfusionMatrix({
 });
 
 function buildConfusionMatrix(pairs: Record<string, number>): number[][] {
-  const idx = new Map(EXPRESSIONS.map((e, i) => [e, i]));
-  const n = EXPRESSIONS.length;
+  const idx = new Map(CONFUSION_EXPRESSIONS.map((e, i) => [e, i]));
+  const n = CONFUSION_EXPRESSIONS.length;
   const m = Array.from({ length: n }, () => new Array(n).fill(0));
   for (const [pair, w] of Object.entries(pairs)) {
-    const [a, b] = pair.split('|') as ExpressionLabel[];
+    const [a, b] = pair.split('|') as ConfusionLabel[];
     const i = idx.get(a);
     const j = idx.get(b);
     if (i === undefined || j === undefined) throw new Error(`unknown expression in pair: ${pair}`);
@@ -331,8 +360,11 @@ function buildConfusionMatrix(pairs: Record<string, number>): number[][] {
   return m;
 }
 
-/** An expression→degree bijection, keyed by {@link ExpressionLabel}. */
-export type ExpressionToDegree = Record<ExpressionLabel, number>;
+/** An expression→scale-degree map, keyed by expression label. (A degree of
+ *  {@link SILENCE_DEGREE} means silence.) The confusion optimizer below produces
+ *  one over the original 7 labels; {@link DEFAULT_EXPRESSION_TO_DEGREE} is the full
+ *  hand-picked map over all {@link EXPRESSIONS}. */
+export type ExpressionToDegree = Record<string, number>;
 
 /**
  * The assignment objective: total confusion-weighted shared-note mass. Higher is
@@ -343,11 +375,11 @@ export function assignmentObjective(
   confusion: number[][] = CONFUSION_FER2013,
 ): number {
   let total = 0;
-  for (let i = 0; i < EXPRESSIONS.length; i++) {
-    for (let j = i + 1; j < EXPRESSIONS.length; j++) {
+  for (let i = 0; i < CONFUSION_EXPRESSIONS.length; i++) {
+    for (let j = i + 1; j < CONFUSION_EXPRESSIONS.length; j++) {
       const w = confusion[i][j];
       if (w === 0) continue;
-      total += w * sharedTriadNotes(assignment[EXPRESSIONS[i]], assignment[EXPRESSIONS[j]]);
+      total += w * sharedTriadNotes(assignment[CONFUSION_EXPRESSIONS[i]], assignment[CONFUSION_EXPRESSIONS[j]]);
     }
   }
   return total;
@@ -365,7 +397,7 @@ export function optimalExpressionToDegree(
   let bestScore = -Infinity;
   for (const perm of permutations([0, 1, 2, 3, 4, 5, 6])) {
     const assignment = Object.fromEntries(
-      EXPRESSIONS.map((e, i) => [e, perm[i]]),
+      CONFUSION_EXPRESSIONS.map((e, i) => [e, perm[i]]),
     ) as ExpressionToDegree;
     const score = assignmentObjective(assignment, confusion);
     if (score > bestScore) {
@@ -425,13 +457,25 @@ export const RECOMMENDED_EXPRESSION_TO_DEGREE: ExpressionToDegree = {
 export const SILENCE_DEGREE = -1;
 
 /**
- * The expression→degree assignment the chord mapping ships with: the confusion-aware
- * {@link RECOMMENDED_EXPRESSION_TO_DEGREE} for the six emotions, but `neutral`
- * defaults to {@link SILENCE_DEGREE} (silence) — a resting face plays nothing
- * unless the player assigns it a degree. (RECOMMENDED itself stays the pure 0..6
- * bijection the optimizer produces, for the confusion-assignment tests.)
+ * The expression→degree assignment the chord mapping ships with — a HAND-PICKED map
+ * (each emotion to a distinct scale degree, covering all of I..vii°), superseding
+ * the confusion-aware auto-assignment ({@link RECOMMENDED_EXPRESSION_TO_DEGREE},
+ * kept as a reference). In C major:
+ *
+ *   happy→I(0)·C    fearful→ii(1)·Dm   disgusted→iii(2)·Em   surprised→IV(3)·F
+ *   angry→V(4)·G    sad→vi(5)·Am       kiss→vii°(6)·B°       neutral→silence
+ *
+ * Happy sits on the tonic (home); the new `kiss` covers the tense diminished vii°;
+ * `neutral` defaults to {@link SILENCE_DEGREE} (a resting face plays nothing). All
+ * editable per-expression in the UI.
  */
 export const DEFAULT_EXPRESSION_TO_DEGREE: ExpressionToDegree = {
-  ...RECOMMENDED_EXPRESSION_TO_DEGREE,
-  neutral: SILENCE_DEGREE,
+  happy: 0, // I
+  fearful: 1, // ii
+  disgusted: 2, // iii
+  surprised: 3, // IV
+  angry: 4, // V
+  sad: 5, // vi
+  kiss: 6, // vii°
+  neutral: SILENCE_DEGREE, // silence
 };

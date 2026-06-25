@@ -94,7 +94,7 @@ Face blendshapes → normalized expression controls (smile, mouthOpen, brow, bli
 - **params:** gain (number=1), smoothing (number=0)
 
 #### `face-expression` — Face Expression
-Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).
+Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).
 
 - **roles:** feature
 - **in:** face:face-frame, sensitivity:expression-sensitivity

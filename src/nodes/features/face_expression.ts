@@ -51,7 +51,7 @@ export const faceExpressionNode = defineNode<Params>({
   roles: ['feature'],
   title: 'Face Expression',
   description:
-    'Face blendshapes → one of 6 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).',
+    'Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).',
   inputs: [
     { name: 'face', kind: 'face-frame' },
     // Live per-emotion sensitivities [0,1] (from the store); optional → defaults.

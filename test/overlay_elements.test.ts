@@ -275,14 +275,14 @@ describe('canvas-overlay composable elements', () => {
     const expression = {
       present: true,
       label: 'happy',
-      scores: [0.7, 0.1, 0.1, 0.1, 0.1, 0.1],
-      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
-      fired: [true, false, false, false, false, false],
+      scores: [0.7, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.4, 0.4, 0.375],
+      fired: [true, false, false, false, false, false, false],
     };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
     expect(rc.count('fillText')).toBe(1); // the label
     const strokes = rc.calls.filter((c) => c.m === 'stroke');
-    expect(strokes).toHaveLength(12); // 6 emotions × (activation bar + threshold tick)
+    expect(strokes).toHaveLength(14); // 7 emotions × (activation bar + threshold tick)
     expect(strokes[0].stroke).toBe('#f5d142'); // happy bar — the winner glows gold
     expect(strokes[1].stroke).toBe('#ffffff'); // happy's threshold tick is white
     expect(strokes[2].stroke).toBe('#22d3ee'); // sad bar — face cyan (not the winner)
@@ -294,14 +294,14 @@ describe('canvas-overlay composable elements', () => {
     const expression = {
       present: true,
       label: 'neutral',
-      scores: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
-      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
-      fired: [false, false, false, false, false, false],
+      scores: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.4, 0.4, 0.375],
+      fired: [false, false, false, false, false, false, false],
     };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
     expect(rc.count('fillText')).toBe(1); // 'neutral' label still renders
     const strokes = rc.calls.filter((c) => c.m === 'stroke');
-    expect(strokes).toHaveLength(12);
+    expect(strokes).toHaveLength(14);
     // No activation bar (even indices) uses the gold winner colour.
     expect(strokes.filter((_, i) => i % 2 === 0).every((s) => s.stroke !== '#f5d142')).toBe(true);
   });
@@ -316,9 +316,9 @@ describe('canvas-overlay composable elements', () => {
     const expression = {
       present: true,
       label: 'happy',
-      scores: [1, 0, 0, 0, 0, 0],
-      thresholds: [0.4, 0.4, 0.45, 0.4, 0.45, 0.4],
-      fired: [true, false, false, false, false, false],
+      scores: [1, 0, 0, 0, 0, 0, 0],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.4, 0.4, 0.375],
+      fired: [true, false, false, false, false, false, false],
     };
     expect(drawWith({ ...onlyElement('faceExpression'), faceExpression: { show: false } }, { expression }).count('stroke')).toBe(0);
   });

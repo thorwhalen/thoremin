@@ -6,8 +6,9 @@
 import { describe, it, expect } from 'vitest';
 import { diatonicTriad, isSevenNoteScale, type ScaleSpec } from '@/music/theory';
 import {
-  EXPRESSIONS,
   EMOTIONS,
+  CONFUSION_EXPRESSIONS,
+  DEFAULT_EXPRESSION_TO_DEGREE,
   expressionActivations,
   decideExpression,
   sensitivityToThreshold,
@@ -22,7 +23,6 @@ import {
   RECOMMENDED_EXPRESSION_TO_DEGREE,
   CONFUSION_FER2013,
   type Emotion,
-  type ExpressionLabel,
 } from '@/music/expression';
 import { EXPRESSION_HELP } from '@/app/expressionHelp';
 
@@ -165,6 +165,15 @@ describe('reachability: sad / disgusted / fearful fire after the prototype/thres
     expect(decideExpression(a).label).toBe('fearful');
   });
 
+  it('kiss: funneled-lips "ooo" fires kiss, and kiss does not cross-trip happy/surprise', () => {
+    const a = expressionActivations({ mouthFunnel: 0.8, mouthPucker: 0.5 }); // kiss = 0.71
+    expect(a.kiss).toBeGreaterThan(expressionThresholds().kiss);
+    expect(decideExpression(a).label).toBe('kiss');
+    // A smile or an open-mouth surprise (no mouthFunnel) must not read as kiss.
+    expect(decideExpression(expressionActivations({ mouthSmileLeft: 1, mouthSmileRight: 1 })).label).not.toBe('kiss');
+    expect(decideExpression(expressionActivations({ jawOpen: 1, eyeWideLeft: 0.8, eyeWideRight: 0.8 })).label).not.toBe('kiss');
+  });
+
   it('does NOT false-fire on non-emotional faces (open mouth → neutral, smile → not disgusted)', () => {
     // An open mouth drives mouthLowerDown high via jawOpen, but with no frown it
     // must stay neutral (the lower-lip weight is capped below the bar).
@@ -212,9 +221,27 @@ describe('triad note-sharing graph', () => {
   });
 });
 
+describe('shipped default expression→degree map (hand-picked)', () => {
+  it('covers I..vii° once each, kiss on vii°, neutral silent', () => {
+    const d = DEFAULT_EXPRESSION_TO_DEGREE;
+    expect(d.happy).toBe(0); // I
+    expect(d.fearful).toBe(1); // ii
+    expect(d.disgusted).toBe(2); // iii
+    expect(d.surprised).toBe(3); // IV
+    expect(d.angry).toBe(4); // V
+    expect(d.sad).toBe(5); // vi
+    expect(d.kiss).toBe(6); // vii°
+    expect(d.neutral).toBe(-1); // silence
+    // The seven scored emotions cover degrees 0..6 exactly once (all 7 chords).
+    expect(EMOTIONS.map((e) => d[e]).sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+});
+
 describe('confusion-aware assignment', () => {
-  const distinct = (a: Record<ExpressionLabel, number>) =>
-    new Set(Object.values(a)).size === EXPRESSIONS.length;
+  // The confusion optimizer is a bijection over the ORIGINAL 7 labels (it predates
+  // the later `kiss` emotion), so size against CONFUSION_EXPRESSIONS, not EXPRESSIONS.
+  const distinct = (a: Record<string, number>) =>
+    new Set(Object.values(a)).size === CONFUSION_EXPRESSIONS.length;
 
   it('the recommended seed is a valid bijection over degrees 0..6', () => {
     expect(distinct(RECOMMENDED_EXPRESSION_TO_DEGREE)).toBe(true);
@@ -245,7 +272,7 @@ describe('confusion-aware assignment', () => {
   it('recomputes from a custom (measured) matrix without throwing', () => {
     // A trivial matrix: only happy↔neutral confused → they should land on a
     // 2-note-sharing pair in the optimum.
-    const idx = Object.fromEntries(EXPRESSIONS.map((e, i) => [e, i]));
+    const idx = Object.fromEntries(CONFUSION_EXPRESSIONS.map((e, i) => [e, i]));
     const m = Array.from({ length: 7 }, () => new Array(7).fill(0));
     m[idx.happy][idx.neutral] = 1;
     m[idx.neutral][idx.happy] = 1;

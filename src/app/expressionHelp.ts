@@ -84,6 +84,14 @@ export const EXPRESSION_HELP: EmotionHelp[] = [
     blendshapes: ['noseSneerLeft', 'noseSneerRight', 'mouthUpperUpLeft', 'mouthUpperUpRight', 'browDownLeft', 'browDownRight'],
     hardToDetect: true,
   },
+  {
+    name: 'kiss',
+    keyAction: 'Push your lips forward into an “ooo” / kiss.',
+    howTo: 'Funnel your lips forward into a rounded “ooo” or kiss shape — push them outward, don’t just squeeze flat — and hold briefly. The model reads this one reliably.',
+    commonMistake: 'Pressing the lips flat instead of funneling them FORWARD; the forward “ooo” shape (mouthFunnel) is what registers.',
+    avoidConfusion: 'Keep the jaw closed and don’t smile — a wide-open or smiling mouth reads as surprised or happy instead.',
+    blendshapes: ['mouthFunnel', 'mouthPucker'],
+  },
 ];
 
 /** Authoritative reference links (the model + visual blendshape/emotion catalogs). */
