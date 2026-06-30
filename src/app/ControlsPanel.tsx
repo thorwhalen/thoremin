@@ -11,7 +11,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
-import { INSTRUMENTS, INSTRUMENT_IDS } from '@/music/instruments';
+import { SOUNDS, SOUND_IDS } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, type RenderingId } from '@/music/voicing';
 import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE } from '@/music/expression';
 import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
@@ -104,14 +104,14 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
     <div className="space-y-2">
       <h3 className={`text-[11px] font-bold uppercase tracking-widest ${color}`}>{side} hand</h3>
       <label className="flex items-center justify-between gap-2 text-xs">
-        Instrument
+        Sound
         <select
           className={selectCls}
-          value={voice.instrument}
-          onChange={(e) => setVoice(side, { instrument: e.target.value as VoiceControl['instrument'] })}
+          value={voice.sound}
+          onChange={(e) => setVoice(side, { sound: e.target.value as VoiceControl['sound'] })}
         >
-          {INSTRUMENT_IDS.map((id) => (
-            <option key={id} value={id}>{INSTRUMENTS[id].name}</option>
+          {SOUND_IDS.map((id) => (
+            <option key={id} value={id}>{SOUNDS[id].name}</option>
           ))}
         </select>
       </label>
@@ -303,14 +303,14 @@ function ChordControls() {
     <div className="space-y-2 border-l-2 border-amber-300/30 pl-3">
       <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-300/70">Chord sound</h4>
       <label className="flex items-center justify-between gap-2 text-xs">
-        Instrument
+        Sound
         <select
           className={selectCls}
-          value={chord.instrument}
-          onChange={(e) => set({ instrument: e.target.value as VoiceControl['instrument'] })}
+          value={chord.sound}
+          onChange={(e) => set({ sound: e.target.value as VoiceControl['sound'] })}
         >
-          {INSTRUMENT_IDS.map((id) => (
-            <option key={id} value={id}>{INSTRUMENTS[id].name}</option>
+          {SOUND_IDS.map((id) => (
+            <option key={id} value={id}>{SOUNDS[id].name}</option>
           ))}
         </select>
       </label>
@@ -354,7 +354,7 @@ function ChordControls() {
       </label>
       {tempoRelevant && (
         <p className="text-[10px] leading-relaxed text-white/40">
-          Tempo modes articulate best with a crisp instrument (organ / glass / bell); a slow-attack
+          Tempo modes articulate best with a crisp sound (organ / glass / bell); a slow-attack
           pad blurs fast arpeggios into a wash.
         </p>
       )}

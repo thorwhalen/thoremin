@@ -9,8 +9,8 @@ export const FEAT_PARAMS = { mirrorX: false, mirrorHandedness: false };
 
 export const MAP_PARAMS = {
   magnetism: 1,
-  right: { scale: { root: 0, type: 'major', octaves: 2, baseOctave: 3 }, instrument: 'sine' },
-  left: { scale: { root: 0, type: 'minorPentatonic', octaves: 2, baseOctave: 2 }, instrument: 'triangle' },
+  right: { scale: { root: 0, type: 'major', octaves: 2, baseOctave: 3 }, sound: 'sine' },
+  left: { scale: { root: 0, type: 'minorPentatonic', octaves: 2, baseOctave: 2 }, sound: 'triangle' },
 };
 
 export function pipeline(handsParams: Record<string, unknown>): GraphSpec {

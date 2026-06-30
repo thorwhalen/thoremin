@@ -2,7 +2,7 @@
  * Zustand control store — the single source of truth for live UI controls.
  * The React control panel writes here; the `store-controls` DAG node reads
  * `getState()` each tick and emits the values onto the graph as port values.
- * This keeps UI state out of the graph spec, so changing scale/instrument/overlay
+ * This keeps UI state out of the graph spec, so changing scale/sound/overlay
  * never rebuilds the engine or reloads the ML model.
  *
  * The control *values* (not the setters) are persisted to localStorage via the
@@ -16,7 +16,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { ScaleTypeId } from '@/music/theory';
-import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
+import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
 import { OverlayParamsSchema, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
 import {
@@ -41,7 +41,7 @@ export interface VoiceControl {
   type: ScaleTypeId;
   octaves: number;
   baseOctave: number;
-  instrument: VoiceParams['instrument'];
+  sound: VoiceParams['sound'];
 }
 
 export interface ControlState {
@@ -56,7 +56,7 @@ export interface ControlState {
    * by the nodes each tick via `ctx.resources.controls`.
    */
   faceMapping: FaceMapping;
-  /** How the face chord sounds (instrument / volume / voicing / rendering / tempo).
+  /** How the face chord sounds (sound / volume / voicing / rendering / tempo).
    *  Read live by `expression-chord` via the `chordConfig` port. */
   faceChord: FaceChord;
   /** The expression-mapping config: per-emotion firing sensitivity (read live by
@@ -68,7 +68,7 @@ export interface ControlState {
   /**
    * Output formats a recording is saved in (ids from the recording format
    * registry; always ≥1). A tooling preference — persisted to localStorage but
-   * NOT part of a musical preset (it's orthogonal to the instrument's sound).
+   * NOT part of a musical preset (it's orthogonal to the sound's sound).
    */
   recordingFormats: string[];
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
@@ -89,14 +89,14 @@ export interface ControlState {
   applySettings(s: Settings): void;
 }
 
-const defaultVoice = (instrument: VoiceParams['instrument']): VoiceControl => ({
+const defaultVoice = (sound: VoiceParams['sound']): VoiceControl => ({
   root: 0,
   // Pentatonic by default: every snapped note sounds consonant, so the
-  // instrument is forgiving and musical out of the box.
+  // sound is forgiving and musical out of the box.
   type: 'pentatonic',
   octaves: 2,
   baseOctave: 3,
-  instrument,
+  sound,
 });
 
 /** The overlay element defaults (all on except the opt-in index-finger guide). */
@@ -114,11 +114,21 @@ export function toSettings(s: ControlState): Settings {
   return pickSettings(s as unknown as Record<string, unknown>);
 }
 
+/** Rename a legacy `instrument` timbre field to `sound` on a settings sub-object,
+ *  so a returning player keeps their selection after the rename. */
+function migrateInstrumentField(obj: unknown): void {
+  if (obj && typeof obj === 'object') {
+    const o = obj as Record<string, unknown>;
+    if (o.instrument !== undefined && o.sound === undefined) o.sound = o.instrument;
+    delete o.instrument;
+  }
+}
+
 /**
- * Persist migration (v1 → v2): the #64 face-mapping chooser replaced the boolean
- * `faceEnabled` with the tri-state `faceMapping`. Maps a saved `faceEnabled:true`
- * → `faceMapping:'timbre'` so a returning player keeps face control on instead of
- * silently reverting to off. Exported for direct testing.
+ * Persist migration. v1 → v2: the #64 face-mapping chooser replaced the boolean
+ * `faceEnabled` with the tri-state `faceMapping`. v2 → v3: the per-hand / chord
+ * timbre field was renamed `instrument` → `sound`; a returning player's saved
+ * `instrument` becomes `sound` so they keep their sound. Exported for direct testing.
  */
 export function migrateControls(persisted: unknown, version: number): ControlState {
   const s = { ...(persisted as Record<string, unknown>) };
@@ -127,6 +137,11 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
       s.faceMapping = legacyFaceToMapping(s.faceEnabled as boolean | undefined);
     }
     delete s.faceEnabled;
+  }
+  if (version < 3) {
+    migrateInstrumentField(s.right);
+    migrateInstrumentField(s.left);
+    migrateInstrumentField(s.faceChord);
   }
   return s as unknown as ControlState;
 }
@@ -193,8 +208,8 @@ const controlsStorage = (): StateStorage =>
 export const useControls = create<ControlState>()(
   persist(
     (set) => ({
-      right: defaultVoice(DEFAULT_INSTRUMENT_RIGHT),
-      left: defaultVoice(DEFAULT_INSTRUMENT_LEFT),
+      right: defaultVoice(DEFAULT_SOUND_RIGHT),
+      left: defaultVoice(DEFAULT_SOUND_LEFT),
       syncHands: true,
       masterVolume: 0.4,
       faceMapping: 'none',
@@ -210,12 +225,12 @@ export const useControls = create<ControlState>()(
           const next = { ...s[side], ...patch };
           if (s.syncHands) {
             // When synced, both hands share settings — including the patched
-            // instrument on the *addressed* hand — but each hand keeps its OWN
-            // instrument otherwise, so the two voices stay timbrally distinct.
+            // sound on the *addressed* hand — but each hand keeps its OWN
+            // sound otherwise, so the two voices stay timbrally distinct.
             const other = side === 'right' ? 'left' : 'right';
             return {
               [side]: next,
-              [other]: { ...next, instrument: s[other].instrument },
+              [other]: { ...next, sound: s[other].sound },
             } as Pick<ControlState, 'right' | 'left'>;
           }
           return { [side]: next } as Pick<ControlState, 'right' | 'left'>;
@@ -253,13 +268,12 @@ export const useControls = create<ControlState>()(
     }),
     {
       name: 'thoremin-controls',
-      // Version 2: the face-mapping chooser (#64) replaced the boolean
-      // `faceEnabled` with the tri-state `faceMapping`. See migrateControls (field
-      // rename) and mergeControls (heals a stale `overlay`/`faceChord` + clamps
-      // `faceMapping`). The later `faceChord` field is additive and default-safe
-      // (the initializer + mergeControls supply it for a v2 blob that predates it),
-      // so it intentionally needs no version bump or migrate branch.
-      version: 2,
+      // Version 3: the per-hand / chord timbre field was renamed `instrument` →
+      // `sound` (the word "instrument" is now reserved for a saved config). v2 added
+      // the face-mapping chooser (#64: `faceEnabled` → `faceMapping`). See
+      // migrateControls (both field renames) and mergeControls (heals a stale
+      // `overlay`/`faceChord`/`faceExpr` + clamps `faceMapping`).
+      version: 3,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

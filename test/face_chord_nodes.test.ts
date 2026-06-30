@@ -357,8 +357,8 @@ describe('voice-mapping face→timbre suppression (#64 chord mode)', () => {
 describe('synth-merge node', () => {
   it('concatenates voices from both inputs', async () => {
     const node = synthMergeNode.make(synthMergeNode.params.parse({}));
-    const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, instrument: 'sine' }] };
-    const b: SynthParams = { voices: [{ id: 2, present: true, freq: 550, gain: 0.2, instrument: 'triangle' }] };
+    const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] };
+    const b: SynthParams = { voices: [{ id: 2, present: true, freq: 550, gain: 0.2, sound: 'triangle' }] };
     const out = await replayNode(node, { a: [a], b: [b] });
     const merged = out[0].params as SynthParams;
     expect(merged.voices.map((v) => v.id)).toEqual([0, 2]);
@@ -366,7 +366,7 @@ describe('synth-merge node', () => {
 
   it('treats a missing input as no voices (hand voices pass through when chord idle)', async () => {
     const node = synthMergeNode.make(synthMergeNode.params.parse({}));
-    const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, instrument: 'sine' }] };
+    const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] };
     const out = await replayNode(node, { a: [a] });
     expect((out[0].params as SynthParams).voices).toHaveLength(1);
   });

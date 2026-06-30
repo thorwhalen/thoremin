@@ -1,11 +1,11 @@
 /**
  * `webaudio-synth` node (browser-only) — renders {@link SynthParams} to sound
- * via the Web Audio API, using the instrument preset registry
- * ({@link getInstrument}). Each voice is built from its preset's additive
+ * via the Web Audio API, using the sound preset registry
+ * ({@link getSound}). Each voice is built from its preset's additive
  * oscillator partials, run through an optional tone filter and pitch vibrato,
  * with a smoothed amplitude envelope so per-frame parameter updates never click.
  * All voices share a reverb and feed an output compressor bus, which gives the
- * whole instrument a sense of space and protects headroom when voices stack.
+ * whole sound a sense of space and protects headroom when voices stack.
  *
  * The AudioContext and master GainNode are injected through `ctx.resources`
  * (the host owns them, because audio can only start after a user gesture). If
@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { getInstrument } from '@/music/instruments';
+import { getSound } from '@/music/sounds';
 import type { SynthParams, VoiceParams } from '../domain';
 
 const Params = z.object({
@@ -34,8 +34,8 @@ interface PartialOsc {
 }
 
 interface Voice {
-  /** The instrument id this voice was built for (rebuilt if it changes). */
-  instrument: string;
+  /** The sound id this voice was built for (rebuilt if it changes). */
+  sound: string;
   partials: PartialOsc[];
   /** Always-on vibrato LFO; `depth` (cents) tracks preset base + live amount. */
   vibrato: { lfo: OscillatorNode; depth: GainNode; baseCents: number };
@@ -109,7 +109,7 @@ function ensureBus(ac: AudioContext, master: GainNode, current: Bus | null): Bus
   comp.ratio.setValueAtTime(3, now);
   comp.attack.setValueAtTime(0.005, now);
   comp.release.setValueAtTime(0.2, now);
-  // Makeup gain recovers the level the compressor sheds, so the instrument is
+  // Makeup gain recovers the level the compressor sheds, so the sound is
   // present at a sensible default volume. The host master fader sits after it.
   const makeup = ac.createGain();
   makeup.gain.setValueAtTime(1.6, now);
@@ -128,7 +128,7 @@ function ensureBus(ac: AudioContext, master: GainNode, current: Bus | null): Bus
 }
 
 function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voice {
-  const preset = getInstrument(v.instrument);
+  const preset = getSound(v.sound);
   const now = ac.currentTime;
   const nodes: AudioNode[] = [];
 
@@ -172,7 +172,7 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
 
   // Vibrato: an always-on LFO modulating every partial's detune (cents). The
   // depth is the preset's base plus a live amount (e.g. from pinch), so any
-  // instrument can be made to wobble by gesture.
+  // sound can be made to wobble by gesture.
   const baseCents = preset.vibrato?.depthCents ?? 0;
   const lfo = ac.createOscillator();
   lfo.frequency.setValueAtTime(preset.vibrato?.rateHz ?? DFLT_VIBRATO_HZ, now);
@@ -204,7 +204,7 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
   }
 
   return {
-    instrument: v.instrument,
+    sound: v.sound,
     partials,
     vibrato,
     brightnessFilter,
@@ -217,7 +217,7 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
 }
 
 /**
- * Tear a voice down. With `fade` (a live instrument swap on a sounding voice),
+ * Tear a voice down. With `fade` (a live sound swap on a sounding voice),
  * ramp the amplitude to zero over a few ms and stop the oscillators after a
  * short tail so the switch doesn't click; otherwise (engine dispose) stop now.
  */
@@ -264,7 +264,7 @@ export const webAudioSynthNode = defineNode<Params>({
   type: 'webaudio-synth',
   roles: ['synth'],
   title: 'Web Audio Synth',
-  description: 'Renders synth params to instrument-preset voices (browser only).',
+  description: 'Renders synth params to sound-preset voices (browser only).',
   inputs: [{ name: 'params', kind: 'synth-params' }],
   outputs: [],
   params: Params,
@@ -289,7 +289,7 @@ export const webAudioSynthNode = defineNode<Params>({
           if (!Number.isFinite(v.freq) || !Number.isFinite(v.gain)) continue;
           let voice = voices.get(v.id);
           // Instrument changed → fade out the old voice and rebuild.
-          if (voice && voice.instrument !== v.instrument) {
+          if (voice && voice.sound !== v.sound) {
             teardownVoice(voice, ac, true);
             voices.delete(v.id);
             voice = undefined;

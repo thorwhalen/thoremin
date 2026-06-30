@@ -24,7 +24,7 @@
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
   <p class="gen">Auto-generated from the node registry. 25 nodes.</p>
-  <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build instruments by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live instrument is in progress.</p>
+  <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live sound is in progress.</p>
   <h3>Example pipelines</h3>
   <ul class="examples"><li><b>Theremin (direct)</b> — <code>webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)</code><br/><span class="note">Hand x → scale-snapped pitch, y → volume. Two hands = two voices.</span></li><li><b>Gesture → harmony</b> — <code>hand-features → pick('right.x') → progression → chord → webaudio-synth</code><br/><span class="note">Hand position walks an in-key chord progression.</span></li><li><b>Conductor</b> — <code>control → performance → transport → score → webaudio-synth</code><br/><span class="note">A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).</span></li><li><b>Indirect / AI (gesture or expression)</b> — <code>hand-features / face-features → indirect-map → lyria</code><br/><span class="note">Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.</span></li><li><b>Discrete triggers</b> — <code>hand-features → gesture-classifier → (events)</code><br/><span class="note">Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.</span></li></ul>
   <section><h3>Inputs (sources)</h3><p class="blurb">Where signals enter the graph.</p><div class="grid">
@@ -60,11 +60,11 @@
     </div>
     <div class="node">
       <h4><code>store-controls</code> <span class="title">UI Controls</span></h4>
-      <p>Reads the live UI control store → scale + instrument + overlay port values.</p>
+      <p>Reads the live UI control store → scale + sound + overlay port values.</p>
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -135,9 +135,9 @@
       <p>Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).</p>
       <dl>
         <dt>roles</dt><dd>mapping</dd>
-        <dt>in</dt><dd>features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, face:face-features</dd>
+        <dt>in</dt><dd>features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features</dd>
         <dt>out</dt><dd>params:synth-params</dd>
-        <dt>params</dt><dd>magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"triangle"})</dd>
+        <dt>params</dt><dd>magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"triangle"})</dd>
       </dl>
     </div>
     <div class="node">
@@ -198,7 +198,7 @@
         <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>chord:chord-symbol, gain:number</dd>
         <dt>out</dt><dd>params:synth-params</dd>
-        <dt>params</dt><dd>baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")</dd>
+        <dt>params</dt><dd>baseOctave (number=4), maxVoices (number=4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")</dd>
       </dl>
     </div>
     <div class="node">
@@ -218,7 +218,7 @@
         <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees</dd>
         <dt>out</dt><dd>params:synth-params, triad:number[]</dd>
-        <dt>params</dt><dd>gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)</dd>
+        <dt>params</dt><dd>gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)</dd>
       </dl>
     </div></div></section>
 <section><h3>Conductor mode</h3><p class="blurb">Direct a fixed piece with gesture (tempo + dynamics).</p><div class="grid">
@@ -239,7 +239,7 @@
         <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>beat:number, velocityScale:number</dd>
         <dt>out</dt><dd>params:synth-params</dd>
-        <dt>params</dt><dd>notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")</dd>
+        <dt>params</dt><dd>notes (array=[]), loopBeats (number=8), baseGain (number=0.4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")</dd>
       </dl>
     </div>
     <div class="node">
@@ -255,7 +255,7 @@
 <section><h3>Synthesis &amp; generation</h3><p class="blurb">Make sound — direct synthesis or steered AI music.</p><div class="grid">
     <div class="node">
       <h4><code>webaudio-synth</code> <span class="title">Web Audio Synth</span></h4>
-      <p>Renders synth params to instrument-preset voices (browser only).</p>
+      <p>Renders synth params to sound-preset voices (browser only).</p>
       <dl>
         <dt>roles</dt><dd>synth</dd>
         <dt>in</dt><dd>params:synth-params</dd>

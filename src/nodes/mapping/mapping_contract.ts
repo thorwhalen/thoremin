@@ -30,11 +30,11 @@ export const MAPPING_SLOT_INPUTS: PortSpec[] = [
   { name: 'magnetism', kind: 'number', description: 'Override magnetism 0..1' },
   { name: 'octaveShift', kind: 'number', default: 0, description: 'Transpose by N octaves' },
   { name: 'mute', kind: 'boolean', default: false },
-  // Live scale/instrument overrides (from store-controls).
+  // Live scale/sound overrides (from store-controls).
   { name: 'scaleRight', kind: 'number[]' },
   { name: 'scaleLeft', kind: 'number[]' },
-  { name: 'instrumentRight', kind: 'instrument' },
-  { name: 'instrumentLeft', kind: 'instrument' },
+  { name: 'soundRight', kind: 'sound' },
+  { name: 'soundLeft', kind: 'sound' },
   // Optional facial expression (from face-features).
   { name: 'face', kind: 'face-features' },
 ];

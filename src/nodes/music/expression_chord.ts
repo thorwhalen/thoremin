@@ -17,7 +17,7 @@
  * voices it still sees in the array, so a vanishing voice would leave a chord stuck
  * sounding. Stable ids also let the synth glide/re-articulate cleanly.
  *
- * Live config (instrument / volume / voicing / rendering / tempo) arrives on the
+ * Live config (sound / volume / voicing / rendering / tempo) arrives on the
  * `chordConfig` input (from the UI store via `store-controls`), so changing it
  * never rebuilds the graph. The `triad` output is the un-voiced scale triad (three
  * tones), used by the overlay to highlight the chord's pitch classes on the guide.
@@ -29,7 +29,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
-import { InstrumentSchema } from '@/music/instruments';
+import { SoundSchema } from '@/music/sounds';
 import {
   DEFAULT_EXPRESSION_TO_DEGREE,
   SILENCE_DEGREE,
@@ -49,7 +49,7 @@ const Params = z.object({
   /** Volume of the chord (0..1) — gentle by default so it supports the melody. */
   gain: z.number().min(0).max(1).default(0.22),
   /** Instrument timbre for the chord voices. */
-  instrument: InstrumentSchema.default('triangle'),
+  sound: SoundSchema.default('triangle'),
   /** How the triad is arranged (low bass + upper structure). */
   voicing: z.enum(VOICINGS).default('spread'),
   /** How the voiced chord is played over time. */
@@ -61,7 +61,7 @@ type Params = z.infer<typeof Params>;
 
 /** Live chord settings from the UI store (override the static params each tick). */
 interface ChordConfig {
-  instrument?: VoiceParams['instrument'];
+  sound?: VoiceParams['sound'];
   gain?: number;
   voicing?: VoicingId;
   rendering?: RenderingId;
@@ -80,7 +80,7 @@ export const expressionChordNode = defineNode<Params>({
     { name: 'faceMapping', kind: 'face-mapping', default: 'none' },
     // Live keyboard octave shift, so the chord tracks the melody's register.
     { name: 'octaveShift', kind: 'number', default: 0 },
-    // Live chord settings (instrument / volume / voicing / rendering / tempo).
+    // Live chord settings (sound / volume / voicing / rendering / tempo).
     { name: 'chordConfig', kind: 'chord-config' },
     // Per-expression scale-degree map (which triad each expression plays); optional.
     { name: 'degrees', kind: 'expression-degrees' },
@@ -103,13 +103,13 @@ export const expressionChordNode = defineNode<Params>({
         present: false,
         freq: midiToFreq(60),
         gain: 0,
-        instrument: p.instrument,
+        sound: p.sound,
       }));
 
     return {
       process(inputs, ctx: NodeContext) {
         const cfg = (inputs.chordConfig as ChordConfig | undefined) ?? {};
-        const instrument = cfg.instrument ?? p.instrument;
+        const sound = cfg.sound ?? p.sound;
         const gain = cfg.gain ?? p.gain;
         const voicing = cfg.voicing ?? p.voicing;
         const rendering = cfg.rendering ?? p.rendering;
@@ -163,7 +163,7 @@ export const expressionChordNode = defineNode<Params>({
             present: g > 0,
             freq: midiToFreq(midi ?? 60),
             gain: g,
-            instrument,
+            sound,
           });
         }
         return { params: { voices }, triad };

@@ -20,7 +20,7 @@ import {
   clamp01,
   type ScaleTypeId,
 } from '@/music/theory';
-import { InstrumentSchema, INSTRUMENT_IDS } from '@/music/instruments';
+import { SoundSchema, SOUND_IDS } from '@/music/sounds';
 import { ABSENT_HAND, type FaceFeatures, type HandFeatures, type SynthParams, type VoiceParams } from '../domain';
 import { MAPPING_SLOT_INPUTS, MAPPING_SLOT_OUTPUT } from './mapping_contract';
 
@@ -44,7 +44,7 @@ const ScaleParams = z.object({
   baseOctave: z.number().int().min(0).max(7).default(3),
 });
 
-const Instrument = InstrumentSchema;
+const Instrument = SoundSchema;
 
 const Params = z.object({
   /** 0 = free glide, 1 = hard snap to scale notes. */
@@ -63,13 +63,13 @@ const Params = z.object({
   panByPosition: z.boolean().default(true),
   /** Max stereo spread (0..1) at the edges of the frame when panByPosition is on. */
   panSpread: z.number().min(0).max(1).default(0.5),
-  right: z.object({ scale: ScaleParams, instrument: Instrument.default('sine') }).default({
+  right: z.object({ scale: ScaleParams, sound: Instrument.default('sine') }).default({
     scale: ScaleParams.parse({}),
-    instrument: 'sine',
+    sound: 'sine',
   }),
-  left: z.object({ scale: ScaleParams, instrument: Instrument.default('triangle') }).default({
+  left: z.object({ scale: ScaleParams, sound: Instrument.default('triangle') }).default({
     scale: ScaleParams.parse({}),
-    instrument: 'triangle',
+    sound: 'triangle',
   }),
 });
 type Params = z.infer<typeof Params>;
@@ -85,13 +85,13 @@ function voiceFor(
   id: number,
   feat: typeof ABSENT_HAND,
   scaleMidis: number[],
-  instrument: VoiceParams['instrument'],
+  sound: VoiceParams['sound'],
   p: Params,
   ctrl: Control,
   faceMod: FaceMod,
 ): VoiceParams {
   if (!feat.present || ctrl.mute) {
-    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, instrument, brightness: 1, vibrato: 0, pan: 0 };
+    return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, sound, brightness: 1, vibrato: 0, pan: 0 };
   }
   const midi = magneticPitch(feat.x, scaleMidis, ctrl.magnetism) + ctrl.octaveShift * 12;
   const freq = midiToFreq(midi);
@@ -107,7 +107,7 @@ function voiceFor(
   const vibrato = clamp01(baseVib + faceMod.vibrato);
   // Hand x places the voice in stereo: centre at x=0.5, spreading to ±panSpread.
   const pan = p.panByPosition ? Math.max(-1, Math.min(1, (feat.x - 0.5) * 2 * p.panSpread)) : 0;
-  return { id, present: true, freq, gain, instrument, brightness, vibrato, pan };
+  return { id, present: true, freq, gain, sound, brightness, vibrato, pan };
 }
 
 export const voiceMappingNode = defineNode<Params>({
@@ -139,12 +139,12 @@ export const voiceMappingNode = defineNode<Params>({
       ? inputs.scaleLeft
       : generateScale({ ...p.left.scale, type: p.left.scale.type as ScaleTypeId });
 
-    const instR = ((INSTRUMENT_IDS as string[]).includes(inputs.instrumentRight as string)
-      ? (inputs.instrumentRight as VoiceParams['instrument'])
-      : p.right.instrument);
-    const instL = ((INSTRUMENT_IDS as string[]).includes(inputs.instrumentLeft as string)
-      ? (inputs.instrumentLeft as VoiceParams['instrument'])
-      : p.left.instrument);
+    const instR = ((SOUND_IDS as string[]).includes(inputs.soundRight as string)
+      ? (inputs.soundRight as VoiceParams['sound'])
+      : p.right.sound);
+    const instL = ((SOUND_IDS as string[]).includes(inputs.soundLeft as string)
+      ? (inputs.soundLeft as VoiceParams['sound'])
+      : p.left.sound);
 
     // Face expression is global (one face modulates both hands). The face→timbre
     // mapping only applies in the 'timbre' face mode: in 'chord' mode the face

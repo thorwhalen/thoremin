@@ -2,11 +2,11 @@
 
 _Auto-generated from the node registry (`scripts/gen_catalog.ts`). Do not edit by hand._
 
-Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build instruments by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
+Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
 
 The mapping layer spans a spectrum: **direct** (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through **indirect** (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including **conductor** mode (direct a fixed piece's tempo and dynamics).
 
-This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live instrument is in progress.
+This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live sound is in progress.
 
 ## Example pipelines
 
@@ -51,11 +51,11 @@ Global keyboard input → held / pressed / released key events.
 - **params:** preventDefaultKeys (array=["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "])
 
 #### `store-controls` — UI Controls
-Reads the live UI control store → scale + instrument + overlay port values.
+Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -116,9 +116,9 @@ _Features → engine parameters, across the expression spectrum._
 Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).
 
 - **roles:** mapping
-- **in:** features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], instrumentRight:instrument, instrumentLeft:instrument, face:face-features
+- **in:** features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features
 - **out:** params:synth-params
-- **params:** magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"instrument":"triangle"})
+- **params:** magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"triangle"})
 
 #### `indirect-map` — Indirect Map
 Gesture features → weighted prompts + config dials (steers a generative engine).
@@ -169,7 +169,7 @@ Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
 - **roles:** music
 - **in:** chord:chord-symbol, gain:number
 - **out:** params:synth-params
-- **params:** baseOctave (number=4), maxVoices (number=4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")
+- **params:** baseOctave (number=4), maxVoices (number=4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")
 
 #### `progression` — Progression
 Roman-numeral progression in a key + position (0..1) → current chord symbol.
@@ -185,7 +185,7 @@ Facial expression → a voiced, rendered diatonic chord on the current seven-not
 - **roles:** music
 - **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees
 - **out:** params:synth-params, triad:number[]
-- **params:** gain (number=0.22), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
+- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._
@@ -204,7 +204,7 @@ An immutable piece performed live: beat + velocityScale → sounding synth voice
 - **roles:** music
 - **in:** beat:number, velocityScale:number
 - **out:** params:synth-params
-- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), instrument (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")
+- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")
 
 #### `performance` — Performance
 Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.
@@ -218,7 +218,7 @@ Control signal → tempo (bpm) + dynamics (velocityScale), with optional humaniz
 _Make sound — direct synthesis or steered AI music._
 
 #### `webaudio-synth` — Web Audio Synth
-Renders synth params to instrument-preset voices (browser only).
+Renders synth params to sound-preset voices (browser only).
 
 - **roles:** synth
 - **in:** params:synth-params

@@ -135,7 +135,7 @@
         "default": 4
       },
       {
-        "name": "instrument",
+        "name": "sound",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "sine"
       }
@@ -193,7 +193,7 @@
         "default": 0.22
       },
       {
-        "name": "instrument",
+        "name": "sound",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "triangle"
       },
@@ -794,7 +794,7 @@
         "default": 0.4
       },
       {
-        "name": "instrument",
+        "name": "sound",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "triangle"
       }
@@ -803,7 +803,7 @@
   {
     "type": "store-controls",
     "title": "UI Controls",
-    "description": "Reads the live UI control store → scale + instrument + overlay port values.",
+    "description": "Reads the live UI control store → scale + sound + overlay port values.",
     "roles": [
       "source",
       "control"
@@ -819,12 +819,12 @@
         "kind": "number[]"
       },
       {
-        "name": "instrumentRight",
-        "kind": "instrument"
+        "name": "soundRight",
+        "kind": "sound"
       },
       {
-        "name": "instrumentLeft",
-        "kind": "instrument"
+        "name": "soundLeft",
+        "kind": "sound"
       },
       {
         "name": "overlay",
@@ -1000,12 +1000,12 @@
         "kind": "number[]"
       },
       {
-        "name": "instrumentRight",
-        "kind": "instrument"
+        "name": "soundRight",
+        "kind": "sound"
       },
       {
-        "name": "instrumentLeft",
-        "kind": "instrument"
+        "name": "soundLeft",
+        "kind": "sound"
       },
       {
         "name": "face",
@@ -1069,7 +1069,7 @@
             "octaves": 2,
             "baseOctave": 3
           },
-          "instrument": "sine"
+          "sound": "sine"
         }
       },
       {
@@ -1082,7 +1082,7 @@
             "octaves": 2,
             "baseOctave": 3
           },
-          "instrument": "triangle"
+          "sound": "triangle"
         }
       }
     ]
@@ -1090,7 +1090,7 @@
   {
     "type": "webaudio-synth",
     "title": "Web Audio Synth",
-    "description": "Renders synth params to instrument-preset voices (browser only).",
+    "description": "Renders synth params to sound-preset voices (browser only).",
     "roles": [
       "synth"
     ],
