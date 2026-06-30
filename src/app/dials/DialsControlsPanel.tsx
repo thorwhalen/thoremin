@@ -9,13 +9,14 @@
  *
  * What is dials-driven: master volume / sync, both voices, the face-mapping chooser +
  * chord sound, the expression-mapping table, and the overlay element config. What is
- * NOT (kept verbatim, reading their own stores): Recording formats (a tooling pref),
- * named Presets (the older zodal preset collection), and the Keyboard cheat-sheet.
+ * NOT (kept verbatim, reading their own stores): Recording formats (a tooling pref) and
+ * the Keyboard cheat-sheet. (Named saved configs are now the "instruments" flow that
+ * hosts this panel — see InstrumentsPanel — so the old Presets section was removed.)
  *
  * Renders just the controls *content* (no outer card); the host (App) wraps it in a
  * collapsible translucent overlay so the video stays the focus.
  */
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
 import { SOUNDS, SOUND_IDS } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, type RenderingId } from '@/music/voicing';
@@ -26,7 +27,6 @@ import { useControls } from '../store';
 import { OVERLAY_CONTROLS, type OverlayControlDesc } from '../overlayControls';
 import { ExpressionHelpButton } from '../ExpressionHelpPanel';
 import { useFaceStatus } from '../faceStatus';
-import { usePresets } from '../usePresets';
 import { RECORDING_FORMATS } from '../recording/formats';
 import { useDialsSettings } from './useDialsSettings';
 import { voiceEditWrites, type VoiceField } from './settingsStore';
@@ -547,66 +547,6 @@ function RecordingControls() {
   );
 }
 
-function PresetControls() {
-  const { presets, busy, save, load, remove } = usePresets();
-  const [name, setName] = useState('');
-
-  const doSave = () => {
-    void save(name);
-    setName('');
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-1">
-        <input
-          className={`${selectCls} flex-1`}
-          placeholder="Name this setup…"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') doSave();
-          }}
-        />
-        <button
-          type="button"
-          className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20 disabled:opacity-40"
-          disabled={busy || !name.trim()}
-          onClick={doSave}
-        >
-          Save
-        </button>
-      </div>
-      {presets.length === 0 ? (
-        <p className="text-[10px] text-white/40">No saved presets yet.</p>
-      ) : (
-        <ul className="space-y-1">
-          {presets.map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-2 text-xs">
-              <button
-                type="button"
-                className="flex-1 truncate text-left hover:text-emerald-300"
-                title="Load this preset"
-                onClick={() => void load(p.id)}
-              >
-                {p.name}
-              </button>
-              <button
-                type="button"
-                className="px-1 text-white/40 hover:text-red-400"
-                title="Delete this preset"
-                onClick={() => void remove(p.id)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 export default function DialsControlsPanel() {
   const { state, set } = useDialsSettings();
   const v = state.effective;
@@ -641,10 +581,6 @@ export default function DialsControlsPanel() {
 
       <TopSection label="Recording">
         <RecordingControls />
-      </TopSection>
-
-      <TopSection label="Presets">
-        <PresetControls />
       </TopSection>
 
       <TopSection label="Keyboard">

@@ -19,7 +19,6 @@ import { createSettingsStore, toSettingsForm } from '@zodal/dials-ui';
 import type { SettingFieldConfig, SettingsForm } from '@zodal/dials-ui';
 import type { SettingKey } from '@zodal/dials-core';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
-import type { Settings } from '@/settings/schema';
 import { useControls, toSettings } from '../store';
 
 /** The headless form (field configs + facet groups) — value-independent, built once. */
@@ -62,15 +61,6 @@ dialsStore.subscribe(() => {
 export const setDial = (key: SettingKey, value: unknown): void => dialsStore.set(key, value);
 /** Reset one dial (a lower scope — the defaults — re-wins). */
 export const resetDial = (key: SettingKey): void => dialsStore.reset(key);
-
-/**
- * Load a full settings snapshot into the panel by re-seeding the dials layer; the
- * one-way sync above then updates the hot store. Use this for any external load
- * (the legacy presets today, the instruments in Phase 4) so the dials store stays
- * the single entry point and the panel can never desync from what is playing.
- */
-export const loadSettingsIntoDials = (settings: Settings): void =>
-  dialsStore.setLayer(settingsToLayer(settings));
 
 /** The voice fields mirrored between hands when synced. `sound` is never mirrored —
  *  each hand keeps its own timbre. */

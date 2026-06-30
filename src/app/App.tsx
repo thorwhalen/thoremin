@@ -9,12 +9,11 @@
  * All signal processing happens in the DAG engine via {@link useThoreminEngine};
  * this component is purely presentational + lifecycle.
  */
-import { useState } from 'react';
-import { Settings, X, Play, BookOpen, Circle, Square } from 'lucide-react';
+import { Play, BookOpen, Circle, Square } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
-import DialsControlsPanel from './dials/DialsControlsPanel';
+import InstrumentsPanel from './dials/InstrumentsPanel';
 import Toaster from './Toaster';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
@@ -53,7 +52,6 @@ function FaceChip() {
 export default function App() {
   const { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording } =
     useThoreminEngine();
-  const [panelOpen, setPanelOpen] = useState(true);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">
@@ -108,33 +106,8 @@ export default function App() {
         </button>
       )}
 
-      {/* Top-right: collapsible controls — open by default (available), minimize
-          to a single gear once you've set things up. */}
-      {panelOpen ? (
-        <div className="absolute right-3 top-3 flex max-h-[calc(100dvh-1.5rem)] w-72 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-white/70">Controls</span>
-            <button
-              onClick={() => setPanelOpen(false)}
-              aria-label="Minimize controls"
-              className="rounded p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="overflow-auto p-4">
-            <DialsControlsPanel />
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setPanelOpen(true)}
-          aria-label="Open controls"
-          className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/50 p-2.5 text-white/80 backdrop-blur transition hover:text-white"
-        >
-          <Settings className="h-5 w-5" />
-        </button>
-      )}
+      {/* Top-right: the instruments surface (the list + the per-instrument editor). */}
+      <InstrumentsPanel />
 
       {/* Center: prominent call-to-action until audio is running (the browser
           requires a user gesture to start audio). */}
