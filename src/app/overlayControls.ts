@@ -1,6 +1,6 @@
 /**
  * UI descriptors for the overlay settings panel — the data that drives the
- * grouped, collapsible Overlay controls (see ControlsPanel `OverlayControls`).
+ * grouped, collapsible Overlay controls (see DialsControlsPanel `OverlayControls`).
  *
  * Each descriptor names an overlay element (the key into the overlay params) and
  * declares its controls: a primary `show` toggle, optional dependent sub-toggles

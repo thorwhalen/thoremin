@@ -14,7 +14,7 @@ import { Settings, X, Play, BookOpen, Circle, Square } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
-import ControlsPanel from './ControlsPanel';
+import DialsControlsPanel from './dials/DialsControlsPanel';
 import Toaster from './Toaster';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
@@ -123,7 +123,7 @@ export default function App() {
             </button>
           </div>
           <div className="overflow-auto p-4">
-            <ControlsPanel />
+            <DialsControlsPanel />
           </div>
         </div>
       ) : (

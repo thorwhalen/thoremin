@@ -1,5 +1,5 @@
 {
-  "//": "Scoped strict typecheck for the DAG engine, node library, music helpers, the non-React DAG app glue (src/app/graph.ts; src/app/store.ts is pulled in transitively by tests), tests and scripts. The React layer (src/main.tsx, src/app/{App,ControlsPanel,useEngine}.tsx and the legacy wips app) is built and type-erased by Vite/esbuild — the project ships no @types/react — so it stays out of this config, which is Node-oriented (types: node + vitest).",
+  "//": "Scoped strict typecheck for the DAG engine, node library, music helpers, the non-React DAG app glue (src/app/graph.ts; src/app/store.ts is pulled in transitively by tests), tests and scripts. The React layer (src/main.tsx, src/app/{App,useEngine}.tsx, the React dials files src/app/dials/{DialsControlsPanel.tsx,useDialsSettings.ts} and the legacy wips app) is built and type-erased by Vite/esbuild — the project ships no @types/react — so it stays out of this config, which is Node-oriented (types: node + vitest). The framework-agnostic src/app/dials/settingsStore.ts is strict-checked transitively via test/dials_sync.test.ts.",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strict": true,

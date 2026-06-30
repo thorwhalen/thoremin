@@ -1,13 +1,19 @@
 /**
- * ControlsPanel — schema-light UI bound to the Zustand control store. Changing
- * any value updates the store; the `store-controls` DAG node reads it on the
- * next tick, so edits take effect live without rebuilding the graph.
+ * DialsControlsPanel — the settings panel, rendered FROM the zodal-dials surface
+ * ({@link thoreminDials}) instead of straight off the zustand control store. Visually
+ * identical to the old hand-wired panel: the same sections, widgets, and conditional
+ * disclosure — but every control now reads its value from the dials store
+ * ({@link useDialsSettings}) and writes back with `set(key, value)`. A subscription in
+ * {@link settingsStore} mirrors each edit into the synchronous hot `useControls` store
+ * the DAG reads each tick, so audio still responds live.
  *
- * Sections: per-hand voice, master/sync, the composable Overlay elements, and
- * named Presets (save/load/delete via the zodal-backed preset store).
+ * What is dials-driven: master volume / sync, both voices, the face-mapping chooser +
+ * chord sound, the expression-mapping table, and the overlay element config. What is
+ * NOT (kept verbatim, reading their own stores): Recording formats (a tooling pref),
+ * named Presets (the older zodal preset collection), and the Keyboard cheat-sheet.
  *
- * Renders just the controls *content* (no outer card); the host (App) wraps it
- * in a collapsible translucent overlay so the video stays the focus.
+ * Renders just the controls *content* (no outer card); the host (App) wraps it in a
+ * collapsible translucent overlay so the video stays the focus.
  */
 import { useState, type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
@@ -16,12 +22,14 @@ import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, typ
 import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE } from '@/music/expression';
 import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import type { FaceMapping } from '@/nodes';
-import { useControls, type VoiceControl } from './store';
-import { OVERLAY_CONTROLS, type OverlayControlDesc } from './overlayControls';
-import { ExpressionHelpButton } from './ExpressionHelpPanel';
-import { useFaceStatus } from './faceStatus';
-import { usePresets } from './usePresets';
-import { RECORDING_FORMATS } from './recording/formats';
+import { useControls } from '../store';
+import { OVERLAY_CONTROLS, type OverlayControlDesc } from '../overlayControls';
+import { ExpressionHelpButton } from '../ExpressionHelpPanel';
+import { useFaceStatus } from '../faceStatus';
+import { usePresets } from '../usePresets';
+import { RECORDING_FORMATS } from '../recording/formats';
+import { useDialsSettings } from './useDialsSettings';
+import { voiceEditWrites, type VoiceField } from './settingsStore';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 
@@ -95,10 +103,23 @@ function TopSection({
   );
 }
 
+/**
+ * One hand's voice (sound / root / scale / octaves / base octave), read from and
+ * written to the dials store. Mirrors `setVoice`: when both hands are synced, a
+ * non-sound edit on this hand also writes the other hand, so the two voices share
+ * scale/root/octaves while each keeps its own sound.
+ */
 function VoiceControls({ side }: { side: 'right' | 'left' }) {
-  const voice = useControls((s) => s[side]);
-  const setVoice = useControls((s) => s.setVoice);
+  const { state, set } = useDialsSettings();
+  const v = state.effective;
+  const syncHands = v['master.syncHands'] as boolean;
   const color = side === 'right' ? 'text-emerald-400' : 'text-blue-400';
+
+  const setField = (key: VoiceField, value: unknown) => {
+    // Reproduce setVoice's sync-hands rule (mirror the whole non-sound voice when
+    // synced, keep each hand's own sound); voiceEditWrites yields the dials writes.
+    for (const [k, val] of voiceEditWrites(side, key, value, syncHands, v)) set(k, val);
+  };
 
   return (
     <div className="space-y-2">
@@ -107,8 +128,8 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
         Sound
         <select
           className={selectCls}
-          value={voice.sound}
-          onChange={(e) => setVoice(side, { sound: e.target.value as VoiceControl['sound'] })}
+          value={v[`${side}.sound`] as string}
+          onChange={(e) => setField('sound', e.target.value)}
         >
           {SOUND_IDS.map((id) => (
             <option key={id} value={id}>{SOUNDS[id].name}</option>
@@ -119,8 +140,8 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
         Root
         <select
           className={selectCls}
-          value={voice.root}
-          onChange={(e) => setVoice(side, { root: Number(e.target.value) })}
+          value={v[`${side}.root`] as number}
+          onChange={(e) => setField('root', Number(e.target.value))}
         >
           {NOTES.map((n, i) => (
             <option key={n} value={i}>{n}</option>
@@ -131,8 +152,8 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
         Scale
         <select
           className={selectCls}
-          value={voice.type}
-          onChange={(e) => setVoice(side, { type: e.target.value as ScaleTypeId })}
+          value={v[`${side}.type`] as string}
+          onChange={(e) => setField('type', e.target.value as ScaleTypeId)}
         >
           {Object.entries(SCALE_TYPES).map(([id, s]) => (
             <option key={id} value={id}>{s.name}</option>
@@ -142,15 +163,15 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
       <label className="flex items-center justify-between gap-2 text-xs">
         Octaves
         <input
-          type="range" min={1} max={4} step={1} value={voice.octaves}
-          onChange={(e) => setVoice(side, { octaves: Number(e.target.value) })}
+          type="range" min={1} max={4} step={1} value={v[`${side}.octaves`] as number}
+          onChange={(e) => setField('octaves', Number(e.target.value))}
         />
       </label>
       <label className="flex items-center justify-between gap-2 text-xs">
         Base octave
         <input
-          type="range" min={1} max={5} step={1} value={voice.baseOctave}
-          onChange={(e) => setVoice(side, { baseOctave: Number(e.target.value) })}
+          type="range" min={1} max={5} step={1} value={v[`${side}.baseOctave`] as number}
+          onChange={(e) => setField('baseOctave', Number(e.target.value))}
         />
       </label>
     </div>
@@ -164,16 +185,16 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
  * control per element whose {@link OVERLAY_ELEMENTS}.category matches, rendered
  * from its {@link OVERLAY_CONTROLS} descriptor. Adding an overlay element makes it
  * appear here automatically (a test enforces every element has a descriptor), so
- * this is a general framework, not a hand-maintained list.
+ * this is a general framework, not a hand-maintained list. The whole overlay object
+ * is one dial value; each edit writes a merged copy back.
  */
 function OverlayControls() {
-  const overlay = useControls((s) => s.overlay);
-  const setEl = useControls((s) => s.setOverlayElement);
-  const faceActive = useControls((s) => s.faceMapping) !== 'none';
+  const { state, set } = useDialsSettings();
+  const overlay = state.effective['overlay'] as OverlayParams;
+  const faceActive = state.effective['face.mapping'] !== 'none';
   const categoryOf = new Map(OVERLAY_ELEMENTS.map((e) => [e.name, e.category]));
-  // The React layer isn't strict-typechecked; a runtime element key loses the
-  // setOverlayElement generic narrowing, so patch with a loose cast.
-  const patch = (name: keyof OverlayParams, p: object) => setEl(name, p as never);
+  const patch = (name: keyof OverlayParams, p: object) =>
+    set('overlay', { ...overlay, [name]: { ...(overlay[name] as object), ...p } });
 
   const renderControl = (d: OverlayControlDesc) => {
     const elt = overlay[d.name] as { show: boolean } & Record<string, unknown>;
@@ -295,9 +316,10 @@ const RENDERING_LABELS: Record<RenderingId, string> = {
 
 /** Sound settings for the face chord — shown when chord mapping is active. */
 function ChordControls() {
-  const chord = useControls((s) => s.faceChord);
-  const set = useControls((s) => s.setFaceChord);
-  const tempoRelevant = isTempoRendering(chord.rendering);
+  const { state, set } = useDialsSettings();
+  const v = state.effective;
+  const rendering = v['faceChord.rendering'] as RenderingId;
+  const tempoRelevant = isTempoRendering(rendering);
 
   return (
     <div className="space-y-2 border-l-2 border-amber-300/30 pl-3">
@@ -306,8 +328,8 @@ function ChordControls() {
         Sound
         <select
           className={selectCls}
-          value={chord.sound}
-          onChange={(e) => set({ sound: e.target.value as VoiceControl['sound'] })}
+          value={v['faceChord.sound'] as string}
+          onChange={(e) => set('faceChord.sound', e.target.value)}
         >
           {SOUND_IDS.map((id) => (
             <option key={id} value={id}>{SOUNDS[id].name}</option>
@@ -317,19 +339,19 @@ function ChordControls() {
       <label className="flex items-center justify-between gap-2 text-xs">
         Volume
         <input
-          type="range" min={0} max={1} step={0.01} value={chord.volume}
-          onChange={(e) => set({ volume: Number(e.target.value) })}
+          type="range" min={0} max={1} step={0.01} value={v['faceChord.volume'] as number}
+          onChange={(e) => set('faceChord.volume', Number(e.target.value))}
         />
       </label>
       <label className="flex items-center justify-between gap-2 text-xs">
         Voicing
         <select
           className={selectCls}
-          value={chord.voicing}
-          onChange={(e) => set({ voicing: e.target.value as VoicingId })}
+          value={v['faceChord.voicing'] as string}
+          onChange={(e) => set('faceChord.voicing', e.target.value as VoicingId)}
         >
-          {VOICINGS.map((v) => (
-            <option key={v} value={v}>{VOICING_LABELS[v]}</option>
+          {VOICINGS.map((vc) => (
+            <option key={vc} value={vc}>{VOICING_LABELS[vc]}</option>
           ))}
         </select>
       </label>
@@ -337,8 +359,8 @@ function ChordControls() {
         Rendering
         <select
           className={selectCls}
-          value={chord.rendering}
-          onChange={(e) => set({ rendering: e.target.value as RenderingId })}
+          value={rendering}
+          onChange={(e) => set('faceChord.rendering', e.target.value as RenderingId)}
         >
           {RENDERINGS.map((r) => (
             <option key={r} value={r}>{RENDERING_LABELS[r]}</option>
@@ -346,10 +368,10 @@ function ChordControls() {
         </select>
       </label>
       <label className={`flex items-center justify-between gap-2 text-xs ${tempoRelevant ? '' : 'opacity-40'}`}>
-        Tempo {chord.bpm} bpm
+        Tempo {v['faceChord.bpm'] as number} bpm
         <input
-          type="range" min={40} max={200} step={1} value={chord.bpm}
-          onChange={(e) => set({ bpm: Number(e.target.value) })}
+          type="range" min={40} max={200} step={1} value={v['faceChord.bpm'] as number}
+          onChange={(e) => set('faceChord.bpm', Number(e.target.value))}
         />
       </label>
       {tempoRelevant && (
@@ -368,20 +390,29 @@ function ChordControls() {
  * feeds the readout/status there), so they show whenever a mapping is on. The
  * scale-degree dropdown + live chord MIDI are chord-specific, so they appear only
  * in chord mode (where `neutral` also gets a row — its rest chord). The (global)
- * rendering lives in ChordControls above.
+ * rendering lives in ChordControls above. The two maps are single dial values
+ * (`faceExpr.sensitivity` / `faceExpr.degrees`); each edit writes a merged copy.
  */
 function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
-  const degrees = useControls((s) => s.faceExpr.degrees);
-  const sensitivity = useControls((s) => s.faceExpr.sensitivity);
-  const setDegree = useControls((s) => s.setExpressionDegree);
-  const setSens = useControls((s) => s.setExpressionSensitivity);
-  const right = useControls((s) => s.right);
-  const voicing = useControls((s) => s.faceChord.voicing);
+  const { state, set } = useDialsSettings();
+  const v = state.effective;
+  const degrees = v['faceExpr.degrees'] as Record<string, number>;
+  const sensitivity = v['faceExpr.sensitivity'] as Record<string, number>;
+  const setDegree = (label: string, degree: number) =>
+    set('faceExpr.degrees', { ...degrees, [label]: degree });
+  const setSens = (label: string, value: number) =>
+    set('faceExpr.sensitivity', { ...sensitivity, [label]: value });
+  const voicing = v['faceChord.voicing'] as VoicingId;
 
   const chordMidi = (degree: number): number[] => {
     if (degree < 0) return []; // SILENCE_DEGREE → no chord
     const triad = diatonicTriad(
-      { root: right.root, type: right.type, octaves: right.octaves, baseOctave: right.baseOctave },
+      {
+        root: v['right.root'] as number,
+        type: v['right.type'] as ScaleTypeId,
+        octaves: v['right.octaves'] as number,
+        baseOctave: v['right.baseOctave'] as number,
+      },
       degree,
     );
     return triad.length ? voiceTriad(triad, voicing, 0).slice().sort((a, b) => a - b) : [];
@@ -456,10 +487,10 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
 }
 
 function FaceControls() {
-  const faceMapping = useControls((s) => s.faceMapping);
-  const setFaceMapping = useControls((s) => s.setFaceMapping);
-  const rightType = useControls((s) => s.right.type);
-  const sevenNote = isSevenNoteScale(rightType);
+  const { state, set } = useDialsSettings();
+  const v = state.effective;
+  const faceMapping = v['face.mapping'] as FaceMapping;
+  const sevenNote = isSevenNoteScale(v['right.type'] as ScaleTypeId);
 
   return (
     <div className="space-y-2">
@@ -468,7 +499,7 @@ function FaceControls() {
         <select
           className={selectCls}
           value={faceMapping}
-          onChange={(e) => setFaceMapping(e.target.value as FaceMapping)}
+          onChange={(e) => set('face.mapping', e.target.value as FaceMapping)}
         >
           {FACE_MODE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value} disabled={o.value === 'chord' && !sevenNote}>
@@ -576,11 +607,10 @@ function PresetControls() {
   );
 }
 
-export default function ControlsPanel() {
-  const syncHands = useControls((s) => s.syncHands);
-  const setSync = useControls((s) => s.setSync);
-  const masterVolume = useControls((s) => s.masterVolume);
-  const setMasterVolume = useControls((s) => s.setMasterVolume);
+export default function DialsControlsPanel() {
+  const { state, set } = useDialsSettings();
+  const v = state.effective;
+  const syncHands = v['master.syncHands'] as boolean;
 
   return (
     <div className="space-y-1">
@@ -589,12 +619,12 @@ export default function ControlsPanel() {
         <label className="flex items-center justify-between gap-2 text-xs">
           Master volume
           <input
-            type="range" min={0} max={1} step={0.01} value={masterVolume}
-            onChange={(e) => setMasterVolume(Number(e.target.value))}
+            type="range" min={0} max={1} step={0.01} value={v['master.volume'] as number}
+            onChange={(e) => set('master.volume', Number(e.target.value))}
           />
         </label>
         <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={syncHands} onChange={(e) => setSync(e.target.checked)} />
+          <input type="checkbox" checked={syncHands} onChange={(e) => set('master.syncHands', e.target.checked)} />
           Sync both hands
         </label>
         <VoiceControls side="right" />
