@@ -25,8 +25,8 @@ const FIXTURES = join(HERE, '..', 'test', 'fixtures');
 const FEAT = { mirrorX: false, mirrorHandedness: false };
 const MAP = {
   magnetism: 1,
-  right: { scale: { root: 0, type: 'major', octaves: 2, baseOctave: 3 }, instrument: 'sine' },
-  left: { scale: { root: 0, type: 'major', octaves: 2, baseOctave: 3 }, instrument: 'triangle' },
+  right: { scale: { root: 0, type: 'major', octaves: 2, baseOctave: 3 }, sound: 'sine' },
+  left: { scale: { root: 0, type: 'major', octaves: 2, baseOctave: 3 }, sound: 'triangle' },
 };
 
 async function main(): Promise<void> {

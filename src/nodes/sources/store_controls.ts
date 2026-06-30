@@ -1,7 +1,7 @@
 /**
  * `store-controls` source node — bridges the live UI control store into the DAG.
  * Each tick it reads a snapshot getter (injected via `ctx.resources.controls`)
- * and emits the derived scale arrays and instruments as port values, which wire
+ * and emits the derived scale arrays and sounds as port values, which wire
  * into `voice-mapping`'s live override ports. No graph rebuild on UI change.
  *
  * The injected getter returns a {@link ControlSnapshot}; if absent the node
@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { generateScale, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
-import type { InstrumentId } from '@/music/instruments';
+import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import type { FaceChord, FaceExpr } from '@/settings/schema';
 import type { OverlayParams } from '@/nodes/output/canvas_overlay';
@@ -21,7 +21,7 @@ export interface VoiceControlSnapshot {
   type: ScaleTypeId;
   octaves: number;
   baseOctave: number;
-  instrument: InstrumentId;
+  sound: SoundId;
 }
 export interface ControlSnapshot {
   right: VoiceControlSnapshot;
@@ -47,18 +47,18 @@ export const storeControlsNode = defineNode<Record<string, never>>({
   type: 'store-controls',
   roles: ['source', 'control'],
   title: 'UI Controls',
-  description: 'Reads the live UI control store → scale + instrument + overlay port values.',
+  description: 'Reads the live UI control store → scale + sound + overlay port values.',
   inputs: [],
   outputs: [
     { name: 'scaleRight', kind: 'number[]' },
     { name: 'scaleLeft', kind: 'number[]' },
-    { name: 'instrumentRight', kind: 'instrument' },
-    { name: 'instrumentLeft', kind: 'instrument' },
+    { name: 'soundRight', kind: 'sound' },
+    { name: 'soundLeft', kind: 'sound' },
     { name: 'overlay', kind: 'overlay-config' },
     // The right voice's scale spec + the face mode, for the expression→chord path.
     { name: 'rightSpec', kind: 'scale-spec' },
     { name: 'faceMapping', kind: 'face-mapping' },
-    // Live chord settings (instrument / volume / voicing / rendering / tempo).
+    // Live chord settings (sound / volume / voicing / rendering / tempo).
     { name: 'chordConfig', kind: 'chord-config' },
     // Per-emotion firing sensitivity (→ face-expression) and the per-expression
     // scale-degree map (→ expression-chord).
@@ -81,14 +81,14 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         const out: Record<string, unknown> = {
           scaleRight: generateScale(c.right),
           scaleLeft: generateScale(c.left),
-          instrumentRight: c.right.instrument,
-          instrumentLeft: c.left.instrument,
+          soundRight: c.right.sound,
+          soundLeft: c.left.sound,
           rightSpec,
           faceMapping: c.faceMapping ?? legacyFaceToMapping(c.faceEnabled),
         };
         if (c.faceChord) {
           out.chordConfig = {
-            instrument: c.faceChord.instrument,
+            sound: c.faceChord.sound,
             gain: c.faceChord.volume,
             voicing: c.faceChord.voicing,
             rendering: c.faceChord.rendering,

@@ -12,8 +12,8 @@ import { expressionThresholds, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expr
 
 function sampleSettings(overrides: Partial<Settings> = {}): Settings {
   return SettingsSchema.parse({
-    right: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'warmPad' },
-    left: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'glass' },
+    right: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, sound: 'warmPad' },
+    left: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, sound: 'glass' },
     syncHands: true,
     masterVolume: 0.4,
     overlay: {}, // overlay element defaults fill in
@@ -41,7 +41,7 @@ describe('preset persistence', () => {
 
     const loaded = await s.load('swing-lead');
     expect(loaded?.settings.masterVolume).toBeCloseTo(0.7);
-    expect(loaded?.settings.right.instrument).toBe('warmPad');
+    expect(loaded?.settings.right.sound).toBe('warmPad');
   });
 
   it('persists overlay element config (the composable overlay state)', async () => {
@@ -87,7 +87,7 @@ describe('preset persistence', () => {
   it('rejects out-of-range settings at the schema boundary', () => {
     expect(() => sampleSettings({ masterVolume: 5 })).toThrow();
     expect(() =>
-      SettingsSchema.parse({ ...sampleSettings(), right: { ...sampleSettings().right, instrument: 'bogus' } }),
+      SettingsSchema.parse({ ...sampleSettings(), right: { ...sampleSettings().right, sound: 'bogus' } }),
     ).toThrow();
   });
 
@@ -132,14 +132,35 @@ describe('preset persistence', () => {
     expect(SettingsSchema.safeParse({ ...sampleSettings(), faceExpr: { degrees: { happy: 7 } } }).success).toBe(false);
   });
 
+  it('migrates a pre-rename preset (instrument → sound, per-hand + chord) on load', () => {
+    const legacy = {
+      id: 'old-sound',
+      name: 'Old Sound',
+      createdAt: 1,
+      settings: {
+        right: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'bell' }, // old key
+        left: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'square' },
+        syncHands: true,
+        masterVolume: 0.4,
+        faceChord: { instrument: 'triangle', volume: 0.22, voicing: 'spread', rendering: 'sustained', bpm: 100 },
+        overlay: {},
+      },
+    };
+    const parsed = PresetSchema.parse(legacy);
+    expect(parsed.settings.right.sound).toBe('bell'); // returning preset keeps its sound
+    expect(parsed.settings.left.sound).toBe('square');
+    expect(parsed.settings.faceChord.sound).toBe('triangle');
+    expect((parsed.settings.right as Record<string, unknown>).instrument).toBeUndefined();
+  });
+
   it('migrates a pre-#64 preset (boolean faceEnabled) to faceMapping on load', () => {
     const legacy = {
       id: 'legacy',
       name: 'Legacy',
       createdAt: 1,
       settings: {
-        right: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'warmPad' },
-        left: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, instrument: 'glass' },
+        right: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, sound: 'warmPad' },
+        left: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, sound: 'glass' },
         syncHands: true,
         masterVolume: 0.4,
         faceEnabled: true, // the old boolean flag

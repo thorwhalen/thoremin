@@ -6,7 +6,7 @@
  * Landmark indices follow MediaPipe Hands (21 points). We also tolerate named
  * keypoints (as emitted by @tensorflow-models/hand-pose-detection).
  */
-import type { InstrumentId } from '@/music/instruments';
+import type { SoundId } from '@/music/sounds';
 
 export interface Keypoint {
   x: number;
@@ -65,8 +65,8 @@ export interface VoiceParams {
   present: boolean;
   freq: number;
   gain: number;
-  /** Instrument timbre — an id from the {@link InstrumentId} registry. */
-  instrument: InstrumentId;
+  /** Instrument timbre — an id from the {@link SoundId} registry. */
+  sound: SoundId;
   /**
    * Live tone brightness, 0 (dark/mellow) .. 1 (open/present). Drives a
    * per-voice low-pass in the synth so gestures (e.g. hand openness) shape

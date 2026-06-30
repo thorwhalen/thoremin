@@ -29,7 +29,7 @@ async function main(): Promise<void> {
       { id: 'ctrl', type: 'replay-source', params: { values: ramp } },
       { id: 'perf', type: 'performance', params: { bpmMin: 50, bpmMax: 260, dynMin: 0.3, dynMax: 1, humanizeBpm: 3 } },
       { id: 'xport', type: 'transport' },
-      { id: 'score', type: 'score', params: { notes, loopBeats: 8, baseGain: 0.4, instrument: 'triangle' } },
+      { id: 'score', type: 'score', params: { notes, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
     ],
     edges: [
       { from: { node: 'ctrl', port: 'value' }, to: { node: 'perf', port: 'control' } },

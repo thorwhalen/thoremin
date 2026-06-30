@@ -11,23 +11,23 @@
  */
 import { z } from 'zod';
 import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
-import { INSTRUMENT_IDS, type InstrumentId } from '@/music/instruments';
+import { SOUND_IDS, type SoundId } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 
 const ScaleTypeEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
-const InstrumentEnum = z.enum(INSTRUMENT_IDS as [InstrumentId, ...InstrumentId[]]);
+const InstrumentEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
 
 /** What the player's facial expression controls (none / timbre / chord). */
 export const FaceMappingSchema = z.enum(
   FACE_MAPPINGS as unknown as [FaceMapping, ...FaceMapping[]],
 );
 
-/** How the face chord sounds: instrument, volume, voicing, rendering, tempo. */
+/** How the face chord sounds: sound, volume, voicing, rendering, tempo. */
 export const FaceChordSchema = z.object({
-  instrument: InstrumentEnum,
+  sound: InstrumentEnum,
   volume: z.number().min(0).max(1),
   voicing: z.enum(VOICINGS as unknown as [VoicingId, ...VoicingId[]]),
   rendering: z.enum(RENDERINGS as unknown as [RenderingId, ...RenderingId[]]),
@@ -38,7 +38,7 @@ export type FaceChord = z.infer<typeof FaceChordSchema>;
 
 /** The shipped defaults for the face chord (open voicing, sustained pad, 100 BPM). */
 export const DEFAULT_FACE_CHORD: FaceChord = {
-  instrument: 'warmPad',
+  sound: 'warmPad',
   volume: 0.22,
   voicing: 'spread',
   rendering: 'sustained',
@@ -81,7 +81,7 @@ export const VoiceSettingsSchema = z.object({
   type: ScaleTypeEnum,
   octaves: z.number().int().min(1).max(4),
   baseOctave: z.number().int().min(0).max(8),
-  instrument: InstrumentEnum,
+  sound: InstrumentEnum,
 });
 export type VoiceSettings = z.infer<typeof VoiceSettingsSchema>;
 
@@ -103,20 +103,34 @@ export const SettingsSchema = z.object({
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
-/**
- * Migrate a raw settings blob saved with the old boolean `faceEnabled` (pre-#64):
- * a saved `faceEnabled: true` becomes `faceMapping: 'timbre'` so a returning
- * player keeps face control on rather than silently reverting to off. New blobs
- * (which already carry `faceMapping`) pass through untouched.
- */
-function migrateLegacyFace(raw: unknown): unknown {
-  if (raw && typeof raw === 'object') {
-    const r = raw as Record<string, unknown>;
-    if (r.faceMapping === undefined && r.faceEnabled !== undefined) {
-      return { ...r, faceMapping: legacyFaceToMapping(r.faceEnabled as boolean | undefined) };
+/** Rename a legacy `instrument` timbre field to `sound` on a settings sub-object,
+ *  so a returning preset keeps its sound after the instrument → sound rename. */
+function renameInstrumentField(obj: unknown): unknown {
+  if (obj && typeof obj === 'object') {
+    const o = obj as Record<string, unknown>;
+    if (o.instrument !== undefined && o.sound === undefined) {
+      const { instrument, ...rest } = o;
+      return { ...rest, sound: instrument };
     }
   }
-  return raw;
+  return obj;
+}
+
+/**
+ * Migrate a raw settings blob from older saves: pre-#64 `faceEnabled` → `faceMapping`,
+ * and the per-hand / chord timbre `instrument` → `sound`. New blobs (already carrying
+ * `faceMapping` + `sound`) pass through untouched.
+ */
+function migrateLegacySettings(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const r = { ...(raw as Record<string, unknown>) };
+  if (r.faceMapping === undefined && r.faceEnabled !== undefined) {
+    r.faceMapping = legacyFaceToMapping(r.faceEnabled as boolean | undefined);
+  }
+  r.right = renameInstrumentField(r.right);
+  r.left = renameInstrumentField(r.left);
+  r.faceChord = renameInstrumentField(r.faceChord);
+  return r;
 }
 
 /** A named, persisted settings snapshot (one record in the presets collection). */
@@ -127,8 +141,8 @@ export const PresetSchema = z.object({
   name: z.string(),
   /** Creation/last-save time (ms since epoch), for "most recent first" ordering. */
   createdAt: z.number(),
-  // Preprocess migrates pre-#64 presets (boolean faceEnabled → faceMapping) on load.
-  settings: z.preprocess(migrateLegacyFace, SettingsSchema),
+  // Preprocess migrates older presets (faceEnabled → faceMapping; instrument → sound) on load.
+  settings: z.preprocess(migrateLegacySettings, SettingsSchema),
 });
 export type Preset = z.infer<typeof PresetSchema>;
 

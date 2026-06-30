@@ -31,8 +31,8 @@ const MAP_PARAMS = {
   magnetism: 1,
   maxGain: 0.5,
   opennessGatesGain: false,
-  right: { scale: { root: 0, type: 'major' as const, octaves: 2, baseOctave: 3 }, instrument: 'sine' as const },
-  left: { scale: { root: 0, type: 'major' as const, octaves: 2, baseOctave: 3 }, instrument: 'triangle' as const },
+  right: { scale: { root: 0, type: 'major' as const, octaves: 2, baseOctave: 3 }, sound: 'sine' as const },
+  left: { scale: { root: 0, type: 'major' as const, octaves: 2, baseOctave: 3 }, sound: 'triangle' as const },
 };
 
 // Parse params through each node's Zod schema (as the engine does) before any

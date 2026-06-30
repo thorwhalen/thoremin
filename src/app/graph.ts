@@ -161,8 +161,8 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'kctrl', port: 'mute' }, to: { node: 'map', port: 'mute' } },
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'map', port: 'scaleRight' } },
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'map', port: 'scaleLeft' } },
-      { from: { node: 'ui', port: 'instrumentRight' }, to: { node: 'map', port: 'instrumentRight' } },
-      { from: { node: 'ui', port: 'instrumentLeft' }, to: { node: 'map', port: 'instrumentLeft' } },
+      { from: { node: 'ui', port: 'soundRight' }, to: { node: 'map', port: 'soundRight' } },
+      { from: { node: 'ui', port: 'soundLeft' }, to: { node: 'map', port: 'soundLeft' } },
       // Merge the hand voices (map) with the face-chord voices, then to the synth.
       { from: { node: 'map', port: 'params' }, to: { node: 'merge', port: 'a' } },
       { from: { node: 'exprChord', port: 'params' }, to: { node: 'merge', port: 'b' } },

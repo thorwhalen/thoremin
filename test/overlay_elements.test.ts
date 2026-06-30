@@ -89,8 +89,8 @@ function fullInputs() {
   };
   const params: SynthParams = {
     voices: [
-      { id: 0, present: true, freq: 440, gain: 0.5, instrument: 'warmPad' },
-      { id: 1, present: true, freq: 330, gain: 0.4, instrument: 'glass' },
+      { id: 0, present: true, freq: 440, gain: 0.5, sound: 'warmPad' },
+      { id: 1, present: true, freq: 330, gain: 0.4, sound: 'glass' },
     ],
   };
   return {

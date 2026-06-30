@@ -8,7 +8,7 @@ import type { SynthParams } from '@/nodes';
 
 const SR = 44100;
 const voice = (freq: number, gain: number): SynthParams => ({
-  voices: [{ id: 0, present: true, freq, gain, instrument: 'sine' }],
+  voices: [{ id: 0, present: true, freq, gain, sound: 'sine' }],
 });
 
 function rms(s: Float32Array): number {
@@ -30,8 +30,8 @@ describe('render_audio', () => {
 
   it('silent (gain 0 / absent) → near-silence', () => {
     const frames: SynthParams[] = [
-      { voices: [{ id: 0, present: false, freq: 440, gain: 0, instrument: 'sine' }] },
-      { voices: [{ id: 0, present: false, freq: 440, gain: 0, instrument: 'sine' }] },
+      { voices: [{ id: 0, present: false, freq: 440, gain: 0, sound: 'sine' }] },
+      { voices: [{ id: 0, present: false, freq: 440, gain: 0, sound: 'sine' }] },
     ];
     const out = render(frames, 0.05);
     expect(rms(out)).toBeLessThan(0.01);
@@ -40,7 +40,7 @@ describe('render_audio', () => {
   it('a chord (multiple voices) is louder than a single voice', () => {
     const single = render([voice(220, 0.4), voice(220, 0.4)], 0.1);
     const chord: SynthParams = {
-      voices: [0, 1, 2].map((id) => ({ id, present: true, freq: 220 * (id + 1), gain: 0.4, instrument: 'sine' as const })),
+      voices: [0, 1, 2].map((id) => ({ id, present: true, freq: 220 * (id + 1), gain: 0.4, sound: 'sine' as const })),
     };
     const multi = render([chord, chord], 0.1);
     expect(rms(multi)).toBeGreaterThan(rms(single));

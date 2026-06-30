@@ -5,7 +5,7 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { getInstrument, type OscType } from '@/music/instruments';
+import { getSound, type OscType } from '@/music/sounds';
 import type { SynthParams, VoiceParams } from '@/nodes';
 
 export const SR = 44100;
@@ -62,7 +62,7 @@ export function render(frames: SynthParams[], dt: number): Float32Array {
         const g = lerp(st.gain, curGain, frac); // ramp within tick (declick)
         const f = lerp(st.freq, target.freq, frac);
         st.phase += f / SR;
-        acc += wave(st.phase, getInstrument(target.instrument).partials[0].type) * g;
+        acc += wave(st.phase, getSound(target.sound).partials[0].type) * g;
       }
       out[s++] = Math.max(-1, Math.min(1, acc * MASTER));
     }

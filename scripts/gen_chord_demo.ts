@@ -24,7 +24,7 @@ async function main(): Promise<void> {
   const prog = progressionNode.make(progressionNode.params.parse({ key: 'C', romanNumerals: ['I', 'IV', 'V', 'vi'] }));
   const symbols = (await replayNode(prog, { position: positions })).map((o) => o.chord as string);
 
-  const chord = chordNode.make(chordNode.params.parse({ baseOctave: 4, maxVoices: 4, instrument: 'triangle' }));
+  const chord = chordNode.make(chordNode.params.parse({ baseOctave: 4, maxVoices: 4, sound: 'triangle' }));
   const params = (await replayNode(chord, { chord: symbols })).map((o) => o.params as SynthParams);
 
   const records: StreamRecord[] = params.map((value, i) => ({ tick: i, t: i / fps, value }));

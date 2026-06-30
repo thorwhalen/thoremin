@@ -1,5 +1,5 @@
 /**
- * Verifies the real production instrument graph (the one the browser app runs)
+ * Verifies the real production sound graph (the one the browser app runs)
  * is structurally valid and ticks cleanly headlessly — no camera, audio, or DOM.
  * This catches wiring mistakes (bad port names, fan-in, cycles) in CI without a
  * browser. The webcam node lazy-loads TF.js inside init(), which we never call

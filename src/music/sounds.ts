@@ -3,8 +3,8 @@
  * play. Each preset is a declarative recipe (additive oscillator partials +
  * optional filter, vibrato, amplitude envelope and reverb send) that the
  * browser `webaudio-synth` node realizes into a Web Audio voice graph, and that
- * the UI lists by `name`. The `instrument` field on a synth voice is one of
- * these ids ({@link InstrumentId}); adding a richer sound means adding an entry
+ * the UI lists by `name`. The `sound` field on a synth voice is one of
+ * these ids ({@link SoundId}); adding a richer sound means adding an entry
  * here (open/closed) — no other module needs to change.
  *
  * The four raw oscillator waveforms (sine/triangle/square/sawtooth) are kept as
@@ -26,8 +26,8 @@ export interface Partial {
   readonly gain?: number;
 }
 
-/** A complete, declarative instrument timbre. */
-export interface InstrumentPreset {
+/** A complete, declarative sound timbre. */
+export interface SoundPreset {
   /** Human label for the UI. */
   readonly name: string;
   /** Additive oscillators summed to form the tone — non-empty by construction,
@@ -48,11 +48,11 @@ export interface InstrumentPreset {
 }
 
 /**
- * The preset registry. Keys are the stable instrument ids; values are the
- * recipes. Declared with `satisfies` (not an annotation) so {@link InstrumentId}
+ * The preset registry. Keys are the stable sound ids; values are the
+ * recipes. Declared with `satisfies` (not an annotation) so {@link SoundId}
  * stays a literal union of the keys.
  */
-export const INSTRUMENTS = {
+export const SOUNDS = {
   // --- Raw waveforms (classic, also the backward-compatible ids) -----------
   sine: { name: 'Sine', partials: [{ type: 'sine' }] },
   triangle: { name: 'Triangle', partials: [{ type: 'triangle' }] },
@@ -69,7 +69,7 @@ export const INSTRUMENTS = {
     gain: 0.85,
   },
 
-  // --- Richer, "nice" instruments ------------------------------------------
+  // --- Richer, "nice" sounds ------------------------------------------
   warmPad: {
     name: 'Warm Pad',
     partials: [
@@ -198,22 +198,22 @@ export const INSTRUMENTS = {
     reverbSend: 0.45,
     gain: 0.78,
   },
-} as const satisfies Record<string, InstrumentPreset>;
+} as const satisfies Record<string, SoundPreset>;
 
-/** A valid instrument id (literal union of {@link INSTRUMENTS} keys). */
-export type InstrumentId = keyof typeof INSTRUMENTS;
+/** A valid sound id (literal union of {@link SOUNDS} keys). */
+export type SoundId = keyof typeof SOUNDS;
 
-/** All instrument ids, registry order (UI lists them in this order). */
-export const INSTRUMENT_IDS = Object.keys(INSTRUMENTS) as InstrumentId[];
+/** All sound ids, registry order (UI lists them in this order). */
+export const SOUND_IDS = Object.keys(SOUNDS) as SoundId[];
 
 /** Default timbres — pleasant, forgiving, and distinct per hand. */
-export const DEFAULT_INSTRUMENT_RIGHT: InstrumentId = 'warmPad';
-export const DEFAULT_INSTRUMENT_LEFT: InstrumentId = 'glass';
+export const DEFAULT_SOUND_RIGHT: SoundId = 'warmPad';
+export const DEFAULT_SOUND_LEFT: SoundId = 'glass';
 
 /** Resolve an id to its preset, falling back to a pure sine for unknown ids. */
-export function getInstrument(id: string): InstrumentPreset {
-  return (INSTRUMENTS as Record<string, InstrumentPreset>)[id] ?? INSTRUMENTS.sine;
+export function getSound(id: string): SoundPreset {
+  return (SOUNDS as Record<string, SoundPreset>)[id] ?? SOUNDS.sine;
 }
 
-/** Zod schema accepting any registered instrument id. */
-export const InstrumentSchema = z.enum(INSTRUMENT_IDS as [InstrumentId, ...InstrumentId[]]);
+/** Zod schema accepting any registered sound id. */
+export const SoundSchema = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);

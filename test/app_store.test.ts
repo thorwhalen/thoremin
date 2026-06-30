@@ -2,7 +2,7 @@
  * Tests for the DAG app's control store and its bridge into the graph via the
  * `store-controls` node — the only genuinely-new logic the opt-in `?engine=dag`
  * view adds. Covers the Zustand store's reducers (sync behaviour, per-hand
- * instruments) and the store → store-controls → (scale arrays + instruments)
+ * sounds) and the store → store-controls → (scale arrays + sounds)
  * path the graph reads each tick. Pure + headless: no React render, camera, or
  * audio. (The full graph's topology + clean tick are covered by app_graph.test.)
  */
@@ -11,7 +11,7 @@ import { useControls, toSettings, migrateControls, mergeControls } from '@/app/s
 import { DEFAULT_FACE_CHORD } from '@/settings/schema';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
-import { DEFAULT_INSTRUMENT_RIGHT, DEFAULT_INSTRUMENT_LEFT } from '@/music/instruments';
+import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
 import type { NodeContext } from '@/dag';
 
 beforeEach(() => {
@@ -22,8 +22,8 @@ beforeEach(() => {
 describe('control store', () => {
   it('has sensible defaults', () => {
     const s = useControls.getState();
-    expect(s.right.instrument).toBe(DEFAULT_INSTRUMENT_RIGHT);
-    expect(s.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
+    expect(s.right.sound).toBe(DEFAULT_SOUND_RIGHT);
+    expect(s.left.sound).toBe(DEFAULT_SOUND_LEFT);
     // Pentatonic by default — every snapped note sounds consonant.
     expect(s.right.type).toBe('pentatonic');
     expect(s.left.type).toBe('pentatonic');
@@ -61,7 +61,7 @@ describe('control store', () => {
     expect(fe.degrees.neutral).toBe(-1); // sibling untouched — neutral's default is silence (-1)
   });
 
-  it('setVoice with sync ON mirrors both hands but keeps instruments distinct', () => {
+  it('setVoice with sync ON mirrors both hands but keeps sounds distinct', () => {
     useControls.getState().setVoice('right', { root: 7, octaves: 4 });
     const s = useControls.getState();
     expect(s.right.root).toBe(7);
@@ -69,18 +69,18 @@ describe('control store', () => {
     expect(s.right.octaves).toBe(4);
     expect(s.left.octaves).toBe(4);
     // Instruments stay per-hand even when synced.
-    expect(s.right.instrument).toBe(DEFAULT_INSTRUMENT_RIGHT);
-    expect(s.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
+    expect(s.right.sound).toBe(DEFAULT_SOUND_RIGHT);
+    expect(s.left.sound).toBe(DEFAULT_SOUND_LEFT);
   });
 
-  it('setVoice with sync ON applies the patched instrument to the addressed hand only', () => {
-    // Regression guard: changing the Wave (instrument) while synced — the only
-    // instrument control visible in the default (synced) state — must take
+  it('setVoice with sync ON applies the patched sound to the addressed hand only', () => {
+    // Regression guard: changing the Wave (sound) while synced — the only
+    // sound control visible in the default (synced) state — must take
     // effect on the addressed hand while the other hand keeps its own timbre.
-    useControls.getState().setVoice('right', { instrument: 'square' });
+    useControls.getState().setVoice('right', { sound: 'square' });
     const s = useControls.getState();
-    expect(s.right.instrument).toBe('square');
-    expect(s.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
+    expect(s.right.sound).toBe('square');
+    expect(s.left.sound).toBe(DEFAULT_SOUND_LEFT);
   });
 
   it('setSync only flips the flag; it does not re-converge already-diverged hands', () => {
@@ -92,13 +92,13 @@ describe('control store', () => {
     expect(s.syncHands).toBe(true);
     expect(s.right.root).toBe(0);
     expect(s.left.root).toBe(9);
-    // The next synced edit re-converges shared fields (instruments stay distinct).
+    // The next synced edit re-converges shared fields (sounds stay distinct).
     useControls.getState().setVoice('right', { root: 4 });
     const s2 = useControls.getState();
     expect(s2.right.root).toBe(4);
     expect(s2.left.root).toBe(4);
-    expect(s2.right.instrument).toBe(DEFAULT_INSTRUMENT_RIGHT);
-    expect(s2.left.instrument).toBe(DEFAULT_INSTRUMENT_LEFT);
+    expect(s2.right.sound).toBe(DEFAULT_SOUND_RIGHT);
+    expect(s2.left.sound).toBe(DEFAULT_SOUND_LEFT);
   });
 
   it('setVoice with sync OFF changes only the addressed hand', () => {
@@ -131,7 +131,7 @@ describe('control store', () => {
 
   it('toSettings snapshots the live state and applySettings restores it', () => {
     useControls.getState().setSync(false);
-    useControls.getState().setVoice('right', { root: 3, instrument: 'bell' });
+    useControls.getState().setVoice('right', { root: 3, sound: 'bell' });
     useControls.getState().setMasterVolume(0.6);
     useControls.getState().setFaceMapping('chord');
     useControls.getState().setFaceChord({ voicing: 'power', bpm: 140 });
@@ -147,7 +147,7 @@ describe('control store', () => {
 
     const s = useControls.getState();
     expect(s.masterVolume).toBeCloseTo(0.6);
-    expect(s.right.instrument).toBe('bell');
+    expect(s.right.sound).toBe('bell');
     expect(s.syncHands).toBe(false);
     expect(s.faceMapping).toBe('chord');
     expect(s.faceChord.voicing).toBe('power'); // faceChord survives toSettings → applySettings
@@ -177,6 +177,20 @@ describe('persist migration (v1 → v2, returning users)', () => {
     expect(
       (migrateControls({ faceEnabled: false }, 1) as unknown as Record<string, unknown>).faceMapping,
     ).toBe('none');
+  });
+
+  it('migrateControls (v2→v3) renames the saved instrument timbre field to sound', () => {
+    const migrated = migrateControls(
+      { right: { root: 0, instrument: 'bell' }, left: { instrument: 'square' }, faceChord: { instrument: 'warmPad', volume: 0.2 } },
+      2,
+    ) as unknown as { right: Record<string, unknown>; left: Record<string, unknown>; faceChord: Record<string, unknown> };
+    expect(migrated.right.sound).toBe('bell'); // returning player keeps their sound
+    expect(migrated.right.instrument).toBeUndefined(); // old key removed
+    expect(migrated.left.sound).toBe('square');
+    expect(migrated.faceChord.sound).toBe('warmPad');
+    // A v3 blob (already `sound`) is left untouched.
+    const v3 = migrateControls({ right: { sound: 'glass' } }, 3) as unknown as { right: Record<string, unknown> };
+    expect(v3.right.sound).toBe('glass');
   });
 
   it('mergeControls heals a stale overlay (missing later elements) so it cannot crash readers', () => {
@@ -222,7 +236,7 @@ describe('persist migration (v1 → v2, returning users)', () => {
     expect(partial.volume).toBe(0.5); // kept
     expect(partial.voicing).toBe(DEFAULT_FACE_CHORD.voicing); // filled from default
     expect(typeof partial.rendering).toBe('string');
-    expect(typeof partial.instrument).toBe('string');
+    expect(typeof partial.sound).toBe('string');
     // A corrupt value (out of range) falls back to the default whole.
     expect(mergeControls({ faceChord: { volume: 99 } as never }, initial).faceChord).toEqual(DEFAULT_FACE_CHORD);
   });
@@ -236,18 +250,18 @@ describe('store-controls node reads the store', () => {
     resources,
   });
 
-  it('emits scale arrays + instruments derived from the store snapshot', () => {
+  it('emits scale arrays + sounds derived from the store snapshot', () => {
     useControls.getState().setSync(false);
-    useControls.getState().setVoice('right', { root: 2, type: 'minor', instrument: 'square' });
-    useControls.getState().setVoice('left', { root: 9, instrument: 'sawtooth' });
+    useControls.getState().setVoice('right', { root: 2, type: 'minor', sound: 'square' });
+    useControls.getState().setVoice('left', { root: 9, sound: 'sawtooth' });
 
     useControls.getState().setFaceMapping('chord');
     const node = storeControlsNode.make(storeControlsNode.params.parse({}));
     const out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
 
     const s = useControls.getState();
-    expect(out.instrumentRight).toBe('square');
-    expect(out.instrumentLeft).toBe('sawtooth');
+    expect(out.soundRight).toBe('square');
+    expect(out.soundLeft).toBe('sawtooth');
     expect(out.scaleRight).toEqual(generateScale(s.right));
     expect(out.scaleLeft).toEqual(generateScale(s.left));
     expect((out.scaleRight as number[]).length).toBeGreaterThan(0);
