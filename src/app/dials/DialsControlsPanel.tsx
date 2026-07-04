@@ -26,6 +26,7 @@ import type { FaceMapping } from '@/nodes';
 import { useControls } from '../store';
 import { OVERLAY_CONTROLS, type OverlayControlDesc } from '../overlayControls';
 import { ExpressionHelpButton } from '../ExpressionHelpPanel';
+import { POSE_MOVES } from '../poseControlsHelp';
 import { CalibrationWizard } from '../CalibrationWizard';
 import { useFaceStatus } from '../faceStatus';
 import { RECORDING_FORMATS } from '../recording/formats';
@@ -268,18 +269,27 @@ const FACE_MODE_OPTIONS: { value: FaceMapping; label: string }[] = [
   { value: 'none', label: 'Off' },
   { value: 'timbre', label: 'Expression → timbre' },
   { value: 'chord', label: 'Expression → chord' },
+  { value: 'controls', label: 'Head/face pose → chord' },
 ];
 
 const FACE_MODE_HINT: Record<FaceMapping, string> = {
   none: 'No face detection. Pick a mode to map your expression to sound. Uses the same camera as hand tracking; loads a small face model on first use.',
   timbre: 'Smile → brighter tone, open mouth → vibrato — shaping the notes your hands play.',
   chord: "Your expression plays a diatonic triad on the right hand's scale (needs a 7-note scale).",
+  controls:
+    "Deliberate head/face moves play chords — turn to pick the chord, open your mouth to sound it (needs a 7-note scale). The easy, controllable alternative to emotion mode.",
 };
 
-/** Live face-model status + detected expression, driven by the engine (#65). */
-function FaceStatusReadout({ active }: { active: boolean }) {
+/** Modes whose chord needs a seven-note scale (a diatonic triad is otherwise
+ *  undefined): emotion `chord` and head-pose `controls`. */
+const needsSevenNote = (m: FaceMapping): boolean => m === 'chord' || m === 'controls';
+
+/** Live face-model status + detected expression, driven by the engine (#65). The
+ *  classified emotion `label` is shown only when it actually drives the sound — in
+ *  head-pose `controls` mode the emotion is unused, so `showLabel` is false there. */
+function FaceStatusReadout({ active, showLabel = true }: { active: boolean; showLabel?: boolean }) {
   const status = useFaceStatus((s) => s.status);
-  const label = useFaceStatus((s) => s.label);
+  const label = useFaceStatus((s) => (showLabel ? s.label : ''));
 
   let dot = 'bg-white/30';
   let text = 'Off';
@@ -563,26 +573,48 @@ function FaceControls() {
           onChange={(e) => set('face.mapping', e.target.value as FaceMapping)}
         >
           {FACE_MODE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value} disabled={o.value === 'chord' && !sevenNote}>
+            <option key={o.value} value={o.value} disabled={needsSevenNote(o.value) && !sevenNote}>
               {o.label}
-              {o.value === 'chord' && !sevenNote ? ' (needs 7-note scale)' : ''}
+              {needsSevenNote(o.value) && !sevenNote ? ' (needs 7-note scale)' : ''}
             </option>
           ))}
         </select>
       </label>
       <div className="flex items-center justify-between gap-2">
-        <FaceStatusReadout active={faceMapping !== 'none'} />
-        {faceMapping !== 'none' && <ExpressionHelpButton />}
+        <FaceStatusReadout active={faceMapping !== 'none'} showLabel={faceMapping !== 'controls'} />
+        {/* Emotion how-to help is for the expression modes; pose mode has its own moves list. */}
+        {faceMapping !== 'none' && faceMapping !== 'controls' && <ExpressionHelpButton />}
       </div>
-      {faceMapping === 'chord' && !sevenNote && (
+      {needsSevenNote(faceMapping) && !sevenNote && (
         <p className="text-[10px] leading-relaxed text-amber-300/80">
-          Chord mode needs a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.
+          This mode needs a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.
         </p>
       )}
       <p className="text-[10px] leading-relaxed text-white/40">{FACE_MODE_HINT[faceMapping]}</p>
-      {faceMapping === 'chord' && <ChordControls />}
-      {faceMapping !== 'none' && <ExpressionMapping chordMode={faceMapping === 'chord'} />}
+      {faceMapping === 'controls' && <PoseMovesHelp />}
+      {/* Both chord instruments (emotion + pose) share the same sound settings. */}
+      {(faceMapping === 'chord' || faceMapping === 'controls') && <ChordControls />}
+      {/* The per-emotion sensitivity / degree editor applies only to the emotion
+          modes, not the head-pose instrument. */}
+      {faceMapping !== 'none' && faceMapping !== 'controls' && (
+        <ExpressionMapping chordMode={faceMapping === 'chord'} />
+      )}
     </div>
+  );
+}
+
+/** The "few easy moves" help for head-pose `controls` mode (#76) — mirrors the
+ *  axis→music mapping in the `pose-chord` node so the copy can't drift from the
+ *  actual behaviour. */
+function PoseMovesHelp() {
+  return (
+    <ul className="space-y-1 pl-1 text-[10px] leading-relaxed text-white/50">
+      {POSE_MOVES.map((m) => (
+        <li key={m.move}>
+          <span className="text-white/70">{m.move}</span> — {m.effect}
+        </li>
+      ))}
+    </ul>
   );
 }
 

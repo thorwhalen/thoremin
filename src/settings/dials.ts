@@ -82,9 +82,13 @@ export const thoreminDials = defineDials(
     constraints: {
       assertions: [
         {
-          message: 'Chord face-mapping needs a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.',
+          message:
+            'Chord and head-pose face-mappings need a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.',
           keys: ['face.mapping', 'right.type'],
-          check: (v) => v['face.mapping'] !== 'chord' || isSevenNoteScale(v['right.type'] as ScaleTypeId),
+          check: (v) => {
+            const m = v['face.mapping'];
+            return (m !== 'chord' && m !== 'controls') || isSevenNoteScale(v['right.type'] as ScaleTypeId);
+          },
         },
       ],
     },

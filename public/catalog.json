@@ -152,6 +152,31 @@
     ]
   },
   {
+    "type": "chord-select",
+    "title": "Chord Select",
+    "description": "Pick the first non-empty of two chord-tone streams (e.g. emotion triad vs pose chord) for the overlay.",
+    "roles": [
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "a",
+        "kind": "number[]"
+      },
+      {
+        "name": "b",
+        "kind": "number[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "chord",
+        "kind": "number[]"
+      }
+    ],
+    "params": []
+  },
+  {
     "type": "expression-chord",
     "title": "Expression Chord",
     "description": "Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face \"chord\" mode).",
@@ -221,6 +246,113 @@
         "name": "bpm",
         "type": "number",
         "default": 100
+      }
+    ]
+  },
+  {
+    "type": "face-controls",
+    "title": "Face Controls",
+    "description": "Face frame → deliberate control axes (head yaw/pitch/roll, jaw-open, smile↔frown, brow-raise, lip-pucker), each with gain/deadzone/smoothing.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "face",
+        "kind": "face-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "controls",
+        "kind": "face-controls"
+      }
+    ],
+    "params": [
+      {
+        "name": "smoothing",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "headRangeDeg",
+        "type": "number",
+        "default": 30
+      },
+      {
+        "name": "headDeadzoneDeg",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "yawZeroDeg",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "pitchZeroDeg",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "rollZeroDeg",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "yawGain",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "pitchGain",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "rollGain",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "mouthDeadzone",
+        "type": "number",
+        "default": 0.08
+      },
+      {
+        "name": "browDeadzone",
+        "type": "number",
+        "default": 0.1
+      },
+      {
+        "name": "puckerDeadzone",
+        "type": "number",
+        "default": 0.12
+      },
+      {
+        "name": "smileDeadzone",
+        "type": "number",
+        "default": 0.06
+      },
+      {
+        "name": "mouthGain",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "browGain",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "puckerGain",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "smileGain",
+        "type": "number",
+        "default": 1
       }
     ]
   },
@@ -705,6 +837,90 @@
     ]
   },
   {
+    "type": "pose-chord",
+    "title": "Pose Chord",
+    "description": "Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pitch→octave, jaw-open→gate, smile→timbre, brow→7th). Active only in face \"controls\" mode.",
+    "roles": [
+      "music"
+    ],
+    "inputs": [
+      {
+        "name": "controls",
+        "kind": "face-controls"
+      },
+      {
+        "name": "spec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "faceMapping",
+        "kind": "face-mapping",
+        "default": "none"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "chord",
+        "kind": "number[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 0.22
+      },
+      {
+        "name": "sound",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "warmPad"
+      },
+      {
+        "name": "voicing",
+        "type": "enum(spread | bassTriad | close | shell | power)",
+        "default": "spread"
+      },
+      {
+        "name": "rendering",
+        "type": "enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)",
+        "default": "sustained"
+      },
+      {
+        "name": "bpm",
+        "type": "number",
+        "default": 100
+      },
+      {
+        "name": "mouthGate",
+        "type": "number",
+        "default": 0.12
+      },
+      {
+        "name": "octaveRange",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "browSeventhAt",
+        "type": "number",
+        "default": 0.5
+      }
+    ]
+  },
+  {
     "type": "progression",
     "title": "Progression",
     "description": "Roman-numeral progression in a key + position (0..1) → current chord symbol.",
@@ -876,7 +1092,7 @@
   {
     "type": "synth-merge",
     "title": "Synth Merge",
-    "description": "Union two synth-params voice streams into one (e.g. hand voices + face-chord voices).",
+    "description": "Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord).",
     "roles": [
       "mapping"
     ],
@@ -887,6 +1103,10 @@
       },
       {
         "name": "b",
+        "kind": "synth-params"
+      },
+      {
+        "name": "c",
         "kind": "synth-params"
       }
     ],

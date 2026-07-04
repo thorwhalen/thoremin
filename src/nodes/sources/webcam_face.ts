@@ -25,7 +25,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import type { FaceFrame, FaceMapping, FaceStatus } from '../domain';
+import { matrixToHeadPose, type FaceFrame, type FaceMapping, type FaceStatus } from '../domain';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm
@@ -52,13 +52,18 @@ export interface FaceLandmarkerResultLike {
   faceBlendshapes?: Array<{ categories: Array<{ categoryName: string; score: number }> }>;
   /** Normalized (0..1) landmark points per detected face, for the face-mesh overlay. */
   faceLandmarks?: Array<Array<{ x: number; y: number }>>;
+  /** Per-face 4x4 rigid transform (canonical → detected face), COLUMN-MAJOR in
+   *  `data`. Present only when `outputFacialTransformationMatrixes` is enabled
+   *  (issue #76); the rotation block yields head yaw/pitch/roll. */
+  facialTransformationMatrixes?: Array<{ data: number[] | Float32Array }>;
 }
 
 /**
  * Pure converter: a MediaPipe FaceLandmarker result → a {@link FaceFrame} (the 52
- * blendshapes plus the normalized landmark points, when present). Exported so it
- * can be unit-tested headlessly (the live inference itself is browser-only).
- * Returns the absent frame when no face was detected.
+ * blendshapes, the normalized landmark points, and — when the transformation
+ * matrix is present — the decoded head pose). Exported so it can be unit-tested
+ * headlessly (the live inference itself is browser-only). Returns the absent
+ * frame when no face was detected.
  */
 export function blendshapesToFaceFrame(result: FaceLandmarkerResultLike): FaceFrame {
   const categories = result.faceBlendshapes?.[0]?.categories;
@@ -68,6 +73,8 @@ export function blendshapesToFaceFrame(result: FaceLandmarkerResultLike): FaceFr
   const frame: FaceFrame = { present: true, blendshapes };
   const pts = result.faceLandmarks?.[0];
   if (pts && pts.length) frame.landmarks = pts.map((p) => ({ x: p.x, y: p.y }));
+  const matrix = result.facialTransformationMatrixes?.[0]?.data;
+  if (matrix && matrix.length >= 11) frame.headPose = matrixToHeadPose(matrix);
   return frame;
 }
 
@@ -84,6 +91,7 @@ interface TasksVisionModule {
       opts: {
         baseOptions: { modelAssetPath: string; delegate?: 'GPU' | 'CPU' };
         outputFaceBlendshapes?: boolean;
+        outputFacialTransformationMatrixes?: boolean;
         numFaces?: number;
         runningMode?: 'IMAGE' | 'VIDEO';
       },
@@ -176,6 +184,9 @@ export const webcamFaceNode = defineNode<Params>({
     const optionsFor = (delegate: 'GPU' | 'CPU') => ({
       baseOptions: { modelAssetPath: MODEL_URL, delegate },
       outputFaceBlendshapes: true,
+      // Head-pose control axes (#76): the rigid face→camera transform, decoded to
+      // yaw/pitch/roll by `blendshapesToFaceFrame` → `matrixToHeadPose`.
+      outputFacialTransformationMatrixes: true,
       numFaces: 1,
       runningMode: 'VIDEO' as const,
     });

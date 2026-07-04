@@ -117,13 +117,29 @@ export function isSevenNoteScale(type: ScaleTypeId): boolean {
  * — a caller that forgets to gate it gets silence, not a wrong (wrapped) chord.
  */
 export function diatonicTriad(spec: ScaleSpec, degree: number): number[] {
-  if (degree < 0) return [];
+  return diatonicChord(spec, degree, 3);
+}
+
+/**
+ * A diatonic chord rooted on scale `degree` of a seven-note scale, built by
+ * stacking `size` scale-thirds — degrees `degree`, `degree+2`, … — within the
+ * scale's own interval set, as ascending MIDI notes. `size = 3` is the triad
+ * ({@link diatonicTriad}); `size = 4` adds the diatonic seventh (`[0,2,4,6]`),
+ * used by the head-pose instrument's brow "add-7th" modifier (#76). Degrees that
+ * step past the octave wrap up by 12 semitones, keeping the chord ascending.
+ *
+ * Returns `[]` for non-seven-note scales (see {@link isSevenNoteScale}), a
+ * negative degree (the silence sentinel), or a non-positive `size`, so callers
+ * degrade gracefully to no chord rather than indexing out of range.
+ */
+export function diatonicChord(spec: ScaleSpec, degree: number, size = 3): number[] {
+  if (degree < 0 || size < 1) return [];
   const intervals = SCALE_TYPES[spec.type].intervals;
   if (intervals.length !== 7) return [];
   const baseNote = (spec.baseOctave + 1) * 12 + spec.root;
   const d = ((degree % 7) + 7) % 7;
-  return [0, 2, 4].map((third) => {
-    const idx = d + third;
+  return Array.from({ length: size }, (_, i) => {
+    const idx = d + 2 * i;
     return baseNote + intervals[idx % 7] + 12 * Math.floor(idx / 7);
   });
 }

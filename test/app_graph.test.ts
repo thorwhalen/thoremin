@@ -28,15 +28,27 @@ describe('production app graph', () => {
     expect(order.indexOf('camFace')).toBeLessThan(order.indexOf('faceExpr'));
     expect(order.indexOf('faceExpr')).toBeLessThan(order.indexOf('exprChord'));
     expect(order.indexOf('exprChord')).toBeLessThan(order.indexOf('merge'));
-    expect(order).toHaveLength(13);
+    // head-pose controls branch: webcam-face → face-controls → pose-chord → merge (#76)
+    expect(order.indexOf('camFace')).toBeLessThan(order.indexOf('faceCtrl'));
+    expect(order.indexOf('faceCtrl')).toBeLessThan(order.indexOf('poseChord'));
+    expect(order.indexOf('poseChord')).toBeLessThan(order.indexOf('merge'));
+    // both chord instruments feed the overlay highlight via the chord-select join
+    expect(order.indexOf('exprChord')).toBeLessThan(order.indexOf('chordSel'));
+    expect(order.indexOf('poseChord')).toBeLessThan(order.indexOf('chordSel'));
+    expect(order.indexOf('chordSel')).toBeLessThan(order.indexOf('overlay'));
+    expect(order).toHaveLength(16);
   });
 
-  it('wires the face overlays (mesh + expression readout)', () => {
+  it('wires the face overlays (mesh + expression readout + both chord highlights)', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
     expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true); // face mesh data
     expect(has('faceExpr', 'expression', 'overlay', 'expression')).toBe(true); // expression readout
+    // The overlay chord highlight is fed by whichever chord instrument sounds (#76).
+    expect(has('exprChord', 'triad', 'chordSel', 'a')).toBe(true);
+    expect(has('poseChord', 'chord', 'chordSel', 'b')).toBe(true);
+    expect(has('chordSel', 'chord', 'overlay', 'chord')).toBe(true);
   });
 
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {
@@ -57,11 +69,12 @@ describe('production app graph', () => {
     expect(params[0].voices).toHaveLength(2);
 
     // The synth's actual input is the merge of hand voices (0,1) + the 4 stable
-    // chord voices (2..5) — distinct ids, all silent while the face chord is idle.
+    // emotion-chord voices (2..5) + the 5 stable pose-chord voices (6..10) — all
+    // distinct ids, all silent while both face chord sources are idle (#76).
     const merged = recorder.values('merge.params') as SynthParams[];
     const ids = merged[0].voices.map((v) => v.id);
-    expect(ids).toEqual([0, 1, 2, 3, 4, 5]);
-    expect(new Set(ids).size).toBe(6); // no id collision between hands and chord
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(new Set(ids).size).toBe(11); // no id collision across hands + both chords
     expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });
 });

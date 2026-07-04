@@ -21,7 +21,7 @@ This page catalogs the engine's building blocks — every node and how they conn
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
   Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.
 
-## Nodes (25)
+## Nodes (28)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -93,6 +93,14 @@ Face blendshapes → normalized expression controls (smile, mouthOpen, brow, bli
 - **out:** features:face-features
 - **params:** gain (number=1), smoothing (number=0)
 
+#### `face-controls` — Face Controls
+Face frame → deliberate control axes (head yaw/pitch/roll, jaw-open, smile↔frown, brow-raise, lip-pucker), each with gain/deadzone/smoothing.
+
+- **roles:** feature
+- **in:** face:face-frame
+- **out:** controls:face-controls
+- **params:** smoothing (number=0.3), headRangeDeg (number=30), headDeadzoneDeg (number=3), yawZeroDeg (number=0), pitchZeroDeg (number=0), rollZeroDeg (number=0), yawGain (number=1), pitchGain (number=1), rollGain (number=1), mouthDeadzone (number=0.08), browDeadzone (number=0.1), puckerDeadzone (number=0.12), smileDeadzone (number=0.06), mouthGain (number=1), browGain (number=1), puckerGain (number=1), smileGain (number=1)
+
 #### `face-expression` — Face Expression
 Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).
 
@@ -153,11 +161,19 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 - **params:** minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)
 
 #### `synth-merge` — Synth Merge
-Union two synth-params voice streams into one (e.g. hand voices + face-chord voices).
+Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord).
 
 - **roles:** mapping
-- **in:** a:synth-params, b:synth-params
+- **in:** a:synth-params, b:synth-params, c:synth-params
 - **out:** params:synth-params
+- **params:** —
+
+#### `chord-select` — Chord Select
+Pick the first non-empty of two chord-tone streams (e.g. emotion triad vs pose chord) for the overlay.
+
+- **roles:** mapping
+- **in:** a:number[], b:number[]
+- **out:** chord:number[]
 - **params:** —
 
 ### Music logic (tonal guidance)
@@ -186,6 +202,14 @@ Facial expression → a voiced, rendered diatonic chord on the current seven-not
 - **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees
 - **out:** params:synth-params, triad:number[]
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
+
+#### `pose-chord` — Pose Chord
+Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pitch→octave, jaw-open→gate, smile→timbre, brow→7th). Active only in face "controls" mode.
+
+- **roles:** music
+- **in:** controls:face-controls, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config
+- **out:** params:synth-params, chord:number[]
+- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mouthGate (number=0.12), octaveRange (number=1), browSeventhAt (number=0.5)
 
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._
