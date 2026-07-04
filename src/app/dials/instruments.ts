@@ -241,6 +241,28 @@ export function setSelectedName(name: string): void {
   }
 }
 
+const DEFAULT_KEY = 'thoremin.instruments.default';
+
+/** The user's default instrument (loaded on a fresh session), or null. Per-browser
+ *  (thoremin is single-tenant), so "each user" = each browser. */
+export function getDefaultName(): string | null {
+  try {
+    return localStorage.getItem(DEFAULT_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Set (or clear, with an empty string) the default instrument name. */
+export function setDefaultName(name: string): void {
+  try {
+    if (name) localStorage.setItem(DEFAULT_KEY, name);
+    else localStorage.removeItem(DEFAULT_KEY);
+  } catch {
+    /* non-browser / disabled storage */
+  }
+}
+
 // --- Orchestration over the dials store (framework-agnostic, unit-tested) ---------
 
 /**
@@ -277,6 +299,17 @@ export async function restoreSession(): Promise<string | null> {
   if (sel && !selLayer) {
     sel = null;
     setSelectedName(''); // the selected instrument was deleted — clear the stale name
+  }
+  // No selection yet (a fresh session) → load the user's default instrument fully.
+  if (!selLayer) {
+    const def = getDefaultName();
+    const defLayer = def ? (await instruments.load(def)) ?? null : null;
+    if (defLayer) {
+      setSelectedName(def!);
+      dialsStore.setLayer(defLayer);
+      dialsStore.markSaved();
+      return def;
+    }
   }
   if (selLayer) {
     dialsStore.setLayer(selLayer);
