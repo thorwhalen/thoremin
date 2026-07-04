@@ -83,7 +83,7 @@ Landmarks → normalized per-hand position, openness, pinch.
 - **roles:** feature
 - **in:** hands:hands-frame
 - **out:** features:hand-features
-- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), opennessMin (number=1.3), opennessMax (number=2.3), pinchTouch (number=0.25), pinchApart (number=1.2)
+- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), opennessMin (number=1.3), opennessMax (number=2.3), pinchTouch (number=0.25), pinchApart (number=1.2), fingerTouch (number=0.3), fingerApart (number=1.8)
 
 #### `face-features` — Face Features
 Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).

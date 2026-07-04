@@ -53,22 +53,22 @@ describe('seed instruments', () => {
 describe('instruments orchestration over the dials store', () => {
   it('selectInstrument loads the layer as a clean baseline (dirty empty)', async () => {
     await ensureSeeded();
-    const layer = await selectInstrument('Blues Organ');
+    const layer = await selectInstrument('Split Voices');
     expect(layer).not.toBeNull();
     const s = dialsStore.getState();
-    expect(s.effective['right.type']).toBe('blues');
+    expect(s.effective['right.type']).toBe('major');
     expect(s.effective['right.sound']).toBe('organ');
     expect(s.dirty.length).toBe(0);
   });
 
   it('editing after select dirties the store; commit clears it and persists', async () => {
     await ensureSeeded();
-    await selectInstrument('Blues Organ');
+    await selectInstrument('Split Voices');
     dialsStore.set('master.volume', 0.9);
     expect(dialsStore.getState().dirty.length).toBeGreaterThan(0);
-    await commitToInstrument('Blues Organ');
+    await commitToInstrument('Split Voices');
     expect(dialsStore.getState().dirty.length).toBe(0);
-    const reloaded = await instruments.load('Blues Organ');
+    const reloaded = await instruments.load('Split Voices');
     expect(reloaded?.['master.volume']).toBe(0.9);
   });
 
@@ -94,12 +94,12 @@ describe('instruments orchestration over the dials store', () => {
     try {
       await ensureSeeded();
       await selectInstrument('Pentatonic'); // working layer = Pentatonic, clean
-      setSelectedName('Blues Organ'); // pretend Blues Organ is the selected instrument
+      setSelectedName('Split Voices'); // pretend Split Voices is the selected instrument
       dialsStore.set('master.volume', 0.123); // an unsaved working tweak
       const sel = await restoreSession();
-      expect(sel).toBe('Blues Organ');
+      expect(sel).toBe('Split Voices');
       expect(dialsStore.getState().effective['master.volume']).toBeCloseTo(0.123); // working preserved
-      expect(dialsStore.getState().dirty.length).toBeGreaterThan(0); // dirty vs Blues Organ baseline
+      expect(dialsStore.getState().dirty.length).toBeGreaterThan(0); // dirty vs Split Voices baseline
     } finally {
       (globalThis as { localStorage?: unknown }).localStorage = orig;
     }

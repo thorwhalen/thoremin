@@ -21,6 +21,8 @@ import {
   selectInstrument,
   commitToInstrument,
   restoreSession,
+  getDefaultName,
+  setDefaultName,
 } from './instruments';
 
 export interface InstrumentsApi {
@@ -36,6 +38,10 @@ export interface InstrumentsApi {
   save: (name: string) => Promise<void>;
   /** Save the current working layer as a NEW named instrument and select it. */
   create: (name: string) => Promise<void>;
+  /** The default instrument (loaded on a fresh session), or null. */
+  defaultName: string | null;
+  /** Toggle an instrument as the per-browser default (clicking the current one clears it). */
+  setDefault: (name: string) => void;
   /** Re-read the named-instrument list. */
   refresh: () => void;
 }
@@ -44,6 +50,7 @@ export function useInstruments(): InstrumentsApi {
   const [list, setList] = useState<ProfileMeta[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [defaultName, setDefaultState] = useState<string | null>(null);
 
   // Track the current selection without making `select` depend on it (so the click
   // handlers stay stable), for reverting an optimistic pick that fails to load.
@@ -60,6 +67,7 @@ export function useInstruments(): InstrumentsApi {
       const sel = await restoreSession();
       if (cancelled) return;
       setSelected(sel);
+      setDefaultState(getDefaultName());
       refresh();
       setReady(true);
     })();
@@ -104,5 +112,11 @@ export function useInstruments(): InstrumentsApi {
     [refresh],
   );
 
-  return { list, selected, ready, select, save, create, refresh };
+  const setDefault = useCallback((name: string) => {
+    const next = getDefaultName() === name ? '' : name; // clicking the current default clears it
+    setDefaultName(next);
+    setDefaultState(next || null);
+  }, []);
+
+  return { list, selected, ready, select, save, create, defaultName, setDefault, refresh };
 }

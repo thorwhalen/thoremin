@@ -72,6 +72,24 @@ describe('hand-features node', () => {
     expect((pinched.features as HandFeatures).right.pinch).toBeGreaterThan(0.5);
   });
 
+  it('finger→thumb closeness: index rises as the thumb pinches toward it; wrist position reported', async () => {
+    const run = (spread: number, pinch: number) =>
+      replayNode(handFeaturesNode.make(FEAT_PARSED), { hands: [rightHandFrame(spread, pinch)] });
+    const [pinched] = await run(0.5, 1);
+    const [unpinched] = await run(0.5, 0);
+    const rp = (pinched.features as HandFeatures).right;
+    const ru = (unpinched.features as HandFeatures).right;
+    // The synthetic thumb swings toward the index tip on pinch → fingers.index rises.
+    expect(rp.fingers.index).toBeGreaterThan(ru.fingers.index);
+    expect(rp.fingers.index).toBeGreaterThan(0.9);
+    expect(Number.isFinite(rp.fingers.middle)).toBe(true);
+    // Wrist position is reported in [0, 1] (the alternative note source).
+    for (const v of [rp.wristX, rp.wristY]) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+  });
+
   it('reports both hands absent when no hands present', async () => {
     const [out] = await replayNode(handFeaturesNode.make(FEAT_PARSED), {
       hands: [{ width: 640, height: 480, hands: [] } as HandsFrame],

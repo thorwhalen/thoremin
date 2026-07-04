@@ -382,6 +382,16 @@
         "name": "pinchApart",
         "type": "number",
         "default": 1.2
+      },
+      {
+        "name": "fingerTouch",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "fingerApart",
+        "type": "number",
+        "default": 1.8
       }
     ]
   },

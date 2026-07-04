@@ -20,7 +20,8 @@ import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/
 import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
-import { SettingsSchema, DEFAULT_FACE_CHORD, type Settings } from './schema';
+import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
+import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, type Settings } from './schema';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const SoundEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
@@ -73,6 +74,9 @@ export const thoreminDials = defineDials(
       .default({ ...DEFAULT_EXPRESSION_TO_DEGREE })
       .meta({ facets: ['Face', 'advanced'], title: 'Expression chord map' }),
     overlay: OverlayParamsSchema.default(OverlayParamsSchema.parse({})).meta({ facets: ['Overlay'], title: 'Overlay' }),
+    // The hand→sound mapping (note source + finger routing + knobs) — a whole-object
+    // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.
+    handMap: HandMapSchema.default(DEFAULT_HAND_MAP).meta({ facets: ['Hand'], title: 'Hand mapping' }),
   }),
   {
     constraints: {
@@ -111,6 +115,7 @@ export function settingsToLayer(s: Settings): Layer {
     'faceExpr.sensitivity': s.faceExpr.sensitivity,
     'faceExpr.degrees': s.faceExpr.degrees,
     overlay: s.overlay,
+    handMap: s.handMap,
   };
 }
 
@@ -131,5 +136,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
     overlay: v.overlay,
+    handMap: v.handMap,
   });
 }

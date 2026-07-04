@@ -16,9 +16,50 @@ import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/
 import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
+import {
+  EFFECTS,
+  POSITION_SOURCES,
+  FINGER_MODES,
+  DEFAULT_HAND_MAP,
+  type FingerTarget,
+  type PositionSource,
+  type FingerMode,
+} from '@/nodes/mapping/hand_map';
 
 const ScaleTypeEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const InstrumentEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
+
+// ---- Hand map (note source + finger→effect routing + once-static voice knobs) ----
+const FingerTargetEnum = z.enum(['none', ...EFFECTS] as unknown as [FingerTarget, ...FingerTarget[]]);
+const FingerRouteSchema = z.object({
+  target: FingerTargetEnum,
+  sensitivity: z.number().min(0).max(2),
+  mode: z.enum(FINGER_MODES as unknown as [FingerMode, ...FingerMode[]]),
+  invert: z.boolean(),
+});
+/** A saved hand→sound mapping. `.default(...)` keeps presets/instruments saved before
+ *  the hand map existed valid (they get the classic index-note-source, no-routing map). */
+export const HandMapSchema = z
+  .object({
+    positionSource: z.enum(POSITION_SOURCES as unknown as [PositionSource, ...PositionSource[]]),
+    fingers: z.object({
+      index: FingerRouteSchema,
+      middle: FingerRouteSchema,
+      ring: FingerRouteSchema,
+      pinky: FingerRouteSchema,
+    }),
+    magnetism: z.number().min(0).max(1),
+    maxGain: z.number().min(0).max(1),
+    opennessGatesGain: z.boolean(),
+    opennessControlsBrightness: z.boolean(),
+    pinchControlsVibrato: z.boolean(),
+    panByPosition: z.boolean(),
+    panSpread: z.number().min(0).max(1),
+  })
+  // A fresh deep clone per parse — `.default(obj)` only shallow-copies, so nested
+  // finger-route objects would otherwise be shared across every parse AND the constant.
+  .default(() => structuredClone(DEFAULT_HAND_MAP));
+export type HandMapSettings = z.infer<typeof HandMapSchema>;
 
 /** What the player's facial expression controls (none / timbre / chord). */
 export const FaceMappingSchema = z.enum(
@@ -100,6 +141,8 @@ export const SettingsSchema = z.object({
   // presets saved before the expression-mapping editor valid.
   faceExpr: FaceExprSchema,
   overlay: OverlayParamsSchema,
+  // Note source + finger→effect routing + the once-static voice-mapping knobs.
+  handMap: HandMapSchema,
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
