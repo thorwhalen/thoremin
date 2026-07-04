@@ -23,7 +23,7 @@
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 25 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 28 nodes.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live sound is in progress.</p>
   <h3>Example pipelines</h3>
   <ul class="examples"><li><b>Theremin (direct)</b> — <code>webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)</code><br/><span class="note">Hand x → scale-snapped pitch, y → volume. Two hands = two voices.</span></li><li><b>Gesture → harmony</b> — <code>hand-features → pick('right.x') → progression → chord → webaudio-synth</code><br/><span class="note">Hand position walks an in-key chord progression.</span></li><li><b>Conductor</b> — <code>control → performance → transport → score → webaudio-synth</code><br/><span class="note">A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).</span></li><li><b>Indirect / AI (gesture or expression)</b> — <code>hand-features / face-features → indirect-map → lyria</code><br/><span class="note">Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.</span></li><li><b>Discrete triggers</b> — <code>hand-features → gesture-classifier → (events)</code><br/><span class="note">Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.</span></li></ul>
@@ -110,6 +110,16 @@
       </dl>
     </div>
     <div class="node">
+      <h4><code>face-controls</code> <span class="title">Face Controls</span></h4>
+      <p>Face frame → deliberate control axes (head yaw/pitch/roll, jaw-open, smile↔frown, brow-raise, lip-pucker), each with gain/deadzone/smoothing.</p>
+      <dl>
+        <dt>roles</dt><dd>feature</dd>
+        <dt>in</dt><dd>face:face-frame</dd>
+        <dt>out</dt><dd>controls:face-controls</dd>
+        <dt>params</dt><dd>smoothing (number=0.3), headRangeDeg (number=30), headDeadzoneDeg (number=3), yawZeroDeg (number=0), pitchZeroDeg (number=0), rollZeroDeg (number=0), yawGain (number=1), pitchGain (number=1), rollGain (number=1), mouthDeadzone (number=0.08), browDeadzone (number=0.1), puckerDeadzone (number=0.12), smileDeadzone (number=0.06), mouthGain (number=1), browGain (number=1), puckerGain (number=1), smileGain (number=1)</dd>
+      </dl>
+    </div>
+    <div class="node">
       <h4><code>face-expression</code> <span class="title">Face Expression</span></h4>
       <p>Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).</p>
       <dl>
@@ -182,11 +192,21 @@
     </div>
     <div class="node">
       <h4><code>synth-merge</code> <span class="title">Synth Merge</span></h4>
-      <p>Union two synth-params voice streams into one (e.g. hand voices + face-chord voices).</p>
+      <p>Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord).</p>
       <dl>
         <dt>roles</dt><dd>mapping</dd>
-        <dt>in</dt><dd>a:synth-params, b:synth-params</dd>
+        <dt>in</dt><dd>a:synth-params, b:synth-params, c:synth-params</dd>
         <dt>out</dt><dd>params:synth-params</dd>
+        <dt>params</dt><dd>—</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>chord-select</code> <span class="title">Chord Select</span></h4>
+      <p>Pick the first non-empty of two chord-tone streams (e.g. emotion triad vs pose chord) for the overlay.</p>
+      <dl>
+        <dt>roles</dt><dd>mapping</dd>
+        <dt>in</dt><dd>a:number[], b:number[]</dd>
+        <dt>out</dt><dd>chord:number[]</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div></div></section>
@@ -219,6 +239,16 @@
         <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees</dd>
         <dt>out</dt><dd>params:synth-params, triad:number[]</dd>
         <dt>params</dt><dd>gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>pose-chord</code> <span class="title">Pose Chord</span></h4>
+      <p>Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pitch→octave, jaw-open→gate, smile→timbre, brow→7th). Active only in face "controls" mode.</p>
+      <dl>
+        <dt>roles</dt><dd>music</dd>
+        <dt>in</dt><dd>controls:face-controls, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config</dd>
+        <dt>out</dt><dd>params:synth-params, chord:number[]</dd>
+        <dt>params</dt><dd>gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mouthGate (number=0.12), octaveRange (number=1), browSeventhAt (number=0.5)</dd>
       </dl>
     </div></div></section>
 <section><h3>Conductor mode</h3><p class="blurb">Direct a fixed piece with gesture (tempo + dynamics).</p><div class="grid">

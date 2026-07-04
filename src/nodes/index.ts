@@ -12,17 +12,20 @@ import { syntheticHandsNode } from './sources/synthetic_hands';
 import { replaySourceNode } from './sources/replay';
 import { handFeaturesNode } from './features/hand_features';
 import { faceFeaturesNode } from './features/face_features';
+import { faceControlsNode } from './features/face_controls';
 import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { voiceMappingNode } from './mapping/voice_mapping';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { indirectMapNode } from './mapping/indirect_map';
 import { synthMergeNode } from './mapping/synth_merge';
+import { chordSelectNode } from './mapping/chord_select';
 import { pickNode } from './mapping/pick';
 import { oneEuroNode } from './mapping/one_euro';
 import { lyriaNode } from './output/lyria';
 import { chordNode } from './music/chord';
 import { expressionChordNode } from './music/expression_chord';
+import { poseChordNode } from './music/pose_chord';
 import { progressionNode } from './music/progression';
 import { transportNode } from './music/transport';
 import { scoreNode } from './music/score';
@@ -32,6 +35,7 @@ export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
 export { handFeaturesNode } from './features/hand_features';
 export { faceFeaturesNode } from './features/face_features';
+export { faceControlsNode } from './features/face_controls';
 export { faceExpressionNode } from './features/face_expression';
 export { gestureClassifierNode } from './features/gesture_classifier';
 export type { Pose, GestureEvent } from './features/gesture_classifier';
@@ -39,11 +43,13 @@ export { voiceMappingNode } from './mapping/voice_mapping';
 export { keyboardControlNode } from './mapping/keyboard_control';
 export { indirectMapNode } from './mapping/indirect_map';
 export { synthMergeNode } from './mapping/synth_merge';
+export { chordSelectNode } from './mapping/chord_select';
 export { pickNode } from './mapping/pick';
 export { oneEuroNode } from './mapping/one_euro';
 export { lyriaNode } from './output/lyria';
 export { chordNode, voiceChord } from './music/chord';
 export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './music/expression_chord';
+export { poseChordNode, POSE_VOICE_ID_BASE, MAX_POSE_VOICES, yawToDegree } from './music/pose_chord';
 export { progressionNode } from './music/progression';
 export { transportNode } from './music/transport';
 export { scoreNode } from './music/score';
@@ -57,17 +63,20 @@ export const CORE_NODES = [
   replaySourceNode,
   handFeaturesNode,
   faceFeaturesNode,
+  faceControlsNode,
   faceExpressionNode,
   gestureClassifierNode,
   voiceMappingNode,
   keyboardControlNode,
   indirectMapNode,
   synthMergeNode,
+  chordSelectNode,
   pickNode,
   oneEuroNode,
   lyriaNode,
   chordNode,
   expressionChordNode,
+  poseChordNode,
   progressionNode,
   transportNode,
   scoreNode,

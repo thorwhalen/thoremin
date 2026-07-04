@@ -120,6 +120,20 @@ describe('blendshapesToFaceFrame', () => {
     // No landmarks in the result → the field is omitted (not an empty array).
     expect(blendshapesToFaceFrame({ faceBlendshapes: [{ categories: [{ categoryName: 'jawOpen', score: 0.3 }] }] }).landmarks).toBeUndefined();
   });
+
+  it('decodes the head pose from the facial transformation matrix when present (#76)', () => {
+    // Identity rotation (column-major) → facing the camera, zero on every axis.
+    const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const frame = blendshapesToFaceFrame({
+      faceBlendshapes: [{ categories: [{ categoryName: 'jawOpen', score: 0.3 }] }],
+      facialTransformationMatrixes: [{ data: identity }],
+    });
+    expect(frame.headPose).toEqual({ yaw: 0, pitch: 0, roll: 0 });
+    // No matrix → the field is omitted (the offline blendshape fixture case).
+    expect(
+      blendshapesToFaceFrame({ faceBlendshapes: [{ categories: [{ categoryName: 'jawOpen', score: 0.3 }] }] }).headPose,
+    ).toBeUndefined();
+  });
 });
 
 describe('webcam-face node gating', () => {

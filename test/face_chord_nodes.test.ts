@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { replayNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { faceExpressionNode, expressionChordNode, synthMergeNode, voiceMappingNode } from '@/nodes';
+import { faceExpressionNode, expressionChordNode, synthMergeNode, chordSelectNode, voiceMappingNode } from '@/nodes';
 import { MAX_CHORD_VOICES, ABSENT_HAND, ABSENT_FACE } from '@/nodes';
 import type { ExpressionScores } from '@/music/expression';
 import { DEFAULT_EXPRESSION_TO_DEGREE, DEFAULT_EXPRESSION_SENSITIVITY } from '@/music/expression';
@@ -369,5 +369,35 @@ describe('synth-merge node', () => {
     const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] };
     const out = await replayNode(node, { a: [a] });
     expect((out[0].params as SynthParams).voices).toHaveLength(1);
+  });
+
+  it('unions the optional third stream (hand + emotion chord + pose chord) (#76)', async () => {
+    const node = synthMergeNode.make(synthMergeNode.params.parse({}));
+    const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] };
+    const b: SynthParams = { voices: [{ id: 2, present: true, freq: 550, gain: 0.2, sound: 'triangle' }] };
+    const c: SynthParams = { voices: [{ id: 6, present: true, freq: 660, gain: 0.2, sound: 'warmPad' }] };
+    const out = await replayNode(node, { a: [a], b: [b], c: [c] });
+    expect((out[0].params as SynthParams).voices.map((v) => v.id)).toEqual([0, 2, 6]);
+    // Back-compat: a and b alone still merge, with c contributing nothing.
+    const out2 = await replayNode(node, { a: [a], b: [b] });
+    expect((out2[0].params as SynthParams).voices.map((v) => v.id)).toEqual([0, 2]);
+  });
+});
+
+describe('chord-select node (#76)', () => {
+  it('picks the first non-empty chord-tone stream (the sounding instrument)', async () => {
+    const node = chordSelectNode.make(chordSelectNode.params.parse({}));
+    // Emotion chord sounding, pose idle → emotion tones.
+    const out = await replayNode(node, { a: [[60, 64, 67]], b: [[]] });
+    expect(out[0].chord).toEqual([60, 64, 67]);
+    // Pose chord sounding, emotion idle → pose tones.
+    const out2 = await replayNode(node, { a: [[]], b: [[62, 65, 69]] });
+    expect(out2[0].chord).toEqual([62, 65, 69]);
+    // Neither sounding → empty (no highlight).
+    const out3 = await replayNode(node, { a: [[]], b: [[]] });
+    expect(out3[0].chord).toEqual([]);
+    // Missing inputs are treated as empty.
+    const out4 = await replayNode(node, { a: [undefined as unknown as number[]] });
+    expect(out4[0].chord).toEqual([]);
   });
 });
