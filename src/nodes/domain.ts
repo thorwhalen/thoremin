@@ -22,6 +22,13 @@ export interface Hand {
   handedness: Handedness;
   /** 21 keypoints in pixel coordinates of the source frame. */
   keypoints: Keypoint[];
+  /**
+   * 21 keypoints in MediaPipe *world* coordinates (metres, origin at the hand's
+   * geometric centre). Roughly camera-pose-invariant, so distances between them are
+   * scale- AND rotation-robust — the basis for the invariant finger→thumb features.
+   * Optional: absent for the synthetic source / older detectors (2D fallback then).
+   */
+  worldKeypoints?: Keypoint[];
   score?: number;
 }
 
@@ -32,6 +39,14 @@ export interface HandsFrame {
   hands: Hand[];
 }
 
+/** The four non-thumb fingers, in radial order. */
+export const FINGER_NAMES = ['index', 'middle', 'ring', 'pinky'] as const;
+export type FingerName = (typeof FINGER_NAMES)[number];
+
+/** Per-finger thumb closeness, 0 = far from thumb, 1 = touching the thumb.
+ *  Rotation/scale-invariant (palm-span-normalized world-landmark distances). */
+export type FingerCloseness = Record<FingerName, number>;
+
 /** Per-hand features derived from landmarks, all normalized to [0, 1]. */
 export interface SingleHandFeatures {
   present: boolean;
@@ -39,10 +54,18 @@ export interface SingleHandFeatures {
   x: number;
   /** Index-fingertip vertical position, 0 = top, 1 = bottom. */
   y: number;
+  /** Wrist horizontal position, 0 = left, 1 = right (the wrist-tracking source). */
+  wristX: number;
+  /** Wrist vertical position, 0 = top, 1 = bottom. */
+  wristY: number;
   /** Hand openness: 0 = closed fist, 1 = fully spread. */
   openness: number;
-  /** Thumb-to-index pinch: 0 = wide apart, 1 = touching. */
+  /** Thumb-to-index pinch: 0 = wide apart, 1 = touching. (== fingers.index; kept for
+   *  back-compat with the legacy pinch→vibrato knob.) */
   pinch: number;
+  /** Per-finger thumb closeness (rotation/scale-invariant), the basis of the
+   *  configurable finger→effect routing. */
+  fingers: FingerCloseness;
 }
 
 export interface HandFeatures {
@@ -54,8 +77,11 @@ export const ABSENT_HAND: SingleHandFeatures = {
   present: false,
   x: 0,
   y: 0,
+  wristX: 0,
+  wristY: 0,
   openness: 0,
   pinch: 0,
+  fingers: { index: 0, middle: 0, ring: 0, pinky: 0 },
 };
 
 /** Synthesis parameters for one voice. */
@@ -212,6 +238,12 @@ export function kp(hand: Hand, index: number): Keypoint | undefined {
 
 export function dist2d(a: Keypoint, b: Keypoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/** Euclidean distance including z when present (else 2D). Meaningful on *world*
+ *  (metric) keypoints, where z is a real depth and the distance is view-invariant. */
+export function dist3d(a: Keypoint, b: Keypoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, (a.z ?? 0) - (b.z ?? 0));
 }
 
 // ---- Synthetic hand geometry ---------------------------------------------

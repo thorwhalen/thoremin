@@ -50,6 +50,9 @@ interface CategoryLike {
 /** The minimal slice of a `HandLandmarkerResult` this node reads. */
 export interface HandLandmarkerResultLike {
   landmarks: NormalizedLandmarkLike[][];
+  /** Metric 3D landmarks (metres), roughly camera-pose-invariant — used for the
+   *  rotation/scale-invariant finger features. Optional (older results omit it). */
+  worldLandmarks?: NormalizedLandmarkLike[][];
   handedness: CategoryLike[][];
 }
 
@@ -65,6 +68,9 @@ export function resultToHandsFrame(res: HandLandmarkerResultLike, w: number, h: 
   const hands: Hand[] = (res.landmarks ?? []).map((lms, i) => ({
     handedness: (res.handedness?.[i]?.[0]?.categoryName as Handedness) ?? 'Right',
     keypoints: lms.map((l): Keypoint => ({ x: l.x * w, y: l.y * h, z: l.z })),
+    // World landmarks stay in metres (not scaled to pixels) so 3D distances between
+    // them are metric + view-invariant. Absent → downstream falls back to 2D.
+    worldKeypoints: res.worldLandmarks?.[i]?.map((l): Keypoint => ({ x: l.x, y: l.y, z: l.z })),
   }));
   return { width: w, height: h, hands };
 }

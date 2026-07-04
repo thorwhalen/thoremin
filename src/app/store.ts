@@ -24,12 +24,18 @@ import {
   DEFAULT_FACE_EXPR,
   FaceChordSchema,
   FaceExprSchema,
+  HandMapSchema,
   SettingsSchema,
   type Settings,
   type FaceChord,
   type FaceExpr,
 } from '@/settings/schema';
+import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
 import { DEFAULT_RECORDING_FORMATS } from './recording/formats';
+
+/** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
+ *  initializer and healers never share mutable sub-objects with the constant. */
+const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -65,6 +71,10 @@ export interface ControlState {
   faceExpr: FaceExpr;
   /** Composable overlay element config (see canvas_overlay.ts). Live-controlled. */
   overlay: OverlayParams;
+  /** The hand→sound mapping: note source (index/wrist), finger→effect routing, and
+   *  the once-static voice knobs. Read live by `voice-mapping` via
+   *  `ctx.resources.controls`. See src/nodes/mapping/hand_map.ts. */
+  handMap: HandMap;
   /**
    * Output formats a recording is saved in (ids from the recording format
    * registry; always ≥1). A tooling preference — persisted to localStorage but
@@ -85,6 +95,9 @@ export interface ControlState {
   setRecordingFormat(id: string, on: boolean): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
   setOverlayElement<K extends keyof OverlayParams>(key: K, patch: Partial<OverlayParams[K]>): void;
+  /** Shallow-patch the hand map (e.g. setHandMap({ positionSource: 'wrist' }), or a new
+   *  `fingers` object for a route change). */
+  setHandMap(patch: Partial<HandMap>): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
   applySettings(s: Settings): void;
 }
@@ -192,7 +205,18 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
     ? (p.faceMapping as FaceMapping)
     : legacyFaceToMapping(p.faceEnabled);
-  return { ...current, ...p, overlay, faceMapping, faceChord, faceExpr };
+  // Heal the hand map: re-parse through the schema (older blobs lack it entirely →
+  // fall back to the default index-source, no-routing map), so a returning user can
+  // never leave a finger route or knob unbound.
+  let handMap = current.handMap;
+  if (p.handMap) {
+    try {
+      handMap = HandMapSchema.parse(p.handMap);
+    } catch {
+      handMap = current.handMap;
+    }
+  }
+  return { ...current, ...p, overlay, faceMapping, faceChord, faceExpr, handMap };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -219,6 +243,7 @@ export const useControls = create<ControlState>()(
         degrees: { ...DEFAULT_FACE_EXPR.degrees },
       },
       overlay: defaultOverlay(),
+      handMap: defaultHandMap(),
       recordingFormats: [...DEFAULT_RECORDING_FORMATS],
       setVoice: (side, patch) =>
         set((s) => {
@@ -262,18 +287,19 @@ export const useControls = create<ControlState>()(
         set((s) => ({
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
         })),
+      setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
       // Restore exactly the schema fields (the setters/recordingFormats are left
       // untouched). Derived from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
     }),
     {
       name: 'thoremin-controls',
-      // Version 3: the per-hand / chord timbre field was renamed `instrument` →
-      // `sound` (the word "instrument" is now reserved for a saved config). v2 added
-      // the face-mapping chooser (#64: `faceEnabled` → `faceMapping`). See
-      // migrateControls (both field renames) and mergeControls (heals a stale
-      // `overlay`/`faceChord`/`faceExpr` + clamps `faceMapping`).
-      version: 3,
+      // Version 4: added the `handMap` (note source + finger→effect routing + the
+      // once-static voice knobs); mergeControls heals it from the default for older
+      // blobs. v3: `instrument` → `sound` rename. v2: the face-mapping chooser (#64).
+      // See migrateControls (field renames) and mergeControls (heals stale nested
+      // `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
+      version: 4,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

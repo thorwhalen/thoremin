@@ -84,8 +84,8 @@ function fullInputs() {
     ],
   };
   const features: HandFeatures = {
-    right: { present: true, x: 0.7, y: 0.4, openness: 0.6, pinch: 0.2 },
-    left: { present: true, x: 0.3, y: 0.6, openness: 0.3, pinch: 0.8 },
+    right: { present: true, x: 0.7, y: 0.4, wristX: 0.7, wristY: 0.5, openness: 0.6, pinch: 0.2, fingers: { index: 0.2, middle: 0.1, ring: 0.1, pinky: 0.1 } },
+    left: { present: true, x: 0.3, y: 0.6, wristX: 0.3, wristY: 0.6, openness: 0.3, pinch: 0.8, fingers: { index: 0.8, middle: 0.3, ring: 0.2, pinky: 0.1 } },
   };
   const params: SynthParams = {
     voices: [

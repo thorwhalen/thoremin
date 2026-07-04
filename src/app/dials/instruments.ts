@@ -27,7 +27,28 @@ import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import type { Settings } from '@/settings/schema';
+import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
+import type { FingerName } from '@/nodes/domain';
 import { dialsStore } from './settingsStore';
+
+// --- Hand-map builders for the feature-demo seeds ---------------------------------
+const route = (target: FingerTarget, over: Partial<FingerRoute> = {}): FingerRoute => ({
+  target,
+  sensitivity: 1,
+  mode: 'continuous',
+  invert: false,
+  ...over,
+});
+/** A finger route set with the named fingers overridden, the rest off. */
+const fingerRoutes = (r: Partial<Record<FingerName, FingerRoute>>): HandMap['fingers'] => ({
+  index: route('none'),
+  middle: route('none'),
+  ring: route('none'),
+  pinky: route('none'),
+  ...r,
+});
+/** A hand map = the default (index source, no routing, classic knobs) with overrides. */
+const handMap = (over: Partial<HandMap>): HandMap => ({ ...structuredClone(DEFAULT_HAND_MAP), ...over });
 
 /** Reserved profile name (a legacy autosave) — filtered out of the visible list. */
 export const LAST_MODIFIED = 'Last modified';
@@ -49,43 +70,99 @@ function seed(name: string, s: Settings): SeedInstrument {
 }
 
 /**
- * The shipped instruments. A spread of variety to exercise the stack: a forgiving
- * pentatonic default, two face-chord configs (sustained pad vs strummed), a punchy
- * organ lead, and a shimmery arpeggiated ambient patch. Face-chord instruments use a
- * 7-note scale (today's requirement; see issue #75 for relaxing it).
+ * The shipped instruments — a dozen, each demoing a feature of the stack:
+ *  - the gentle default;
+ *  - WRIST note-tracking + open/closed-hand effects (fist-mute, open-brightness);
+ *  - FINGER→effect routing (per-finger closeness → brightness / vibrato / pan / bend /
+ *    octave / gate), continuous and discrete-trigger;
+ *  - different sound in the left vs right hand;
+ *  - face-chord arpeggio and pulse renderings.
+ * Face-chord instruments use a 7-note scale (today's requirement; see issue #75).
+ * See discussion #80 for the research behind the finger→effect defaults.
  */
 export const SEED_INSTRUMENTS: SeedInstrument[] = [
-  // Forgiving + consonant out of the box — the gentle default (≈ the dials defaults).
+  // --- The gentle default (index note source, no finger routing) ------------------
   seed('Pentatonic', { ...DEFAULTS }),
 
-  // The face-chord showcase: a major scale, expression plays a sustained triad.
-  seed('Major + face chords', {
+  // --- Wrist tracking + open/closed hand (6) --------------------------------------
+  // Play with your whole hand (steadier than the fingertip); a closed fist silences.
+  seed('Wrist Theremin', {
     ...DEFAULTS,
-    right: { ...DEFAULTS.right, type: 'major' },
-    left: { ...DEFAULTS.left, type: 'major' },
-    faceMapping: 'chord',
+    right: { ...DEFAULTS.right, sound: 'warmPad' },
+    left: { ...DEFAULTS.left, sound: 'warmPad' },
+    handMap: handMap({ positionSource: 'wrist', opennessGatesGain: true }),
   }),
 
-  // Bossa-ish: major pads, gently strummed chords from the face. (strum is staggered
-  // by a fixed onset, not BPM — see isTempoRendering in music/voicing.ts — so no bpm.)
-  seed('Bossa Pads', {
+  // Wrist notes; opening the hand opens the tone (open = brighter).
+  seed('Open Air Pad', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, sound: 'glass' },
+    left: { ...DEFAULTS.left, sound: 'glass' },
+    handMap: handMap({ positionSource: 'wrist', opennessControlsBrightness: true }),
+  }),
+
+  // The finger-routing showcase: index→brightness, middle→vibrato, ring→pan,
+  // pinky→pitch-bend (the research-grounded default; discussion #80).
+  seed('Finger FX', {
     ...DEFAULTS,
     right: { ...DEFAULTS.right, type: 'major', sound: 'warmPad' },
-    left: { ...DEFAULTS.left, type: 'major', sound: 'strings' },
-    faceMapping: 'chord',
-    faceChord: { ...DEFAULTS.faceChord, sound: 'strings', voicing: 'spread', rendering: 'strum' },
+    left: { ...DEFAULTS.left, type: 'major', sound: 'warmPad' },
+    handMap: handMap({ positionSource: 'wrist', fingers: { ...RECOMMENDED_FINGER_ROUTES } }),
   }),
 
-  // A punchy blues lead on organ, no face mapping — immediate and hands-only.
-  seed('Blues Organ', {
+  // Bend the pitch by pinching the index toward the thumb (a whole-tone bend).
+  seed('Pitch Bender', {
     ...DEFAULTS,
-    right: { ...DEFAULTS.right, type: 'blues', sound: 'organ' },
-    left: { ...DEFAULTS.left, type: 'blues', sound: 'organ' },
-    masterVolume: 0.45,
+    right: { ...DEFAULTS.right, sound: 'softLead' },
+    left: { ...DEFAULTS.left, sound: 'softLead' },
+    handMap: handMap({
+      positionSource: 'wrist',
+      fingers: fingerRoutes({ index: route('pitchBend', { sensitivity: 1.5 }) }),
+    }),
   }),
 
-  // Shimmery ambient: higher register, glass/bell, expression arpeggiates a chord
-  // (arpUp IS a tempo rendering, so bpm 90 is audible — paired with a crisp bell).
+  // The index finger gates the voice on/off (touch the thumb to sound); middle brightens.
+  seed('Finger Gate', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, sound: 'glass' },
+    left: { ...DEFAULTS.left, sound: 'glass' },
+    handMap: handMap({
+      positionSource: 'wrist',
+      fingers: fingerRoutes({ index: route('gate'), middle: route('brightness') }),
+    }),
+  }),
+
+  // Discrete triggers: pinch the index for +1 octave, the middle to sustain (gate).
+  seed('Trigger Octaves', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, sound: 'bell' },
+    left: { ...DEFAULTS.left, sound: 'bell' },
+    handMap: handMap({
+      positionSource: 'wrist',
+      fingers: fingerRoutes({
+        index: route('octave', { mode: 'trigger' }),
+        middle: route('gate', { mode: 'trigger' }),
+      }),
+    }),
+  }),
+
+  // --- Different sound in each hand (2) -------------------------------------------
+  seed('Split Voices', {
+    ...DEFAULTS,
+    syncHands: false,
+    right: { ...DEFAULTS.right, type: 'major', sound: 'organ' },
+    left: { ...DEFAULTS.left, type: 'minor', sound: 'glass' },
+  }),
+
+  seed('Bell & Strings', {
+    ...DEFAULTS,
+    syncHands: false,
+    right: { ...DEFAULTS.right, type: 'major', sound: 'bell' },
+    left: { ...DEFAULTS.left, type: 'major', sound: 'strings' },
+  }),
+
+  // --- Face-chord renderings (2) --------------------------------------------------
+  // Shimmery ambient: expression arpeggiates a chord (arpUp is tempo-driven → bpm 90).
   seed('Glass Bells', {
     ...DEFAULTS,
     right: { ...DEFAULTS.right, type: 'major', sound: 'glass', baseOctave: 4 },
@@ -93,6 +170,33 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     faceMapping: 'chord',
     faceChord: { ...DEFAULTS.faceChord, sound: 'bell', voicing: 'spread', rendering: 'arpUp', bpm: 90 },
     masterVolume: 0.35,
+  }),
+
+  // Rhythmic re-articulated chords from the face (pulse, tempo-driven).
+  seed('Pulse Organ', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, type: 'major', sound: 'organ' },
+    left: { ...DEFAULTS.left, type: 'major', sound: 'organ' },
+    faceMapping: 'chord',
+    faceChord: { ...DEFAULTS.faceChord, sound: 'organ', voicing: 'close', rendering: 'pulse', bpm: 110 },
+  }),
+
+  // --- Maximalist: wrist notes + all fingers routed + face timbre -----------------
+  seed('Everything', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, type: 'major', sound: 'warmPad' },
+    left: { ...DEFAULTS.left, type: 'major', sound: 'warmPad' },
+    faceMapping: 'timbre',
+    handMap: handMap({
+      positionSource: 'wrist',
+      opennessControlsBrightness: true,
+      fingers: fingerRoutes({
+        index: route('brightness'),
+        middle: route('vibrato'),
+        ring: route('pan'),
+        pinky: route('octave', { mode: 'trigger' }),
+      }),
+    }),
   }),
 ];
 

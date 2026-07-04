@@ -34,4 +34,24 @@ describe('resultToHandsFrame', () => {
     const frame = resultToHandsFrame({ landmarks: [], handedness: [] }, 640, 480);
     expect(frame.hands).toEqual([]);
   });
+
+  it('carries metric world landmarks unscaled (for the invariant finger features)', () => {
+    const landmarks = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    const world = Array.from({ length: 21 }, (_, i) => ({ x: i * 0.01, y: 0, z: -0.02 }));
+    const res: HandLandmarkerResultLike = {
+      landmarks: [landmarks],
+      worldLandmarks: [world],
+      handedness: [[{ categoryName: 'Right' }]],
+    };
+    const frame = resultToHandsFrame(res, 640, 480);
+    expect(frame.hands[0].worldKeypoints).toHaveLength(21);
+    // World coords stay in metres — NOT multiplied by width/height.
+    expect(frame.hands[0].worldKeypoints![20]).toMatchObject({ x: 0.2, y: 0, z: -0.02 });
+  });
+
+  it('omits worldKeypoints when the result has no world landmarks', () => {
+    const one = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    const frame = resultToHandsFrame({ landmarks: [one], handedness: [[{ categoryName: 'Right' }]] }, 100, 100);
+    expect(frame.hands[0].worldKeypoints).toBeUndefined();
+  });
 });
