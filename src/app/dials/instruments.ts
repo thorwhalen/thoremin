@@ -211,13 +211,40 @@ function instrumentStorage(): ProfileStorage {
 /** The instruments profile store (named layers persisted to localStorage). */
 export const instruments = createProfileStore(instrumentStorage());
 
-/** Seed the shipped instruments on first run (when no named instrument exists yet).
- *  Idempotent: a no-op once any named instrument is present. */
+/** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
+ *  instruments added (by name) without re-seeding or clobbering their own. */
+const SEED_VERSION = 2;
+const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
+
+const readSeedVersion = (): number => {
+  try {
+    return Number(localStorage.getItem(SEED_VERSION_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+};
+const writeSeedVersion = (): void => {
+  try {
+    localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION));
+  } catch {
+    /* non-browser / disabled storage */
+  }
+};
+
+/**
+ * Ensure the shipped instruments are present. First run seeds them all; a later run
+ * whose stored SEED_VERSION is behind ADDS any shipped instrument whose name isn't
+ * already saved (so an existing user gains the new demos without losing their own or
+ * having edits/deletions of same-named ones clobbered). Idempotent once up to date.
+ */
 export async function ensureSeeded(): Promise<void> {
   const list = await instruments.list();
-  const named = list.filter((p) => p.name !== LAST_MODIFIED);
-  if (named.length > 0) return;
-  for (const s of SEED_INSTRUMENTS) await instruments.save(s.name, s.layer);
+  const named = new Set(list.filter((p) => p.name !== LAST_MODIFIED).map((p) => p.name));
+  if (named.size > 0 && readSeedVersion() >= SEED_VERSION) return;
+  for (const s of SEED_INSTRUMENTS) {
+    if (!named.has(s.name)) await instruments.save(s.name, s.layer);
+  }
+  writeSeedVersion();
 }
 
 const SELECTED_KEY = 'thoremin.instruments.selected';
@@ -263,6 +290,17 @@ export function setDefaultName(name: string): void {
   }
 }
 
+/** True on a genuinely fresh browser — no persisted working state yet. The hot store
+ *  (zustand persist, key 'thoremin-controls') writes only on the first edit/selection,
+ *  so its absence marks a first-ever visit (when the default instrument should open). */
+function isFreshBrowser(): boolean {
+  try {
+    return !localStorage.getItem('thoremin-controls');
+  } catch {
+    return false;
+  }
+}
+
 // --- Orchestration over the dials store (framework-agnostic, unit-tested) ---------
 
 /**
@@ -300,10 +338,14 @@ export async function restoreSession(): Promise<string | null> {
     sel = null;
     setSelectedName(''); // the selected instrument was deleted — clear the stale name
   }
-  // No selection yet (a fresh session) → load the user's default instrument fully.
-  if (!selLayer) {
+  // Open on the user's default instrument ONLY on a genuinely fresh browser (no
+  // persisted working state). On later runs we resume the working layer instead, so
+  // unsaved edits are never discarded by the default. StrictMode-safe: the first
+  // restore writes the hot-store key, so a re-mount takes the resume path.
+  if (!selLayer && isFreshBrowser()) {
     const def = getDefaultName();
     const defLayer = def ? (await instruments.load(def)) ?? null : null;
+    if (def && !defLayer) setDefaultName(''); // the default instrument was deleted — clear it
     if (defLayer) {
       setSelectedName(def!);
       dialsStore.setLayer(defLayer);

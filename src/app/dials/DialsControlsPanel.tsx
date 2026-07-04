@@ -588,11 +588,19 @@ function HandControls() {
       <Toggle label="Closed fist mutes" checked={hm.opennessGatesGain} onChange={(v) => patch({ opennessGatesGain: v })} />
       <Toggle label="Open hand → brighter" checked={hm.opennessControlsBrightness} onChange={(v) => patch({ opennessControlsBrightness: v })} />
       <Toggle label="Pinch → vibrato" checked={hm.pinchControlsVibrato} onChange={(v) => patch({ pinchControlsVibrato: v })} />
-      <label className="flex items-center justify-between gap-2 text-xs">
-        Scale snap
+      <Toggle label="Position → stereo pan" checked={hm.panByPosition} onChange={(v) => patch({ panByPosition: v })} />
+      <label className={`flex items-center justify-between gap-2 text-xs ${hm.panByPosition ? '' : 'opacity-40'}`}>
+        Pan spread
         <input
-          type="range" min={0} max={1} step={0.01} value={hm.magnetism}
-          onChange={(e) => patch({ magnetism: Number(e.target.value) })}
+          type="range" min={0} max={1} step={0.01} value={hm.panSpread}
+          onChange={(e) => patch({ panSpread: Number(e.target.value) })}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Max volume
+        <input
+          type="range" min={0} max={1} step={0.01} value={hm.maxGain}
+          onChange={(e) => patch({ maxGain: Number(e.target.value) })}
         />
       </label>
 
@@ -624,6 +632,17 @@ function HandControls() {
                   onClick={() => patchFinger(name, { mode: r.mode === 'continuous' ? 'trigger' : 'continuous' })}
                 >
                   {r.mode === 'trigger' ? 'trig' : 'cont'}
+                </button>
+                <button
+                  type="button"
+                  className={`rounded px-1.5 py-1 text-[9px] uppercase tracking-widest transition ${
+                    r.target === 'none' ? 'opacity-30' : r.invert ? 'bg-amber-300/20 text-amber-200' : 'bg-white/10 text-white/50 hover:bg-white/20'
+                  }`}
+                  title={r.invert ? 'Inverted: far from the thumb drives it' : 'Normal: close to the thumb drives it'}
+                  disabled={r.target === 'none'}
+                  onClick={() => patchFinger(name, { invert: !r.invert })}
+                >
+                  inv
                 </button>
               </div>
               {r.target !== 'none' && (

@@ -56,7 +56,9 @@ export const HandMapSchema = z
     panByPosition: z.boolean(),
     panSpread: z.number().min(0).max(1),
   })
-  .default(DEFAULT_HAND_MAP);
+  // A fresh deep clone per parse — `.default(obj)` only shallow-copies, so nested
+  // finger-route objects would otherwise be shared across every parse AND the constant.
+  .default(() => structuredClone(DEFAULT_HAND_MAP));
 export type HandMapSettings = z.infer<typeof HandMapSchema>;
 
 /** What the player's facial expression controls (none / timbre / chord). */

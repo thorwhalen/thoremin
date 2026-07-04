@@ -60,8 +60,9 @@ export interface SingleHandFeatures {
   wristY: number;
   /** Hand openness: 0 = closed fist, 1 = fully spread. */
   openness: number;
-  /** Thumb-to-index pinch: 0 = wide apart, 1 = touching. (== fingers.index; kept for
-   *  back-compat with the legacy pinch→vibrato knob.) */
+  /** Thumb-to-index pinch: 0 = wide apart, 1 = touching. A similar but separately
+   *  normalized measure to `fingers.index` (2D, hand-scale reference, its own
+   *  thresholds); kept distinct for back-compat with the legacy pinch→vibrato knob. */
   pinch: number;
   /** Per-finger thumb closeness (rotation/scale-invariant), the basis of the
    *  configurable finger→effect routing. */

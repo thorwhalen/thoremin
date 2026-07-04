@@ -51,6 +51,28 @@ describe('thoreminDials', () => {
     }
   });
 
+  it('round-trips a fully custom handMap (not just the default)', () => {
+    const custom = sample({
+      handMap: {
+        positionSource: 'wrist',
+        fingers: {
+          index: { target: 'brightness', sensitivity: 1.5, mode: 'continuous', invert: false },
+          middle: { target: 'vibrato', sensitivity: 0.8, mode: 'trigger', invert: true },
+          ring: { target: 'pan', sensitivity: 1, mode: 'continuous', invert: false },
+          pinky: { target: 'octave', sensitivity: 2, mode: 'trigger', invert: false },
+        },
+        magnetism: 0.3,
+        maxGain: 0.7,
+        opennessGatesGain: true,
+        opennessControlsBrightness: false,
+        pinchControlsVibrato: false,
+        panByPosition: false,
+        panSpread: 0.9,
+      },
+    });
+    expect(layerToSettings(settingsToLayer(custom)).handMap).toEqual(custom.handMap);
+  });
+
   it('enforces the chord-needs-a-7-note-scale constraint', () => {
     const base = thoreminDials.defaults as Record<string, unknown>;
     expect(thoreminDials.validate({ ...base, 'face.mapping': 'chord', 'right.type': 'pentatonic' }).ok).toBe(false);
