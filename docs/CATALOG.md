@@ -237,10 +237,10 @@ Steers a generative engine (Lyria RealTime) from weighted prompts + config dials
 _Audio + the captured video with overlaid guides._
 
 #### `canvas-overlay` — Canvas Overlay
-Mirrored video + composable overlay elements (guides, landmarks, markers).
+Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 
 - **roles:** overlay
 - **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config
 - **out:** —
-- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), faceLandmarks (object={}), faceExpression (object={}), timbreLevels (object={})
+- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={})
 

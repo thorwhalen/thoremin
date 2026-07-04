@@ -41,6 +41,26 @@ export function midiToName(midi: number): string {
   return `${NOTES[((r % 12) + 12) % 12]}${Math.floor(r / 12) - 1}`;
 }
 
+/**
+ * Name a chord from its MIDI tones (root + a basic triad quality) — e.g. "C", "Am",
+ * "Bdim". Best-effort: the lowest tone is the root and the thirds classify the
+ * quality; falls back to just the root note name when the shape isn't a plain triad.
+ */
+export function chordName(tones: number[]): string {
+  if (!tones.length) return '';
+  const sorted = [...tones].sort((a, b) => a - b);
+  const root = (((sorted[0] % 12) + 12) % 12);
+  const intervals = new Set(sorted.map((m) => ((((m - sorted[0]) % 12) + 12) % 12)));
+  const has = (i: number) => intervals.has(i);
+  let quality = '';
+  if (has(4) && has(7)) quality = '';
+  else if (has(3) && has(7)) quality = 'm';
+  else if (has(3) && has(6)) quality = 'dim';
+  else if (has(4) && has(8)) quality = 'aug';
+  else if (has(7) && !has(3) && !has(4)) quality = '5';
+  return NOTES[root] + quality;
+}
+
 export interface ScaleSpec {
   /** Pitch class of the root, 0 = C ... 11 = B. */
   root: number;

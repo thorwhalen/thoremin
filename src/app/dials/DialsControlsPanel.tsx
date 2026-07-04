@@ -228,6 +228,22 @@ function OverlayControls() {
             />
           </label>
         )}
+        {d.position && (
+          <label className={`flex items-center justify-between gap-2 pl-5 text-xs ${elt.show ? '' : 'opacity-40'}`}>
+            Position
+            <select
+              className={selectCls}
+              value={elt.position as string}
+              disabled={!elt.show}
+              onChange={(e) => patch(d.name, { position: e.target.value } as never)}
+            >
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+            </select>
+          </label>
+        )}
       </div>
     );
   };

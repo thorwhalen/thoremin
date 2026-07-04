@@ -14,6 +14,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { canvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes/output/canvas_overlay';
 import { OVERLAY_CONTROLS } from '@/app/overlayControls';
+import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import {
   makeHandKeypoints,
   type HandFeatures,
@@ -53,7 +54,7 @@ function makeRecordingCanvas(width = 1280, height = 720) {
     };
   for (const m of [
     'clearRect', 'save', 'restore', 'beginPath', 'arc', 'fill', 'stroke',
-    'moveTo', 'lineTo', 'drawImage', 'fillText', 'setLineDash', 'scale', 'translate',
+    'moveTo', 'lineTo', 'drawImage', 'fillText', 'setLineDash', 'scale', 'translate', 'rotate',
   ]) {
     ctx[m] = rec(m);
   }
@@ -141,7 +142,7 @@ describe('canvas-overlay composable elements', () => {
       expect(categories.has(el.category)).toBe(true); // grouped under a known category
     }
     expect(names[0]).toBe('video'); // backdrop drawn first (bottom)
-    expect(names[names.length - 1]).toBe('faceExpression'); // readout on top
+    expect(names[names.length - 1]).toBe('fingerBars'); // HUD cue on top
   });
 
   it('every overlay element has a UI control descriptor (the panel is data-driven, no silent drop)', () => {
@@ -280,7 +281,9 @@ describe('canvas-overlay composable elements', () => {
       fired: [true, false, false, false, false, false, false],
     };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
-    expect(rc.count('fillText')).toBe(1); // the label
+    // Default x-axis labels: an expression name + a chord name under each bar (top
+    // label off) → 7 emotions × 2 labels.
+    expect(rc.count('fillText')).toBe(14);
     const strokes = rc.calls.filter((c) => c.m === 'stroke');
     expect(strokes).toHaveLength(14); // 7 emotions × (activation bar + threshold tick)
     expect(strokes[0].stroke).toBe('#f5d142'); // happy bar — the winner glows gold
@@ -299,7 +302,7 @@ describe('canvas-overlay composable elements', () => {
       fired: [false, false, false, false, false, false, false],
     };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
-    expect(rc.count('fillText')).toBe(1); // 'neutral' label still renders
+    expect(rc.count('fillText')).toBe(14); // x-axis labels still render; no winner highlighted
     const strokes = rc.calls.filter((c) => c.m === 'stroke');
     expect(strokes).toHaveLength(14);
     // No activation bar (even indices) uses the gold winner colour.
@@ -329,6 +332,40 @@ describe('canvas-overlay composable elements', () => {
     expect(drawWith({ ...onlyElement('timbreLevels'), timbreLevels: { show: false } }).count('stroke')).toBe(0);
     // Default is off (opt-in).
     expect((canvasOverlayNode.params.parse({}) as { timbreLevels: { show: boolean } }).timbreLevels.show).toBe(false);
+  });
+
+  const handMapWith = (over: Record<string, unknown>) => ({ ...structuredClone(DEFAULT_HAND_MAP), ...over });
+  const withControls = (handMap: unknown) => ({ controls: () => ({ handMap }) });
+  const routeIndex = { ...DEFAULT_HAND_MAP.fingers, index: { target: 'brightness', sensitivity: 1, mode: 'continuous', invert: false } };
+
+  it('fingerLines (Output): a labelled line per ROUTED finger, per present hand', () => {
+    const handMap = handMapWith({ fingers: routeIndex });
+    const rc = draw(onlyElement('fingerLines'), withControls(handMap));
+    expect(rc.count('lineTo')).toBe(2); // 2 hands × 1 routed finger (index)
+    expect(rc.count('fillText')).toBe(2); // value + effect label per line
+    // No routes → nothing; no hand map (no controls) → nothing.
+    expect(draw(onlyElement('fingerLines'), withControls(handMapWith({}))).count('lineTo')).toBe(0);
+    expect(draw(onlyElement('fingerLines')).count('lineTo')).toBe(0);
+    // Labels toggle independently.
+    expect(draw({ ...onlyElement('fingerLines'), fingerLines: { show: true, showLabels: false } }, withControls(handMap)).count('fillText')).toBe(0);
+  });
+
+  it('fingerBars (Output HUD cue): a bar per routed finger; opt-in; positionable', () => {
+    const handMap = handMapWith({
+      fingers: { ...routeIndex, middle: { target: 'vibrato', sensitivity: 1, mode: 'continuous', invert: false } },
+    });
+    const rc = draw({ ...onlyElement('fingerBars'), fingerBars: { show: true, position: 'left' } }, withControls(handMap));
+    expect(rc.count('stroke')).toBe(2); // 2 routed fingers → 2 bars (no thresholds)
+    // Default off; nothing without a routing hand map.
+    expect((canvasOverlayNode.params.parse({}) as { fingerBars: { show: boolean } }).fingerBars.show).toBe(false);
+    expect(draw({ ...onlyElement('fingerBars'), fingerBars: { show: true, position: 'left' } }, withControls(handMapWith({}))).count('stroke')).toBe(0);
+  });
+
+  it('markers + landmark ring draw without error using the wrist source', () => {
+    const handMap = handMapWith({ positionSource: 'wrist' });
+    expect(() => draw({ ...onlyElement('markers'), scaleGuide: { show: false } }, withControls(handMap))).not.toThrow();
+    const rc = draw({ ...onlyElement('markers'), scaleGuide: { show: false } }, withControls(handMap));
+    expect(rc.count('arc')).toBeGreaterThan(0); // markers still drawn at the wrist source
   });
 
   it('a live overlayConfig input overrides the static params', () => {
