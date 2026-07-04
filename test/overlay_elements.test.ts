@@ -281,9 +281,9 @@ describe('canvas-overlay composable elements', () => {
       fired: [true, false, false, false, false, false, false],
     };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
-    // Default x-axis labels: an expression name + a chord name under each bar (top
-    // label off) → 7 emotions × 2 labels.
-    expect(rc.count('fillText')).toBe(14);
+    // Default x-axis labels: an expression name per bar (chord names are gated to
+    // chord mode, which the headless test isn't in) → 7 expression labels.
+    expect(rc.count('fillText')).toBe(7);
     const strokes = rc.calls.filter((c) => c.m === 'stroke');
     expect(strokes).toHaveLength(14); // 7 emotions × (activation bar + threshold tick)
     expect(strokes[0].stroke).toBe('#f5d142'); // happy bar — the winner glows gold
@@ -302,11 +302,39 @@ describe('canvas-overlay composable elements', () => {
       fired: [false, false, false, false, false, false, false],
     };
     const rc = drawWith(onlyElement('faceExpression'), { expression });
-    expect(rc.count('fillText')).toBe(14); // x-axis labels still render; no winner highlighted
+    expect(rc.count('fillText')).toBe(7); // expression x-axis labels still render; no winner highlighted
     const strokes = rc.calls.filter((c) => c.m === 'stroke');
     expect(strokes).toHaveLength(14);
     // No activation bar (even indices) uses the gold winner colour.
     expect(strokes.filter((_, i) => i % 2 === 0).every((s) => s.stroke !== '#f5d142')).toBe(true);
+  });
+
+  it('faceExpression: chord names appear ONLY in chord mode, computed from the scale+degree', () => {
+    const expression = {
+      present: true,
+      label: 'happy',
+      scores: [0.7, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+      thresholds: [0.4, 0.4, 0.45, 0.4, 0.4, 0.4, 0.375],
+      fired: [true, false, false, false, false, false, false],
+    };
+    // A seven-note C-major scale (two octaves) + happy→degree 0 (I = C major).
+    const draw = (faceMapping: string | undefined) => {
+      const rc = makeRecordingCanvas();
+      const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(onlyElement('faceExpression')));
+      const controls = () => ({ faceMapping, faceExpr: { degrees: { happy: 0 } } });
+      const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video, controls } };
+      handlers.process(
+        { ...fullInputs(), expression, scale: [48, 50, 52, 53, 55, 57, 59, 60, 62, 64] },
+        ctx,
+      );
+      return rc;
+    };
+    // Timbre mode: chord labels suppressed → 7 (expression names only).
+    expect(draw('timbre').count('fillText')).toBe(7);
+    // Chord mode: expression + chord labels → 14, and the happy→I chord names as "C".
+    const rc = draw('chord');
+    expect(rc.count('fillText')).toBe(14);
+    expect(rc.calls.some((c) => c.m === 'fillText' && c.args[0] === 'C')).toBe(true);
   });
 
   it('faceExpression: nothing when the expression is absent or toggled off', () => {

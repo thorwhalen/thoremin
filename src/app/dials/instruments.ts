@@ -28,6 +28,7 @@ import type { Layer } from '@zodal/dials-core';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import type { Settings } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
+import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 import type { FingerName } from '@/nodes/domain';
 import { dialsStore } from './settingsStore';
 
@@ -50,9 +51,10 @@ const fingerRoutes = (r: Partial<Record<FingerName, FingerRoute>>): HandMap['fin
 /** A hand map = the default (index source, no routing, classic knobs) with overrides. */
 const handMap = (over: Partial<HandMap>): HandMap => ({ ...structuredClone(DEFAULT_HAND_MAP), ...over });
 /** An overlay config = the defaults with a few element sub-objects overridden (to
- *  demo cues like the finger→effect lines / bars). */
+ *  demo cues like the finger→effect lines / bars). Parsed through the schema so a
+ *  partial sub-object override still ships a COMPLETE, valid overlay layer. */
 const overlay = (over: Record<string, unknown>): Settings['overlay'] =>
-  ({ ...DEFAULTS.overlay, ...over }) as Settings['overlay'];
+  OverlayParamsSchema.parse({ ...DEFAULTS.overlay, ...over }) as Settings['overlay'];
 
 /** Reserved profile name (a legacy autosave) — filtered out of the visible list. */
 export const LAST_MODIFIED = 'Last modified';

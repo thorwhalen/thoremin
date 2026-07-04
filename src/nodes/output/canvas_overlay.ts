@@ -122,6 +122,8 @@ export interface OverlayView {
     handMap?: HandMap;
     /** Live expression→scale-degree map, to name each expression's chord. */
     faceDegrees?: Record<string, number>;
+    /** Live face mapping mode ('chord'/'timbre'/…); chord labels show only in 'chord'. */
+    faceMapping?: string;
   };
   params: Params;
   /** Computed top-left origin per cue element name (set by the layout pass). */
@@ -500,7 +502,11 @@ function measureBarGraph(bars: { labels?: string[] }[], opts: BarGraphOpts): { w
   const gap = opts.gap ?? BAR_GAP;
   const maxH = opts.maxH ?? BAR_MAXH;
   const n = bars.length;
-  const w = n * (barW + gap) - gap + PAD * 2;
+  const barsW = n * (barW + gap) - gap + PAD * 2;
+  // A short title (bold 14px monospace ≈ 8.4px/char) can be wider than a 1-bar box;
+  // take the max so horizontally-stacked (top/bottom) cues don't overlap.
+  const titleW = opts.title ? opts.title.length * 8.4 + PAD * 2 : 0;
+  const w = Math.max(barsW, titleW);
   const labelLines = Math.max(0, ...bars.map((b) => b.labels?.filter(Boolean).length ?? 0));
   const h = (opts.title ? 18 : 0) + maxH + 6 + labelLines * LABEL_LINE_H + PAD;
   return { w, h };
@@ -560,13 +566,21 @@ function drawBarGraph(g: CanvasRenderingContext2D, x0: number, y0: number, bars:
   g.restore();
 }
 
-/** Diatonic triad tones for a scale degree, from the scale's ascending MIDI notes. */
+/**
+ * Diatonic triad tones for a scale degree, by stacking thirds WITHIN the scale's own
+ * octave and wrapping high degrees up an octave (so `vi`/`vii` don't run off a
+ * single-octave array). `per` = notes per octave, detected from the scale. Only used
+ * for chord-mode labels, where the app enforces a seven-note scale — the same shape
+ * `diatonicTriad` plays, so the label agrees with the audio.
+ */
 function triadForDegree(scale: number[] | undefined, degree: number): number[] {
-  if (!Array.isArray(scale) || degree < 0) return [];
-  const a = scale[degree];
-  const b = scale[degree + 2];
-  const c = scale[degree + 4];
-  return [a, b, c].filter((n): n is number => typeof n === 'number');
+  if (!Array.isArray(scale) || scale.length < 3 || degree < 0) return [];
+  const per = scale.filter((m) => m < scale[0] + 12).length || scale.length;
+  const at = (d: number): number | undefined => {
+    const base = scale[((d % per) + per) % per];
+    return typeof base === 'number' ? base + Math.floor(d / per) * 12 : undefined;
+  };
+  return [at(degree), at(degree + 2), at(degree + 4)].filter((n): n is number => typeof n === 'number');
 }
 
 const faceExpressionCue: OverlayElement = {
@@ -578,7 +592,10 @@ const faceExpressionCue: OverlayElement = {
     const expr = view.inputs.expression;
     if (!view.params.faceExpression.show || !expr?.present || !expr.scores?.length) return null;
     const p = view.params.faceExpression;
-    const labelLines = (p.exprLabels ? 1 : 0) + (p.chordLabels ? 1 : 0);
+    // Chord labels are only meaningful (and correct) in chord mode — that's where a
+    // chord actually plays and the app enforces a seven-note scale.
+    const chordMode = view.inputs.faceMapping === 'chord';
+    const labelLines = (p.exprLabels ? 1 : 0) + (p.chordLabels && chordMode ? 1 : 0);
     return measureBarGraph(
       expr.scores.map(() => ({ value: 0, labels: new Array(labelLines).fill('x') })),
       { title: p.topLabel ? expr.label : undefined },
@@ -589,12 +606,13 @@ const faceExpressionCue: OverlayElement = {
     const origin = view.layout['faceExpression'];
     if (!expr?.present || !expr.scores?.length || !origin) return;
     const p = view.params.faceExpression;
+    const chordMode = view.inputs.faceMapping === 'chord';
     const bars: BarSpec[] = expr.scores.map((score, i) => {
       const name = EMOTIONS[i];
       const isWinner = name === expr.label;
       const labels: string[] = [];
       if (p.exprLabels) labels.push(name ?? '');
-      if (p.chordLabels) {
+      if (p.chordLabels && chordMode) {
         const deg = view.inputs.faceDegrees?.[name] ?? -1;
         labels.push(deg >= 0 ? chordName(triadForDegree(view.inputs.scale, deg)) : '—');
       }
@@ -618,41 +636,48 @@ const fingerBarsCue: OverlayElement = {
   positionOf: (view) => view.params.fingerBars.position,
   measure(view) {
     if (!view.params.fingerBars.show) return null;
-    const routed = routedFingers(view);
-    if (!routed.length) return null;
+    const { items } = routedFingers(view);
+    if (!items.length) return null;
     return measureBarGraph(
-      routed.map(() => ({ value: 0, labels: ['x'] })),
+      items.map(() => ({ value: 0, labels: ['x'] })),
       { title: 'fingers' },
     );
   },
   draw(g, view) {
     const origin = view.layout['fingerBars'];
     if (!origin) return;
-    const routed = routedFingers(view);
-    if (!routed.length) return;
-    const bars: BarSpec[] = routed.map(({ name, target, value }) => ({
+    const { side, items } = routedFingers(view);
+    if (!items.length) return;
+    // Colour by the hand actually being read (right preferred), not always emerald.
+    const color = side === 'left' ? LEFT_COLOR : RIGHT_COLOR;
+    const bars: BarSpec[] = items.map(({ name, target, value }) => ({
       value: clamp01(value),
-      color: RIGHT_COLOR,
+      color,
       labels: [`${name[0]}·${EFFECT_SHORT[target]}`],
     }));
-    drawBarGraph(g, origin.x, origin.y, bars, { title: 'fingers', labelColor: RIGHT_COLOR });
+    drawBarGraph(g, origin.x, origin.y, bars, { title: 'fingers', labelColor: color });
   },
 };
 
-/** The routed fingers + the closeness of the present hand (right preferred). */
-function routedFingers(view: OverlayView): { name: FingerName; target: keyof typeof EFFECT_SHORT; value: number }[] {
+/** The routed fingers + the closeness of the present hand (right preferred), plus which
+ *  hand was read (so the bar graph can colour-match it). */
+function routedFingers(view: OverlayView): {
+  side: 'right' | 'left' | null;
+  items: { name: FingerName; target: keyof typeof EFFECT_SHORT; value: number }[];
+} {
   const routes = view.inputs.handMap?.fingers;
   const feats = view.inputs.features;
-  if (!routes || !feats) return [];
-  const hand = feats.right.present ? feats.right : feats.left.present ? feats.left : null;
-  if (!hand) return [];
-  const out: { name: FingerName; target: keyof typeof EFFECT_SHORT; value: number }[] = [];
+  if (!routes || !feats) return { side: null, items: [] };
+  const side: 'right' | 'left' | null = feats.right.present ? 'right' : feats.left.present ? 'left' : null;
+  const hand = side === 'right' ? feats.right : side === 'left' ? feats.left : null;
+  if (!hand) return { side: null, items: [] };
+  const items: { name: FingerName; target: keyof typeof EFFECT_SHORT; value: number }[] = [];
   for (const name of FINGER_NAMES) {
     const r = routes[name];
     if (!r || r.target === 'none') continue;
-    out.push({ name, target: r.target, value: hand.fingers[name] });
+    items.push({ name, target: r.target, value: hand.fingers[name] });
   }
-  return out;
+  return { side, items };
 }
 
 /**
@@ -755,7 +780,11 @@ export const canvasOverlayNode = defineNode<Params>({
         // voice-mapping (ctx.resources.controls); absent in headless tests.
         const controls = (
           ctx.resources.controls as
-            | (() => { handMap?: HandMap; faceExpr?: { degrees?: Record<string, number> } })
+            | (() => {
+                handMap?: HandMap;
+                faceExpr?: { degrees?: Record<string, number> };
+                faceMapping?: string;
+              })
             | undefined
         )?.();
 
@@ -778,6 +807,7 @@ export const canvasOverlayNode = defineNode<Params>({
             expression: inputs.expression as ExpressionScores | undefined,
             handMap: controls?.handMap,
             faceDegrees: controls?.faceExpr?.degrees,
+            faceMapping: controls?.faceMapping,
           },
         };
 

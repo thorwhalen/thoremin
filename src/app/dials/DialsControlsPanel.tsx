@@ -235,7 +235,7 @@ function OverlayControls() {
               className={selectCls}
               value={elt.position as string}
               disabled={!elt.show}
-              onChange={(e) => patch(d.name, { position: e.target.value } as never)}
+              onChange={(e) => patch(d.name, { position: e.target.value })}
             >
               <option value="left">Left</option>
               <option value="right">Right</option>
