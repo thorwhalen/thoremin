@@ -81,6 +81,11 @@ export interface ControlState {
    * NOT part of a musical preset (it's orthogonal to the sound's sound).
    */
   recordingFormats: string[];
+  /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
+   *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
+   *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
+   *  preset (like {@link recordingFormats}). Null = uncalibrated. */
+  faceCalibration: Record<string, number> | null;
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
@@ -98,6 +103,8 @@ export interface ControlState {
   /** Shallow-patch the hand map (e.g. setHandMap({ positionSource: 'wrist' }), or a new
    *  `fingers` object for a route change). */
   setHandMap(patch: Partial<HandMap>): void;
+  /** Store (or clear, with null) the per-device expression calibration. */
+  setFaceCalibration(map: Record<string, number> | null): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
   applySettings(s: Settings): void;
 }
@@ -245,6 +252,7 @@ export const useControls = create<ControlState>()(
       overlay: defaultOverlay(),
       handMap: defaultHandMap(),
       recordingFormats: [...DEFAULT_RECORDING_FORMATS],
+      faceCalibration: null,
       setVoice: (side, patch) =>
         set((s) => {
           const next = { ...s[side], ...patch };
@@ -288,6 +296,7 @@ export const useControls = create<ControlState>()(
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
         })),
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
+      setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
       // Restore exactly the schema fields (the setters/recordingFormats are left
       // untouched). Derived from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
@@ -308,6 +317,7 @@ export const useControls = create<ControlState>()(
       partialize: (s) => ({
         ...pickSettings(s as unknown as Record<string, unknown>),
         recordingFormats: s.recordingFormats,
+        faceCalibration: s.faceCalibration,
       }),
     },
   ),

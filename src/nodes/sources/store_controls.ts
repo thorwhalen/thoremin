@@ -39,6 +39,10 @@ export interface ControlSnapshot {
   /** Per-emotion sensitivity + per-expression degree map; the sensitivity feeds
    *  `face-expression` and the degree map feeds `expression-chord`. */
   faceExpr?: FaceExpr;
+  /** Per-DEVICE calibration: a per-emotion sensitivity override (from the calibration
+   *  wizard) that wins over the per-instrument `faceExpr.sensitivity`, so a user's
+   *  calibration applies to EVERY instrument. Null/absent = use faceExpr.sensitivity. */
+  faceCalibration?: Partial<Record<string, number>> | null;
 }
 
 const Params = z.object({});
@@ -96,7 +100,11 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           };
         }
         if (c.faceExpr) {
-          out.expressionSensitivity = c.faceExpr.sensitivity;
+          // The per-device calibration overrides the per-instrument sensitivity
+          // (per-emotion), so a calibrated user keeps their bars across instruments.
+          out.expressionSensitivity = c.faceCalibration
+            ? { ...c.faceExpr.sensitivity, ...c.faceCalibration }
+            : c.faceExpr.sensitivity;
           out.expressionDegrees = c.faceExpr.degrees;
         }
         if (c.overlay) out.overlay = c.overlay;
