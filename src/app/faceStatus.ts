@@ -17,13 +17,17 @@ export interface FaceStatusState {
    *  drawn by the overlay readout directly — this store only carries the label for
    *  the text status line. */
   label: ExpressionLabel | null;
-  report(status: FaceStatus, label: ExpressionLabel | null): void;
+  /** Latest per-emotion activation scores (EMOTIONS-aligned, 0..1), or null when no
+   *  face. Used by the calibration wizard as its live meter (throttled with `label`). */
+  scores: number[] | null;
+  report(status: FaceStatus, label: ExpressionLabel | null, scores: number[] | null): void;
   reset(): void;
 }
 
 export const useFaceStatus = create<FaceStatusState>((set) => ({
   status: ABSENT_FACE_STATUS,
   label: null,
-  report: (status, label) => set({ status, label }),
-  reset: () => set({ status: ABSENT_FACE_STATUS, label: null }),
+  scores: null,
+  report: (status, label, scores) => set({ status, label, scores }),
+  reset: () => set({ status: ABSENT_FACE_STATUS, label: null, scores: null }),
 }));

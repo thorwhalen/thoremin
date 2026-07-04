@@ -16,7 +16,7 @@
  * Renders just the controls *content* (no outer card); the host (App) wraps it in a
  * collapsible translucent overlay so the video stays the focus.
  */
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
 import { SOUNDS, SOUND_IDS } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, type RenderingId } from '@/music/voicing';
@@ -26,6 +26,7 @@ import type { FaceMapping } from '@/nodes';
 import { useControls } from '../store';
 import { OVERLAY_CONTROLS, type OverlayControlDesc } from '../overlayControls';
 import { ExpressionHelpButton } from '../ExpressionHelpPanel';
+import { CalibrationWizard } from '../CalibrationWizard';
 import { useFaceStatus } from '../faceStatus';
 import { RECORDING_FORMATS } from '../recording/formats';
 import { EFFECTS, type HandMap, type FingerTarget } from '@/nodes/mapping/hand_map';
@@ -416,6 +417,9 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
   const v = state.effective;
   const degrees = v['faceExpr.degrees'] as Record<string, number>;
   const sensitivity = v['faceExpr.sensitivity'] as Record<string, number>;
+  const calibration = useControls((s) => s.faceCalibration);
+  const setCalibration = useControls((s) => s.setFaceCalibration);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const setDegree = (label: string, degree: number) =>
     set('faceExpr.degrees', { ...degrees, [label]: degree });
   const setSens = (label: string, value: number) =>
@@ -442,6 +446,45 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
 
   return (
     <CollapsibleSection label={chordMode ? 'Expression mapping' : 'Expression sensitivity'} defaultOpen={false}>
+      {wizardOpen && <CalibrationWizard onClose={() => setWizardOpen(false)} />}
+      {/* Per-DEVICE calibration: fits each expression's firing bar to what THIS face
+          can produce, overriding the sliders below across every instrument. */}
+      <div className="flex items-center justify-between rounded-lg bg-white/[0.04] px-2 py-1.5">
+        {calibration ? (
+          <>
+            <span className="text-[10px] text-emerald-400">✓ Calibrated to your face</span>
+            <div className="flex gap-1.5">
+              <button
+                className="rounded px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/10"
+                onClick={() => setWizardOpen(true)}
+              >
+                Recalibrate
+              </button>
+              <button
+                className="rounded px-2 py-0.5 text-[10px] text-white/50 hover:bg-white/10"
+                onClick={() => setCalibration(null)}
+              >
+                Clear
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="text-[10px] text-white/50">Hard to trigger? Fit it to your face.</span>
+            <button
+              className="rounded bg-emerald-500/90 px-2 py-0.5 text-[10px] font-medium text-black hover:bg-emerald-400"
+              onClick={() => setWizardOpen(true)}
+            >
+              Calibrate
+            </button>
+          </>
+        )}
+      </div>
+      {calibration && (
+        <p className="text-[10px] text-white/35">
+          Calibration is active — the sliders below are the per-instrument baseline used when you clear it.
+        </p>
+      )}
       <p className="text-[10px] leading-relaxed text-white/40">
         {chordMode ? (
           <>

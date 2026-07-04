@@ -81,6 +81,11 @@ export interface ControlState {
    * NOT part of a musical preset (it's orthogonal to the sound's sound).
    */
   recordingFormats: string[];
+  /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
+   *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
+   *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
+   *  preset (like {@link recordingFormats}). Null = uncalibrated. */
+  faceCalibration: Record<string, number> | null;
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
@@ -98,6 +103,8 @@ export interface ControlState {
   /** Shallow-patch the hand map (e.g. setHandMap({ positionSource: 'wrist' }), or a new
    *  `fingers` object for a route change). */
   setHandMap(patch: Partial<HandMap>): void;
+  /** Store (or clear, with null) the per-device expression calibration. */
+  setFaceCalibration(map: Record<string, number> | null): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
   applySettings(s: Settings): void;
 }
@@ -155,6 +162,17 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
     migrateInstrumentField(s.right);
     migrateInstrumentField(s.left);
     migrateInstrumentField(s.faceChord);
+  }
+  if (version < 5) {
+    // The abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
+    // Deliver it to a returning player who never customized those two (persisted value
+    // still === the OLD default), while preserving any value they DID set.
+    const fe = s.faceExpr as { sensitivity?: Record<string, number> } | undefined;
+    if (fe?.sensitivity) {
+      for (const e of ['fearful', 'disgusted'] as const) {
+        if (fe.sensitivity[e] === 0.5) fe.sensitivity[e] = 0.7;
+      }
+    }
   }
   return s as unknown as ControlState;
 }
@@ -245,6 +263,7 @@ export const useControls = create<ControlState>()(
       overlay: defaultOverlay(),
       handMap: defaultHandMap(),
       recordingFormats: [...DEFAULT_RECORDING_FORMATS],
+      faceCalibration: null,
       setVoice: (side, patch) =>
         set((s) => {
           const next = { ...s[side], ...patch };
@@ -288,18 +307,19 @@ export const useControls = create<ControlState>()(
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
         })),
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
+      setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
       // Restore exactly the schema fields (the setters/recordingFormats are left
       // untouched). Derived from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
     }),
     {
       name: 'thoremin-controls',
-      // Version 4: added the `handMap` (note source + finger→effect routing + the
-      // once-static voice knobs); mergeControls heals it from the default for older
-      // blobs. v3: `instrument` → `sound` rename. v2: the face-mapping chooser (#64).
-      // See migrateControls (field renames) and mergeControls (heals stale nested
-      // `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
-      version: 4,
+      // Version 5: the abstention retune — deliver the raised fearful/disgusted
+      // sensitivity default (0.5 → 0.7) to a returning player who never customized it.
+      // v4: added the `handMap`. v3: `instrument` → `sound` rename. v2: the face-mapping
+      // chooser (#64). See migrateControls (field renames/bumps) and mergeControls (heals
+      // stale nested `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
+      version: 5,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
@@ -308,6 +328,7 @@ export const useControls = create<ControlState>()(
       partialize: (s) => ({
         ...pickSettings(s as unknown as Record<string, unknown>),
         recordingFormats: s.recordingFormats,
+        faceCalibration: s.faceCalibration,
       }),
     },
   ),

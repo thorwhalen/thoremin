@@ -193,6 +193,25 @@ describe('persist migration (v1 → v2, returning users)', () => {
     expect(v3.right.sound).toBe('glass');
   });
 
+  it('migrateControls (v<5) delivers the fearful/disgusted retune only when unchanged', () => {
+    // A returning player who never customized: old default 0.5 → new default 0.7.
+    const unchanged = migrateControls(
+      { faceExpr: { sensitivity: { happy: 0.5, fearful: 0.5, disgusted: 0.5, angry: 0.45 } } },
+      4,
+    ) as unknown as { faceExpr: { sensitivity: Record<string, number> } };
+    expect(unchanged.faceExpr.sensitivity.fearful).toBe(0.7);
+    expect(unchanged.faceExpr.sensitivity.disgusted).toBe(0.7);
+    expect(unchanged.faceExpr.sensitivity.happy).toBe(0.5); // others untouched
+    expect(unchanged.faceExpr.sensitivity.angry).toBe(0.45);
+    // A player who DID customize those keeps their value (not bumped).
+    const customized = migrateControls(
+      { faceExpr: { sensitivity: { fearful: 0.8, disgusted: 0.3 } } },
+      4,
+    ) as unknown as { faceExpr: { sensitivity: Record<string, number> } };
+    expect(customized.faceExpr.sensitivity.fearful).toBe(0.8);
+    expect(customized.faceExpr.sensitivity.disgusted).toBe(0.3);
+  });
+
   it('mergeControls heals a stale overlay (missing later elements) so it cannot crash readers', () => {
     const initial = useControls.getInitialState();
     // A legacy overlay blob written before chordGuide / face / timbre elements existed.

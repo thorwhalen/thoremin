@@ -187,27 +187,41 @@ export interface ExpressionThresholdBounds {
 }
 export const EXPRESSION_THRESHOLD_BOUNDS: Record<Emotion, ExpressionThresholdBounds> = {
   happy: { min: 0.15, max: 0.6, delta: 0.06 },
+  // sad + surprised keep the higher floor: their primary channels (lower-lip drop /
+  // jaw-open) are ALSO driven by an involuntary open mouth (a yawn drives sad ≈0.33
+  // and surprised ≈0.35), so the bar must stay above that. Per-user calibration still
+  // has room down to 0.15. fearful + disgusted have NO such collision (mouth-stretch /
+  // upper-lip-raise / nose-sneer aren't a yawn or a smile), so they get a lower floor
+  // for more calibration room AND a much more sensitive default (see below) — they were
+  // the two that abstained hardest in a real recording.
   sad: { min: 0.15, max: 0.6, delta: 0.06 },
   angry: { min: 0.2, max: 0.65, delta: 0.06 },
   surprised: { min: 0.15, max: 0.6, delta: 0.06 },
-  // Lower max (→ default firing bar 0.40) — a realistic fear face barely clears it
-  // because the eyeWide/browInnerUp channels read weakly on this model.
-  fearful: { min: 0.2, max: 0.6, delta: 0.06 },
-  disgusted: { min: 0.15, max: 0.6, delta: 0.06 },
-  // Reliable channel → normal bounds.
+  fearful: { min: 0.12, max: 0.6, delta: 0.06 },
+  disgusted: { min: 0.12, max: 0.6, delta: 0.06 },
   kiss: { min: 0.15, max: 0.6, delta: 0.06 },
 };
 
 export type ExpressionSensitivity = Record<Emotion, number>;
 
-/** Default per-emotion sensitivity (angry slightly stricter — spurious-prone). */
+/**
+ * Default per-emotion sensitivity. Retuned from a real recording where the "negative
+ * cluster" mostly ABSTAINED (produced no chord) while happy + kiss fired reliably.
+ * fearful + disgusted — the two that abstained hardest and whose channels don't
+ * collide with any involuntary face — default MORE sensitive (lower firing bar) so a
+ * partial production fires. surprised + sad stay at the moderate default because a
+ * lower bar there would let a yawn (an involuntary open mouth) fire a chord. `angry`
+ * is kept STRICTER — the recording showed a strained brow-furrow firing angry and
+ * stealing the fearful/disgusted attempts, so its bar stays high to reduce that theft.
+ * Per-user calibration overrides all of these per face (the reliable fix).
+ */
 export const DEFAULT_EXPRESSION_SENSITIVITY: ExpressionSensitivity = {
   happy: 0.5,
   sad: 0.5,
   angry: 0.45,
   surprised: 0.5,
-  fearful: 0.5,
-  disgusted: 0.5,
+  fearful: 0.7,
+  disgusted: 0.7,
   kiss: 0.5,
 };
 
@@ -227,6 +241,56 @@ export function expressionThresholds(
       sensitivity[e] ?? DEFAULT_EXPRESSION_SENSITIVITY[e],
       EXPRESSION_THRESHOLD_BOUNDS[e],
     );
+  }
+  return out;
+}
+
+/** Per-emotion outcome of a calibration solve — the chosen sensitivity, the resulting
+ *  firing bar, and whether the emotion was reachably captured (peak cleared rest). */
+export interface CalibrationOutcome {
+  sensitivity: number;
+  threshold: number;
+  /** The captured peak activation cleared rest by the margin → a usable calibration. */
+  reachable: boolean;
+}
+
+/**
+ * Solve a per-user calibration from a capture: each emotion's RESTING activation and
+ * its achievable PEAK. For a reachable emotion (peak clears rest by `margin`), place
+ * the firing bar `fraction` of the way from rest to peak and invert
+ * {@link sensitivityToThreshold} to the sensitivity that yields it (clamped to the
+ * emotion's bounds) — so a production near the user's own peak fires while their rest
+ * stays below. An UNreachable emotion (never activated) keeps the default sensitivity
+ * and is flagged `reachable:false`, so calibration never silently makes an expression
+ * harder and the UI can tell the user it couldn't read that face. Pure.
+ */
+export function calibrateSensitivity(
+  rest: Partial<Record<Emotion, number>>,
+  peak: Partial<Record<Emotion, number>>,
+  opts: { fraction?: number; margin?: number } = {},
+): Record<Emotion, CalibrationOutcome> {
+  const fraction = opts.fraction ?? 0.55;
+  const margin = opts.margin ?? 0.03;
+  const out = {} as Record<Emotion, CalibrationOutcome>;
+  for (const e of EMOTIONS) {
+    const r = clamp01(rest[e] ?? 0);
+    const pk = clamp01(peak[e] ?? 0);
+    const bounds = EXPRESSION_THRESHOLD_BOUNDS[e];
+    const asDefault = (): CalibrationOutcome => {
+      const sensitivity = DEFAULT_EXPRESSION_SENSITIVITY[e];
+      return { sensitivity, threshold: sensitivityToThreshold(sensitivity, bounds), reachable: false };
+    };
+    if (pk <= r + margin) {
+      out[e] = asDefault();
+      continue;
+    }
+    const target = Math.max(r + margin, r + fraction * (pk - r));
+    const sensitivity = clamp01((bounds.max - target) / (bounds.max - bounds.min));
+    const threshold = sensitivityToThreshold(sensitivity, bounds);
+    // A peak below the emotion's bounds.min floors the bar ABOVE the peak, so a real
+    // production could never clear it — that is NOT reachable; keep the default and
+    // flag it, so the wizard tells the user it couldn't read that face (vs a false green).
+    out[e] = pk >= threshold ? { sensitivity, threshold, reachable: true } : asDefault();
   }
   return out;
 }

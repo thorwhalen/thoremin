@@ -13,6 +13,7 @@ import {
   decideExpression,
   sensitivityToThreshold,
   expressionThresholds,
+  calibrateSensitivity,
   EXPRESSION_PROTOTYPES,
   EXPRESSION_THRESHOLD_BOUNDS,
   DEFAULT_EXPRESSION_SENSITIVITY,
@@ -183,6 +184,52 @@ describe('reachability: sad / disgusted / fearful fire after the prototype/thres
     expect(decideExpression(expressionActivations({ jawOpen: 1, mouthLowerDownLeft: 1, mouthLowerDownRight: 1 })).label).toBe('neutral');
     // A broad smile must not leak into disgusted via any upper-lip movement.
     expect(decideExpression(expressionActivations({ mouthSmileLeft: 1, mouthSmileRight: 1 })).label).not.toBe('disgusted');
+  });
+});
+
+describe('calibrateSensitivity (per-user solve from rest + peak)', () => {
+  const rest = Object.fromEntries(EMOTIONS.map((e) => [e, 0.05])) as Record<Emotion, number>;
+
+  it('a reachable peak puts the firing bar between rest and peak, and it fires there', () => {
+    const peak = { ...rest, surprised: 0.5 };
+    const cal = calibrateSensitivity(rest, peak);
+    expect(cal.surprised.reachable).toBe(true);
+    // Bar strictly between the user's rest and peak → their production clears it.
+    expect(cal.surprised.threshold).toBeGreaterThan(rest.surprised);
+    expect(cal.surprised.threshold).toBeLessThan(peak.surprised);
+    // The solved sensitivity, fed back through the classifier, reproduces the bar.
+    expect(sensitivityToThreshold(cal.surprised.sensitivity, EXPRESSION_THRESHOLD_BOUNDS.surprised)).toBeCloseTo(
+      cal.surprised.threshold,
+    );
+  });
+
+  it('an UNreachable emotion (peak ≈ rest) keeps the default and is flagged', () => {
+    const peak = { ...rest }; // never activated above rest
+    const cal = calibrateSensitivity(rest, peak);
+    expect(cal.disgusted.reachable).toBe(false);
+    expect(cal.disgusted.sensitivity).toBe(DEFAULT_EXPRESSION_SENSITIVITY.disgusted);
+  });
+
+  it('a strong producer gets a stricter (lower-sensitivity) bar than a weak producer', () => {
+    const strong = calibrateSensitivity(rest, { ...rest, fearful: 0.8 }).fearful;
+    const weak = calibrateSensitivity(rest, { ...rest, fearful: 0.3 }).fearful;
+    expect(strong.threshold).toBeGreaterThan(weak.threshold); // strong face → higher bar
+    expect(strong.sensitivity).toBeLessThan(weak.sensitivity);
+  });
+
+  it('clamps the bar into the emotion bounds (a very weak peak can floor at min)', () => {
+    const cal = calibrateSensitivity(rest, { ...rest, angry: 0.22 }).angry;
+    expect(cal.threshold).toBeGreaterThanOrEqual(EXPRESSION_THRESHOLD_BOUNDS.angry.min - 1e-9);
+    expect(cal.sensitivity).toBeLessThanOrEqual(1);
+  });
+
+  it('flags a peak BELOW the emotion floor as UNreachable (the floored bar exceeds the peak)', () => {
+    // angry.min = 0.2; a peak of 0.15 floors the bar at 0.2 > 0.15 → could never fire,
+    // so it must NOT be reported reachable (that would be a false green in the wizard).
+    const cal = calibrateSensitivity(rest, { ...rest, angry: 0.15 }).angry;
+    expect(cal.reachable).toBe(false);
+    expect(cal.threshold).toBeGreaterThan(0.15); // the bar the peak can't clear
+    expect(cal.sensitivity).toBe(DEFAULT_EXPRESSION_SENSITIVITY.angry); // fell back to default
   });
 });
 
