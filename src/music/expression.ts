@@ -276,14 +276,21 @@ export function calibrateSensitivity(
     const r = clamp01(rest[e] ?? 0);
     const pk = clamp01(peak[e] ?? 0);
     const bounds = EXPRESSION_THRESHOLD_BOUNDS[e];
-    if (pk <= r + margin) {
+    const asDefault = (): CalibrationOutcome => {
       const sensitivity = DEFAULT_EXPRESSION_SENSITIVITY[e];
-      out[e] = { sensitivity, threshold: sensitivityToThreshold(sensitivity, bounds), reachable: false };
+      return { sensitivity, threshold: sensitivityToThreshold(sensitivity, bounds), reachable: false };
+    };
+    if (pk <= r + margin) {
+      out[e] = asDefault();
       continue;
     }
     const target = Math.max(r + margin, r + fraction * (pk - r));
     const sensitivity = clamp01((bounds.max - target) / (bounds.max - bounds.min));
-    out[e] = { sensitivity, threshold: sensitivityToThreshold(sensitivity, bounds), reachable: true };
+    const threshold = sensitivityToThreshold(sensitivity, bounds);
+    // A peak below the emotion's bounds.min floors the bar ABOVE the peak, so a real
+    // production could never clear it — that is NOT reachable; keep the default and
+    // flag it, so the wizard tells the user it couldn't read that face (vs a false green).
+    out[e] = pk >= threshold ? { sensitivity, threshold, reachable: true } : asDefault();
   }
   return out;
 }

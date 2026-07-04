@@ -89,8 +89,13 @@ export function CalibrationWizard({ onClose }: { onClose: () => void }) {
         startedTick.done = true;
         clearInterval(id);
         const c2 = captureRef.current;
+        setCapturing(false);
+        setProgress(0);
+        // The face dropped for the whole window (a race after the button enabled) —
+        // don't commit a bogus zero baseline/peak or advance; let the user retry.
+        if (c2.n < 3) return;
         if (step === BASELINE) {
-          setRest(c2.n ? c2.acc.map((a) => a / c2.n) : c2.max);
+          setRest(c2.acc.map((a) => a / c2.n));
         } else {
           setPeak((prev) => {
             const next = [...prev];
@@ -98,8 +103,6 @@ export function CalibrationWizard({ onClose }: { onClose: () => void }) {
             return next;
           });
         }
-        setCapturing(false);
-        setProgress(0);
         setStep((s) => s + 1);
       }
     }, SAMPLE_MS);
@@ -112,8 +115,11 @@ export function CalibrationWizard({ onClose }: { onClose: () => void }) {
 
   const applyAndClose = () => {
     const cal = calibrateSensitivity(restRecord(), peakRecord());
-    const map = Object.fromEntries(EMOTIONS.map((e) => [e, cal[e].sensitivity]));
-    setFaceCalibration(map);
+    // Only override the emotions we could actually MEASURE — the rest fall through to
+    // the per-instrument sliders (don't pin an unreachable/skipped emotion to a
+    // build-time default and shadow the user's own slider). No reachable → clear.
+    const entries = EMOTIONS.filter((e) => cal[e].reachable).map((e) => [e, cal[e].sensitivity] as const);
+    setFaceCalibration(entries.length ? Object.fromEntries(entries) : null);
     onClose();
   };
 

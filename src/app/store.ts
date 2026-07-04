@@ -163,6 +163,17 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
     migrateInstrumentField(s.left);
     migrateInstrumentField(s.faceChord);
   }
+  if (version < 5) {
+    // The abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
+    // Deliver it to a returning player who never customized those two (persisted value
+    // still === the OLD default), while preserving any value they DID set.
+    const fe = s.faceExpr as { sensitivity?: Record<string, number> } | undefined;
+    if (fe?.sensitivity) {
+      for (const e of ['fearful', 'disgusted'] as const) {
+        if (fe.sensitivity[e] === 0.5) fe.sensitivity[e] = 0.7;
+      }
+    }
+  }
   return s as unknown as ControlState;
 }
 
@@ -303,12 +314,12 @@ export const useControls = create<ControlState>()(
     }),
     {
       name: 'thoremin-controls',
-      // Version 4: added the `handMap` (note source + finger→effect routing + the
-      // once-static voice knobs); mergeControls heals it from the default for older
-      // blobs. v3: `instrument` → `sound` rename. v2: the face-mapping chooser (#64).
-      // See migrateControls (field renames) and mergeControls (heals stale nested
-      // `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
-      version: 4,
+      // Version 5: the abstention retune — deliver the raised fearful/disgusted
+      // sensitivity default (0.5 → 0.7) to a returning player who never customized it.
+      // v4: added the `handMap`. v3: `instrument` → `sound` rename. v2: the face-mapping
+      // chooser (#64). See migrateControls (field renames/bumps) and mergeControls (heals
+      // stale nested `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
+      version: 5,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

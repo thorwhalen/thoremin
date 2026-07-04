@@ -222,6 +222,15 @@ describe('calibrateSensitivity (per-user solve from rest + peak)', () => {
     expect(cal.threshold).toBeGreaterThanOrEqual(EXPRESSION_THRESHOLD_BOUNDS.angry.min - 1e-9);
     expect(cal.sensitivity).toBeLessThanOrEqual(1);
   });
+
+  it('flags a peak BELOW the emotion floor as UNreachable (the floored bar exceeds the peak)', () => {
+    // angry.min = 0.2; a peak of 0.15 floors the bar at 0.2 > 0.15 → could never fire,
+    // so it must NOT be reported reachable (that would be a false green in the wizard).
+    const cal = calibrateSensitivity(rest, { ...rest, angry: 0.15 }).angry;
+    expect(cal.reachable).toBe(false);
+    expect(cal.threshold).toBeGreaterThan(0.15); // the bar the peak can't clear
+    expect(cal.sensitivity).toBe(DEFAULT_EXPRESSION_SENSITIVITY.angry); // fell back to default
+  });
 });
 
 describe('sensitivity ↔ threshold', () => {
