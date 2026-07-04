@@ -28,6 +28,7 @@ import type { Layer } from '@zodal/dials-core';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import type { Settings } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
+import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 import type { FingerName } from '@/nodes/domain';
 import { dialsStore } from './settingsStore';
 
@@ -49,6 +50,11 @@ const fingerRoutes = (r: Partial<Record<FingerName, FingerRoute>>): HandMap['fin
 });
 /** A hand map = the default (index source, no routing, classic knobs) with overrides. */
 const handMap = (over: Partial<HandMap>): HandMap => ({ ...structuredClone(DEFAULT_HAND_MAP), ...over });
+/** An overlay config = the defaults with a few element sub-objects overridden (to
+ *  demo cues like the finger→effect lines / bars). Parsed through the schema so a
+ *  partial sub-object override still ships a COMPLETE, valid overlay layer. */
+const overlay = (over: Record<string, unknown>): Settings['overlay'] =>
+  OverlayParamsSchema.parse({ ...DEFAULTS.overlay, ...over }) as Settings['overlay'];
 
 /** Reserved profile name (a legacy autosave) — filtered out of the visible list. */
 export const LAST_MODIFIED = 'Last modified';
@@ -108,6 +114,8 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     right: { ...DEFAULTS.right, type: 'major', sound: 'warmPad' },
     left: { ...DEFAULTS.left, type: 'major', sound: 'warmPad' },
     handMap: handMap({ positionSource: 'wrist', fingers: { ...RECOMMENDED_FINGER_ROUTES } }),
+    // Show the finger→effect lines (fingertip→thumb, labelled value + effect).
+    overlay: overlay({ fingerLines: { show: true, showLabels: true } }),
   }),
 
   // Bend the pitch by pinching the index toward the thumb (a whole-tone bend).
@@ -181,7 +189,19 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     faceChord: { ...DEFAULTS.faceChord, sound: 'organ', voicing: 'close', rendering: 'pulse', bpm: 110 },
   }),
 
-  // --- Maximalist: wrist notes + all fingers routed + face timbre -----------------
+  // --- Cue demo: wrist source + all fingers routed + BOTH the lines and the bar graph.
+  seed('Finger Cues', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, type: 'major', sound: 'glass' },
+    left: { ...DEFAULTS.left, type: 'major', sound: 'glass' },
+    handMap: handMap({ positionSource: 'wrist', fingers: { ...RECOMMENDED_FINGER_ROUTES } }),
+    overlay: overlay({
+      fingerLines: { show: true, showLabels: true },
+      fingerBars: { show: true, position: 'left' },
+    }),
+  }),
+
+  // --- Maximalist: wrist notes + all fingers routed + face timbre + both finger cues.
   seed('Everything', {
     ...DEFAULTS,
     right: { ...DEFAULTS.right, type: 'major', sound: 'warmPad' },
@@ -196,6 +216,10 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
         ring: route('pan'),
         pinky: route('octave', { mode: 'trigger' }),
       }),
+    }),
+    overlay: overlay({
+      fingerLines: { show: true, showLabels: true },
+      fingerBars: { show: true, position: 'right' },
     }),
   }),
 ];
@@ -213,7 +237,7 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {

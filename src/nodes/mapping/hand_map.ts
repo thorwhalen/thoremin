@@ -22,6 +22,16 @@ import { FINGER_NAMES, type FingerCloseness, type FingerName } from '../domain';
 export const EFFECTS = ['brightness', 'vibrato', 'pan', 'pitchBend', 'octave', 'gate'] as const;
 export type EffectId = (typeof EFFECTS)[number];
 
+/** Very short effect names for on-canvas cue labels. */
+export const EFFECT_SHORT: Record<EffectId, string> = {
+  brightness: 'brt',
+  vibrato: 'vib',
+  pan: 'pan',
+  pitchBend: 'bnd',
+  octave: 'oct',
+  gate: 'gate',
+};
+
 /** A finger route target: an effect, or `none` (the finger does nothing). */
 export type FingerTarget = EffectId | 'none';
 

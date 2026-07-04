@@ -7,9 +7,28 @@ import {
   nearestScaleNote,
   rangeMap,
   midiToName,
+  chordName,
   scaleGuide,
   DEFAULT_SCALE,
 } from '@/music/theory';
+
+describe('chordName', () => {
+  it('classifies triad quality from the tones (root = lowest)', () => {
+    expect(chordName([60, 64, 67])).toBe('C'); // C E G  → major
+    expect(chordName([57, 60, 64])).toBe('Am'); // A C E  → minor
+    expect(chordName([59, 62, 65])).toBe('Bdim'); // B D F  → diminished
+    expect(chordName([60, 64, 68])).toBe('Caug'); // C E G# → augmented
+    expect(chordName([62, 66, 69])).toBe('D'); // D F# A → major, different root
+  });
+  it('is octave-agnostic and unsorted-input safe', () => {
+    expect(chordName([67, 60, 64])).toBe('C'); // reordered C major
+    expect(chordName([48, 52, 55])).toBe('C'); // low octave
+  });
+  it('falls back gracefully (empty / power / non-triad)', () => {
+    expect(chordName([])).toBe('');
+    expect(chordName([60, 67])).toBe('C5'); // root + fifth, no third
+  });
+});
 
 describe('scaleGuide', () => {
   it('places notes at ascending normalized x matching the magneticPitch mapping', () => {

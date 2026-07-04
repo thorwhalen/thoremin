@@ -37,6 +37,20 @@ describe('dials → hot-store sync', () => {
     expect(useControls.getState().overlay.video.alpha).toBeCloseTo(0.33);
   });
 
+  it('heals a PARTIAL overlay layer on load — the effective overlay is complete (instrument-load path)', () => {
+    // An old instrument saved before the cue fields existed: only a partial overlay
+    // (faceExpression with just `show`, and no fingerLines/fingerBars). The dials
+    // deep-merge must back-fill every field, or the panel would read `.show` on
+    // undefined and crash on select. Pins the strategy the panel depends on.
+    dialsStore.setLayer({ overlay: { faceExpression: { show: true } } } as never);
+    const eff = dialsStore.getState().effective['overlay'] as OverlayParams;
+    expect(eff.fingerBars?.show).toBe(false); // new element back-filled
+    expect(eff.fingerLines?.show).toBe(false); // new element back-filled
+    expect(eff.faceExpression.position).toBe('left'); // new field back-filled
+    expect(eff.faceExpression.chordLabels).toBe(true);
+    expect(eff.faceExpression.show).toBe(true); // the partial value preserved
+  });
+
   it('mirrors the expression maps (faceExpr.degrees) into useControls', () => {
     const degrees = dialsStore.getState().effective['faceExpr.degrees'] as Record<string, number>;
     dialsStore.set('faceExpr.degrees', { ...degrees, happy: 4 });

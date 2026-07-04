@@ -2,7 +2,7 @@
   {
     "type": "canvas-overlay",
     "title": "Canvas Overlay",
-    "description": "Mirrored video + composable overlay elements (guides, landmarks, markers).",
+    "description": "Mirrored video + composable overlay elements (guides, landmarks, markers, cues).",
     "roles": [
       "overlay"
     ],
@@ -82,7 +82,17 @@
         "default": {}
       },
       {
+        "name": "fingerLines",
+        "type": "object",
+        "default": {}
+      },
+      {
         "name": "faceLandmarks",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "timbreLevels",
         "type": "object",
         "default": {}
       },
@@ -92,7 +102,7 @@
         "default": {}
       },
       {
-        "name": "timbreLevels",
+        "name": "fingerBars",
         "type": "object",
         "default": {}
       }

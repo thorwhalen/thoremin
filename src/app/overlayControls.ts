@@ -24,6 +24,8 @@ export interface OverlayControlDesc {
   toggles?: { key: string; label: string }[];
   /** A 0..1 slider param (disabled when the element's `show` is off). */
   slider?: { key: string; label: string };
+  /** A cue-position select (`.position` = left/right/top/bottom), for HUD cues. */
+  position?: boolean;
   /** Only meaningful with an active face mapping (the model must be loaded). */
   needsFace?: boolean;
 }
@@ -33,7 +35,26 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'landmarks', label: 'Hand landmarks' },
   { name: 'faceLandmarks', label: 'Face mesh', needsFace: true },
   { name: 'markers', label: 'Control markers', toggles: [{ key: 'showNotes', label: 'Note names' }] },
-  { name: 'faceExpression', label: 'Face expression' },
+  {
+    name: 'fingerLines',
+    label: 'Finger effect lines',
+    toggles: [{ key: 'showLabels', label: 'Value + effect labels' }],
+  },
+  {
+    name: 'fingerBars',
+    label: 'Finger bar graph',
+    position: true,
+  },
+  {
+    name: 'faceExpression',
+    label: 'Face expression',
+    toggles: [
+      { key: 'topLabel', label: 'Big label on top' },
+      { key: 'exprLabels', label: 'Expression names (x-axis)' },
+      { key: 'chordLabels', label: 'Chord names (x-axis)' },
+    ],
+    position: true,
+  },
   { name: 'timbreLevels', label: 'Timbre levels' },
   { name: 'chordGuide', label: 'Chord highlight' },
   { name: 'scaleGuide', label: 'Scale guide', toggles: [{ key: 'showLabels', label: 'Note labels' }] },
