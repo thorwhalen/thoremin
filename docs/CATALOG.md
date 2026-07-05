@@ -161,10 +161,10 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 - **params:** minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)
 
 #### `synth-merge` — Synth Merge
-Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord).
+Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord); master mute.
 
 - **roles:** mapping
-- **in:** a:synth-params, b:synth-params, c:synth-params
+- **in:** a:synth-params, b:synth-params, c:synth-params, mute:boolean
 - **out:** params:synth-params
 - **params:** —
 

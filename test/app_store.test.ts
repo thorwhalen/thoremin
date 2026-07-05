@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
-import { DEFAULT_FACE_CHORD } from '@/settings/schema';
+import { DEFAULT_FACE_CHORD, SettingsSchema } from '@/settings/schema';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
@@ -112,6 +112,27 @@ describe('control store', () => {
   it('setMasterVolume updates the master volume', () => {
     useControls.getState().setMasterVolume(0.75);
     expect(useControls.getState().masterVolume).toBeCloseTo(0.75, 6);
+  });
+
+  it('muted defaults false; setMuted / toggleMuted flip it (#91)', () => {
+    expect(useControls.getState().muted).toBe(false);
+    useControls.getState().setMuted(true);
+    expect(useControls.getState().muted).toBe(true);
+    useControls.getState().toggleMuted();
+    expect(useControls.getState().muted).toBe(false);
+    useControls.getState().toggleMuted();
+    expect(useControls.getState().muted).toBe(true);
+  });
+
+  it('muted is not a persisted preset field, so a reload always starts un-muted', () => {
+    // muted is deliberately excluded from the persisted blob (not in the settings
+    // schema, not in partialize), so a rehydrate over the initial state always
+    // yields the initializer's `false` — a fresh load never opens muted, and no
+    // persist-version bump was needed to add the field.
+    expect('muted' in SettingsSchema.shape).toBe(false);
+    const initial = useControls.getInitialState();
+    // A real persisted blob never carries `muted`; it rehydrates to false.
+    expect(mergeControls({ masterVolume: 0.5 }, initial).muted).toBe(false);
   });
 
   it('has overlay element defaults (index-finger guide opt-in/off)', () => {

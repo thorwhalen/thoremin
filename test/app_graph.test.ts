@@ -56,6 +56,18 @@ describe('production app graph', () => {
     expect(has('map', 'params', 'overlay', 'params')).toBe(false);
   });
 
+  it('routes the mute to the merge so it silences the chords too (#91)', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The master mute reaches the single convergence point (synth-merge), so the
+    // face-chord instruments (which merge in after voice-mapping) are muted along
+    // with the hand voices — the fix for #91.
+    expect(has('kctrl', 'mute', 'merge', 'mute')).toBe(true);
+    // The original hand-stage mute edge is still present (belt-and-suspenders).
+    expect(has('kctrl', 'mute', 'map', 'mute')).toBe(true);
+  });
+
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {
     const recorder = new StreamRecorder();
     // No resources: webcam has no video (emits empty frame), synth has no

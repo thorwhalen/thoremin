@@ -87,6 +87,7 @@ export function useThoreminEngine() {
   const [isSaving, setIsSaving] = useState(false);
 
   const masterVolume = useControls((s) => s.masterVolume);
+  const muted = useControls((s) => s.muted);
 
   useEffect(() => {
     let disposed = false;
@@ -157,6 +158,11 @@ export function useThoreminEngine() {
         let lastFaceReport = 0;
         let lastPhase: FaceStatus['phase'] | null = null;
         let lastDetected = false;
+        // Mirror the graph's mute (toggled by the `m` key in `keyboard-control`)
+        // into the store so the HUD "muted" cue + the host master mute follow the
+        // keyboard. Seeded from the store so a mid-session engine rebuild doesn't
+        // spuriously re-announce the current state.
+        let lastMute = useControls.getState().muted;
         const reportFace = (now: number) => {
           const fs = engine.getOutput('camFace', 'status') as FaceStatus | undefined;
           if (!fs) return;
@@ -192,6 +198,13 @@ export function useThoreminEngine() {
             const t = performance.now();
             engine.tick(t / 1000);
             reportFace(t);
+            // Reflect a keyboard mute toggle into the store (only on change, so
+            // this is not a per-frame setState). Drives the master gain + HUD cue.
+            const m = engine.getOutput('kctrl', 'mute') === true;
+            if (m !== lastMute) {
+              lastMute = m;
+              useControls.getState().setMuted(m);
+            }
           } catch (err) {
             console.error('[thoremin] engine tick error (frame dropped)', err);
           }
@@ -227,13 +240,17 @@ export function useThoreminEngine() {
     };
   }, []);
 
-  // Keep master gain synced to the UI volume.
+  // Keep master gain synced to the UI volume, and drop it to zero while muted.
+  // This is the host-level catch-all mute (belt-and-suspenders with the in-graph
+  // `synth-merge` mute), so ANY audio reaching the master bus — including a
+  // non-graph producer like the Lyria plugin — goes silent too. The 50ms target
+  // ramp makes both muting and unmuting click-free.
   useEffect(() => {
     const ac = resourcesRef.current.audioContext as AudioContext | undefined;
     if (masterGainRef.current && ac) {
-      masterGainRef.current.gain.setTargetAtTime(masterVolume, ac.currentTime, 0.05);
+      masterGainRef.current.gain.setTargetAtTime(muted ? 0 : masterVolume, ac.currentTime, 0.05);
     }
-  }, [masterVolume]);
+  }, [masterVolume, muted]);
 
   const startAudio = useCallback(async () => {
     const resources = resourcesRef.current;
@@ -242,7 +259,8 @@ export function useThoreminEngine() {
       const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       ac = new Ctor({ latencyHint: 'interactive' });
       const master = ac.createGain();
-      master.gain.setValueAtTime(useControls.getState().masterVolume, ac.currentTime);
+      const { masterVolume: v0, muted: muted0 } = useControls.getState();
+      master.gain.setValueAtTime(muted0 ? 0 : v0, ac.currentTime);
       master.connect(ac.destination);
       resources.audioContext = ac;
       resources.masterGain = master;
