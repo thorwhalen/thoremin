@@ -56,6 +56,15 @@ export interface ControlState {
   syncHands: boolean;
   masterVolume: number; // 0..1
   /**
+   * Master mute. When true the whole instrument is silent (hands AND both face-
+   * chord instruments) — read by `useEngine` to zero the host master gain, and
+   * mirrored from the graph's `keyboard-control` mute so the HUD cue reflects the
+   * `m` key. Deliberately NOT persisted (not a musical preset, not in
+   * {@link SETTINGS_KEYS} nor `partialize`), so a fresh reload always starts
+   * un-muted — the least-surprising behaviour, and it needs no persist migration.
+   */
+  muted: boolean;
+  /**
    * What the player's facial expression maps to: `none` (off, default), `timbre`
    * (smile→brightness, open mouth→vibrato), or `chord` (expression selects a
    * diatonic triad). Any non-`none` mode lazy-loads the `webcam-face` model. Read
@@ -89,6 +98,10 @@ export interface ControlState {
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
+  /** Set the master mute directly. */
+  setMuted(v: boolean): void;
+  /** Toggle the master mute (the `m` key path mirrors here). */
+  toggleMuted(): void;
   setFaceMapping(v: FaceMapping): void;
   /** Patch the face-chord settings (e.g. setFaceChord({ voicing: 'spread' })). */
   setFaceChord(patch: Partial<FaceChord>): void;
@@ -254,6 +267,7 @@ export const useControls = create<ControlState>()(
       left: defaultVoice(DEFAULT_SOUND_LEFT),
       syncHands: true,
       masterVolume: 0.4,
+      muted: false,
       faceMapping: 'none',
       faceChord: { ...DEFAULT_FACE_CHORD },
       faceExpr: {
@@ -281,6 +295,8 @@ export const useControls = create<ControlState>()(
         }),
       setSync: (v) => set({ syncHands: v }),
       setMasterVolume: (v) => set({ masterVolume: v }),
+      setMuted: (v) => set({ muted: v }),
+      toggleMuted: () => set((s) => ({ muted: !s.muted })),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),
       setExpressionSensitivity: (emotion, value) =>
