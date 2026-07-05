@@ -105,6 +105,16 @@
         "name": "fingerBars",
         "type": "object",
         "default": {}
+      },
+      {
+        "name": "chordName",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "keyboardStrip",
+        "type": "object",
+        "default": {}
       }
     ]
   },

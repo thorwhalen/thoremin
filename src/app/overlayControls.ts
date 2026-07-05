@@ -55,8 +55,27 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
     ],
     position: true,
   },
+  {
+    name: 'chordName',
+    label: 'Chord name',
+    toggles: [
+      { key: 'roman', label: 'Function line' },
+      { key: 'nashville', label: 'Nashville (vs Roman)' },
+    ],
+    position: true,
+  },
   { name: 'timbreLevels', label: 'Timbre levels' },
   { name: 'chordGuide', label: 'Chord highlight' },
+  {
+    name: 'keyboardStrip',
+    label: 'Keyboard strip',
+    toggles: [
+      { key: 'scaleMode', label: 'Scale-only' },
+      { key: 'showChordTones', label: 'Chord tones' },
+      { key: 'showScaleRoot', label: 'Scale root' },
+      { key: 'showLabels', label: 'Note labels' },
+    ],
+  },
   { name: 'scaleGuide', label: 'Scale guide', toggles: [{ key: 'showLabels', label: 'Note labels' }] },
   { name: 'indexGuide', label: 'Index-finger guide', toggles: [{ key: 'dashed', label: 'Dashed' }] },
   { name: 'video', label: 'Video backdrop', slider: { key: 'alpha', label: 'Opacity' } },

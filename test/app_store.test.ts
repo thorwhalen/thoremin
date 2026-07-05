@@ -119,6 +119,11 @@ describe('control store', () => {
     expect(o.video.show).toBe(true);
     expect(o.scaleGuide.show).toBe(true);
     expect(o.indexGuide.show).toBe(false);
+    // #89 chord overlays: the chord name reads by default; the keyboard strip is
+    // opt-in (it's a large element).
+    expect(o.chordName.show).toBe(true);
+    expect(o.chordName.position).toBe('top');
+    expect(o.keyboardStrip.show).toBe(false);
   });
 
   it('setOverlayElement patches one element without touching the others', () => {

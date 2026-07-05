@@ -8,6 +8,10 @@ import {
   rangeMap,
   midiToName,
   chordName,
+  classifyChord,
+  scaleDegreeOf,
+  romanNumeral,
+  nashvilleNumber,
   scaleGuide,
   DEFAULT_SCALE,
 } from '@/music/theory';
@@ -27,6 +31,62 @@ describe('chordName', () => {
   it('falls back gracefully (empty / power / non-triad)', () => {
     expect(chordName([])).toBe('');
     expect(chordName([60, 67])).toBe('C5'); // root + fifth, no third
+  });
+  it('names the diatonic sevenths (the pose/brow add-7th chords)', () => {
+    expect(chordName([60, 64, 67, 71])).toBe('Cmaj7'); // C E G B  → major 7th
+    expect(chordName([67, 71, 74, 77])).toBe('G7'); // G B D F  → dominant 7th
+    expect(chordName([62, 65, 69, 72])).toBe('Dm7'); // D F A C  → minor 7th
+    expect(chordName([71, 74, 77, 81])).toBe('Bm7b5'); // B D F A  → half-diminished
+    expect(chordName([71, 74, 77, 80])).toBe('Bdim7'); // B D F Ab → diminished 7th
+    // Harmonic-minor III with the pose brow-7th: an augmented triad + major 7th.
+    // Must NOT collapse to a plain augmented triad (dropping the sounding 7th).
+    expect(chordName([63, 67, 71, 74])).toBe('D#augMaj7'); // D# G B D → aug(maj7)
+    expect(chordName([60, 64, 68])).toBe('Caug'); // plain augmented triad still 'aug'
+  });
+});
+
+describe('classifyChord', () => {
+  it('returns root pitch class + quality + symbol; null for no tones', () => {
+    expect(classifyChord([])).toBeNull();
+    expect(classifyChord([60, 64, 67])).toEqual({ root: 0, quality: 'maj', symbol: 'C' });
+    expect(classifyChord([57, 60, 64])).toMatchObject({ root: 9, quality: 'min' });
+    expect(classifyChord([67, 71, 74, 77])).toMatchObject({ root: 7, quality: 'dom7', symbol: 'G7' });
+  });
+});
+
+describe('scaleDegreeOf', () => {
+  const cMajor = generateScale({ root: 0, type: 'major', octaves: 2, baseOctave: 3 });
+  it('maps a pitch class to its scale degree (0=tonic), -1 when out of scale', () => {
+    expect(scaleDegreeOf(0, cMajor)).toBe(0); // C = tonic
+    expect(scaleDegreeOf(7, cMajor)).toBe(4); // G = V
+    expect(scaleDegreeOf(11, cMajor)).toBe(6); // B = vii
+    expect(scaleDegreeOf(1, cMajor)).toBe(-1); // C# not in C major
+  });
+  it('is octave-agnostic (a high chord root still resolves to its degree)', () => {
+    expect(scaleDegreeOf(67 % 12, cMajor)).toBe(4); // G in any octave → V
+  });
+});
+
+describe('romanNumeral / nashvilleNumber', () => {
+  it('encodes degree + quality (case, °/ø/+, sevenths)', () => {
+    expect(romanNumeral(0, 'maj')).toBe('I');
+    expect(romanNumeral(1, 'min')).toBe('ii');
+    expect(romanNumeral(4, 'dom7')).toBe('V7');
+    expect(romanNumeral(6, 'dim')).toBe('vii°');
+    expect(romanNumeral(6, 'm7b5')).toBe('viiø');
+    expect(romanNumeral(0, 'maj7')).toBe('Imaj7');
+    expect(romanNumeral(2, 'aug')).toBe('III+');
+    expect(romanNumeral(2, 'augMaj7')).toBe('III+maj7'); // uppercase (major-ish) + aug-maj7 mark
+    expect(romanNumeral(-1, 'maj')).toBe(''); // silence sentinel → no label
+  });
+  it('nashville: number-first with m / marks', () => {
+    expect(nashvilleNumber(0, 'maj')).toBe('1');
+    expect(nashvilleNumber(1, 'min')).toBe('2m');
+    expect(nashvilleNumber(4, 'dom7')).toBe('57');
+    expect(nashvilleNumber(6, 'dim')).toBe('7°');
+    expect(nashvilleNumber(6, 'm7b5')).toBe('7ø');
+    expect(nashvilleNumber(0, 'maj7')).toBe('1maj7');
+    expect(nashvilleNumber(-1, 'maj')).toBe('');
   });
 });
 

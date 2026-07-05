@@ -55,6 +55,7 @@ function makeRecordingCanvas(width = 1280, height = 720) {
   for (const m of [
     'clearRect', 'save', 'restore', 'beginPath', 'arc', 'fill', 'stroke',
     'moveTo', 'lineTo', 'drawImage', 'fillText', 'setLineDash', 'scale', 'translate', 'rotate',
+    'fillRect', // chord-name plate + keyboard-strip keys (#89)
   ]) {
     ctx[m] = rec(m);
   }
@@ -431,5 +432,134 @@ describe('canvas-overlay composable elements', () => {
       engine.tick();
     }).not.toThrow();
     expect(rc.count('clearRect')).toBe(2); // overlay ran both ticks
+  });
+});
+
+// A C-major scale spanning an octave (7 distinct pitch classes), so the
+// degree-derivation for the Roman/Nashville function line is well-defined.
+const C_MAJOR = [48, 50, 52, 53, 55, 57, 59, 60];
+const textsOf = (rc: ReturnType<typeof makeRecordingCanvas>) =>
+  rc.calls.filter((c) => c.m === 'fillText').map((c) => c.args[0]);
+
+describe('chordName cue (#89)', () => {
+  it('shows the sounding chord as a jazz symbol (primary line)', () => {
+    const rc = drawWith(onlyElement('chordName'), { chord: [60, 64, 67], scale: C_MAJOR }); // C major
+    expect(textsOf(rc)).toContain('C');
+  });
+
+  it('adds the Roman-numeral function of the chord within the scale', () => {
+    // G major triad in C major is the V chord.
+    const rc = drawWith(onlyElement('chordName'), { chord: [67, 71, 74], scale: C_MAJOR });
+    const texts = textsOf(rc);
+    expect(texts).toContain('G'); // symbol
+    expect(texts).toContain('V'); // function
+  });
+
+  it('the nashville toggle swaps the function line to a number', () => {
+    const rc = drawWith(
+      { ...onlyElement('chordName'), chordName: { show: true, nashville: true } },
+      { chord: [67, 71, 74], scale: C_MAJOR },
+    );
+    expect(textsOf(rc)).toContain('5'); // V → Nashville "5"
+  });
+
+  it('roman off → symbol only, no function line', () => {
+    const rc = drawWith(
+      { ...onlyElement('chordName'), chordName: { show: true, roman: false } },
+      { chord: [67, 71, 74], scale: C_MAJOR },
+    );
+    const texts = textsOf(rc);
+    expect(texts).toContain('G');
+    expect(texts).not.toContain('V');
+  });
+
+  it('draws nothing when no chord sounds (idle)', () => {
+    const rc = drawWith(onlyElement('chordName'), { chord: undefined, scale: C_MAJOR });
+    expect(rc.count('fillRect')).toBe(0); // no plate
+    expect(rc.count('fillText')).toBe(0);
+  });
+});
+
+describe('keyboardStrip (#89)', () => {
+  const noVoices = { params: { voices: [] } };
+
+  it('is opt-in (off by default) — draws no strip rectangles', () => {
+    // scaleGuide on, everything else (incl. strip + chordName) off.
+    expect(drawWith(onlyElement('scaleGuide'), noVoices).count('fillRect')).toBe(0);
+  });
+
+  it('standard mode: a dark plate + a rect per white/black key over the scale range', () => {
+    const rc = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR });
+    // 1 plate + 8 whites (C..C) + 5 blacks (C#,D#,F#,G#,A#) = 14.
+    expect(rc.count('fillRect')).toBe(14);
+  });
+
+  it('scale mode: one equal cell per scale note (+ the plate)', () => {
+    const rc = drawWith(
+      { ...onlyElement('keyboardStrip'), keyboardStrip: { show: true, scaleMode: true } },
+      { ...noVoices, scale: C_MAJOR },
+    );
+    expect(rc.count('fillRect')).toBe(1 + C_MAJOR.length);
+  });
+
+  it('marks the scale root with a hollow ring (arc + stroke, not a fill)', () => {
+    const rc = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR });
+    expect(rc.count('arc')).toBeGreaterThan(0);
+    expect(rc.count('stroke')).toBeGreaterThan(0);
+  });
+
+  it('a sounding chord adds tone tints + a filled chord-root diamond', () => {
+    const base = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR }).count('fillRect');
+    const withChord = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR, chord: [55, 59, 62] }); // G B D
+    expect(withChord.count('fillRect')).toBeGreaterThan(base); // chord-tone tints
+    expect(withChord.count('fill')).toBeGreaterThan(0); // the diamond path fill
+  });
+
+  it('lights the voiced-now notes — reads the actual synth voices', () => {
+    const base = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR }).count('fillRect');
+    // A present voice at 440Hz (A4) → the A key gets a bright voiced band.
+    const voiced = drawWith(onlyElement('keyboardStrip'), {
+      scale: C_MAJOR,
+      params: { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] },
+    });
+    expect(voiced.count('fillRect')).toBeGreaterThan(base);
+  });
+
+  it('a sharp root (C#) keeps the leading black key on-canvas (no negative x)', () => {
+    // C# major starts on a black key; the piano range must snap down to a natural
+    // so the first C# never draws at a negative x off the left edge.
+    const cSharp = [49, 51, 53, 54, 56, 58, 60, 61]; // starts on C# (a black key)
+    const rc = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: cSharp });
+    const xs = rc.calls.filter((c) => c.m === 'fillRect').map((c) => c.args[0] as number);
+    expect(xs.length).toBeGreaterThan(0);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('showScaleRoot off removes the scale-root ring', () => {
+    const on = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR });
+    const off = drawWith(
+      { ...onlyElement('keyboardStrip'), keyboardStrip: { show: true, showScaleRoot: false } },
+      { ...noVoices, scale: C_MAJOR },
+    );
+    expect(on.count('arc')).toBeGreaterThan(0); // ring on by default
+    expect(off.count('arc')).toBe(0); // ...gone when toggled off
+  });
+
+  it('showChordTones off removes the chord-tone tint', () => {
+    const withTint = drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR, chord: [55, 59, 62] });
+    const noTint = drawWith(
+      { ...onlyElement('keyboardStrip'), keyboardStrip: { show: true, showChordTones: false } },
+      { ...noVoices, scale: C_MAJOR, chord: [55, 59, 62] },
+    );
+    expect(noTint.count('fillRect')).toBeLessThan(withTint.count('fillRect'));
+  });
+
+  it('showLabels draws note names on the keys (off by default)', () => {
+    expect(drawWith(onlyElement('keyboardStrip'), { ...noVoices, scale: C_MAJOR }).count('fillText')).toBe(0);
+    const labeled = drawWith(
+      { ...onlyElement('keyboardStrip'), keyboardStrip: { show: true, showLabels: true } },
+      { ...noVoices, scale: C_MAJOR },
+    );
+    expect(labeled.count('fillText')).toBeGreaterThan(0);
   });
 });

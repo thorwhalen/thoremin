@@ -266,5 +266,5 @@ Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 - **roles:** overlay
 - **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config
 - **out:** —
-- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={})
+- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={})
 

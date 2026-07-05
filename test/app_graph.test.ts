@@ -49,6 +49,11 @@ describe('production app graph', () => {
     expect(has('exprChord', 'triad', 'chordSel', 'a')).toBe(true);
     expect(has('poseChord', 'chord', 'chordSel', 'b')).toBe(true);
     expect(has('chordSel', 'chord', 'overlay', 'chord')).toBe(true);
+    // The overlay reads the MERGED params (hands + both chord instruments) so the
+    // keyboard strip's voiced-now cue lights the sounding chord voices, not only the
+    // hands (#89). The hand voices stay at indices 0/1, so per-hand labels are intact.
+    expect(has('merge', 'params', 'overlay', 'params')).toBe(true);
+    expect(has('map', 'params', 'overlay', 'params')).toBe(false);
   });
 
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {
