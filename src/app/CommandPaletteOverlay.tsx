@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { CommandPalette } from 'acture-palette-react';
 import { AutoForm } from 'acture-forms-autoform';
 import { registry } from './commands';
+import { useToasts } from './toasts';
 
 export default function CommandPaletteOverlay() {
   const [open, setOpen] = useState(false);
@@ -24,7 +25,11 @@ export default function CommandPaletteOverlay() {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault(); // toggle; beat the browser's own Cmd-K
         setOpen((o) => !o);
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' && !e.defaultPrevented) {
+        // A parameter sub-view (enum picker / AutoForm) handles Escape itself to
+        // step BACK — it calls preventDefault, so we only close from the top-level
+        // list (where Escape isn't prevented). Otherwise the whole palette would
+        // tear down instead of returning to the command list.
         setOpen(false);
       }
     };
@@ -47,7 +52,13 @@ export default function CommandPaletteOverlay() {
           registry={registry}
           formAdapter={AutoForm}
           placeholder="Set a dial — type a parameter…"
-          onDispatched={() => setOpen(false)}
+          onDispatched={(_cmd, result) => {
+            // Close only when the write actually succeeded. A refused value
+            // (errors-as-data) keeps the palette open and surfaces the reason,
+            // rather than silently vanishing with the dial unchanged.
+            if (result.ok) setOpen(false);
+            else useToasts.getState().push(result.error.message, 5000, 'error');
+          }}
           className="thoremin-palette"
         />
       </div>

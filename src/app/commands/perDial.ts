@@ -16,7 +16,12 @@ import { settingsForm } from '@/app/dials/settingsStore';
 import { applyDialSet } from './dials';
 
 /** The Zod value-schema for a dial field, or null for a dial that isn't a single
- *  settable scalar (structured objects, or an unrecognized base type). */
+ *  settable scalar (structured objects, or an unrecognized base type). It reflects
+ *  the dial's enum members and numeric bounds. It does NOT re-derive `.int()` (the
+ *  flat SettingFieldConfig doesn't expose integer-ness), so a fractional value for an
+ *  integer dial passes this schema but is still safely refused by {@link applyDialSet}
+ *  — downstream, via the full SettingsSchema — as `invalid_value` rather than at the
+ *  param layer. The write never lands either way. */
 function valueSchemaFor(field: SettingFieldConfig): z.ZodTypeAny | null {
   if (field.isStructured) return null;
   if (field.enumValues?.length) return z.enum(field.enumValues as [string, ...string[]]);

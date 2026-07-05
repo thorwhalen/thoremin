@@ -5,6 +5,8 @@
  * Structured dials (overlay/handMap) are skipped. Pure + headless.
  */
 import { describe, it, expect } from 'vitest';
+import { isErr } from 'acture';
+import { deriveKind } from 'acture-palette-react';
 import { createThoreminRegistry, DIAL_FIELD_COMMANDS, setCommandIdFor } from '@/app/commands';
 import { useControls } from '@/app/store';
 import { settingsForm } from '@/app/dials/settingsStore';
@@ -18,9 +20,13 @@ describe('per-dial command generation (#87)', () => {
     expect(registry.has('dial.master.syncHands.set')).toBe(true); // boolean
   });
 
-  it('skips structured dials (not a single settable scalar)', () => {
+  it('skips ALL structured dials (objects/records are not a single settable scalar)', () => {
+    // All four structured dials in thoreminDials — incl. the dotted faceExpr.* ones
+    // most likely to be mis-classified as scalars by a regression.
     expect(registry.has('dial.overlay.set')).toBe(false);
     expect(registry.has('dial.handMap.set')).toBe(false);
+    expect(registry.has('dial.faceExpr.sensitivity.set')).toBe(false);
+    expect(registry.has('dial.faceExpr.degrees.set')).toBe(false);
   });
 
   it('a generated command carries a human title + Dials category', () => {
@@ -36,10 +42,20 @@ describe('per-dial command generation (#87)', () => {
   });
 
   it('the typed schema rejects an out-of-bounds value at the param layer (invalid_params)', async () => {
-    // right.root is bounded 0..11, so the generated schema is z.number().min(0).max(11).
+    // right.root is bounded 0..11, so the generated schema is z.number().int().min(0).max(11).
     const r = await registry.dispatch('dial.right.root.set', { value: 99 });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.code).toBe('invalid_params');
+    if (isErr(r)) expect(r.error.code).toBe('invalid_params');
+  });
+
+  it('a fractional value for an integer dial is still safely refused (downstream, invalid_value)', async () => {
+    // The generated schema keeps bounds but not `.int()`, so 5.5 passes the param
+    // layer and is caught by the full settings schema in applyDialSet — never lands.
+    const before = useControls.getState().right.root;
+    const r = await registry.dispatch('dial.right.root.set', { value: 5.5 });
+    expect(r.ok).toBe(false);
+    if (isErr(r)) expect(r.error.code).toBe('invalid_value');
+    expect(useControls.getState().right.root).toBe(before); // dial unchanged
   });
 
   it('an enum command accepts a valid member and rejects a bad one', async () => {
@@ -48,24 +64,28 @@ describe('per-dial command generation (#87)', () => {
     expect(useControls.getState().right.sound).toBe('square');
     const bad = await registry.dispatch('dial.right.sound.set', { value: 'not-a-sound' });
     expect(bad.ok).toBe(false);
-    if (!bad.ok) expect(bad.error.code).toBe('invalid_params');
+    if (isErr(bad)) expect(bad.error.code).toBe('invalid_params');
   });
 
-  it('every generated command id round-trips a real dial field, and every scalar field is covered', () => {
-    const scalarFields = settingsForm.fields.filter((f) => !f.isStructured && !f.hidden && !f.readOnly);
-    // At least the voice + master + face dials produce commands.
-    expect(DIAL_FIELD_COMMANDS.length).toBeGreaterThanOrEqual(8);
-    for (const cmd of DIAL_FIELD_COMMANDS) {
-      expect(cmd.id.startsWith('dial.')).toBe(true);
-      expect(cmd.id.endsWith('.set')).toBe(true);
-    }
-    // Every generated id is setCommandIdFor(some scalar field key).
-    const ids = new Set(DIAL_FIELD_COMMANDS.map((c) => c.id));
-    for (const f of scalarFields) {
-      // A scalar field of a supported base type has a command.
-      if (f.enumValues?.length || ['number', 'boolean', 'string'].includes(f.zodType)) {
-        expect(ids.has(setCommandIdFor(f.key))).toBe(true);
-      }
-    }
+  it('the palette routes each command by type: enum → inline picker, bounded number → form', () => {
+    // The component docstring / CSS assume this routing; deriveKind is the pure
+    // predicate acture uses, so lock it to the actual generated schemas.
+    expect(deriveKind(registry.get('dial.right.sound.set')!)).toBe('atomic'); // enum → dropdown picker
+    expect(deriveKind(registry.get('dial.master.syncHands.set')!)).toBe('atomic'); // boolean → true/false picker
+    expect(deriveKind(registry.get('dial.right.root.set')!)).toBe('handoff'); // bounded number → AutoForm
+  });
+
+  it('the generated command set EXACTLY equals the eligible scalar dials (no drop, no extra)', () => {
+    // Both directions: nothing eligible is dropped AND nothing ineligible (a
+    // structured/hidden/readOnly dial) is added. Mirrors valueSchemaFor's filter.
+    const expected = new Set(
+      settingsForm.fields
+        .filter((f) => !f.isStructured && !f.hidden && !f.readOnly)
+        .filter((f) => f.enumValues?.length || ['number', 'boolean', 'string'].includes(f.zodType))
+        .map((f) => setCommandIdFor(f.key)),
+    );
+    const generated = new Set(DIAL_FIELD_COMMANDS.map((c) => c.id));
+    expect(generated).toEqual(expected);
+    expect(generated.size).toBeGreaterThanOrEqual(8); // sanity: the voice+master+face dials
   });
 });
