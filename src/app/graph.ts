@@ -4,7 +4,7 @@
  *
  *   webcam ─┬─▶ hand-features ─┬─▶ voice-mapping ─▶ synth-merge ─▶ webaudio-synth
  *           │                  │        ▲ ▲ ▲ ▲          ▲
- *           └────────▶ overlay ◀┘        │ │ │ │         │ (+ face chord)
+ *           └────────▶ overlay ◀┘        │ │ │ │         │ (+ face chord; master mute)
  *                       (video+guides)   │ │ │ └── store-controls (scale/instrument)
  *                                        │ │ └──── keyboard-control (magnetism/octave/mute)
  *                                        │ └────── keyboard-source ─▶ keyboard-control
@@ -184,6 +184,11 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'map', port: 'params' }, to: { node: 'merge', port: 'a' } },
       { from: { node: 'exprChord', port: 'params' }, to: { node: 'merge', port: 'b' } },
       { from: { node: 'poseChord', port: 'params' }, to: { node: 'merge', port: 'c' } },
+      // Master mute reaches the merge — the single convergence point of ALL sound
+      // producers — so muting silences the hands AND both face-chord instruments
+      // (#91). The `kctrl.mute → map.mute` edge above still silences the hand voices
+      // at the mapping stage; this is the catch-all that also covers the chords.
+      { from: { node: 'kctrl', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
       { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
       // Also feed the hand params to the overlay so it can label each hand's note.
       { from: { node: 'map', port: 'params' }, to: { node: 'overlay', port: 'params' } },

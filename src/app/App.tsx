@@ -9,7 +9,7 @@
  * All signal processing happens in the DAG engine via {@link useThoreminEngine};
  * this component is purely presentational + lifecycle.
  */
-import { Play, BookOpen, Circle, Square } from 'lucide-react';
+import { Play, BookOpen, Circle, Square, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
@@ -49,6 +49,20 @@ function FaceChip() {
   );
 }
 
+/** A persistent, unmissable cue shown whenever the instrument is muted (#91).
+ * Non-interactive (the `m` key is the toggle SSOT via the graph); it tells the
+ * player how to unmute so a muted instrument is never mistaken for a broken one. */
+function MutedBadge() {
+  const muted = useControls((s) => s.muted);
+  if (!muted) return null;
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-red-500/90 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-lg backdrop-blur">
+      <VolumeX className="h-3.5 w-3.5" />
+      Muted — press M to unmute
+    </div>
+  );
+}
+
 export default function App() {
   const { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording } =
     useThoreminEngine();
@@ -77,6 +91,9 @@ export default function App() {
         </div>
       </div>
       <FaceChip />
+
+      {/* Top-center: unmissable "muted" cue (audio silenced by the m key). */}
+      <MutedBadge />
 
       {/* Bottom-left: link to the generated capabilities manual. */}
       <a

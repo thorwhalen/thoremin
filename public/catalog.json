@@ -1092,7 +1092,7 @@
   {
     "type": "synth-merge",
     "title": "Synth Merge",
-    "description": "Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord).",
+    "description": "Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord); master mute.",
     "roles": [
       "mapping"
     ],
@@ -1108,6 +1108,11 @@
       {
         "name": "c",
         "kind": "synth-params"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
       }
     ],
     "outputs": [
