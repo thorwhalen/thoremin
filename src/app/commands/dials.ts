@@ -14,7 +14,7 @@
  * key; only the non-dial `muted` flag (#91) is deliberately NOT a command yet.
  */
 import { z } from 'zod';
-import { defineCommand, ok, err } from 'acture';
+import { defineCommand, ok, err, type Result } from 'acture';
 import type { SettingKey } from '@zodal/dials-core';
 import { dialsStore, setDial, resetDial } from '@/app/dials/settingsStore';
 import { thoreminDials, layerToSettings } from '@/settings/dials';
@@ -47,6 +47,20 @@ function invalidWritesReason(writes: ReadonlyArray<readonly [string, unknown]>):
   }
 }
 
+/**
+ * Set one dial with the full write contract (unknown-key guard + value validated
+ * against the settings schema before writing), returning a Result. Shared by the
+ * generic `dial.set` command and the generated per-dial commands, so both the
+ * palette's typed inputs and a free-text AI arg go through the exact same guards.
+ */
+export function applyDialSet(key: string, value: unknown): Result<{ key: string; value: unknown }> {
+  if (!isDial(key)) return err('unknown_dial', `No dial named "${key}".`, { key });
+  const reason = invalidWritesReason([[key, value]]);
+  if (reason) return err('invalid_value', `Invalid value for "${key}": ${reason}`, { key, value });
+  setDial(key as SettingKey, value);
+  return ok({ key, value });
+}
+
 /** Set one dial to a value. The value is validated against the settings schema before
  *  it is written, so an out-of-range value is refused (errors-as-data) rather than
  *  silently landing in the dials layer while the audio keeps the old value. */
@@ -59,13 +73,7 @@ export const setDialCmd = defineCommand({
     key: z.string().describe('The dial key, e.g. "right.baseOctave" or "face.mapping".'),
     value: z.unknown().describe('The new value for that dial.'),
   }),
-  execute: ({ key, value }) => {
-    if (!isDial(key)) return err('unknown_dial', `No dial named "${key}".`, { key });
-    const reason = invalidWritesReason([[key, value]]);
-    if (reason) return err('invalid_value', `Invalid value for "${key}": ${reason}`, { key, value });
-    setDial(key as SettingKey, value);
-    return ok({ key, value });
-  },
+  execute: ({ key, value }) => applyDialSet(key, value),
 });
 
 /** Reset one dial to its default (the lower default scope re-wins). */
