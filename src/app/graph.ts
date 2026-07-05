@@ -190,8 +190,11 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // at the mapping stage; this is the catch-all that also covers the chords.
       { from: { node: 'kctrl', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
       { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
-      // Also feed the hand params to the overlay so it can label each hand's note.
-      { from: { node: 'map', port: 'params' }, to: { node: 'overlay', port: 'params' } },
+      // Feed the MERGED params (hand voices + both chord instruments) to the overlay:
+      // the hand voices stay at indices 0/1 (synth-merge concatenates them first), so
+      // the per-hand note labels/markers are unchanged, while the keyboard strip's
+      // "voiced-now" cue can light the sounding CHORD voices too (#89), not just hands.
+      { from: { node: 'merge', port: 'params' }, to: { node: 'overlay', port: 'params' } },
       // And both hands' scales + octave shift, for the overlay pitch guides.
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'overlay', port: 'scale' } },
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'overlay', port: 'scaleLeft' } },

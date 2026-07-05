@@ -25,7 +25,17 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { chordName, freqToMidi, midiToName, scaleGuide } from '@/music/theory';
+import {
+  chordName,
+  classifyChord,
+  freqToMidi,
+  midiToName,
+  nashvilleNumber,
+  NOTES,
+  romanNumeral,
+  scaleDegreeOf,
+  scaleGuide,
+} from '@/music/theory';
 import { EMOTIONS, type ExpressionScores } from '@/music/expression';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import {
@@ -87,6 +97,41 @@ const Params = z.object({
   /** Finger→effect bar graph (HUD cue): a bar per routed finger, effect-labelled. Opt-in. */
   fingerBars: z
     .object({ show: z.boolean().default(false), position: CuePositionEnum.default('left') })
+    .prefault({}),
+  /**
+   * Chord-name HUD cue: the sounding chord's jazz symbol (e.g. `Am7`) plus an
+   * optional function line — the Roman numeral (`vi7`) or, with `nashville`, the
+   * Nashville number (`6m7`) of the chord within the current scale. Only shows
+   * while a chord actually sounds (face chord / pose modes).
+   */
+  chordName: z
+    .object({
+      show: z.boolean().default(true),
+      position: CuePositionEnum.default('top'),
+      /** Show the secondary function line (Roman / Nashville) under the symbol. */
+      roman: z.boolean().default(true),
+      /** Use Nashville numbers instead of Roman numerals for the function line. */
+      nashville: z.boolean().default(false),
+    })
+    .prefault({}),
+  /**
+   * Keyboard strip (bottom-edge): a thin piano/scale ribbon showing, with a
+   * shape+brightness hierarchy, the chord root (gold diamond) ▸ voiced-now (glow)
+   * ▸ chord-tone set (faint gold) ▸ scale root (blue ring) over the in-scale keys.
+   * `scaleMode` swaps the standard chromatic piano for a decluttered scale-only
+   * ribbon. Opt-in (it's a large element).
+   */
+  keyboardStrip: z
+    .object({
+      show: z.boolean().default(false),
+      /** false = standard chromatic piano; true = scale-only equal cells. */
+      scaleMode: z.boolean().default(false),
+      /** Strip height as a fraction of the canvas height. */
+      height: z.number().min(0.05).max(0.2).default(0.1),
+      showLabels: z.boolean().default(false),
+      showChordTones: z.boolean().default(true),
+      showScaleRoot: z.boolean().default(true),
+    })
     .prefault({}),
 });
 type Params = z.infer<typeof Params>;
@@ -680,6 +725,236 @@ function routedFingers(view: OverlayView): {
   return { side, items };
 }
 
+// ---- Chord overlays (#89): a chord-name cue + a keyboard strip ------------------
+
+const NAME_PRIMARY_PX = 40;
+const NAME_SECONDARY_PX = 20;
+/** Monospace glyph advance ≈ this × font px (used to size the cue box headlessly). */
+const NAME_CHAR_W = 0.62;
+
+/** Pitch class of a MIDI note (0..11). */
+const pcOf = (m: number) => (((m % 12) + 12) % 12);
+
+/** The actually-sounding MIDI notes (rounded), read from the synth voices — the
+ *  "what is rendering right now" layer for the keyboard strip. */
+function voicedNotes(view: OverlayView): number[] {
+  const voices = view.inputs.params?.voices;
+  if (!voices) return [];
+  return voices.filter((v) => v.present && v.freq > 0).map((v) => Math.round(freqToMidi(v.freq)));
+}
+
+/** The Roman/Nashville function line for the current chord within the current
+ *  scale, or '' when off / unavailable / non-diatonic. */
+function chordFunctionLabel(view: OverlayView): string {
+  const p = view.params.chordName;
+  if (!p.roman) return '';
+  const chord = view.inputs.chord;
+  const scale = view.inputs.scale;
+  if (!Array.isArray(chord) || !chord.length || !Array.isArray(scale) || scale.length < 2) return '';
+  const info = classifyChord(chord);
+  if (!info) return '';
+  const degree = scaleDegreeOf(info.root, scale);
+  if (degree < 0) return '';
+  return p.nashville ? nashvilleNumber(degree, info.quality) : romanNumeral(degree, info.quality);
+}
+
+/** The chord-name cue's rendered text + box size, or null when nothing to show.
+ *  Shared by `measure` (layout) and `draw`, so the two never disagree. */
+function chordNameBox(view: OverlayView): { symbol: string; secondary: string; w: number; h: number } | null {
+  const p = view.params.chordName;
+  if (!p.show) return null;
+  const chord = view.inputs.chord;
+  if (!Array.isArray(chord) || chord.length === 0) return null;
+  const info = classifyChord(chord);
+  if (!info) return null;
+  const secondary = chordFunctionLabel(view);
+  const primaryW = info.symbol.length * NAME_PRIMARY_PX * NAME_CHAR_W;
+  const secondaryW = secondary ? secondary.length * NAME_SECONDARY_PX * NAME_CHAR_W : 0;
+  const w = Math.max(primaryW, secondaryW) + PAD * 2;
+  const h = NAME_PRIMARY_PX + (secondary ? NAME_SECONDARY_PX + 4 : 0) + PAD * 2;
+  return { symbol: info.symbol, secondary, w, h };
+}
+
+const chordNameCue: OverlayElement = {
+  name: 'chordName',
+  category: 'output',
+  cue: true,
+  positionOf: (view) => view.params.chordName.position,
+  measure(view) {
+    const box = chordNameBox(view);
+    return box ? { w: box.w, h: box.h } : null;
+  },
+  draw(g, view) {
+    const origin = view.layout['chordName'];
+    const box = chordNameBox(view);
+    if (!origin || !box) return;
+    g.save();
+    // Dark backing plate so gold/white glyphs read over any (dimmed) video.
+    g.globalAlpha = 0.4;
+    g.fillStyle = '#000000';
+    g.fillRect(origin.x, origin.y, box.w, box.h);
+    const cx = origin.x + box.w / 2;
+    g.textAlign = 'center';
+    // Primary: the jazz chord symbol, large + gold.
+    g.globalAlpha = 1;
+    g.fillStyle = CHORD_COLOR;
+    g.font = `bold ${NAME_PRIMARY_PX}px monospace`;
+    g.fillText(box.symbol, cx, origin.y + PAD + NAME_PRIMARY_PX * 0.78);
+    // Secondary: the function line (Roman / Nashville), smaller + dimmer.
+    if (box.secondary) {
+      g.globalAlpha = 0.8;
+      g.fillStyle = '#ffffff';
+      g.font = `${NAME_SECONDARY_PX}px monospace`;
+      g.fillText(box.secondary, cx, origin.y + PAD + NAME_PRIMARY_PX + NAME_SECONDARY_PX * 0.9);
+    }
+    g.textAlign = 'left';
+    g.restore();
+  },
+};
+
+/** The natural (white-key) pitch classes; the rest are the black keys. */
+const NATURAL_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
+const STRIP_MARGIN = 8;
+
+/** One drawable key of the keyboard strip. */
+interface StripKey {
+  midi: number;
+  x: number;
+  w: number;
+  h: number;
+  isWhite: boolean;
+}
+
+/** Standard chromatic piano keys spanning the scale's MIDI range: equal-width
+ *  whites first (full height), then the narrower/shorter blacks on top. The range
+ *  is snapped OUT to natural keys (down at the bottom, up at the top) so a black
+ *  key never leads the row — otherwise a sharp root (C#/D#/F#/G#/A#) would place
+ *  the first black key at a negative x, off the left edge. */
+function standardStripKeys(scale: number[], W: number, stripH: number): StripKey[] {
+  let lo = scale[0];
+  while (!NATURAL_PCS.has(pcOf(lo))) lo -= 1; // snap down to a white key
+  let hi = scale[scale.length - 1];
+  while (!NATURAL_PCS.has(pcOf(hi))) hi += 1; // snap up to a white key
+  const whites: number[] = [];
+  const blacks: { midi: number; afterWhite: number }[] = [];
+  for (let m = lo; m <= hi; m++) {
+    if (NATURAL_PCS.has(pcOf(m))) whites.push(m);
+    else blacks.push({ midi: m, afterWhite: whites.length }); // boundary = whites drawn so far
+  }
+  if (!whites.length) return [];
+  const whiteW = (W - 2 * STRIP_MARGIN) / whites.length;
+  const blackW = whiteW * 0.62;
+  const blackH = stripH * 0.6;
+  const keys: StripKey[] = whites.map((midi, i) => ({
+    midi,
+    x: STRIP_MARGIN + i * whiteW,
+    w: whiteW,
+    h: stripH,
+    isWhite: true,
+  }));
+  for (const b of blacks) {
+    keys.push({ midi: b.midi, x: STRIP_MARGIN + b.afterWhite * whiteW - blackW / 2, w: blackW, h: blackH, isWhite: false });
+  }
+  return keys;
+}
+
+/** Scale-only keys: one equal-width cell per scale note (a decluttered ribbon). */
+function scaleStripKeys(scale: number[], W: number, stripH: number): StripKey[] {
+  const cellW = (W - 2 * STRIP_MARGIN) / scale.length;
+  return scale.map((midi, i) => ({ midi, x: STRIP_MARGIN + i * cellW, w: cellW, h: stripH, isWhite: true }));
+}
+
+/**
+ * The keyboard strip (#89): a thin bottom-edge piano/scale ribbon that shows what
+ * is playing, with a shape+brightness cue hierarchy (never hue alone) so it reads
+ * over the dimmed video and survives colour-blindness:
+ *   chord ROOT (gold filled diamond) ▸ VOICED-now (bright gold base band) ▸
+ *   CHORD-tone set (faint gold tint) ▸ SCALE root (hollow blue ring) ▸
+ *   in-scale (light tint) ▸ out-of-scale (greyed).
+ * Not a HUD cue — it owns a fixed bottom rectangle and draws in list order.
+ */
+const keyboardStripElement: OverlayElement = {
+  name: 'keyboardStrip',
+  category: 'guide',
+  draw(g, view) {
+    const p = view.params.keyboardStrip;
+    if (!p.show) return;
+    const scale = view.inputs.scale;
+    if (!Array.isArray(scale) || scale.length < 2) return;
+    const { W, H } = view;
+    const stripH = Math.round(H * p.height);
+    const y0 = H - stripH;
+
+    const scalePcs = new Set(scale.map(pcOf));
+    const scaleRoot = pcOf(scale[0]); // generateScale starts on the root, so scale[0] IS the tonic
+    const chord = Array.isArray(view.inputs.chord) ? view.inputs.chord : [];
+    const chordPcs = new Set(chord.map(pcOf));
+    const chordRootPc = chord.length ? pcOf(Math.min(...chord)) : -1;
+    const voicedPcs = new Set(voicedNotes(view).map(pcOf)); // what's actually sounding now
+    const keys = p.scaleMode ? scaleStripKeys(scale, W, stripH) : standardStripKeys(scale, W, stripH);
+
+    g.save();
+    // Dark backing plate: a stable substrate so keys read over any video frame.
+    g.globalAlpha = 0.4;
+    g.fillStyle = '#000000';
+    g.fillRect(0, y0, W, stripH);
+
+    for (const k of keys) {
+      const pc = pcOf(k.midi);
+      const inScale = scalePcs.has(pc);
+      // Base fill: in-scale keys tinted, out-of-scale greyed; whites light, blacks dark.
+      g.globalAlpha = k.isWhite ? (inScale ? 0.16 : 0.06) : inScale ? 0.4 : 0.55;
+      g.fillStyle = k.isWhite ? '#ffffff' : '#000000';
+      g.fillRect(k.x, y0, k.w, k.h);
+      // Chord-tone set: the chord's footprint, recessive (matches chordGuide alpha).
+      if (p.showChordTones && chordPcs.has(pc)) {
+        g.globalAlpha = 0.28;
+        g.fillStyle = CHORD_COLOR;
+        g.fillRect(k.x, y0, k.w, k.h);
+      }
+      // Voiced-now: a bright gold band at the key base — the strongest cue.
+      if (voicedPcs.has(pc)) {
+        g.globalAlpha = 0.9;
+        g.fillStyle = CHORD_COLOR;
+        g.fillRect(k.x, y0 + k.h * 0.55, k.w, k.h * 0.45);
+      }
+      // Scale root: a hollow cool-blue ring (different shape + temperature than the
+      // warm filled chord-root diamond, so the two roots never blur together).
+      if (p.showScaleRoot && pc === scaleRoot) {
+        g.globalAlpha = 0.9;
+        g.strokeStyle = LEFT_COLOR;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(k.x + k.w / 2, y0 + k.h * 0.72, Math.min(k.w * 0.3, 6), 0, Math.PI * 2);
+        g.stroke();
+      }
+      // Chord root: a filled gold diamond marker at the key top — highest salience.
+      if (pc === chordRootPc) {
+        g.globalAlpha = 1;
+        g.fillStyle = CHORD_COLOR;
+        const dx = k.x + k.w / 2;
+        const dy = y0 + k.h * 0.26;
+        const r = Math.min(k.w * 0.32, 7);
+        g.beginPath();
+        g.moveTo(dx, dy - r);
+        g.lineTo(dx + r, dy);
+        g.lineTo(dx, dy + r);
+        g.lineTo(dx - r, dy);
+        g.fill();
+      }
+      if (p.showLabels) {
+        g.globalAlpha = 0.85;
+        g.fillStyle = k.isWhite ? '#111111' : '#ffffff';
+        g.font = '9px monospace';
+        g.textAlign = 'center';
+        g.fillText(NOTES[pc], k.x + k.w / 2, y0 + k.h - 3);
+      }
+    }
+    g.textAlign = 'left';
+    g.restore();
+  },
+};
+
 /**
  * The overlay elements, in draw (z) order. In-scene first, HUD cues last (on top).
  * Each has a `category` and a `<name>` sub-object in `Params`. Append here to add one.
@@ -688,12 +963,18 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   videoBackdrop,
   scaleGuideElement,
   chordGuideElement,
+  // The keyboard strip is an in-scene bottom-edge element: above the video/guides,
+  // below the landmarks/markers (so hands read over it) and the HUD cues.
+  keyboardStripElement,
   indexFingerGuide,
   faceMesh,
   landmarkDots,
   controlMarkers,
   fingerLinesElement,
   timbreLevels,
+  // HUD cues last (on top). chordName sits before the others so `fingerBars`
+  // stays the topmost cue; cues on different edges don't overlap regardless.
+  chordNameCue,
   faceExpressionCue,
   fingerBarsCue,
 ];
@@ -717,6 +998,12 @@ function layoutCues(view: OverlayView): Record<string, { x: number; y: number }>
       size: { w: number; h: number };
     }[];
     let off = edge === 'left' || edge === 'right' ? CUE_TOP_INSET : CUE_MARGIN;
+    // Center a horizontal (top/bottom) group of cues so a lone cue reads centered
+    // and away from the top-left brand / top-right panel.
+    if (edge === 'top' || edge === 'bottom') {
+      const totalW = cues.reduce((s, c) => s + c.size.w, 0) + Math.max(0, cues.length - 1) * CUE_GAP;
+      off = Math.max(CUE_MARGIN, (view.W - totalW) / 2);
+    }
     for (const { e, size } of cues) {
       let x = CUE_MARGIN;
       let y = CUE_MARGIN;
