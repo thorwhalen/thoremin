@@ -13,3 +13,70 @@
   }
 }
 
+/* Command palette (#87) — dark-HUD theme for the headless cmdk primitives the
+   acture palette renders. Scoped to `.thoremin-palette` (the CommandPalette
+   className) so it never leaks into the rest of the app. */
+.thoremin-palette {
+  color: #e5e7eb;
+  font-family: var(--font-mono);
+}
+.thoremin-palette [cmdk-input] {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 14px;
+  background: transparent;
+  color: #fff;
+  border: none;
+  outline: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.thoremin-palette [cmdk-list] {
+  max-height: 50vh;
+  overflow: auto;
+  padding: 6px;
+}
+.thoremin-palette [cmdk-item] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #d1d5db;
+  cursor: pointer;
+}
+.thoremin-palette [cmdk-item][data-selected='true'] {
+  background: rgba(16, 185, 129, 0.18); /* emerald accent, matching the HUD */
+  color: #fff;
+}
+.thoremin-palette [cmdk-group-heading] {
+  padding: 10px 12px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.4);
+}
+.thoremin-palette [cmdk-empty] {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+/* acture's inline-styled parameterized views (enum picker chain / AutoForm) */
+.thoremin-palette [data-acture-palette-view='picker-chain'],
+.thoremin-palette [data-acture-palette-view='form'] {
+  padding: 12px 14px;
+}
+.thoremin-palette [data-acture-palette-view='form'] input,
+.thoremin-palette [data-acture-palette-view='form'] select {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
