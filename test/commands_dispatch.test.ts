@@ -84,9 +84,9 @@ describe('command dispatch (#87)', () => {
 
   it('sync/mode are just dials: dispatching dial.set on master.syncHands works', async () => {
     // No special "toggle sync" command — sync-hands is the `master.syncHands` dial,
-    // so the generic verb covers it (and per-dial generation will too, later).
+    // so the generic verb covers it (and the generated per-dial command does too).
     const iso = createThoreminRegistry();
-    expect(iso.size()).toBe(3);
+    expect(iso.has('dial.set')).toBe(true); // generic verbs (+ generated per-dial commands) registered
     const r = await iso.dispatch('dial.set', { key: 'master.syncHands', value: false });
     expect(r.ok).toBe(true);
     expect(useControls.getState().syncHands).toBe(false);

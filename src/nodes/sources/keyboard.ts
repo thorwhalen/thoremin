@@ -17,6 +17,17 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
+/** True if a key event targets a text-editing surface (an input / textarea / select
+ *  or a contenteditable element), where global instrument shortcuts must NOT fire —
+ *  e.g. typing a dial name into the command palette. Exported so the palette and the
+ *  future hotkey layer share one definition. Tolerant of a non-DOM target (tests). */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || typeof el.tagName !== 'string') return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+}
+
 export const keyboardSourceNode = defineNode<Params>({
   type: 'keyboard-source',
   roles: ['source'],
@@ -36,6 +47,11 @@ export const keyboardSourceNode = defineNode<Params>({
     const prevent = new Set(p.preventDefaultKeys);
 
     const onDown = (e: KeyboardEvent) => {
+      // Don't steal keys the user is typing into a text field or the command
+      // palette — otherwise typing a dial name would toggle mute ('m') or shift
+      // octave (arrows) on the live instrument. (The later hotkeys phase will want
+      // the same guard.) A released key still clears in onUp, so `held` never sticks.
+      if (isEditableTarget(e.target)) return;
       if (prevent.has(e.key)) e.preventDefault();
       if (!held.has(e.key)) {
         held.add(e.key);

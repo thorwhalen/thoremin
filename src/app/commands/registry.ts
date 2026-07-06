@@ -11,11 +11,14 @@
  */
 import { createRegistry, type Registry } from 'acture';
 import { DIAL_COMMANDS } from './dials';
+import { DIAL_FIELD_COMMANDS } from './perDial';
 
-/** Build a registry with all thoremin commands registered. */
+/** Build a registry with all thoremin commands registered: the generic dial verbs
+ *  plus one typed `set` command per dial, generated from the dials SSOT. */
 export function createThoreminRegistry(): Registry {
   const r = createRegistry();
   r.registerAll(DIAL_COMMANDS);
+  r.registerAll(DIAL_FIELD_COMMANDS);
   return r;
 }
 

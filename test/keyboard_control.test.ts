@@ -1,6 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import { replayNode } from '@/dag';
 import { keyboardControlNode } from '@/nodes';
+import { isEditableTarget } from '@/nodes/sources/keyboard';
+
+describe('isEditableTarget — the palette/text-input keystroke guard (#87)', () => {
+  const el = (tagName: string, isContentEditable = false) =>
+    ({ tagName, isContentEditable }) as unknown as EventTarget;
+  it('is true for text-editing surfaces so global instrument shortcuts do not fire while typing', () => {
+    expect(isEditableTarget(el('INPUT'))).toBe(true); // the command palette search box
+    expect(isEditableTarget(el('TEXTAREA'))).toBe(true);
+    expect(isEditableTarget(el('SELECT'))).toBe(true);
+    expect(isEditableTarget(el('DIV', true))).toBe(true); // contenteditable
+  });
+  it('is false for the canvas / non-editable elements (so the instrument still plays)', () => {
+    expect(isEditableTarget(el('DIV'))).toBe(false);
+    expect(isEditableTarget(el('CANVAS'))).toBe(false);
+    expect(isEditableTarget(null)).toBe(false);
+  });
+});
 
 describe('keyboard-control', () => {
   it('arrow keys shift octave (clamped) and adjust magnetism; m toggles mute', async () => {
