@@ -11,6 +11,7 @@
  */
 import { Play, BookOpen, Circle, Square, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
+import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import InstrumentsPanel from './dials/InstrumentsPanel';
@@ -64,9 +65,9 @@ function MutedBadge() {
   );
 }
 
-export default function App() {
+export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }) {
   const { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording } =
-    useThoreminEngine();
+    useThoreminEngine(source);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">
@@ -146,7 +147,9 @@ export default function App() {
           <div className="text-center">
             <div className="mx-auto mb-3 h-12 w-12 animate-spin rounded-full border-4 border-emerald-500/30 border-t-emerald-500" />
             <p className="text-xs uppercase tracking-widest text-emerald-500">Loading neural engine</p>
-            <p className="mt-1 text-[10px] uppercase tracking-widest text-white/40">allow camera access</p>
+            <p className="mt-1 text-[10px] uppercase tracking-widest text-white/40">
+              {source.kind === 'video' ? 'loading video…' : 'allow camera access'}
+            </p>
           </div>
         </div>
       )}

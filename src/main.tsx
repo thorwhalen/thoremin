@@ -8,14 +8,19 @@
  * is still honored and equals the default, so existing links keep working.
  * Only the non-default (legacy) view is code-split, so it never weighs on the
  * default path.
+ *
+ * `?source=video&video=<url>` runs the DAG view camera-free from a pre-recorded
+ * clip (Stream Applier M-A); see {@link parseSourceSpec}.
  */
 import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import DagApp from './app/App.tsx';
+import {parseSourceSpec} from './app/sourceSpec';
 import './index.css';
 
 const engineParam = new URLSearchParams(window.location.search).get('engine');
 const useLegacyEngine = engineParam === 'legacy' || engineParam === 'classic';
+const source = parseSourceSpec(window.location.search);
 
 const LegacyApp = lazy(() => import('./App.tsx'));
 
@@ -26,7 +31,7 @@ createRoot(document.getElementById('root')!).render(
         <LegacyApp />
       </Suspense>
     ) : (
-      <DagApp />
+      <DagApp source={source} />
     )}
   </StrictMode>,
 );

@@ -187,7 +187,9 @@ boundaries allow.
   `currentTime !== lastVideoTime` gate freezes on a non-advancing clip),
   `await loadedmetadata`, StrictMode `disposed` guards, `onended` → `exhausted`,
   loop-boundary MediaPipe tracking-reset. Medium, not 15 lines. The hand model
-  still loads (not free).
+  still loads (not free). Known limitation: the instrument mirrors the video
+  (selfie assumption), so a non-mirror-image clip renders flipped with Left/Right
+  swapped — a per-source `mirror` flag is deferred to the M-C Source contract.
 - **M-B — Clock + speed multiplier (R5 control-rate core).** `src/dag/clock.ts`;
   refit `useEngine` rAF → `RealtimeClock(1)`, `runHeadless` loop →
   `BatchClock(ticks)` (preserve the no-arg `tick()` call). Seed first `dt=0` in
