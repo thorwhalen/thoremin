@@ -92,6 +92,32 @@ Chord overlays sit outside both (self-contained), and are a good early win.
    a burned-in corner overlay as the ground-truth clock. Built to **extract into
    a reusable zodal tool** (`taglog`: affordances / provider / presentation).
 
+### Stream Applier / alternative sources (active — 2026-07)
+
+A third track, cutting across both above: separate *what runs* (the DAG) from
+*how we apply it to a stream*. One open-closed **Applier** applies the DAG to a
+**source-set** (live sensors / persisted data / generator functions, all behind
+one async-iterator interface) under a **clock** (batch-unpaced vs time-paced with
+speed control), with taps for recording and sinks for view/hear. Enables:
+camera-free runs from a pre-recorded video, state-feedback generator sources, and
+deterministic headless replay. Full design + build order (M-A…M-G) in
+[design/stream-applier.md](design/stream-applier.md); tracked in the **Stream
+Applier epic** issue.
+
+- **M-A [P0]** — camera-free pre-recorded video source (`?source=video`). Pure
+  host wiring, no engine change; **unblocks camera-free #89 overlay + palette
+  verification.** Do first.
+- **M-B [P1]** — `Clock` abstraction + speed multiplier.
+- **M-C [P1]** — the async-iterator `Source` contract + `source` slot + port
+  conformance.
+- **M-D…M-G** — the Applier, composition/mixing, state-feedback generators, and
+  the principled end-state (honest scaled audio + `delay` node). See the design
+  doc.
+
+Two accepted hard boundaries: batch-in-Node cannot decode raw video (use
+pre-extracted landmark NDJSON), and accelerated audio is not a time-multiply
+(control-rate preview + on-demand offline render).
+
 ### Design now, build later (parallel design track)
 
 - **[#93] DAG diagnostics + connection assistant** — *L · design captured.*
@@ -157,6 +183,7 @@ these rather than inside them).
 | **M5** | Conductor mode: immutable `score` node + `performance` overlay (gesture→tempo/dynamics/articulation) + humanization toggle. | planned (#12) |
 | **M6** | `midi-out` (WEBMIDI.js, Safari/iOS gated); React Flow patcher UI driven by Zod node configs; deploy as a tw_platform static app (deploy ✅). | planned (#13, #14) |
 | **M7** | (optional) Pluggable Python feature service + self-hosted generative service behind the existing node facades. | optional |
+| **M8** | **Stream Applier**: pluggable sources (live / persisted / generated behind one async-iterator interface) + batch-vs-paced execution (speed control) + state-feedback generators. See [design/stream-applier.md](design/stream-applier.md). **M-A unblocks camera-free overlay/palette verification.** | ⏳ in progress (M-A) |
 
 ### Open engine decisions (recorded; defaults taken)
 
