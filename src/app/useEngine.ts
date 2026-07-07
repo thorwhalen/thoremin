@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Engine } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from './graph';
+import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { PerformanceRecorder, recordingFilename, extForMime } from './recorder';
 import { recordingFormat } from './recording/formats';
@@ -22,6 +23,15 @@ export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /** Min interval (ms) between face-status reports to React (throttle the readout). */
 const FACE_REPORT_MS = 100;
+
+/**
+ * Max wait (ms) for a file source to deliver metadata before we give up. A URL
+ * that returns 200 but never delivers a playable stream (hung CDN, truncated
+ * moov atom) fires neither `loadedmetadata` nor `error`, so without this the
+ * view would wedge on "loading" forever. Applied to the file path only — the
+ * camera keeps its original settle behavior.
+ */
+const VIDEO_LOAD_TIMEOUT_MS = 15000;
 
 /**
  * Convert the native (WebM/Opus) recording into each selected output format and
@@ -70,7 +80,7 @@ async function saveRecording(
   }
 }
 
-export function useThoreminEngine() {
+export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
@@ -101,31 +111,76 @@ export function useThoreminEngine() {
       try {
         setStatus('loading');
         const video = videoRef.current!;
-        // Ask for HD 16:9 so the fullscreen video is crisp, and the front
-        // (user-facing) camera so the mirrored view shows your own hands on
-        // mobile. All are `ideal` soft constraints: the camera returns the
-        // closest mode it supports and never fails.
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: { ideal: 'user' },
-          },
-          audio: false,
-        });
-        if (disposed) {
-          // Cleanup already ran (it saw stream === null), so stop it here.
-          stream.getTracks().forEach((t) => t.stop());
-          return;
+        if (source.kind === 'video') {
+          // Camera-free (Stream Applier M-A): play a pre-recorded clip into the
+          // same <video> the webcam would fill, so the overlays + palette run
+          // with no camera. The webcam-hands/face nodes read ctx.resources.video
+          // origin-blind and time their inference off performance.now(), so the
+          // file path needs no node changes.
+          //   loop  — REQUIRED: those nodes only run inference while
+          //           video.currentTime advances, so a stopped clip freezes the
+          //           overlay; looping keeps it live (the wrap costs one cosmetic
+          //           position jump, not a MediaPipe error).
+          //   muted — keeps autoplay allowed and frees the audio path for the
+          //           synth (we never want the clip's own audio).
+          //   crossOrigin — lets a CORS-enabled remote clip be read into the
+          //           canvas/MediaPipe; a same-origin clip (public/) needs nothing.
+          video.srcObject = null;
+          video.crossOrigin = 'anonymous';
+          video.loop = true;
+          video.muted = true;
+          video.src = source.url;
+        } else {
+          // Ask for HD 16:9 so the fullscreen video is crisp, and the front
+          // (user-facing) camera so the mirrored view shows your own hands on
+          // mobile. All are `ideal` soft constraints: the camera returns the
+          // closest mode it supports and never fails.
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: { ideal: 'user' },
+            },
+            audio: false,
+          });
+          if (disposed) {
+            // Cleanup already ran (it saw stream === null), so stop it here.
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          video.srcObject = stream;
         }
-        video.srcObject = stream;
-        await new Promise<void>((resolve) => {
+        await new Promise<void>((resolve, reject) => {
+          // File path only: a stalling clip fires neither event, so bound the
+          // wait and surface a timeout. The camera path (timer === null) keeps
+          // its original "settle only on metadata" behavior.
+          const timer =
+            source.kind === 'video'
+              ? setTimeout(
+                  () => reject(new Error(`Timed out loading video source: ${source.url}`)),
+                  VIDEO_LOAD_TIMEOUT_MS,
+                )
+              : null;
           video.onloadedmetadata = () => {
+            if (timer) clearTimeout(timer);
             void video.play();
             resolve();
           };
+          // A bad clip URL (decode/CORS failure) surfaces as an error instead of
+          // hanging; onerror covers *errors*, the timer above covers *stalls*.
+          // The camera path effectively never fires either.
+          video.onerror = () => {
+            if (timer) clearTimeout(timer);
+            reject(
+              new Error(
+                source.kind === 'video'
+                  ? `Could not load video source: ${source.url}`
+                  : 'Camera video element error',
+              ),
+            );
+          };
         });
-        if (disposed) return; // cleanup stops the now-assigned stream
+        if (disposed) return; // cleanup stops the stream / releases the clip
 
         // Size the canvas drawing buffer to the camera's native resolution so
         // the overlay renders at full sharpness (CSS object-cover then scales it
@@ -231,6 +286,16 @@ export function useThoreminEngine() {
       recorderRef.current?.dispose();
       recorderRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());
+      // Symmetric to stopping camera tracks: pause a file clip so an aborted
+      // (StrictMode) or unmounted run stops decoding instead of playing on, and
+      // drop its handlers so a stale rejecter can't fire if the source is ever
+      // re-acquired (the effect deps allow it).
+      const fileVideo = source.kind === 'video' ? videoRef.current : null;
+      if (fileVideo) {
+        fileVideo.pause();
+        fileVideo.onloadedmetadata = null;
+        fileVideo.onerror = null;
+      }
       // Close the AudioContext so its nodes (master, recorder tap, voices) are
       // released instead of leaking one un-closed context per unmount.
       const ac = resourcesRef.current.audioContext as AudioContext | undefined;
@@ -238,7 +303,9 @@ export function useThoreminEngine() {
       resourcesRef.current.audioContext = undefined;
       masterGainRef.current = null;
     };
-  }, []);
+    // Primitive deps (not the SourceSpec object) so a stable selection doesn't
+    // re-run the effect; a genuine source change tears down and re-acquires.
+  }, [source.kind, source.kind === 'video' ? source.url : null]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.
   // This is the host-level catch-all mute (belt-and-suspenders with the in-graph
