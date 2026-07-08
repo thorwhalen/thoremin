@@ -1,0 +1,63 @@
+# Auto-deploy thoremin to thorwhalen.com on every merge to main.
+#
+# thoremin is a frontend-only app served by the tw_platform (enlace) stack; it
+# is deployed by tw_platform's own `deploy.yml` (build → rsync → restart). That
+# workflow lives in the thorwhalen/tw_platform repo and is triggered manually.
+# This workflow closes the loop: when thoremin's main changes, it dispatches
+# tw_platform's deploy for the `thoremin` app only, so a merge here goes live.
+#
+# The tw_platform deploy tolerates the Mac-only confidential apps being absent
+# on the runner and skips the edge-config regen (see tw_platform#47), so a
+# thoremin CODE deploy works from CI. A route/edge change still needs a full
+# deploy from the Mac.
+#
+# ── One-time setup (required before this works) ──────────────────────────────
+#   1. Create a fine-grained PAT with **Actions: read and write** on
+#      `thorwhalen/tw_platform`, and add it as a repo secret here named
+#      `TW_DEPLOY_TOKEN`. (The default GITHUB_TOKEN cannot trigger a workflow in
+#      another repo.)
+#   2. If a Mac deploy ran more recently than the last CI deploy, un-poison the
+#      server ownership once so the CI `deploy` user can overwrite files:
+#        ssh tw 'chown -R deploy:deploy /opt/tw_platform/ \
+#                && chown root:root /opt/tw_platform/.env \
+#                && chmod 0600 /opt/tw_platform/.env'
+#   The tw_platform deploy secrets (DEPLOY_APP_ID, DEPLOY_SSH_KEY, …) already
+#   exist on that repo.
+name: Deploy to thorwhalen.com
+
+on:
+  push:
+    branches: [main]
+    # Skip docs-only / agent-config / workflow-only changes — they don't affect
+    # the built app (and this keeps merging the workflow itself from self-firing).
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "misc/**"
+      - ".claude/**"
+      - ".github/**"
+  workflow_dispatch: {} # allow a manual re-trigger from the Actions tab
+
+# Don't stack trigger jobs; the tw_platform deploy itself serialises via its own
+# concurrency group, so only the newest thoremin state needs to be dispatched.
+concurrency:
+  group: thoremin-deploy-trigger
+  cancel-in-progress: true
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch tw_platform deploy (thoremin only)
+        env:
+          GH_TOKEN: ${{ secrets.TW_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::TW_DEPLOY_TOKEN secret is not set — see this workflow's header for one-time setup."
+            exit 1
+          fi
+          gh workflow run deploy.yml \
+            --repo thorwhalen/tw_platform --ref main \
+            -f platform=thorwhalen -f app=thoremin
+          echo "Dispatched tw_platform deploy for app=thoremin. Watch it at:"
+          echo "  https://github.com/thorwhalen/tw_platform/actions/workflows/deploy.yml"
