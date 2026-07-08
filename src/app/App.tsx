@@ -17,6 +17,7 @@ import { useFaceStatus } from './faceStatus';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import Toaster from './Toaster';
 import CommandPaletteOverlay from './CommandPaletteOverlay';
+import VersionBadge from './VersionBadge';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
  * (issue #65): only shown once a face mapping is active. */
@@ -173,6 +174,9 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
 
       {/* Cmd/Ctrl-K command palette — set any dial by name (#87). */}
       <CommandPaletteOverlay />
+
+      {/* Unobtrusive "what's deployed" badge (commit + date), read from /_meta. */}
+      <VersionBadge />
     </div>
   );
 }
