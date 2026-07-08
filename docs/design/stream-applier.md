@@ -122,11 +122,15 @@ interface Clock {
 - **`BatchClock(ticks)`** — as fast as possible, deterministic. Calls `onTick()`
   **with no argument** so the engine synthesizes `tickIndex * nominalDt`
   (the regression goldens depend on this exact call).
-- **`RealtimeClock(speed = 1)`** — wall-clock paced. Seeds `base` on the first
-  tick so the first `dt` is `0` in **both** modes (batch tick-0 has `dt=0`; a
-  naive paced clock would pass a large garbage first `dt`). Passes
-  `base + (nowReal - base) * speed`; control-rate `dt` scales for free. Speed ≠ 1
-  is gated to recorded/generated sources and obeys boundary B for audio.
+- **`RealtimeClock({ speed = 1, now, schedule })`** — wall-clock paced. Passes
+  `base + (nowReal - base) * speed`, seeding `base` to the first frame's time so
+  engine time starts at that wall-clock value and advances at `speed×` (and the
+  first frame's delta is `0`, matching the engine's own tick-0 `dt === 0`, which
+  it forces for any clock). Control-rate `dt` scales for free. `now`/`schedule`
+  are injectable so the clock is fully headless-testable. Speed ≠ 1 is gated to
+  recorded/generated sources and obeys boundary B for audio; a **non-positive
+  speed** collapses to a frozen clock (`dt = 0`) — validated when `RealtimeClock`
+  is adopted into the app (M-D).
 
 ### Applier — applies an Engine to a SourceSet under a Clock
 
@@ -190,10 +194,13 @@ boundaries allow.
   still loads (not free). Known limitation: the instrument mirrors the video
   (selfie assumption), so a non-mirror-image clip renders flipped with Left/Right
   swapped — a per-source `mirror` flag is deferred to the M-C Source contract.
-- **M-B — Clock + speed multiplier (R5 control-rate core).** `src/dag/clock.ts`;
-  refit `useEngine` rAF → `RealtimeClock(1)`, `runHeadless` loop →
-  `BatchClock(ticks)` (preserve the no-arg `tick()` call). Seed first `dt=0` in
-  both modes. No engine change.
+- **M-B — Clock + speed multiplier (R5 control-rate core). ✅ shipped.**
+  `src/dag/clock.ts` (`Clock` / `BatchClock` / `RealtimeClock`); refit the
+  **`runHeadless`** loop → `BatchClock(ticks)` (preserve the no-arg `tick()`
+  call). No engine change. The live `useEngine` rAF adoption of `RealtimeClock`
+  is **deferred to M-D** — it is the untested live surface and lands with the
+  Applier + a browser smoke test; M-B ships the abstraction + the fully-tested
+  `BatchClock` path and a headless `RealtimeClock`.
 - **M-C — Source contract + `source` slot + conformance (R1/R4 foundation).**
   The async-iterable `Source` (signal/event); a `source` slot with a
   `SOURCE_SLOT_CONTRACT` guaranteeing `hands`/`hands-frame`; `PortSpec.schema?`
@@ -201,9 +208,11 @@ boundaries allow.
   `videoFileSource` becomes a slot candidate; M-A's `if` retires.
 - **M-D — The Applier (R4 complete, R5 orthogonality). ⚠ untested live surface.**
   `runHeadless` delegates (BatchClock + bounded recorder tap, no audio sink);
-  `useEngine`'s effect becomes a thin Applier config. **Gate on a browser smoke
-  test** — the effect (StrictMode guards, face bridge, mute mirror, AudioContext
-  lifecycle) has no headless coverage.
+  `useEngine`'s effect becomes a thin Applier config — **this is where the live
+  rAF loop adopts `RealtimeClock(1)`** (deferred from M-B). Also validate
+  `speed > 0` on adoption (a non-positive speed collapses to a frozen clock).
+  **Gate on a browser smoke test** — the effect (StrictMode guards, face bridge,
+  mute mirror, AudioContext lifecycle) has no headless coverage.
 - **M-E — Composition + timestamp-aware replay (R2).** `defineMergeNode`; event
   sources buffer→list; a **separate** time-based `replay-source-timed` reading
   `StreamRecord.t` (index-by-tick stays canonical for CI goldens).
