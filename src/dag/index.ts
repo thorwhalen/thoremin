@@ -18,10 +18,13 @@ export {
   replayNode,
 } from './recorder';
 export type { ReplayOptions } from './recorder';
+export { BatchClock, RealtimeClock } from './clock';
+export type { Clock, RealtimeClockOptions } from './clock';
 
 import { Engine, type EngineOptions } from './engine';
 import { NodeRegistry } from './registry';
 import { StreamRecorder } from './recorder';
+import { BatchClock } from './clock';
 import type { GraphSpec } from './types';
 
 /**
@@ -37,6 +40,8 @@ export async function runHeadless(
   const recorder = new StreamRecorder({ only: opts.recordOnly });
   const engine = new Engine(spec, registry, { ...opts, taps: [recorder] });
   await engine.init();
-  for (let i = 0; i < opts.ticks; i++) engine.tick();
+  // BatchClock calls engine.tick() with no argument, exactly as the previous
+  // inline for-loop did, so recorded goldens are byte-identical.
+  await new BatchClock(opts.ticks).run(() => engine.tick(), () => false);
   return { engine, recorder };
 }
