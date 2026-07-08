@@ -24,6 +24,7 @@ import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE } f
 import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
 import type { FaceMapping } from '@/nodes';
 import { useControls } from '../store';
+import { dispatchDialSet } from '../dispatchDial';
 import { OVERLAY_CONTROLS, type OverlayControlDesc } from '../overlayControls';
 import { ExpressionHelpButton } from '../ExpressionHelpPanel';
 import { POSE_MOVES } from '../poseControlsHelp';
@@ -570,7 +571,7 @@ function FaceControls() {
         <select
           className={selectCls}
           value={faceMapping}
-          onChange={(e) => set('face.mapping', e.target.value as FaceMapping)}
+          onChange={(e) => dispatchDialSet('face.mapping', e.target.value as FaceMapping)}
         >
           {FACE_MODE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value} disabled={needsSevenNote(o.value) && !sevenNote}>
@@ -770,7 +771,7 @@ export default function DialsControlsPanel() {
           />
         </label>
         <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={syncHands} onChange={(e) => set('master.syncHands', e.target.checked)} />
+          <input type="checkbox" checked={syncHands} onChange={(e) => dispatchDialSet('master.syncHands', e.target.checked)} />
           Sync both hands
         </label>
         <VoiceControls side="right" />

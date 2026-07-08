@@ -17,13 +17,12 @@ import type { ProfileMeta } from '@zodal/dials-ui';
 import {
   instruments,
   LAST_MODIFIED,
-  setSelectedName,
-  selectInstrument,
-  commitToInstrument,
   restoreSession,
   getDefaultName,
   setDefaultName,
 } from './instruments';
+import { registry } from '@/app/commands/registry';
+import { useToasts } from '@/app/toasts';
 
 export interface InstrumentsApi {
   /** Named instruments (excludes the reserved LAST_MODIFIED legacy autosave). */
@@ -76,17 +75,21 @@ export function useInstruments(): InstrumentsApi {
     };
   }, [refresh]);
 
+  // The DISCRETE instrument actions now go through the command registry (#87
+  // Phase 1) — the single write path shared with the palette/hotkeys/AI. The
+  // command owns the mutation (dials layer + persisted selection); the hook keeps
+  // only the React bookkeeping (the optimistic highlight, the revert, the list
+  // refresh) and surfaces a failure as a toast.
   const select = useCallback(
     (name: string) => {
       const prev = selectedRef.current;
-      setSelected(name);
-      setSelectedName(name); // immediate feedback (tw-frontend-ux #1)
-      void selectInstrument(name).then((layer) => {
-        if (layer) return;
-        // The instrument vanished (e.g. removed in another tab) — undo the optimistic pick.
+      setSelected(name); // optimistic highlight (tw-frontend-ux #1)
+      void registry.dispatch('instrument.load', { name }).then((result) => {
+        if (result.ok) return; // the command persisted the selection
+        // The instrument vanished (e.g. removed in another tab) — undo the pick.
         setSelected(prev);
-        setSelectedName(prev ?? '');
         refresh();
+        useToasts.getState().push(result.error.message, 5000, 'error');
       });
     },
     [refresh],
@@ -94,7 +97,8 @@ export function useInstruments(): InstrumentsApi {
 
   const save = useCallback(
     async (name: string) => {
-      await commitToInstrument(name);
+      const result = await registry.dispatch('instrument.save', { name });
+      if (!result.ok) useToasts.getState().push(result.error.message, 5000, 'error');
       refresh();
     },
     [refresh],
@@ -104,9 +108,12 @@ export function useInstruments(): InstrumentsApi {
     async (name: string) => {
       const trimmed = name.trim();
       if (!trimmed) return;
-      await commitToInstrument(trimmed); // saves the current working layer under the new name
+      const result = await registry.dispatch('instrument.create', { name: trimmed });
+      if (!result.ok) {
+        useToasts.getState().push(result.error.message, 5000, 'error');
+        return;
+      }
       setSelected(trimmed);
-      setSelectedName(trimmed);
       refresh();
     },
     [refresh],
