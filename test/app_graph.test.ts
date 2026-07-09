@@ -20,7 +20,10 @@ describe('production app graph', () => {
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('map'));
     expect(order.indexOf('map')).toBeLessThan(order.indexOf('merge'));
     expect(order.indexOf('merge')).toBeLessThan(order.indexOf('synth'));
-    expect(order.indexOf('kbd')).toBeLessThan(order.indexOf('kctrl'));
+    // #90: keyboard signals (octave / magnetism / mute) now flow from the store
+    // via `ui` (store-controls), a source that precedes the mapping/merge it feeds.
+    expect(order.indexOf('ui')).toBeLessThan(order.indexOf('map'));
+    expect(order.indexOf('ui')).toBeLessThan(order.indexOf('merge'));
     // face timbre branch: webcam-face → face-features → voice-mapping
     expect(order.indexOf('camFace')).toBeLessThan(order.indexOf('faceFeat'));
     expect(order.indexOf('faceFeat')).toBeLessThan(order.indexOf('map'));
@@ -36,7 +39,7 @@ describe('production app graph', () => {
     expect(order.indexOf('exprChord')).toBeLessThan(order.indexOf('chordSel'));
     expect(order.indexOf('poseChord')).toBeLessThan(order.indexOf('chordSel'));
     expect(order.indexOf('chordSel')).toBeLessThan(order.indexOf('overlay'));
-    expect(order).toHaveLength(16);
+    expect(order).toHaveLength(14); // #90 retired the kbd + kctrl nodes (keyboard → app-level tinykeys)
   });
 
   it('wires the face overlays (mesh + expression readout + both chord highlights)', () => {
@@ -62,10 +65,11 @@ describe('production app graph', () => {
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
     // The master mute reaches the single convergence point (synth-merge), so the
     // face-chord instruments (which merge in after voice-mapping) are muted along
-    // with the hand voices — the fix for #91.
-    expect(has('kctrl', 'mute', 'merge', 'mute')).toBe(true);
+    // with the hand voices — the fix for #91. Since #90 the mute is a store flag
+    // sourced from `ui` (store-controls), not the retired `keyboard-control` node.
+    expect(has('ui', 'mute', 'merge', 'mute')).toBe(true);
     // The original hand-stage mute edge is still present (belt-and-suspenders).
-    expect(has('kctrl', 'mute', 'map', 'mute')).toBe(true);
+    expect(has('ui', 'mute', 'map', 'mute')).toBe(true);
   });
 
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {

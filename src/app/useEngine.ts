@@ -213,11 +213,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         let lastFaceReport = 0;
         let lastPhase: FaceStatus['phase'] | null = null;
         let lastDetected = false;
-        // Mirror the graph's mute (toggled by the `m` key in `keyboard-control`)
-        // into the store so the HUD "muted" cue + the host master mute follow the
-        // keyboard. Seeded from the store so a mid-session engine rebuild doesn't
-        // spuriously re-announce the current state.
-        let lastMute = useControls.getState().muted;
         const reportFace = (now: number) => {
           const fs = engine.getOutput('camFace', 'status') as FaceStatus | undefined;
           if (!fs) return;
@@ -253,13 +248,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
             const t = performance.now();
             engine.tick(t / 1000);
             reportFace(t);
-            // Reflect a keyboard mute toggle into the store (only on change, so
-            // this is not a per-frame setState). Drives the master gain + HUD cue.
-            const m = engine.getOutput('kctrl', 'mute') === true;
-            if (m !== lastMute) {
-              lastMute = m;
-              useControls.getState().setMuted(m);
-            }
+            // (#90) Mute is now a store flag toggled by the app-level keyboard
+            // handler (the `m` key → toggleMuted) and flows INTO the graph via
+            // store-controls, so there is no longer a graph→store mute mirror here.
           } catch (err) {
             console.error('[thoremin] engine tick error (frame dropped)', err);
           }

@@ -5,9 +5,10 @@
  *   webcam ─┬─▶ hand-features ─┬─▶ voice-mapping ─▶ synth-merge ─▶ webaudio-synth
  *           │                  │        ▲ ▲ ▲ ▲          ▲
  *           └────────▶ overlay ◀┘        │ │ │ │         │ (+ face chord; master mute)
- *                       (video+guides)   │ │ │ └── store-controls (scale/instrument)
- *                                        │ │ └──── keyboard-control (magnetism/octave/mute)
- *                                        │ └────── keyboard-source ─▶ keyboard-control
+ *                       (video+guides)   │ │ └── store-controls (ui): scale/sound and —
+ *                                        │ │     since #90 — octave/magnetism/mute. Keyboard
+ *                                        │ │     shortcuts now live app-side (keyboardShortcuts.ts
+ *                                        │ │     → dial commands → the store), not in the graph.
  *   webcam-face ─┬─▶ face-features ──────┘ (timbre: smile→brightness, mouth→vibrato)
  *                └─▶ face-expression ─▶ expression-chord ─▶ synth-merge
  *                       (chord: expression → diatonic triad)
@@ -123,8 +124,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // Controls path (#76): deliberate head/face pose axes → a diatonic chord.
       { id: 'faceCtrl', type: 'face-controls', params: {} },
       { id: 'poseChord', type: 'pose-chord', params: {} },
-      { id: 'kbd', type: 'keyboard-source' },
-      { id: 'kctrl', type: 'keyboard-control', params: { magnetismStart: 0.8 } },
+      // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
+      // handler that dispatches dial commands; octave-shift / magnetism / mute now
+      // flow from the store via `ui` (store-controls), so no keyboard nodes here.
       { id: 'ui', type: 'store-controls' },
       { id: 'map', type: mappingType, params: { magnetism: 0.8, maxGain: 0.5 } },
       // Union the hand voices with the face-chord voices before the synth.
@@ -157,7 +159,7 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // Live chord settings (instrument / volume / voicing / rendering / tempo).
       { from: { node: 'ui', port: 'chordConfig' }, to: { node: 'exprChord', port: 'chordConfig' } },
       // Keep the face chord in the same register as the hand melody (octave shift).
-      { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'exprChord', port: 'octaveShift' } },
+      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'exprChord', port: 'octaveShift' } },
       // Controls path (#76): webcam-face → face-controls → pose-chord. The pose
       // instrument plays a diatonic chord from head/face pose; it emits silent
       // voices unless the mode is 'controls', so the merge is unaffected otherwise.
@@ -167,13 +169,12 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'poseChord', port: 'faceMapping' } },
       // Reuse the same live chord settings (sound / volume / voicing / rendering / tempo).
       { from: { node: 'ui', port: 'chordConfig' }, to: { node: 'poseChord', port: 'chordConfig' } },
-      { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'poseChord', port: 'octaveShift' } },
+      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'poseChord', port: 'octaveShift' } },
       { from: { node: 'feat', port: 'features' }, to: { node: 'map', port: 'features' } },
       { from: { node: 'feat', port: 'features' }, to: { node: 'overlay', port: 'features' } },
-      { from: { node: 'kbd', port: 'pressed' }, to: { node: 'kctrl', port: 'pressed' } },
-      { from: { node: 'kctrl', port: 'magnetism' }, to: { node: 'map', port: 'magnetism' } },
-      { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'map', port: 'octaveShift' } },
-      { from: { node: 'kctrl', port: 'mute' }, to: { node: 'map', port: 'mute' } },
+      { from: { node: 'ui', port: 'magnetism' }, to: { node: 'map', port: 'magnetism' } },
+      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'map', port: 'octaveShift' } },
+      { from: { node: 'ui', port: 'mute' }, to: { node: 'map', port: 'mute' } },
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'map', port: 'scaleRight' } },
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'map', port: 'scaleLeft' } },
       { from: { node: 'ui', port: 'soundRight' }, to: { node: 'map', port: 'soundRight' } },
@@ -186,9 +187,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'poseChord', port: 'params' }, to: { node: 'merge', port: 'c' } },
       // Master mute reaches the merge — the single convergence point of ALL sound
       // producers — so muting silences the hands AND both face-chord instruments
-      // (#91). The `kctrl.mute → map.mute` edge above still silences the hand voices
+      // (#91). The `ui.mute → map.mute` edge above still silences the hand voices
       // at the mapping stage; this is the catch-all that also covers the chords.
-      { from: { node: 'kctrl', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
+      { from: { node: 'ui', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
       { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
       // Feed the MERGED params (hand voices + both chord instruments) to the overlay:
       // the hand voices stay at indices 0/1 (synth-merge concatenates them first), so
@@ -198,7 +199,7 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // And both hands' scales + octave shift, for the overlay pitch guides.
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'overlay', port: 'scale' } },
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'overlay', port: 'scaleLeft' } },
-      { from: { node: 'kctrl', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
+      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
       // Whichever chord instrument is sounding (emotion triad OR pose chord), so the
       // overlay highlights the active chord's tones on the pitch guide in both modes.
       { from: { node: 'exprChord', port: 'triad' }, to: { node: 'chordSel', port: 'a' } },

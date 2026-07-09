@@ -1,6 +1,12 @@
 /**
- * `keyboard-control` node — interprets keyboard edge-events into musical control
- * values that steer the mapping/synthesis layer:
+ * `keyboard-control` node — DEPRECATED (#90). No longer wired into the default
+ * app graph: keyboard shortcuts moved to an app-level `tinykeys` handler
+ * (`src/app/keyboardShortcuts.ts`) that dispatches DIAL COMMANDS (octave-shift /
+ * magnetism are now `master.*` dials), so the single write path is the command
+ * registry, not this in-DAG switch. The node + its test are kept as a usable node
+ * type; removing it entirely is a follow-up cleanup.
+ *
+ * It interprets keyboard edge-events into musical control values:
  *
  *   ArrowUp / ArrowDown    → octave shift (±, clamped)
  *   ArrowRight / ArrowLeft → magnetism (more / less scale-snapping)
