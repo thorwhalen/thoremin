@@ -321,6 +321,16 @@ describe('store-controls node reads the store', () => {
     expect((out.expressionDegrees as Record<string, number>).happy).toBe(0);
   });
 
+  it('emits the keyboard-driven globals (octaveShift / magnetism / mute) from the store (#90)', () => {
+    useControls.setState({ octaveShift: 2, magnetism: 0.3, muted: true });
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    const out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    expect(out.octaveShift).toBe(2);
+    expect(out.magnetism).toBe(0.3);
+    expect(out.mute).toBe(true); // the store's `muted` flag, surfaced as the `mute` port
+    useControls.setState({ octaveShift: 0, magnetism: 0.8, muted: false }); // reset for later tests
+  });
+
   it('emits nothing when no controls getter is injected (safe before host wires it)', () => {
     const node = storeControlsNode.make(storeControlsNode.params.parse({}));
     expect(node.process({}, ctxWith({}))).toEqual({});

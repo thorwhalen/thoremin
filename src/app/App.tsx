@@ -9,9 +9,11 @@
  * All signal processing happens in the DAG engine via {@link useThoreminEngine};
  * this component is purely presentational + lifecycle.
  */
+import { useEffect } from 'react';
 import { Play, BookOpen, Circle, Square, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
+import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import InstrumentsPanel from './dials/InstrumentsPanel';
@@ -69,6 +71,10 @@ function MutedBadge() {
 export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }) {
   const { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording } =
     useThoreminEngine(source);
+
+  // #90: install the keyboard shortcuts (octave / magnetism / mute) — an app-level
+  // tinykeys keymap dispatching dial commands, replacing the retired in-DAG switch.
+  useEffect(() => installKeyboardShortcuts(), []);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">

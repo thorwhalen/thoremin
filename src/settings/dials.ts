@@ -43,6 +43,9 @@ export const thoreminDials = defineDials(
   z.object({
     'master.volume': z.number().min(0).max(1).default(0.4).meta({ facets: ['Sound'], title: 'Master volume' }),
     'master.syncHands': z.boolean().default(true).meta({ facets: ['Sound'], title: 'Sync both hands' }),
+    // Keyboard-driven globals (#90), now dials so the keymap dispatches commands.
+    'master.octaveShift': z.number().int().min(-2).max(2).default(0).meta({ facets: ['Sound', 'advanced'], title: 'Octave shift' }),
+    'master.magnetism': z.number().min(0).max(1).default(0.8).meta({ facets: ['Sound', 'advanced'], title: 'Scale magnetism' }),
 
     'right.root': right.root,
     'right.type': right.type,
@@ -100,6 +103,8 @@ export function settingsToLayer(s: Settings): Layer {
   return {
     'master.volume': s.masterVolume,
     'master.syncHands': s.syncHands,
+    'master.octaveShift': s.octaveShift,
+    'master.magnetism': s.magnetism,
     'right.root': s.right.root,
     'right.type': s.right.type,
     'right.octaves': s.right.octaves,
@@ -128,6 +133,8 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
   return SettingsSchema.parse({
     masterVolume: v['master.volume'],
     syncHands: v['master.syncHands'],
+    octaveShift: v['master.octaveShift'],
+    magnetism: v['master.magnetism'],
     right: { root: v['right.root'], type: v['right.type'], octaves: v['right.octaves'], baseOctave: v['right.baseOctave'], sound: v['right.sound'] },
     left: { root: v['left.root'], type: v['left.type'], octaves: v['left.octaves'], baseOctave: v['left.baseOctave'], sound: v['left.sound'] },
     faceMapping: v['face.mapping'],

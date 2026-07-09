@@ -26,7 +26,9 @@ import type { PortSpec, Role } from '@/dag';
  */
 export const MAPPING_SLOT_INPUTS: PortSpec[] = [
   { name: 'features', kind: 'hand-features' },
-  // Live control side-inputs (from keyboard-control); unconnected → static params.
+  // Live control side-inputs (from store-controls since #90). NB: magnetism has NO
+  // port default on purpose — when unwired, voice-mapping falls back to the hand
+  // map's own magnetism (hm.magnetism), which a port default would wrongly override.
   { name: 'magnetism', kind: 'number', description: 'Override magnetism 0..1' },
   { name: 'octaveShift', kind: 'number', default: 0, description: 'Transpose by N octaves' },
   { name: 'mute', kind: 'boolean', default: false },

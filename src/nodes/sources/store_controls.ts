@@ -26,6 +26,15 @@ export interface VoiceControlSnapshot {
 export interface ControlSnapshot {
   right: VoiceControlSnapshot;
   left: VoiceControlSnapshot;
+  /** Global octave transpose (−2..+2), read by voice-mapping / chords / overlay
+   *  (#90 — keyboard shortcuts now write this dial instead of the retired
+   *  `keyboard-control` node). */
+  octaveShift?: number;
+  /** Scale-snap magnetism (0..1), read by voice-mapping (#90). */
+  magnetism?: number;
+  /** Master mute, read by voice-mapping + synth-merge (#90 — the `m` key toggles
+   *  `store.muted`, which flows here instead of through `keyboard-control`). */
+  muted?: boolean;
   /** Live overlay element config; forwarded to canvas-overlay's overlayConfig. */
   overlay?: OverlayParams;
   /** Legacy face on/off flag; superseded by {@link faceMapping}. Kept so older
@@ -58,6 +67,11 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'scaleLeft', kind: 'number[]' },
     { name: 'soundRight', kind: 'sound' },
     { name: 'soundLeft', kind: 'sound' },
+    // Keyboard-driven globals (#90) — now sourced from the store, not the retired
+    // keyboard-control node. Same downstream ports (octaveShift / magnetism / mute).
+    { name: 'octaveShift', kind: 'number' },
+    { name: 'magnetism', kind: 'number' },
+    { name: 'mute', kind: 'boolean' },
     { name: 'overlay', kind: 'overlay-config' },
     // The right voice's scale spec + the face mode, for the expression→chord path.
     { name: 'rightSpec', kind: 'scale-spec' },
@@ -87,6 +101,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           scaleLeft: generateScale(c.left),
           soundRight: c.right.sound,
           soundLeft: c.left.sound,
+          octaveShift: c.octaveShift ?? 0,
+          magnetism: c.magnetism ?? 0.8,
+          mute: c.muted ?? false,
           rightSpec,
           faceMapping: c.faceMapping ?? legacyFaceToMapping(c.faceEnabled),
         };

@@ -1073,6 +1073,18 @@
         "kind": "sound"
       },
       {
+        "name": "octaveShift",
+        "kind": "number"
+      },
+      {
+        "name": "magnetism",
+        "kind": "number"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean"
+      },
+      {
         "name": "overlay",
         "kind": "overlay-config"
       },

@@ -132,6 +132,12 @@ export const SettingsSchema = z.object({
   left: VoiceSettingsSchema,
   syncHands: z.boolean(),
   masterVolume: z.number().min(0).max(1),
+  // Global octave transpose (all voices + chords + overlay) and scale-snap
+  // magnetism. Keyboard-driven (#90) but modeled as dials so they are
+  // command-dispatched (the single write path) and saved with an instrument.
+  // `.default(...)` keeps presets saved before #90 valid (filled on parse).
+  octaveShift: z.number().int().min(-2).max(2).default(0),
+  magnetism: z.number().min(0).max(1).default(0.8),
   // `.default('none')` keeps presets saved before the face-mapping chooser valid
   // (the field is filled in on parse rather than failing validation).
   faceMapping: FaceMappingSchema.default('none'),

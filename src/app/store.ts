@@ -55,13 +55,23 @@ export interface ControlState {
   left: VoiceControl;
   syncHands: boolean;
   masterVolume: number; // 0..1
+  /** Global octave transpose (−2..+2) applied to every voice + chord + overlay.
+   *  Keyboard-driven (#90) but written via the dial command path (`dial.set`/
+   *  `dial.patch`); read each tick by the mapping/chord/overlay nodes through
+   *  `store-controls`. A preset field (in {@link SETTINGS_KEYS}). */
+  octaveShift: number;
+  /** Scale-snap magnetism (0 = free pitch … 1 = full snap). Keyboard-driven (#90)
+   *  via commands; read by `voice-mapping` through `store-controls`. Preset field. */
+  magnetism: number;
   /**
    * Master mute. When true the whole instrument is silent (hands AND both face-
-   * chord instruments) — read by `useEngine` to zero the host master gain, and
-   * mirrored from the graph's `keyboard-control` mute so the HUD cue reflects the
-   * `m` key. Deliberately NOT persisted (not a musical preset, not in
-   * {@link SETTINGS_KEYS} nor `partialize`), so a fresh reload always starts
-   * un-muted — the least-surprising behaviour, and it needs no persist migration.
+   * chord instruments). Since #90 this is the SSOT for mute: the `m` key (via the
+   * app-level keyboard handler) toggles it, and it flows OUT to the graph through
+   * `store-controls` (→ voice-mapping + synth-merge), to the host master gain
+   * (`useEngine`), and to the HUD cue (MutedBadge) — no more graph→store mirror.
+   * Deliberately NOT persisted (not a musical preset, not in {@link SETTINGS_KEYS}
+   * nor `partialize`), so a fresh reload always starts un-muted (unlike
+   * `octaveShift`/`magnetism`, which are preset fields and DO persist).
    */
   muted: boolean;
   /**
@@ -100,7 +110,7 @@ export interface ControlState {
   setMasterVolume(v: number): void;
   /** Set the master mute directly. */
   setMuted(v: boolean): void;
-  /** Toggle the master mute (the `m` key path mirrors here). */
+  /** Toggle the master mute — the `m` key (app-level keyboard handler, #90) calls this. */
   toggleMuted(): void;
   setFaceMapping(v: FaceMapping): void;
   /** Patch the face-chord settings (e.g. setFaceChord({ voicing: 'spread' })). */
@@ -267,6 +277,8 @@ export const useControls = create<ControlState>()(
       left: defaultVoice(DEFAULT_SOUND_LEFT),
       syncHands: true,
       masterVolume: 0.4,
+      octaveShift: 0,
+      magnetism: 0.8,
       muted: false,
       faceMapping: 'none',
       faceChord: { ...DEFAULT_FACE_CHORD },
