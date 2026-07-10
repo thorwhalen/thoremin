@@ -32,7 +32,12 @@ const FaceMappingEnum = z.enum(FACE_MAPPINGS as unknown as [FaceMapping, ...Face
 const voice = (sound: SoundId, facet: string) => ({
   root: z.number().int().min(0).max(11).default(0).meta({ facets: [facet], title: 'Root' }),
   type: ScaleEnum.default('pentatonic').meta({ facets: [facet], title: 'Scale' }),
-  octaves: z.number().int().min(1).max(4).default(2).meta({ facets: [facet], title: 'Octaves' }),
+  // #63: `octaves` is superseded by the range slider (rangeLow/rangeHigh) as the span
+  // control. It stays in the keyspace as the integer SHADOW that the slider keeps in sync
+  // (and the legacy generateScale fallback for pre-#63 voices), but is marked `hidden` so
+  // it generates no palette/AI `set` command — a direct "Set Octaves" would be a silent
+  // no-op whenever the range fields are present (generateScale ignores octaves then).
+  octaves: z.number().int().min(1).max(4).default(2).meta({ facets: [facet, 'advanced'], title: 'Octaves', hidden: true }),
   baseOctave: z.number().int().min(0).max(8).default(3).meta({ facets: [facet, 'advanced'], title: 'Base octave' }),
   sound: SoundEnum.default(sound).meta({ facets: [facet], title: 'Sound' }),
   // #63 octave RANGE — fractional octaves below/above the locked middle octave. OPTIONAL

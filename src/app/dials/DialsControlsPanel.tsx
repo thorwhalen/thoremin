@@ -135,26 +135,34 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
     for (const [k, val] of voiceEditWrites(side, key, value, syncHands, v)) set(k, val);
   };
 
-  // #63 octave RANGE thumbs. Derive from `octaves` when the range is absent (a legacy
-  // preset / instrument), so the control always reads sensibly; the first drag writes it.
+  // #63 octave RANGE thumbs. When the range is absent (a legacy pre-#63 voice), DERIVE
+  // both thumbs from the `octaves` span — distributed across the two thumbs so an octaves=3
+  // voice seats at the representable 3.0 (not capped to 2.0) — and show the TRUE audible
+  // span in the readout (`octaves` itself), which for a legacy octaves=4 voice honestly
+  // exceeds the slider's 3-octave max. The first drag then adopts the range representation.
   const octaves = v[`${side}.octaves`] as number;
   const rawLow = v[`${side}.rangeLow`];
   const rawHigh = v[`${side}.rangeHigh`];
-  const rangeLow = typeof rawLow === 'number' ? rawLow : 0;
-  const rangeHigh = typeof rawHigh === 'number' ? rawHigh : Math.min(1, Math.max(0, octaves - 1));
-  const rangeSpan = 1 + rangeLow + rangeHigh;
+  const rangeAbsent = typeof rawLow !== 'number' || typeof rawHigh !== 'number';
+  const derivedHigh = Math.min(1, Math.max(0, octaves - 1));
+  const derivedLow = Math.min(1, Math.max(0, octaves - 1 - derivedHigh));
+  const rangeLow = rangeAbsent ? derivedLow : (rawLow as number);
+  const rangeHigh = rangeAbsent ? derivedHigh : (rawHigh as number);
+  const rangeSpan = rangeAbsent ? octaves : 1 + rangeLow + rangeHigh;
 
   const setRange = (nextLow: number, nextHigh: number) => {
-    // Atomic multi-field edit: write both range thumbs AND keep `octaves` a truthful
-    // integer shadow (round(1+low+high)) so no reader sees the two contradict. Mirror to
-    // both hands when synced (like voiceEditWrites does for single fields).
+    // Keep `octaves` a truthful integer shadow (round(1+low+high)) so no reader sees the
+    // two contradict. Re-snap the WHOLE non-sound voice across synced hands via the SSOT
+    // (voiceEditWrites) — so a range edit re-converges diverged hands like every other
+    // voice edit — then override the two range thumbs with the new values (applied last).
     const oct = Math.max(1, Math.min(4, Math.round(1 + nextLow + nextHigh)));
-    const targets = syncHands ? (['right', 'left'] as const) : ([side] as const);
-    for (const t of targets) {
-      set(`${t}.rangeLow`, nextLow);
-      set(`${t}.rangeHigh`, nextHigh);
-      set(`${t}.octaves`, oct);
+    const writes = voiceEditWrites(side, 'octaves', oct, syncHands, v);
+    writes.push([`${side}.rangeLow`, nextLow], [`${side}.rangeHigh`, nextHigh]);
+    if (syncHands) {
+      const other = side === 'right' ? 'left' : 'right';
+      writes.push([`${other}.rangeLow`, nextLow], [`${other}.rangeHigh`, nextHigh]);
     }
+    for (const [k, val] of writes) set(k, val);
   };
 
   return (
@@ -417,7 +425,18 @@ function ChordSourceControls() {
         <select
           className={selectCls}
           value={source}
-          onChange={(e) => set('faceChord.chordSource', e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value as 'auto' | 'custom';
+            // On auto→custom, seed the custom root/type from the currently-sounding auto
+            // source, so switching to Custom is INAUDIBLE until the user deliberately edits
+            // it (otherwise chordRoot/chordType keep their C-major defaults and a non-C
+            // melody's chords would jump into the wrong key on the mere mode flip).
+            if (next === 'custom' && source !== 'custom') {
+              set('faceChord.chordRoot', auto.root);
+              set('faceChord.chordType', auto.type);
+            }
+            set('faceChord.chordSource', next);
+          }}
         >
           <option value="auto">Auto (follow melody)</option>
           <option value="custom">Custom</option>

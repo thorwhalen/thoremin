@@ -20,6 +20,27 @@ describe('per-dial command generation (#87)', () => {
     expect(registry.has('dial.master.syncHands.set')).toBe(true); // boolean
   });
 
+  it('does NOT generate a Set Octaves command; the octave span is set via the range dials (#63)', () => {
+    // #63 replaced the octaves control with the double-thumb range slider. `octaves` stays
+    // in the keyspace as the integer shadow (+ legacy generateScale fallback) but is hidden,
+    // so no "Set Octaves" command is generated — a direct write would be a silent no-op
+    // whenever the range fields are present (generateScale ignores octaves then). The span
+    // is instead settable (palette + AI) via the range dials.
+    expect(registry.has('dial.right.octaves.set')).toBe(false);
+    expect(registry.has('dial.left.octaves.set')).toBe(false);
+    expect(registry.has('dial.right.rangeLow.set')).toBe(true);
+    expect(registry.has('dial.right.rangeHigh.set')).toBe(true);
+  });
+
+  it('a range dial command actually writes the voice span (not a no-op like octaves) (#63)', async () => {
+    // Guards the SSOT the #63 fix rests on: the range dial IS the live span control and its
+    // write lands in the hot store (which generateScale reads), unlike the hidden octaves dial.
+    await registry.dispatch('dial.right.rangeHigh.set', { value: 0 }); // middle octave only
+    expect(useControls.getState().right.rangeHigh).toBe(0);
+    await registry.dispatch('dial.right.rangeHigh.set', { value: 1 }); // + a full octave up
+    expect(useControls.getState().right.rangeHigh).toBe(1);
+  });
+
   it('skips ALL structured dials (objects/records are not a single settable scalar)', () => {
     // All four structured dials in thoreminDials — incl. the dotted faceExpr.* ones
     // most likely to be mis-classified as scalars by a regression.
