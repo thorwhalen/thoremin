@@ -124,6 +124,11 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // Controls path (#76): deliberate head/face pose axes → a diatonic chord.
       { id: 'faceCtrl', type: 'face-controls', params: {} },
       { id: 'poseChord', type: 'pose-chord', params: {} },
+      // Feature Instrumentation Lab (#119): pure feature-vector taps off the
+      // existing face/hand sources; the overlay's featureLab element normalizes +
+      // draws them. Idle (empty vector) unless the lab panel is shown.
+      { id: 'faceVec', type: 'face-feature-vector', params: {} },
+      { id: 'handVec', type: 'hand-feature-vector', params: {} },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
       // handler that dispatches dial commands; octave-shift / magnetism / mute now
       // flow from the store via `ui` (store-controls), so no keyboard nodes here.
@@ -218,6 +223,13 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
       // Live overlay element config from the UI store (toggle elements without rebuild).
       { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'overlayConfig' } },
+      // Feature Lab (#119): the pure feature vectors tap the SAME face/hand frames
+      // the rest of the graph reads (additive fan-out), and feed the overlay's
+      // featureLab meters. Recorded by the existing feature-JSONL tap.
+      { from: { node: 'camFace', port: 'face' }, to: { node: 'faceVec', port: 'face' } },
+      { from: { node: 'cam', port: 'hands' }, to: { node: 'handVec', port: 'hands' } },
+      { from: { node: 'faceVec', port: 'vector' }, to: { node: 'overlay', port: 'faceVector' } },
+      { from: { node: 'handVec', port: 'vector' }, to: { node: 'overlay', port: 'handVector' } },
     ],
   };
 }

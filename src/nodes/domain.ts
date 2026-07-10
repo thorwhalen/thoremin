@@ -150,9 +150,12 @@ export function legacyFaceToMapping(faceEnabled: boolean | undefined): FaceMappi
 export interface FaceFrame {
   present: boolean;
   blendshapes: Record<string, number>;
-  /** Normalized (0..1) face landmark points in the source frame, for drawing the
-   *  face mesh overlay. Optional — the feature/expression nodes ignore it. */
-  landmarks?: { x: number; y: number }[];
+  /** Normalized (x, y in 0..1) face mesh landmark points in the source frame, with
+   *  MediaPipe's relative `z` (depth) preserved. All 478 points are forwarded (the
+   *  irises are 468-477); the mesh overlay reads x/y, and the geometric feature
+   *  catalog (#119) reads x/y/z + the irises. Optional — the blendshape-only
+   *  expression nodes ignore it, and the offline blendshape fixture omits it. */
+  landmarks?: { x: number; y: number; z?: number }[];
   /** Head orientation (degrees) decoded from MediaPipe's facial transformation
    *  matrix — present only when the live source enables that output (issue #76).
    *  The offline blendshape fixture has no matrix, so this is absent there. */

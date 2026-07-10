@@ -39,7 +39,14 @@ describe('production app graph', () => {
     expect(order.indexOf('exprChord')).toBeLessThan(order.indexOf('chordSel'));
     expect(order.indexOf('poseChord')).toBeLessThan(order.indexOf('chordSel'));
     expect(order.indexOf('chordSel')).toBeLessThan(order.indexOf('overlay'));
-    expect(order).toHaveLength(14); // #90 retired the kbd + kctrl nodes (keyboard → app-level tinykeys)
+    // Feature Lab (#119): the pure feature-vector taps sit after their sources and
+    // before the overlay that draws their meters.
+    expect(order.indexOf('camFace')).toBeLessThan(order.indexOf('faceVec'));
+    expect(order.indexOf('cam')).toBeLessThan(order.indexOf('handVec'));
+    expect(order.indexOf('faceVec')).toBeLessThan(order.indexOf('overlay'));
+    expect(order.indexOf('handVec')).toBeLessThan(order.indexOf('overlay'));
+    // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector taps.
+    expect(order).toHaveLength(16);
   });
 
   it('wires the face overlays (mesh + expression readout + both chord highlights)', () => {
@@ -57,6 +64,21 @@ describe('production app graph', () => {
     // hands (#89). The hand voices stay at indices 0/1, so per-hand labels are intact.
     expect(has('merge', 'params', 'overlay', 'params')).toBe(true);
     expect(has('map', 'params', 'overlay', 'params')).toBe(false);
+  });
+
+  it('wires the Feature Lab vector taps additively off the existing sources (#119)', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The vectors tap the SAME face/hand frames the rest of the graph reads (fan-out).
+    expect(has('camFace', 'face', 'faceVec', 'face')).toBe(true);
+    expect(has('cam', 'hands', 'handVec', 'hands')).toBe(true);
+    // ...and feed the overlay's featureLab meters.
+    expect(has('faceVec', 'vector', 'overlay', 'faceVector')).toBe(true);
+    expect(has('handVec', 'vector', 'overlay', 'handVector')).toBe(true);
+    // The original face-mesh + hand-feature edges are untouched (additive).
+    expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true);
+    expect(has('cam', 'hands', 'feat', 'hands')).toBe(true);
   });
 
   it('routes the mute to the merge so it silences the chords too (#91)', () => {

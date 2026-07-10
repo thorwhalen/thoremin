@@ -34,6 +34,17 @@ export interface OverlayControlDesc {
 export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'landmarks', label: 'Hand landmarks' },
   { name: 'faceLandmarks', label: 'Face mesh', needsFace: true },
+  {
+    // Feature Instrumentation Lab (#119). The group selection + normalizer mode
+    // are a richer surface (the dedicated Lab panel); the simple toggles here are
+    // the panel's on/off + per-meter decorations.
+    name: 'featureLab',
+    label: 'Feature Lab',
+    toggles: [
+      { key: 'showMarkers', label: 'Percentile ticks' },
+      { key: 'showValues', label: 'Raw values' },
+    ],
+  },
   { name: 'markers', label: 'Control markers', toggles: [{ key: 'showNotes', label: 'Note names' }] },
   {
     name: 'fingerLines',

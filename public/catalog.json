@@ -51,6 +51,14 @@
       {
         "name": "overlayConfig",
         "kind": "overlay-config"
+      },
+      {
+        "name": "faceVector",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "handVector",
+        "kind": "feature-vector"
       }
     ],
     "outputs": [],
@@ -117,6 +125,11 @@
       },
       {
         "name": "keyboardStrip",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "featureLab",
         "type": "object",
         "default": {}
       }
@@ -407,6 +420,32 @@
     ]
   },
   {
+    "type": "face-feature-vector",
+    "title": "Face Feature Vector",
+    "description": "Face blendshapes + mesh + head pose -> a flat vector of enabled catalog features.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "face",
+        "kind": "face-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vector",
+        "kind": "feature-vector"
+      }
+    ],
+    "params": [
+      {
+        "name": "groups",
+        "type": "array"
+      }
+    ]
+  },
+  {
     "type": "face-features",
     "title": "Face Features",
     "description": "Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).",
@@ -486,6 +525,42 @@
         "name": "hysteresis",
         "type": "number",
         "default": 0.05
+      }
+    ]
+  },
+  {
+    "type": "hand-feature-vector",
+    "title": "Hand Feature Vector",
+    "description": "Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand catalog features.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vector",
+        "kind": "feature-vector"
+      }
+    ],
+    "params": [
+      {
+        "name": "mirrorX",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "groups",
+        "type": "array"
       }
     ]
   },
