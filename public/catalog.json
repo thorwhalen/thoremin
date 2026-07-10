@@ -132,6 +132,11 @@
         "name": "featureLab",
         "type": "object",
         "default": {}
+      },
+      {
+        "name": "tagHud",
+        "type": "object",
+        "default": {}
       }
     ]
   },

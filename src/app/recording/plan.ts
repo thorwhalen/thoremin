@@ -50,6 +50,9 @@ export interface PlanInput {
   videoMime: string;
   /** Alpha (overlay-only) MIME — Chromium VP9; defaults to `video/webm;codecs=vp9`. */
   alphaMime?: string;
+  /** Whether live tagging (#92) is active for this take — adds a `.tags.jsonl` stream
+   *  to the folder (and forces folder mode, since a tag log needs the manifest). */
+  includeTags?: boolean;
 }
 
 /** Selected audio output formats, filtered to ids the registry knows (an unknown
@@ -103,9 +106,11 @@ export function planRecording(input: PlanInput): RecordingPlan {
   const s = session.streams;
   const fps = session.fps;
   const videoExt = videoExtForMime(videoMime);
+  const includeTags = input.includeTags === true;
 
   // --- single-file escape hatch: one bare media file, no folder, no manifest ---
-  if (singleFileEligible(session)) {
+  // A tag log needs the folder + manifest, so it disqualifies the escape hatch.
+  if (!includeTags && singleFileEligible(session)) {
     let file: PlannedFile;
     if (s.audio) {
       file = audioFiles(session, stem, audioMime)[0];
@@ -132,6 +137,10 @@ export function planRecording(input: PlanInput): RecordingPlan {
   if (s.audio) files.push(...audioFiles(session, stem, audioMime));
   if (s.features)
     files.push({ name: fileName(stem, { role: 'features', ext: 'jsonl' }), kind: 'features', role: 'features', ext: 'jsonl' });
+  // The live-tagging stream (#92) drops in like features.jsonl: same folder, same
+  // stem, same t0/JSONL convention, listed in the manifest as `kind: 'tags'`.
+  if (includeTags)
+    files.push({ name: fileName(stem, { role: 'tags', ext: 'jsonl' }), kind: 'tags', role: 'tags', ext: 'jsonl' });
 
   // The manifest is always present (provenance + alignment SSOT), so a folder has
   // ≥ 2 files even for an audio-only take.

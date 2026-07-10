@@ -91,12 +91,14 @@ Chord overlays sit outside both (self-contained), and are a good early win.
    scheme; a `manifest.json` for cross-stream time alignment; a three-tier local
    sink (dir handle / ZIP / per-file). Independent of the command-dispatch track.
 
-8. **[#92] Live tagging mode** — *L · depends on #88 · research in #81.*
-   Toggle tags during a recording → a time-aligned `tags.jsonl` that segments the
-   streams for ML/analysis. Interval+point tags, mutual-exclusivity groups,
-   1..9 keyboard toggles, per-tag lead-in + countdown, blinking open-tag buttons,
-   a burned-in corner overlay as the ground-truth clock. Built to **extract into
-   a reusable zodal tool** (`taglog`: affordances / provider / presentation).
+8. **[#92] Live tagging mode** — *✅ SHIPPED · L · was: depends on #88 · research in #81.*
+   Toggle tags during a recording → a time-aligned `tags.jsonl` (absolute engine
+   clock, shared with `features.jsonl` by construction) that segments the streams for
+   ML/analysis. Interval+point tags, mutual-exclusivity groups, 1..9 keyboard toggles,
+   per-tag lead-in + countdown, blinking open-tag buttons, a burned-in corner overlay
+   as the in-band ground truth. Built as a **reusable zodal tool** in `src/taglog/`
+   (affordances / adapters / provider / presentation) + thoremin glue in
+   `src/app/tagging/`; export adapters for Audacity / WebVTT / CSV / Praat TextGrid / OTIO.
 
 ### Stream Applier / alternative sources (active — 2026-07)
 

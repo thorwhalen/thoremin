@@ -14,10 +14,12 @@ import { Play, BookOpen, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
+import { installTaggingKeymap } from './tagging/keymap';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import RecordButton from './RecordButton';
+import TaggingControls from './tagging/TaggingControls';
 import Toaster from './Toaster';
 import CommandPaletteOverlay from './CommandPaletteOverlay';
 import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
@@ -77,6 +79,9 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
   // #90: install the keyboard shortcuts (octave / magnetism / mute) — an app-level
   // tinykeys keymap dispatching dial commands, replacing the retired in-DAG switch.
   useEffect(() => installKeyboardShortcuts(), []);
+  // #92: install the MODAL tag-toggle keymap (1..9 / 0) — inert unless tagging mode
+  // is on, so it never shadows other digit bindings.
+  useEffect(() => installTaggingKeymap(), []);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">
@@ -118,6 +123,11 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
           a settings sheet (out-of-instrument config) then a compact HUD. Available
           once audio is running. */}
       {audioOn && <RecordButton recording={recording} />}
+
+      {/* Live tagging (#92): the launcher + setup sheet, the in-take button stack
+          (left edge), and the centered lead-in countdown. Available once the engine
+          is ready; toggling a tag during a recording writes a time-aligned tags.jsonl. */}
+      {status === 'ready' && <TaggingControls />}
 
       {/* Top-right: the instruments surface (the list + the per-instrument editor). */}
       <InstrumentsPanel />
