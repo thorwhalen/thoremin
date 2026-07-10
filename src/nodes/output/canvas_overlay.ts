@@ -37,6 +37,18 @@ import {
   scaleGuide,
 } from '@/music/theory';
 import { EMOTIONS, type ExpressionScores } from '@/music/expression';
+import { OnlineNormalizer, type NormalizerMode } from '@/features/normalizer';
+import { compileFormula, type CompiledFormula } from '@/features/formula';
+import {
+  ALL_FEATURES,
+  ALL_SAFE_NAMES,
+  DEFAULT_LAB_GROUPS,
+  DERIVED_GROUP,
+  FEATURE_BY_ID,
+  FEATURE_GROUPS,
+  safeName,
+  type FeatureVector,
+} from '@/features/catalog';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import {
   FINGER_NAMES,
@@ -133,6 +145,37 @@ const Params = z.object({
       showScaleRoot: z.boolean().default(true),
     })
     .prefault({}),
+  /**
+   * Feature Instrumentation Lab (#119): a dense grid of grouped, online-normalized
+   * meters for the raw face/hand feature vectors, so heterogeneous ranges read as
+   * comparable levels. `groups` is the display + compute selection (the vector
+   * nodes read it too via the control snapshot, so it drives what is measured, not
+   * only what is drawn); `normalizer` picks the level mapping. Opt-in (a large,
+   * exploratory panel). Group/derived state that can't live here (arbitrary derived
+   * formulas, reset) rides the separate lab store (ctx.resources.lab).
+   */
+  featureLab: z
+    .object({
+      show: z.boolean().default(false),
+      groups: z.array(z.string()).default([...DEFAULT_LAB_GROUPS]),
+      normalizer: z.enum(['minmax', 'quantile', 'zscore']).default('minmax'),
+      /** Number of newspaper-flow columns in the meter grid. */
+      columns: z.number().int().min(1).max(8).default(3),
+      /** Draw the percentile-band reference ticks on each meter. */
+      showMarkers: z.boolean().default(true),
+      /** Print the raw value beside each meter. */
+      showValues: z.boolean().default(false),
+      /** User-defined derived features: a safe formula (jsep whitelist) over feature
+       *  safe-names (`face.geom.mouth.openness` → `face_geom_mouth_openness`) + the
+       *  helper set. Evaluated over the merged face+hand vector; shown under the
+       *  `derived` group. An invalid formula is skipped (the editor shows the error). */
+      derived: z
+        .array(z.object({ id: z.string(), formula: z.string() }))
+        .default([]),
+      /** Bump to re-zero the online statistics (a manual "recalibrate"). */
+      resetNonce: z.number().default(0),
+    })
+    .prefault({}),
 });
 type Params = z.infer<typeof Params>;
 
@@ -148,11 +191,26 @@ const LEFT_COLOR = '#3b82f6';
 const FACE_COLOR = '#22d3ee'; // cyan — distinct from hands (emerald/blue) + chord (gold)
 const CHORD_COLOR = '#f5d142'; // warm gold
 
+/**
+ * The normalized meter data the `featureLab` element draws, precomputed by the
+ * overlay node (which owns the stateful {@link OnlineNormalizer}) so the element
+ * itself stays a pure renderer. `order` is the display order of the present,
+ * enabled feature ids; `levels`/`markers` are keyed by feature id.
+ */
+export interface FeatureMeters {
+  order: string[];
+  raw: FeatureVector;
+  levels: Record<string, number>;
+  markers: Record<string, number[]>;
+}
+
 /** Everything an overlay element needs to draw a frame. */
 export interface OverlayView {
   W: number;
   H: number;
   video?: HTMLVideoElement;
+  /** Precomputed feature-lab meters (present only while the lab is shown). */
+  featureMeters?: FeatureMeters;
   inputs: {
     hands?: HandsFrame;
     features?: HandFeatures;
@@ -964,6 +1022,190 @@ const keyboardStripElement: OverlayElement = {
   },
 };
 
+// ---- Feature Instrumentation Lab (#119) ------------------------------------
+
+const LAB_COL_W = 168; // px per newspaper column
+const LAB_ROW_H = 22; // px per meter row (label + bar)
+const LAB_HEADER_H = 16; // px per group header
+const LAB_TITLE_H = 22;
+const LAB_BAR_H = 6;
+const LAB_TOP = 68; // == CUE_TOP_INSET: clear the top-left brand / top-right panel
+
+/** Terse meter label: the feature id with its group (or the `face.`/`hand.`
+ *  prefix) stripped, so the group header carries the context. */
+function labFeatureLabel(id: string, group: string): string {
+  if (id.startsWith(group + '.')) return id.slice(group.length + 1);
+  return id.replace(/^(face|hand)\./, '');
+}
+
+/** Truncate text to fit `maxChars` with an ellipsis (monospace-approximate). */
+function labClip(text: string, maxChars: number): string {
+  return text.length <= maxChars ? text : text.slice(0, Math.max(1, maxChars - 1)) + '…';
+}
+
+/** Draw one meter (label + normalized bar + percentile ticks + optional value). */
+function drawLabMeter(
+  g: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  label: string,
+  level: number,
+  markers: number[],
+  color: string,
+  value: number | undefined,
+): void {
+  const valueW = value !== undefined ? 34 : 0;
+  const barW = Math.max(20, w - valueW);
+  // Label.
+  g.globalAlpha = 0.85;
+  g.fillStyle = '#d1d5db';
+  g.font = '9px monospace';
+  g.textAlign = 'left';
+  g.fillText(labClip(label, Math.floor(w / 5.4)), x, y + 8);
+  // Track.
+  const barY = y + 11;
+  g.globalAlpha = 0.22;
+  g.fillStyle = '#ffffff';
+  g.fillRect(x, barY, barW, LAB_BAR_H);
+  // Fill to the normalized level (skip when un-warmed / NaN).
+  if (Number.isFinite(level)) {
+    g.globalAlpha = 0.85;
+    g.fillStyle = color;
+    g.fillRect(x, barY, barW * clamp01(level), LAB_BAR_H);
+  }
+  // Percentile-band ticks.
+  if (markers.length) {
+    g.globalAlpha = 0.7;
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 1;
+    for (const m of markers) {
+      const mx = x + barW * clamp01(m);
+      g.beginPath();
+      g.moveTo(mx, barY - 1);
+      g.lineTo(mx, barY + LAB_BAR_H + 1);
+      g.stroke();
+    }
+  }
+  // Raw value.
+  if (value !== undefined) {
+    g.globalAlpha = 0.7;
+    g.fillStyle = '#9ca3af';
+    g.textAlign = 'right';
+    g.fillText(value.toFixed(2), x + w, y + 8);
+    g.textAlign = 'left';
+  }
+}
+
+/**
+ * The Feature Lab panel (#119): a right-anchored, newspaper-column grid of
+ * grouped, online-normalized meters over the raw face + hand feature vectors. The
+ * overlay node precomputes {@link OverlayView.featureMeters} (it owns the
+ * normalizer); this element is a pure renderer. Group headers repeat at the top of
+ * a continued column; a "+N more" note is drawn if features overflow the panel, so
+ * nothing is silently dropped. Opt-in (a large panel).
+ */
+const featureLabElement: OverlayElement = {
+  name: 'featureLab',
+  category: 'input',
+  draw(g, view) {
+    const p = view.params.featureLab;
+    if (!p.show) return;
+    const meters = view.featureMeters;
+    if (!meters) return;
+    const { W, H } = view;
+    const columns = Math.max(1, Math.min(p.columns, Math.floor((W - 2 * PAD) / LAB_COL_W) || 1));
+    const panelW = columns * LAB_COL_W + 2 * PAD;
+    const panelLeft = W - panelW;
+    const panelTop = LAB_TOP;
+    const panelBottom = H - 16;
+    const contentTop = panelTop + LAB_TITLE_H;
+
+    g.save();
+    // Backdrop.
+    g.globalAlpha = 0.55;
+    g.fillStyle = '#000000';
+    g.fillRect(panelLeft, panelTop, panelW, panelBottom - panelTop);
+    // Title.
+    g.globalAlpha = 1;
+    g.fillStyle = FACE_COLOR;
+    g.font = 'bold 13px monospace';
+    g.textAlign = 'left';
+    g.fillText('Feature Lab', panelLeft + PAD, panelTop + 15);
+
+    // Shown but nothing to measure (no face/hands, or the enabled groups are empty
+    // this frame): keep the panel + a hint so the lab doesn't read as "broken".
+    if (!meters.order.length) {
+      g.globalAlpha = 0.7;
+      g.fillStyle = '#9ca3af';
+      g.font = 'italic 11px monospace';
+      g.textAlign = 'left';
+      g.fillText('No features in view (adjust groups)', panelLeft + PAD, contentTop + 8);
+      g.restore();
+      return;
+    }
+
+    let col = 0;
+    let y = contentTop;
+    let lastGroup: string | null = null;
+    let drawn = 0;
+    const colX = (c: number) => panelLeft + PAD + c * LAB_COL_W;
+    const cellW = LAB_COL_W - PAD;
+    const nextColumn = (): boolean => {
+      col += 1;
+      if (col >= columns) return false;
+      y = contentTop;
+      lastGroup = null;
+      return true;
+    };
+
+    for (const id of meters.order) {
+      // Catalog features resolve via FEATURE_BY_ID; derived features (not in the
+      // static registry) fall back to the `derived` group + a gold accent.
+      const feat = FEATURE_BY_ID[id];
+      const group = feat?.group ?? DERIVED_GROUP;
+      const color = !feat ? CHORD_COLOR : feat.source === 'face' ? FACE_COLOR : RIGHT_COLOR;
+      // Group header (repeats when a group continues into a new column).
+      if (group !== lastGroup) {
+        if (y + LAB_HEADER_H + LAB_ROW_H > panelBottom && !nextColumn()) break;
+        const info = FEATURE_GROUPS.find((gr) => gr.id === group);
+        g.globalAlpha = 0.9;
+        g.fillStyle = color;
+        g.font = 'bold 10px monospace';
+        g.textAlign = 'left';
+        g.fillText(labClip(info?.label ?? group, Math.floor(cellW / 6)), colX(col), y + 10);
+        y += LAB_HEADER_H;
+        lastGroup = group;
+      }
+      if (y + LAB_ROW_H > panelBottom && !nextColumn()) break;
+      drawLabMeter(
+        g,
+        colX(col),
+        y,
+        cellW,
+        labFeatureLabel(id, group),
+        meters.levels[id],
+        p.showMarkers ? meters.markers[id] ?? [] : [],
+        color,
+        p.showValues ? meters.raw[id] : undefined,
+      );
+      y += LAB_ROW_H;
+      drawn += 1;
+    }
+    // Honest overflow note (no silent truncation).
+    const remaining = meters.order.length - drawn;
+    if (remaining > 0) {
+      g.globalAlpha = 0.8;
+      g.fillStyle = '#9ca3af';
+      g.font = 'italic 10px monospace';
+      g.textAlign = 'right';
+      g.fillText(`+${remaining} more (widen / fewer groups)`, panelLeft + panelW - PAD, panelBottom - 4);
+      g.textAlign = 'left';
+    }
+    g.restore();
+  },
+};
+
 /**
  * The overlay elements, in draw (z) order. In-scene first, HUD cues last (on top).
  * Each has a `category` and a `<name>` sub-object in `Params`. Append here to add one.
@@ -981,6 +1223,9 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   controlMarkers,
   fingerLinesElement,
   timbreLevels,
+  // The Feature Lab panel (#119): above the in-scene elements, below the HUD cues
+  // so the chord/finger readouts stay legible over it.
+  featureLabElement,
   // HUD cues last (on top). chordName sits before the others so `fingerBars`
   // stays the topmost cue; cues on different edges don't overlap regardless.
   chordNameCue,
@@ -1056,10 +1301,102 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'expression', kind: 'face-expression' },
     { name: 'octaveShift', kind: 'number', default: 0 },
     { name: 'overlayConfig', kind: 'overlay-config' },
+    // Raw feature vectors for the Feature Lab (#119). Additive: the vector nodes
+    // tap the existing camFace/cam edges; the lab element normalizes + draws them.
+    { name: 'faceVector', kind: 'feature-vector' },
+    { name: 'handVector', kind: 'feature-vector' },
   ],
   outputs: [],
   params: Params,
   make(p) {
+    // The Feature Lab (#119) owns a stateful online normalizer that accumulates
+    // per-feature statistics from the moment the lab is shown. It lives in the node
+    // closure so the `featureLab` element stays a pure renderer.
+    const labNormalizer = new OnlineNormalizer();
+    let labPrevShow = false;
+    let labResetNonce = 0;
+    // Derived formulas are compiled once and re-compiled only when the config
+    // changes (detected by a cheap signature), never per-frame.
+    let derivedSig = '';
+    let compiledDerived: { id: string; fn: CompiledFormula }[] = [];
+
+    const compileDerived = (list: Params['featureLab']['derived']): { id: string; fn: CompiledFormula }[] => {
+      const out: { id: string; fn: CompiledFormula }[] = [];
+      for (const d of list) {
+        if (!d.id || !d.formula) continue;
+        try {
+          out.push({ id: d.id, fn: compileFormula(d.formula, { variables: ALL_SAFE_NAMES }) });
+        } catch {
+          // Invalid formula: skip it (the derived-feature editor surfaces the
+          // compile error; the per-frame loop must never throw).
+        }
+      }
+      return out;
+    };
+
+    /** Merge the raw face+hand vectors, evaluate the derived formulas over the
+     *  merged scope, observe the enabled/present features, and build the normalized
+     *  meter data the featureLab element draws. Returns undefined when the lab is
+     *  hidden (the element then draws nothing). */
+    const computeFeatureMeters = (
+      cfg: Params['featureLab'],
+      faceVec: FeatureVector | undefined,
+      handVec: FeatureVector | undefined,
+      ctx: NodeContext,
+    ): FeatureMeters | undefined => {
+      if (!cfg.show) {
+        labPrevShow = false;
+        return undefined;
+      }
+      // Re-zero the stats when the lab is (re)opened or an explicit reset fires.
+      if (!labPrevShow || cfg.resetNonce !== labResetNonce) labNormalizer.reset();
+      labPrevShow = true;
+      labResetNonce = cfg.resetNonce;
+      labNormalizer.setMode(cfg.normalizer as NormalizerMode);
+
+      const raw: FeatureVector = { ...(faceVec ?? {}), ...(handVec ?? {}) };
+      const enabled = new Set(cfg.groups);
+
+      // Derived (formula) features over the MERGED scope (so a formula may combine
+      // face + hand features). Recompile only on change.
+      const sig = JSON.stringify(cfg.derived);
+      if (sig !== derivedSig) {
+        derivedSig = sig;
+        compiledDerived = compileDerived(cfg.derived);
+      }
+      if (compiledDerived.length && enabled.has(DERIVED_GROUP)) {
+        const scope: Record<string, number> = {};
+        for (const k of Object.keys(raw)) scope[safeName(k)] = raw[k];
+        for (const d of compiledDerived) {
+          const val = d.fn.eval(scope);
+          if (Number.isFinite(val)) raw[`derived.${d.id}`] = val;
+        }
+      }
+
+      const order: string[] = [];
+      const levels: Record<string, number> = {};
+      const markers: Record<string, number[]> = {};
+      const take = (id: string, v: number): void => {
+        labNormalizer.observe(id, v, ctx.dt);
+        order.push(id);
+        levels[id] = labNormalizer.level(id, v);
+        if (cfg.showMarkers) markers[id] = labNormalizer.markers(id);
+      };
+      // Catalog features first (in display order), then any derived features.
+      for (const feat of ALL_FEATURES) {
+        if (!enabled.has(feat.group)) continue;
+        const v = raw[feat.id];
+        if (v === undefined) continue; // not present this frame (dropped as NaN upstream)
+        take(feat.id, v);
+      }
+      if (enabled.has(DERIVED_GROUP)) {
+        for (const key of Object.keys(raw)) {
+          if (key.startsWith('derived.')) take(key, raw[key]);
+        }
+      }
+      return { order, raw, levels, markers };
+    };
+
     return {
       process(inputs, ctx: NodeContext) {
         const canvas = ctx.resources.canvas as HTMLCanvasElement | undefined;
@@ -1108,6 +1445,15 @@ export const canvasOverlayNode = defineNode<Params>({
             faceMapping: controls?.faceMapping,
           },
         };
+
+        // Precompute the Feature Lab meters once per tick (the normalizer observes
+        // here); the featureLab element and the alpha pass both draw from this.
+        view.featureMeters = computeFeatureMeters(
+          view.params.featureLab,
+          inputs.faceVector as FeatureVector | undefined,
+          inputs.handVector as FeatureVector | undefined,
+          ctx,
+        );
 
         view.layout = layoutCues(view);
         for (const element of OVERLAY_ELEMENTS) element.draw(g, view);

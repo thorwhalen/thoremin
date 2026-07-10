@@ -50,8 +50,10 @@ const ABSENT_FRAME: FaceFrame = { present: false, blendshapes: {} };
 /** The minimal slice of a `FaceLandmarkerResult` this node reads. */
 export interface FaceLandmarkerResultLike {
   faceBlendshapes?: Array<{ categories: Array<{ categoryName: string; score: number }> }>;
-  /** Normalized (0..1) landmark points per detected face, for the face-mesh overlay. */
-  faceLandmarks?: Array<Array<{ x: number; y: number }>>;
+  /** Normalized (0..1) landmark points per detected face, with MediaPipe's
+   *  relative `z`. Feeds both the face-mesh overlay (x/y) and the geometric
+   *  feature catalog (x/y/z + irises, #119). */
+  faceLandmarks?: Array<Array<{ x: number; y: number; z?: number }>>;
   /** Per-face 4x4 rigid transform (canonical → detected face), COLUMN-MAJOR in
    *  `data`. Present only when `outputFacialTransformationMatrixes` is enabled
    *  (issue #76); the rotation block yields head yaw/pitch/roll. */
@@ -72,7 +74,9 @@ export function blendshapesToFaceFrame(result: FaceLandmarkerResultLike): FaceFr
   for (const c of categories) blendshapes[c.categoryName] = c.score;
   const frame: FaceFrame = { present: true, blendshapes };
   const pts = result.faceLandmarks?.[0];
-  if (pts && pts.length) frame.landmarks = pts.map((p) => ({ x: p.x, y: p.y }));
+  // Preserve z (the geometry/gaze features need it) and forward ALL 478 points,
+  // irises included — earlier this dropped .z, which starved the #119 catalog.
+  if (pts && pts.length) frame.landmarks = pts.map((p) => ({ x: p.x, y: p.y, z: p.z }));
   const matrix = result.facialTransformationMatrixes?.[0]?.data;
   if (matrix && matrix.length >= 11) frame.headPose = matrixToHeadPose(matrix);
   return frame;

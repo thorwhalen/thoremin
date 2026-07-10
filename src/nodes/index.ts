@@ -15,6 +15,8 @@ import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
 import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
+import { faceFeatureVectorNode } from './features/face_feature_vector';
+import { handFeatureVectorNode } from './features/hand_feature_vector';
 import { voiceMappingNode } from './mapping/voice_mapping';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { indirectMapNode } from './mapping/indirect_map';
@@ -39,6 +41,9 @@ export { faceControlsNode } from './features/face_controls';
 export { faceExpressionNode } from './features/face_expression';
 export { gestureClassifierNode } from './features/gesture_classifier';
 export type { Pose, GestureEvent } from './features/gesture_classifier';
+export { faceFeatureVectorNode } from './features/face_feature_vector';
+export { handFeatureVectorNode } from './features/hand_feature_vector';
+export type { FeatureVector } from '@/features/catalog';
 export { voiceMappingNode } from './mapping/voice_mapping';
 export { keyboardControlNode } from './mapping/keyboard_control';
 export { indirectMapNode } from './mapping/indirect_map';
@@ -66,6 +71,8 @@ export const CORE_NODES = [
   faceControlsNode,
   faceExpressionNode,
   gestureClassifierNode,
+  faceFeatureVectorNode,
+  handFeatureVectorNode,
   voiceMappingNode,
   keyboardControlNode,
   indirectMapNode,

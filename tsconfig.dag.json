@@ -7,5 +7,5 @@
     "noUnusedParameters": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/dag", "src/nodes", "src/music", "src/settings", "src/app/graph.ts", "test", "scripts"]
+  "include": ["src/dag", "src/nodes", "src/music", "src/features", "src/settings", "src/app/graph.ts", "src/app/lab", "test", "scripts"]
 }

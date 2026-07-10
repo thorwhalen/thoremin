@@ -44,6 +44,7 @@ import { EFFECTS, type HandMap, type FingerTarget } from '@/nodes/mapping/hand_m
 import { FINGER_NAMES } from '@/nodes/domain';
 import { useDialsSettings } from './useDialsSettings';
 import { voiceEditWrites, type VoiceField } from './settingsStore';
+import LabControls from '../LabControls';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 
@@ -909,6 +910,13 @@ export default function DialsControlsPanel() {
 
       <TopSection label="Overlay">
         <OverlayControls />
+      </TopSection>
+
+      {/* Feature Instrumentation Lab (#119): a measuring instrument for the raw
+          face/hand feature vectors — grouped normalized meters, derived formulas,
+          and saved views. */}
+      <TopSection label="Feature Lab">
+        <LabControls />
       </TopSection>
 
       <TopSection label="Keyboard">
