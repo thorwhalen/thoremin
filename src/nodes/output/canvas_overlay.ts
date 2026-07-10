@@ -38,7 +38,17 @@ import {
 } from '@/music/theory';
 import { EMOTIONS, type ExpressionScores } from '@/music/expression';
 import { OnlineNormalizer, type NormalizerMode } from '@/features/normalizer';
-import { ALL_FEATURES, DEFAULT_LAB_GROUPS, FEATURE_BY_ID, FEATURE_GROUPS, type FeatureVector } from '@/features/catalog';
+import { compileFormula, type CompiledFormula } from '@/features/formula';
+import {
+  ALL_FEATURES,
+  ALL_SAFE_NAMES,
+  DEFAULT_LAB_GROUPS,
+  DERIVED_GROUP,
+  FEATURE_BY_ID,
+  FEATURE_GROUPS,
+  safeName,
+  type FeatureVector,
+} from '@/features/catalog';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import {
   FINGER_NAMES,
@@ -155,6 +165,15 @@ const Params = z.object({
       showMarkers: z.boolean().default(true),
       /** Print the raw value beside each meter. */
       showValues: z.boolean().default(false),
+      /** User-defined derived features: a safe formula (jsep whitelist) over feature
+       *  safe-names (`face.geom.mouth.openness` → `face_geom_mouth_openness`) + the
+       *  helper set. Evaluated over the merged face+hand vector; shown under the
+       *  `derived` group. An invalid formula is skipped (the editor shows the error). */
+      derived: z
+        .array(z.object({ id: z.string(), formula: z.string() }))
+        .default([]),
+      /** Bump to re-zero the online statistics (a manual "recalibrate"). */
+      resetNonce: z.number().default(0),
     })
     .prefault({}),
 });
@@ -1141,28 +1160,30 @@ const featureLabElement: OverlayElement = {
     };
 
     for (const id of meters.order) {
+      // Catalog features resolve via FEATURE_BY_ID; derived features (not in the
+      // static registry) fall back to the `derived` group + a gold accent.
       const feat = FEATURE_BY_ID[id];
-      if (!feat) continue;
+      const group = feat?.group ?? DERIVED_GROUP;
+      const color = !feat ? CHORD_COLOR : feat.source === 'face' ? FACE_COLOR : RIGHT_COLOR;
       // Group header (repeats when a group continues into a new column).
-      if (feat.group !== lastGroup) {
+      if (group !== lastGroup) {
         if (y + LAB_HEADER_H + LAB_ROW_H > panelBottom && !nextColumn()) break;
-        const info = FEATURE_GROUPS.find((gr) => gr.id === feat.group);
+        const info = FEATURE_GROUPS.find((gr) => gr.id === group);
         g.globalAlpha = 0.9;
-        g.fillStyle = feat.source === 'face' ? FACE_COLOR : RIGHT_COLOR;
+        g.fillStyle = color;
         g.font = 'bold 10px monospace';
         g.textAlign = 'left';
-        g.fillText(labClip(info?.label ?? feat.group, Math.floor(cellW / 6)), colX(col), y + 10);
+        g.fillText(labClip(info?.label ?? group, Math.floor(cellW / 6)), colX(col), y + 10);
         y += LAB_HEADER_H;
-        lastGroup = feat.group;
+        lastGroup = group;
       }
       if (y + LAB_ROW_H > panelBottom && !nextColumn()) break;
-      const color = feat.source === 'face' ? FACE_COLOR : RIGHT_COLOR;
       drawLabMeter(
         g,
         colX(col),
         y,
         cellW,
-        labFeatureLabel(id, feat.group),
+        labFeatureLabel(id, group),
         meters.levels[id],
         p.showMarkers ? meters.markers[id] ?? [] : [],
         color,
@@ -1293,11 +1314,30 @@ export const canvasOverlayNode = defineNode<Params>({
     // closure so the `featureLab` element stays a pure renderer.
     const labNormalizer = new OnlineNormalizer();
     let labPrevShow = false;
-    let labResetNonce: number | undefined;
+    let labResetNonce = 0;
+    // Derived formulas are compiled once and re-compiled only when the config
+    // changes (detected by a cheap signature), never per-frame.
+    let derivedSig = '';
+    let compiledDerived: { id: string; fn: CompiledFormula }[] = [];
 
-    /** Merge the raw face+hand vectors, observe the enabled/present features, and
-     *  build the normalized meter data the featureLab element draws. Returns
-     *  undefined when the lab is hidden (the element then draws nothing). */
+    const compileDerived = (list: Params['featureLab']['derived']): { id: string; fn: CompiledFormula }[] => {
+      const out: { id: string; fn: CompiledFormula }[] = [];
+      for (const d of list) {
+        if (!d.id || !d.formula) continue;
+        try {
+          out.push({ id: d.id, fn: compileFormula(d.formula, { variables: ALL_SAFE_NAMES }) });
+        } catch {
+          // Invalid formula: skip it (the derived-feature editor surfaces the
+          // compile error; the per-frame loop must never throw).
+        }
+      }
+      return out;
+    };
+
+    /** Merge the raw face+hand vectors, evaluate the derived formulas over the
+     *  merged scope, observe the enabled/present features, and build the normalized
+     *  meter data the featureLab element draws. Returns undefined when the lab is
+     *  hidden (the element then draws nothing). */
     const computeFeatureMeters = (
       cfg: Params['featureLab'],
       faceVec: FeatureVector | undefined,
@@ -1308,28 +1348,51 @@ export const canvasOverlayNode = defineNode<Params>({
         labPrevShow = false;
         return undefined;
       }
-      const lab = (ctx.resources.lab as (() => { resetNonce?: number }) | undefined)?.();
       // Re-zero the stats when the lab is (re)opened or an explicit reset fires.
-      if (!labPrevShow || (lab?.resetNonce !== undefined && lab.resetNonce !== labResetNonce)) {
-        labNormalizer.reset();
-      }
+      if (!labPrevShow || cfg.resetNonce !== labResetNonce) labNormalizer.reset();
       labPrevShow = true;
-      labResetNonce = lab?.resetNonce;
+      labResetNonce = cfg.resetNonce;
       labNormalizer.setMode(cfg.normalizer as NormalizerMode);
 
       const raw: FeatureVector = { ...(faceVec ?? {}), ...(handVec ?? {}) };
       const enabled = new Set(cfg.groups);
+
+      // Derived (formula) features over the MERGED scope (so a formula may combine
+      // face + hand features). Recompile only on change.
+      const sig = JSON.stringify(cfg.derived);
+      if (sig !== derivedSig) {
+        derivedSig = sig;
+        compiledDerived = compileDerived(cfg.derived);
+      }
+      if (compiledDerived.length && enabled.has(DERIVED_GROUP)) {
+        const scope: Record<string, number> = {};
+        for (const k of Object.keys(raw)) scope[safeName(k)] = raw[k];
+        for (const d of compiledDerived) {
+          const val = d.fn.eval(scope);
+          if (Number.isFinite(val)) raw[`derived.${d.id}`] = val;
+        }
+      }
+
       const order: string[] = [];
       const levels: Record<string, number> = {};
       const markers: Record<string, number[]> = {};
+      const take = (id: string, v: number): void => {
+        labNormalizer.observe(id, v, ctx.dt);
+        order.push(id);
+        levels[id] = labNormalizer.level(id, v);
+        if (cfg.showMarkers) markers[id] = labNormalizer.markers(id);
+      };
+      // Catalog features first (in display order), then any derived features.
       for (const feat of ALL_FEATURES) {
         if (!enabled.has(feat.group)) continue;
         const v = raw[feat.id];
         if (v === undefined) continue; // not present this frame (dropped as NaN upstream)
-        labNormalizer.observe(feat.id, v, ctx.dt);
-        order.push(feat.id);
-        levels[feat.id] = labNormalizer.level(feat.id, v);
-        if (cfg.showMarkers) markers[feat.id] = labNormalizer.markers(feat.id);
+        take(feat.id, v);
+      }
+      if (enabled.has(DERIVED_GROUP)) {
+        for (const key of Object.keys(raw)) {
+          if (key.startsWith('derived.')) take(key, raw[key]);
+        }
       }
       return { order, raw, levels, markers };
     };

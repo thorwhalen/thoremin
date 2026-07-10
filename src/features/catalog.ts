@@ -70,11 +70,22 @@ const HAND_GROUPS: [string, string][] = [
   ['hand.twohand.relational', 'Two-hand'],
 ];
 
-/** All feature groups, in display order (face groups then hand groups). */
+/** The group id for user-defined derived (formula) features. */
+export const DERIVED_GROUP = 'derived';
+
+/** All feature groups, in display order (face groups, hand groups, then derived). */
 export const FEATURE_GROUPS: readonly FeatureGroupInfo[] = [
   ...FACE_GROUPS.map(([id, label]): FeatureGroupInfo => ({ id, label, source: 'face' })),
   ...HAND_GROUPS.map(([id, label]): FeatureGroupInfo => ({ id, label, source: 'hand' })),
+  { id: DERIVED_GROUP, label: 'Derived (formula)', source: 'face' },
 ];
+
+/** Turn a dotted feature id into a formula-safe variable name (dots → underscores),
+ *  so `face.geom.mouth.openness` is referenceable as `face_geom_mouth_openness`
+ *  without tripping the formula compiler's member-access rejection. */
+export function safeName(id: string): string {
+  return id.replace(/\./g, '_');
+}
 
 /** Group ids, in display order. */
 export const FEATURE_GROUP_IDS: readonly string[] = FEATURE_GROUPS.map((g) => g.id);
@@ -91,6 +102,7 @@ export const DEFAULT_LAB_GROUPS: readonly string[] = [
   'hand.finger.flexion',
   'hand.finger.spread',
   'hand.whole',
+  DERIVED_GROUP,
 ];
 
 /** The full flat registry: face ids as-authored, hand side features expanded per
@@ -117,6 +129,10 @@ function buildAllFeatures(): FlatFeature[] {
 export const FEATURE_BY_ID: Readonly<Record<string, FlatFeature>> = Object.fromEntries(
   ALL_FEATURES.map((f) => [f.id, f]),
 );
+
+/** The formula-safe variable names of every catalog feature — the allowed
+ *  identifier set for derived-feature formulas (typo protection). */
+export const ALL_SAFE_NAMES: ReadonlySet<string> = new Set(ALL_FEATURES.map((f) => safeName(f.id)));
 
 // ---- Context builders ------------------------------------------------------
 

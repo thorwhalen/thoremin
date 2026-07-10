@@ -72,4 +72,50 @@ describe('featureLab overlay element (#119)', () => {
     // Some label is a 2-dp number (e.g. "0.20" for jaw.left held constant).
     expect(rc.texts().some((t) => /^\d\.\d\d$/.test(t))).toBe(true);
   });
+
+  it('derived (formula) features are computed over the merged vector and shown', () => {
+    const rc = runLab(
+      {
+        featureLab: {
+          show: true,
+          groups: ['face.blendshape.jaw', 'derived'],
+          derived: [{ id: 'jawDoubled', formula: 'face_blendshape_jaw_open * 2' }],
+        },
+      },
+      40,
+    );
+    const texts = rc.texts();
+    expect(texts.some((t) => t.includes('Derived'))).toBe(true); // derived group header
+    expect(texts).toContain('jawDoubled'); // the derived feature label
+  });
+
+  it('an invalid / unsafe derived formula is skipped without crashing', () => {
+    // A member-access formula (the RCE class) must not produce a feature or throw.
+    expect(() =>
+      runLab(
+        {
+          featureLab: {
+            show: true,
+            groups: ['face.blendshape.jaw', 'derived'],
+            derived: [
+              { id: 'evil', formula: 'face_blendshape_jaw_open.constructor' },
+              { id: 'typo', formula: 'not_a_feature + 1' },
+            ],
+          },
+        },
+        10,
+      ),
+    ).not.toThrow();
+    const rc = runLab(
+      {
+        featureLab: {
+          show: true,
+          groups: ['face.blendshape.jaw', 'derived'],
+          derived: [{ id: 'evil', formula: 'face_blendshape_jaw_open.constructor' }],
+        },
+      },
+      10,
+    );
+    expect(rc.texts()).not.toContain('evil'); // the unsafe formula produced nothing
+  });
 });
