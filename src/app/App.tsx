@@ -10,13 +10,14 @@
  * this component is purely presentational + lifecycle.
  */
 import { useEffect } from 'react';
-import { Play, BookOpen, Circle, Square, VolumeX } from 'lucide-react';
+import { Play, BookOpen, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import InstrumentsPanel from './dials/InstrumentsPanel';
+import RecordButton from './RecordButton';
 import Toaster from './Toaster';
 import CommandPaletteOverlay from './CommandPaletteOverlay';
 import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
@@ -70,7 +71,7 @@ function MutedBadge() {
 }
 
 export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }) {
-  const { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording } =
+  const { videoRef, canvasRef, status, error, audioOn, startAudio, recording } =
     useThoreminEngine(source);
 
   // #90: install the keyboard shortcuts (octave / magnetism / mute) — an app-level
@@ -113,25 +114,10 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
         <BookOpen className="h-3 w-3" /> manual
       </a>
 
-      {/* Bottom-right: record the live output to a downloadable audio file
-          (available once audio is running). */}
-      {audioOn && (
-        <button
-          onClick={toggleRecording}
-          disabled={isSaving}
-          aria-label={isRecording ? 'Stop recording' : isSaving ? 'Saving recording' : 'Record'}
-          className={`absolute bottom-3 right-3 flex items-center gap-2 rounded-full px-4 py-2 text-[10px] font-bold uppercase tracking-widest backdrop-blur transition ${
-            isRecording
-              ? 'animate-pulse bg-red-500 text-white'
-              : isSaving
-                ? 'bg-black/50 text-white/50'
-                : 'bg-black/50 text-white/80 hover:text-white'
-          }`}
-        >
-          {isRecording ? <Square className="h-3 w-3 fill-current" /> : <Circle className="h-3 w-3 fill-red-500 text-red-500" />}
-          {isRecording ? 'Stop' : isSaving ? 'Saving…' : 'Record'}
-        </button>
-      )}
+      {/* Bottom-right: the multi-stream recorder (#88) — a button that morphs into
+          a settings sheet (out-of-instrument config) then a compact HUD. Available
+          once audio is running. */}
+      {audioOn && <RecordButton recording={recording} />}
 
       {/* Top-right: the instruments surface (the list + the per-instrument editor). */}
       <InstrumentsPanel />

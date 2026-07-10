@@ -11,10 +11,16 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from './graph';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
-import { PerformanceRecorder, recordingFilename, extForMime } from './recorder';
-import { recordingFormat } from './recording/formats';
-import { saveBlob } from './recording/save';
 import { useToasts } from './toasts';
+import { SessionRecorder, activeStreamLabels } from './recording/session';
+import { SinkCancelled } from './recording/sink';
+import {
+  parseSession,
+  DEFAULT_RECORDING_SESSION,
+  RECORDING_SESSION_KEY,
+  type RecordingSession,
+} from './recording/schema';
+import { prefillName } from './recording/naming';
 import { useFaceStatus } from './faceStatus';
 import type { FaceStatus } from '@/nodes';
 import type { ExpressionScores } from '@/music/expression';
@@ -33,52 +39,19 @@ const FACE_REPORT_MS = 100;
  */
 const VIDEO_LOAD_TIMEOUT_MS = 15000;
 
-/**
- * Convert the native (WebM/Opus) recording into each selected output format and
- * save it, surfacing a toast per saved file. Decodes the audio once if any
- * selected format needs it. Never throws — a per-format failure toasts and the
- * remaining formats still save.
- */
-async function saveRecording(
-  native: Blob,
-  mimeType: string,
-  audioContext: AudioContext | undefined,
-): Promise<void> {
-  const { push } = useToasts.getState();
-  const ids = useControls.getState().recordingFormats;
-  const stamp = new Date().toISOString();
-
-  let audio: AudioBuffer | null = null;
-  if (audioContext && ids.some((id) => recordingFormat(id)?.needsDecode)) {
-    try {
-      // arrayBuffer() returns a fresh copy each call, so decoding here never
-      // detaches the buffer the native passthrough reuses.
-      audio = await audioContext.decodeAudioData(await native.arrayBuffer());
-    } catch (e) {
-      console.error('[thoremin] could not decode recording for conversion', e);
-      push('Could not decode audio for conversion');
-    }
-  }
-
-  // Offer the "Save As" picker for the first saved file only; the rest download
-  // directly, so selecting several formats doesn't trigger one dialog per format.
-  let first = true;
-  for (const id of ids) {
-    const fmt = recordingFormat(id);
-    if (!fmt) continue;
-    try {
-      const convert = await fmt.load();
-      const out = await convert({ native, audio });
-      const ext = id === 'webm' ? extForMime(mimeType) : fmt.ext;
-      const result = await saveBlob(out, recordingFilename(stamp, ext), { allowPicker: first });
-      first = false;
-      if (result) push(`Saved ${result.filename}`);
-    } catch (e) {
-      console.error(`[thoremin] failed to save recording as ${fmt.id}`, e);
-      push(`Couldn't save ${fmt.label}`);
-    }
+/** Read the persisted last-used recording session (validated), or the default. */
+function loadRecordingSession(): RecordingSession {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RECORDING_SESSION_KEY) : null;
+    return parseSession(raw ? JSON.parse(raw) : null);
+  } catch {
+    return DEFAULT_RECORDING_SESSION;
   }
 }
+
+/** Which phase the recording UI is in: the idle button, the settings sheet, an
+ * active take (HUD), or the brief save/convert step after Stop. */
+export type RecordingPhase = 'idle' | 'settings' | 'recording' | 'saving';
 
 export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -86,15 +59,20 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
   const engineRef = useRef<Engine | null>(null);
   const resourcesRef = useRef<Record<string, unknown>>({});
   const masterGainRef = useRef<GainNode | null>(null);
-  const recorderRef = useRef<PerformanceRecorder | null>(null);
+  // The raw camera MediaStream (camera source only), kept reachable for the
+  // pure-webcam recording stream (#88); null for a file source.
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const sessionRecRef = useRef<SessionRecorder | null>(null);
+  const recInstrumentRef = useRef<string>('thoremin');
   const recBusyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
   const [status, setStatus] = useState<EngineStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [audioOn, setAudioOn] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [recPhase, setRecPhase] = useState<RecordingPhase>('idle');
+  const [recElapsedMs, setRecElapsedMs] = useState(0);
+  const [recSession, setRecSessionState] = useState<RecordingSession>(loadRecordingSession);
 
   const masterVolume = useControls((s) => s.masterVolume);
   const muted = useControls((s) => s.muted);
@@ -149,6 +127,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
             return;
           }
           video.srcObject = stream;
+          // Expose the raw camera stream for the pure-webcam recording stream (#88).
+          cameraStreamRef.current = stream;
         }
         await new Promise<void>((resolve, reject) => {
           // File path only: a stalling clip fires neither event, so bound the
@@ -274,8 +254,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
       engineRef.current?.dispose();
       engineRef.current = null;
       useFaceStatus.getState().reset();
-      recorderRef.current?.dispose();
-      recorderRef.current = null;
+      sessionRecRef.current?.dispose();
+      sessionRecRef.current = null;
+      cameraStreamRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());
       // Symmetric to stopping camera tracks: pause a file clip so an aborted
       // (StrictMode) or unmounted run stops decoding instead of playing on, and
@@ -325,41 +306,150 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
       masterGainRef.current = master;
     }
     if (ac.state === 'suspended') await ac.resume();
-    // Set up the recorder once audio exists, tapping the master bus.
-    if (!recorderRef.current && masterGainRef.current) {
-      recorderRef.current = new PerformanceRecorder({ audioContext: ac, source: masterGainRef.current });
-    }
+    // The SessionRecorder (#88) creates its own master-bus tap when a take starts,
+    // so no persistent recorder is set up here — audio just needs to be running.
     setAudioOn(true);
   }, []);
 
-  // Start/stop recording the live output; stopping downloads the audio file.
-  // recBusyRef guards against a double-click racing stop() against a new
-  // start() (which would clear the chunks mid-stop and download an empty file).
-  const toggleRecording = useCallback(async () => {
-    const r = recorderRef.current;
-    if (!r || recBusyRef.current) return;
-    recBusyRef.current = true;
-    try {
-      if (r.recording) {
-        const native = await r.stop();
-        setIsRecording(false);
-        const ac = resourcesRef.current.audioContext as AudioContext | undefined;
-        // Converting + the save dialog can take a moment; surface a "saving"
-        // state so the UI is honest while a new record is briefly blocked.
-        setIsSaving(true);
+  // ---- Recording session (#88): out-of-instrument multi-stream recorder --------
+
+  /** Update the working session config and persist it (auto-save — the sheet is a
+   * settings surface, not a form to submit). */
+  const setRecSession = useCallback(
+    (next: RecordingSession | ((prev: RecordingSession) => RecordingSession)) => {
+      setRecSessionState((prev) => {
+        const value = typeof next === 'function' ? (next as (p: RecordingSession) => RecordingSession)(prev) : next;
         try {
-          await saveRecording(native, r.mimeType, ac);
-        } finally {
-          setIsSaving(false);
+          localStorage.setItem(RECORDING_SESSION_KEY, JSON.stringify(value));
+        } catch {
+          /* localStorage full/unavailable — the take still records this session. */
         }
+        return value;
+      });
+    },
+    [],
+  );
+
+  /** Click Record → the settings sheet. Prefills a fresh, overwritable name (a new
+   * timestamp each open, since a recording name is inherently per-take). */
+  const openRecording = useCallback(
+    (instrument?: string) => {
+      recInstrumentRef.current = instrument || 'thoremin';
+      setRecSession((prev) => ({
+        ...prev,
+        name: prefillName({ instrument: recInstrumentRef.current, date: new Date() }),
+      }));
+      setRecPhase('settings');
+    },
+    [setRecSession],
+  );
+
+  /** Close the sheet without recording (config already auto-saved on every edit). */
+  const closeRecording = useCallback(() => setRecPhase('idle'), []);
+
+  /** "Rec now": build the session recorder from the live host resources and start
+   * capture. Falls back to the sheet (not a crash) if audio isn't running yet or a
+   * stream fails to start. */
+  const recNow = useCallback(async () => {
+    if (recBusyRef.current) return;
+    const ac = resourcesRef.current.audioContext as AudioContext | undefined;
+    const master = masterGainRef.current;
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    const engine = engineRef.current;
+    if (!ac || !master || !canvas || !video || !engine) {
+      useToasts.getState().push('Start audio before recording', 4000, 'error');
+      return;
+    }
+    recBusyRef.current = true;
+    const rec = new SessionRecorder(
+      {
+        audioContext: ac,
+        masterGain: master,
+        canvas,
+        video,
+        cameraStream: cameraStreamRef.current,
+        engine,
+        resources: resourcesRef.current,
+        instrument: recInstrumentRef.current,
+      },
+      recSession,
+    );
+    sessionRecRef.current = rec;
+    try {
+      await rec.start();
+      setRecElapsedMs(0);
+      setRecPhase('recording');
+    } catch (e) {
+      rec.dispose();
+      sessionRecRef.current = null;
+      setRecPhase('settings');
+      // A dismissed folder picker is a deliberate cancel (nothing recorded yet),
+      // not an error — return to the sheet quietly.
+      if (e instanceof SinkCancelled) {
+        useToasts.getState().push('Recording cancelled', 3000);
       } else {
-        r.start();
-        setIsRecording(true);
+        console.error('[thoremin] could not start recording', e);
+        useToasts.getState().push("Couldn't start recording", 6000, 'error');
       }
     } finally {
       recBusyRef.current = false;
     }
+  }, [recSession]);
+
+  /** Stop the take: convert audio, write every file + the manifest, toast the
+   * result. `saving` covers the convert/write window (honest UI while it works). */
+  const stopRecording = useCallback(async () => {
+    if (recBusyRef.current) return;
+    const rec = sessionRecRef.current;
+    if (!rec) return;
+    recBusyRef.current = true;
+    setRecPhase('saving');
+    try {
+      const res = await rec.stop();
+      if (res.cancelled) {
+        // The take recorded fine but the user dismissed the Save-As dialog — be
+        // honest that nothing was written rather than toasting a false "Saved".
+        useToasts.getState().push('Recording not saved (save cancelled)', 5000, 'error');
+      } else {
+        const suffix = res.count > 1 ? ` (${res.count} files)` : '';
+        useToasts.getState().push(`Saved ${res.label}${suffix}`);
+      }
+    } catch (e) {
+      console.error('[thoremin] recording save failed', e);
+      useToasts.getState().push("Couldn't save the recording", 6000, 'error');
+    } finally {
+      rec.dispose();
+      sessionRecRef.current = null;
+      recBusyRef.current = false;
+      setRecPhase('idle');
+    }
   }, []);
 
-  return { videoRef, canvasRef, status, error, audioOn, isRecording, isSaving, startAudio, toggleRecording };
+  // Tick the elapsed-time readout for the HUD while a take is running.
+  useEffect(() => {
+    if (recPhase !== 'recording') return;
+    const id = setInterval(() => setRecElapsedMs(sessionRecRef.current?.elapsedMs ?? 0), 250);
+    return () => clearInterval(id);
+  }, [recPhase]);
+
+  return {
+    videoRef,
+    canvasRef,
+    status,
+    error,
+    audioOn,
+    startAudio,
+    recording: {
+      phase: recPhase,
+      session: recSession,
+      setSession: setRecSession,
+      open: openRecording,
+      close: closeRecording,
+      recNow,
+      stop: stopRecording,
+      elapsedMs: recElapsedMs,
+      activeStreams: activeStreamLabels(recSession),
+    },
+  };
 }

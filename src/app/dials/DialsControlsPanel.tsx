@@ -9,9 +9,12 @@
  *
  * What is dials-driven: master volume / sync, both voices, the face-mapping chooser +
  * chord sound, the expression-mapping table, and the overlay element config. What is
- * NOT (kept verbatim, reading their own stores): Recording formats (a tooling pref) and
- * the Keyboard cheat-sheet. (Named saved configs are now the "instruments" flow that
- * hosts this panel — see InstrumentsPanel — so the old Presets section was removed.)
+ * NOT (kept verbatim, reading its own store): the Keyboard cheat-sheet. Recording is no
+ * longer here at all — its settings moved OUT of the instrument into the transient
+ * recording-session sheet (#88, see {@link RecordButton}), since recording config is a
+ * tooling preference, not an instrument parameter. (Named saved configs are now the
+ * "instruments" flow that hosts this panel — see InstrumentsPanel — so the old Presets
+ * section was removed.)
  *
  * Renders just the controls *content* (no outer card); the host (App) wraps it in a
  * collapsible translucent overlay so the video stays the focus.
@@ -30,7 +33,6 @@ import { ExpressionHelpButton } from '../ExpressionHelpPanel';
 import { POSE_MOVES } from '../poseControlsHelp';
 import { CalibrationWizard } from '../CalibrationWizard';
 import { useFaceStatus } from '../faceStatus';
-import { RECORDING_FORMATS } from '../recording/formats';
 import { EFFECTS, type HandMap, type FingerTarget } from '@/nodes/mapping/hand_map';
 import { FINGER_NAMES } from '@/nodes/domain';
 import { useDialsSettings } from './useDialsSettings';
@@ -619,28 +621,6 @@ function PoseMovesHelp() {
   );
 }
 
-function RecordingControls() {
-  const formats = useControls((s) => s.recordingFormats);
-  const setFormat = useControls((s) => s.setRecordingFormat);
-
-  return (
-    <div className="space-y-2">
-      {RECORDING_FORMATS.map((f) => (
-        <Toggle
-          key={f.id}
-          label={f.label}
-          checked={formats.includes(f.id)}
-          onChange={(v) => setFormat(f.id, v)}
-        />
-      ))}
-      <p className="text-[10px] leading-relaxed text-white/40">
-        On stop, your take is saved in each selected format. If your browser
-        supports it you'll be asked where to save; otherwise it lands in Downloads.
-      </p>
-    </div>
-  );
-}
-
 const EFFECT_LABELS: Record<FingerTarget, string> = {
   none: 'Off',
   brightness: 'Brightness',
@@ -788,10 +768,6 @@ export default function DialsControlsPanel() {
 
       <TopSection label="Overlay">
         <OverlayControls />
-      </TopSection>
-
-      <TopSection label="Recording">
-        <RecordingControls />
       </TopSection>
 
       <TopSection label="Keyboard">
