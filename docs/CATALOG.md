@@ -21,7 +21,7 @@ This page catalogs the engine's building blocks — every node and how they conn
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
   Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.
 
-## Nodes (28)
+## Nodes (30)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -55,7 +55,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -116,6 +116,22 @@ Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.
 - **in:** features:hand-features
 - **out:** poses:poses, events:gesture-events
 - **params:** pinchOn (number=0.6), pinchOff (number=0.45), fistBelow (number=0.25), openAbove (number=0.6), hysteresis (number=0.05)
+
+#### `face-feature-vector` — Face Feature Vector
+Face blendshapes + mesh + head pose -> a flat vector of enabled catalog features.
+
+- **roles:** feature
+- **in:** face:face-frame
+- **out:** vector:feature-vector
+- **params:** groups (array)
+
+#### `hand-feature-vector` — Hand Feature Vector
+Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand catalog features.
+
+- **roles:** feature
+- **in:** hands:hands-frame
+- **out:** vector:feature-vector
+- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array)
 
 ### Mapping (direct ↔ indirect)
 _Features → engine parameters, across the expression spectrum._
@@ -196,7 +212,7 @@ Roman-numeral progression in a key + position (0..1) → current chord symbol.
 - **params:** key (string="C"), romanNumerals (array=["I","IV","V","vi"])
 
 #### `expression-chord` — Expression Chord
-Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).
+Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).
 
 - **roles:** music
 - **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees
@@ -264,7 +280,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector
 - **out:** —
-- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), tagHud (object={})
+- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={})
 

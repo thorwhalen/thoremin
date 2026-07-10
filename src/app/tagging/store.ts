@@ -72,7 +72,12 @@ interface TaggingState {
   /** The tag id of the most recent point fire (paired with `pulse`), so a button can
    *  flash on a keyboard-triggered point, not just a click. */
   lastPoint: string | null;
-  /** Engine-clock source in seconds (performance.now()/1000). Injectable for tests. */
+  /** Engine-clock source in seconds (performance.now()/1000 = the DAG `ctx.time` on
+   *  the live rAF path). Injectable for tests. NOTE: this reads the wall clock
+   *  directly, so it equals `ctx.time` only while the engine runs in real time. If
+   *  batch/speed-scaled recording (the Clock abstraction) is ever wired into a live
+   *  take, tags.jsonl (this clock) and features.jsonl (`ctx.time`) would diverge —
+   *  route both through one clock source then. */
   clock: () => number;
 
   // ---- selectors ----
