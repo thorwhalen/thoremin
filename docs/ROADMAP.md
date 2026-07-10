@@ -71,9 +71,15 @@ Chord overlays sit outside both (self-contained), and are a good early win.
    parametrize instruments **live or offline**. (Tracked inside #87 for now;
    split into its own issue when started.)
 
-6. **AI assistant** — *L · part of #87.*
-   `acture-ai-vercel` (in-app, model behind **aix**) / `acture-mcp-server`
-   (external); the `ai-dj` plugin gains real hands on the instrument. Later.
+6. **AI assistant** — *✅ SHIPPED 2026-07-10 (#87 Phase 3, PR #111).*
+   A new in-app **Assistant** plugin (`src/plugins/assistant/`) — a chat that
+   operates the instrument by dispatching the command registry via
+   `acture-ai-vercel`. **Client-side, multi-provider, BYO-key** (OpenAI /
+   Anthropic / **Google — default Gemini 3.5 Flash**); **no aix** — thoremin
+   stays client-side, with a pluggable `ChatBackend` seam for a future
+   server-side move. A human-in-the-loop **confirmation gate** guards the
+   destructive `instrument.*` commands. Lazy-loaded so the AI SDK stays out of
+   the initial bundle. Deferred: `acture-mcp-server` for external agents.
 
 ### Tier 4 — capture / training-data track (parallel to Tiers 2–3)
 
@@ -117,6 +123,29 @@ Applier epic** issue.
 Two accepted hard boundaries: batch-in-Node cannot decode raw video (use
 pre-extracted landmark NDJSON), and accelerated audio is not a time-multiply
 (control-rate preview + on-demand offline render).
+
+### Instrument library UX (2026-07 — active track)
+
+Make the instrument library browsable and self-describing. Orthogonal to the DAG
+/ capture / applier tracks. Epic **#116**, build order:
+
+- **[#112] Starring & sorting** — *S · independent, good first win.* Multi-star
+  favorites; sort by star/name; filter by name. Move "default" **out of the star**
+  into each instrument's own settings + a `(default)` visual cue.
+- **[#113] Tag system** — *M · foundation for #114.* Tags as
+  `{ stable id, editable label, emoji }` (renames never break associations);
+  comma-input tagging with autosuggest; a tag manager (rename / emoji / delete);
+  a tags column with emoji tooltips. Client-side emoji: keyword search
+  (`emojilib`/`node-emoji`) + auto-assign from a curated ~100-emoji pool.
+- **[#114] System tags** — *M · depends on #113.* Read-only tags derived from
+  parametrization (scale quality M/m/P/p, face-expression vs face/head-pose
+  control, index vs wrist note-control, …), kept separate from custom tags.
+- **[#115] Parametrization tooltip** — *S · independent.* A compact per-instrument
+  hover summary (more than the list row, less than the settings editor); can share
+  a `summarizeInstrument()` helper with #114.
+
+Relationship to **#82** (config calculus): tags are orthogonal metadata; system
+tags are a read-only *view* of the same parametrization #82 formalizes.
 
 ### Design now, build later (parallel design track)
 
