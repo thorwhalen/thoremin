@@ -140,6 +140,12 @@ export const VoiceSettingsSchema = z.object({
   octaves: z.number().int().min(1).max(4),
   baseOctave: z.number().int().min(0).max(8),
   sound: InstrumentEnum,
+  // #63 octave RANGE (fractional octaves below/above the locked middle octave). OPTIONAL
+  // (NOT `.default(...)`): a pre-#63 preset parses WITHOUT them → the legacy `octaves`
+  // scale path → byte-identical sound (even for octaves ≥ 3, which the 1..3 range can't
+  // represent). New/edited voices carry them (set in the store + dials defaults).
+  rangeLow: z.number().min(0).max(1).optional(),
+  rangeHigh: z.number().min(0).max(1).optional(),
 });
 export type VoiceSettings = z.infer<typeof VoiceSettingsSchema>;
 

@@ -161,9 +161,12 @@ tags are a read-only *view* of the same parametrization #82 formalizes.
   instruments. Fed by both #90 (a keymap is a partial) and #87 (a materialized
   instrument is a replayable command sequence).
 
-- **[#75] Decouple the chord-source scale from the melody scale** — *S–M.*
-  Removes the 7-note-scale friction that the chord/`controls` face modes have;
-  also sharpens the #89 chord overlays. Do opportunistically.
+- **[#75] Decouple the chord-source scale from the melody scale** — *✅ SHIPPED 2026-07-10.*
+  Chords are drawn from a decoupled chord-source scale (auto-derived from the melody, or
+  custom), so a pentatonic melody still gets chords and the 7-note-scale friction on the
+  chord/`controls` face modes is gone. Shipped alongside **[#63] the double-thumb octave-RANGE
+  slider** (1–3 octaves, locked middle) in the same PR (`faceChord.chordSource/chordRoot/
+  chordType`; per-voice `rangeLow/rangeHigh`; store persist v6).
 
 - **[#76] Head-pose follow-ups** — per-axis live-tuning UI, per-user calibration
   (the `*ZeroDeg` seam exists), and Phase 4 (demote the emotion classifier to

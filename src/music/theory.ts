@@ -203,10 +203,22 @@ export interface ScaleSpec {
   /** Pitch class of the root, 0 = C ... 11 = B. */
   root: number;
   type: ScaleTypeId;
-  /** Number of octaves the playable range spans. */
+  /** Number of octaves the playable range spans (the LEGACY span control; used by
+   *  {@link generateScale} only when the range fields below are absent). */
   octaves: number;
-  /** Octave of the lowest note (MIDI octave; 3 is a comfortable mid range). */
+  /** Octave of the lowest note (MIDI octave; 3 is a comfortable mid range). Also the
+   *  floor of the always-covered "middle octave" for the range model (#63). */
   baseOctave: number;
+  /**
+   * #63 octave RANGE (a "double-thumb" span around a locked middle octave). When BOTH
+   * `rangeLow` and `rangeHigh` are set, {@link generateScale} spans
+   * `[baseNote − rangeLow·12, (baseNote + 12) + rangeHigh·12]` — the middle octave
+   * `[baseNote, baseNote+12]` is always covered and the total span is 1..3 octaves.
+   * Each is a fractional octave in `[0,1]`. When EITHER is absent, generation falls
+   * back to the legacy `octaves` path (byte-identical), so pre-#63 specs are unchanged.
+   */
+  rangeLow?: number;
+  rangeHigh?: number;
 }
 
 export const DEFAULT_SCALE: ScaleSpec = {
@@ -220,11 +232,38 @@ export const DEFAULT_SCALE: ScaleSpec = {
  * Build the ascending list of MIDI notes for a scale spec, inclusive of the
  * octave-completing top note. e.g. C major, 2 octaves, base octave 3 ->
  * [48, 50, 52, 53, 55, 57, 59, 60, ... 72].
+ *
+ * Two spans (#63): when `rangeLow`/`rangeHigh` are set, the scale covers a locked
+ * MIDDLE octave `[baseNote, baseNote+12]` extended `rangeLow` octaves down and
+ * `rangeHigh` octaves up (each a fractional octave in `[0,1]` → a 1..3 octave span
+ * that always includes the middle). Otherwise it uses the legacy `octaves` span
+ * (byte-identical to before #63). A wider range simply lengthens the note array's
+ * span; the continuous pitch mapper ({@link magneticPitch}) glides across it.
  */
 export function generateScale(spec: ScaleSpec): number[] {
-  const { type, octaves, baseOctave, root } = spec;
+  const { type, baseOctave, root, rangeLow, rangeHigh } = spec;
   const intervals = SCALE_TYPES[type].intervals;
-  const baseNote = (baseOctave + 1) * 12 + root;
+  const baseNote = (baseOctave + 1) * 12 + root; // the root at the middle octave's floor
+
+  if (typeof rangeLow === 'number' && typeof rangeHigh === 'number') {
+    const EPS = 1e-9;
+    const lo = baseNote - Math.max(0, rangeLow) * 12;
+    const hi = baseNote + 12 + Math.max(0, rangeHigh) * 12;
+    const scale: number[] = [baseNote, baseNote + 12]; // the middle octave is always covered
+    const kMin = Math.floor((lo - baseNote) / 12) - 1;
+    const kMax = Math.ceil((hi - baseNote) / 12) + 1;
+    for (let k = kMin; k <= kMax; k++) {
+      for (const interval of intervals) {
+        const n = baseNote + k * 12 + interval;
+        if (n >= lo - EPS && n <= hi + EPS) scale.push(n);
+      }
+      const octaveTop = baseNote + (k + 1) * 12; // octave-completing root
+      if (octaveTop >= lo - EPS && octaveTop <= hi + EPS) scale.push(octaveTop);
+    }
+    return [...new Set(scale)].sort((a, b) => a - b);
+  }
+
+  const { octaves } = spec;
   const scale: number[] = [];
   for (let o = 0; o < octaves; o++) {
     for (const interval of intervals) scale.push(baseNote + o * 12 + interval);

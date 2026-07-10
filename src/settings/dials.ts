@@ -35,6 +35,14 @@ const voice = (sound: SoundId, facet: string) => ({
   octaves: z.number().int().min(1).max(4).default(2).meta({ facets: [facet], title: 'Octaves' }),
   baseOctave: z.number().int().min(0).max(8).default(3).meta({ facets: [facet, 'advanced'], title: 'Base octave' }),
   sound: SoundEnum.default(sound).meta({ facets: [facet], title: 'Sound' }),
+  // #63 octave RANGE — fractional octaves below/above the locked middle octave. OPTIONAL
+  // (NOT `.default(...)`): a default would force a 2-octave range onto any preset/instrument
+  // loaded without range (via resolve → applySettings), silently shrinking an octaves≥3
+  // instrument. Absent → the hot store falls back to the legacy `octaves` span (exact); the
+  // fresh-install default (0/1) is seeded from the hot store, and the double-thumb slider
+  // derives its thumbs from `octaves` when the range is absent, writing it on first drag.
+  rangeLow: z.number().min(0).max(1).optional().meta({ facets: [facet, 'advanced'], title: 'Range below' }),
+  rangeHigh: z.number().min(0).max(1).optional().meta({ facets: [facet, 'advanced'], title: 'Range above' }),
 });
 const right = voice('warmPad', 'Right hand');
 const left = voice('glass', 'Left hand');
@@ -52,12 +60,16 @@ export const thoreminDials = defineDials(
     'right.octaves': right.octaves,
     'right.baseOctave': right.baseOctave,
     'right.sound': right.sound,
+    'right.rangeLow': right.rangeLow,
+    'right.rangeHigh': right.rangeHigh,
 
     'left.root': left.root,
     'left.type': left.type,
     'left.octaves': left.octaves,
     'left.baseOctave': left.baseOctave,
     'left.sound': left.sound,
+    'left.rangeLow': left.rangeLow,
+    'left.rangeHigh': left.rangeHigh,
 
     'face.mapping': FaceMappingEnum.default('none').meta({ facets: ['Face'], title: 'Mapping', description: 'What your facial expression controls' }),
     'faceChord.sound': SoundEnum.default(DEFAULT_FACE_CHORD.sound).meta({ facets: ['Face'], title: 'Chord sound' }),
@@ -103,11 +115,15 @@ export function settingsToLayer(s: Settings): Layer {
     'right.octaves': s.right.octaves,
     'right.baseOctave': s.right.baseOctave,
     'right.sound': s.right.sound,
+    'right.rangeLow': s.right.rangeLow,
+    'right.rangeHigh': s.right.rangeHigh,
     'left.root': s.left.root,
     'left.type': s.left.type,
     'left.octaves': s.left.octaves,
     'left.baseOctave': s.left.baseOctave,
     'left.sound': s.left.sound,
+    'left.rangeLow': s.left.rangeLow,
+    'left.rangeHigh': s.left.rangeHigh,
     'face.mapping': s.faceMapping,
     'faceChord.sound': s.faceChord.sound,
     'faceChord.volume': s.faceChord.volume,
@@ -131,8 +147,8 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     syncHands: v['master.syncHands'],
     octaveShift: v['master.octaveShift'],
     magnetism: v['master.magnetism'],
-    right: { root: v['right.root'], type: v['right.type'], octaves: v['right.octaves'], baseOctave: v['right.baseOctave'], sound: v['right.sound'] },
-    left: { root: v['left.root'], type: v['left.type'], octaves: v['left.octaves'], baseOctave: v['left.baseOctave'], sound: v['left.sound'] },
+    right: { root: v['right.root'], type: v['right.type'], octaves: v['right.octaves'], baseOctave: v['right.baseOctave'], sound: v['right.sound'], rangeLow: v['right.rangeLow'], rangeHigh: v['right.rangeHigh'] },
+    left: { root: v['left.root'], type: v['left.type'], octaves: v['left.octaves'], baseOctave: v['left.baseOctave'], sound: v['left.sound'], rangeLow: v['left.rangeLow'], rangeHigh: v['left.rangeHigh'] },
     faceMapping: v['face.mapping'],
     faceChord: {
       sound: v['faceChord.sound'],

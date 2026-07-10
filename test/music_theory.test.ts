@@ -18,6 +18,7 @@ import {
   scaleIsSubset,
   melodyNotesOutsideChord,
   DEFAULT_SCALE,
+  type ScaleSpec,
 } from '@/music/theory';
 
 describe('chordName', () => {
@@ -141,6 +142,55 @@ describe('scale generation', () => {
   it('pentatonic has 5 notes per octave', () => {
     const s = generateScale({ root: 0, type: 'pentatonic', octaves: 1, baseOctave: 4 });
     expect(s.length).toBe(6); // 5 + completing octave
+  });
+});
+
+describe('scale generation — octave RANGE (#63)', () => {
+  const spec = (over: Partial<ScaleSpec>): ScaleSpec => ({ root: 0, type: 'major', octaves: 2, baseOctave: 3, ...over });
+
+  it('the default range (0 below, 1 above) equals the legacy octaves:2 span', () => {
+    const ranged = generateScale(spec({ rangeLow: 0, rangeHigh: 1 }));
+    const legacy = generateScale({ root: 0, type: 'major', octaves: 2, baseOctave: 3 });
+    expect(ranged).toEqual(legacy);
+  });
+
+  it('always covers the locked middle octave; the minimum span is one octave (0 below, 0 above)', () => {
+    const s = generateScale(spec({ rangeLow: 0, rangeHigh: 0 }));
+    expect(s[0]).toBe(48); // middle floor (baseNote = the root at baseOctave 3)
+    expect(s[s.length - 1]).toBe(60); // middle ceiling, one octave up
+    expect(s).toContain(48);
+    expect(s).toContain(60);
+  });
+
+  it('extends down and up around the locked middle (1 below, 1 above = 3 octaves)', () => {
+    const s = generateScale(spec({ rangeLow: 1, rangeHigh: 1 }));
+    expect(s[0]).toBe(36); // a full octave below the middle floor (48-12)
+    expect(s[s.length - 1]).toBe(72); // a full octave above the middle ceiling (60+12)
+  });
+
+  it('a wider range produces a strictly wider pitch span (the #63 acceptance property)', () => {
+    const narrow = generateScale(spec({ rangeLow: 0, rangeHigh: 0 }));
+    const wide = generateScale(spec({ rangeLow: 1, rangeHigh: 1 }));
+    const span = (a: number[]) => a[a.length - 1] - a[0];
+    expect(span(wide)).toBeGreaterThan(span(narrow));
+    expect(wide.length).toBeGreaterThan(narrow.length);
+  });
+
+  it('a fractional range lengthens the span (adds notes as the boundary crosses them)', () => {
+    const half = generateScale(spec({ rangeLow: 0, rangeHigh: 0.5 }));
+    const full = generateScale(spec({ rangeLow: 0, rangeHigh: 1 }));
+    expect(half[half.length - 1]).toBeGreaterThan(60); // past the middle ceiling
+    expect(half[half.length - 1]).toBeLessThanOrEqual(66); // but within half an octave (baseNote+18)
+    expect(full[full.length - 1]).toBe(72);
+    expect(full.length).toBeGreaterThan(half.length);
+  });
+
+  it('falls back to the legacy octaves path when the range fields are absent (byte-identical)', () => {
+    for (const octaves of [1, 2, 3, 4]) {
+      const s = generateScale({ root: 0, type: 'major', octaves, baseOctave: 3 });
+      expect(s[0]).toBe(48);
+      expect(s[s.length - 1]).toBe(48 + octaves * 12); // legacy upward-growing span, unchanged
+    }
   });
 });
 

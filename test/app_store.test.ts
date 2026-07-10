@@ -347,6 +347,34 @@ describe('store-controls node reads the store', () => {
     expect(out.chordSpec).toMatchObject({ root: 7, type: 'minor', baseOctave: 3 });
   });
 
+  it('a wider octave range widens scaleRight through store-controls (#63 replay)', () => {
+    useControls.getState().setSync(false);
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    const scaleFor = () => node.process({}, ctxWith({ controls: () => useControls.getState() })).scaleRight as number[];
+    useControls.getState().setVoice('right', { rangeLow: 0, rangeHigh: 0 }); // one octave (middle only)
+    const narrow = scaleFor();
+    useControls.getState().setVoice('right', { rangeLow: 1, rangeHigh: 1 }); // three octaves
+    const wide = scaleFor();
+    const span = (a: number[]) => a[a.length - 1] - a[0];
+    expect(span(wide)).toBeGreaterThan(span(narrow));
+    expect(wide.length).toBeGreaterThan(narrow.length);
+    // The middle octave stays covered at the minimum span (the locked middle).
+    expect(narrow[narrow.length - 1] - narrow[0]).toBe(12);
+  });
+
+  it('a legacy voice without a range still generates its octaves span (dual-path, #63)', () => {
+    useControls.getState().setSync(false);
+    // Simulate a returning voice: octaves set, range absent (delete the initializer defaults).
+    useControls.setState({
+      right: { root: 0, type: 'major', octaves: 3, baseOctave: 3, sound: 'warmPad' } as never,
+    });
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    const scale = node.process({}, ctxWith({ controls: () => useControls.getState() })).scaleRight as number[];
+    // Legacy octaves:3 path — an upward-growing three-octave span (unchanged by #63).
+    expect(scale[0]).toBe(48);
+    expect(scale[scale.length - 1]).toBe(48 + 3 * 12);
+  });
+
   it('emits the keyboard-driven globals (octaveShift / magnetism / mute) from the store (#90)', () => {
     useControls.setState({ octaveShift: 2, magnetism: 0.3, muted: true });
     const node = storeControlsNode.make(storeControlsNode.params.parse({}));

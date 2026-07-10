@@ -63,11 +63,12 @@ export const setDial = (key: SettingKey, value: unknown): void => dialsStore.set
 export const resetDial = (key: SettingKey): void => dialsStore.reset(key);
 
 /** The voice fields mirrored between hands when synced. `sound` is never mirrored —
- *  each hand keeps its own timbre. */
-const MIRRORED_VOICE_FIELDS = ['root', 'type', 'octaves', 'baseOctave'] as const;
+ *  each hand keeps its own timbre. Includes the #63 octave-range fields, so the
+ *  double-thumb slider mirrors across hands like octaves/baseOctave do. */
+const MIRRORED_VOICE_FIELDS = ['root', 'type', 'octaves', 'baseOctave', 'rangeLow', 'rangeHigh'] as const;
 
 /** A field of one voice (the addressable keys under `right.` / `left.`). */
-export type VoiceField = 'root' | 'type' | 'octaves' | 'baseOctave' | 'sound';
+export type VoiceField = 'root' | 'type' | 'octaves' | 'baseOctave' | 'sound' | 'rangeLow' | 'rangeHigh';
 
 /**
  * The dials-layer writes for one voice edit, reproducing the hot store's `setVoice`

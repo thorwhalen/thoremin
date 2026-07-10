@@ -71,8 +71,8 @@ describe('voiceEditWrites (the panel sync-hands mirror, reproducing setVoice)', 
   // A snapshot where the two hands have DIVERGED (the reachable un-sync / edit-left
   // / re-sync state). The mirror must re-converge them on the next edit, like setVoice.
   const eff = {
-    'right.root': 0, 'right.type': 'major', 'right.octaves': 2, 'right.baseOctave': 3, 'right.sound': 'warmPad',
-    'left.root': 5, 'left.type': 'blues', 'left.octaves': 4, 'left.baseOctave': 2, 'left.sound': 'glass',
+    'right.root': 0, 'right.type': 'major', 'right.octaves': 2, 'right.baseOctave': 3, 'right.sound': 'warmPad', 'right.rangeLow': 0, 'right.rangeHigh': 1,
+    'left.root': 5, 'left.type': 'blues', 'left.octaves': 4, 'left.baseOctave': 2, 'left.sound': 'glass', 'left.rangeLow': 0.5, 'left.rangeHigh': 0.5,
   };
 
   it('unsynced edit writes only the addressed field', () => {
@@ -81,13 +81,15 @@ describe('voiceEditWrites (the panel sync-hands mirror, reproducing setVoice)', 
 
   it('synced non-sound edit re-snaps the whole non-sound voice onto the other hand', () => {
     // Editing right.octaves while synced: left re-converges to right (root/type/
-    // baseOctave) and takes the new octaves — healing the prior divergence.
+    // baseOctave/range) and takes the new octaves — healing the prior divergence.
     expect(voiceEditWrites('right', 'octaves', 3, true, eff)).toEqual([
       ['right.octaves', 3],
       ['left.root', 0],
       ['left.type', 'major'],
       ['left.octaves', 3],
       ['left.baseOctave', 3],
+      ['left.rangeLow', 0],
+      ['left.rangeHigh', 1],
     ]);
   });
 
@@ -99,17 +101,21 @@ describe('voiceEditWrites (the panel sync-hands mirror, reproducing setVoice)', 
       ['left.type', 'major'],
       ['left.octaves', 2],
       ['left.baseOctave', 3],
+      ['left.rangeLow', 0],
+      ['left.rangeHigh', 1],
     ]);
     expect(writes.some(([k]) => k === 'left.sound')).toBe(false);
   });
 
-  it('mirrors left into right symmetrically', () => {
+  it('mirrors left into right symmetrically (incl. the octave range)', () => {
     expect(voiceEditWrites('left', 'root', 9, true, eff)).toEqual([
       ['left.root', 9],
       ['right.root', 9],
       ['right.type', 'blues'],
       ['right.octaves', 4],
       ['right.baseOctave', 2],
+      ['right.rangeLow', 0.5],
+      ['right.rangeHigh', 0.5],
     ]);
   });
 });

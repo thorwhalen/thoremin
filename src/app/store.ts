@@ -48,6 +48,13 @@ export interface VoiceControl {
   octaves: number;
   baseOctave: number;
   sound: VoiceParams['sound'];
+  /** #63 octave RANGE — fractional octaves below/above the locked middle octave
+   *  (`baseOctave`), each 0..1, so the playable span is 1..3 octaves. Present on new/
+   *  edited voices (the double-thumb slider writes them, and keeps `octaves` synced as
+   *  their integer shadow); absent on a returning pre-#63 voice → the legacy `octaves`
+   *  scale path (identical sound). See {@link generateScale}. */
+  rangeLow?: number;
+  rangeHigh?: number;
 }
 
 export interface ControlState {
@@ -140,6 +147,10 @@ const defaultVoice = (sound: VoiceParams['sound']): VoiceControl => ({
   octaves: 2,
   baseOctave: 3,
   sound,
+  // #63: the middle octave plus a full octave above (== octaves: 2, today's default),
+  // so a fresh install sounds identical while using the range representation.
+  rangeLow: 0,
+  rangeHigh: 1,
 });
 
 /** The overlay element defaults (all on except the opt-in index-finger guide). */

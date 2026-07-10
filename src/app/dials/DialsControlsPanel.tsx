@@ -135,6 +135,28 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
     for (const [k, val] of voiceEditWrites(side, key, value, syncHands, v)) set(k, val);
   };
 
+  // #63 octave RANGE thumbs. Derive from `octaves` when the range is absent (a legacy
+  // preset / instrument), so the control always reads sensibly; the first drag writes it.
+  const octaves = v[`${side}.octaves`] as number;
+  const rawLow = v[`${side}.rangeLow`];
+  const rawHigh = v[`${side}.rangeHigh`];
+  const rangeLow = typeof rawLow === 'number' ? rawLow : 0;
+  const rangeHigh = typeof rawHigh === 'number' ? rawHigh : Math.min(1, Math.max(0, octaves - 1));
+  const rangeSpan = 1 + rangeLow + rangeHigh;
+
+  const setRange = (nextLow: number, nextHigh: number) => {
+    // Atomic multi-field edit: write both range thumbs AND keep `octaves` a truthful
+    // integer shadow (round(1+low+high)) so no reader sees the two contradict. Mirror to
+    // both hands when synced (like voiceEditWrites does for single fields).
+    const oct = Math.max(1, Math.min(4, Math.round(1 + nextLow + nextHigh)));
+    const targets = syncHands ? (['right', 'left'] as const) : ([side] as const);
+    for (const t of targets) {
+      set(`${t}.rangeLow`, nextLow);
+      set(`${t}.rangeHigh`, nextHigh);
+      set(`${t}.octaves`, oct);
+    }
+  };
+
   return (
     <div className="space-y-2">
       <h3 className={`text-[11px] font-bold uppercase tracking-widest ${color}`}>{side} hand</h3>
@@ -174,13 +196,33 @@ function VoiceControls({ side }: { side: 'right' | 'left' }) {
           ))}
         </select>
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs">
-        Octaves
-        <input
-          type="range" min={1} max={4} step={1} value={v[`${side}.octaves`] as number}
-          onChange={(e) => setField('octaves', Number(e.target.value))}
-        />
-      </label>
+      {/* #63 octave RANGE — a "double-thumb" span around an always-covered middle octave.
+          Two stacked native sliders (down/up extension) keep it touch-friendly and dependency-
+          free: the ↓ thumb extends up to a full octave below the middle, the ↑ thumb up to a
+          full octave above, so the span is a continuous 1..3 octaves that always includes the
+          middle. Overlay guides + the audible range update live from the regenerated scale. */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-xs">
+          <span>Range</span>
+          <span className="text-[10px] text-white/50">{rangeSpan.toFixed(1)} oct</span>
+        </div>
+        <label className="flex items-center gap-2 text-[10px] text-white/50" title="Extend the range below the middle octave">
+          <span className="w-4 shrink-0 text-center" aria-hidden>↓</span>
+          <input
+            type="range" min={0} max={1} step={0.01} value={rangeLow} className="flex-1"
+            aria-label={`${side} hand range below middle octave`}
+            onChange={(e) => setRange(Number(e.target.value), rangeHigh)}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-[10px] text-white/50" title="Extend the range above the middle octave">
+          <span className="w-4 shrink-0 text-center" aria-hidden>↑</span>
+          <input
+            type="range" min={0} max={1} step={0.01} value={rangeHigh} className="flex-1"
+            aria-label={`${side} hand range above middle octave`}
+            onChange={(e) => setRange(rangeLow, Number(e.target.value))}
+          />
+        </label>
+      </div>
       <label className="flex items-center justify-between gap-2 text-xs">
         Base octave
         <input

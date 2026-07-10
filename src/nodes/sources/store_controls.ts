@@ -22,6 +22,10 @@ export interface VoiceControlSnapshot {
   octaves: number;
   baseOctave: number;
   sound: SoundId;
+  /** #63 octave RANGE (fractional octaves below/above the middle octave). When present,
+   *  `generateScale` uses the range span; absent → the legacy `octaves` span. */
+  rangeLow?: number;
+  rangeHigh?: number;
 }
 export interface ControlSnapshot {
   right: VoiceControlSnapshot;
