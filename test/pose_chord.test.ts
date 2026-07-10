@@ -77,8 +77,10 @@ describe('diatonicChord', () => {
     expect(diatonicChord(cMajor, 4, 3)).toEqual(diatonicTriad(cMajor, 4));
   });
 
-  it('returns [] for a non-seven-note scale or negative degree', () => {
-    expect(diatonicChord(pentatonic, 0, 3)).toEqual([]);
+  it('generalizes to a non-seven-note scale; negative degree stays silent (#75)', () => {
+    // C major pentatonic {C,D,E,G,A}, L=5: degree 0 stacks its own thirds → C,E,A.
+    expect(diatonicChord(pentatonic, 0, 3)).toEqual([48, 52, 57]);
+    // The negative-degree silence sentinel still returns [].
     expect(diatonicChord(cMajor, -1, 3)).toEqual([]);
   });
 });
@@ -154,10 +156,29 @@ describe('pose-chord node', () => {
     expect(sounding(neutral.voices)[0].brightness).toBeCloseTo(0.5, 5);
   });
 
-  it('needs a seven-note scale (a pentatonic scale stays silent)', async () => {
+  it('plays a generalized chord on a non-seven-note chord source (#75)', async () => {
+    // Pre-#75 a pentatonic scale silenced the pose chord; now the spec is the CHORD
+    // SOURCE and a pentatonic source sounds a generalized chord. The yaw at the low end
+    // lands on degree 0 for any slice count (the sweep is derived from the source length).
     const { voices, chord } = await play(ctrl({ headYaw: yawForDegree(0), mouthOpen: 1 }), { spec: pentatonic });
-    expect(sounding(voices)).toHaveLength(0);
-    expect(chord).toEqual([]);
+    expect(sounding(voices).length).toBeGreaterThan(0);
+    expect(chord).toEqual(diatonicChord(pentatonic, 0, 3));
+  });
+
+  it('sweeps monotonically over a non-seven-note source (no mid-sweep wrap) (#75)', async () => {
+    // A 5-note source must sweep 0..4 once as the head turns left→right — the slice
+    // count comes from L=5, so it never wraps back to the tonic mid-sweep.
+    const degrees: number[] = [];
+    for (const yaw of [-1, -0.5, 0, 0.5, 1]) {
+      const { chord } = await play(ctrl({ headYaw: yaw, mouthOpen: 1 }), { spec: pentatonic });
+      // Recover the degree from the sounding tones (compare against each candidate).
+      const match = [0, 1, 2, 3, 4].find((d) => JSON.stringify(diatonicChord(pentatonic, d, 3)) === JSON.stringify(chord));
+      degrees.push(match ?? -1);
+    }
+    // Non-decreasing across the sweep (monotonic), covering low→high degrees.
+    for (let i = 1; i < degrees.length; i++) expect(degrees[i]).toBeGreaterThanOrEqual(degrees[i - 1]);
+    expect(degrees[0]).toBe(0);
+    expect(degrees[degrees.length - 1]).toBe(4);
   });
 
   it('honors a live chordConfig (volume + voicing) over the static params', async () => {

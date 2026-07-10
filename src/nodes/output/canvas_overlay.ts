@@ -159,6 +159,10 @@ export interface OverlayView {
     params?: SynthParams;
     scale?: number[];
     scaleLeft?: number[];
+    /** The chord-SOURCE scale note array (#75), decoupled from the melody `scale`. Used
+     *  to NAME/analyze the sounding chord (chord-name function line, expression chord
+     *  labels) against the scale it was actually built from. Falls back to `scale`. */
+    chordScale?: number[];
     octaveShift: number;
     chord?: number[];
     faceFrame?: FaceFrame;
@@ -614,9 +618,9 @@ function drawBarGraph(g: CanvasRenderingContext2D, x0: number, y0: number, bars:
 /**
  * Diatonic triad tones for a scale degree, by stacking thirds WITHIN the scale's own
  * octave and wrapping high degrees up an octave (so `vi`/`vii` don't run off a
- * single-octave array). `per` = notes per octave, detected from the scale. Only used
- * for chord-mode labels, where the app enforces a seven-note scale — the same shape
- * `diatonicTriad` plays, so the label agrees with the audio.
+ * single-octave array). `per` = notes per octave, detected from the scale — so it
+ * generalizes to a non-seven-note chord source (#75), matching {@link diatonicChord}.
+ * Fed the CHORD-SOURCE scale (not the melody), so the label agrees with the audio.
  */
 function triadForDegree(scale: number[] | undefined, degree: number): number[] {
   if (!Array.isArray(scale) || scale.length < 3 || degree < 0) return [];
@@ -659,7 +663,10 @@ const faceExpressionCue: OverlayElement = {
       if (p.exprLabels) labels.push(name ?? '');
       if (p.chordLabels && chordMode) {
         const deg = view.inputs.faceDegrees?.[name] ?? -1;
-        labels.push(deg >= 0 ? chordName(triadForDegree(view.inputs.scale, deg)) : '—');
+        // Name each expression's chord from the CHORD-SOURCE scale (#75), not the
+        // melody — so the printed name matches the audible chord for a pentatonic melody.
+        const chordScale = view.inputs.chordScale ?? view.inputs.scale;
+        labels.push(deg >= 0 ? chordName(triadForDegree(chordScale, deg)) : '—');
       }
       return {
         value: clamp01(score),
@@ -749,7 +756,9 @@ function chordFunctionLabel(view: OverlayView): string {
   const p = view.params.chordName;
   if (!p.roman) return '';
   const chord = view.inputs.chord;
-  const scale = view.inputs.scale;
+  // Analyze the chord's function against the CHORD-SOURCE scale (#75): the chord root
+  // is a degree of the scale it was built from, which need not be the melody scale.
+  const scale = view.inputs.chordScale ?? view.inputs.scale;
   if (!Array.isArray(chord) || !chord.length || !Array.isArray(scale) || scale.length < 2) return '';
   const info = classifyChord(chord);
   if (!info) return '';
@@ -1041,6 +1050,7 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'params', kind: 'synth-params' },
     { name: 'scale', kind: 'number[]' },
     { name: 'scaleLeft', kind: 'number[]' },
+    { name: 'chordScale', kind: 'number[]' },
     { name: 'chord', kind: 'number[]' },
     { name: 'faceFrame', kind: 'face-frame' },
     { name: 'expression', kind: 'face-expression' },
@@ -1088,6 +1098,7 @@ export const canvasOverlayNode = defineNode<Params>({
             params: inputs.params as SynthParams | undefined,
             scale: inputs.scale as number[] | undefined,
             scaleLeft: inputs.scaleLeft as number[] | undefined,
+            chordScale: inputs.chordScale as number[] | undefined,
             octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
             chord: inputs.chord as number[] | undefined,
             faceFrame: inputs.faceFrame as FaceFrame | undefined,

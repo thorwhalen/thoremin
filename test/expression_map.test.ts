@@ -56,10 +56,19 @@ describe('diatonicTriad', () => {
     expect(triad.map((m) => ((m % 12) + 12) % 12).sort((a, b) => a - b)).toEqual([0, 4, 8]);
   });
 
-  it('returns [] for non-seven-note scales', () => {
+  it('generalizes to non-seven-note scales (#75): stacks the scale\'s OWN thirds', () => {
+    // Pre-#75 this returned []; now a non-seven-note chord source yields a musical,
+    // (non-tertian) chord by stacking that scale's own thirds — so a pentatonic chord
+    // source is allowed and a pentatonic MELODY can still get chords (via its default).
     expect(isSevenNoteScale('pentatonic')).toBe(false);
-    expect(diatonicTriad({ ...cMajor, type: 'pentatonic' }, 0)).toEqual([]);
-    expect(diatonicTriad({ ...cMajor, type: 'blues' }, 0)).toEqual([]);
+    // C major pentatonic {C,D,E,G,A}, L=5: degree 0 stacks idx 0,2,4 → C,E,A (48,52,57).
+    expect(diatonicTriad({ ...cMajor, type: 'pentatonic' }, 0)).toEqual([48, 52, 57]);
+    // Blues {0,3,5,6,7,10}, L=6: degree 0 → idx 0,2,4 → 0,5,7 → C,F,G (48,53,55).
+    expect(diatonicTriad({ ...cMajor, type: 'blues' }, 0)).toEqual([48, 53, 55]);
+    // Seven-note scales are byte-identical to before (still tertian thirds).
+    expect(diatonicTriad(cMajor, 0)).toEqual([48, 52, 55]);
+    // The negative-degree silence sentinel still returns [].
+    expect(diatonicTriad({ ...cMajor, type: 'pentatonic' }, -1)).toEqual([]);
   });
 });
 

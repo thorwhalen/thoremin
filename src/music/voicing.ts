@@ -7,8 +7,9 @@
  *     into a tasteful chord with a clear low bass fundamental. The voicings are
  *     researched arranging idioms (close, bass+triad, open/spread, shell, power);
  *     they are *view-independent* (anchored an octave below the scale-degree root)
- *     and *quality-agnostic* (the third/fifth intervals are read from the triad,
- *     so the same recipe works for major / minor / diminished / augmented).
+ *     and *quality-agnostic* (the two upper intervals are read from the triad, so the
+ *     same recipe works for major / minor / diminished / augmented — and, since #75,
+ *     for the non-tertian sonorities a non-seven-note chord source produces).
  *
  *  2. {@link renderGains} — per-voice gain factors (0..1) for an articulation
  *     pattern at a given beat position: a sustained pad plus tempo-based arpeggios,
@@ -40,8 +41,12 @@ export function isTempoRendering(r: RenderingId): boolean {
 export function voiceTriad(triad: number[], voicing: VoicingId, octaveShift = 0): number[] {
   if (triad.length < 3) return [];
   const [r, third, fifth] = triad;
-  const T = third - r; // 3 (minor/dim) or 4 (major/aug) — read from the triad
-  const F = fifth - r; // 6 (dim) / 7 (perfect) / 8 (aug)
+  // T and F are the two upper intervals READ from the triad (root→2nd tone, root→3rd
+  // tone), not assumed. For a tertian triad T=3/4 and F=6/7/8; for a non-tertian
+  // chord-source sonority (e.g. C-maj-pent degree-0 {0,4,9} → F=9) they are whatever
+  // the source stacks — the voicing recipe stays valid ascending MIDI either way.
+  const T = third - r;
+  const F = fifth - r;
   const b = r - 12 + 12 * octaveShift; // low bass = the fundamental
   switch (voicing) {
     case 'close':

@@ -14,7 +14,7 @@
 import { z } from 'zod';
 import { defineDials } from '@zodal/dials-core';
 import type { Layer } from '@zodal/dials-core';
-import { SCALE_TYPES, isSevenNoteScale, type ScaleTypeId } from '@/music/theory';
+import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { SOUND_IDS, type SoundId } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
@@ -65,6 +65,11 @@ export const thoreminDials = defineDials(
     'faceChord.voicing': VoicingEnum.default(DEFAULT_FACE_CHORD.voicing).meta({ facets: ['Face'], title: 'Voicing' }),
     'faceChord.rendering': RenderingEnum.default(DEFAULT_FACE_CHORD.rendering).meta({ facets: ['Face'], title: 'Rendering' }),
     'faceChord.bpm': z.number().int().min(40).max(200).default(DEFAULT_FACE_CHORD.bpm).meta({ facets: ['Face'], title: 'Tempo (BPM)' }),
+    // #75: the chord-source scale, decoupled from the right-hand melody scale.
+    // 'auto' follows the melody (smart default); 'custom' pins chordRoot/chordType.
+    'faceChord.chordSource': z.enum(['auto', 'custom']).default(DEFAULT_FACE_CHORD.chordSource).meta({ facets: ['Face'], title: 'Chord source' }),
+    'faceChord.chordRoot': z.number().int().min(0).max(11).default(DEFAULT_FACE_CHORD.chordRoot).meta({ facets: ['Face'], title: 'Chord root' }),
+    'faceChord.chordType': ScaleEnum.default(DEFAULT_FACE_CHORD.chordType).meta({ facets: ['Face'], title: 'Chord scale' }),
 
     // Complex/structured settings — rendered by bespoke widgets (the expression
     // table, the overlay accordion); carried as whole-object dial values.
@@ -81,21 +86,9 @@ export const thoreminDials = defineDials(
     // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.
     handMap: HandMapSchema.default(DEFAULT_HAND_MAP).meta({ facets: ['Hand'], title: 'Hand mapping' }),
   }),
-  {
-    constraints: {
-      assertions: [
-        {
-          message:
-            'Chord and head-pose face-mappings need a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.',
-          keys: ['face.mapping', 'right.type'],
-          check: (v) => {
-            const m = v['face.mapping'];
-            return (m !== 'chord' && m !== 'controls') || isSevenNoteScale(v['right.type'] as ScaleTypeId);
-          },
-        },
-      ],
-    },
-  },
+  // No cross-field constraints: since #75 the chord/head-pose modes no longer require
+  // a seven-note melody scale — the chord SOURCE (auto-derived or custom) is what a
+  // diatonic chord is built from, and a generalized chord is defined on any scale.
 );
 
 /** The nested {@link Settings} → the flat dials {@link Layer} (every key set). */
@@ -121,6 +114,9 @@ export function settingsToLayer(s: Settings): Layer {
     'faceChord.voicing': s.faceChord.voicing,
     'faceChord.rendering': s.faceChord.rendering,
     'faceChord.bpm': s.faceChord.bpm,
+    'faceChord.chordSource': s.faceChord.chordSource,
+    'faceChord.chordRoot': s.faceChord.chordRoot,
+    'faceChord.chordType': s.faceChord.chordType,
     'faceExpr.sensitivity': s.faceExpr.sensitivity,
     'faceExpr.degrees': s.faceExpr.degrees,
     overlay: s.overlay,
@@ -144,6 +140,9 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
       voicing: v['faceChord.voicing'],
       rendering: v['faceChord.rendering'],
       bpm: v['faceChord.bpm'],
+      chordSource: v['faceChord.chordSource'],
+      chordRoot: v['faceChord.chordRoot'],
+      chordType: v['faceChord.chordType'],
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
     overlay: v.overlay,

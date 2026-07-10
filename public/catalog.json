@@ -28,6 +28,10 @@
         "kind": "number[]"
       },
       {
+        "name": "chordScale",
+        "kind": "number[]"
+      },
+      {
         "name": "chord",
         "kind": "number[]"
       },
@@ -189,7 +193,7 @@
   {
     "type": "expression-chord",
     "title": "Expression Chord",
-    "description": "Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face \"chord\" mode).",
+    "description": "Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face \"chord\" mode).",
     "roles": [
       "music"
     ],
@@ -1091,6 +1095,14 @@
       {
         "name": "rightSpec",
         "kind": "scale-spec"
+      },
+      {
+        "name": "chordSpec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordScale",
+        "kind": "number[]"
       },
       {
         "name": "faceMapping",

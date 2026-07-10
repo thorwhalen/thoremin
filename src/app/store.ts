@@ -342,12 +342,19 @@ export const useControls = create<ControlState>()(
     }),
     {
       name: 'thoremin-controls',
+      // Version 6: #75 (decoupled chord-source scale — faceChord.chordSource/chordRoot/
+      // chordType) + #63 (per-voice octave RANGE — right/left.rangeLow/rangeHigh). Both are
+      // ADDITIVE with defaults, so no data transform is needed: mergeControls re-parses
+      // faceChord through FaceChordSchema (filling chordSource='auto' etc. for returning
+      // users → identical sound on their seven-note melodies), and the range fields are
+      // optional (absent → the legacy `octaves` scale path, byte-identical). The bump is the
+      // version marker for the schema growth.
       // Version 5: the abstention retune — deliver the raised fearful/disgusted
       // sensitivity default (0.5 → 0.7) to a returning player who never customized it.
       // v4: added the `handMap`. v3: `instrument` → `sound` rename. v2: the face-mapping
       // chooser (#64). See migrateControls (field renames/bumps) and mergeControls (heals
       // stale nested `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
-      version: 5,
+      version: 6,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

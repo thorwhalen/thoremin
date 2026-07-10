@@ -152,7 +152,10 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // Live per-emotion sensitivities steer the classifier's thresholds.
       { from: { node: 'ui', port: 'expressionSensitivity' }, to: { node: 'faceExpr', port: 'sensitivity' } },
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'exprChord', port: 'expression' } },
-      { from: { node: 'ui', port: 'rightSpec' }, to: { node: 'exprChord', port: 'spec' } },
+      // #75: the chord node reads the decoupled CHORD-SOURCE spec (auto-derived from
+      // the melody, or a custom scale), NOT the melody scale — so a pentatonic melody
+      // still gets chords from a sensible (seven-note) source by default.
+      { from: { node: 'ui', port: 'chordSpec' }, to: { node: 'exprChord', port: 'spec' } },
       // Live per-expression scale-degree map (which triad each expression plays).
       { from: { node: 'ui', port: 'expressionDegrees' }, to: { node: 'exprChord', port: 'degrees' } },
       { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'exprChord', port: 'faceMapping' } },
@@ -165,7 +168,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // voices unless the mode is 'controls', so the merge is unaffected otherwise.
       { from: { node: 'camFace', port: 'face' }, to: { node: 'faceCtrl', port: 'face' } },
       { from: { node: 'faceCtrl', port: 'controls' }, to: { node: 'poseChord', port: 'controls' } },
-      { from: { node: 'ui', port: 'rightSpec' }, to: { node: 'poseChord', port: 'spec' } },
+      // #75: pose chords also read the decoupled chord-source spec (unblocks pose mode
+      // on a non-seven-note melody, exactly like the emotion chord).
+      { from: { node: 'ui', port: 'chordSpec' }, to: { node: 'poseChord', port: 'spec' } },
       { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'poseChord', port: 'faceMapping' } },
       // Reuse the same live chord settings (sound / volume / voicing / rendering / tempo).
       { from: { node: 'ui', port: 'chordConfig' }, to: { node: 'poseChord', port: 'chordConfig' } },
@@ -200,6 +205,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'overlay', port: 'scale' } },
       { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'overlay', port: 'scaleLeft' } },
       { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
+      // The chord-SOURCE scale (#75), so the overlay names/analyzes the sounding chord
+      // against the scale it was actually built from, not the melody scale.
+      { from: { node: 'ui', port: 'chordScale' }, to: { node: 'overlay', port: 'chordScale' } },
       // Whichever chord instrument is sounding (emotion triad OR pose chord), so the
       // overlay highlights the active chord's tones on the pitch guide in both modes.
       { from: { node: 'exprChord', port: 'triad' }, to: { node: 'chordSel', port: 'a' } },

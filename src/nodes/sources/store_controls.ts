@@ -10,7 +10,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { generateScale, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
+import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import type { FaceChord, FaceExpr } from '@/settings/schema';
@@ -73,8 +73,15 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'magnetism', kind: 'number' },
     { name: 'mute', kind: 'boolean' },
     { name: 'overlay', kind: 'overlay-config' },
-    // The right voice's scale spec + the face mode, for the expression→chord path.
+    // The right voice's melody scale spec (kept for reference/back-compat).
     { name: 'rightSpec', kind: 'scale-spec' },
+    // The CHORD-SOURCE scale spec (#75), decoupled from the melody: auto → derived
+    // from the melody via `defaultChordSpecFor`; custom → the faceChord chord scale.
+    // Both chord instruments (expression-chord, pose-chord) read this instead of
+    // rightSpec, so a pentatonic melody still gets (seven-note) chords. `chordScale`
+    // is its note array, for the overlay's chord-name/degree labels.
+    { name: 'chordSpec', kind: 'scale-spec' },
+    { name: 'chordScale', kind: 'number[]' },
     { name: 'faceMapping', kind: 'face-mapping' },
     // Live chord settings (sound / volume / voicing / rendering / tempo).
     { name: 'chordConfig', kind: 'chord-config' },
@@ -96,6 +103,20 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           octaves: c.right.octaves,
           baseOctave: c.right.baseOctave,
         };
+        // Resolve the chord-source scale (#75): custom pins root/type, auto derives
+        // the smart default from the melody. Register (baseOctave/octaves) tracks the
+        // melody — diatonicChord builds its bass from baseOctave, so it is load-bearing.
+        const cs = c.faceChord;
+        const resolved =
+          cs && cs.chordSource === 'custom'
+            ? { root: cs.chordRoot, type: cs.chordType }
+            : defaultChordSpecFor(rightSpec);
+        const chordSpec: ScaleSpec = {
+          root: resolved.root,
+          type: resolved.type,
+          octaves: c.right.octaves,
+          baseOctave: c.right.baseOctave,
+        };
         const out: Record<string, unknown> = {
           scaleRight: generateScale(c.right),
           scaleLeft: generateScale(c.left),
@@ -105,6 +126,8 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           magnetism: c.magnetism ?? 0.8,
           mute: c.muted ?? false,
           rightSpec,
+          chordSpec,
+          chordScale: generateScale(chordSpec),
           faceMapping: c.faceMapping ?? legacyFaceToMapping(c.faceEnabled),
         };
         if (c.faceChord) {

@@ -20,7 +20,14 @@
  * collapsible translucent overlay so the video stays the focus.
  */
 import { useState, type ReactNode } from 'react';
-import { NOTES, SCALE_TYPES, isSevenNoteScale, diatonicTriad, type ScaleTypeId } from '@/music/theory';
+import {
+  NOTES,
+  SCALE_TYPES,
+  diatonicTriad,
+  defaultChordSpecFor,
+  melodyNotesOutsideChord,
+  type ScaleTypeId,
+} from '@/music/theory';
 import { SOUNDS, SOUND_IDS } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, isTempoRendering, voiceTriad, type VoicingId, type RenderingId } from '@/music/voicing';
 import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE } from '@/music/expression';
@@ -278,14 +285,10 @@ const FACE_MODE_OPTIONS: { value: FaceMapping; label: string }[] = [
 const FACE_MODE_HINT: Record<FaceMapping, string> = {
   none: 'No face detection. Pick a mode to map your expression to sound. Uses the same camera as hand tracking; loads a small face model on first use.',
   timbre: 'Smile → brighter tone, open mouth → vibrato — shaping the notes your hands play.',
-  chord: "Your expression plays a diatonic triad on the right hand's scale (needs a 7-note scale).",
+  chord: 'Your expression plays a chord from the chord-source scale (Chord sound → Chord scale). Works with any melody scale — pentatonic included.',
   controls:
-    "Deliberate head/face moves play chords — turn to pick the chord, open your mouth to sound it (needs a 7-note scale). The easy, controllable alternative to emotion mode.",
+    'Deliberate head/face moves play chords — turn to pick the chord, open your mouth to sound it. The easy, controllable alternative to emotion mode.',
 };
-
-/** Modes whose chord needs a seven-note scale (a diatonic triad is otherwise
- *  undefined): emotion `chord` and head-pose `controls`. */
-const needsSevenNote = (m: FaceMapping): boolean => m === 'chord' || m === 'controls';
 
 /** Live face-model status + detected expression, driven by the engine (#65). The
  *  classified emotion `label` is shown only when it actually drives the sound — in
@@ -345,6 +348,85 @@ const RENDERING_LABELS: Record<RenderingId, string> = {
   pulse: 'Pulse',
   alberti: 'Alberti',
 };
+
+/**
+ * The chord-source scale picker (#75): WHERE the face/pose chords are drawn from,
+ * decoupled from the right-hand melody scale. 'Auto' follows the melody (a smart
+ * default that makes pentatonic-melody + chords "just work" with zero config);
+ * 'Custom' pins any scale as the source, with a non-blocking warning naming the
+ * melody notes that fall outside the chosen source (they may clash — still allowed).
+ */
+function ChordSourceControls() {
+  const { state, set } = useDialsSettings();
+  const v = state.effective;
+  const melody = { root: v['right.root'] as number, type: v['right.type'] as ScaleTypeId };
+  const source = v['faceChord.chordSource'] as 'auto' | 'custom';
+  const chordRoot = v['faceChord.chordRoot'] as number;
+  const chordType = v['faceChord.chordType'] as ScaleTypeId;
+  const auto = defaultChordSpecFor(melody);
+  // The warning is authoritative on the subset test and only meaningful for a CUSTOM
+  // source — 'auto' is by construction the recommended embedding, so it never warns.
+  const outside = source === 'custom' ? melodyNotesOutsideChord(melody, { root: chordRoot, type: chordType }) : [];
+
+  return (
+    <div className="space-y-2 border-t border-white/10 pt-2">
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Chord scale
+        <select
+          className={selectCls}
+          value={source}
+          onChange={(e) => set('faceChord.chordSource', e.target.value)}
+        >
+          <option value="auto">Auto (follow melody)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      {source === 'auto' ? (
+        <p className="text-[10px] leading-relaxed text-white/40">
+          Chords are drawn from{' '}
+          <span className="text-white/70">
+            {NOTES[auto.root]} {SCALE_TYPES[auto.type].name}
+          </span>
+          , matched to your melody scale.
+        </p>
+      ) : (
+        <>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            Chord root
+            <select
+              className={selectCls}
+              value={chordRoot}
+              onChange={(e) => set('faceChord.chordRoot', Number(e.target.value))}
+            >
+              {NOTES.map((n, i) => (
+                <option key={n} value={i}>{n}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            Chord scale type
+            <select
+              className={selectCls}
+              value={chordType}
+              onChange={(e) => set('faceChord.chordType', e.target.value as ScaleTypeId)}
+            >
+              {Object.entries(SCALE_TYPES).map(([id, s]) => (
+                <option key={id} value={id}>{s.name}</option>
+              ))}
+            </select>
+          </label>
+          {outside.length > 0 && (
+            <p className="text-[10px] leading-relaxed text-amber-300/80">
+              Heads up: {outside.join(', ')} {outside.length === 1 ? 'is' : 'are'} in your melody but
+              not the chord scale — chords may clash with the melody. This is allowed; pick a chord
+              scale that contains your melody for a "safe" fit.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 /** Sound settings for the face chord — shown when chord mapping is active. */
 function ChordControls() {
@@ -412,6 +494,7 @@ function ChordControls() {
           pad blurs fast arpeggios into a wash.
         </p>
       )}
+      <ChordSourceControls />
     </div>
   );
 }
@@ -439,12 +522,20 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
     set('faceExpr.sensitivity', { ...sensitivity, [label]: value });
   const voicing = v['faceChord.voicing'] as VoicingId;
 
+  // Build the preview chords from the resolved CHORD-SOURCE scale (#75), so the notes
+  // shown match what actually sounds — not the melody scale.
+  const chordSource = v['faceChord.chordSource'] as 'auto' | 'custom';
+  const resolved =
+    chordSource === 'custom'
+      ? { root: v['faceChord.chordRoot'] as number, type: v['faceChord.chordType'] as ScaleTypeId }
+      : defaultChordSpecFor({ root: v['right.root'] as number, type: v['right.type'] as ScaleTypeId });
+
   const chordMidi = (degree: number): number[] => {
     if (degree < 0) return []; // SILENCE_DEGREE → no chord
     const triad = diatonicTriad(
       {
-        root: v['right.root'] as number,
-        type: v['right.type'] as ScaleTypeId,
+        root: resolved.root,
+        type: resolved.type,
         octaves: v['right.octaves'] as number,
         baseOctave: v['right.baseOctave'] as number,
       },
@@ -545,11 +636,7 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
               </div>
               {chordMode && (
                 <div className="pl-16 font-mono text-[10px] text-white/40">
-                  {degree < 0
-                    ? 'silence (no chord)'
-                    : midi.length
-                      ? midi.join(' ')
-                      : '— (needs a 7-note scale)'}
+                  {degree < 0 ? 'silence (no chord)' : midi.length ? midi.join(' ') : '—'}
                 </div>
               )}
             </div>
@@ -561,10 +648,9 @@ function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
 }
 
 function FaceControls() {
-  const { state, set } = useDialsSettings();
+  const { state } = useDialsSettings();
   const v = state.effective;
   const faceMapping = v['face.mapping'] as FaceMapping;
-  const sevenNote = isSevenNoteScale(v['right.type'] as ScaleTypeId);
 
   return (
     <div className="space-y-2">
@@ -575,11 +661,10 @@ function FaceControls() {
           value={faceMapping}
           onChange={(e) => dispatchDialSet('face.mapping', e.target.value as FaceMapping)}
         >
+          {/* Every mode is selectable on any melody scale (#75): chord/controls modes
+              draw from a decoupled chord-source scale, so no 7-note requirement remains. */}
           {FACE_MODE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value} disabled={needsSevenNote(o.value) && !sevenNote}>
-              {o.label}
-              {needsSevenNote(o.value) && !sevenNote ? ' (needs 7-note scale)' : ''}
-            </option>
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
       </label>
@@ -588,11 +673,6 @@ function FaceControls() {
         {/* Emotion how-to help is for the expression modes; pose mode has its own moves list. */}
         {faceMapping !== 'none' && faceMapping !== 'controls' && <ExpressionHelpButton />}
       </div>
-      {needsSevenNote(faceMapping) && !sevenNote && (
-        <p className="text-[10px] leading-relaxed text-amber-300/80">
-          This mode needs a 7-note scale (Major / Natural Minor / Harmonic Minor) on the right hand.
-        </p>
-      )}
       <p className="text-[10px] leading-relaxed text-white/40">{FACE_MODE_HINT[faceMapping]}</p>
       {faceMapping === 'controls' && <PoseMovesHelp />}
       {/* Both chord instruments (emotion + pose) share the same sound settings. */}

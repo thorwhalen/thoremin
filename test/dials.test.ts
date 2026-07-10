@@ -73,9 +73,12 @@ describe('thoreminDials', () => {
     expect(layerToSettings(settingsToLayer(custom)).handMap).toEqual(custom.handMap);
   });
 
-  it('enforces the chord-needs-a-7-note-scale constraint', () => {
+  it('allows chord/controls face modes on ANY melody scale (#75 decouple)', () => {
+    // The old chord-needs-a-7-note-scale assertion is removed: chords are drawn from a
+    // decoupled chord-source scale, so chord & pose modes are valid on a pentatonic melody.
     const base = thoreminDials.defaults as Record<string, unknown>;
-    expect(thoreminDials.validate({ ...base, 'face.mapping': 'chord', 'right.type': 'pentatonic' }).ok).toBe(false);
+    expect(thoreminDials.validate({ ...base, 'face.mapping': 'chord', 'right.type': 'pentatonic' }).ok).toBe(true);
+    expect(thoreminDials.validate({ ...base, 'face.mapping': 'controls', 'right.type': 'pentatonic' }).ok).toBe(true);
     expect(thoreminDials.validate({ ...base, 'face.mapping': 'chord', 'right.type': 'major' }).ok).toBe(true);
     expect(thoreminDials.validate({ ...base, 'face.mapping': 'timbre', 'right.type': 'pentatonic' }).ok).toBe(true);
   });

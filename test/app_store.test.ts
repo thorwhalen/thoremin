@@ -313,12 +313,38 @@ describe('store-controls node reads the store', () => {
     // The chord-path ports: the right voice's scale spec + the face mode + config.
     expect(out.faceMapping).toBe('chord');
     expect(out.rightSpec).toMatchObject({ root: 2, type: 'minor' });
+    // #75: the CHORD-SOURCE spec is emitted alongside rightSpec. Right is a 7-note
+    // minor melody here, so auto → the same scale (identical chord behaviour).
+    expect(out.chordSpec).toMatchObject({ root: 2, type: 'minor', baseOctave: 3 });
     // chordConfig maps the store's faceChord (volume → gain) for expression-chord.
     expect(out.chordConfig).toMatchObject({ voicing: 'spread', gain: 0.22, bpm: 100 });
     // The expression-mapping ports: per-emotion sensitivity + per-expression degrees.
     expect(out.expressionSensitivity).toMatchObject({ happy: 0.5, angry: 0.45 });
     expect((out.expressionDegrees as Record<string, number>).neutral).toBe(-1); // silence default
     expect((out.expressionDegrees as Record<string, number>).happy).toBe(0);
+  });
+
+  it('emits a decoupled chord source: auto derives a 7-note scale from a pentatonic melody (#75)', () => {
+    useControls.getState().setSync(false);
+    useControls.getState().setVoice('right', { root: 0, type: 'pentatonic', baseOctave: 3, octaves: 2 });
+    useControls.getState().setFaceMapping('chord');
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    const out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    // Pentatonic melody + auto (default) → C major chord source, with the melody's register.
+    expect(out.chordSpec).toMatchObject({ root: 0, type: 'major', baseOctave: 3 });
+    // chordScale is that source's note array (a seven-note C major, two octaves).
+    expect(out.chordScale).toEqual(generateScale({ root: 0, type: 'major', octaves: 2, baseOctave: 3 }));
+    // rightSpec still reflects the (pentatonic) melody — kept for reference.
+    expect(out.rightSpec).toMatchObject({ root: 0, type: 'pentatonic' });
+  });
+
+  it('emits a CUSTOM chord source when faceChord.chordSource=custom (#75)', () => {
+    useControls.getState().setVoice('right', { root: 0, type: 'pentatonic', baseOctave: 3 });
+    useControls.getState().setFaceChord({ chordSource: 'custom', chordRoot: 7, chordType: 'minor' });
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    const out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    // custom pins the source to G minor; register (baseOctave) still tracks the melody.
+    expect(out.chordSpec).toMatchObject({ root: 7, type: 'minor', baseOctave: 3 });
   });
 
   it('emits the keyboard-driven globals (octaveShift / magnetism / mute) from the store (#90)', () => {

@@ -66,7 +66,14 @@ export const FaceMappingSchema = z.enum(
   FACE_MAPPINGS as unknown as [FaceMapping, ...FaceMapping[]],
 );
 
-/** How the face chord sounds: sound, volume, voicing, rendering, tempo. */
+/** How the face chord sounds: sound, volume, voicing, rendering, tempo, and — since
+ *  #75 — WHERE its chords are drawn from (the chord-source scale, decoupled from the
+ *  right-hand melody scale). `chordSource: 'auto'` (the default) recomputes the source
+ *  from the melody scale each tick via `defaultChordSpecFor` (so a pentatonic melody
+ *  still gets chords, and a seven-note melody sounds exactly as before); `'custom'`
+ *  pins it to `chordRoot`/`chordType` (any scale, even non-traditional). The
+ *  `.default(...)` on the three new fields keeps presets saved before #75 valid — they
+ *  resolve to auto → identical sound on the seven-note melodies they were saved with. */
 export const FaceChordSchema = z.object({
   sound: InstrumentEnum,
   volume: z.number().min(0).max(1),
@@ -74,16 +81,26 @@ export const FaceChordSchema = z.object({
   rendering: z.enum(RENDERINGS as unknown as [RenderingId, ...RenderingId[]]),
   // 40..200 matches the Tempo slider (one source of truth for the bounds).
   bpm: z.number().min(40).max(200),
+  // #75: chord-source scale (decoupled from the melody). auto = follow the melody
+  // (smart default); custom = the chordRoot/chordType below. `.default(...)` keeps
+  // pre-#75 presets valid (filled on parse) → auto → identical sound.
+  chordSource: z.enum(['auto', 'custom']).default('auto'),
+  chordRoot: z.number().int().min(0).max(11).default(0),
+  chordType: ScaleTypeEnum.default('major'),
 });
 export type FaceChord = z.infer<typeof FaceChordSchema>;
 
-/** The shipped defaults for the face chord (open voicing, sustained pad, 100 BPM). */
+/** The shipped defaults for the face chord (open voicing, sustained pad, 100 BPM,
+ *  chord source following the melody). */
 export const DEFAULT_FACE_CHORD: FaceChord = {
   sound: 'warmPad',
   volume: 0.22,
   voicing: 'spread',
   rendering: 'sustained',
   bpm: 100,
+  chordSource: 'auto',
+  chordRoot: 0,
+  chordType: 'major',
 };
 
 /**

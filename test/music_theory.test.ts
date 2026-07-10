@@ -13,6 +13,10 @@ import {
   romanNumeral,
   nashvilleNumber,
   scaleGuide,
+  defaultChordSpecFor,
+  scalePitchClasses,
+  scaleIsSubset,
+  melodyNotesOutsideChord,
   DEFAULT_SCALE,
 } from '@/music/theory';
 
@@ -173,6 +177,44 @@ describe('magneticPitch (tonal guidance)', () => {
   it('clamps x outside [0,1]', () => {
     expect(magneticPitch(-1, scale, 0.5)).toBeCloseTo(scale[0], 6);
     expect(magneticPitch(2, scale, 0.5)).toBeCloseTo(scale[scale.length - 1], 6);
+  });
+});
+
+describe('defaultChordSpecFor (smart chord source — #75)', () => {
+  it('seven-note melodies use themselves (byte-identical to pre-#75 chord behaviour)', () => {
+    expect(defaultChordSpecFor({ root: 0, type: 'major' })).toEqual({ root: 0, type: 'major' });
+    expect(defaultChordSpecFor({ root: 9, type: 'minor' })).toEqual({ root: 9, type: 'minor' });
+    expect(defaultChordSpecFor({ root: 9, type: 'minorHarmonic' })).toEqual({ root: 9, type: 'minorHarmonic' });
+  });
+  it('pentatonics map to same-root major/minor, and the melody is a true subset of it', () => {
+    expect(defaultChordSpecFor({ root: 0, type: 'pentatonic' })).toEqual({ root: 0, type: 'major' });
+    expect(defaultChordSpecFor({ root: 9, type: 'minorPentatonic' })).toEqual({ root: 9, type: 'minor' });
+    // C major pentatonic ⊂ C major; A minor pentatonic ⊂ A natural minor (so auto never warns).
+    expect(scaleIsSubset({ root: 0, type: 'pentatonic' }, { root: 0, type: 'major' })).toBe(true);
+    expect(scaleIsSubset({ root: 9, type: 'minorPentatonic' }, { root: 9, type: 'minor' })).toBe(true);
+  });
+  it('blues → same-root minor; chromatic → same-root major (defaults with expected tension)', () => {
+    expect(defaultChordSpecFor({ root: 0, type: 'blues' })).toEqual({ root: 0, type: 'minor' });
+    expect(defaultChordSpecFor({ root: 5, type: 'chromatic' })).toEqual({ root: 5, type: 'major' });
+  });
+});
+
+describe('scale pitch-class helpers (#75 compatibility warning)', () => {
+  it('scalePitchClasses lists the mod-12 notes of a scale', () => {
+    expect([...scalePitchClasses(0, 'pentatonic')].sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 9]);
+    expect([...scalePitchClasses(9, 'minorPentatonic')].sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 9]); // A C D E G
+  });
+  it('scaleIsSubset is the authoritative coherence test (melody ⊆ chord source)', () => {
+    expect(scaleIsSubset({ root: 0, type: 'pentatonic' }, { root: 0, type: 'major' })).toBe(true);
+    // C major is NOT inside D major (C/F vs C#/F#).
+    expect(scaleIsSubset({ root: 0, type: 'major' }, { root: 2, type: 'major' })).toBe(false);
+    // Anything is inside the chromatic scale.
+    expect(scaleIsSubset({ root: 0, type: 'major' }, { root: 0, type: 'chromatic' })).toBe(true);
+  });
+  it('melodyNotesOutsideChord names the clashing melody notes, consistent with the subset test', () => {
+    expect(melodyNotesOutsideChord({ root: 0, type: 'pentatonic' }, { root: 0, type: 'major' })).toEqual([]);
+    // C major melody vs D major chord source: C and F fall outside D major.
+    expect(melodyNotesOutsideChord({ root: 0, type: 'major' }, { root: 2, type: 'major' })).toEqual(['C', 'F']);
   });
 });
 
