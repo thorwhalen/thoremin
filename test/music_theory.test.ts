@@ -13,7 +13,12 @@ import {
   romanNumeral,
   nashvilleNumber,
   scaleGuide,
+  defaultChordSpecFor,
+  scalePitchClasses,
+  scaleIsSubset,
+  melodyNotesOutsideChord,
   DEFAULT_SCALE,
+  type ScaleSpec,
 } from '@/music/theory';
 
 describe('chordName', () => {
@@ -140,6 +145,55 @@ describe('scale generation', () => {
   });
 });
 
+describe('scale generation — octave RANGE (#63)', () => {
+  const spec = (over: Partial<ScaleSpec>): ScaleSpec => ({ root: 0, type: 'major', octaves: 2, baseOctave: 3, ...over });
+
+  it('the default range (0 below, 1 above) equals the legacy octaves:2 span', () => {
+    const ranged = generateScale(spec({ rangeLow: 0, rangeHigh: 1 }));
+    const legacy = generateScale({ root: 0, type: 'major', octaves: 2, baseOctave: 3 });
+    expect(ranged).toEqual(legacy);
+  });
+
+  it('always covers the locked middle octave; the minimum span is one octave (0 below, 0 above)', () => {
+    const s = generateScale(spec({ rangeLow: 0, rangeHigh: 0 }));
+    expect(s[0]).toBe(48); // middle floor (baseNote = the root at baseOctave 3)
+    expect(s[s.length - 1]).toBe(60); // middle ceiling, one octave up
+    expect(s).toContain(48);
+    expect(s).toContain(60);
+  });
+
+  it('extends down and up around the locked middle (1 below, 1 above = 3 octaves)', () => {
+    const s = generateScale(spec({ rangeLow: 1, rangeHigh: 1 }));
+    expect(s[0]).toBe(36); // a full octave below the middle floor (48-12)
+    expect(s[s.length - 1]).toBe(72); // a full octave above the middle ceiling (60+12)
+  });
+
+  it('a wider range produces a strictly wider pitch span (the #63 acceptance property)', () => {
+    const narrow = generateScale(spec({ rangeLow: 0, rangeHigh: 0 }));
+    const wide = generateScale(spec({ rangeLow: 1, rangeHigh: 1 }));
+    const span = (a: number[]) => a[a.length - 1] - a[0];
+    expect(span(wide)).toBeGreaterThan(span(narrow));
+    expect(wide.length).toBeGreaterThan(narrow.length);
+  });
+
+  it('a fractional range lengthens the span (adds notes as the boundary crosses them)', () => {
+    const half = generateScale(spec({ rangeLow: 0, rangeHigh: 0.5 }));
+    const full = generateScale(spec({ rangeLow: 0, rangeHigh: 1 }));
+    expect(half[half.length - 1]).toBeGreaterThan(60); // past the middle ceiling
+    expect(half[half.length - 1]).toBeLessThanOrEqual(66); // but within half an octave (baseNote+18)
+    expect(full[full.length - 1]).toBe(72);
+    expect(full.length).toBeGreaterThan(half.length);
+  });
+
+  it('falls back to the legacy octaves path when the range fields are absent (byte-identical)', () => {
+    for (const octaves of [1, 2, 3, 4]) {
+      const s = generateScale({ root: 0, type: 'major', octaves, baseOctave: 3 });
+      expect(s[0]).toBe(48);
+      expect(s[s.length - 1]).toBe(48 + octaves * 12); // legacy upward-growing span, unchanged
+    }
+  });
+});
+
 describe('magneticPitch (tonal guidance)', () => {
   const scale = generateScale({ root: 0, type: 'major', octaves: 1, baseOctave: 4 }); // C4..C5
 
@@ -173,6 +227,44 @@ describe('magneticPitch (tonal guidance)', () => {
   it('clamps x outside [0,1]', () => {
     expect(magneticPitch(-1, scale, 0.5)).toBeCloseTo(scale[0], 6);
     expect(magneticPitch(2, scale, 0.5)).toBeCloseTo(scale[scale.length - 1], 6);
+  });
+});
+
+describe('defaultChordSpecFor (smart chord source — #75)', () => {
+  it('seven-note melodies use themselves (byte-identical to pre-#75 chord behaviour)', () => {
+    expect(defaultChordSpecFor({ root: 0, type: 'major' })).toEqual({ root: 0, type: 'major' });
+    expect(defaultChordSpecFor({ root: 9, type: 'minor' })).toEqual({ root: 9, type: 'minor' });
+    expect(defaultChordSpecFor({ root: 9, type: 'minorHarmonic' })).toEqual({ root: 9, type: 'minorHarmonic' });
+  });
+  it('pentatonics map to same-root major/minor, and the melody is a true subset of it', () => {
+    expect(defaultChordSpecFor({ root: 0, type: 'pentatonic' })).toEqual({ root: 0, type: 'major' });
+    expect(defaultChordSpecFor({ root: 9, type: 'minorPentatonic' })).toEqual({ root: 9, type: 'minor' });
+    // C major pentatonic ⊂ C major; A minor pentatonic ⊂ A natural minor (so auto never warns).
+    expect(scaleIsSubset({ root: 0, type: 'pentatonic' }, { root: 0, type: 'major' })).toBe(true);
+    expect(scaleIsSubset({ root: 9, type: 'minorPentatonic' }, { root: 9, type: 'minor' })).toBe(true);
+  });
+  it('blues → same-root minor; chromatic → same-root major (defaults with expected tension)', () => {
+    expect(defaultChordSpecFor({ root: 0, type: 'blues' })).toEqual({ root: 0, type: 'minor' });
+    expect(defaultChordSpecFor({ root: 5, type: 'chromatic' })).toEqual({ root: 5, type: 'major' });
+  });
+});
+
+describe('scale pitch-class helpers (#75 compatibility warning)', () => {
+  it('scalePitchClasses lists the mod-12 notes of a scale', () => {
+    expect([...scalePitchClasses(0, 'pentatonic')].sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 9]);
+    expect([...scalePitchClasses(9, 'minorPentatonic')].sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 9]); // A C D E G
+  });
+  it('scaleIsSubset is the authoritative coherence test (melody ⊆ chord source)', () => {
+    expect(scaleIsSubset({ root: 0, type: 'pentatonic' }, { root: 0, type: 'major' })).toBe(true);
+    // C major is NOT inside D major (C/F vs C#/F#).
+    expect(scaleIsSubset({ root: 0, type: 'major' }, { root: 2, type: 'major' })).toBe(false);
+    // Anything is inside the chromatic scale.
+    expect(scaleIsSubset({ root: 0, type: 'major' }, { root: 0, type: 'chromatic' })).toBe(true);
+  });
+  it('melodyNotesOutsideChord names the clashing melody notes, consistent with the subset test', () => {
+    expect(melodyNotesOutsideChord({ root: 0, type: 'pentatonic' }, { root: 0, type: 'major' })).toEqual([]);
+    // C major melody vs D major chord source: C and F fall outside D major.
+    expect(melodyNotesOutsideChord({ root: 0, type: 'major' }, { root: 2, type: 'major' })).toEqual(['C', 'F']);
   });
 });
 

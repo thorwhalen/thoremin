@@ -2,16 +2,18 @@
  * `expression-chord` node — turns a classified facial expression into a played
  * chord (issue #64 + the voicing/rendering follow-up). The expression (from
  * `face-expression`) selects a scale degree via {@link DEFAULT_EXPRESSION_TO_DEGREE};
- * the diatonic triad on the active seven-note scale ({@link diatonicTriad}) is then
- * VOICED (a tasteful arrangement with a low bass fundamental — {@link voiceTriad})
- * and RENDERED over time (sustained pad or a tempo-based arpeggio/pulse/strum —
- * {@link renderGains}).
+ * the triad on the CHORD-SOURCE scale ({@link diatonicTriad}) — decoupled from the
+ * right-hand melody scale since #75 — is then VOICED (a tasteful arrangement with a
+ * low bass fundamental — {@link voiceTriad}) and RENDERED over time (sustained pad or
+ * a tempo-based arpeggio/pulse/strum — {@link renderGains}). The `spec` input is the
+ * chord source (auto-derived from the melody, or a custom scale), so a pentatonic
+ * melody still gets chords and any scale can be the chord source.
  *
  * It emits chord voices on ids ≥ {@link CHORD_VOICE_ID_BASE}, so they never collide
  * with the two hand voices (0, 1) and can be unioned into the synth alongside the
  * hand melody (see `synth-merge`). It is the live gate for chord mode: voices sound
- * ONLY when `faceMapping === 'chord'`, the expression is present, and the current
- * scale has seven notes — otherwise all voices are silent.
+ * ONLY when `faceMapping === 'chord'`, the expression is present, and a chord-source
+ * `spec` is wired — otherwise all voices are silent.
  *
  * It ALWAYS emits {@link MAX_CHORD_VOICES} voices on stable ids: the synth releases
  * voices it still sees in the array, so a vanishing voice would leave a chord stuck
@@ -73,7 +75,7 @@ export const expressionChordNode = defineNode<Params>({
   roles: ['music'],
   title: 'Expression Chord',
   description:
-    'Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).',
+    'Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).',
   inputs: [
     { name: 'expression', kind: 'face-expression' },
     { name: 'spec', kind: 'scale-spec' },
@@ -128,7 +130,8 @@ export const expressionChordNode = defineNode<Params>({
           degrees?.[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
         const degree = active ? degreeFor(expr!.label) : SILENCE_DEGREE;
         // The un-voiced scale triad (3 tones) for the overlay highlight; [] when
-        // idle, off a seven-note scale, or when the expression maps to silence.
+        // idle or when the expression maps to silence (a non-seven-note chord source
+        // now yields a generalized chord rather than [], per #75).
         const triad = degree >= 0 ? diatonicTriad(spec!, degree) : [];
         // Voice the chord, then sort ascending by pitch so arpeggios traverse
         // low→high by actual pitch (some voicings stack out of pitch order). The

@@ -216,10 +216,16 @@ describe('expression-chord node', () => {
     expect(DEFAULT_EXPRESSION_TO_DEGREE.neutral).toBe(-1); // pin the silence default
   });
 
-  it('stays silent on a non-seven-note scale even in chord mode', async () => {
-    const out = await chordVoices(happyExpr, 'chord', { ...cMajor, type: 'pentatonic' });
-    expect(out.triad).toEqual([]);
-    expect((out.params as SynthParams).voices.every((v) => !v.present)).toBe(true);
+  it('plays a generalized chord on a non-seven-note chord source (#75)', async () => {
+    // Pre-#75 a non-seven-note spec silenced the chord; now the spec is the (possibly
+    // non-seven-note) CHORD SOURCE and yields a generalized chord. Feeding a pentatonic
+    // spec directly produces its stacked-thirds triad, voiced and sounding.
+    const pentSpec = { ...cMajor, type: 'pentatonic' as const };
+    const out = await chordVoices(happyExpr, 'chord', pentSpec);
+    const triad = out.triad as number[];
+    expect(triad).toEqual(diatonicTriad(pentSpec, DEFAULT_EXPRESSION_TO_DEGREE.happy));
+    expect(triad.length).toBeGreaterThan(0);
+    expect((out.params as SynthParams).voices.some((v) => v.present)).toBe(true);
   });
 
   it('stays silent when the face is absent', async () => {

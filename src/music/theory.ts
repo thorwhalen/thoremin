@@ -203,10 +203,22 @@ export interface ScaleSpec {
   /** Pitch class of the root, 0 = C ... 11 = B. */
   root: number;
   type: ScaleTypeId;
-  /** Number of octaves the playable range spans. */
+  /** Number of octaves the playable range spans (the LEGACY span control; used by
+   *  {@link generateScale} only when the range fields below are absent). */
   octaves: number;
-  /** Octave of the lowest note (MIDI octave; 3 is a comfortable mid range). */
+  /** Octave of the lowest note (MIDI octave; 3 is a comfortable mid range). Also the
+   *  floor of the always-covered "middle octave" for the range model (#63). */
   baseOctave: number;
+  /**
+   * #63 octave RANGE (a "double-thumb" span around a locked middle octave). When BOTH
+   * `rangeLow` and `rangeHigh` are set, {@link generateScale} spans
+   * `[baseNote − rangeLow·12, (baseNote + 12) + rangeHigh·12]` — the middle octave
+   * `[baseNote, baseNote+12]` is always covered and the total span is 1..3 octaves.
+   * Each is a fractional octave in `[0,1]`. When EITHER is absent, generation falls
+   * back to the legacy `octaves` path (byte-identical), so pre-#63 specs are unchanged.
+   */
+  rangeLow?: number;
+  rangeHigh?: number;
 }
 
 export const DEFAULT_SCALE: ScaleSpec = {
@@ -220,11 +232,38 @@ export const DEFAULT_SCALE: ScaleSpec = {
  * Build the ascending list of MIDI notes for a scale spec, inclusive of the
  * octave-completing top note. e.g. C major, 2 octaves, base octave 3 ->
  * [48, 50, 52, 53, 55, 57, 59, 60, ... 72].
+ *
+ * Two spans (#63): when `rangeLow`/`rangeHigh` are set, the scale covers a locked
+ * MIDDLE octave `[baseNote, baseNote+12]` extended `rangeLow` octaves down and
+ * `rangeHigh` octaves up (each a fractional octave in `[0,1]` → a 1..3 octave span
+ * that always includes the middle). Otherwise it uses the legacy `octaves` span
+ * (byte-identical to before #63). A wider range simply lengthens the note array's
+ * span; the continuous pitch mapper ({@link magneticPitch}) glides across it.
  */
 export function generateScale(spec: ScaleSpec): number[] {
-  const { type, octaves, baseOctave, root } = spec;
+  const { type, baseOctave, root, rangeLow, rangeHigh } = spec;
   const intervals = SCALE_TYPES[type].intervals;
-  const baseNote = (baseOctave + 1) * 12 + root;
+  const baseNote = (baseOctave + 1) * 12 + root; // the root at the middle octave's floor
+
+  if (typeof rangeLow === 'number' && typeof rangeHigh === 'number') {
+    const EPS = 1e-9;
+    const lo = baseNote - Math.max(0, rangeLow) * 12;
+    const hi = baseNote + 12 + Math.max(0, rangeHigh) * 12;
+    const scale: number[] = [baseNote, baseNote + 12]; // the middle octave is always covered
+    const kMin = Math.floor((lo - baseNote) / 12) - 1;
+    const kMax = Math.ceil((hi - baseNote) / 12) + 1;
+    for (let k = kMin; k <= kMax; k++) {
+      for (const interval of intervals) {
+        const n = baseNote + k * 12 + interval;
+        if (n >= lo - EPS && n <= hi + EPS) scale.push(n);
+      }
+      const octaveTop = baseNote + (k + 1) * 12; // octave-completing root
+      if (octaveTop >= lo - EPS && octaveTop <= hi + EPS) scale.push(octaveTop);
+    }
+    return [...new Set(scale)].sort((a, b) => a - b);
+  }
+
+  const { octaves } = spec;
   const scale: number[] = [];
   for (let o = 0; o < octaves; o++) {
     for (const interval of intervals) scale.push(baseNote + o * 12 + interval);
@@ -241,45 +280,125 @@ export function isSevenNoteScale(type: ScaleTypeId): boolean {
 }
 
 /**
- * The diatonic triad rooted on scale `degree` (0 = tonic .. 6 = leading tone) of
- * a seven-note scale, as three ascending MIDI notes. The triad is built by
- * stacking scale-thirds — degrees `degree`, `degree + 2`, `degree + 4` — within
- * the scale's own interval set, so it yields the correct chord quality for *any*
- * seven-note scale (major I/ii/iii…, harmonic-minor's augmented III and
- * diminished ii°, etc.) without naming the chord. Degrees that step past the
+ * The chord rooted on scale `degree` (0 = tonic) of a scale, as three ascending
+ * MIDI notes, built by stacking scale-thirds — degrees `degree`, `degree + 2`,
+ * `degree + 4` — within the scale's own interval set. On a seven-note scale this
+ * is the classic diatonic triad (major I/ii/iii…, harmonic-minor's augmented III
+ * and diminished ii°, etc.); on a non-seven-note scale it generalizes to that
+ * scale's own step-set (see {@link diatonicChord}) — e.g. a pentatonic source
+ * yields a musical, non-tertian stacked sonority. Degrees that step past the
  * octave wrap up by 12 semitones, keeping the triad ascending.
  *
- * Returns `[]` for non-seven-note scales (see {@link isSevenNoteScale}) so callers
- * degrade gracefully (no chord) rather than indexing out of range. A NEGATIVE
- * degree (the silence sentinel) also returns `[]`, so the sentinel is self-enforcing
- * — a caller that forgets to gate it gets silence, not a wrong (wrapped) chord.
+ * A NEGATIVE degree (the silence sentinel) returns `[]`, so the sentinel is
+ * self-enforcing — a caller that forgets to gate it gets silence, not a wrong
+ * (wrapped) chord.
  */
 export function diatonicTriad(spec: ScaleSpec, degree: number): number[] {
   return diatonicChord(spec, degree, 3);
 }
 
 /**
- * A diatonic chord rooted on scale `degree` of a seven-note scale, built by
- * stacking `size` scale-thirds — degrees `degree`, `degree+2`, … — within the
- * scale's own interval set, as ascending MIDI notes. `size = 3` is the triad
- * ({@link diatonicTriad}); `size = 4` adds the diatonic seventh (`[0,2,4,6]`),
- * used by the head-pose instrument's brow "add-7th" modifier (#76). Degrees that
- * step past the octave wrap up by 12 semitones, keeping the chord ascending.
+ * A chord rooted on scale `degree`, built by stacking `size` scale-thirds —
+ * degrees `degree`, `degree+2`, … — within the scale's own interval set, as
+ * ascending MIDI notes. `size = 3` is the triad ({@link diatonicTriad}); `size = 4`
+ * adds the diatonic seventh (`[0,2,4,6]`), used by the head-pose instrument's brow
+ * "add-7th" modifier (#76).
  *
- * Returns `[]` for non-seven-note scales (see {@link isSevenNoteScale}), a
- * negative degree (the silence sentinel), or a non-positive `size`, so callers
- * degrade gracefully to no chord rather than indexing out of range.
+ * Generalized over the scale's own length `L = intervals.length` (#75): a
+ * seven-note scale is byte-identical to the classic diatonic chord; a shorter
+ * scale (pentatonic L=5, blues L=6) stacks *its* thirds — the chord-source scale
+ * need no longer match the melody scale, so a pentatonic melody can still get
+ * chords (from a seven-note chord source by default) and arbitrary chord-source
+ * scales are allowed (yielding non-traditional but musical sonorities). Degrees
+ * are taken `mod L` and steps past the top octave wrap up by 12 semitones, keeping
+ * the chord ascending.
+ *
+ * Returns `[]` for a negative degree (the silence sentinel) or a non-positive
+ * `size`, so callers degrade gracefully to no chord rather than indexing out of
+ * range.
  */
 export function diatonicChord(spec: ScaleSpec, degree: number, size = 3): number[] {
   if (degree < 0 || size < 1) return [];
   const intervals = SCALE_TYPES[spec.type].intervals;
-  if (intervals.length !== 7) return [];
+  const L = intervals.length;
   const baseNote = (spec.baseOctave + 1) * 12 + spec.root;
-  const d = ((degree % 7) + 7) % 7;
+  const d = ((degree % L) + L) % L;
   return Array.from({ length: size }, (_, i) => {
     const idx = d + 2 * i;
-    return baseNote + intervals[idx % 7] + 12 * Math.floor(idx / 7);
+    return baseNote + intervals[idx % L] + 12 * Math.floor(idx / L);
   });
+}
+
+/**
+ * The default chord-source scale for a melody scale (#75): the melody scale is a
+ * smart *default* for where the face/pose chords are drawn from, decoupled from
+ * what the right hand plays. Seven-note melodies keep today's behaviour exactly
+ * (chord source = melody scale). Non-seven-note melodies map to the nearest
+ * diatonic embedding by root, so "pentatonic melody + chords" just works with zero
+ * configuration:
+ *  - Major Pentatonic @R → Major @R (C-maj-pent {C,D,E,G,A} ⊂ C major).
+ *  - Minor Pentatonic @R → Natural Minor @R (A-min-pent {A,C,D,E,G} ⊂ A minor;
+ *    same-root so the tonic/"home chord" matches the player's mental root).
+ *  - Blues @R → Natural Minor @R (blues is a minor-pentatonic + ♭5).
+ *  - Chromatic @R → Major @R (chromatic has no home; give plain tertian triads).
+ * The result is a subset-coherent embedding for the pentatonics; blues/chromatic
+ * carry expected blue-note/chromatic tension (so the "auto" default never triggers
+ * the custom-source clash warning). Pure — unit-tested next to {@link isSevenNoteScale}.
+ */
+export function defaultChordSpecFor(melody: Pick<ScaleSpec, 'root' | 'type'>): {
+  root: number;
+  type: ScaleTypeId;
+} {
+  const { root, type } = melody;
+  if (isSevenNoteScale(type)) return { root, type };
+  switch (type) {
+    case 'minorPentatonic':
+    case 'blues':
+      return { root, type: 'minor' };
+    case 'pentatonic':
+    case 'chromatic':
+    default:
+      return { root, type: 'major' };
+  }
+}
+
+/** The distinct pitch classes (0..11) a scale sounds — its root plus intervals, mod 12. */
+export function scalePitchClasses(root: number, type: ScaleTypeId): Set<number> {
+  return new Set(SCALE_TYPES[type].intervals.map((iv) => ((((root + iv) % 12) + 12) % 12)));
+}
+
+/**
+ * Whether a melody scale "lives inside" a chord-source scale — every melody pitch
+ * class is also a chord-scale pitch class (`pcset(melody) ⊆ pcset(chord)`). This is
+ * the musically-correct coherence condition (#75): when true, every note the hand
+ * can play is harmonized by the chord scale, so the two never clash. Drives the
+ * non-blocking custom-chord-source warning (the subset test is authoritative; the
+ * explanatory detail is {@link melodyNotesOutsideChord}, NOT a union-size count —
+ * the two heuristics disagree in both directions, so only subset is used).
+ */
+export function scaleIsSubset(
+  melody: Pick<ScaleSpec, 'root' | 'type'>,
+  chord: Pick<ScaleSpec, 'root' | 'type'>,
+): boolean {
+  const c = scalePitchClasses(chord.root, chord.type);
+  for (const pc of scalePitchClasses(melody.root, melody.type)) if (!c.has(pc)) return false;
+  return true;
+}
+
+/** The note names of the melody's pitch classes that fall OUTSIDE the chord-source
+ *  scale (ascending) — the concrete, always-subset-consistent explanation for the
+ *  custom-chord-source clash warning (e.g. `['F#']` → "F# is not in the chord scale").
+ *  Empty when {@link scaleIsSubset} holds. */
+export function melodyNotesOutsideChord(
+  melody: Pick<ScaleSpec, 'root' | 'type'>,
+  chord: Pick<ScaleSpec, 'root' | 'type'>,
+): string[] {
+  const c = scalePitchClasses(chord.root, chord.type);
+  const out: string[] = [];
+  for (const pc of [...scalePitchClasses(melody.root, melody.type)].sort((a, b) => a - b)) {
+    if (!c.has(pc)) out.push(NOTES[pc]);
+  }
+  return out;
 }
 
 /**

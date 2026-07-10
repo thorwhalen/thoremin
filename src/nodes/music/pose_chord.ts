@@ -4,8 +4,9 @@
  * control axes from `face-controls` into a voiced, rendered diatonic chord, using
  * the EASY default mapping the issue recommends as the first-run instrument:
  *
- *  - **head yaw → scale degree** — sweep the seven diatonic chords left→right, a
- *    horizontal "keyboard of chords";
+ *  - **head yaw → scale degree** — sweep the chord-source scale's chords left→right,
+ *    a horizontal "keyboard of chords" (one slice per degree, so a shorter source
+ *    sweeps monotonically over fewer chords — #75);
  *  - **head pitch → octave register** — nod up/down to shift the chord's octave;
  *  - **jaw-open → gate** — the chord sounds only while the mouth is open (jaw
  *    closed = rest), the most reliable channel as the play/rest control;
@@ -21,15 +22,16 @@
  * without id collisions. It ALWAYS emits {@link MAX_POSE_VOICES} voices on stable
  * ids (silent when idle), so a vanishing voice never leaves a chord stuck.
  *
- * Active ONLY when `faceMapping === 'controls'`, the controls are present, and the
- * scale is seven-note (a diatonic chord is otherwise undefined) — else silent.
+ * Active ONLY when `faceMapping === 'controls'`, the controls are present, and a
+ * chord-source `spec` is wired — else silent. Since #75 the chord source is decoupled
+ * from the melody (auto-derived or custom), so pose chords work on any melody scale.
  * Stateful (a beat clock + strum re-trigger) but deterministic given the tick
  * timing, so it replays exactly.
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { diatonicChord, midiToFreq, type ScaleSpec } from '@/music/theory';
+import { diatonicChord, midiToFreq, SCALE_TYPES, type ScaleSpec } from '@/music/theory';
 import { SoundSchema } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';
 import type { FaceControls, VoiceParams } from '../domain';
@@ -42,7 +44,9 @@ export const POSE_VOICE_ID_BASE = 6;
 /** The largest chord is a voiced triad (up to 4 voices) plus the brow 7th. */
 export const MAX_POSE_VOICES = 5;
 
-/** The seven diatonic degrees the head-yaw sweep spans. */
+/** The default number of degrees the head-yaw sweep spans (a seven-note chord
+ *  source). Overridden per-tick by the chord-source scale's own length (#75), so the
+ *  sweep covers each of ITS degrees exactly once — see {@link yawToDegree}. */
 const DEGREE_COUNT = 7;
 
 const Params = z.object({
@@ -79,12 +83,17 @@ interface ChordConfig {
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 const clampSigned = (v: number): number => (v < -1 ? -1 : v > 1 ? 1 : v);
 
-/** Head-yaw [-1,1] → a scale degree 0..(DEGREE_COUNT-1): a left→right sweep of the
- *  seven diatonic chords, with each degree occupying an equal slice of the range. */
-export function yawToDegree(headYaw: number): number {
+/** Head-yaw [-1,1] → a scale degree 0..(count-1): a left→right sweep of the chord
+ *  source's degrees, each occupying an equal slice of the range. `count` is the
+ *  chord-source scale's length (#75): deriving it from the scale (not a hardcoded 7)
+ *  keeps the sweep MONOTONIC and complete for any source — a 5-note source sweeps
+ *  0..4 once (no mid-sweep wrap back to the tonic), a 12-note source reaches all 12
+ *  degrees (none unreachable). Defaults to {@link DEGREE_COUNT} when no scale is known. */
+export function yawToDegree(headYaw: number, count = DEGREE_COUNT): number {
+  const n = count > 0 ? count : DEGREE_COUNT;
   const t = (clampSigned(headYaw) + 1) / 2; // [-1,1] → [0,1]
-  const d = Math.floor(t * DEGREE_COUNT);
-  return d < 0 ? 0 : d >= DEGREE_COUNT ? DEGREE_COUNT - 1 : d;
+  const d = Math.floor(t * n);
+  return d < 0 ? 0 : d >= n ? n - 1 : d;
 }
 
 export const poseChordNode = defineNode<Params>({
@@ -151,7 +160,9 @@ export const poseChordNode = defineNode<Params>({
         }
 
         const c = controls as FaceControls;
-        const degree = yawToDegree(c.headYaw);
+        // Sweep across the chord-SOURCE scale's own degrees (#75), so a non-seven-note
+        // source stays monotonic and fully reachable.
+        const degree = yawToDegree(c.headYaw, SCALE_TYPES[spec!.type].intervals.length);
         // Head pitch sweeps the octave; brow raises add the diatonic 7th.
         const octaveShift = baseShift + Math.round(clampSigned(c.headPitch) * p.octaveRange);
         const withSeventh = c.browRaise >= p.browSeventhAt;

@@ -64,7 +64,7 @@
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -233,7 +233,7 @@
     </div>
     <div class="node">
       <h4><code>expression-chord</code> <span class="title">Expression Chord</span></h4>
-      <p>Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).</p>
+      <p>Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).</p>
       <dl>
         <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees</dd>
@@ -309,7 +309,7 @@
       <p>Mirrored video + composable overlay elements (guides, landmarks, markers, cues).</p>
       <dl>
         <dt>roles</dt><dd>overlay</dd>
-        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config</dd>
+        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config</dd>
         <dt>out</dt><dd>—</dd>
         <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={})</dd>
       </dl>

@@ -59,6 +59,19 @@ describe('preset persistence', () => {
     expect(loaded?.settings.overlay.video.alpha).toBeCloseTo(0.1);
   });
 
+  it('round-trips a per-voice fractional octave range (#63)', async () => {
+    const s = store();
+    const settings = sampleSettings({
+      right: { root: 0, type: 'pentatonic', octaves: 3, baseOctave: 3, sound: 'warmPad', rangeLow: 0.5, rangeHigh: 1 },
+    });
+    await s.save('Wide Range', settings, 1000);
+    const loaded = await s.load('wide-range');
+    expect(loaded?.settings.right.rangeLow).toBe(0.5);
+    expect(loaded?.settings.right.rangeHigh).toBe(1);
+    // A voice without range is preserved as absent (the legacy octaves span → identical sound).
+    expect(loaded?.settings.left.rangeLow).toBeUndefined();
+  });
+
   it('saving the same name overwrites instead of duplicating', async () => {
     const s = store();
     await s.save('My Setup', sampleSettings({ masterVolume: 0.2 }), 1000);
