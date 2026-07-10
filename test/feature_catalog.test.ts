@@ -69,7 +69,9 @@ describe('face catalog — blendshapes', () => {
 });
 
 describe('face catalog — geometry', () => {
-  it('EAR is (v1+v2)/(2h) from the lid + corner landmarks', () => {
+  it('EAR is (v1+v2)/(2h); subject-RIGHT eye reads the 33-side (*L) lids', () => {
+    // The 33-side (*L constants) is the subject's RIGHT eye, so setting those points
+    // drives face.geom.eye.earRight — NOT earLeft (which reads the 263-side).
     const l = makeFaceLandmarks({
       [FL.eyeUpperL2]: { x: 0.30, y: 0.40 },
       [FL.eyeLowerL2]: { x: 0.30, y: 0.44 }, // v1 = 0.04
@@ -79,7 +81,26 @@ describe('face catalog — geometry', () => {
       [FL.eyeOuterL]: { x: 0.40, y: 0.42 }, // h = 0.12
     });
     const ctx = buildFaceCtx({ present: true, blendshapes: {}, landmarks: l });
-    expect(face('face.geom.eye.earLeft').compute(ctx)).toBeCloseTo((0.04 + 0.04) / (2 * 0.12), 5);
+    expect(face('face.geom.eye.earRight').compute(ctx)).toBeCloseTo((0.04 + 0.04) / (2 * 0.12), 5);
+  });
+
+  it('face.symmetry.eye carries the same subject right−left sign as symmetry.smile', () => {
+    // A wide-open subject-RIGHT eye (33-side, big vertical gaps) + a nearly-closed
+    // subject-LEFT eye (263-side, small gaps). Then earRight > earLeft, so
+    // symmetry.eye = earRight − earLeft > 0 — matching mouthSmileRight − mouthSmileLeft.
+    const l = makeFaceLandmarks({
+      // subject-right eye (33-side): wide open (gap 0.06)
+      [FL.eyeUpperL2]: { x: 0.30, y: 0.39 }, [FL.eyeLowerL2]: { x: 0.30, y: 0.45 },
+      [FL.eyeUpperL3]: { x: 0.34, y: 0.39 }, [FL.eyeLowerL3]: { x: 0.34, y: 0.45 },
+      [FL.eyeInnerL]: { x: 0.28, y: 0.42 }, [FL.eyeOuterL]: { x: 0.40, y: 0.42 },
+      // subject-left eye (263-side): nearly closed (gap 0.01)
+      [FL.eyeUpperR2]: { x: 0.60, y: 0.415 }, [FL.eyeLowerR2]: { x: 0.60, y: 0.425 },
+      [FL.eyeUpperR3]: { x: 0.64, y: 0.415 }, [FL.eyeLowerR3]: { x: 0.64, y: 0.425 },
+      [FL.eyeInnerR]: { x: 0.58, y: 0.42 }, [FL.eyeOuterR]: { x: 0.70, y: 0.42 },
+    });
+    const ctx = buildFaceCtx({ present: true, blendshapes: {}, landmarks: l });
+    expect(face('face.geom.eye.earRight').compute(ctx)).toBeGreaterThan(face('face.geom.eye.earLeft').compute(ctx));
+    expect(face('face.symmetry.eye').compute(ctx)).toBeGreaterThan(0); // right − left, like symmetry.smile
   });
 
   it('MAR is (v1+v2+v3)/(2h) from the lip landmarks', () => {

@@ -313,7 +313,9 @@ function wholeFeatures(): HandFeature[] {
       id: 'curlSum',
       group: 'hand.whole',
       source: 'hand',
-      range: [0, 15 * Math.PI / 3],
+      // Five fingers, each curl 0..3pi -> 0..15pi theoretical (advisory; the
+      // normalizer does the real per-user ranging).
+      range: [0, 15 * Math.PI],
       controllability: 'easy',
       description: 'Sum of all five finger curls (rad)',
       compute: (c) => FINGERS.reduce((s, f) => s + fingerCurl(c, f), 0),

@@ -155,8 +155,9 @@ function geomFeatures(): FaceFeature[] {
     g('face.geom.eye.earLeft', 'face.geom.eye', 'moderate', (l) => ear(l, 'left'), 'Eye aspect ratio, subject-left'),
     g('face.geom.eye.earRight', 'face.geom.eye', 'moderate', (l) => ear(l, 'right'), 'Eye aspect ratio, subject-right'),
     g('face.geom.eye.earAvg', 'face.geom.eye', 'easy', (l) => (ear(l, 'left') + ear(l, 'right')) / 2, 'Mean eye aspect ratio (blink/squint)'),
-    g('face.geom.eye.apertureLeft', 'face.geom.eye', 'moderate', (l, iod) => safeDiv(dL(l, FL.eyeUpperL, FL.eyeLowerL), iod), 'Left eye vertical opening / IOD'),
-    g('face.geom.eye.apertureRight', 'face.geom.eye', 'moderate', (l, iod) => safeDiv(dL(l, FL.eyeUpperR, FL.eyeLowerR), iod), 'Right eye vertical opening / IOD'),
+    // Subject-left eye is the 263-side (`*R` constants); subject-right is the 33-side.
+    g('face.geom.eye.apertureLeft', 'face.geom.eye', 'moderate', (l, iod) => safeDiv(dL(l, FL.eyeUpperR, FL.eyeLowerR), iod), 'Subject-left eye vertical opening / IOD'),
+    g('face.geom.eye.apertureRight', 'face.geom.eye', 'moderate', (l, iod) => safeDiv(dL(l, FL.eyeUpperL, FL.eyeLowerL), iod), 'Subject-right eye vertical opening / IOD'),
     // face.geom.mouth
     g('face.geom.mouth.aspectRatio', 'face.geom.mouth', 'easy', (l) => mar(l), 'Mouth aspect ratio (open/close)'),
     g('face.geom.mouth.openness', 'face.geom.mouth', 'easy', (l, iod) => safeDiv(dL(l, FL.lipTopInner, FL.lipBottomInner), iod), 'Inner-lip gap / IOD'),

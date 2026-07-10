@@ -31,19 +31,24 @@ export const FL = {
   subnasale: 2,
   glabella: 168,
   chin: 152,
-  // Eyes — outer/inner canthi (scale references)
+  // Eyes — outer/inner canthi (scale references). NOTE on naming: these `*L`/`*R`
+  // constants are named by MediaPipe's IMAGE side (the 33-side vs the 263-side),
+  // which is the OPPOSITE of the subject's anatomy — the 33-side (all `*L` here) is
+  // the subject's RIGHT eye, the 263-side (`*R`) is the subject's LEFT eye. Features
+  // that speak in SUBJECT terms (earLeft, apertureLeft, gaze/brow/cheek "Left")
+  // therefore read the `*R` (263-side) constants, and vice-versa.
   eyeOuterL: 33,
   eyeInnerL: 133,
   eyeOuterR: 263,
   eyeInnerR: 362,
-  // Left-eye lids (subject-left; MediaPipe indices)
+  // 33-side lids (image-left = subject's RIGHT eye)
   eyeUpperL: 159,
   eyeLowerL: 145,
   eyeUpperL2: 160,
   eyeLowerL2: 144,
   eyeUpperL3: 158,
   eyeLowerL3: 153,
-  // Right-eye lids
+  // 263-side lids (image-right = subject's LEFT eye)
   eyeUpperR: 386,
   eyeLowerR: 374,
   eyeUpperR2: 385,
@@ -113,13 +118,17 @@ export function irisDistance(landmarks: FaceLandmarks | undefined): number {
  * Eye Aspect Ratio for one eye (Soukupova & Cech 2016): the mean of two vertical
  * lid gaps over the horizontal corner span. Self-normalizing (a ratio), so it
  * needs no IOD. `NaN` if any landmark or the corner span is missing/degenerate.
- * `side` selects the subject-left or subject-right eye's index set.
+ * `side` selects the SUBJECT's left or right eye. Because MediaPipe's 33-side is
+ * the subject's RIGHT eye (see the {@link FL} naming note), subject-LEFT reads the
+ * `*R` (263-side) constants and subject-RIGHT reads the `*L` (33-side) ones — the
+ * same subject-side convention as the gaze/brow/cheek "Left"/"Right" features, so
+ * `face.symmetry.eye` carries the same right−left sign as the blendshape symmetries.
  */
 export function ear(landmarks: FaceLandmarks | undefined, side: 'left' | 'right'): number {
   const idx =
     side === 'left'
-      ? { u1: FL.eyeUpperL2, l1: FL.eyeLowerL2, u2: FL.eyeUpperL3, l2: FL.eyeLowerL3, c1: FL.eyeInnerL, c2: FL.eyeOuterL }
-      : { u1: FL.eyeUpperR2, l1: FL.eyeLowerR2, u2: FL.eyeUpperR3, l2: FL.eyeLowerR3, c1: FL.eyeInnerR, c2: FL.eyeOuterR };
+      ? { u1: FL.eyeUpperR2, l1: FL.eyeLowerR2, u2: FL.eyeUpperR3, l2: FL.eyeLowerR3, c1: FL.eyeInnerR, c2: FL.eyeOuterR }
+      : { u1: FL.eyeUpperL2, l1: FL.eyeLowerL2, u2: FL.eyeUpperL3, l2: FL.eyeLowerL3, c1: FL.eyeInnerL, c2: FL.eyeOuterL };
   const v1 = dL(landmarks, idx.u1, idx.l1);
   const v2 = dL(landmarks, idx.u2, idx.l2);
   const h = dL(landmarks, idx.c1, idx.c2);

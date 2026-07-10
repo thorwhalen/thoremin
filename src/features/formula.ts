@@ -181,8 +181,15 @@ export function compileFormula(source: string, opts: CompileOptions): CompiledFo
         const callee = node.callee as Node;
         if (callee.type !== 'Identifier') throw new FormulaError('Only direct calls to named helper functions are allowed.');
         const name = callee.name as string;
+        // Own-property check only — a bare `helpers[name]` would resolve INHERITED
+        // Object.prototype members (`constructor`, `hasOwnProperty`, `valueOf`, ...),
+        // which both bypasses the whitelist (reaching a global constructor) and, for
+        // the `this`-less prototype methods, throws at eval time, breaking the
+        // never-throws contract. Reject any non-own key at compile time.
+        if (!Object.prototype.hasOwnProperty.call(helpers, name)) {
+          throw new FormulaError(`Unknown function "${name}". Allowed: ${Object.keys(helpers).join(', ')}.`);
+        }
         const fn = helpers[name];
-        if (!fn) throw new FormulaError(`Unknown function "${name}". Allowed: ${Object.keys(helpers).join(', ')}.`);
         const args = (node.arguments as Node[]).map((a) => walk(a));
         return (s) => fn(...args.map((a) => a(s)));
       }

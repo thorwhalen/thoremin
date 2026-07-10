@@ -24,6 +24,15 @@ describe('formula compiler — security', () => {
     expect(() => compile('eval("1")')).toThrow(FormulaError);
   });
 
+  it('rejects calls to INHERITED Object.prototype members (no prototype-chain bypass)', () => {
+    // `helpers[name]` would otherwise resolve these to real functions: `constructor`
+    // reaches the global Object constructor (a whitelist bypass), and the this-less
+    // prototype methods would throw at eval time (breaking the never-throws contract).
+    for (const src of ['constructor(0)', 'hasOwnProperty(1)', 'valueOf()', 'toString(1)', 'isPrototypeOf(1)', 'propertyIsEnumerable(1)', '__defineGetter__(1, 2)']) {
+      expect(() => compile(src), src).toThrow(FormulaError);
+    }
+  });
+
   it('rejects unknown / free identifiers (no globals, typo protection)', () => {
     expect(() => compile('window')).toThrow(FormulaError);
     expect(() => compile('globalThis')).toThrow(FormulaError);
