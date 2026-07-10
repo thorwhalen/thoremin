@@ -35,8 +35,8 @@ describe('command dispatch (#87)', () => {
   it('dispatch dial.patch sets several dials in order (a synced-voice edit)', async () => {
     const r = await registry.dispatch('dial.patch', {
       writes: [
-        ['right.root', 7],
-        ['left.root', 7],
+        { key: 'right.root', value: 7 },
+        { key: 'left.root', value: 7 },
       ],
     });
     expect(r.ok).toBe(true);
@@ -71,8 +71,8 @@ describe('command dispatch (#87)', () => {
     const rootBefore = dialsStore.getState().effective['right.root'];
     const r = await registry.dispatch('dial.patch', {
       writes: [
-        ['right.root', 6], // valid
-        ['right.octaves', 99], // valid KEY, invalid VALUE (max 4) → rejects the batch
+        { key: 'right.root', value: 6 }, // valid
+        { key: 'right.octaves', value: 99 }, // valid KEY, invalid VALUE (max 4) → rejects the batch
       ],
     });
     expect(r.ok).toBe(false);
