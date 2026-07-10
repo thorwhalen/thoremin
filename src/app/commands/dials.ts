@@ -16,8 +16,39 @@
 import { z } from 'zod';
 import { defineCommand, ok, err, type Result } from 'acture';
 import type { SettingKey } from '@zodal/dials-core';
-import { dialsStore, setDial, resetDial } from '@/app/dials/settingsStore';
+import { dialsStore, setDial, resetDial, fieldByKey } from '@/app/dials/settingsStore';
 import { thoreminDials, layerToSettings } from '@/settings/dials';
+
+/** A dial value on the generic verbs — a JSON-Schema-representable union (string, number,
+ *  or boolean), NOT `z.unknown()`. The `z.unknown()`/`z.tuple()` shapes emit an untyped
+ *  (`{}`) or tuple-`items` JSON Schema that Gemini's function-calling validator rejects
+ *  ("items.items: missing field"); a plain union of scalars is accepted by every provider.
+ *  Structured dials aren't set through these verbs, so scalars cover the whole surface. */
+const DIAL_VALUE = z.union([z.string(), z.number(), z.boolean()]);
+
+/**
+ * Coerce a STRING value to the dial's declared scalar type. The palette's typed inputs and
+ * the app's programmatic callers already pass a number/boolean, so those pass through
+ * untouched; but an AI model often sends a numeric/boolean dial as a STRING ("0.3", "true"),
+ * so we convert it against the dial's SSOT type before validation. An unparseable string is
+ * left as-is, so the downstream settings-schema check reports it as `invalid_value`.
+ */
+function coerceDialValue(key: string, value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const field = fieldByKey[key];
+  if (!field || field.enumValues?.length) return value; // enum members are strings
+  if (field.zodType === 'number') {
+    const n = Number(value);
+    return value.trim() !== '' && !Number.isNaN(n) ? n : value;
+  }
+  if (field.zodType === 'boolean') {
+    const t = value.trim().toLowerCase();
+    if (t === 'true' || t === '1') return true;
+    if (t === 'false' || t === '0') return false;
+    return value;
+  }
+  return value; // a string dial
+}
 
 /** The DECLARED dial keyspace — the SSOT for "is this a real dial". Keyed off the
  *  dials definition, NOT the resolved `effective` map (which omits any future
@@ -55,10 +86,11 @@ function invalidWritesReason(writes: ReadonlyArray<readonly [string, unknown]>):
  */
 export function applyDialSet(key: string, value: unknown): Result<{ key: string; value: unknown }> {
   if (!isDial(key)) return err('unknown_dial', `No dial named "${key}".`, { key });
-  const reason = invalidWritesReason([[key, value]]);
-  if (reason) return err('invalid_value', `Invalid value for "${key}": ${reason}`, { key, value });
-  setDial(key as SettingKey, value);
-  return ok({ key, value });
+  const coerced = coerceDialValue(key, value);
+  const reason = invalidWritesReason([[key, coerced]]);
+  if (reason) return err('invalid_value', `Invalid value for "${key}": ${reason}`, { key, value: coerced });
+  setDial(key as SettingKey, coerced);
+  return ok({ key, value: coerced });
 }
 
 /** Set one dial to a value. The value is validated against the settings schema before
@@ -71,7 +103,7 @@ export const setDialCmd = defineCommand({
   category: 'Dials',
   params: z.object({
     key: z.string().describe('The dial key, e.g. "right.baseOctave" or "face.mapping".'),
-    value: z.unknown().describe('The new value for that dial.'),
+    value: DIAL_VALUE.describe('The new value: a number, a boolean, or a string (an enum member / note name, or a stringified number that is coerced to the dial\'s type).'),
   }),
   execute: ({ key, value }) => applyDialSet(key, value),
 });
@@ -102,15 +134,21 @@ export const patchDialsCmd = defineCommand({
   category: 'Dials',
   params: z.object({
     writes: z
-      .array(z.tuple([z.string(), z.unknown()]))
-      .describe('Ordered [key, value] writes, applied in sequence.'),
+      .array(
+        z.object({
+          key: z.string().describe('The dial key.'),
+          value: DIAL_VALUE.describe('The new value (number/boolean/string, coerced to the dial\'s type).'),
+        }),
+      )
+      .describe('An ordered list of { key, value } dial writes, applied in sequence.'),
   }),
   execute: ({ writes }) => {
-    const bad = writes.find(([k]) => !isDial(k));
-    if (bad) return err('unknown_dial', `No dial named "${bad[0]}".`, { key: bad[0] });
-    const reason = invalidWritesReason(writes);
+    const bad = writes.find((w) => !isDial(w.key));
+    if (bad) return err('unknown_dial', `No dial named "${bad.key}".`, { key: bad.key });
+    const pairs = writes.map((w) => [w.key, coerceDialValue(w.key, w.value)] as [string, unknown]);
+    const reason = invalidWritesReason(pairs);
     if (reason) return err('invalid_value', `Invalid dial values: ${reason}`, { writes });
-    for (const [k, v] of writes) setDial(k as SettingKey, v);
+    for (const [k, v] of pairs) setDial(k as SettingKey, v);
     return ok({ count: writes.length });
   },
 });

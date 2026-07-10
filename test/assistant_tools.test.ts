@@ -49,4 +49,21 @@ describe('assistant tool projection (#87 Phase 3)', () => {
     expect(badRes.ok).toBe(false);
     expect(badRes.error?.code).toBe('unknown_dial');
   });
+
+  it('coerces a stringified numeric value from the AI to the dial\'s real type', async () => {
+    // Gemini-safe fix: the AI often passes a numeric dial as a STRING; it must land as a number.
+    const tools = buildAssistantTools(() => {});
+    const okRes = await run(tools['dial_set'], { key: 'master.volume', value: '0.5' });
+    expect(okRes.ok).toBe(true);
+    expect(dialsStore.getState().effective['master.volume']).toBe(0.5);
+  });
+
+  it('dial_patch takes { key, value } objects (not tuples) and coerces string values', async () => {
+    // The tuple + z.unknown() shape broke Gemini's function-calling schema; the object shape
+    // with a typed value union is Gemini-safe. Verify the new shape dispatches + coerces.
+    const tools = buildAssistantTools(() => {});
+    const r = await run(tools['dial_patch'], { writes: [{ key: 'master.volume', value: '0.25' }] });
+    expect(r.ok).toBe(true);
+    expect(dialsStore.getState().effective['master.volume']).toBe(0.25);
+  });
 });

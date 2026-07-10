@@ -16,10 +16,10 @@ export interface AssistantSettings {
   model: string;
 }
 
-/** Default: OpenAI gpt-4o (a widely-available tool-use model). */
+/** Default: Google Gemini 3.5 Flash — near-Pro capability at Flash cost/speed. */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
-  provider: 'openai',
-  model: 'gpt-4o',
+  provider: 'google',
+  model: 'gemini-3.5-flash',
 };
 
 export type ChatRole = 'user' | 'assistant';

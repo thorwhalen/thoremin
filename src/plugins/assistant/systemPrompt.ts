@@ -15,7 +15,7 @@ export function buildSystemPrompt(): string {
     '',
     'HOW TO ACT',
     '- Change one dial with dial.set({ key, value }); change several at once with',
-    '  dial.patch({ writes: [[key, value], ...] }); restore a default with dial.reset({ key }).',
+    '  dial.patch({ writes: [{ key, value }, ...] }); restore a default with dial.reset({ key }).',
     '- Every value must respect the dial\'s type and range (listed below). For relative requests',
     '  ("an octave lower", "brighter", "warmer"), compute the new value from the CURRENT value below.',
     '- After changing dials, briefly say what you did in plain language.',

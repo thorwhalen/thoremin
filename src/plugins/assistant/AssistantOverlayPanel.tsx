@@ -118,6 +118,17 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
               ))}
             </select>
           </div>
+          <div className="flex items-center justify-between">
+            <a
+              href={provider.keyHelpUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[9px] uppercase tracking-widest text-emerald-400 underline"
+            >
+              Get a {provider.label} key <ExternalLink className="h-3 w-3" />
+            </a>
+            <span className="text-[9px] uppercase tracking-widest text-white/30">{hasKey ? 'key set' : 'no key'}</span>
+          </div>
           {hasKey && (
             <button onClick={removeKey} className="text-[9px] uppercase tracking-widest text-red-400/50 transition-colors hover:text-red-400">
               Remove {provider.label} key
@@ -140,6 +151,7 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
             keyDraft={keyDraft}
             setKeyDraft={setKeyDraft}
             onSave={saveKey}
+            onSelectProvider={selectProvider}
           />
         ) : session.messages.length === 0 ? (
           <p className="pt-6 text-center text-[11px] leading-relaxed text-white/30">
@@ -209,19 +221,40 @@ function KeyGate({
   keyDraft,
   setKeyDraft,
   onSave,
+  onSelectProvider,
 }: {
   providerId: ProviderId;
   keyDraft: string;
   setKeyDraft: (v: string) => void;
   onSave: () => void;
+  onSelectProvider: (id: ProviderId) => void;
 }) {
   const provider = PROVIDERS[providerId];
   return (
     <div className="space-y-3 pt-2">
       <p className="text-xs leading-relaxed text-white/60">
-        Connect <strong className="text-white">{provider.label}</strong> to let the assistant play the instrument. Your key
-        is stored only in this browser and sent only to {provider.label} — thoremin has no backend.
+        Connect an AI provider to let the assistant play the instrument. Your key is stored only in
+        this browser and sent only to the provider you pick — thoremin has no backend.
       </p>
+
+      {/* Make the provider CHOICE obvious right here. */}
+      <div className="space-y-1">
+        <p className="text-[9px] uppercase tracking-widest text-white/30">Choose a provider</p>
+        <div className="flex gap-1.5">
+          {PROVIDER_LIST.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onSelectProvider(p.id)}
+              className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                p.id === providerId ? 'bg-emerald-500 text-black' : 'bg-white/5 text-white/50 hover:text-white/80'
+              }`}
+            >
+              {p.label.replace(/\s*\(.*\)/, '')}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <a
         href={provider.keyHelpUrl}
         target="_blank"
@@ -244,8 +277,12 @@ function KeyGate({
         disabled={!keyDraft.trim()}
         className="w-full rounded-lg bg-emerald-500 py-2 text-[10px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-emerald-400 disabled:opacity-30"
       >
-        Connect
+        Connect {provider.label}
       </button>
+      <p className="text-[10px] leading-relaxed text-white/30">
+        You can switch provider or model anytime from the{' '}
+        <SettingsIcon className="inline h-3 w-3 align-text-bottom" /> settings.
+      </p>
     </div>
   );
 }

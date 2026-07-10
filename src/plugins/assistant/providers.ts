@@ -59,8 +59,10 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
   google: {
     id: 'google',
     label: 'Google (Gemini)',
-    models: ['gemini-2.5-flash', 'gemini-2.0-flash'],
-    defaultModel: 'gemini-2.5-flash',
+    // gemini-3.5-flash is the current GA flash (what `gemini-flash-latest` points to);
+    // gemini-2.0-flash was shut down 2026-06-01, so it is intentionally omitted.
+    models: ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash'],
+    defaultModel: 'gemini-3.5-flash',
     keyHelpUrl: 'https://aistudio.google.com/app/apikey',
     keyPlaceholder: 'AIza...',
     async createModel(apiKey, modelId) {
