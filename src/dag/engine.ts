@@ -64,6 +64,26 @@ export class Engine {
     this.build(spec, registry);
   }
 
+  /**
+   * Attach a {@link Tap} after construction and get back a detach function.
+   * Constructor `opts.taps` covers the headless record/replay path (a fixed set
+   * of taps for the whole run); this is its live counterpart — a running engine
+   * (e.g. the browser rAF loop) can start/stop tapping mid-session without a
+   * rebuild (which would reload the ML model). Used by recording-v2 (#88) to
+   * capture a feature stream to JSONL only while a take is in progress. Idempotent
+   * per tap; the returned function removes exactly this registration.
+   */
+  addTap(tap: Tap): () => void {
+    this.taps.push(tap);
+    return () => this.removeTap(tap);
+  }
+
+  /** Detach a previously {@link addTap}'d tap (no-op if not attached). */
+  removeTap(tap: Tap): void {
+    const i = this.taps.indexOf(tap);
+    if (i >= 0) this.taps.splice(i, 1);
+  }
+
   // ---- build ------------------------------------------------------------
 
   private build(spec: GraphSpec, registry: NodeRegistry): void {

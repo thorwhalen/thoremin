@@ -1101,6 +1101,28 @@ export const canvasOverlayNode = defineNode<Params>({
         view.layout = layoutCues(view);
         for (const element of OVERLAY_ELEMENTS) element.draw(g, view);
 
+        // Overlay-only (alpha) pass (#88): when a transparent overlay canvas is
+        // injected via resources (only while the overlay-alpha stream is being
+        // recorded — Chromium alpha-WebM), redraw the SAME elements onto it with
+        // the webcam backdrop suppressed, so the landmarks/cues sit on
+        // transparency. Reuses the exact element draw list (no duplicated drawing
+        // logic, no drift) and is a no-op — zero cost — whenever the resource is
+        // absent (i.e. always, except during an alpha take).
+        const alphaCanvas = ctx.resources.overlayAlphaCanvas as HTMLCanvasElement | undefined;
+        if (alphaCanvas) {
+          const ga = alphaCanvas.getContext('2d');
+          if (ga) {
+            ga.clearRect(0, 0, alphaCanvas.width, alphaCanvas.height);
+            const alphaView: OverlayView = {
+              ...view,
+              W: alphaCanvas.width,
+              H: alphaCanvas.height,
+              params: { ...view.params, video: { ...view.params.video, show: false } },
+            };
+            for (const element of OVERLAY_ELEMENTS) element.draw(ga, alphaView);
+          }
+        }
+
         return {};
       },
     };
