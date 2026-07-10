@@ -23,7 +23,7 @@
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 30 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 31 nodes.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live sound is in progress.</p>
   <h3>Example pipelines</h3>
   <ul class="examples"><li><b>Theremin (direct)</b> — <code>webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)</code><br/><span class="note">Hand x → scale-snapped pitch, y → volume. Two hands = two voices.</span></li><li><b>Gesture → harmony</b> — <code>hand-features → pick('right.x') → progression → chord → webaudio-synth</code><br/><span class="note">Hand position walks an in-key chord progression.</span></li><li><b>Conductor</b> — <code>control → performance → transport → score → webaudio-synth</code><br/><span class="note">A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).</span></li><li><b>Indirect / AI (gesture or expression)</b> — <code>hand-features / face-features → indirect-map → lyria</code><br/><span class="note">Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.</span></li><li><b>Discrete triggers</b> — <code>hand-features → gesture-classifier → (events)</code><br/><span class="note">Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.</span></li></ul>
@@ -302,7 +302,7 @@
         <dt>params</dt><dd>bpmMin (number=60), bpmMax (number=160), dynMin (number=0.4), dynMax (number=1), humanizeBpm (number=0), humanizeVel (number=0)</dd>
       </dl>
     </div></div></section>
-<section><h3>Synthesis &amp; generation</h3><p class="blurb">Make sound — direct synthesis or steered AI music.</p><div class="grid">
+<section><h3>Synthesis &amp; generation</h3><p class="blurb">Make sound — direct synthesis, steered AI music, or an external MIDI instrument.</p><div class="grid">
     <div class="node">
       <h4><code>webaudio-synth</code> <span class="title">Web Audio Synth</span></h4>
       <p>Renders synth params to sound-preset voices (browser only).</p>
@@ -321,6 +321,16 @@
         <dt>in</dt><dd>steer:generative-steer, playing:boolean</dd>
         <dt>out</dt><dd>state:string</dd>
         <dt>params</dt><dd>throttleSec (number=0.2)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>midi-out</code> <span class="title">MIDI Output</span></h4>
+      <p>Sends the merged voices to a Web MIDI output as note-on/off + CC (WEBMIDI.js). Off by default; gracefully disabled where Web MIDI is unsupported (Safari/iOS).</p>
+      <dl>
+        <dt>roles</dt><dd>synth</dd>
+        <dt>in</dt><dd>params:synth-params, enabled:boolean, port:string</dd>
+        <dt>out</dt><dd>status:midi-status</dd>
+        <dt>params</dt><dd>channel (number=1), fullVelocityGain (number=0.5), minVelocity (number=1), noteHysteresis (number=0.1), cc (object={"expression":11,"brightness":74,"vibrato":1,"pan":10})</dd>
       </dl>
     </div></div></section>
 <section><h3>Output</h3><p class="blurb">Audio + the captured video with overlaid guides.</p><div class="grid">

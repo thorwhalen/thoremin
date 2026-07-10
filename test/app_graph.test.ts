@@ -45,8 +45,11 @@ describe('production app graph', () => {
     expect(order.indexOf('cam')).toBeLessThan(order.indexOf('handVec'));
     expect(order.indexOf('faceVec')).toBeLessThan(order.indexOf('overlay'));
     expect(order.indexOf('handVec')).toBeLessThan(order.indexOf('overlay'));
-    // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector taps.
-    expect(order).toHaveLength(16);
+    // MIDI output taps the merged voices, so it evaluates after the merge (#13).
+    expect(order.indexOf('merge')).toBeLessThan(order.indexOf('midiOut'));
+    // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
+    // taps + the #13 midi-out sink.
+    expect(order).toHaveLength(17);
   });
 
   it('wires the face overlays (mesh + expression readout + both chord highlights)', () => {
