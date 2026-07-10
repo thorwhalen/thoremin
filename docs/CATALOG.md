@@ -21,7 +21,7 @@ This page catalogs the engine's building blocks — every node and how they conn
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
   Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.
 
-## Nodes (30)
+## Nodes (31)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -255,7 +255,7 @@ Control signal → tempo (bpm) + dynamics (velocityScale), with optional humaniz
 - **params:** bpmMin (number=60), bpmMax (number=160), dynMin (number=0.4), dynMax (number=1), humanizeBpm (number=0), humanizeVel (number=0)
 
 ### Synthesis & generation
-_Make sound — direct synthesis or steered AI music._
+_Make sound — direct synthesis, steered AI music, or an external MIDI instrument._
 
 #### `webaudio-synth` — Web Audio Synth
 Renders synth params to sound-preset voices (browser only).
@@ -272,6 +272,14 @@ Steers a generative engine (Lyria RealTime) from weighted prompts + config dials
 - **in:** steer:generative-steer, playing:boolean
 - **out:** state:string
 - **params:** throttleSec (number=0.2)
+
+#### `midi-out` — MIDI Output
+Sends the merged voices to a Web MIDI output as note-on/off + CC (WEBMIDI.js). Off by default; gracefully disabled where Web MIDI is unsupported (Safari/iOS).
+
+- **roles:** synth
+- **in:** params:synth-params, enabled:boolean, port:string
+- **out:** status:midi-status
+- **params:** channel (number=1), fullVelocityGain (number=0.5), minVelocity (number=1), noteHysteresis (number=0.1), cc (object={"expression":11,"brightness":74,"vibrato":1,"pan":10})
 
 ### Output
 _Audio + the captured video with overlaid guides._

@@ -139,6 +139,10 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // Pick whichever chord instrument is sounding, for the overlay pitch-guide highlight.
       { id: 'chordSel', type: 'chord-select', params: {} },
       { id: 'synth', type: 'webaudio-synth' },
+      // MIDI output (#13): taps the same merged voices as the synth to drive an
+      // external instrument/DAW. Off by default (its `enabled` input defaults false)
+      // and a no-op where Web MIDI is unsupported, so it costs nothing until turned on.
+      { id: 'midiOut', type: 'midi-out', params: {} },
       // Overlay elements default on (video/scaleGuide/landmarks/markers); the
       // opt-in index-finger guide is off by default. See canvas_overlay.ts.
       { id: 'overlay', type: 'canvas-overlay', params: {} },
@@ -201,6 +205,10 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // at the mapping stage; this is the catch-all that also covers the chords.
       { from: { node: 'ui', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
       { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
+      // MIDI output (#13): the merged voices also feed the midi-out node (additive
+      // tap off the synth bus). Its `enabled`/`port` inputs are unconnected here, so
+      // they use their defaults (off) until a UI drives them live.
+      { from: { node: 'merge', port: 'params' }, to: { node: 'midiOut', port: 'params' } },
       // Feed the MERGED params (hand voices + both chord instruments) to the overlay:
       // the hand voices stay at indices 0/1 (synth-merge concatenates them first), so
       // the per-hand note labels/markers are unchanged, while the keyboard strip's

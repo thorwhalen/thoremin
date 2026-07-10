@@ -799,6 +799,68 @@
     ]
   },
   {
+    "type": "midi-out",
+    "title": "MIDI Output",
+    "description": "Sends the merged voices to a Web MIDI output as note-on/off + CC (WEBMIDI.js). Off by default; gracefully disabled where Web MIDI is unsupported (Safari/iOS).",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "enabled",
+        "kind": "boolean",
+        "default": false
+      },
+      {
+        "name": "port",
+        "kind": "string",
+        "default": ""
+      }
+    ],
+    "outputs": [
+      {
+        "name": "status",
+        "kind": "midi-status"
+      }
+    ],
+    "params": [
+      {
+        "name": "channel",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "fullVelocityGain",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "minVelocity",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "noteHysteresis",
+        "type": "number",
+        "default": 0.1
+      },
+      {
+        "name": "cc",
+        "type": "object",
+        "default": {
+          "expression": 11,
+          "brightness": 74,
+          "vibrato": 1,
+          "pan": 10
+        }
+      }
+    ]
+  },
+  {
     "type": "one-euro",
     "title": "One-Euro Filter",
     "description": "Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).",

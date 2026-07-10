@@ -23,7 +23,7 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Mapping (direct ↔ indirect)', blurb: 'Features → engine parameters, across the expression spectrum.', types: ['voice-mapping', 'indirect-map', 'keyboard-control', 'pick', 'one-euro', 'synth-merge', 'chord-select'] },
   { name: 'Music logic (tonal guidance)', blurb: 'Harmony kept in-key.', types: ['chord', 'progression', 'expression-chord', 'pose-chord'] },
   { name: 'Conductor mode', blurb: 'Direct a fixed piece with gesture (tempo + dynamics).', types: ['transport', 'score', 'performance'] },
-  { name: 'Synthesis & generation', blurb: 'Make sound — direct synthesis or steered AI music.', types: ['webaudio-synth', 'lyria'] },
+  { name: 'Synthesis & generation', blurb: 'Make sound — direct synthesis, steered AI music, or an external MIDI instrument.', types: ['webaudio-synth', 'lyria', 'midi-out'] },
   { name: 'Output', blurb: 'Audio + the captured video with overlaid guides.', types: ['canvas-overlay'] },
 ];
 
