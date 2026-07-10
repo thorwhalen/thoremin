@@ -19,6 +19,7 @@ import { useFaceStatus } from './faceStatus';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import Toaster from './Toaster';
 import CommandPaletteOverlay from './CommandPaletteOverlay';
+import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import VersionBadge from './VersionBadge';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
@@ -180,6 +181,10 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
 
       {/* Cmd/Ctrl-K command palette — set any dial by name (#87). */}
       <CommandPaletteOverlay />
+
+      {/* AI assistant — chat that parametrizes the instrument via the same command
+          registry, behind a BYO-key multi-provider client-side backend (#87 Phase 3). */}
+      <AssistantOverlay />
 
       {/* Unobtrusive "what's deployed" badge (commit + date), read from /_meta. */}
       <VersionBadge />
