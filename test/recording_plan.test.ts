@@ -116,3 +116,29 @@ describe('planRecording — single-file escape hatch', () => {
     expect(p.useFolder).toBe(true);
   });
 });
+
+describe('planRecording — live-tagging stream (#92)', () => {
+  const planT = (s: RecordingSession, includeTags: boolean) =>
+    planRecording({ session: s, stem: STEM, audioMime: AUDIO_MIME, videoMime: VIDEO_MIME, includeTags });
+
+  it('adds a `.tags.jsonl` stream (before the manifest) when tagging is active', () => {
+    const p = planT(session(), true);
+    const tags = p.files.find((f) => f.kind === 'tags');
+    expect(tags?.name).toBe(`${STEM}.tags.jsonl`);
+    expect(tags).toMatchObject({ role: 'tags', ext: 'jsonl' });
+    // ordering: tags sits right before the always-last manifest
+    const kinds = p.files.map((f) => f.kind);
+    expect(kinds.indexOf('tags')).toBe(kinds.indexOf('manifest') - 1);
+  });
+
+  it('omits the tags stream when tagging is inactive', () => {
+    expect(planT(session(), false).files.some((f) => f.kind === 'tags')).toBe(false);
+  });
+
+  it('forces folder mode even for an otherwise single-file-eligible take', () => {
+    const p = planT(session({ singleFileWhenAlone: true, streams: { audio: true } }), true);
+    expect(p.useFolder).toBe(true);
+    expect(p.files.some((f) => f.kind === 'tags')).toBe(true);
+    expect(p.files.some((f) => f.kind === 'manifest')).toBe(true);
+  });
+});

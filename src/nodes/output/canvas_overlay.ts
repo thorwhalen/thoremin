@@ -49,6 +49,7 @@ import {
   safeName,
   type FeatureVector,
 } from '@/features/catalog';
+import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@/taglog/presentation';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import {
   FINGER_NAMES,
@@ -176,6 +177,20 @@ const Params = z.object({
       resetNonce: z.number().default(0),
     })
     .prefault({}),
+  /**
+   * Live-tagging burned-in corner HUD (#92): while a take is recording with tagging
+   * on, paints the open tags + a media timecode + a ~1 Hz REC blink into the
+   * composited (and alpha) frames — the in-band "second opinion" that makes stream
+   * alignment verifiable in the very pixels a model trains on. A no-op (draws
+   * nothing) whenever no take is recording, so it costs nothing the rest of the time.
+   */
+  tagHud: z
+    .object({
+      show: z.boolean().default(true),
+      /** Which top corner the chip stack anchors to. */
+      position: z.enum(['left', 'right']).default('right'),
+    })
+    .prefault({}),
 });
 type Params = z.infer<typeof Params>;
 
@@ -231,6 +246,9 @@ export interface OverlayView {
     faceDegrees?: Record<string, number>;
     /** Live face mapping mode ('chord'/'timbre'/…); chord labels show only in 'chord'. */
     faceMapping?: string;
+    /** Burned-in tag HUD frame (#92): open tags + timecode + blink; null unless a
+     *  take is recording. Computed in `process` from `ctx.resources.tagOverlay`. */
+    tagOverlay?: TagOverlayFrame | null;
   };
   params: Params;
   /** Computed top-left origin per cue element name (set by the layout pass). */
@@ -1206,6 +1224,62 @@ const featureLabElement: OverlayElement = {
   },
 };
 
+// ---- Live-tagging burned-in corner HUD (#92) ------------------------------------
+// A self-contained additive block (first mover; keep it isolated so a concurrent
+// OVERLAY_ELEMENTS addition merges cleanly). Draws only when a take is recording.
+const TAG_HUD_CHAR_W = 7.6; // approx width of a 13px monospace glyph (no measureText,
+//                              so the headless recording-canvas test needs no extra API)
+const TAG_HUD_PAD = 8;
+const TAG_HUD_ROW = 18;
+const TAG_HUD_DOT = 7;
+
+/** Paint the burned-in tag HUD: a REC-dot + timecode header, then one blinking chip
+ *  per open tag, anchored to a top corner. Uses only fillRect/arc/fill/fillText so it
+ *  matches the elements the settings panel + tests already exercise. */
+function drawTagHud(g: CanvasRenderingContext2D, view: OverlayView, frame: TagOverlayFrame): void {
+  const rows: { text: string; color: string }[] = [
+    { text: `REC ${frame.timecode}`, color: '#ef4444' },
+    ...frame.chips.map((c) => ({ text: c.label, color: c.color })),
+  ];
+  const textW = Math.max(...rows.map((r) => r.text.length)) * TAG_HUD_CHAR_W;
+  const boxW = TAG_HUD_PAD + TAG_HUD_DOT + 6 + textW + TAG_HUD_PAD;
+  const boxH = TAG_HUD_PAD * 2 + TAG_HUD_ROW * rows.length;
+  const x0 = view.params.tagHud.position === 'left' ? 12 : view.W - boxW - 12;
+  const y0 = 12;
+
+  g.save();
+  g.globalAlpha = 1;
+  g.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  g.fillRect(x0, y0, boxW, boxH);
+  g.font = '600 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+  g.textBaseline = 'middle';
+  g.textAlign = 'left';
+  rows.forEach((row, i) => {
+    const cy = y0 + TAG_HUD_PAD + TAG_HUD_ROW * i + TAG_HUD_ROW / 2;
+    const dx = x0 + TAG_HUD_PAD;
+    // The dot pulses with the blink phase (a REC light), so a dropped frame shows.
+    g.globalAlpha = frame.blinkOn ? 1 : 0.35;
+    g.beginPath();
+    g.arc(dx + TAG_HUD_DOT / 2, cy, TAG_HUD_DOT / 2, 0, Math.PI * 2);
+    g.fillStyle = row.color;
+    g.fill();
+    g.globalAlpha = 1;
+    g.fillStyle = '#ffffff';
+    g.fillText(row.text, dx + TAG_HUD_DOT + 6, cy);
+  });
+  g.restore();
+}
+
+const tagHud: OverlayElement = {
+  name: 'tagHud',
+  category: 'output',
+  draw(g, view) {
+    const frame = view.inputs.tagOverlay;
+    if (!frame || !view.params.tagHud.show) return;
+    drawTagHud(g, view, frame);
+  },
+};
+
 /**
  * The overlay elements, in draw (z) order. In-scene first, HUD cues last (on top).
  * Each has a `category` and a `<name>` sub-object in `Params`. Append here to add one.
@@ -1230,6 +1304,9 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   // stays the topmost cue; cues on different edges don't overlap regardless.
   chordNameCue,
   faceExpressionCue,
+  // The burned-in tag HUD sits above the cues (its own top corner); fingerBars stays
+  // the array's last element so the z-order invariant + concurrent additions hold.
+  tagHud,
   fingerBarsCue,
 ];
 
@@ -1422,6 +1499,12 @@ export const canvasOverlayNode = defineNode<Params>({
             | undefined
         )?.();
 
+        // Burned-in tag HUD (#92): read the runtime snapshot (null unless a take is
+        // recording) and derive this tick's frame from the engine clock. A no-op
+        // resource means frame === null and the tagHud element draws nothing.
+        const tagOverlayFn = ctx.resources.tagOverlay as (() => TagOverlaySnapshot | null) | undefined;
+        const tagOverlay = computeTagOverlay(tagOverlayFn?.() ?? null, ctx.time);
+
         const liveConfig = inputs.overlayConfig as OverlayParams | undefined;
         const view: OverlayView = {
           W,
@@ -1443,6 +1526,7 @@ export const canvasOverlayNode = defineNode<Params>({
             handMap: controls?.handMap,
             faceDegrees: controls?.faceExpr?.degrees,
             faceMapping: controls?.faceMapping,
+            tagOverlay,
           },
         };
 

@@ -23,7 +23,7 @@
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 30 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 28 nodes.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live sound is in progress.</p>
   <h3>Example pipelines</h3>
   <ul class="examples"><li><b>Theremin (direct)</b> — <code>webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)</code><br/><span class="note">Hand x → scale-snapped pitch, y → volume. Two hands = two voices.</span></li><li><b>Gesture → harmony</b> — <code>hand-features → pick('right.x') → progression → chord → webaudio-synth</code><br/><span class="note">Hand position walks an in-key chord progression.</span></li><li><b>Conductor</b> — <code>control → performance → transport → score → webaudio-synth</code><br/><span class="note">A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).</span></li><li><b>Indirect / AI (gesture or expression)</b> — <code>hand-features / face-features → indirect-map → lyria</code><br/><span class="note">Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.</span></li><li><b>Discrete triggers</b> — <code>hand-features → gesture-classifier → (events)</code><br/><span class="note">Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.</span></li></ul>
@@ -64,7 +64,7 @@
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -137,26 +137,6 @@
         <dt>in</dt><dd>features:hand-features</dd>
         <dt>out</dt><dd>poses:poses, events:gesture-events</dd>
         <dt>params</dt><dd>pinchOn (number=0.6), pinchOff (number=0.45), fistBelow (number=0.25), openAbove (number=0.6), hysteresis (number=0.05)</dd>
-      </dl>
-    </div>
-    <div class="node">
-      <h4><code>face-feature-vector</code> <span class="title">Face Feature Vector</span></h4>
-      <p>Face blendshapes + mesh + head pose -&gt; a flat vector of enabled catalog features.</p>
-      <dl>
-        <dt>roles</dt><dd>feature</dd>
-        <dt>in</dt><dd>face:face-frame</dd>
-        <dt>out</dt><dd>vector:feature-vector</dd>
-        <dt>params</dt><dd>groups (array)</dd>
-      </dl>
-    </div>
-    <div class="node">
-      <h4><code>hand-feature-vector</code> <span class="title">Hand Feature Vector</span></h4>
-      <p>Hand image + world landmarks -&gt; a flat vector of enabled per-hand + two-hand catalog features.</p>
-      <dl>
-        <dt>roles</dt><dd>feature</dd>
-        <dt>in</dt><dd>hands:hands-frame</dd>
-        <dt>out</dt><dd>vector:feature-vector</dd>
-        <dt>params</dt><dd>mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array)</dd>
       </dl>
     </div></div></section>
 <section><h3>Mapping (direct ↔ indirect)</h3><p class="blurb">Features → engine parameters, across the expression spectrum.</p><div class="grid">
@@ -253,7 +233,7 @@
     </div>
     <div class="node">
       <h4><code>expression-chord</code> <span class="title">Expression Chord</span></h4>
-      <p>Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).</p>
+      <p>Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face "chord" mode).</p>
       <dl>
         <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees</dd>
@@ -329,9 +309,9 @@
       <p>Mirrored video + composable overlay elements (guides, landmarks, markers, cues).</p>
       <dl>
         <dt>roles</dt><dd>overlay</dd>
-        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector</dd>
+        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config</dd>
         <dt>out</dt><dd>—</dd>
-        <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={})</dd>
+        <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), tagHud (object={})</dd>
       </dl>
     </div></div></section>
 </div></body></html>

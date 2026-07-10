@@ -28,10 +28,6 @@
         "kind": "number[]"
       },
       {
-        "name": "chordScale",
-        "kind": "number[]"
-      },
-      {
         "name": "chord",
         "kind": "number[]"
       },
@@ -51,14 +47,6 @@
       {
         "name": "overlayConfig",
         "kind": "overlay-config"
-      },
-      {
-        "name": "faceVector",
-        "kind": "feature-vector"
-      },
-      {
-        "name": "handVector",
-        "kind": "feature-vector"
       }
     ],
     "outputs": [],
@@ -129,7 +117,7 @@
         "default": {}
       },
       {
-        "name": "featureLab",
+        "name": "tagHud",
         "type": "object",
         "default": {}
       }
@@ -206,7 +194,7 @@
   {
     "type": "expression-chord",
     "title": "Expression Chord",
-    "description": "Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face \"chord\" mode).",
+    "description": "Facial expression → a voiced, rendered diatonic chord on the current seven-note scale (active only in face \"chord\" mode).",
     "roles": [
       "music"
     ],
@@ -420,32 +408,6 @@
     ]
   },
   {
-    "type": "face-feature-vector",
-    "title": "Face Feature Vector",
-    "description": "Face blendshapes + mesh + head pose -> a flat vector of enabled catalog features.",
-    "roles": [
-      "feature"
-    ],
-    "inputs": [
-      {
-        "name": "face",
-        "kind": "face-frame"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "vector",
-        "kind": "feature-vector"
-      }
-    ],
-    "params": [
-      {
-        "name": "groups",
-        "type": "array"
-      }
-    ]
-  },
-  {
     "type": "face-features",
     "title": "Face Features",
     "description": "Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).",
@@ -525,42 +487,6 @@
         "name": "hysteresis",
         "type": "number",
         "default": 0.05
-      }
-    ]
-  },
-  {
-    "type": "hand-feature-vector",
-    "title": "Hand Feature Vector",
-    "description": "Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand catalog features.",
-    "roles": [
-      "feature"
-    ],
-    "inputs": [
-      {
-        "name": "hands",
-        "kind": "hands-frame"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "vector",
-        "kind": "feature-vector"
-      }
-    ],
-    "params": [
-      {
-        "name": "mirrorX",
-        "type": "boolean",
-        "default": true
-      },
-      {
-        "name": "mirrorHandedness",
-        "type": "boolean",
-        "default": true
-      },
-      {
-        "name": "groups",
-        "type": "array"
       }
     ]
   },
@@ -1170,14 +1096,6 @@
       {
         "name": "rightSpec",
         "kind": "scale-spec"
-      },
-      {
-        "name": "chordSpec",
-        "kind": "scale-spec"
-      },
-      {
-        "name": "chordScale",
-        "kind": "number[]"
       },
       {
         "name": "faceMapping",

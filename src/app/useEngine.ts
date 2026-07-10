@@ -21,6 +21,7 @@ import {
   type RecordingSession,
 } from './recording/schema';
 import { prefillName } from './recording/naming';
+import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus } from './faceStatus';
 import type { FaceStatus } from '@/nodes';
 import type { ExpressionScores } from '@/music/expression';
@@ -177,6 +178,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         resources.canvas = canvasRef.current;
         resources.window = window;
         resources.controls = () => useControls.getState();
+        // Live tagging (#92): the burned-in corner HUD reads this each tick (null
+        // unless a take is recording). Same synchronous-read pattern as `controls`.
+        resources.tagOverlay = tagOverlayResource;
 
         const engine = new Engine(defaultGraph(), createAppRegistry(), { resources });
         await engine.init(); // loads the MediaPipe model
@@ -372,6 +376,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         engine,
         resources: resourcesRef.current,
         instrument: recInstrumentRef.current,
+        // If tagging mode is on, tags.jsonl rides in the folder on the shared t0 (#92).
+        tagSource: tagStreamSource,
       },
       recSession,
     );
