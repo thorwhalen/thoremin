@@ -96,11 +96,25 @@ def main() -> int:
                 if res.handedness and i < len(res.handedness) and res.handedness[i]:
                     label = res.handedness[i][0].category_name
                     score = res.handedness[i][0].score
+                # Mirror the live source (webcam_hands.ts `toHandsFrame`) EXACTLY: pixel
+                # x/y but the RAW (unscaled) z, so a replayed fixture and a live frame
+                # are the same shape. Dropping z here would silently flatten every 3-D
+                # feature to a plane.
                 keypoints = [
-                    {"x": lm.x * width, "y": lm.y * height, "name": LM_NAMES[j]}
+                    {"x": lm.x * width, "y": lm.y * height, "z": lm.z, "name": LM_NAMES[j]}
                     for j, lm in enumerate(lms)
                 ]
-                hand_objs.append({"handedness": label, "keypoints": keypoints, "score": score})
+                hand = {"handedness": label, "keypoints": keypoints, "score": score}
+                # World landmarks stay in METRES (unscaled), origin at the hand centre.
+                # The palm-orientation / angle / distance features read this pose-invariant
+                # set "when present, else image" — so without it they degenerate silently.
+                world = getattr(res, "hand_world_landmarks", None)
+                if world and i < len(world):
+                    hand["worldKeypoints"] = [
+                        {"x": wl.x, "y": wl.y, "z": wl.z, "name": LM_NAMES[j]}
+                        for j, wl in enumerate(world[i])
+                    ]
+                hand_objs.append(hand)
             detected += 1
 
         records.append({
