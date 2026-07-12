@@ -163,7 +163,7 @@ export class SessionRecorder {
     if (this.running) return;
     // Annotations are a COMPANION stream: annotations.jsonl segments the OTHER streams on the
     // shared t0, so a take needs at least one capturable media/feature stream to tag
-    // (a annotations-only take would reference streams that don't exist). Hence the guard is
+    // (an annotations-only take would reference streams that don't exist). Hence the guard is
     // on hasAnyStream, deliberately not counting annotations.
     if (!hasAnyStream(this.session.streams)) throw new Error('No streams selected to record');
     const { audioContext, masterGain, canvas, video, cameraStream, engine, resources } = this.deps;
@@ -179,7 +179,7 @@ export class SessionRecorder {
     this.stem = name;
 
     // Live tagging (#92): if the tag source is active, this take writes a
-    // `.annotations.jsonl` (which also forces folder mode — a annotation log needs the manifest).
+    // `.annotations.jsonl` (which also forces folder mode — an annotation log needs the manifest).
     this.annotationsActive = this.deps.tagSource?.active() === true;
 
     this.plan = planRecording({
@@ -445,9 +445,11 @@ export class SessionRecorder {
     this.detachTap = null;
     // Release the tagging runtime's take context so a dropped/aborted recording
     // doesn't leave it stuck "recording" (endTake is a no-op if already ended).
+    // `abandoned`: this take wrote NO media files, so it must not displace the last
+    // cleanly-stopped take's export unless it actually captured annotations itself.
     if (this.annotationsActive) {
       try {
-        this.deps.tagSource?.endTake(performance.now() / 1000);
+        this.deps.tagSource?.endTake(performance.now() / 1000, { abandoned: true });
       } catch {
         /* runtime already reset */
       }

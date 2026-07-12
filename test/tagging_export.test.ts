@@ -23,12 +23,12 @@ import { useTagging, type LastTake } from '@/app/tagging/store';
 import {
   EXPORT_FORMATS,
   RAW_FORMAT,
-  isRenderableFormat,
   renderTake,
   resolveTake,
   summarizeTake,
   takeDuration,
 } from '@/app/tagging/export';
+import { ADAPTERS, getAdapter } from '@/taglog/adapters';
 import { emptyTagState, DEFAULT_TAGGING_CONFIG, TagDefSchema } from '@/taglog/affordances';
 
 const A = TagDefSchema.parse({ id: 'a', label: 'Verse', kind: 'interval' });
@@ -81,7 +81,6 @@ describe('endTake retains the take', () => {
     expect(last.session).toBe('sess_x');
     expect(last.t0).toBe(T0);
     expect(last.endT).toBe(T0 + 6);
-    // The labels are snapshotted at endTake, so editing the set later can't rewrite history.
     expect(last.defs.map((d) => d.label)).toEqual(['Verse', 'Hit']);
     expect(last.jsonl).toContain('"anchor":true');
   });
@@ -93,6 +92,65 @@ describe('endTake retains the take', () => {
     expect(useTagging.getState().lastTake!.session).toBe('sess_x'); // still the old one
     useTagging.getState().endTake(T0 + 101);
     expect(useTagging.getState().lastTake!.session).toBe('sess_y');
+  });
+});
+
+describe('the take snapshots the annotation set it STARTED with', () => {
+  it('a mid-take rename does not rewrite the labels the take was recorded with', () => {
+    const st = useTagging.getState();
+    st.setDefs([A, P]);
+    st.beginTake({ t0: T0, startedAt: 'x', session: 'sess_x' });
+    setNow(T0 + 1);
+    useTagging.getState().toggle('a', 'click');
+    setNow(T0 + 3);
+    useTagging.getState().toggle('a', 'click');
+    // The sheet stays openable mid-take: rename "Verse" -> "Chorus" while recording.
+    useTagging.getState().updateTag('a', { label: 'Chorus' });
+    useTagging.getState().endTake(T0 + 6);
+
+    const last = useTagging.getState().lastTake!;
+    expect(last.defs.find((d) => d.id === 'a')!.label).toBe('Verse'); // what was recorded
+    expect(useTagging.getState().defs.find((d) => d.id === 'a')!.label).toBe('Chorus'); // live set moved on
+    expect(renderTake(last, 'audacity').body).toContain('Verse');
+  });
+
+  it('an annotation deleted mid-take still gets its open interval closed at the end', () => {
+    const st = useTagging.getState();
+    st.setDefs([A, P]);
+    st.beginTake({ t0: T0, startedAt: 'x', session: 'sess_x' });
+    setNow(T0 + 1);
+    useTagging.getState().toggle('a', 'click'); // A open…
+    useTagging.getState().removeTag('a'); // …and its definition is deleted from the live set
+    useTagging.getState().endTake(T0 + 6);
+
+    const last = useTagging.getState().lastTake!;
+    // Closing against the LIVE defs would have dropped this interval on the floor.
+    expect(resolveTake(last)).toMatchObject([{ tag: 'a', start: 1, end: 6, kind: 'interval' }]);
+  });
+});
+
+describe('an abandoned take does not clobber the last exportable one', () => {
+  it('keeps take A when take B is torn down without capturing anything', () => {
+    recordTake(); // take A: clean stop, exportable
+    const st = useTagging.getState();
+    st.beginTake({ t0: T0 + 100, startedAt: 'x', session: 'sess_b' });
+    // No annotations tapped; the recorder is disposed (source switch / unmount).
+    useTagging.getState().endTake(T0 + 101, { abandoned: true });
+
+    // Take B wrote no media files and captured nothing — take A must still be there.
+    expect(useTagging.getState().lastTake!.session).toBe('sess_x');
+    expect(useTagging.getState().take).toBeNull(); // …but the runtime is no longer "recording"
+  });
+
+  it('still publishes an abandoned take that DID capture annotations (that is user data)', () => {
+    recordTake();
+    const st = useTagging.getState();
+    st.beginTake({ t0: T0 + 100, startedAt: 'x', session: 'sess_b' });
+    setNow(T0 + 101);
+    useTagging.getState().toggle('a', 'click');
+    useTagging.getState().endTake(T0 + 102, { abandoned: true });
+
+    expect(useTagging.getState().lastTake!.session).toBe('sess_b');
   });
 });
 
@@ -131,7 +189,7 @@ describe('renderTake', () => {
     expect(rows[0]).toEqual(['1.000000', '3.000000', 'Verse']);
     // A point is a zero-width label (start == end), which is how Audacity marks an instant.
     expect(rows.find((r) => r[2] === 'Hit')).toEqual(['4.000000', '4.000000', 'Hit']);
-    expect(filename).toBe('2026-07-11T09-30-00-000.annotations.txt');
+    expect(filename).toBe('sess_x.annotations.txt');
   });
 
   it('renders CSV with a header and one row per annotation', () => {
@@ -144,21 +202,71 @@ describe('renderTake', () => {
     const take = recordTake();
     const { body, filename } = renderTake(take, RAW_FORMAT);
     expect(body).toBe(take.jsonl); // byte-identical to the file in the take folder
-    expect(filename).toBe('2026-07-11T09-30-00-000.annotations.jsonl');
+    expect(filename).toBe('sess_x.annotations.jsonl');
+  });
+
+  it('names the file after the take, so a download can be matched to its recording', () => {
+    // `session` IS the take's folder + file stem (the recorder's sanitized stem). If the
+    // user NAMED the take there is no timestamp in it at all, so anything derived from
+    // the clock would share nothing with the folder the recording landed in.
+    const st = useTagging.getState();
+    st.setDefs([A]);
+    st.beginTake({ t0: T0, startedAt: '2026-07-11T09:30:00.000Z', session: 'bridge-take-3' });
+    setNow(T0 + 1);
+    useTagging.getState().toggle('a', 'click');
+    useTagging.getState().endTake(T0 + 2);
+    const take = useTagging.getState().lastTake!;
+    expect(renderTake(take, 'csv').filename).toBe('bridge-take-3.annotations.csv');
+    expect(renderTake(take, RAW_FORMAT).filename).toBe('bridge-take-3.annotations.jsonl');
   });
 
   it('throws on an unknown format rather than silently downloading an empty file', () => {
     expect(() => renderTake(recordTake(), 'nope')).toThrow(/Unknown annotation export format/);
   });
+
+  it('throws on an inherited Object key rather than dying inside the adapter', () => {
+    // `'toString' in ADAPTERS` is TRUE via the prototype chain: a bare `in`/index lookup
+    // would hand back Object.prototype.toString (truthy, so the guard passes) and then
+    // blow up on `adapter.render is not a function`.
+    expect(getAdapter('toString')).toBeUndefined();
+    expect(() => renderTake(recordTake(), 'toString')).toThrow(/Unknown annotation export format/);
+  });
 });
 
-describe('the format picker and the adapter registry cannot drift', () => {
-  it('every format offered in the UI is actually renderable', () => {
-    // Adding a format to the picker without an adapter would otherwise fail at the
-    // user's click, having already told them the export exists.
+describe('lead-in correction is chosen, never silently applied', () => {
+  /** A tag with a 2s lead-in: opened at 0.5s, closed at 5.0s (take-relative). */
+  function leadInTake(): LastTake {
+    const st = useTagging.getState();
+    st.setDefs([TagDefSchema.parse({ id: 'a', label: 'Verse', kind: 'interval', leadIn: 2 })]);
+    st.beginTake({ t0: T0, startedAt: 'x', session: 'sess_l' });
+    setNow(T0 + 0.5);
+    useTagging.getState().toggle('a', 'click');
+    setNow(T0 + 5);
+    useTagging.getState().toggle('a', 'click');
+    useTagging.getState().endTake(T0 + 6);
+    return useTagging.getState().lastTake!;
+  }
+
+  it('defaults to the corrected times (open +leadIn, close -leadIn)', () => {
+    const rows = renderTake(leadInTake(), 'audacity').body.trim().split('\t');
+    expect([rows[0], rows[1]]).toEqual(['2.500000', '3.000000']);
+  });
+
+  it('exports the raw tap instants when asked — the times the user actually produced', () => {
+    const rows = renderTake(leadInTake(), 'audacity', 'raw').body.trim().split('\t');
+    expect([rows[0], rows[1]]).toEqual(['0.500000', '5.000000']);
+  });
+});
+
+describe('the format picker is derived from the adapter registry', () => {
+  it('offers every shipped adapter plus the raw log — and nothing that cannot render', () => {
+    // The picker is BUILT from ADAPTERS, so drift is impossible by construction; this
+    // pins the derivation (and that every offered id actually renders).
+    expect(EXPORT_FORMATS.map((f) => f.id)).toEqual([...Object.keys(ADAPTERS), RAW_FORMAT]);
     for (const f of EXPORT_FORMATS) {
-      expect(isRenderableFormat(f.id), `${f.id} has no adapter`).toBe(true);
-      expect(() => renderTake(recordTake(), f.id)).not.toThrow();
+      expect(() => renderTake(recordTake(), f.id), `${f.id} does not render`).not.toThrow();
+      expect(f.label, `${f.id} has no label`).toBeTruthy();
+      expect(f.note, `${f.id} has no note`).toBeTruthy();
     }
   });
 });

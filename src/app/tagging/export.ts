@@ -18,10 +18,16 @@
  * so we shift by `t0` exactly once, right here, before resolving. Shifting the EDGES
  * rather than the resolved intervals keeps it a single subtraction on one field, instead
  * of four (start/end/startCorrected/endCorrected) — fewer places to forget one.
+ *
+ * THE OTHER ONE — lead-in correction. An annotation with a lead-in is trimmed
+ * asymmetrically (open -> t+leadIn, close -> t-leadIn) to cut the reach-in/reach-out.
+ * That is the useful default, but it is NOT what the user tapped, so the choice is
+ * surfaced ({@link TIME_CHOICES}) and threaded to the adapters rather than silently
+ * defaulted.
  */
 import { resolveIntervals } from '@/taglog/affordances';
 import type { EdgeEvent, ResolvedInterval } from '@/taglog/affordances';
-import { ADAPTERS, getAdapter } from '@/taglog/adapters';
+import { ADAPTERS, getAdapter, type TimeChoice } from '@/taglog/adapters';
 import { downloadBlob } from '@/app/recorder';
 import type { LastTake } from './store';
 
@@ -37,14 +43,44 @@ export interface ExportFormat {
   note: string;
 }
 
-/** The formats offered in the UI, in the order a user is likely to want them. */
+/**
+ * The human copy for each adapter — the ONLY thing the picker adds to the registry.
+ *
+ * The picker is DERIVED from {@link ADAPTERS} below rather than listed by hand, so the
+ * two cannot drift: a new adapter shows up in the UI by construction (with its id as a
+ * fallback label), and a picker entry with no adapter behind it is unrepresentable.
+ */
+const FORMAT_COPY: Record<string, { label: string; note: string }> = {
+  audacity: { label: 'Audacity labels', note: 'Import as a label track (File → Import → Labels).' },
+  csv: { label: 'CSV', note: 'One row per annotation — spreadsheets, pandas, anything.' },
+  webvtt: { label: 'WebVTT', note: 'Subtitle/cue track for a <video> element or a player.' },
+  textgrid: { label: 'Praat TextGrid', note: 'A tier per annotation — phonetics/speech tooling.' },
+  otio: { label: 'OTIO', note: 'OpenTimelineIO — NLE round-trip (Resolve, Premiere…).' },
+};
+
+/** The formats offered in the UI: every shipped adapter, plus the archival raw log. */
 export const EXPORT_FORMATS: ExportFormat[] = [
-  { id: 'audacity', label: 'Audacity labels', note: 'Import as a label track (File → Import → Labels).' },
-  { id: 'csv', label: 'CSV', note: 'One row per annotation — spreadsheets, pandas, anything.' },
-  { id: 'webvtt', label: 'WebVTT', note: 'Subtitle/cue track for a <video> element or a player.' },
-  { id: 'textgrid', label: 'Praat TextGrid', note: 'A tier per annotation — phonetics/speech tooling.' },
-  { id: 'otio', label: 'OTIO', note: 'OpenTimelineIO — NLE round-trip (Resolve, Premiere…).' },
+  ...Object.keys(ADAPTERS).map((id) => ({
+    id,
+    label: FORMAT_COPY[id]?.label ?? id,
+    note: FORMAT_COPY[id]?.note ?? `Rendered by the ${id} adapter.`,
+  })),
   { id: RAW_FORMAT, label: 'Raw JSONL', note: 'The exact archival file written into the take folder.' },
+];
+
+/** The two time bases an export can carry — surfaced, never silently chosen (see the
+ *  module docstring). `corrected` is the default because it is what a lead-in is FOR. */
+export const TIME_CHOICES: { value: TimeChoice; label: string; note: string }[] = [
+  {
+    value: 'corrected',
+    label: 'Lead-in corrected',
+    note: 'Times are trimmed by each annotation’s lead-in (opens later, closes earlier).',
+  },
+  {
+    value: 'raw',
+    label: 'Raw taps',
+    note: 'Times are the exact instants you tapped, with no lead-in correction.',
+  },
 ];
 
 /**
@@ -66,26 +102,38 @@ export function resolveTake(take: LastTake): ResolvedInterval[] {
 /** Take duration in seconds — the timeline extent an adapter should span. */
 export const takeDuration = (take: LastTake): number => Math.max(0, take.endT - take.t0);
 
-/** Render a finished take in `format`. Returns the file body + the name to save it as. */
-export function renderTake(take: LastTake, format: string): { body: string; filename: string; mime: string } {
-  // `startedAt` is an ISO stamp; `:` is illegal in filenames on Windows and awkward
-  // everywhere, so flatten it the same way the recorder's stem does.
-  const stamp = take.startedAt.replace(/[:.]/g, '-').replace(/Z$/, '');
+/**
+ * Render a finished take in `format`, on the chosen `time` basis. Returns the file body
+ * + the name to save it as.
+ *
+ * The file stem is the take's `session` — which IS the take's folder name and file stem
+ * (the recorder's `stem`, already sanitized to be filesystem-safe). So a downloaded
+ * export can be matched back to the recording it came from by name alone, including when
+ * the user NAMED the take in the recording sheet (in which case the stem carries no
+ * timestamp at all, and anything derived from the clock would share nothing with it).
+ */
+export function renderTake(
+  take: LastTake,
+  format: string,
+  time: TimeChoice = 'corrected',
+): { body: string; filename: string; mime: string } {
+  const stem = take.session;
   if (format === RAW_FORMAT) {
-    return { body: take.jsonl, filename: `${stamp}.annotations.jsonl`, mime: 'application/x-ndjson' };
+    return { body: take.jsonl, filename: `${stem}.annotations.${RAW_FORMAT}`, mime: 'application/x-ndjson' };
   }
   const adapter = getAdapter(format);
   if (!adapter) throw new Error(`Unknown annotation export format: ${format}`);
   const body = adapter.render(resolveTake(take), {
     defs: take.defs,
     duration: takeDuration(take),
+    time,
   });
-  return { body, filename: `${stamp}.annotations.${adapter.ext}`, mime: adapter.mime };
+  return { body, filename: `${stem}.annotations.${adapter.ext}`, mime: adapter.mime };
 }
 
 /** Render + download a finished take. The one call the UI makes. */
-export function downloadTake(take: LastTake, format: string): void {
-  const { body, filename, mime } = renderTake(take, format);
+export function downloadTake(take: LastTake, format: string, time: TimeChoice = 'corrected'): void {
+  const { body, filename, mime } = renderTake(take, format, time);
   downloadBlob(new Blob([body], { type: mime }), filename);
 }
 
@@ -98,8 +146,3 @@ export function summarizeTake(take: LastTake): { intervals: number; points: numb
     seconds: takeDuration(take),
   };
 }
-
-/** Guard: every id in {@link EXPORT_FORMATS} must be renderable (raw, or a known
- *  adapter). Exported for the test that pins the two registries together, so adding a
- *  format to the picker without an adapter fails in CI rather than at the user's click. */
-export const isRenderableFormat = (id: string): boolean => id === RAW_FORMAT || id in ADAPTERS;

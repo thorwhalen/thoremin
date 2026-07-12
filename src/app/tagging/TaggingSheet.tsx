@@ -9,12 +9,13 @@
  * Purely presentational — a subscriber to the tagging store. Part of the build-checked
  * React layer (no @types/react). Styling mirrors the recording SettingsSheet.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, Plus, Trash2, X } from 'lucide-react';
 import type { ExclusivityMode, TagDef, TagKind } from '@/taglog/affordances';
 import { CODECS } from '@/taglog/affordances';
+import type { TimeChoice } from '@/taglog/adapters';
 import { useTagging } from './store';
-import { EXPORT_FORMATS, downloadTake, summarizeTake } from './export';
+import { EXPORT_FORMATS, RAW_FORMAT, TIME_CHOICES, downloadTake, summarizeTake } from './export';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 
@@ -30,6 +31,7 @@ function TagRow({ def, index, count }: { def: TagDef; index: number; count: numb
   const removeTag = useTagging((s) => s.removeTag);
   const moveTag = useTagging((s) => s.moveTag);
   const exclusivity = useTagging((s) => s.config.exclusivity);
+  const recording = useTagging((s) => s.take !== null);
 
   return (
     <div className="rounded-lg bg-white/5 p-2">
@@ -72,10 +74,15 @@ function TagRow({ def, index, count }: { def: TagDef; index: number; count: numb
             <ChevronDown className="h-3 w-3" />
           </button>
         </div>
+        {/* Deleting mid-take is disabled: the take's export labels come from the set it
+            STARTED with, and pulling a definition out from under an open interval is
+            confusing rather than useful. Stop first. */}
         <button
           onClick={() => removeTag(def.id)}
+          disabled={recording}
           aria-label="Delete annotation"
-          className="shrink-0 rounded p-1 text-white/40 transition hover:bg-white/10 hover:text-rose-400"
+          title={recording ? 'Stop the recording to delete an annotation' : undefined}
+          className="shrink-0 rounded p-1 text-white/40 transition hover:bg-white/10 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-white/40"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -237,10 +244,21 @@ function ExportPanel() {
   const lastTake = useTagging((s) => s.lastTake);
   const recording = useTagging((s) => s.take !== null);
   const [format, setFormat] = useState<string>(EXPORT_FORMATS[0].id);
+  // Corrected vs raw is a real fork, not a detail: a lead-in shifts an annotation's
+  // times (open later, close earlier), so an export that silently picked one would
+  // hand the user numbers they never tapped. Default corrected (that is what a lead-in
+  // is for); one click gets the raw instants.
+  const [time, setTime] = useState<TimeChoice>('corrected');
 
-  const summary = lastTake ? summarizeTake(lastTake) : null;
+  // summarizeTake re-resolves the take (copy + sort + map); the take only changes when a
+  // recording ends, so don't redo it on every keystroke elsewhere in the sheet.
+  const summary = useMemo(() => (lastTake ? summarizeTake(lastTake) : null), [lastTake]);
   const total = summary ? summary.intervals + summary.points : 0;
   const chosen = EXPORT_FORMATS.find((f) => f.id === format) ?? EXPORT_FORMATS[0];
+  const chosenTime = TIME_CHOICES.find((t) => t.value === time) ?? TIME_CHOICES[0];
+  // The raw JSONL is the log itself — absolute-clock edges, uncorrected by construction —
+  // so the time basis simply does not apply to it.
+  const timeApplies = chosen.id !== RAW_FORMAT;
 
   return (
     <div className="mt-3 border-t border-white/10 pt-3">
@@ -284,7 +302,7 @@ function ExportPanel() {
               ))}
             </select>
             <button
-              onClick={() => downloadTake(lastTake, format)}
+              onClick={() => downloadTake(lastTake, format, time)}
               disabled={total === 0}
               className="flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
             >
@@ -292,10 +310,32 @@ function ExportPanel() {
               Download
             </button>
           </div>
+          {/* The time basis, surfaced rather than silently applied (see export.ts). */}
+          <label className="mt-1.5 flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-white/50">Times</span>
+            <select
+              className={selectCls}
+              value={time}
+              disabled={!timeApplies}
+              onChange={(e) => setTime(e.target.value as TimeChoice)}
+              aria-label="Annotation export times"
+              title={timeApplies ? chosenTime.note : 'The raw log always carries the untouched event times.'}
+            >
+              {TIME_CHOICES.map((t) => (
+                <option key={t.value} value={t.value} title={t.note}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <p className="mt-1.5 text-[10px] leading-snug text-white/35">
             {total === 0
               ? 'That take recorded no annotations — nothing to export.'
-              : chosen.note}
+              : `${chosen.note}${timeApplies ? ` ${chosenTime.note}` : ''}`}
+          </p>
+          <p className="mt-1 text-[10px] leading-snug text-white/25">
+            Kept in memory until you reload — the archival copy is the{' '}
+            <code>.annotations.jsonl</code> in the take folder.
           </p>
         </>
       )}

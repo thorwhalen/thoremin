@@ -1,9 +1,13 @@
 # taglog
 
 A live event-tagging tool: toggle a small set of **tags** on/off while recording,
-and each toggle appends a `(t, tag, status)` row to a `tags.jsonl` that later
-**segments** the recorded streams (video / audio / features) for analysis or ML
-training.
+and each toggle appends a `(t, tag, status)` row to an event-log JSONL — thoremin
+writes it as `<take>.annotations.jsonl` — that later **segments** the recorded
+streams (video / audio / features) for analysis or ML training.
+
+(Vocabulary: the nouns in this folder are deliberately generic — `tag`, `TagDef`,
+`TagEvent` — because it is built to lift out. thoremin's product surface calls the
+feature **annotations**; see `src/app/tagging/TaggingControls.tsx` for the mapping.)
 
 This folder is written to **lift out of thoremin into a standalone package**
 (working name `taglog`). It has no thoremin imports and no React; the thoremin-
@@ -72,6 +76,6 @@ sink.append(edges);
 
 // on stop:
 sink.append(closeAll(state, defs, tEnd, config, 'auto').edges);
-const jsonl = sink.drain();                          // -> {stem}.tags.jsonl
+const jsonl = sink.drain();                          // -> {stem}.annotations.jsonl
 const intervals = resolveIntervals(/* parsed edges */, { endT: tEnd });
 ```

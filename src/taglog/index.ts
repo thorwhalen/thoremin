@@ -1,8 +1,9 @@
 /**
  * taglog — a live event-tagging tool, structured to lift out of thoremin into a
  * standalone reusable package (working name `taglog`). Toggle a small set of tags
- * on/off while recording; each toggle appends a `(t, tag, status)` row to a
- * `tags.jsonl` that later segments the recorded streams for analysis / ML training.
+ * on/off while recording; each toggle appends a `(t, tag, status)` row to an event-log
+ * JSONL (thoremin writes it as `<take>.annotations.jsonl`) that later segments the
+ * recorded streams for analysis / ML training.
  *
  * Three layers, strict dependency direction **presentation -> affordances <- provider**
  * (that one rule is what makes extraction mechanical):

@@ -42,14 +42,28 @@ import type { TagOverlaySnapshot } from '@/taglog/presentation';
 /** The active take's runtime context (present only while recording). */
 interface TakeContext {
   t0: number;
+  /** The take id == the recording stem == the take's folder + file-stem name. */
   session: string;
-  /** ISO wall-clock of the take start — carried into {@link LastTake} for file naming. */
-  startedAt: string;
   sink: TagEventSink;
   /** Every edge emitted during this take, kept alongside the sink's serialized lines.
    *  The sink only holds JSONL strings; resolving intervals for an export needs the
    *  structured edges, so we retain them here rather than re-parsing our own output. */
   edges: EdgeEvent[];
+  /** The annotation set the take STARTED with. Snapshotted here — not read live at
+   *  endTake — because the sheet stays openable mid-take: renaming "Verse" to "Chorus"
+   *  while recording must not retroactively relabel what was already recorded (and
+   *  deleting a def must not silently drop the auto-close of an interval it left open).
+   *  This is the set both the end-of-take closeAll and the export label from. */
+  defs: TagDef[];
+}
+
+/** How a take ended. An ABANDONED take is one whose recorder was torn down without a
+ *  clean stop (source switch, engine restart, unmount) — see `SessionRecorder.dispose`. */
+export interface EndTakeOptions {
+  /** True from `dispose()`. Such a take wrote NO media files, so it only earns the
+   *  {@link LastTake} slot if it actually captured annotations of its own — otherwise it
+   *  would clobber the previous, cleanly-finished take's export with an empty one. */
+  abandoned?: boolean;
 }
 
 /**
@@ -63,18 +77,22 @@ interface TakeContext {
  * for "their data" finds nothing anywhere in the app. Keeping the last take lets the
  * Annotations sheet offer a real export (Audacity / WebVTT / CSV / TextGrid / OTIO).
  *
- * `defs` is snapshotted at endTake so an export still carries the labels the annotations
- * were recorded WITH, even if the user edits the set afterwards.
+ * This is MEMORY-ONLY (no persist middleware, deliberately): it is an egress convenience,
+ * not state the instrument owns. The archival copy is the `.annotations.jsonl` in the take
+ * folder, and the panel says so.
+ *
+ * `defs` comes from the take's own snapshot ({@link TakeContext}), so an export always
+ * carries the labels the annotations were recorded WITH.
  */
 export interface LastTake {
+  /** The take id == the recording stem == the take's folder + file-stem name, so an
+   *  exported file can be named after — and matched back to — its recording. */
   session: string;
   /** Absolute engine-clock origin of the take (== manifest.t0). Export times are
    *  `t - t0`, i.e. offsets into the recording — the same rule the manifest states. */
   t0: number;
   /** Absolute engine-clock time the take ended (used to close open intervals). */
   endT: number;
-  /** ISO wall-clock of the take start — for naming the exported file. */
-  startedAt: string;
   edges: EdgeEvent[];
   defs: TagDef[];
   /** The exact JSONL written into the take folder (offered as a raw export too). */
@@ -115,13 +133,13 @@ interface TaggingState {
    *  the live rAF path). Injectable for tests. NOTE: this reads the wall clock
    *  directly, so it equals `ctx.time` only while the engine runs in real time. If
    *  batch/speed-scaled recording (the Clock abstraction) is ever wired into a live
-   *  take, tags.jsonl (this clock) and features.jsonl (`ctx.time`) would diverge —
+   *  take, annotations.jsonl (this clock) and features.jsonl (`ctx.time`) would diverge —
    *  route both through one clock source then. */
   clock: () => number;
 
   // ---- selectors ----
   isOpen(tagId: string): boolean;
-  /** True if this take should write a tags.jsonl (mode on + tags defined). */
+  /** True if this take should write an annotations.jsonl (mode on + tags defined). */
   active(): boolean;
   /** The burned-in-overlay snapshot (null unless recording). */
   overlaySnapshot(): TagOverlaySnapshot | null;
@@ -143,7 +161,7 @@ interface TaggingState {
 
   // ---- take lifecycle (called by the recorder) ----
   beginTake(input: { t0: number; startedAt: string; session: string }): void;
-  endTake(endT: number): string;
+  endTake(endT: number, opts?: EndTakeOptions): string;
 
   // ---- persistence ----
   hydrate(): Promise<void>;
@@ -326,17 +344,20 @@ export const useTagging = create<TaggingState>((set, get) => ({
       schema: ANNOTATIONS_SCHEMA_ID,
     });
     // Fresh log per take: seq starts at 0, no carried-over open tags (the recorded
-    // intervals are exactly what is toggled during the take).
+    // intervals are exactly what is toggled during the take). `defs` is snapshotted HERE
+    // (see TakeContext) so a mid-take edit can't rewrite what was already recorded.
     set({
-      take: { t0, session, sink, edges: [], startedAt },
+      take: { t0, session, sink, edges: [], defs: [...s.defs] },
       state: emptyTagState(),
       countdown: null,
     });
   },
-  endTake: (endT) => {
+  endTake: (endT, opts) => {
     const s = get();
     if (!s.take) return '';
-    const { edges } = closeAll(s.state, s.defs, endT, s.config, 'auto');
+    // Close against the take's OWN defs, not the current ones: an annotation deleted
+    // mid-take still has an open interval in `state` and must still be closed.
+    const { edges } = closeAll(s.state, s.take.defs, endT, s.config, 'auto');
     if (edges.length) {
       s.take.sink.append(edges);
       s.take.edges.push(...edges);
@@ -349,12 +370,19 @@ export const useTagging = create<TaggingState>((set, get) => ({
       session: s.take.session,
       t0: s.take.t0,
       endT,
-      startedAt: s.take.startedAt,
       edges: [...s.take.edges],
-      defs: [...s.defs],
+      defs: [...s.take.defs],
       jsonl,
     };
-    set({ take: null, lastTake, state: emptyTagState(), countdown: null });
+    // An abandoned take (no clean stop => no media files on disk) publishes only if it
+    // captured something; otherwise the previous, exportable take keeps the slot.
+    const publish = !opts?.abandoned || s.take.edges.length > 0;
+    set({
+      take: null,
+      state: emptyTagState(),
+      countdown: null,
+      ...(publish ? { lastTake } : {}),
+    });
     return jsonl;
   },
 

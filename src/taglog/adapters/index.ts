@@ -1,7 +1,8 @@
 /**
  * taglog — export adapters (the survey's non-negotiable I/O pattern, design §2/§4).
  *
- * The native log is `tags.jsonl` (raw events, written by the provider sink). These
+ * The native log is the raw event JSONL written by the provider sink (thoremin names it
+ * `<take>.annotations.jsonl`). These
  * adapters take the RESOLVED view (`ResolvedInterval[]` from `resolveIntervals`) and
  * emit standard interchange formats so a tag log opens in the tools researchers
  * already use — Audacity, Praat, a `<track>` preview, a spreadsheet, an NLE:
@@ -222,7 +223,12 @@ export const ADAPTERS: Record<string, Adapter> = {
   otio: { name: 'otio', ext: 'otio', mime: 'application/json', render: toOTIO },
 };
 
-/** Look up an adapter by name (undefined for an unknown format). */
+/** Look up an adapter by name (undefined for an unknown format).
+ *
+ * `hasOwn`, not `name in ADAPTERS` / a bare index: `ADAPTERS` is a plain object, so the
+ * prototype chain would answer for `'toString'`, `'constructor'`, … — handing a caller
+ * `Object.prototype.toString` (truthy, so their `if (!adapter) throw` guard passes) and
+ * blowing up later on `adapter.render is not a function`. */
 export function getAdapter(name: string): Adapter | undefined {
-  return ADAPTERS[name];
+  return Object.hasOwn(ADAPTERS, name) ? ADAPTERS[name] : undefined;
 }

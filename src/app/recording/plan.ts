@@ -51,7 +51,7 @@ export interface PlanInput {
   /** Alpha (overlay-only) MIME — Chromium VP9; defaults to `video/webm;codecs=vp9`. */
   alphaMime?: string;
   /** Whether live annotations (#92) are active for this take — adds a `.annotations.jsonl`
-   *  stream to the folder (and forces folder mode, since a annotation log needs the
+   *  stream to the folder (and forces folder mode, since an annotation log needs the
    *  manifest to say what it segments). */
   includeAnnotations?: boolean;
 }

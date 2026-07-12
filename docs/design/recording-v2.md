@@ -66,7 +66,7 @@ with a **secondary ext = the role** when streams share a primary ext:
 ```
 demo-theremin-2026-07-05T14-30-12/
   ….overlay.webm  ….camera.webm  ….alpha.webm
-  ….webm  ….wav  ….features.jsonl  ….tags.jsonl  ….manifest.json
+  ….webm  ….wav  ….features.jsonl  ….annotations.jsonl  ….manifest.json
 ```
 
 `recordingStem()` + `fileName(stem,{role,ext})` are pure and unit-tested; every
@@ -104,14 +104,14 @@ is never lost.
 }
 ```
 
-Every stream's timestamps (`t` in the feature/tags JSONL) are relative to `t0`.
+Every stream's timestamps (`t` in the feature/annotation JSONL) are relative to `t0`.
 
-## Forward-compat: the live-tagging `.tags.jsonl`
+## The live-annotation `.annotations.jsonl`
 
-The live-tagging stream (separate issue) is **just another stream** written into
+The live-annotation stream (#92, shipped) is **just another stream** written into
 the same folder: same `{stem}`, the same `t0`/`ctx.time` clock, the same JSONL
-line-per-event convention (`kind: "tags"` in the manifest). No restructuring is
-needed — it drops in.
+line-per-event convention (`kind: "annotations"` in the manifest). No restructuring
+was needed — it dropped in.
 
 ## What is verified vs. browser-only
 
