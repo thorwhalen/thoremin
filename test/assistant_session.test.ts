@@ -97,6 +97,45 @@ describe('AssistantSession (#87 Phase 3)', () => {
     expect(session.messages.some((m) => (m.traces?.length ?? 0) > 0)).toBe(true);
   });
 
+  it('records a tool call the SDK rejected as a FAILED trace, under its dotted command id', async () => {
+    // A tool the model got wrong (hallucinated name, or args the schema rejects) never
+    // reaches the registry, so there is no Result to trace. It must still show up — as a
+    // failed trace, NOT as a turn-killing error: the model keeps its remaining steps to
+    // self-correct, and it goes on to answer in the same turn.
+    setStoredKey('openai', 'test-key');
+    const session = new AssistantSession(
+      scriptedBackend((cb) => {
+        // The wire name is sanitized (`dial_set`) because OpenAI/Anthropic reject dots.
+        cb.onToolError('dial_set', new Error('bad input'));
+        cb.onTextDelta('Sorry, let me retry.');
+      }),
+    );
+    await session.send('set the dial to purple', SETTINGS);
+
+    const last = session.messages.at(-1);
+    // The trace is reported under the CANONICAL dotted id, not the wire name — this is
+    // the assistantToolNameToId() mapping doing its job.
+    expect(last?.traces?.[0]).toMatchObject({ command: 'dial.set', ok: false, detail: 'bad input' });
+    // A tool error is not fatal: the turn completes and the text still lands.
+    expect(last?.text).toBe('Sorry, let me retry.');
+    expect(session.error).toBeNull();
+    expect(session.busy).toBe(false);
+  });
+
+  it('falls back to the raw tool name when the model hallucinates a tool that does not exist', async () => {
+    setStoredKey('openai', 'test-key');
+    const session = new AssistantSession(
+      scriptedBackend((cb) => {
+        cb.onToolError('make_it_awesome', new Error('No such tool: make_it_awesome'));
+      }),
+    );
+    await session.send('make it awesome', SETTINGS);
+
+    // Unknown to the registry, so there is no dotted id to recover — show what the model
+    // actually called rather than dropping the trace.
+    expect(session.messages.at(-1)?.traces?.[0]).toMatchObject({ command: 'make_it_awesome', ok: false });
+  });
+
   it('refuses to send with no API key for the active provider', async () => {
     removeStoredKey('openai');
     let ran = false;

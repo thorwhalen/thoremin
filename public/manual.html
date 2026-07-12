@@ -23,13 +23,67 @@
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
   .guide { margin: .2rem 0 1.4rem; padding: .6rem .9rem; background: #10281f; border: 1px solid #14523c; border-radius: 10px; font-size: 14px; }
   .guide a { color: #34d399; }
+  h4.sub { margin: 1.4rem 0 .4rem; color: #fff; font-size: 15px; }
+  ul.prose { padding-left: 1.1rem; color: #cfcfcf; } ul.prose li { margin-bottom: .35rem; }
+  .prov { margin-top: 1.2rem; }
+  .prov h4 { margin: 0 0 .4rem; font-size: 14px; color: #fff; }
+  .keylink { color: #10b981; font-size: 11px; font-weight: 400; text-decoration: none; margin-left: .4rem; }
+  .keylink:hover { text-decoration: underline; }
+  table.models { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.models td { border-top: 1px solid #1f1f1f; padding: .5rem .6rem; vertical-align: top; color: #cfcfcf; }
+  table.models td:first-child { white-space: nowrap; width: 1%; }
+  table.models code { color: #7dd3fc; }
+  /* The recommended model is the one signal a reader needs — make it unmissable
+     without shouting: a left rule, a lift, and a small pill. */
+  tr.rec td { background: #0e1a15; }
+  tr.rec td:first-child { border-left: 2px solid #10b981; }
+  tr.rec code { color: #10b981; font-weight: 600; }
+  .pill { background: #10b981; color: #06281c; font-size: 9px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .06em; border-radius: 999px; padding: .1rem .4rem; margin-left: .35rem; vertical-align: 1px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
   <p class="gen">Auto-generated from the node registry. 31 nodes.</p>
   <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md">the User Guide</a>. This page is the <b>node</b> catalog.</p>
-  <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.</p>
+  <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>Everything runs <b>client-side</b>: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.</p><p>This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.</p>
   <h3>Example pipelines</h3>
   <ul class="examples"><li><b>Theremin (direct)</b> — <code>webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)</code><br/><span class="note">Hand x → scale-snapped pitch, y → volume. Two hands = two voices.</span></li><li><b>Gesture → harmony</b> — <code>hand-features → pick('right.x') → progression → chord → webaudio-synth</code><br/><span class="note">Hand position walks an in-key chord progression.</span></li><li><b>Conductor</b> — <code>control → performance → transport → score → webaudio-synth</code><br/><span class="note">A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).</span></li><li><b>Indirect / AI (gesture or expression)</b> — <code>hand-features / face-features → indirect-map → lyria</code><br/><span class="note">Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.</span></li><li><b>Discrete triggers</b> — <code>hand-features → gesture-classifier → (events)</code><br/><span class="note">Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.</span></li></ul>
+  <section><h3>The AI assistant</h3><p>The assistant is a chat panel that <b>operates the instrument for you</b> — "add face expression chords", "make the left hand an octave lower", "save this as Glassy". It doesn't type into a text box on your behalf; it calls the very same commands the palette and the keyboard shortcuts call, so it can only ever do things you could have done yourself. Anything destructive (saving over an instrument, for instance) stops and asks you first.</p><p>It is <b>bring-your-own-key</b>: you paste an API key for one of the providers below, it is stored in your browser's localStorage, and it is sent only to that provider. There is no thoremin server in the middle.</p><h4 class="sub">Choosing a model</h4><p>The assistant's job is <i>read the state, decide, call a tool</i> — not write essays. That makes it a <b>function-calling</b> workload, and the thing that matters is whether a model reliably stays inside a tool schema, not how clever it is. Reliability × latency × cost beats raw IQ here.</p><p>So the rule of thumb is: <b>default to the fast mid-tier, and escalate only when you hit something it can't do.</b> The flagship tier is worth it for genuinely hard, ambiguous, multi-step requests — and is mostly wasted on "turn the reverb up". Each provider below is offered as three rungs, with the recommended one marked; the app picks it for you when you switch provider.</p><p>Two things worth knowing:</p><ul class="prose"><li><b>Reasoning tokens bill as output</b>, on every provider. A "cheap" model that thinks hard about a hard turn can cost more than its rate card suggests.</li><li><b>Prices below are list prices per 1M tokens</b> and they move constantly. Treat them as directional. Model ids are re-verified against each provider's live API with <code>npm run check:models</code> — a model can be silently retired while the provider's own docs still list it as stable, which is exactly how <code>gemini-2.5-flash</code> broke.</li></ul><div class="prov">
+      <h4>OpenAI <a class="keylink" href="https://platform.openai.com/api-keys">get a key ↗</a></h4>
+      <table class="models"><tbody><tr class="rec">
+        <td><code>gpt-5.6-terra</code> <span class="pill">recommended</span></td>
+        <td>Mid tier. The default tool-driver — a full rung above the cheap tier at half the flagship price. $2.50/$15 per 1M.</td>
+      </tr><tr class="">
+        <td><code>gpt-5.6-sol</code></td>
+        <td>Flagship. For genuinely hard multi-step planning; overkill for routine dial edits. $5/$30 per 1M.</td>
+      </tr><tr class="">
+        <td><code>gpt-5.6-luna</code></td>
+        <td>Cheap tier. Single obvious tool calls, intent routing. $1/$6 per 1M.</td>
+      </tr></tbody></table>
+    </div><div class="prov">
+      <h4>Anthropic (Claude) <a class="keylink" href="https://console.anthropic.com/settings/keys">get a key ↗</a></h4>
+      <table class="models"><tbody><tr class="rec">
+        <td><code>claude-sonnet-5</code> <span class="pill">recommended</span></td>
+        <td>Workhorse. Best-in-class at staying inside a tool schema, which is what an app-driving assistant lives or dies on. $3/$15 per 1M.</td>
+      </tr><tr class="">
+        <td><code>claude-opus-4-8</code></td>
+        <td>Flagship. Hard planning and loop recovery. $5/$25 per 1M.</td>
+      </tr><tr class="">
+        <td><code>claude-haiku-4-5</code></td>
+        <td>Cheap tier. Routing, state reads, one clear call. $1/$5 per 1M.</td>
+      </tr></tbody></table>
+    </div><div class="prov">
+      <h4>Google (Gemini) <a class="keylink" href="https://aistudio.google.com/app/apikey">get a key ↗</a></h4>
+      <table class="models"><tbody><tr class="rec">
+        <td><code>gemini-3.5-flash</code> <span class="pill">recommended</span></td>
+        <td>Workhorse, and the app default: Google's own recommended tier, with a generous free tier. $1.50/$9 per 1M.</td>
+      </tr><tr class="">
+        <td><code>gemini-3.1-pro-preview</code></td>
+        <td>Flagship. Largest context (1M) and the hardest reasoning. $2/$12 per 1M (doubles above 200K).</td>
+      </tr><tr class="">
+        <td><code>gemini-3.1-flash-lite</code></td>
+        <td>Cheap tier. Bulk, low-latency, simple calls. $0.25/$1.50 per 1M.</td>
+      </tr></tbody></table>
+    </div></section>
   <section><h3>Inputs (sources)</h3><p class="blurb">Where signals enter the graph.</p><div class="grid">
     <div class="node">
       <h4><code>webcam-hands</code> <span class="title">Webcam Hands</span></h4>

@@ -9,11 +9,11 @@
  * re-dispatch. Being framework-agnostic, the React overlay is a thin subscriber to the
  * single coarse `change` event.
  */
-import type { CoreMessage } from 'ai';
+import type { ModelMessage } from 'ai';
 import type { AnyCommandRecord } from 'acture';
 import { registry, approvals } from '@/app/commands';
 import { buildSystemPrompt } from './systemPrompt';
-import { buildAssistantTools } from './aiTools';
+import { buildAssistantTools, assistantToolNameToId } from './aiTools';
 import { createVercelChatBackend, type ChatBackend } from './backend';
 import { PROVIDERS, getStoredKey } from './providers';
 import type { AssistantSettings, ChatMessage, PendingApproval, ToolTrace } from './types';
@@ -124,7 +124,7 @@ export class AssistantSession extends EventTarget {
     // but no narration) has empty text — it is EXCLUDED from the model input (its effect is
     // already reflected in the read-side dial catalog in the system prompt), because an
     // empty-content assistant message is rejected by Anthropic/Gemini (OpenAI tolerates it).
-    const coreMessages: CoreMessage[] = this._messages
+    const modelMessages: ModelMessage[] = this._messages
       .filter((m) => !m.pending && m.text.trim() !== '')
       .map((m) => ({ role: m.role, content: m.text }));
 
@@ -132,13 +132,14 @@ export class AssistantSession extends EventTarget {
     const backend = this.makeBackend(settings, apiKey);
     try {
       await backend.runTurn(
-        { system: buildSystemPrompt(), messages: coreMessages, signal: this.abort.signal },
+        { system: buildSystemPrompt(), messages: modelMessages, signal: this.abort.signal },
         {
           onTextDelta: (delta) => {
             assistantMsg.text += delta;
             this.touch(assistantMsg);
           },
           onDispatch: (cmd, result) => this.handleDispatch(assistantMsg, cmd, result),
+          onToolError: (toolName, error) => this.handleToolError(assistantMsg, toolName, error),
           onError: (e) => {
             this._error = e.message;
             this.emit();
@@ -179,12 +180,30 @@ export class AssistantSession extends EventTarget {
         this._pending = [...this._pending, { id: uid('p'), command, params, title: cmd.title ?? command }];
       }
     }
-    const trace: ToolTrace = {
+    this.pushTrace(assistantMsg, {
       id: uid('t'),
       command: cmd.id,
       ok: r.ok,
       detail: r.ok ? describeOk(cmd.id, r.value) : (r.error?.message ?? 'error'),
-    };
+    });
+  }
+
+  /** A tool call the SDK rejected before it ever reached the registry — an unknown tool
+   *  name, or arguments that failed the schema. Nothing was dispatched, so there is no
+   *  Result; show it as a failed trace rather than a turn-killing error, so the model
+   *  keeps its remaining steps to correct itself and the user still sees what happened. */
+  private handleToolError(assistantMsg: ChatMessage, toolName: string, error: unknown): void {
+    this.pushTrace(assistantMsg, {
+      id: uid('t'),
+      // Report the canonical dotted id (`dial.set`), not the sanitized wire name
+      // (`dial_set`) — traces are a user-facing surface and should match the palette.
+      command: assistantToolNameToId(toolName),
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  private pushTrace(assistantMsg: ChatMessage, trace: ToolTrace): void {
     assistantMsg.traces = [...(assistantMsg.traces ?? []), trace];
     this.touch(assistantMsg);
   }

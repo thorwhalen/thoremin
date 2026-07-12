@@ -40,3 +40,15 @@ export function buildAssistantTools(onDispatched: DispatchListener): Record<stri
   }
   return tools;
 }
+
+/**
+ * Recover the canonical command id (`dial.set`) from the sanitized wire name the model
+ * calls a tool by (`dial_set`). The sanitization exists because OpenAI and Anthropic both
+ * reject dotted tool names; it is a wire concern only, so anything user-facing (traces,
+ * the palette, telemetry) should map back through here. Falls back to the given name for
+ * a tool the registry doesn't know — which is exactly the case when the model hallucinates
+ * one, and the caller still needs something to show.
+ */
+export function assistantToolNameToId(toolName: string): string {
+  return toToolNameMap(registry, PROJECTION_OPTS)[toolName] ?? toolName;
+}
