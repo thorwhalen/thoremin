@@ -12,6 +12,7 @@
  * can't be JSON-serialized); it lives in IndexedDB (`./idb`).
  */
 import { z } from 'zod';
+import { DEFAULT_RECORDING_FORMATS } from './formats';
 
 /** localStorage key holding the last-used recording session config. */
 export const RECORDING_SESSION_KEY = 'recording.session.last';
@@ -56,8 +57,9 @@ export const RecordingSessionSchema = z.object({
   /** Capture frame-rate for canvas/video streams. */
   fps: z.number().int().min(1).max(60).default(30),
   /** Output audio formats (ids from the RECORDING_FORMATS registry). Open list —
-   * a new format needs no schema change. Empty heals to `['webm']` in the UI. */
-  formats: z.array(z.string()).default(['webm']),
+   * a new format needs no schema change. Defaults to (and empty heals back to)
+   * {@link DEFAULT_RECORDING_FORMATS}, the registry's SSOT for the shipped choice. */
+  formats: z.array(z.string()).default(() => [...DEFAULT_RECORDING_FORMATS]),
   streams: RecordingStreamsSchema.default(() => structuredClone(DEFAULT_RECORDING_STREAMS)),
   /** Escape hatch: when exactly one media stream (no features) is selected, save a
    * bare file instead of a folder+manifest. Default off (one-recording-one-folder

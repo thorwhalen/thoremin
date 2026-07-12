@@ -58,8 +58,16 @@ export const RECORDING_FORMATS: RecordingFormat[] = [
   },
 ];
 
-/** The default selection (preserves the prior behaviour: native WebM). */
-export const DEFAULT_RECORDING_FORMATS = ['webm'];
+/**
+ * The default selection, and the SSOT for it: `RecordingSessionSchema.formats`
+ * defaults to a copy of this, and an empty/unknown selection heals back to it
+ * (see `audioFormatIds` in `./plan`). Preserves the prior behaviour: native WebM.
+ *
+ * `readonly` is a type-level guard against our own code mutating the shipped
+ * default in place; it is not fixing a runtime aliasing hazard (zod's `z.array`
+ * rebuilds the array on each parse, so a parsed session never aliases this).
+ */
+export const DEFAULT_RECORDING_FORMATS: readonly string[] = ['webm'];
 
 export function recordingFormat(id: string): RecordingFormat | undefined {
   return RECORDING_FORMATS.find((f) => f.id === id);
