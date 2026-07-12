@@ -56,6 +56,16 @@ interface TakeContext {
    *  It is the BASE of the set the end-of-take closeAll and the export label from — see
    *  {@link takeDefs} for why that set is the snapshot UNIONED with the live defs. */
   defs: TagDef[];
+  /** The take that held the export slot when THIS take began.
+   *
+   *  `beginTake` clears `lastTake` (a take in progress must never leave a *previous*
+   *  take's summary sitting in the export panel with a live Download button — record
+   *  take B, glance at the panel, and you would be looking at, and able to download,
+   *  take A). But an ABANDONED take that captured nothing is not a take at all — it
+   *  wrote no media files — and must not cost the user the export of the last real one.
+   *  So the displaced take is parked here for the duration and put back by `endTake` in
+   *  exactly that case. */
+  prev: LastTake | null;
 }
 
 /**
@@ -88,8 +98,9 @@ function takeDefs(snapshot: readonly TagDef[], live: readonly TagDef[]): TagDef[
  *  clean stop (source switch, engine restart, unmount) — see `SessionRecorder.dispose`. */
 export interface EndTakeOptions {
   /** True from `dispose()`. Such a take wrote NO media files, so it only earns the
-   *  {@link LastTake} slot if it actually captured annotations of its own — otherwise it
-   *  would clobber the previous, cleanly-finished take's export with an empty one. */
+   *  {@link LastTake} slot if it actually captured annotations of its own — otherwise the
+   *  take it displaced at `beginTake` ({@link TakeContext.prev}) gets the slot back,
+   *  rather than the user losing a real take's export to a phantom one. */
   abandoned?: boolean;
 }
 
@@ -147,8 +158,10 @@ interface TaggingState {
   state: TagState;
   /** The active recording take, or null when not recording. */
   take: TakeContext | null;
-  /** The take that just finished, kept so its annotations can still be exported. Null
-   *  until the first take of the session ends. See {@link LastTake}. */
+  /** The take that just FINISHED, kept so its annotations can still be exported. Null
+   *  until the first take of the session ends — and null again for the duration of every
+   *  take, because "the last finished take" is not a thing while one is in progress (see
+   *  {@link TakeContext.prev}). See {@link LastTake}. */
   lastTake: LastTake | null;
   /** The active lead-in countdown, or null. */
   countdown: CountdownState | null;
@@ -374,8 +387,14 @@ export const useTagging = create<TaggingState>((set, get) => ({
     // Fresh log per take: seq starts at 0, no carried-over open tags (the recorded
     // intervals are exactly what is toggled during the take). `defs` is snapshotted HERE
     // (see TakeContext) so a mid-take edit can't rewrite what was already recorded.
+    //
+    // `lastTake` is CLEARED (parked in `take.prev`): the export panel shows "the last
+    // finished take", and while a take is running there isn't one. Leaving the previous
+    // take in the slot showed a recording user the PRIOR take's interval counts under a
+    // live Download button — take A's file, offered while take B was being recorded.
     set({
-      take: { t0, session, sink, edges: [], defs: [...s.defs] },
+      take: { t0, session, sink, edges: [], defs: [...s.defs], prev: s.lastTake },
+      lastTake: null,
       state: emptyTagState(),
       countdown: null,
     });
@@ -409,13 +428,14 @@ export const useTagging = create<TaggingState>((set, get) => ({
       jsonl,
     };
     // An abandoned take (no clean stop => no media files on disk) publishes only if it
-    // captured something; otherwise the previous, exportable take keeps the slot.
+    // captured something; otherwise the take it displaced at beginTake gets the slot back
+    // (beginTake cleared it, so "keep the previous one" now means restoring it).
     const publish = !opts?.abandoned || s.take.edges.length > 0;
     set({
       take: null,
       state: emptyTagState(),
       countdown: null,
-      ...(publish ? { lastTake } : {}),
+      lastTake: publish ? lastTake : s.take.prev,
     });
     return jsonl;
   },

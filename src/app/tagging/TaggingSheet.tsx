@@ -15,7 +15,7 @@ import type { ExclusivityMode, TagDef, TagKind } from '@/taglog/affordances';
 import { CODECS } from '@/taglog/affordances';
 import type { TimeChoice } from '@/taglog/adapters';
 import { useTagging } from './store';
-import { EXPORT_FORMATS, RAW_FORMAT, TIME_CHOICES, downloadTake, summarizeTake } from './export';
+import { DEFAULT_EXPORT_FORMAT, EXPORT_FORMATS, TIME_CHOICES, downloadTake, summarizeTake } from './export';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 
@@ -246,11 +246,15 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
  * them. The take folder did receive a `.annotations.jsonl`, but nothing said so, and JSONL of
  * absolute-clock edges is not what anyone wants to open anyway. So: state plainly what
  * happened (or why nothing did), and hand over a file in a format a real tool can read.
+ *
+ * It shows the last FINISHED take, and during a take there is none — `beginTake` clears the
+ * slot (store.ts), so a recording user sees the recording state, not the previous take's
+ * counts under a live Download button.
  */
 function ExportPanel() {
   const lastTake = useTagging((s) => s.lastTake);
   const recording = useTagging((s) => s.take !== null);
-  const [format, setFormat] = useState<string>(EXPORT_FORMATS[0].id);
+  const [format, setFormat] = useState<string>(DEFAULT_EXPORT_FORMAT);
   // Corrected vs raw is a real fork, not a detail: a lead-in shifts an annotation's
   // times (open later, close earlier), so an export that silently picked one would
   // hand the user numbers they never tapped. Default corrected (that is what a lead-in
@@ -263,9 +267,11 @@ function ExportPanel() {
   const total = summary ? summary.intervals + summary.points : 0;
   const chosen = EXPORT_FORMATS.find((f) => f.id === format) ?? EXPORT_FORMATS[0];
   const chosenTime = TIME_CHOICES.find((t) => t.value === time) ?? TIME_CHOICES[0];
-  // The raw JSONL is the log itself — absolute-clock edges, uncorrected by construction —
-  // so the time basis simply does not apply to it.
-  const timeApplies = chosen.id !== RAW_FORMAT;
+  // Whether the time basis changes the FILE — an adapter fact, read off the format, never
+  // assumed. CSV emits both time columns and the raw JSONL is the uncorrected log itself,
+  // so for those the picker is replaced by the one line that says so: a control that
+  // cannot change the download must not be offered as though it could.
+  const timeApplies = chosen.honorsTime;
 
   return (
     <div className="mt-3 border-t border-white/10 pt-3">
@@ -317,24 +323,32 @@ function ExportPanel() {
               Download
             </button>
           </div>
-          {/* The time basis, surfaced rather than silently applied (see export.ts). */}
-          <label className="mt-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] uppercase tracking-widest text-white/50">Times</span>
-            <select
-              className={selectCls}
-              value={time}
-              disabled={!timeApplies}
-              onChange={(e) => setTime(e.target.value as TimeChoice)}
-              aria-label="Annotation export times"
-              title={timeApplies ? chosenTime.note : 'The raw log always carries the untouched event times.'}
-            >
-              {TIME_CHOICES.map((t) => (
-                <option key={t.value} value={t.value} title={t.note}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* The time basis, surfaced rather than silently applied (see export.ts) — and
+              only where it is real. For a format that carries both times (CSV) or none
+              (the raw log), the picker is replaced by the line that explains why: an
+              enabled control that cannot change the file is a lie about the file. */}
+          {timeApplies ? (
+            <label className="mt-1.5 flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-widest text-white/50">Times</span>
+              <select
+                className={selectCls}
+                value={time}
+                onChange={(e) => setTime(e.target.value as TimeChoice)}
+                aria-label="Annotation export times"
+                title={chosenTime.note}
+              >
+                {TIME_CHOICES.map((t) => (
+                  <option key={t.value} value={t.value} title={t.note}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="mt-1.5 text-[10px] leading-snug text-white/40">
+              <span className="uppercase tracking-widest text-white/50">Times</span> — {chosen.timeNote}
+            </p>
+          )}
           <p className="mt-1.5 text-[10px] leading-snug text-white/35">
             {total === 0
               ? 'That take recorded no annotations — nothing to export.'

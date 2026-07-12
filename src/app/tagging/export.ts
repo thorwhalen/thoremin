@@ -41,31 +41,77 @@ export interface ExportFormat {
   label: string;
   /** What the format is good for — shown next to the picker. */
   note: string;
+  /** Does the Times choice ({@link TIME_CHOICES}) actually change this file? Taken from
+   *  the adapter itself (`Adapter.honorsTime`), never guessed here. False for CSV (both
+   *  time columns) and for the raw log (absolute, uncorrected by construction) — for
+   *  those the UI must NOT offer a picker, or it would claim an effect it cannot deliver. */
+  honorsTime: boolean;
+  /** When `honorsTime` is false: the one line that says why, shown where the picker would be. */
+  timeNote?: string;
 }
 
 /**
  * The human copy for each adapter — the ONLY thing the picker adds to the registry.
  *
- * The picker is DERIVED from {@link ADAPTERS} below rather than listed by hand, so the
- * two cannot drift: a new adapter shows up in the UI by construction (with its id as a
- * fallback label), and a picker entry with no adapter behind it is unrepresentable.
+ * Format METADATA is derived from {@link ADAPTERS} (below) rather than listed by hand, so
+ * the two cannot drift: a new adapter shows up in the UI by construction (with its id as
+ * a fallback label), and a picker entry with no adapter behind it is unrepresentable.
+ * `honorsTime` likewise comes from the adapter, which is the only thing that knows.
  */
-const FORMAT_COPY: Record<string, { label: string; note: string }> = {
+const FORMAT_COPY: Record<string, { label: string; note: string; timeNote?: string }> = {
   audacity: { label: 'Audacity labels', note: 'Import as a label track (File → Import → Labels).' },
-  csv: { label: 'CSV', note: 'One row per annotation — spreadsheets, pandas, anything.' },
+  csv: {
+    label: 'CSV',
+    note: 'One row per annotation — spreadsheets, pandas, anything.',
+    timeNote: 'CSV carries both — raw and lead-in-corrected times are separate columns.',
+  },
   webvtt: { label: 'WebVTT', note: 'Subtitle/cue track for a <video> element or a player.' },
   textgrid: { label: 'Praat TextGrid', note: 'A tier per annotation — phonetics/speech tooling.' },
   otio: { label: 'OTIO', note: 'OpenTimelineIO — NLE round-trip (Resolve, Premiere…).' },
 };
 
+/**
+ * The picker's ORDER — declared here, in the app, not inherited from `Object.keys(ADAPTERS)`.
+ *
+ * `src/taglog/` is a library built to be lifted out into a standalone package: it has no
+ * knowledge of this UI, and the declaration order of its registry is an implementation
+ * detail. Deriving the order (and therefore the DEFAULT, which is just "the first one")
+ * from that key order would let a harmless reshuffle inside taglog silently change which
+ * file thoremin hands a user who never touched the picker. So ordering and default are
+ * thoremin's decisions, stated as such — while the metadata stays derived, so a NEW
+ * adapter still cannot go missing: unlisted ids are appended (alphabetically) rather than
+ * dropped.
+ */
+const FORMAT_ORDER: readonly string[] = ['audacity', 'csv', 'webvtt', 'textgrid', 'otio'];
+
+/** The format selected when the panel opens. Pinned by a test — changing it is a product
+ *  decision, and must not be a side effect of editing a library file. */
+export const DEFAULT_EXPORT_FORMAT = 'audacity';
+
+/** Adapter ids in the picker's order: the ones we ranked, then anything shipped since. */
+function orderedAdapterIds(): string[] {
+  const ids = Object.keys(ADAPTERS);
+  const ranked = FORMAT_ORDER.filter((id) => ids.includes(id));
+  const rest = ids.filter((id) => !FORMAT_ORDER.includes(id)).sort();
+  return [...ranked, ...rest];
+}
+
 /** The formats offered in the UI: every shipped adapter, plus the archival raw log. */
 export const EXPORT_FORMATS: ExportFormat[] = [
-  ...Object.keys(ADAPTERS).map((id) => ({
+  ...orderedAdapterIds().map((id) => ({
     id,
     label: FORMAT_COPY[id]?.label ?? id,
     note: FORMAT_COPY[id]?.note ?? `Rendered by the ${id} adapter.`,
+    honorsTime: ADAPTERS[id].honorsTime,
+    timeNote: FORMAT_COPY[id]?.timeNote,
   })),
-  { id: RAW_FORMAT, label: 'Raw JSONL', note: 'The exact archival file written into the take folder.' },
+  {
+    id: RAW_FORMAT,
+    label: 'Raw JSONL',
+    note: 'The exact archival file written into the take folder.',
+    honorsTime: false,
+    timeNote: 'The raw log always carries the untouched event times.',
+  },
 ];
 
 /** The two time bases an export can carry — surfaced, never silently chosen (see the

@@ -40,7 +40,11 @@ nothing — is what makes extraction mechanical.
 ### `adapters/` — pure exporters (`ResolvedInterval[] -> string`)
 
 Audacity labels · WebVTT · CSV · Praat TextGrid · OTIO. Add a format by adding one
-entry to `ADAPTERS`.
+entry to `ADAPTERS`, declaring `honorsTime`: whether `opts.time`
+(`'corrected' | 'raw'`) changes the output. It is `false` for CSV, which emits both
+times as separate columns — so a UI must not offer a time basis for it. `ADAPTERS` is
+a registry, not a running order: key order carries no meaning, and a UI that wants a
+picker order or a default format declares those itself.
 
 ### `provider/` — persistence + the event sink
 

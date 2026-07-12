@@ -145,4 +145,22 @@ describe('adapter registry', () => {
     expect(getAdapter('nope')).toBeUndefined();
     expect(getAdapter('webvtt')!.render(intervals, { defs }).startsWith('WEBVTT')).toBe(true);
   });
+
+  it('declares honorsTime, and each declaration matches what the renderer does', () => {
+    // A caller (a UI) cannot see whether `opts.time` reaches the output, so the adapter
+    // states it. Keep the two in step here: CSV emits BOTH time columns and so renders
+    // identically either way — offering a Times picker for it promises a file change that
+    // never happens.
+    const leadIn: ResolvedInterval[] = [
+      { tag: 'pluck', kind: 'interval', start: 1, end: 5, startCorrected: 2, endCorrected: 4, degenerate: false, openEnded: false, openSeq: 0, closeSeq: 1 },
+    ];
+    for (const [name, adapter] of Object.entries(ADAPTERS)) {
+      const corrected = adapter.render(leadIn, { defs, time: 'corrected' });
+      const raw = adapter.render(leadIn, { defs, time: 'raw' });
+      expect(raw !== corrected, `${name}.honorsTime is ${adapter.honorsTime} but its output says otherwise`).toBe(
+        adapter.honorsTime,
+      );
+    }
+    expect(getAdapter('csv')!.honorsTime).toBe(false);
+  });
 });

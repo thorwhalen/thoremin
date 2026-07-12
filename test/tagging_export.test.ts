@@ -21,6 +21,7 @@ if (typeof (globalThis as { localStorage?: unknown }).localStorage === 'undefine
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTagging, type LastTake } from '@/app/tagging/store';
 import {
+  DEFAULT_EXPORT_FORMAT,
   EXPORT_FORMATS,
   RAW_FORMAT,
   renderTake,
@@ -105,12 +106,20 @@ describe('endTake retains the take', () => {
     expect(last.jsonl).toContain('"anchor":true');
   });
 
-  it('starting a new take does not clobber the previous one until that take ends', () => {
-    recordTake();
+  it('CLEARS the export slot while a new take records — no stale take on offer', () => {
+    recordTake(); // take A, finished and exportable
     const st = useTagging.getState();
     st.beginTake({ t0: T0 + 100, startedAt: '2026-07-11T09:40:00.000Z', session: 'sess_y' });
-    expect(useTagging.getState().lastTake!.session).toBe('sess_x'); // still the old one
-    useTagging.getState().endTake(T0 + 101);
+
+    // The export panel reads `lastTake`. Leaving take A here showed the user, mid-take-B,
+    // take A's interval counts under an ENABLED Download button — they would be recording
+    // B and downloading A. "The last finished take" is nothing while one is running.
+    expect(useTagging.getState().lastTake).toBeNull();
+
+    setNow(T0 + 101);
+    useTagging.getState().toggle('a', 'click');
+    useTagging.getState().endTake(T0 + 102);
+    // …and only the END of a take populates it, with THAT take.
     expect(useTagging.getState().lastTake!.session).toBe('sess_y');
   });
 });
@@ -181,14 +190,18 @@ describe('the take snapshots the annotation set it STARTED with', () => {
 });
 
 describe('an abandoned take does not clobber the last exportable one', () => {
-  it('keeps take A when take B is torn down without capturing anything', () => {
+  it('gives take A the slot BACK when take B is torn down without capturing anything', () => {
     recordTake(); // take A: clean stop, exportable
     const st = useTagging.getState();
     st.beginTake({ t0: T0 + 100, startedAt: 'x', session: 'sess_b' });
+    // beginTake cleared the slot (nothing stale on offer while recording) — take A is
+    // parked in `take.prev` for exactly this case.
+    expect(useTagging.getState().lastTake).toBeNull();
     // No annotations tapped; the recorder is disposed (source switch / unmount).
     useTagging.getState().endTake(T0 + 101, { abandoned: true });
 
-    // Take B wrote no media files and captured nothing — take A must still be there.
+    // Take B wrote no media files and captured nothing — it is a phantom, and must not
+    // cost the user take A's export. The displaced take comes back.
     expect(useTagging.getState().lastTake!.session).toBe('sess_x');
     expect(useTagging.getState().take).toBeNull(); // …but the runtime is no longer "recording"
   });
@@ -309,15 +322,70 @@ describe('lead-in correction is chosen, never silently applied', () => {
   });
 });
 
-describe('the format picker is derived from the adapter registry', () => {
+describe('the format picker: metadata derived from the registry, order + default declared here', () => {
   it('offers every shipped adapter plus the raw log — and nothing that cannot render', () => {
-    // The picker is BUILT from ADAPTERS, so drift is impossible by construction; this
-    // pins the derivation (and that every offered id actually renders).
-    expect(EXPORT_FORMATS.map((f) => f.id)).toEqual([...Object.keys(ADAPTERS), RAW_FORMAT]);
+    // Metadata is BUILT from ADAPTERS, so drift is impossible by construction: an adapter
+    // cannot go missing from the picker, and a picker entry cannot lack an adapter.
+    expect([...EXPORT_FORMATS.map((f) => f.id)].sort()).toEqual([...Object.keys(ADAPTERS), RAW_FORMAT].sort());
     for (const f of EXPORT_FORMATS) {
       expect(() => renderTake(recordTake(), f.id), `${f.id} does not render`).not.toThrow();
       expect(f.label, `${f.id} has no label`).toBeTruthy();
       expect(f.note, `${f.id} has no note`).toBeTruthy();
     }
+  });
+
+  it('orders the picker in the APP, not by the library registry’s key order', () => {
+    // `Object.keys(ADAPTERS)` is declaration order inside src/taglog — a library built to
+    // be lifted out, with no knowledge of this UI. Deriving the order from it would let a
+    // harmless reshuffle there silently reorder thoremin's picker (and, since the default
+    // used to be "the first one", change the file a user gets). The order is thoremin's.
+    expect(EXPORT_FORMATS.map((f) => f.id)).toEqual(['audacity', 'csv', 'webvtt', 'textgrid', 'otio', RAW_FORMAT]);
+  });
+
+  it('pins the default export format (a product decision, not a side effect of a library edit)', () => {
+    expect(DEFAULT_EXPORT_FORMAT).toBe('audacity');
+    expect(EXPORT_FORMATS.some((f) => f.id === DEFAULT_EXPORT_FORMAT)).toBe(true);
+  });
+});
+
+describe('the Times choice is only offered where it changes the file', () => {
+  /** A tag with a 2s lead-in — the only way corrected and raw differ at all. */
+  function leadInTake(): LastTake {
+    const st = useTagging.getState();
+    st.setDefs([TagDefSchema.parse({ id: 'a', label: 'Verse', kind: 'interval', leadIn: 2 })]);
+    st.beginTake({ t0: T0, startedAt: 'x', session: 'sess_l' });
+    setNow(T0 + 0.5);
+    useTagging.getState().toggle('a', 'click');
+    setNow(T0 + 5);
+    useTagging.getState().toggle('a', 'click');
+    useTagging.getState().endTake(T0 + 6);
+    return useTagging.getState().lastTake!;
+  }
+
+  it('every format’s honorsTime flag matches what its renderer actually does', () => {
+    // The UI shows the Times picker iff `honorsTime`. If a format claims to honour the
+    // choice but renders byte-identically (CSV: it emits BOTH time columns), the picker
+    // is a lie — the user picks "Raw taps" and downloads the same file. And if a format
+    // renders differently while claiming not to, the choice is being made FOR them.
+    const take = leadInTake();
+    for (const f of EXPORT_FORMATS) {
+      const corrected = renderTake(take, f.id, 'corrected').body;
+      const raw = renderTake(take, f.id, 'raw').body;
+      if (f.honorsTime) {
+        expect(raw, `${f.id} claims to honour the time choice but ignores it`).not.toBe(corrected);
+      } else {
+        expect(raw, `${f.id} ignores the time choice — the UI must not offer it`).toBe(corrected);
+        expect(f.timeNote, `${f.id} offers no line explaining why the choice is absent`).toBeTruthy();
+      }
+    }
+  });
+
+  it('CSV is the one that carries both times, so it takes no choice', () => {
+    expect(EXPORT_FORMATS.find((f) => f.id === 'csv')!.honorsTime).toBe(false);
+    expect(EXPORT_FORMATS.find((f) => f.id === RAW_FORMAT)!.honorsTime).toBe(false);
+    // …and it says so on the row, rather than the CSV rows differing by choice.
+    const body = renderTake(leadInTake(), 'csv').body;
+    expect(body.split('\n')[0]).toContain('start,end,startCorrected,endCorrected');
+    expect(body).toContain('0.5,5,2.5,3'); // raw AND corrected, side by side
   });
 });
