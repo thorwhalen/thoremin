@@ -1,17 +1,21 @@
 /**
- * TaggingSheet (#92) — the tagging-mode setup surface. Pick + order the tag set
- * (pre-seeded with the last-used set), choose exclusivity, and per tag set its kind
- * (interval/point), lead-in (pre-roll seconds), colour and label. It is a SETTINGS
+ * TaggingSheet (#92) — the annotation-mode setup surface. Pick + order the annotation set
+ * (pre-seeded with the last-used set), choose exclusivity, and per annotation set its kind
+ * (interval/point), lead-in (pre-roll seconds), colour and label. It also hosts the
+ * EXPORT panel for the last finished take. It is a SETTINGS
  * surface, not a form to submit: every edit flows straight into the tagging store
  * (which debounce-persists via the taglog provider), so closing never loses anything.
  *
  * Purely presentational — a subscriber to the tagging store. Part of the build-checked
  * React layer (no @types/react). Styling mirrors the recording SettingsSheet.
  */
-import { ChevronDown, ChevronUp, Plus, Trash2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronUp, Download, Plus, Trash2, X } from 'lucide-react';
 import type { ExclusivityMode, TagDef, TagKind } from '@/taglog/affordances';
 import { CODECS } from '@/taglog/affordances';
+import type { TimeChoice } from '@/taglog/adapters';
 import { useTagging } from './store';
+import { DEFAULT_EXPORT_FORMAT, EXPORT_FORMATS, TIME_CHOICES, downloadTake, summarizeTake } from './export';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 
@@ -27,6 +31,7 @@ function TagRow({ def, index, count }: { def: TagDef; index: number; count: numb
   const removeTag = useTagging((s) => s.removeTag);
   const moveTag = useTagging((s) => s.moveTag);
   const exclusivity = useTagging((s) => s.config.exclusivity);
+  const recording = useTagging((s) => s.take !== null);
 
   return (
     <div className="rounded-lg bg-white/5 p-2">
@@ -42,7 +47,7 @@ function TagRow({ def, index, count }: { def: TagDef; index: number; count: numb
           value={def.color}
           onChange={(e) => updateTag(def.id, { color: e.target.value })}
           className="h-5 w-5 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
-          title="Tag colour"
+          title="Annotation colour"
         />
         <input
           type="text"
@@ -69,10 +74,15 @@ function TagRow({ def, index, count }: { def: TagDef; index: number; count: numb
             <ChevronDown className="h-3 w-3" />
           </button>
         </div>
+        {/* Deleting mid-take is disabled: the take's export labels come from the set it
+            STARTED with, and pulling a definition out from under an open interval is
+            confusing rather than useful. Stop first. */}
         <button
           onClick={() => removeTag(def.id)}
-          aria-label="Delete tag"
-          className="shrink-0 rounded p-1 text-white/40 transition hover:bg-white/10 hover:text-rose-400"
+          disabled={recording}
+          aria-label="Delete annotation"
+          title={recording ? 'Stop the recording to delete an annotation' : undefined}
+          className="shrink-0 rounded p-1 text-white/40 transition hover:bg-white/10 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-white/40"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -104,7 +114,7 @@ function TagRow({ def, index, count }: { def: TagDef; index: number; count: numb
           </label>
         )}
         {exclusivity === 'group' && def.kind === 'interval' && (
-          <label className="flex items-center gap-1" title="Tags sharing a group auto-close each other.">
+          <label className="flex items-center gap-1" title="Annotations sharing a group auto-close each other.">
             Group
             <input
               type="text"
@@ -132,10 +142,10 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
   return (
     <div className="max-h-[80vh] w-80 overflow-y-auto rounded-2xl bg-black/70 p-3 text-white/90 shadow-2xl backdrop-blur">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Tagging mode</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Annotation mode</span>
         <button
           onClick={onClose}
-          aria-label="Close tagging settings"
+          aria-label="Close annotation settings"
           className="rounded p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
         >
           <X className="h-3.5 w-3.5" />
@@ -143,7 +153,7 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Master on/off — arms the button stack + the 1..9 keys. Disabled mid-take so
-          an active recording keeps its tag log. */}
+          an active recording keeps its annotation log. */}
       <label
         className={`mb-3 flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 ${recording ? 'opacity-60' : ''}`}
         title={recording ? 'Stop the recording to change this' : undefined}
@@ -168,9 +178,16 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-widest text-white/50">Tags</span>
+        <span className="text-[10px] uppercase tracking-widest text-white/50">Annotations</span>
+        {/* Adding mid-take is DELIBERATELY allowed (unlike deleting — see TagRow): you are
+            playing, you realise you want to mark "Bridge", you add it and tap it. The store
+            supports it end to end — `toggle` opens against the live set, and `endTake` closes
+            and labels against the take snapshot UNIONED with the live set (store.ts
+            `takeDefs`), so a mid-take annotation gets a real close edge in the archival JSONL
+            and its own label in the export. Deleting is the confusing one, not adding. */}
         <button
           onClick={() => addTag()}
+          title={recording ? 'You can add an annotation mid-take — it records from the moment you tap it' : undefined}
           className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition hover:bg-white/20"
         >
           <Plus className="h-3 w-3" /> Add
@@ -179,7 +196,7 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
       <div className="space-y-1.5">
         {defs.length === 0 && (
           <p className="rounded-lg bg-white/5 p-3 text-center text-[11px] text-white/50">
-            No tags yet — add one to start.
+            No annotations yet — add one to start.
           </p>
         )}
         {defs.map((def, i) => (
@@ -192,7 +209,7 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
       <details className="mt-3">
         <summary className="cursor-pointer text-[10px] uppercase tracking-widest text-white/40">Advanced</summary>
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-widest text-white/50" title="How each event is written to tags.jsonl">
+          <span className="text-[10px] uppercase tracking-widest text-white/50" title="How each event is written to annotations.jsonl">
             Event format
           </span>
           <select
@@ -209,10 +226,140 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
         </div>
       </details>
 
+      <ExportPanel />
+
       <p className="mt-3 text-[10px] leading-relaxed text-white/40">
-        Toggling a tag while recording writes a time-aligned <code>.tags.jsonl</code> into the take
-        folder. Keys 1–9 toggle; 0 clears all.
+        Annotations are recorded <strong className="text-white/60">only while the Record button is
+        running</strong> — tapping them otherwise is rehearsal and is not saved. During a take they
+        are written to <code>&lt;take&gt;.annotations.jsonl</code> in the take folder, on the same
+        clock as the audio and video. Keys 1–9 toggle; 0 clears all.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Export the last finished take.
+ *
+ * This panel exists because the feature was previously write-only from the user's point of
+ * view: you could tap annotations all day and there was nowhere in the app to see or fetch
+ * them. The take folder did receive a `.annotations.jsonl`, but nothing said so, and JSONL of
+ * absolute-clock edges is not what anyone wants to open anyway. So: state plainly what
+ * happened (or why nothing did), and hand over a file in a format a real tool can read.
+ *
+ * It shows the last FINISHED take, and during a take there is none — `beginTake` clears the
+ * slot (store.ts), so a recording user sees the recording state, not the previous take's
+ * counts under a live Download button.
+ */
+function ExportPanel() {
+  const lastTake = useTagging((s) => s.lastTake);
+  const recording = useTagging((s) => s.take !== null);
+  const [format, setFormat] = useState<string>(DEFAULT_EXPORT_FORMAT);
+  // Corrected vs raw is a real fork, not a detail: a lead-in shifts an annotation's
+  // times (open later, close earlier), so an export that silently picked one would
+  // hand the user numbers they never tapped. Default corrected (that is what a lead-in
+  // is for); one click gets the raw instants.
+  const [time, setTime] = useState<TimeChoice>('corrected');
+
+  // summarizeTake re-resolves the take (copy + sort + map); the take only changes when a
+  // recording ends, so don't redo it on every keystroke elsewhere in the sheet.
+  const summary = useMemo(() => (lastTake ? summarizeTake(lastTake) : null), [lastTake]);
+  const total = summary ? summary.intervals + summary.points : 0;
+  const chosen = EXPORT_FORMATS.find((f) => f.id === format) ?? EXPORT_FORMATS[0];
+  const chosenTime = TIME_CHOICES.find((t) => t.value === time) ?? TIME_CHOICES[0];
+  // Whether the time basis changes the FILE — an adapter fact, read off the format, never
+  // assumed. CSV emits both time columns and the raw JSONL is the uncorrected log itself,
+  // so for those the picker is replaced by the one line that says so: a control that
+  // cannot change the download must not be offered as though it could.
+  const timeApplies = chosen.honorsTime;
+
+  return (
+    <div className="mt-3 border-t border-white/10 pt-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-widest text-white/50">Export</span>
+        {recording && (
+          <span className="text-[9px] uppercase tracking-widest text-emerald-400">recording…</span>
+        )}
+      </div>
+
+      {!lastTake ? (
+        <p className="rounded-lg bg-white/5 p-3 text-[11px] leading-relaxed text-white/50">
+          {recording
+            ? 'Recording — your annotations will be exportable here as soon as you stop.'
+            : 'Nothing to export yet. Start a recording, tap some annotations, then stop: the take shows up here.'}
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-[11px] text-white/60">
+            Last take:{' '}
+            <span className="tabular-nums text-white/90">
+              {summary!.intervals} interval{summary!.intervals === 1 ? '' : 's'}
+            </span>
+            {', '}
+            <span className="tabular-nums text-white/90">
+              {summary!.points} point{summary!.points === 1 ? '' : 's'}
+            </span>{' '}
+            over <span className="tabular-nums text-white/90">{summary!.seconds.toFixed(1)}s</span>.
+          </p>
+          <div className="flex items-center gap-2">
+            <select
+              className={`${selectCls} flex-1`}
+              value={format}
+              onChange={(e) => setFormat(e.target.value)}
+              aria-label="Annotation export format"
+            >
+              {EXPORT_FORMATS.map((f) => (
+                <option key={f.id} value={f.id} title={f.note}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => downloadTake(lastTake, format, time)}
+              disabled={total === 0}
+              className="flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
+            >
+              <Download className="h-3 w-3" />
+              Download
+            </button>
+          </div>
+          {/* The time basis, surfaced rather than silently applied (see export.ts) — and
+              only where it is real. For a format that carries both times (CSV) or none
+              (the raw log), the picker is replaced by the line that explains why: an
+              enabled control that cannot change the file is a lie about the file. */}
+          {timeApplies ? (
+            <label className="mt-1.5 flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-widest text-white/50">Times</span>
+              <select
+                className={selectCls}
+                value={time}
+                onChange={(e) => setTime(e.target.value as TimeChoice)}
+                aria-label="Annotation export times"
+                title={chosenTime.note}
+              >
+                {TIME_CHOICES.map((t) => (
+                  <option key={t.value} value={t.value} title={t.note}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="mt-1.5 text-[10px] leading-snug text-white/40">
+              <span className="uppercase tracking-widest text-white/50">Times</span> — {chosen.timeNote}
+            </p>
+          )}
+          <p className="mt-1.5 text-[10px] leading-snug text-white/35">
+            {total === 0
+              ? 'That take recorded no annotations — nothing to export.'
+              : `${chosen.note}${timeApplies ? ` ${chosenTime.note}` : ''}`}
+          </p>
+          <p className="mt-1 text-[10px] leading-snug text-white/25">
+            Kept in memory until you reload — the archival copy is the{' '}
+            <code>.annotations.jsonl</code> in the take folder.
+          </p>
+        </>
+      )}
     </div>
   );
 }

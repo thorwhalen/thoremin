@@ -1,7 +1,7 @@
 /**
  * Tagging runtime store (#92) — the thoremin glue over the pure `taglog` core.
  * Drives the take lifecycle with an injected clock (deterministic media times) and
- * asserts the emitted `tags.jsonl`, exclusivity, the overlay snapshot, and that
+ * asserts the emitted `annotations.jsonl`, exclusivity, the overlay snapshot, and that
  * rehearsal toggles (no take) are NOT logged.
  */
 // localStorage shim for the node test env (persistence is best-effort/debounced).
@@ -51,7 +51,7 @@ describe('renumber', () => {
   });
 });
 
-describe('take lifecycle → tags.jsonl', () => {
+describe('take lifecycle → annotations.jsonl', () => {
   it('logs absolute engine-clock events with an origin anchor, closing still-open at endTake', () => {
     const st = useTagging.getState();
     st.setDefs([A, B, P]);
@@ -70,7 +70,7 @@ describe('take lifecycle → tags.jsonl', () => {
 
     const lines = jsonl.trim().split('\n').map((l) => JSON.parse(l));
     // The anchor's `t` is the origin (== t0), matching the manifest t0.
-    expect(lines[0]).toMatchObject({ anchor: true, t: 0, session: 'sess_1', schema: 'thoremin.tags/1', recStartPerf: 0 });
+    expect(lines[0]).toMatchObject({ anchor: true, t: 0, session: 'sess_1', schema: 'thoremin.annotations/1', recStartPerf: 0 });
     const events = lines.slice(1);
     // open A @1, auto-close A @3, open B @3, point p @4, close B @6 (all absolute engine time)
     expect(events.map((e) => [e.tag, e.status, e.t])).toEqual([

@@ -34,7 +34,7 @@ describe('TagEventSink', () => {
     wallClockISO: '2026-07-10T00:00:00.000Z',
     recStartPerf: 1234.5,
     session: 'sess_1',
-    schema: 'thoremin.tags/1',
+    schema: 'thoremin.annotations/1',
   };
   const open: EdgeEvent = { tag: 'pluck', kind: 'interval', status: 'open', t: 5, tCorrected: 7, seq: 0, clock: 'media', src: 'key' };
   const point: EdgeEvent = { tag: 'boom', kind: 'point', status: 'point', t: 8, tCorrected: 8, seq: 1, clock: 'media', src: 'click' };
@@ -47,7 +47,7 @@ describe('TagEventSink', () => {
     expect(sink.count).toBe(3); // anchor + 2 rows
     const out = sink.drain();
     const lines = out.trim().split('\n').map((l) => JSON.parse(l));
-    expect(lines[0]).toMatchObject({ anchor: true, schema: 'thoremin.tags/1' });
+    expect(lines[0]).toMatchObject({ anchor: true, schema: 'thoremin.annotations/1' });
     expect(lines[1]).toMatchObject({ status: 'open', tag: 'pluck', t: 5 });
     expect(lines[2]).toMatchObject({ status: 'point', tag: 'boom' });
     expect(sink.drain()).toBe(''); // cleared

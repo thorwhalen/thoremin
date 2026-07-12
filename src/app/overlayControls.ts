@@ -92,5 +92,5 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'video', label: 'Video backdrop', slider: { key: 'alpha', label: 'Opacity' } },
   // Live tagging (#92): the burned-in corner HUD (open tags + timecode) that composits
   // into the recorded video. Shown only while a take records; toggle to hide the burn-in.
-  { name: 'tagHud', label: 'Tagging HUD (recorded)' },
+  { name: 'tagHud', label: 'Annotation HUD (recorded)' },
 ];

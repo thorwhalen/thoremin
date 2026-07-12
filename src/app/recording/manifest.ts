@@ -2,8 +2,8 @@
  * Recording manifest (#88) — the per-folder alignment SSOT. Every recording is a
  * folder containing a `{stem}.manifest.json` that records the shared clock origin
  * (`startedAt`, `t0`), the instrument, and one entry per captured stream
- * (`{file, kind, mime?, fps?}`). A future importer/aligner (and the live-tagging
- * `.tags.jsonl`, which drops into the same folder on the same clock) reads this
+ * (`{file, kind, mime?, fps?}`). A future importer/aligner (and the live-annotation
+ * `.annotations.jsonl`, which drops into the same folder on the same clock) reads this
  * to line the streams up frame-accurately. Pure and unit-testable — no DOM, no
  * filesystem.
  */
@@ -17,7 +17,7 @@ export type RecordingStreamKind =
   | 'pureVideo'
   | 'overlayAlpha'
   | 'features'
-  | 'tags';
+  | 'annotations';
 
 /** One stream's entry in the manifest. `file` is the name within the folder. */
 export interface RecordingStreamEntry {

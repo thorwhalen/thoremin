@@ -1,7 +1,8 @@
 /**
  * taglog — export adapters (the survey's non-negotiable I/O pattern, design §2/§4).
  *
- * The native log is `tags.jsonl` (raw events, written by the provider sink). These
+ * The native log is the raw event JSONL written by the provider sink (thoremin names it
+ * `<take>.annotations.jsonl`). These
  * adapters take the RESOLVED view (`ResolvedInterval[]` from `resolveIntervals`) and
  * emit standard interchange formats so a tag log opens in the tools researchers
  * already use — Audacity, Praat, a `<track>` preview, a spreadsheet, an NLE:
@@ -14,7 +15,11 @@
  *
  * Pure `ResolvedInterval[] -> string`. Adding a format is one entry in {@link ADAPTERS},
  * so the representation stays open/closed. By default each uses the lead-in-CORRECTED
- * times (the clean middle of the action); pass `time:'raw'` for the click instants.
+ * times (the clean middle of the action); pass `time:'raw'` for the click instants —
+ * EXCEPT CSV, which emits both times as separate columns and therefore ignores the
+ * choice. That asymmetry is declared on the adapter ({@link Adapter.honorsTime}), not
+ * left for each caller to rediscover: a UI that offers the choice for CSV would be
+ * promising an effect the renderer does not have.
  */
 import type { ResolvedInterval, TagDef } from '../affordances/schema';
 import { formatTimecode } from '../affordances/time';
@@ -83,7 +88,15 @@ export function toWebVTT(intervals: readonly ResolvedInterval[], opts: AdapterOp
   return `WEBVTT\n\n${cues.join('\n\n')}${cues.length ? '\n' : ''}`;
 }
 
-/** CSV: one row per resolved interval/point, with both raw and corrected times. */
+/**
+ * CSV: one row per resolved interval/point, with BOTH the raw and the corrected times as
+ * their own columns.
+ *
+ * It therefore — alone among the adapters — ignores `opts.time` by design: the choice is
+ * a choice about which pair of numbers to *drop*, and CSV drops neither. Callers must not
+ * offer the user a time basis for CSV (see {@link Adapter.honorsTime}); the columns are
+ * the answer.
+ */
 export function toCSV(intervals: readonly ResolvedInterval[], opts: AdapterOptions = {}): string {
   const head = 'tag,label,kind,start,end,startCorrected,endCorrected,degenerate,openEnded';
   // Quote on any CR/LF/quote/comma so a lone \r can't corrupt a CRLF-strict parser.
@@ -210,19 +223,43 @@ export interface Adapter {
   name: string;
   ext: string;
   mime: string;
+  /**
+   * Does `opts.time` actually change this adapter's output?
+   *
+   * `true` for every format that must commit to ONE pair of times (Audacity, WebVTT,
+   * TextGrid, OTIO). `false` for CSV, which carries the raw AND the corrected times in
+   * separate columns and so renders byte-identically either way (and for any future
+   * adapter that likewise emits both).
+   *
+   * Stated here, on the adapter, because it is a fact about the RENDERER — a UI cannot
+   * know it, and a UI that guesses it wrong lies to the user (offering a Times picker
+   * for CSV, whose file does not change). Required, not optional: a new adapter has to
+   * say which it is rather than inherit a default that may not hold.
+   */
+  honorsTime: boolean;
   render(intervals: readonly ResolvedInterval[], opts?: AdapterOptions): string;
 }
 
-/** The shipped adapter registry (open for extension). Keyed by format name. */
+/** The shipped adapter registry (open for extension). Keyed by format name.
+ *
+ * NOTE for callers: this is a REGISTRY, not a running order. Key order here is
+ * declaration order and carries no meaning — a UI that wants a stable picker order or a
+ * default format must declare those itself (thoremin does, in `app/tagging/export.ts`).
+ */
 export const ADAPTERS: Record<string, Adapter> = {
-  audacity: { name: 'audacity', ext: 'txt', mime: 'text/plain', render: toAudacityLabels },
-  webvtt: { name: 'webvtt', ext: 'vtt', mime: 'text/vtt', render: toWebVTT },
-  csv: { name: 'csv', ext: 'csv', mime: 'text/csv', render: toCSV },
-  textgrid: { name: 'textgrid', ext: 'TextGrid', mime: 'text/plain', render: toTextGrid },
-  otio: { name: 'otio', ext: 'otio', mime: 'application/json', render: toOTIO },
+  audacity: { name: 'audacity', ext: 'txt', mime: 'text/plain', honorsTime: true, render: toAudacityLabels },
+  webvtt: { name: 'webvtt', ext: 'vtt', mime: 'text/vtt', honorsTime: true, render: toWebVTT },
+  csv: { name: 'csv', ext: 'csv', mime: 'text/csv', honorsTime: false, render: toCSV },
+  textgrid: { name: 'textgrid', ext: 'TextGrid', mime: 'text/plain', honorsTime: true, render: toTextGrid },
+  otio: { name: 'otio', ext: 'otio', mime: 'application/json', honorsTime: true, render: toOTIO },
 };
 
-/** Look up an adapter by name (undefined for an unknown format). */
+/** Look up an adapter by name (undefined for an unknown format).
+ *
+ * `hasOwn`, not `name in ADAPTERS` / a bare index: `ADAPTERS` is a plain object, so the
+ * prototype chain would answer for `'toString'`, `'constructor'`, … — handing a caller
+ * `Object.prototype.toString` (truthy, so their `if (!adapter) throw` guard passes) and
+ * blowing up later on `adapter.render is not a function`. */
 export function getAdapter(name: string): Adapter | undefined {
-  return ADAPTERS[name];
+  return Object.hasOwn(ADAPTERS, name) ? ADAPTERS[name] : undefined;
 }

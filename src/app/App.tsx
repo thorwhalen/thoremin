@@ -124,9 +124,10 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
           once audio is running. */}
       {audioOn && <RecordButton recording={recording} />}
 
-      {/* Live tagging (#92): the launcher + setup sheet, the in-take button stack
+      {/* Live annotations (#92): the launcher + setup sheet, the in-take button stack
           (left edge), and the centered lead-in countdown. Available once the engine
-          is ready; toggling a tag during a recording writes a time-aligned tags.jsonl. */}
+          is ready; tapping an annotation during a recording writes a time-aligned
+          annotations.jsonl into the take folder. */}
       {status === 'ready' && <TaggingControls />}
 
       {/* Top-right: the instruments surface (the list + the per-instrument editor). */}

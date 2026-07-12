@@ -4,7 +4,8 @@
  * This is the reusable heart of the live-tagging tool (thoremin issue #92,
  * design research in discussion #81). It defines, with Zod, the two schemas the
  * whole system pivots on — the **TagDef** (a tag's definition, chosen before
- * recording) and the **TagEvent** (one wire row in `tags.jsonl`) — plus the
+ * recording) and the **TagEvent** (one wire row in the event log JSONL, which thoremin
+ * writes as `<take>.annotations.jsonl`) — plus the
  * neutral in-memory types (`TagAction`, `EdgeEvent`, `TagState`, `ResolvedInterval`)
  * the pure logic passes around.
  *
@@ -17,9 +18,18 @@
  */
 import { z } from 'zod';
 
-/** The schema id written into a `tags.jsonl` anchor record (version from day one,
- * per the annotation-systems survey). Overridable for a non-thoremin host. */
-export const TAGS_SCHEMA_ID = 'thoremin.tags/1' as const;
+/** The schema id written into an `annotations.jsonl` anchor record (version from day one,
+ * per the annotation-systems survey). Overridable for a non-thoremin host.
+ *
+ * NOTE ON VOCABULARY: this library is `taglog` and its internal nouns are tag/TagDef/
+ * TagEvent — a deliberately generic vocabulary, since it is built to be lifted out as a
+ * standalone package. thoremin's *product* surface calls these **annotations**, because
+ * "tag" is already taken there by the instrument library (keywords on a saved preset).
+ * ("Marker" was not free either — `canvas_overlay` has "Control markers".) So: `tag`
+ * inside this folder, `annotation` in the UI and in the artifacts thoremin writes to
+ * disk. The full three-way mapping is written down in the header of
+ * `src/app/tagging/TaggingControls.tsx`, which is the SSOT for it. */
+export const ANNOTATIONS_SCHEMA_ID = 'thoremin.annotations/1' as const;
 
 /** A tag is either a labelled interval (open then close) or an instantaneous point. */
 export const TagKindSchema = z.enum(['interval', 'point']);
@@ -124,7 +134,7 @@ export type TaggingConfig = z.infer<typeof TaggingConfigSchema>;
 export const DEFAULT_TAGGING_CONFIG: TaggingConfig = TaggingConfigSchema.parse({});
 
 /**
- * The self-describing first line of a `tags.jsonl`: it records the anchor origin so
+ * The self-describing first line of the event log: it records the anchor origin so
  * a consumer can interpret the file without trusting file-creation dates (§5). `t` is
  * the absolute engine-clock **origin** (== manifest.t0); every event `t` minus this
  * is its offset into the take — the same rule the manifest applies to every stream.
@@ -140,7 +150,7 @@ export const AnchorRecordSchema = z.object({
   recStartPerf: z.number(),
   /** Session/take id, for cross-file correlation. */
   session: z.string(),
-  /** Schema id + version (e.g. "thoremin.tags/1"). */
+  /** Schema id + version (e.g. "thoremin.annotations/1"). */
   schema: z.string(),
 });
 export type AnchorRecord = z.infer<typeof AnchorRecordSchema>;

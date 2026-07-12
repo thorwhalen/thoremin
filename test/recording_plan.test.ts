@@ -117,28 +117,28 @@ describe('planRecording — single-file escape hatch', () => {
   });
 });
 
-describe('planRecording — live-tagging stream (#92)', () => {
-  const planT = (s: RecordingSession, includeTags: boolean) =>
-    planRecording({ session: s, stem: STEM, audioMime: AUDIO_MIME, videoMime: VIDEO_MIME, includeTags });
+describe('planRecording — live-annotation stream (#92)', () => {
+  const planT = (s: RecordingSession, includeAnnotations: boolean) =>
+    planRecording({ session: s, stem: STEM, audioMime: AUDIO_MIME, videoMime: VIDEO_MIME, includeAnnotations });
 
-  it('adds a `.tags.jsonl` stream (before the manifest) when tagging is active', () => {
+  it('adds an `.annotations.jsonl` stream (before the manifest) when annotating is active', () => {
     const p = planT(session(), true);
-    const tags = p.files.find((f) => f.kind === 'tags');
-    expect(tags?.name).toBe(`${STEM}.tags.jsonl`);
-    expect(tags).toMatchObject({ role: 'tags', ext: 'jsonl' });
-    // ordering: tags sits right before the always-last manifest
+    const annotations = p.files.find((f) => f.kind === 'annotations');
+    expect(annotations?.name).toBe(`${STEM}.annotations.jsonl`);
+    expect(annotations).toMatchObject({ role: 'annotations', ext: 'jsonl' });
+    // ordering: annotations sit right before the always-last manifest
     const kinds = p.files.map((f) => f.kind);
-    expect(kinds.indexOf('tags')).toBe(kinds.indexOf('manifest') - 1);
+    expect(kinds.indexOf('annotations')).toBe(kinds.indexOf('manifest') - 1);
   });
 
-  it('omits the tags stream when tagging is inactive', () => {
-    expect(planT(session(), false).files.some((f) => f.kind === 'tags')).toBe(false);
+  it('omits the annotation stream when annotating is inactive', () => {
+    expect(planT(session(), false).files.some((f) => f.kind === 'annotations')).toBe(false);
   });
 
   it('forces folder mode even for an otherwise single-file-eligible take', () => {
     const p = planT(session({ singleFileWhenAlone: true, streams: { audio: true } }), true);
     expect(p.useFolder).toBe(true);
-    expect(p.files.some((f) => f.kind === 'tags')).toBe(true);
+    expect(p.files.some((f) => f.kind === 'annotations')).toBe(true);
     expect(p.files.some((f) => f.kind === 'manifest')).toBe(true);
   });
 });

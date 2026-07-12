@@ -376,7 +376,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         engine,
         resources: resourcesRef.current,
         instrument: recInstrumentRef.current,
-        // If tagging mode is on, tags.jsonl rides in the folder on the shared t0 (#92).
+        // If annotation mode is on, annotations.jsonl rides in the folder on the shared t0 (#92).
         tagSource: tagStreamSource,
       },
       recSession,
