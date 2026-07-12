@@ -1,232 +1,190 @@
 # Thoremin Roadmap
 
-Two horizons:
+Status board, swept 2026-07-12. Two horizons:
 
-1. **Near-term feature roadmap** (below) — the concrete, recommended build order
-   for the work currently on the table, with dependencies and rationale. This is
-   the live planning surface.
-2. **Longer-horizon engine milestones (M0–M7)** — the original platform/engine
-   arc, kept for reference at the bottom. (Much of the recent work — dials,
-   named instruments, hand→sound mapping, feature-accurate overlays, head/face
-   pose control — landed *alongside* rather than *inside* this table; it is no
-   longer a faithful status board, so read it as direction, not status.)
+1. **What shipped** and **what is next** (below) — the live planning surface.
+2. **Longer-horizon engine milestones (M0–M8)** — the original platform/engine arc,
+   kept at the bottom for direction.
 
----
-
-## Near-term feature roadmap (recommended build order — 2026-07)
-
-Design captured across GitHub issues #87–#92 and discussions #81/#93 (each issue
-carries a full design-research appendix in its first comment). The order below is
-**dependency-driven**, not the order the ideas were raised in — notably the mute
-bug is front-loaded for correctness, command dispatch precedes its keyboard
-consumer, and recording precedes tagging.
-
-There are **two mostly-independent tracks** that can interleave by appetite:
-
-- **Interaction / control track:** mute fix → command dispatch → its consumers.
-- **Capture / training-data track:** recording v2 → live tagging.
-
-Chord overlays sit outside both (self-contained), and are a good early win.
-
-### Tier 1 — correctness + quick visible wins
-
-1. **[#91] Mute fix + visual "muted" cue** — *S · bug · no deps.*
-   Mute currently only silences the hand voices (`voice-mapping`); the chord
-   nodes (`expression-chord` / `pose-chord`) merge in downstream and bypass it.
-   Fix with a **true master mute** (host master gain) + a `muted` store field +
-   an unmissable on-screen "muted — press m to unmute" cue. Do first: it is a
-   real defect and cheap. *(When #87 lands, `mute` becomes a command.)*
-
-2. **[#89] Chord overlays** — *M · no deps.*
-   Two independent, simultaneously-toggleable overlay elements: a **chord-name**
-   HUD cue (jazz symbol + optional Roman/Nashville function line) and a thin
-   **keyboard-strip** with a shape+brightness visual-cue hierarchy (chord root >
-   voiced-now > chord-tone set > scale root). Self-contained, high perceptual
-   value, builds on the #84 chord x-labels. Only genuinely-new plumbing: surface
-   the **voiced notes** (`SynthParams.voices`) + expose `chordDegree`/`scaleRoot`
-   to the overlay.
-
-### Tier 2 — the architectural linchpin
-
-3. **[#87] Command-dispatch layer (acture)** — *L (S core, M with consumers) · unblocks #90 + palette + AI.*
-   Make param-mutation the *only* thing that is a command; a command registry
-   becomes the single write path into the dials/settings model; the audio/gesture
-   hot path stays un-registered and real-time. A **hard refactor** of the write
-   path (not a strangler-fig), enforced with an ESLint import firewall. thoremin
-   fits unusually well — `setDial`/`resetDial` is already the single write path
-   and dials are already Zod schemas. Start the Phase 0–1 hard cut early (it is
-   "time soon"), before its consumers; it can run in parallel with the capture
-   track.
-
-### Tier 3 — command-dispatch consumers (all depend on #87)
-
-4. **[#90] Custom keyboard mappings** — *M · depends on #87.*
-   The first consumer: bind keys → partially-applied param-mutation commands via
-   `acture-hotkeys`; **retires the hardcoded `switch`** in `keyboard_control.ts`;
-   keymaps are user-editable data saveable as **reusable partials** (the #82
-   partial-layer idea applied to keymaps).
-
-5. **Command palette** — *M · part of #87.*
-   `acture-palette-react` + `acture-forms-autoform` over the same registry;
-   parametrize instruments **live or offline**. (Tracked inside #87 for now;
-   split into its own issue when started.)
-
-6. **AI assistant** — *✅ SHIPPED 2026-07-10 (#87 Phase 3, PR #111).*
-   A new in-app **Assistant** plugin (`src/plugins/assistant/`) — a chat that
-   operates the instrument by dispatching the command registry via
-   `acture-ai-vercel`. **Client-side, multi-provider, BYO-key** (OpenAI /
-   Anthropic / **Google — default Gemini 3.5 Flash**); **no aix** — thoremin
-   stays client-side, with a pluggable `ChatBackend` seam for a future
-   server-side move. A human-in-the-loop **confirmation gate** guards the
-   destructive `instrument.*` commands. Lazy-loaded so the AI SDK stays out of
-   the initial bundle. Deferred: `acture-mcp-server` for external agents.
-
-### Tier 4 — capture / training-data track (parallel to Tiers 2–3)
-
-7. **[#88] Recording v2** — *L · extends #49 · prereq for #92.*
-   Session-based multi-stream recorder: settings move **out of the instrument**
-   into a transient sheet (Record → sheet → "Rec now" in the same slot); five
-   capturable streams (audio, video+overlays, pure-webcam, overlay-only,
-   feature-JSONL); **one folder per recording** with an info-carrying naming
-   scheme; a `manifest.json` for cross-stream time alignment; a three-tier local
-   sink (dir handle / ZIP / per-file). Independent of the command-dispatch track.
-
-8. **[#92] Live tagging mode** — *✅ SHIPPED · L · was: depends on #88 · research in #81.*
-   Toggle tags during a recording → a time-aligned `tags.jsonl` (absolute engine
-   clock, shared with `features.jsonl` by construction) that segments the streams for
-   ML/analysis. Interval+point tags, mutual-exclusivity groups, 1..9 keyboard toggles,
-   per-tag lead-in + countdown, blinking open-tag buttons, a burned-in corner overlay
-   as the in-band ground truth. Built as a **reusable zodal tool** in `src/taglog/`
-   (affordances / adapters / provider / presentation) + thoremin glue in
-   `src/app/tagging/`; export adapters for Audacity / WebVTT / CSV / Praat TextGrid / OTIO.
-
-### Stream Applier / alternative sources (active — 2026-07)
-
-A third track, cutting across both above: separate *what runs* (the DAG) from
-*how we apply it to a stream*. One open-closed **Applier** applies the DAG to a
-**source-set** (live sensors / persisted data / generator functions, all behind
-one async-iterator interface) under a **clock** (batch-unpaced vs time-paced with
-speed control), with taps for recording and sinks for view/hear. Enables:
-camera-free runs from a pre-recorded video, state-feedback generator sources, and
-deterministic headless replay. Full design + build order (M-A…M-G) in
-[design/stream-applier.md](design/stream-applier.md); tracked in the **Stream
-Applier epic** issue.
-
-- **M-A [P0]** — camera-free pre-recorded video source (`?source=video`). Pure
-  host wiring, no engine change; **unblocks camera-free #89 overlay + palette
-  verification.** Do first.
-- **M-B [P1]** — `Clock` abstraction + speed multiplier.
-- **M-C [P1]** — the async-iterator `Source` contract + `source` slot + port
-  conformance.
-- **M-D…M-G** — the Applier, composition/mixing, state-feedback generators, and
-  the principled end-state (honest scaled audio + `delay` node). See the design
-  doc.
-
-Two accepted hard boundaries: batch-in-Node cannot decode raw video (use
-pre-extracted landmark NDJSON), and accelerated audio is not a time-multiply
-(control-rate preview + on-demand offline render).
-
-### Instrument library UX (2026-07 — active track)
-
-Make the instrument library browsable and self-describing. Orthogonal to the DAG
-/ capture / applier tracks. Epic **#116**, build order:
-
-- **[#112] Starring & sorting** — *S · independent, good first win.* Multi-star
-  favorites; sort by star/name; filter by name. Move "default" **out of the star**
-  into each instrument's own settings + a `(default)` visual cue.
-- **[#113] Tag system** — *M · foundation for #114.* Tags as
-  `{ stable id, editable label, emoji }` (renames never break associations);
-  comma-input tagging with autosuggest; a tag manager (rename / emoji / delete);
-  a tags column with emoji tooltips. Client-side emoji: keyword search
-  (`emojilib`/`node-emoji`) + auto-assign from a curated ~100-emoji pool.
-- **[#114] System tags** — *M · depends on #113.* Read-only tags derived from
-  parametrization (scale quality M/m/P/p, face-expression vs face/head-pose
-  control, index vs wrist note-control, …), kept separate from custom tags.
-- **[#115] Parametrization tooltip** — *S · independent.* A compact per-instrument
-  hover summary (more than the list row, less than the settings editor); can share
-  a `summarizeInstrument()` helper with #114.
-
-Relationship to **#82** (config calculus): tags are orthogonal metadata; system
-tags are a read-only *view* of the same parametrization #82 formalizes.
-
-### Design now, build later (parallel design track)
-
-- **[#93] DAG diagnostics + connection assistant** — *L · design captured.*
-  A "linter for the instrument graph": a severity-typed notes/warnings panel +
-  a connection assistant (find connectable components, flag dangling state). The
-  pure analyzers + notes panel are buildable headless today (seam:
-  `@zodal/dials-ui` `state.validation`); mid-drag compatibility highlighting
-  waits on the visual patcher (#14). Full design in discussion #93.
-
-- **[#82] Configuration calculus (composable instruments)** — *design captured.*
-  Partial instruments (sparse dials Layers) + transformers that mix into new
-  instruments. Fed by both #90 (a keymap is a partial) and #87 (a materialized
-  instrument is a replayable command sequence).
-
-- **[#75] Decouple the chord-source scale from the melody scale** — *✅ SHIPPED 2026-07-10.*
-  Chords are drawn from a decoupled chord-source scale (auto-derived from the melody, or
-  custom), so a pentatonic melody still gets chords and the 7-note-scale friction on the
-  chord/`controls` face modes is gone. Shipped alongside **[#63] the double-thumb octave-RANGE
-  slider** (1–3 octaves, locked middle) in the same PR (`faceChord.chordSource/chordRoot/
-  chordType`; per-voice `rangeLow/rangeHigh`; store persist v6).
-
-- **[#76] Head-pose follow-ups** — per-axis live-tuning UI, per-user calibration
-  (the `*ZeroDeg` seam exists), and Phase 4 (demote the emotion classifier to
-  opt-in once `controls` proves out). Plus the open **axis-sign live check**.
-
-### Dependency map
-
-```mermaid
-flowchart TD
-  M91["#91 Mute fix + cue — S (bug)"]
-  M89["#89 Chord overlays — M"]
-  M87["#87 Command dispatch — L (linchpin)"]
-  M90["#90 Custom keymaps — M"]
-  PAL["Command palette — M (in #87)"]
-  AI["AI assistant — L (in #87)"]
-  M88["#88 Recording v2 — L"]
-  M92["#92 Live tagging — L"]
-  I49["#49 Recording settings"]
-  D93["#93 DAG diagnostics — design-now"]
-  C82["#82 Config calculus — design-now"]
-
-  M87 --> M90
-  M87 --> PAL
-  M87 --> AI
-  I49 --> M88
-  M88 --> M92
-  M90 -. "keymap = partial" .-> C82
-  M87 -. "instrument = command seq" .-> C82
-```
+A note on vocabulary, because it used to collide: **annotations** are the live
+time-anchored taps over a *recording* (#92); **tags** are keywords on a saved
+*instrument* (#113). PR #125 renamed the former, and it now writes
+`<take>.annotations.jsonl`. Do not call annotations "tags" again.
 
 ---
 
-## Longer-horizon engine milestones (M0–M7)
+## Shipped (2026-06 → 2026-07)
 
-Incremental engine/platform milestones from the original DAG build. Kept for
-direction; **not** a current status board (recent feature work landed alongside
-these rather than inside them).
+The five tracks below all landed. Each row is the issue, the PR that closed it, and
+what it actually gives you.
+
+### Interaction / control
+
+| Issue | PR | What shipped |
+|-------|----|--------------|
+| **#91** Mute fix + cue | #95 | A true master mute at `synth-merge` (the single convergence point of every sound producer), so muting silences the hands *and* both chord instruments, plus an unmissable "muted" HUD cue. |
+| **#89** Chord overlays | #96 | Chord-name HUD cue (jazz symbol + optional Roman/Nashville) and a keyboard-strip element with a layered visual-cue hierarchy. |
+| **#87** Command dispatch (acture) | #97 (Phase 0), #107 (Phase 1), #98 (Phase 2), #111 (Phase 3) | The command registry: every dial is a typed `acture` command. Phase 2 added the **Cmd/Ctrl-K command palette** (one generated `dial.<key>.set` per dial). Phase 3 added the **AI assistant**. The registry is the *intended* single write path — the sweep is **not finished**, see #126. |
+| **#90** Custom keyboard mappings | #110 | App-level `tinykeys` keymap dispatching dial commands; retires the in-DAG `keyboard-control` node. Keyboard is no longer in the graph. |
+| **AI assistant** (#87 Phase 3) | #111 | An in-app chat that operates the instrument by dispatching the registry via `acture-ai-vercel`. **Client-side, multi-provider, BYO-key** (OpenAI / Anthropic / Google — default Gemini 3.5 Flash); **no aix** — thoremin stays client-side, with a pluggable `ChatBackend` seam for a future server-side move. A human-in-the-loop confirmation gate guards the destructive `instrument.*` commands. Lazy-loaded so the AI SDK stays out of the initial bundle. |
+
+### Capture / training data
+
+| Issue | PR | What shipped |
+|-------|----|--------------|
+| **#88** Recording v2 | #118 | Session-based multi-stream recorder: settings live **outside** the instrument in a transient sheet (Record → sheet → "Rec now" in the same slot); five capturable streams (audio, video+overlays, pure webcam, overlay-only alpha, feature-JSONL); **one folder per take** with an info-carrying naming scheme; a `manifest.json` as the cross-stream alignment SSOT; a three-tier local sink (directory handle / ZIP / per-file). SSOT: [design/recording-v2.md](design/recording-v2.md). |
+| **#92** Annotations (was "live tagging") | #123, #125 | Toggle annotations during a take → a time-aligned `<take>.annotations.jsonl` on the same absolute engine clock as `features.jsonl`. Interval + point annotations, mutual-exclusivity groups, 1–9 keyboard toggles, per-annotation lead-in + countdown, a burned-in corner overlay as in-band ground truth. Built as a reusable, extraction-ready tool in `src/taglog/` (affordances / adapters / provider / presentation) + thoremin glue in `src/app/tagging/`. **PR #125** added the **Export panel** (Audacity / WebVTT / CSV / Praat TextGrid / OTIO, with a raw-vs-lead-in-corrected time choice) and killed the "tags" name collision. |
+
+### Instrument library UX (epic #116 — closed)
+
+All four sub-issues shipped in **PR #121**. SSOT: [design/instrument-library.md](design/instrument-library.md).
+
+| Issue | What shipped |
+|-------|--------------|
+| **#112** Starring & sorting | Multi-star favorites; sort by star/name; filter by name. "Default" moved out of the star into the instrument's own settings + a `(default)` cue. |
+| **#113** Tag system | Tags as `{ stable hidden id, editable label, emoji }` — a rename can never orphan an association. Comma-input tagging with autosuggest, a tag manager, an emoji column. Emoji search + auto-assign from a curated ~110-glyph pool, dependency-free. |
+| **#114** System tags | Read-only `sys:*` tags derived on read from parametrization (scale quality, note-control source, face mode, split voices, finger FX). Never persisted, never renameable. |
+| **#115** Parametrization tooltip | A compact per-instrument hover summary, sharing `summarizeInstrument()` with #114. |
+
+### Feature Instrumentation Lab (#119 — closed, PR #122)
+
+A whole new subsystem, and the first one that is about *finding* what to map rather
+than mapping it. SSOT: [design/feature-lab.md](design/feature-lab.md).
+
+- A **data-driven feature catalog** (`src/features/`): ~200 scalar face + hand
+  features (blendshapes, mesh geometry, head pose, symmetry, action units, per-finger
+  curls/gaps), each a pure `compute` with an id, a group, an advisory range and a
+  **controllability** class (`easy` / `moderate` / `involuntary`) — the honest answer
+  to "which channels can a performer actually drive?".
+- Two pure DAG taps (`face-feature-vector`, `hand-feature-vector`) that fan out off
+  the *existing* face/hand sources, so the lab costs nothing when off and is recorded
+  by the existing feature-JSONL stream.
+- A live **meter grid** overlay element, an **online normalizer** that makes wildly
+  heterogeneous features comparable, and a **safe formula compiler** for user-defined
+  derived features (jsep + whitelist; no `eval`, no `new Function`, no member access).
+- Named **lab views** saved as a zodal collection.
+
+### Sound / scale
+
+| Issue | PR | What shipped |
+|-------|----|--------------|
+| **#75** Decouple the chord-source scale | #124 | Chords are drawn from a decoupled chord-source scale (auto-derived from the melody, or custom), so a pentatonic melody still gets sensible chords and the 7-note-scale friction on the chord/`controls` face modes is gone. |
+| **#63** Octave-range slider | #124 | Double-thumb octave-**range** slider (1–3 octaves, locked middle); per-voice `rangeLow`/`rangeHigh`; store persist v6. |
+| **#13** MIDI out | #120 | A `midi-out` node (WEBMIDI.js) tapping the same merged voices as the synth, to drive an external instrument/DAW. Off by default, a no-op where Web MIDI is unsupported (Safari/iOS gated), so it costs nothing until turned on. |
+
+### Stream Applier (M8, epic #101)
+
+| Milestone | Issue | PR | Status |
+|-----------|-------|----|--------|
+| **M-A** camera-free pre-recorded video source (`?source=video`) | #102 | #105 | shipped |
+| **M-B** `Clock` abstraction + speed multiplier | #103 | #106 | shipped (`BatchClock` fully tested; the live `RealtimeClock` adoption is deferred to M-D) |
+| **M-C** async-iterator `Source` contract + `source` slot | #104 | — | **design resolved, build deferred** — see below |
+
+---
+
+## Open decisions
+
+### M-C (#104) — resolved, deferred
+
+The design fork is settled: a pre-recorded **video** source is a **host-side
+`Source`** (`outputResource: 'video'`) that feeds the unchanged `webcam-*` nodes
+through `ctx.resources` — it is *not* a node swap. Node-swap is reserved for sources
+that emit **finished frames** (replay / synthetic), which are ordinary zero-input
+nodes. So `videoFileSource` is **not** a slot candidate; M-A's host wiring is the
+right shape and stays. Recorded in
+[design/stream-applier.md](design/stream-applier.md#m-c-resolved-host-side-source-for-video-node-swap-for-frame-emitters).
+Ready to build; not scheduled.
+
+### #128 — the generative layer
+
+The `lyria` node + `indirect-map` node are built and unit-tested, but no generative
+layer runs in the DAG app; the only working one is the AI-DJ plugin in the **frozen**
+legacy view (`?engine=legacy`). Decide: port it into the default graph, or formally
+retire the legacy view. Nothing else blocks on this.
+
+---
+
+## Next (open issues, by track)
+
+### Command dispatch — the load-bearing one
+
+- **[#126] Complete the command-dispatch write-path sweep** — *the one that matters.*
+  Today only two panel call sites dispatch (`face.mapping`, `master.syncHands`, via
+  `src/app/dispatchDial.ts`); every other discrete `<select>` still calls `setDial`
+  directly, so the "single write path" #87 promises is **not yet true**. Route them
+  all through `registry.dispatch`. **Decision B** stands: continuous `type="range"`
+  sliders deliberately stay a direct `setDial` for latency, and are not a gap.
+- **[#127] #87 Phase 4 (opt-in)** — undo via `acture-undo`, telemetry, command
+  export/replay. Deliberately opt-in, after #126.
+- **[#129] gesture-classifier as a command-dispatch consumer** — discrete hand poses
+  (fist/open/pinch) → `registry.dispatch`, so a gesture can change a scale or load an
+  instrument. The node already exists and emits edge events; this is the wiring.
+
+### Capture
+
+- **[#130] Recording: MP3 export** via a lazy `lamejs` converter (+ optional
+  `ffmpeg.wasm` for any format).
+
+### Feature Lab
+
+- **[#131] Invariance labels + decorrelation helpers** — tell the performer which
+  features are actually independent, and which are just restating each other.
+
+### Engine / platform
+
+- **[#101] Stream Applier epic** (M8) — M-A and M-B shipped; M-C resolved-but-deferred
+  (above); M-D…M-G in [design/stream-applier.md](design/stream-applier.md).
+- **[#14] React Flow patcher UI** driven by Zod node configs (M6's remaining half).
+- **[#51] Node-swap slots** — blocked on the mapping input/params contract; the
+  developer-facing seam exists (`SLOTS` in `src/app/graph.ts`), but a slot only earns
+  a user-facing dropdown at ≥2 real candidates.
+
+### Design now, build later
+
+- **[#82] Configuration calculus (composable instruments)** — partial instruments
+  (sparse dials layers) + transformers that mix into new instruments. Fed by #90 (a
+  keymap is a partial) and #87 (a materialized instrument is a replayable command
+  sequence). Library tags (#113) are orthogonal metadata; system tags (#114) are a
+  read-only *view* of the same parametrization #82 formalizes.
+- **[#76] Head-pose follow-ups** — per-axis live-tuning UI, per-user calibration (the
+  `*ZeroDeg` seam exists), and demoting the emotion classifier to opt-in once
+  `controls` proves out. The **axis-sign live check** is still open.
+- **[#93] DAG diagnostics + connection assistant** — a "linter for the instrument
+  graph". Pure analyzers + a notes panel are buildable headless today; mid-drag
+  compatibility highlighting waits on the patcher (#14). Design in discussion #93.
+- **[#5]** The original DAG roadmap issue, kept as the umbrella.
+
+Closed in this sweep: **#6, #8, #9, #10, #11, #12, #45, #47, #49, #50, #116, #119**
+(shipped, or superseded by the work above).
+
+---
+
+## Longer-horizon engine milestones (M0–M8)
+
+The original engine arc. Kept for direction; recent feature work landed *alongside*
+these rather than inside them, so read the status column, not the milestone numbering.
 
 | Milestone | Goal | Status |
 |-----------|------|--------|
-| **M0** | Baseline + layer contract: DAG engine, recorder/replay, pure node library, music theory, headless tests. | ✅ done |
-| **M1** | First real video→sound vertical slice in the browser, on-device. | ✅ done |
-| **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | ✅ done |
-| **M3** | Refactor the working Lyria app (`wips/`) into a `lyria` generative node + `indirect-map` node (indirect mapping / conductor-of-AI). | ⏳ (issues #6, #8) |
-| **M4** | Broaden input/feature layer (`face-features` 52 blendshapes, `pose-features`, `gesture-classifier`) + tonal depth (Tonal.js chords/voicing/progression, Tone.js Transport quantization). | partial (face landmarks/pose control shipped; #9–#11 open) |
-| **M5** | Conductor mode: immutable `score` node + `performance` overlay (gesture→tempo/dynamics/articulation) + humanization toggle. | planned (#12) |
-| **M6** | `midi-out` (WEBMIDI.js, Safari/iOS gated); React Flow patcher UI driven by Zod node configs; deploy as a tw_platform static app (deploy ✅). | planned (#13, #14) |
-| **M7** | (optional) Pluggable Python feature service + self-hosted generative service behind the existing node facades. | optional |
-| **M8** | **Stream Applier**: pluggable sources (live / persisted / generated behind one async-iterator interface) + batch-vs-paced execution (speed control) + state-feedback generators. See [design/stream-applier.md](design/stream-applier.md). **M-A unblocks camera-free overlay/palette verification.** | ⏳ in progress (M-A) |
+| **M0** | Baseline + node contract: DAG engine, recorder/replay, pure node library, music theory, headless tests. | done |
+| **M1** | First real video→sound vertical slice in the browser, on-device. | done |
+| **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | done |
+| **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) is not done and is now **#128**. |
+| **M4** | Broaden the feature surface + tonal depth. | done and then some — face blendshapes, face expression, head/jaw/brow pose control, gesture classifier, Tonal.js chords/voicings, and the ~200-feature catalog (#119). |
+| **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | nodes built + tested (`transport` / `score` / `performance`); **not wired into the default graph**. |
+| **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120); the patcher (#14) is open. |
+| **M7** | (optional) Pluggable Python feature service + self-hosted generative service behind the existing node facades. | optional, untouched. |
+| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | in progress — M-A + M-B shipped; M-C resolved/deferred; M-D…M-G designed. See [design/stream-applier.md](design/stream-applier.md). |
 
 ### Open engine decisions (recorded; defaults taken)
 
-1. **Lyria API key** — ship key-in-localStorage now; thin proxy or
-   platform-managed key later. *(gates M3)*
-2. **Music theory lib** — keep the hand-rolled snapping on the hot path; add
-   Tonal.js for chords/voicing/progression in M4.
-3. **Synth engine** — Web Audio oscillator now; adopt Tone.js when richer
-   voices/effects/Transport are needed.
-4. **On-device vs backend** — frontend-only now; keep node interfaces clean so a
-   Python/`theremin` or generative service can plug in later (M7).
-5. **Fixture videos** — commit small derived NDJSON; raw `.mp4`s optional/external.
+1. **Music theory lib** — hand-rolled snapping stays on the hot path; Tonal.js does
+   chords/voicing/progression.
+2. **Synth engine** — Web Audio with declarative additive presets (`src/music/sounds.ts`);
+   adopt Tone.js only if richer effects/Transport are needed.
+3. **On-device vs backend** — frontend-only. Node interfaces stay clean so a
+   Python/`theremin` or generative service can plug in later (M7). The AI assistant
+   deliberately follows this too: client-side, BYO-key, no `aix`.
+4. **Fixture videos** — commit small derived NDJSON; raw `.mp4`s optional/external.
+5. **Lyria API key** — key-in-localStorage; a proxy/platform-managed key only if the
+   generative layer returns to the default app (#128).

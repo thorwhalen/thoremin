@@ -98,10 +98,14 @@ not afterthoughts.
 
 `voice-mapping`, `chord`, and `score` all *emit* the same `synth-params` output
 contract — so people assume they're drop-in. But their **input** ports differ:
-`voice-mapping` takes `magnetism`, `scaleRight`, `instrumentRight`, `octaveShift`,
-`mute` side-inputs; `chord`/`score` do not. Repointing a `slot` from
-`voice-mapping` to `chord` would leave **8+ edges** (`kctrl`/`ui → map`) wired to
-input ports that don't exist on the new node → `validateEdge` throws.
+`voice-mapping` takes `magnetism`, `octaveShift`, `mute`, `scaleRight`, `scaleLeft`,
+`soundRight`, `soundLeft` (plus an optional `face`) side-inputs; `chord`/`score` do
+not. Repointing a `slot` from `voice-mapping` to `chord` would leave **7 `ui → map`
+edges** wired to input ports that don't exist on the new node → `validateEdge` throws.
+
+> Port names updated 2026-07-12: the timbre ports are `soundRight`/`soundLeft` since
+> the "instrument" → "sound" rename (PR #73), and the side-inputs all come from `ui`
+> (`store-controls`) — the `kctrl` keyboard node was retired by #90.
 
 **Implication:** "one-string swap, zero edge changes" is false until the
 interchangeable nodes share an explicit **input + params contract** (a named,
