@@ -151,8 +151,9 @@ class Applier {
 }
 ```
 
-Lives at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable
-substrate once it stabilizes at M-D and a second consumer appears). `useEngine`
+Will live at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable
+substrate once it stabilizes at M-D and a second consumer appears). Not built yet
+— M-D is unstarted, and this section describes the target, not the code. `useEngine`
 (live/paced) and `runHeadless` (batch) both collapse to configs of it, differing
 on **{clock, sinks, taps} jointly** — not "only the clock". Batch attaches a
 recording tap and **no audio sink** (the synth self-no-ops when the audio
