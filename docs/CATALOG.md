@@ -8,6 +8,8 @@ Thoremin turns live sensor streams (webcam hand gestures, facial expressions and
 
 The mapping layer spans a spectrum: **direct** (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through **indirect** (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including **conductor** mode (direct a fixed piece's tempo and dynamics).
 
+Everything runs **client-side**: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.
+
 This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.
 
 ## Example pipelines
@@ -22,6 +24,54 @@ This page catalogs the engine's building blocks — every node, its ports and it
   Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
   Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.
+
+## The AI assistant
+
+The assistant is a chat panel that **operates the instrument for you** — "add face expression chords", "make the left hand an octave lower", "save this as Glassy". It doesn't type into a text box on your behalf; it calls the very same commands the palette and the keyboard shortcuts call, so it can only ever do things you could have done yourself. Anything destructive (saving over an instrument, for instance) stops and asks you first.
+
+It is **bring-your-own-key**: you paste an API key for one of the providers below, it is stored in your browser's localStorage, and it is sent only to that provider. There is no thoremin server in the middle.
+
+## Choosing a model
+
+The assistant's job is *read the state, decide, call a tool* — not write essays. That makes it a **function-calling** workload, and the thing that matters is whether a model reliably stays inside a tool schema, not how clever it is. Reliability × latency × cost beats raw IQ here.
+
+So the rule of thumb is: **default to the fast mid-tier, and escalate only when you hit something it can't do.** The flagship tier is worth it for genuinely hard, ambiguous, multi-step requests — and is mostly wasted on "turn the reverb up". Each provider below is offered as three rungs, with the recommended one marked; the app picks it for you when you switch provider.
+
+Two things worth knowing:
+
+- **Reasoning tokens bill as output**, on every provider. A "cheap" model that thinks hard about a hard turn can cost more than its rate card suggests.
+- **Prices below are list prices per 1M tokens** and they move constantly. Treat them as directional. Model ids are re-verified against each provider's live API with `npm run check:models` — a model can be silently retired while the provider's own docs still list it as stable, which is exactly how `gemini-2.5-flash` broke.
+
+### OpenAI
+
+| Model | | When to pick it |
+|---|---|---|
+| **`gpt-5.6-terra`** | **recommended** | Mid tier. The default tool-driver — a full rung above the cheap tier at half the flagship price. $2.50/$15 per 1M. |
+| `gpt-5.6-sol` |  | Flagship. For genuinely hard multi-step planning; overkill for routine dial edits. $5/$30 per 1M. |
+| `gpt-5.6-luna` |  | Cheap tier. Single obvious tool calls, intent routing. $1/$6 per 1M. |
+
+[Get an API key](https://platform.openai.com/api-keys)
+
+### Anthropic (Claude)
+
+| Model | | When to pick it |
+|---|---|---|
+| **`claude-sonnet-5`** | **recommended** | Workhorse. Best-in-class at staying inside a tool schema, which is what an app-driving assistant lives or dies on. $3/$15 per 1M. |
+| `claude-opus-4-8` |  | Flagship. Hard planning and loop recovery. $5/$25 per 1M. |
+| `claude-haiku-4-5` |  | Cheap tier. Routing, state reads, one clear call. $1/$5 per 1M. |
+
+[Get an API key](https://console.anthropic.com/settings/keys)
+
+### Google (Gemini)
+
+| Model | | When to pick it |
+|---|---|---|
+| **`gemini-3.5-flash`** | **recommended** | Workhorse, and the app default: Google's own recommended tier, with a generous free tier. $1.50/$9 per 1M. |
+| `gemini-3.1-pro-preview` |  | Flagship. Largest context (1M) and the hardest reasoning. $2/$12 per 1M (doubles above 200K). |
+| `gemini-3.1-flash-lite` |  | Cheap tier. Bulk, low-latency, simple calls. $0.25/$1.50 per 1M. |
+
+[Get an API key](https://aistudio.google.com/app/apikey)
+
 
 ## Nodes (31)
 

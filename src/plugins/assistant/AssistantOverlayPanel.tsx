@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ChevronDown, Settings as SettingsIcon, Send, Loader2, Check, X, ExternalLink, Trash2 } from 'lucide-react';
 import type { AssistantSession } from './AssistantSession';
-import { PROVIDERS, PROVIDER_LIST, getStoredKey, setStoredKey, removeStoredKey } from './providers';
+import { PROVIDERS, PROVIDER_LIST, recommendedModel, getStoredKey, setStoredKey, removeStoredKey } from './providers';
 import type { AssistantSettings, ChatMessage, ProviderId, ToolTrace, PendingApproval } from './types';
 
 interface Props {
@@ -36,6 +36,7 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
   }, [session]);
 
   const provider = PROVIDERS[settings.provider];
+  const selectedModel = provider.models.find((m) => m.id === settings.model);
   const hasKey = useMemo(() => !!getStoredKey(settings.provider), [settings.provider, keyTick]);
 
   // Keep the conversation pinned to the latest content. The last message grows as text
@@ -48,7 +49,7 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
   }, [session.messages.length, lastGrowth, session.busy, session.pendingApprovals.length]);
 
   const selectProvider = (id: ProviderId) => {
-    onSettings({ provider: id, model: PROVIDERS[id].defaultModel });
+    onSettings({ provider: id, model: recommendedModel(id) });
     setKeyDraft('');
   };
 
@@ -113,10 +114,20 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
               onChange={(e) => onSettings({ ...settings, model: e.target.value })}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs focus:border-emerald-500 focus:outline-none"
             >
+              {/* The recommended model is marked in the option itself: a native <option>
+                  renders no markup, so a "·  recommended" suffix is the only styling a
+                  <select> actually honours cross-browser. The chosen model's rationale
+                  then shows underneath, so the hint is present without being loud. */}
               {provider.models.map((m) => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m.id} value={m.id} title={m.note}>
+                  {m.label}
+                  {m.recommended ? '  ·  recommended' : ''}
+                </option>
               ))}
             </select>
+            {selectedModel && (
+              <p className="pt-0.5 text-[9px] leading-snug text-white/30">{selectedModel.note}</p>
+            )}
           </div>
           <div className="flex items-center justify-between">
             <a

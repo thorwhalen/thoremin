@@ -8,6 +8,7 @@ import { useEffect, useMemo } from 'react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { AssistantSession } from './AssistantSession';
 import { AssistantOverlayPanel } from './AssistantOverlayPanel';
+import { isKnownModel, recommendedModel } from './providers';
 import { DEFAULT_ASSISTANT_SETTINGS, type AssistantSettings, type ChatMessage } from './types';
 
 const HISTORY_KEY = 'thoremin:plugin:assistant:history';
@@ -19,6 +20,17 @@ export default function AssistantChat({ onClose }: { onClose: () => void }) {
     'thoremin:plugin:assistant:settings',
     DEFAULT_ASSISTANT_SETTINGS,
   );
+
+  // Heal a settings blob that names a model we no longer offer. Providers retire models
+  // out from under us — `gemini-2.5-flash` started returning 404 mid-2026 — and the
+  // choice is persisted, so without this a user who once picked a now-dead model would
+  // get an error on every send, forever, with no clue why. Fall back to the provider's
+  // recommended model.
+  useEffect(() => {
+    if (!isKnownModel(settings.provider, settings.model)) {
+      setSettings({ ...settings, model: recommendedModel(settings.provider) });
+    }
+  }, [settings, setSettings]);
 
   // Seed from persisted history once; persist the settled transcript on every change.
   useEffect(() => {

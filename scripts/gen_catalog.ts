@@ -13,6 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCatalog, type CatalogEntry, type ParamInfo, type PortInfo } from '@/catalog';
 import { createAppRegistry } from '@/nodes/browser';
+import { PROVIDER_LIST } from '@/plugins/assistant/providers';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -34,7 +35,29 @@ const OVERVIEW = `Thoremin turns live sensor streams (webcam hand gestures, faci
 
 The mapping layer spans a spectrum: **direct** (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through **indirect** (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including **conductor** mode (direct a fixed piece's tempo and dynamics).
 
+Everything runs **client-side**: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.
+
 This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.`;
+
+/**
+ * The AI-assistant section. The model table is generated from the SAME registry the app
+ * ships (`src/plugins/assistant/providers.ts`), so the manual cannot quietly disagree
+ * with the picker — a model retired in code disappears from the docs in the same commit.
+ */
+const ASSISTANT_INTRO = `The assistant is a chat panel that **operates the instrument for you** — "add face expression chords", "make the left hand an octave lower", "save this as Glassy". It doesn't type into a text box on your behalf; it calls the very same commands the palette and the keyboard shortcuts call, so it can only ever do things you could have done yourself. Anything destructive (saving over an instrument, for instance) stops and asks you first.
+
+It is **bring-your-own-key**: you paste an API key for one of the providers below, it is stored in your browser's localStorage, and it is sent only to that provider. There is no thoremin server in the middle.
+
+## Choosing a model
+
+The assistant's job is *read the state, decide, call a tool* — not write essays. That makes it a **function-calling** workload, and the thing that matters is whether a model reliably stays inside a tool schema, not how clever it is. Reliability × latency × cost beats raw IQ here.
+
+So the rule of thumb is: **default to the fast mid-tier, and escalate only when you hit something it can't do.** The flagship tier is worth it for genuinely hard, ambiguous, multi-step requests — and is mostly wasted on "turn the reverb up". Each provider below is offered as three rungs, with the recommended one marked; the app picks it for you when you switch provider.
+
+Two things worth knowing:
+
+- **Reasoning tokens bill as output**, on every provider. A "cheap" model that thinks hard about a hard turn can cost more than its rate card suggests.
+- **Prices below are list prices per 1M tokens** and they move constantly. Treat them as directional. Model ids are re-verified against each provider's live API with \`npm run check:models\` — a model can be silently retired while the provider's own docs still list it as stable, which is exactly how \`gemini-2.5-flash\` broke.`;
 
 const EXAMPLES: Array<{ title: string; chain: string; note: string }> = [
   { title: 'Theremin (direct)', chain: 'webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)', note: 'Hand x → scale-snapped pitch, y → volume. Two hands = two voices.' },
@@ -79,6 +102,18 @@ function toMarkdown(catalog: CatalogEntry[]): string {
     '',
   ];
   for (const ex of EXAMPLES) L.push(`- **${ex.title}** — \`${ex.chain}\`  \n  ${ex.note}`);
+
+  L.push('', '## The AI assistant', '', ASSISTANT_INTRO, '');
+  for (const p of PROVIDER_LIST) {
+    L.push(`### ${p.label}`, '', '| Model | | When to pick it |', '|---|---|---|');
+    for (const m of p.models) {
+      // The recommended model is bolded — the single "just pick this" signal.
+      const name = m.recommended ? `**\`${m.id}\`**` : `\`${m.id}\``;
+      L.push(`| ${name} | ${m.recommended ? '**recommended**' : ''} | ${m.note} |`);
+    }
+    L.push('', `[Get an API key](${p.keyHelpUrl})`, '');
+  }
+
   L.push('', `## Nodes (${catalog.length})`, '');
   for (const g of grouped(catalog)) {
     L.push(`### ${g.name}`, g.blurb ? `_${g.blurb}_` : '', '');
@@ -89,7 +124,55 @@ function toMarkdown(catalog: CatalogEntry[]): string {
   return L.join('\n');
 }
 
-const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** HTML-escape. A `function` declaration (not a `const`) so it hoists like the callers
+ *  below it, which are themselves hoisted `function`s — a `const` here would be in the
+ *  temporal dead zone for any of them called before this line was evaluated. */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Minimal inline markdown (bold / code / links) → HTML, for the prose constants above. */
+function inlineMd(s: string): string {
+  return esc(s)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*(.+?)\*/g, '<i>$1</i>');
+}
+
+/** Prose block → paragraphs, with `## x` headings and `- x` bullets honoured. */
+function proseHtml(s: string): string {
+  return s
+    .split('\n\n')
+    .map((block) => {
+      if (block.startsWith('## ')) return `<h4 class="sub">${inlineMd(block.slice(3))}</h4>`;
+      if (block.startsWith('- ')) {
+        const items = block.split('\n- ').map((b) => `<li>${inlineMd(b.replace(/^- /, ''))}</li>`).join('');
+        return `<ul class="prose">${items}</ul>`;
+      }
+      return `<p>${inlineMd(block)}</p>`;
+    })
+    .join('');
+}
+
+/** The assistant's provider/model tables — recommended row highlighted. */
+function assistantHtml(): string {
+  const tables = PROVIDER_LIST.map((p) => {
+    const rows = p.models
+      .map(
+        (m) => `<tr class="${m.recommended ? 'rec' : ''}">
+        <td><code>${esc(m.id)}</code>${m.recommended ? ' <span class="pill">recommended</span>' : ''}</td>
+        <td>${esc(m.note)}</td>
+      </tr>`,
+      )
+      .join('');
+    return `<div class="prov">
+      <h4>${esc(p.label)} <a class="keylink" href="${esc(p.keyHelpUrl)}">get a key ↗</a></h4>
+      <table class="models"><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join('');
+  return `<section><h3>The AI assistant</h3>${proseHtml(ASSISTANT_INTRO)}${tables}</section>`;
+}
 
 function toHtml(catalog: CatalogEntry[]): string {
   const card = (e: CatalogEntry): string => `
@@ -132,6 +215,23 @@ function toHtml(catalog: CatalogEntry[]): string {
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
   .guide { margin: .2rem 0 1.4rem; padding: .6rem .9rem; background: #10281f; border: 1px solid #14523c; border-radius: 10px; font-size: 14px; }
   .guide a { color: #34d399; }
+  h4.sub { margin: 1.4rem 0 .4rem; color: #fff; font-size: 15px; }
+  ul.prose { padding-left: 1.1rem; color: #cfcfcf; } ul.prose li { margin-bottom: .35rem; }
+  .prov { margin-top: 1.2rem; }
+  .prov h4 { margin: 0 0 .4rem; font-size: 14px; color: #fff; }
+  .keylink { color: #10b981; font-size: 11px; font-weight: 400; text-decoration: none; margin-left: .4rem; }
+  .keylink:hover { text-decoration: underline; }
+  table.models { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.models td { border-top: 1px solid #1f1f1f; padding: .5rem .6rem; vertical-align: top; color: #cfcfcf; }
+  table.models td:first-child { white-space: nowrap; width: 1%; }
+  table.models code { color: #7dd3fc; }
+  /* The recommended model is the one signal a reader needs — make it unmissable
+     without shouting: a left rule, a lift, and a small pill. */
+  tr.rec td { background: #0e1a15; }
+  tr.rec td:first-child { border-left: 2px solid #10b981; }
+  tr.rec code { color: #10b981; font-weight: 600; }
+  .pill { background: #10b981; color: #06281c; font-size: 9px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .06em; border-radius: 999px; padding: .1rem .4rem; margin-left: .35rem; vertical-align: 1px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
   <p class="gen">Auto-generated from the node registry. ${catalog.length} nodes.</p>
@@ -139,6 +239,7 @@ function toHtml(catalog: CatalogEntry[]): string {
   <p>${esc(OVERVIEW).replace(/\n\n/g, '</p><p>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>
   <h3>Example pipelines</h3>
   <ul class="examples">${examples}</ul>
+  ${assistantHtml()}
   ${sections}
 </div></body></html>`;
 }
