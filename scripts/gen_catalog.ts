@@ -27,11 +27,14 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Output', blurb: 'Audio + the captured video with overlaid guides.', types: ['canvas-overlay'] },
 ];
 
-const OVERVIEW = `Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
+/** Where the human-facing user manual lives (this page is the *node* catalog). */
+const USER_GUIDE_URL = 'https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md';
+
+const OVERVIEW = `Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
 
 The mapping layer spans a spectrum: **direct** (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through **indirect** (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including **conductor** mode (direct a fixed piece's tempo and dynamics).
 
-This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live sound is in progress.`;
+This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.`;
 
 const EXAMPLES: Array<{ title: string; chain: string; note: string }> = [
   { title: 'Theremin (direct)', chain: 'webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)', note: 'Hand x → scale-snapped pitch, y → volume. Two hands = two voices.' },
@@ -63,7 +66,18 @@ function grouped(catalog: CatalogEntry[]): Array<{ name: string; blurb: string; 
 }
 
 function toMarkdown(catalog: CatalogEntry[]): string {
-  const L: string[] = ['# Thoremin — Capabilities Manual', '', '_Auto-generated from the node registry (`scripts/gen_catalog.ts`). Do not edit by hand._', '', OVERVIEW, '', '## Example pipelines', ''];
+  const L: string[] = [
+    '# Thoremin — Capabilities Manual',
+    '',
+    '_Auto-generated from the node registry (`scripts/gen_catalog.ts`). Do not edit by hand — run `npm run catalog`._',
+    '',
+    `**Looking for how to _use_ the app?** → [the User Guide](${USER_GUIDE_URL}).`,
+    '',
+    OVERVIEW,
+    '',
+    '## Example pipelines',
+    '',
+  ];
   for (const ex of EXAMPLES) L.push(`- **${ex.title}** — \`${ex.chain}\`  \n  ${ex.note}`);
   L.push('', `## Nodes (${catalog.length})`, '');
   for (const g of grouped(catalog)) {
@@ -116,9 +130,12 @@ function toHtml(catalog: CatalogEntry[]): string {
   ul.examples { padding-left: 1.1rem; } ul.examples li { margin-bottom: .6rem; }
   code { font-family: ui-monospace, SFMono-Regular, monospace; }
   .examples code { color: #7dd3fc; } .note { color: #9aa; font-size: 13px; }
+  .guide { margin: .2rem 0 1.4rem; padding: .6rem .9rem; background: #10281f; border: 1px solid #14523c; border-radius: 10px; font-size: 14px; }
+  .guide a { color: #34d399; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
   <p class="gen">Auto-generated from the node registry. ${catalog.length} nodes.</p>
+  <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="${USER_GUIDE_URL}">the User Guide</a>. This page is the <b>node</b> catalog.</p>
   <p>${esc(OVERVIEW).replace(/\n\n/g, '</p><p>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>
   <h3>Example pipelines</h3>
   <ul class="examples">${examples}</ul>

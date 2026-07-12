@@ -25,6 +25,45 @@ camera/GPU/audio. The mechanism (`StreamRecorder` tap, NDJSON, `replayNode`,
 
 Tiers 1–3 are the CI gate: `npm test` (vitest, Node env, no camera/GPU/audio).
 
+## The gate
+
+```bash
+npm run typecheck   # strict DAG typecheck (tsconfig.dag.json)
+npm test            # vitest — 75+ test files
+npm run build       # vite build (this is what verifies the React layer)
+npm run catalog     # regenerate docs/CATALOG.md + public/manual.html + public/catalog.json
+```
+
+`npm run catalog` belongs in the gate because those three files are **generated from
+the node registry** and must never be hand-edited: add or rename a node, or change a
+port/param, and they go stale silently. Run it and commit the result.
+
+## The test families
+
+The suite grew from ~33 files to 75+ across the 2026-06/07 tracks. Roughly:
+
+| Family | Files | Covers |
+|--------|-------|--------|
+| **Engine + nodes** | `dag_core`, `app_graph`, `slots`, `node_roles`, `clock`, `recorder`, `synth_merge`, `one_euro`, `pick`, `webcam_*` | The DAG itself, the production graph's wiring, roles/slots, pacing. |
+| **Features + music** | `hand_*`, `face_*`, `head_pose`, `gesture_classifier`, `expression*`, `music_theory`, `music_logic`, `voicing`, `sounds`, `pose_chord` | The pure signal + tonal layers. |
+| **Commands** (#87) | `commands_dispatch`, `commands_perdial`, `commands_instruments`, `commands_confirmation`, **`commands_firewall`**, `keyboard_shortcuts` | The registry, generation from the dials SSOT, the AI confirmation gate, and the **import firewall** that keeps commands out of the hot path. |
+| **Feature Lab** (#119) | `feature_catalog`, `feature_formula`, `feature_normalizer`, `feature_vector_nodes`, `feature_lab_overlay`, `lab_views` | The catalog, the no-eval formula compiler (incl. its rejection cases), the online normalizer. |
+| **Library** (#113–#115) | `library_model`, `library_store`, `library_summarize`, `library_systemtags`, `library_derive`, `library_emoji` | Tag identity invariants, both persistence shapes, the derived views. |
+| **Recording** (#88) | `recording`, `recording_plan`, `recording_naming`, `recording_manifest`, `recording_schema`, `recording_caps`, `recording_feature_tap` | The pure half of the recorder (see below). |
+| **Annotations** (#92) | `taglog_affordances`, `taglog_adapters`, `taglog_provider`, `taglog_presentation`, `tagging_store`, `tagging_export`, `tag_hud_overlay` | The extraction-ready `src/taglog/` core + the thoremin glue + the exporters. |
+| **Assistant** (#87 P3) | `assistant_session`, `assistant_tools` | Tool exposure and the session/confirmation flow, against a mock model. |
+| **Output** | `midi_out`, `overlay_elements`, `render_audio` | The MIDI sink, the overlay elements, the offline synth DSP. |
+| **Fixtures** | `fixture_replay`, `video_fixtures`, `hand_pipeline` | The record/replay regression gates. |
+
+### What is *not* covered headlessly
+
+The browser capture paths (`MediaRecorder` wiring, sink I/O, the alpha canvas,
+IndexedDB handle reuse), the live rAF/AudioContext effect in `useEngine`, and Web MIDI
+device I/O need a real browser + camera. They are build-checked and structured with
+feature detection + graceful fallback, but their end-to-end behaviour is verified by
+hand. This is a known gap — the Applier's M-D milestone is explicitly gated on a
+browser smoke test for exactly this reason.
+
 ## On-disk fixture layout
 
 ```
@@ -77,9 +116,14 @@ Raw `.mp4`s stay gitignored under `media/`; only the derived NDJSON is committed
 (`test/fixtures/video_*/`) and replayed by `test/video_fixtures.test.ts` — no
 camera/GPU in CI. Current committed video fixtures: `video_hand_sweep`,
 `video_hand_open_close`, `video_hand_pinch` (full hand pipeline) and
-`video_face_expressions` (blendshapes, for the M4 `face-features` node). All
-tracked at ~100% detection on the generated clips. A live in-app "record this
-edge → download NDJSON" affordance is still a nice-to-have (ROADMAP).
+`video_face_expressions` (blendshapes, for the `face-features` node). All
+tracked at ~100% detection on the generated clips.
+
+**Live capture, in the app.** Recording v2 (#88) ships the feature-JSONL stream: a
+`FeatureJsonlTap` attached via `engine.addTap` writes `{tick,t,key,value}` per edge
+into the take folder. So "record what is actually flowing, from a live session" is a
+product feature now, not a testing wish — and its output is the same NDJSON shape the
+fixtures use. See [design/recording-v2.md](design/recording-v2.md).
 
 ## Replaying in tests
 

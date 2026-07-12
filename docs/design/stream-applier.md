@@ -1,6 +1,9 @@
 # Stream Applier — pluggable sources + batch/paced execution
 
-> **Status:** design agreed (2026-07). Being built incrementally (M-A…M-G below).
+> **Status:** design agreed (2026-07); being built incrementally (M-A…M-G below).
+> **M-A** (camera-free video source, #102 / PR #105) and **M-B** (Clock + speed,
+> #103 / PR #106) have **shipped**. **M-C** (#104) is **design-resolved but
+> deferred** — see [M-C resolved](#m-c-resolved-host-side-source-for-video-node-swap-for-frame-emitters).
 > This document is the single source of truth; the ROADMAP and the tracking
 > issues point here. It supersedes ad-hoc source/replay wiring.
 
@@ -148,8 +151,9 @@ class Applier {
 }
 ```
 
-Lives at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable
-substrate once it stabilizes at M-D and a second consumer appears). `useEngine`
+Will live at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable
+substrate once it stabilizes at M-D and a second consumer appears). Not built yet
+— M-D is unstarted, and this section describes the target, not the code. `useEngine`
 (live/paced) and `runHeadless` (batch) both collapse to configs of it, differing
 on **{clock, sinks, taps} jointly** — not "only the clock". Batch attaches a
 recording tap and **no audio sink** (the synth self-no-ops when the audio
@@ -201,11 +205,14 @@ boundaries allow.
   is **deferred to M-D** — it is the untested live surface and lands with the
   Applier + a browser smoke test; M-B ships the abstraction + the fully-tested
   `BatchClock` path and a headless `RealtimeClock`.
-- **M-C — Source contract + `source` slot + conformance (R1/R4 foundation).**
+- **M-C — Source contract + `source` slot + conformance (R1/R4 foundation).
+  ✅ design resolved, build DEFERRED (#104).**
   The async-iterable `Source` (signal/event); a `source` slot with a
   `SOURCE_SLOT_CONTRACT` guaranteeing `hands`/`hands-frame`; `PortSpec.schema?`
   validated in `tick()` (dev/batch, incl. `undefined`); the seeded-RNG rule.
-  `videoFileSource` becomes a slot candidate; M-A's `if` retires.
+  **`videoFileSource` is a host-side `Source`, NOT a slot candidate** — see the
+  resolution below, which corrects the earlier "slot candidate" reading. M-A's host
+  wiring is the right shape and stays.
 - **M-D — The Applier (R4 complete, R5 orthogonality). ⚠ untested live surface.**
   `runHeadless` delegates (BatchClock + bounded recorder tap, no audio sink);
   `useEngine`'s effect becomes a thin Applier config — **this is where the live
@@ -225,6 +232,49 @@ boundaries allow.
   backpressure (fold into #88 recording-v2); the `delay` node + delayed-edge
   topoSort (the only engine change on the whole path); migrate `StateReader` onto
   it.
+
+## M-C resolved: host-side Source for video, node-swap for frame-emitters
+
+> **Decision recorded 2026-07-12 (issue #104). READY to build; DEFERRED — nothing
+> currently blocks on it.** This resolves the one open fork in the design above and
+> **corrects** the earlier suggestion that `videoFileSource` would become a *slot
+> candidate*.
+
+The fork was: when the frames come from a file instead of a camera, is that a
+**different node** (swapped into a `source` slot) or a **different feed into the same
+node**?
+
+**The answer depends on what the origin emits, and the two cases are genuinely
+different:**
+
+| Origin emits | Mechanism | Why |
+|---|---|---|
+| **Raw video** (a `<video>` element: file, camera, stream) | **Host-side `Source`** with `outputResource: 'video'`. The Applier puts the element in `ctx.resources.video`; `webcam-hands` / `webcam-face` run **unchanged**. | The node's job — run MediaPipe on a video element and latch the result — is *identical* regardless of where the element's pixels came from. Swapping the node would duplicate the entire model-loading, latching, tracking-reset and mirror logic, once per origin, to change nothing but the element's `src`. The variability is in the **resource**, so that is where it belongs. |
+| **Finished frames** (`HandsFrame` / `FeatureVector` records: replay, synthetic, generated) | **Node swap** — an ordinary zero-input node (`replay-source`, `synthetic-hands`, `generatedSource`). | These emit the node's *output* type directly. There is no inference to do and no shared machinery to reuse; they are a different computation, not a different feed. They are already ordinary nodes today, and stay that way. |
+
+So the `source` slot exists — but its candidates are the **frame-emitters**, and
+`videoFileSource` is not among them. M-A's `if` in the host does **not** retire into a
+slot; it becomes a `Source` object with the same responsibility, which is what M-A
+already effectively wrote by hand.
+
+Consequences for the rest of the design (all consistent with what is written above):
+
+- **Invariant 4 holds unchanged** — "sources are ordinary zero-input nodes; the `Source`
+  is a host-side thing that *feeds* a plain node via `ctx.resources`". The resolution is
+  really just taking that invariant seriously for the video case.
+- The **per-source `mirror` flag** (the M-A known limitation: a non-selfie clip renders
+  flipped with Left/Right swapped) lands on the `Source`, not on a node's params — it is
+  a property of the feed.
+- A **second video source** (R2 composition) binds a distinct `videoResource` key, which
+  is a `Source` field, not a graph edit.
+- The `SOURCE_SLOT_CONTRACT` still guarantees `hands` / `hands-frame` — it just governs
+  the frame-emitters.
+
+**Why deferred:** M-A already delivers R6 (camera-free runs) and M-B already delivers the
+clock. M-C's value is the *contract* — open-closed source plugging and port conformance —
+which pays off when the Applier (M-D) lands and when a second non-webcam origin actually
+appears. Neither is currently blocking anything, so the design is banked and the build is
+not scheduled.
 
 ## Relationship to existing work
 

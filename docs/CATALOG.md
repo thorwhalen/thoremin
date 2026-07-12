@@ -1,12 +1,14 @@
 # Thoremin — Capabilities Manual
 
-_Auto-generated from the node registry (`scripts/gen_catalog.ts`). Do not edit by hand._
+_Auto-generated from the node registry (`scripts/gen_catalog.ts`). Do not edit by hand — run `npm run catalog`._
 
-Thoremin turns live sensor streams (webcam hand gestures, facial expressions, computer keyboard, later MIDI) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
+**Looking for how to _use_ the app?** → [the User Guide](https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md).
+
+Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
 
 The mapping layer spans a spectrum: **direct** (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through **indirect** (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including **conductor** mode (direct a fixed piece's tempo and dynamics).
 
-This page catalogs the engine's building blocks — every node and how they connect. Some already run in the deployed app; wiring the full graph into the live sound is in progress.
+This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.
 
 ## Example pipelines
 
