@@ -29,6 +29,7 @@
  *
  * Pure and headlessly unit-testable (no DOM/audio/time source — `dt` is passed in).
  */
+import { clamp01 } from './math';
 
 /** How a raw value maps to a 0..1 display level. */
 export type NormalizerMode = 'minmax' | 'quantile' | 'zscore';
@@ -76,8 +77,6 @@ interface FeatureStat {
   q: number[];
   init: boolean;
 }
-
-const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 export class OnlineNormalizer {
   private readonly opts: Required<NormalizerOptions>;

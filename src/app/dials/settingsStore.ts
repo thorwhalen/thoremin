@@ -8,8 +8,8 @@
  * ({@link layerToSettings}) and push it into `useControls.applySettings`, so the
  * audio graph hears edits live (synchronously — the tick loop never awaits). The
  * store is seeded FROM the current (persisted) hot state, so a returning player's
- * choices are already in the panel. `recordingFormats` is a tooling pref outside the
- * dials schema and stays on `useControls`.
+ * choices are already in the panel. Tooling prefs outside the dials schema (e.g. the
+ * per-device `faceCalibration`) stay on `useControls`.
  *
  * Framework-agnostic on purpose: the React binding lives in {@link useDialsSettings},
  * so this module imports no React and stays unit-testable. Named "instruments"

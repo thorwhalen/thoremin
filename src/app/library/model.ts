@@ -18,6 +18,7 @@
  * is unit-testable and strict-typechecked transitively via the library tests.
  */
 import { z } from 'zod';
+import { slugId } from '@/util/ids';
 
 /** Prefix marking a read-only, derived system-tag id (issue #114). Custom tags never
  *  use it, so association reads can filter defensively against a stale persisted id. */
@@ -69,13 +70,7 @@ export type InstrumentMetaMap = z.infer<typeof InstrumentMetaMapSchema>;
  * and deterministic (no time/random), so it is safe in tests and reproducible.
  */
 export function tagIdForLabel(label: string): string {
-  const slug =
-    label
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'tag';
-  return `${slug}`;
+  return slugId(label, 'tag');
 }
 
 /** Case/space-insensitive normal form of a label, for de-duping "Jazz" vs "jazz ". */

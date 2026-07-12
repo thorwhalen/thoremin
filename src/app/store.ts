@@ -31,7 +31,6 @@ import {
   type FaceExpr,
 } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
-import { DEFAULT_RECORDING_FORMATS } from './recording/formats';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
@@ -101,16 +100,10 @@ export interface ControlState {
    *  the once-static voice knobs. Read live by `voice-mapping` via
    *  `ctx.resources.controls`. See src/nodes/mapping/hand_map.ts. */
   handMap: HandMap;
-  /**
-   * Output formats a recording is saved in (ids from the recording format
-   * registry; always ≥1). A tooling preference — persisted to localStorage but
-   * NOT part of a musical preset (it's orthogonal to the sound's sound).
-   */
-  recordingFormats: string[];
   /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
    *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
-   *  preset (like {@link recordingFormats}). Null = uncalibrated. */
+   *  preset — it is a device property, not a musical parameter. Null = uncalibrated. */
   faceCalibration: Record<string, number> | null;
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
@@ -126,8 +119,6 @@ export interface ControlState {
   setExpressionSensitivity(emotion: string, value: number): void;
   /** Set the scale degree (0..6) an expression maps to. */
   setExpressionDegree(expr: string, degree: number): void;
-  /** Toggle a recording output format on/off (keeps at least one selected). */
-  setRecordingFormat(id: string, on: boolean): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
   setOverlayElement<K extends keyof OverlayParams>(key: K, patch: Partial<OverlayParams[K]>): void;
   /** Shallow-patch the hand map (e.g. setHandMap({ positionSource: 'wrist' }), or a new
@@ -299,7 +290,6 @@ export const useControls = create<ControlState>()(
       },
       overlay: defaultOverlay(),
       handMap: defaultHandMap(),
-      recordingFormats: [...DEFAULT_RECORDING_FORMATS],
       faceCalibration: null,
       setVoice: (side, patch) =>
         set((s) => {
@@ -330,25 +320,14 @@ export const useControls = create<ControlState>()(
         set((s) => ({
           faceExpr: { ...s.faceExpr, degrees: { ...s.faceExpr.degrees, [expr]: degree } },
         })),
-      setRecordingFormat: (id, on) =>
-        set((s) => {
-          const has = s.recordingFormats.includes(id);
-          if (on && !has) return { recordingFormats: [...s.recordingFormats, id] };
-          if (!on && has) {
-            const next = s.recordingFormats.filter((f) => f !== id);
-            // Keep at least one format selected, so a recording always saves.
-            return next.length ? { recordingFormats: next } : {};
-          }
-          return {};
-        }),
       setOverlayElement: (key, patch) =>
         set((s) => ({
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
         })),
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
       setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
-      // Restore exactly the schema fields (the setters/recordingFormats are left
-      // untouched). Derived from SETTINGS_KEYS, so a new preset field needs no edit.
+      // Restore exactly the schema fields (the setters are left untouched). Derived
+      // from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
     }),
     {
@@ -369,11 +348,10 @@ export const useControls = create<ControlState>()(
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
-      // Persist the preset fields (schema-derived) + the recordingFormats tooling
-      // pref, never the setter functions.
+      // Persist the preset fields (schema-derived) + the per-device calibration,
+      // never the setter functions.
       partialize: (s) => ({
         ...pickSettings(s as unknown as Record<string, unknown>),
-        recordingFormats: s.recordingFormats,
         faceCalibration: s.faceCalibration,
       }),
     },

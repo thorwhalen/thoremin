@@ -9,21 +9,12 @@
  * only (no mesh/pose), so the geometry/gaze/head features are absent there by
  * design — exactly the present-gating being verified.
  */
-import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@/dag';
-import { valuesFromNDJSON, replayNode } from '@/dag';
+import { replayNode } from '@/dag';
+import { loadStream } from './helpers/fixtures';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
-function loadStream(scenario: string, key: string): unknown[] {
-  const path = join(FIXTURES, scenario, `${key}.ndjson`);
-  if (!existsSync(path)) throw new Error(`missing fixture ${path}`);
-  return valuesFromNDJSON(readFileSync(path, 'utf8'));
-}
 
 const bareCtx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });
 const allFinite = (v: FeatureVector) => Object.values(v).every((x) => Number.isFinite(x));

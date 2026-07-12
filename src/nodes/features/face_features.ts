@@ -11,6 +11,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import { clamp01 } from '@/features/math';
 import { ABSENT_FACE, type FaceFeatures, type FaceFrame } from '../domain';
 
 const Params = z.object({
@@ -20,10 +21,6 @@ const Params = z.object({
   smoothing: z.number().min(0).max(0.999).default(0),
 });
 type Params = z.infer<typeof Params>;
-
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v;
-}
 
 export const faceFeaturesNode = defineNode<Params>({
   type: 'face-features',

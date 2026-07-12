@@ -22,6 +22,7 @@
  * The prototype weights and the confusion matrix are exported data (open/closed):
  * swap them for a model-specific calibration without touching the algorithms.
  */
+import { clamp01 } from '@/features/math';
 
 /** The canonical expressions, in a stable index order: the scored {@link EMOTIONS}
  *  followed by `neutral` (the abstention fallback). `kiss` (lips funneled forward)
@@ -67,9 +68,6 @@ export interface ExpressionScores {
   fired: boolean[];
 }
 
-function clamp01(x: number): number {
-  return x < 0 ? 0 : x > 1 ? 1 : x;
-}
 
 /**
  * FACS-grounded prototype blendshape vectors, one per emotion. Primary action

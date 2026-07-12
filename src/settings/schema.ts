@@ -217,6 +217,3 @@ export const PresetSchema = z.object({
   settings: z.preprocess(migrateLegacySettings, SettingsSchema),
 });
 export type Preset = z.infer<typeof PresetSchema>;
-
-/** A preset without its (large) settings payload — for listing/picker UIs. */
-export type PresetSummary = Pick<Preset, 'id' | 'name' | 'createdAt'>;

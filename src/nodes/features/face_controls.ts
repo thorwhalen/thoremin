@@ -25,6 +25,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import { clamp01 } from '@/features/math';
 import { ABSENT_FACE_CONTROLS, type FaceControls, type FaceFrame } from '../domain';
 
 const Params = z.object({
@@ -60,7 +61,6 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
-const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 const clampSigned = (v: number): number => (v < -1 ? -1 : v > 1 ? 1 : v);
 
 /** Unipolar deadzone+rescale on a raw [0,1] channel: below `dz` → 0, then

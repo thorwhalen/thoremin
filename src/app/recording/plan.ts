@@ -10,7 +10,7 @@
  * between the directory / zip / per-file sinks (they all write the same names).
  */
 import { extForMime } from '../recorder';
-import { recordingFormat } from './formats';
+import { recordingFormat, DEFAULT_RECORDING_FORMATS } from './formats';
 import { fileName } from './naming';
 import type { RecordingStreamKind } from './manifest';
 import type { RecordingSession } from './schema';
@@ -57,10 +57,12 @@ export interface PlanInput {
 }
 
 /** Selected audio output formats, filtered to ids the registry knows (an unknown
- * id in a stale saved session is dropped, not fatal); empty heals to `['webm']`. */
-function audioFormatIds(session: RecordingSession): string[] {
+ * id in a stale saved session is dropped, not fatal); empty heals to
+ * {@link DEFAULT_RECORDING_FORMATS}. Exported because `SessionRecorder` must
+ * convert audio in exactly this order — one definition, not two. */
+export function audioFormatIds(session: RecordingSession): string[] {
   const ids = session.formats.filter((id) => recordingFormat(id));
-  return ids.length ? ids : ['webm'];
+  return ids.length ? ids : [...DEFAULT_RECORDING_FORMATS];
 }
 
 /** Number of selected MEDIA streams (audio counts once regardless of formats). */

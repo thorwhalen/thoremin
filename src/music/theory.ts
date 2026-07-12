@@ -9,6 +9,11 @@
  * MIDI note numbers are the common currency: 60 = middle C, +12 per octave,
  * and `midiToFreq(69) === 440`.
  */
+import { clamp01 } from '@/features/math';
+
+/** Re-exported from the scalar-math SSOT (`@/features/math`), which owns the single
+ *  definition; kept on the theory surface because the mapping layer imports it from here. */
+export { clamp01 };
 
 export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 
@@ -477,10 +482,6 @@ export function nearestScaleNote(midi: number, scale: number[]): number {
     }
   }
   return best;
-}
-
-export function clamp01(x: number): number {
-  return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
 /**

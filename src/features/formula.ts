@@ -17,6 +17,7 @@
  */
 import jsep from 'jsep';
 import ternary from '@jsep-plugin/ternary';
+import { clamp01 } from './math';
 
 // Ternary (`a ? b : c`) is not in jsep core; register the plugin once. Also lock
 // the operator set down to arithmetic/comparison/logical (drop jsep's defaults we
@@ -38,8 +39,6 @@ export class FormulaError extends Error {
 
 /** A numeric helper function callable from a formula. */
 export type HelperFn = (...args: number[]) => number;
-
-const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** The fixed, safe helper set injected into every formula. */
 export const DEFAULT_HELPERS: Readonly<Record<string, HelperFn>> = {

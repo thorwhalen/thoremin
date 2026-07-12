@@ -14,7 +14,7 @@
 import type { Engine } from '@/dag';
 import { recordingFormat } from './formats';
 import { recordingStem, prefillName } from './naming';
-import { planRecording, type RecordingPlan, type PlannedFile } from './plan';
+import { planRecording, audioFormatIds, type RecordingPlan, type PlannedFile } from './plan';
 import { buildManifest, serializeManifest, type RecordingStreamEntry } from './manifest';
 import { detectCaps, chooseSinkKind, pickAudioMime, pickVideoMime, pickAlphaMime } from './caps';
 import { createRecordingSink, type RecordingSink, type SinkResult } from './sink';
@@ -396,8 +396,7 @@ export class SessionRecorder {
    * if any format needs it. Returns blobs in the SAME order as the plan's audio
    * files (= `audioFormatIds` order). */
   private async convertAudio(native: Blob): Promise<Blob[]> {
-    const ids = this.session.formats.filter((id) => recordingFormat(id));
-    const effectiveIds = ids.length ? ids : ['webm'];
+    const effectiveIds = audioFormatIds(this.session);
     let audio: AudioBuffer | null = null;
     if (effectiveIds.some((id) => recordingFormat(id)?.needsDecode)) {
       try {

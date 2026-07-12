@@ -10,22 +10,12 @@
  *
  * If you change a node and these fail intentionally, re-record the fixtures.
  */
-import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { valuesFromNDJSON, replayNode } from '@/dag';
+import { replayNode } from '@/dag';
+import { loadStream } from './helpers/fixtures';
 import { voiceMappingNode, type HandFeatures, type SynthParams } from '@/nodes';
 import { freqToMidi, midiToName } from '@/music/theory';
 import { SCENARIOS } from '../scripts/scenarios';
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
-
-function loadStream(scenario: string, key: string): unknown[] {
-  const path = join(FIXTURES, scenario, `${key}.ndjson`);
-  if (!existsSync(path)) throw new Error(`missing fixture ${path} — run \`npm run record\``);
-  return valuesFromNDJSON(readFileSync(path, 'utf8'));
-}
 
 describe('fixture replay (sweep_right)', () => {
   const SC = 'sweep_right';

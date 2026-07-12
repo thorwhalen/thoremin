@@ -3,14 +3,10 @@
  * dials. Verifies exact mapping (no smoothing), smoothing convergence,
  * absent-hand → zero weight, and replay from a disk fixture.
  */
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { replayNode, valuesFromNDJSON } from '@/dag';
+import { replayNode } from '@/dag';
+import { loadStream } from './helpers/fixtures';
 import { indirectMapNode, ABSENT_HAND, ABSENT_FACE, type GenerativeSteer, type HandFeatures, type FaceFeatures } from '@/nodes';
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
 function feat(right: Partial<typeof ABSENT_HAND>): HandFeatures {
   return { left: { ...ABSENT_HAND }, right: { ...ABSENT_HAND, present: true, ...right } };
@@ -62,7 +58,7 @@ describe('indirect-map', () => {
   });
 
   it('runs from a recorded hand-features fixture', async () => {
-    const features = valuesFromNDJSON(readFileSync(join(FIXTURES, 'sweep_right', 'feat.features.ndjson'), 'utf8'));
+    const features = loadStream('sweep_right', 'feat.features');
     const outs = await replayNode(indirectMapNode.make(P), { features });
     expect(outs.length).toBe(features.length);
     const steer = outs[20].steer as GenerativeSteer;

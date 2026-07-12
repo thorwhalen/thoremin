@@ -8,11 +8,9 @@
  * To regenerate: scripts/gen_test_videos.py → video_to_landmarks.py →
  * build_video_fixture.ts (hands) / video_to_face.py (face). See docs/TESTING.md.
  */
-import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { valuesFromNDJSON, replayNode } from '@/dag';
+import { replayNode } from '@/dag';
+import { loadStream } from './helpers/fixtures';
 import {
   voiceMappingNode,
   faceFeaturesNode,
@@ -22,14 +20,6 @@ import {
   type FaceFrame,
   type SynthParams,
 } from '@/nodes';
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
-
-function load(scenario: string, key: string): unknown[] {
-  const path = join(FIXTURES, scenario, `${key}.ndjson`);
-  if (!existsSync(path)) throw new Error(`missing ${path} — regenerate video fixtures (see docs/TESTING.md)`);
-  return valuesFromNDJSON(readFileSync(path, 'utf8'));
-}
 
 const presentSide = (f: HandFeatures) => (f.right.present ? f.right : f.left.present ? f.left : null);
 const span = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
@@ -43,7 +33,7 @@ describe('video hand fixtures (real MediaPipe tracking)', () => {
 
   for (const { dir, feature, minSpan } of HAND_SCENARIOS) {
     it(`${dir}: tracks a hand and the ${feature} feature varies; pitch follows`, async () => {
-      const feats = load(dir, 'feat.features') as HandFeatures[];
+      const feats = loadStream(dir, 'feat.features') as HandFeatures[];
       const sel = feats.map(presentSide).filter((s): s is NonNullable<typeof s> => !!s);
       // High detection rate on the generated clip.
       expect(sel.length / feats.length).toBeGreaterThan(0.8);
@@ -68,7 +58,7 @@ describe('video fixtures drive gesture expression (real tracking)', () => {
   // (voice 0 = right, 1 = left), so we confirm a real gesture moves the
   // expression value the synth actually consumes.
   it('hand_open_close: openness drives a varying, correlated brightness', async () => {
-    const feats = load('video_hand_open_close', 'feat.features') as HandFeatures[];
+    const feats = loadStream('video_hand_open_close', 'feat.features') as HandFeatures[];
     const parsed = voiceMappingNode.params.parse({ magnetism: 1 });
     const out = (await replayNode(voiceMappingNode.make(parsed), { features: feats })).map((o) => o.params as SynthParams);
     const pairs = feats
@@ -89,7 +79,7 @@ describe('video fixtures drive gesture expression (real tracking)', () => {
   });
 
   it('hand_sweep: the sweeping hand pans across the stereo field', async () => {
-    const feats = load('video_hand_sweep', 'feat.features') as HandFeatures[];
+    const feats = loadStream('video_hand_sweep', 'feat.features') as HandFeatures[];
     const parsed = voiceMappingNode.params.parse({ magnetism: 1 });
     const out = (await replayNode(voiceMappingNode.make(parsed), { features: feats })).map((o) => o.params as SynthParams);
     const pairs = feats
@@ -107,7 +97,7 @@ describe('video fixtures drive gesture expression (real tracking)', () => {
   });
 
   it('hand_pinch: pinch drives a varying, correlated vibrato', async () => {
-    const feats = load('video_hand_pinch', 'feat.features') as HandFeatures[];
+    const feats = loadStream('video_hand_pinch', 'feat.features') as HandFeatures[];
     const parsed = voiceMappingNode.params.parse({ magnetism: 1 });
     const out = (await replayNode(voiceMappingNode.make(parsed), { features: feats })).map((o) => o.params as SynthParams);
     const pairs = feats
@@ -129,7 +119,7 @@ describe('video fixtures drive gesture expression (real tracking)', () => {
 
 describe('video face fixture drives expression (smile→brightness, mouth→vibrato)', () => {
   it('a smile brightens and an open mouth adds vibrato, on real face tracking', async () => {
-    const faceFrames = load('video_face_expressions', 'face.blendshapes') as FaceFrame[];
+    const faceFrames = loadStream('video_face_expressions', 'face.blendshapes') as FaceFrame[];
     // Real blendshapes → normalized face features, via the actual node.
     const faceFeats = (
       await replayNode(faceFeaturesNode.make(faceFeaturesNode.params.parse({})), { face: faceFrames })
@@ -165,7 +155,7 @@ describe('video face fixture drives expression (smile→brightness, mouth→vibr
 describe('video face fixture (MediaPipe blendshapes — M4 prep)', () => {
   it('detects a face and key expression blendshapes vary', () => {
     type FaceFrame = { present: boolean; blendshapes: Record<string, number> };
-    const frames = load('video_face_expressions', 'face.blendshapes') as FaceFrame[];
+    const frames = loadStream('video_face_expressions', 'face.blendshapes') as FaceFrame[];
     const present = frames.filter((f) => f.present);
     expect(present.length / frames.length).toBeGreaterThan(0.8);
     for (const key of ['mouthSmileLeft', 'jawOpen', 'browInnerUp']) {

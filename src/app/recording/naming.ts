@@ -9,6 +9,7 @@
  * primary extension, with a role as a SECONDARY extension when several streams
  * share a primary ext, e.g. `demo-theremin-2026-07-05T14-30-12.overlay.webm`.
  */
+import { slugId } from '@/util/ids';
 
 /** A filesystem-safe timestamp, e.g. `2026-07-05T14-30-12` (colons/millis
  * dropped; the `T` and dashes are safe on every filesystem and stay sortable).
@@ -22,14 +23,9 @@ export function compactStamp(dateOrIso: Date | string): string {
     .replace(/:/g, '-'); // colons are illegal on Windows / awkward everywhere
 }
 
-/** Lowercase slug for an id-like token (tag / instrument), mirroring `presetId`. */
-function slugToken(token: string): string {
-  return token
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+/** Lowercase slug for an id-like token (tag / instrument) — the shared id slug with NO
+ *  fallback: an empty token is dropped by {@link prefillName} rather than defaulted. */
+const slugToken = (token: string): string => slugId(token);
 
 /**
  * The prefilled recording name: `{tag?-}{instrument}-{stamp}`. The tag and
