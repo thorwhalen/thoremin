@@ -42,7 +42,7 @@ export interface SessionRecorderDeps {
   resources: Record<string, unknown>;
   /** Active instrument/sound id, for the manifest. */
   instrument?: string;
-  /** Live-tagging source (#92): when active, writes a `.tags.jsonl` stream into the
+  /** Live-annotation source (#92): when active, writes a `.annotations.jsonl` stream into the
    *  folder on the shared `t0`. Absent = no tagging. */
   tagSource?: TagStreamSource;
 }
@@ -133,9 +133,9 @@ export class SessionRecorder {
   private t0 = 0;
   private startPerf = 0;
   private running = false;
-  /** Whether this take is writing a `.tags.jsonl` (#92) — set at start from the tag
+  /** Whether this take is writing a `.annotations.jsonl` (#92) — set at start from the annotation
    *  source's `active()`, so plan/stop stay in agreement. */
-  private tagsActive = false;
+  private annotationsActive = false;
 
   constructor(deps: SessionRecorderDeps, session: RecordingSession) {
     this.deps = deps;
@@ -161,10 +161,10 @@ export class SessionRecorder {
    */
   async start(): Promise<void> {
     if (this.running) return;
-    // Tagging is a COMPANION stream: its tags.jsonl segments the OTHER streams on the
+    // Annotations are a COMPANION stream: annotations.jsonl segments the OTHER streams on the
     // shared t0, so a take needs at least one capturable media/feature stream to tag
-    // (a tags-only take would reference streams that don't exist). Hence the guard is
-    // on hasAnyStream, deliberately not counting tags.
+    // (a annotations-only take would reference streams that don't exist). Hence the guard is
+    // on hasAnyStream, deliberately not counting annotations.
     if (!hasAnyStream(this.session.streams)) throw new Error('No streams selected to record');
     const { audioContext, masterGain, canvas, video, cameraStream, engine, resources } = this.deps;
     const s = this.session.streams;
@@ -179,8 +179,8 @@ export class SessionRecorder {
     this.stem = name;
 
     // Live tagging (#92): if the tag source is active, this take writes a
-    // `.tags.jsonl` (which also forces folder mode — a tag log needs the manifest).
-    this.tagsActive = this.deps.tagSource?.active() === true;
+    // `.annotations.jsonl` (which also forces folder mode — a annotation log needs the manifest).
+    this.annotationsActive = this.deps.tagSource?.active() === true;
 
     this.plan = planRecording({
       session: this.session,
@@ -188,7 +188,7 @@ export class SessionRecorder {
       audioMime: this.audioMime,
       videoMime: this.videoMime,
       alphaMime: this.alphaMime ?? undefined,
-      includeTags: this.tagsActive,
+      includeAnnotations: this.annotationsActive,
     });
 
     // A folder take goes through a sink (dir/zip); the single-file escape hatch
@@ -260,10 +260,10 @@ export class SessionRecorder {
     }
 
     // Begin the tag take on the SAME t0 the media/feature streams share, so the
-    // `.tags.jsonl` events share the absolute engine clock and line up frame-accurately (#92 §5).
+    // `.annotations.jsonl` events share the absolute engine clock and line up frame-accurately (#92 §5).
     // Done last, once capture is committed, so a fail-fast above never leaves the
     // tagging runtime with a dangling take.
-    if (this.tagsActive) {
+    if (this.annotationsActive) {
       this.deps.tagSource!.beginTake({ t0: this.t0, startedAt: this.startedAt, session: this.stem });
     }
 
@@ -280,17 +280,17 @@ export class SessionRecorder {
     this.running = false;
 
     // The take's end on the ABSOLUTE engine clock (the same frame tag/feature events
-    // are stamped in), captured now at stop-request so still-open tags close at the
+    // are stamped in), captured now at stop-request so still-open annotations close at the
     // true take end (#92).
     const endEngineT = performance.now() / 1000;
 
     // Detach the feature tap AND freeze the tag log at the SAME instant, so neither
     // stream keeps recording input during the (possibly seconds-long) async
-    // stop/convert window below. endTake closes still-open tags at endEngineT and
+    // stop/convert window below. endTake closes still-open annotations at endEngineT and
     // returns the anchored JSONL; the file loop just writes it.
     this.detachTap?.();
     this.detachTap = null;
-    const tagsJsonl = this.tagsActive ? (this.deps.tagSource?.endTake(endEngineT) ?? '') : '';
+    const annotationsJsonl = this.annotationsActive ? (this.deps.tagSource?.endTake(endEngineT) ?? '') : '';
 
     const [audioBlob, overlayBlob, pureBlob, alphaBlob] = await Promise.all([
       this.audioRec ? stopRec(this.audioRec) : Promise.resolve(null),
@@ -344,9 +344,9 @@ export class SessionRecorder {
         case 'features':
           await putFile(file, this.tap?.drain() ?? '');
           break;
-        case 'tags':
+        case 'annotations':
           // The tag log was already closed + drained above (symmetric with the tap).
-          await putFile(file, tagsJsonl);
+          await putFile(file, annotationsJsonl);
           break;
         case 'manifest': {
           const manifest = buildManifest({
@@ -445,13 +445,13 @@ export class SessionRecorder {
     this.detachTap = null;
     // Release the tagging runtime's take context so a dropped/aborted recording
     // doesn't leave it stuck "recording" (endTake is a no-op if already ended).
-    if (this.tagsActive) {
+    if (this.annotationsActive) {
       try {
         this.deps.tagSource?.endTake(performance.now() / 1000);
       } catch {
         /* runtime already reset */
       }
-      this.tagsActive = false;
+      this.annotationsActive = false;
     }
     for (const rec of [this.audioRec, this.overlayRec, this.pureRec, this.alphaRec]) {
       try {

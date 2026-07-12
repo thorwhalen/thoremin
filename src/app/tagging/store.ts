@@ -22,7 +22,8 @@ import {
   emptyTagState,
   TagDefSchema,
   DEFAULT_TAGGING_CONFIG,
-  TAGS_SCHEMA_ID,
+  ANNOTATIONS_SCHEMA_ID,
+  type EdgeEvent,
   type TagDef,
   type TaggingConfig,
   type TagState,
@@ -42,7 +43,42 @@ import type { TagOverlaySnapshot } from '@/taglog/presentation';
 interface TakeContext {
   t0: number;
   session: string;
+  /** ISO wall-clock of the take start — carried into {@link LastTake} for file naming. */
+  startedAt: string;
   sink: TagEventSink;
+  /** Every edge emitted during this take, kept alongside the sink's serialized lines.
+   *  The sink only holds JSONL strings; resolving intervals for an export needs the
+   *  structured edges, so we retain them here rather than re-parsing our own output. */
+  edges: EdgeEvent[];
+}
+
+/**
+ * The take that just finished — retained so the user can still get their annotations
+ * OUT after the recording stops.
+ *
+ * Without this, `endTake` drained the sink and dropped everything on the floor: the only
+ * copy of an annotation log was the `.annotations.jsonl` inside the take folder, which
+ * (a) is JSONL of raw *absolute-clock* edges, not something you can open in an editor,
+ * and (b) is easy to miss entirely — a user who taps annotation buttons and then looks
+ * for "their data" finds nothing anywhere in the app. Keeping the last take lets the
+ * Annotations sheet offer a real export (Audacity / WebVTT / CSV / TextGrid / OTIO).
+ *
+ * `defs` is snapshotted at endTake so an export still carries the labels the annotations
+ * were recorded WITH, even if the user edits the set afterwards.
+ */
+export interface LastTake {
+  session: string;
+  /** Absolute engine-clock origin of the take (== manifest.t0). Export times are
+   *  `t - t0`, i.e. offsets into the recording — the same rule the manifest states. */
+  t0: number;
+  /** Absolute engine-clock time the take ended (used to close open intervals). */
+  endT: number;
+  /** ISO wall-clock of the take start — for naming the exported file. */
+  startedAt: string;
+  edges: EdgeEvent[];
+  defs: TagDef[];
+  /** The exact JSONL written into the take folder (offered as a raw export too). */
+  jsonl: string;
 }
 
 /** The presentation countdown for a just-opened tag with a lead-in (§6). */
@@ -65,6 +101,9 @@ interface TaggingState {
   state: TagState;
   /** The active recording take, or null when not recording. */
   take: TakeContext | null;
+  /** The take that just finished, kept so its annotations can still be exported. Null
+   *  until the first take of the session ends. See {@link LastTake}. */
+  lastTake: LastTake | null;
   /** The active lead-in countdown, or null. */
   countdown: CountdownState | null;
   /** Bumped whenever a point fires — a cheap signal for one-shot flash animations. */
@@ -162,6 +201,7 @@ export const useTagging = create<TaggingState>((set, get) => ({
   config: DEFAULT_TAGGING_CONFIG,
   state: emptyTagState(),
   take: null,
+  lastTake: null,
   countdown: null,
   pulse: 0,
   lastPoint: null,
@@ -238,7 +278,10 @@ export const useTagging = create<TaggingState>((set, get) => ({
     // rehearsal (no take) t is unused (nothing is logged).
     const t = perf;
     const { state, edges } = applyToggle(s.state, s.defs, { tagId, t, src }, s.config);
-    if (s.take && edges.length) s.take.sink.append(edges);
+    if (s.take && edges.length) {
+      s.take.sink.append(edges);
+      s.take.edges.push(...edges);
+    }
     const opened = edges.find((e) => e.tag === tagId && e.status === 'open');
     const firedPoint = edges.some((e) => e.status === 'point');
     set({
@@ -259,7 +302,10 @@ export const useTagging = create<TaggingState>((set, get) => ({
     // Absolute engine clock, same as toggle() (see the note there).
     const t = s.clock();
     const { state, edges } = closeAll(s.state, s.defs, t, s.config, src);
-    if (s.take && edges.length) s.take.sink.append(edges);
+    if (s.take && edges.length) {
+      s.take.sink.append(edges);
+      s.take.edges.push(...edges);
+    }
     set({ state, countdown: null });
   },
   clearCountdown: () => set({ countdown: null }),
@@ -277,19 +323,38 @@ export const useTagging = create<TaggingState>((set, get) => ({
       wallClockISO: startedAt,
       recStartPerf: t0 * 1000,
       session,
-      schema: TAGS_SCHEMA_ID,
+      schema: ANNOTATIONS_SCHEMA_ID,
     });
     // Fresh log per take: seq starts at 0, no carried-over open tags (the recorded
     // intervals are exactly what is toggled during the take).
-    set({ take: { t0, session, sink }, state: emptyTagState(), countdown: null });
+    set({
+      take: { t0, session, sink, edges: [], startedAt },
+      state: emptyTagState(),
+      countdown: null,
+    });
   },
   endTake: (endT) => {
     const s = get();
     if (!s.take) return '';
     const { edges } = closeAll(s.state, s.defs, endT, s.config, 'auto');
-    if (edges.length) s.take.sink.append(edges);
+    if (edges.length) {
+      s.take.sink.append(edges);
+      s.take.edges.push(...edges);
+    }
     const jsonl = s.take.sink.drain();
-    set({ take: null, state: emptyTagState(), countdown: null });
+    // Retain the finished take so the sheet can still export it. The recorder writes
+    // the JSONL into the take folder; this is the copy the USER can act on — without
+    // it, ending a take silently discarded every annotation the app still held.
+    const lastTake: LastTake = {
+      session: s.take.session,
+      t0: s.take.t0,
+      endT,
+      startedAt: s.take.startedAt,
+      edges: [...s.take.edges],
+      defs: [...s.defs],
+      jsonl,
+    };
+    set({ take: null, lastTake, state: emptyTagState(), countdown: null });
     return jsonl;
   },
 

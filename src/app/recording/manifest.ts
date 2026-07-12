@@ -17,7 +17,7 @@ export type RecordingStreamKind =
   | 'pureVideo'
   | 'overlayAlpha'
   | 'features'
-  | 'tags';
+  | 'annotations';
 
 /** One stream's entry in the manifest. `file` is the name within the folder. */
 export interface RecordingStreamEntry {

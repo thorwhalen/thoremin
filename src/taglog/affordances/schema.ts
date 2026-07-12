@@ -17,9 +17,16 @@
  */
 import { z } from 'zod';
 
-/** The schema id written into a `tags.jsonl` anchor record (version from day one,
- * per the annotation-systems survey). Overridable for a non-thoremin host. */
-export const TAGS_SCHEMA_ID = 'thoremin.tags/1' as const;
+/** The schema id written into a `annotations.jsonl` anchor record (version from day one,
+ * per the annotation-systems survey). Overridable for a non-thoremin host.
+ *
+ * NOTE ON VOCABULARY: this library is `taglog` and its internal nouns are tag/TagDef/
+ * TagEvent — a deliberately generic vocabulary, since it is built to be lifted out as a
+ * standalone package. thoremin's *product* surface calls these **markers**, because
+ * "tag" is already taken there by the instrument library (keywords on a saved preset),
+ * and one word for two unrelated things was actively confusing. So: `tag` inside this
+ * folder, `marker` in the UI and in the artifacts thoremin writes to disk. */
+export const ANNOTATIONS_SCHEMA_ID = 'thoremin.annotations/1' as const;
 
 /** A tag is either a labelled interval (open then close) or an instantaneous point. */
 export const TagKindSchema = z.enum(['interval', 'point']);
@@ -140,7 +147,7 @@ export const AnchorRecordSchema = z.object({
   recStartPerf: z.number(),
   /** Session/take id, for cross-file correlation. */
   session: z.string(),
-  /** Schema id + version (e.g. "thoremin.tags/1"). */
+  /** Schema id + version (e.g. "thoremin.annotations/1"). */
   schema: z.string(),
 });
 export type AnchorRecord = z.infer<typeof AnchorRecordSchema>;

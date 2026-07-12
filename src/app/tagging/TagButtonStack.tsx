@@ -72,7 +72,7 @@ export default function TagButtonStack() {
     <div className="absolute left-3 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5">
       <div className="mb-0.5 flex items-center gap-1.5 px-1 text-[9px] uppercase tracking-widest text-white/50">
         <span className={`inline-block h-1.5 w-1.5 rounded-full ${recording ? 'animate-pulse bg-red-500' : 'bg-white/30'}`} />
-        {recording ? 'tagging · rec' : 'tagging'}
+        {recording ? 'annotations · rec' : 'annotations'}
       </div>
       {defs.map((def) => (
         <TagButton key={def.id} def={def} isOpen={open[def.id] !== undefined} />
