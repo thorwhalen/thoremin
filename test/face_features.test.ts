@@ -3,14 +3,10 @@
  * Unit cases (synthetic blendshapes) + a replay against the real
  * `video_face_expressions` fixture (decoded once via MediaPipe FaceLandmarker).
  */
-import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { replayNode, valuesFromNDJSON } from '@/dag';
+import { replayNode } from '@/dag';
+import { loadStream } from './helpers/fixtures';
 import { faceFeaturesNode, type FaceFeatures, type FaceFrame } from '@/nodes';
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const span = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
 
 function frame(blendshapes: Record<string, number>): FaceFrame {
@@ -54,9 +50,7 @@ describe('face-features node (unit)', () => {
 
 describe('face-features from the video_face_expressions fixture', () => {
   it('detects a face and smile/mouthOpen/browRaise vary through the expression sweep', async () => {
-    const path = join(FIXTURES, 'video_face_expressions', 'face.blendshapes.ndjson');
-    if (!existsSync(path)) throw new Error(`missing ${path} — regenerate (see docs/TESTING.md)`);
-    const faces = valuesFromNDJSON(readFileSync(path, 'utf8')) as FaceFrame[];
+    const faces = loadStream('video_face_expressions', 'face.blendshapes') as FaceFrame[];
 
     const outs = (await replayNode(faceFeaturesNode.make(faceFeaturesNode.params.parse({})), { face: faces })).map(
       (o) => o.features as FaceFeatures,

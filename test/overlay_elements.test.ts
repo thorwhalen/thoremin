@@ -3,9 +3,10 @@
  * each composable overlay element is independently toggled/parameterized by its
  * own params sub-object — the contract behind the per-overlay settings panel.
  *
- * Uses a fake canvas/context (the test runtime is Node, no DOM) that records
- * every draw call (and the live `globalAlpha` at call time), so we can assert
- * which primitives an element drew without rendering pixels.
+ * Uses the shared recording canvas (`./helpers/canvas`): a fake canvas/context (the
+ * test runtime is Node, no DOM) that records every draw call (and the live
+ * `globalAlpha` at call time), so we can assert which primitives an element drew
+ * without rendering pixels.
  */
 import { describe, it, expect } from 'vitest';
 import { Engine } from '@/dag';
@@ -21,52 +22,7 @@ import {
   type HandsFrame,
   type SynthParams,
 } from '@/nodes/domain';
-
-interface Call {
-  m: string;
-  args: unknown[];
-  alpha: number;
-  stroke: string;
-  fill: string;
-}
-
-function makeRecordingCanvas(width = 1280, height = 720) {
-  const calls: Call[] = [];
-  // `ctx` is referenced by the recorders so they can snapshot live props.
-  const ctx: Record<string, unknown> = {
-    globalAlpha: 1,
-    strokeStyle: '',
-    fillStyle: '',
-    lineWidth: 1,
-    font: '',
-    textAlign: '',
-  };
-  const rec =
-    (m: string) =>
-    (...args: unknown[]) => {
-      calls.push({
-        m,
-        args,
-        alpha: ctx.globalAlpha as number,
-        stroke: ctx.strokeStyle as string,
-        fill: ctx.fillStyle as string,
-      });
-    };
-  for (const m of [
-    'clearRect', 'save', 'restore', 'beginPath', 'arc', 'fill', 'stroke',
-    'moveTo', 'lineTo', 'drawImage', 'fillText', 'setLineDash', 'scale', 'translate', 'rotate',
-    'fillRect', // chord-name plate + keyboard-strip keys (#89)
-  ]) {
-    ctx[m] = rec(m);
-  }
-  const canvas = {
-    width,
-    height,
-    getContext: () => ctx,
-  } as unknown as HTMLCanvasElement;
-  const video = { readyState: 2 } as unknown as HTMLVideoElement;
-  return { canvas, video, calls, count: (m: string) => calls.filter((c) => c.m === m).length };
-}
+import { makeRecordingCanvas, type RecordingCanvas } from './helpers/canvas';
 
 function fullInputs() {
   const frame: HandsFrame = {
@@ -438,8 +394,7 @@ describe('canvas-overlay composable elements', () => {
 // A C-major scale spanning an octave (7 distinct pitch classes), so the
 // degree-derivation for the Roman/Nashville function line is well-defined.
 const C_MAJOR = [48, 50, 52, 53, 55, 57, 59, 60];
-const textsOf = (rc: ReturnType<typeof makeRecordingCanvas>) =>
-  rc.calls.filter((c) => c.m === 'fillText').map((c) => c.args[0]);
+const textsOf = (rc: RecordingCanvas) => rc.texts();
 
 describe('chordName cue (#89)', () => {
   it('shows the sounding chord as a jazz symbol (primary line)', () => {

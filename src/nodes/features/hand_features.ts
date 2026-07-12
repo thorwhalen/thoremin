@@ -10,6 +10,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import { clamp01 } from '@/features/math';
 import {
   ABSENT_HAND,
   dist2d,
@@ -66,10 +67,6 @@ const Params = z.object({
     path: ['fingerApart'],
   });
 type Params = z.infer<typeof Params>;
-
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v;
-}
 
 /**
  * Normalize `value` from [lo, hi] to [0, 1], clamped. Guards a zero range so a

@@ -37,16 +37,13 @@ import {
   scaleGuide,
 } from '@/music/theory';
 import { EMOTIONS, type ExpressionScores } from '@/music/expression';
-import { OnlineNormalizer, type NormalizerMode } from '@/features/normalizer';
-import { compileFormula, type CompiledFormula } from '@/features/formula';
+import { clamp01 } from '@/features/math';
+import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
 import {
-  ALL_FEATURES,
-  ALL_SAFE_NAMES,
   DEFAULT_LAB_GROUPS,
   DERIVED_GROUP,
   FEATURE_BY_ID,
   FEATURE_GROUPS,
-  safeName,
   type FeatureVector,
 } from '@/features/catalog';
 import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@/taglog/presentation';
@@ -206,25 +203,13 @@ const LEFT_COLOR = '#3b82f6';
 const FACE_COLOR = '#22d3ee'; // cyan — distinct from hands (emerald/blue) + chord (gold)
 const CHORD_COLOR = '#f5d142'; // warm gold
 
-/**
- * The normalized meter data the `featureLab` element draws, precomputed by the
- * overlay node (which owns the stateful {@link OnlineNormalizer}) so the element
- * itself stays a pure renderer. `order` is the display order of the present,
- * enabled feature ids; `levels`/`markers` are keyed by feature id.
- */
-export interface FeatureMeters {
-  order: string[];
-  raw: FeatureVector;
-  levels: Record<string, number>;
-  markers: Record<string, number[]>;
-}
-
 /** Everything an overlay element needs to draw a frame. */
 export interface OverlayView {
   W: number;
   H: number;
   video?: HTMLVideoElement;
-  /** Precomputed feature-lab meters (present only while the lab is shown). */
+  /** Feature-lab meters, computed by {@link createLabMeterComputer} (present only
+   *  while the lab is shown). The overlay only DRAWS them. */
   featureMeters?: FeatureMeters;
   inputs: {
     hands?: HandsFrame;
@@ -285,7 +270,6 @@ function mirrorX(xPx: number, frameW: number, W: number): number {
 function isDisplayedRight(handedness: string): boolean {
   return handedness === 'Left';
 }
-const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 const videoBackdrop: OverlayElement = {
   name: 'video',
@@ -1118,8 +1102,9 @@ function drawLabMeter(
 /**
  * The Feature Lab panel (#119): a right-anchored, newspaper-column grid of
  * grouped, online-normalized meters over the raw face + hand feature vectors. The
- * overlay node precomputes {@link OverlayView.featureMeters} (it owns the
- * normalizer); this element is a pure renderer. Group headers repeat at the top of
+ * statistics are computed by {@link createLabMeterComputer} (which owns the
+ * normalizer + the derived formulas) and handed in as
+ * {@link OverlayView.featureMeters}; this element is a pure renderer. Group headers repeat at the top of
  * a continued column; a "+N more" note is drawn if features overflow the panel, so
  * nothing is silently dropped. Opt-in (a large panel).
  */
@@ -1386,93 +1371,10 @@ export const canvasOverlayNode = defineNode<Params>({
   outputs: [],
   params: Params,
   make(p) {
-    // The Feature Lab (#119) owns a stateful online normalizer that accumulates
-    // per-feature statistics from the moment the lab is shown. It lives in the node
-    // closure so the `featureLab` element stays a pure renderer.
-    const labNormalizer = new OnlineNormalizer();
-    let labPrevShow = false;
-    let labResetNonce = 0;
-    // Derived formulas are compiled once and re-compiled only when the config
-    // changes (detected by a cheap signature), never per-frame.
-    let derivedSig = '';
-    let compiledDerived: { id: string; fn: CompiledFormula }[] = [];
-
-    const compileDerived = (list: Params['featureLab']['derived']): { id: string; fn: CompiledFormula }[] => {
-      const out: { id: string; fn: CompiledFormula }[] = [];
-      for (const d of list) {
-        if (!d.id || !d.formula) continue;
-        try {
-          out.push({ id: d.id, fn: compileFormula(d.formula, { variables: ALL_SAFE_NAMES }) });
-        } catch {
-          // Invalid formula: skip it (the derived-feature editor surfaces the
-          // compile error; the per-frame loop must never throw).
-        }
-      }
-      return out;
-    };
-
-    /** Merge the raw face+hand vectors, evaluate the derived formulas over the
-     *  merged scope, observe the enabled/present features, and build the normalized
-     *  meter data the featureLab element draws. Returns undefined when the lab is
-     *  hidden (the element then draws nothing). */
-    const computeFeatureMeters = (
-      cfg: Params['featureLab'],
-      faceVec: FeatureVector | undefined,
-      handVec: FeatureVector | undefined,
-      ctx: NodeContext,
-    ): FeatureMeters | undefined => {
-      if (!cfg.show) {
-        labPrevShow = false;
-        return undefined;
-      }
-      // Re-zero the stats when the lab is (re)opened or an explicit reset fires.
-      if (!labPrevShow || cfg.resetNonce !== labResetNonce) labNormalizer.reset();
-      labPrevShow = true;
-      labResetNonce = cfg.resetNonce;
-      labNormalizer.setMode(cfg.normalizer as NormalizerMode);
-
-      const raw: FeatureVector = { ...(faceVec ?? {}), ...(handVec ?? {}) };
-      const enabled = new Set(cfg.groups);
-
-      // Derived (formula) features over the MERGED scope (so a formula may combine
-      // face + hand features). Recompile only on change.
-      const sig = JSON.stringify(cfg.derived);
-      if (sig !== derivedSig) {
-        derivedSig = sig;
-        compiledDerived = compileDerived(cfg.derived);
-      }
-      if (compiledDerived.length && enabled.has(DERIVED_GROUP)) {
-        const scope: Record<string, number> = {};
-        for (const k of Object.keys(raw)) scope[safeName(k)] = raw[k];
-        for (const d of compiledDerived) {
-          const val = d.fn.eval(scope);
-          if (Number.isFinite(val)) raw[`derived.${d.id}`] = val;
-        }
-      }
-
-      const order: string[] = [];
-      const levels: Record<string, number> = {};
-      const markers: Record<string, number[]> = {};
-      const take = (id: string, v: number): void => {
-        labNormalizer.observe(id, v, ctx.dt);
-        order.push(id);
-        levels[id] = labNormalizer.level(id, v);
-        if (cfg.showMarkers) markers[id] = labNormalizer.markers(id);
-      };
-      // Catalog features first (in display order), then any derived features.
-      for (const feat of ALL_FEATURES) {
-        if (!enabled.has(feat.group)) continue;
-        const v = raw[feat.id];
-        if (v === undefined) continue; // not present this frame (dropped as NaN upstream)
-        take(feat.id, v);
-      }
-      if (enabled.has(DERIVED_GROUP)) {
-        for (const key of Object.keys(raw)) {
-          if (key.startsWith('derived.')) take(key, raw[key]);
-        }
-      }
-      return { order, raw, levels, markers };
-    };
+    // The Feature Lab's statistics (#119) are a stateful online computation, not a
+    // drawing concern: one opaque handle owns the normalizer + the derived formulas
+    // (see @/features/labMeters), so this node stays a pure RENDERER.
+    const computeLabMeters = createLabMeterComputer();
 
     return {
       process(inputs, ctx: NodeContext) {
@@ -1530,13 +1432,13 @@ export const canvasOverlayNode = defineNode<Params>({
           },
         };
 
-        // Precompute the Feature Lab meters once per tick (the normalizer observes
-        // here); the featureLab element and the alpha pass both draw from this.
-        view.featureMeters = computeFeatureMeters(
+        // Compute the Feature Lab meters once per tick (the normalizer observes here);
+        // the featureLab element and the alpha pass both draw from this.
+        view.featureMeters = computeLabMeters(
           view.params.featureLab,
           inputs.faceVector as FeatureVector | undefined,
           inputs.handVector as FeatureVector | undefined,
-          ctx,
+          ctx.dt,
         );
 
         view.layout = layoutCues(view);

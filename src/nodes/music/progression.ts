@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { Key } from 'tonal';
 import { defineNode } from '@/dag';
+import { clamp01 } from '@/features/math';
 
 const Params = z
   .object({
@@ -25,10 +26,6 @@ const Params = z
     path: ['key'],
   });
 type Params = z.infer<typeof Params>;
-
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v;
-}
 
 const ROMAN_TO_DEGREE: Record<string, number> = {
   i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7,

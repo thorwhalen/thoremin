@@ -1,29 +1,15 @@
 /**
- * Feature Lab overlay element (#119) drawn headlessly against a recording 2D
- * context: the node normalizes the incoming face/hand vectors (it owns the
- * stateful normalizer) and the featureLab element renders the grouped meters. We
- * assert it is opt-in, that it draws a titled panel with per-feature bars + labels
- * once warmed, and that the live overlayConfig drives show/groups.
+ * Feature Lab overlay element (#119) drawn headlessly against the shared recording 2D
+ * context (`./helpers/canvas`): the node hands the incoming face/hand vectors to the
+ * lab-meter computer (which owns the normalizer — unit-tested in lab_meters.test.ts)
+ * and the featureLab element RENDERS the grouped meters. We assert it is opt-in, that
+ * it draws a titled panel with per-feature bars + labels once warmed, and that the live
+ * overlayConfig drives show/groups.
  */
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@/dag';
 import { canvasOverlayNode } from '@/nodes/output/canvas_overlay';
-
-interface Call {
-  m: string;
-  args: unknown[];
-}
-
-function makeRecordingCanvas(width = 1280, height = 720) {
-  const calls: Call[] = [];
-  const ctx: Record<string, unknown> = { globalAlpha: 1, strokeStyle: '', fillStyle: '', lineWidth: 1, font: '', textAlign: '' };
-  const rec = (m: string) => (...args: unknown[]) => calls.push({ m, args });
-  for (const m of ['clearRect', 'save', 'restore', 'beginPath', 'arc', 'fill', 'stroke', 'moveTo', 'lineTo', 'drawImage', 'fillText', 'setLineDash', 'scale', 'translate', 'rotate', 'fillRect']) {
-    ctx[m] = rec(m);
-  }
-  const canvas = { width, height, getContext: () => ctx } as unknown as HTMLCanvasElement;
-  return { canvas, calls, texts: () => calls.filter((c) => c.m === 'fillText').map((c) => String(c.args[0])), count: (m: string) => calls.filter((c) => c.m === m).length };
-}
+import { makeRecordingCanvas } from './helpers/canvas';
 
 /** Run the overlay node `ticks` times, feeding a slightly different jaw-open value
  *  each tick so the normalizer warms up, and return the LAST tick's recording. */

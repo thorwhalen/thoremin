@@ -3,14 +3,10 @@
  * events, hysteresis, and a replay from the real hand fixtures (the open/close
  * clip should produce fist↔open transitions; the pinch clip should detect pinch).
  */
-import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { replayNode, valuesFromNDJSON } from '@/dag';
+import { replayNode } from '@/dag';
+import { loadStream } from './helpers/fixtures';
 import { gestureClassifierNode, ABSENT_HAND, type HandFeatures, type GestureEvent, type Pose } from '@/nodes';
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
 function feat(right: Partial<typeof ABSENT_HAND>): HandFeatures {
   return { left: { ...ABSENT_HAND }, right: { ...ABSENT_HAND, present: true, ...right } };
@@ -61,11 +57,7 @@ describe('gesture-classifier (unit)', () => {
 
 describe('gesture-classifier from video fixtures', () => {
   it('open/close clip yields fist and open poses; pinch clip detects pinch', async () => {
-    const load = (scn: string) => {
-      const path = join(FIXTURES, scn, 'feat.features.ndjson');
-      if (!existsSync(path)) throw new Error(`missing ${path}`);
-      return valuesFromNDJSON(readFileSync(path, 'utf8')) as HandFeatures[];
-    };
+    const load = (scn: string) => loadStream(scn, 'feat.features') as HandFeatures[];
 
     // This AI-generated clip's tracked openness peaks ~0.5, so use an openAbove
     // the data supports (a real reminder that thresholds are camera/hand-tunable).

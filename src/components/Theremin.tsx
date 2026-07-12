@@ -1,3 +1,6 @@
+// FROZEN legacy engine (`?engine=legacy` only) — kept working, not developed, and
+// excluded from refactors by convention. See the note at the top of src/App.tsx; the
+// DAG app (src/app/App.tsx) is the product.
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as handPoseDetection from '@tensorflow-models/hand-pose-detection';
 import '@tensorflow/tfjs-backend-webgl';

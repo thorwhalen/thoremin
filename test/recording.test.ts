@@ -1,8 +1,9 @@
 /**
  * Tests the recording-settings building blocks (issue #49): the in-house WAV
- * encoder, the open-closed format registry, the format selection in the store,
- * the toast store, and the save helper (file-picker + download fallback). The
- * live MediaRecorder capture is browser-only and not exercised here.
+ * encoder, the open-closed format registry, the toast store, and the save helper
+ * (file-picker + download fallback). Format SELECTION now lives in the recording-v2
+ * session schema (see recording_schema.test.ts), not the control store. The live
+ * MediaRecorder capture is browser-only and not exercised here.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { encodeWav, type PcmSource } from '@/app/recording/wav';
@@ -11,7 +12,6 @@ import {
   DEFAULT_RECORDING_FORMATS,
   recordingFormat,
 } from '@/app/recording/formats';
-import { useControls } from '@/app/store';
 import { useToasts } from '@/app/toasts';
 
 vi.mock('@/app/recorder', () => ({ downloadBlob: vi.fn() }));
@@ -89,20 +89,6 @@ describe('recording format registry', () => {
     for (const f of RECORDING_FORMATS) {
       expect(typeof (await f.load())).toBe('function');
     }
-  });
-});
-
-describe('store recording formats', () => {
-  beforeEach(() => useControls.setState({ recordingFormats: ['webm'] }));
-
-  it('toggles formats and always keeps at least one selected', () => {
-    const s = () => useControls.getState();
-    s().setRecordingFormat('wav', true);
-    expect(s().recordingFormats).toEqual(['webm', 'wav']);
-    s().setRecordingFormat('webm', false);
-    expect(s().recordingFormats).toEqual(['wav']);
-    s().setRecordingFormat('wav', false); // would empty the list -> ignored
-    expect(s().recordingFormats).toEqual(['wav']);
   });
 });
 

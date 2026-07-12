@@ -30,6 +30,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import { clamp01 } from '@/features/math';
 import type { NodeContext } from '@/dag';
 import { diatonicChord, midiToFreq, SCALE_TYPES, type ScaleSpec } from '@/music/theory';
 import { SoundSchema } from '@/music/sounds';
@@ -80,7 +81,6 @@ interface ChordConfig {
   bpm?: number;
 }
 
-const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 const clampSigned = (v: number): number => (v < -1 ? -1 : v > 1 ? 1 : v);
 
 /** Head-yaw [-1,1] → a scale degree 0..(count-1): a left→right sweep of the chord
