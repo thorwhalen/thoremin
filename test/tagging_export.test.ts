@@ -55,6 +55,26 @@ beforeEach(() => {
   });
 });
 
+/**
+ * The wire rows of a finished take's ARCHIVAL JSONL (the file the recorder drops in the
+ * take folder), filtered to one tag + status.
+ *
+ * The export can *look* right while the archival log is broken, so the log has to be
+ * asserted directly. `resolveIntervals` synthesizes an interval from a LONE open when it
+ * is given `endT` (its open-ended path), which means a start/end assertion on the export
+ * passes just as happily when the close edge was never written — the difference shows up
+ * only as `openEnded: true` and a missing `close` row. A consumer of the SSOT (which has
+ * no `endT`, only the file) has no such fallback: an unpaired open tells it nothing about
+ * where the interval ended.
+ */
+function wireRows(take: LastTake, tag: string, status: 'open' | 'close' | 'point'): unknown[] {
+  return take.jsonl
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+    .filter((row) => row.tag === tag && row.status === status);
+}
+
 /** Record a take: A spans [t0+1, t0+3], a point fires at t0+4, A reopens and is still
  *  open when the take stops at t0+6 (so it must be auto-closed at the end). */
 function recordTake(): LastTake {
@@ -114,7 +134,7 @@ describe('the take snapshots the annotation set it STARTED with', () => {
     expect(renderTake(last, 'audacity').body).toContain('Verse');
   });
 
-  it('an annotation deleted mid-take still gets its open interval closed at the end', () => {
+  it('an annotation deleted mid-take still gets its open interval CLOSED at the end', () => {
     const st = useTagging.getState();
     st.setDefs([A, P]);
     st.beginTake({ t0: T0, startedAt: 'x', session: 'sess_x' });
@@ -124,8 +144,39 @@ describe('the take snapshots the annotation set it STARTED with', () => {
     useTagging.getState().endTake(T0 + 6);
 
     const last = useTagging.getState().lastTake!;
-    // Closing against the LIVE defs would have dropped this interval on the floor.
-    expect(resolveTake(last)).toMatchObject([{ tag: 'a', start: 1, end: 6, kind: 'interval' }]);
+    const [iv] = resolveTake(last);
+    expect(iv).toMatchObject({ tag: 'a', start: 1, end: 6, kind: 'interval' });
+    // These two are the load-bearing assertions, and start/end are NOT: closing against
+    // the live defs (which no longer have `a`) drops the orphaned open and emits no close
+    // edge — yet resolveIntervals' open-ended path then synthesizes the very same
+    // {start: 1, end: 6} from the lone open. The observable difference is here.
+    expect(iv.openEnded).toBe(false);
+    expect(wireRows(last, 'a', 'close')).toHaveLength(1); // a real close in the archival log
+  });
+
+  it('an annotation ADDED mid-take is closed, labelled and exported like any other', () => {
+    const st = useTagging.getState();
+    st.setDefs([A]);
+    st.beginTake({ t0: T0, startedAt: 'x', session: 'sess_x' });
+    // Mid-performance: "I want to mark the bridge." The sheet stays openable, so add it
+    // and tap it. `toggle` opens against the LIVE defs, so it records from that instant —
+    // and therefore has to be closable and nameable at the end of the take.
+    useTagging.getState().addTag({ label: 'Bridge' });
+    const bridge = useTagging.getState().defs.find((d) => d.label === 'Bridge')!;
+    setNow(T0 + 2);
+    useTagging.getState().toggle(bridge.id, 'click');
+    useTagging.getState().endTake(T0 + 6);
+
+    const last = useTagging.getState().lastTake!;
+    const iv = resolveTake(last).find((x) => x.tag === bridge.id)!;
+    expect(iv).toMatchObject({ start: 2, end: 6, kind: 'interval', openEnded: false });
+    // Closing against the take's SNAPSHOT alone orphans this open (the def did not exist
+    // at beginTake): no close edge in the archival JSONL — an unpaired open no consumer
+    // can bound — and the export falls back to the raw generated id for want of a label.
+    expect(wireRows(last, bridge.id, 'close')).toHaveLength(1);
+    const body = renderTake(last, 'audacity').body;
+    expect(body).toContain('Bridge');
+    expect(body).not.toContain(bridge.id);
   });
 });
 

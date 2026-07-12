@@ -179,8 +179,15 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
 
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-widest text-white/50">Annotations</span>
+        {/* Adding mid-take is DELIBERATELY allowed (unlike deleting — see TagRow): you are
+            playing, you realise you want to mark "Bridge", you add it and tap it. The store
+            supports it end to end — `toggle` opens against the live set, and `endTake` closes
+            and labels against the take snapshot UNIONED with the live set (store.ts
+            `takeDefs`), so a mid-take annotation gets a real close edge in the archival JSONL
+            and its own label in the export. Deleting is the confusing one, not adding. */}
         <button
           onClick={() => addTag()}
+          title={recording ? 'You can add an annotation mid-take — it records from the moment you tap it' : undefined}
           className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition hover:bg-white/20"
         >
           <Plus className="h-3 w-3" /> Add

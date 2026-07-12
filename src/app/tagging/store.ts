@@ -53,8 +53,35 @@ interface TakeContext {
    *  endTake — because the sheet stays openable mid-take: renaming "Verse" to "Chorus"
    *  while recording must not retroactively relabel what was already recorded (and
    *  deleting a def must not silently drop the auto-close of an interval it left open).
-   *  This is the set both the end-of-take closeAll and the export label from. */
+   *  It is the BASE of the set the end-of-take closeAll and the export label from — see
+   *  {@link takeDefs} for why that set is the snapshot UNIONED with the live defs. */
   defs: TagDef[];
+}
+
+/**
+ * The annotation set a finished take is CLOSED and LABELLED against: the take's own
+ * snapshot, extended with any definition that only exists in the LIVE set (i.e. was
+ * added during the take). Snapshot wins on every id it has.
+ *
+ * Both mid-take edits pull the other way, and both must work:
+ *
+ *  - EDIT/DELETE of a def the take started with — the SNAPSHOT must win. Renaming
+ *    "Verse" to "Chorus" while recording must not retroactively relabel what was
+ *    already recorded, and deleting a def must not silently drop the auto-close of an
+ *    interval it left open (`closeAll` drops opens whose def it cannot find).
+ *  - ADD of a def during the take — the LIVE set must be consulted. `toggle` opens
+ *    against the live defs, so an annotation created mid-take is immediately tappable;
+ *    it therefore has to be closable and nameable too. Closing against the snapshot
+ *    alone orphans its open: NO `close` edge in the archival `.annotations.jsonl` (an
+ *    unpaired open, with nothing telling a consumer where the interval ended), no label
+ *    in the export, and an `openEnded` resolve.
+ *
+ * Union, snapshot-first: everything the take could have opened is closable, and nothing
+ * the take recorded is rewritten.
+ */
+function takeDefs(snapshot: readonly TagDef[], live: readonly TagDef[]): TagDef[] {
+  const recorded = new Set(snapshot.map((d) => d.id));
+  return [...snapshot, ...live.filter((d) => !recorded.has(d.id))];
 }
 
 /** How a take ended. An ABANDONED take is one whose recorder was torn down without a
@@ -81,8 +108,9 @@ export interface EndTakeOptions {
  * not state the instrument owns. The archival copy is the `.annotations.jsonl` in the take
  * folder, and the panel says so.
  *
- * `defs` comes from the take's own snapshot ({@link TakeContext}), so an export always
- * carries the labels the annotations were recorded WITH.
+ * `defs` is the take's own snapshot ({@link TakeContext}) unioned with anything added to
+ * the live set mid-take ({@link takeDefs}), so an export carries the labels the
+ * annotations were recorded WITH — and every annotation the take could tap has one.
  */
 export interface LastTake {
   /** The take id == the recording stem == the take's folder + file-stem name, so an
@@ -355,9 +383,13 @@ export const useTagging = create<TaggingState>((set, get) => ({
   endTake: (endT, opts) => {
     const s = get();
     if (!s.take) return '';
-    // Close against the take's OWN defs, not the current ones: an annotation deleted
-    // mid-take still has an open interval in `state` and must still be closed.
-    const { edges } = closeAll(s.state, s.take.defs, endT, s.config, 'auto');
+    // Neither the take's snapshot NOR the live set is the right thing to close against
+    // on its own — it is their union (see takeDefs). Closing against the live set alone
+    // drops an interval whose def was DELETED mid-take; closing against the snapshot
+    // alone drops the close of an interval whose def was ADDED mid-take (`toggle` opens
+    // against the live defs, so such an annotation is tappable and must be closable).
+    const defs = takeDefs(s.take.defs, s.defs);
+    const { edges } = closeAll(s.state, defs, endT, s.config, 'auto');
     if (edges.length) {
       s.take.sink.append(edges);
       s.take.edges.push(...edges);
@@ -366,12 +398,14 @@ export const useTagging = create<TaggingState>((set, get) => ({
     // Retain the finished take so the sheet can still export it. The recorder writes
     // the JSONL into the take folder; this is the copy the USER can act on — without
     // it, ending a take silently discarded every annotation the app still held.
+    // `defs` is the same union the closeAll used, so every recorded annotation carries
+    // a label in the export — including one created mid-take.
     const lastTake: LastTake = {
       session: s.take.session,
       t0: s.take.t0,
       endT,
       edges: [...s.take.edges],
-      defs: [...s.take.defs],
+      defs,
       jsonl,
     };
     // An abandoned take (no clean stop => no media files on disk) publishes only if it
