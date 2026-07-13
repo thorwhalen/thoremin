@@ -230,3 +230,34 @@ describe('convertAudioFormats', () => {
     expect(out[1].blob).toBe(native);
   });
 });
+
+describe('the encode does not freeze the page', () => {
+  // MP3 encoding is ~11x the cost of the WAV pass over the same buffer and lamejs's
+  // encodeBuffer is synchronous, so encoding a take in ONE task hangs the tab: ~45x
+  // realtime on a fast machine, i.e. tens of seconds of frozen canvas for a 10-minute
+  // take on a mid-range laptop. The loop must hand the event loop back periodically.
+  it('yields to the event loop during a multi-frame encode', async () => {
+    const { Ctor } = fakeEncoder();
+    // Long enough to cross the yield threshold (128 frames x 1152 samples).
+    const audio = pcm([ramp(300 * 1152)]);
+
+    // A macrotask queued BEFORE the encode. If the encode never yields, it cannot run
+    // until the encode has finished — which is exactly what a frozen page is.
+    let macrotaskRan = false;
+    setTimeout(() => {
+      macrotaskRan = true;
+    }, 0);
+
+    await encodeMp3(audio, { loadEncoder: async () => Ctor });
+    expect(macrotaskRan).toBe(true);
+  });
+
+  it('a SHORT take still encodes correctly (the yield never drops a frame)', async () => {
+    const { Ctor, calls } = fakeEncoder();
+    const audio = pcm([ramp(300 * 1152)]);
+    const blob = await encodeMp3(audio, { loadEncoder: async () => Ctor });
+    expect(calls.blocks).toHaveLength(300); // every frame encoded, none skipped by a yield
+    expect(calls.flushed).toBe(1);
+    expect(blob.type).toBe('audio/mpeg');
+  });
+});

@@ -31,6 +31,14 @@ const MAX_CHANNELS = 2;
 /** Full-scale for 16-bit PCM (matches the WAV encoder's quantization). */
 const INT16_SCALE = 32767;
 
+/** Frames encoded between yields — 128 frames ≈ 3 s of audio at 44.1/48 kHz. Small enough
+ *  that the page stays responsive, large enough that the yields cost nothing measurable. */
+const YIELD_EVERY_FRAMES = 128;
+
+/** Hand the event loop back so the rAF/render loop can run mid-encode. A macrotask
+ *  (`setTimeout`), not a microtask — a promise chain would not let paint or input through. */
+const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
 /** The slice of the lamejs encoder we drive (kept structural so a test can pass a
  * fake module in place of the real, lazily-loaded one). */
 export interface Mp3EncoderLike {
@@ -122,6 +130,7 @@ export async function encodeMp3(audio: PcmSource, opts: EncodeMp3Options = {}): 
   const rightFrame = right ? new Int16Array(SAMPLES_PER_FRAME) : null;
 
   const parts: Uint8Array[] = [];
+  let framesSinceYield = 0;
   for (let i = 0; i < audio.length; i += SAMPLES_PER_FRAME) {
     const n = Math.min(SAMPLES_PER_FRAME, audio.length - i);
     const l = pcm16(left, i, n, leftFrame);
@@ -129,6 +138,15 @@ export async function encodeMp3(audio: PcmSource, opts: EncodeMp3Options = {}): 
     const chunk = encoder.encodeBuffer(l, r);
     // Copy: the frame buffers above are reused, and lamejs may hand back a view.
     if (chunk.length) parts.push(new Uint8Array(chunk));
+    // YIELD. `encodeBuffer` is synchronous and MP3 encoding is ~11x the cost of the WAV
+    // pass over the same buffer, so encoding a whole take in one task freezes the page:
+    // measured ~45x realtime on a fast machine, i.e. a 10-minute take is tens of seconds
+    // of a hung tab (canvas frozen, "Page unresponsive") on a mid-range laptop. Handing
+    // the event loop back every ~3 s of audio keeps the UI alive at a negligible cost.
+    if (++framesSinceYield >= YIELD_EVERY_FRAMES) {
+      framesSinceYield = 0;
+      await yieldToEventLoop();
+    }
   }
   const tail = encoder.flush();
   if (tail.length) parts.push(new Uint8Array(tail));

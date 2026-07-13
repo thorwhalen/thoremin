@@ -424,9 +424,14 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         // The take recorded fine but the user dismissed the Save-As dialog — be
         // honest that nothing was written rather than toasting a false "Saved".
         useToasts.getState().push('Recording not saved (save cancelled)', 5000, 'error');
-      } else if (res.count > 0) {
+      } else if (res.streamCount > 0) {
+        // streamCount, not count: the manifest is always written, so `count` is >= 1 even
+        // on a take where every audio format failed to encode and nothing else was
+        // selected. "Saved" must mean a stream actually landed.
         const suffix = res.count > 1 ? ` (${res.count} files)` : '';
         useToasts.getState().push(`Saved ${res.label}${suffix}`);
+      } else if (!res.failedFormats.length) {
+        useToasts.getState().push('Nothing was recorded — no streams were saved', 6000, 'error');
       }
     } catch (e) {
       console.error('[thoremin] recording save failed', e);

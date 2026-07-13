@@ -33,6 +33,13 @@ export interface RecordingResult extends SinkResult {
   /** Ids of the selected audio formats that could not be encoded. Empty on a
    * clean take. */
   failedFormats: string[];
+  /** How many actual STREAM files landed (audio/video/features/annotations) — the
+   *  manifest does not count. The sink's `count` includes the manifest, which is always
+   *  planned and always written: with (say) MP3 as the only selected audio format and the
+   *  encoder unavailable, `count` would be 1 and the UI would toast "Saved" over an
+   *  archive containing nothing but a manifest with `streams: []`. That is precisely the
+   *  lie this change set out to remove, so the UI gates on this instead. */
+  streamCount: number;
 }
 
 export interface SessionRecorderDeps {
@@ -376,7 +383,7 @@ export class SessionRecorder {
 
     this.tap = null;
 
-    if (this.sink) return { ...(await this.sink.close()), failedFormats };
+    if (this.sink) return { ...(await this.sink.close()), failedFormats, streamCount: written.length };
     // Single-file escape hatch: exactly one bare file was written via saveBlob in
     // writeFile; report it (honoring a dismissed Save-As dialog as a cancellation
     // rather than a false success). If that single file was the one format that
@@ -389,6 +396,7 @@ export class SessionRecorder {
       viaPicker: false,
       cancelled: this.lastSaveCancelled,
       failedFormats,
+      streamCount: written.length,
     };
   }
 
