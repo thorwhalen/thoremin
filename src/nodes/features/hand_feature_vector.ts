@@ -30,6 +30,7 @@ import {
   type HandCtx,
   type HandSide,
 } from '@/features/catalog';
+import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
 
 const Params = z.object({
   /** Mirror image-x so moving right increases x (selfie view), matching hand-features. */
@@ -41,18 +42,13 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
-interface LiveLabConfig {
-  show?: boolean;
-  groups?: string[];
-}
-type ControlsGetter = () => { overlay?: { featureLab?: LiveLabConfig } } | undefined;
+type ControlsGetter = () => LabControlsSnapshot | undefined;
 
+/** Resolve the active flag + enabled-group predicate. The rule itself lives in
+ *  `@/features/labConfig` — it is shared with the hand/face twin, and keeping two copies
+ *  of it is how #136 silently un-gated the whole catalog. */
 function resolveGroups(p: Params, ctx: NodeContext): { active: boolean; enabled: (group: string) => boolean } {
-  const live = (ctx.resources.controls as ControlsGetter | undefined)?.()?.overlay?.featureLab;
-  const active = live ? live.show === true : true;
-  const groups = live?.groups ?? p.groups;
-  const set = groups ? new Set(groups) : null;
-  return { active, enabled: (group: string) => (set ? set.has(group) : true) };
+  return resolveLabGate(p, (ctx.resources.controls as ControlsGetter | undefined)?.());
 }
 
 export const handFeatureVectorNode = defineNode<Params>({

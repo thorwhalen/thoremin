@@ -17,7 +17,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { ScaleTypeId } from '@/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
-import { OverlayParamsSchema, type OverlayParams } from '@/nodes/output/canvas_overlay';
+import { OverlayDialSchema, type OverlayDialParams } from '@/nodes/output/canvas_overlay';
+import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
 import {
   DEFAULT_FACE_CHORD,
@@ -83,8 +84,9 @@ export interface ControlState {
   /**
    * What the player's facial expression maps to: `none` (off, default), `timbre`
    * (smile→brightness, open mouth→vibrato), or `chord` (expression selects a
-   * diatonic triad). Any non-`none` mode lazy-loads the `webcam-face` model. Read
-   * by the nodes each tick via `ctx.resources.controls`.
+   * diatonic triad). Any non-`none` mode lazy-loads the `webcam-face` model — as does
+   * the Feature Lab when it measures face groups (#136), so this is no longer the only
+   * switch on the model. Read by the nodes each tick via `ctx.resources.controls`.
    */
   faceMapping: FaceMapping;
   /** How the face chord sounds (sound / volume / voicing / rendering / tempo).
@@ -94,8 +96,23 @@ export interface ControlState {
    *  `face-expression`) + per-expression scale-degree map (read live by
    *  `expression-chord`). */
   faceExpr: FaceExpr;
-  /** Composable overlay element config (see canvas_overlay.ts). Live-controlled. */
-  overlay: OverlayParams;
+  /** Composable overlay element config (see canvas_overlay.ts). Live-controlled.
+   *  This is the DIAL-facing overlay — the Feature Lab is deliberately not in it
+   *  (see {@link featureLab}). */
+  overlay: OverlayDialParams;
+  /**
+   * Feature Instrumentation Lab config (#119): which feature groups are measured,
+   * how they are normalized, the derived formulas.
+   *
+   * A TOOLING preference, not an instrument parameter — like {@link faceCalibration},
+   * it is persisted per-device but is NOT a preset field, so it never rides an
+   * instrument. Before #136 it lived inside the `overlay` dial, which meant opening a
+   * measuring tool marked the instrument dirty and loading an instrument silently
+   * reconfigured the meters. `store-controls` composes it into the overlay node's
+   * params each tick, and `webcam-face` reads it to decide whether the face model is
+   * wanted (so you can measure the face without the face driving the sound).
+   */
+  featureLab: FeatureLabConfig;
   /** The hand→sound mapping: note source (index/wrist), finger→effect routing, and
    *  the once-static voice knobs. Read live by `voice-mapping` via
    *  `ctx.resources.controls`. See src/nodes/mapping/hand_map.ts. */
@@ -120,7 +137,9 @@ export interface ControlState {
   /** Set the scale degree (0..6) an expression maps to. */
   setExpressionDegree(expr: string, degree: number): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
-  setOverlayElement<K extends keyof OverlayParams>(key: K, patch: Partial<OverlayParams[K]>): void;
+  setOverlayElement<K extends keyof OverlayDialParams>(key: K, patch: Partial<OverlayDialParams[K]>): void;
+  /** Patch the Feature Lab config (e.g. setFeatureLab({ show: true })). */
+  setFeatureLab(patch: Partial<FeatureLabConfig>): void;
   /** Shallow-patch the hand map (e.g. setHandMap({ positionSource: 'wrist' }), or a new
    *  `fingers` object for a route change). */
   setHandMap(patch: Partial<HandMap>): void;
@@ -145,7 +164,7 @@ const defaultVoice = (sound: VoiceParams['sound']): VoiceControl => ({
 });
 
 /** The overlay element defaults (all on except the opt-in index-finger guide). */
-const defaultOverlay = (): OverlayParams => OverlayParamsSchema.parse({});
+const defaultOverlay = (): OverlayDialParams => OverlayDialSchema.parse({});
 
 /** Pick exactly the preset fields ({@link SETTINGS_KEYS}) from a state-like object. */
 function pickSettings(s: Record<string, unknown>): Settings {
@@ -199,6 +218,22 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
       }
     }
   }
+  if (version < 7) {
+    // #136: the Feature Lab moved OUT of the `overlay` dial (an instrument parameter)
+    // and onto its own per-device tooling field. Carry a returning player's lab config
+    // across rather than dropping it on the floor — `overlay` is re-parsed through the
+    // lab-free OverlayDialSchema in mergeControls, which would strip it silently.
+    const ov = s.overlay as Record<string, unknown> | undefined;
+    if (ov?.featureLab !== undefined) {
+      if (s.featureLab === undefined) s.featureLab = ov.featureLab;
+      // Copy rather than `delete` on the caller's object: `persisted` is only shallow-
+      // copied above, so `s.overlay` IS their object. (mergeControls re-parses `overlay`
+      // through the lab-free schema and would drop the key anyway — this keeps the
+      // directly-tested migrate honest about not mutating its input.)
+      const { featureLab: _lifted, ...rest } = ov;
+      s.overlay = rest;
+    }
+  }
   return s as unknown as ControlState;
 }
 
@@ -216,9 +251,18 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   let overlay = current.overlay;
   if (p.overlay) {
     try {
-      overlay = OverlayParamsSchema.parse(p.overlay);
+      overlay = OverlayDialSchema.parse(p.overlay);
     } catch {
       overlay = current.overlay;
+    }
+  }
+  // Heal the lab config the same way (an older blob has none → the default meters).
+  let featureLab = current.featureLab;
+  if (p.featureLab) {
+    try {
+      featureLab = FeatureLabSchema.parse(p.featureLab);
+    } catch {
+      featureLab = current.featureLab;
     }
   }
   // Re-parse faceChord: complete a partial blob from the defaults, then validate,
@@ -259,7 +303,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       handMap = current.handMap;
     }
   }
-  return { ...current, ...p, overlay, faceMapping, faceChord, faceExpr, handMap };
+  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -289,6 +333,7 @@ export const useControls = create<ControlState>()(
         degrees: { ...DEFAULT_FACE_EXPR.degrees },
       },
       overlay: defaultOverlay(),
+      featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
       faceCalibration: null,
       setVoice: (side, patch) =>
@@ -322,8 +367,9 @@ export const useControls = create<ControlState>()(
         })),
       setOverlayElement: (key, patch) =>
         set((s) => ({
-          overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayParams,
+          overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayDialParams,
         })),
+      setFeatureLab: (patch) => set((s) => ({ featureLab: { ...s.featureLab, ...patch } })),
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
       setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
       // Restore exactly the schema fields (the setters are left untouched). Derived
@@ -344,15 +390,20 @@ export const useControls = create<ControlState>()(
       // v4: added the `handMap`. v3: `instrument` → `sound` rename. v2: the face-mapping
       // chooser (#64). See migrateControls (field renames/bumps) and mergeControls (heals
       // stale nested `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
-      version: 6,
+      // Version 7: #136 lifted the Feature Lab out of the `overlay` dial onto its own
+      // per-device `featureLab` field (a tooling pref, like `faceCalibration`). The
+      // migrate carries a returning player's lab config across before mergeControls
+      // re-parses `overlay` through the now lab-free OverlayDialSchema.
+      version: 7,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
-      // Persist the preset fields (schema-derived) + the per-device calibration,
-      // never the setter functions.
+      // Persist the preset fields (schema-derived) + the per-device tooling prefs
+      // (calibration, feature lab), never the setter functions.
       partialize: (s) => ({
         ...pickSettings(s as unknown as Record<string, unknown>),
         faceCalibration: s.faceCalibration,
+        featureLab: s.featureLab,
       }),
     },
   ),

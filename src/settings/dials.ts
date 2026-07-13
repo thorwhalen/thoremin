@@ -19,7 +19,7 @@ import { SOUND_IDS, type SoundId } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
-import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
+import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, type Settings } from './schema';
 
@@ -98,7 +98,7 @@ export const thoreminDials = defineDials(
       .record(z.string(), z.number().int().min(-1).max(6))
       .default({ ...DEFAULT_EXPRESSION_TO_DEGREE })
       .meta({ facets: ['Face', 'advanced'], title: 'Expression chord map' }),
-    overlay: OverlayParamsSchema.default(OverlayParamsSchema.parse({})).meta({ facets: ['Overlay'], title: 'Overlay' }),
+    overlay: OverlayDialSchema.default(OverlayDialSchema.parse({})).meta({ facets: ['Overlay'], title: 'Overlay' }),
     // The hand→sound mapping (note source + finger routing + knobs) — a whole-object
     // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.
     handMap: HandMapSchema.default(DEFAULT_HAND_MAP).meta({ facets: ['Hand'], title: 'Hand mapping' }),

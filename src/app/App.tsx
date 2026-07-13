@@ -10,28 +10,35 @@
  * this component is purely presentational + lifecycle.
  */
 import { useEffect } from 'react';
-import { Play, BookOpen, VolumeX } from 'lucide-react';
+import { Play, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
+import { labWantsFace } from '@/features/labConfig';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import RecordButton from './RecordButton';
 import TaggingControls from './tagging/TaggingControls';
 import Toaster from './Toaster';
 import CommandPaletteOverlay from './CommandPaletteOverlay';
 import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
+import ToolsBar from './ToolsBar';
+import LabPanel from './LabPanel';
 import VersionBadge from './VersionBadge';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
- * (issue #65): only shown once a face mapping is active. */
+ * (issue #65): shown whenever the face model is running — whether because a face
+ * MAPPING is driving the sound or because the Feature Lab is measuring face groups
+ * (#136). The chip is the player's only cue that the camera's face model is live, so it
+ * must track the model, not just the mapping. */
 function FaceChip() {
   const faceMapping = useControls((s) => s.faceMapping);
+  const featureLab = useControls((s) => s.featureLab);
   const status = useFaceStatus((s) => s.status);
   const label = useFaceStatus((s) => s.label);
-  if (faceMapping === 'none') return null;
+  if (faceMapping === 'none' && !labWantsFace(featureLab)) return null;
 
   let dot = 'bg-white/40';
   let text = 'face starting…';
@@ -111,13 +118,13 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
       {/* Top-center: unmissable "muted" cue (audio silenced by the m key). */}
       <MutedBadge />
 
-      {/* Bottom-left: link to the generated capabilities manual. */}
-      <a
-        href="manual.html"
-        className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-black/40 px-3 py-1 text-[10px] uppercase tracking-widest text-white/60 backdrop-blur transition hover:text-white"
-      >
-        <BookOpen className="h-3 w-3" /> manual
-      </a>
+      {/* Bottom-left: the tools bar — one labelled button per registered shell tool
+          (Feature Lab, command palette, manual). This is the app's answer to "what else
+          is here": a tool with no entry point here is a tool nobody will ever find (#136). */}
+      <ToolsBar />
+
+      {/* The Feature Lab's surface (#119/#136) — renders when its tool is the open one. */}
+      <LabPanel />
 
       {/* Bottom-right: the multi-stream recorder (#88) — a button that morphs into
           a settings sheet (out-of-instrument config) then a compact HUD. Available
@@ -182,9 +189,6 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
       {/* AI assistant — chat that parametrizes the instrument via the same command
           registry, behind a BYO-key multi-provider client-side backend (#87 Phase 3). */}
       <AssistantOverlay />
-
-      {/* Unobtrusive "what's deployed" badge (commit + date), read from /_meta. */}
-      <VersionBadge />
     </div>
   );
 }

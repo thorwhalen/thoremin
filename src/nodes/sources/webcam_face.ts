@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { matrixToHeadPose, type FaceFrame, type FaceMapping, type FaceStatus } from '../domain';
+import { labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm
@@ -105,12 +106,30 @@ interface TasksVisionModule {
 
 /** Reads the face-mapping mode off the live controls snapshot. `faceMapping`
  * supersedes the legacy boolean `faceEnabled` (kept for back-compat / tests). */
-type FaceControlsGetter = () => { faceEnabled?: boolean; faceMapping?: FaceMapping };
+type FaceControlsGetter = () => {
+  faceEnabled?: boolean;
+  faceMapping?: FaceMapping;
+  featureLab?: FeatureLabConfig;
+};
 
-/** Is any face mode active? `faceMapping !== 'none'`, falling back to the legacy
- * `faceEnabled` flag when the newer field is absent (older callers / tests). */
-function faceActive(controls: ReturnType<FaceControlsGetter> | undefined): boolean {
+/**
+ * Should the face model be loaded and run?
+ *
+ * Two independent consumers can want the face, and either is sufficient:
+ *  - the MAPPING wants it — the face drives sound (`faceMapping !== 'none'`), falling
+ *    back to the legacy `faceEnabled` flag when the newer field is absent (older
+ *    callers / tests);
+ *  - the LAB wants it — the Feature Instrumentation Lab is measuring face groups
+ *    ({@link labWantsFace}). Before #136 only the mapping could turn the model on, so
+ *    you could not look at a face meter without also handing the face control of the
+ *    sound: a measuring instrument that cannot observe without altering.
+ *
+ * Exported so the app shell can tell the player the face camera is running for either
+ * reason (the FaceChip), and so the rule is directly testable.
+ */
+export function faceActive(controls: ReturnType<FaceControlsGetter> | undefined): boolean {
   if (!controls) return false;
+  if (labWantsFace(controls.featureLab)) return true;
   if (controls.faceMapping !== undefined) return controls.faceMapping !== 'none';
   return controls.faceEnabled === true;
 }

@@ -15,11 +15,31 @@
  */
 import type { OverlayParams } from '@/nodes/output/canvas_overlay';
 
+/**
+ * Which UI SURFACE owns an overlay element's controls.
+ *
+ * `'instrument'` — the Overlay section of the per-instrument settings panel: the
+ * element is a property of the instrument, saved and loaded with it.
+ *
+ * `'lab'` — the Feature Lab panel ({@link LabPanel}), a TOOLING surface reached from
+ * the app shell's tools bar. Its element's config is per-device, not per-instrument.
+ *
+ * This field exists because the old invariant ("every element has a descriptor") was
+ * satisfied while the Feature Lab was, in practice, unreachable (#136): a descriptor
+ * proves an element is *controllable*, not that a player can *find* the control. Every
+ * surface named here must be reachable from the app shell — `tools.ts` is the registry
+ * of shell surfaces and a test ties the two together.
+ */
+export type OverlaySurface = 'instrument' | 'lab';
+
 export interface OverlayControlDesc {
   /** The overlay element / params key this descriptor controls. */
   name: keyof OverlayParams;
   /** Label for the primary on/off toggle. */
   label: string;
+  /** Which UI surface renders this descriptor. Defaults to the instrument's Overlay
+   *  panel; see {@link OverlaySurface}. */
+  surface?: OverlaySurface;
   /** Dependent boolean sub-toggles (disabled when the element's `show` is off). */
   toggles?: { key: string; label: string }[];
   /** A 0..1 slider param (disabled when the element's `show` is off). */
@@ -30,16 +50,19 @@ export interface OverlayControlDesc {
   needsFace?: boolean;
 }
 
-/** Per-element control descriptors, in within-category display order. */
+/** Per-element control descriptors, in within-category display order. Every overlay
+ *  element has exactly one (a test enforces it) — but see {@link OverlaySurface}: the
+ *  descriptor says *what* the control is, `surface` says *where the player finds it*. */
 export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'landmarks', label: 'Hand landmarks' },
   { name: 'faceLandmarks', label: 'Face mesh', needsFace: true },
   {
-    // Feature Instrumentation Lab (#119). The group selection + normalizer mode
-    // are a richer surface (the dedicated Lab panel); the simple toggles here are
-    // the panel's on/off + per-meter decorations.
+    // Feature Instrumentation Lab (#119) — owned by the LAB panel, not the instrument's
+    // Overlay section: the Lab measures the instrument, so its config is a per-device
+    // tooling pref rather than a saved instrument parameter (#136).
     name: 'featureLab',
     label: 'Feature Lab',
+    surface: 'lab',
     toggles: [
       { key: 'showMarkers', label: 'Percentile ticks' },
       { key: 'showValues', label: 'Raw values' },
@@ -94,3 +117,10 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   // into the recorded video. Shown only while a take records; toggle to hide the burn-in.
   { name: 'tagHud', label: 'Annotation HUD (recorded)' },
 ];
+
+/** The descriptors rendered by a given UI surface. `surface` is optional on a
+ *  descriptor (the instrument's Overlay panel is the default home), so the filter
+ *  defaults the same way — a new element lands in the instrument panel unless it
+ *  explicitly names another home. */
+export const controlsForSurface = (surface: OverlaySurface): OverlayControlDesc[] =>
+  OVERLAY_CONTROLS.filter((d) => (d.surface ?? 'instrument') === surface);
