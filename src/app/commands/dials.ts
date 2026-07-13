@@ -24,7 +24,7 @@ import { defineCommand, ok, err, type Result } from 'acture';
 import type { SettingKey } from '@zodal/dials-core';
 import { dialsStore, setDial, resetDial, fieldByKey } from '@/app/dials/settingsStore';
 import { thoreminDials, layerToSettings } from '@/settings/dials';
-import { leafByPath, resolveDialPath, setIn, structuredLeafPaths, type LeafKind } from './paths';
+import { isClearableDial, leafByPath, resolveDialPath, setIn, structuredLeafPaths, type LeafKind } from './paths';
 
 /** A dial value on the generic verbs — a JSON-Schema-representable union (string, number,
  *  or boolean), NOT `z.unknown()`. The `z.unknown()`/`z.tuple()` shapes emit an untyped
@@ -89,14 +89,73 @@ const isDial = (key: string): boolean => DIAL_KEYS.has(key);
  * Returns an error message, or null if every write is acceptable.
  */
 function invalidWritesReason(writes: ReadonlyArray<readonly [string, unknown]>): string | null {
-  const prospective = { ...dialsStore.getState().effective };
+  const current = dialsStore.getState().effective;
+  const prospective = { ...current };
   for (const [k, v] of writes) prospective[k] = v;
   try {
     layerToSettings(prospective);
     return null;
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    // NAME THE OFFENDER. Since #126 every discrete control dispatches, so a single stale
+    // value ANYWHERE in the layer (an old profile, a hand-edited blob) refuses EVERY write
+    // — the whole panel goes read-only. Refusing is still right (letting it through would
+    // update the dial while the hot-store sync silently skipped it, so the panel and the
+    // audio would disagree), but the message must point at the dial that is actually broken
+    // rather than at the one the player just touched, or the panel is dead with no way out.
+    const touched = new Set(writes.map(([k]) => k));
+    const offenders = offendingDials(e).filter((k) => !touched.has(k));
+    if (offenders.length) {
+      return `blocked by an invalid value on ${offenders.join(', ')} — reset ${
+        offenders.length > 1 ? 'those dials' : 'that dial'
+      } to continue`;
+    }
+    return zodMessage(e);
   }
+}
+
+/** The DIAL KEYS a settings-schema parse error blames, mapped back from the nested
+ *  {@link Settings} paths the schema reports (`['right','root']` → `right.root`,
+ *  `['masterVolume']` → `master.volume`). Unmappable paths are dropped — this drives a
+ *  human message, never a decision. */
+function offendingDials(e: unknown): string[] {
+  const issues = (e as { issues?: { path?: (string | number)[] }[] }).issues;
+  if (!Array.isArray(issues)) return [];
+  const keys = new Set<string>();
+  for (const issue of issues) {
+    const path = (issue.path ?? []).map(String);
+    if (!path.length) continue;
+    // Longest-first: the dial keyspace is dotted, so `faceExpr.sensitivity.happy` must
+    // blame the `faceExpr.sensitivity` dial, and `overlay.video.alpha` the `overlay` dial.
+    for (let n = path.length; n >= 1; n--) {
+      const candidate = SETTINGS_PATH_TO_DIAL[path.slice(0, n).join('.')] ?? path.slice(0, n).join('.');
+      if (isDial(candidate)) {
+        keys.add(candidate);
+        break;
+      }
+    }
+  }
+  return [...keys];
+}
+
+/** The four nested Settings fields whose names differ from their dial key. Everything else
+ *  is a straight dotted join (`right.root`, `faceChord.sound`, `overlay`, `handMap`). */
+const SETTINGS_PATH_TO_DIAL: Record<string, string> = {
+  masterVolume: 'master.volume',
+  syncHands: 'master.syncHands',
+  octaveShift: 'master.octaveShift',
+  magnetism: 'master.magnetism',
+};
+
+/** A zod parse error as one readable line, rather than the raw multi-line issue JSON that
+ *  `Error.message` carries (which is what a toast would otherwise show the player). */
+function zodMessage(e: unknown): string {
+  const issues = (e as { issues?: { path?: (string | number)[]; message?: string }[] }).issues;
+  if (Array.isArray(issues) && issues.length) {
+    return issues
+      .map((i) => `${(i.path ?? []).join('.') || 'value'}: ${i.message ?? 'invalid'}`)
+      .join('; ');
+  }
+  return e instanceof Error ? e.message : String(e);
 }
 
 /**
@@ -225,7 +284,8 @@ export const patchDialsCmd = defineCommand({
           // a pre-#63 instrument. The mirror must be able to propagate that absence, and
           // OMITTING the key is the JSON-Schema-safe way to say "no value" (a `null` member
           // in the value union is what a provider's validator would choke on). A dial that
-          // REQUIRES a value still refuses the clear downstream, as `invalid_value`.
+          // has a DEFAULT refuses the clear (see the execute below) — otherwise clearing it
+          // would reset the audio to that default while reporting success.
           value: DIAL_VALUE.optional().describe('The new value (number/boolean/string, coerced to the dial\'s type). Omit to clear an optional dial.'),
         }),
       )
@@ -234,6 +294,18 @@ export const patchDialsCmd = defineCommand({
   execute: ({ writes }) => {
     const bad = writes.find((w) => !isDial(w.key));
     if (bad) return err('unknown_dial', `No dial named "${bad.key}".`, { key: bad.key });
+    // A CLEAR (omitted value) is only ever meaningful for a genuinely optional dial. On a
+    // dial with a declared default, SettingsSchema would re-fill that default — so the
+    // command would report `ok`, the audio would silently reset, and the dials layer would
+    // keep the `undefined` for the panel to dereference on its next render. Refuse it here:
+    // this is reachable from the AI (the emitted JSON Schema marks `value` optional), and
+    // `dial.patch({writes:[{key:'handMap'}]})` would otherwise wipe the hand mapping.
+    const clear = writes.find((w) => w.value === undefined && !isClearableDial(w.key));
+    if (clear) {
+      return err('invalid_value', `The dial "${clear.key}" cannot be cleared — it needs a value.`, {
+        key: clear.key,
+      });
+    }
     const pairs = writes.map((w) => [w.key, coerceDialValue(w.key, w.value)] as [string, unknown]);
     const reason = invalidWritesReason(pairs);
     if (reason) return err('invalid_value', `Invalid dial values: ${reason}`, { writes });

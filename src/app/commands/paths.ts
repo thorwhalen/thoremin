@@ -130,6 +130,29 @@ export const leafByPath: Record<string, DialLeaf> = Object.fromEntries(DIAL_LEAV
 const DIAL_KEYS = new Set<string>(thoreminDials.keys);
 
 /**
+ * The dials a write may CLEAR (omit a value for) — exactly those with no declared
+ * default, i.e. genuinely optional.
+ *
+ * Today that is only the #63 octave-range fields (`right/left.rangeLow|rangeHigh`), which
+ * are legitimately ABSENT on a pre-#63 instrument and whose absence the sync-hands mirror
+ * must be able to propagate. Every other dial has a `.default(...)`, and clearing one is
+ * never a thing a caller means: `SettingsSchema` would happily re-fill the default (so the
+ * write reports `ok` and the AUDIO silently resets), while the dials layer keeps the
+ * `undefined` — and the panel then dereferences it. `dial.patch({writes:[{key:'handMap'}]})`
+ * would wipe the hand mapping, report success, and crash the Hand panel on its next render.
+ *
+ * Derived from the schema, so a dial that gains or loses a default is reclassified here
+ * automatically.
+ */
+const DEFAULTS = extractDefaults(thoreminDials.schema as z.ZodObject<z.ZodRawShape>);
+export const CLEARABLE_DIALS: ReadonlySet<string> = new Set(
+  thoreminDials.keys.filter((k) => DEFAULTS[k] === undefined),
+);
+
+/** May this dial be cleared (written with no value)? See {@link CLEARABLE_DIALS}. */
+export const isClearableDial = (key: string): boolean => CLEARABLE_DIALS.has(key);
+
+/**
  * Split a dotted path into the DIAL it addresses and the path inside that dial's value.
  *
  * Resolved by LONGEST-PREFIX match against the declared keyspace, not by splitting on the

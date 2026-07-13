@@ -125,7 +125,14 @@ the first dot would hand back a phantom `faceExpr` dial.
 sync-hands mirror copies the source hand's fields onto the other hand, and the #63 octave
 range (`rangeLow`/`rangeHigh`) is legitimately *absent* on a pre-#63 instrument — the
 mirror must be able to propagate that absence, and omitting the key is the JSON-Schema-safe
-way to say "no value". A dial that requires a value still refuses the clear downstream.
+way to say "no value". A clear is refused on any dial that declares a `.default(...)`
+(`CLEARABLE_DIALS` in `commands/paths.ts` derives the clearable set from the schema — today
+exactly the four `#63` range dials). This is a guard, not a formality: `SettingsSchema` would
+happily re-fill a cleared dial's default, so the command would report `ok` while the audio
+silently reset, and the dials layer would keep the `undefined` for the panel to dereference —
+`dial.patch({writes:[{key:'handMap'}]})` would wipe the hand mapping, report success, and
+crash the Hand panel on its next render. It is AI-reachable, because an optional field in the
+emitted JSON Schema is one the model may simply omit.
 
 ## The consumers
 
