@@ -16,3 +16,14 @@ frontend_dir = "frontend"
 install  = ["npm", "ci", "--no-audit", "--no-fund", "--no-progress"]
 build    = ["npm", "run", "build"]
 env_vars = ["VITE_PUBLIC_BASE"]
+
+# Dev-only working directories. The server has NO use for these: this is a pure frontend
+# app, enlace serves only `frontend/` (the Vite build output), and the bundle does not
+# reference media/ or wips/ at all. Without these excludes the app-dir rsync shipped ~300MB
+# of a laptop's working files to production on every single deploy — never served, never
+# deleted (that rsync has no --delete), quietly filling the disk.
+#
+# Note the distinction from [data]: [data] is for data the server DOES need but which the
+# code deploy must not manage. This is for data the server never needed in the first place.
+[deploy]
+exclude = ["media", "wips"]
