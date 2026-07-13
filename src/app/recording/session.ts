@@ -12,7 +12,7 @@
  * covered by the app's build (not the Node strict typecheck), like `useEngine`.
  */
 import type { Engine } from '@/dag';
-import { recordingFormat } from './formats';
+import { recordingFormat, convertAudioFormats, type ConvertedFormat } from './formats';
 import { recordingStem, prefillName } from './naming';
 import { planRecording, audioFormatIds, type RecordingPlan, type PlannedFile } from './plan';
 import { buildManifest, serializeManifest, type RecordingStreamEntry } from './manifest';
@@ -25,6 +25,15 @@ import type { TagStreamSource } from './tagStream';
 
 /** Chunk media into ~2s slices so long takes stay constant-memory (#88 §1). */
 const TIMESLICE_MS = 2000;
+
+/** What a finished take produced: the sink's result plus any output format whose
+ * encoder failed. A failed format writes NO file (see {@link convertAudioFormats}),
+ * so the UI must say so rather than toast an unqualified "Saved" (#130). */
+export interface RecordingResult extends SinkResult {
+  /** Ids of the selected audio formats that could not be encoded. Empty on a
+   * clean take. */
+  failedFormats: string[];
+}
 
 export interface SessionRecorderDeps {
   audioContext: AudioContext;
@@ -273,9 +282,9 @@ export class SessionRecorder {
   /**
    * Stop every recorder, convert audio to the selected formats, write all files +
    * the manifest through the sink (or save one bare file), and clean up. Returns
-   * the sink result for a "saved …" toast.
+   * the sink result (plus any format that failed to encode) for the "saved …" toast.
    */
-  async stop(): Promise<SinkResult> {
+  async stop(): Promise<RecordingResult> {
     if (!this.running) throw new Error('Not recording');
     this.running = false;
 
@@ -311,10 +320,11 @@ export class SessionRecorder {
     if (this.alphaCanvas) delete this.deps.resources.overlayAlphaCanvas;
     this.stopOwnedStreams();
 
-    // Convert audio to each selected format (decode once if any needs it).
-    const audioOutputs = audioBlob
-      ? await this.convertAudio(audioBlob)
-      : [];
+    // Convert audio to each selected format (decode once if any needs it). A format
+    // whose encoder failed comes back with a null blob: no file is written for it and
+    // its id is reported, rather than saving the un-encoded audio under that extension.
+    const audioOutputs = audioBlob ? await this.convertAudio(audioBlob) : [];
+    const failedFormats = audioOutputs.filter((o) => !o.blob).map((o) => o.id);
 
     // Map plan files → captured bytes and write them.
     const written: RecordingStreamEntry[] = [];
@@ -328,8 +338,10 @@ export class SessionRecorder {
     for (const file of this.plan.files) {
       switch (file.kind) {
         case 'audio': {
+          // Positional, so a failed format leaves ITS slot empty without shifting
+          // the others (convertAudioFormats keeps the ids' order).
           const out = audioOutputs[audioIdx++];
-          if (out) await putFile(file, out);
+          if (out?.blob) await putFile(file, out.blob);
           break;
         }
         case 'overlayVideo':
@@ -364,16 +376,19 @@ export class SessionRecorder {
 
     this.tap = null;
 
-    if (this.sink) return this.sink.close();
+    if (this.sink) return { ...(await this.sink.close()), failedFormats };
     // Single-file escape hatch: exactly one bare file was written via saveBlob in
     // writeFile; report it (honoring a dismissed Save-As dialog as a cancellation
-    // rather than a false success).
+    // rather than a false success). If that single file was the one format that
+    // failed to encode, nothing was written at all — say so.
     const only = this.plan.files[0];
+    const wrote = !this.lastSaveCancelled && failedFormats.length === 0;
     return {
       label: only?.name ?? this.stem,
-      count: this.lastSaveCancelled ? 0 : 1,
+      count: wrote ? 1 : 0,
       viaPicker: false,
       cancelled: this.lastSaveCancelled,
+      failedFormats,
     };
   }
 
@@ -392,10 +407,17 @@ export class SessionRecorder {
     if (res === null) this.lastSaveCancelled = true;
   }
 
-  /** Convert the native audio blob to each selected output format, decoding once
-   * if any format needs it. Returns blobs in the SAME order as the plan's audio
-   * files (= `audioFormatIds` order). */
-  private async convertAudio(native: Blob): Promise<Blob[]> {
+  /**
+   * Convert the native audio blob to each selected output format, decoding once if
+   * any format needs it. Returns one outcome per format in the SAME order as the
+   * plan's audio files (= `audioFormatIds` order).
+   *
+   * A format that fails (its lazy encoder would not load, or would not encode this
+   * audio) comes back with a null blob. It is NOT filled in with the native WebM:
+   * a `.mp3` holding WebM bytes is a file the player only discovers is broken much
+   * later, so the take reports the failure instead (#130).
+   */
+  private async convertAudio(native: Blob): Promise<ConvertedFormat[]> {
     const effectiveIds = audioFormatIds(this.session);
     let audio: AudioBuffer | null = null;
     if (effectiveIds.some((id) => recordingFormat(id)?.needsDecode)) {
@@ -405,22 +427,11 @@ export class SessionRecorder {
         console.error('[thoremin] could not decode recording for conversion', e);
       }
     }
-    const out: Blob[] = [];
-    for (const id of effectiveIds) {
-      const fmt = recordingFormat(id);
-      if (!fmt) continue;
-      try {
-        const convert = await fmt.load();
-        out.push(await convert({ native, audio }));
-      } catch (e) {
-        console.error(`[thoremin] failed to convert recording to ${id}`, e);
-        // Keep alignment with the plan: on failure fall back to the native blob so
-        // the file slot is still filled (a corrupt-but-present file beats a
-        // shifted mapping).
-        out.push(native);
-      }
+    const converted = await convertAudioFormats(effectiveIds, { native, audio });
+    for (const c of converted) {
+      if (!c.blob) console.error(`[thoremin] failed to convert recording to ${c.id}`, c.error);
     }
-    return out;
+    return converted;
   }
 
   /** Stop the tracks of every capture stream we created (canvas/alpha/element

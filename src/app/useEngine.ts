@@ -413,11 +413,18 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
     setRecPhase('saving');
     try {
       const res = await rec.stop();
+      // An output format whose encoder failed to load/run wrote NO file (#130).
+      // Name it: the rest of the take was still saved, but the player must not
+      // believe they have an MP3 they don't have.
+      if (res.failedFormats.length) {
+        const names = res.failedFormats.map((f) => f.toUpperCase()).join(', ');
+        useToasts.getState().push(`Couldn't encode ${names} — that file was not saved`, 7000, 'error');
+      }
       if (res.cancelled) {
         // The take recorded fine but the user dismissed the Save-As dialog — be
         // honest that nothing was written rather than toasting a false "Saved".
         useToasts.getState().push('Recording not saved (save cancelled)', 5000, 'error');
-      } else {
+      } else if (res.count > 0) {
         const suffix = res.count > 1 ? ` (${res.count} files)` : '';
         useToasts.getState().push(`Saved ${res.label}${suffix}`);
       }
