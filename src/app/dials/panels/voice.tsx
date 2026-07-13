@@ -4,6 +4,7 @@
  */
 import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { SOUNDS, SOUND_IDS } from '@/music/sounds';
+import { dispatchDialPatch } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { voiceEditWrites, type VoiceField } from '../settingsStore';
 import { selectCls } from '../primitives';
@@ -13,6 +14,10 @@ import { selectCls } from '../primitives';
  * written to the dials store. Mirrors `setVoice`: when both hands are synced, a
  * non-sound edit on this hand also writes the other hand, so the two voices share
  * scale/root/octaves while each keeps its own sound.
+ *
+ * A synced voice edit is genuinely SEVERAL dial writes, so the discrete `<select>`s
+ * dispatch one atomic `dial.patch` rather than N `dial.set`s — a half-mirrored voice
+ * (one hand's scale changed, the other's not) must not be a reachable state.
  */
 export function VoiceControls({ side }: { side: 'right' | 'left' }) {
   const { state, set } = useDialsSettings();
@@ -20,10 +25,18 @@ export function VoiceControls({ side }: { side: 'right' | 'left' }) {
   const syncHands = v['master.syncHands'] as boolean;
   const color = side === 'right' ? 'text-emerald-400' : 'text-blue-400';
 
-  const setField = (key: VoiceField, value: unknown) => {
-    // Reproduce setVoice's sync-hands rule (mirror the whole non-sound voice when
-    // synced, keep each hand's own sound); voiceEditWrites yields the dials writes.
-    for (const [k, val] of voiceEditWrites(side, key, value, syncHands, v)) set(k, val);
+  // The dials writes for one voice edit — setVoice's sync-hands rule (mirror the whole
+  // non-sound voice when synced, keep each hand's own sound), from the SSOT.
+  const writesFor = (key: VoiceField, value: unknown) => voiceEditWrites(side, key, value, syncHands, v);
+
+  /** A DISCRETE voice edit (a `<select>`) — through the registry, atomically. */
+  const dispatchField = (key: VoiceField, value: unknown) => dispatchDialPatch(writesFor(key, value));
+
+  /** A CONTINUOUS voice edit (a slider being dragged) — a direct write. Decision B: a
+   *  write per pointer-move frame must not pay for dispatch. This and {@link setRange}
+   *  are the ONLY sanctioned direct writers in this panel. */
+  const setFieldLive = (key: VoiceField, value: unknown) => {
+    for (const [k, val] of writesFor(key, value)) set(k, val);
   };
 
   // #63 octave RANGE thumbs. When the range is absent (a legacy pre-#63 voice), DERIVE
@@ -41,6 +54,7 @@ export function VoiceControls({ side }: { side: 'right' | 'left' }) {
   const rangeHigh = rangeAbsent ? derivedHigh : (rawHigh as number);
   const rangeSpan = rangeAbsent ? octaves : 1 + rangeLow + rangeHigh;
 
+  /** The double-thumb range slider (continuous — a direct write, Decision B). */
   const setRange = (nextLow: number, nextHigh: number) => {
     // Keep `octaves` a truthful integer shadow (round(1+low+high)) so no reader sees the
     // two contradict. Re-snap the WHOLE non-sound voice across synced hands via the SSOT
@@ -64,7 +78,7 @@ export function VoiceControls({ side }: { side: 'right' | 'left' }) {
         <select
           className={selectCls}
           value={v[`${side}.sound`] as string}
-          onChange={(e) => setField('sound', e.target.value)}
+          onChange={(e) => dispatchField('sound', e.target.value)}
         >
           {SOUND_IDS.map((id) => (
             <option key={id} value={id}>{SOUNDS[id].name}</option>
@@ -76,7 +90,7 @@ export function VoiceControls({ side }: { side: 'right' | 'left' }) {
         <select
           className={selectCls}
           value={v[`${side}.root`] as number}
-          onChange={(e) => setField('root', Number(e.target.value))}
+          onChange={(e) => dispatchField('root', Number(e.target.value))}
         >
           {NOTES.map((n, i) => (
             <option key={n} value={i}>{n}</option>
@@ -88,7 +102,7 @@ export function VoiceControls({ side }: { side: 'right' | 'left' }) {
         <select
           className={selectCls}
           value={v[`${side}.type`] as string}
-          onChange={(e) => setField('type', e.target.value as ScaleTypeId)}
+          onChange={(e) => dispatchField('type', e.target.value as ScaleTypeId)}
         >
           {Object.entries(SCALE_TYPES).map(([id, s]) => (
             <option key={id} value={id}>{s.name}</option>
@@ -126,7 +140,7 @@ export function VoiceControls({ side }: { side: 'right' | 'left' }) {
         Base octave
         <input
           type="range" min={1} max={5} step={1} value={v[`${side}.baseOctave`] as number}
-          onChange={(e) => setField('baseOctave', Number(e.target.value))}
+          onChange={(e) => setFieldLive('baseOctave', Number(e.target.value))}
         />
       </label>
     </div>

@@ -6,9 +6,16 @@
  *
  * The panel is rendered FROM the zodal-dials surface ({@link thoreminDials}) instead of
  * straight off the zustand control store: every control reads its value from the dials
- * store ({@link useDialsSettings}) and writes back with `set(key, value)`. A subscription
- * in {@link settingsStore} mirrors each edit into the synchronous hot `useControls` store
- * the DAG reads each tick, so audio still responds live.
+ * store ({@link useDialsSettings}). A subscription in {@link settingsStore} mirrors each
+ * edit into the synchronous hot `useControls` store the DAG reads each tick, so audio
+ * still responds live.
+ *
+ * Every DISCRETE control (a `<select>`, a toggle, a mode button) WRITES by dispatching a
+ * command (`../dispatchDial`) — the registry is the single write path shared with the
+ * palette, the hotkeys and the AI (#87, swept in #126). The only sanctioned exception is a
+ * `type="range"` slider being dragged: a write per pointer-move frame stays a direct
+ * `set(key, value)` for latency (Decision B). `test/dials_write_path.test.ts` enforces
+ * exactly that split, so the exception cannot quietly widen.
  *
  * What is NOT dials-driven (kept verbatim, reading its own store): the Keyboard
  * cheat-sheet. Recording is not here at all — its settings moved OUT of the instrument

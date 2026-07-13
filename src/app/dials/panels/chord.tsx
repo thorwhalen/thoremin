@@ -6,6 +6,7 @@
 import { NOTES, SCALE_TYPES, defaultChordSpecFor, melodyNotesOutsideChord, type ScaleTypeId } from '@/music/theory';
 import { SOUNDS, SOUND_IDS } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, isTempoRendering, type VoicingId, type RenderingId } from '@/music/voicing';
+import { dispatchDialSet, dispatchDialPatch } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { VOICING_LABELS, RENDERING_LABELS } from '../labels';
 import { selectCls } from '../primitives';
@@ -18,7 +19,7 @@ import { selectCls } from '../primitives';
  * melody notes that fall outside the chosen source (they may clash — still allowed).
  */
 function ChordSourceControls() {
-  const { state, set } = useDialsSettings();
+  const { state } = useDialsSettings();
   const v = state.effective;
   const melody = { root: v['right.root'] as number, type: v['right.type'] as ScaleTypeId };
   const source = v['faceChord.chordSource'] as 'auto' | 'custom';
@@ -42,11 +43,18 @@ function ChordSourceControls() {
             // source, so switching to Custom is INAUDIBLE until the user deliberately edits
             // it (otherwise chordRoot/chordType keep their C-major defaults and a non-C
             // melody's chords would jump into the wrong key on the mere mode flip).
-            if (next === 'custom' && source !== 'custom') {
-              set('faceChord.chordRoot', auto.root);
-              set('faceChord.chordType', auto.type);
-            }
-            set('faceChord.chordSource', next);
+            // The seed + the flip are ONE gesture, so they are one atomic `dial.patch`:
+            // a mode flip that landed without its seed would be exactly the audible jump
+            // the seed exists to prevent.
+            const writes: Array<[string, unknown]> =
+              next === 'custom' && source !== 'custom'
+                ? [
+                    ['faceChord.chordRoot', auto.root],
+                    ['faceChord.chordType', auto.type],
+                    ['faceChord.chordSource', next],
+                  ]
+                : [['faceChord.chordSource', next]];
+            dispatchDialPatch(writes);
           }}
         >
           <option value="auto">Auto (follow melody)</option>
@@ -68,7 +76,7 @@ function ChordSourceControls() {
             <select
               className={selectCls}
               value={chordRoot}
-              onChange={(e) => set('faceChord.chordRoot', Number(e.target.value))}
+              onChange={(e) => dispatchDialSet('faceChord.chordRoot', Number(e.target.value))}
             >
               {NOTES.map((n, i) => (
                 <option key={n} value={i}>{n}</option>
@@ -80,7 +88,7 @@ function ChordSourceControls() {
             <select
               className={selectCls}
               value={chordType}
-              onChange={(e) => set('faceChord.chordType', e.target.value as ScaleTypeId)}
+              onChange={(e) => dispatchDialSet('faceChord.chordType', e.target.value as ScaleTypeId)}
             >
               {Object.entries(SCALE_TYPES).map(([id, s]) => (
                 <option key={id} value={id}>{s.name}</option>
@@ -100,7 +108,8 @@ function ChordSourceControls() {
   );
 }
 
-/** Sound settings for the face chord — shown when chord mapping is active. */
+/** Sound settings for the face chord — shown when chord mapping is active. The `<select>`s
+ *  dispatch; `set` is retained ONLY for the two continuous sliders (Decision B). */
 export function ChordControls() {
   const { state, set } = useDialsSettings();
   const v = state.effective;
@@ -115,7 +124,7 @@ export function ChordControls() {
         <select
           className={selectCls}
           value={v['faceChord.sound'] as string}
-          onChange={(e) => set('faceChord.sound', e.target.value)}
+          onChange={(e) => dispatchDialSet('faceChord.sound', e.target.value)}
         >
           {SOUND_IDS.map((id) => (
             <option key={id} value={id}>{SOUNDS[id].name}</option>
@@ -134,7 +143,7 @@ export function ChordControls() {
         <select
           className={selectCls}
           value={v['faceChord.voicing'] as string}
-          onChange={(e) => set('faceChord.voicing', e.target.value as VoicingId)}
+          onChange={(e) => dispatchDialSet('faceChord.voicing', e.target.value as VoicingId)}
         >
           {VOICINGS.map((vc) => (
             <option key={vc} value={vc}>{VOICING_LABELS[vc]}</option>
@@ -146,7 +155,7 @@ export function ChordControls() {
         <select
           className={selectCls}
           value={rendering}
-          onChange={(e) => set('faceChord.rendering', e.target.value as RenderingId)}
+          onChange={(e) => dispatchDialSet('faceChord.rendering', e.target.value as RenderingId)}
         >
           {RENDERINGS.map((r) => (
             <option key={r} value={r}>{RENDERING_LABELS[r]}</option>

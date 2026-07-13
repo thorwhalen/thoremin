@@ -9,6 +9,7 @@ import { voiceTriad, type VoicingId } from '@/music/voicing';
 import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE } from '@/music/expression';
 import { useControls } from '../../store';
 import { CalibrationWizard } from '../../CalibrationWizard';
+import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { CollapsibleSection, selectCls } from '../primitives';
 
@@ -18,8 +19,13 @@ import { CollapsibleSection, selectCls } from '../primitives';
  * feeds the readout/status there), so they show whenever a mapping is on. The
  * scale-degree dropdown + live chord MIDI are chord-specific, so they appear only
  * in chord mode (where `neutral` also gets a row — its rest chord). The (global)
- * rendering lives in ChordControls. The two maps are single dial values
- * (`faceExpr.sensitivity` / `faceExpr.degrees`); each edit writes a merged copy.
+ * rendering lives in ChordControls.
+ *
+ * The two maps are whole-object (record) dials (`faceExpr.sensitivity` /
+ * `faceExpr.degrees`), so they get no per-dial `set` command. The DISCRETE degree
+ * `<select>` addresses one record member by path (`faceExpr.degrees.happy`) and
+ * dispatches `dial.setIn`; the CONTINUOUS sensitivity slider keeps a direct merged write
+ * (Decision B).
  */
 export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
   const { state, set } = useDialsSettings();
@@ -29,9 +35,10 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
   const calibration = useControls((s) => s.faceCalibration);
   const setCalibration = useControls((s) => s.setFaceCalibration);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const setDegree = (label: string, degree: number) =>
-    set('faceExpr.degrees', { ...degrees, [label]: degree });
-  const setSens = (label: string, value: number) =>
+  const setDegree = (label: string, degree: number) => dispatchDialSetIn(`faceExpr.degrees.${label}`, degree);
+  /** The sensitivity slider is a live drag — a direct merged write. Decision B, and the
+   *  ONLY sanctioned direct writer in this panel. */
+  const setSensLive = (label: string, value: number) =>
     set('faceExpr.sensitivity', { ...sensitivity, [label]: value });
   const voicing = v['faceChord.voicing'] as VoicingId;
 
@@ -128,7 +135,7 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
                     value={sensitivity[label] ?? 0.5}
                     title="Sensitivity (higher = more hits)"
                     className="flex-1"
-                    onChange={(e) => setSens(label, Number(e.target.value))}
+                    onChange={(e) => setSensLive(label, Number(e.target.value))}
                   />
                 ) : (
                   <span className="flex-1 text-[10px] italic text-white/30">rest / fallback</span>

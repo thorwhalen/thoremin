@@ -5,7 +5,17 @@
  * `test/commands_firewall.test.ts` for the import firewall that enforces it.
  */
 export { registry, createThoreminRegistry, approvals } from './registry';
-export { DIAL_COMMANDS, setDialCmd, resetDialCmd, patchDialsCmd, applyDialSet } from './dials';
+export { DIAL_COMMANDS, setDialCmd, setDialInCmd, resetDialCmd, patchDialsCmd, applyDialSet, applyDialSetIn } from './dials';
+export {
+  DIAL_LEAVES,
+  structuredDialLeaves,
+  structuredLeafPaths,
+  leafByPath,
+  resolveDialPath,
+  setIn,
+  type DialLeaf,
+  type LeafKind,
+} from './paths';
 export { DIAL_FIELD_COMMANDS, generateDialCommands, setCommandIdFor } from './perDial';
 export { INSTRUMENT_COMMANDS, loadInstrumentCmd, saveInstrumentCmd, createInstrumentCmd } from './instruments';
 export {
