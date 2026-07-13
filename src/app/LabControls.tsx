@@ -1,30 +1,30 @@
 /**
- * LabControls — the Feature Instrumentation Lab settings panel (#119).
+ * LabControls — the Feature Instrumentation Lab's controls (#119), rendered inside
+ * {@link LabPanel}: the meters on/off, which feature GROUPS are measured + shown, the
+ * online-normalizer mode + grid columns, a stats reset, the safe DERIVED-feature editor
+ * (live-validated against the same jsep whitelist compiler the engine uses), and
+ * SAVE/LOAD of named lab views (a zodal collection, the project persistence rule — its
+ * own store, out of the control-store version).
  *
- * Drives the `featureLab` overlay-element config (a sub-object of the single
- * `overlay` dial value): the panel on/off, which feature GROUPS are measured +
- * shown, the online-normalizer mode + grid columns, a stats reset, the safe
- * DERIVED-feature editor (live-validated against the same jsep whitelist compiler
- * the engine uses), and SAVE/LOAD of named lab views (a zodal collection, the
- * project persistence rule — its own store, out of the control-store version).
- *
- * Like {@link DialsControlsPanel}'s OverlayControls, every edit merges a copy back
- * through `useDialsSettings().set('overlay', ...)`, which mirrors into the
- * synchronous hot store the DAG reads each tick — so meters respond live. Loading
- * a saved view hydrates that config; nothing here is ever awaited in the tick loop.
+ * Every edit writes the per-device `featureLab` config on the hot control store, which
+ * `store-controls` composes into the overlay node's params each tick — so meters respond
+ * live. It deliberately does NOT write a dial (#136): the Lab measures the instrument
+ * rather than being part of it, so a meter toggle must not mark an instrument as having
+ * unsaved edits, and loading an instrument must not silently reconfigure the meters.
+ * Loading a saved view hydrates that config; nothing here is ever awaited in the tick loop.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FEATURE_GROUPS, ALL_SAFE_NAMES } from '@/features/catalog';
 import { compileFormula, DEFAULT_HELPERS } from '@/features/formula';
-import { useDialsSettings } from './dials/useDialsSettings';
-import type { OverlayParams } from '@/nodes/output/canvas_overlay';
+import { useControls } from './store';
+import type { FeatureLabConfig } from '@/features/labConfig';
 import { createLabViewStore } from './lab/labViews';
 import type { LabViewConfig, LabViewSummary } from './lab/schema';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 const btnCls = 'rounded bg-white/10 px-2 py-0.5 text-[10px] text-white/80 hover:bg-white/20';
 
-type FeatureLab = OverlayParams['featureLab'];
+type FeatureLab = FeatureLabConfig;
 
 /** Validate a formula the same way the engine compiles it; return an error string
  *  or null. Pure (no side effects), so it's safe to run on every keystroke. */
@@ -39,11 +39,8 @@ function formulaError(formula: string): string | null {
 }
 
 export default function LabControls() {
-  const { state, set } = useDialsSettings();
-  const overlay = state.effective['overlay'] as OverlayParams;
-  const fl = overlay.featureLab;
-  const patch = (p: Partial<FeatureLab>) =>
-    set('overlay', { ...overlay, featureLab: { ...fl, ...p } });
+  const fl = useControls((s) => s.featureLab);
+  const patch = useControls((s) => s.setFeatureLab);
 
   const toggleGroup = (id: string, on: boolean) =>
     patch({ groups: on ? [...new Set([...fl.groups, id])] : fl.groups.filter((g) => g !== id) });
@@ -52,7 +49,7 @@ export default function LabControls() {
     <div className="space-y-3">
       <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" checked={fl.show} onChange={(e) => patch({ show: e.target.checked })} />
-        Show the lab (a dense grid of normalized feature meters)
+        Show the meters over the video
       </label>
 
       <div className={fl.show ? 'space-y-3' : 'space-y-3 opacity-40'}>

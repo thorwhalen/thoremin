@@ -51,13 +51,25 @@ describe('face-feature-vector (unit)', () => {
   });
 
   it('the live lab config gates activity (hidden lab → empty) and overrides groups', () => {
+    // The PRODUCTION shape: `ctx.resources.controls` is the raw control store, whose lab
+    // config is top-level since #136. This test used to drive only the nested
+    // `overlay.featureLab` shape — and stayed green when #136 moved the field, because an
+    // unreadable config reads as "headless", which means "always on". It was asserting a
+    // shape production no longer produced. See test/feature_lab_config.test.ts, which
+    // drives the real store end-to-end.
     const handlers = faceFeatureVectorNode.make(faceFeatureVectorNode.params.parse({}));
-    const hidden = bareCtx({ controls: () => ({ overlay: { featureLab: { show: false, groups: ['face.blendshape.jaw'] } } }) });
+    const hidden = bareCtx({ controls: () => ({ featureLab: { show: false, groups: ['face.blendshape.jaw'] } }) });
     expect(Object.keys((handlers.process({ face: frame }, hidden) as { vector: FeatureVector }).vector)).toHaveLength(0);
-    const shown = bareCtx({ controls: () => ({ overlay: { featureLab: { show: true, groups: ['face.blendshape.brow'] } } }) });
+    const shown = bareCtx({ controls: () => ({ featureLab: { show: true, groups: ['face.blendshape.brow'] } }) });
     const { vector } = handlers.process({ face: frame }, shown) as { vector: FeatureVector };
     expect(vector['face.blendshape.brow.innerUp']).toBeCloseTo(0.2);
     expect(vector['face.blendshape.jaw.open']).toBeUndefined(); // brow-only via live config
+  });
+
+  it('still honours the COMPOSED overlay.featureLab shape (canvas-overlay / pre-#136 hosts)', () => {
+    const handlers = faceFeatureVectorNode.make(faceFeatureVectorNode.params.parse({}));
+    const hidden = bareCtx({ controls: () => ({ overlay: { featureLab: { show: false, groups: [] } } }) });
+    expect(Object.keys((handlers.process({ face: frame }, hidden) as { vector: FeatureVector }).vector)).toHaveLength(0);
   });
 });
 

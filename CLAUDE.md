@@ -129,6 +129,27 @@ and the non-dial `muted` flag (#91) is not a command yet.
 When you add a write path: dispatch it. When you touch a panel, prefer moving it onto
 `dispatchDialSet` rather than adding another direct `setDial`.
 
+## Shipping rule: a feature nobody can find is not shipped
+
+The Feature Lab (#119) was merged, deployed, and live in the production bundle for weeks
+while being, in practice, **unreachable**: no entry point in the app shell, defaulting to
+off, buried inside a per-instrument editor. MIDI out (#120) is worse — it has no UI, no
+dial, and its `enabled` input is left unconnected in `graph.ts` (#137). Both passed every
+test in the suite.
+
+So, when you add a user-facing capability:
+
+1. **Give it an entry point in the shell.** Register it in `src/app/tools.ts` if it is a
+   *tool* (something you use ON the instrument: the Lab, the palette, the manual); give it
+   a dial in `src/settings/dials.ts` if it is an *instrument parameter* (which also earns
+   it a panel control, a palette entry, a per-dial command and an AI tool surface for
+   free). If it is neither, say why in the PR.
+2. **Ask "how many clicks from a cold load?"** and write the answer in the PR. If the
+   answer needs the phrase "then scroll", reconsider.
+3. **Test the reachability, not just the logic.** `test/tools_shell.test.tsx` (jsdom) and
+   `test/app_shell.test.ts` are the pattern. A green unit suite says the code runs; it
+   says nothing about whether a player can get to it.
+
 ## Where things live
 
 | Area | Path |
@@ -144,7 +165,8 @@ When you add a write path: dispatch it. When you touch a panel, prefer moving it
 | **Dials** — settings schema store + named **instruments** (saved profiles) | `src/app/dials/` (`settingsStore.ts`, `instruments.ts`, panels) |
 | Dials schema / presets SSOT | `src/settings/` (`schema.ts`, `dials.ts`, `presets.ts`) |
 | **Feature catalog** (#119) — data-driven features, safe formula compiler, online normalizer | `src/features/` (`catalog.ts`, `formula.ts`, `normalizer.ts`) |
-| **Feature Lab** views (#119) — saved lab configs (zodal collection) | `src/app/lab/` + `src/app/LabControls.tsx` |
+| **Feature Lab** (#119/#136) — config SSOT, the shell panel, saved views (zodal collection) | `src/features/labConfig.ts`, `src/app/LabPanel.tsx`, `src/app/LabControls.tsx`, `src/app/lab/` |
+| **Shell tools** (#136) — the registry of non-instrument surfaces + the bar that exposes them | `src/app/tools.ts`, `src/app/ToolsBar.tsx`, `src/app/toolsStore.ts` |
 | **Instrument library** (#113/#114/#115) — favorites, tags, system tags, summaries | `src/app/library/` |
 | **Recording v2** (#88) — session, plan, naming, manifest, sinks, feature tap | `src/app/recording/` + `src/app/RecordButton.tsx` |
 | **Annotations** (#92) — thoremin glue for the tagging tool | `src/app/tagging/` |

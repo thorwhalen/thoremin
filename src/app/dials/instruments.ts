@@ -28,7 +28,7 @@ import type { Layer } from '@zodal/dials-core';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import type { Settings } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
-import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
+import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import type { FingerName } from '@/nodes/domain';
 import { dialsStore } from './settingsStore';
 
@@ -54,7 +54,7 @@ const handMap = (over: Partial<HandMap>): HandMap => ({ ...structuredClone(DEFAU
  *  demo cues like the finger→effect lines / bars). Parsed through the schema so a
  *  partial sub-object override still ships a COMPLETE, valid overlay layer. */
 const overlay = (over: Record<string, unknown>): Settings['overlay'] =>
-  OverlayParamsSchema.parse({ ...DEFAULTS.overlay, ...over }) as Settings['overlay'];
+  OverlayDialSchema.parse({ ...DEFAULTS.overlay, ...over }) as Settings['overlay'];
 
 /** Reserved profile name (a legacy autosave) — filtered out of the visible list. */
 export const LAST_MODIFIED = 'Last modified';
@@ -328,13 +328,34 @@ function isFreshBrowser(): boolean {
 // --- Orchestration over the dials store (framework-agnostic, unit-tested) ---------
 
 /**
+ * Normalize a layer loaded from storage before it reaches the dials store.
+ *
+ * `dialsStore.setLayer` stores a layer VERBATIM (no schema parse), and the dirty check is
+ * a structural compare against the baseline. So a stale key inside a whole-object dial is
+ * not harmless: an instrument saved before #136 carries `overlay.featureLab`, while the
+ * working layer (seeded from the hot store, whose overlay no longer has it) does not — and
+ * every returning player's instrument would read DIRTY on load, forever, having changed
+ * nothing. Re-parsing `overlay` through the lab-free {@link OverlayDialSchema} drops the
+ * stale key on the way in, which is exactly what the schema is for.
+ */
+export function normalizeLayer(layer: Layer): Layer {
+  if (!layer.overlay) return layer;
+  try {
+    return { ...layer, overlay: OverlayDialSchema.parse(layer.overlay) };
+  } catch {
+    return layer; // unparseable → leave it; the dials validation surface reports it
+  }
+}
+
+/**
  * Load an instrument's layer into the dials store as the clean dirty-baseline
  * (setLayer + markSaved), so subsequent edits read as dirty and re-selecting reverts.
  * Returns the layer, or null if the instrument is gone (the caller reverts its UI).
  */
 export async function selectInstrument(name: string): Promise<Layer | null> {
-  const layer = await instruments.load(name);
-  if (!layer) return null;
+  const raw = await instruments.load(name);
+  if (!raw) return null;
+  const layer = normalizeLayer(raw);
   dialsStore.setLayer(layer);
   dialsStore.markSaved();
   return layer;
@@ -357,7 +378,8 @@ export async function restoreSession(): Promise<string | null> {
   await ensureSeeded();
   const workingLayer = dialsStore.getState().layer; // current working state (from the hot store)
   let sel = getSelectedName();
-  const selLayer = sel ? (await instruments.load(sel)) ?? null : null;
+  const selRaw = sel ? (await instruments.load(sel)) ?? null : null;
+  const selLayer = selRaw ? normalizeLayer(selRaw) : null;
   if (sel && !selLayer) {
     sel = null;
     setSelectedName(''); // the selected instrument was deleted — clear the stale name
@@ -368,7 +390,8 @@ export async function restoreSession(): Promise<string | null> {
   // restore writes the hot-store key, so a re-mount takes the resume path.
   if (!selLayer && isFreshBrowser()) {
     const def = getDefaultName();
-    const defLayer = def ? (await instruments.load(def)) ?? null : null;
+    const defRaw = def ? (await instruments.load(def)) ?? null : null;
+    const defLayer = defRaw ? normalizeLayer(defRaw) : null;
     if (def && !defLayer) setDefaultName(''); // the default instrument was deleted — clear it
     if (defLayer) {
       setSelectedName(def!);

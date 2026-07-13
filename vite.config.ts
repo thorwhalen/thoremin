@@ -27,12 +27,18 @@ export default defineConfig(({mode}) => {
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
-    // Vitest config: the DAG core/nodes/music tests are pure TS (no DOM/audio),
-    // so they run in the fast Node environment with no camera/GPU.
+    // Vitest config: the DAG core/nodes/music tests are pure TS (no DOM/audio), so
+    // `node` is the DEFAULT environment — they need no camera/GPU and stay fast.
+    //
+    // A `.test.tsx` file opts INTO jsdom with a `// @vitest-environment jsdom` docblock.
+    // Those are the SHELL tests: whether a feature is reachable from the app's UI is a
+    // question only a rendered component can answer, and the absence of any such test is
+    // how a whole subsystem (the Feature Lab, #136) shipped to production unreachable
+    // with 759 green tests.
     test: {
       globals: true,
       environment: 'node',
-      include: ['test/**/*.test.ts'],
+      include: ['test/**/*.test.{ts,tsx}'],
     },
   };
 });

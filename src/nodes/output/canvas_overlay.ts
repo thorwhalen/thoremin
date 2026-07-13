@@ -39,8 +39,8 @@ import {
 import { EMOTIONS, type ExpressionScores } from '@/music/expression';
 import { clamp01 } from '@/features/math';
 import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
+import { FeatureLabSchema } from '@/features/labConfig';
 import {
-  DEFAULT_LAB_GROUPS,
   DERIVED_GROUP,
   FEATURE_BY_ID,
   FEATURE_GROUPS,
@@ -144,36 +144,13 @@ const Params = z.object({
     })
     .prefault({}),
   /**
-   * Feature Instrumentation Lab (#119): a dense grid of grouped, online-normalized
-   * meters for the raw face/hand feature vectors, so heterogeneous ranges read as
-   * comparable levels. `groups` is the display + compute selection (the vector
-   * nodes read it too via the control snapshot, so it drives what is measured, not
-   * only what is drawn); `normalizer` picks the level mapping. Opt-in (a large,
-   * exploratory panel). Group/derived state that can't live here (arbitrary derived
-   * formulas, reset) rides the separate lab store (ctx.resources.lab).
+   * Feature Instrumentation Lab (#119). The schema lives in `@/features/labConfig`
+   * because the Lab is a TOOLING preference, not an instrument parameter: the value
+   * is owned by the hot control store (per-device, persisted) and composed into these
+   * node params by `store-controls` each tick — it is deliberately NOT part of the
+   * `overlay` dial (see {@link OverlayDialSchema} and #136).
    */
-  featureLab: z
-    .object({
-      show: z.boolean().default(false),
-      groups: z.array(z.string()).default([...DEFAULT_LAB_GROUPS]),
-      normalizer: z.enum(['minmax', 'quantile', 'zscore']).default('minmax'),
-      /** Number of newspaper-flow columns in the meter grid. */
-      columns: z.number().int().min(1).max(8).default(3),
-      /** Draw the percentile-band reference ticks on each meter. */
-      showMarkers: z.boolean().default(true),
-      /** Print the raw value beside each meter. */
-      showValues: z.boolean().default(false),
-      /** User-defined derived features: a safe formula (jsep whitelist) over feature
-       *  safe-names (`face.geom.mouth.openness` → `face_geom_mouth_openness`) + the
-       *  helper set. Evaluated over the merged face+hand vector; shown under the
-       *  `derived` group. An invalid formula is skipped (the editor shows the error). */
-      derived: z
-        .array(z.object({ id: z.string(), formula: z.string() }))
-        .default([]),
-      /** Bump to re-zero the online statistics (a manual "recalibrate"). */
-      resetNonce: z.number().default(0),
-    })
-    .prefault({}),
+  featureLab: FeatureLabSchema,
   /**
    * Live-tagging burned-in corner HUD (#92): while a take is recording with tagging
    * on, paints the open tags + a media timecode + a ~1 Hz REC blink into the
@@ -192,11 +169,26 @@ const Params = z.object({
 type Params = z.infer<typeof Params>;
 
 /**
- * The overlay's per-element params schema, exported so it is the single source of
- * truth for the overlay portion of saved settings and for the overlay settings panel.
+ * The overlay NODE's params — every element, including the Feature Lab. This is the
+ * engine-facing contract: `store-controls` composes it each tick from the instrument's
+ * overlay dial plus the per-device lab config.
  */
 export const OverlayParamsSchema = Params;
 export type OverlayParams = Params;
+
+/**
+ * The overlay DIAL's schema — the node's params minus `featureLab`, and so the single
+ * source of truth for the overlay portion of saved settings and of the overlay settings
+ * panel.
+ *
+ * The Lab is omitted on purpose (#136): it is a measuring tool, not a property of the
+ * instrument being measured. Leaving it in the dial meant that toggling a meter marked
+ * the instrument as having unsaved edits, and that loading an instrument silently
+ * re-configured the meters — the same reason recording settings were moved out of the
+ * instrument in #88.
+ */
+export const OverlayDialSchema = Params.omit({ featureLab: true });
+export type OverlayDialParams = z.infer<typeof OverlayDialSchema>;
 
 const RIGHT_COLOR = '#10b981';
 const LEFT_COLOR = '#3b82f6';

@@ -14,7 +14,8 @@ import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } 
 import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import type { FaceChord, FaceExpr } from '@/settings/schema';
-import type { OverlayParams } from '@/nodes/output/canvas_overlay';
+import type { OverlayDialParams } from '@/nodes/output/canvas_overlay';
+import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 
 export interface VoiceControlSnapshot {
   root: number;
@@ -39,8 +40,14 @@ export interface ControlSnapshot {
   /** Master mute, read by voice-mapping + synth-merge (#90 — the `m` key toggles
    *  `store.muted`, which flows here instead of through `keyboard-control`). */
   muted?: boolean;
-  /** Live overlay element config; forwarded to canvas-overlay's overlayConfig. */
-  overlay?: OverlayParams;
+  /** Live overlay element config (the INSTRUMENT's overlay — no Feature Lab). Composed
+   *  with {@link featureLab} into canvas-overlay's `overlayConfig`. */
+  overlay?: OverlayDialParams;
+  /** The Feature Lab config (#119) — a per-device TOOLING pref, not an instrument
+   *  parameter (#136), so it is carried separately and merged into the overlay node's
+   *  params here. Also read by `webcam-face`, which loads the face model when the Lab
+   *  is measuring face groups even if the face drives no sound. */
+  featureLab?: FeatureLabConfig;
   /** Legacy face on/off flag; superseded by {@link faceMapping}. Kept so older
    *  hosts / saved data still gate the `webcam-face` model load. */
   faceEnabled?: boolean;
@@ -151,7 +158,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
             : c.faceExpr.sensitivity;
           out.expressionDegrees = c.faceExpr.degrees;
         }
-        if (c.overlay) out.overlay = c.overlay;
+        // Recompose the overlay node's params: the instrument's overlay elements plus
+        // the per-device Feature Lab config, which is owned outside the instrument (#136).
+        if (c.overlay) out.overlay = { ...c.overlay, featureLab: c.featureLab ?? defaultFeatureLab() };
         return out;
       },
     };

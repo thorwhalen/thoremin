@@ -127,7 +127,10 @@ export interface SynthParams {
  *  - `controls` : deliberate head/face *pose* axes play a chord instrument (#76) —
  *                 head-yaw→degree, head-pitch→octave, jaw-open→gate, smile→timbre,
  *                 brow→add-7th. The honest, controllable alternative to emotion mode.
- * Any non-`none` mode lazy-loads the `webcam-face` model.
+ * Any non-`none` mode lazy-loads the `webcam-face` model — but the mapping is no longer
+ * the ONLY thing that can want the model: the Feature Lab requests it too when it is
+ * measuring face groups, so a player can observe their face features without the face
+ * driving the sound (see `faceActive` in webcam_face.ts, #136).
  */
 export const FACE_MAPPINGS = ['none', 'timbre', 'chord', 'controls'] as const;
 export type FaceMapping = (typeof FACE_MAPPINGS)[number];

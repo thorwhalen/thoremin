@@ -1,8 +1,9 @@
 # Feature Instrumentation Lab — a measuring instrument for face & hand features
 
-> **Status:** implemented (2026-07, issue #119, PR #122). This document is the single
-> source of truth for the feature catalog (`src/features/`) and the lab
-> (`src/app/lab/`, `src/app/LabControls.tsx`, the `featureLab` overlay element).
+> **Status:** implemented (2026-07, issue #119, PR #122); made *reachable* and moved out
+> of the instrument in #136. This document is the single source of truth for the feature
+> catalog (`src/features/`) and the lab (`src/features/labConfig.ts`, `src/app/lab/`,
+> `src/app/LabPanel.tsx`, `src/app/LabControls.tsx`, the `featureLab` overlay element).
 > Follow-up work is tracked in #131.
 
 ## The idea in one line
@@ -22,6 +23,44 @@ makes that visible instead of guessed.
 
 It is deliberately **not** a sound. It produces no audio, changes no dial, and costs
 nothing when it is off.
+
+## Where it lives, and how you find it (#136)
+
+The paragraph above was the intent from day one. The first implementation did not honour
+it: the lab's config was a sub-object of the `overlay` **dial**, so the Lab *was* a dial —
+toggling a meter marked your instrument as having unsaved edits, and loading an instrument
+silently reconfigured your meters. And its only control lived inside the per-instrument
+settings editor, three clicks and a scroll deep, defaulting to off. The result was a
+248-feature subsystem that shipped to production, passed 759 tests, and that nobody —
+including its author — could find.
+
+Two corrections, both of which follow from taking "it is a measuring instrument" literally:
+
+1. **The config is a tooling preference, not an instrument parameter.** It lives on the
+   hot control store (`useControls.featureLab`), persisted per-device and excluded from
+   `SettingsSchema`, exactly like the per-device `faceCalibration` and exactly as
+   recording settings were moved out of the instrument in #88. `store-controls` composes
+   it into the overlay node's params each tick, so the engine still sees one overlay
+   config and the meters keep working. `OverlayDialSchema` is the node's params minus
+   `featureLab` and is what the dial and the saved settings use.
+
+2. **It has an entry point.** The Lab is a *tool*, registered in `src/app/tools.ts` and
+   opened from the shell's tools bar (bottom-left, alongside the command palette and the
+   manual). It opens on an intro that says what the meters measure, because "248
+   normalized meters" means nothing to a player who has not read this document.
+
+A third correction falls out of the same principle. The face model used to load only when
+`face.mapping !== 'none'`, so you could not look at a face meter without also putting your
+face in charge of the sound: a measuring instrument that could not observe without
+altering. `faceActive` (webcam_face.ts) now returns true when *either* the mapping wants
+the face *or* the Lab is measuring face groups.
+
+**The rule this cost us, stated once:** a feature only findable by someone who read the PR
+is not shipped. `test/tools_shell.test.tsx` and `test/app_shell.test.ts` hold the line —
+every registered tool has a labelled button in the shell, and every button opens a surface
+the shell actually mounts. The pre-existing "every overlay element has a control
+descriptor" test passed throughout this bug: a descriptor proves an element is
+*controllable*, not that a player can *find* the control.
 
 ## The feature catalog (`src/features/`) — data-driven, like the node registry
 
@@ -165,8 +204,8 @@ and out of the live control store's persist version — a lab view is an *analys
 workspace*, not a sound. Every field carries a `.default(...)`, so a view saved by an
 older build still parses.
 
-Loading a view hydrates the live `featureLab` overlay config (synchronous zustand);
-edits debounce-save back. Nothing here is ever awaited in the tick loop.
+Loading a view hydrates the live `featureLab` config on the control store (synchronous
+zustand); edits debounce-save back. Nothing here is ever awaited in the tick loop.
 
 ## What is verified
 
@@ -174,7 +213,10 @@ Pure logic — the catalog, the formula compiler (including its rejection cases)
 normalizer, the vector nodes, the overlay element, the lab views — is unit-tested
 (`test/feature_catalog.test.ts`, `test/feature_formula.test.ts`,
 `test/feature_normalizer.test.ts`, `test/feature_vector_nodes.test.ts`,
-`test/feature_lab_overlay.test.ts`, `test/lab_views.test.ts`).
+`test/feature_lab_overlay.test.ts`, `test/lab_views.test.ts`). Since #136, so is the
+lab's *separation from the instrument* and its *reachability from the shell*
+(`test/feature_lab_config.test.ts`, `test/tools_shell.test.tsx`,
+`test/app_shell.test.ts`).
 
 ## Open follow-up (#131)
 

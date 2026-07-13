@@ -2,8 +2,8 @@
  * The OVERLAY section of the settings panel — data-driven by the overlay element
  * registry, so adding an overlay element makes its controls appear here automatically.
  */
-import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayParams } from '@/nodes/output/canvas_overlay';
-import { OVERLAY_CONTROLS, type OverlayControlDesc } from '../../overlayControls';
+import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayDialParams } from '@/nodes/output/canvas_overlay';
+import { controlsForSurface, type OverlayControlDesc } from '../../overlayControls';
 import { useDialsSettings } from '../useDialsSettings';
 import { CollapsibleSection, Toggle, selectCls } from '../primitives';
 
@@ -16,17 +16,26 @@ import { CollapsibleSection, Toggle, selectCls } from '../primitives';
  * appear here automatically (a test enforces every element has a descriptor), so
  * this is a general framework, not a hand-maintained list. The whole overlay object
  * is one dial value; each edit writes a merged copy back.
+ *
+ * Only the descriptors whose home is the INSTRUMENT are rendered here. An element can
+ * declare another surface as its home — the Feature Lab does (#136), because it is a
+ * tool for measuring the instrument rather than a property of it, and belongs in the
+ * shell where a player can find it. See {@link OverlaySurface}.
  */
 export function OverlayControls() {
   const { state, set } = useDialsSettings();
-  const overlay = state.effective['overlay'] as OverlayParams;
+  const overlay = state.effective['overlay'] as OverlayDialParams;
   const faceActive = state.effective['face.mapping'] !== 'none';
   const categoryOf = new Map(OVERLAY_ELEMENTS.map((e) => [e.name, e.category]));
-  const patch = (name: keyof OverlayParams, p: object) =>
-    set('overlay', { ...overlay, [name]: { ...(overlay[name] as object), ...p } });
+  const ours = controlsForSurface('instrument');
+  // `name` is a descriptor key, which is typed over the NODE's overlay params (a
+  // superset of the dial's — the Lab element lives only on the node side). `ours`
+  // filters it down to the dial's keys at runtime.
+  const patch = (name: string, p: object) =>
+    set('overlay', { ...overlay, [name]: { ...(overlay[name as keyof OverlayDialParams] as object), ...p } });
 
   const renderControl = (d: OverlayControlDesc) => {
-    const elt = overlay[d.name] as { show: boolean } & Record<string, unknown>;
+    const elt = overlay[d.name as keyof OverlayDialParams] as { show: boolean } & Record<string, unknown>;
     const off = !!d.needsFace && !faceActive;
     return (
       <div key={d.name} className="space-y-1.5">
@@ -78,7 +87,7 @@ export function OverlayControls() {
   return (
     <div className="space-y-3">
       {OVERLAY_CATEGORIES.map((cat) => {
-        const descs = OVERLAY_CONTROLS.filter((d) => categoryOf.get(d.name) === cat.id);
+        const descs = ours.filter((d) => categoryOf.get(d.name) === cat.id);
         if (descs.length === 0) return null;
         return (
           <CollapsibleSection key={cat.id} label={cat.label} defaultOpen={cat.id !== 'backdrop'}>

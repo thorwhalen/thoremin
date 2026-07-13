@@ -21,7 +21,6 @@
  */
 import { useDialsSettings } from './useDialsSettings';
 import { dispatchDialSet } from '../dispatchDial';
-import LabControls from '../LabControls';
 import { TopSection } from './primitives';
 import { VoiceControls } from './panels/voice';
 import { HandControls } from './panels/hand';
@@ -64,18 +63,16 @@ export default function DialsControlsPanel() {
         <OverlayControls />
       </TopSection>
 
-      {/* Feature Instrumentation Lab (#119): a measuring instrument for the raw
-          face/hand feature vectors — grouped normalized meters, derived formulas,
-          and saved views. */}
-      <TopSection label="Feature Lab">
-        <LabControls />
-      </TopSection>
+      {/* The Feature Lab is NOT here. It measures the instrument rather than being part
+          of it, so it lives in the shell's tools bar with the other tools (#136); putting
+          it in this editor is what made it unfindable in the first place. */}
 
       <TopSection label="Keyboard">
         <div className="text-[10px] leading-relaxed text-white/50">
           <p>↑ / ↓ — octave shift</p>
           <p>← / → — less / more scale-snap</p>
           <p>m — mute</p>
+          <p>⌘K / Ctrl-K — command palette (set any dial by name)</p>
         </div>
       </TopSection>
     </div>

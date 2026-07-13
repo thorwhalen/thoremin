@@ -126,7 +126,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { id: 'poseChord', type: 'pose-chord', params: {} },
       // Feature Instrumentation Lab (#119): pure feature-vector taps off the
       // existing face/hand sources; the overlay's featureLab element normalizes +
-      // draws them. Idle (empty vector) unless the lab panel is shown.
+      // draws them. Idle (empty vector) unless the Lab's meters are on — the nodes read
+      // the live lab config off the control store (resolveLabGate), so the catalog costs
+      // nothing for a player who never opens the Lab.
       { id: 'faceVec', type: 'face-feature-vector', params: {} },
       { id: 'handVec', type: 'hand-feature-vector', params: {} },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys

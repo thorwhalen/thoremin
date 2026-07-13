@@ -11,7 +11,8 @@
  * NaN and the online normalizer never sees one (one NaN permanently poisons a
  * running mean — see the #119 appendix).
  *
- * Which groups compute is, in priority order: the live lab config
+ * Which groups compute is, in priority order: the live lab config (read off the control
+ * store — the top-level `featureLab`, since #136)
  * (`ctx.resources.controls().overlay.featureLab`), then the static `groups`
  * param, then ALL face groups. The lab is "active" when its overlay element is
  * shown; when hidden (and a live config is present) the node emits an empty
@@ -24,6 +25,7 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import type { FaceFrame } from '../domain';
 import { buildFaceCtx, FACE_FEATURES, type FeatureVector } from '@/features/catalog';
+import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
 
 const Params = z.object({
   /** Which feature groups to compute (default: all face groups). A live lab
@@ -32,21 +34,13 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
-/** The live lab config slice the vector nodes read off the control snapshot. */
-interface LiveLabConfig {
-  show?: boolean;
-  groups?: string[];
-}
-type ControlsGetter = () => { overlay?: { featureLab?: LiveLabConfig } } | undefined;
+type ControlsGetter = () => LabControlsSnapshot | undefined;
 
-/** Resolve the active flag + enabled-group predicate from live config or params. */
+/** Resolve the active flag + enabled-group predicate. The rule itself lives in
+ *  `@/features/labConfig` — it is shared with the hand/face twin, and keeping two copies
+ *  of it is how #136 silently un-gated the whole catalog. */
 function resolveGroups(p: Params, ctx: NodeContext): { active: boolean; enabled: (group: string) => boolean } {
-  const live = (ctx.resources.controls as ControlsGetter | undefined)?.()?.overlay?.featureLab;
-  // Headless (no live config): always active, groups from params.
-  const active = live ? live.show === true : true;
-  const groups = live?.groups ?? p.groups;
-  const set = groups ? new Set(groups) : null;
-  return { active, enabled: (group: string) => (set ? set.has(group) : true) };
+  return resolveLabGate(p, (ctx.resources.controls as ControlsGetter | undefined)?.());
 }
 
 export const faceFeatureVectorNode = defineNode<Params>({

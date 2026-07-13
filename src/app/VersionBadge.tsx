@@ -51,7 +51,7 @@ export default function VersionBadge() {
       target="_blank"
       rel="noreferrer"
       title={`Deployed ${sha}${meta?.deployed_at ? ` at ${meta.deployed_at}` : ''}`}
-      className="pointer-events-auto absolute bottom-3 left-24 font-mono text-[9px] uppercase tracking-widest text-white/30 backdrop-blur transition hover:text-white/70"
+      className="pointer-events-auto pl-1 font-mono text-[9px] uppercase tracking-widest text-white/30 transition hover:text-white/70"
     >
       {short}
       {date ? ` · ${date}` : ''}

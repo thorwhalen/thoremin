@@ -14,7 +14,7 @@ import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { SOUND_IDS, type SoundId } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
-import { OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
+import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -169,7 +169,7 @@ export const SettingsSchema = z.object({
   // Per-emotion sensitivity + per-expression degree map; `.default(...)` keeps
   // presets saved before the expression-mapping editor valid.
   faceExpr: FaceExprSchema,
-  overlay: OverlayParamsSchema,
+  overlay: OverlayDialSchema,
   // Note source + finger→effect routing + the once-static voice-mapping knobs.
   handMap: HandMapSchema,
 });

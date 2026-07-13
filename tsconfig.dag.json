@@ -7,5 +7,7 @@
     "noUnusedParameters": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/dag", "src/nodes", "src/music", "src/features", "src/settings", "src/taglog", "src/app/graph.ts", "src/app/lab", "test", "scripts"]
+  "include": ["src/dag", "src/nodes", "src/music", "src/features", "src/settings", "src/taglog", "src/app/graph.ts", "src/app/lab", "test", "scripts"],
+  "//exclude": "The jsdom SHELL tests are .tsx (they render React components) and this project ships no @types/react by design — same reason the React app layer is excluded. Vitest still runs them; Vite/esbuild type-erases the JSX.",
+  "exclude": ["test/**/*.test.tsx"]
 }
