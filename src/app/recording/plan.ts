@@ -90,7 +90,7 @@ function audioFiles(session: RecordingSession, stem: string, audioMime: string):
     const fmt = recordingFormat(id)!;
     // Native webm derives its ext from the recorder MIME; converted formats use
     // the registry ext. Audio files need no secondary ext: the native `.webm`
-    // and any converted `.wav`/`.mp3` differ by PRIMARY ext, and the video
+    // and any converted `.wav`/`.flac` differ by PRIMARY ext, and the video
     // streams carry role secondary exts, so there is no collision.
     const ext = id === 'webm' ? extForMime(audioMime) : fmt.ext;
     return {
