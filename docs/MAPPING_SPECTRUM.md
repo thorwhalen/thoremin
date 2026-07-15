@@ -44,9 +44,8 @@ and since #75 they draw from a **chord-source scale decoupled from the melody sc
 ## Indirect end — built + tested, NOT wired into the default graph
 
 The nodes exist and are unit-tested (against a mock engine); no generative layer runs
-in the DAG app. The only *running* generative surface is the AI-DJ plugin in the
-**frozen** legacy view (`?engine=legacy`). Issue **#128** decides whether this gets
-ported into the default graph or the legacy view is formally retired.
+in the DAG app. The legacy AI-DJ is retired to `?engine=legacy` (#128); a DAG-native, gesture-steered generative layer is the new-feature issue #141. The only *running* generative surface today is the (frozen) AI-DJ plugin in the
+**frozen** legacy view (`?engine=legacy`).
 
 - `indirect-map` **(built, not wired)**: gesture features AND/OR face expressions → a
   **weighted-prompt vector** + config dials (density, brightness, bpm, tension),

@@ -95,12 +95,16 @@ right shape and stays. Recorded in
 [design/stream-applier.md](design/stream-applier.md#m-c-resolved-host-side-source-for-video-node-swap-for-frame-emitters).
 Ready to build; not scheduled.
 
-### #128 — the generative layer
+### #128 — the generative layer: **DECIDED (retired to `?engine=legacy`)**
 
-The `lyria` node + `indirect-map` node are built and unit-tested, but no generative
-layer runs in the DAG app; the only working one is the AI-DJ plugin in the **frozen**
-legacy view (`?engine=legacy`). Decide: port it into the default graph, or formally
-retire the legacy view. Nothing else blocks on this.
+The legacy AI-DJ is retired to `?engine=legacy` — a status decision, no code change; it
+keeps working there. The reframing fact: the legacy AI-DJ is **slider**-steered, and the
+compelling version (hand/face features steering a generative model) exists only as the
+`indirect-map` node, which has never run in a browser. So "port it forward" was really
+"first-run an unproven feature", now split out and budgeted honestly as **#141**
+(gesture-steered generative layer, DAG-native) — which depends on the #126 dials/command
+surface, now merged. The `lyria` / `indirect-map` / `generative` nodes stay in the registry,
+catalogued and role-tested, so this is fully reversible.
 
 ---
 
@@ -169,7 +173,7 @@ these rather than inside them, so read the status column, not the milestone numb
 | **M0** | Baseline + node contract: DAG engine, recorder/replay, pure node library, music theory, headless tests. | done |
 | **M1** | First real video→sound vertical slice in the browser, on-device. | done |
 | **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | done |
-| **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) is not done and is now **#128**. |
+| **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) was decided in **#128** — the legacy AI-DJ is retired to `?engine=legacy`; a DAG-native, gesture-steered generative layer is now the new-feature issue **#141**. |
 | **M4** | Broaden the feature surface + tonal depth. | done and then some — face blendshapes, face expression, head/jaw/brow pose control, gesture classifier, Tonal.js chords/voicings, and the ~200-feature catalog (#119). |
 | **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | nodes built + tested (`transport` / `score` / `performance`); **not wired into the default graph**. |
 | **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120); the patcher (#14) is open. |
@@ -186,5 +190,6 @@ these rather than inside them, so read the status column, not the milestone numb
    Python/`theremin` or generative service can plug in later (M7). The AI assistant
    deliberately follows this too: client-side, BYO-key, no `aix`.
 4. **Fixture videos** — commit small derived NDJSON; raw `.mp4`s optional/external.
-5. **Lyria API key** — key-in-localStorage; a proxy/platform-managed key only if the
-   generative layer returns to the default app (#128).
+5. **Lyria API key** — key-in-localStorage; a proxy/platform-managed key only if a
+   generative layer comes to the default app (**#141**; the legacy AI-DJ that used it is
+   retired to `?engine=legacy` per #128).
