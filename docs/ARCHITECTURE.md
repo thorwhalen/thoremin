@@ -42,7 +42,7 @@ sensors   normalized   feature→     tonal           sound            audio +
 | **Feature** | Raw data → normalized control signals | `@mediapipe/tasks-vision` hands + 52-blendshape face. Nodes: `hand-features`, `face-features`, `face-expression`, `face-controls` (head/jaw/brow pose), `gesture-classifier`, and the Feature Lab taps `face-feature-vector` / `hand-feature-vector` (#119). |
 | **Mapping** | Features → engine params, across the direct↔indirect spectrum | `voice-mapping` (direct — the default). `indirect-map` (→ weighted prompts) is built and tested but **not wired into the default graph**. |
 | **Music-logic** | Tonal guidance: scale snap, chords | `src/music/theory.ts` (magnetic snapping) in the hot path; `expression-chord` / `pose-chord` play diatonic chords from the face; Tonal.js backs `chord` / `progression` (built + tested, not in the default graph) and the voicings. |
-| **Synthesis / Generation** | Make sound | `webaudio-synth` (declarative timbre presets from `src/music/sounds.ts`). The `lyria` node + `GenerativeEngine` facade exist and are unit-tested, but the only *running* generative surface is the AI-DJ plugin in the **frozen** legacy app (#128 decides its fate). |
+| **Synthesis / Generation** | Make sound | `webaudio-synth` (declarative timbre presets from `src/music/sounds.ts`). The `lyria` node + `GenerativeEngine` facade exist and are unit-tested, but the only *running* generative surface is the AI-DJ plugin in the **frozen** legacy app — retired to `?engine=legacy` (#128); a DAG-native, gesture-steered generative layer is the new-feature issue #141. |
 | **Output** | Audio + video + visual guides + MIDI | Web Audio out; `canvas-overlay` (video, landmarks, markers, pitch guides, chord cues, feature-lab meters, annotation HUD); `midi-out` (WEBMIDI.js, shipped #13, off by default). |
 
 ## The DAG runtime (`src/dag/`)
@@ -146,12 +146,12 @@ legacy app is **frozen** (maintainer decision): it stays reachable so the
 generative work is not lost, but it receives no new features and is excluded from
 refactors. The DAG side already has a `lyria` node and an `indirect-map` node,
 both unit-tested against a mock engine; what is *not* done is wiring a generative
-layer into the default graph. Issue **#128** decides that: port it in, or formally
-retire the legacy view.
+layer into the default graph. #128 retired the legacy AI-DJ to `?engine=legacy`; a
+DAG-native, gesture-steered generative layer is now the new-feature issue #141.
 
 ## Roadmap
 
 See [`docs/ROADMAP.md`](ROADMAP.md) and the GitHub issues. The DAG instrument is
 the shipped product; the engine milestones M0–M6 are done or superseded, and the
 live tracks are the Stream Applier (M8 / #101), the command-dispatch write-path
-sweep (#126), and the generative-layer decision (#128).
+sweep (#126, done), and the retired generative layer (#128 → #141).

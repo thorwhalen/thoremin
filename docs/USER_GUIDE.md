@@ -229,5 +229,7 @@ generative music with weighted text "strains" (you supply a Gemini API key, stor
 only in your browser).
 
 It is kept reachable so that work is not lost, but it is **frozen**: no new features,
-and it is excluded from refactors. Whether the generative layer moves into the main
+and it is excluded from refactors. The legacy AI-DJ is retired there (#128); a
+DAG-native, gesture-steered generative layer is tracked as a new feature (#141). Whether
+that generative layer moves into the main
 app or the legacy view is retired is tracked in issue #128.
