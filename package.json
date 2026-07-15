@@ -20,6 +20,7 @@
     "@ai-sdk/anthropic": "^4.0.12",
     "@ai-sdk/google": "^4.0.12",
     "@ai-sdk/openai": "^4.0.11",
+    "@breezystack/lamejs": "^1.2.7",
     "@google/genai": "^1.29.0",
     "@jsep-plugin/ternary": "^1.1.4",
     "@mediapipe/hands": "^0.4.1675469240",

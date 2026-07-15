@@ -38,7 +38,7 @@ presentational.
 
 | Stream | Source | Notes |
 |---|---|---|
-| **audio** | master-bus tap (`MediaStreamAudioDestinationNode`) | always available; converted to the selected formats (webm/wav) on stop |
+| **audio** | master-bus tap (`MediaStreamAudioDestinationNode`) | always available; converted to the selected formats (webm/wav/mp3) on stop |
 | **video + overlays** | `canvas.captureStream(fps)` muxed with the audio tap | "what you see" (mirrored, with landmarks) |
 | **pure webcam** | the raw camera `MediaStream` (else `video.captureStream()`) | overlay-free; per-stream "include audio" (default off) |
 | **overlay-only (alpha)** | a transparent offscreen canvas the overlay node redraws to with the backdrop suppressed | **Chromium-only**, experimental (alpha WebM); feature-gated |
@@ -66,12 +66,33 @@ with a **secondary ext = the role** when streams share a primary ext:
 ```
 demo-theremin-2026-07-05T14-30-12/
   ….overlay.webm  ….camera.webm  ….alpha.webm
-  ….webm  ….wav  ….features.jsonl  ….annotations.jsonl  ….manifest.json
+  ….webm  ….wav  ….mp3  ….features.jsonl  ….annotations.jsonl  ….manifest.json
 ```
 
 `recordingStem()` + `fileName(stem,{role,ext})` are pure and unit-tested; every
 sink writes the identical names. An opt-in **single-file escape hatch** (one
 media stream, no features) saves a bare file with no folder.
+
+## Audio output formats (`formats.ts`, `wav.ts`, `mp3.ts`)
+
+`MediaRecorder` only produces WebM/Opus, so every other format is a **converter**
+in the open-closed `RECORDING_FORMATS` registry: an id + label + ext + a
+`load(): Promise<Converter>` that lazily `import()`s its encoder. Adding a format
+is appending one entry — no call site changes, and the settings sheet lists it
+automatically (it renders the registry). Today: `webm` (native passthrough),
+`wav` (in-house, dependency-free), `mp3` (#130 — lamejs, its own ~170 kB chunk,
+fetched only by a player who actually picks MP3). Still open: an `ffmpeg.wasm`
+"any format" escape hatch (multi-MB, so it must be opt-in and labelled as a heavy
+download).
+
+`convertAudioFormats(ids, {native, audio})` is the shared conversion loop: it
+decodes once (if any selected format needs PCM) and runs the converters in the
+plan's order. A converter that fails — its lazy encoder chunk will not load, the
+decode failed, the encoder rejects the audio — yields **no blob**, so **no file is
+written for it** and its id comes back in `RecordingResult.failedFormats` for an
+error toast. It deliberately does **not** fall back to the un-encoded native blob:
+a `.mp3` full of WebM bytes is a lie the player only discovers much later.
+Failures are per-format, so a broken MP3 encoder never costs you the WAV.
 
 ## Three-tier sink (`sink.ts`, `caps.ts`)
 
