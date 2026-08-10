@@ -9,7 +9,7 @@
  *     handing the face control of the sound.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { thoreminDials } from '@/settings/dials';
+import { thoreminDials, settingsToLayer } from '@/settings/dials';
 import { SettingsSchema } from '@/settings/schema';
 import { OverlayDialSchema, OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, labWantsFace, FACE_GROUP_IDS } from '@/features/labConfig';
@@ -170,8 +170,13 @@ describe('a legacy saved instrument does not read as dirty on load', () => {
     expect(normalized.overlay).toEqual(OverlayDialSchema.parse({}));
   });
 
-  it('leaves a modern layer structurally identical (no spurious dirty)', () => {
-    const modern = { overlay: OverlayDialSchema.parse({}), 'master.volume': 0.4 };
-    expect(normalizeLayer(modern as never)).toEqual(modern);
+  it('leaves a modern (complete) layer structurally identical (no spurious dirty)', () => {
+    // A layer saved by CURRENT code carries every emitted dial key — build one the
+    // way the app seeds its working layer (settingsToLayer over the hot store's
+    // defaults). normalizeLayer must not alter it: the default-fill only touches
+    // keys a PRE-dial layer lacks (see the #137 additive-dial regression in
+    // test/instruments.test.ts).
+    const modern = settingsToLayer(toSettings(useControls.getInitialState()));
+    expect(normalizeLayer(modern)).toEqual(modern);
   });
 });

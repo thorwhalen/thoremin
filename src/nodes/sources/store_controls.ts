@@ -63,6 +63,9 @@ export interface ControlSnapshot {
    *  wizard) that wins over the per-instrument `faceExpr.sensitivity`, so a user's
    *  calibration applies to EVERY instrument. Null/absent = use faceExpr.sensitivity. */
   faceCalibration?: Partial<Record<string, number>> | null;
+  /** MIDI output (#137): on/off + target port name ('' = first available). Fed to
+   *  the `midi-out` node's `enabled`/`port` inputs as live ports. */
+  midi?: { enabled: boolean; port: string };
 }
 
 const Params = z.object({});
@@ -100,6 +103,10 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // scale-degree map (→ expression-chord).
     { name: 'expressionSensitivity', kind: 'expression-sensitivity' },
     { name: 'expressionDegrees', kind: 'expression-degrees' },
+    // MIDI output (#137): the on/off switch + target port for the `midi-out` node,
+    // so the settings panel / palette / AI can turn MIDI on without a graph rebuild.
+    { name: 'midiEnabled', kind: 'boolean' },
+    { name: 'midiPort', kind: 'string' },
   ],
   params: Params,
   make() {
@@ -136,6 +143,8 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           octaveShift: c.octaveShift ?? 0,
           magnetism: c.magnetism ?? 0.8,
           mute: c.muted ?? false,
+          midiEnabled: c.midi?.enabled ?? false,
+          midiPort: c.midi?.port ?? '',
           rightSpec,
           chordSpec,
           chordScale: generateScale(chordSpec),

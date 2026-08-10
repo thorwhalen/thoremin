@@ -133,6 +133,23 @@ export const DEFAULT_FACE_EXPR: FaceExpr = {
   degrees: { ...DEFAULT_EXPRESSION_TO_DEGREE },
 };
 
+/**
+ * MIDI output settings (#137): whether the merged voices also drive a Web MIDI
+ * output, and which port they target ('' = first available). Part of the
+ * instrument (a hardware-synth instrument profile wants "plays over MIDI" saved
+ * with it); the port NAME is device-specific, but a port that doesn't exist on
+ * this machine degrades to an honest `no-ports` status, never an error. The
+ * `.default(...)` keeps presets saved before MIDI reachability valid (off).
+ */
+export const MidiSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  port: z.string().default(''),
+});
+export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
+
+/** The shipped MIDI defaults: off, first available port. */
+export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '' };
+
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
   root: z.number().int().min(0).max(11),
@@ -172,6 +189,8 @@ export const SettingsSchema = z.object({
   overlay: OverlayDialSchema,
   // Note source + finger→effect routing + the once-static voice-mapping knobs.
   handMap: HandMapSchema,
+  // MIDI output (#137). `.default(...)` keeps pre-MIDI presets valid (off).
+  midi: MidiSettingsSchema.default(DEFAULT_MIDI),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

@@ -88,6 +88,13 @@ export const thoreminDials = defineDials(
     'faceChord.chordRoot': z.number().int().min(0).max(11).default(DEFAULT_FACE_CHORD.chordRoot).meta({ facets: ['Face'], title: 'Chord root' }),
     'faceChord.chordType': ScaleEnum.default(DEFAULT_FACE_CHORD.chordType).meta({ facets: ['Face'], title: 'Chord scale' }),
 
+    // MIDI output (#137). `midi.port` is a FREE string, not an enum: the real
+    // options are the live device list (MidiStatus.ports), which only exists at
+    // runtime — the panel renders them as a dynamic <select>, the palette/AI take
+    // the port name as text. '' targets the first available port.
+    'midi.enabled': z.boolean().default(false).meta({ facets: ['MIDI'], title: 'MIDI output', description: 'Send the played voices to a Web MIDI output (external synth or DAW)' }),
+    'midi.port': z.string().default('').meta({ facets: ['MIDI'], title: 'MIDI port', description: 'MIDI output port name (empty = first available)' }),
+
     // Complex/structured settings — rendered by bespoke widgets (the expression
     // table, the overlay accordion); carried as whole-object dial values.
     'faceExpr.sensitivity': z
@@ -108,9 +115,17 @@ export const thoreminDials = defineDials(
   // diatonic chord is built from, and a generalized chord is defined on any scale.
 );
 
-/** The nested {@link Settings} → the flat dials {@link Layer} (every key set). */
+/**
+ * The nested {@link Settings} → the flat dials {@link Layer}. Every key is emitted
+ * EXCEPT those whose value is `undefined` (the optional #63 range fields on a legacy
+ * voice): an undefined-valued key resolves identically to an absent one, but it does
+ * NOT survive a JSON round-trip (localStorage persistence drops it) — so emitting it
+ * would make the in-memory working layer structurally differ from a saved copy of
+ * itself, and the instruments' dirty compare (key presence counts) would flag a
+ * phantom "edited" state on every reload.
+ */
 export function settingsToLayer(s: Settings): Layer {
-  return {
+  return _dropUndefined({
     'master.volume': s.masterVolume,
     'master.syncHands': s.syncHands,
     'master.octaveShift': s.octaveShift,
@@ -140,9 +155,16 @@ export function settingsToLayer(s: Settings): Layer {
     'faceChord.chordType': s.faceChord.chordType,
     'faceExpr.sensitivity': s.faceExpr.sensitivity,
     'faceExpr.degrees': s.faceExpr.degrees,
+    'midi.enabled': s.midi.enabled,
+    'midi.port': s.midi.port,
     overlay: s.overlay,
     handMap: s.handMap,
-  };
+  });
+}
+
+/** A copy of `layer` without its undefined-valued keys (see {@link settingsToLayer}). */
+function _dropUndefined(layer: Layer): Layer {
+  return Object.fromEntries(Object.entries(layer).filter(([, v]) => v !== undefined));
 }
 
 /** The flat dials effective values → a validated nested {@link Settings}. */
@@ -166,6 +188,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
       chordType: v['faceChord.chordType'],
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
+    midi: { enabled: v['midi.enabled'], port: v['midi.port'] },
     overlay: v.overlay,
     handMap: v.handMap,
   });

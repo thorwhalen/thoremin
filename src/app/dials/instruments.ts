@@ -331,19 +331,38 @@ function isFreshBrowser(): boolean {
  * Normalize a layer loaded from storage before it reaches the dials store.
  *
  * `dialsStore.setLayer` stores a layer VERBATIM (no schema parse), and the dirty check is
- * a structural compare against the baseline. So a stale key inside a whole-object dial is
- * not harmless: an instrument saved before #136 carries `overlay.featureLab`, while the
- * working layer (seeded from the hot store, whose overlay no longer has it) does not — and
- * every returning player's instrument would read DIRTY on load, forever, having changed
- * nothing. Re-parsing `overlay` through the lab-free {@link OverlayDialSchema} drops the
- * stale key on the way in, which is exactly what the schema is for.
+ * a structural compare against the baseline. That makes TWO kinds of drift dangerous, both
+ * with the same symptom — every returning player's instrument reads DIRTY on load,
+ * forever, having changed nothing:
+ *
+ * - A STALE key inside a whole-object dial: an instrument saved before #136 carries
+ *   `overlay.featureLab`, while the working layer (seeded from the hot store, whose
+ *   overlay no longer has it) does not. Re-parsing `overlay` through the lab-free
+ *   {@link OverlayDialSchema} drops the stale key on the way in.
+ * - A MISSING key a later release added to the dials SSOT: an instrument saved before
+ *   #137 has no `midi.enabled`/`midi.port`, while the working layer always emits them.
+ *   Absent-with-a-declared-default resolves identically to present-at-default, so
+ *   filling the default in changes nothing the player hears — it only stops the
+ *   presence mismatch from reading as an edit. Derived from {@link thoreminDials}
+ *   (`defaults`), so the NEXT added dial heals automatically; keys with NO declared
+ *   default (the optional #63 range fields) are deliberately left absent — their
+ *   absence is meaningful (the legacy `octaves` span path).
  */
 export function normalizeLayer(layer: Layer): Layer {
-  if (!layer.overlay) return layer;
+  let out = layer;
+  for (const key of thoreminDials.keys) {
+    const dflt = thoreminDials.defaults[key];
+    if (dflt === undefined || out[key] !== undefined) continue;
+    if (out === layer) out = { ...layer };
+    // Object-valued defaults (overlay/handMap) are cloned so layers never share a
+    // mutable sub-object with the defaults (the schema.ts HandMap lesson).
+    out[key] = typeof dflt === 'object' && dflt !== null ? structuredClone(dflt) : dflt;
+  }
+  if (!out.overlay) return out;
   try {
-    return { ...layer, overlay: OverlayDialSchema.parse(layer.overlay) };
+    return { ...out, overlay: OverlayDialSchema.parse(out.overlay) };
   } catch {
-    return layer; // unparseable → leave it; the dials validation surface reports it
+    return out; // unparseable → leave it; the dials validation surface reports it
   }
 }
 

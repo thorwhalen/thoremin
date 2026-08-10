@@ -26,7 +26,15 @@ export async function openWebMidiSink({ portName }: { portName: string }): Promi
   const { WebMidi } = await import('webmidi');
   try {
     await WebMidi.enable(); // requests MIDI access (no sysex); idempotent if already enabled
-  } catch {
+  } catch (err) {
+    // Distinguish "the user (or a policy) blocked MIDI access" from a device/library
+    // fault (#137 criterion 4): denial needs an actionable "re-allow it" message, not
+    // a generic error. NotAllowedError is the spec's permission-denied name;
+    // SecurityError is what some browsers raise for policy-blocked contexts.
+    const name = (err as { name?: string } | null)?.name;
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      return { sink: null, ports: [], reason: 'denied' };
+    }
     return { sink: null, ports: [], reason: 'error' };
   }
 

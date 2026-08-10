@@ -208,9 +208,12 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'ui', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
       { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
       // MIDI output (#13): the merged voices also feed the midi-out node (additive
-      // tap off the synth bus). Its `enabled`/`port` inputs are unconnected here, so
-      // they use their defaults (off) until a UI drives them live.
+      // tap off the synth bus). Its `enabled`/`port` inputs are driven live from the
+      // store (#137: the `midi.enabled`/`midi.port` dials), so the settings panel /
+      // palette / AI can turn MIDI on without a rebuild. Off by default.
       { from: { node: 'merge', port: 'params' }, to: { node: 'midiOut', port: 'params' } },
+      { from: { node: 'ui', port: 'midiEnabled' }, to: { node: 'midiOut', port: 'enabled' } },
+      { from: { node: 'ui', port: 'midiPort' }, to: { node: 'midiOut', port: 'port' } },
       // Feed the MERGED params (hand voices + both chord instruments) to the overlay:
       // the hand voices stay at indices 0/1 (synth-merge concatenates them first), so
       // the per-hand note labels/markers are unchanged, while the keyboard strip's

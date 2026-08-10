@@ -33,6 +33,7 @@ import { VoiceControls } from './panels/voice';
 import { HandControls } from './panels/hand';
 import { FaceControls } from './panels/face';
 import { OverlayControls } from './panels/overlay';
+import { MidiControls } from './panels/midi';
 
 export default function DialsControlsPanel() {
   const { state, set } = useDialsSettings();
@@ -68,6 +69,11 @@ export default function DialsControlsPanel() {
 
       <TopSection label="Overlay">
         <OverlayControls />
+      </TopSection>
+
+      {/* MIDI output (#137): drive an external synth/DAW with the same voices. */}
+      <TopSection label="MIDI">
+        <MidiControls />
       </TopSection>
 
       {/* The Feature Lab is NOT here. It measures the instrument rather than being part

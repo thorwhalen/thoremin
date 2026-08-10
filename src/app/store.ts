@@ -23,13 +23,16 @@ import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping 
 import {
   DEFAULT_FACE_CHORD,
   DEFAULT_FACE_EXPR,
+  DEFAULT_MIDI,
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
+  MidiSettingsSchema,
   SettingsSchema,
   type Settings,
   type FaceChord,
   type FaceExpr,
+  type MidiSettings,
 } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
 
@@ -117,6 +120,10 @@ export interface ControlState {
    *  the once-static voice knobs. Read live by `voice-mapping` via
    *  `ctx.resources.controls`. See src/nodes/mapping/hand_map.ts. */
   handMap: HandMap;
+  /** MIDI output (#137): on/off + target port ('' = first available). A preset
+   *  field (in {@link SETTINGS_KEYS}); read live by the `midi-out` node via
+   *  `store-controls` → its `enabled`/`port` inputs. */
+  midi: MidiSettings;
   /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
    *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
@@ -303,7 +310,16 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       handMap = current.handMap;
     }
   }
-  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap };
+  // Heal the MIDI settings (#137): a pre-MIDI blob has none → off / first port.
+  let midi = current.midi;
+  if (p.midi) {
+    try {
+      midi = MidiSettingsSchema.parse({ ...DEFAULT_MIDI, ...p.midi });
+    } catch {
+      midi = current.midi;
+    }
+  }
+  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap, midi };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -335,6 +351,7 @@ export const useControls = create<ControlState>()(
       overlay: defaultOverlay(),
       featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
+      midi: { ...DEFAULT_MIDI },
       faceCalibration: null,
       setVoice: (side, patch) =>
         set((s) => {
@@ -394,7 +411,10 @@ export const useControls = create<ControlState>()(
       // per-device `featureLab` field (a tooling pref, like `faceCalibration`). The
       // migrate carries a returning player's lab config across before mergeControls
       // re-parses `overlay` through the now lab-free OverlayDialSchema.
-      version: 7,
+      // Version 8: #137 added the `midi` preset field (enabled/port). ADDITIVE with a
+      // default (off / first available port), healed by mergeControls, so no data
+      // transform is needed — the bump is the version marker for the schema growth.
+      version: 8,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
