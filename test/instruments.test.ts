@@ -50,6 +50,48 @@ describe('seed instruments', () => {
   });
 });
 
+describe('layers saved before a dial existed (the additive-dial dirty regression)', () => {
+  it('a pre-#137 instrument (no midi keys, JSON round-tripped) is NOT dirty after restoreSession', async () => {
+    // getSelectedName/setSelectedName use localStorage, absent in the Node runtime —
+    // stub it for this test (restored after) so the selected-name round-trip works.
+    const orig = (globalThis as { localStorage?: unknown }).localStorage;
+    const m = new Map<string, string>();
+    // `thoremin-controls` present → isFreshBrowser() false → the resume path (the
+    // one every returning player takes, and the one this regression lives in).
+    m.set('thoremin-controls', '{}');
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, String(v)),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    try {
+      await ensureSeeded();
+      // The post-#137 WORKING layer always carries the midi keys (settingsToLayer
+      // emits them unconditionally) — pin that shape explicitly so this test stays
+      // valid regardless of what earlier tests loaded. JSON round-trip = what real
+      // localStorage persistence does (drops undefined-valued keys).
+      const working = {
+        ...JSON.parse(JSON.stringify(dialsStore.getState().layer)),
+        'midi.enabled': false,
+        'midi.port': '',
+      };
+      dialsStore.setLayer(working);
+      // Simulate an instrument saved before the midi dials existed: the working
+      // layer minus the #137 keys, JSON round-tripped (what localStorage does).
+      const { 'midi.enabled': _e, 'midi.port': _p, ...old } = working;
+      await instruments.save('Pre-Midi', JSON.parse(JSON.stringify(old)));
+      setSelectedName('Pre-Midi');
+      await restoreSession();
+      // Absent-with-a-default resolves identically to present-at-default, so having
+      // changed NOTHING the player must not see the "edited" badge — normalizeLayer
+      // fills the defaults in on load (the #136 lesson, missing-key direction).
+      expect(dialsStore.getState().dirty).toEqual([]);
+    } finally {
+      (globalThis as { localStorage?: unknown }).localStorage = orig;
+    }
+  });
+});
+
 describe('instruments orchestration over the dials store', () => {
   it('selectInstrument loads the layer as a clean baseline (dirty empty)', async () => {
     await ensureSeeded();

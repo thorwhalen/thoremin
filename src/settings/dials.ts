@@ -115,9 +115,17 @@ export const thoreminDials = defineDials(
   // diatonic chord is built from, and a generalized chord is defined on any scale.
 );
 
-/** The nested {@link Settings} → the flat dials {@link Layer} (every key set). */
+/**
+ * The nested {@link Settings} → the flat dials {@link Layer}. Every key is emitted
+ * EXCEPT those whose value is `undefined` (the optional #63 range fields on a legacy
+ * voice): an undefined-valued key resolves identically to an absent one, but it does
+ * NOT survive a JSON round-trip (localStorage persistence drops it) — so emitting it
+ * would make the in-memory working layer structurally differ from a saved copy of
+ * itself, and the instruments' dirty compare (key presence counts) would flag a
+ * phantom "edited" state on every reload.
+ */
 export function settingsToLayer(s: Settings): Layer {
-  return {
+  return _dropUndefined({
     'master.volume': s.masterVolume,
     'master.syncHands': s.syncHands,
     'master.octaveShift': s.octaveShift,
@@ -151,7 +159,12 @@ export function settingsToLayer(s: Settings): Layer {
     'midi.port': s.midi.port,
     overlay: s.overlay,
     handMap: s.handMap,
-  };
+  });
+}
+
+/** A copy of `layer` without its undefined-valued keys (see {@link settingsToLayer}). */
+function _dropUndefined(layer: Layer): Layer {
+  return Object.fromEntries(Object.entries(layer).filter(([, v]) => v !== undefined));
 }
 
 /** The flat dials effective values → a validated nested {@link Settings}. */

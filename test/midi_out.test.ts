@@ -229,6 +229,47 @@ describe('midi-out node (contract logic, mock sink)', () => {
     expect(out!.status).toMatchObject({ phase: 'unsupported', supported: false });
   });
 
+  it('reports phase "denied" with a re-allow message when MIDI permission is blocked (#137)', async () => {
+    const { factory } = factoryFor({ sink: null, ports: [], reason: 'denied' });
+    const res = { createMidiSink: factory };
+    const h = make();
+    h.process({ params: sp([voice()]), enabled: true }, ctx(res));
+    await flush();
+    const out = h.process({ params: sp([voice()]), enabled: true }, ctx(res, 1, 0.02));
+    const st = out.status as MidiStatus;
+    // Denial must be distinguishable from a device fault (issue #137 criterion 4):
+    // its own phase, and a message that says HOW to recover (re-allow, re-enable).
+    expect(st.phase).toBe('denied');
+    expect(st.message).toMatch(/blocked/i);
+    expect(st.message).toMatch(/re-enable/i);
+  });
+
+  it('discards a sink resolved for a superseded port instead of briefly attaching it', async () => {
+    const sinkA = new MockSink('A');
+    const sinkB = new MockSink('B');
+    let resolveA: ((r: MidiOpenResult) => void) | undefined;
+    const factory: MidiSinkFactory = ({ portName }) => {
+      if (portName === 'A') return new Promise<MidiOpenResult>((res) => (resolveA = res));
+      return Promise.resolve({ sink: sinkB, ports: ['A', 'B'] });
+    };
+    const res = { createMidiSink: factory };
+    const h = make();
+    // Tick 0: an open for port A starts (and hangs, like a pending permission prompt).
+    h.process({ params: sp([]), enabled: true, port: 'A' }, ctx(res, 0, 0));
+    // Tick 1: the player switches the port dial to B while A's open is in flight.
+    h.process({ params: sp([]), enabled: true, port: 'B' }, ctx(res, 1, 0.02));
+    // A's open resolves late: the sink must be DISCARDED (closed, never attached) —
+    // attaching it would blink the deselected device before the next tick's panic.
+    resolveA!({ sink: sinkA, ports: ['A', 'B'] });
+    await flush();
+    expect(sinkA.events).toEqual([{ kind: 'close' }]);
+    // The next ticks open + attach B.
+    h.process({ params: sp([]), enabled: true, port: 'B' }, ctx(res, 2, 0.04));
+    await flush();
+    const out = h.process({ params: sp([]), enabled: true, port: 'B' }, ctx(res, 3, 0.06));
+    expect(out.status).toMatchObject({ phase: 'ready', portName: 'B' });
+  });
+
   it('does not re-hammer the factory after a no-ports open', async () => {
     const { factory, calls } = factoryFor({ sink: null, ports: [], reason: 'no-ports' });
     const res = { createMidiSink: factory };

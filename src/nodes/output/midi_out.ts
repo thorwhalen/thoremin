@@ -52,8 +52,9 @@ export interface MidiSink {
 }
 
 /** Why a sink could not be opened — reported, never thrown, so a UI can show an
- *  actionable message and disable the control. */
-export type MidiUnavailable = 'unsupported' | 'no-ports' | 'port-not-found' | 'error';
+ *  actionable message and disable the control. `denied` = the user (or a policy)
+ *  blocked the MIDI-access permission — actionable, unlike a generic `error`. */
+export type MidiUnavailable = 'unsupported' | 'no-ports' | 'port-not-found' | 'denied' | 'error';
 
 export interface MidiOpenResult {
   /** The opened sink, or null when unavailable (see `reason`). */
@@ -74,7 +75,7 @@ export interface MidiOpenResult {
 export type MidiSinkFactory = (opts: { portName: string }) => Promise<MidiOpenResult>;
 
 /** Lifecycle/capability phase surfaced on the node's `status` port. */
-export type MidiPhase = 'off' | 'unsupported' | 'connecting' | 'ready' | 'no-ports' | 'error';
+export type MidiPhase = 'off' | 'unsupported' | 'connecting' | 'ready' | 'no-ports' | 'denied' | 'error';
 
 /** What the node reports each tick so a UI can render + gate a MIDI-output control. */
 export interface MidiStatus {
@@ -217,6 +218,9 @@ export const midiOutNode = defineNode<Params>({
     let attempted = false; // an open resolved for the current port (don't hammer on failure)
     let openedPort = ''; // the `port` value the current sink/attempt targets
     let wantSink = false; // latest `enabled` — lets an in-flight open bail if turned off
+    let wantPort = ''; // latest `port` — lets an in-flight open for a SUPERSEDED port bail
+    // rather than briefly attaching a sink the next tick would panic+close (visible as
+    // a device-connection blink now that the port dial is live-driven, #137).
     let disposed = false; // teardown — an in-flight open must close its sink, not attach it
     let supportLogged = false;
     let errorLogged = false;
@@ -284,6 +288,7 @@ export const midiOutNode = defineNode<Params>({
         const enabled = inputs.enabled === true;
         wantSink = enabled;
         const requestedPort = typeof inputs.port === 'string' ? inputs.port : '';
+        wantPort = requestedPort;
 
         // --- disabled: guarantee silence, hold no port, request no MIDI access ---
         if (!enabled) {
@@ -325,10 +330,11 @@ export const midiOutNode = defineNode<Params>({
             .then((res) => {
               opening = false;
               ports = res.ports;
-              if (disposed || !wantSink) {
-                // Disabled, port changed, or torn down while opening: drop the fresh
-                // sink (so it can't leak past dispose) and clear `attempted` so a later
-                // re-enable opens again instead of staying wedged.
+              if (disposed || !wantSink || openedPort !== wantPort) {
+                // Disabled, port changed (this open targets a superseded port), or torn
+                // down while opening: drop the fresh sink (so it can't leak past dispose
+                // or blink a deselected device) and clear `attempted` so the next tick
+                // opens against the CURRENT port instead of staying wedged.
                 res.sink?.close();
                 attempted = false;
                 return;
@@ -347,6 +353,10 @@ export const midiOutNode = defineNode<Params>({
               } else if (res.reason === 'unsupported') {
                 phase = 'unsupported';
                 message = 'Web MIDI is not supported in this browser.';
+              } else if (res.reason === 'denied') {
+                phase = 'denied';
+                message =
+                  "MIDI access was blocked — allow MIDI for this site in the browser's settings, then re-enable MIDI output.";
               } else {
                 phase = 'error';
                 message = 'Could not open a MIDI output.';
@@ -354,8 +364,8 @@ export const midiOutNode = defineNode<Params>({
             })
             .catch((err) => {
               opening = false;
-              if (disposed || !wantSink) {
-                attempted = false; // disabled/torn down while opening; allow a fresh retry later
+              if (disposed || !wantSink || openedPort !== wantPort) {
+                attempted = false; // disabled/superseded/torn down while opening; allow a fresh retry
                 return;
               }
               attempted = true;

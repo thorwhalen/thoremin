@@ -1,8 +1,11 @@
 /**
  * The MIDI section of the settings panel (#137): the on/off dial, a port selector
- * rendered from the LIVE device list (`midi-out`'s status → {@link useMidiStatus}),
+ * rendered from the device list the `midi-out` node reports (via
+ * {@link useMidiStatus} — a connect-time snapshot: the node enumerates ports when
+ * it opens, so a device plugged in later appears after toggling MIDI off and on),
  * and an honest connection readout. Where Web MIDI is unavailable (Safari/iOS) the
- * control says so instead of showing a dead toggle.
+ * control says so instead of showing a dead toggle; a blocked permission surfaces
+ * as its own `denied` phase with a re-allow hint rather than a generic error.
  */
 import { dispatchDialSet } from '../../dispatchDial';
 import { useMidiStatus } from '../../midiStatus';
@@ -17,6 +20,7 @@ const PHASE_DOT: Record<MidiPhase, string> = {
   connecting: 'bg-amber-400 animate-pulse',
   ready: 'bg-emerald-400',
   'no-ports': 'bg-amber-400',
+  denied: 'bg-rose-500',
   error: 'bg-rose-500',
 };
 
@@ -52,8 +56,11 @@ export function MidiControls() {
   }
 
   // The saved port may not exist on THIS machine — keep it selectable (and labeled)
-  // rather than silently snapping the dial to another device.
-  const knownPorts = ports.includes(port) || port === '' ? ports : [port, ...ports];
+  // rather than silently snapping the dial to another device. De-duplicated because
+  // Web MIDI permits two devices with the SAME name (ports are unique by id, not
+  // name) and ports are addressed by name end to end here — a deliberate trade-off
+  // that keeps `midi.port` a portable preset field; the first same-named device wins.
+  const knownPorts = Array.from(new Set(ports.includes(port) || port === '' ? ports : [port, ...ports]));
 
   return (
     <div className="space-y-2">
