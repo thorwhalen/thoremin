@@ -63,6 +63,13 @@ export type LabMeterComputer = (
   dt: number,
 ) => FeatureMeters | undefined;
 
+/** The circular features' declared periods, from the catalog (#144): the normalizer
+ *  maps these against their exact range instead of an adaptive envelope, so a ±pi
+ *  wrap can never inflate a meter's range or re-scale it mid-performance. */
+const CIRCULAR_RANGES: Record<string, readonly [number, number]> = Object.fromEntries(
+  ALL_FEATURES.filter((f) => f.circular && f.range).map((f) => [f.id, f.range!]),
+);
+
 /** Compile the derived-feature list, skipping (never throwing on) an invalid formula —
  *  the derived-feature editor surfaces the compile error; the per-frame loop must not throw. */
 function compileDerived(list: LabMeterConfig['derived']): { id: string; fn: CompiledFormula }[] {
@@ -71,8 +78,14 @@ function compileDerived(list: LabMeterConfig['derived']): { id: string; fn: Comp
     if (!d.id || !d.formula) continue;
     try {
       out.push({ id: d.id, fn: compileFormula(d.formula, { variables: ALL_SAFE_NAMES }) });
-    } catch {
-      // Invalid/unsafe formula: skip it.
+    } catch (err) {
+      // Invalid/unsafe formula: skip it — but say so. A SAVED formula can go
+      // stale when a catalog feature it references is removed (e.g. depthZ in
+      // #144); without this line the derived meter just vanishes from the grid
+      // and the only place the error shows is inside the editor.
+      console.warn(
+        `[lab] derived feature "${d.id}" skipped — formula does not compile: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
   return out;
@@ -88,7 +101,7 @@ function compileDerived(list: LabMeterConfig['derived']): { id: string; fn: Comp
  * never share statistics.
  */
 export function createLabMeterComputer(): LabMeterComputer {
-  const normalizer = new OnlineNormalizer();
+  const normalizer = new OnlineNormalizer({ circular: CIRCULAR_RANGES });
   let prevShow = false;
   let resetNonce = 0;
   let derivedSig = '';

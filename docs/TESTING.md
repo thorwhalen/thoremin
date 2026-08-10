@@ -107,17 +107,24 @@ media/.venv/bin/python scripts/video_to_landmarks.py media/videos/hand_sweep.mp4
 # 3. landmarks → committed fixture (src.hands + feat.features + map.params + meta.json)
 vite-node scripts/build_video_fixture.ts video_hand_sweep /tmp/hand_sweep.hands.ndjson
 
-# faces (M4 prep): video → 52 blendshapes
+# faces: video → 52 blendshapes + (via --landmarks-out) the full FaceFrame stream —
+# all 478 mesh landmarks (x/y/z, irises included) and the facial transformation
+# matrix (column-major, decoded to head pose in TS by `matrixToHeadPose`). The
+# .gz suffix gzips the large mesh stream deterministically; `loadStream`
+# decompresses it transparently.
 media/.venv/bin/python scripts/video_to_face.py media/videos/face_expressions.mp4 \
-  test/fixtures/video_face_expressions/face.blendshapes.ndjson
+  test/fixtures/video_face_expressions/face.blendshapes.ndjson \
+  --landmarks-out test/fixtures/video_face_expressions/face.landmarks.ndjson.gz
 ```
 
 Raw `.mp4`s stay gitignored under `media/`; only the derived NDJSON is committed
 (`test/fixtures/video_*/`) and replayed by `test/video_fixtures.test.ts` — no
 camera/GPU in CI. Current committed video fixtures: `video_hand_sweep`,
 `video_hand_open_close`, `video_hand_pinch` (full hand pipeline) and
-`video_face_expressions` (blendshapes, for the `face-features` node). All
-tracked at ~100% detection on the generated clips.
+`video_face_expressions` (blendshapes for the `face-features` node, plus the
+gzipped `face.landmarks` mesh stream replay-testing the `face.geom.*` /
+`face.gaze.*` / `face.head.*` catalog groups through `face-feature-vector`).
+All tracked at ~100% detection on the generated clips.
 
 **Live capture, in the app.** Recording v2 (#88) ships the feature-JSONL stream: a
 `FeatureJsonlTap` attached via `engine.addTap` writes `{tick,t,key,value}` per edge

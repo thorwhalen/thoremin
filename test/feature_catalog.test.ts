@@ -189,4 +189,27 @@ describe('flat feature registry', () => {
     expect(FEATURE_BY_ID['hand.right.index.curl']).toBeTruthy();
     expect(FEATURE_BY_ID['hand.pair.distance']).toBeTruthy();
   });
+
+  it('marks every full-circle atan2 feature circular, with its exact period (#144)', () => {
+    for (const id of ['hand.left.palm.yaw', 'hand.left.palm.roll', 'hand.left.tilt', 'hand.pair.tilt']) {
+      const f = FEATURE_BY_ID[id];
+      expect(f, id).toBeTruthy();
+      expect(f.circular, id).toBe(true);
+      expect(f.range, id).toEqual([-Math.PI, Math.PI]);
+    }
+    // The bounded asin control stays non-circular (it has no wrap).
+    expect(FEATURE_BY_ID['hand.left.palm.pitch'].circular).toBeUndefined();
+    // No circular feature may be declared without its period — the normalizer's
+    // fixed mapping needs it.
+    for (const f of ALL_FEATURES) {
+      if (f.circular) expect(f.range, f.id).toBeTruthy();
+    }
+  });
+
+  it('depthZ is gone — it read 0 forever (wrist IS the image-space depth origin, #144)', () => {
+    expect(FEATURE_BY_ID['hand.left.depthZ']).toBeUndefined();
+    expect(FEATURE_BY_ID['hand.right.depthZ']).toBeUndefined();
+    // The camera-distance proxy players should reach for instead.
+    expect(FEATURE_BY_ID['hand.left.size']).toBeTruthy();
+  });
 });

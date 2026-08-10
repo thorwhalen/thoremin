@@ -42,8 +42,19 @@ export interface FeatureDef<Ctx> {
   group: string;
   source: FeatureSource;
   /** Advisory expected raw range (for docs; the online normalizer does the real
-   *  ranging). Absent for open-ended geometric ratios. */
+   *  ranging). Absent for open-ended geometric ratios. For a `circular` feature the
+   *  range is NOT advisory — it is the exact period the normalizer maps against. */
   range?: readonly [number, number];
+  /** True for an ANGULAR feature whose value lives on a circle: the two `range`
+   *  endpoints (e.g. -pi and +pi from `atan2`) are the SAME physical pose, so the
+   *  single-frame jump between them is a representation artifact, not motion. The
+   *  online normalizer must not treat such a jump as range (an envelope inflated
+   *  across the wrap ruins the meter, and adaptive rescaling makes the level
+   *  history-dependent) — circular features get a FIXED declared-range mapping
+   *  instead. The wrap discontinuity itself is intrinsic to mapping a circle onto
+   *  a line; for glitch-free MUSICAL control, derive `sin(...)`/`cos(...)` of the
+   *  angle in a Lab formula (both helpers ship in DEFAULT_HELPERS). */
+  circular?: boolean;
   controllability?: Controllability;
   /** One-line human description (surfaced in the catalog manual + lab tooltips). */
   description?: string;

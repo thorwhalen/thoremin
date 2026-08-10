@@ -108,6 +108,57 @@ describe('OnlineNormalizer — drift', () => {
   });
 });
 
+describe('OnlineNormalizer — circular features (#144)', () => {
+  const PERIOD: readonly [number, number] = [-Math.PI, Math.PI];
+  const makeCirc = () => new OnlineNormalizer({ circular: { 'palm.roll': PERIOD } });
+
+  it('maps a circular feature against its DECLARED period, not an online envelope', () => {
+    const n = makeCirc();
+    // A tiny observed range would make a linear envelope map everything to ~0..1
+    // within it; the circular map must ignore history entirely.
+    n.observe('palm.roll', 0.1, 1 / 24);
+    n.observe('palm.roll', 0.2, 1 / 24);
+    expect(n.level('palm.roll', 0)).toBeCloseTo(0.5);
+    expect(n.level('palm.roll', Math.PI)).toBeCloseTo(1);
+    expect(n.level('palm.roll', -Math.PI)).toBeCloseTo(0);
+  });
+
+  it('a ±pi wrap cannot inflate the range or re-scale the meter (history-independence)', () => {
+    const n = makeCirc();
+    // The measured #144 clip: adjacent frames at +3.10 and -3.14 rad (a wrap event,
+    // physically the same pose region). Under the old linear envelope this inflated
+    // the range to ~2pi and dragged every later level with it.
+    n.observe('palm.roll', 3.1, 1 / 24);
+    const before = n.level('palm.roll', 1.0);
+    n.observe('palm.roll', -3.14, 1 / 24); // the wrap frame
+    for (let i = 0; i < 100; i++) n.observe('palm.roll', -3.1 + i * 0.001, 1 / 24);
+    const after = n.level('palm.roll', 1.0);
+    // Identical raw value → identical level, regardless of what was observed since.
+    expect(after).toBeCloseTo(before, 10);
+  });
+
+  it('a non-circular control feature is unaffected (pitch keeps the adaptive envelope)', () => {
+    const n = makeCirc();
+    // palm.pitch is NOT in the circular map: its envelope adapts as before.
+    n.observe('palm.pitch', 0, 1 / 24);
+    n.observe('palm.pitch', 1, 1 / 24);
+    expect(n.level('palm.pitch', 0.5)).toBeCloseTo(0.5, 1);
+    n.observe('palm.pitch', 3, 1 / 24); // envelope expands instantly
+    expect(n.level('palm.pitch', 0.5)).toBeLessThan(0.4);
+  });
+
+  it('circular features draw NO percentile band (fixed ticks would be a lie labeled percentiles)', () => {
+    const n = makeCirc();
+    for (let i = 0; i < 10; i++) n.observe('palm.roll', i * 0.1, 1 / 24);
+    expect(n.markers('palm.roll')).toEqual([]);
+  });
+
+  it('stays gated until observed, like every feature (no bar before data)', () => {
+    const n = makeCirc();
+    expect(n.level('palm.roll', 0)).toBeNaN();
+  });
+});
+
 describe('OnlineNormalizer — lifecycle', () => {
   it('reset(id) clears one feature; reset() clears all', () => {
     const nz = new OnlineNormalizer();

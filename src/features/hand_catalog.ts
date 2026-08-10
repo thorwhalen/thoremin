@@ -158,7 +158,10 @@ function positionFeatures(): HandFeature[] {
     { id: 'wrist.y', group: 'hand.position.raw', source: 'hand', range: [0, 1], controllability: 'easy', description: 'Wrist vertical position', compute: (c) => imgY(c, LM.wrist) },
     { id: 'palm.x', group: 'hand.position.raw', source: 'hand', range: [0, 1], controllability: 'easy', description: 'Palm-center horizontal position', compute: (c) => { const cen = palmCentroidImage(c); return cen && c.width > 0 ? (c.mirrorX ? 1 - cen.x / c.width : cen.x / c.width) : NaN; } },
     { id: 'palm.y', group: 'hand.position.raw', source: 'hand', range: [0, 1], controllability: 'easy', description: 'Palm-center vertical position', compute: (c) => { const cen = palmCentroidImage(c); return cen && c.height > 0 ? cen.y / c.height : NaN; } },
-    { id: 'depthZ', group: 'hand.position.raw', source: 'hand', controllability: 'moderate', description: 'Wrist relative depth (uncalibrated sign/scale)', compute: (c) => c.P(LM.wrist)?.z ?? NaN },
+    // NOTE: a `depthZ` feature (wrist image-space z) used to live here. It read 0
+    // forever by construction — MediaPipe uses the WRIST as the image-space depth
+    // origin, so wrist.z ≡ 0 — and was dropped (#144). The camera-distance proxy is
+    // the `size` feature in hand.whole (wrist→middle-MCP image distance).
   );
   for (const f of FINGERS) {
     out.push(
@@ -251,8 +254,9 @@ function orientationFeatures(): HandFeature[] {
       group: 'hand.palm.orientation',
       source: 'hand',
       range: [-Math.PI, Math.PI],
+      circular: true, // atan2: ±pi are the same pose — see FeatureDef.circular (#144)
       controllability: 'moderate',
-      description: 'Hand pointing yaw (rad)',
+      description: 'Hand pointing yaw (rad, circular)',
       compute: (c) => { const u = pointingAxis(c); return u ? Math.atan2(u.x, u.z ?? 0) : NaN; },
     },
     {
@@ -260,8 +264,9 @@ function orientationFeatures(): HandFeature[] {
       group: 'hand.palm.orientation',
       source: 'hand',
       range: [-Math.PI, Math.PI],
+      circular: true, // measured 5.69 rad single-frame "jumps" were ±pi wraps (#144)
       controllability: 'easy',
-      description: 'Hand roll about the pointing axis vs world-up (rad, decoupled from pitch/yaw)',
+      description: 'Hand roll about the pointing axis vs world-up (rad, circular, decoupled from pitch/yaw)',
       compute: (c) => palmRoll(c),
     },
   ];
@@ -333,8 +338,9 @@ function wholeFeatures(): HandFeature[] {
       group: 'hand.whole',
       source: 'hand',
       range: [-Math.PI, Math.PI],
+      circular: true, // atan2: ±pi are the same pose — see FeatureDef.circular (#144)
       controllability: 'easy',
-      description: 'In-plane hand tilt (up-positive, rad)',
+      description: 'In-plane hand tilt (up-positive, rad, circular)',
       compute: (c) => {
         const w = c.P(LM.wrist);
         const m = c.P(LM.middle_mcp);
@@ -450,7 +456,13 @@ function pairFeatures(): PairFeature[] {
     pf('pair.distance', 'easy', (tc) => { const b = both(tc); return b ? dist2(b.L.centroid, b.R.centroid) / b.meanSize : NaN; }, 'Inter-hand distance / mean hand size'),
     pf('pair.dx', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; const dx = (b.R.centroid.x - b.L.centroid.x) / b.meanSize; return tc.mirrorX ? -dx : dx; }, 'Right-left horizontal offset / mean size'),
     pf('pair.dy', 'easy', (tc) => { const b = both(tc); return b ? -(b.R.centroid.y - b.L.centroid.y) / b.meanSize : NaN; }, 'Right-left vertical offset (up-positive) / mean size'),
-    pf('pair.tilt', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; return Math.atan2(-(b.R.centroid.y - b.L.centroid.y), (tc.mirrorX ? -1 : 1) * (b.R.centroid.x - b.L.centroid.x)); }, 'Two-hand line tilt (up-positive, rad)'),
+    {
+      // atan2 over the inter-hand line: circular like `tilt` (#144) — pf() is for
+      // the open-ended ratio features; this one carries the exact angular period.
+      ...pf('pair.tilt', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; return Math.atan2(-(b.R.centroid.y - b.L.centroid.y), (tc.mirrorX ? -1 : 1) * (b.R.centroid.x - b.L.centroid.x)); }, 'Two-hand line tilt (up-positive, rad, circular)'),
+      range: [-Math.PI, Math.PI] as const,
+      circular: true,
+    },
     pf('pair.midX', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; const w = tc.left?.width ?? tc.right?.width ?? 0; if (!(w > 0)) return NaN; const mx = (b.L.centroid.x + b.R.centroid.x) / 2 / w; return tc.mirrorX ? 1 - mx : mx; }, 'Midpoint horizontal position'),
     pf('pair.midY', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; const h = tc.left?.height ?? tc.right?.height ?? 0; return h > 0 ? (b.L.centroid.y + b.R.centroid.y) / 2 / h : NaN; }, 'Midpoint vertical position'),
     pf('pair.sizeRatio', 'moderate', (tc) => { const b = both(tc); return b ? b.L.size / b.R.size : NaN; }, 'Left/right hand image-size ratio'),

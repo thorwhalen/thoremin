@@ -29,6 +29,9 @@ export interface FlatFeature {
   group: string;
   source: FeatureSource;
   range?: readonly [number, number];
+  /** Angular feature on a circle (see FeatureDef.circular): the normalizer maps it
+   *  against its declared range verbatim instead of an adaptive envelope. */
+  circular?: boolean;
   controllability?: Controllability;
   description?: string;
 }
@@ -112,15 +115,15 @@ export const ALL_FEATURES: readonly FlatFeature[] = buildAllFeatures();
 function buildAllFeatures(): FlatFeature[] {
   const out: FlatFeature[] = [];
   for (const f of FACE_FEATURES) {
-    out.push({ id: f.id, group: f.group, source: f.source, range: f.range, controllability: f.controllability, description: f.description });
+    out.push({ id: f.id, group: f.group, source: f.source, range: f.range, circular: f.circular, controllability: f.controllability, description: f.description });
   }
   for (const side of HAND_SIDES) {
     for (const f of HAND_SIDE_FEATURES) {
-      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, controllability: f.controllability, description: f.description });
+      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, controllability: f.controllability, description: f.description });
     }
   }
   for (const f of HAND_PAIR_FEATURES) {
-    out.push({ id: `hand.${f.id}`, group: f.group, source: f.source, range: f.range, controllability: f.controllability, description: f.description });
+    out.push({ id: `hand.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, controllability: f.controllability, description: f.description });
   }
   return out;
 }
