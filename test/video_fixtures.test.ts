@@ -27,7 +27,18 @@ import {
 import { FACE_FEATURES } from '@/features/catalog';
 
 const presentSide = (f: HandFeatures) => (f.right.present ? f.right : f.left.present ? f.left : null);
-const span = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
+// Loop, not Math.max(...xs): the face-mesh z guard feeds ~58k values, and a
+// spread that size sits close to V8's argument limit — a longer replacement
+// clip would crash with a RangeError instead of failing the fixture assertion.
+const span = (xs: number[]) => {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const x of xs) {
+    if (x < lo) lo = x;
+    if (x > hi) hi = x;
+  }
+  return hi - lo;
+};
 
 describe('video hand fixtures (real MediaPipe tracking)', () => {
   const HAND_SCENARIOS: Array<{ dir: string; feature: 'x' | 'openness' | 'pinch'; minSpan: number }> = [

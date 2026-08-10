@@ -28,6 +28,17 @@ export function loadStream(scenario: string, key: string): unknown[] {
   const path = join(FIXTURES, scenario, `${key}.ndjson`);
   if (existsSync(path)) return valuesFromNDJSON(readFileSync(path, 'utf8'));
   const gzPath = `${path}.gz`;
-  if (existsSync(gzPath)) return valuesFromNDJSON(gunzipSync(readFileSync(gzPath)).toString('utf8'));
+  if (existsSync(gzPath)) {
+    try {
+      return valuesFromNDJSON(gunzipSync(readFileSync(gzPath)).toString('utf8'));
+    } catch (err) {
+      // A present-but-corrupt/truncated .gz (e.g. a partially synced checkout)
+      // must fail as loudly as a missing one — a bare zlib error names neither
+      // the file nor the fix.
+      throw new Error(
+        `corrupt fixture ${gzPath} (${err instanceof Error ? err.message : String(err)}) — regenerate it (see docs/TESTING.md)`,
+      );
+    }
+  }
   throw new Error(`missing fixture ${path} — regenerate it (\`npm run record\`; see docs/TESTING.md)`);
 }

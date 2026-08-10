@@ -211,9 +211,12 @@ export class OnlineNormalizer {
   markers(id: string): number[] {
     const st = this.stats.get(id);
     if (!st || !st.init || st.n < 5) return [];
-    // Circular: the band IS the fixed period — the configured marker fractions map
-    // to themselves (there are no meaningful online quantiles on a circle).
-    if (this.circular[id]) return this.opts.markers.slice();
+    // Circular: no ticks. The UI draws markers as PERCENTILES of the performer's
+    // motion; a circular feature has no online quantiles (its mapping is the
+    // fixed period), and drawing the period fractions as if they were
+    // percentiles would be a lie the meter can't annotate. An empty band is
+    // honest: the bar still moves, it just carries no motion-statistics ticks.
+    if (this.circular[id]) return [];
     const raws = this.markerRaws(st);
     return raws.map((r) => this.map(st, r));
   }

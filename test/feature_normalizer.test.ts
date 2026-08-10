@@ -147,10 +147,10 @@ describe('OnlineNormalizer — circular features (#144)', () => {
     expect(n.level('palm.pitch', 0.5)).toBeLessThan(0.4);
   });
 
-  it('circular markers are the fixed period fractions (no online quantiles on a circle)', () => {
+  it('circular features draw NO percentile band (fixed ticks would be a lie labeled percentiles)', () => {
     const n = makeCirc();
     for (let i = 0; i < 10; i++) n.observe('palm.roll', i * 0.1, 1 / 24);
-    expect(n.markers('palm.roll')).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    expect(n.markers('palm.roll')).toEqual([]);
   });
 
   it('stays gated until observed, like every feature (no bar before data)', () => {

@@ -150,24 +150,55 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
     expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });
   });
 
-  it('two-hand frames pass raw labels through and clear the single-hand tracker', () => {
-    const handlers = handFeatureVectorNode.make(params());
-    const two: HandsFrame = {
-      width: 640,
-      height: 480,
-      hands: [
-        { handedness: 'Left', keypoints: makeHandKeypoints({ cx: 200, cy: 240, scale: 70, spread: 0.8, pinch: 0.1, handedness: 'Left' }) },
-        { handedness: 'Right', keypoints: makeHandKeypoints({ cx: 440, cy: 240, scale: 70, spread: 0.3, pinch: 0.6, handedness: 'Right' }) },
-      ],
-    };
+  const twoHands = (): HandsFrame => ({
+    width: 640,
+    height: 480,
+    hands: [
+      { handedness: 'Left', keypoints: makeHandKeypoints({ cx: 200, cy: 240, scale: 70, spread: 0.8, pinch: 0.1, handedness: 'Left' }) },
+      { handedness: 'Right', keypoints: makeHandKeypoints({ cx: 440, cy: 240, scale: 70, spread: 0.3, pinch: 0.6, handedness: 'Right' }) },
+    ],
+  });
+
+  it('two-hand frames pass raw labels through; a SUSTAINED interlude clears the tracker', () => {
+    const handlers = handFeatureVectorNode.make(params(3));
     // Commit a single-hand left assignment first...
     for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
-    // ...then both hands: exactly today's behavior (both namespaces + pair features).
-    const v = (handlers.process({ hands: two }, bareCtx()) as { vector: FeatureVector }).vector;
-    expect(sidesOf(v)).toEqual({ left: true, right: true });
-    expect(v['hand.pair.distance']).toBeDefined();
+    // ...then a sustained (>= dwell) two-hand interlude: raw labels pass through
+    // (both namespaces + pair features) on every frame...
+    for (let i = 0; i < 3; i++) {
+      const v = (handlers.process({ hands: twoHands() }, bareCtx()) as { vector: FeatureVector }).vector;
+      expect(sidesOf(v)).toEqual({ left: true, right: true });
+      expect(v['hand.pair.distance']).toBeDefined();
+    }
     // Back to one hand, now labeled Right: commits immediately (no dwell lag),
-    // because the two-hand interlude cleared the single-hand tracker.
+    // because the sustained interlude cleared the single-hand tracker.
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });
+  });
+
+  it('a one-frame PHANTOM second hand cannot strip the dwell protection', () => {
+    const handlers = handFeatureVectorNode.make(params(3));
+    for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
+    // MediaPipe momentarily "sees" the turning hand twice (its phantom takes
+    // the complementary label). One such frame must NOT clear the tracker...
+    handlers.process({ hands: twoHands() }, bareCtx());
+    // ...so the flickered label on the very next single-hand frame is still
+    // absorbed by the dwell instead of cold-committing the wrong namespace.
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
+    expect(run(handlers, oneHand('Left'))).toEqual({ left: true, right: false });
+  });
+
+  it('the switch dwell counts DETECTED frames — sub-dwell dropouts between them do not reset it', () => {
+    // Pinning the chosen semantics: during a rotation, relabels and dropouts
+    // co-occur; every DETECTED frame disagreeing with the committed side counts
+    // toward the switch, dropouts (each shorter than the dwell window) between
+    // them notwithstanding. [R, gap, R, gap, R] with dwell 3 switches on the
+    // third detected R.
+    const handlers = handFeatureVectorNode.make(params(3));
+    for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
+    run(handlers, noHands());
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
+    run(handlers, noHands());
     expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });
   });
 

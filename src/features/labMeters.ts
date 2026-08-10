@@ -78,8 +78,14 @@ function compileDerived(list: LabMeterConfig['derived']): { id: string; fn: Comp
     if (!d.id || !d.formula) continue;
     try {
       out.push({ id: d.id, fn: compileFormula(d.formula, { variables: ALL_SAFE_NAMES }) });
-    } catch {
-      // Invalid/unsafe formula: skip it.
+    } catch (err) {
+      // Invalid/unsafe formula: skip it — but say so. A SAVED formula can go
+      // stale when a catalog feature it references is removed (e.g. depthZ in
+      // #144); without this line the derived meter just vanishes from the grid
+      // and the only place the error shows is inside the editor.
+      console.warn(
+        `[lab] derived feature "${d.id}" skipped — formula does not compile: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
   return out;
