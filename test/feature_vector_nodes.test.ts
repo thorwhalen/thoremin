@@ -106,6 +106,86 @@ describe('hand-feature-vector (unit)', () => {
   });
 });
 
+// ---- unit: hand-feature-vector handedness hysteresis (#144) ----------------
+
+describe('hand-feature-vector (handedness hysteresis, #144)', () => {
+  // mirrorHandedness=false so the raw MediaPipe label maps straight onto the
+  // namespace ('Left' -> hand.left.*), keeping the scenarios readable. The
+  // hysteresis sits AFTER resolveSide, so the mirror setting is orthogonal.
+  const params = (dwell = 3) =>
+    handFeatureVectorNode.params.parse({ mirrorHandedness: false, handednessDwellFrames: dwell });
+  const oneHand = (handedness: 'Left' | 'Right'): HandsFrame => ({
+    width: 640,
+    height: 480,
+    hands: [{ handedness, keypoints: makeHandKeypoints({ cx: 320, cy: 240, scale: 70, spread: 0.5, pinch: 0.2, handedness }) }],
+  });
+  const noHands = (): HandsFrame => ({ width: 640, height: 480, hands: [] });
+  const sidesOf = (v: FeatureVector) => ({
+    left: Object.keys(v).some((k) => k.startsWith('hand.left.')),
+    right: Object.keys(v).some((k) => k.startsWith('hand.right.')),
+  });
+  const run = (handlers: ReturnType<typeof handFeatureVectorNode.make>, frame: HandsFrame) =>
+    sidesOf((handlers.process({ hands: frame }, bareCtx()) as { vector: FeatureVector }).vector);
+
+  it('a 1-2 frame label flicker keeps emitting under the ORIGINAL namespace (the issue scenario)', () => {
+    const handlers = handFeatureVectorNode.make(params());
+    // Establish the hand as Left, then MediaPipe relabels it Right for two
+    // frames mid-rotation (frames 82/87 of the measured clip), then back.
+    const labels: Array<'Left' | 'Right'> = ['Left', 'Left', 'Left', 'Left', 'Right', 'Right', 'Left', 'Left'];
+    for (const label of labels) {
+      const sides = run(handlers, oneHand(label));
+      // Never a blank frame, never a jump to the other namespace.
+      expect(sides).toEqual({ left: true, right: false });
+    }
+  });
+
+  it('a SUSTAINED relabel (>= dwell frames) does switch namespaces', () => {
+    const handlers = handFeatureVectorNode.make(params(3));
+    for (let i = 0; i < 4; i++) expect(run(handlers, oneHand('Left'))).toEqual({ left: true, right: false });
+    // New label persists: frames 1 and 2 of the switch still dwell on left...
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
+    // ...frame 3 commits the switch.
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });
+  });
+
+  it('two-hand frames pass raw labels through and clear the single-hand tracker', () => {
+    const handlers = handFeatureVectorNode.make(params());
+    const two: HandsFrame = {
+      width: 640,
+      height: 480,
+      hands: [
+        { handedness: 'Left', keypoints: makeHandKeypoints({ cx: 200, cy: 240, scale: 70, spread: 0.8, pinch: 0.1, handedness: 'Left' }) },
+        { handedness: 'Right', keypoints: makeHandKeypoints({ cx: 440, cy: 240, scale: 70, spread: 0.3, pinch: 0.6, handedness: 'Right' }) },
+      ],
+    };
+    // Commit a single-hand left assignment first...
+    for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
+    // ...then both hands: exactly today's behavior (both namespaces + pair features).
+    const v = (handlers.process({ hands: two }, bareCtx()) as { vector: FeatureVector }).vector;
+    expect(sidesOf(v)).toEqual({ left: true, right: true });
+    expect(v['hand.pair.distance']).toBeDefined();
+    // Back to one hand, now labeled Right: commits immediately (no dwell lag),
+    // because the two-hand interlude cleared the single-hand tracker.
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });
+  });
+
+  it('a dropout within the dwell window keeps the assignment; a longer absence resets it', () => {
+    const handlers = handFeatureVectorNode.make(params(3));
+    for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
+    // Brief detection dropout (2 <= dwell) straddling a flicker frame: the
+    // returning flicker label must NOT capture the namespace cold.
+    run(handlers, noHands());
+    run(handlers, noHands());
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
+    expect(run(handlers, oneHand('Left'))).toEqual({ left: true, right: false });
+    // Sustained absence (> dwell): a genuinely new hand commits at once.
+    for (let i = 0; i < 5; i++) run(handlers, noHands());
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });
+  });
+});
+
 // ---- fixture replay --------------------------------------------------------
 
 describe('face-feature-vector (fixture replay: video_face_expressions)', () => {

@@ -183,7 +183,7 @@ Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand cat
 - **roles:** feature
 - **in:** hands:hands-frame
 - **out:** vector:feature-vector
-- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array)
+- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array), handednessDwellFrames (number=3)
 
 ### Mapping (direct ↔ indirect)
 _Features → engine parameters, across the expression spectrum._

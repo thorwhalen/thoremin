@@ -566,6 +566,11 @@
       {
         "name": "groups",
         "type": "array"
+      },
+      {
+        "name": "handednessDwellFrames",
+        "type": "number",
+        "default": 3
       }
     ]
   },

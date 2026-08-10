@@ -6,7 +6,9 @@
  * so CI needs no camera/GPU.
  *
  * To regenerate: scripts/gen_test_videos.py → video_to_landmarks.py →
- * build_video_fixture.ts (hands) / video_to_face.py (face). See docs/TESTING.md.
+ * build_video_fixture.ts (hands) / video_to_face.py (face — the blendshape
+ * stream plus, via --landmarks-out, the full 478-point mesh + transform-matrix
+ * stream, committed gzipped). See docs/TESTING.md.
  */
 import { describe, it, expect } from 'vitest';
 import { replayNode } from '@/dag';
@@ -14,12 +16,15 @@ import { loadStream } from './helpers/fixtures';
 import {
   voiceMappingNode,
   faceFeaturesNode,
+  faceFeatureVectorNode,
+  matrixToHeadPose,
   ABSENT_HAND,
   type HandFeatures,
   type FaceFeatures,
   type FaceFrame,
   type SynthParams,
 } from '@/nodes';
+import { FACE_FEATURES } from '@/features/catalog';
 
 const presentSide = (f: HandFeatures) => (f.right.present ? f.right : f.left.present ? f.left : null);
 const span = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
@@ -162,5 +167,106 @@ describe('video face fixture (MediaPipe blendshapes — M4 prep)', () => {
       const vals = present.map((f) => f.blendshapes[key] ?? 0);
       expect(span(vals)).toBeGreaterThan(0.3); // the expression actually moves
     }
+  });
+});
+
+describe('video face landmark fixture (478-pt mesh + head pose — geom/gaze/head replay, #144)', () => {
+  // The offline decoder ships the raw COLUMN-MAJOR transformation matrix rather
+  // than a Python re-implementation of the Euler decomposition, so head pose is
+  // decoded here by the production `matrixToHeadPose` — exactly as the live
+  // `webcam-face` node does it, and with the decode logic single-sourced in TS.
+  type FaceLandmarkRec = FaceFrame & { transformMatrix?: number[] };
+  const recs = loadStream('video_face_expressions', 'face.landmarks') as FaceLandmarkRec[];
+  const frames: FaceFrame[] = recs.map(({ transformMatrix, ...f }) => ({
+    ...f,
+    ...(transformMatrix ? { headPose: matrixToHeadPose(transformMatrix) } : {}),
+  }));
+  const present = frames.filter((f) => f.present);
+
+  /** Catalog feature ids under a group prefix — derived from the catalog itself,
+   *  so these tests automatically cover features added to a group later. */
+  const groupIds = (prefix: string) =>
+    FACE_FEATURES.filter((f) => f.group.startsWith(prefix)).map((f) => f.id);
+
+  /** Replay the fixture through the real face-feature-vector node; one vector
+   *  per PRESENT frame (memoized — several tests read the same replay). */
+  let vecsP: Promise<Record<string, number>[]> | null = null;
+  const presentVectors = () =>
+    (vecsP ??= (async () => {
+      const parsed = faceFeatureVectorNode.params.parse({});
+      const outs = await replayNode(faceFeatureVectorNode.make(parsed), { face: frames });
+      return outs
+        .map((o) => o.vector as Record<string, number>)
+        .filter((_, i) => frames[i].present);
+    })());
+
+  const values = (vecs: Record<string, number>[], id: string) => vecs.map((v) => v[id]);
+
+  it('decodes the full mesh: 478 landmarks per frame, depth (z) preserved, matrix column-major', () => {
+    expect(frames.length).toBeGreaterThan(100);
+    expect(present.length / frames.length).toBeGreaterThan(0.9); // tracked at ~100%
+    for (const f of present) {
+      // All 478 points (irises are 468..477) — the geometric catalog needs every one.
+      expect(f.landmarks).toHaveLength(478);
+      expect(Object.keys(f.blendshapes).length).toBeGreaterThan(0);
+      expect(f.headPose).toBeDefined();
+    }
+    // The rigid transform: 16 entries, bottom row [0,0,0,1] at the COLUMN-MAJOR
+    // positions and the camera-distance translation in the z slot — this fails
+    // loudly if a regeneration flattens the numpy matrix row-major instead.
+    const matrices = recs.filter((r) => r.present).map((r) => r.transformMatrix!);
+    for (const m of matrices) {
+      expect(m).toHaveLength(16);
+      expect([m[3], m[7], m[11], m[15]]).toEqual([0, 0, 0, 1]);
+      expect(Math.abs(m[14])).toBeGreaterThan(5); // translation z (cm from camera)
+    }
+    // z is real depth, not zeroed — the regression this fixture exists to prevent
+    // (the hand decoder once dropped z and silently flattened every 3-D feature).
+    const zs = present.flatMap((f) => f.landmarks!.map((p) => p.z!));
+    expect(zs.every(Number.isFinite)).toBe(true);
+    expect(span(zs)).toBeGreaterThan(0.05);
+  });
+
+  it('face.geom.*: every catalog feature computes finite on every tracked frame; expressions move mouth/brow/eyes', async () => {
+    const vecs = await presentVectors();
+    const ids = groupIds('face.geom');
+    expect(ids.length).toBeGreaterThanOrEqual(20);
+    // The node emits only FINITE values, so presence of the key IS finiteness —
+    // this covers the NaN-guard / iris-fallback machinery on real mesh data.
+    for (const v of vecs) for (const id of ids) expect(v, `missing ${id}`).toHaveProperty(id);
+    // The expressions clip opens the jaw, raises the brows and squints/blinks
+    // (thresholds ≈ half the measured spans on the committed decode).
+    expect(span(values(vecs, 'face.geom.mouth.aspectRatio'))).toBeGreaterThan(0.35);
+    expect(span(values(vecs, 'face.geom.mouth.openness'))).toBeGreaterThan(0.2);
+    expect(span(values(vecs, 'face.geom.brow.raiseAvg'))).toBeGreaterThan(0.06);
+    expect(span(values(vecs, 'face.geom.eye.earAvg'))).toBeGreaterThan(0.05);
+  });
+
+  it('face.gaze.*: iris-dependent features all compute on real irises; vertical gaze moves', async () => {
+    const vecs = await presentVectors();
+    const ids = groupIds('face.gaze');
+    expect(ids.length).toBeGreaterThanOrEqual(7);
+    for (const v of vecs) for (const id of ids) expect(v, `missing ${id}`).toHaveProperty(id);
+    // Iris offsets are normalized by the eye half-span → bounded near [-1, 1].
+    for (const id of ['face.gaze.x', 'face.gaze.y', 'face.gaze.xLeft', 'face.gaze.yLeft']) {
+      expect(values(vecs, id).every((x) => Math.abs(x) <= 1.5)).toBe(true);
+    }
+    expect(span(values(vecs, 'face.gaze.y'))).toBeGreaterThan(0.25); // eyes track the expressions
+  });
+
+  it('face.head.*: pose decodes to plausible frontal angles; position and scale are in range', async () => {
+    const vecs = await presentVectors();
+    const ids = groupIds('face.head');
+    expect(ids.length).toBeGreaterThanOrEqual(7);
+    for (const v of vecs) for (const id of ids) expect(v, `missing ${id}`).toHaveProperty(id);
+    // A face-the-camera clip: all pose angles stay well inside ±45°.
+    for (const id of ['face.head.yaw', 'face.head.pitch', 'face.head.roll']) {
+      expect(values(vecs, id).every((x) => Math.abs(x) < 45)).toBe(true);
+    }
+    expect(values(vecs, 'face.head.x').every((x) => x > 0 && x < 1)).toBe(true);
+    expect(values(vecs, 'face.head.y').every((y) => y > 0 && y < 1)).toBe(true);
+    expect(values(vecs, 'face.head.scale').every((s) => s > 0.02 && s < 0.5)).toBe(true);
+    expect(values(vecs, 'face.head.distanceProxy').every((d) => d > 0 && Number.isFinite(d))).toBe(true);
+    expect(span(values(vecs, 'face.head.y'))).toBeGreaterThan(0.2); // the head moves in the clip
   });
 });

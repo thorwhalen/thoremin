@@ -50,6 +50,17 @@ export interface NormalizerOptions {
   /** The quantiles the band is drawn at (must include 0 and 1). Default the
    *  quartiles: min, p25, median, p75, max. */
   markers?: number[];
+  /**
+   * CIRCULAR features (#144): id → the exact angular period `[lo, hi]` (e.g.
+   * `[-pi, pi]` for an `atan2`-derived angle). The endpoints are the SAME physical
+   * pose, so a wrap between them is a representation artifact — folding it into an
+   * adaptive envelope inflates the range (~2pi where the real motion was tiny) and
+   * makes the level history-dependent. A circular feature is therefore mapped
+   * against its DECLARED range verbatim, in every mode: no envelope, no quantiles,
+   * no z-score. (The wrap discontinuity itself is intrinsic to mapping a circle
+   * onto a line; continuous musical control derives `sin`/`cos` in a formula.)
+   */
+  circular?: Record<string, readonly [number, number]>;
 }
 
 const DEFAULTS = {
@@ -79,12 +90,14 @@ interface FeatureStat {
 }
 
 export class OnlineNormalizer {
-  private readonly opts: Required<NormalizerOptions>;
+  private readonly opts: Required<Omit<NormalizerOptions, 'circular'>>;
+  private readonly circular: Record<string, readonly [number, number]>;
   private readonly interiorMarkers: number[];
   private readonly stats = new Map<string, FeatureStat>();
 
   constructor(options: NormalizerOptions = {}) {
     const markers = (options.markers ?? DEFAULTS.markers).slice().sort((a, b) => a - b);
+    this.circular = options.circular ?? {};
     this.opts = {
       mode: options.mode ?? DEFAULTS.mode,
       tau: options.tau ?? DEFAULTS.tau,
@@ -118,6 +131,14 @@ export class OnlineNormalizer {
   observe(id: string, x: number, dt: number): void {
     if (!Number.isFinite(x)) return;
     const st = this.ensure(id);
+    // A circular feature keeps no running statistics — its mapping is fixed by the
+    // declared period (see NormalizerOptions.circular). Only the sample count is
+    // tracked, so level()/markers() keep their "has been observed" gating.
+    if (this.circular[id]) {
+      st.n += 1;
+      st.init = true;
+      return;
+    }
     const step = dt > EPS ? dt : 1 / 60;
     const alpha = 1 - Math.exp(-step / this.opts.tau);
     const envAlpha = 1 - Math.exp(-step / this.opts.envelopeTau);
@@ -167,7 +188,19 @@ export class OnlineNormalizer {
     if (!Number.isFinite(x)) return NaN;
     const st = this.stats.get(id);
     if (!st || !st.init) return NaN;
+    const period = this.circular[id];
+    if (period) return this.circularLevel(period, x);
     return this.map(st, x);
+  }
+
+  /** Fixed declared-range mapping for a circular feature: deterministic and
+   *  history-independent, so the meter never re-scales under the performer. Values
+   *  outside the period (shouldn't happen for atan2 outputs) clamp at the edges. */
+  private circularLevel(period: readonly [number, number], x: number): number {
+    const [lo, hi] = period;
+    const range = hi - lo;
+    if (!(range > EPS)) return 0.5;
+    return clamp01((x - lo) / range);
   }
 
   /**
@@ -178,6 +211,9 @@ export class OnlineNormalizer {
   markers(id: string): number[] {
     const st = this.stats.get(id);
     if (!st || !st.init || st.n < 5) return [];
+    // Circular: the band IS the fixed period — the configured marker fractions map
+    // to themselves (there are no meaningful online quantiles on a circle).
+    if (this.circular[id]) return this.opts.markers.slice();
     const raws = this.markerRaws(st);
     return raws.map((r) => this.map(st, r));
   }

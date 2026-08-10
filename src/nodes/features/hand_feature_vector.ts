@@ -5,13 +5,24 @@
  * two-hand relational features, emitted on a `feature-vector` port for the lab
  * overlay and the recorder.
  *
- * Pure and deterministic → fixture-replay tested against the recorded hand videos.
- * Uses world landmarks (metric, pose-invariant) when present, falling back to
- * image landmarks otherwise (the recorded fixtures + the synthetic source have no
- * world frames, so the angle/orientation features are in-plane approximations
- * there — still finite, still responsive). Only FINITE values are emitted (a
- * degenerate/absent feature returns `NaN` and is dropped, protecting the recorder
- * and the online normalizer from NaN poisoning).
+ * Deterministic and fixture-replay tested against the recorded hand videos.
+ * Stateful only for the handedness->namespace hysteresis (below); the feature
+ * math itself is pure. Uses world landmarks (metric, pose-invariant) when
+ * present, falling back to image landmarks otherwise (the recorded fixtures +
+ * the synthetic source have no world frames, so the angle/orientation features
+ * are in-plane approximations there — still finite, still responsive). Only
+ * FINITE values are emitted (a degenerate/absent feature returns `NaN` and is
+ * dropped, protecting the recorder and the online normalizer from NaN
+ * poisoning).
+ *
+ * Handedness hysteresis (#144): MediaPipe relabels a single physical hand
+ * Left->Right->Left when it turns (the back of a hand looks like the other
+ * hand). Keying by the raw label split one hand's stream across the
+ * `hand.left.*` / `hand.right.*` namespaces for a frame or two, blanking the
+ * Lab meters. So while exactly ONE hand is detected the namespace is a
+ * COMMITTED side: a new label must persist `handednessDwellFrames` consecutive
+ * frames before the assignment switches (the same leave-counter dwell idiom as
+ * `face-expression`). Two-hand frames pass raw labels through untouched.
  *
  * Group + activity resolution mirrors `face-feature-vector`: live lab config
  * first, then the static `groups` param, then all hand groups; inactive (lab
@@ -39,6 +50,10 @@ const Params = z.object({
   mirrorHandedness: z.boolean().default(true),
   /** Which feature groups to compute (default: all hand groups). Live lab config overrides. */
   groups: z.array(z.string()).optional(),
+  /** Single-hand only: consecutive frames a NEW handedness label must persist
+   *  before the `hand.{side}.*` namespace switches. Absorbs MediaPipe's
+   *  Left/Right relabel flicker when a hand turns; 1 = no hysteresis. */
+  handednessDwellFrames: z.number().int().min(1).max(30).default(3),
 });
 type Params = z.infer<typeof Params>;
 
@@ -59,36 +74,96 @@ export const handFeatureVectorNode = defineNode<Params>({
   inputs: [{ name: 'hands', kind: 'hands-frame' }],
   outputs: [{ name: 'vector', kind: 'feature-vector' }],
   params: Params,
-  process(inputs, p, ctx) {
-    const { active, enabled } = resolveGroups(p, ctx);
-    if (!active) return { vector: {} };
-    const frame = inputs.hands as HandsFrame | undefined;
-    const vector: FeatureVector = {};
-    if (!frame || !frame.hands?.length) return { vector };
+  make(p) {
+    // Handedness->namespace hysteresis state (single-hand regime only). Policy
+    // across hand-count changes, each direction thought through:
+    //  - 1 -> 2 (and any 2+ frame): raw labels pass through, and the tracker is
+    //    CLEARED. With two hands MediaPipe disambiguates the labels against each
+    //    other and both namespaces are active, so there is nothing for
+    //    hysteresis to protect — and carrying single-hand state across a
+    //    two-hand interlude could pin the surviving hand to the wrong side
+    //    after the other leaves (we cannot know which physical hand remained).
+    //  - 2 -> 1: tracker was cleared, so the remaining hand cold-commits to its
+    //    own raw label immediately (its label was just disambiguated), and the
+    //    dwell protects it from that point on.
+    //  - 1 -> 0 -> 1: a dropout no longer than the dwell window KEEPS the
+    //    assignment — detection confidence dips at the same moment labels
+    //    flicker (while the hand turns), so resetting on a one-frame dropout
+    //    would reopen the bug through a side door. A longer absence clears the
+    //    tracker, so a genuinely new hand commits to its own label at once.
+    let committedSide: HandSide | null = null;
+    let switchCount = 0; // consecutive single-hand frames disagreeing with committedSide
+    let absentCount = 0; // consecutive frames with no detected hands
 
-    // Per-hand features, keyed by resolved side.
-    const bySide: Partial<Record<HandSide, HandCtx>> = {};
-    for (const hand of frame.hands as Hand[]) {
-      const side = resolveSide(hand.handedness, p.mirrorHandedness);
-      const hctx = buildHandCtx(hand, frame, { mirrorX: p.mirrorX, side });
-      bySide[side] = hctx;
-      for (const feat of HAND_SIDE_FEATURES) {
-        if (!enabled(feat.group)) continue;
-        const v = feat.compute(hctx);
-        if (Number.isFinite(v)) vector[`hand.${side}.${feat.id}`] = v;
+    const reset = () => {
+      committedSide = null;
+      switchCount = 0;
+    };
+
+    /** Dwell-filter the single-hand raw side into the committed namespace. */
+    const commitSide = (raw: HandSide): HandSide => {
+      if (committedSide === null || raw === committedSide) {
+        committedSide = raw;
+        switchCount = 0;
+      } else if (++switchCount >= p.handednessDwellFrames) {
+        committedSide = raw;
+        switchCount = 0;
       }
-    }
+      return committedSide;
+    };
 
-    // Two-hand relational features (need both hands present).
-    if (bySide.left && bySide.right) {
-      const tctx = { left: bySide.left, right: bySide.right, mirrorX: p.mirrorX };
-      for (const feat of HAND_PAIR_FEATURES) {
-        if (!enabled(feat.group)) continue;
-        const v = feat.compute(tctx);
-        if (Number.isFinite(v)) vector[`hand.${feat.id}`] = v;
-      }
-    }
+    return {
+      process(inputs, ctx) {
+        const { active, enabled } = resolveGroups(p, ctx);
+        if (!active) {
+          // Unobserved stream: drop the tracker so a much-later reshow
+          // cold-commits to the then-current label instead of a stale one.
+          reset();
+          absentCount = 0;
+          return { vector: {} };
+        }
+        const frame = inputs.hands as HandsFrame | undefined;
+        const vector: FeatureVector = {};
+        if (!frame || !frame.hands?.length) {
+          if (++absentCount > p.handednessDwellFrames) reset();
+          return { vector };
+        }
+        absentCount = 0;
 
-    return { vector };
+        const hands = frame.hands as Hand[];
+        const single = hands.length === 1;
+        if (!single) reset();
+
+        // Per-hand features, keyed by the assigned side (dwell-committed when a
+        // single hand is present, raw otherwise).
+        const bySide: Partial<Record<HandSide, HandCtx>> = {};
+        for (const hand of hands) {
+          const raw = resolveSide(hand.handedness, p.mirrorHandedness);
+          // The committed side also labels the HandCtx (not just the keys):
+          // during a flicker the physical hand is unchanged, so side-tagged
+          // consumers must see the same side the features are keyed under.
+          const side = single ? commitSide(raw) : raw;
+          const hctx = buildHandCtx(hand, frame, { mirrorX: p.mirrorX, side });
+          bySide[side] = hctx;
+          for (const feat of HAND_SIDE_FEATURES) {
+            if (!enabled(feat.group)) continue;
+            const v = feat.compute(hctx);
+            if (Number.isFinite(v)) vector[`hand.${side}.${feat.id}`] = v;
+          }
+        }
+
+        // Two-hand relational features (need both hands present).
+        if (bySide.left && bySide.right) {
+          const tctx = { left: bySide.left, right: bySide.right, mirrorX: p.mirrorX };
+          for (const feat of HAND_PAIR_FEATURES) {
+            if (!enabled(feat.group)) continue;
+            const v = feat.compute(tctx);
+            if (Number.isFinite(v)) vector[`hand.${feat.id}`] = v;
+          }
+        }
+
+        return { vector };
+      },
+    };
   },
 });
