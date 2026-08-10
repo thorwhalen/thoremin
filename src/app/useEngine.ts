@@ -23,13 +23,20 @@ import {
 import { prefillName } from './recording/naming';
 import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus } from './faceStatus';
+import { useMidiStatus } from './midiStatus';
 import type { FaceStatus } from '@/nodes';
+import type { MidiStatus } from '@/nodes/browser';
 import type { ExpressionScores } from '@/music/expression';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /** Min interval (ms) between face-status reports to React (throttle the readout). */
 const FACE_REPORT_MS = 100;
+
+/** Min interval (ms) between MIDI-status reports while notes are moving (#137).
+ *  Phase / port-list changes always report immediately; this only paces the
+ *  `activeNotes` counter so held-note changes don't re-render the panel 60×/s. */
+const MIDI_REPORT_MS = 250;
 
 /**
  * Max wait (ms) for a file source to deliver metadata before we give up. A URL
@@ -224,6 +231,23 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
           lastDetected = fs.faceDetected;
         };
 
+        // Bridge the midi-out node's status to React the same way (#137): the
+        // settings panel renders the live device list + connection phase from it.
+        // Transitions (phase / resolved port / device list) report immediately;
+        // the activeNotes counter is paced so it can't re-render the panel 60×/s.
+        let lastMidiReport = 0;
+        let lastMidiKey = '';
+        const reportMidi = (now: number) => {
+          const ms = engine.getOutput('midiOut', 'status') as MidiStatus | undefined;
+          if (!ms) return;
+          const key = `${ms.phase}|${ms.portName ?? ''}|${ms.ports.join(',')}|${ms.message}`;
+          const notesChanged = ms.activeNotes !== useMidiStatus.getState().status.activeNotes;
+          if (key === lastMidiKey && (!notesChanged || now - lastMidiReport < MIDI_REPORT_MS)) return;
+          useMidiStatus.getState().report(ms);
+          lastMidiReport = now;
+          lastMidiKey = key;
+        };
+
         const loop = () => {
           // Guard the tick: one node throwing on a frame (e.g. a degenerate
           // value) must never stop the loop — drop that frame and keep going,
@@ -232,6 +256,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
             const t = performance.now();
             engine.tick(t / 1000);
             reportFace(t);
+            reportMidi(t);
             // (#90) Mute is now a store flag toggled by the app-level keyboard
             // handler (the `m` key → toggleMuted) and flows INTO the graph via
             // store-controls, so there is no longer a graph→store mute mirror here.
@@ -258,6 +283,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
       engineRef.current?.dispose();
       engineRef.current = null;
       useFaceStatus.getState().reset();
+      useMidiStatus.getState().reset();
       sessionRecRef.current?.dispose();
       sessionRecRef.current = null;
       cameraStreamRef.current = null;

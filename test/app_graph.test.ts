@@ -69,6 +69,23 @@ describe('production app graph', () => {
     expect(has('map', 'params', 'overlay', 'params')).toBe(false);
   });
 
+  it('wires the MIDI output enable/port live from the store — the #137 regression guard', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The exact wiring: the midi dials flow from the store into the node's live inputs.
+    expect(has('ui', 'midiEnabled', 'midiOut', 'enabled')).toBe(true);
+    expect(has('ui', 'midiPort', 'midiOut', 'port')).toBe(true);
+    // The structural guard #137 asked for: `enabled` left UNCONNECTED means the node
+    // can never be turned on from the app — MIDI out shipped exactly that way once
+    // (PR #120: complete, tested, unreachable). If this fails, some rewiring dropped
+    // the only path a user has to the feature.
+    const inbound = edges.filter((e) => e.to.node === 'midiOut').map((e) => e.to.port);
+    expect(inbound).toContain('enabled');
+    expect(inbound).toContain('port');
+    expect(inbound).toContain('params');
+  });
+
   it('wires the Feature Lab vector taps additively off the existing sources (#119)', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>

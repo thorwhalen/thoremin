@@ -262,6 +262,21 @@ describe('persist migration (v1 → v2, returning users)', () => {
     expect(merged.faceExpr.degrees.kiss).toBe(6); // vii°
   });
 
+  it('mergeControls heals the MIDI settings (#137): absent → off, partial → completed, corrupt → default', () => {
+    const initial = useControls.getInitialState();
+    // A pre-#137 blob has no midi key at all → the default (off, first available).
+    expect(mergeControls({ masterVolume: 0.5 }, initial).midi).toEqual({ enabled: false, port: '' });
+    // A partial blob keeps what it set and completes the rest.
+    const partial = mergeControls({ midi: { enabled: true } as never }, initial).midi;
+    expect(partial.enabled).toBe(true);
+    expect(partial.port).toBe('');
+    // A corrupt value falls back to the default whole (never a crash, never undefined).
+    expect(mergeControls({ midi: { enabled: 'yes', port: 3 } as never }, initial).midi).toEqual({
+      enabled: false,
+      port: '',
+    });
+  });
+
   it('mergeControls clamps an unknown faceMapping to a safe value', () => {
     const initial = useControls.getInitialState();
     expect(mergeControls({ faceMapping: 'rainbow' as never }, initial).faceMapping).toBe('none');
@@ -345,6 +360,20 @@ describe('store-controls node reads the store', () => {
     const out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
     // custom pins the source to G minor; register (baseOctave) still tracks the melody.
     expect(out.chordSpec).toMatchObject({ root: 7, type: 'minor', baseOctave: 3 });
+  });
+
+  it('emits the MIDI enable/port dials as live ports (#137)', () => {
+    // Default: off, first available port — the graph-wired midi-out stays silent.
+    useControls.setState({ midi: { enabled: false, port: '' } });
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    let out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    expect(out.midiEnabled).toBe(false);
+    expect(out.midiPort).toBe('');
+    // Turning the dial on flows straight through — no rebuild, next tick.
+    useControls.setState({ midi: { enabled: true, port: 'IAC Driver Bus 1' } });
+    out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    expect(out.midiEnabled).toBe(true);
+    expect(out.midiPort).toBe('IAC Driver Bus 1');
   });
 
   it('a wider octave range widens scaleRight through store-controls (#63 replay)', () => {

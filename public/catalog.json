@@ -1261,6 +1261,14 @@
       {
         "name": "expressionDegrees",
         "kind": "expression-degrees"
+      },
+      {
+        "name": "midiEnabled",
+        "kind": "boolean"
+      },
+      {
+        "name": "midiPort",
+        "kind": "string"
       }
     ],
     "params": []
