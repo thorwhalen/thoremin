@@ -62,6 +62,13 @@ export const TOOLS: readonly Tool[] = [
     hotkey: '⌘K',
   },
   {
+    id: 'gestures',
+    label: 'Gestures',
+    description:
+      'Bind hand poses (fist, open palm, pinch) to commands for hands-free control — hold a pose to fire it.',
+    kind: 'panel',
+  },
+  {
     id: 'manual',
     label: 'Manual',
     description: 'The generated capabilities manual: every node, dial, sound and overlay element.',

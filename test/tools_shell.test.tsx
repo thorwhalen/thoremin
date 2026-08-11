@@ -16,15 +16,18 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
 import LabPanel from '@/app/LabPanel';
+import GesturesPanel from '@/app/GesturesPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
 import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
 import { defaultFeatureLab } from '@/features/labConfig';
+import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
 
 beforeEach(() => {
   useTools.setState({ open: null });
   useControls.getState().setFeatureLab(defaultFeatureLab());
+  useControls.setState({ gestures: defaultGesturePrefs() });
 });
 afterEach(cleanup);
 
@@ -99,6 +102,57 @@ describe('the Feature Lab is reachable and explains itself', () => {
     expect(screen.queryByText(/Start measuring/i)).toBeNull();
     fireEvent.click(screen.getByText('Feature Lab'));
     expect(screen.getByText(/Start measuring/i)).toBeTruthy();
+  });
+});
+
+describe('the Gestures panel is reachable and edits the binding map (#129)', () => {
+  it('is closed until its tool is open', () => {
+    const { container } = render(<GesturesPanel />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('the whole chain works: shell button -> open state -> a row per known gesture with a command picker', () => {
+    render(
+      <>
+        <ToolsBar />
+        <GesturesPanel />
+      </>,
+    );
+    expect(screen.queryByLabelText('Enable gesture commands')).toBeNull();
+    fireEvent.click(screen.getByText('Gestures'));
+    expect(useTools.getState().open).toBe('gestures');
+    // Every gesture the classifier can emit gets a labelled row and a picker.
+    for (const g of GESTURE_IDS) expect(screen.getByText(GESTURE_LABELS[g])).toBeTruthy();
+    expect(screen.getAllByRole('combobox')).toHaveLength(GESTURE_IDS.length);
+    // The enable toggle and BOTH timing sliders (hold + cooldown) are present.
+    expect(screen.getByLabelText('Enable gesture commands')).toBeTruthy();
+    expect(document.querySelectorAll('input[type="range"]')).toHaveLength(2);
+    // The confirmation-gating exclusion is STATED, not silent (#129 point 8).
+    expect(screen.getByText(/confirmation/i)).toBeTruthy();
+  });
+
+  it('the enable toggle writes the per-device gestures pref (not a dial, not a preset)', () => {
+    useTools.setState({ open: 'gestures' });
+    render(<GesturesPanel />);
+    fireEvent.click(screen.getByLabelText('Enable gesture commands'));
+    expect(useControls.getState().gestures.enabled).toBe(true);
+  });
+
+  it('the command picker binds and unbinds a gesture, and never offers a confirmation-gated command', () => {
+    useTools.setState({ open: 'gestures' });
+    render(<GesturesPanel />);
+    // Rows render in GESTURE_IDS order; 'open' ships unbound.
+    const openSelect = screen.getByLabelText(`Command for ${GESTURE_LABELS.open}`) as HTMLSelectElement;
+    expect(openSelect.value).toBe('');
+    // No instrument.* (destructive → confirmation-gated) option anywhere.
+    const optionIds = [...openSelect.querySelectorAll('option')].map((o) => o.value);
+    expect(optionIds.some((id) => id.startsWith('instrument.'))).toBe(false);
+    // Bind it to a real per-dial command...
+    fireEvent.change(openSelect, { target: { value: 'dial.master.magnetism.set' } });
+    expect(useControls.getState().gestures.bindings.open?.command).toBe('dial.master.magnetism.set');
+    // ...and unbind it again (the dispatcher never fires an unbound gesture).
+    fireEvent.change(openSelect, { target: { value: '' } });
+    expect(useControls.getState().gestures.bindings.open).toBeUndefined();
   });
 });
 

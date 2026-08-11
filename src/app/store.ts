@@ -19,6 +19,7 @@ import type { ScaleTypeId } from '@/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
 import { OverlayDialSchema, type OverlayDialParams } from '@/nodes/output/canvas_overlay';
 import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
+import { GesturePrefsSchema, defaultGesturePrefs, type GesturePrefs } from './gesturePrefs';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
 import {
   DEFAULT_FACE_CHORD,
@@ -129,6 +130,16 @@ export interface ControlState {
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
    *  preset — it is a device property, not a musical parameter. Null = uncalibrated. */
   faceCalibration: Record<string, number> | null;
+  /**
+   * Gesture dispatch config (#129): enable flag, hold/cooldown timing, and the
+   * gesture → command binding map. A TOOLING preference like {@link featureLab} —
+   * persisted per-device via `partialize`, NOT a preset field and NOT a dial:
+   * gestures bind to commands the way the keyboard does, and keybindings are not
+   * instrument state (loading an instrument must never rebind your hands). Read
+   * each frame by the app-level gesture dispatcher (`gestureDispatch.ts`) and
+   * edited from the Gestures shell tool.
+   */
+  gestures: GesturePrefs;
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
@@ -152,6 +163,9 @@ export interface ControlState {
   setHandMap(patch: Partial<HandMap>): void;
   /** Store (or clear, with null) the per-device expression calibration. */
   setFaceCalibration(map: Record<string, number> | null): void;
+  /** Shallow-patch the gesture-dispatch prefs (e.g. setGestures({ enabled: true }),
+   *  or a whole new `bindings` record for a binding change). */
+  setGestures(patch: Partial<GesturePrefs>): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
   applySettings(s: Settings): void;
 }
@@ -319,7 +333,20 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       midi = current.midi;
     }
   }
-  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap, midi };
+  // Heal the gesture prefs (#129) the same way as the other tooling prefs: complete
+  // a partial blob from the current (default) prefs, then validate — a pre-#129 blob
+  // has none → the defaults; a corrupt blob falls back rather than crashing a newer
+  // reader. Note the blob's `bindings` record replaces the default wholesale (an
+  // unbound-by-the-user gesture must STAY unbound, not be re-seeded every load).
+  let gestures = current.gestures;
+  if (p.gestures) {
+    try {
+      gestures = GesturePrefsSchema.parse({ ...current.gestures, ...p.gestures });
+    } catch {
+      gestures = current.gestures;
+    }
+  }
+  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap, midi, gestures };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -353,6 +380,7 @@ export const useControls = create<ControlState>()(
       handMap: defaultHandMap(),
       midi: { ...DEFAULT_MIDI },
       faceCalibration: null,
+      gestures: defaultGesturePrefs(),
       setVoice: (side, patch) =>
         set((s) => {
           const next = { ...s[side], ...patch };
@@ -389,6 +417,7 @@ export const useControls = create<ControlState>()(
       setFeatureLab: (patch) => set((s) => ({ featureLab: { ...s.featureLab, ...patch } })),
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
       setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
+      setGestures: (patch) => set((s) => ({ gestures: { ...s.gestures, ...patch } })),
       // Restore exactly the schema fields (the setters are left untouched). Derived
       // from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
@@ -414,16 +443,22 @@ export const useControls = create<ControlState>()(
       // Version 8: #137 added the `midi` preset field (enabled/port). ADDITIVE with a
       // default (off / first available port), healed by mergeControls, so no data
       // transform is needed — the bump is the version marker for the schema growth.
-      version: 8,
+      // Version 9: #129 added the `gestures` per-device tooling pref (enable flag,
+      // hold/cooldown timing, gesture → command bindings). ADDITIVE with defaults
+      // (disabled; fist → silence, pinch → restore volume, open unbound), healed by
+      // mergeControls like featureLab, so no data transform is needed — the bump is
+      // the version marker for the schema growth.
+      version: 9,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
       // Persist the preset fields (schema-derived) + the per-device tooling prefs
-      // (calibration, feature lab), never the setter functions.
+      // (calibration, feature lab, gesture bindings), never the setter functions.
       partialize: (s) => ({
         ...pickSettings(s as unknown as Record<string, unknown>),
         faceCalibration: s.faceCalibration,
         featureLab: s.featureLab,
+        gestures: s.gestures,
       }),
     },
   ),

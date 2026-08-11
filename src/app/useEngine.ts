@@ -24,6 +24,8 @@ import { prefillName } from './recording/naming';
 import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus } from './faceStatus';
 import { useMidiStatus } from './midiStatus';
+import { useGestureStatus, type HandPoses } from './gestureStatus';
+import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
 import type { MidiStatus } from '@/nodes/browser';
 import type { ExpressionScores } from '@/music/expression';
@@ -248,6 +250,24 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
           lastMidiKey = key;
         };
 
+        // Gesture dispatch (#129): the classifier's per-hand poses are read off the
+        // DAG each frame — the dispatcher (fresh timing state per engine run) turns
+        // held-pose TRANSITIONS into command dispatches per the user's binding map,
+        // and the status store is written only when a pose CHANGES (transition-
+        // gated, like reportFace/reportMidi), so the Gestures panel's live
+        // indicators never re-render at frame rate.
+        const gestureDispatcher = createGestureDispatcher();
+        let lastPosesKey = '';
+        const reportGesture = (now: number) => {
+          const poses = engine.getOutput('gesture', 'poses') as HandPoses | undefined;
+          if (!poses) return;
+          gestureDispatcher.tick(poses, now);
+          const key = `${poses.left}|${poses.right}`;
+          if (key === lastPosesKey) return;
+          useGestureStatus.getState().report(poses);
+          lastPosesKey = key;
+        };
+
         const loop = () => {
           // Guard the tick: one node throwing on a frame (e.g. a degenerate
           // value) must never stop the loop — drop that frame and keep going,
@@ -257,6 +277,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
             engine.tick(t / 1000);
             reportFace(t);
             reportMidi(t);
+            reportGesture(t);
             // (#90) Mute is now a store flag toggled by the app-level keyboard
             // handler (the `m` key → toggleMuted) and flows INTO the graph via
             // store-controls, so there is no longer a graph→store mute mirror here.
@@ -284,6 +305,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
       engineRef.current = null;
       useFaceStatus.getState().reset();
       useMidiStatus.getState().reset();
+      useGestureStatus.getState().reset();
       sessionRecRef.current?.dispose();
       sessionRecRef.current = null;
       cameraStreamRef.current = null;

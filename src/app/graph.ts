@@ -131,6 +131,14 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // nothing for a player who never opens the Lab.
       { id: 'faceVec', type: 'face-feature-vector', params: {} },
       { id: 'handVec', type: 'hand-feature-vector', params: {} },
+      // Gesture dispatch (#129): discrete pose classification (fist/open/pinch),
+      // tapped additively off the hand-features stream the mapping already reads.
+      // Nothing in the GRAPH consumes it — the app-level gesture dispatcher
+      // (src/app/gestureDispatch.ts, driven from the rAF loop in useEngine) reads
+      // its `poses` output each frame and turns held-pose transitions into command
+      // dispatches per the user's binding map. Pure per-tick classification, so it
+      // costs nothing meaningful when gesture bindings are disabled.
+      { id: 'gesture', type: 'gesture-classifier', params: {} },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
       // handler that dispatches dial commands; octave-shift / magnetism / mute now
       // flow from the store via `ui` (store-controls), so no keyboard nodes here.
@@ -243,6 +251,10 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'cam', port: 'hands' }, to: { node: 'handVec', port: 'hands' } },
       { from: { node: 'faceVec', port: 'vector' }, to: { node: 'overlay', port: 'faceVector' } },
       { from: { node: 'handVec', port: 'vector' }, to: { node: 'overlay', port: 'handVector' } },
+      // Gesture dispatch (#129): the classifier taps the SAME hand-features stream
+      // the mapping/overlay read (additive fan-out — the original edges are
+      // untouched). Its `poses` output is read app-side by the gesture dispatcher.
+      { from: { node: 'feat', port: 'features' }, to: { node: 'gesture', port: 'features' } },
     ],
   };
 }

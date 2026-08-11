@@ -21,6 +21,7 @@ const app = readFileSync(resolve(process.cwd(), 'src/app/App.tsx'), 'utf8');
 const SURFACES: Record<string, string> = {
   lab: 'LabPanel',
   commands: 'CommandPaletteOverlay',
+  gestures: 'GesturesPanel',
 };
 
 describe('app shell', () => {
