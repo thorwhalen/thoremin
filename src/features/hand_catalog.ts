@@ -29,7 +29,7 @@
  */
 import { LM } from '@/nodes/domain';
 import { angleAt, angleBetween, centroid, cross, dist2, dist3, normalize, sub, type Vec3 } from './math';
-import type { FeatureDef, HandCtx, TwoHandCtx } from './types';
+import type { FeatureDef, HandCtx, Invariance, TwoHandCtx } from './types';
 
 type HandFeature = FeatureDef<HandCtx>;
 type PairFeature = FeatureDef<TwoHandCtx>;
@@ -140,6 +140,39 @@ function spanRatio(c: HandCtx, a: number, b: number): number {
 }
 
 // ---- Side-relative feature templates ---------------------------------------
+
+/**
+ * The invariance profile of a feature computed from WORLD-landmark 3D geometry
+ * (joint angles, span-normalized distances): metric and carried with the hand,
+ * so camera distance, frame position, and hand orientation all cancel — ON THE
+ * WORLD PATH. When world landmarks are absent (the synthetic source and the
+ * recorded fixtures), these features fall back to image keypoints and become
+ * in-plane approximations: the pose invariances degrade. The label describes
+ * the live app (world landmarks on), per #131.
+ */
+const WORLD_GEOMETRY_INVARIANCE: readonly Invariance[] = ['scale', 'position', 'yaw', 'pitch', 'roll'];
+
+/**
+ * Group-level invariance defaults (#131), applied at assembly for the groups
+ * whose members share one honest profile; mixed groups (hand.whole, the pair
+ * features) label per feature instead. Absent from both = not yet assessed.
+ */
+const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
+  // Raw image positions ARE their confounds: assessed, invariant to nothing.
+  'hand.position.raw': [],
+  // 3D joint/spread angles + span ratios (see WORLD_GEOMETRY_INVARIANCE).
+  'hand.finger.flexion': WORLD_GEOMETRY_INVARIANCE,
+  'hand.finger.spread': WORLD_GEOMETRY_INVARIANCE,
+  'hand.distances.pinch': WORLD_GEOMETRY_INVARIANCE,
+  // Orientation features MEASURE the pose axes (the confound regressors).
+  'hand.palm.orientation': ['scale', 'position'],
+};
+
+/** Fill a group-default invariance where the feature doesn't label itself. */
+function withGroupInvariance<T extends { group: string; invariantTo?: readonly Invariance[] }>(f: T): T {
+  if (f.invariantTo !== undefined || GROUP_INVARIANCE[f.group] === undefined) return f;
+  return { ...f, invariantTo: GROUP_INVARIANCE[f.group] };
+}
 
 function positionFeatures(): HandFeature[] {
   const out: HandFeature[] = [];
@@ -304,6 +337,7 @@ function wholeFeatures(): HandFeature[] {
       id: 'openness',
       group: 'hand.whole',
       source: 'hand',
+      invariantTo: WORLD_GEOMETRY_INVARIANCE, // span-normalized 3D reach
       controllability: 'easy',
       description: 'Mean fingertip reach from wrist / palm span',
       compute: (c) => {
@@ -321,6 +355,7 @@ function wholeFeatures(): HandFeature[] {
       // Five fingers, each curl 0..3pi -> 0..15pi theoretical (advisory; the
       // normalizer does the real per-user ranging).
       range: [0, 15 * Math.PI],
+      invariantTo: WORLD_GEOMETRY_INVARIANCE, // sum of 3D joint angles
       controllability: 'easy',
       description: 'Sum of all five finger curls (rad)',
       compute: (c) => FINGERS.reduce((s, f) => s + fingerCurl(c, f), 0),
@@ -329,6 +364,9 @@ function wholeFeatures(): HandFeature[] {
       id: 'size',
       group: 'hand.whole',
       source: 'hand',
+      // The camera-distance proxy itself: varies with scale BY DESIGN. In-plane
+      // roll preserves the 2D span; out-of-plane yaw/pitch foreshorten it.
+      invariantTo: ['position', 'roll'],
       controllability: 'easy',
       description: 'Wrist->middle-MCP image distance (px) — camera-distance proxy',
       compute: (c) => { const w = c.P(LM.wrist); const m = c.P(LM.middle_mcp); return w && m ? dist2(w, m) : NaN; },
@@ -339,6 +377,7 @@ function wholeFeatures(): HandFeature[] {
       source: 'hand',
       range: [-Math.PI, Math.PI],
       circular: true, // atan2: ±pi are the same pose — see FeatureDef.circular (#144)
+      invariantTo: ['scale', 'position'], // it MEASURES the in-plane roll axis
       controllability: 'easy',
       description: 'In-plane hand tilt (up-positive, rad, circular)',
       compute: (c) => {
@@ -354,6 +393,7 @@ function wholeFeatures(): HandFeature[] {
       group: 'hand.whole',
       source: 'hand',
       range: [-Math.PI / 2, Math.PI / 2],
+      invariantTo: ['scale', 'position'], // measures the pointing-pitch axis
       controllability: 'moderate',
       description: 'Pointing pitch as a wrist-flexion proxy (no forearm reference)',
       compute: (c) => { const u = pointingAxis(c); return u ? Math.asin(Math.max(-1, Math.min(1, -u.y))) : NaN; },
@@ -363,6 +403,7 @@ function wholeFeatures(): HandFeature[] {
       group: 'hand.whole',
       source: 'hand',
       range: [0, Math.PI],
+      invariantTo: WORLD_GEOMETRY_INVARIANCE, // mean of 3D spread angles
       controllability: 'moderate',
       description: 'Mean adjacent-finger spread (rad)',
       compute: (c) => {
@@ -448,6 +489,10 @@ function pairFeatures(): PairFeature[] {
     id,
     group: 'hand.twohand.relational',
     source: 'hand',
+    // Mean-hand-size-normalized image relations: distance and frame position
+    // cancel; per-hand foreshortening (pose) still contaminates — not claimed.
+    // midX/midY override this to [] below (they are raw positions).
+    invariantTo: ['scale', 'position'],
     controllability,
     description,
     compute,
@@ -463,8 +508,8 @@ function pairFeatures(): PairFeature[] {
       range: [-Math.PI, Math.PI] as const,
       circular: true,
     },
-    pf('pair.midX', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; const w = tc.left?.width ?? tc.right?.width ?? 0; if (!(w > 0)) return NaN; const mx = (b.L.centroid.x + b.R.centroid.x) / 2 / w; return tc.mirrorX ? 1 - mx : mx; }, 'Midpoint horizontal position'),
-    pf('pair.midY', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; const h = tc.left?.height ?? tc.right?.height ?? 0; return h > 0 ? (b.L.centroid.y + b.R.centroid.y) / 2 / h : NaN; }, 'Midpoint vertical position'),
+    { ...pf('pair.midX', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; const w = tc.left?.width ?? tc.right?.width ?? 0; if (!(w > 0)) return NaN; const mx = (b.L.centroid.x + b.R.centroid.x) / 2 / w; return tc.mirrorX ? 1 - mx : mx; }, 'Midpoint horizontal position'), invariantTo: [] },
+    { ...pf('pair.midY', 'easy', (tc) => { const b = both(tc); if (!b) return NaN; const h = tc.left?.height ?? tc.right?.height ?? 0; return h > 0 ? (b.L.centroid.y + b.R.centroid.y) / 2 / h : NaN; }, 'Midpoint vertical position'), invariantTo: [] },
     pf('pair.sizeRatio', 'moderate', (tc) => { const b = both(tc); return b ? b.L.size / b.R.size : NaN; }, 'Left/right hand image-size ratio'),
   ];
 }
@@ -477,7 +522,7 @@ export const HAND_SIDE_FEATURES: readonly HandFeature[] = [
   ...orientationFeatures(),
   ...wholeFeatures(),
   ...distanceFeatures(),
-];
+].map(withGroupInvariance);
 
 /** Two-hand relational feature templates (keyed `hand.pair.*`). */
 export const HAND_PAIR_FEATURES: readonly PairFeature[] = pairFeatures();

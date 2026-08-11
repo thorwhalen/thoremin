@@ -13,7 +13,7 @@ import { dist3, type Vec3 } from './math';
 import { iod as iodOf, type FaceLandmarks } from './landmarks';
 import { FACE_FEATURES } from './face_catalog';
 import { HAND_PAIR_FEATURES, HAND_SIDE_FEATURES } from './hand_catalog';
-import type { Controllability, FaceCtx, FeatureSource, HandCtx } from './types';
+import type { Controllability, FaceCtx, FeatureSource, HandCtx, Invariance } from './types';
 
 export type { Controllability, FaceCtx, HandCtx, TwoHandCtx, FeatureDef, FeatureSource, FeatureVector } from './types';
 export { FACE_FEATURES } from './face_catalog';
@@ -32,6 +32,9 @@ export interface FlatFeature {
   /** Angular feature on a circle (see FeatureDef.circular): the normalizer maps it
    *  against its declared range verbatim instead of an adaptive envelope. */
   circular?: boolean;
+  /** Declared confound profile (see FeatureDef.invariantTo): absent = unassessed,
+   *  [] = invariant to nothing listed. */
+  invariantTo?: readonly Invariance[];
   controllability?: Controllability;
   description?: string;
 }
@@ -93,6 +96,29 @@ export function safeName(id: string): string {
 /** Group ids, in display order. */
 export const FEATURE_GROUP_IDS: readonly string[] = FEATURE_GROUPS.map((g) => g.id);
 
+/**
+ * A one-line human summary of a group's declared confound profile (#131), for
+ * the Lab's group-picker tooltips: what the group's features are invariant to,
+ * and — the actionable half — what will contaminate them. Derived from the
+ * per-feature `invariantTo` labels; undefined when the group has no assessed
+ * features (no claim is better than a made-up one).
+ */
+export function groupInvarianceSummary(groupId: string): string | undefined {
+  const assessed = ALL_FEATURES.filter((f) => f.group === groupId && f.invariantTo !== undefined);
+  if (!assessed.length) return undefined;
+  const axes: Invariance[] = ['scale', 'position', 'yaw', 'pitch', 'roll'];
+  const shared = axes.filter((a) => assessed.every((f) => f.invariantTo!.includes(a)));
+  const contaminating = axes.filter((a) => !shared.includes(a));
+  const inv = shared.length ? `invariant to ${shared.join(', ')}` : 'invariant to none of the confound axes';
+  // "not invariant ACROSS the group", not "contaminated by": in a mixed group an
+  // axis outside the shared set may still be fine for individual members.
+  const bad = contaminating.length
+    ? ` — not invariant across the group to: ${contaminating.join(', ')} (correct with residual(x, z) in a formula)`
+    : ' — fully confound-invariant as labeled';
+  const partial = assessed.length < ALL_FEATURES.filter((f) => f.group === groupId).length ? ' (some features unassessed)' : '';
+  return `${inv}${bad}${partial}`;
+}
+
 /** A sensible default set of DISPLAYED/computed groups: high-signal, readable
  *  channels, so the lab opens with a useful (not overwhelming) grid. The raw
  *  blendshape families, raw hand positions, and two-hand groups are opt-in. */
@@ -115,15 +141,15 @@ export const ALL_FEATURES: readonly FlatFeature[] = buildAllFeatures();
 function buildAllFeatures(): FlatFeature[] {
   const out: FlatFeature[] = [];
   for (const f of FACE_FEATURES) {
-    out.push({ id: f.id, group: f.group, source: f.source, range: f.range, circular: f.circular, controllability: f.controllability, description: f.description });
+    out.push({ id: f.id, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
   }
   for (const side of HAND_SIDES) {
     for (const f of HAND_SIDE_FEATURES) {
-      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, controllability: f.controllability, description: f.description });
+      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
     }
   }
   for (const f of HAND_PAIR_FEATURES) {
-    out.push({ id: `hand.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, controllability: f.controllability, description: f.description });
+    out.push({ id: `hand.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
   }
   return out;
 }

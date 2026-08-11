@@ -113,7 +113,13 @@ export function createLabMeterComputer(): LabMeterComputer {
       return undefined;
     }
     // Re-zero the stats when the lab is (re)opened or an explicit reset fires.
-    if (!prevShow || cfg.resetNonce !== resetNonce) normalizer.reset();
+    // That includes the derived formulas' per-call-site regression state (#131):
+    // clearing the compile cache forces a recompile, whose call sites start
+    // clean — "recalibrate" must reset EVERY online statistic, not all-but-one.
+    if (!prevShow || cfg.resetNonce !== resetNonce) {
+      normalizer.reset();
+      derivedSig = '';
+    }
     prevShow = true;
     resetNonce = cfg.resetNonce;
     normalizer.setMode(cfg.normalizer);

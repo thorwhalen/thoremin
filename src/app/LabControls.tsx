@@ -14,7 +14,7 @@
  * Loading a saved view hydrates that config; nothing here is ever awaited in the tick loop.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FEATURE_GROUPS, ALL_SAFE_NAMES } from '@/features/catalog';
+import { FEATURE_GROUPS, ALL_SAFE_NAMES, groupInvarianceSummary } from '@/features/catalog';
 import { compileFormula, DEFAULT_HELPERS } from '@/features/formula';
 import { useControls } from './store';
 import type { FeatureLabConfig } from '@/features/labConfig';
@@ -97,7 +97,10 @@ function GroupPicker({ groups, onToggle }: { groups: string[]; onToggle: (id: st
   const handGroups = FEATURE_GROUPS.filter((g) => g.source === 'hand');
   const derivedGroup = FEATURE_GROUPS.find((g) => g.id === 'derived');
   const Row = ({ id, label }: { id: string; label: string }) => (
-    <label className="flex items-center gap-2 text-[11px]">
+    // The tooltip carries the group's declared confound profile (#131) — what the
+    // features are invariant to and what will contaminate them — so a performer
+    // picking channels sees the honesty labels where they choose.
+    <label className="flex items-center gap-2 text-[11px]" title={groupInvarianceSummary(id)}>
       <input type="checkbox" checked={enabled.has(id)} onChange={(e) => onToggle(id, e.target.checked)} />
       {label}
     </label>

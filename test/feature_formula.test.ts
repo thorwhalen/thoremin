@@ -101,3 +101,118 @@ describe('formula compiler — runtime contract (never throws in the loop)', () 
     }
   });
 });
+
+describe('stateful helpers — residual / deconfound (#131)', () => {
+  const VARS = new Set(['x', 'z', 'z2']);
+
+  it('residual regresses out a perfectly linear confound (over the EW window)', () => {
+    // x = 2*z, noiseless, with the confound varying much FASTER than the EW
+    // window (period ~19 frames vs window 120), so the regression sees many
+    // cycles and beta converges. Assert the reduction RATIO over the last
+    // stretch: most of the linear component must be gone.
+    const f = compileFormula('residual(x, z, 120)', { variables: VARS });
+    let rssRes = 0;
+    let rssRaw = 0;
+    for (let i = 0; i < 900; i++) {
+      const z = Math.sin(i / 3);
+      const out = f.eval({ x: 2 * z, z });
+      if (i >= 840) {
+        rssRes += out * out;
+        rssRaw += (2 * z) * (2 * z);
+      }
+    }
+    expect(Math.sqrt(rssRes / rssRaw)).toBeLessThan(0.25); // >75% of the swing removed
+  });
+
+  it('residual leaves an INDEPENDENT signal essentially alone', () => {
+    const f = compileFormula('residual(x, z, 30)', { variables: VARS });
+    let out = 0;
+    for (let i = 0; i < 600; i++) {
+      out = f.eval({ x: Math.sin(i / 7), z: Math.cos(i / 13) }); // uncorrelated-ish
+    }
+    // The independent signal keeps most of its swing (beta stays small).
+    expect(Math.abs(out - Math.sin(599 / 7))).toBeLessThan(0.4);
+  });
+
+  it('two residual call sites in ONE formula keep separate state', () => {
+    const f = compileFormula('residual(x, z, 10) - residual(x, z2, 10)', { variables: VARS });
+    // If the two call sites shared state, feeding them different confounds would
+    // corrupt each other; a same-inputs eval must be exactly 0 either way, and a
+    // different-confounds sequence must produce a finite, non-NaN difference.
+    let out = NaN;
+    for (let i = 0; i < 100; i++) {
+      out = f.eval({ x: Math.sin(i / 5), z: Math.sin(i / 5), z2: Math.cos(i / 5) });
+    }
+    expect(Number.isFinite(out)).toBe(true);
+    // x == z exactly, so the first residual is ~0; the second keeps most of x.
+    expect(Math.abs(out)).toBeGreaterThan(0.05);
+  });
+
+  it('deconfound(x, z1, z2) ~ residual(residual(x, z1), z2)', () => {
+    const a = compileFormula('deconfound(x, z, z2)', { variables: VARS });
+    const b = compileFormula('residual(residual(x, z), z2)', { variables: VARS });
+    let va = 0;
+    let vb = 0;
+    for (let i = 0; i < 300; i++) {
+      const scope = { x: Math.sin(i / 9) + 0.5 * Math.cos(i / 4), z: Math.cos(i / 4), z2: Math.sin(i / 6) };
+      va = a.eval(scope);
+      vb = b.eval(scope);
+    }
+    expect(va).toBeCloseTo(vb, 10);
+  });
+
+  it('non-finite inputs return NaN without poisoning the regression state', () => {
+    // Twin instances fed identical good frames; one also receives a NaN frame.
+    // If the NaN mutated any state, the next outputs would diverge.
+    const a = compileFormula('residual(x, z, 20)', { variables: VARS });
+    const b = compileFormula('residual(x, z, 20)', { variables: VARS });
+    for (let i = 0; i < 100; i++) {
+      const scope = { x: 2 * Math.sin(i / 10), z: Math.sin(i / 10) };
+      a.eval(scope);
+      b.eval(scope);
+    }
+    expect(Number.isNaN(a.eval({ x: NaN, z: 1 }))).toBe(true); // only A sees the bad frame
+    const scope = { x: 2 * Math.sin(100 / 10), z: Math.sin(100 / 10) };
+    expect(a.eval(scope)).toBe(b.eval(scope)); // ...and it changed nothing
+  });
+
+  it('a non-finite WINDOW argument is rejected like a bad frame — never poisons the state', () => {
+    // The window is an input too: 1/Math.max(2, NaN) is NaN, and a NaN alpha
+    // would corrupt the moments PERMANENTLY (every later delta = finite - NaN).
+    const a = compileFormula('residual(x, z, w)', { variables: new Set(['x', 'z', 'w']) });
+    const b = compileFormula('residual(x, z, w)', { variables: new Set(['x', 'z', 'w']) });
+    for (let i = 0; i < 50; i++) {
+      const scope = { x: 2 * Math.sin(i / 5), z: Math.sin(i / 5), w: 20 };
+      a.eval(scope);
+      b.eval(scope);
+    }
+    // Only A sees frames with the window variable absent (NaN) / Infinity.
+    expect(Number.isNaN(a.eval({ x: 1, z: 0.5 } as never))).toBe(true); // w absent -> NaN
+    expect(Number.isNaN(a.eval({ x: 1, z: 0.5, w: Infinity }))).toBe(true);
+    const scope = { x: 2 * Math.sin(50 / 5), z: Math.sin(50 / 5), w: 20 };
+    expect(a.eval(scope)).toBe(b.eval(scope)); // state untouched by the bad frames
+  });
+
+  it('a name shared by the plain and stateful helper sets is refused at compile time', () => {
+    expect(() =>
+      compileFormula('residual(x, z)', {
+        variables: new Set(['x', 'z']),
+        helpers: { residual: (x: number) => x },
+      }),
+    ).toThrow(/both the plain and stateful/);
+  });
+
+  it('arity errors surface at COMPILE time with clear messages', () => {
+    expect(() => compileFormula('residual(x)', { variables: VARS })).toThrow(/residual\(x, z\[, window\]\)/);
+    expect(() => compileFormula('deconfound(x)', { variables: VARS })).toThrow(/deconfound/);
+  });
+
+  it('a fresh compile starts from clean state (config edits reset the regressions)', () => {
+    const warm = compileFormula('residual(x, z, 10)', { variables: VARS });
+    for (let i = 0; i < 200; i++) warm.eval({ x: 2 * Math.sin(i / 10), z: Math.sin(i / 10) });
+    const fresh = compileFormula('residual(x, z, 10)', { variables: VARS });
+    // First eval of a fresh instance returns plain x (beta 0), regardless of
+    // what any other instance has learned.
+    expect(fresh.eval({ x: 1.5, z: 0.75 })).toBe(1.5);
+  });
+});
