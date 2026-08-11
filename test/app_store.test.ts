@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
+import { defaultGesturePrefs } from '@/app/gesturePrefs';
 import { DEFAULT_FACE_CHORD, SettingsSchema } from '@/settings/schema';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
@@ -275,6 +276,38 @@ describe('persist migration (v1 → v2, returning users)', () => {
       enabled: false,
       port: '',
     });
+  });
+
+  it('mergeControls heals the gesture prefs (#129): absent → defaults, partial → completed, corrupt → default', () => {
+    const initial = useControls.getInitialState();
+    // A pre-#129 blob has no gestures key at all → the defaults (disabled; fist +
+    // pinch bound, open unbound).
+    const absent = mergeControls({ masterVolume: 0.5 }, initial).gestures;
+    expect(absent).toEqual(defaultGesturePrefs());
+    // A partial blob keeps what it set and completes the rest from the defaults.
+    const partial = mergeControls({ gestures: { enabled: true } as never }, initial).gestures;
+    expect(partial.enabled).toBe(true);
+    expect(partial.holdMs).toBe(defaultGesturePrefs().holdMs);
+    expect(partial.bindings.fist).toEqual(defaultGesturePrefs().bindings.fist);
+    // The blob's bindings record replaces the default WHOLESALE: a gesture the user
+    // unbound must stay unbound, not be re-seeded on every load.
+    const unbound = mergeControls({ gestures: { bindings: {} } as never }, initial).gestures;
+    expect(unbound.bindings).toEqual({});
+    // A corrupt blob falls back to the default whole (never a crash, never undefined).
+    const corrupt = mergeControls(
+      { gestures: { enabled: 'yes', bindings: { fist: { command: 42 } } } as never },
+      initial,
+    ).gestures;
+    expect(corrupt).toEqual(defaultGesturePrefs());
+  });
+
+  it('setGestures shallow-patches the gesture prefs, leaving the rest', () => {
+    useControls.getState().setGestures({ enabled: true, holdMs: 250 });
+    const g = useControls.getState().gestures;
+    expect(g.enabled).toBe(true);
+    expect(g.holdMs).toBe(250);
+    expect(g.cooldownMs).toBe(defaultGesturePrefs().cooldownMs); // untouched
+    expect(g.bindings.fist).toEqual(defaultGesturePrefs().bindings.fist); // untouched
   });
 
   it('mergeControls clamps an unknown faceMapping to a safe value', () => {

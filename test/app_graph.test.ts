@@ -47,9 +47,11 @@ describe('production app graph', () => {
     expect(order.indexOf('handVec')).toBeLessThan(order.indexOf('overlay'));
     // MIDI output taps the merged voices, so it evaluates after the merge (#13).
     expect(order.indexOf('merge')).toBeLessThan(order.indexOf('midiOut'));
+    // Gesture classification taps the hand features, so it evaluates after them (#129).
+    expect(order.indexOf('feat')).toBeLessThan(order.indexOf('gesture'));
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
-    // taps + the #13 midi-out sink.
-    expect(order).toHaveLength(17);
+    // taps + the #13 midi-out sink + the #129 gesture-classifier tap.
+    expect(order).toHaveLength(18);
   });
 
   it('wires the face overlays (mesh + expression readout + both chord highlights)', () => {
@@ -99,6 +101,22 @@ describe('production app graph', () => {
     // The original face-mesh + hand-feature edges are untouched (additive).
     expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true);
     expect(has('cam', 'hands', 'feat', 'hands')).toBe(true);
+  });
+
+  it('wires the gesture classifier additively off the hand features (#129)', () => {
+    const g = defaultGraph();
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      g.edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The classifier taps the SAME hand-features stream the mapping/overlay read.
+    const gesture = g.nodes.find((n) => n.id === 'gesture');
+    expect(gesture?.type).toBe('gesture-classifier');
+    expect(has('feat', 'features', 'gesture', 'features')).toBe(true);
+    // The original hand-features edges are untouched (additive fan-out).
+    expect(has('feat', 'features', 'map', 'features')).toBe(true);
+    expect(has('feat', 'features', 'overlay', 'features')).toBe(true);
+    // Its output is deliberately consumed APP-side (useEngine reads `poses` off the
+    // engine each frame and feeds the gesture dispatcher) — the #137-style guard
+    // that the mounted node is actually read lives in test/gesture_dispatch.test.ts.
   });
 
   it('routes the mute to the merge so it silences the chords too (#91)', () => {

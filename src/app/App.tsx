@@ -26,6 +26,7 @@ import CommandPaletteOverlay from './CommandPaletteOverlay';
 import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import ToolsBar from './ToolsBar';
 import LabPanel from './LabPanel';
+import GesturesPanel from './GesturesPanel';
 import VersionBadge from './VersionBadge';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
@@ -125,6 +126,9 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
 
       {/* The Feature Lab's surface (#119/#136) — renders when its tool is the open one. */}
       <LabPanel />
+
+      {/* The gesture-binding editor (#129) — renders when its tool is the open one. */}
+      <GesturesPanel />
 
       {/* Bottom-right: the multi-stream recorder (#88) — a button that morphs into
           a settings sheet (out-of-instrument config) then a compact HUD. Available

@@ -11,7 +11,7 @@
  * Purely presentational: it reads {@link useTools} for which tool is open and toggles it.
  * Each tool's actual surface mounts itself in App and renders when it is the open one.
  */
-import { FlaskConical, Command, BookOpen, type LucideIcon } from 'lucide-react';
+import { FlaskConical, Command, BookOpen, Hand, type LucideIcon } from 'lucide-react';
 import { TOOLS, type Tool } from './tools';
 import { useTools } from './toolsStore';
 import VersionBadge from './VersionBadge';
@@ -22,6 +22,7 @@ import VersionBadge from './VersionBadge';
 const ICONS: Record<string, LucideIcon> = {
   lab: FlaskConical,
   commands: Command,
+  gestures: Hand,
   manual: BookOpen,
 };
 
