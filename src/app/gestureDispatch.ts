@@ -149,11 +149,24 @@ export function createGestureDispatcher(overrides: Partial<GestureDispatcherDeps
           t.enteredAt = nowMs;
           t.consumed = !prefs.enabled;
         }
-        if (!prefs.enabled || t.consumed || !isGestureId(pose)) continue;
-        const binding = prefs.bindings[pose];
-        if (!binding) continue; // unbound: never dispatch, never consume, never cool down
+        if (!prefs.enabled) {
+          // Disabling spends every armed entry, symmetrically with born-consumed
+          // above: a pose held across a disable→enable cycle must NOT fire on
+          // re-enable — "enabling arms FUTURE transitions" has no exceptions.
+          t.consumed = true;
+          continue;
+        }
+        if (t.consumed || !isGestureId(pose)) continue;
         if (nowMs - t.enteredAt < prefs.holdMs) continue; // hold not yet met
-        t.consumed = true; // this entry is now spent, fire or not
+        // The hold has elapsed: this entry is now SPENT, bound or not, fired or
+        // not. Consuming before the binding lookup is what makes a binding
+        // created MID-hold inert until the next fresh transition (else "bind
+        // while posing" fires the instant the dropdown closes — fire on state,
+        // not edge). An unbound spend never touches lastFire, so it still
+        // burns no cooldown.
+        t.consumed = true;
+        const binding = prefs.bindings[pose];
+        if (!binding) continue;
         const last = lastFire.get(pose);
         if (last !== undefined && nowMs - last < prefs.cooldownMs) continue; // consumed silently
         lastFire.set(pose, nowMs);

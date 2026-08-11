@@ -163,6 +163,44 @@ describe('gesture dispatch adapter (#129) — edge + hold + cooldown semantics',
     expect(h.fired).toHaveLength(1);
   });
 
+  it('a binding created MID-hold is inert — it arms only the next fresh transition', () => {
+    // The panel invites posing at the camera while editing bindings ("held now"
+    // dot). Binding a pose the player is ALREADY holding must not fire the
+    // instant the dropdown closes — that would be fire-on-state, and with a
+    // params-requiring command it fires straight into a validation-error toast.
+    const { prefs, fired, dispatcher } = makeHarness({ prefs: { holdMs: 400, bindings: {} } });
+    dispatcher.tick(P('fist'), 0); // enters unbound
+    dispatcher.tick(P('fist'), 1000); // hold long met; entry spends (no cooldown burned)
+    prefs.bindings = { fist: FIST }; // the user binds it while still posing
+    dispatcher.tick(P('fist'), 1100);
+    dispatcher.tick(P('fist'), 60000);
+    expect(fired).toHaveLength(0); // no fresh transition -> no fire
+    // Release and re-enter: the NEXT transition fires normally.
+    dispatcher.tick(P('open'), 60100);
+    dispatcher.tick(P('fist'), 60200);
+    dispatcher.tick(P('fist'), 60700);
+    expect(fired).toHaveLength(1);
+  });
+
+  it('a pose held across a disable -> enable cycle does not fire on re-enable', () => {
+    // Symmetric with born-consumed: "enabling arms FUTURE transitions" has no
+    // exceptions, including an entry that BEGAN while enabled and straddled a
+    // disabled span.
+    const { prefs, fired, dispatcher } = makeHarness({ prefs: { holdMs: 400 } });
+    dispatcher.tick(P('fist'), 0); // enters while enabled
+    prefs.enabled = false; // disabled before the hold completes
+    dispatcher.tick(P('fist'), 200);
+    prefs.enabled = true; // re-enabled much later, pose still held
+    dispatcher.tick(P('fist'), 60000);
+    dispatcher.tick(P('fist'), 61000);
+    expect(fired).toHaveLength(0);
+    // A fresh transition after re-enable fires normally.
+    dispatcher.tick(P('open'), 61100);
+    dispatcher.tick(P('fist'), 61200);
+    dispatcher.tick(P('fist'), 61700);
+    expect(fired).toHaveLength(1);
+  });
+
   it('hold is per hand, cooldown is per gesture: two hands cannot double-fire one binding', () => {
     const { fired, dispatcher } = makeHarness({ prefs: { holdMs: 400, cooldownMs: 1200 } });
     dispatcher.tick({ left: 'fist', right: 'absent' }, 0);

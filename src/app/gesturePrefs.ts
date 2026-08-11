@@ -40,7 +40,10 @@ export const GESTURE_LABELS: Record<GestureId, string> = {
 export const DEFAULT_GESTURE_HOLD_MS = 400;
 /** Per-gesture refractory window after a fire (anti-repeat). */
 export const DEFAULT_GESTURE_COOLDOWN_MS = 1500;
-/** Slider bounds for the panel (the schema clamps to the same range). */
+/** Slider bounds for the panel. The schema heals a per-field out-of-range or
+ *  malformed timing to its DEFAULT (`.catch` below) rather than rejecting the
+ *  whole object — one bad field in an external/version-skewed blob must not
+ *  silently wipe every binding back to the shipped defaults. */
 export const MAX_GESTURE_HOLD_MS = 2000;
 export const MAX_GESTURE_COOLDOWN_MS = 10000;
 
@@ -60,8 +63,8 @@ export const GesturePrefsSchema = z.object({
    *  for a first-time player. The Gestures shell tool is the (2-clicks-from-cold-load)
    *  entry point that turns it on. */
   enabled: z.boolean().default(false),
-  holdMs: z.number().min(0).max(MAX_GESTURE_HOLD_MS).default(DEFAULT_GESTURE_HOLD_MS),
-  cooldownMs: z.number().min(0).max(MAX_GESTURE_COOLDOWN_MS).default(DEFAULT_GESTURE_COOLDOWN_MS),
+  holdMs: z.number().min(0).max(MAX_GESTURE_HOLD_MS).catch(DEFAULT_GESTURE_HOLD_MS).default(DEFAULT_GESTURE_HOLD_MS),
+  cooldownMs: z.number().min(0).max(MAX_GESTURE_COOLDOWN_MS).catch(DEFAULT_GESTURE_COOLDOWN_MS).default(DEFAULT_GESTURE_COOLDOWN_MS),
   /** gesture id → binding. A missing key means UNBOUND (the dispatcher never fires
    *  an unbound gesture), and unbinding a default is a user choice that persists. */
   bindings: z.record(z.string(), GestureBindingSchema).default({}),
