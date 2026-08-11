@@ -176,6 +176,32 @@ describe('stateful helpers — residual / deconfound (#131)', () => {
     expect(a.eval(scope)).toBe(b.eval(scope)); // ...and it changed nothing
   });
 
+  it('a non-finite WINDOW argument is rejected like a bad frame — never poisons the state', () => {
+    // The window is an input too: 1/Math.max(2, NaN) is NaN, and a NaN alpha
+    // would corrupt the moments PERMANENTLY (every later delta = finite - NaN).
+    const a = compileFormula('residual(x, z, w)', { variables: new Set(['x', 'z', 'w']) });
+    const b = compileFormula('residual(x, z, w)', { variables: new Set(['x', 'z', 'w']) });
+    for (let i = 0; i < 50; i++) {
+      const scope = { x: 2 * Math.sin(i / 5), z: Math.sin(i / 5), w: 20 };
+      a.eval(scope);
+      b.eval(scope);
+    }
+    // Only A sees frames with the window variable absent (NaN) / Infinity.
+    expect(Number.isNaN(a.eval({ x: 1, z: 0.5 } as never))).toBe(true); // w absent -> NaN
+    expect(Number.isNaN(a.eval({ x: 1, z: 0.5, w: Infinity }))).toBe(true);
+    const scope = { x: 2 * Math.sin(50 / 5), z: Math.sin(50 / 5), w: 20 };
+    expect(a.eval(scope)).toBe(b.eval(scope)); // state untouched by the bad frames
+  });
+
+  it('a name shared by the plain and stateful helper sets is refused at compile time', () => {
+    expect(() =>
+      compileFormula('residual(x, z)', {
+        variables: new Set(['x', 'z']),
+        helpers: { residual: (x: number) => x },
+      }),
+    ).toThrow(/both the plain and stateful/);
+  });
+
   it('arity errors surface at COMPILE time with clear messages', () => {
     expect(() => compileFormula('residual(x)', { variables: VARS })).toThrow(/residual\(x, z\[, window\]\)/);
     expect(() => compileFormula('deconfound(x)', { variables: VARS })).toThrow(/deconfound/);

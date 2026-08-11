@@ -110,8 +110,10 @@ export function groupInvarianceSummary(groupId: string): string | undefined {
   const shared = axes.filter((a) => assessed.every((f) => f.invariantTo!.includes(a)));
   const contaminating = axes.filter((a) => !shared.includes(a));
   const inv = shared.length ? `invariant to ${shared.join(', ')}` : 'invariant to none of the confound axes';
+  // "not invariant ACROSS the group", not "contaminated by": in a mixed group an
+  // axis outside the shared set may still be fine for individual members.
   const bad = contaminating.length
-    ? ` — contaminated by ${contaminating.join(', ')} (correct with residual(x, z) in a formula)`
+    ? ` — not invariant across the group to: ${contaminating.join(', ')} (correct with residual(x, z) in a formula)`
     : ' — fully confound-invariant as labeled';
   const partial = assessed.length < ALL_FEATURES.filter((f) => f.group === groupId).length ? ' (some features unassessed)' : '';
   return `${inv}${bad}${partial}`;

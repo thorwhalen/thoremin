@@ -17,7 +17,7 @@
  */
 import { clamp01, safeDiv } from './math';
 import { dL, ear, FL, iod as iodOf, L, mar, type FaceLandmarks } from './landmarks';
-import type { Controllability, FaceCtx, FeatureDef } from './types';
+import type { Controllability, FaceCtx, FeatureDef, Invariance } from './types';
 
 type FaceFeature = FeatureDef<FaceCtx>;
 
@@ -145,19 +145,26 @@ function geomFeatures(): FaceFeature[] {
     controllability: Controllability,
     compute: (l: FaceLandmarks | undefined, iod: number) => number,
     description: string,
+    invariantTo: readonly Invariance[] = ['scale', 'position', 'roll'],
   ): FaceFeature => ({
     id,
     group,
     source: 'face',
-    // IOD-normalized 2D mesh distances: camera distance and frame position
-    // cancel; in-plane roll rotates numerator and IOD together. Yaw/pitch
-    // foreshorten out-of-plane — the #131 example ("a smile that drifts purely
-    // from turning the head"); correct with residual(x, face_head_yaw).
-    invariantTo: ['scale', 'position', 'roll'],
+    // Default: IOD-normalized 2D mesh DISTANCES (and relative z) — camera
+    // distance and frame position cancel; in-plane roll rotates numerator and
+    // IOD together. Yaw/pitch foreshorten out-of-plane — the #131 example ("a
+    // smile that drifts purely from turning the head"); correct with
+    // residual(x, face_head_yaw). Features whose numerator is a single-AXIS
+    // PROJECTION (an x or y offset) pass PROJECTION_INVARIANCE instead: roll
+    // rotates the offset vector out of the projection axis (measured: a 5-10
+    // degree head roll moves jaw.lateralShift by ~0.12-0.24 IOD with ZERO jaw
+    // motion), so claiming roll there would be the over-claim #131 forbids.
+    invariantTo,
     controllability,
     description,
     compute: (ctx) => (ctx.hasLandmarks ? compute(ctx.landmarks, ctx.iod) : NaN),
   });
+  const PROJECTION_INVARIANCE: readonly Invariance[] = ['scale', 'position'];
 
   return [
     // face.geom.eye
@@ -171,27 +178,27 @@ function geomFeatures(): FaceFeature[] {
     g('face.geom.mouth.aspectRatio', 'face.geom.mouth', 'easy', (l) => mar(l), 'Mouth aspect ratio (open/close)'),
     g('face.geom.mouth.openness', 'face.geom.mouth', 'easy', (l, iod) => safeDiv(dL(l, FL.lipTopInner, FL.lipBottomInner), iod), 'Inner-lip gap / IOD'),
     g('face.geom.mouth.width', 'face.geom.mouth', 'moderate', (l, iod) => safeDiv(dL(l, FL.mouthCornerL, FL.mouthCornerR), iod), 'Mouth corner-to-corner width / IOD'),
-    g('face.geom.mouth.cornerPullLeft', 'face.geom.mouth', 'moderate', (l, iod) => safeDiv((ly(l, FL.lipTopInner) + ly(l, FL.lipBottomInner)) / 2 - ly(l, FL.mouthCornerL), iod), 'Left corner lift above lip center / IOD'),
-    g('face.geom.mouth.cornerPullRight', 'face.geom.mouth', 'moderate', (l, iod) => safeDiv((ly(l, FL.lipTopInner) + ly(l, FL.lipBottomInner)) / 2 - ly(l, FL.mouthCornerR), iod), 'Right corner lift above lip center / IOD'),
+    g('face.geom.mouth.cornerPullLeft', 'face.geom.mouth', 'moderate', (l, iod) => safeDiv((ly(l, FL.lipTopInner) + ly(l, FL.lipBottomInner)) / 2 - ly(l, FL.mouthCornerL), iod), 'Left corner lift above lip center / IOD', PROJECTION_INVARIANCE),
+    g('face.geom.mouth.cornerPullRight', 'face.geom.mouth', 'moderate', (l, iod) => safeDiv((ly(l, FL.lipTopInner) + ly(l, FL.lipBottomInner)) / 2 - ly(l, FL.mouthCornerR), iod), 'Right corner lift above lip center / IOD', PROJECTION_INVARIANCE),
     g('face.geom.mouth.protrusion', 'face.geom.mouth', 'moderate', (l, iod) => safeDiv(lz(l, FL.noseTip) - (lz(l, FL.lipTopInner) + lz(l, FL.lipBottomInner)) / 2, iod), 'Lip forward protrusion (relative z) / IOD'),
     // face.geom.brow (iris-with-lid fallback for the vertical reference)
-    g('face.geom.brow.raiseLeft', 'face.geom.brow', 'easy', (l, iod) => safeDiv(firstY(l, [FL.irisR, FL.eyeUpperR]) - ly(l, FL.browMidR), iod), 'Subject-left brow height above eye / IOD'),
-    g('face.geom.brow.raiseRight', 'face.geom.brow', 'easy', (l, iod) => safeDiv(firstY(l, [FL.irisL, FL.eyeUpperL]) - ly(l, FL.browMidL), iod), 'Subject-right brow height above eye / IOD'),
+    g('face.geom.brow.raiseLeft', 'face.geom.brow', 'easy', (l, iod) => safeDiv(firstY(l, [FL.irisR, FL.eyeUpperR]) - ly(l, FL.browMidR), iod), 'Subject-left brow height above eye / IOD', PROJECTION_INVARIANCE),
+    g('face.geom.brow.raiseRight', 'face.geom.brow', 'easy', (l, iod) => safeDiv(firstY(l, [FL.irisL, FL.eyeUpperL]) - ly(l, FL.browMidL), iod), 'Subject-right brow height above eye / IOD', PROJECTION_INVARIANCE),
     g('face.geom.brow.raiseAvg', 'face.geom.brow', 'easy', (l, iod) => {
       const a = safeDiv(firstY(l, [FL.irisR, FL.eyeUpperR]) - ly(l, FL.browMidR), iod);
       const b = safeDiv(firstY(l, [FL.irisL, FL.eyeUpperL]) - ly(l, FL.browMidL), iod);
       return (a + b) / 2;
-    }, 'Mean brow raise / IOD'),
+    }, 'Mean brow raise / IOD', PROJECTION_INVARIANCE),
     g('face.geom.brow.furrow', 'face.geom.brow', 'moderate', (l, iod) => safeDiv(dL(l, FL.browInnerL, FL.browInnerR), iod), 'Inner-brow separation / IOD (inverse of furrow)'),
-    g('face.geom.brow.innerRaise', 'face.geom.brow', 'easy', (l, iod) => safeDiv((firstY(l, [FL.irisL, FL.eyeUpperL]) + firstY(l, [FL.irisR, FL.eyeUpperR])) / 2 - (ly(l, FL.browInnerL) + ly(l, FL.browInnerR)) / 2, iod), 'Inner-brow height above eyes / IOD'),
+    g('face.geom.brow.innerRaise', 'face.geom.brow', 'easy', (l, iod) => safeDiv((firstY(l, [FL.irisL, FL.eyeUpperL]) + firstY(l, [FL.irisR, FL.eyeUpperR])) / 2 - (ly(l, FL.browInnerL) + ly(l, FL.browInnerR)) / 2, iod), 'Inner-brow height above eyes / IOD', PROJECTION_INVARIANCE),
     // face.geom.nose
     g('face.geom.nose.wrinkle', 'face.geom.nose', 'involuntary', (l, iod) => safeDiv(dL(l, FL.noseAlaL, FL.eyeInnerL) + dL(l, FL.noseAlaR, FL.eyeInnerR), 2 * iod), 'Nose-to-inner-eye compression / IOD'),
     // face.geom.cheek
-    g('face.geom.cheek.raiseLeft', 'face.geom.cheek', 'moderate', (l, iod) => safeDiv(ly(l, FL.cheekR) - ly(l, FL.eyeLowerR), iod), 'Subject-left cheek raise toward eye / IOD'),
-    g('face.geom.cheek.raiseRight', 'face.geom.cheek', 'moderate', (l, iod) => safeDiv(ly(l, FL.cheekL) - ly(l, FL.eyeLowerL), iod), 'Subject-right cheek raise toward eye / IOD'),
+    g('face.geom.cheek.raiseLeft', 'face.geom.cheek', 'moderate', (l, iod) => safeDiv(ly(l, FL.cheekR) - ly(l, FL.eyeLowerR), iod), 'Subject-left cheek raise toward eye / IOD', PROJECTION_INVARIANCE),
+    g('face.geom.cheek.raiseRight', 'face.geom.cheek', 'moderate', (l, iod) => safeDiv(ly(l, FL.cheekL) - ly(l, FL.eyeLowerL), iod), 'Subject-right cheek raise toward eye / IOD', PROJECTION_INVARIANCE),
     // face.geom.jaw
-    g('face.geom.jaw.lateralShift', 'face.geom.jaw', 'easy', (l, iod) => safeDiv(lx(l, FL.chin) - lx(l, FL.glabella), iod), 'Chin horizontal offset from face center / IOD'),
-    g('face.geom.jaw.drop', 'face.geom.jaw', 'easy', (l, iod) => safeDiv(ly(l, FL.chin) - ly(l, FL.subnasale), iod), 'Chin drop below nose base / IOD'),
+    g('face.geom.jaw.lateralShift', 'face.geom.jaw', 'easy', (l, iod) => safeDiv(lx(l, FL.chin) - lx(l, FL.glabella), iod), 'Chin horizontal offset from face center / IOD', PROJECTION_INVARIANCE),
+    g('face.geom.jaw.drop', 'face.geom.jaw', 'easy', (l, iod) => safeDiv(ly(l, FL.chin) - ly(l, FL.subnasale), iod), 'Chin drop below nose base / IOD', PROJECTION_INVARIANCE),
     g('face.geom.jaw.thrust', 'face.geom.jaw', 'moderate', (l, iod) => safeDiv(lz(l, FL.chin) - lz(l, FL.glabella), iod), 'Chin forward thrust (relative z) / IOD'),
   ];
 }

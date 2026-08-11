@@ -229,11 +229,31 @@ describe('flat feature registry', () => {
   });
 
   it('summarizes a group confound profile for the Lab tooltips (#131)', () => {
-    expect(groupInvarianceSummary('face.geom.mouth')).toMatch(/invariant to scale, position, roll/);
-    expect(groupInvarianceSummary('face.geom.mouth')).toMatch(/contaminated by yaw, pitch/);
+    // face.geom.mouth mixes distance features (roll-invariant) with y-projection
+    // corner pulls (not) — the shared profile is scale+position only.
+    expect(groupInvarianceSummary('face.geom.mouth')).toMatch(/invariant to scale, position/);
+    expect(groupInvarianceSummary('face.geom.mouth')).toMatch(/not invariant across the group to: yaw, pitch, roll/);
     expect(groupInvarianceSummary('hand.finger.flexion')).toMatch(/fully confound-invariant/);
     // A group with no assessed features makes NO claim.
     expect(groupInvarianceSummary('no.such.group')).toBeUndefined();
+  });
+
+  it('projection-numerator geom features do NOT claim roll; distance/z ones do (#131 review)', () => {
+    // Roll rotates an x/y-offset numerator out of its projection axis (measured
+    // ~0.12 IOD per 5 degrees on jaw.lateralShift with zero jaw motion).
+    for (const id of [
+      'face.geom.jaw.lateralShift',
+      'face.geom.jaw.drop',
+      'face.geom.mouth.cornerPullLeft',
+      'face.geom.brow.raiseAvg',
+      'face.geom.cheek.raiseLeft',
+    ]) {
+      expect(FEATURE_BY_ID[id].invariantTo, id).toEqual(['scale', 'position']);
+    }
+    // Euclidean distances and relative-z numerators rotate WITH the IOD.
+    for (const id of ['face.geom.mouth.width', 'face.geom.mouth.aspectRatio', 'face.geom.jaw.thrust', 'face.geom.brow.furrow']) {
+      expect(FEATURE_BY_ID[id].invariantTo, id).toEqual(['scale', 'position', 'roll']);
+    }
   });
 
   it('depthZ is gone — it read 0 forever (wrist IS the image-space depth origin, #144)', () => {

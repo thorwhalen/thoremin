@@ -100,7 +100,10 @@ function makeEwRegression(): (x: number, z: number, window?: number) => number {
   let vz = 0;
   let seeded = false;
   return (x, z, window = DEFAULT_REGRESSION_WINDOW) => {
-    if (!Number.isFinite(x) || !Number.isFinite(z)) return NaN;
+    // The window is an input too: a NaN alpha (e.g. `residual(x, z, w)` with w
+    // absent this frame, or Infinity = a silent never-learn) would poison the
+    // moments PERMANENTLY — reject it exactly like a bad x/z, state untouched.
+    if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(window)) return NaN;
     if (!seeded) {
       mx = x;
       mz = z;
@@ -201,6 +204,15 @@ export function compileFormula(source: string, opts: CompileOptions): CompiledFo
   ensureJsep();
   const helpers = opts.helpers ?? DEFAULT_HELPERS;
   const statefulHelpers = opts.statefulHelpers ?? STATEFUL_HELPERS;
+  // The stateful registry is consulted FIRST at call sites, so a shared name
+  // would silently shadow the plain helper — refuse the ambiguity outright.
+  // (Note: restricting `helpers` does NOT restrict `statefulHelpers` — pass
+  // `statefulHelpers: {}` explicitly to compile with no stateful set.)
+  for (const k of Object.keys(statefulHelpers)) {
+    if (Object.prototype.hasOwnProperty.call(helpers, k)) {
+      throw new FormulaError(`Helper "${k}" is defined in both the plain and stateful helper sets.`);
+    }
+  }
   const allHelperNames = () => [...Object.keys(helpers), ...Object.keys(statefulHelpers)].join(', ');
   const used = new Set<string>();
 
