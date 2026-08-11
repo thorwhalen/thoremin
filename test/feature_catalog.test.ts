@@ -14,6 +14,7 @@ import {
   FACE_FEATURES,
   FEATURE_BY_ID,
   FEATURE_GROUP_IDS,
+  groupInvarianceSummary,
   HAND_SIDE_FEATURES,
 } from '@/features/catalog';
 import { FL } from '@/features/landmarks';
@@ -204,6 +205,35 @@ describe('flat feature registry', () => {
     for (const f of ALL_FEATURES) {
       if (f.circular) expect(f.range, f.id).toBeTruthy();
     }
+  });
+
+  it('carries honest invariance labels on the assessed features (#131)', () => {
+    // The confound regressors themselves: pose measures, invariant to scale/position.
+    expect(FEATURE_BY_ID['face.head.yaw'].invariantTo).toEqual(['scale', 'position']);
+    expect(FEATURE_BY_ID['hand.left.palm.pitch'].invariantTo).toEqual(['scale', 'position']);
+    // IOD-normalized geometry: scale/position/roll cancel; yaw/pitch foreshorten
+    // (the issue's "smile drifts from turning the head" example must NOT claim them).
+    const smileish = ALL_FEATURES.find((f) => f.group === 'face.geom.mouth');
+    expect(smileish?.invariantTo).toEqual(['scale', 'position', 'roll']);
+    // Raw positions are assessed-and-invariant-to-nothing ([]), not unassessed.
+    expect(FEATURE_BY_ID['face.head.x'].invariantTo).toEqual([]);
+    expect(FEATURE_BY_ID['hand.left.wrist.x'].invariantTo).toEqual([]);
+    expect(FEATURE_BY_ID['hand.pair.midX'].invariantTo).toEqual([]);
+    // World-geometry hand features carry the full profile (the live world path).
+    expect(FEATURE_BY_ID['hand.right.index.curl'].invariantTo).toEqual(['scale', 'position', 'yaw', 'pitch', 'roll']);
+    // Every declared label uses only the vocabulary (no typo axes).
+    const axes = new Set(['scale', 'position', 'yaw', 'pitch', 'roll']);
+    for (const f of ALL_FEATURES) {
+      for (const a of f.invariantTo ?? []) expect(axes.has(a), `${f.id}: ${a}`).toBe(true);
+    }
+  });
+
+  it('summarizes a group confound profile for the Lab tooltips (#131)', () => {
+    expect(groupInvarianceSummary('face.geom.mouth')).toMatch(/invariant to scale, position, roll/);
+    expect(groupInvarianceSummary('face.geom.mouth')).toMatch(/contaminated by yaw, pitch/);
+    expect(groupInvarianceSummary('hand.finger.flexion')).toMatch(/fully confound-invariant/);
+    // A group with no assessed features makes NO claim.
+    expect(groupInvarianceSummary('no.such.group')).toBeUndefined();
   });
 
   it('depthZ is gone — it read 0 forever (wrist IS the image-space depth origin, #144)', () => {

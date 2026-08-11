@@ -105,6 +105,10 @@ function blendshapeFeatures(): FaceFeature[] {
         group,
         source: 'face',
         range: [0, 1],
+        // Model outputs over the aligned face crop: camera distance and frame
+        // position are normalized away. Pose robustness is model-internal and
+        // degrades toward extreme yaw/pitch — deliberately NOT claimed (#131).
+        invariantTo: ['scale', 'position'],
         controllability: ctrl,
         description: `MediaPipe blendshape ${bsName}`,
         compute: (ctx) => ctx.bs(bsName),
@@ -145,6 +149,11 @@ function geomFeatures(): FaceFeature[] {
     id,
     group,
     source: 'face',
+    // IOD-normalized 2D mesh distances: camera distance and frame position
+    // cancel; in-plane roll rotates numerator and IOD together. Yaw/pitch
+    // foreshorten out-of-plane — the #131 example ("a smile that drifts purely
+    // from turning the head"); correct with residual(x, face_head_yaw).
+    invariantTo: ['scale', 'position', 'roll'],
     controllability,
     description,
     compute: (ctx) => (ctx.hasLandmarks ? compute(ctx.landmarks, ctx.iod) : NaN),
@@ -195,6 +204,10 @@ function gazeFeatures(): FaceFeature[] {
     id,
     group: 'face.gaze',
     source: 'face',
+    // Iris offset normalized within each eye's own span: scale/position cancel.
+    // Head yaw/pitch move the iris in-socket geometry out of plane (a straight
+    // gaze reads off-center on a turned head) — not claimed.
+    invariantTo: ['scale', 'position'],
     controllability,
     description,
     compute: (ctx) => (ctx.hasLandmarks ? compute(ctx.landmarks) : NaN),
@@ -221,6 +234,10 @@ function headFeatures(): FaceFeature[] {
     id,
     group: 'face.head',
     source: 'face',
+    // These MEASURE the pose axes (from the transform matrix), independent of
+    // where and how far the face sits in frame. They are the confound
+    // regressors residual()/deconfound() want on their z side.
+    invariantTo: ['scale', 'position'],
     controllability: 'easy',
     description,
     compute: (ctx) => (ctx.headPose ? ctx.headPose[key] : NaN),
@@ -229,9 +246,9 @@ function headFeatures(): FaceFeature[] {
     pose('face.head.yaw', 'yaw', 'Head turn left/right (degrees)'),
     pose('face.head.pitch', 'pitch', 'Head nod up/down (degrees)'),
     pose('face.head.roll', 'roll', 'Head tilt ear-to-shoulder (degrees)'),
-    { id: 'face.head.x', group: 'face.head', source: 'face', controllability: 'easy', description: 'Nose-tip horizontal position', compute: (ctx) => (ctx.hasLandmarks ? lx(ctx.landmarks, FL.noseTip) : NaN) },
-    { id: 'face.head.y', group: 'face.head', source: 'face', controllability: 'easy', description: 'Nose-tip vertical position', compute: (ctx) => (ctx.hasLandmarks ? ly(ctx.landmarks, FL.noseTip) : NaN) },
-    { id: 'face.head.scale', group: 'face.head', source: 'face', controllability: 'easy', description: 'Face scale (IOD) — proxy for camera distance', compute: (ctx) => ctx.iod },
+    { id: 'face.head.x', group: 'face.head', source: 'face', invariantTo: [], controllability: 'easy', description: 'Nose-tip horizontal position', compute: (ctx) => (ctx.hasLandmarks ? lx(ctx.landmarks, FL.noseTip) : NaN) },
+    { id: 'face.head.y', group: 'face.head', source: 'face', invariantTo: [], controllability: 'easy', description: 'Nose-tip vertical position', compute: (ctx) => (ctx.hasLandmarks ? ly(ctx.landmarks, FL.noseTip) : NaN) },
+    { id: 'face.head.scale', group: 'face.head', source: 'face', invariantTo: ['position', 'roll'], controllability: 'easy', description: 'Face scale (IOD) — proxy for camera distance', compute: (ctx) => ctx.iod },
     {
       id: 'face.head.distanceProxy',
       group: 'face.head',
@@ -256,12 +273,12 @@ function headFeatures(): FaceFeature[] {
 
 function symmetryFeatures(): FaceFeature[] {
   return [
-    { id: 'face.symmetry.smile', group: 'face.symmetry', source: 'face', controllability: 'moderate', description: 'Smile right - left (asymmetric grin)', compute: (ctx) => ctx.bs('mouthSmileRight') - ctx.bs('mouthSmileLeft') },
-    { id: 'face.symmetry.browOuter', group: 'face.symmetry', source: 'face', controllability: 'moderate', description: 'Outer-brow raise right - left', compute: (ctx) => ctx.bs('browOuterUpRight') - ctx.bs('browOuterUpLeft') },
-    { id: 'face.symmetry.eye', group: 'face.symmetry', source: 'face', controllability: 'moderate', description: 'EAR right - left (wink)', compute: (ctx) => (ctx.hasLandmarks ? ear(ctx.landmarks, 'right') - ear(ctx.landmarks, 'left') : NaN) },
-    { id: 'face.symmetry.mouthCorner', group: 'face.symmetry', source: 'face', controllability: 'moderate', description: 'Mouth-corner height difference / IOD', compute: (ctx) => (ctx.hasLandmarks ? safeDiv(ly(ctx.landmarks, FL.mouthCornerL) - ly(ctx.landmarks, FL.mouthCornerR), ctx.iod) : NaN) },
-    { id: 'face.symmetry.cheek', group: 'face.symmetry', source: 'face', controllability: 'involuntary', description: 'Cheek squint right - left', compute: (ctx) => ctx.bs('cheekSquintRight') - ctx.bs('cheekSquintLeft') },
-    { id: 'face.symmetry.mouthSideShift', group: 'face.symmetry', source: 'face', controllability: 'easy', description: 'Mouth shift right - left', compute: (ctx) => ctx.bs('mouthRight') - ctx.bs('mouthLeft') },
+    { id: 'face.symmetry.smile', group: 'face.symmetry', source: 'face', invariantTo: ['scale', 'position'], controllability: 'moderate', description: 'Smile right - left (asymmetric grin)', compute: (ctx) => ctx.bs('mouthSmileRight') - ctx.bs('mouthSmileLeft') },
+    { id: 'face.symmetry.browOuter', group: 'face.symmetry', source: 'face', invariantTo: ['scale', 'position'], controllability: 'moderate', description: 'Outer-brow raise right - left', compute: (ctx) => ctx.bs('browOuterUpRight') - ctx.bs('browOuterUpLeft') },
+    { id: 'face.symmetry.eye', group: 'face.symmetry', source: 'face', invariantTo: ['scale', 'position'], controllability: 'moderate', description: 'EAR right - left (wink)', compute: (ctx) => (ctx.hasLandmarks ? ear(ctx.landmarks, 'right') - ear(ctx.landmarks, 'left') : NaN) },
+    { id: 'face.symmetry.mouthCorner', group: 'face.symmetry', source: 'face', invariantTo: ['scale', 'position'], controllability: 'moderate', description: 'Mouth-corner height difference / IOD', compute: (ctx) => (ctx.hasLandmarks ? safeDiv(ly(ctx.landmarks, FL.mouthCornerL) - ly(ctx.landmarks, FL.mouthCornerR), ctx.iod) : NaN) },
+    { id: 'face.symmetry.cheek', group: 'face.symmetry', source: 'face', invariantTo: ['scale', 'position'], controllability: 'involuntary', description: 'Cheek squint right - left', compute: (ctx) => ctx.bs('cheekSquintRight') - ctx.bs('cheekSquintLeft') },
+    { id: 'face.symmetry.mouthSideShift', group: 'face.symmetry', source: 'face', invariantTo: ['scale', 'position'], controllability: 'easy', description: 'Mouth shift right - left', compute: (ctx) => ctx.bs('mouthRight') - ctx.bs('mouthLeft') },
   ];
 }
 
@@ -276,6 +293,9 @@ function auFeatures(): FaceFeature[] {
     group: 'face.au',
     source: 'face',
     range: [0, 1],
+    // Composites of blendshapes (['scale','position']) and IOD-normalized geom
+    // (adds roll) — the composite honestly claims only the intersection.
+    invariantTo: ['scale', 'position'],
     controllability,
     description,
     compute,

@@ -71,6 +71,82 @@ export const DEFAULT_HELPERS: Readonly<Record<string, HelperFn>> = {
   deadzone: (x: number, dz: number) => (Math.abs(x) <= dz ? 0 : x),
 };
 
+/**
+ * A factory producing a fresh helper closure PER FORMULA CALL SITE — for helpers
+ * that carry state across frames (the #131 rolling regressions). Instantiated
+ * once during compilation for each call expression, so two `residual(...)` calls
+ * in one formula never share state, and a re-compile (config edit) starts clean.
+ * `arity` is the call site's argument count — validate it here so a wrong-shaped
+ * call fails at COMPILE time with a clear message, like every other formula error.
+ */
+export type StatefulHelperFactory = (arity: number) => HelperFn;
+
+/** Default EW window (frames) for the deconfounding regressions: ~6 s at 30fps,
+ *  matching the online normalizer's drift time constant. */
+const DEFAULT_REGRESSION_WINDOW = 180;
+
+/**
+ * One exponentially-weighted linear regression of x on z (O(1) per frame):
+ * returns `x - beta * (z - mean_z)` — x with z's linear component regressed out,
+ * still in x's units. Until the regression warms up beta is 0, so the output
+ * starts as plain x and sharpens as evidence accrues (never NaN-blocked at the
+ * start). Non-finite inputs return NaN WITHOUT updating the state, so one bad
+ * frame can't poison the running moments.
+ */
+function makeEwRegression(): (x: number, z: number, window?: number) => number {
+  let mx = 0;
+  let mz = 0;
+  let cxz = 0;
+  let vz = 0;
+  let seeded = false;
+  return (x, z, window = DEFAULT_REGRESSION_WINDOW) => {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return NaN;
+    if (!seeded) {
+      mx = x;
+      mz = z;
+      seeded = true;
+      return x; // beta is 0 with one sample
+    }
+    const a = 1 / Math.max(2, window);
+    const dx = x - mx; // deltas vs the PRE-update means (West-style EW moments)
+    const dz = z - mz;
+    mx += a * dx;
+    mz += a * dz;
+    cxz = (1 - a) * (cxz + a * dx * dz);
+    vz = (1 - a) * (vz + a * dz * dz);
+    const beta = vz > 1e-12 ? cxz / vz : 0;
+    return x - beta * (z - mz);
+  };
+}
+
+/**
+ * The stateful helper set (#131): per-call-site rolling regressions for
+ * correcting a confounded feature (see FeatureDef.invariantTo).
+ *
+ * - `residual(x, z[, window])` — x with z's linear component regressed out over
+ *   an EW window (frames, default 180 ≈ 6 s at 30fps). E.g. a pose-corrected
+ *   smile: `residual(face_geom_mouth_smileWidth, face_head_yaw)`.
+ * - `deconfound(x, z1[, z2, ...])` — sequential residualization against several
+ *   confounds (each with its own regression state); equivalent to nesting
+ *   `residual(residual(x, z1), z2)` with the default window.
+ */
+export const STATEFUL_HELPERS: Readonly<Record<string, StatefulHelperFactory>> = {
+  residual: (arity) => {
+    if (arity < 2 || arity > 3) throw new FormulaError('residual(x, z[, window]) takes 2 or 3 arguments.');
+    const reg = makeEwRegression();
+    return (x: number, z: number, window?: number) => reg(x, z, window);
+  },
+  deconfound: (arity) => {
+    if (arity < 2) throw new FormulaError('deconfound(x, z1[, z2, ...]) needs at least one confound.');
+    const regs = Array.from({ length: arity - 1 }, makeEwRegression);
+    return (...args: number[]) => {
+      let r = args[0];
+      for (let i = 1; i < args.length; i++) r = regs[i - 1](r, args[i]);
+      return r;
+    };
+  },
+};
+
 /** The whitelisted binary operators (comparisons return 1/0 so they compose). */
 const BINARY: Record<string, (a: number, b: number) => number> = {
   '+': (a, b) => a + b,
@@ -106,6 +182,8 @@ export interface CompileOptions {
   variables: ReadonlySet<string>;
   /** The callable helper set (defaults to {@link DEFAULT_HELPERS}). */
   helpers?: Readonly<Record<string, HelperFn>>;
+  /** Per-call-site stateful helper factories (defaults to {@link STATEFUL_HELPERS}). */
+  statefulHelpers?: Readonly<Record<string, StatefulHelperFactory>>;
 }
 
 // Minimal structural types over the jsep AST nodes we accept.
@@ -122,6 +200,8 @@ interface Node {
 export function compileFormula(source: string, opts: CompileOptions): CompiledFormula {
   ensureJsep();
   const helpers = opts.helpers ?? DEFAULT_HELPERS;
+  const statefulHelpers = opts.statefulHelpers ?? STATEFUL_HELPERS;
+  const allHelperNames = () => [...Object.keys(helpers), ...Object.keys(statefulHelpers)].join(', ');
   const used = new Set<string>();
 
   let ast: Node;
@@ -141,7 +221,7 @@ export function compileFormula(source: string, opts: CompileOptions): CompiledFo
       case 'Identifier': {
         const name = node.name as string;
         if (!opts.variables.has(name)) {
-          throw new FormulaError(`Unknown variable "${name}". Available: feature names + helpers (${Object.keys(helpers).join(', ')}).`);
+          throw new FormulaError(`Unknown variable "${name}". Available: feature names + helpers (${allHelperNames()}).`);
         }
         used.add(name);
         // Absent this frame → NaN (dropped downstream), never a throw.
@@ -180,16 +260,25 @@ export function compileFormula(source: string, opts: CompileOptions): CompiledFo
         const callee = node.callee as Node;
         if (callee.type !== 'Identifier') throw new FormulaError('Only direct calls to named helper functions are allowed.');
         const name = callee.name as string;
-        // Own-property check only — a bare `helpers[name]` would resolve INHERITED
+        const argNodes = node.arguments as Node[];
+        // Own-property checks only — a bare `helpers[name]` would resolve INHERITED
         // Object.prototype members (`constructor`, `hasOwnProperty`, `valueOf`, ...),
         // which both bypasses the whitelist (reaching a global constructor) and, for
         // the `this`-less prototype methods, throws at eval time, breaking the
         // never-throws contract. Reject any non-own key at compile time.
+        if (Object.prototype.hasOwnProperty.call(statefulHelpers, name)) {
+          // Stateful helper (#131): instantiate a FRESH closure for THIS call
+          // site, so state (the rolling regression moments) is per-site and
+          // resets on re-compile. Arity errors surface here, at compile time.
+          const fn = statefulHelpers[name](argNodes.length);
+          const args = argNodes.map((a) => walk(a));
+          return (s) => fn(...args.map((a) => a(s)));
+        }
         if (!Object.prototype.hasOwnProperty.call(helpers, name)) {
-          throw new FormulaError(`Unknown function "${name}". Allowed: ${Object.keys(helpers).join(', ')}.`);
+          throw new FormulaError(`Unknown function "${name}". Allowed: ${allHelperNames()}.`);
         }
         const fn = helpers[name];
-        const args = (node.arguments as Node[]).map((a) => walk(a));
+        const args = argNodes.map((a) => walk(a));
         return (s) => fn(...args.map((a) => a(s)));
       }
       case 'MemberExpression':

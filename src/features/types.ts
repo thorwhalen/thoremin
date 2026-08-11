@@ -30,6 +30,12 @@ export type Controllability = 'easy' | 'moderate' | 'involuntary';
 /** Which raw source a feature reads. */
 export type FeatureSource = 'face' | 'hand';
 
+/** The confound axes a feature can declare invariance to (#131): `scale` =
+ *  camera distance, `position` = translation in the frame, `yaw`/`pitch`/`roll`
+ *  = the subject's pose (head pose for face features, hand orientation for hand
+ *  features). See {@link FeatureDef.invariantTo} for the exact semantics. */
+export type Invariance = 'scale' | 'position' | 'yaw' | 'pitch' | 'roll';
+
 /**
  * One scalar feature. `compute` is pure: same context → same value. It returns
  * `NaN` to signal "not measurable this frame" (missing landmark, degenerate
@@ -45,6 +51,23 @@ export interface FeatureDef<Ctx> {
    *  ranging). Absent for open-ended geometric ratios. For a `circular` feature the
    *  range is NOT advisory — it is the exact period the normalizer maps against. */
   range?: readonly [number, number];
+  /**
+   * What this feature's value is HONESTLY invariant to (#131) — the declared
+   * confound profile. A feature measured off a landmark stream is rarely a pure
+   * measurement of the thing it names: camera distance rescales pixel distances,
+   * head/hand pose foreshortens 2D geometry, frame position moves everything.
+   * The vocabulary ({@link Invariance}): `scale` = camera distance, `position` =
+   * translation in the frame, `yaw`/`pitch`/`roll` = the subject's pose axes
+   * (head pose for face features, hand orientation for hand features).
+   *
+   * Semantics: ABSENT = not yet assessed (no claim either way); `[]` = assessed
+   * and invariant to NOTHING listed (e.g. a raw position — it IS its confound);
+   * a listed axis = "moving only along that axis should not move this feature
+   * (to the fidelity of the underlying model)". Use `residual(x, z)` /
+   * `deconfound(x, z1, z2, ...)` in a Lab formula to correct a feature for a
+   * confound it is NOT invariant to.
+   */
+  invariantTo?: readonly Invariance[];
   /** True for an ANGULAR feature whose value lives on a circle: the two `range`
    *  endpoints (e.g. -pi and +pi from `atan2`) are the SAME physical pose, so the
    *  single-frame jump between them is a representation artifact, not motion. The
