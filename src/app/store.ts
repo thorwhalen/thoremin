@@ -36,10 +36,20 @@ import {
   type MidiSettings,
 } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
+import {
+  FaceControlsDialSchema,
+  DEFAULT_FACE_CONTROLS_DIAL,
+  type FaceControlsDialParams,
+} from '@/nodes/features/face_controls';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
 const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
+
+/** A fresh copy of the shipped face-control axis tuning (#76), for the same reason as
+ *  {@link defaultHandMap}: the initializer and the healers must never hand out the
+ *  module-level constant itself, or an edit in one instrument would mutate the default. */
+const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CONTROLS_DIAL });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -125,6 +135,16 @@ export interface ControlState {
    *  field (in {@link SETTINGS_KEYS}); read live by the `midi-out` node via
    *  `store-controls` → its `enabled`/`port` inputs. */
   midi: MidiSettings;
+  /**
+   * The head/face CONTROL axis tuning (#76): per-axis gain (negative flips a
+   * direction), deadzone, neutral zero and shared smoothing for the `face-controls`
+   * node. A preset field (in {@link SETTINGS_KEYS}) — unlike {@link faceCalibration},
+   * which is a per-DEVICE property, an axis tuning is part of how an instrument plays,
+   * so it rides the instrument. Read live by `face-controls` via `store-controls` →
+   * its `config` input port, so a change takes effect on the next tick without a graph
+   * rebuild or a face-model reload.
+   */
+  faceControls: FaceControlsDialParams;
   /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
    *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
@@ -333,6 +353,26 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       midi = current.midi;
     }
   }
+  // Heal the face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning;
+  // a partial one is completed; a corrupt one falls back whole rather than leaving the
+  // panel to dereference an undefined into a NaN slider.
+  //
+  // Parsed RAW, unlike the `midi`/`faceChord` healers above which pre-spread their
+  // defaults. That is not an inconsistency to tidy up later: EVERY field of this schema
+  // carries a `.default(...)`, so `parse` already completes a partial blob, and the spread
+  // would be dead code that a reader would mistake for load-bearing. The invariant it
+  // relies on is enforced at import time, not by convention — `DEFAULT_FACE_CONTROLS_DIAL`
+  // is built by `FaceControlsDialSchema.parse({})`, which throws on the day someone adds a
+  // field without a default. (A mutation test caught the spread: removing it left the
+  // suite fully green, which is the definition of a guard that guards nothing.)
+  let faceControls = current.faceControls;
+  if (p.faceControls) {
+    try {
+      faceControls = FaceControlsDialSchema.parse(p.faceControls);
+    } catch {
+      faceControls = current.faceControls;
+    }
+  }
   // Heal the gesture prefs (#129) the same way as the other tooling prefs: complete
   // a partial blob from the current (default) prefs, then validate — a pre-#129 blob
   // has none → the defaults; a corrupt blob falls back rather than crashing a newer
@@ -346,7 +386,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       gestures = current.gestures;
     }
   }
-  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap, midi, gestures };
+  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap, midi, faceControls, gestures };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -379,6 +419,7 @@ export const useControls = create<ControlState>()(
       featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
       midi: { ...DEFAULT_MIDI },
+      faceControls: defaultFaceControls(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       setVoice: (side, patch) =>
@@ -448,7 +489,13 @@ export const useControls = create<ControlState>()(
       // (disabled; fist → silence, pinch → restore volume, open unbound), healed by
       // mergeControls like featureLab, so no data transform is needed — the bump is
       // the version marker for the schema growth.
-      version: 9,
+      // Version 10: #76 added the `faceControls` preset field (per-axis gain / deadzone /
+      // neutral zero / smoothing for the head-pose control mode). ADDITIVE with the
+      // shipped tuning as its default — which is byte-identical to the build-time params
+      // the node used before the dial existed, so a returning player's `controls` mode
+      // sounds and feels exactly as it did. Healed by mergeControls, so no data transform
+      // is needed; the bump is the version marker for the schema growth.
+      version: 10,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

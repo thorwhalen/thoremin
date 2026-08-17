@@ -20,6 +20,7 @@ import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/
 import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
+import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, type Settings } from './schema';
 
@@ -109,6 +110,16 @@ export const thoreminDials = defineDials(
     // The hand→sound mapping (note source + finger routing + knobs) — a whole-object
     // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.
     handMap: HandMapSchema.default(DEFAULT_HAND_MAP).meta({ facets: ['Hand'], title: 'Hand mapping' }),
+    // The head/face CONTROL axes (#76) — a whole-object dial like `overlay` / `handMap`,
+    // rendered by a bespoke widget in the Face panel and reachable leaf-by-leaf through
+    // `dial.setIn` (paths.ts derives `faceControls.yawGain`, `faceControls.headRangeDeg`,
+    // … straight from this schema). Facet 'Face' so it files with the mapping chooser it
+    // belongs to; the panel only shows it in the `controls` mode that uses it.
+    faceControls: FaceControlsDialSchema.default(DEFAULT_FACE_CONTROLS_DIAL).meta({
+      facets: ['Face', 'advanced'],
+      title: 'Face control axes',
+      description: 'Per-axis gain / deadzone / neutral zero / smoothing for the head-pose control mode',
+    }),
   }),
   // No cross-field constraints: since #75 the chord/head-pose modes no longer require
   // a seven-note melody scale — the chord SOURCE (auto-derived or custom) is what a
@@ -159,6 +170,7 @@ export function settingsToLayer(s: Settings): Layer {
     'midi.port': s.midi.port,
     overlay: s.overlay,
     handMap: s.handMap,
+    faceControls: s.faceControls,
   });
 }
 
@@ -191,5 +203,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     midi: { enabled: v['midi.enabled'], port: v['midi.port'] },
     overlay: v.overlay,
     handMap: v.handMap,
+    faceControls: v.faceControls,
   });
 }

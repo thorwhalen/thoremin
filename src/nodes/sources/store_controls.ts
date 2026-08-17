@@ -15,6 +15,7 @@ import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import type { FaceChord, FaceExpr } from '@/settings/schema';
 import type { OverlayDialParams } from '@/nodes/output/canvas_overlay';
+import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 
 export interface VoiceControlSnapshot {
@@ -66,6 +67,10 @@ export interface ControlSnapshot {
   /** MIDI output (#137): on/off + target port name ('' = first available). Fed to
    *  the `midi-out` node's `enabled`/`port` inputs as live ports. */
   midi?: { enabled: boolean; port: string };
+  /** The head/face CONTROL axis tuning (#76): per-axis gain / deadzone / neutral zero
+   *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
+   *  of its build-time params, so re-tuning an axis needs no graph rebuild. */
+  faceControls?: FaceControlsDialParams;
 }
 
 const Params = z.object({});
@@ -107,6 +112,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // so the settings panel / palette / AI can turn MIDI on without a graph rebuild.
     { name: 'midiEnabled', kind: 'boolean' },
     { name: 'midiPort', kind: 'string' },
+    // The head/face control axis tuning (#76) → `face-controls`' `config` input, so
+    // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
+    { name: 'faceControls', kind: 'face-controls-config' },
   ],
   params: Params,
   make() {
@@ -150,6 +158,10 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           chordScale: generateScale(chordSpec),
           faceMapping: c.faceMapping ?? legacyFaceToMapping(c.faceEnabled),
         };
+        // Only emitted when the host actually has a tuning: an absent value must leave
+        // the node on its build-time params, and an explicitly-emitted `undefined` would
+        // be indistinguishable from that anyway — so skip the key entirely.
+        if (c.faceControls) out.faceControls = c.faceControls;
         if (c.faceChord) {
           out.chordConfig = {
             sound: c.faceChord.sound,
