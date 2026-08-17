@@ -39,6 +39,7 @@ import {
 import { EMOTIONS, type ExpressionScores } from '@/music/expression';
 import { clamp01 } from '@/features/math';
 import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
+import { pairIndex } from '@/features/labCorrelation';
 import { FeatureLabSchema } from '@/features/labConfig';
 import {
   DERIVED_GROUP,
@@ -249,6 +250,18 @@ export const OVERLAY_CATEGORIES: { id: OverlayCategory; label: string; blurb: st
  */
 export interface OverlayElement {
   name: string;
+  /**
+   * The `Params` sub-object this element reads, when it is not the element's own name.
+   *
+   * Almost every element owns a params key called after itself, and that identity used to
+   * be assumed outright. It stops holding as soon as an element's config lives on a
+   * TOOLING surface rather than the instrument: the correlation matrix (#150) is drawn as
+   * its own element but configured by the per-device `featureLab` block (#136 — the Lab
+   * measures the instrument, so its settings must not ride an instrument dial). Naming the
+   * key explicitly keeps the "no element is silently un-configurable" invariant true and
+   * checkable, instead of quietly excluding the elements it no longer fits.
+   */
+  configKey?: string;
   category: OverlayCategory;
   cue?: boolean;
   measure?(view: OverlayView): { w: number; h: number } | null;
@@ -1257,6 +1270,117 @@ const tagHud: OverlayElement = {
   },
 };
 
+/** Correlation-grid geometry. Deliberately small: this is a diagnostic you glance at
+ *  while performing, not a plot you study. */
+const CORR_CELL = 14;
+const CORR_LABEL_W = 96;
+const CORR_TITLE_H = 20;
+
+/** Blue (anti-correlated) → transparent (independent) → orange (correlated). Diverging,
+ *  because the SIGN of a coupling is the whole point — a single-hue ramp would show
+ *  |r| and hide whether raising your brow raises or lowers the other feature. */
+function corrColor(r: number): string {
+  const a = Math.min(1, Math.abs(r));
+  return r >= 0 ? `rgba(249, 115, 22, ${a.toFixed(3)})` : `rgba(59, 130, 246, ${a.toFixed(3)})`;
+}
+
+/**
+ * The rolling correlation matrix (#150) — a compact lower-left heat grid over the
+ * currently-watched features, so coupling between them is VISIBLE rather than inferred.
+ *
+ * This is the diagnostic that makes #131's other two halves usable: `invariantTo` labels
+ * say what COULD contaminate a feature and `residual(x, z)` removes a confound you name,
+ * but only this says which confound is actually biting right now.
+ *
+ * A pure renderer, like the meters element: the statistics are folded by
+ * {@link createLabMeterComputer} (which owns the estimators and the cost guards) and
+ * arrive as `view.featureMeters.correlation`.
+ *
+ * Its config lives in the per-device `featureLab` block rather than a params sub-object of
+ * its own — see {@link OverlayElement.configKey}. It is the Lab's diagnostic, so it must
+ * not become an instrument parameter (#136).
+ */
+const featureCorrelationElement: OverlayElement = {
+  name: 'featureCorrelation',
+  configKey: 'featureLab',
+  category: 'input',
+  draw(g, view) {
+    const p = view.params.featureLab;
+    // A SECOND gate. The load-bearing one is upstream: `createLabMeterComputer` does not
+    // populate `correlation` at all unless `showCorrelation` is on, which is what makes
+    // the feature genuinely free when off (the work is quadratic — see labCorrelation.ts).
+    // A mutation test confirms this line is currently redundant; it is kept so the element
+    // does not silently start drawing the day the computer populates the field
+    // unconditionally, and so the element reads as opt-in on its own terms.
+    if (!p.show || !p.showCorrelation) return;
+    const corr = view.featureMeters?.correlation;
+    if (!corr || corr.ids.length < 2) return;
+
+    const { W, H } = view;
+    const k = corr.ids.length;
+    // The grid is the strict lower-left triangle, so it needs k-1 rows and k-1 columns.
+    const gridW = (k - 1) * CORR_CELL;
+    const panelW = CORR_LABEL_W + gridW + 2 * PAD;
+    const panelH = CORR_TITLE_H + (k - 1) * CORR_CELL + 18;
+    // Bottom-LEFT: the meters panel is right-anchored and the HUD cues take the edges,
+    // so this is the one large region left free.
+    const panelLeft = PAD;
+    const panelTop = Math.max(LAB_TOP, H - 16 - panelH);
+    if (panelW > W - 2 * PAD) return; // never draw a panel wider than the frame
+
+    g.save();
+    g.globalAlpha = 0.55;
+    g.fillStyle = '#000000';
+    g.fillRect(panelLeft, panelTop, panelW, panelH);
+
+    g.globalAlpha = 1;
+    g.fillStyle = FACE_COLOR;
+    g.font = 'bold 12px monospace';
+    g.textAlign = 'left';
+    g.fillText('Correlation', panelLeft + PAD, panelTop + 14);
+
+    // Warm-up honesty: an r computed from a handful of frames is not evidence, and a
+    // grid that looks identical whether it has 5 samples or 5000 invites reading noise
+    // as structure. Say the sample count rather than implying confidence.
+    g.globalAlpha = 0.75;
+    g.fillStyle = '#9ca3af';
+    g.font = 'italic 9px monospace';
+    g.textAlign = 'right';
+    g.fillText(`${corr.frames}f`, panelLeft + panelW - PAD, panelTop + 14);
+
+    const gridLeft = panelLeft + PAD + CORR_LABEL_W;
+    const gridTop = panelTop + CORR_TITLE_H;
+
+    // Row i (for i = 1..k-1) labels feature i; column j (for j = 0..k-2) is feature j.
+    // Lower-left triangle: cell (i, j) exists only for j < i, so each unordered pair is
+    // drawn exactly once — a full square would mirror every value and say nothing more.
+    for (let i = 1; i < k; i++) {
+      const y = gridTop + (i - 1) * CORR_CELL;
+      g.globalAlpha = 0.85;
+      g.fillStyle = '#d1d5db';
+      g.font = '9px monospace';
+      g.textAlign = 'right';
+      g.fillText(labClip(labFeatureLabel(corr.ids[i], ''), 15), gridLeft - 4, y + CORR_CELL - 4);
+
+      for (let j = 0; j < i; j++) {
+        const r = corr.r[pairIndex(j, i, k)];
+        g.globalAlpha = 1;
+        g.fillStyle = corrColor(r);
+        g.fillRect(gridLeft + j * CORR_CELL, y, CORR_CELL - 1, CORR_CELL - 1);
+      }
+    }
+
+    if (corr.truncated > 0) {
+      g.globalAlpha = 0.8;
+      g.fillStyle = '#9ca3af';
+      g.font = 'italic 9px monospace';
+      g.textAlign = 'left';
+      g.fillText(`+${corr.truncated} not shown (raise the cap)`, panelLeft + PAD, panelTop + panelH - 5);
+    }
+    g.restore();
+  },
+};
+
 /**
  * The overlay elements, in draw (z) order. In-scene first, HUD cues last (on top).
  * Each has a `category` and a `<name>` sub-object in `Params`. Append here to add one.
@@ -1277,6 +1401,8 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   // The Feature Lab panel (#119): above the in-scene elements, below the HUD cues
   // so the chord/finger readouts stay legible over it.
   featureLabElement,
+  // The Lab's correlation matrix (#150), beside it on the opposite edge.
+  featureCorrelationElement,
   // HUD cues last (on top). chordName sits before the others so `fingerBars`
   // stays the topmost cue; cues on different edges don't overlap regardless.
   chordNameCue,

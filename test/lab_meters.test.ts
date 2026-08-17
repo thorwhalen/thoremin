@@ -23,6 +23,9 @@ const cfg = (over: Partial<LabMeterConfig> = {}): LabMeterConfig => ({
   showMarkers: true,
   derived: [],
   resetNonce: 0,
+  showCorrelation: false,
+  correlationMaxFeatures: 12,
+  correlationEveryNFrames: 1,
   ...over,
 });
 
@@ -150,5 +153,127 @@ describe('createLabMeterComputer (#119)', () => {
     const aHeld = a(cfg(), { [JAW_OPEN]: 0.1, [JAW_LEFT]: 0.2 }, undefined, 1 / 30)!;
     const bFresh = b(cfg(), { [JAW_OPEN]: 0.1, [JAW_LEFT]: 0.2 }, undefined, 1 / 30)!; // b is cold
     expect(bFresh.levels[JAW_OPEN]).toBeGreaterThan(aHeld.levels[JAW_OPEN]);
+  });
+});
+
+/**
+ * The rolling correlation matrix (#150), folded into this computer so it shares ONE
+ * lifecycle with the normalizer and the derived formulas.
+ *
+ * That sharing is the point of putting it here rather than in the overlay element: #131's
+ * reset comment already warns that "recalibrate" must reset EVERY online statistic, not
+ * all-but-one, and a correlation coefficient that survived a recalibrate would be a
+ * stale number sitting beside freshly-zeroed meters, indistinguishable from a live one.
+ */
+describe('correlation matrix lifecycle (#150)', () => {
+  const GROUPS = [JAW];
+
+  /** Drive the computer with jaw-open sweeping and jaw-left tracking it exactly, so the
+   *  pair is perfectly correlated and any failure to accumulate is visible. */
+  function runCorrelated(
+    compute: ReturnType<typeof createLabMeterComputer>,
+    config: LabMeterConfig,
+    ticks: number,
+  ) {
+    let out;
+    for (let i = 0; i < ticks; i++) {
+      const v = (i % 10) / 10;
+      out = compute(config, { [JAW_OPEN]: v, [JAW_LEFT]: v }, undefined, 1 / 30);
+    }
+    return out;
+  }
+
+  it('is absent by default — the meters cost nothing extra until you ask', () => {
+    const meters = run(createLabMeterComputer(), cfg({ groups: GROUPS }), 40)!;
+    expect(meters.correlation).toBeUndefined();
+  });
+
+  it('appears once showCorrelation is on, covering exactly the features on screen', () => {
+    const config = cfg({ groups: GROUPS, showCorrelation: true });
+    const meters = runCorrelated(createLabMeterComputer(), config, 60)!;
+    expect(meters.correlation).toBeDefined();
+    // The matrix must cover the same ids, in the same order, as the meters: the grid's
+    // row labels come from `ids`, so a divergence would label cells with the wrong
+    // features — a diagnostic that lies rather than one that is missing.
+    expect(meters.correlation!.ids).toEqual(meters.order.slice(0, meters.correlation!.ids.length));
+    expect(meters.correlation!.r[0]).toBeCloseTo(1, 2); // jaw.open vs jaw.left move together
+  });
+
+  it('re-zeroes on a resetNonce bump, exactly like the normalizer', () => {
+    const compute = createLabMeterComputer();
+    const config = cfg({ groups: GROUPS, showCorrelation: true });
+    const warm = runCorrelated(compute, config, 200)!;
+    expect(warm.correlation!.frames).toBeGreaterThan(50);
+    // One tick after the bump: the statistics must be back at the seeding sample.
+    const after = compute({ ...config, resetNonce: 1 }, { [JAW_OPEN]: 0.5, [JAW_LEFT]: 0.5 }, undefined, 1 / 30)!;
+    expect(after.correlation!.frames).toBe(0);
+  });
+
+  it('re-zeroes when the matrix is closed and reopened', () => {
+    const compute = createLabMeterComputer();
+    const on = cfg({ groups: GROUPS, showCorrelation: true });
+    runCorrelated(compute, on, 200);
+    // Close it…
+    compute({ ...on, showCorrelation: false }, { [JAW_OPEN]: 0.5, [JAW_LEFT]: 0.5 }, undefined, 1 / 30);
+    // …and reopen. Coefficients accumulated before you closed it describe a pose you are
+    // no longer holding; silently resuming them makes a stale number look fresh.
+    const after = compute(on, { [JAW_OPEN]: 0.5, [JAW_LEFT]: 0.5 }, undefined, 1 / 30)!;
+    expect(after.correlation!.frames).toBe(0);
+  });
+
+  it('honours the cost guards it is handed', () => {
+    const compute = createLabMeterComputer();
+    const config = cfg({ groups: GROUPS, showCorrelation: true, correlationMaxFeatures: 2 });
+    const meters = runCorrelated(compute, config, 40)!;
+    expect(meters.correlation!.ids.length).toBeLessThanOrEqual(2);
+  });
+});
+
+/**
+ * The circular-period map reaches the correlation matrix (#150 / #144).
+ *
+ * The unwrapping itself is unit-tested in `lab_correlation.test.ts` against synthetic
+ * ids. This is the WIRING guard, and it is the one that matters: the matrix folds `raw`,
+ * the period map is built from the catalog HERE, and a unit test of the folder stays
+ * perfectly green if this module simply never passes it. So drive the two REAL catalog
+ * ids — `hand.right.palm.roll` is `circular`, its neighbour `hand.right.palm.pitch` is
+ * not — and make the assertion at the level a player experiences.
+ */
+describe('circular features reach the matrix unwrapped (#144 wiring)', () => {
+  const ROLL = 'hand.right.palm.roll';
+  const PITCH = 'hand.right.palm.pitch';
+  const ORIENTATION = 'hand.palm.orientation';
+  const wrapTo = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+  it('a wrapping palm roll does not invert its coupling with a linear neighbour', () => {
+    const compute = createLabMeterComputer();
+    const config = cfg({ groups: [ORIENTATION], showCorrelation: true });
+    let out;
+    const rs: number[] = [];
+    for (let t = 0; t < 400; t++) {
+      // A wrist rotating steadily, and a pitch that is an exact affine function of the
+      // true (unwrapped) roll — so the honest answer is r = +1 at every frame.
+      const trueRoll = t * 0.03;
+      out = compute(config, undefined, { [ROLL]: wrapTo(trueRoll), [PITCH]: 0.3 * trueRoll }, 1 / 30)!;
+      rs.push(out.correlation!.r[0]);
+    }
+    // Exactly two features present, so `r[0]` is that pair (catalog order: pitch, roll).
+    expect(out!.correlation!.ids).toEqual([PITCH, ROLL]);
+    for (let t = 60; t < rs.length; t++) expect(rs[t]).toBeGreaterThan(0.99);
+  });
+
+  it('leaves the DISPLAYED raw value inside its declared range', () => {
+    // Unwrapping belongs to the statistics, never to the meter: `raw` is what the readout
+    // shows and what the normalizer was already fed, so it must still be an angle in
+    // [-pi, pi] rather than the ever-growing accumulated phase.
+    const compute = createLabMeterComputer();
+    const config = cfg({ groups: [ORIENTATION], showCorrelation: true });
+    let out;
+    for (let t = 0; t < 400; t++) {
+      out = compute(config, undefined, { [ROLL]: wrapTo(t * 0.03), [PITCH]: 0.3 * t * 0.03 }, 1 / 30)!;
+    }
+    expect(Math.abs(out!.raw[ROLL])).toBeLessThanOrEqual(Math.PI);
+    expect(out!.levels[ROLL]).toBeGreaterThanOrEqual(0);
+    expect(out!.levels[ROLL]).toBeLessThanOrEqual(1);
   });
 });

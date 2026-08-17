@@ -33,8 +33,21 @@ import type { OverlayParams } from '@/nodes/output/canvas_overlay';
 export type OverlaySurface = 'instrument' | 'lab';
 
 export interface OverlayControlDesc {
-  /** The overlay element / params key this descriptor controls. */
-  name: keyof OverlayParams;
+  /** The overlay ELEMENT this descriptor controls. Usually also the params key — see
+   *  {@link OverlayControlDesc.configKey} for the exception. */
+  name: string;
+  /**
+   * The params sub-object this descriptor's controls write, when it differs from
+   * {@link OverlayControlDesc.name}. Mirrors `OverlayElement.configKey`: the correlation
+   * matrix (#150) is its own element but is configured by the `featureLab` block, because
+   * it is a Lab diagnostic and must not become an instrument parameter (#136).
+   *
+   * Only ever set on `surface: 'lab'` descriptors — the instrument panel builds
+   * `overlay.<name>.<field>` dispatch paths straight from `name`, and a test pins that
+   * assumption rather than leaving it to be discovered by a control that silently
+   * refuses every write.
+   */
+  configKey?: keyof OverlayParams;
   /** Label for the primary on/off toggle. */
   label: string;
   /** Which UI surface renders this descriptor. Defaults to the instrument's Overlay
@@ -67,6 +80,17 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
       { key: 'showMarkers', label: 'Percentile ticks' },
       { key: 'showValues', label: 'Raw values' },
     ],
+  },
+  {
+    // The Lab's rolling correlation matrix (#150). Its own element (the meters panel is
+    // already dense), configured by the `featureLab` block it belongs to — hence
+    // `configKey`. Its controls are hand-rendered in LabControls, like every other
+    // featureLab field (`normalizer`, `columns`, `derived`); this descriptor exists so
+    // the element↔descriptor invariant stays exact.
+    name: 'featureCorrelation',
+    configKey: 'featureLab',
+    label: 'Correlation matrix',
+    surface: 'lab',
   },
   { name: 'markers', label: 'Control markers', toggles: [{ key: 'showNotes', label: 'Note names' }] },
   {

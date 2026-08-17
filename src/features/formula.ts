@@ -18,6 +18,8 @@
 import jsep from 'jsep';
 import ternary from '@jsep-plugin/ternary';
 import { clamp01 } from './math';
+import { makeEwPair } from './ewMoments';
+import { makeUnwrapper } from './circular';
 
 // Ternary (`a ? b : c`) is not in jsep core; register the plugin once. Also lock
 // the operator set down to arithmetic/comparison/logical (drop jsep's defaults we
@@ -94,31 +96,20 @@ const DEFAULT_REGRESSION_WINDOW = 180;
  * frame can't poison the running moments.
  */
 function makeEwRegression(): (x: number, z: number, window?: number) => number {
-  let mx = 0;
-  let mz = 0;
-  let cxz = 0;
-  let vz = 0;
-  let seeded = false;
+  // The moments themselves live in `@/features/ewMoments` (#150), because the rolling
+  // correlation view folds the SAME update over its feature pairs. Two copies of this
+  // recurrence would drift the first time either side changed its alpha, its seeding
+  // rule, or its guard — and the symptom would be two numbers in one panel quietly
+  // disagreeing about the same pair of features.
+  const pair = makeEwPair();
   return (x, z, window = DEFAULT_REGRESSION_WINDOW) => {
     // The window is an input too: a NaN alpha (e.g. `residual(x, z, w)` with w
     // absent this frame, or Infinity = a silent never-learn) would poison the
     // moments PERMANENTLY — reject it exactly like a bad x/z, state untouched.
-    if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(window)) return NaN;
-    if (!seeded) {
-      mx = x;
-      mz = z;
-      seeded = true;
-      return x; // beta is 0 with one sample
-    }
-    const a = 1 / Math.max(2, window);
-    const dx = x - mx; // deltas vs the PRE-update means (West-style EW moments)
-    const dz = z - mz;
-    mx += a * dx;
-    mz += a * dz;
-    cxz = (1 - a) * (cxz + a * dx * dz);
-    vz = (1 - a) * (vz + a * dz * dz);
-    const beta = vz > 1e-12 ? cxz / vz : 0;
-    return x - beta * (z - mz);
+    const status = pair.update(x, z, window);
+    if (status === 'rejected') return NaN;
+    if (status === 'seeded') return x; // beta is 0 with one sample
+    return x - pair.beta() * (z - pair.meanZ());
   };
 }
 
@@ -132,6 +123,16 @@ function makeEwRegression(): (x: number, z: number, window?: number) => number {
  * - `deconfound(x, z1[, z2, ...])` — sequential residualization against several
  *   confounds (each with its own regression state); equivalent to nesting
  *   `residual(residual(x, z1), z2)` with the default window.
+ * - `unwrap(x[, period])` — phase-unwrap an ANGLE (default period 2*pi) so a linear
+ *   statistic may consume it. Both helpers above regress LINEARLY, and the four
+ *   `circular` catalog features (`hand.palm.yaw`, `hand.palm.roll`, `hand.tilt`,
+ *   `hand.pair.tilt`) cross ±pi at the same physical pose — so
+ *   `residual(x, hand_palm_roll)` injects a 2*pi step into a live musical signal at
+ *   every wrap. Write `residual(x, unwrap(hand_palm_roll))` instead. It is a HELPER
+ *   rather than something applied behind the scenes because these take numbers, not
+ *   feature ids: nothing here can tell an angle from a ratio, and silently unwrapping
+ *   whatever looked angular would be a guess dressed as a correction. (The correlation
+ *   matrix, which does know the ids, unwraps them for you — see `labCorrelation`.)
  */
 export const STATEFUL_HELPERS: Readonly<Record<string, StatefulHelperFactory>> = {
   residual: (arity) => {
@@ -147,6 +148,13 @@ export const STATEFUL_HELPERS: Readonly<Record<string, StatefulHelperFactory>> =
       for (let i = 1; i < args.length; i++) r = regs[i - 1](r, args[i]);
       return r;
     };
+  },
+  unwrap: (arity) => {
+    if (arity < 1 || arity > 2) throw new FormulaError('unwrap(x[, period]) takes 1 or 2 arguments.');
+    // Per-call-site state, like the regressions: two `unwrap(...)` calls in one formula
+    // track two different angles and must not share a phase.
+    const un = makeUnwrapper();
+    return (x: number, period?: number) => un.next(x, period);
   },
 };
 

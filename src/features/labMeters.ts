@@ -15,6 +15,7 @@
 import { OnlineNormalizer, type NormalizerMode } from './normalizer';
 import { compileFormula, type CompiledFormula } from './formula';
 import { ALL_FEATURES, ALL_SAFE_NAMES, DERIVED_GROUP, safeName, type FeatureVector } from './catalog';
+import { makeCorrelationMatrix, type CorrelationResult } from './labCorrelation';
 
 /**
  * The Feature Lab's compute-relevant configuration — the subset of the overlay's
@@ -37,6 +38,12 @@ export interface LabMeterConfig {
   derived: { id: string; formula: string }[];
   /** Bump to re-zero the online statistics (a manual "recalibrate"). */
   resetNonce: number;
+  /** The rolling correlation matrix (#150) — off by default; O(k^2) per computed frame. */
+  showCorrelation: boolean;
+  /** Cap on how many watched features enter the matrix (cost + legibility guard). */
+  correlationMaxFeatures: number;
+  /** Compute the matrix every Nth frame (the estimator window is scaled to match). */
+  correlationEveryNFrames: number;
 }
 
 /**
@@ -49,6 +56,9 @@ export interface FeatureMeters {
   raw: FeatureVector;
   levels: Record<string, number>;
   markers: Record<string, number[]>;
+  /** The rolling correlation matrix over the watched features (#150), present only when
+   *  `showCorrelation` is on and at least two features are in view. */
+  correlation?: CorrelationResult;
 }
 
 /**
@@ -63,9 +73,17 @@ export type LabMeterComputer = (
   dt: number,
 ) => FeatureMeters | undefined;
 
-/** The circular features' declared periods, from the catalog (#144): the normalizer
- *  maps these against their exact range instead of an adaptive envelope, so a ±pi
- *  wrap can never inflate a meter's range or re-scale it mid-performance. */
+/**
+ * The circular features' declared periods, from the catalog (#144) — the SSOT both
+ * consumers of an angle read, so they cannot disagree about its period.
+ *
+ * The normalizer maps these against their exact range instead of an adaptive envelope, so
+ * a ±pi wrap can never inflate a meter's range or re-scale it mid-performance. The
+ * correlation matrix (#150) phase-UNWRAPS them instead: it folds `raw`, and it is a
+ * linear estimator, so a wrap it can see lands in the covariance and both variances at
+ * once. Same artifact, opposite correction, because one produces a bounded display level
+ * and the other a joint statistic.
+ */
 const CIRCULAR_RANGES: Record<string, readonly [number, number]> = Object.fromEntries(
   ALL_FEATURES.filter((f) => f.circular && f.range).map((f) => [f.id, f.range!]),
 );
@@ -102,7 +120,14 @@ function compileDerived(list: LabMeterConfig['derived']): { id: string; fn: Comp
  */
 export function createLabMeterComputer(): LabMeterComputer {
   const normalizer = new OnlineNormalizer({ circular: CIRCULAR_RANGES });
+  // The correlation folder (#150) lives HERE rather than in the overlay element, so it
+  // shares this module's lifecycle: one instance per lab, re-zeroed by the same "lab
+  // reopened or recalibrate pressed" branch as the normalizer and the derived formulas.
+  // A statistic that survives a recalibrate is the bug #131's reset comment already
+  // warns about — "recalibrate" must reset EVERY online statistic, not all-but-one.
+  const correlation = makeCorrelationMatrix();
   let prevShow = false;
+  let prevShowCorrelation = false;
   let resetNonce = 0;
   let derivedSig = '';
   let compiled: { id: string; fn: CompiledFormula }[] = [];
@@ -118,6 +143,7 @@ export function createLabMeterComputer(): LabMeterComputer {
     // clean — "recalibrate" must reset EVERY online statistic, not all-but-one.
     if (!prevShow || cfg.resetNonce !== resetNonce) {
       normalizer.reset();
+      correlation.reset();
       derivedSig = '';
     }
     prevShow = true;
@@ -164,6 +190,26 @@ export function createLabMeterComputer(): LabMeterComputer {
         if (key.startsWith('derived.')) take(key, raw[key]);
       }
     }
-    return { order, raw, levels, markers };
+    // Fold this frame into the correlation estimators — AFTER `order` is built, because
+    // the matrix must cover exactly the features on screen, in the same order, or the
+    // grid's row labels would name different features than its cells describe.
+    // Re-zero on REOPEN too, mirroring the meters' own rule: statistics accumulated
+    // before you closed the view describe a pose you are no longer holding, and silently
+    // resuming them makes a stale coefficient look like a fresh measurement.
+    if (cfg.showCorrelation && !prevShowCorrelation) correlation.reset();
+    prevShowCorrelation = cfg.showCorrelation;
+
+    const corr = cfg.showCorrelation
+      ? correlation.fold(order, raw, {
+          maxFeatures: cfg.correlationMaxFeatures,
+          everyNFrames: cfg.correlationEveryNFrames,
+          // The SAME period map the normalizer gets. The matrix folds `raw` (not the
+          // levels), so without this the four circular features enter a linear estimator
+          // with their +-pi wraps intact — #144's artifact, in a second consumer.
+          circular: CIRCULAR_RANGES,
+        })
+      : undefined;
+
+    return { order, raw, levels, markers, ...(corr ? { correlation: corr } : {}) };
   };
 }

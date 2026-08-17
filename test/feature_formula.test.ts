@@ -216,3 +216,73 @@ describe('stateful helpers — residual / deconfound (#131)', () => {
     expect(fresh.eval({ x: 1.5, z: 0.75 })).toBe(1.5);
   });
 });
+
+/**
+ * `unwrap(x[, period])` (#150) — the angular pre-step for the LINEAR helpers above.
+ *
+ * `residual` / `deconfound` regress x on z with a straight line, and four catalog
+ * features are angles that cross ±pi at the same physical pose. Residualizing against a
+ * raw one injects a 2*pi step into a live musical signal at every wrap. The helpers take
+ * NUMBERS, not feature ids, so nothing in the compiler can tell an angle from a ratio —
+ * hence a helper the author writes, rather than a correction applied behind their back.
+ */
+describe('stateful helper — unwrap (#150)', () => {
+  const ANG = new Set(['x', 'a']);
+  const wrapTo = (t: number) => Math.atan2(Math.sin(t), Math.cos(t));
+
+  it('turns a wrapped angle back into the continuous signal it came from', () => {
+    const f = compileFormula('unwrap(a)', { variables: ANG });
+    let last = 0;
+    let prev = -Infinity;
+    for (let t = 0; t < 400; t++) {
+      last = f.eval({ a: wrapTo(t * 0.05) });
+      expect(last).toBeGreaterThan(prev); // monotone through every wrap
+      prev = last;
+    }
+    expect(last).toBeCloseTo(399 * 0.05, 6);
+  });
+
+  it('accepts a custom period (degrees, say)', () => {
+    const f = compileFormula('unwrap(a, 360)', { variables: ANG });
+    expect(f.eval({ a: 350 })).toBe(350);
+    expect(f.eval({ a: 10 })).toBe(370); // +20 degrees, not -340
+  });
+
+  it('is what makes residual() safe against a wrapping confound', () => {
+    // A confound that swings +-4 rad, so it crosses +-pi in both directions, and an x
+    // driven ONLY by it. `residual` should therefore leave the constant 1 and nothing
+    // else. Fed the RAW angle, the regression is fighting a sawtooth instead of a swing.
+    const good = compileFormula('residual(x, unwrap(a), 200)', { variables: ANG });
+    const bad = compileFormula('residual(x, a, 200)', { variables: ANG });
+    let maxGood = 0;
+    let maxBad = 0;
+    for (let t = 0; t < 600; t++) {
+      // Swing fast relative to the 200-frame window, so the EW mean sits near zero and
+      // a perfect correction really does collapse to the constant.
+      const trueAngle = 4 * Math.sin(t / 7);
+      const scope = { x: 2 * trueAngle + 1, a: wrapTo(trueAngle) };
+      const g = good.eval(scope);
+      const b = bad.eval(scope);
+      if (t > 250) {
+        // After warm-up: how far is the "corrected" signal from the constant it should be?
+        maxGood = Math.max(maxGood, Math.abs(g - 1));
+        maxBad = Math.max(maxBad, Math.abs(b - 1));
+      }
+    }
+    expect(maxGood).toBeLessThan(1); // x's dependence on the angle is genuinely removed
+    expect(maxBad).toBeGreaterThan(4 * maxGood); // and the raw version is far worse
+  });
+
+  it('two unwrap call sites keep SEPARATE phase', () => {
+    const f = compileFormula('unwrap(x) - unwrap(a)', { variables: ANG });
+    f.eval({ x: 3.1, a: -3.1 });
+    // Each site continues its own angle: x wraps forward, a wraps backward.
+    const out = f.eval({ x: -3.1, a: 3.1 });
+    expect(out).toBeCloseTo(3.183 - -3.183, 3);
+  });
+
+  it('arity errors surface at COMPILE time', () => {
+    expect(() => compileFormula('unwrap()', { variables: ANG })).toThrow(/unwrap\(x\[, period\]\)/);
+    expect(() => compileFormula('unwrap(x, 1, 2)', { variables: ANG })).toThrow(/unwrap\(x\[, period\]\)/);
+  });
+});

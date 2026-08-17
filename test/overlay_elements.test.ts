@@ -95,11 +95,39 @@ describe('canvas-overlay composable elements', () => {
     const paramKeys = Object.keys(canvasOverlayNode.params.parse({}) as Record<string, unknown>);
     const categories = new Set(OVERLAY_CATEGORIES.map((c) => c.id));
     for (const el of OVERLAY_ELEMENTS) {
-      expect(paramKeys).toContain(el.name); // toggleable via its own params sub-object
+      // Configurable via a params sub-object — its own, or the one it names. The
+      // element-name/params-key identity held until an element's config moved onto a
+      // TOOLING surface (#150's correlation matrix reads `featureLab`, because a Lab
+      // diagnostic must not become an instrument parameter — #136). `configKey` keeps
+      // the invariant exact instead of excluding the elements it stopped fitting.
+      expect(paramKeys).toContain(el.configKey ?? el.name);
       expect(categories.has(el.category)).toBe(true); // grouped under a known category
     }
     expect(names[0]).toBe('video'); // backdrop drawn first (bottom)
     expect(names[names.length - 1]).toBe('fingerBars'); // HUD cue on top
+  });
+
+  it('an element and its descriptor agree on WHERE the config lives', () => {
+    // Two independent `configKey` declarations (element + descriptor) that disagree
+    // would give a control writing one block while the renderer reads another: the
+    // toggle would do nothing, and every other test would stay green.
+    const descByName = new Map(OVERLAY_CONTROLS.map((d) => [d.name as string, d]));
+    for (const el of OVERLAY_ELEMENTS) {
+      const d = descByName.get(el.name);
+      expect(d, `element "${el.name}" has no descriptor`).toBeDefined();
+      expect(d!.configKey ?? d!.name, `descriptor "${el.name}" config key`).toBe(el.configKey ?? el.name);
+    }
+  });
+
+  it('only LAB-surface descriptors may redirect their config key', () => {
+    // The instrument panel builds `overlay.<name>.<field>` dispatch paths straight from
+    // `name` (see panels/overlay.tsx), so an instrument descriptor with a redirected
+    // config key would dispatch to a path `dial.setIn` refuses — silently, forever.
+    for (const d of OVERLAY_CONTROLS) {
+      if ((d.surface ?? 'instrument') === 'instrument') {
+        expect(d.configKey, `instrument descriptor "${d.name}" must not redirect`).toBeUndefined();
+      }
+    }
   });
 
   it('every overlay element has a UI control descriptor (the panel is data-driven, no silent drop)', () => {
