@@ -1,6 +1,6 @@
 # Thoremin Roadmap
 
-Status board, swept 2026-07-12. Two horizons:
+Status board, swept 2026-08-17 (previous sweep 2026-07-12). Two horizons:
 
 1. **What shipped** and **what is next** (below) — the live planning surface.
 2. **Longer-horizon engine milestones (M0–M8)** — the original platform/engine arc,
@@ -13,7 +13,7 @@ time-anchored taps over a *recording* (#92); **tags** are keywords on a saved
 
 ---
 
-## Shipped (2026-06 → 2026-07)
+## Shipped (2026-06 → 2026-08)
 
 The five tracks below all landed. Each row is the issue, the PR that closed it, and
 what it actually gives you.
@@ -24,7 +24,7 @@ what it actually gives you.
 |-------|----|--------------|
 | **#91** Mute fix + cue | #95 | A true master mute at `synth-merge` (the single convergence point of every sound producer), so muting silences the hands *and* both chord instruments, plus an unmissable "muted" HUD cue. |
 | **#89** Chord overlays | #96 | Chord-name HUD cue (jazz symbol + optional Roman/Nashville) and a keyboard-strip element with a layered visual-cue hierarchy. |
-| **#87** Command dispatch (acture) | #97 (Phase 0), #107 (Phase 1), #98 (Phase 2), #111 (Phase 3) | The command registry: every dial is a typed `acture` command. Phase 2 added the **Cmd/Ctrl-K command palette** (one generated `dial.<key>.set` per dial). Phase 3 added the **AI assistant**. The registry is the *intended* single write path — the sweep is **not finished**, see #126. |
+| **#87** Command dispatch (acture) | #97 (Phase 0), #107 (Phase 1), #98 (Phase 2), #111 (Phase 3), **#140** (the sweep, #126) | The command registry: every dial is a typed `acture` command. Phase 2 added the **Cmd/Ctrl-K command palette** (one generated `dial.<key>.set` per dial). Phase 3 added the **AI assistant**. **#126 finished it**: `rg 'setDial\('` over `src/` now hits only the command implementations, and `test/dials_write_path.test.ts` — a TypeScript-AST guard that follows helper indirection — fails the suite if a discrete panel control writes the store directly. #87 and #126 are both closed. |
 | **#90** Custom keyboard mappings | #110 | App-level `tinykeys` keymap dispatching dial commands; retires the in-DAG `keyboard-control` node. Keyboard is no longer in the graph. |
 | **AI assistant** (#87 Phase 3) | #111 | An in-app chat that operates the instrument by dispatching the registry via `acture-ai-vercel`. **Client-side, multi-provider, BYO-key** (OpenAI / Anthropic / Google — default Gemini 3.5 Flash); **no aix** — thoremin stays client-side, with a pluggable `ChatBackend` seam for a future server-side move. A human-in-the-loop confirmation gate guards the destructive `instrument.*` commands. Lazy-loaded so the AI SDK stays out of the initial bundle. |
 
@@ -72,6 +72,22 @@ than mapping it. SSOT: [design/feature-lab.md](design/feature-lab.md).
 | **#63** Octave-range slider | #124 | Double-thumb octave-**range** slider (1–3 octaves, locked middle); per-voice `rangeLow`/`rangeHigh`; store persist v6. |
 | **#13** MIDI out | #120 | A `midi-out` node (WEBMIDI.js) tapping the same merged voices as the synth, to drive an external instrument/DAW. Off by default, a no-op where Web MIDI is unsupported (Safari/iOS gated), so it costs nothing until turned on. |
 
+### Reachability, correctness, and the fourth dispatcher (2026-07-13 → 2026-08-11)
+
+The wave after the 2026-07-12 sweep. Its through-line: three of these five fix things
+that were *merged and deployed* yet not actually usable, or not actually enforced.
+
+| Issue | PR | Merged | What shipped |
+|-------|----|--------|--------------|
+| **#136** Feature Lab had no entry point | #138 | 2026-07-13 | The Lab was live in the production bundle for weeks and, in practice, unreachable. Gave it a shell entry point via a new **tools registry** (`src/app/tools.ts` + `ToolsBar`), and stopped filing it as an instrument dial. Source of the "a feature nobody can find is not shipped" rule in CLAUDE.md. |
+| **#126** Command write-path sweep | #140 | 2026-07-13 | Routed **every** discrete panel write through `registry.dispatch` via `src/app/dispatchDial.ts` (`dispatchDialSet` / `dispatchDialSetIn` / `dispatchDialPatch`), and locked it with `test/dials_write_path.test.ts` — a TypeScript-AST guard that follows helper indirection, so a violation cannot hide one call away. #87's "single write path" is now a fact, not an intent. |
+| **#128** Generative layer decision | #142 | 2026-07-15 | Status decision, no code change: the legacy AI-DJ is **retired** to `?engine=legacy` rather than ported. The compelling version (gesture-steered generation) is budgeted honestly as new work in **#141**. |
+| **#130 / #143** Recording export format | #145 | 2026-07-16 | **FLAC** via `libflacjs` (MIT) instead of the LGPL MP3 encoder #130 originally proposed — license-clean, and lossless suits a training-data recorder better than MP3 did. |
+| **#137** MIDI out was unreachable | #147 | 2026-08-10 | #13/PR #120 shipped `midi-out` with no UI, no dial, and its `enabled` input left unconnected in `graph.ts`. Now: a `midi` dial group, a live input port, a settings panel, an explicit **denied** phase (permission refused is a state, not silence), and *structural* guards so an unconnected enable input fails the suite. This PR is the template for #136's rule. |
+| **#144** Feature Lab correctness | #149 | 2026-08-10 | Circular features (angles) normalized as circular rather than linear, dead `depthZ` removed, handedness flicker fixed with hysteresis, and face-landmark replay coverage added — the Lab was measuring some things wrongly and nothing said so. |
+| **#131** Invariance labels + deconfounding | #151 | 2026-08-11 | Items 1+2 of #131: `invariantTo` labels on `FeatureDef` (an honest, per-feature statement of what will contaminate it) and `residual(x, z)` / `deconfound(x, [z…])` helpers in the formula compiler, so a user can write `residual(smile, yaw)` and get a pose-corrected smile with no new node. **Item 3 (the rolling correlation view) was split out as #150 and is still open.** |
+| **#129** Gestures as a command dispatcher | #152 | 2026-08-11 | The **fourth** dispatcher into the registry, after panels, keyboard and the AI assistant: discrete hand poses (fist / open / pinch) → `registry.dispatch`, edge-triggered, with held and cooled variants and user-bindable mappings (`src/app/gestureDispatch.ts`). |
+
 ### Stream Applier (M8, epic #101)
 
 | Milestone | Issue | PR | Status |
@@ -110,34 +126,57 @@ catalogued and role-tested, so this is fully reversible.
 
 ## Next (open issues, by track)
 
-### Command dispatch — the load-bearing one
+Every entry below is an issue that is **open right now**. Discussions are marked as
+such — a bracketed `#n` in this list always means an issue.
 
-- **[#126] Complete the command-dispatch write-path sweep** — *the one that matters.*
-  Today only two panel call sites dispatch (`face.mapping`, `master.syncHands`, via
-  `src/app/dispatchDial.ts`); every other discrete `<select>` still calls `setDial`
-  directly, so the "single write path" #87 promises is **not yet true**. Route them
-  all through `registry.dispatch`. **Decision B** stands: continuous `type="range"`
-  sliders deliberately stay a direct `setDial` for latency, and are not a gap.
-- **[#127] #87 Phase 4 (opt-in)** — undo via `acture-undo`, telemetry, command
-  export/replay. Deliberately opt-in, after #126.
-- **[#129] gesture-classifier as a command-dispatch consumer** — discrete hand poses
-  (fist/open/pinch) → `registry.dispatch`, so a gesture can change a scale or load an
-  instrument. The node already exists and emits edge events; this is the wiring.
+### Live verification — the one blocking several others
 
-### Capture
-
-- **[#130] Recording: MP3 export** via a lazy `lamejs` converter (+ optional
-  `ffmpeg.wasm` for any format).
+- **[#146] Live verification needed (webcam + human eyes)** — a standing list of things
+  that shipped, pass every headless test, and cannot be *confirmed* without a camera and
+  a person: head-pose axis signs (#76), the annotations export (#125), AI multi-tool
+  (#133), the Feature Lab (#136), FLAC export (#143). This is the honest bottleneck for
+  anything face/head-driven, because the suite is structurally unable to close it.
 
 ### Feature Lab
 
-- **[#131] Invariance labels + decorrelation helpers** — tell the performer which
-  features are actually independent, and which are just restating each other.
+- **[#150] Rolling correlation view** — item 3 of #131, split out when items 1+2 landed
+  in PR #151. A rolling correlation matrix over the currently-watched features, so
+  coupling between them is *visible* rather than inferred. It is what makes the
+  `invariantTo` labels and the `residual`/`deconfound` helpers actionable: it tells you
+  which confound to remove.
+- **[#148] Adopt the handedness dwell in `hand-features`** — PR #149 fixed handedness
+  flicker with hysteresis in the Lab's feature path, but not in the SOUND path. Either
+  adopt it there too, or decide the divergence is wanted and say why.
+
+### Face / head control
+
+- **[#76] Controllable face/head CONTROL dimensions** — PR #86 shipped the pose/control
+  plumbing (head/jaw/brow → chord instrument, the `controls` face mode). The issue's own
+  narrowed scope is what remains: **per-axis live-tuning UI**, **per-user calibration**
+  (the `*ZeroDeg` seam exists), and **demoting the emotion classifier to opt-in** once
+  `controls` proves out. The **axis-sign live check** is the #146 item.
+
+### Command dispatch
+
+- **[#127] #87 Phase 4 (opt-in)** — undo via `acture-undo`, telemetry, command
+  export/replay: one middleware seam on `registry.dispatch`, viewed three ways. Written
+  as blocked on #126; **that blocker is cleared** (#126 merged 2026-07-13), as is its
+  "not worth building while only two call sites dispatch" reasoning — there are now
+  fifteen dispatch call sites across the panels plus four independent dispatchers
+  (panels, keyboard, AI assistant, gestures). Still deliberately opt-in and unscheduled.
+
+### Generative
+
+- **[#141] Gesture-steered generative layer** — DAG-native, budgeted as new work rather
+  than as a port, per the #128 decision. The `indirect-map` node it would build on has
+  never run in a browser, so this is a first-run, not a migration.
 
 ### Engine / platform
 
-- **[#101] Stream Applier epic** (M8) — M-A and M-B shipped; M-C resolved-but-deferred
-  (above); M-D…M-G in [design/stream-applier.md](design/stream-applier.md).
+- **[#101] Stream Applier epic** (M8) — M-A and M-B shipped; M-C (#104) resolved but
+  deferred (above); M-D…M-G in [design/stream-applier.md](design/stream-applier.md).
+- **[#104] M-C** — async-iterator `Source` contract + `source` slot. Design resolved,
+  build deferred; see "Open decisions" above.
 - **[#14] React Flow patcher UI** driven by Zod node configs (M6's remaining half).
 - **[#51] Node-swap slots** — blocked on the mapping input/params contract; the
   developer-facing seam exists (`SLOTS` in `src/app/graph.ts`), but a slot only earns
@@ -150,16 +189,23 @@ catalogued and role-tested, so this is fully reversible.
   keymap is a partial) and #87 (a materialized instrument is a replayable command
   sequence). Library tags (#113) are orthogonal metadata; system tags (#114) are a
   read-only *view* of the same parametrization #82 formalizes.
-- **[#76] Head-pose follow-ups** — per-axis live-tuning UI, per-user calibration (the
-  `*ZeroDeg` seam exists), and demoting the emotion classifier to opt-in once
-  `controls` proves out. The **axis-sign live check** is still open.
-- **[#93] DAG diagnostics + connection assistant** — a "linter for the instrument
-  graph". Pure analyzers + a notes panel are buildable headless today; mid-drag
-  compatibility highlighting waits on the patcher (#14). Design in discussion #93.
-- **[#5]** The original DAG roadmap issue, kept as the umbrella.
+- **DAG diagnostics + connection assistant** — a "linter for the instrument graph".
+  Pure analyzers + a notes panel are buildable headless today; mid-drag compatibility
+  highlighting waits on the patcher (#14). This lives in **discussion #93**, not an
+  issue — earlier revisions of this file listed it as `[#93]` alongside issues, which
+  was wrong: there is no issue #93.
+- **[#5]** The original DAG roadmap issue, kept as the umbrella. Its M2 "CI gate" line
+  was unbacked until #153 (below).
 
-Closed in this sweep: **#6, #8, #9, #10, #11, #12, #45, #47, #49, #50, #116, #119**
-(shipped, or superseded by the work above).
+### Infrastructure
+
+- **[#153] No test CI** — `npm test` / `typecheck` / `build` were local-only gates on a
+  repo whose `main` auto-deploys to production; no test workflow had ever existed here.
+  A `pull_request` + `push: main` workflow closes it. Note the deploy is **not** made
+  conditional on the gate — that is a separate, deliberate decision.
+
+Closed since the 2026-07-12 sweep: **#87, #126, #128, #129, #130, #131, #136, #137,
+#143, #144** (see the shipped tables above).
 
 ---
 
@@ -172,7 +218,7 @@ these rather than inside them, so read the status column, not the milestone numb
 |-----------|------|--------|
 | **M0** | Baseline + node contract: DAG engine, recorder/replay, pure node library, music theory, headless tests. | done |
 | **M1** | First real video→sound vertical slice in the browser, on-device. | done |
-| **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | done |
+| **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | done — but the "CI gate" half was **claimed years before it existed**: no test workflow had ever been committed to this repo. Closed by #153. |
 | **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) was decided in **#128** — the legacy AI-DJ is retired to `?engine=legacy`; a DAG-native, gesture-steered generative layer is now the new-feature issue **#141**. |
 | **M4** | Broaden the feature surface + tonal depth. | done and then some — face blendshapes, face expression, head/jaw/brow pose control, gesture classifier, Tonal.js chords/voicings, and the ~200-feature catalog (#119). |
 | **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | nodes built + tested (`transport` / `score` / `performance`); **not wired into the default graph**. |
