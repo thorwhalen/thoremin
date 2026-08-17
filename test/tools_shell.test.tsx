@@ -92,6 +92,29 @@ describe('the Feature Lab is reachable and explains itself', () => {
     expect(screen.getByText(/Show the meters over the video/i)).toBeTruthy();
   });
 
+  it('the correlation matrix is REACHABLE from the Lab panel and writes the per-device pref (#150)', async () => {
+    // The #136 rule applied to #150: a diagnostic nobody can switch on is not shipped.
+    // The compute and the drawing are tested elsewhere; this is the only thing that says
+    // a human can get to it.
+    useTools.setState({ open: 'lab' });
+    render(<LabPanel />);
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Start measuring/i));
+    });
+    expect(useControls.getState().featureLab.showCorrelation).toBe(false); // opt-in
+
+    const toggle = screen.getByLabelText(/Correlation matrix/i);
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    // It writes the per-device tooling pref — NOT a dial, so turning a diagnostic on
+    // must never mark the instrument as having unsaved edits (#136).
+    expect(useControls.getState().featureLab.showCorrelation).toBe(true);
+    // Its two cost knobs are exposed, not hidden: the work is quadratic, and a player who
+    // turns it on deserves to see the dial that decides what it costs.
+    expect(screen.getByLabelText(/Max features/i)).toBeTruthy();
+  });
+
   it('the whole chain works: shell button -> open state -> panel renders', () => {
     render(
       <>
@@ -168,8 +191,12 @@ describe('every control surface has a home in the shell', () => {
     }
   });
 
-  it('the Feature Lab element is homed on the lab tool, not the instrument panel', () => {
-    expect(controlsForSurface('lab').map((d) => d.name)).toEqual(['featureLab']);
-    expect(controlsForSurface('instrument').map((d) => d.name)).not.toContain('featureLab');
+  it('the Feature Lab elements are homed on the lab tool, not the instrument panel', () => {
+    // Both Lab elements: the meters (#119/#136) and the correlation matrix (#150), which
+    // is its own element but the same tooling surface.
+    expect(controlsForSurface('lab').map((d) => d.name)).toEqual(['featureLab', 'featureCorrelation']);
+    for (const name of ['featureLab', 'featureCorrelation']) {
+      expect(controlsForSurface('instrument').map((d) => d.name)).not.toContain(name);
+    }
   });
 });

@@ -1,7 +1,8 @@
 /**
  * LabControls — the Feature Instrumentation Lab's controls (#119), rendered inside
  * {@link LabPanel}: the meters on/off, which feature GROUPS are measured + shown, the
- * online-normalizer mode + grid columns, a stats reset, the safe DERIVED-feature editor
+ * online-normalizer mode + grid columns, the rolling correlation matrix and its two cost
+ * guards (#150), a stats reset, the safe DERIVED-feature editor
  * (live-validated against the same jsep whitelist compiler the engine uses), and
  * SAVE/LOAD of named lab views (a zodal collection, the project persistence rule — its
  * own store, out of the control-store version).
@@ -80,6 +81,53 @@ export default function LabControls() {
           <button type="button" className={btnCls} onClick={() => patch({ resetNonce: (fl.resetNonce ?? 0) + 1 })} title="Re-zero the accumulated statistics">
             Reset stats
           </button>
+        </div>
+
+        {/* The rolling correlation matrix (#150) — the diagnostic that makes the
+            invariance labels and the residual/deconfound helpers actionable, by showing
+            WHICH features are actually coupled rather than which ones could be. Its two
+            cost knobs are exposed rather than hidden: the work is quadratic in the number
+            of watched features, and a player who turns it on deserves to see the dial
+            that decides what it costs. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={fl.showCorrelation}
+              onChange={(e) => patch({ showCorrelation: e.target.checked })}
+            />
+            Correlation matrix
+          </label>
+          <label
+            className={`flex items-center gap-2 text-xs ${fl.showCorrelation ? '' : 'opacity-40'}`}
+            title="How many of the watched features enter the matrix (the work is quadratic in this)"
+          >
+            Max features
+            <input
+              type="range"
+              min={2}
+              max={24}
+              step={1}
+              value={fl.correlationMaxFeatures}
+              onChange={(e) => patch({ correlationMaxFeatures: Number(e.target.value) })}
+            />
+            <span className="w-5 tabular-nums text-[10px] text-white/40">{fl.correlationMaxFeatures}</span>
+          </label>
+          <label
+            className={`flex items-center gap-2 text-xs ${fl.showCorrelation ? '' : 'opacity-40'}`}
+            title="Compute every Nth frame. The estimator's window is scaled to match, so this changes the cost, not the responsiveness."
+          >
+            Every
+            <input
+              type="range"
+              min={1}
+              max={30}
+              step={1}
+              value={fl.correlationEveryNFrames}
+              onChange={(e) => patch({ correlationEveryNFrames: Number(e.target.value) })}
+            />
+            <span className="w-8 tabular-nums text-[10px] text-white/40">{fl.correlationEveryNFrames}f</span>
+          </label>
         </div>
 
         <GroupPicker groups={fl.groups} onToggle={toggleGroup} />

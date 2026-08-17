@@ -42,6 +42,22 @@ export const FeatureLabSchema = z
      *  helper set. Evaluated over the merged face+hand vector; shown under the
      *  `derived` group. An invalid formula is skipped (the editor shows the error). */
     derived: z.array(z.object({ id: z.string(), formula: z.string() })).default([]),
+    /**
+     * The rolling correlation matrix (#150) over the watched features — the diagnostic
+     * that makes #131's invariance labels and `residual`/`deconfound` helpers actionable
+     * by showing WHICH confound is actually biting.
+     *
+     * Default OFF, per the issue: it is O(k^2) per computed frame, and a matrix is a
+     * thing you open when you are debugging a mapping, not a thing you play with.
+     */
+    showCorrelation: z.boolean().default(false),
+    /** Cap on how many watched features enter the matrix. Both a cost guard (the work is
+     *  quadratic) and a legibility one — a 200x200 grid on a webcam overlay says nothing. */
+    correlationMaxFeatures: z.number().int().min(2).max(24).default(12),
+    /** Compute the matrix every Nth frame; 1 = every frame. The estimator's window is
+     *  divided by this internally, so changing the stride changes the COST, not the
+     *  responsiveness. */
+    correlationEveryNFrames: z.number().int().min(1).max(30).default(4),
     /** Bump to re-zero the online statistics (a manual "recalibrate"). */
     resetNonce: z.number().default(0),
   })

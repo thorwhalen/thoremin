@@ -18,6 +18,7 @@
 import jsep from 'jsep';
 import ternary from '@jsep-plugin/ternary';
 import { clamp01 } from './math';
+import { makeEwPair } from './ewMoments';
 
 // Ternary (`a ? b : c`) is not in jsep core; register the plugin once. Also lock
 // the operator set down to arithmetic/comparison/logical (drop jsep's defaults we
@@ -94,31 +95,20 @@ const DEFAULT_REGRESSION_WINDOW = 180;
  * frame can't poison the running moments.
  */
 function makeEwRegression(): (x: number, z: number, window?: number) => number {
-  let mx = 0;
-  let mz = 0;
-  let cxz = 0;
-  let vz = 0;
-  let seeded = false;
+  // The moments themselves live in `@/features/ewMoments` (#150), because the rolling
+  // correlation view folds the SAME update over its feature pairs. Two copies of this
+  // recurrence would drift the first time either side changed its alpha, its seeding
+  // rule, or its guard — and the symptom would be two numbers in one panel quietly
+  // disagreeing about the same pair of features.
+  const pair = makeEwPair();
   return (x, z, window = DEFAULT_REGRESSION_WINDOW) => {
     // The window is an input too: a NaN alpha (e.g. `residual(x, z, w)` with w
     // absent this frame, or Infinity = a silent never-learn) would poison the
     // moments PERMANENTLY — reject it exactly like a bad x/z, state untouched.
-    if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(window)) return NaN;
-    if (!seeded) {
-      mx = x;
-      mz = z;
-      seeded = true;
-      return x; // beta is 0 with one sample
-    }
-    const a = 1 / Math.max(2, window);
-    const dx = x - mx; // deltas vs the PRE-update means (West-style EW moments)
-    const dz = z - mz;
-    mx += a * dx;
-    mz += a * dz;
-    cxz = (1 - a) * (cxz + a * dx * dz);
-    vz = (1 - a) * (vz + a * dz * dz);
-    const beta = vz > 1e-12 ? cxz / vz : 0;
-    return x - beta * (z - mz);
+    const status = pair.update(x, z, window);
+    if (status === 'rejected') return NaN;
+    if (status === 'seeded') return x; // beta is 0 with one sample
+    return x - pair.beta() * (z - pair.meanZ());
   };
 }
 
