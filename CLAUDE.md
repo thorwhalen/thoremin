@@ -17,8 +17,10 @@ no backend compute — the app is a static Vite bundle).
   RealTime). The original hand-theremin; the code-split (lazy) view.
   **It is FROZEN** (maintainer decision): it stays reachable so the AI-DJ / Lyria
   plugin is not lost, but it gets no new features, is excluded from refactors, and
-  new work never lands there. Whether the generative layer is ported into the DAG
-  app or the legacy view is formally retired is issue **#128**.
+  new work never lands there. **#128 decided this** (closed 2026-07-15): the legacy
+  AI-DJ is formally retired to `?engine=legacy` rather than ported. The compelling
+  version — hand/face features steering a generative model — is budgeted honestly as
+  new work in **#141**, not as a port.
 
 Outward-facing changes (deploying, moving the default) still get the user's OK.
 
@@ -75,7 +77,7 @@ via the provider. Never `await` a provider in the tick/audio loop.
   `src/dag`, `src/nodes`, `src/music`, `src/app/graph.ts`, tests, scripts). The
   React layer (`src/app/*.tsx`, `src/components`) is **not** strict-typechecked
   (the repo ships no `@types/react`); it is verified by `npm run build`.
-- `npm test` — vitest (75+ test files). **Test against the real fixtures**
+- `npm test` — vitest (87 test files, 910 tests). **Test against the real fixtures**
   (`test/fixtures/`, recorded hand/face videos, NDJSON intermediate streams). New
   behaviour gets a fixture-replay test, not just a unit test.
 - `npm run build` — vite build must stay green (verifies the React layer).
@@ -110,32 +112,61 @@ it is `src/music/sounds.ts`.
 - No emojis in code. Module docstrings/headers explain *why*.
 - Workflow: branch → PR → squash-merge → delete branch. Reference the issue.
 
-## Command dispatch is the *intended* single write path (#87)
+## Command dispatch is the single write path (#87) — and it is enforced
 
 The design (issue #87, `docs/design/command-dispatch.md`): **every param-mutation is
-an `acture` command**, and `src/app/commands/` is the one registry that the keyboard
-shortcuts, the Cmd/Ctrl-K palette, and the AI assistant all dispatch into. A command
-changes sound *only* by writing a dial; the per-tick/audio path is never a command.
+an `acture` command**, and `src/app/commands/` is the one registry that the settings
+panels, the keyboard shortcuts, the Cmd/Ctrl-K palette, the AI assistant and (since
+#129) discrete hand gestures all dispatch into. A command changes sound *only* by
+writing a dial; the per-tick/audio path is never a command.
 `test/commands_firewall.test.ts` enforces the boundary (commands may not import the
 hot store / DAG / nodes / audio; the DAG may not import the registry).
 
-**Honest status: this is NOT yet true on main.** Only two settings-panel call sites
-dispatch (`face.mapping`, `master.syncHands`, via `src/app/dispatchDial.ts`); the
-other discrete `<select>`s still call `setDial` directly. Completing the sweep is the
-open, load-bearing **issue #126**. Two deliberate exceptions that are *not* bugs:
-continuous `type="range"` sliders stay a direct `setDial` for latency (**Decision B**),
-and the non-dial `muted` flag (#91) is not a command yet.
+**Status: TRUE on main since #126 (PR #140, merged 2026-07-13).** The sweep landed.
+`rg 'setDial\(' src/ --glob '!*.test.*'` now hits **only** `src/app/commands/dials.ts`
+— the command implementations themselves. Every discrete panel control writes through
+one of the three dispatchers in `src/app/dispatchDial.ts`:
 
-When you add a write path: dispatch it. When you touch a panel, prefer moving it onto
-`dispatchDialSet` rather than adding another direct `setDial`.
+- `dispatchDialSet(key, value)` — one scalar dial (`faceChord.voicing`).
+- `dispatchDialSetIn(path, value)` — one scalar LEAF of a **structured** dial, by
+  dotted path (`overlay.landmarks.show`, `handMap.fingers.index.target`). Structured
+  dials get no per-dial command and a command's value must stay scalar (an object
+  param emits a JSON Schema Gemini rejects), so the path is what makes overlay /
+  hand-map / expression-map dispatchable at all. See `commands/paths.ts`.
+- `dispatchDialPatch(writes)` — several dials **atomically**, for the one-gesture /
+  several-writes controls (the chord-source flip that seeds root+type; a synced-hands
+  voice edit mirrored onto the other hand). All-or-nothing.
+
+**The invariant is guarded, not merely documented.** `test/dials_write_path.test.ts`
+is a real TypeScript-AST analysis over `src/app/dials/panels/` + `DialsControlsPanel.tsx`:
+it follows the local helper functions a handler calls, so a violation cannot hide one
+indirection away. Add a `<select>` or `<Toggle>` that writes `setDial` directly and the
+suite goes red. (thoremin ships no ESLint — it lints with `tsc --noEmit` — so, like the
+import firewall, this boundary is enforced as a test.)
+
+Two deliberate exceptions that are *not* bugs, and that the guard permits **by name**
+rather than by vagueness:
+
+- Continuous `type="range"` sliders being dragged stay a direct `setDial` for latency
+  (**Decision B**). A live drag fires a write per pointer-move frame; routing that
+  through Zod validation, the confirmation-gate wrapper and a promise buys nothing and
+  costs latency on the one interaction where latency is audible.
+- The non-dial `muted` flag (#91) is not a command yet. It is transient hot-store state,
+  not a persisted param.
+
+When you add a write path: dispatch it. When you add a discrete panel control, use
+`dispatchDialSet` / `dispatchDialSetIn` / `dispatchDialPatch` — the guard will tell you
+if you forget, but knowing why is cheaper than reading the failure.
 
 ## Shipping rule: a feature nobody can find is not shipped
 
-The Feature Lab (#119) was merged, deployed, and live in the production bundle for weeks
-while being, in practice, **unreachable**: no entry point in the app shell, defaulting to
-off, buried inside a per-instrument editor. MIDI out (#120) is worse — it has no UI, no
-dial, and its `enabled` input is left unconnected in `graph.ts` (#137). Both passed every
-test in the suite.
+Twice now. The Feature Lab (#119) was merged, deployed, and live in the production bundle
+for weeks while being, in practice, **unreachable**: no entry point in the app shell,
+defaulting to off, buried inside a per-instrument editor. MIDI out (#120) was worse — no
+UI, no dial, and its `enabled` input left unconnected in `graph.ts`. Both passed every
+test in the suite. Both are fixed now (#136 → PR #138; #137 → PR #147), and #147 is the
+template: dial + live input port + panel + a *structural* guard that fails if the port
+goes unconnected again. The lesson is what stays.
 
 So, when you add a user-facing capability:
 
@@ -161,7 +192,7 @@ So, when you add a user-facing capability:
 | Live control store (zustand+persist) — the hot per-tick mirror | `src/app/store.ts` |
 | Music theory + **sounds** (timbre presets) | `src/music/` (`theory.ts`, `sounds.ts`, `voicing.ts`, `expression.ts`) |
 | Overlay (compose elements here) | `src/nodes/output/canvas_overlay.ts` |
-| **Command registry** (#87) — the intended single write path | `src/app/commands/` (`registry.ts`, `dials.ts`, `perDial.ts`, `instruments.ts`, `confirmation.ts`) |
+| **Command registry** (#87) — the single write path, guarded by `test/dials_write_path.test.ts` | `src/app/commands/` (`registry.ts`, `dials.ts`, `perDial.ts`, `paths.ts`, `instruments.ts`, `confirmation.ts`) + the panel dispatchers in `src/app/dispatchDial.ts` |
 | **Dials** — settings schema store + named **instruments** (saved profiles) | `src/app/dials/` (`settingsStore.ts`, `instruments.ts`, panels) |
 | Dials schema / presets SSOT | `src/settings/` (`schema.ts`, `dials.ts`, `presets.ts`) |
 | **Feature catalog** (#119) — data-driven features, safe formula compiler, online normalizer | `src/features/` (`catalog.ts`, `formula.ts`, `normalizer.ts`) |
@@ -173,13 +204,16 @@ So, when you add a user-facing capability:
 | **taglog** — the extraction-ready annotation package (no thoremin imports) | `src/taglog/` (see its own `README.md`) |
 | **AI assistant** (#87 Phase 3) — chat that operates the instrument | `src/plugins/assistant/` |
 | Keyboard shortcuts (#90) — tinykeys → command dispatch | `src/app/keyboardShortcuts.ts` |
+| **Gesture dispatch** (#129) — discrete hand poses → command dispatch (edge-triggered, held, cooled) | `src/app/gestureDispatch.ts` |
 | Legacy app (**frozen**) | `src/App.tsx`, `src/components/`, `src/hooks/`, `src/plugins/ai-dj/` |
 | Fixtures + replay | `test/fixtures/`, `scripts/record_stream.ts`, `src/dag/recorder.ts` |
 | Conceptual model | `docs/design/component-model.md` |
 
 ## Roadmap & tracking
 
-`docs/ROADMAP.md` + GitHub issues. The live tracking issues are **#87** (command
-dispatch), **#101** (Stream Applier epic) and **#126** (the command write-path sweep).
+`docs/ROADMAP.md` + GitHub issues. **#87 and #126 are both closed** — the command
+write path is done and guarded. The live tracking issues are **#101** (Stream Applier
+epic), **#5** (the umbrella DAG roadmap) and **#146** (the standing live-verification
+list: everything that can only be confirmed with a webcam and human eyes).
 Discussions #3 (architecture) and #4 (mapping spectrum) are the design record.
 Per-subsystem SSOT design docs live in `docs/design/`.
