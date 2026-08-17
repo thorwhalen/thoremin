@@ -22,6 +22,16 @@
  * control eases rather than jumps. Head axes additionally take a per-session
  * neutral *zero* (degrees) — the seam a future "look at the camera" calibration
  * fills — and a full-scale *range* (the degrees of rotation that reach ±1).
+ *
+ * Those knobs are **reachable** (#76): {@link FaceControlsDialSchema} re-exports this
+ * node's params as the `faceControls` dial, and the `config` input port lets the dial
+ * override the build-time params LIVE, per tick. So the axis gains — including the
+ * negative ones that flip a direction — are tuned from the settings panel while the
+ * camera is running, rather than by editing this file and rebuilding. That matters
+ * beyond convenience: the yaw/pitch/roll SIGN conventions still cannot be asserted
+ * headlessly (no fixture can tell us which way a real camera calls "left"), so the
+ * remaining check is a human looking at a screen — and a live-tunable gain is what
+ * makes that check a ten-second flip instead of a build cycle.
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
@@ -60,6 +70,25 @@ const Params = z.object({
   smileGain: z.number().min(0).default(1),
 });
 type Params = z.infer<typeof Params>;
+
+/**
+ * The node's params, re-exported as the SSOT for the `faceControls` **dial** (#76).
+ *
+ * Lifted 1:1 rather than restated, for the reason `OverlayDialSchema` exists in
+ * `canvas_overlay.ts`: a dial that re-declares a node's params is a second shape that
+ * drifts silently the first time one side gains a field. Because the dial IS this
+ * schema, `commands/paths.ts` derives a `dial.setIn` leaf for every axis knob here with
+ * no hand-maintenance — add a param below and it becomes settable from the panel, the
+ * Cmd/Ctrl-K palette, the AI assistant and a keybinding at once.
+ *
+ * (Unlike `OverlayDialSchema` there is nothing to `.omit()`: every param here is a
+ * per-instrument musical parameter, not a per-device tooling pref.)
+ */
+export const FaceControlsDialSchema = Params;
+export type FaceControlsDialParams = Params;
+
+/** The shipped defaults, as a plain value — the dial/store/schema default. */
+export const DEFAULT_FACE_CONTROLS_DIAL: FaceControlsDialParams = FaceControlsDialSchema.parse({});
 
 const clampSigned = (v: number): number => (v < -1 ? -1 : v > 1 ? 1 : v);
 
@@ -108,24 +137,40 @@ export const faceControlsNode = defineNode<Params>({
   title: 'Face Controls',
   description:
     'Face frame → deliberate control axes (head yaw/pitch/roll, jaw-open, smile↔frown, brow-raise, lip-pucker), each with gain/deadzone/smoothing.',
-  inputs: [{ name: 'face', kind: 'face-frame' }],
+  inputs: [
+    { name: 'face', kind: 'face-frame' },
+    // LIVE override of the build-time params (#76), the same pattern the chord
+    // instruments use for `chordConfig`: the `faceControls` dial flows in here through
+    // `store-controls`, so re-tuning a gain or a deadzone takes effect on the next tick
+    // without rebuilding the graph or reloading the MediaPipe face model. This is what
+    // turns the still-open axis-sign check into "flip a number while looking at the
+    // camera" instead of "edit source, rebuild, re-grant camera permission".
+    { name: 'config', kind: 'face-controls-config' },
+  ],
   outputs: [{ name: 'controls', kind: 'face-controls' }],
   params: Params,
   make(p) {
     const prev = zeroAxes();
     const keys = Object.keys(prev) as (keyof AxisState)[];
 
-    /** EMA `prev` toward `target` (target 0 = decay toward rest). */
-    const ease = (target: AxisState) => {
-      for (const k of keys) prev[k] = prev[k] + (1 - p.smoothing) * (target[k] - prev[k]);
+    /** EMA `prev` toward `target` (target 0 = decay toward rest). `smoothing` is passed
+     *  per-tick rather than closed over, so the live `config` port can change it. */
+    const ease = (target: AxisState, smoothing: number) => {
+      for (const k of keys) prev[k] = prev[k] + (1 - smoothing) * (target[k] - prev[k]);
     };
 
     return {
       process(inputs) {
+        // The live config wins field-by-field over the build-time params, so a PARTIAL
+        // override (or none at all, in the headless fixtures) still resolves to a
+        // complete param set.
+        const live = inputs.config as Partial<Params> | undefined;
+        const q: Params = live ? { ...p, ...live } : p;
+
         const face = inputs.face as FaceFrame | undefined;
         if (!face || !face.present) {
           // Decay toward rest so a lost face relaxes the axes rather than freezing them.
-          ease(zeroAxes());
+          ease(zeroAxes(), q.smoothing);
           return { controls: { ...ABSENT_FACE_CONTROLS } };
         }
 
@@ -136,25 +181,25 @@ export const faceControlsNode = defineNode<Params>({
         // blendshape-only fixture has none, so they rest at 0 (present stays true).
         const pose = face.headPose;
         const target: AxisState = {
-          headYaw: pose ? headAxis(pose.yaw, p.yawZeroDeg, p.headRangeDeg, p.headDeadzoneDeg, p.yawGain) : 0,
-          headPitch: pose ? headAxis(pose.pitch, p.pitchZeroDeg, p.headRangeDeg, p.headDeadzoneDeg, p.pitchGain) : 0,
-          headRoll: pose ? headAxis(pose.roll, p.rollZeroDeg, p.headRangeDeg, p.headDeadzoneDeg, p.rollGain) : 0,
-          mouthOpen: unipolar(bs('jawOpen'), p.mouthDeadzone, p.mouthGain),
+          headYaw: pose ? headAxis(pose.yaw, q.yawZeroDeg, q.headRangeDeg, q.headDeadzoneDeg, q.yawGain) : 0,
+          headPitch: pose ? headAxis(pose.pitch, q.pitchZeroDeg, q.headRangeDeg, q.headDeadzoneDeg, q.pitchGain) : 0,
+          headRoll: pose ? headAxis(pose.roll, q.rollZeroDeg, q.headRangeDeg, q.headDeadzoneDeg, q.rollGain) : 0,
+          mouthOpen: unipolar(bs('jawOpen'), q.mouthDeadzone, q.mouthGain),
           smileFrown: clampSigned(
             bipolar(
               avg(bs('mouthSmileLeft'), bs('mouthSmileRight')) - avg(bs('mouthFrownLeft'), bs('mouthFrownRight')),
-              p.smileDeadzone,
-            ) * p.smileGain,
+              q.smileDeadzone,
+            ) * q.smileGain,
           ),
           browRaise: unipolar(
             avg(bs('browInnerUp'), bs('browOuterUpLeft'), bs('browOuterUpRight')),
-            p.browDeadzone,
-            p.browGain,
+            q.browDeadzone,
+            q.browGain,
           ),
-          lipPucker: unipolar(avg(bs('mouthPucker'), bs('mouthFunnel')), p.puckerDeadzone, p.puckerGain),
+          lipPucker: unipolar(avg(bs('mouthPucker'), bs('mouthFunnel')), q.puckerDeadzone, q.puckerGain),
         };
 
-        ease(target);
+        ease(target, q.smoothing);
         return { controls: { present: true, ...prev } as FaceControls };
       },
     };

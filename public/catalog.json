@@ -292,6 +292,10 @@
       {
         "name": "face",
         "kind": "face-frame"
+      },
+      {
+        "name": "config",
+        "kind": "face-controls-config"
       }
     ],
     "outputs": [
@@ -1274,6 +1278,10 @@
       {
         "name": "midiPort",
         "kind": "string"
+      },
+      {
+        "name": "faceControls",
+        "kind": "face-controls-config"
       }
     ],
     "params": []

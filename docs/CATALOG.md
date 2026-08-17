@@ -107,7 +107,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, faceControls:face-controls-config
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -149,7 +149,7 @@ Face blendshapes → normalized expression controls (smile, mouthOpen, brow, bli
 Face frame → deliberate control axes (head yaw/pitch/roll, jaw-open, smile↔frown, brow-raise, lip-pucker), each with gain/deadzone/smoothing.
 
 - **roles:** feature
-- **in:** face:face-frame
+- **in:** face:face-frame, config:face-controls-config
 - **out:** controls:face-controls
 - **params:** smoothing (number=0.3), headRangeDeg (number=30), headDeadzoneDeg (number=3), yawZeroDeg (number=0), pitchZeroDeg (number=0), rollZeroDeg (number=0), yawGain (number=1), pitchGain (number=1), rollGain (number=1), mouthDeadzone (number=0.08), browDeadzone (number=0.1), puckerDeadzone (number=0.12), smileDeadzone (number=0.06), mouthGain (number=1), browGain (number=1), puckerGain (number=1), smileGain (number=1)
 

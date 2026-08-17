@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
 import { defaultGesturePrefs } from '@/app/gesturePrefs';
 import { DEFAULT_FACE_CHORD, SettingsSchema } from '@/settings/schema';
+import { DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
@@ -278,6 +279,26 @@ describe('persist migration (v1 → v2, returning users)', () => {
     });
   });
 
+  it('mergeControls heals the face-control axes (#76): absent → shipped tuning, partial → completed, corrupt → default', () => {
+    const initial = useControls.getInitialState();
+    // A pre-#76-dials blob has no faceControls key at all → the shipped tuning, which is
+    // byte-identical to the build-time params the node ran on before the dial existed, so
+    // a returning player's `controls` mode feels exactly as it did.
+    expect(mergeControls({ masterVolume: 0.5 }, initial).faceControls).toEqual(DEFAULT_FACE_CONTROLS_DIAL);
+    // A PARTIAL blob keeps what the player tuned and completes the rest from the schema's
+    // own declared defaults — which is exactly why the heal can parse it raw rather than
+    // pre-spreading a default object over it (see the note in mergeControls).
+    const partial = mergeControls({ faceControls: { yawGain: -1 } as never }, initial).faceControls;
+    expect(partial.yawGain).toBe(-1);
+    expect(partial.pitchGain).toBe(DEFAULT_FACE_CONTROLS_DIAL.pitchGain);
+    expect(partial.headRangeDeg).toBe(DEFAULT_FACE_CONTROLS_DIAL.headRangeDeg);
+    // A corrupt value falls back whole — never a crash, never an undefined the panel
+    // would dereference into a NaN slider.
+    expect(
+      mergeControls({ faceControls: { yawGain: 'left', smoothing: 9 } as never }, initial).faceControls,
+    ).toEqual(DEFAULT_FACE_CONTROLS_DIAL);
+  });
+
   it('mergeControls heals the gesture prefs (#129): absent → defaults, partial → completed, corrupt → default', () => {
     const initial = useControls.getInitialState();
     // A pre-#129 blob has no gestures key at all → the defaults (disabled; fist +
@@ -407,6 +428,17 @@ describe('store-controls node reads the store', () => {
     out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
     expect(out.midiEnabled).toBe(true);
     expect(out.midiPort).toBe('IAC Driver Bus 1');
+  });
+
+  it('emits the face-control axis tuning as a live port (#76)', () => {
+    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
+    let out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    expect(out.faceControls).toEqual(DEFAULT_FACE_CONTROLS_DIAL);
+    // Flipping an axis sign flows straight through — no rebuild, next tick. This is the
+    // whole point of #76's dial lap: the axis-sign check becomes a knob, not a build.
+    useControls.setState({ faceControls: { ...DEFAULT_FACE_CONTROLS_DIAL, yawGain: -1 } });
+    out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
+    expect((out.faceControls as { yawGain: number }).yawGain).toBe(-1);
   });
 
   it('a wider octave range widens scaleRight through store-controls (#63 replay)', () => {

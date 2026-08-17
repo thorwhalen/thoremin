@@ -15,6 +15,7 @@ import { SOUND_IDS, type SoundId } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
+import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -191,6 +192,12 @@ export const SettingsSchema = z.object({
   handMap: HandMapSchema,
   // MIDI output (#137). `.default(...)` keeps pre-MIDI presets valid (off).
   midi: MidiSettingsSchema.default(DEFAULT_MIDI),
+  // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for
+  // the `face-controls` node. The schema is the node's own params, imported rather
+  // than restated (see FaceControlsDialSchema) so the two can never drift.
+  // `.default(...)` keeps presets saved before #76's dials valid — they get the shipped
+  // axis tuning, which is byte-identical to the build-time params they were played with.
+  faceControls: FaceControlsDialSchema.default(DEFAULT_FACE_CONTROLS_DIAL),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

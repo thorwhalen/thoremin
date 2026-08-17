@@ -12,6 +12,7 @@
  *   Structured dials get no per-dial command and a command's value must stay SCALAR (an
  *   object param emits a JSON Schema Gemini rejects), so a path is what makes the overlay
  *   / hand-map / expression-map dispatchable at all. See `commands/paths.ts`.
+ * - {@link dispatchDialReset} — one dial back to its default.
  * - {@link dispatchDialPatch} — several dials ATOMICALLY, for the controls whose single
  *   gesture is genuinely several writes: the chord-source flip that seeds root+type, and a
  *   synced-hands voice edit that mirrors onto the other hand. All-or-nothing, so a
@@ -51,6 +52,13 @@ export function dispatchDialSet(key: string, value: unknown): void {
  *  dial (`overlay.*`, `handMap.*`, `faceExpr.degrees.*`), addressed by its dotted path. */
 export function dispatchDialSetIn(path: string, value: unknown): void {
   toastOnFailure(registry.dispatch('dial.setIn', { path, value }));
+}
+
+/** Dispatch `dial.reset` to return one dial to its default (the lower default scope
+ *  re-wins). Discrete by nature — a "reset these axes" button is one click, not a drag —
+ *  so it goes through the registry like every other discrete panel write. */
+export function dispatchDialReset(key: string): void {
+  toastOnFailure(registry.dispatch('dial.reset', { key }));
 }
 
 /** Dispatch `dial.patch` for a discrete panel write that is ATOMICALLY several dials — a

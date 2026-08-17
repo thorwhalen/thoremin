@@ -186,6 +186,12 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // instrument plays a diatonic chord from head/face pose; it emits silent
       // voices unless the mode is 'controls', so the merge is unaffected otherwise.
       { from: { node: 'camFace', port: 'face' }, to: { node: 'faceCtrl', port: 'face' } },
+      // The axis tuning (#76) is a LIVE input, not a build-time param: the `faceControls`
+      // dial reaches the node here, so a gain / deadzone / neutral-zero edit takes effect
+      // on the next tick. Without this edge the dial would exist and do nothing — exactly
+      // the #137 failure mode (a shipped node with an unconnected enable input), which is
+      // why `app_graph.test.ts` asserts this edge structurally.
+      { from: { node: 'ui', port: 'faceControls' }, to: { node: 'faceCtrl', port: 'config' } },
       { from: { node: 'faceCtrl', port: 'controls' }, to: { node: 'poseChord', port: 'controls' } },
       // #75: pose chords also read the decoupled chord-source spec (unblocks pose mode
       // on a non-seven-note melody, exactly like the emotion chord).

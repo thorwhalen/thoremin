@@ -88,6 +88,22 @@ describe('production app graph', () => {
     expect(inbound).toContain('params');
   });
 
+  it('wires the face CONTROL axis tuning live from the store — the #76 regression guard', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The exact wiring: the `faceControls` dial flows from the store into the node's
+    // live `config` input, so a gain / deadzone / neutral-zero edit lands next tick.
+    expect(has('ui', 'faceControls', 'faceCtrl', 'config')).toBe(true);
+    // The same structural guard #137 earned, applied to #76's axes. A dial whose port is
+    // left unconnected is a dial that silently does nothing — the panel would look alive,
+    // every unit test would pass, and turning a knob would change no sound. That is
+    // precisely how MIDI out shipped (PR #120) and how the Feature Lab shipped (#119).
+    const inbound = edges.filter((e) => e.to.node === 'faceCtrl').map((e) => e.to.port);
+    expect(inbound).toContain('face');
+    expect(inbound).toContain('config');
+  });
+
   it('wires the Feature Lab vector taps additively off the existing sources (#119)', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
