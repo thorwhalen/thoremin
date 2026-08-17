@@ -1,0 +1,65 @@
+# The test gate.
+#
+# Until this file existed, `.github/workflows/` held exactly one workflow —
+# deploy.yml — and main AUTO-DEPLOYS to production. So an untested change went
+# live with nothing standing in the way: typecheck/test/build were local-only
+# conventions, enforced by whoever remembered to run them. docs/TESTING.md even
+# claimed "Tiers 1-3 are the CI gate: npm test", which was an aspiration, not a
+# fact.
+#
+# This workflow makes the claim true. It runs the same three commands the repo
+# already documents as its gate, in the same order a developer would:
+#
+#   npm run typecheck   strict DAG typecheck (tsconfig.dag.json)
+#   npm test            vitest, Node env, no camera/GPU/audio
+#   npm run build       vite build — this is what verifies the React layer,
+#                       which tsconfig.dag.json deliberately does not cover
+#
+# It runs on pull_request (so a change is gated BEFORE it can merge) and on
+# push to main (so the deploy that fires from the same push has a visible
+# verdict beside it). It deliberately does NOT gate deploy.yml: making the
+# deploy `needs:` this job would be a behaviour change to the deploy path, and
+# is a separate decision. Today the value is the signal — a red X on the PR.
+#
+# Fast by design: one Node version, npm cache on, no matrix. The suite is
+# ~900 tests in ~5s; the wall time here is dominated by `npm ci` and the vite
+# build, which is why the cache matters more than parallelism.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same ref makes the older run's verdict irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: typecheck / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install (lockfile-exact)
+        run: npm ci
+
+      - name: Typecheck (strict DAG)
+        run: npm run typecheck
+
+      - name: Test (vitest)
+        run: npm test
+
+      - name: Build (vite — verifies the React layer)
+        run: npm run build
