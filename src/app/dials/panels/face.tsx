@@ -12,7 +12,6 @@
  * signs match the intended felt direction. No fixture can answer that. With the axes on
  * a live-wired dial, the answer costs one click of "Flip" while looking at the camera.
  */
-import type { ReactNode } from 'react';
 import type { FaceMapping } from '@/nodes';
 import { type FaceControlsDialParams } from '@/nodes/features/face_controls';
 import { dispatchDialSet, dispatchDialSetIn, dispatchDialReset } from '../../dispatchDial';
@@ -21,7 +20,7 @@ import { POSE_MOVES } from '../../poseControlsHelp';
 import { useFaceStatus } from '../../faceStatus';
 import { useDialsSettings } from '../useDialsSettings';
 import { FACE_MODE_OPTIONS, FACE_MODE_HINT } from '../labels';
-import { CollapsibleSection, selectCls } from '../primitives';
+import { CollapsibleSection, ValueRow, selectCls } from '../primitives';
 import { ChordControls } from './chord';
 import { ExpressionMapping } from './expression';
 
@@ -138,26 +137,6 @@ function FaceAxisControls() {
    *  check is "does turning right raise the chord?" — and if not, one click fixes it. */
   const flip = (leaf: keyof FaceControlsDialParams) => setLeaf(leaf, -(fc[leaf] as number));
 
-  /**
-   * The chrome of a slider row — label, live value, and a slot for the input.
-   *
-   * Presentational ONLY, and the input is deliberately NOT inside it: the write-path
-   * guard sanctions a direct dials write by the source range of the literal
-   * `<input type="range">` element, so wrapping the input in a component would hide the
-   * exception from the AST — and, as that guard's own comment says, sanctioning a render
-   * helper's body would sanctify the whole panel. Keeping the input at the call site
-   * keeps Decision B auditable instead of laundered.
-   */
-  const Row = ({ label, value, children }: { label: string; value: number; children: ReactNode }) => (
-    <label className="flex items-center justify-between gap-2 text-xs" title={`${label}: ${value}`}>
-      <span className="text-white/70">{label}</span>
-      <span className="flex items-center gap-1.5">
-        <span className="w-9 text-right tabular-nums text-[10px] text-white/40">{value}</span>
-        {children}
-      </span>
-    </label>
-  );
-
   return (
     <CollapsibleSection label="Control axes" defaultOpen={false}>
       <p className="text-[10px] leading-relaxed text-white/40">
@@ -178,7 +157,7 @@ function FaceAxisControls() {
               Flip {(fc[a.gain] as number) < 0 ? '(reversed)' : ''}
             </button>
           </div>
-          <Row label="Gain" value={fc[a.gain] as number}>
+          <ValueRow label="Gain" value={fc[a.gain] as number}>
             <input
               type="range"
               min={-3}
@@ -190,8 +169,8 @@ function FaceAxisControls() {
                 patchLive({ [a.gain]: v } as Partial<FaceControlsDialParams>);
               }}
             />
-          </Row>
-          <Row label="Neutral (deg)" value={fc[a.zero] as number}>
+          </ValueRow>
+          <ValueRow label="Neutral (deg)" value={fc[a.zero] as number}>
             <input
               type="range"
               min={-45}
@@ -203,11 +182,11 @@ function FaceAxisControls() {
                 patchLive({ [a.zero]: v } as Partial<FaceControlsDialParams>);
               }}
             />
-          </Row>
+          </ValueRow>
         </div>
       ))}
 
-      <Row label="Head range (deg)" value={fc.headRangeDeg}>
+      <ValueRow label="Head range (deg)" value={fc.headRangeDeg}>
         <input
           type="range"
           min={5}
@@ -219,8 +198,8 @@ function FaceAxisControls() {
             patchLive({ headRangeDeg: v });
           }}
         />
-      </Row>
-      <Row label="Head deadzone (deg)" value={fc.headDeadzoneDeg}>
+      </ValueRow>
+      <ValueRow label="Head deadzone (deg)" value={fc.headDeadzoneDeg}>
         <input
           type="range"
           min={0}
@@ -232,12 +211,12 @@ function FaceAxisControls() {
             patchLive({ headDeadzoneDeg: v });
           }}
         />
-      </Row>
+      </ValueRow>
 
       {FACE_AXES.map((a) => (
         <div key={a.key} className="space-y-1 border-l border-white/10 pl-2">
           <div className="text-xs text-white/70">{a.label}</div>
-          <Row label="Gain" value={fc[a.gain] as number}>
+          <ValueRow label="Gain" value={fc[a.gain] as number}>
             <input
               type="range"
               min={0}
@@ -249,8 +228,8 @@ function FaceAxisControls() {
                 patchLive({ [a.gain]: v } as Partial<FaceControlsDialParams>);
               }}
             />
-          </Row>
-          <Row label="Deadzone" value={fc[a.dead] as number}>
+          </ValueRow>
+          <ValueRow label="Deadzone" value={fc[a.dead] as number}>
             <input
               type="range"
               min={0}
@@ -262,11 +241,11 @@ function FaceAxisControls() {
                 patchLive({ [a.dead]: v } as Partial<FaceControlsDialParams>);
               }}
             />
-          </Row>
+          </ValueRow>
         </div>
       ))}
 
-      <Row label="Smoothing" value={fc.smoothing}>
+      <ValueRow label="Smoothing" value={fc.smoothing}>
         <input
           type="range"
           min={0}
@@ -278,7 +257,7 @@ function FaceAxisControls() {
             patchLive({ smoothing: v });
           }}
         />
-      </Row>
+      </ValueRow>
 
       <button
         type="button"

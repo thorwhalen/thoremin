@@ -59,6 +59,43 @@ export function CollapsibleSection({
 }
 
 /**
+ * A labelled row with a live numeric readout and a SLOT for its control — the chrome
+ * around a settings slider.
+ *
+ * It lives here, at module scope, rather than inside the panel that uses it, and that is
+ * load-bearing rather than tidiness: a component declared inside another component's body
+ * is a NEW function identity on every render, so React's reconciler sees a different
+ * element type and unmounts the subtree instead of updating it. For an
+ * `<input type="range">` that is fatal — the DOM node under the pointer is replaced after
+ * the first pointer-move, ending the native drag, and keyboard focus drops to <body> after
+ * one arrow key. `test/face_axes_panel.test.tsx` pins the resulting node identity.
+ *
+ * The control is a `children` slot rather than a prop so the `<input type="range">` stays
+ * at the CALL SITE: `test/dials_write_path.test.ts` sanctions a direct dials write by the
+ * source range of the literal range element, and burying the input in a helper would hide
+ * Decision B from that AST guard instead of keeping it auditable.
+ */
+export function ValueRow({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value: number;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2 text-xs" title={`${label}: ${value}`}>
+      <span className="text-white/70">{label}</span>
+      <span className="flex items-center gap-1.5">
+        <span className="w-9 text-right tabular-nums text-[10px] text-white/40">{value}</span>
+        {children}
+      </span>
+    </label>
+  );
+}
+
+/**
  * A top-level collapsible group (Sound / Face / Overlay / …) — the accordion that
  * keeps the panel from overwhelming as settings grow. More prominent than the
  * inner {@link CollapsibleSection}; a ▸/▾ marker and a divider above.

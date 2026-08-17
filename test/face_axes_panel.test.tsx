@@ -85,3 +85,59 @@ describe('the Flip control writes through the command registry (#126 write path)
     expect(axes().headRangeDeg).toBe(DEFAULT_FACE_CONTROLS_DIAL.headRangeDeg);
   });
 });
+
+/**
+ * The sliders must SURVIVE their own writes.
+ *
+ * A component declared inside another component's body is a new function IDENTITY on
+ * every render, so React's reconciler sees a different element TYPE and unmounts the
+ * whole subtree instead of updating it. For a `<select>` that is merely wasteful; for an
+ * `<input type="range">` it is fatal, because the DOM node under the pointer is replaced
+ * mid-drag and the native drag gesture ends after a single step. Keyboard is hit just as
+ * hard: focus lands on a detached node, so the second arrow key goes nowhere.
+ *
+ * That failure would also nullify Decision B itself — the panel writes directly, skipping
+ * the command registry, *purely* to keep a drag responsive. A drag that cannot last more
+ * than one frame has paid the auditability cost and bought nothing.
+ *
+ * The existing tests above miss it because they only click the Flip buttons, which are
+ * rendered directly by `FaceAxisControls` rather than through the row helper. So this
+ * asserts the property the panel actually depends on: NODE IDENTITY across a write.
+ */
+describe('the axis sliders survive their own writes (no remount on every keystroke)', () => {
+  const ranges = (c: HTMLElement) =>
+    Array.from(c.querySelectorAll<HTMLInputElement>('input[type="range"]'));
+
+  it('keeps the same DOM node for a slider after it writes', () => {
+    setDial('face.mapping' as never, 'controls');
+    const { container } = render(<FaceControls />);
+
+    const before = ranges(container);
+    expect(before.length).toBeGreaterThanOrEqual(15); // 3 head axes x2 + 4 face axes x2 + 4
+    const yawGain = before[0];
+
+    fireEvent.change(yawGain, { target: { value: '0.5' } });
+    expect(axes().yawGain).toBe(0.5);
+
+    const after = ranges(container);
+    expect(after.length).toBe(before.length);
+    // The identity check IS the assertion: a remount replaces the node the pointer holds.
+    expect(after[0]).toBe(yawGain);
+    for (let i = 0; i < before.length; i += 1) expect(after[i]).toBe(before[i]);
+  });
+
+  it('keeps keyboard focus on the slider being adjusted', () => {
+    setDial('face.mapping' as never, 'controls');
+    const { container } = render(<FaceControls />);
+
+    const slider = ranges(container)[0];
+    slider.focus();
+    expect(document.activeElement).toBe(slider);
+
+    fireEvent.change(slider, { target: { value: '0.7' } });
+    // A remount detaches the focused node and focus falls back to <body>, so a second
+    // arrow press would do nothing at all.
+    expect(document.activeElement).toBe(ranges(container)[0]);
+    expect(document.activeElement).not.toBe(document.body);
+  });
+});
