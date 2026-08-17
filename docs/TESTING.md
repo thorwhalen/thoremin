@@ -29,7 +29,7 @@ Tiers 1–3 are the CI gate: `npm test` (vitest, Node env, no camera/GPU/audio).
 
 ```bash
 npm run typecheck   # strict DAG typecheck (tsconfig.dag.json)
-npm test            # vitest — 75+ test files
+npm test            # vitest — 87+ test files
 npm run build       # vite build (this is what verifies the React layer)
 npm run catalog     # regenerate docs/CATALOG.md + public/manual.html + public/catalog.json
 ```
@@ -37,6 +37,29 @@ npm run catalog     # regenerate docs/CATALOG.md + public/manual.html + public/c
 `npm run catalog` belongs in the gate because those three files are **generated from
 the node registry** and must never be hand-edited: add or rename a node, or change a
 port/param, and they go stale silently. Run it and commit the result.
+
+### What is enforced, and where
+
+Be precise about this, because for a long time this document was not: the sentence
+above ("Tiers 1–3 are the CI gate") was an *aspiration* committed as documentation.
+Until `.github/workflows/ci.yml` was added, `.github/workflows/` contained exactly one
+workflow — `deploy.yml` — and no test workflow had ever existed in this repo's history.
+The three commands were local conventions, enforced by whoever remembered to run them,
+while main auto-deployed to production.
+
+| Command | Enforced by CI? | Where |
+|---|---|---|
+| `npm run typecheck` | **yes** | `.github/workflows/ci.yml`, on every pull request and every push to main |
+| `npm test` | **yes** | same |
+| `npm run build` | **yes** | same |
+| `npm run catalog` | **no** — still yours to run | run it locally after adding/renaming a node or changing a port/param, and commit the result |
+| `npm run lint` | **no**, deliberately | `tsc --noEmit` over the *whole* tree, including the React layer the repo ships no `@types/react` for. It is red (19 errors as of 2026-08-17) and has been for a long time. Adding a known-red check would train everyone to ignore the X, which is worse than not having it. `npm run typecheck` (strict, `tsconfig.dag.json`) plus `npm run build` (which is what actually verifies the React layer) is the honest pair. |
+
+The CI job is *advisory to the deploy*, not a precondition for it: `deploy.yml` still
+fires on its own push trigger and does not `needs:` the gate. So a red X and a live
+deploy can coexist on the same commit. Wiring the deploy behind the gate is a change to
+the deploy path and a separate decision; what exists today is the signal — a visible
+verdict on the PR, before merge.
 
 ## The test families
 
