@@ -228,3 +228,52 @@ describe('correlation matrix lifecycle (#150)', () => {
     expect(meters.correlation!.ids.length).toBeLessThanOrEqual(2);
   });
 });
+
+/**
+ * The circular-period map reaches the correlation matrix (#150 / #144).
+ *
+ * The unwrapping itself is unit-tested in `lab_correlation.test.ts` against synthetic
+ * ids. This is the WIRING guard, and it is the one that matters: the matrix folds `raw`,
+ * the period map is built from the catalog HERE, and a unit test of the folder stays
+ * perfectly green if this module simply never passes it. So drive the two REAL catalog
+ * ids — `hand.right.palm.roll` is `circular`, its neighbour `hand.right.palm.pitch` is
+ * not — and make the assertion at the level a player experiences.
+ */
+describe('circular features reach the matrix unwrapped (#144 wiring)', () => {
+  const ROLL = 'hand.right.palm.roll';
+  const PITCH = 'hand.right.palm.pitch';
+  const ORIENTATION = 'hand.palm.orientation';
+  const wrapTo = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+  it('a wrapping palm roll does not invert its coupling with a linear neighbour', () => {
+    const compute = createLabMeterComputer();
+    const config = cfg({ groups: [ORIENTATION], showCorrelation: true });
+    let out;
+    const rs: number[] = [];
+    for (let t = 0; t < 400; t++) {
+      // A wrist rotating steadily, and a pitch that is an exact affine function of the
+      // true (unwrapped) roll — so the honest answer is r = +1 at every frame.
+      const trueRoll = t * 0.03;
+      out = compute(config, undefined, { [ROLL]: wrapTo(trueRoll), [PITCH]: 0.3 * trueRoll }, 1 / 30)!;
+      rs.push(out.correlation!.r[0]);
+    }
+    // Exactly two features present, so `r[0]` is that pair (catalog order: pitch, roll).
+    expect(out!.correlation!.ids).toEqual([PITCH, ROLL]);
+    for (let t = 60; t < rs.length; t++) expect(rs[t]).toBeGreaterThan(0.99);
+  });
+
+  it('leaves the DISPLAYED raw value inside its declared range', () => {
+    // Unwrapping belongs to the statistics, never to the meter: `raw` is what the readout
+    // shows and what the normalizer was already fed, so it must still be an angle in
+    // [-pi, pi] rather than the ever-growing accumulated phase.
+    const compute = createLabMeterComputer();
+    const config = cfg({ groups: [ORIENTATION], showCorrelation: true });
+    let out;
+    for (let t = 0; t < 400; t++) {
+      out = compute(config, undefined, { [ROLL]: wrapTo(t * 0.03), [PITCH]: 0.3 * t * 0.03 }, 1 / 30)!;
+    }
+    expect(Math.abs(out!.raw[ROLL])).toBeLessThanOrEqual(Math.PI);
+    expect(out!.levels[ROLL]).toBeGreaterThanOrEqual(0);
+    expect(out!.levels[ROLL]).toBeLessThanOrEqual(1);
+  });
+});

@@ -11,14 +11,64 @@
  *  2. **The cost guards are real.** The matrix is O(k^2) per computed frame over a
  *     catalog of ~200 features, so a cap that does not cap, or a stride that does not
  *     skip, is not a missing nicety — it is a dropped-frame bug in an instrument.
+ *  3. **Angles are unwrapped before they reach a linear estimator** (`src/features/
+ *     circular.ts`). The four `circular` catalog features cross ±pi at the same physical
+ *     pose, and folding that step raw makes the matrix report a strong coupling that
+ *     never happened — #144's artifact, arriving in a second consumer.
  *
  * Pure + headless: no canvas, no camera.
  */
 import { describe, it, expect } from 'vitest';
 import { makeEwPair } from '@/features/ewMoments';
+import { makeUnwrapper, unwrapStep, periodOf, TAU } from '@/features/circular';
 import { makeCorrelationMatrix, pairIndex, DEFAULT_CORRELATION_WINDOW } from '@/features/labCorrelation';
 import { compileFormula } from '@/features/formula';
 import type { FeatureVector } from '@/features/catalog';
+
+describe('phase unwrapping — the angular pre-step (src/features/circular.ts)', () => {
+  it('continues a wrapped angle instead of stepping by a period', () => {
+    // The measurement from #144: a "5.69 rad jump" that is really a -0.59 rad move.
+    expect(unwrapStep(3.10, -3.13, TAU)).toBeCloseTo(3.153, 3);
+    expect(unwrapStep(-3.10, 3.13, TAU)).toBeCloseTo(-3.153, 3);
+    // A move well inside half a period is left exactly alone.
+    expect(unwrapStep(0.4, 0.9, TAU)).toBe(0.9);
+  });
+
+  it('passes an unusable input through rather than manufacturing a number', () => {
+    expect(unwrapStep(NaN, 1.2, TAU)).toBe(1.2);
+    expect(unwrapStep(1, NaN, TAU)).toBeNaN();
+    expect(unwrapStep(1, 1.2, 0)).toBe(1.2);
+    expect(unwrapStep(1, 1.2, Infinity)).toBe(1.2);
+  });
+
+  it('accumulates over many turns, so a long rotation stays monotone', () => {
+    const un = makeUnwrapper();
+    const wrapTo = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+    let prev = -Infinity;
+    let last = 0;
+    for (let t = 0; t < 600; t++) {
+      last = un.next(wrapTo(t * 0.05), TAU);
+      expect(last).toBeGreaterThan(prev);
+      prev = last;
+    }
+    expect(last).toBeCloseTo(599 * 0.05, 6); // ~4.8 full turns, recovered exactly
+  });
+
+  it('does NOT advance on a missing sample, and reset() forgets the phase', () => {
+    const un = makeUnwrapper();
+    un.next(3.1, TAU);
+    expect(un.next(NaN, TAU)).toBeNaN();
+    expect(un.next(-3.1, TAU)).toBeCloseTo(3.183, 3); // still unwrapped against 3.1
+    un.reset();
+    expect(un.next(-3.1, TAU)).toBe(-3.1); // reseeded, not continued
+  });
+
+  it('defaults to a full turn, and reads a declared range', () => {
+    expect(makeUnwrapper().next(1.5)).toBe(1.5);
+    expect(periodOf([-Math.PI, Math.PI])).toBeCloseTo(TAU, 12);
+    expect(periodOf([0, 180])).toBe(180);
+  });
+});
 
 describe('makeEwPair — the shared moments', () => {
   it('reports the three outcomes distinctly', () => {
@@ -290,5 +340,158 @@ describe('makeCorrelationMatrix (#150)', () => {
     const out = fold.fold(['a', 'b', 'c'], { a: 1, b: 1, c: -1 }, cfg())!;
     expect(out.frames).toBe(0); // the seeding sample only
     expect(out.r.every((v) => v === 0)).toBe(true);
+  });
+});
+
+/**
+ * Circular features in a LINEAR estimator (#144 in a second consumer).
+ *
+ * Four catalog features are `circular` over `[-pi, pi]` — `hand.palm.yaw`,
+ * `hand.palm.roll`, `hand.tilt`, `hand.pair.tilt`. Their endpoints are the SAME physical
+ * pose, so a crossing is a coordinate artifact; #144 established this after measuring
+ * 5.69 rad single-frame "jumps" that were wraps, and removed the artifact from the
+ * normalizer. The matrix folds `raw`, not the normalized levels, so it inherited the
+ * artifact whole: a 2*pi step lands in the EW covariance AND in both variances, and the
+ * grid paints a strong coupling that never happened — the one failure mode a "which
+ * confound is actually biting" view must not have.
+ *
+ * Measured before the fix, on a slowly rotating angle against a signal it drives
+ * perfectly: r held +1.00, collapsed at the wrap frame, and sat near -0.9 for the next
+ * two hundred frames (the EW window is 180 at stride 1, ~6 s at 30fps).
+ */
+describe('circular features are phase-unwrapped before folding (#150 / #144)', () => {
+  const PERIOD: readonly [number, number] = [-Math.PI, Math.PI];
+  const wrapTo = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+  const cfgCirc = (circular?: Record<string, readonly [number, number]>) => ({
+    maxFeatures: 12,
+    everyNFrames: 1,
+    ...(circular ? { circular } : {}),
+  });
+
+  /**
+   * A steadily rotating angle (wrapped, as `atan2` delivers it) and a second signal that
+   * is an exact affine function of the UNWRAPPED angle — so the true correlation is +1 at
+   * every frame, and any departure from it is the representation, not the data.
+   *
+   * 400 frames at 0.03 rad/frame crosses ±pi twice.
+   */
+  const runRotation = (circular?: Record<string, readonly [number, number]>) => {
+    const fold = makeCorrelationMatrix();
+    const ids = ['angle', 'driven'];
+    const rs: number[] = [];
+    for (let t = 0; t < 400; t++) {
+      const trueAngle = t * 0.03;
+      const values: FeatureVector = { angle: wrapTo(trueAngle), driven: 0.5 * trueAngle + 1 };
+      rs.push(fold.fold(ids, values, cfgCirc(circular))!.r[0]);
+    }
+    return rs;
+  };
+
+  it('holds r = +1 through a ±pi wrap when the period is declared', () => {
+    const rs = runRotation({ angle: PERIOD });
+    // After warm-up the coupling is perfect and STAYS perfect across both wraps.
+    for (let t = 60; t < rs.length; t++) {
+      expect(rs[t]).toBeGreaterThan(0.99);
+    }
+    // …and it gets there smoothly: a wrap folded raw shows up as a cliff, so pin the
+    // absence of one rather than only the endpoint (which a slow recovery would pass).
+    let maxJump = 0;
+    for (let t = 61; t < rs.length; t++) maxJump = Math.max(maxJump, Math.abs(rs[t] - rs[t - 1]));
+    expect(maxJump).toBeLessThan(0.01);
+  });
+
+  it('WITHOUT the declaration the same data inverts — the artifact this removes', () => {
+    // Not a wish for the old behaviour: it is the evidence that the assertion above is
+    // about the unwrapping and not about the signal being trivially correlated. Fold the
+    // identical frames with no period declared and the matrix reports a strong
+    // ANTI-correlation between a signal and the very thing that drives it.
+    const rs = runRotation();
+    expect(Math.max(...rs.slice(60, 100))).toBeGreaterThan(0.99); // +1 right up to the wrap
+    expect(Math.min(...rs.slice(60))).toBeLessThan(-0.3); // then the sign inverts outright
+    // The wrap is at frame ~105 (0.03 rad/frame). Within a second of it the reading has
+    // crossed from "moves with" to "moves against", and it is still wrong 100 frames on.
+    expect(Math.min(...rs.slice(100, 135))).toBeLessThan(0);
+    expect(rs[240]).toBeLessThan(0);
+  });
+
+  it('unwraps per FEATURE, so one angle reads the same in every pair of its row', () => {
+    const fold = makeCorrelationMatrix();
+    const ids = ['angle', 'up', 'down'];
+    let out;
+    for (let t = 0; t < 400; t++) {
+      const trueAngle = t * 0.03;
+      out = fold.fold(
+        ids,
+        { angle: wrapTo(trueAngle), up: 0.5 * trueAngle, down: -0.5 * trueAngle },
+        cfgCirc({ angle: PERIOD }),
+      );
+    }
+    expect(out!.r[pairIndex(0, 1, 3)]).toBeCloseTo(1, 2);
+    expect(out!.r[pairIndex(0, 2, 3)]).toBeCloseTo(-1, 2);
+  });
+
+  it('does NOT unwrap a feature whose period was not declared', () => {
+    // Opt-in: `circular` is a declaration from the catalog, not a heuristic. A feature
+    // that merely happens to look angular must be folded verbatim, or the matrix would
+    // start correcting data nobody said was periodic.
+    const fold = makeCorrelationMatrix();
+    const ids = ['angle', 'lookalike'];
+    let out;
+    for (let t = 0; t < 300; t++) {
+      const trueAngle = t * 0.03;
+      out = fold.fold(
+        ids,
+        { angle: wrapTo(trueAngle), lookalike: wrapTo(trueAngle) },
+        cfgCirc({ angle: PERIOD }),
+      );
+    }
+    // One side unwrapped, one side not: they cannot still read as identical.
+    expect(out!.r[0]).toBeLessThan(0.9);
+  });
+
+  it('does not MUTATE the caller vector — `raw` is what the meters display', () => {
+    // `labMeters` hands the matrix the same `raw` object it returns for the meters and
+    // has already fed the normalizer. Writing unwrapped values back would put an
+    // ever-growing 40-radian number where the readout says the palm roll is.
+    const fold = makeCorrelationMatrix();
+    const values: FeatureVector = { angle: 3.1, other: 0.5 };
+    fold.fold(['angle', 'other'], values, cfgCirc({ angle: PERIOD }));
+    fold.fold(['angle', 'other'], values, cfgCirc({ angle: PERIOD }));
+    expect(values).toEqual({ angle: 3.1, other: 0.5 });
+  });
+
+  it('holds the phase across a frame where the feature is ABSENT', () => {
+    // A hand leaving the frame drops its features entirely. The estimator already
+    // refuses that frame; the unwrapper must refuse it too, or the phase would reseed
+    // and re-introduce the very step this removes.
+    const fold = makeCorrelationMatrix();
+    const ids = ['angle', 'driven'];
+    let out;
+    for (let t = 0; t < 400; t++) {
+      const trueAngle = t * 0.03;
+      const present = t < 150 || t > 160;
+      const values: FeatureVector = present
+        ? { angle: wrapTo(trueAngle), driven: 0.5 * trueAngle + 1 }
+        : ({ driven: 0.5 * trueAngle + 1 } as FeatureVector);
+      out = fold.fold(ids, values, cfgCirc({ angle: PERIOD }));
+    }
+    expect(out!.r[0]).toBeGreaterThan(0.99);
+  });
+
+  it('reset() re-zeroes the estimators of a matrix that has been unwrapping', () => {
+    const fold = makeCorrelationMatrix();
+    for (let t = 0; t < 200; t++) {
+      fold.fold(['angle', 'driven'], { angle: wrapTo(t * 0.03), driven: t * 0.015 }, cfgCirc({ angle: PERIOD }));
+    }
+    fold.reset();
+    const out = fold.fold(['angle', 'driven'], { angle: 0.2, driven: 0 }, cfgCirc({ angle: PERIOD }))!;
+    expect(out.frames).toBe(0);
+    expect(out.r[0]).toBe(0);
+    // NOTE what this does NOT pin. `reset()` also clears the accumulated PHASE, and a
+    // mutation test says that line is currently unobservable: a stale phase shifts the
+    // unwrapped sequence by a constant, and Pearson r is shift-invariant. The line is
+    // kept for the unbounded-growth reason stated at its call site, not for this test —
+    // recording that here rather than letting the name imply a guard that isn't one.
   });
 });

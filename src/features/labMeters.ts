@@ -73,9 +73,17 @@ export type LabMeterComputer = (
   dt: number,
 ) => FeatureMeters | undefined;
 
-/** The circular features' declared periods, from the catalog (#144): the normalizer
- *  maps these against their exact range instead of an adaptive envelope, so a ±pi
- *  wrap can never inflate a meter's range or re-scale it mid-performance. */
+/**
+ * The circular features' declared periods, from the catalog (#144) — the SSOT both
+ * consumers of an angle read, so they cannot disagree about its period.
+ *
+ * The normalizer maps these against their exact range instead of an adaptive envelope, so
+ * a ±pi wrap can never inflate a meter's range or re-scale it mid-performance. The
+ * correlation matrix (#150) phase-UNWRAPS them instead: it folds `raw`, and it is a
+ * linear estimator, so a wrap it can see lands in the covariance and both variances at
+ * once. Same artifact, opposite correction, because one produces a bounded display level
+ * and the other a joint statistic.
+ */
 const CIRCULAR_RANGES: Record<string, readonly [number, number]> = Object.fromEntries(
   ALL_FEATURES.filter((f) => f.circular && f.range).map((f) => [f.id, f.range!]),
 );
@@ -195,6 +203,10 @@ export function createLabMeterComputer(): LabMeterComputer {
       ? correlation.fold(order, raw, {
           maxFeatures: cfg.correlationMaxFeatures,
           everyNFrames: cfg.correlationEveryNFrames,
+          // The SAME period map the normalizer gets. The matrix folds `raw` (not the
+          // levels), so without this the four circular features enter a linear estimator
+          // with their +-pi wraps intact — #144's artifact, in a second consumer.
+          circular: CIRCULAR_RANGES,
         })
       : undefined;
 

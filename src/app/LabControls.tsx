@@ -16,7 +16,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FEATURE_GROUPS, ALL_SAFE_NAMES, groupInvarianceSummary } from '@/features/catalog';
-import { compileFormula, DEFAULT_HELPERS } from '@/features/formula';
+import { compileFormula, DEFAULT_HELPERS, STATEFUL_HELPERS } from '@/features/formula';
 import { useControls } from './store';
 import type { FeatureLabConfig } from '@/features/labConfig';
 import { createLabViewStore } from './lab/labViews';
@@ -90,7 +90,10 @@ export default function LabControls() {
             of watched features, and a player who turns it on deserves to see the dial
             that decides what it costs. */}
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-xs">
+          <label
+            className="flex items-center gap-2 text-xs"
+            title="Rolling Pearson r over the watched features. Angular features (palm yaw/roll, tilt) are phase-unwrapped first, so a turn past ±pi is not read as a sudden coupling."
+          >
             <input
               type="checkbox"
               checked={fl.showCorrelation}
@@ -187,7 +190,15 @@ function DerivedEditor({ derived, onChange }: { derived: { id: string; formula: 
   };
   const remove = (rid: string) => onChange(derived.filter((d) => d.id !== rid));
 
-  const helperList = useMemo(() => Object.keys(DEFAULT_HELPERS).join(', '), []);
+  // The STATEFUL helpers belong in this list too. `residual`/`deconfound` (#131) and
+  // `unwrap` (#150) are the only helpers that carry state across frames, and they were
+  // the only ones a player could not discover: the editor listed the pure set alone, so
+  // the confound correction the invariance labels point at was unreachable unless you
+  // had read the source. #136's rule applies to a formula helper as much as to a panel.
+  const helperList = useMemo(
+    () => [...Object.keys(DEFAULT_HELPERS), ...Object.keys(STATEFUL_HELPERS)].join(', '),
+    [],
+  );
 
   return (
     <details className="border-t border-white/10 pt-2">
@@ -196,6 +207,13 @@ function DerivedEditor({ derived, onChange }: { derived: { id: string; formula: 
         <p className="text-[10px] leading-relaxed text-white/40">
           Combine features with a safe formula. Reference a feature by its name with dots as underscores
           (e.g. <span className="font-mono text-white/60">face_geom_mouth_openness</span>). Helpers: <span className="font-mono">{helperList}</span>.
+        </p>
+        <p className="text-[10px] leading-relaxed text-white/40">
+          Angles (palm yaw/roll, tilt) jump by a full turn where ±&pi; meet, which is the same
+          pose — wrap them in <span className="font-mono text-white/60">unwrap(…)</span> before
+          feeding <span className="font-mono text-white/60">residual</span> /{' '}
+          <span className="font-mono text-white/60">deconfound</span>, or the correction takes
+          the wrap for real motion.
         </p>
         {derived.map((d) => (
           <div key={d.id} className="flex items-center gap-2 text-[11px]">
