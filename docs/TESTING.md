@@ -53,6 +53,7 @@ while main auto-deployed to production.
 | `npm test` | **yes** | same |
 | `npm run build` | **yes** | same |
 | `npm run catalog` | **no** — still yours to run | run it locally after adding/renaming a node or changing a port/param, and commit the result |
+| `npm run lint` | **no**, deliberately | `tsc --noEmit` over the *whole* tree, including the React layer the repo ships no `@types/react` for. It is red (19 errors as of 2026-08-17) and has been for a long time. Adding a known-red check would train everyone to ignore the X, which is worse than not having it. `npm run typecheck` (strict, `tsconfig.dag.json`) plus `npm run build` (which is what actually verifies the React layer) is the honest pair. |
 
 The CI job is *advisory to the deploy*, not a precondition for it: `deploy.yml` still
 fires on its own push trigger and does not `needs:` the gate. So a red X and a live
