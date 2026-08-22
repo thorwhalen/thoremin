@@ -193,6 +193,7 @@ So, when you add a user-facing capability:
 | Music theory + **sounds** (timbre presets) | `src/music/` (`theory.ts`, `sounds.ts`, `voicing.ts`, `expression.ts`) |
 | Overlay (compose elements here) | `src/nodes/output/canvas_overlay.ts` |
 | **Command registry** (#87) — the single write path, guarded by `test/dials_write_path.test.ts` | `src/app/commands/` (`registry.ts`, `dials.ts`, `perDial.ts`, `paths.ts`, `instruments.ts`, `confirmation.ts`) + the panel dispatchers in `src/app/dispatchDial.ts` |
+| **Dispatch middleware** (#127) — one seam on `registry.dispatch`; undo/redo, telemetry and export/replay are three readings of it. Order is stated as data in `registry.ts` (gate outermost) | `src/app/commands/` (`middleware.ts`, `history.ts`, `journal.ts`) + the ⌘Z/⌘⇧Z bindings in `src/app/keyboardShortcuts.ts` |
 | **Dials** — settings schema store + named **instruments** (saved profiles) | `src/app/dials/` (`settingsStore.ts`, `instruments.ts`, panels) |
 | Dials schema / presets SSOT | `src/settings/` (`schema.ts`, `dials.ts`, `presets.ts`) |
 | **Feature catalog** (#119) — data-driven features, safe formula compiler, online normalizer | `src/features/` (`catalog.ts`, `formula.ts`, `normalizer.ts`) |

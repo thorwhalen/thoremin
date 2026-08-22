@@ -156,14 +156,53 @@ such — a bracketed `#n` in this list always means an issue.
   (the `*ZeroDeg` seam exists), and **demoting the emotion classifier to opt-in** once
   `controls` proves out. The **axis-sign live check** is the #146 item.
 
+- **[#160] Trainer mode — learn the player's OWN categories from a live stream.**
+  Research: [`docs/research/trainer-mode.md`](research/trainer-mode.md) (26 refs).
+  Reframes the face-mapping problem: the difficulty hitting the shipped expression
+  categories is **identity bias** — a named, measured gap — and the field's answer is
+  personalization, whose usual blocker (subject-specific labels are unavailable) simply
+  does not apply to an instrument whose player is sitting at the camera. So: stop tuning
+  a population model, let each player carve their own space.
+
+  Four things the research settles, each load-bearing:
+
+  1. **Train on the FEATURE VECTOR, not the face.** `src/features/catalog.ts` already
+     emits a flat named scalar vector from face *and* hands through one contract, so
+     `Record<featureId, number>` makes this modality-general on day one. Building it
+     against `FaceFrame` is the one decision that would make it face-only forever.
+  2. **Build a hierarchy, cut it at k.** That is what makes "specify the count before
+     *or afterwards*" nearly free — one recording supports 3 then 5 then 4 categories
+     with no retraining. The player drags a slider; the vocabulary gets finer or coarser.
+  3. **Cluster the still points, not the frames.** A free-motion stream is mostly
+     transitions; clustering every frame finds the centre of the motion envelope rather
+     than the expressions. Velocity-gate to poses actually held.
+  4. **No-man's-land is a reject region, hysteretic, and NOT silent** — it should hold
+     the last category, not drop out. An instrument that goes quiet whenever the
+     classifier is unsure is unplayable.
+
+  The invariance half ("camera distance shouldn't matter") is **~70% already shipped**:
+  #131's `invariantTo` vocabulary already names `scale` as camera distance and ships
+  `residual()`/`deconfound()`. Nothing consumes it — level 1 is a selection policy, not
+  new mathematics. Level 2 (learn the nuisance from a demonstration clip) is the elegant
+  target; level 3 (adversarial invariance) is knowingly declined.
+
+  Four maintainer questions are open in the issue (discrete vs continuous; persistence;
+  command vs dial; acceptable recording length).
+
 ### Command dispatch
 
-- **[#127] #87 Phase 4 (opt-in)** — undo via `acture-undo`, telemetry, command
-  export/replay: one middleware seam on `registry.dispatch`, viewed three ways. Written
-  as blocked on #126; **that blocker is cleared** (#126 merged 2026-07-13), as is its
-  "not worth building while only two call sites dispatch" reasoning — there are now
-  fifteen dispatch call sites across the panels plus four independent dispatchers
-  (panels, keyboard, AI assistant, gestures). Still deliberately opt-in and unscheduled.
+- **[#127] #87 Phase 4 — DONE (PR #159).** One middleware seam on `registry.dispatch`
+  (`src/app/commands/middleware.ts`), read three ways: undo/redo, the telemetry journal,
+  and command export/replay. Order is stated as data, gate outermost, because a blocked
+  command did not run and must not be journaled or undoable. Undo is hand-written, not
+  `acture-undo`: that package observes `setStateWithPatches` on a `PatchCapableAdapter`,
+  and this registry deliberately holds no adapter while zodal's settings store emits no
+  patches. History snapshots the whole editable layer per dispatch rather than
+  registering per-command inverses, so a command added later gets undo for free and
+  `dial.patch` cannot be half-undone. Bound to ⌘/Ctrl-Z + both redo spellings — an undo
+  history reachable only from a module export is the #137 trap. Two properties to know:
+  slider drags bypass the registry (Decision B) so they appear in neither surface, and
+  the journal has **no egress and no persistence**.
 
 ### Generative
 

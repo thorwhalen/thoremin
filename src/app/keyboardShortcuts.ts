@@ -15,7 +15,7 @@
  */
 import { tinykeys } from 'tinykeys';
 import { isEditableTarget } from '@/nodes/sources/keyboard';
-import { registry } from './commands/registry';
+import { history, registry } from './commands/registry';
 import { useControls } from './store';
 
 const OCTAVE_MIN = -2;
@@ -44,6 +44,25 @@ export function toggleMute(): void {
   useControls.getState().toggleMuted();
 }
 
+/**
+ * Undo the last discrete param change (#127). A no-op when the history is empty, so the
+ * binding is safe to fire unconditionally.
+ *
+ * This binding is the reason undo counts as SHIPPED rather than merely present: an undo
+ * history reachable only from a module export is exactly the #137 trap this repo now has
+ * a rule about. Note the guard in `installKeyboardShortcuts` — `isEditableTarget` means
+ * Cmd-Z inside the palette's text input still does the browser's own text undo, which is
+ * what a player expects there.
+ */
+export function undoLastChange(): void {
+  history.undo();
+}
+
+/** Re-apply the most recently undone param change (#127). */
+export function redoLastChange(): void {
+  history.redo();
+}
+
 /** A keymap: a tinykeys key-binding string → a zero-arg action. */
 export type Keymap = Record<string, () => void>;
 
@@ -54,6 +73,12 @@ export const DEFAULT_KEYMAP: Keymap = {
   ArrowRight: () => adjustMagnetism(MAGNETISM_STEP),
   ArrowLeft: () => adjustMagnetism(-MAGNETISM_STEP),
   m: toggleMute,
+  // `$mod` is Cmd on macOS, Ctrl elsewhere. Both redo spellings are bound: Shift-Cmd-Z is
+  // the macOS convention, Ctrl-Y the Windows one, and a player should not have to know
+  // which platform the binding table was written on.
+  '$mod+z': undoLastChange,
+  '$mod+Shift+z': redoLastChange,
+  '$mod+y': redoLastChange,
 };
 
 /**
