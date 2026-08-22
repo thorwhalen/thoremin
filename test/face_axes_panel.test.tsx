@@ -79,7 +79,9 @@ describe('the Flip control writes through the command registry (#126 write path)
     fireEvent.click(flips[1]); // pitch
     await Promise.resolve();
     await Promise.resolve();
-    expect(axes().pitchGain).toBe(-1);
+    // pitch STARTS at -1 (the measured default — see face_head_pose_signs.test.ts), so
+    // one flip lands on +1. The point of the assertion is that exactly one axis moved.
+    expect(axes().pitchGain).toBe(1);
     expect(axes().yawGain).toBe(1);
     expect(axes().rollGain).toBe(1);
     expect(axes().headRangeDeg).toBe(DEFAULT_FACE_CONTROLS_DIAL.headRangeDeg);

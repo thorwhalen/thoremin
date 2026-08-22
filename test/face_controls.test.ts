@@ -80,7 +80,11 @@ describe('face-controls node (unit)', () => {
   it('clamps extreme head angles to ±1', async () => {
     const c = await run(frame({}, { yaw: 90, pitch: -90, roll: 0 }));
     expect(c.headYaw).toBe(1);
-    expect(c.headPitch).toBe(-1);
+    // pitch -90 maps to +1, not -1, because `pitchGain` defaults to **-1**: MediaPipe
+    // decodes chin-UP as a NEGATIVE pitch and the axis's intent is "chin up = up"
+    // (measured against test/fixtures/video_head_pose; see face_head_pose_signs.test.ts).
+    // This assertion is about CLAMPING; the magnitude is what it is testing.
+    expect(c.headPitch).toBe(1);
   });
 
   it('honors a negative per-axis gain to flip direction', async () => {
