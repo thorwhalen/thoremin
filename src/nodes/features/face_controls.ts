@@ -53,7 +53,22 @@ const Params = z.object({
   rollZeroDeg: z.number().default(0),
   /** Per-axis gain (negative flips direction), applied after the deadzone. */
   yawGain: z.number().default(1),
-  pitchGain: z.number().default(1),
+  /**
+   * NEGATIVE by default, and that is a measurement rather than a preference.
+   *
+   * MediaPipe's facial transformation matrix decodes chin-UP (looking at the ceiling)
+   * as a NEGATIVE pitch — confirmed at −36.7° against a real recording in
+   * `test/fixtures/video_head_pose/`, whose frames show exactly that pose. The axis's
+   * intent (#146 check 2) is "tilt the chin up, the chord goes UP an octave", so the
+   * raw sign has to be flipped. It shipped at +1 for a month, inverted, because the
+   * axes were tuned with no camera and this convention is one `src/nodes/domain.ts`
+   * deliberately declines to assert.
+   *
+   * Pitch is settled and the other two are not: horizontal mirroring cannot affect
+   * pitch, whereas yaw and roll flip with it, and whether a given recording is
+   * mirrored is an iOS setting that is not in the file. See the fixture README.
+   */
+  pitchGain: z.number().default(-1),
   rollGain: z.number().default(1),
 
   // --- Blendshape → unipolar [0,1] / bipolar [-1,1] axes ---

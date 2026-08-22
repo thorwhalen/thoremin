@@ -33,7 +33,12 @@ stream, not just the face.
    on every catalog feature, plus `residual()`/`deconfound()` helpers in the Lab formula
    compiler. What is missing is a *consumer* that selects or down-weights features by
    that declaration — not new mathematics.
-6. **The single highest-value recommendation:** build the trainer over the **feature
+6. **A guided enrollment ritual is the right delivery vehicle** (§10, added 2026-08-23).
+   The transferable half of Face ID is not the algorithm — it is the **ring as a coverage
+   meter** (which is active learning with a physical interface) and the **bounded ritual
+   with an end**. Face ID's *goal* does not transfer: it enrolls pose so it can factor
+   pose out, whereas here pose is often the signal.
+7. **The single highest-value recommendation:** build the trainer over the **feature
    vector**, not over the face. `src/features/catalog.ts` already emits a flat, named,
    normalized scalar vector from face *and* hands through one interface. Train on that
    and "generalizable to any input" is not a future refactor — it is the starting state.
@@ -408,6 +413,117 @@ not shipped. It needs an entry in `src/app/tools.ts` and a reachability test.
 
 ---
 
+## 10. Guided enrollment — the Face ID model, and what actually transfers
+
+Added 2026-08-23 at the maintainer's request: *"maybe it's a good thing to have when a
+new face comes along so the face can register, do a few guided movements and expressions
+to learn the face and be more efficient at using it — like what Apple does."*
+
+This is the right instinct, and it sharpens §3 rather than replacing it. But the
+mechanism that makes Face ID work is not the one people usually take from it, so it is
+worth separating what transfers from what does not.
+
+### 10.1 What Face ID actually does
+
+Enrollment asks you to move your head **in a circle until a ring completes — twice**
+[27][28]. The two circles are not redundancy: they gather the face **from slightly
+different angles** so the system generalises, with the second pass reinforcing the depth
+map under a different set of poses [28]. The TrueDepth camera records a dense depth map
+and an infrared image at each angle [28], and the process is explicitly *"less like
+taking a photo and more like teaching the device what makes your face unique from many
+viewpoints"* [28].
+
+Two features of that design are worth naming because they are the transferable part:
+
+- **The ring is a coverage meter.** It is not decoration and not a progress bar. It shows
+  which parts of the pose space have been sampled and which have not, and it *will not
+  complete* until the gaps are filled. The user is being steered to produce the data the
+  model lacks — which is active learning [33][34] with a physical interface instead of a
+  query strategy.
+- **Enrollment is a bounded ritual with an end.** It finishes, it says so, and it is not
+  repeated. That is what makes a one-minute cost acceptable.
+
+### 10.2 What does NOT transfer
+
+**Face ID is solving a different problem: identity, not control.** It builds one template
+of *your face as an object* and asks "is this the same face?". A trainer asks "which of
+the things this person can deliberately do is this one?" — a within-person discrimination
+across expressions, not a between-person discrimination across identities. Pose variation
+is a **nuisance** for Face ID and it is enrolled precisely so it can be *factored out*.
+For a musical instrument, pose is often the *signal*.
+
+So do not copy the goal. Copy the **ritual and the coverage meter**.
+
+### 10.3 What the biometrics-enrollment literature adds
+
+The operational practice around enrollment is well-developed and maps over almost
+directly [29][30][31]:
+
+- **Multiple captures are standard — typically 3 to 5 per enrollment session** — to
+  enable quality selection and template fusion [29]. That is a useful anchor against
+  over-designing: the answer to "how many samples per category" is closer to *a handful,
+  well-chosen* than to Teachable Machine's 250–300.
+- **Live guidance during capture** — "move closer", "look straight", "hold steady" — and
+  well-designed capture interfaces measurably reduce failure-to-acquire by correcting
+  pose, lighting and framing *in the moment* [29].
+- **Real-time quality assessment with immediate re-capture**: samples below a quality
+  threshold are rejected and retaken *before the subject leaves* [29][30]. The instrument
+  analogue: reject a category the model cannot separate, and say so *during* enrollment,
+  not after the player has bound it to a chord and found it does not work.
+
+### 10.4 And what the assistive-tech literature adds — the part most relevant here
+
+Gesture interfaces for assistive use have had to solve per-user calibration for people
+whose range of motion varies enormously, and their conclusions are the closest match to
+an instrument [32]:
+
+- Calibration establishes **boundary values — the per-user maximum and minimum excursion**
+  — rather than assuming a population range. thoremin's `headRangeDeg` (a fixed 30°) and
+  the online normalizer's adaptive envelope are two different partial answers to this; an
+  enrollment pass would make it explicit and per-player.
+- **User strength and accuracy variability require calibration strategies**, and users may
+  be given either explicit visual demonstrations of a gesture *or* "user-interpretable
+  instructions that users can subjectively interpret, allowing users to actively
+  participate in calibration by determining how to perform the gesture" [32].
+
+That last distinction is the design fork, and for this instrument the second option is
+almost certainly right: **do not show the player a target face to imitate.** Imitating a
+prescribed expression is the failure mode the whole trainer exists to escape. Say *"give
+me a face you can make reliably — any face"* and let them choose.
+
+### 10.5 The synthesis — a proposed enrollment ritual
+
+Combining §3 (still-points), §4 (hierarchy), §5 (reject region), §6 (invariance) with the
+above. Roughly 60–90 seconds, four movements, and every one of them earns its place:
+
+| step | what the player is asked | what it buys |
+|---|---|---|
+| 1. **Rest** | "Look at the camera and relax for 5 s." | The neutral centroid **and** the no-man's-land seed (§5) — the reject threshold set by demonstration rather than by a magic number. |
+| 2. **Range** | "Slowly look left, right, up, down, tilt each way." | Per-player pose **boundary values** [32], replacing the fixed 30° `headRangeDeg`. Also the ground truth that would settle yaw/roll signs per-device. |
+| 3. **Nuisance** | "Hold any one face and move closer, then further away." | The **invariance demonstration** (§6 level 2) — and, as this repo's own recording proved, the brow channel swings 0.43→0.89 on this move alone. Without step 3 that confound is invisible. |
+| 4. **Vocabulary** | "Now make faces you can make reliably. Take your time. Hold each one for a moment." | The still-points to cluster (§3.2). No count required yet — §4's hierarchy means k is chosen afterwards, with a slider. |
+
+**A coverage meter, not a progress bar** (the transferable half of the ring): show which
+pose regions and which feature directions are still thin, and let the display be what
+tells the player they are done. And per §10.3, flag a category the model *cannot separate*
+during enrollment, while the player is still there to give another one.
+
+**Re-enrollment must be cheap and partial.** Face ID's ritual is once-and-done because
+identity is stable. A player's vocabulary is not — they will want to add one face next
+week without redoing the other six. Steps are independent by construction above, so
+"redo step 3 in this new lighting" is a coherent action. Design for that from the start;
+retrofitting partial re-enrollment onto a monolithic ritual is expensive.
+
+### 10.6 One thing to be careful about
+
+**Do not let enrollment become a gate.** Every minute of ritual before the first sound is
+a minute in which a new player can decide this is not for them. The instrument must be
+playable with zero enrollment (as it is today), and enrollment must be an *offer* that
+visibly pays for itself — ideally entered from the Feature Lab, where a player has already
+seen their own meters move and has a reason to want them calibrated.
+
+---
+
 ## REFERENCES
 
 1. [Progressive Multi-Source Domain Adaptation for Personalized Facial Expression Recognition](https://arxiv.org/pdf/2504.04252) — personalization depends on subject-specific labels usually unavailable in the wild.
@@ -436,3 +552,11 @@ not shipped. It needs an entry in `src/app/tools.ts` and a reachability test.
 24. [Rethinking the Augmentation Module in Contrastive Learning](https://arxiv.org/abs/2206.00227) — treating augmentations equally limits flexibility.
 25. [Unsupervised Adversarial Invariance](https://arxiv.org/pdf/1809.10083)
 26. [Unified Adversarial Invariance](https://arxiv.org/pdf/1905.03629)
+27. [Use Face ID on your iPhone or iPad Pro](https://support.apple.com/en-us/108411) — Apple Support; the two head-circle enrollment scans.
+28. [How Apple Face ID Works and Why It's a Biometrics Breakthrough](https://koder.ai/blog/how-apple-face-id-works-biometrics-breakthrough) — the two circles gather different angles; depth map per angle; "teaching the device from many viewpoints".
+29. [Biometric Enrollment Best Practices](https://h33.ai/blog/biometric-enrollment-best-practices/) — 3-5 captures per session; live capture guidance; reject-and-recapture before the subject leaves.
+30. [Biometric Quality: Review and Application to Face Recognition with FaceQnet](https://arxiv.org/pdf/2006.03298) — sample quality vs downstream verification outcomes.
+31. [Enrollment — biometric glossary](https://www.innovatrics.com/glossary/enrollment/)
+32. [A Review of Hand Gesture Recognition Systems Based on Noninvasive Wearable Sensors](https://advanced.onlinelibrary.wiley.com/doi/full/10.1002/aisy.202300207) — per-user calibration; range boundary values; prescribed-demonstration vs user-interpretable instructions.
+33. [Active Learning in Machine Learning Guide](https://encord.com/blog/active-learning-machine-learning-guide/) — uncertainty sampling: least-confidence, margin, entropy.
+34. [An Active Learning Approach with Uncertainty, Representativeness, and Diversity](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4144157/) — small-budget interactive labelling needs representativeness + diversity, not uncertainty alone.
