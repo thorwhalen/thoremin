@@ -151,7 +151,7 @@ Face frame → deliberate control axes (head yaw/pitch/roll, jaw-open, smile↔f
 - **roles:** feature
 - **in:** face:face-frame, config:face-controls-config
 - **out:** controls:face-controls
-- **params:** smoothing (number=0.3), headRangeDeg (number=30), headDeadzoneDeg (number=3), yawZeroDeg (number=0), pitchZeroDeg (number=0), rollZeroDeg (number=0), yawGain (number=1), pitchGain (number=1), rollGain (number=1), mouthDeadzone (number=0.08), browDeadzone (number=0.1), puckerDeadzone (number=0.12), smileDeadzone (number=0.06), mouthGain (number=1), browGain (number=1), puckerGain (number=1), smileGain (number=1)
+- **params:** smoothing (number=0.3), headRangeDeg (number=30), headDeadzoneDeg (number=3), yawZeroDeg (number=0), pitchZeroDeg (number=0), rollZeroDeg (number=0), yawGain (number=1), pitchGain (number=-1), rollGain (number=1), mouthDeadzone (number=0.08), browDeadzone (number=0.1), puckerDeadzone (number=0.12), smileDeadzone (number=0.06), mouthGain (number=1), browGain (number=1), puckerGain (number=1), smileGain (number=1)
 
 #### `face-expression` — Face Expression
 Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutral abstention, smoothing, enter/exit hysteresis, dwell).

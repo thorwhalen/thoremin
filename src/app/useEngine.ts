@@ -11,6 +11,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from './graph';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
+import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
 import { useToasts } from './toasts';
 import { SessionRecorder, activeStreamLabels } from './recording/session';
 import { SinkCancelled } from './recording/sink';
@@ -192,6 +193,15 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         resources.tagOverlay = tagOverlayResource;
 
         const engine = new Engine(defaultGraph(), createAppRegistry(), { resources });
+
+        // Trainer mode (#160) needs to see the same feature vector the Lab meters read.
+        // Attached once, for the engine's whole life: it is one object spread per tick
+        // into a module holder, and it is the only path by which the host can observe
+        // the feature vector at all. `test/app_graph.test.ts` asserts the edges it names
+        // still exist, so renaming a vector node fails the build rather than silently
+        // starving the trainer.
+        engine.addTap(new LiveVectorTap());
+
         await engine.init(); // loads the MediaPipe model
         if (disposed) {
           engine.dispose();
@@ -304,6 +314,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
       engineRef.current?.dispose();
       engineRef.current = null;
       useFaceStatus.getState().reset();
+      resetLiveVector();
       useMidiStatus.getState().reset();
       useGestureStatus.getState().reset();
       sessionRecRef.current?.dispose();

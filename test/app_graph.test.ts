@@ -6,6 +6,7 @@
  * here, so the app registry is Node-importable.
  */
 import { describe, it, expect } from 'vitest';
+import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
 import { Engine, StreamRecorder } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
@@ -117,6 +118,22 @@ describe('production app graph', () => {
     // The original face-mesh + hand-feature edges are untouched (additive).
     expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true);
     expect(has('cam', 'hands', 'feat', 'hands')).toBe(true);
+  });
+
+  it('the trainer tap names edges that ACTUALLY EXIST (#160)', () => {
+    // The trainer observes the live feature vector through a DAG tap keyed by
+    // `"<node>.<port>"` strings. A tap listening to a key nothing emits is silent, not
+    // broken — the panel would just capture nothing and the coverage meter would sit at
+    // zero, with every unit test still green. That is #137's failure shape, so the edge
+    // names are asserted structurally here rather than trusted.
+    const g = defaultGraph();
+    for (const key of FEATURE_VECTOR_EDGES) {
+      const [nodeId, port] = key.split('.');
+      const node = g.nodes.find((n) => n.id === nodeId);
+      expect(node, `tap edge "${key}" names a node that is not in the graph`).toBeTruthy();
+      const emits = g.edges.some((e) => e.from.node === nodeId && e.from.port === port);
+      expect(emits, `tap edge "${key}" names a port nothing emits`).toBe(true);
+    }
   });
 
   it('wires the gesture classifier additively off the hand features (#129)', () => {

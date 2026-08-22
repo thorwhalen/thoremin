@@ -27,6 +27,7 @@ import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import ToolsBar from './ToolsBar';
 import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
+import TrainerPanel from './TrainerPanel';
 import VersionBadge from './VersionBadge';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
@@ -129,6 +130,9 @@ export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }
 
       {/* The gesture-binding editor (#129) — renders when its tool is the open one. */}
       <GesturesPanel />
+
+      {/* Trainer mode (#160) — renders when its tool is the open one. */}
+      <TrainerPanel />
 
       {/* Bottom-right: the multi-stream recorder (#88) — a button that morphs into
           a settings sheet (out-of-instrument config) then a compact HUD. Available
