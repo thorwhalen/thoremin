@@ -58,6 +58,18 @@ describe('keyboard shortcuts (#90)', () => {
   });
 
   it('DEFAULT_KEYMAP binds the expected keys', () => {
-    expect(Object.keys(DEFAULT_KEYMAP).sort()).toEqual(['ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'm']);
+    // Exhaustive on purpose: a new binding must be a deliberate edit here, not a
+    // silent addition. `$mod` is Cmd on macOS / Ctrl elsewhere; the undo family
+    // (#127) carries both redo spellings so the binding works on either platform.
+    expect(Object.keys(DEFAULT_KEYMAP).sort()).toEqual([
+      '$mod+Shift+z',
+      '$mod+y',
+      '$mod+z',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'm',
+    ]);
   });
 });

@@ -12,7 +12,8 @@
  * self-approve. Human dispatches (palette / hotkeys — no assistant channel) pass
  * through ungated, so this is invisible to every non-AI surface.
  */
-import { err, type Registry, type Result } from 'acture';
+import { err, type Registry } from 'acture';
+import { installMiddleware, type Middleware } from './middleware';
 
 /** A rough risk class for a command; only `destructive` gates by default. */
 export type SideEffect = 'query' | 'additive' | 'destructive';
@@ -76,10 +77,6 @@ export interface AssistantDispatchContext {
   [k: string]: unknown;
 }
 
-/** The shape of `registry.dispatch` the gate wraps (a local alias, not an acture export).
- *  Trailing args (acture's `options`, e.g. an internal token) are forwarded untouched. */
-type Dispatch = (command: string, params?: unknown, context?: unknown, ...rest: unknown[]) => Promise<Result<unknown>>;
-
 /**
  * Build a dispatch middleware that gates destructive commands on the assistant surface.
  * A gated call without a valid one-use token returns a `confirmation_required` Result
@@ -89,7 +86,7 @@ type Dispatch = (command: string, params?: unknown, context?: unknown, ...rest: 
 export function confirmationGate(
   getRisk: (id: string) => RiskMeta,
   approvals: ApprovalStore,
-): (next: Dispatch) => Dispatch {
+): Middleware {
   return (next) => async (command, params, context, ...rest) => {
     const risk = getRisk(command);
     const needs = risk.requiresConfirmation ?? risk.sideEffect === 'destructive';
@@ -114,7 +111,6 @@ export function installConfirmationGate(
 ): { approvals: ApprovalStore } {
   const getRisk = options.getRisk ?? defaultGetRisk;
   const approvals = options.approvals ?? createApprovalStore();
-  const original = registry.dispatch.bind(registry) as Dispatch;
-  registry.dispatch = confirmationGate(getRisk, approvals)(original) as typeof registry.dispatch;
+  installMiddleware(registry, confirmationGate(getRisk, approvals));
   return { approvals };
 }

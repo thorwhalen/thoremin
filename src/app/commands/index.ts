@@ -4,7 +4,7 @@
  * command definitions. See `dials.ts` for the hard command/hot-path boundary and
  * `test/commands_firewall.test.ts` for the import firewall that enforces it.
  */
-export { registry, createThoreminRegistry, approvals } from './registry';
+export { registry, createThoreminRegistry, approvals, history, journal } from './registry';
 export { DIAL_COMMANDS, setDialCmd, setDialInCmd, resetDialCmd, patchDialsCmd, applyDialSet, applyDialSetIn } from './dials';
 export {
   DIAL_LEAVES,
@@ -28,3 +28,24 @@ export {
   type SideEffect,
   type AssistantDispatchContext,
 } from './confirmation';
+export {
+  installMiddleware,
+  composeMiddleware,
+  type Dispatch,
+  type Middleware,
+} from './middleware';
+export {
+  createJournal,
+  replayJournal,
+  type Journal,
+  type JournalEntry,
+  type JournalExport,
+  type ReplayReport,
+} from './journal';
+export {
+  createDialsHistory,
+  layersEqual,
+  type DialsHistory,
+  type HistoryEntry,
+  type LayerStoreLike,
+} from './history';
