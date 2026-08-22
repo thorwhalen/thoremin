@@ -17,9 +17,12 @@ import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import ToolsBar from '@/app/ToolsBar';
 import LabPanel from '@/app/LabPanel';
 import GesturesPanel from '@/app/GesturesPanel';
+import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
+import { ENROLLMENT_STEPS } from '@/enroll';
 import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
+import { useTrainer } from '@/app/enroll/store';
 import { defaultFeatureLab } from '@/features/labConfig';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
@@ -28,6 +31,7 @@ beforeEach(() => {
   useTools.setState({ open: null });
   useControls.getState().setFeatureLab(defaultFeatureLab());
   useControls.setState({ gestures: defaultGesturePrefs() });
+  useTrainer.getState().reset();
 });
 afterEach(cleanup);
 
@@ -197,6 +201,76 @@ describe('every control surface has a home in the shell', () => {
     expect(controlsForSurface('lab').map((d) => d.name)).toEqual(['featureLab', 'featureCorrelation']);
     for (const name of ['featureLab', 'featureCorrelation']) {
       expect(controlsForSurface('instrument').map((d) => d.name)).not.toContain(name);
+    }
+  });
+});
+
+describe('the Trainer is reachable and runs the ritual (#160)', () => {
+  it('is closed until its tool is open', () => {
+    const { container } = render(<TrainerPanel />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('the whole chain works: shell button -> open state -> a card per ritual step', () => {
+    render(
+      <>
+        <ToolsBar />
+        <TrainerPanel />
+      </>,
+    );
+    expect(screen.queryByText('Find my categories')).toBeNull();
+    fireEvent.click(screen.getByText('Trainer'));
+    expect(useTools.getState().open).toBe('trainer');
+    // One card per step, each showing its own prompt — the ritual is data, so this
+    // grows with ENROLLMENT_STEPS rather than being a hardcoded list here.
+    for (const step of ENROLLMENT_STEPS) {
+      expect(screen.getByText(step.title)).toBeTruthy();
+      expect(screen.getByText(step.prompt)).toBeTruthy();
+    }
+    expect(screen.getByText('Find my categories')).toBeTruthy();
+  });
+
+  it('starting a step marks it active and disables the OTHER steps\' buttons', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const starts = screen.getAllByText('Start');
+    expect(starts).toHaveLength(ENROLLMENT_STEPS.length);
+    fireEvent.click(starts[0]);
+    expect(useTrainer.getState().activeStep).toBe('rest');
+    // The running one offers Stop; every other step's button is disabled, because two
+    // steps capturing into one session at once would silently mix their samples.
+    expect(screen.getByText('Stop')).toBeTruthy();
+    for (const b of screen.getAllByText('Start')) {
+      expect((b as HTMLButtonElement).disabled).toBe(true);
+    }
+    fireEvent.click(screen.getByText('Stop'));
+    expect(useTrainer.getState().activeStep).toBeNull();
+  });
+
+  it('cannot be trained from an empty take (the build button is disabled)', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    expect((screen.getByText('Find my categories') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows a coverage METER per step, not a progress bar', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const bars = screen.getAllByRole('progressbar');
+    expect(bars).toHaveLength(ENROLLMENT_STEPS.length);
+    // Nothing captured yet, so every meter reads zero — a timer-based progress bar
+    // would not.
+    for (const b of bars) expect(b.getAttribute('aria-valuenow')).toBe('0');
+  });
+
+  it('never asks the player to imitate a specific face', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const text = document.body.textContent ?? '';
+    // The whole feature exists because prescribed categories are the ones the player
+    // cannot hit. A prompt naming an emotion to produce would reintroduce that.
+    for (const word of ['happy', 'sad', 'angry', 'surprised', 'disgusted', 'fearful']) {
+      expect(text.toLowerCase()).not.toContain(word);
     }
   });
 });

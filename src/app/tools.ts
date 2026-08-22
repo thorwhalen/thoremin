@@ -69,6 +69,13 @@ export const TOOLS: readonly Tool[] = [
     kind: 'panel',
   },
   {
+    id: 'trainer',
+    label: 'Trainer',
+    description:
+      'Teach the instrument the faces you can actually make — a one-minute guided take, then pick how many categories.',
+    kind: 'panel',
+  },
+  {
     id: 'manual',
     label: 'Manual',
     description: 'The generated capabilities manual: every node, dial, sound and overlay element.',

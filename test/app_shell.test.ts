@@ -22,6 +22,7 @@ const SURFACES: Record<string, string> = {
   lab: 'LabPanel',
   commands: 'CommandPaletteOverlay',
   gestures: 'GesturesPanel',
+  trainer: 'TrainerPanel',
 };
 
 describe('app shell', () => {
