@@ -655,6 +655,11 @@
       {
         "name": "face",
         "kind": "face-features"
+      },
+      {
+        "name": "steerConfig",
+        "kind": "steer-config",
+        "description": "Live override of strains/dials/smoothing/throttle; unset fields keep the param."
       }
     ],
     "outputs": [

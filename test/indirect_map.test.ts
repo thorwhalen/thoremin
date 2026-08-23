@@ -1,12 +1,15 @@
 /**
  * Tests the indirect-map node: gesture features → weighted prompts + config
  * dials. Verifies exact mapping (no smoothing), smoothing convergence,
- * absent-hand → zero weight, and replay from a disk fixture.
+ * absent-hand → zero weight, replay from a disk fixture, and — the #141
+ * prerequisite — that WHICH strains and dials the gestures drive is a live
+ * input rather than only a build-time param.
  */
 import { describe, it, expect } from 'vitest';
 import { replayNode } from '@/dag';
 import { loadStream } from './helpers/fixtures';
 import { indirectMapNode, ABSENT_HAND, ABSENT_FACE, type GenerativeSteer, type HandFeatures, type FaceFeatures } from '@/nodes';
+import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
 
 function feat(right: Partial<typeof ABSENT_HAND>): HandFeatures {
   return { left: { ...ABSENT_HAND }, right: { ...ABSENT_HAND, present: true, ...right } };
@@ -84,5 +87,152 @@ describe('indirect-map', () => {
     // Absent face → zero.
     const [absent] = await replayNode(indirectMapNode.make(faceParams), { face: [{ ...ABSENT_FACE }] });
     expect((absent.steer as GenerativeSteer).prompts[0].weight).toBe(0);
+  });
+});
+
+// ---- the live steer config (#141) ------------------------------------------
+
+/** Drive the node over N ticks with one steerConfig value held on the port. */
+async function withConfig(
+  params: unknown,
+  steerConfig: unknown,
+  frames: HandFeatures[],
+  log?: (msg: string) => void,
+): Promise<GenerativeSteer[]> {
+  const handlers = indirectMapNode.make(indirectMapNode.params.parse(params));
+  const outs = await replayNode(handlers, {
+    features: frames,
+    steerConfig: frames.map(() => steerConfig),
+  }, log ? { log } : undefined);
+  return outs.map((o) => o.steer as GenerativeSteer);
+}
+
+describe('indirect-map steerConfig (the #141 prerequisite)', () => {
+  it('an UNCONNECTED port changes nothing — params stay the build-time default', async () => {
+    // The repo's convention, and the reason this port is safe to add before
+    // anything drives it: a node with no edge into `steerConfig` behaves exactly
+    // as it did when strains/dials were params only.
+    const frames = [feat({ openness: 1 })];
+    const [connected] = await withConfig(PARAMS, undefined, frames);
+    const [plain] = (await replayNode(indirectMapNode.make(P), { features: frames })).map(
+      (o) => o.steer as GenerativeSteer,
+    );
+    expect(connected).toEqual(plain);
+  });
+
+  it('a live config REPLACES the strains without rebuilding the node', async () => {
+    // This is the whole point: a vibe editor that can only change the mapping by
+    // rebuilding the graph would reload the ML models to alter a string.
+    const outs = await withConfig(
+      PARAMS,
+      { strains: [{ text: 'glassy bells', hand: 'right', feature: 'openness', inMin: 0, inMax: 1, weightMin: 0, weightMax: 3 }] },
+      [feat({ openness: 1 })],
+    );
+    expect(outs[0].prompts).toHaveLength(1);
+    expect(outs[0].prompts[0]).toMatchObject({ text: 'glassy bells', weight: 3 });
+  });
+
+  it('an omitted field keeps the param (partial override)', async () => {
+    // Only `dials` is overridden; the two param strains must survive.
+    const outs = await withConfig(
+      PARAMS,
+      { dials: [{ name: 'density', hand: 'right', feature: 'x', inMin: 0, inMax: 1, outMin: 0, outMax: 10 }] },
+      [feat({ openness: 1, x: 0.5 })],
+    );
+    expect(outs[0].prompts.map((p) => p.text)).toEqual(['ambient pads', 'driving drums']);
+    expect(outs[0].config).toEqual({ density: 5 });
+  });
+
+  it('reverting the port to undefined restores the params', async () => {
+    const handlers = indirectMapNode.make(P);
+    const frames = [feat({ openness: 1 }), feat({ openness: 1 }), feat({ openness: 1 })];
+    const outs = (
+      await replayNode(handlers, {
+        features: frames,
+        steerConfig: [undefined, { strains: [{ text: 'only this', hand: 'right', feature: 'openness' }] }, undefined],
+      })
+    ).map((o) => (o.steer as GenerativeSteer).prompts.map((p) => p.text));
+    expect(outs[0]).toEqual(['ambient pads', 'driving drums']);
+    expect(outs[1]).toEqual(['only this']);
+    expect(outs[2]).toEqual(['ambient pads', 'driving drums']);
+  });
+
+  it('a MALFORMED config is ignored, logged once, and never stops the instrument', async () => {
+    // process() must not throw: one bad store write would otherwise take the
+    // whole graph down on every subsequent frame.
+    const logged: string[] = [];
+    const outs = await withConfig(PARAMS, { strains: 'not an array' }, [feat({ openness: 1 })], (m) =>
+      logged.push(m),
+    );
+    expect(outs[0].prompts.map((p) => p.text)).toEqual(['ambient pads', 'driving drums']);
+    expect(logged.filter((m) => m.includes('invalid steerConfig'))).toHaveLength(1);
+  });
+
+  it('editing one strain resets ITS smoothing, and leaves its neighbour easing', async () => {
+    // Smoothing state is keyed by position AND identity. Slot 0 becoming a
+    // different prompt must start from rest — inheriting the old prompt's
+    // eased-in weight would be a glitch, not continuity — while slot 1, which
+    // did not change, keeps climbing.
+    const params = { ...PARAMS, smoothing: 0.6 };
+    const a = { text: 'ambient pads', hand: 'right' as const, feature: 'openness' as const, inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 };
+    const b = { text: 'driving drums', hand: 'right' as const, feature: 'openness' as const, inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 };
+    const before = { strains: [a, b] };
+    const after = { strains: [{ ...a, text: 'renamed' }, b] };
+    const frames = Array.from({ length: 8 }, () => feat({ openness: 1 }));
+
+    const outs = (
+      await replayNode(indirectMapNode.make(indirectMapNode.params.parse(params)), {
+        features: frames,
+        steerConfig: frames.map((_, i) => (i < 4 ? before : after)),
+      })
+    ).map((o) => (o.steer as GenerativeSteer).prompts);
+
+    expect(outs[3][0].text).toBe('ambient pads');
+    const climbed = outs[3][0].weight;
+    expect(climbed).toBeGreaterThan(0);
+    // Slot 0 is a different prompt now: back to rest, then easing again.
+    expect(outs[4][0].text).toBe('renamed');
+    expect(outs[4][0].weight).toBeLessThan(climbed);
+    // Slot 1 was untouched and kept climbing straight through the edit.
+    expect(outs[4][1].weight).toBeGreaterThan(outs[3][1].weight);
+  });
+
+  it('a strain removed and re-added starts from rest — no resurrected weight', async () => {
+    // Each edit prunes the smoothing keys the new config no longer has. That is
+    // usually described as a memory concern, but it has a semantic consequence
+    // worth pinning: a prompt you deleted and brought back is a prompt you are
+    // introducing again, so it eases in from rest. Keeping the old entry would
+    // make it snap back to the momentum it had before you removed it — a jump in
+    // the mix with no gesture behind it.
+    const params = { ...PARAMS, smoothing: 0.6 };
+    const A = { text: 'A', hand: 'right' as const, feature: 'openness' as const, inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 };
+    const B = { text: 'B', hand: 'right' as const, feature: 'openness' as const, inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 };
+    const frames = Array.from({ length: 12 }, () => feat({ openness: 1 }));
+
+    const outs = (
+      await replayNode(indirectMapNode.make(indirectMapNode.params.parse(params)), {
+        features: frames,
+        // A for four ticks, then B for four (A's entry is pruned), then A again.
+        steerConfig: frames.map((_, i) => ({ strains: [i < 4 || i >= 8 ? A : B] })),
+      })
+    ).map((o) => (o.steer as GenerativeSteer).prompts[0]);
+
+    const aClimbed = outs[3].weight;
+    expect(outs[3].text).toBe('A');
+    expect(aClimbed).toBeGreaterThan(0);
+    // A comes back at tick 8: from rest, not from where it left off.
+    expect(outs[8].text).toBe('A');
+    expect(outs[8].weight).toBeLessThan(aClimbed);
+    expect(outs[8].weight).toBeCloseTo(outs[4].weight, 6); // exactly B's first step
+  });
+
+  it('the exported schema is the contract a store/dial/editor all speak', () => {
+    // Same schema validates the port value, the store slice and the persisted
+    // dial — so those three cannot drift into disagreeing about the shape.
+    expect(SteerConfigSchema.safeParse({}).success).toBe(true);
+    expect(SteerConfigSchema.safeParse({ smoothing: 0.5 }).success).toBe(true);
+    expect(SteerConfigSchema.safeParse({ smoothing: 2 }).success).toBe(false);
+    expect(SteerConfigSchema.safeParse({ strains: [{ text: 'x' }] }).success).toBe(true);
+    expect(SteerConfigSchema.safeParse({ strains: [{}] }).success).toBe(false); // text is required
   });
 });
