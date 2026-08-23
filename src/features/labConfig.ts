@@ -15,6 +15,7 @@
  *  - the app's hot control store, which owns the value and persists it per-device.
  */
 import { z } from 'zod';
+import type { DemandedGroups } from './demand';
 import { DEFAULT_LAB_GROUPS, DERIVED_GROUP, FEATURE_GROUPS } from './catalog';
 
 /**
@@ -91,6 +92,18 @@ export function labWantsFace(cfg: FeatureLabConfig | undefined): boolean {
   return cfg.groups.some((g) => FACE_GROUP_IDS.includes(g));
 }
 
+/**
+ * Does a live feature DEMAND (#163) need the face model loaded? The trainer claims
+ * face groups while a cue runs; without this the vector node would be computing from a
+ * face frame that is never produced, because the model gate only knew about the Lab
+ * and the sound mapping.
+ */
+export function demandWantsFace(demanded: DemandedGroups): boolean {
+  if (!demanded) return false;
+  for (const g of demanded) if (FACE_GROUP_IDS.includes(g)) return true;
+  return false;
+}
+
 // ---- The compute gate the feature-vector nodes share ------------------------------
 
 /** The slice of the lab config the feature-vector nodes need off a control snapshot. */
@@ -127,15 +140,26 @@ export function readLiveLab(controls: LabControlsSnapshot | undefined): LiveLabC
  * One copy, in the module that owns the config.
  *
  * `undefined` live config (a headless test / a host that wires no controls) → active with
- * the params' groups. A live config → active only when the meters are shown.
+ * the params' groups. A live config → active only when the meters are shown — OR when
+ * some other consumer has a live feature DEMAND (#163, `@/features/demand`): the trainer
+ * claims the groups its running cue needs, and those compute whether or not the Lab is
+ * open. The Lab's own groups still compute only while it is shown, so a demand never
+ * turns the meters on and never widens what they measure.
  */
 export function resolveLabGate(
   params: { groups?: string[] },
   controls: LabControlsSnapshot | undefined,
+  demanded: DemandedGroups = null,
 ): { active: boolean; enabled: (group: string) => boolean } {
   const live = readLiveLab(controls);
-  const active = live ? live.show === true : true;
+  const labActive = live ? live.show === true : true;
   const groups = live?.groups ?? params.groups;
-  const set = groups ? new Set(groups) : null;
-  return { active, enabled: (group: string) => (set ? set.has(group) : true) };
+  const labSet = groups ? new Set(groups) : null;
+  const demand = demanded && demanded.size > 0 ? demanded : null;
+  const active = labActive || demand !== null;
+  return {
+    active,
+    enabled: (group: string) =>
+      (labActive && (labSet ? labSet.has(group) : true)) || (demand !== null && demand.has(group)),
+  };
 }

@@ -12,6 +12,7 @@ import { defaultGraph } from './graph';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
+import { featureDemandResource } from './featureDemand';
 import { useToasts } from './toasts';
 import { SessionRecorder, activeStreamLabels } from './recording/session';
 import { SinkCancelled } from './recording/sink';
@@ -191,6 +192,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         // Live tagging (#92): the burned-in corner HUD reads this each tick (null
         // unless a take is recording). Same synchronous-read pattern as `controls`.
         resources.tagOverlay = tagOverlayResource;
+        // Feature demand (#163): the vector nodes compute whatever a host consumer
+        // (the trainer, while a cue runs) has claimed, even with the Lab closed.
+        resources.featureDemand = featureDemandResource;
 
         const engine = new Engine(defaultGraph(), createAppRegistry(), { resources });
 

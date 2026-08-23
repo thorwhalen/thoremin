@@ -161,8 +161,15 @@ export function createLabMeterComputer(): LabMeterComputer {
       compiled = compileDerived(cfg.derived);
     }
     if (compiled.length && enabled.has(DERIVED_GROUP)) {
+      // Scope = the Lab's ENABLED groups only. The vector may carry more than that while
+      // a feature demand (#163) is live — the trainer computing `face.head` with it
+      // unchecked here — and a formula must not see a feature the meters do not show.
       const scope: Record<string, number> = {};
-      for (const k of Object.keys(raw)) scope[safeName(k)] = raw[k];
+      for (const feat of ALL_FEATURES) {
+        if (!enabled.has(feat.group)) continue;
+        const v = raw[feat.id];
+        if (v !== undefined) scope[safeName(feat.id)] = v;
+      }
       for (const d of compiled) {
         const val = d.fn.eval(scope);
         if (Number.isFinite(val)) raw[`derived.${d.id}`] = val;

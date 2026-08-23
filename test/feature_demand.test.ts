@@ -1,0 +1,253 @@
+/**
+ * Feature demand (#163) — a non-Lab consumer can have feature groups computed.
+ *
+ * The regression this guards: trainer v1 polled the feature vector with the Lab closed,
+ * and the vector nodes — gated on the Lab being SHOWN — handed it `{}` every tick. Every
+ * unit test stayed green because nothing asserted that a demanded group actually reaches
+ * the emitted vector. The node-level cases below do exactly that, with the production
+ * control shape (`featureLab.show === false`).
+ */
+import { describe, it, expect } from 'vitest';
+import type { NodeContext } from '@/dag';
+import { createFeatureDemand } from '@/features/demand';
+import { resolveLabGate } from '@/features/labConfig';
+import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
+import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
+import { appFeatureDemand, featureDemandResource } from '@/app/featureDemand';
+import { useTrainer } from '@/app/enroll/store';
+
+const ctx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });
+
+describe('the demand registry', () => {
+  it('ignores groups that have no features (the formula-only `derived` group)', () => {
+    // Claiming `derived` alone would open the gate for nothing: no catalog feature
+    // carries that group, and the vector nodes would run for an empty result.
+    const d = createFeatureDemand();
+    d.claim('a', ['derived']);
+    expect(d.groups()).toBeNull();
+    d.claim('a', ['derived', 'face.head']);
+    expect([...d.groups()!]).toEqual(['face.head']);
+  });
+
+  it('is empty (null) until someone claims, and unions claims across owners', () => {
+    const d = createFeatureDemand();
+    expect(d.groups()).toBeNull();
+    d.claim('a', ['face.head']);
+    d.claim('b', ['face.geom.mouth', 'face.head']);
+    expect([...d.groups()!].sort()).toEqual(['face.geom.mouth', 'face.head']);
+    expect(d.owners().sort()).toEqual(['a', 'b']);
+  });
+
+  it('re-claiming REPLACES an owner\'s claim rather than accumulating it', () => {
+    const d = createFeatureDemand();
+    d.claim('a', ['face.head']);
+    d.claim('a', ['face.au']);
+    expect([...d.groups()!]).toEqual(['face.au']);
+  });
+
+  it('releasing the last owner returns to null; an empty claim is a release', () => {
+    const d = createFeatureDemand();
+    d.claim('a', ['face.head']);
+    d.release('a');
+    expect(d.groups()).toBeNull();
+    d.claim('a', ['face.head']);
+    d.claim('a', []);
+    expect(d.groups()).toBeNull();
+    d.release('never-claimed'); // no throw
+    expect(d.groups()).toBeNull();
+  });
+});
+
+describe('resolveLabGate with a demand', () => {
+  const hidden = { featureLab: { show: false, groups: ['face.blendshape.jaw'] } };
+  const shown = { featureLab: { show: true, groups: ['face.blendshape.jaw'] } };
+
+  it('Lab hidden + no demand → inactive (the #136 default, unchanged)', () => {
+    expect(resolveLabGate({}, hidden).active).toBe(false);
+    expect(resolveLabGate({}, hidden, null).active).toBe(false);
+    expect(resolveLabGate({}, hidden, new Set()).active).toBe(false);
+  });
+
+  it('Lab hidden + demand → active for the DEMANDED groups only (the Lab\'s stay off)', () => {
+    const g = resolveLabGate({}, hidden, new Set(['face.head']));
+    expect(g.active).toBe(true);
+    expect(g.enabled('face.head')).toBe(true);
+    expect(g.enabled('face.blendshape.jaw')).toBe(false);
+    expect(g.enabled('face.au')).toBe(false);
+  });
+
+  it('Lab shown + demand → the union', () => {
+    const g = resolveLabGate({}, shown, new Set(['face.head']));
+    expect(g.active).toBe(true);
+    expect(g.enabled('face.head')).toBe(true);
+    expect(g.enabled('face.blendshape.jaw')).toBe(true);
+    expect(g.enabled('face.au')).toBe(false);
+  });
+
+  it('headless (no controls) + demand → params groups plus the demand', () => {
+    const g = resolveLabGate({ groups: ['face.au'] }, undefined, new Set(['face.head']));
+    expect(g.enabled('face.au')).toBe(true);
+    expect(g.enabled('face.head')).toBe(true);
+    expect(g.enabled('face.blendshape.jaw')).toBe(false);
+    // and with no params either, everything (unchanged headless behaviour)
+    expect(resolveLabGate({}, undefined, new Set(['face.head'])).enabled('face.au')).toBe(true);
+  });
+});
+
+describe('the vector nodes serve a demand with the Lab CLOSED (the v1 trainer bug)', () => {
+  const face: FaceFrame = {
+    present: true,
+    blendshapes: { jawOpen: 0.7, mouthSmileLeft: 0.3, mouthSmileRight: 0.5, browInnerUp: 0.2 },
+  };
+  const labHidden = () => ({ featureLab: { show: false, groups: ['face.blendshape.brow'] } });
+
+  it('face: without a demand the hidden Lab yields {} — with one, the demanded group arrives', () => {
+    const h = faceFeatureVectorNode.make(faceFeatureVectorNode.params.parse({}));
+    const none = h.process({ face }, ctx({ controls: labHidden })) as { vector: FeatureVector };
+    expect(Object.keys(none.vector)).toHaveLength(0);
+
+    const demanded = h.process(
+      { face },
+      ctx({ controls: labHidden, featureDemand: () => new Set(['face.blendshape.jaw']) }),
+    ) as { vector: FeatureVector };
+    expect(demanded.vector['face.blendshape.jaw.open']).toBeCloseTo(0.7);
+    // The Lab's own group (brow) is NOT computed: the meters are off, and a demand must
+    // not widen what they measure behind their back.
+    expect(Object.keys(demanded.vector).some((k) => k.startsWith('face.blendshape.brow'))).toBe(false);
+  });
+
+  it('hand: the same, through the shared gate', () => {
+    const hands: HandsFrame = {
+      width: 640,
+      height: 480,
+      hands: [
+        {
+          handedness: 'Right',
+          keypoints: makeHandKeypoints({ cx: 320, cy: 240, scale: 70, spread: 0.5, pinch: 0.2, handedness: 'Right' }),
+        },
+      ],
+    };
+    const h = handFeatureVectorNode.make(handFeatureVectorNode.params.parse({}));
+    const none = h.process({ hands }, ctx({ controls: labHidden })) as { vector: FeatureVector };
+    expect(Object.keys(none.vector)).toHaveLength(0);
+    const demanded = h.process(
+      { hands },
+      ctx({ controls: labHidden, featureDemand: () => new Set(['hand.finger.flexion']) }),
+    ) as { vector: FeatureVector };
+    const keys = Object.keys(demanded.vector);
+    // Per-GROUP gating, observed: a flexion feature is there, a spread feature is not.
+    // (The side label is the DISPLAY side after the selfie mirror, so match either.)
+    expect(keys.some((k) => /^hand\.(left|right)\..*\.(mcp|pip)Angle$/.test(k))).toBe(true);
+    expect(keys.some((k) => /^hand\.(left|right)\.spread\./.test(k))).toBe(false);
+    expect(keys.every((k) => k.startsWith('hand.'))).toBe(true);
+  });
+});
+
+describe('the trainer claims the catalog while a step runs, and lets go after', () => {
+  it('begin → claim; end → release; reset → release', () => {
+    appFeatureDemand.reset();
+    useTrainer.getState().reset();
+    expect(featureDemandResource()).toBeNull();
+    useTrainer.getState().begin('rest');
+    const during = featureDemandResource();
+    expect(during).not.toBeNull();
+    expect(during!.has('face.head')).toBe(true);
+    expect(during!.has('hand.finger.flexion')).toBe(true);
+    useTrainer.getState().end();
+    expect(featureDemandResource()).toBeNull();
+    useTrainer.getState().begin('vocabulary');
+    useTrainer.getState().reset();
+    expect(featureDemandResource()).toBeNull();
+  });
+});
+
+describe('the live-vector tap stamps samples in MILLISECONDS (the sampler\'s unit)', () => {
+  it('converts the DAG clock (seconds) at the boundary', async () => {
+    const { LiveVectorTap, readLiveVector, resetLiveVector } = await import('@/app/enroll/liveVector');
+    resetLiveVector();
+    const tap = new LiveVectorTap();
+    tap.onValue('faceVec.vector', { 'face.head.yaw': 3 }, ctx());
+    tap.onValue('faceVec.vector', { 'face.head.yaw': 4 }, { ...ctx(), time: 1.5 });
+    const live = readLiveVector();
+    expect(live?.vector['face.head.yaw']).toBe(4);
+    // 1.5 s of engine time is 1500 ms to the sampler. Passing seconds through would make
+    // a 220 ms dwell a 220 s one, and nothing would ever be sampled.
+    expect(live?.t).toBe(1500);
+    resetLiveVector();
+  });
+});
+
+describe('the face MODEL gate honours a demand (the second half of the v1 bug)', () => {
+  it('faceActive: mapping off + Lab hidden + no demand → off; a face-group demand → on', async () => {
+    const { faceActive } = await import('@/nodes/sources/webcam_face');
+    const { defaultFeatureLab } = await import('@/features/labConfig');
+    const controls = { faceMapping: 'none' as const, featureLab: defaultFeatureLab() };
+    expect(faceActive(controls)).toBe(false);
+    expect(faceActive(controls, null)).toBe(false);
+    // A hand-only demand must NOT load the face model.
+    expect(faceActive(controls, new Set(['hand.finger.flexion']))).toBe(false);
+    expect(faceActive(controls, new Set(['face.head']))).toBe(true);
+    // The demand is sufficient on its own, even with no controls snapshot at all.
+    expect(faceActive(undefined, new Set(['face.geom.mouth']))).toBe(true);
+  });
+
+  it('the webcam-face node reads the demand off ctx.resources and reports the model active', async () => {
+    const { webcamFaceNode } = await import('@/nodes/sources/webcam_face');
+    const { defaultFeatureLab } = await import('@/features/labConfig');
+    const h = webcamFaceNode.make(webcamFaceNode.params.parse({}));
+    const controls = () => ({ faceMapping: 'none' as const, featureLab: defaultFeatureLab() });
+    // No <video> resource, so the model is never loaded headlessly — but the STATUS says
+    // whether the node considers itself enabled, which is the gate under test.
+    const off = h.process({}, ctx({ controls })) as { status: { phase: string } };
+    const on = h.process({}, ctx({ controls, featureDemand: () => new Set(['face.head']) })) as { status: { phase: string } };
+    // 'idle' = the gate said no; anything else ('loading' here, with no landmarker yet)
+    // = the gate said yes and the node is on its way to a model.
+    expect(off.status.phase).toBe('idle');
+    expect(on.status.phase).toBe('loading');
+  });
+
+  it('the registry notifies subscribers on claim / release / reset (for the FaceChip)', () => {
+    const d = createFeatureDemand();
+    let n = 0;
+    const off = d.subscribe(() => {
+      n += 1;
+    });
+    d.claim('a', ['face.head']);
+    d.release('a');
+    d.release('a'); // nothing to release: no notification
+    d.reset();
+    expect(n).toBe(3);
+    off();
+    d.claim('b', ['face.au']);
+    expect(n).toBe(3);
+  });
+});
+
+describe('the production wiring (source guard — useEngine is outside the strict typecheck)', () => {
+  it('useEngine installs the demand resource under the key the nodes read', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
+    const engine = read('src/app/useEngine.ts');
+    // The install. Deleting this line leaves every unit test green (the nodes are always
+    // handed a hand-built getter in tests) — which is exactly how v1 shipped blind.
+    expect(engine).toMatch(/resources\.featureDemand\s*=\s*featureDemandResource/);
+    // And the three readers use the SAME resource key (uncorrelated string literals).
+    for (const file of [
+      'src/nodes/features/face_feature_vector.ts',
+      'src/nodes/features/hand_feature_vector.ts',
+      'src/nodes/sources/webcam_face.ts',
+    ]) {
+      expect(read(file), `${file} does not read ctx.resources.featureDemand`).toMatch(/ctx\.resources\.featureDemand/);
+    }
+  });
+});
+
+describe('the registry\'s `derived` literal matches the catalog\'s DERIVED_GROUP', () => {
+  it('(no import edge demand -> catalog, so the two are tied here)', async () => {
+    const { DERIVED_GROUP } = await import('@/features/catalog');
+    const d = createFeatureDemand();
+    d.claim('a', [DERIVED_GROUP]);
+    expect(d.groups()).toBeNull();
+  });
+});
