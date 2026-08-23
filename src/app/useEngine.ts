@@ -1,14 +1,23 @@
 /**
  * useThoreminEngine — the React ↔ DAG bridge. Owns the webcam, the AudioContext
- * (created lazily on a user gesture, as browsers require), builds the default
- * graph against the browser registry, runs `engine.init()` (loads the ML model)
- * and drives `engine.tick()` from a requestAnimationFrame loop. The engine and
- * its nodes do the real work; this hook just supplies host resources and timing.
+ * (created lazily on a user gesture, as browsers require), builds the graph
+ * against the browser registry, runs `engine.init()` (loads the ML model) and
+ * drives `engine.tick()` from a {@link Clock}. The engine and its nodes do the
+ * real work; this hook just supplies host resources and timing.
+ *
+ * Two seams the hook deliberately does NOT own:
+ *  - **Pacing** is a `Clock` (`src/dag/clock.ts`), driven via `runEngineLoop`.
+ *    The hook used to hand-roll its own rAF recursion, which left the shipped
+ *    `RealtimeClock` exercised only by unit tests while players ran other code.
+ *  - **Which graph** comes from a {@link SlotSelection}. A change to it re-wires
+ *    the LIVE engine via `Engine.applyGraph` — it does not rebuild the engine,
+ *    so the camera is not re-acquired and the ML models are not reloaded.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Engine } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from './graph';
+import { defaultGraph, slotSelectionKey, NO_SLOTS, type SlotSelection } from './graph';
+import { runEngineLoop } from './engineLoop';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
@@ -65,7 +74,21 @@ function loadRecordingSession(): RecordingSession {
  * active take (HUD), or the brief save/convert step after Stop. */
 export type RecordingPhase = 'idle' | 'settings' | 'recording' | 'saving';
 
-export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
+/**
+ * Report a failed re-wire — unless the engine was torn down while the swap was
+ * still preparing. `applyGraph` rejects that case by design (it releases what it
+ * built rather than committing onto a dead engine), and it is the ordinary
+ * unmount / StrictMode remount path, so logging it would cry wolf on every
+ * teardown that happens to overlap a swap. `live` is the hook's engine ref: it is
+ * nulled by the same cleanup that disposes, so a mismatch means "we were torn
+ * down", which is exactly the case to stay quiet about.
+ */
+function reportApplyFailure(engine: Engine, live: Engine | null, err: unknown): void {
+  if (live !== engine) return;
+  console.error('[thoremin] could not apply the slot selection', err);
+}
+
+export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: SlotSelection = NO_SLOTS) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
@@ -77,7 +100,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
   const sessionRecRef = useRef<SessionRecorder | null>(null);
   const recInstrumentRef = useRef<string>('thoremin');
   const recBusyRef = useRef(false);
-  const rafRef = useRef<number | null>(null);
+  // The registry the live engine was built against — `applyGraph` must resolve
+  // node types against the SAME one, or a swap would compare against a different
+  // set of definitions than the running graph was validated with.
+  const registryRef = useRef<ReturnType<typeof createAppRegistry> | null>(null);
 
   const [status, setStatus] = useState<EngineStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +114,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
 
   const masterVolume = useControls((s) => s.masterVolume);
   const muted = useControls((s) => s.muted);
+
+  // The slot selection is read through a ref inside the (source-keyed) build
+  // effect, so a selection that changes while the engine is still booting is
+  // still the one it gets built with; `slotsKey` drives the live re-wire below.
+  const slotsRef = useRef(slots);
+  slotsRef.current = slots;
+  const slotsKey = slotSelectionKey(slots);
 
   useEffect(() => {
     let disposed = false;
@@ -196,7 +229,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         // (the trainer, while a cue runs) has claimed, even with the Lab closed.
         resources.featureDemand = featureDemandResource;
 
-        const engine = new Engine(defaultGraph(), createAppRegistry(), { resources });
+        const registry = createAppRegistry();
+        registryRef.current = registry;
+        // `defaultGraph` validates the selection against the registry and falls
+        // back (with a warning) on anything that would not satisfy the slot
+        // contract, so a stale URL can never produce an unbuildable graph.
+        let builtKey = slotSelectionKey(slotsRef.current);
+        const engine = new Engine(defaultGraph(slotsRef.current, registry), registry, { resources });
 
         // Trainer mode (#160) needs to see the same feature vector the Lab meters read.
         // Attached once, for the engine's whole life: it is one object spread per tick
@@ -213,6 +252,15 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
         }
         engineRef.current = engine;
         setStatus('ready');
+
+        // The selection may have changed during the model load, while the
+        // re-wire effect below had no engine to talk to yet. Reconcile once.
+        if (slotSelectionKey(slotsRef.current) !== builtKey) {
+          builtKey = slotSelectionKey(slotsRef.current);
+          void engine
+            .applyGraph(defaultGraph(slotsRef.current, registry), registry)
+            .catch((err) => reportApplyFailure(engine, engineRef.current, err));
+        }
 
         // Bridge the face model's status + classified expression from the DAG
         // back to React for the indicator/readout (#65), throttled so the bars
@@ -282,25 +330,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
           lastPosesKey = key;
         };
 
-        const loop = () => {
-          // Guard the tick: one node throwing on a frame (e.g. a degenerate
-          // value) must never stop the loop — drop that frame and keep going,
-          // so audio + video recover instead of freezing permanently.
-          try {
-            const t = performance.now();
-            engine.tick(t / 1000);
-            reportFace(t);
-            reportMidi(t);
-            reportGesture(t);
-            // (#90) Mute is now a store flag toggled by the app-level keyboard
-            // handler (the `m` key → toggleMuted) and flows INTO the graph via
-            // store-controls, so there is no longer a graph→store mute mirror here.
-          } catch (err) {
-            console.error('[thoremin] engine tick error (frame dropped)', err);
-          }
-          rafRef.current = requestAnimationFrame(loop);
-        };
-        rafRef.current = requestAnimationFrame(loop);
+        // Pacing lives in the Clock, the frame-drop guard and the report fan-out
+        // in `runEngineLoop` (headlessly tested); the stop condition is the same
+        // `disposed` flag the rest of this effect's cleanup uses.
+        // (#90) Mute is a store flag toggled by the app-level keyboard handler
+        // (the `m` key → toggleMuted) and flows INTO the graph via store-controls,
+        // so there is no graph→store mute mirror in the loop.
+        void runEngineLoop(engine, [reportFace, reportMidi, reportGesture], () => disposed);
       } catch (e) {
         if (disposed) return;
         console.error('[thoremin] engine setup failed', e);
@@ -310,13 +346,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
     })();
 
     return () => {
+      // Setting `disposed` is what stops the loop: the clock polls it before
+      // every frame, so an already-scheduled frame resolves without ticking.
       disposed = true;
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
       engineRef.current?.dispose();
       engineRef.current = null;
+      registryRef.current = null;
       useFaceStatus.getState().reset();
       resetLiveVector();
       useMidiStatus.getState().reset();
@@ -345,6 +380,23 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE) {
     // Primitive deps (not the SourceSpec object) so a stable selection doesn't
     // re-run the effect; a genuine source change tears down and re-acquires.
   }, [source.kind, source.kind === 'video' ? source.url : null]);
+
+  // Re-wire the LIVE engine when the slot selection changes. Deliberately NOT a
+  // dependency of the build effect above: rebuilding the engine would re-acquire
+  // the camera and reload both MediaPipe models to change one node. `applyGraph`
+  // keeps every unchanged node (#51), so a mapping swap is one node rebuilt and
+  // the instrument keeps playing through it.
+  //
+  // On mount this finds no engine yet and no-ops — correct, because the build
+  // effect reads the current selection through `slotsRef` when it constructs.
+  useEffect(() => {
+    const engine = engineRef.current;
+    const registry = registryRef.current;
+    if (!engine || !registry) return;
+    void engine
+      .applyGraph(defaultGraph(slotsRef.current, registry), registry)
+      .catch((err) => reportApplyFailure(engine, engineRef.current, err));
+  }, [slotsKey]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.
   // This is the host-level catch-all mute (belt-and-suspenders with the in-graph

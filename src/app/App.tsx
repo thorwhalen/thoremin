@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { Play, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
+import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { useControls } from './store';
@@ -83,9 +84,16 @@ function MutedBadge() {
   );
 }
 
-export default function App({ source = DEFAULT_SOURCE }: { source?: SourceSpec }) {
+export default function App({
+  source = DEFAULT_SOURCE,
+  slots = NO_SLOTS,
+}: {
+  source?: SourceSpec;
+  /** Developer-facing node-swap selection (`?slot.<name>=<type>`); see `graph.ts`. */
+  slots?: SlotSelection;
+}) {
   const { videoRef, canvasRef, status, error, audioOn, startAudio, recording } =
-    useThoreminEngine(source);
+    useThoreminEngine(source, slots);
 
   // #90: install the keyboard shortcuts (octave / magnetism / mute) — an app-level
   // tinykeys keymap dispatching dial commands, replacing the retired in-DAG switch.

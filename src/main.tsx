@@ -11,16 +11,22 @@
  *
  * `?source=video&video=<url>` runs the DAG view camera-free from a pre-recorded
  * clip (Stream Applier M-A); see {@link parseSourceSpec}.
+ *
+ * `?slot.<name>=<nodeType>` (e.g. `?slot.mapping=voice-mapping`) picks which
+ * implementation fills a role-typed swap point in the graph — a developer-facing
+ * seam; see {@link parseSlotSelection}.
  */
 import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import DagApp from './app/App.tsx';
 import {parseSourceSpec} from './app/sourceSpec';
+import {parseSlotSelection} from './app/graph';
 import './index.css';
 
 const engineParam = new URLSearchParams(window.location.search).get('engine');
 const useLegacyEngine = engineParam === 'legacy' || engineParam === 'classic';
 const source = parseSourceSpec(window.location.search);
+const slots = parseSlotSelection(window.location.search);
 
 const LegacyApp = lazy(() => import('./App.tsx'));
 
@@ -31,7 +37,7 @@ createRoot(document.getElementById('root')!).render(
         <LegacyApp />
       </Suspense>
     ) : (
-      <DagApp source={source} />
+      <DagApp source={source} slots={slots} />
     )}
   </StrictMode>,
 );

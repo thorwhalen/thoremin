@@ -300,6 +300,10 @@ describe('the classifier output reaches the app dispatch path (the #137-style gu
     expect(src).toMatch(/getOutput\(\s*'gesture'\s*,\s*'poses'\s*\)/);
     expect(src).toMatch(/createGestureDispatcher\(/);
     expect(src).toMatch(/gestureDispatcher\.tick\(/);
-    expect(src).toMatch(/reportGesture\(t\)/); // wired into the rAF loop, not just defined
+    // Wired into the live frame loop, not merely defined. The loop is now driven
+    // by a Clock via `runEngineLoop` (it used to be a hand-rolled rAF recursion),
+    // so the reporter is passed in the per-frame list rather than called inline —
+    // same guarantee, one indirection later.
+    expect(src).toMatch(/runEngineLoop\([^)]*\breportGesture\b/s);
   });
 });
