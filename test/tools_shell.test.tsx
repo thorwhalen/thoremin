@@ -247,6 +247,20 @@ describe('the Trainer is reachable and runs the ritual (#160)', () => {
     expect(useTrainer.getState().activeStep).toBeNull();
   });
 
+  it('closing the panel mid-step ENDS the step (and releases the feature demand)', async () => {
+    const { appFeatureDemand } = await import('@/app/featureDemand');
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    fireEvent.click(screen.getAllByText('Start')[0]);
+    expect(useTrainer.getState().activeStep).toBe('rest');
+    expect(appFeatureDemand.groups()).not.toBeNull();
+    // The X button only writes useTools.open; the panel itself must notice.
+    fireEvent.click(screen.getByLabelText('Close the Trainer panel'));
+    expect(useTools.getState().open).toBeNull();
+    expect(useTrainer.getState().activeStep).toBeNull();
+    expect(appFeatureDemand.groups()).toBeNull();
+  });
+
   it('cannot be trained from an empty take (the build button is disabled)', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);

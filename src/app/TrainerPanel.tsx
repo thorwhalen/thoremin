@@ -91,6 +91,13 @@ export default function TrainerPanel() {
     return () => clearInterval(id);
   }, [activeStep]);
 
+  // Closing the panel (the X, or switching tools) must end a running step: otherwise the
+  // poll keeps sampling and the feature-demand claim (#163) keeps the whole catalog
+  // computing every tick, with nothing on screen to say so.
+  useEffect(() => {
+    if (!open && activeStep) useTrainer.getState().end();
+  }, [open, activeStep]);
+
   if (!open) return null;
   const tool = toolById(TOOL_ID);
   const progressFor = (id: string) => progress.find((p) => p.id === id);
