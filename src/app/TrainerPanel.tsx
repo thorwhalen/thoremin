@@ -138,8 +138,9 @@ export default function TrainerPanel() {
   if (!open) return null;
   const tool = toolById(TOOL_ID);
   const activeCue = index >= 0 ? routine[index] : null;
-  const lastGuidance = [...transcript].reverse().find((l) => l.kind === 'guidance' || l.kind === 'end');
-  const showGuidance = status === 'running' && lastGuidance && lastGuidance.kind === 'guidance' && lastGuidance.say !== say;
+  // The instruction stays up for the whole cue; a variation ("a bit further") is the
+  // runner's LAST utterance and goes beneath it, never in its place.
+  const guidance = status === 'running' && activeCue && say && say !== activeCue.instruction ? say : null;
   const canBuild = status === 'done' || (status === 'stopped' && useTrainer.getState().session().ready());
   const cueNames = new Map(routine.map((c) => [c.id, c.name]));
   const latestEnd = [...transcript].reverse().find((l) => l.kind === 'end' && l.outcome === 'cannot');
@@ -214,9 +215,13 @@ export default function TrainerPanel() {
               {status === 'between' ? 'Next' : 'Now'} · {activeCue.name}
             </p>
             <p className="text-[14px] font-medium leading-snug text-white" data-say>
-              {say ?? activeCue.instruction}
+              {activeCue.instruction}
             </p>
-            {showGuidance && <p className="text-[11px] italic text-emerald-200/80">{lastGuidance.say}</p>}
+            {guidance && (
+              <p className="text-[11px] italic text-emerald-200/80" data-guidance>
+                {guidance}
+              </p>
+            )}
             {activeCue.rationale && <p className="text-[10px] leading-snug text-white/40">{activeCue.rationale}</p>}
             <Coverage value={coverage} />
             <div className="flex items-center gap-2">
