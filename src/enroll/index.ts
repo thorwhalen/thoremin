@@ -19,8 +19,11 @@
  * | Condition | `invariance.ts` | down-weight what moved during a nuisance demo; consume #131's declarations |
  * | Carve | `cluster.ts` | agglomerative hierarchy; cut at k — **before or after** |
  * | Reject | `classify.ts` | no-man's-land by demonstration, hysteretic, holds rather than silences |
- * | Ritual | `ritual.ts` | the four guided steps, as data |
- * | Facade | `session.ts` | runs the ritual, produces a model, re-cuts cheaply |
+ * | Units | `noise.ts` | every distance in multiples of a feature's own jitter — unit-free |
+ * | Cues | `cue.ts` | what the player is asked to do, as a Zod-schema'd collection (#163) |
+ * | Sufficiency | `sufficiency.ts` | the strategy seam that says when a cue has ENOUGH |
+ * | Runner | `runner.ts` | steps a routine through its cues, driven by the verdicts |
+ * | Take | `session.ts` | holds the samples per cue, produces a model, re-cuts cheaply |
  *
  * ## The one architectural rule
  *
@@ -30,7 +33,23 @@
  * whatever is added to the catalog next — on day one. Nothing here imports MediaPipe, the
  * DAG, React or the audio layer.
  */
-export { createStillPointSampler, meanAbsDistance, type SamplerOptions, type StillPointSampler } from './sampler';
+export {
+  createStillPointSampler,
+  meanAbsDistance,
+  noiseDistance,
+  type SamplerOptions,
+  type StillPointSampler,
+} from './sampler';
+export {
+  applyWeights,
+  createNoiseEstimator,
+  effectiveSigma,
+  scaleWeights,
+  type NoiseEstimator,
+  type NoiseOptions,
+  type NoiseSnapshot,
+  type ScaleOptions,
+} from './noise';
 export {
   buildHierarchy,
   cutAt,
@@ -59,26 +78,61 @@ export {
   type TrainOptions,
 } from './classify';
 export {
-  ENROLLMENT_STEPS,
-  canTrain,
-  stepById,
-  stepCoverage,
-  type EnrollmentStep,
-  type StepProduct,
-} from './ritual';
+  CueCollectsSchema,
+  CueProductSchema,
+  CueRecordSchema,
+  CueSchema,
+  CueSpecSchema,
+  INVARIANCE_AXES,
+  InvarianceSchema,
+  RoutineRecordSchema,
+  RoutineSpecSchema,
+  SufficiencySchema,
+  cueFeatures,
+  cueFromRecord,
+  resolveRoutine,
+  routineFeatures,
+  routineGroups,
+  samplingFor,
+  type Cue,
+  type CueProduct,
+  type CueRecord,
+  type CueSampling,
+  type CueSpec,
+  type CueSpecInput,
+  type RoutineRecord,
+  type RoutineSpec,
+  type Sufficiency,
+} from './cue';
 export {
-  createEnrollmentSession,
-  type EnrollmentSession,
-  type SessionOptions,
-  type StepProgress,
-} from './session';
+  CANNOT_REASONS,
+  DEFAULT_NUDGES,
+  defaultSufficiency,
+  distinctPoints,
+  excursionOf,
+  type SufficiencyEvaluator,
+  type SufficiencyInput,
+  type Verdict,
+} from './sufficiency';
+export {
+  RUNNER_PHRASES,
+  createRunner,
+  cueCoverage,
+  type CueOutcome,
+  type Runner,
+  type RunnerEvent,
+  type RunnerOptions,
+  type RunnerState,
+  type RunnerStatus,
+} from './runner';
+export { createSession, type Session, type SessionOptions } from './session';
+export { categoryKey } from './types';
 export type {
   Category,
   Classification,
   FeatureVector,
   FeatureWeights,
   NuisanceProfile,
-  StepId,
   StillPoint,
   TrainedModel,
 } from './types';

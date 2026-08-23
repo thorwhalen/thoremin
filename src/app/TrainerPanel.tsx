@@ -1,41 +1,47 @@
 /**
- * TrainerPanel — the shell surface for trainer mode (#160), opened from the tools bar.
+ * TrainerPanel — the shell surface for trainer mode (#160, reworked for #163), opened
+ * from the tools bar.
  *
  * A TOOL, not a settings section: a trained model is a per-player, per-device artefact
  * like a keymap, not an instrument parameter, and it must never ride an instrument
  * preset. (Same reasoning as the Feature Lab and the gesture bindings.)
  *
- * ## The four-step ritual, and the two rules its UI has to keep
+ * ## Cues, a runner, and a conversation
  *
- * The steps come from {@link ENROLLMENT_STEPS} — they are data, so this file renders
- * whatever is in the list and gains a step when one is added.
+ * The panel renders whatever routine the store loaded — a list of cues, which are
+ * data — and, while the runner runs, shows what the runner SAYS: the cue's instruction,
+ * large; the latest guidance ("a bit further, if you can"), beneath it; and a short
+ * transcript. The runner steps when it has ENOUGH, not when time passes: the coverage
+ * meter is the cue's own minimum, and a cue the player cannot produce ends in
+ * `cannot` and moves on rather than trapping them.
  *
- * **A coverage meter, not a progress bar.** The transferable half of Face ID's enrollment
- * ring: it shows how much of what a step needs has actually been captured, and the step
- * is not "done" because time passed — it is done when there is enough. A progress bar
- * would tell the player the opposite thing.
+ * Written guidance is always shown and is dynamic; spoken guidance (#163 §4) is a
+ * toggle layered on the SAME strings. A player with sound off loses nothing.
  *
- * **Never show a face to imitate.** Every prompt is the player's own choice of
- * expression. Prescribed categories are precisely what the player reported being unable
- * to hit; a trainer that asked them to copy a target would reproduce the original bug
- * with extra steps.
+ * **Never show a face to imitate.** Every prompt is a movement the player interprets
+ * or a choice that is theirs. Prescribed categories are precisely what the player
+ * reported being unable to hit; a trainer that asked them to copy a target would
+ * reproduce the original bug with extra steps.
  *
  * ## Sampling
  *
- * While a step runs, the panel polls {@link readLiveVector} on an interval and feeds the
- * session. Polling — not a subscription — because the vector updates per tick and no part
- * of this UI needs frame-rate fidelity; see `enroll/liveVector.ts` for why the tap writes
- * a module holder rather than a store.
+ * While the runner runs, the panel polls {@link readLiveVector} on an interval and
+ * feeds the store — a sample when a vector is there, a bare tick when not (so patience
+ * elapses and the runner can say "I could not see you"). Polling, not a subscription,
+ * because the vector updates per tick and no part of this UI needs frame-rate
+ * fidelity; see `enroll/liveVector.ts`. The tap's clock and `performance.now()` are the
+ * same clock (`useEngine` ticks with `performance.now()/1000`), so falling back to it
+ * before the first tick is safe.
  *
  * ## What this panel deliberately cannot do
  *
- * It does not change what you hear. Training produces a model and nothing else; binding a
- * category to a dial or a command is a later, separate decision and will go through the
- * #127 write path. A bad training run cannot break the instrument.
+ * It does not change what you hear. Training produces a model and nothing else;
+ * binding a category to a dial or a command is a later, separate decision and will go
+ * through the #127 write path. A bad training run cannot break the instrument.
  */
 import { useEffect, useRef } from 'react';
 import { GraduationCap, X } from 'lucide-react';
-import { ENROLLMENT_STEPS, stepById } from '@/enroll';
+import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import { useTools } from './toolsStore';
@@ -45,6 +51,10 @@ const TOOL_ID = 'trainer';
 /** ~30 Hz: fast enough that the sampler's dwell logic sees a smooth signal, slow enough
  *  that the panel is not doing frame-rate work. */
 const SAMPLE_INTERVAL_MS = 33;
+
+/** Now, on the engine's clock (ms): the tap's stamp, or the same wall clock before the
+ *  first tick. */
+const nowMs = (): number => readLiveVector()?.t ?? performance.now();
 
 /** The coverage meter — the Face ID ring, flattened. */
 function Coverage({ value }: { value: number }) {
@@ -65,44 +75,78 @@ function Coverage({ value }: { value: number }) {
   );
 }
 
+/** A category's starting name: the cue that fed most of it, when one clearly did. */
+function suggestedLabel(c: Category, cueNames: Map<string, string>): string {
+  if (!c.cues) return '';
+  const entries = Object.entries(c.cues).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return '';
+  const [cueId, n] = entries[0];
+  return n / c.size >= 0.7 ? cueNames.get(cueId) ?? cueId : '';
+}
+
+const OUTCOME_GLYPH = { enough: '✓', cannot: '✗', skipped: '–' } as const;
+
 export default function TrainerPanel() {
   const open = useTools((s) => s.open) === TOOL_ID;
   const close = useTools((s) => s.close);
 
-  const activeStep = useTrainer((s) => s.activeStep);
-  const progress = useTrainer((s) => s.progress);
+  const routine = useTrainer((s) => s.routine);
+  const routineName = useTrainer((s) => s.routineName);
+  const missing = useTrainer((s) => s.missing);
+  const status = useTrainer((s) => s.status);
+  const index = useTrainer((s) => s.index);
+  const samples = useTrainer((s) => s.samples);
+  const coverage = useTrainer((s) => s.coverage);
+  const say = useTrainer((s) => s.say);
+  const outcomes = useTrainer((s) => s.outcomes);
+  const transcript = useTrainer((s) => s.transcript);
   const built = useTrainer((s) => s.built);
   const k = useTrainer((s) => s.k);
   const suggestedK = useTrainer((s) => s.suggestedK);
   const model = useTrainer((s) => s.model);
   const labels = useTrainer((s) => s.labels);
 
-  // Poll the live vector into the session while a step is running. The interval is
-  // recreated only when the active step changes, so it is not restarted every render.
-  const activeRef = useRef(activeStep);
-  activeRef.current = activeStep;
+  const running = status === 'running' || status === 'between';
+
+  // Read the cue + routine stores once the panel is first opened.
   useEffect(() => {
-    if (!activeStep) return;
+    if (open) void useTrainer.getState().load();
+  }, [open]);
+
+  // Poll the live vector into the runner while it runs. The interval is recreated only
+  // when `running` flips, so it is not restarted every render.
+  const runningRef = useRef(running);
+  runningRef.current = running;
+  useEffect(() => {
+    if (!running) return;
     const id = setInterval(() => {
-      if (!activeRef.current) return;
+      if (!runningRef.current) return;
       const live = readLiveVector();
       if (live) useTrainer.getState().sample(live.vector, live.t);
+      else useTrainer.getState().tick(performance.now());
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [activeStep]);
+  }, [running]);
 
-  // Closing the panel (the X, or switching tools) must end a running step: otherwise the
-  // poll keeps sampling and the feature-demand claim (#163) keeps the whole catalog
+  // Closing the panel (the X, or switching tools) must stop a running routine: otherwise
+  // the poll keeps sampling and the feature-demand claim (#163) keeps the catalog
   // computing every tick, with nothing on screen to say so.
   useEffect(() => {
-    if (!open && activeStep) useTrainer.getState().end();
-  }, [open, activeStep]);
+    if (!open && running) useTrainer.getState().stop(nowMs());
+  }, [open, running]);
 
   if (!open) return null;
   const tool = toolById(TOOL_ID);
-  const progressFor = (id: string) => progress.find((p) => p.id === id);
-  const vocabSamples = progressFor('vocabulary')?.samples ?? 0;
-  const canBuild = vocabSamples >= (stepById('vocabulary')?.minSamples ?? 6);
+  const activeCue = index >= 0 ? routine[index] : null;
+  // The instruction stays up for the whole cue; a variation ("a bit further") is the
+  // runner's LAST utterance and goes beneath it, never in its place.
+  const guidance = status === 'running' && activeCue && say && say !== activeCue.instruction ? say : null;
+  // Buildable only with something to carve: a routine that ended with every vocabulary
+  // cue skipped or `cannot` is "done" and still has no still-points.
+  const canBuild = (status === 'done' || status === 'stopped') && useTrainer.getState().session().ready();
+  const lastEndSay = [...transcript].reverse().find((l) => l.kind === 'end')?.say ?? null;
+  const cueNames = new Map(routine.map((c) => [c.id, c.name]));
+  const latestEnd = [...transcript].reverse().find((l) => l.kind === 'end' && l.outcome === 'cannot');
 
   return (
     <div
@@ -123,41 +167,122 @@ export default function TrainerPanel() {
 
       <div className="space-y-4 overflow-auto p-4">
         {tool && <p className="text-[10px] uppercase tracking-widest text-emerald-500/70">{tool.description}</p>}
-        <p className="text-[11px] leading-relaxed text-white/60">
-          Teach the instrument the faces <em>you</em> can actually make, instead of trying to hit the
-          ones it came with. Takes about a minute. Nothing you do here changes the sound yet.
-        </p>
+        {status === 'idle' && (
+          <p className="text-[11px] leading-relaxed text-white/60">
+            Teach the instrument the positions <em>you</em> can actually hit, instead of trying to hit the
+            ones it came with. It asks for one thing at a time and moves on when it has enough. About a
+            minute. Nothing you do here changes the sound yet.
+          </p>
+        )}
 
-        {ENROLLMENT_STEPS.map((step) => {
-          const p = progressFor(step.id);
-          const running = activeStep === step.id;
-          const done = (p?.coverage ?? 0) >= 1;
-          return (
-            <div key={step.id} className="space-y-1.5 rounded-lg border border-white/10 p-2.5">
-              <div className="flex items-center gap-2">
-                <span className="flex-1 text-[11px] font-semibold text-white/85">
-                  {step.title}
-                  {done && <span className="ml-1.5 text-emerald-400">✓</span>}
-                </span>
-                <span className="text-[10px] tabular-nums text-white/40">{p?.samples ?? 0}</span>
-                <button
-                  onClick={() => (running ? useTrainer.getState().end() : useTrainer.getState().begin(step.id))}
-                  disabled={activeStep !== null && !running}
-                  className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20 disabled:opacity-30"
+        {/* The routine: one row per cue, with its outcome so far. */}
+        <div className="space-y-1">
+          <div className="flex items-baseline gap-2 text-[10px] uppercase tracking-widest text-white/40">
+            <span className="flex-1">Routine · {routineName}</span>
+            <span className="tabular-nums">{routine.length} cues</span>
+          </div>
+          <ol className="space-y-0.5" aria-label="Routine">
+            {routine.map((cue, i) => {
+              const active = running && i === index;
+              const outcome = outcomes[i];
+              return (
+                <li
+                  key={cue.id}
+                  data-cue={cue.id}
+                  data-active={active || undefined}
+                  className={`flex items-center gap-2 rounded px-2 py-0.5 text-[11px] ${active ? 'bg-emerald-500/15 text-white' : 'text-white/60'}`}
+                  title={cue.rationale || cue.instruction}
                 >
-                  {running ? 'Stop' : done ? 'Redo' : 'Start'}
-                </button>
-              </div>
-              <p className="text-[11px] leading-snug text-white/70">{step.prompt}</p>
-              <p className="text-[10px] leading-snug text-white/40">{step.rationale}</p>
-              <Coverage value={p?.coverage ?? 0} />
+                  <span className="w-3 text-center text-[10px] tabular-nums text-white/35" aria-hidden>
+                    {outcome ? OUTCOME_GLYPH[outcome] : active ? '●' : i + 1}
+                  </span>
+                  <span className="flex-1 truncate">{cue.name}</span>
+                  {outcome && (
+                    <span className="text-[10px] text-white/35">
+                      {outcome === 'enough' ? 'done' : outcome === 'cannot' ? 'could not' : 'skipped'}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          {missing.length > 0 && (
+            <p className="text-[10px] text-amber-300/80">Skipping {missing.length} cue(s) this routine names that no longer exist.</p>
+          )}
+        </div>
+
+        {/* What the runner is saying now. Always written; voice is a toggle on the same
+            string — so during the beat between cues the panel shows the END phrase the
+            runner just said ("Good."), and the next instruction only once it is said. */}
+        {running && activeCue && (
+          <div className="space-y-2 rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-3" aria-live="polite">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-400/70">
+              {status === 'between' ? 'Next' : 'Now'} · {activeCue.name}
+            </p>
+            <p className="text-[14px] font-medium leading-snug text-white" data-say>
+              {status === 'between' ? lastEndSay ?? '…' : activeCue.instruction}
+            </p>
+            {guidance && (
+              <p className="text-[11px] italic text-emerald-200/80" data-guidance>
+                {guidance}
+              </p>
+            )}
+            {activeCue.rationale && <p className="text-[10px] leading-snug text-white/40">{activeCue.rationale}</p>}
+            <Coverage value={coverage} />
+            <div className="flex items-center gap-2">
+              <span className="flex-1 text-[10px] tabular-nums text-white/40">
+                {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
+              </span>
+              <button
+                onClick={() => useTrainer.getState().skip(nowMs())}
+                className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => useTrainer.getState().stop(nowMs())}
+                className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
+              >
+                Stop
+              </button>
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {!running && (
+          <button
+            onClick={() => useTrainer.getState().start(nowMs())}
+            disabled={routine.length === 0}
+            className="w-full rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/90 transition hover:bg-white/20 disabled:opacity-30"
+          >
+            {status === 'idle' ? 'Start' : 'Run again'}
+          </button>
+        )}
+
+        {status === 'done' && (
+          <p className="text-[11px] text-emerald-200/80">That is everything. Now find your categories.</p>
+        )}
+        {latestEnd && status !== 'idle' && (
+          <p className="text-[10px] text-white/40">{latestEnd.why}</p>
+        )}
+
+        {transcript.length > 0 && (
+          <details className="text-[10px] text-white/40">
+            <summary className="cursor-pointer select-none">What it said</summary>
+            <ul className="mt-1 space-y-0.5" aria-label="Transcript">
+              {transcript.slice(-12).map((l, i) => (
+                <li key={i} className={l.kind === 'guidance' ? 'italic text-emerald-200/60' : ''}>
+                  {/* A `cannot` reads reason first, then the runner's "Moving on." */}
+                  {l.kind === 'end' && l.outcome === 'cannot' && l.why ? `${l.why} ${l.say}` : l.say}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         <button
           onClick={() => useTrainer.getState().build()}
-          disabled={!canBuild || activeStep !== null}
+          disabled={!canBuild}
           className="w-full rounded-lg bg-emerald-500/80 px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-emerald-400 disabled:opacity-30"
         >
           {built ? 'Rebuild from this take' : 'Find my categories'}
@@ -181,9 +306,10 @@ export default function TrainerPanel() {
                 className="w-full"
               />
               <span className="block text-[10px] leading-snug text-white/40">
-                Drag freely — this re-cuts the same recording, it does not retrain. Your take
-                looks most like <strong className="text-white/60">{suggestedK}</strong> groups to us,
-                but that is a guess and you know your own faces better.
+                Drag freely — this re-cuts the same recording, it does not retrain, and a name you
+                typed stays with its poses. Your take looks most like{' '}
+                <strong className="text-white/60">{suggestedK}</strong> groups to us, but that is a
+                guess and you know what you did better.
               </span>
             </label>
 
@@ -193,9 +319,9 @@ export default function TrainerPanel() {
                   <span className="w-4 text-[10px] tabular-nums text-white/35">{i + 1}</span>
                   <input
                     aria-label={`Name for category ${i + 1}`}
-                    placeholder="name this face…"
-                    value={labels[c.id] ?? ''}
-                    onChange={(e) => useTrainer.getState().setLabel(c.id, e.target.value)}
+                    placeholder={suggestedLabel(c, cueNames) || 'name this one…'}
+                    value={labels[categoryKey(c)] ?? ''}
+                    onChange={(e) => useTrainer.getState().setLabel(categoryKey(c), e.target.value)}
                     className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85 placeholder:text-white/25"
                   />
                   <span className="text-[10px] tabular-nums text-white/35" title="how many held poses formed it">
@@ -205,8 +331,10 @@ export default function TrainerPanel() {
               ))}
             </ul>
             <p className="text-[10px] leading-snug text-white/40">
-              Built from {model.features.length} of your most distinctive features. Anything that
-              moved while you changed camera distance was quieted automatically.
+              Built from {model.features.length} of your most distinctive features, measured in multiples of
+              their own jitter.
+              {routine.some((c, i) => c.produces === 'nuisance' && outcomes[i] === 'enough') &&
+                ' Anything that moved during the "should not matter" cue was quieted.'}
             </p>
           </div>
         )}

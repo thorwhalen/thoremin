@@ -19,7 +19,7 @@ import LabPanel from '@/app/LabPanel';
 import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
-import { ENROLLMENT_STEPS } from '@/enroll';
+import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
 import { useTrainer } from '@/app/enroll/store';
@@ -205,13 +205,13 @@ describe('every control surface has a home in the shell', () => {
   });
 });
 
-describe('the Trainer is reachable and runs the ritual (#160)', () => {
+describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () => {
   it('is closed until its tool is open', () => {
     const { container } = render(<TrainerPanel />);
     expect(container.firstChild).toBeNull();
   });
 
-  it('the whole chain works: shell button -> open state -> a card per ritual step', () => {
+  it('the whole chain works: shell button -> open state -> the routine, one row per cue', () => {
     render(
       <>
         <ToolsBar />
@@ -221,43 +221,57 @@ describe('the Trainer is reachable and runs the ritual (#160)', () => {
     expect(screen.queryByText('Find my categories')).toBeNull();
     fireEvent.click(screen.getByText('Trainer'));
     expect(useTools.getState().open).toBe('trainer');
-    // One card per step, each showing its own prompt — the ritual is data, so this
-    // grows with ENROLLMENT_STEPS rather than being a hardcoded list here.
-    for (const step of ENROLLMENT_STEPS) {
-      expect(screen.getByText(step.title)).toBeTruthy();
-      expect(screen.getByText(step.prompt)).toBeTruthy();
-    }
+    // One row per cue of the loaded routine — the routine is data, so this grows with
+    // STARTER_CUES rather than being a hardcoded list here.
+    const rows = screen.getByRole('list', { name: 'Routine' }).querySelectorAll('li');
+    expect(rows).toHaveLength(STARTER_CUES.length);
+    for (const cue of STARTER_CUES) expect(screen.getByText(cue.name)).toBeTruthy();
     expect(screen.getByText('Find my categories')).toBeTruthy();
+    expect(screen.getByText('Start')).toBeTruthy();
   });
 
-  it('starting a step marks it active and disables the OTHER steps\' buttons', () => {
+  it('Start runs the routine: the first cue\'s INSTRUCTION is shown large, and the rest are not running', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
-    const starts = screen.getAllByText('Start');
-    expect(starts).toHaveLength(ENROLLMENT_STEPS.length);
-    fireEvent.click(starts[0]);
-    expect(useTrainer.getState().activeStep).toBe('rest');
-    // The running one offers Stop; every other step's button is disabled, because two
-    // steps capturing into one session at once would silently mix their samples.
+    fireEvent.click(screen.getByText('Start'));
+    expect(useTrainer.getState().status).toBe('running');
+    expect(useTrainer.getState().index).toBe(0);
+    // The written instruction is ALWAYS shown (voice is a toggle; text is not) — large,
+    // in the "Now" block (and again in the transcript, which is why it is not getByText).
+    expect(document.querySelector('[data-say]')?.textContent).toBe(STARTER_CUES[0].instruction);
+    // Exactly one row is marked active.
+    const active = document.querySelectorAll('[data-cue][data-active]');
+    expect(active).toHaveLength(1);
+    expect(active[0].getAttribute('data-cue')).toBe(STARTER_CUES[0].id);
+    // Skip and Stop are offered while running; Start is not.
+    expect(screen.getByText('Skip')).toBeTruthy();
     expect(screen.getByText('Stop')).toBeTruthy();
-    for (const b of screen.getAllByText('Start')) {
-      expect((b as HTMLButtonElement).disabled).toBe(true);
-    }
+    expect(screen.queryByText('Start')).toBeNull();
     fireEvent.click(screen.getByText('Stop'));
-    expect(useTrainer.getState().activeStep).toBeNull();
+    expect(useTrainer.getState().status).toBe('stopped');
   });
 
-  it('closing the panel mid-step ENDS the step (and releases the feature demand)', async () => {
+  it('Skip moves on, and the skipped cue is marked as such', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    fireEvent.click(screen.getByText('Start'));
+    fireEvent.click(screen.getByText('Skip'));
+    expect(useTrainer.getState().outcomes[0]).toBe('skipped');
+    expect(screen.getByText('skipped')).toBeTruthy();
+    fireEvent.click(screen.getByText('Stop'));
+  });
+
+  it('closing the panel mid-routine STOPS it (and releases the feature demand)', async () => {
     const { appFeatureDemand } = await import('@/app/featureDemand');
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
-    fireEvent.click(screen.getAllByText('Start')[0]);
-    expect(useTrainer.getState().activeStep).toBe('rest');
+    fireEvent.click(screen.getByText('Start'));
+    expect(useTrainer.getState().status).toBe('running');
     expect(appFeatureDemand.groups()).not.toBeNull();
     // The X button only writes useTools.open; the panel itself must notice.
     fireEvent.click(screen.getByLabelText('Close the Trainer panel'));
     expect(useTools.getState().open).toBeNull();
-    expect(useTrainer.getState().activeStep).toBeNull();
+    expect(useTrainer.getState().status).toBe('stopped');
     expect(appFeatureDemand.groups()).toBeNull();
   });
 
@@ -267,24 +281,28 @@ describe('the Trainer is reachable and runs the ritual (#160)', () => {
     expect((screen.getByText('Find my categories') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('shows a coverage METER per step, not a progress bar', () => {
+  it('shows a coverage METER for the running cue, not a progress bar', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
+    expect(screen.queryAllByRole('progressbar')).toHaveLength(0);
+    fireEvent.click(screen.getByText('Start'));
     const bars = screen.getAllByRole('progressbar');
-    expect(bars).toHaveLength(ENROLLMENT_STEPS.length);
-    // Nothing captured yet, so every meter reads zero — a timer-based progress bar
-    // would not.
-    for (const b of bars) expect(b.getAttribute('aria-valuenow')).toBe('0');
+    expect(bars).toHaveLength(1);
+    // Nothing captured yet, so the meter reads zero — a timer-based progress bar would not.
+    expect(bars[0].getAttribute('aria-valuenow')).toBe('0');
+    fireEvent.click(screen.getByText('Stop'));
   });
 
   it('never asks the player to imitate a specific face', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
+    fireEvent.click(screen.getByText('Start'));
     const text = document.body.textContent ?? '';
     // The whole feature exists because prescribed categories are the ones the player
     // cannot hit. A prompt naming an emotion to produce would reintroduce that.
     for (const word of ['happy', 'sad', 'angry', 'surprised', 'disgusted', 'fearful']) {
       expect(text.toLowerCase()).not.toContain(word);
     }
+    fireEvent.click(screen.getByText('Stop'));
   });
 });

@@ -125,6 +125,19 @@ different things:
 There is **no `src/music/instruments.ts`**. If you are looking for the timbre enum,
 it is `src/music/sounds.ts`.
 
+## Vocabulary: "cue" and "routine" (the trainer, #163)
+
+- **Cue** = one thing the trainer asks the player to do ("look to your left"). A
+  Zod-schema'd record in a zodal collection; it declares feature **groups**, never
+  feature ids and never a modality. The written and spoken forms are the same string.
+- **Routine** = a saved, ordered list of cue ids.
+- Rejected words: *prompt* (LLM-overloaded here), *drill* (tetrachord's term), *step*
+  (v1's word; too anonymous), *exercise* (the system is the one learning).
+- Trainer distances are in **noise units** (`src/enroll/noise.ts`): a feature's
+  displacement divided by its own frame-to-frame jitter. The live vector is raw
+  (degrees next to 0..1 blendshapes), so this is what makes any threshold mean the
+  same thing for every feature. Do not reintroduce a raw-unit threshold.
+
 ## Conventions
 
 - Nodes: `defineNode` with typed ports + a Zod params schema + `process()`/`make()`.
@@ -229,6 +242,8 @@ So, when you add a user-facing capability:
 | **AI assistant** (#87 Phase 3) — chat that operates the instrument | `src/plugins/assistant/` |
 | Keyboard shortcuts (#90) — tinykeys → command dispatch | `src/app/keyboardShortcuts.ts` |
 | **Gesture dispatch** (#129) — discrete hand poses → command dispatch (edge-triggered, held, cooled) | `src/app/gestureDispatch.ts` |
+| **Trainer** (#160/#163) — learn a player's OWN categories. Pure core over `FeatureVector` (never a face type): `cue.ts` (Zod cues/routines), `noise.ts` (every distance in multiples of a feature's own jitter), `sampler.ts`, `sufficiency.ts` (the `SufficiencyEvaluator` seam), `runner.ts`, `session.ts`, `cluster.ts`, `classify.ts`. Host glue: starter face cues + the two zodal collections + the store | `src/enroll/`, `src/app/enroll/` (`starterCues.ts`, `cueStore.ts`, `store.ts`), `src/app/TrainerPanel.tsx` |
+| **Feature demand** (#163) — a non-Lab consumer claims feature GROUPS; the vector nodes (and the face-model gate) compute them with the Lab closed | `src/features/demand.ts`, `src/app/featureDemand.ts` |
 | Legacy app (**frozen**) | `src/App.tsx`, `src/components/`, `src/hooks/`, `src/plugins/ai-dj/` |
 | Fixtures + replay | `test/fixtures/`, `scripts/record_stream.ts`, `src/dag/recorder.ts` |
 | Conceptual model | `docs/design/component-model.md` |

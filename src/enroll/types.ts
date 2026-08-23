@@ -30,14 +30,19 @@ export type FeatureVector = Record<string, number>;
 export interface StillPoint {
   /** The held feature vector. */
   vector: FeatureVector;
-  /** Milliseconds since the recording started. */
+  /**
+   * When the hold began, in the caller's clock — on the live path the tap's stamp,
+   * i.e. engine-clock MILLISECONDS (`ctx.time * 1000`, same origin as the recorder's
+   * `t0` in seconds). Subtract the take's `t0` for an offset into a recording.
+   */
   t: number;
-  /** Which ritual step produced it (so a step can be re-run independently). */
-  step: StepId;
+  /**
+   * The id of the cue that produced it (#163). A cue can be re-run independently, the
+   * projection can colour points by cue, and a category that is mostly one cue's
+   * points has a ready-made name suggestion.
+   */
+  cue: string;
 }
-
-/** The steps of the enrollment ritual. Data, not control flow — see `ritual.ts`. */
-export type StepId = 'rest' | 'range' | 'nuisance' | 'vocabulary';
 
 /**
  * A nuisance profile: how much each feature moved while the player demonstrated
@@ -68,6 +73,19 @@ export interface Category {
   size: number;
   /** Mean weighted distance of its members from the centroid — its tightness. */
   radius: number;
+  /**
+   * Indices (into the still-point pool the model was trained from) of its members,
+   * ascending. This is a category's IDENTITY across re-cuts: `id` is positional and
+   * `cat-2` at k=3 is not `cat-2` at k=4, but a name a player typed belongs to a set
+   * of held poses, and a category with the same member set is the same category.
+   * See {@link categoryKey}.
+   */
+  members: number[];
+  /**
+   * Which cues its member still-points came from (cue id -> count). Filled by the
+   * session; a host may offer the dominant cue as the category's starting name.
+   */
+  cues?: Record<string, number>;
 }
 
 /**
@@ -82,9 +100,14 @@ export interface TrainedModel {
   features: string[];
   /**
    * Weighted distance beyond which a vector belongs to no category — the no-man's-land
-   * boundary. Set by demonstration (the rest step) rather than by a magic number.
+   * boundary. Set by demonstration (the baseline cue) rather than by a magic number.
    */
   rejectRadius: number;
+}
+
+/** The stable key of a category across re-cuts: its member set. */
+export function categoryKey(category: Pick<Category, 'members'>): string {
+  return category.members.join(',');
 }
 
 /** What the classifier says about one live vector. */
