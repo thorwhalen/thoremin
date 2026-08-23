@@ -41,12 +41,13 @@
  * binding a category to a dial or a command is a later, separate decision and will go
  * through the #127 write path. A bad training run cannot break the instrument.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
 import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import RoutinePicker from './enroll/RoutinePicker';
+import ProjectionView from './enroll/ProjectionView';
 import { installVoice, unlockVoice, useVoice } from './enroll/voiceRuntime';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
@@ -112,6 +113,52 @@ function VoiceToggle({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }
   );
 }
 
+/** The projection + draw-your-own-categories view (#163 §7-§8), lazily projected when
+ *  first opened so a player who only wants the k-slider pays nothing for UMAP. */
+function ProjectionSection() {
+  const [open, setOpen] = useState(false);
+  const [projecting, setProjecting] = useState(false);
+  const hasLayout = useTrainer((s) => s.layout.length > 0);
+  const groups = useTrainer((s) => s.labelGroups.length);
+  return (
+    <div className="border-t border-white/10 pt-3">
+      <button
+        type="button"
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next && !hasLayout) {
+            // UMAP fit is synchronous (~300 ms for a few hundred points); show the
+            // indicator and let it paint (a double rAF) before blocking the thread.
+            setProjecting(true);
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                useTrainer.getState().project();
+                setProjecting(false);
+              }),
+            );
+          }
+        }}
+        className="flex w-full items-center gap-2 text-[11px] text-white/70 hover:text-white"
+      >
+        <span className="flex-1 text-left">Draw your own categories{groups > 0 ? ` (${groups})` : ''}</span>
+        <span className="text-white/35">{open ? 'hide' : 'show'}</span>
+      </button>
+      {open && (
+        <div className="mt-2">
+          {projecting ? (
+            <p className="text-[10px] text-white/40">Laying out your poses…</p>
+          ) : hasLayout ? (
+            <ProjectionView />
+          ) : (
+            <p className="text-[10px] text-white/40">Not enough held poses to lay out — make a few more faces.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TrainerPanel() {
   const open = useTools((s) => s.open) === TOOL_ID;
   const close = useTools((s) => s.close);
@@ -130,6 +177,7 @@ export default function TrainerPanel() {
   const k = useTrainer((s) => s.k);
   const suggestedK = useTrainer((s) => s.suggestedK);
   const model = useTrainer((s) => s.model);
+  const categorySource = useTrainer((s) => s.categorySource);
   const labels = useTrainer((s) => s.labels);
   const lastEndSay = useTrainer((s) => s.lastEndSay);
   const hudShow = useControls((s) => s.trainerHud.show);
@@ -351,8 +399,21 @@ export default function TrainerPanel() {
           {built ? 'Rebuild from this take' : 'Find my categories'}
         </button>
 
+        {built && <ProjectionSection />}
         {built && model && (
           <div className="space-y-2.5 border-t border-white/10 pt-3">
+            {categorySource === 'drawn' ? (
+              <p className="flex items-center gap-2 text-[10px] text-white/50">
+                <span className="flex-1">These are the groups you drew.</span>
+                <button
+                  type="button"
+                  onClick={() => useTrainer.getState().useAutomaticCut()}
+                  className="rounded border border-white/10 px-2 py-0.5 text-white/60 transition hover:bg-white/5 hover:text-white"
+                >
+                  Use automatic instead
+                </button>
+              </p>
+            ) : (
             <label className="block space-y-1">
               <span className="flex items-baseline gap-2 text-[11px] text-white/80">
                 <span className="flex-1">How many categories?</span>
@@ -375,18 +436,27 @@ export default function TrainerPanel() {
                 guess and you know what you did better.
               </span>
             </label>
+            )}
 
             <ul className="space-y-1">
               {model.categories.map((c, i) => (
                 <li key={c.id} className="flex items-center gap-2">
                   <span className="w-4 text-[10px] tabular-nums text-white/35">{i + 1}</span>
-                  <input
-                    aria-label={`Name for category ${i + 1}`}
-                    placeholder={suggestedLabel(c, cueNames) || 'name this one…'}
-                    value={labels[categoryKey(c)] ?? ''}
-                    onChange={(e) => useTrainer.getState().setLabel(categoryKey(c), e.target.value)}
-                    className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85 placeholder:text-white/25"
-                  />
+                  {categorySource === 'drawn' ? (
+                    // Drawn groups are named in the projection view (the single source);
+                    // showing an editable box here would fork the name.
+                    <span className="min-w-0 flex-1 truncate px-2 py-1 text-[11px] text-white/85">
+                      {labels[categoryKey(c)] || `group ${i + 1}`}
+                    </span>
+                  ) : (
+                    <input
+                      aria-label={`Name for category ${i + 1}`}
+                      placeholder={suggestedLabel(c, cueNames) || 'name this one…'}
+                      value={labels[categoryKey(c)] ?? ''}
+                      onChange={(e) => useTrainer.getState().setLabel(categoryKey(c), e.target.value)}
+                      className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85 placeholder:text-white/25"
+                    />
+                  )}
                   <span className="text-[10px] tabular-nums text-white/35" title="how many held poses formed it">
                     {c.size}
                   </span>

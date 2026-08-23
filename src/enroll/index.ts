@@ -126,6 +126,19 @@ export {
   type RunnerStatus,
 } from './runner';
 export { createSession, type Session, type SessionOptions } from './session';
+export {
+  MIN_POINTS_FOR_PROJECTION,
+  fitProjection,
+  safeEpochs,
+  seededRandom,
+  selectInRect,
+  thinLayout,
+  toMetricRow,
+  type Point2,
+  type Projection,
+  type ProjectionOptions,
+  type Representative,
+} from './projection';
 export { categoryKey } from './types';
 export type {
   Category,

@@ -34,8 +34,11 @@
  */
 import { create } from 'zustand';
 import {
+  categoryKey,
   createRunner,
   createSession,
+  fitProjection,
+  MIN_POINTS_FOR_PROJECTION,
   resolveRoutine,
   routineGroups,
   type Cue,
@@ -44,6 +47,8 @@ import {
   type Runner,
   type RunnerEvent,
   type RunnerStatus,
+  type Point2,
+  type Projection,
   type Session,
   type TrainedModel,
   type Verdict,
@@ -99,6 +104,14 @@ interface TrainerState {
 
   /** True once `build()` has run and a model can be cut. */
   built: boolean;
+  /**
+   * Where the current categories come from: the automatic dendrogram `'cut'` (the k
+   * slider) or the player's `'drawn'` partition in the projection. The two write the
+   * SAME `model`/`labels`, so exactly one is authoritative at a time — labelling a
+   * selection switches to `'drawn'`, and re-cutting (the slider, or `useAutomaticCut`)
+   * switches back and discards the drawn groups.
+   */
+  categorySource: 'cut' | 'drawn';
   k: number;
   suggestedK: number;
   model: TrainedModel | null;
@@ -113,6 +126,23 @@ interface TrainerState {
   /** Stored cues dropped on load because none of their groups exists in the catalog
    *  (such a cue could never capture anything; see `cueStore.listCues`). */
   unusable: string[];
+
+  /**
+   * The 2-D layout of the built take's still-points (#163 §7), or null. Kept so the
+   * projection view can draw it and place a live cursor; the labelling below carves
+   * categories from the SELECTED indices, in full feature space.
+   */
+  projection: Projection | null;
+  /** One [x, y] per still-point (mirrors `projection.layout`, for React). */
+  layout: Point2[];
+  /** The indices the player has selected in the picture (the working set). */
+  selection: number[];
+  /**
+   * Player-labelled groups: a name + the still-point indices they selected. This is
+   * the ALTERNATIVE to the k-cut (#163 §8) — a partition the player drew, from which
+   * `modelFor` builds categories in full feature space.
+   */
+  labelGroups: { name: string; members: number[] }[];
 
   /** Saved routines (metadata), newest first — for the picker. */
   savedRoutines: { id: string; name: string }[];
@@ -142,6 +172,19 @@ interface TrainerState {
   skip(tMs: number): void;
   stop(tMs: number): void;
   build(): void;
+  /** Discard the drawn groups and go back to the automatic k-cut model. */
+  useAutomaticCut(): void;
+  /** Lay the built take out in 2-D (UMAP over the model metric). No-op if too small. */
+  project(): void;
+  /** The live cursor's position in the current layout, or null. */
+  cursorAt(vector: FeatureVector): Point2 | null;
+  /** Replace the current selection (indices into the layout). */
+  select(indices: readonly number[]): void;
+  /** Turn the current selection into a labelled group (or extend one of that name),
+   *  then rebuild the model from the player's groups in FULL feature space. */
+  labelSelection(name: string): void;
+  /** Remove a labelled group by name. */
+  removeLabelGroup(name: string): void;
   setK(k: number): void;
   /** Name a category, by its stable key (see `labels`). */
   setLabel(key: string, label: string): void;
@@ -149,6 +192,19 @@ interface TrainerState {
   /** Escape hatches for tests and for a future "export my training take". */
   session(): Session;
   runner(): Runner | null;
+}
+
+/** Build a model + its labels from the player's drawn groups: each group's members are
+ *  a cluster, `modelFor` computes the centroid in FULL feature space, and the name is
+ *  attached by the category's stable member-set key. An empty set clears the model. */
+function modelFromGroups(groups: { name: string; members: number[] }[]): { model: TrainedModel | null; labels: Record<string, string> } {
+  if (groups.length === 0) return { model: null, labels: {} };
+  const model = session.modelFor(groups.map((g) => g.members));
+  const labels: Record<string, string> = {};
+  model.categories.forEach((c, i) => {
+    labels[categoryKey(c)] = groups[i]?.name ?? '';
+  });
+  return { model, labels };
 }
 
 /** The capture objects live outside the store: mutable buffers, not UI state. */
@@ -265,6 +321,10 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     missing: [],
     unusable: [],
     savedRoutines: [],
+    projection: null,
+    layout: [],
+    selection: [],
+    labelGroups: [],
     recording: false,
     loaded: false,
     ...IDLE,
@@ -272,6 +332,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     transcript: [],
     lastEndSay: null,
     built: false,
+    categorySource: 'cut',
     k: 3,
     suggestedK: 3,
     model: null,
@@ -404,11 +465,69 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       session.build();
       const suggested = session.suggestedK();
       const k = suggested > 0 ? suggested : get().k;
-      set({ built: true, suggestedK: suggested, k, model: session.retrain(k) });
+      set({ built: true, categorySource: 'cut', suggestedK: suggested, k, model: session.retrain(k), projection: null, layout: [], selection: [], labelGroups: [] });
+    },
+
+    useAutomaticCut() {
+      if (!get().built) return;
+      const k = get().k;
+      set({ categorySource: 'cut', labelGroups: [], selection: [], model: session.retrain(k), labels: {} });
+    },
+
+    project() {
+      if (!get().built) return;
+      const pts = session.points();
+      if (pts.length < MIN_POINTS_FOR_PROJECTION) {
+        set({ projection: null, layout: [] });
+        return;
+      }
+      const proj = fitProjection(pts, session.features(), session.weights());
+      set({ projection: proj, layout: proj.layout, selection: [] });
+    },
+
+    cursorAt(vector) {
+      const proj = get().projection;
+      if (!proj) return null;
+      // No reading when the live vector holds NONE of the model's features (the face
+      // left frame): `toMetricRow` would map every missing feature to 0 and park a
+      // confident cursor at the metric-space origin. Null hides the cursor instead.
+      const hasReading = session.features().some((f) => Number.isFinite(vector[f]));
+      return hasReading ? proj.transform(vector) : null;
+    },
+
+    select(indices) {
+      const n = session.points().length;
+      set({ selection: [...new Set(indices)].filter((i) => i >= 0 && i < n).sort((a, b) => a - b) });
+    },
+
+    labelSelection(name) {
+      const trimmed = name.trim();
+      const sel = get().selection;
+      if (!trimmed || sel.length === 0) return;
+      // A point belongs to exactly one group: adding it here removes it from any other,
+      // so the groups stay a PARTITION (what `modelFor` expects).
+      const others = get().labelGroups
+        .filter((g) => g.name !== trimmed)
+        .map((g) => ({ name: g.name, members: g.members.filter((i) => !sel.includes(i)) }))
+        .filter((g) => g.members.length > 0);
+      const existing = get().labelGroups.find((g) => g.name === trimmed)?.members ?? [];
+      const merged = [...new Set([...existing.filter((i) => !sel.includes(i)), ...sel])].sort((a, b) => a - b);
+      const labelGroups = [...others, { name: trimmed, members: merged }];
+      set({ labelGroups, selection: [], categorySource: 'drawn', ...modelFromGroups(labelGroups) });
+    },
+
+    removeLabelGroup(name) {
+      const labelGroups = get().labelGroups.filter((g) => g.name !== name);
+      if (labelGroups.length === 0) {
+        get().useAutomaticCut();
+        return;
+      }
+      set({ labelGroups, ...modelFromGroups(labelGroups) });
     },
 
     setK(k) {
-      if (!get().built) {
+      if (!get().built || get().categorySource === 'drawn') {
+        // Drawn categories own the model; the slider only re-cuts the automatic one.
         set({ k });
         return;
       }
@@ -431,6 +550,11 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         outcomes: get().routine.map(() => null),
         transcript: [],
         lastEndSay: null,
+        projection: null,
+        layout: [],
+        selection: [],
+        labelGroups: [],
+        categorySource: 'cut',
         built: false,
         k: 3,
         suggestedK: 3,
