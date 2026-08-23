@@ -15,6 +15,7 @@
 import { useMemo, useState } from 'react';
 import { cueTags, filterCues } from './cueStore';
 import { useTrainer } from './store';
+import { useVoice, useVoiceManifest } from './voiceRuntime';
 
 export default function RoutinePicker() {
   const cues = useTrainer((s) => s.cues);
@@ -22,6 +23,10 @@ export default function RoutinePicker() {
   const routineName = useTrainer((s) => s.routineName);
   const savedRoutines = useTrainer((s) => s.savedRoutines);
   const unusable = useTrainer((s) => s.unusable);
+  const voiceOn = useVoice((s) => s.enabled);
+  const manifest = useVoiceManifest((s) => s.manifest);
+  /** A cue with no cached clip is spoken as silence — say so, when voice is on. */
+  const textOnly = (instruction: string) => voiceOn && !!manifest && !manifest.clips[instruction];
 
   const [query, setQuery] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -95,6 +100,11 @@ export default function RoutinePicker() {
                 />
                 <span className={`flex-1 truncate ${included ? 'text-white/85' : 'text-white/50'}`} title={cue.instruction}>
                   {cue.name} <span className="text-white/30">· {cue.instruction}</span>
+                  {textOnly(cue.instruction) && (
+                    <span className="ml-1 rounded bg-amber-500/20 px-1 text-[9px] text-amber-200/80" title="No cached clip for this wording: it will be shown, not spoken.">
+                      text only
+                    </span>
+                  )}
                 </span>
                 {included && (
                   <span className="flex gap-0.5">

@@ -55,6 +55,7 @@ import { createTrainerTagSource, type TrainerTagSource } from './annotations';
 import { recordingController } from '../recording/controller';
 import { useTrainerPrefs } from './prefs';
 import { TRAINER_TAKE_INSTRUMENT, trainerTakeSession } from './takeSession';
+import { emitGuidance, emitGuidanceStop } from './guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 
 /** One line of what the runner said, for the panel's transcript. */
@@ -224,6 +225,8 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       case 'stopped':
         appFeatureDemand.release(DEMAND_OWNER);
         void endTake(set);
+        // After any say already queued in a microtask (a tick then a stop in one turn).
+        queueMicrotask(() => emitGuidanceStop());
         break;
     }
   };
