@@ -41,10 +41,18 @@ Discussion #3. Key rules from it:
   element to a node only when something *outside* the node must consume/tap it.
 - **A role earns a settings swap-dropdown only when ≥2 real implementations
   exist.** Don't build slot machinery for hypothetical swaps.
-- Two known prerequisites before "node swapping is a config flip" is true: the
-  interchangeable mapping nodes don't yet share an **input/params contract**
-  (only the output contract), and the registry is a **hand-listed array** with no
-  discovery seam. See the design doc's "Two corrections" section.
+- Of the prerequisites before "node swapping is a config flip" is true, one
+  remains: the registry is a **hand-listed array** with no discovery seam (the
+  design doc's "Two corrections", #2). The other two are done — the mapping nodes
+  share an **input/params contract** (`src/nodes/mapping/mapping_contract.ts`),
+  and the engine can now re-wire itself while running (next bullet).
+- **The running graph is not frozen.** `Engine.applyGraph(spec, registry?)`
+  reconciles a live engine onto a new `GraphSpec`, keeping every node whose id +
+  type + *validated* params are unchanged — so a swap does not reload the
+  MediaPipe models or rebuild the audio graph. It plans synchronously (a bad spec
+  is a no-op), inits the new nodes **while the old graph keeps ticking**, then
+  commits atomically. Never construct a second `Engine` to change wiring. See
+  `docs/design/component-model.md` → "Swapping at runtime: the engine lifecycle".
 
 ## Persistence & collections → **zodal** (project rule)
 

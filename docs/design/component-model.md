@@ -113,6 +113,13 @@ exported `PortSpec[]`/schema the alternatives spread). Fixing that contract is
 the real load-bearing work that makes node-swapping safe — and it must come
 *before* any slot machinery.
 
+> **Resolved.** `src/nodes/mapping/mapping_contract.ts` is that named contract
+> (`MAPPING_SLOT_INPUTS` / `MAPPING_SLOT_OUTPUT` / `MAPPING_SLOT_CONTRACT`), and
+> `SLOTS` + `resolveSlot` in `src/app/graph.ts` validate a candidate against it
+> before the engine ever sees the spec. `test/slots.test.ts` pins the
+> edge-stability guarantee. What remained after that was the *runtime* half —
+> see the next section.
+
 ### 2. The registry is a hand-listed array, not a discovery seam
 
 `CORE_NODES` (`src/nodes/index.ts`) and `BROWSER_NODES` (`src/nodes/browser.ts`)
@@ -121,6 +128,40 @@ node with a role and it auto-appears in settings" assumes a discovery mechanism
 that does not exist. True open-closed/third-party extensibility needs a
 registration seam added first. (We don't need third-party plugins yet — but the
 docs must not *claim* open-closed before the seam exists.)
+
+## Swapping at runtime: the engine lifecycle
+
+A validated, edge-stable swap is only half of "node swapping is a config flip".
+The other half is that the engine must be able to *adopt* the new graph while it
+is running. Until #51's third bullet was built, changing one node type meant
+constructing a new `Engine` — which re-runs **every** node's `init()`, which
+reloads the MediaPipe hand and face models and rebuilds the audio graph. Paying
+several seconds of black screen and silence to change one mapping node is not a
+config flip; it is a restart.
+
+**`Engine.applyGraph(spec, registry?)`** (`src/dag/engine.ts`) reconciles a
+running engine onto a new `GraphSpec` in place and returns a `GraphChange`
+(`added` / `removed` / `replaced` / `kept` / `rewired`).
+
+- **Identity is `id` + `type` + *validated* params.** Matching on the validated
+  (Zod-parsed) params, not the raw spec, is what makes `{}` and `{ offset: 0 }`
+  the same node — otherwise every re-apply would rebuild the world.
+- **Kept means kept**: the same live instance, `init()` not re-run, internal
+  state (loaded model, smoothing history, sounding voices) intact, and its last
+  outputs still standing so downstream sees no one-tick hole.
+- **Three phases, because `init()` is async.** *Plan* compiles the whole next
+  graph synchronously and throws before touching anything, so a bad spec is a
+  no-op. *Prepare* awaits `init()` on the new instances only — **the old graph
+  keeps ticking for this entire phase**, which is precisely what "without
+  freezing the tick loop" means. *Commit* swaps node map, order, outputs and
+  spec in one synchronous block; `tick()` is synchronous, so no tick can observe
+  a half-swapped graph. If any `init` rejects, the half-built graph is torn down
+  and the running one plays on.
+
+This is the mechanism a settings swap-dropdown, the React Flow patcher (#14) and
+the Stream Applier's source selection all sit on top of; none of them needs to
+know about node instances. Edges are re-wired unconditionally on every apply,
+which is free — they are just a map on each node.
 
 ## Sub-components are functions inside a node — **not** DAG nodes
 
