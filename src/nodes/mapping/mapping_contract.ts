@@ -19,6 +19,7 @@
  * hand-features→synth-params mapping a clean, edge-stable drop-in.
  */
 import type { PortSpec, Role } from '@/dag';
+import type { SlotContract } from '../slot_contract';
 
 /**
  * Input ports every mapping-slot node must declare so the default graph's
@@ -50,10 +51,13 @@ export const MAPPING_SLOT_OUTPUT: PortSpec = { name: 'params', kind: 'synth-para
  * name+kind (so downstream `synth`/`overlay` edges keep working). Consumed by the
  * slot resolver's validation in `src/app/graph.ts`.
  */
-export const MAPPING_SLOT_CONTRACT = {
+export const MAPPING_SLOT_CONTRACT: SlotContract = {
   role: 'mapping' as Role,
   requiredInputs: MAPPING_SLOT_INPUTS.map((p) => p.name),
   output: MAPPING_SLOT_OUTPUT,
-} as const;
+};
 
-export type SlotContract = typeof MAPPING_SLOT_CONTRACT;
+// The shared shape moved to `src/nodes/slot_contract.ts` when the `source` slot
+// (#104) became the second contract; re-exported so existing importers of
+// `SlotContract` from here keep working.
+export type { SlotContract };

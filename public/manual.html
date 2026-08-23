@@ -42,7 +42,7 @@
           letter-spacing: .06em; border-radius: 999px; padding: .1rem .4rem; margin-left: .35rem; vertical-align: 1px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 31 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 32 nodes.</p>
   <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md">the User Guide</a>. This page is the <b>node</b> catalog.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>Everything runs <b>client-side</b>: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.</p><p>This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.</p>
   <h3>Example pipelines</h3>
@@ -143,6 +143,16 @@
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>value</dd>
         <dt>params</dt><dd>values (array=[]), loop (boolean=false)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>replay-hands</code> <span class="title">Replay Hands</span></h4>
+      <p>Replays a recorded hand-landmark stream, one frame per tick. Camera-free and deterministic.</p>
+      <dl>
+        <dt>roles</dt><dd>source</dd>
+        <dt>in</dt><dd>—</dd>
+        <dt>out</dt><dd>hands:hands-frame</dd>
+        <dt>params</dt><dd>frames (array=[]), loop (boolean=false)</dd>
       </dl>
     </div></div></section>
 <section><h3>Features</h3><p class="blurb">Raw sensor data → normalized control signals.</p><div class="grid">

@@ -31,6 +31,11 @@ import type { GraphSpec } from './types';
  * Build, init and tick a graph headlessly for `ticks` ticks, returning the
  * engine and a {@link StreamRecorder} capturing every edge. The default driver
  * for end-to-end DAG tests and for the `record` CLI script.
+ *
+ * Port conformance ({@link EngineOptions.validatePorts}) defaults **on** here:
+ * this is the batch path the check was designed for, and a fixture recorded
+ * from a node that emitted a malformed frame is worse than a failing run. Pass
+ * `validatePorts: false` to opt out.
  */
 export async function runHeadless(
   spec: GraphSpec,
@@ -38,7 +43,16 @@ export async function runHeadless(
   opts: { ticks: number; recordOnly?: string[] } & Omit<EngineOptions, 'taps'> = { ticks: 1 },
 ): Promise<{ engine: Engine; recorder: StreamRecorder }> {
   const recorder = new StreamRecorder({ only: opts.recordOnly });
-  const engine = new Engine(spec, registry, { ...opts, taps: [recorder] });
+  // Resolve the gate explicitly rather than by spread order: a caller forwarding
+  // an optional flag (`validatePorts: cfg.validate` where cfg.validate is unset)
+  // passes the KEY with value undefined, and a spread would let that overwrite
+  // the default with undefined — which Engine then reads as false, silently
+  // turning the gate off in exactly the batch runs it exists for.
+  const engine = new Engine(spec, registry, {
+    ...opts,
+    validatePorts: opts.validatePorts ?? true,
+    taps: [recorder],
+  });
   await engine.init();
   // BatchClock calls engine.tick() with no argument, exactly as the previous
   // inline for-loop did, so recorded goldens are byte-identical.

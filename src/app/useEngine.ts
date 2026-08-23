@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Engine } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph, slotSelectionKey, NO_SLOTS, type SlotSelection } from './graph';
+import { defaultGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
 import { runEngineLoop } from './engineLoop';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
@@ -134,7 +134,21 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       try {
         setStatus('loading');
         const video = videoRef.current!;
-        if (source.kind === 'video') {
+        // The registry is built first because the SOURCE SLOT decides whether the
+        // host has anything to acquire at all. A finished-frame source (replay /
+        // synthetic) produces its own frames and reads no video, so asking for a
+        // camera would be asking for hardware the run does not use — and on a
+        // machine without one it would fail the whole boot before the engine was
+        // ever constructed.
+        const registry = createAppRegistry();
+        registryRef.current = registry;
+        const needsVideo = sourceNeedsVideo(slotsRef.current, registry);
+        if (!needsVideo && source.kind === 'camera') {
+          // Camera-free: leave the <video> element empty. Every reader of
+          // `resources.video` guards on `readyState` (the overlay backdrop skips
+          // the draw; the face branch never downloads its model without frames),
+          // so nothing needs to know the difference.
+        } else if (source.kind === 'video') {
           // Camera-free (Stream Applier M-A): play a pre-recorded clip into the
           // same <video> the webcam would fill, so the overlays + palette run
           // with no camera. The webcam-hands/face nodes read ctx.resources.video
@@ -175,7 +189,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // Expose the raw camera stream for the pure-webcam recording stream (#88).
           cameraStreamRef.current = stream;
         }
-        await new Promise<void>((resolve, reject) => {
+        // Nothing to wait for when there is no media: skip straight to building.
+        if (needsVideo || source.kind === 'video') await new Promise<void>((resolve, reject) => {
           // File path only: a stalling clip fires neither event, so bound the
           // wait and surface a timeout. The camera path (timer === null) keeps
           // its original "settle only on metadata" behavior.
@@ -229,8 +244,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // (the trainer, while a cue runs) has claimed, even with the Lab closed.
         resources.featureDemand = featureDemandResource;
 
-        const registry = createAppRegistry();
-        registryRef.current = registry;
         // `defaultGraph` validates the selection against the registry and falls
         // back (with a warning) on anything that would not satisfy the slot
         // contract, so a stale URL can never produce an unbuildable graph.

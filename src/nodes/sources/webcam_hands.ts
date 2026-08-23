@@ -18,6 +18,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import { SOURCE_SLOT_OUTPUT } from './source_contract';
 import type { NodeContext } from '@/dag';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '../domain';
 
@@ -100,7 +101,7 @@ export const webcamHandsNode = defineNode<Params>({
   title: 'Webcam Hands',
   description: 'MediaPipe hand landmark detection from a webcam video element.',
   inputs: [],
-  outputs: [{ name: 'hands', kind: 'hands-frame' }],
+  outputs: [SOURCE_SLOT_OUTPUT],
   params: Params,
   make(p) {
     let landmarker: HandLandmarkerLike | null = null;

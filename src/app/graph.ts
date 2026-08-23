@@ -23,7 +23,9 @@
  * fan-IN to a single input port is disallowed.
  */
 import type { GraphSpec, NodeRegistry, Role } from '@/dag';
-import { MAPPING_SLOT_CONTRACT, type SlotContract } from '@/nodes/mapping/mapping_contract';
+import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
+import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
+import type { SlotContract } from '@/nodes/slot_contract';
 
 /**
  * A Slot is a named, role-typed swap point the graph builder fills from config.
@@ -50,6 +52,30 @@ export const SLOTS: Record<string, SlotDef> = {
     default: 'voice-mapping',
     candidates: ['voice-mapping'],
     contract: MAPPING_SLOT_CONTRACT,
+  },
+  /**
+   * Where the hand frames come from (#104 / Stream Applier M-C). The candidates
+   * are the **finished-frame emitters** only — a file or stream feeding a
+   * `<video>` is a host-side concern (`sourceSpec.ts`), not a node swap, because
+   * `webcam-hands` does the identical job whatever produced the pixels.
+   *
+   * Three candidates, so unlike `mapping` this slot has something real to swap
+   * to. It still gets no player-facing dropdown: a replay or a synthetic hand is
+   * a *verification* affordance, not an instrument a player chooses between.
+   *
+   * `?slot.source=synthetic-hands` runs the whole instrument with no camera and
+   * no MediaPipe — in the browser too, not only headlessly: the host reads this
+   * slot through {@link sourceNeedsVideo} BEFORE acquiring anything and skips
+   * `getUserMedia` entirely, so the run needs no hardware and no permission
+   * prompt. Getting that half wrong is how the feature would have shipped as its
+   * own opposite: the one URL meant for hardware-free verification, failing to
+   * boot on a machine with no camera.
+   */
+  source: {
+    role: 'source',
+    default: 'webcam-hands',
+    candidates: ['webcam-hands', 'synthetic-hands', 'replay-hands'],
+    contract: SOURCE_SLOT_CONTRACT,
   },
 };
 
@@ -82,6 +108,21 @@ export function parseSlotSelection(search: string): SlotSelection {
     if (chosen) selection[key] = chosen;
   }
   return selection;
+}
+
+/**
+ * Does the resolved source slot need the host to supply a `<video>` element?
+ *
+ * Only the default (`webcam-hands`) does: it runs MediaPipe over a video element,
+ * which is exactly why raw-video origins stay a *host-side* concern rather than a
+ * node swap. Every other candidate emits finished frames and reads no video at
+ * all — so when one is selected the host should not acquire a camera, and the
+ * instrument runs with no hardware. Readers of `ctx.resources.video` (the overlay
+ * backdrop, the face branch) all guard on `readyState`, so the element simply
+ * stays empty.
+ */
+export function sourceNeedsVideo(selection?: SlotSelection, registry?: NodeRegistry): boolean {
+  return resolveSlot('source', selection, registry) === SLOTS.source.default;
 }
 
 /**
@@ -150,9 +191,16 @@ export function resolveSlot(
  */
 export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry): GraphSpec {
   const mappingType = resolveSlot('mapping', selection, registry);
+  const sourceType = resolveSlot('source', selection, registry);
+  // The default source's params are MediaPipe's (model size, hand count) and mean
+  // nothing to a replay or synthetic source. Rather than invent a shared params
+  // contract for a slot whose candidates genuinely have nothing in common, a
+  // swapped-in source takes its own defaults — the URL seam cannot express params
+  // anyway, and a candidate that needs them is a graph edit, not a selection.
+  const sourceParams = sourceType === SLOTS.source.default ? { modelType: 'full', maxHands: 2 } : {};
   return {
     nodes: [
-      { id: 'cam', type: 'webcam-hands', params: { modelType: 'full', maxHands: 2 } },
+      { id: 'cam', type: sourceType, params: sourceParams },
       { id: 'feat', type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
       // Face branch (idle until the player picks a face mapping in settings).
       { id: 'camFace', type: 'webcam-face', params: {} },
