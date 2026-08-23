@@ -50,6 +50,11 @@ import {
 } from '@/enroll';
 import { appFeatureDemand } from '../featureDemand';
 import { createCueStore, createRoutineStore, listCues, loadRoutine, type CueStore, type RoutineStore } from './cueStore';
+import { createTrainerTagSource, type TrainerTagSource } from './annotations';
+import { recordingController } from '../recording/controller';
+import { useTrainerPrefs } from './prefs';
+import { TRAINER_TAKE_INSTRUMENT, trainerTakeSession } from './takeSession';
+import { parseSession, RECORDING_SESSION_KEY } from '../recording/schema';
 import { emitGuidance, emitGuidanceStop } from './guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 
@@ -111,6 +116,8 @@ interface TrainerState {
 
   /** Saved routines (metadata), newest first — for the picker. */
   savedRoutines: { id: string; name: string }[];
+  /** True while this routine's take is being RECORDED (#163 §6). */
+  recording: boolean;
 
   /** Read the cue + routine stores (idempotent; the panel calls it on open). */
   load(): Promise<void>;
@@ -123,6 +130,13 @@ interface TrainerState {
   /** Delete a saved routine. */
   removeRoutine(id: string): Promise<void>;
   start(tMs: number): void;
+  /**
+   * Start the routine, recording the take first when the `recordTake` pref is on:
+   * the recorder's `t0` must exist before the first cue's annotation. `now` is read
+   * AFTER the recorder has started (it takes a moment), so the runner's clock and the
+   * take's share an origin. Resolves once the routine is running.
+   */
+  startTake(now: () => number): Promise<void>;
   sample(vector: FeatureVector, tMs: number): void;
   tick(tMs: number): void;
   skip(tMs: number): void;
@@ -155,6 +169,42 @@ export function useTrainerStores(next: { cues: CueStore; routines: RoutineStore 
 
 /** The trainer's claim on the feature-demand registry while a routine runs. */
 const DEMAND_OWNER = 'trainer';
+
+/** The annotation source for the running take (created per start). */
+let tagSource: TrainerTagSource | null = null;
+/** The player's last Record-sheet config (for the take's location / fps / formats),
+ *  or the defaults. Read fresh at each start; localStorage may be absent in tests. */
+function playerRecordingBase() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RECORDING_SESSION_KEY) : null;
+    return parseSession(raw ? JSON.parse(raw) : null);
+  } catch {
+    return parseSession(null);
+  }
+}
+
+/** True during the controller-start await window, so a second Start (the button is
+ *  still rendered while `status` is 'idle' during that await) cannot re-enter. */
+let takeStarting = false;
+
+/** Reconcile the store's `recording` flag with the controller: another surface (the
+ *  Record HUD's Stop) can end the take without the trainer knowing, and a stale REC dot
+ *  would keep pulsing. Called on every poll. */
+function reconcileRecording(get: () => { recording: boolean }, set: (s: { recording: boolean }) => void): void {
+  if (get().recording && !recordingController().isRecording()) {
+    tagSource = null;
+    set({ recording: false });
+  }
+}
+
+/** Stop a running take (if any) and forget its annotation source. */
+async function endTake(set: (s: { recording: boolean }) => void): Promise<void> {
+  const wasRecording = useTrainer.getState().recording;
+  tagSource = null;
+  if (!wasRecording) return;
+  set({ recording: false });
+  await recordingController().stop();
+}
 
 const IDLE = {
   status: 'idle' as RunnerStatus,
@@ -194,14 +244,19 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       case 'done':
         push({ t: e.t, kind: 'done', say: e.say });
         appFeatureDemand.release(DEMAND_OWNER);
+        void endTake(set);
         break;
       case 'stopped':
         appFeatureDemand.release(DEMAND_OWNER);
+        void endTake(set);
         // After any say already queued in a microtask (a tick then a stop in one turn).
         queueMicrotask(() => emitGuidanceStop());
         break;
     }
   };
+
+  /** The runner's events, to the take's annotation stream (when one is running). */
+  const onEventForTake = (e: RunnerEvent) => tagSource?.onEvent(e);
 
   return {
     cues: [...STARTER_CUES],
@@ -210,6 +265,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     missing: [],
     unusable: [],
     savedRoutines: [],
+    recording: false,
     loaded: false,
     ...IDLE,
     outcomes: STARTER_CUES.map(() => null),
@@ -283,22 +339,53 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       runner?.stop(tMs);
       session = createSession();
       runner = createRunner({ cues: routine, session });
-      unsubscribe = runner.subscribe(onEvent);
+      const offEvents = runner.subscribe(onEvent);
+      const offTake = runner.subscribe(onEventForTake);
+      unsubscribe = () => {
+        offEvents();
+        offTake();
+      };
       appFeatureDemand.claim(DEMAND_OWNER, routineGroups(routine));
       set({ transcript: [], outcomes: routine.map(() => null), built: false, model: null, labels: {} });
       runner.start(tMs);
       set(fromRunner());
     },
 
+    async startTake(now) {
+      const { status, recording } = get();
+      // Not while a routine runs, a take records, or a start is mid-flight (the Start
+      // button stays rendered during the controller-start await, when status is still
+      // 'idle') — a second call would orphan the recorder and lose the annotations.
+      if (takeStarting || recording || status === 'running' || status === 'between') return;
+      takeStarting = true;
+      try {
+        if (useTrainerPrefs.getState().recordTake) {
+          const routine = get().routine;
+          tagSource = createTrainerTagSource({ active: () => true, cues: () => routine });
+          const ok = await recordingController().start(trainerTakeSession(playerRecordingBase()), {
+            tagSource,
+            instrument: TRAINER_TAKE_INSTRUMENT,
+          });
+          set({ recording: ok });
+          if (!ok) tagSource = null;
+        }
+        get().start(now());
+      } finally {
+        takeStarting = false;
+      }
+    },
+
     sample(vector, tMs) {
       if (!runner) return;
       runner.push(vector, tMs);
+      reconcileRecording(get, set);
       set(fromRunner());
     },
 
     tick(tMs) {
       if (!runner) return;
       runner.tick(tMs);
+      reconcileRecording(get, set);
       set(fromRunner());
     },
 
@@ -338,6 +425,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       runner = null;
       session = createSession();
       appFeatureDemand.release(DEMAND_OWNER);
+      void endTake(set);
       set({
         ...IDLE,
         outcomes: get().routine.map(() => null),

@@ -311,6 +311,46 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     resetVoiceRuntime();
   });
 
+  it('"Record the take" is a per-device checkbox; Start goes through the recording controller', async () => {
+    const { useTrainerPrefs } = await import('@/app/enroll/prefs');
+    const { registerRecordingController } = await import('@/app/recording/controller');
+    const calls: string[] = [];
+    const off = registerRecordingController({
+      start: async (_s, o) => {
+        calls.push(`start:${o?.instrument ?? ''}`);
+        return true;
+      },
+      stop: async () => {
+        calls.push('stop');
+      },
+      isRecording: () => false,
+    });
+    useTrainerPrefs.getState().setRecordTake(false);
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const box = screen.getByLabelText(/Record the take/i) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(useTrainerPrefs.getState().recordTake).toBe(true);
+    fireEvent.click(screen.getByText('Start'));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(calls).toEqual(['start:trainer']);
+    expect(useTrainer.getState().status).toBe('running');
+    // The running strip says so.
+    expect(document.body.textContent).toMatch(/rec/i);
+    fireEvent.click(screen.getByText('Stop'));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(calls).toEqual(['start:trainer', 'stop']);
+    useTrainerPrefs.getState().setRecordTake(false);
+    off();
+  });
+
   it('the HUD pref is a per-device checkbox in the panel, not an instrument dial', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);

@@ -25,6 +25,7 @@ import { featureDemandResource } from './featureDemand';
 import { trainerHudResource } from './enroll/hud';
 import { useToasts } from './toasts';
 import { SessionRecorder, activeStreamLabels } from './recording/session';
+import { registerRecordingController, type StartTakeOptions } from './recording/controller';
 import { SinkCancelled } from './recording/sink';
 import {
   parseSession,
@@ -99,6 +100,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // pure-webcam recording stream (#88); null for a file source.
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const sessionRecRef = useRef<SessionRecorder | null>(null);
+  const activeSessionRef = useRef<RecordingSession | null>(null);
   const recInstrumentRef = useRef<string>('thoremin');
   const recBusyRef = useRef(false);
   // The registry the live engine was built against — `applyGraph` must resolve
@@ -483,57 +485,85 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   /** Close the sheet without recording (config already auto-saved on every edit). */
   const closeRecording = useCallback(() => setRecPhase('idle'), []);
 
-  /** "Rec now": build the session recorder from the live host resources and start
-   * capture. Falls back to the sheet (not a crash) if audio isn't running yet or a
-   * stream fails to start. */
-  const recNow = useCallback(async () => {
-    if (recBusyRef.current) return;
-    const ac = resourcesRef.current.audioContext as AudioContext | undefined;
-    const master = masterGainRef.current;
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    const engine = engineRef.current;
-    if (!ac || !master || !canvas || !video || !engine) {
-      useToasts.getState().push('Start audio before recording', 4000, 'error');
-      return;
-    }
-    recBusyRef.current = true;
-    const rec = new SessionRecorder(
-      {
-        audioContext: ac,
-        masterGain: master,
-        canvas,
-        video,
-        cameraStream: cameraStreamRef.current,
-        engine,
-        resources: resourcesRef.current,
-        instrument: recInstrumentRef.current,
-        // If annotation mode is on, annotations.jsonl rides in the folder on the shared t0 (#92).
-        tagSource: tagStreamSource,
-      },
-      recSession,
-    );
-    sessionRecRef.current = rec;
-    try {
-      await rec.start();
-      setRecElapsedMs(0);
-      setRecPhase('recording');
-    } catch (e) {
-      rec.dispose();
-      sessionRecRef.current = null;
-      setRecPhase('settings');
-      // A dismissed folder picker is a deliberate cancel (nothing recorded yet),
-      // not an error — return to the sheet quietly.
-      if (e instanceof SinkCancelled) {
-        useToasts.getState().push('Recording cancelled', 3000);
-      } else {
-        console.error('[thoremin] could not start recording', e);
-        useToasts.getState().push("Couldn't start recording", 6000, 'error');
+  /** Start a take: build the session recorder from the live host resources and start
+   * capture. Shared by the Record button ("Rec now") and the recording controller
+   * (#163: the trainer records its take with its own annotation source). Resolves
+   * true once recording; false (with a toast) if audio isn't running yet, a stream
+   * fails to start, or a take is already running. */
+  const startTake = useCallback(
+    async (session: RecordingSession, opts: StartTakeOptions = {}): Promise<boolean> => {
+      if (recBusyRef.current || sessionRecRef.current) {
+        // The seam is used by more than one surface (the Record button and the trainer);
+        // an honest "why not" beats a silent false (its own doc promised a toast).
+        useToasts.getState().push(
+          sessionRecRef.current ? 'Already recording — stop the current take first' : 'Still saving the last take — try again in a moment',
+          4000,
+          'error',
+        );
+        return false;
       }
-    } finally {
-      recBusyRef.current = false;
-    }
-  }, [recSession]);
+      // `fromSheet` is the Record-button flow: only it drives the settings sheet. A
+      // controller-started take (the trainer) must never pop the button's sheet.
+      const fromSheet = opts.fromSheet ?? false;
+      const ac = resourcesRef.current.audioContext as AudioContext | undefined;
+      const master = masterGainRef.current;
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      const engine = engineRef.current;
+      // Audio is only needed when the take actually records the master bus. A camera +
+      // features take (the trainer's) must not demand the player start audio first.
+      const needsAudio = session.streams.audio;
+      if (!canvas || !video || !engine || (needsAudio && (!ac || !master))) {
+        useToasts.getState().push(needsAudio ? 'Start audio before recording' : 'The camera is not ready yet', 4000, 'error');
+        return false;
+      }
+      recBusyRef.current = true;
+      const rec = new SessionRecorder(
+        {
+          audioContext: ac as AudioContext,
+          masterGain: master as AudioNode,
+          canvas,
+          video,
+          cameraStream: cameraStreamRef.current,
+          engine,
+          resources: resourcesRef.current,
+          instrument: opts.instrument ?? recInstrumentRef.current,
+          // If annotation mode is on, annotations.jsonl rides in the folder on the shared t0 (#92).
+          tagSource: opts.tagSource ?? tagStreamSource,
+        },
+        session,
+      );
+      sessionRecRef.current = rec;
+      activeSessionRef.current = session;
+      try {
+        await rec.start();
+        setRecElapsedMs(0);
+        setRecPhase('recording');
+        return true;
+      } catch (e) {
+        rec.dispose();
+        sessionRecRef.current = null;
+        if (fromSheet) setRecPhase('settings');
+        // A dismissed folder picker is a deliberate cancel (nothing recorded yet),
+        // not an error — return to the sheet quietly.
+        if (e instanceof SinkCancelled) {
+          useToasts.getState().push('Recording cancelled', 3000);
+        } else {
+          console.error('[thoremin] could not start recording', e);
+          useToasts.getState().push("Couldn't start recording", 6000, 'error');
+        }
+        return false;
+      } finally {
+        recBusyRef.current = false;
+      }
+    },
+    [],
+  );
+
+  /** "Rec now": the button's take, with the sheet's session config. */
+  const recNow = useCallback(async () => {
+    await startTake(recSession, { fromSheet: true });
+  }, [recSession, startTake]);
 
   /** Stop the take: convert audio, write every file + the manifest, toast the
    * result. `saving` covers the convert/write window (honest UI while it works). */
@@ -571,10 +601,23 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     } finally {
       rec.dispose();
       sessionRecRef.current = null;
+      activeSessionRef.current = null;
       recBusyRef.current = false;
       setRecPhase('idle');
     }
   }, []);
+
+  // The recording controller (#163): the same start/stop the button uses, reachable
+  // from a store. Registered for the hook's life.
+  useEffect(
+    () =>
+      registerRecordingController({
+        start: startTake,
+        stop: stopRecording,
+        isRecording: () => sessionRecRef.current !== null,
+      }),
+    [startTake, stopRecording],
+  );
 
   // Tick the elapsed-time readout for the HUD while a take is running.
   useEffect(() => {
@@ -599,7 +642,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       recNow,
       stop: stopRecording,
       elapsedMs: recElapsedMs,
-      activeStreams: activeStreamLabels(recSession),
+      // While a take records, the chips reflect THAT take (the trainer's camera+features),
+      // not the button sheet's config; the sheet's config otherwise.
+      activeStreams: activeStreamLabels(recPhase === 'recording' ? activeSessionRef.current ?? recSession : recSession),
     },
   };
 }
