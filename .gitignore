@@ -54,3 +54,4 @@ Thumbs.db
 
 # Generated/large test media (commit derived NDJSON fixtures, not raw video)
 /media/
+/node_modules
