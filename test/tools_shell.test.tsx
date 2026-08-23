@@ -287,6 +287,30 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     fireEvent.click(screen.getByText('Stop'));
   });
 
+  it('a cue with no cached clip is marked "text only" in the picker — but only when voice is on', async () => {
+    const { useVoice, useVoiceManifest, resetVoiceRuntime } = await import('@/app/enroll/voiceRuntime');
+    resetVoiceRuntime();
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    // A custom override of a starter, with a wording no clip was generated for.
+    act(() => {
+      useTrainer.setState({
+        cues: useTrainer.getState().cues.map((c) => (c.id === 'look-left' ? { ...c, instruction: 'Glance left, and hold it.' } : c)),
+      });
+      useVoiceManifest.setState({ manifest: { voiceId: 'v', modelId: 'm', clips: { 'Turn your head to look to your left, and hold it.': 'a.mp3' } } });
+      useVoice.getState().setEnabled(false);
+    });
+    expect(screen.queryAllByText('text only')).toHaveLength(0);
+    act(() => useVoice.getState().setEnabled(true));
+    // Every cue but the clipped starters is text-only; the reworded one is among them.
+    const badges = screen.getAllByText('text only');
+    expect(badges.length).toBeGreaterThanOrEqual(1);
+    const row = document.querySelector('[data-picker-cue="look-left"]');
+    expect(row?.textContent).toContain('text only');
+    act(() => useVoice.getState().setEnabled(false));
+    resetVoiceRuntime();
+  });
+
   it('the HUD pref is a per-device checkbox in the panel, not an instrument dial', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);

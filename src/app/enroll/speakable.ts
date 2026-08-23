@@ -8,13 +8,16 @@
  * module is the one place that enumerates it, and it is used by BOTH ends:
  *
  * - `scripts/cue_strings.ts` prints it for the generator (`scripts/gen_cue_voice.py`),
- *   which synthesises one clip per string, content-addressed by the string's hash, so
- *   re-running regenerates exactly the strings whose text changed;
+ *   which synthesises one clip per string, content-addressed (the SHA-1 of voice +
+ *   model + format + settings + text, first 12 hex chars), so re-running regenerates
+ *   exactly the strings whose text — or whose voice — changed;
  * - `test/trainer_voice.test.ts` checks every string here has a clip in the shipped
  *   manifest — the guard that a reworded cue does not ship silently.
  *
- * The clip key is the SHA-1 of the text (first 12 hex chars): the same text in two
- * cues is one clip, and a changed word is a new clip.
+ * The manifest maps TEXT to clip file: the same text in two cues is one clip, and a
+ * changed word is a new clip. Only the STARTER cues are enumerated — a stored or
+ * custom cue (a player's own localStorage) has no clip and is text-only until its
+ * wording joins the starter set; the picker marks such cues when voice is on.
  */
 import { CANNOT_REASONS, DEFAULT_NUDGES, RUNNER_PHRASES, type Cue } from '@/enroll';
 
@@ -39,6 +42,9 @@ export interface VoiceManifest {
   /** The ElevenLabs voice every clip was made with — one voice for the whole set. */
   voiceId: string;
   modelId: string;
+  /** Recorded so the shipped set is reproducible; not read by the app. */
+  outputFormat?: string;
+  voiceSettings?: Record<string, number | boolean>;
   /** Text → clip file name (relative to the manifest's directory). */
   clips: Record<string, string>;
 }

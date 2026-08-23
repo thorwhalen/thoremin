@@ -4,7 +4,7 @@
  * cue cannot ship silently. (Regenerate with `npm run voice`.)
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { missingClips, speakableStrings, type VoiceManifest } from '@/app/enroll/speakable';
@@ -37,7 +37,7 @@ describe('the shipped clip set', () => {
     expect(missing, `regenerate the clips (npm run voice); missing: ${missing.join(' | ')}`).toEqual([]);
   });
 
-  it('every clip file exists, is small, and the whole set stays well under a megabyte', () => {
+  it('every clip file exists, is small (< 64 KB each), and the whole set stays WELL under a megabyte (< 512 KB)', () => {
     const m = manifest();
     let total = 0;
     for (const file of Object.values(m.clips)) {
@@ -45,9 +45,13 @@ describe('the shipped clip set', () => {
       expect(existsSync(p), `${file} is in the manifest but not on disk`).toBe(true);
       const size = statSync(p).size;
       expect(size).toBeGreaterThan(1000);
+      expect(size, `${file} is too large for a spoken sentence`).toBeLessThan(64 * 1024);
       total += size;
     }
-    expect(total).toBeLessThan(900 * 1024);
+    expect(total).toBeLessThan(512 * 1024);
+    // No stray files beyond the manifest's (the generator prunes).
+    const onDisk = readdirSync(resolve(process.cwd(), 'public/voice')).filter((f) => f !== 'manifest.json');
+    expect(onDisk.sort()).toEqual([...new Set(Object.values(m.clips))].sort());
   });
 });
 

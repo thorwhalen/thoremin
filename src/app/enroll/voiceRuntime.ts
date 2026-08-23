@@ -29,6 +29,19 @@ export const useVoice = create<VoiceState>()(
   }),
 );
 
+interface VoiceManifestState {
+  /** The loaded manifest, or null before it arrives / when unavailable. */
+  manifest: VoiceManifest | null;
+  /** Whether `text` has a clip. False until the manifest is loaded. */
+  hasClip(text: string): boolean;
+}
+
+/** The loaded clip set, for React: the picker marks cues that would be text-only. */
+export const useVoiceManifest = create<VoiceManifestState>()((_set, get) => ({
+  manifest: null,
+  hasClip: (text) => !!get().manifest?.clips[text],
+}));
+
 /** Where the clips live, relative to the app's base URL. */
 export const VOICE_DIR = 'voice/';
 
@@ -62,6 +75,7 @@ export function installVoice(): void {
   installed = true;
   void loadVoiceManifest().then((manifest) => {
     if (!manifest) return;
+    useVoiceManifest.setState({ manifest });
     sink = createVoiceSink({ manifest, baseUrl: underBase(VOICE_DIR), enabled: useVoice.getState().enabled });
     addGuidanceSink(sink);
     useVoice.subscribe((s) => sink?.setEnabled(s.enabled));
@@ -72,4 +86,5 @@ export function installVoice(): void {
 export function resetVoiceRuntime(): void {
   installed = false;
   sink = null;
+  useVoiceManifest.setState({ manifest: null });
 }
