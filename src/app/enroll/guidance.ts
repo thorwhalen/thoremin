@@ -16,6 +16,9 @@ import type { TranscriptLine } from './store';
 export interface GuidanceSink {
   /** One utterance. Called in order, once each. */
   say(line: TranscriptLine): void;
+  /** The routine stopped (Stop, or the panel closed): drop anything not yet rendered,
+   *  and silence anything in flight. Optional — the written channel has nothing to drop. */
+  stop?(): void;
 }
 
 const sinks = new Set<GuidanceSink>();
@@ -35,6 +38,17 @@ export function emitGuidance(line: TranscriptLine): void {
       s.say(line);
     } catch {
       // A sink's failure (a blocked autoplay, say) must never stop the routine.
+    }
+  }
+}
+
+/** The routine stopped: tell every sink (a throwing sink is isolated). */
+export function emitGuidanceStop(): void {
+  for (const s of sinks) {
+    try {
+      s.stop?.();
+    } catch {
+      // see emitGuidance
     }
   }
 }
