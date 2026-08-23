@@ -63,6 +63,23 @@ describe('load(): stored cues and routines reach the store', () => {
     expect(s.cues.some((c) => c.id === 'elbow')).toBe(false);
   });
 
+  it('a load that resolves while a routine is RUNNING does not swap the routine under the runner', async () => {
+    const st = stores();
+    await st.routines.save('Default', { cueIds: ['rest', 'your-faces'] }, 1000); // (ignored: load uses the default)
+    useTrainerStores(st);
+    const pending = useTrainer.getState().load();
+    useTrainer.getState().start(1000); // Start pressed before the stores answered
+    const runningRoutine = useTrainer.getState().routine;
+    await pending;
+    expect(useTrainer.getState().loaded).toBe(true);
+    expect(useTrainer.getState().routine).toBe(runningRoutine);
+    expect(useTrainer.getState().cues.length).toBeGreaterThan(0);
+    // And setRoutine is refused while running.
+    useTrainer.getState().setRoutine(['rest']);
+    expect(useTrainer.getState().routine).toBe(runningRoutine);
+    useTrainer.getState().stop(2000);
+  });
+
   it('is idempotent: a second load does not re-read (loaded stays true, state unchanged)', async () => {
     useTrainerStores(stores());
     await useTrainer.getState().load();
@@ -130,13 +147,20 @@ describe('labels survive a re-cut', () => {
       }
     };
     feed(120, base); // rest
-    wait(1700);
+    // Through each beat the player keeps holding the previous pose (frames keep
+    // arriving, as the live panel's poll does); the move happens inside the next cue.
+    let held: () => FeatureVector = base;
+    const holdThrough = (ms: number) => feed(Math.round(ms / 33), held);
+    holdThrough(1700);
     const poses: FeatureVector[] = [{ 'face.head.yaw': -25 }, { 'face.head.yaw': 25 }, { 'face.head.pitch': -25 }];
     for (const pose of poses) {
-      feed(12, () => ({ ...base(), ...pose })); // move (the sampler sees the jump)
-      feed(20, () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v + jitter()])) }));
-      wait(1700);
+      const at = () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v + jitter()])) });
+      feed(8, (): FeatureVector => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v * 0.5])) })); // the move
+      feed(25, at); // the hold
+      held = at;
+      holdThrough(1700);
     }
+    void wait;
     return useTrainer.getState();
   }
 

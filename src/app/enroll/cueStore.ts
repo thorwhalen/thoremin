@@ -20,11 +20,12 @@
  * row (there are no seed rows). Custom cues with new ids simply append.
  */
 import type { DataProvider } from '@zodal/store';
-import { FEATURE_GROUP_IDS } from '@/features/catalog';
+import { ALL_FEATURES, FEATURE_BY_ID } from '@/features/catalog';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 import {
   CueRecordSchema,
   RoutineRecordSchema,
+  cueFeatures,
   cueFromRecord,
   resolveRoutine,
   type Cue,
@@ -76,20 +77,31 @@ export function mergeCues(starters: readonly Cue[], stored: readonly Cue[]): Cue
   return out;
 }
 
+/** The catalog as a registry: every feature id, and each id's group. Injectable. */
+export interface FeatureRegistry {
+  allIds: readonly string[];
+  groupOf: (id: string) => string | undefined;
+}
+
+const CATALOG: FeatureRegistry = {
+  allIds: ALL_FEATURES.map((f) => f.id),
+  groupOf: (id) => FEATURE_BY_ID[id]?.group,
+};
+
 /**
  * The full cue list a picker shows: {@link mergeCues} over the store — minus any stored
- * cue whose groups the catalog cannot resolve at all. The schema is modality-neutral on
- * purpose and cannot know the catalog; this is the app-side place that does. Such a cue
- * would resolve to zero attention features, never count a frame, and end after its
- * patience with a misleading "I could not see you". Dropped cues are reported by id.
+ * cue whose attention set resolves to NOTHING against the catalog (no known group, or
+ * every feature of its groups omitted). The schema is modality-neutral on purpose and
+ * cannot know the catalog; this is the app-side place that does. Such a cue would never
+ * count a frame, and end after its patience with a misleading "I did not see you move".
+ * Dropped cues are reported by id.
  */
 export async function listCues(
   store: CueStore,
-  knownGroups: readonly string[] = FEATURE_GROUP_IDS,
+  registry: FeatureRegistry = CATALOG,
 ): Promise<{ cues: Cue[]; unusable: string[] }> {
-  const known = new Set(knownGroups);
   const stored = await loadStoredCues(store);
-  const usable = stored.filter((c) => c.collects.groups.some((g) => known.has(g)));
+  const usable = stored.filter((c) => cueFeatures(c, registry.allIds, registry.groupOf).length > 0);
   const unusable = stored.filter((c) => !usable.includes(c)).map((c) => c.id);
   return { cues: mergeCues(STARTER_CUES, usable), unusable };
 }

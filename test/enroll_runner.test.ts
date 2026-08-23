@@ -141,12 +141,12 @@ describe('the runner steps when it has ENOUGH, not when time passes', () => {
     h.wait(600);
     expect(h.runner.state().cue?.id).toBe('look');
 
-    // A timid turn: a quick 1.5-degree move (quick enough to count as a MOVEMENT — a
+    // A timid turn: a quick 2-degree move (quick enough to count as a MOVEMENT — a
     // cue's first point must follow one), then held (with its jitter — a perfectly
     // constant feature would have NO noise, and in noise units that is infinitely far):
-    // a still-point, but only ~5 sigma RMS from rest over the head features.
-    h.feed(2, (i) => v({ ...restFrame(r)(), yaw: (1.5 * (i + 1)) / 2 }));
-    h.feed(20, () => v({ ...restFrame(r)(), yaw: 1.5 + 0.3 * r() }));
+    // a still-point, but only ~7 sigma RMS from rest over the head features.
+    h.feed(3, (i) => v({ ...restFrame(r)(), yaw: (2 * (i + 1)) / 3 }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 2 + 0.3 * r() }));
     const guidance = h.events.filter((e) => e.type === 'guidance');
     expect(guidance).toHaveLength(1);
     expect(guidance[0].type === 'guidance' && guidance[0].say).toBe('A bit further.');
@@ -154,16 +154,16 @@ describe('the runner steps when it has ENOUGH, not when time passes', () => {
 
     // The same ASK is NOT repeated every evaluation while nothing changes — even though
     // the evaluator now proposes the next WORDING (it cycles the variations)...
-    h.feed(20, () => v({ ...restFrame(r)(), yaw: 1.5 + 0.3 * r() }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 2 + 0.3 * r() }));
     expect(h.events.filter((e) => e.type === 'guidance')).toHaveLength(1);
     // ...but it is, with the next variation, once `repeatSayMs` (4 s here) has passed.
-    h.feed(150, () => v({ ...restFrame(r)(), yaw: 1.5 + 0.3 * r() }));
+    h.feed(150, () => v({ ...restFrame(r)(), yaw: 2 + 0.3 * r() }));
     const again = h.events.filter((e) => e.type === 'guidance');
     expect(again).toHaveLength(2);
     expect(again[1].type === 'guidance' && again[1].say).toBe('All the way, if you can.');
 
     // Now a real 25-degree turn, held.
-    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: 1.5 + (23.5 * i) / 15 }));
+    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: 2 + (23 * i) / 15 }));
     h.feed(20, () => v({ ...restFrame(r)(), yaw: 25 + 0.3 * r() }));
     expect(h.kinds().at(-2)).toBe('end:enough');
     expect(h.kinds().at(-1)).toBe('done');
@@ -300,6 +300,37 @@ describe('the runner steps when it has ENOUGH, not when time passes', () => {
     expect(h.runner.state().status).toBe('running');
   });
 
+  it('slow wander through the beat does NOT re-arm the next cue (the held previous pose stays out of it)', () => {
+    // MediaPipe output wanders at low frequency. Over a 1.5 s beat that wander exceeds
+    // a threshold set for 100 ms displacements — so "moved during the beat" must be
+    // judged at the 100 ms scale (the idle sampler), never by comparing one frame
+    // against a seed a beat old.
+    const h = harness([REST, LOOK, cue('look2', { collects: { groups: ['head'], omit: [], axes: [] } })], { beatMs: 1500 });
+    const r = prng(41);
+    let phase = 0;
+    const wander = () => {
+      phase += 33;
+      return v({ ...restFrame(r)(), pitch: Math.sin((2 * Math.PI * phase) / 4000) + 0.3 * r() });
+    };
+    h.runner.start(h.t);
+    h.feed(60, wander);
+    // Through the whole beat the player just sits there, wandering.
+    h.feed(50, wander);
+    expect(h.runner.state().cue?.id).toBe('look');
+    h.feed(60, wander); // and keeps sitting there after the instruction
+    expect(h.session.pointsFor('look')).toHaveLength(0);
+    expect(h.events.filter((e) => e.type === 'guidance')).toHaveLength(0);
+    // Now the turn, held — then held through the NEXT beat and into look2, wandering.
+    h.feed(15, (i) => v({ ...wander(), yaw: (25 * i) / 15 }));
+    h.feed(20, () => v({ ...wander(), yaw: 25 + 0.3 * r() }));
+    expect(h.session.pointsFor('look')).toHaveLength(1);
+    h.feed(50, () => v({ ...wander(), yaw: 25 + 0.3 * r() }));
+    expect(h.runner.state().cue?.id).toBe('look2');
+    h.feed(60, () => v({ ...wander(), yaw: 25 + 0.3 * r() }));
+    expect(h.session.pointsFor('look2')).toHaveLength(0);
+    expect(h.runner.state().status).toBe('running');
+  });
+
   it('a player who moves DURING the beat (right after "Good.") still counts as having moved', () => {
     const h = harness([REST, LOOK, cue('look2', { collects: { groups: ['head'], omit: [], axes: [] } })]);
     const r = prng(23);
@@ -374,6 +405,54 @@ describe('the runner steps when it has ENOUGH, not when time passes', () => {
   });
 });
 
+describe('the variety nudges tell holding from sweeping', () => {
+  it('holding an already-captured pose earns "try a different one", not "hold still"; sweeping earns "hold still"', () => {
+    const h = harness([REST, cue('faces', { sufficiency: { kind: 'variety', minPoints: 4, minSeparation: 6, holdNudgeMs: 1500, patienceMs: 60000 } })], { repeatSayMs: 1000 });
+    const r = prng(31);
+    h.runner.start(h.t);
+    h.feed(40, restFrame(r));
+    h.wait(600);
+    // Hold one face (captured), then KEEP holding it well past holdNudgeMs.
+    h.feed(10, (i) => v({ ...restFrame(r)(), smile: (0.8 * (i + 1)) / 10 }));
+    h.feed(90, () => v({ ...restFrame(r)(), smile: 0.8 + 0.01 * r() }));
+    expect(h.session.pointsFor('faces')).toHaveLength(1);
+    const said = h.events.filter((e): e is Extract<RunnerEvent, { type: 'guidance' }> => e.type === 'guidance').map((e) => e.say);
+    expect(said.length).toBeGreaterThanOrEqual(1);
+    expect(said.every((x) => /different|not done yet/i.test(x))).toBe(true);
+    expect(said.some((x) => /hold it still/i.test(x))).toBe(false);
+    // Now sweep continuously: the nudge flips to "hold it still".
+    h.feed(90, (i) => v({ ...restFrame(r)(), yaw: 30 * Math.sin(i / 4), smile: 0.4 + 0.4 * Math.sin(i / 5) }));
+    const after = h.events.filter((e): e is Extract<RunnerEvent, { type: 'guidance' }> => e.type === 'guidance').map((e) => e.say);
+    expect(after.some((x) => /hold it still/i.test(x))).toBe(true);
+  });
+});
+
+describe('the session invalidates its build when a cue is re-run', () => {
+  it('retrain() after a re-run refuses until build() runs again (indices would be stale)', () => {
+    const h = harness([REST, LOOK]);
+    const r = prng(33);
+    h.runner.start(h.t);
+    h.feed(40, restFrame(r));
+    h.wait(600);
+    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: (25 * i) / 15 }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 25 + 0.3 * r() }));
+    h.session.beginCue(cue('extra', { collects: { groups: ['head'], omit: [], axes: [] } }));
+    for (let i = 0; i < 20; i++) h.session.push(v({ ...restFrame(r)(), yaw: -25 + 0.3 * r() }), (h.t += 33));
+    h.session.endCue();
+    h.session.build();
+    expect(h.session.built()).toBe(true);
+    const before = h.session.retrain(2);
+    expect(before.categories.length).toBeGreaterThanOrEqual(1);
+    // Re-run a cue: the pool changes, the build is stale, and retrain says so.
+    h.session.beginCue(LOOK);
+    h.session.endCue();
+    expect(h.session.built()).toBe(false);
+    expect(() => h.session.retrain(2)).toThrow(/build\(\)/);
+    h.session.build();
+    expect(h.session.built()).toBe(true);
+  });
+});
+
 describe('the default evaluator, directly', () => {
   const sigma = () => 1;
   const base = {
@@ -382,6 +461,7 @@ describe('the default evaluator, directly', () => {
     elapsedMs: 0,
     sinceLastSampleMs: 0,
     moved: true,
+    settling: false,
     sigma,
     askedVariations: 0,
   };

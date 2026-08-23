@@ -96,10 +96,10 @@ export interface SamplerOptions {
    */
   armed?: boolean;
   /**
-   * A reference frame from BEFORE this sampler's first push — the pose at the end of
-   * the previous cue. With it, a player who moves during the beat between two cues
-   * (they hear "Good." and turn at once) still registers as having MOVED when the next
-   * cue's first frames arrive, instead of sitting disarmed at their new pose.
+   * A reference frame from just BEFORE this sampler's first push (the last frame the
+   * session saw), so the first window has something to compare against. A seed older
+   * than twice the speed window is discarded unjudged: the held threshold was set for
+   * 100 ms displacements, and ordinary slow wander over a second exceeds it.
    */
   seed?: { v: FeatureVector; t: number };
   /**
@@ -266,10 +266,11 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
       // the session and must not see every frame twice.
       if (ownNoise) noise.push(vector, tMs);
       if (!judgeable(vector)) {
-        // Still warming up: no dwell may begin, and nothing may be emitted.
+        // Still warming up: no dwell may begin, and nothing may be emitted. The history
+        // is kept (the seed, or the last judged frame): the reference survives a cold
+        // stretch and is re-anchored by the window trim on the next judged push.
         settlingSince = null;
         resetAccumulator();
-        history.length = 0;
         return null;
       }
       history.push({ v: vector, t: tMs });
@@ -280,6 +281,12 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
       const dt = tMs - ref.t;
       // Not enough history to judge yet — do not guess "held".
       if (dt <= 0) return null;
+      // A reference far older than the window (a stale seed, a long cold stretch) is
+      // not a 100 ms displacement and must not be judged as one.
+      if (history.length === 2 && dt > 2 * o.speedWindowMs) {
+        history.shift();
+        return null;
+      }
       const v = motion(ref.v, vector, dt);
       lastSpeed = v;
 

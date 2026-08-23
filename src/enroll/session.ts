@@ -95,6 +95,10 @@ export interface Session {
   /** Whether the player has MOVED since the active cue began (the sampler crossed its
    *  held threshold at least once). False for continuous cues and when idle. */
   moved(): boolean;
+  /** Whether the vector is currently held (the active sampler is in a dwell). */
+  settling(): boolean;
+  /** True once `build()` has run over the CURRENT pool (re-running a cue invalidates it). */
+  built(): boolean;
   /** The session's noise unit for a feature (NaN if unseen). */
   sigma(id: string): number;
   /** The shared estimator (for a meter / a test). */
@@ -163,10 +167,18 @@ export function createSession(options: SessionOptions = {}): Session {
   let active: Cue | null = null;
   let activeFeatures: string[] = [];
   let sampler: StillPointSampler | null = null;
-  /** The last frame the active cue sampled, and the pose at the end of the previous cue
-   *  (the reference "moved since your last answer" is judged against). */
+  /** The last frame the active cue sampled. */
   let lastInCue: { v: FeatureVector; t: number } | null = null;
-  let endOfPreviousCue: { v: FeatureVector; t: number } | null = null;
+  /**
+   * Between cues, an IDLE sampler keeps judging motion at the usual 100 ms scale (fed by
+   * the frames the runner pushes during the beat), seeded with the last frame of the
+   * cue that ended. Whether it saw a move decides whether the next cue starts ARMED:
+   * "moved since your last answer" must be judged the way every other move is, not by
+   * comparing one frame against a seed a second and a half old (ordinary slow wander
+   * exceeds a 100 ms threshold over that span).
+   */
+  let idle: StillPointSampler | null = null;
+  let lastIdle: { v: FeatureVector; t: number } | null = null;
 
   let hierarchy: Hierarchy = { heights: [], size: 0 };
   let chosenFeatures: string[] = [];
@@ -197,16 +209,27 @@ export function createSession(options: SessionOptions = {}): Session {
       activeFeatures = featuresFor(cue);
       points.delete(cue.id);
       frames.delete(cue.id);
+      // The pool is about to change: a hierarchy built over the old one would index
+      // the wrong points. Build again when the take is finished.
+      hierarchy = { heights: [], size: 0 };
+      chosenFeatures = [];
+      chosenWeights = {};
+      // What the beat told us, read before it is forgotten.
+      const movedDuringBeat = idle?.hasMoved() ?? false;
+      const seed = lastIdle ?? lastInCue;
+      idle = null;
+      lastIdle = null;
       if (samplingFor(cue) === 'still-points') {
-        // Disarmed: the pose held while this instruction is given is the PREVIOUS one
-        // (rest, or the last cue's answer). The first point must follow a movement.
+        // Disarmed unless the player already moved during the beat: the pose held while
+        // this instruction is given is the PREVIOUS one (rest, or the last cue's answer),
+        // and the first point must follow a movement. The seed is the LATEST frame seen.
         sampler = createStillPointSampler({
-          armed: false,
+          armed: movedDuringBeat,
           ...o.sampler,
           cue: cue.id,
           features: activeFeatures,
           noise,
-          ...(endOfPreviousCue ? { seed: endOfPreviousCue } : {}),
+          ...(seed ? { seed } : {}),
         });
         points.set(cue.id, []);
       } else {
@@ -217,7 +240,11 @@ export function createSession(options: SessionOptions = {}): Session {
 
     push(vector, tMs) {
       noise.push(vector, tMs);
-      if (!active) return;
+      if (!active) {
+        idle?.push(vector, tMs);
+        lastIdle = { v: vector, t: tMs };
+        return;
+      }
       // A frame with none of the cue's features is not a sample of this cue (no face in
       // shot, say) — it must not count toward "enough".
       if (!activeFeatures.some((id) => Number.isFinite(vector[id]))) return;
@@ -231,8 +258,10 @@ export function createSession(options: SessionOptions = {}): Session {
     },
 
     endCue() {
-      if (lastInCue) endOfPreviousCue = lastInCue;
-      lastInCue = null;
+      // Keep judging motion through the beat (over every feature present), from where
+      // the player was when this cue ended.
+      idle = createStillPointSampler({ ...o.sampler, noise, ...(lastInCue ? { seed: lastInCue } : {}) });
+      lastIdle = null;
       active = null;
       sampler = null;
       activeFeatures = [];
@@ -245,6 +274,8 @@ export function createSession(options: SessionOptions = {}): Session {
     featuresFor,
     baseline: () => meanOf(framesWhere('baseline')),
     moved: () => sampler?.hasMoved() ?? false,
+    settling: () => sampler?.isSettling() ?? false,
+    built: () => hierarchy.size > 0 && hierarchy.size === vocabulary().length,
     sigma: (id) => noise.sigma(id),
     noise: () => noise,
     ready: () => vocabulary().length >= 2,
@@ -311,6 +342,7 @@ export function createSession(options: SessionOptions = {}): Session {
     },
 
     modelFor(clusters) {
+      if (!this.built()) throw new Error('session: build() over the current take before retrain() / modelFor()');
       const pool = vocabulary();
       const vocab = pool.map((p) => p.vector);
       const model = trainModel(vocab, clusters, chosenFeatures, chosenWeights, {
@@ -340,7 +372,8 @@ export function createSession(options: SessionOptions = {}): Session {
       activeFeatures = [];
       sampler = null;
       lastInCue = null;
-      endOfPreviousCue = null;
+      idle = null;
+      lastIdle = null;
       hierarchy = { heights: [], size: 0 };
       chosenFeatures = [];
       chosenWeights = {};

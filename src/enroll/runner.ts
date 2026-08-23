@@ -202,6 +202,7 @@ export function createRunner(options: RunnerOptions): Runner {
       elapsedMs: tMs - startedAt,
       sinceLastSampleMs: lastSampleAt === null ? tMs - startedAt : tMs - lastSampleAt,
       moved: session.moved(),
+      settling: session.settling(),
       baseline: session.baseline(),
       sigma: session.sigma,
       askedVariations,

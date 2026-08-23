@@ -75,6 +75,9 @@ const parsedSpec = (overrides: Partial<CueSpecInput> = {}): CueSpec => CueSpecSc
 const cue = (id: string, groups: string[], omit: string[] = []): Cue =>
   CueSchema.parse({ id, name: id, ...specInput({ collects: { groups, omit } }) });
 
+/** Every feature id in the `face.head` group (to hollow a cue out with `omit`). */
+const ALL_FACE_HEAD_IDS = Object.keys(FEATURE_BY_ID).filter((id) => FEATURE_BY_ID[id].group === 'face.head');
+
 const cueStore = () => createCueStore(createInMemoryProvider<CueRecord>([], { searchFields: ['name'] }));
 const routineStore = () => createRoutineStore(createInMemoryProvider<RoutineRecord>([], { searchFields: ['name'] }));
 
@@ -380,8 +383,10 @@ describe('cue and routine stores — the two zodal collections, over an in-memor
     const s = cueStore();
     await s.save('Elbow', parsedSpec({ collects: { groups: ['elbow.angle'], omit: [], axes: [] } }), 1000);
     await s.save('Partly', parsedSpec({ collects: { groups: ['elbow.angle', 'face.head'], omit: [], axes: [] } }), 1001);
+    // ...and a cue whose omit list empties its only known group is just as unusable.
+    await s.save('Hollow', parsedSpec({ collects: { groups: ['face.head'], omit: FEATURE_GROUPS.length ? ALL_FACE_HEAD_IDS : [], axes: [] } }), 1002);
     const { cues, unusable } = await listCues(s);
-    expect(unusable).toEqual(['elbow']);
+    expect(unusable.sort()).toEqual(['elbow', 'hollow']);
     expect(cues.some((c) => c.id === 'partly')).toBe(true);
     expect(cues.some((c) => c.id === 'elbow')).toBe(false);
   });

@@ -272,8 +272,8 @@ export default function TrainerPanel() {
             <ul className="mt-1 space-y-0.5" aria-label="Transcript">
               {transcript.slice(-12).map((l, i) => (
                 <li key={i} className={l.kind === 'guidance' ? 'italic text-emerald-200/60' : ''}>
-                  {l.say}
-                  {l.kind === 'end' && l.outcome === 'cannot' && l.why ? ` ${l.why}` : ''}
+                  {/* A `cannot` reads reason first, then the runner's "Moving on." */}
+                  {l.kind === 'end' && l.outcome === 'cannot' && l.why ? `${l.why} ${l.say}` : l.say}
                 </li>
               ))}
             </ul>

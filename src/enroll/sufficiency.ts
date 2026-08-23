@@ -72,6 +72,9 @@ export interface SufficiencyInput {
   /** Whether the player has moved at all since the cue began (the sampler's held
    *  threshold was crossed). Tells "sat still" apart from "moved but never held". */
   moved: boolean;
+  /** Whether the vector is currently HELD (the sampler is accumulating a dwell, or
+   *  sitting on an already-captured pose). Tells "holding" apart from "sweeping". */
+  settling: boolean;
   /** The resting baseline (mean of the baseline cue's frames), if one has run. */
   baseline?: FeatureVector;
   /** The session's noise unit for a feature (NaN if unseen). */
@@ -185,14 +188,20 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
           why: kept.length > 0 ? CANNOT_REASONS.notDistinct : input.moved ? CANNOT_REASONS.noHold : CANNOT_REASONS.noMove,
         };
       }
+      const quiet = input.sinceLastSampleMs > s.holdNudgeMs;
+      // Nothing captured for a while AND the player is not holding: they are sweeping
+      // (or sitting at a pose already taken, which reads as held — see below).
+      if (quiet && !input.settling) {
+        return { verdict: 'need-variation', key: 'hold', say: DEFAULT_NUDGES.hold };
+      }
       // The latest point duplicated an earlier one: ask for something different.
       const lastIndex = input.points.length - 1;
       if (lastIndex >= 0 && !kept.includes(lastIndex)) {
         return { verdict: 'need-variation', key: 'different', say: nextVariation(cue, input.askedVariations, DEFAULT_NUDGES.different) };
       }
-      // Nothing held for a while: the player is moving continuously (or not at all).
-      if (input.sinceLastSampleMs > s.holdNudgeMs) {
-        return { verdict: 'need-variation', key: 'hold', say: DEFAULT_NUDGES.hold };
+      // Holding a pose that has already been captured, for a while: move on to another.
+      if (quiet && input.settling) {
+        return { verdict: 'need-variation', key: 'different', say: nextVariation(cue, input.askedVariations, DEFAULT_NUDGES.different) };
       }
       return { verdict: 'need-more' };
     }

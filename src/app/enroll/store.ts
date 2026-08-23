@@ -203,18 +203,20 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       const { cues: cueStore, routines } = getStores();
       const { cues, unusable } = await listCues(cueStore);
       const r = await loadRoutine(null, cues, routines);
-      set({
-        cues,
-        unusable,
-        routine: r.cues,
-        routineName: r.name,
-        missing: r.missing,
-        outcomes: r.cues.map(() => null),
-        loaded: true,
-      });
+      // A routine may be running by the time the stores answer (Start pressed before
+      // the read resolved): the runner holds ITS cue list, and the panel renders the
+      // store's — they must not diverge mid-run. Swap the routine only when idle.
+      const running = get().status === 'running' || get().status === 'between';
+      set(
+        running
+          ? { cues, unusable, loaded: true }
+          : { cues, unusable, routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null), loaded: true },
+      );
     },
 
     setRoutine(cueIds, name = 'Custom') {
+      // Not while a runner is driving the current routine (same reason as in load()).
+      if (get().status === 'running' || get().status === 'between') return;
       const byId = new Map(get().cues.map((c) => [c.id, c]));
       const routine: Cue[] = [];
       const missing: string[] = [];
