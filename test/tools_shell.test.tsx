@@ -269,6 +269,24 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     expect(screen.getAllByText('skipped').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('voice is a toggle in the panel (and in the running strip); text is not', async () => {
+    const { useVoice } = await import('@/app/enroll/voiceRuntime');
+    useVoice.getState().setEnabled(false);
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const toggle = () => screen.getByRole('button', { name: /^Voice (on|off)/ });
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggle());
+    expect(useVoice.getState().enabled).toBe(true);
+    // Still there while running (the strip), and the written line still shows.
+    fireEvent.click(screen.getByText('Start'));
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-say]')?.textContent).toBe(STARTER_CUES[0].instruction);
+    fireEvent.click(toggle());
+    expect(useVoice.getState().enabled).toBe(false);
+    fireEvent.click(screen.getByText('Stop'));
+  });
+
   it('the HUD pref is a per-device checkbox in the panel, not an instrument dial', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);

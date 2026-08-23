@@ -1,0 +1,30 @@
+{
+  "voiceId": "EXAVITQu4vr4xnSDxMaL",
+  "modelId": "eleven_multilingual_v2",
+  "clips": {
+    "Look at the camera and relax your face for a few seconds.": "fb5ae03b7ca1.mp3",
+    "Turn your head to look to your left, and hold it.": "8253d3c7e477.mp3",
+    "A bit further, if you can.": "29924d66a90d.mp3",
+    "As far as is comfortable, and hold it there.": "442825e281f1.mp3",
+    "Now turn to look to your right, and hold it.": "38805098d0c5.mp3",
+    "Tip your head back to look up, and hold it.": "ef3e948c6a31.mp3",
+    "Now tip your head forward to look down, and hold it.": "ba18faacd5bb.mp3",
+    "Tilt your head so your left ear moves toward your shoulder, and hold it.": "eeeb434afe02.mp3",
+    "Now tilt the other way, and hold it.": "afbdb6c4c6a6.mp3",
+    "Hold any one face, and move closer to the camera, then further away.": "acb7492f2d70.mp3",
+    "Now make faces you can make reliably, whichever ones you like. Hold each one for a moment, then move on to the next.": "45a0c9a220f3.mp3",
+    "Try one you have not done yet.": "19525eb21aff.mp3",
+    "Something quite different this time.": "c84fbbe956af.mp3",
+    "One more, and hold it a moment longer.": "98861ffafde1.mp3",
+    "Hold it still for a moment.": "3e3e4cb85cf8.mp3",
+    "I could not see you for this one.": "39451f9db6ef.mp3",
+    "I did not get enough of that one.": "3f72da9d3e94.mp3",
+    "I did not catch a held position for that one.": "03faefa68498.mp3",
+    "I did not see you move for that one.": "eb9c7ce8c518.mp3",
+    "I could not see enough movement for that one.": "fbadcc387650.mp3",
+    "I could not find enough different ones.": "10862b70b796.mp3",
+    "Good.": "bdc919c5862d.mp3",
+    "Moving on.": "bdc52eee9a76.mp3",
+    "That is everything. Thank you.": "db8831ae2122.mp3"
+  }
+}
