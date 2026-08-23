@@ -22,6 +22,7 @@ import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
 import { featureDemandResource } from './featureDemand';
+import { trainerHudResource } from './enroll/hud';
 import { useToasts } from './toasts';
 import { SessionRecorder, activeStreamLabels } from './recording/session';
 import { SinkCancelled } from './recording/sink';
@@ -240,6 +241,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Live tagging (#92): the burned-in corner HUD reads this each tick (null
         // unless a take is recording). Same synchronous-read pattern as `controls`.
         resources.tagOverlay = tagOverlayResource;
+        // Trainer guidance on the video (#163): the overlay reads what the runner is
+        // saying each tick; null unless a routine runs.
+        resources.trainerHud = trainerHudResource;
         // Feature demand (#163): the vector nodes compute whatever a host consumer
         // (the trainer, while a cue runs) has claimed, even with the Lab closed.
         resources.featureDemand = featureDemandResource;

@@ -223,9 +223,11 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     expect(useTools.getState().open).toBe('trainer');
     // One row per cue of the loaded routine — the routine is data, so this grows with
     // STARTER_CUES rather than being a hardcoded list here.
-    const rows = screen.getByRole('list', { name: 'Routine' }).querySelectorAll('li');
+    const list = screen.getByRole('list', { name: 'Routine' });
+    const rows = list.querySelectorAll('li');
     expect(rows).toHaveLength(STARTER_CUES.length);
-    for (const cue of STARTER_CUES) expect(screen.getByText(cue.name)).toBeTruthy();
+    // (Names also appear in the picker beneath, so look inside the routine list.)
+    for (const cue of STARTER_CUES) expect(list.textContent).toContain(cue.name);
     expect(screen.getByText('Find my categories')).toBeTruthy();
     expect(screen.getByText('Start')).toBeTruthy();
   });
@@ -273,6 +275,34 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     expect(useTools.getState().open).toBeNull();
     expect(useTrainer.getState().status).toBe('stopped');
     expect(appFeatureDemand.groups()).toBeNull();
+  });
+
+  it('the routine picker (#163 §3): filter narrows the list, a toggle changes the draft, Use applies it', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    // Idle: the picker is offered (collapsed); while running it is not.
+    const picker = document.querySelector('[data-routine-picker]');
+    expect(picker).toBeTruthy();
+    const rows = () => document.querySelectorAll('[data-picker-cue]');
+    expect(rows()).toHaveLength(STARTER_CUES.length);
+    // Free-text filter narrows it...
+    fireEvent.change(screen.getByLabelText('Filter cues'), { target: { value: 'tilt' } });
+    expect(rows()).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText('Filter cues'), { target: { value: '' } });
+    // ...and a tag chip is all-of.
+    fireEvent.click(screen.getByRole('button', { name: 'setup' }));
+    expect(rows().length).toBeLessThan(STARTER_CUES.length);
+    fireEvent.click(screen.getByRole('button', { name: 'setup' }));
+    // Un-include the first tilt and Use: the routine shrinks by one.
+    fireEvent.click(screen.getByLabelText('Include Tilt left'));
+    expect(screen.getByText('Use')).toBeTruthy();
+    fireEvent.click(screen.getByText('Use'));
+    expect(useTrainer.getState().routine.map((c) => c.id)).not.toContain('tilt-left');
+    expect(useTrainer.getState().routine).toHaveLength(STARTER_CUES.length - 1);
+    // Running hides the picker.
+    fireEvent.click(screen.getByText('Start'));
+    expect(document.querySelector('[data-routine-picker]')).toBeNull();
+    fireEvent.click(screen.getByText('Stop'));
   });
 
   it('cannot be trained from an empty take (the build button is disabled)', () => {

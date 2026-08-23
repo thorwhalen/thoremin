@@ -48,6 +48,7 @@ import {
   type FeatureVector,
 } from '@/features/catalog';
 import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@/taglog/presentation';
+import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import {
   FINGER_NAMES,
@@ -166,6 +167,20 @@ const Params = z.object({
       position: z.enum(['left', 'right']).default('right'),
     })
     .prefault({}),
+  /**
+   * Trainer guidance ON THE VIDEO (#163 §5): while a routine runs, the active cue's
+   * instruction large across the bottom of the frame, the latest nudge beneath it, and
+   * a coverage bar — the written channel of what the runner says, where the player is
+   * actually looking. A no-op (draws nothing) unless the trainer is running, so it
+   * costs nothing the rest of the time. Not burned into the recorded `pureVideo`.
+   */
+  trainerHud: z
+    .object({
+      show: z.boolean().default(true),
+      /** Which edge the banner anchors to. */
+      position: z.enum(['bottom', 'top']).default('bottom'),
+    })
+    .prefault({}),
 });
 type Params = z.infer<typeof Params>;
 
@@ -227,6 +242,9 @@ export interface OverlayView {
     /** Burned-in tag HUD frame (#92): open tags + timecode + blink; null unless a
      *  take is recording. Computed in `process` from `ctx.resources.tagOverlay`. */
     tagOverlay?: TagOverlayFrame | null;
+    /** Trainer guidance (#163): null unless a routine is running. Read in `process`
+     *  from `ctx.resources.trainerHud`. */
+    trainerHud?: TrainerHudSnapshot | null;
   };
   params: Params;
   /** Computed top-left origin per cue element name (set by the layout pass). */
@@ -1270,6 +1288,77 @@ const tagHud: OverlayElement = {
   },
 };
 
+// ---- Trainer guidance on the video (#163 §5) --------------------------------------
+// A self-contained additive block, like the tag HUD. Draws only while a routine runs.
+const TRAINER_HUD_PAD = 16;
+const TRAINER_HUD_BIG = 22; // px, the instruction
+const TRAINER_HUD_SMALL = 15; // px, the guidance + the cue label
+const TRAINER_HUD_BAR = 4; // px, the coverage bar
+/** Approximate glyph widths (no measureText: the headless recording-canvas test). */
+const TRAINER_HUD_BIG_CHAR_W = 11.5;
+
+/** Paint the guidance banner: cue label, the instruction (wrapped to two lines), the
+ *  latest nudge, and a coverage bar along the banner's edge. fillRect/fillText only. */
+function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayView, hud: TrainerHudSnapshot): void {
+  const maxW = Math.min(view.W - 2 * 24, 900);
+  const maxChars = Math.max(16, Math.floor((maxW - 2 * TRAINER_HUD_PAD) / TRAINER_HUD_BIG_CHAR_W));
+  const lines = wrapLines(hud.say, maxChars).slice(0, 3);
+  const label = `${hud.index}/${hud.total} · ${hud.cueName}`;
+  const rows = 1 + lines.length + (hud.guidance ? 1 : 0);
+  const lineH = TRAINER_HUD_BIG + 8;
+  const boxH = TRAINER_HUD_PAD * 2 + TRAINER_HUD_SMALL + 6 + lines.length * lineH + (hud.guidance ? TRAINER_HUD_SMALL + 8 : 0) + TRAINER_HUD_BAR;
+  const boxW = maxW;
+  const x0 = (view.W - boxW) / 2;
+  const y0 = view.params.trainerHud.position === 'top' ? CUE_TOP_INSET : view.H - boxH - 24;
+  void rows;
+
+  g.save();
+  g.globalAlpha = 1;
+  g.fillStyle = hud.status === 'between' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(0, 0, 0, 0.6)';
+  g.fillRect(x0, y0, boxW, boxH);
+  g.textBaseline = 'top';
+  g.textAlign = 'left';
+
+  // Cue label, small, top-left of the banner.
+  g.font = `600 ${TRAINER_HUD_SMALL}px ui-sans-serif, system-ui, sans-serif`;
+  g.fillStyle = 'rgba(110, 231, 183, 0.9)';
+  g.fillText(label, x0 + TRAINER_HUD_PAD, y0 + TRAINER_HUD_PAD);
+
+  // The instruction (or the end phrase), large.
+  g.font = `500 ${TRAINER_HUD_BIG}px ui-sans-serif, system-ui, sans-serif`;
+  g.fillStyle = '#ffffff';
+  let y = y0 + TRAINER_HUD_PAD + TRAINER_HUD_SMALL + 6;
+  for (const line of lines) {
+    g.fillText(line, x0 + TRAINER_HUD_PAD, y);
+    y += lineH;
+  }
+
+  // The latest guidance, beneath, italic.
+  if (hud.guidance) {
+    g.font = `italic ${TRAINER_HUD_SMALL}px ui-sans-serif, system-ui, sans-serif`;
+    g.fillStyle = 'rgba(167, 243, 208, 0.95)';
+    g.fillText(hud.guidance, x0 + TRAINER_HUD_PAD, y);
+  }
+
+  // Coverage bar along the banner's bottom edge: the cue's own minimum, not a timer.
+  const pct = Math.max(0, Math.min(1, hud.coverage));
+  g.fillStyle = 'rgba(255, 255, 255, 0.15)';
+  g.fillRect(x0, y0 + boxH - TRAINER_HUD_BAR, boxW, TRAINER_HUD_BAR);
+  g.fillStyle = pct >= 1 ? '#34d399' : 'rgba(52, 211, 153, 0.7)';
+  g.fillRect(x0, y0 + boxH - TRAINER_HUD_BAR, boxW * pct, TRAINER_HUD_BAR);
+  g.restore();
+}
+
+const trainerHud: OverlayElement = {
+  name: 'trainerHud',
+  category: 'guide',
+  draw(g, view) {
+    const hud = view.inputs.trainerHud;
+    if (!hud || !view.params.trainerHud.show) return;
+    drawTrainerHud(g, view, hud);
+  },
+};
+
 /** Correlation-grid geometry. Deliberately small: this is a diagnostic you glance at
  *  while performing, not a plot you study. */
 const CORR_CELL = 14;
@@ -1410,6 +1499,9 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   // The burned-in tag HUD sits above the cues (its own top corner); fingerBars stays
   // the array's last element so the z-order invariant + concurrent additions hold.
   tagHud,
+  // The trainer's on-video guidance (#163): above the cues, below fingerBars, which
+  // stays the array's last element (the z-order invariant).
+  trainerHud,
   fingerBarsCue,
 ];
 
@@ -1524,6 +1616,10 @@ export const canvasOverlayNode = defineNode<Params>({
         // resource means frame === null and the tagHud element draws nothing.
         const tagOverlayFn = ctx.resources.tagOverlay as (() => TagOverlaySnapshot | null) | undefined;
         const tagOverlay = computeTagOverlay(tagOverlayFn?.() ?? null, ctx.time);
+        // Trainer guidance (#163): null unless a routine is running; the element is then
+        // a no-op. Same holder-plus-synchronous-read shape as the tag HUD.
+        const trainerHudFn = ctx.resources.trainerHud as (() => TrainerHudSnapshot | null) | undefined;
+        const trainerHudSnapshot = trainerHudFn?.() ?? null;
 
         const liveConfig = inputs.overlayConfig as OverlayParams | undefined;
         const view: OverlayView = {
@@ -1547,6 +1643,7 @@ export const canvasOverlayNode = defineNode<Params>({
             faceDegrees: controls?.faceExpr?.degrees,
             faceMapping: controls?.faceMapping,
             tagOverlay,
+            trainerHud: trainerHudSnapshot,
           },
         };
 

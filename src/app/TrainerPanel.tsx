@@ -9,9 +9,11 @@
  * ## Cues, a runner, and a conversation
  *
  * The panel renders whatever routine the store loaded — a list of cues, which are
- * data — and, while the runner runs, shows what the runner SAYS: the cue's instruction,
- * large; the latest guidance ("a bit further, if you can"), beneath it; and a short
- * transcript. The runner steps when it has ENOUGH, not when time passes: the coverage
+ * data, editable through the {@link RoutinePicker} — and, while the runner runs, shows
+ * what the runner SAYS: the cue's instruction, large; the latest guidance ("a bit
+ * further, if you can"), beneath it; and a short transcript. The same strings are
+ * painted ON THE VIDEO by the overlay's `trainerHud` element (the player is looking at
+ * the camera, not at this panel); the panel is the full record, the HUD is the glance. The runner steps when it has ENOUGH, not when time passes: the coverage
  * meter is the cue's own minimum, and a cue the player cannot produce ends in
  * `cannot` and moves on rather than trapping them.
  *
@@ -44,6 +46,7 @@ import { GraduationCap, X } from 'lucide-react';
 import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
+import RoutinePicker from './enroll/RoutinePicker';
 import { useTools } from './toolsStore';
 import { toolById } from './tools';
 
@@ -209,6 +212,8 @@ export default function TrainerPanel() {
           {missing.length > 0 && (
             <p className="text-[10px] text-amber-300/80">Skipping {missing.length} cue(s) this routine names that no longer exist.</p>
           )}
+          {/* The picker (#163 §3): filter, include, reorder, save. Not while running. */}
+          {!running && <RoutinePicker />}
         </div>
 
         {/* What the runner is saying now. Always written; voice is a toggle on the same
