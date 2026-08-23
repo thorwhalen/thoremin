@@ -262,6 +262,18 @@ export class Engine {
       }
     }
 
+    // The engine may have been disposed while PREPARE was awaiting an `init()`
+    // — in the browser that is a React unmount landing on top of a swap that is
+    // still loading a model. Committing anyway would adopt the instances we just
+    // built into a dead engine, where nothing can ever reach them again (every
+    // later applyGraph throws), and would re-dispose the old ones that `dispose()`
+    // has already torn down. Treat it exactly like a rejected `init`: release
+    // what PREPARE built, change nothing, and say why.
+    if (this.disposed) {
+      for (const id of fresh) disposeQuietly(nodes.get(id)!, this.log);
+      throw new Error('Engine: disposed while applyGraph was preparing');
+    }
+
     // 3. COMMIT — one synchronous block, so no tick sees a half-swapped graph.
     const keptSet = new Set(kept);
     const outputs = new Map<string, PortValues>();
@@ -328,6 +340,10 @@ export class Engine {
     // but iterating a snapshot means a future change to that ordering cannot
     // turn into a mid-loop `undefined` node.
     for (const id of [...this.order]) {
+      // `dispose()` tears down every node in the map, including ones this loop
+      // has not reached yet. Continuing would init a node that has already been
+      // disposed, and nothing would ever dispose it again.
+      if (this.disposed) return;
       const node = this.nodes.get(id);
       if (node?.handlers.init) await node.handlers.init(ctx);
     }
@@ -343,6 +359,11 @@ export class Engine {
    * advances by `nominalDt` for deterministic headless runs.
    */
   tick(time?: number): void {
+    // A frame already scheduled when the host tore the engine down would
+    // otherwise run `process()` against released handles (a closed MediaPipe
+    // landmarker, disconnected audio nodes). Ticking a disposed engine is a
+    // caller bug; doing nothing is the safe reading of it.
+    if (this.disposed) return;
     this.tickIndex += 1;
     const t = time ?? (this.tickIndex * this.nominalDt);
     const dt = this.tickIndex === 0 ? 0 : Math.max(0, t - this.lastTime);
@@ -389,11 +410,21 @@ export class Engine {
     return this.order;
   }
 
+  /**
+   * Tear the whole graph down. Idempotent, and **best-effort per node**: one
+   * node's `dispose` throwing must not strand the ones after it. The sinks sort
+   * last in topological order, so an abort here is the worst case there is — the
+   * synth's oscillators keep sounding, `midi-out` never fires its all-notes-off
+   * and holds the port, and a camera node keeps its inference loop running. It
+   * also runs inside the host's own cleanup (`useEngine`), where an escaping
+   * throw would skip stopping the camera tracks.
+   */
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true;
     for (const id of this.order) {
       const node = this.nodes.get(id);
-      node?.handlers.dispose?.();
+      if (node) disposeQuietly(node, this.log);
     }
   }
 }

@@ -704,6 +704,153 @@ describe('applyGraph — bookkeeping', () => {
   });
 });
 
+// ---- 5b. teardown racing a swap ------------------------------------------
+
+describe('applyGraph vs dispose (found by adversarial review)', () => {
+  /** A node whose init blocks on a gate the test controls. */
+  function gatedNode(type: string, calls: Calls, gate: Promise<void>, began?: () => void) {
+    return defineNode({
+      type,
+      inputs: [],
+      outputs: [{ name: 'v', kind: 'number' }],
+      params: z.object({}),
+      make: () => ({
+        init: async () => {
+          calls.init.push(type);
+          began?.();
+          await gate;
+        },
+        process: () => ({ v: 1 }),
+        dispose: () => void calls.dispose.push(type),
+      }),
+    });
+  }
+
+  it('a dispose() landing DURING prepare aborts the commit and releases what it built', async () => {
+    const calls = freshCalls();
+    let beginInit!: () => void;
+    let releaseInit!: () => void;
+    const began = new Promise<void>((r) => {
+      beginInit = r;
+    });
+    const gate = new Promise<void>((r) => {
+      releaseInit = r;
+    });
+    const engine = await startedEngine(
+      chain(1, 2),
+      registryFor(calls, [gatedNode('slow-swap', calls, gate, beginInit)]),
+    );
+
+    const pending = engine.applyGraph({
+      nodes: [...chain(1, 2).nodes, { id: 's', type: 'slow-swap' }],
+      edges: chain(1, 2).edges,
+    });
+    await began; // the new node's init is in flight
+
+    // The React unmount lands on top of the in-flight swap.
+    engine.dispose();
+    expect(calls.dispose).toEqual(['counter:1', 'counter:2']);
+
+    releaseInit();
+    await expect(pending).rejects.toThrow(/disposed while applyGraph was preparing/);
+
+    // The instance PREPARE built was released, not stranded on a dead engine —
+    // in production that is a MediaPipe landmarker with a live inference loop.
+    expect(calls.dispose).toEqual(['counter:1', 'counter:2', 'slow-swap']);
+    // ...and the running nodes were not torn down a second time.
+    expect(calls.dispose.filter((d) => d === 'counter:1')).toHaveLength(1);
+    // Nothing was committed.
+    expect(engine.graphVersion()).toBe(0);
+    expect(engine.evaluationOrder()).toEqual(['a', 'b']);
+  });
+
+  it('a dispose() during init() stops the boot instead of initing already-disposed nodes', async () => {
+    const calls = freshCalls();
+    let beginInit!: () => void;
+    let releaseInit!: () => void;
+    const began = new Promise<void>((r) => {
+      beginInit = r;
+    });
+    const gate = new Promise<void>((r) => {
+      releaseInit = r;
+    });
+    const engine = new Engine(
+      { nodes: [{ id: 'a', type: 'slow-boot' }, { id: 'z', type: 'counter', params: { offset: 4 } }], edges: [] },
+      registryFor(calls, [gatedNode('slow-boot', calls, gate, beginInit)]),
+    );
+    const booting = engine.init();
+    await began;
+    engine.dispose();
+    releaseInit();
+    await booting;
+    // `z` was disposed by dispose(); the boot must not have gone on to init it.
+    expect(calls.init).toEqual(['slow-boot']);
+    expect(calls.dispose).toEqual(['slow-boot', 'counter:4']);
+  });
+});
+
+// ---- 5c. teardown is best-effort and idempotent ---------------------------
+
+describe('dispose', () => {
+  const boom = defineNode({
+    type: 'boom-dispose',
+    inputs: [],
+    outputs: [{ name: 'v', kind: 'number' }],
+    params: z.object({}),
+    make: () => ({
+      process: () => ({ v: 1 }),
+      dispose: () => {
+        throw new Error('teardown exploded');
+      },
+    }),
+  });
+
+  it('does not let one throwing node strand the nodes after it', async () => {
+    // The sinks sort LAST in topological order, so aborting here is the worst
+    // case there is: the synth keeps sounding and midi-out never sends its
+    // all-notes-off. It also runs inside the host's own cleanup, where an
+    // escaping throw would skip stopping the camera tracks.
+    const calls = freshCalls();
+    const logged: string[] = [];
+    const engine = new Engine(
+      {
+        nodes: [
+          { id: 'a', type: 'counter', params: { offset: 1 } },
+          { id: 'b', type: 'boom-dispose' },
+          { id: 'c', type: 'counter', params: { offset: 3 } },
+        ],
+        edges: [],
+      },
+      registryFor(calls, [boom]),
+      { log: (m) => void logged.push(m) },
+    );
+    await engine.init();
+    expect(() => engine.dispose()).not.toThrow();
+    expect(calls.dispose).toEqual(['counter:1', 'counter:3']); // c survived b's throw
+    expect(logged.join()).toMatch(/dispose of node "b" \(boom-dispose\) threw/);
+  });
+
+  it('is idempotent', async () => {
+    const calls = freshCalls();
+    const engine = await startedEngine(chain(1, 2), registryFor(calls));
+    engine.dispose();
+    engine.dispose();
+    engine.dispose();
+    expect(calls.dispose).toEqual(['counter:1', 'counter:2']);
+  });
+
+  it('makes tick() a no-op, so an already-scheduled frame cannot run on freed handles', async () => {
+    const calls = freshCalls();
+    const engine = await startedEngine(chain(1, 2), registryFor(calls));
+    engine.tick();
+    const processes = calls.process.length;
+    engine.dispose();
+    engine.tick(); // the rAF frame that was already queued at unmount
+    engine.tick();
+    expect(calls.process).toHaveLength(processes);
+  });
+});
+
 // ---- 6. the real production graph ----------------------------------------
 
 describe('applyGraph on the real instrument graph', () => {
