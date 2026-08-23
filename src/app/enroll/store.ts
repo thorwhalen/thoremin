@@ -21,6 +21,8 @@
  * reclustering — which is what lets the k control be a live slider rather than a button.
  */
 import { create } from 'zustand';
+import { FEATURE_GROUP_IDS } from '@/features/catalog';
+import { appFeatureDemand } from '../featureDemand';
 import {
   createEnrollmentSession,
   type EnrollmentSession,
@@ -62,6 +64,9 @@ interface TrainerState {
  *  and putting it in the store would invite React to try to diff it. */
 let session: EnrollmentSession = createEnrollmentSession();
 
+/** The trainer's claim on the feature-demand registry while a step runs. */
+const DEMAND_OWNER = 'trainer';
+
 export const useTrainer = create<TrainerState>()((set, get) => ({
   activeStep: null,
   progress: session.progress(),
@@ -73,6 +78,9 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
 
   begin(step) {
     session.beginStep(step);
+    // Ask the engine to compute the catalog while the step runs (#163): with the Lab
+    // closed the vector nodes otherwise emit `{}`, and the step captures nothing.
+    appFeatureDemand.claim(DEMAND_OWNER, FEATURE_GROUP_IDS);
     set({ activeStep: step, progress: session.progress() });
   },
 
@@ -84,6 +92,7 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
 
   end() {
     session.endStep();
+    appFeatureDemand.release(DEMAND_OWNER);
     set({ activeStep: null, progress: session.progress() });
   },
 
@@ -108,6 +117,7 @@ export const useTrainer = create<TrainerState>()((set, get) => ({
 
   reset() {
     session = createEnrollmentSession();
+    appFeatureDemand.release(DEMAND_OWNER);
     set({
       activeStep: null,
       progress: session.progress(),

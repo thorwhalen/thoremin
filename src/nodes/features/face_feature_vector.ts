@@ -25,6 +25,7 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import type { FaceFrame } from '../domain';
 import { buildFaceCtx, FACE_FEATURES, type FeatureVector } from '@/features/catalog';
+import type { DemandedGroups } from '@/features/demand';
 import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
 
 const Params = z.object({
@@ -35,12 +36,18 @@ const Params = z.object({
 type Params = z.infer<typeof Params>;
 
 type ControlsGetter = () => LabControlsSnapshot | undefined;
+/** The live feature demand (#163): groups some non-Lab consumer needs computed. */
+type DemandGetter = () => DemandedGroups;
 
 /** Resolve the active flag + enabled-group predicate. The rule itself lives in
  *  `@/features/labConfig` — it is shared with the hand/face twin, and keeping two copies
  *  of it is how #136 silently un-gated the whole catalog. */
 function resolveGroups(p: Params, ctx: NodeContext): { active: boolean; enabled: (group: string) => boolean } {
-  return resolveLabGate(p, (ctx.resources.controls as ControlsGetter | undefined)?.());
+  return resolveLabGate(
+    p,
+    (ctx.resources.controls as ControlsGetter | undefined)?.(),
+    (ctx.resources.featureDemand as DemandGetter | undefined)?.() ?? null,
+  );
 }
 
 export const faceFeatureVectorNode = defineNode<Params>({
