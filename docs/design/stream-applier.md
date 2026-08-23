@@ -188,8 +188,8 @@ The Applier also injects `resources.stateReader = { get: (n, p) => engine.getOut
 Each milestone is a small shippable PR set, headless-verifiable where the
 boundaries allow.
 
-- **M-A — Camera-free file video (R6). ⭐ Unblocks camera-free overlay/palette
-  verification.** Pure host wiring, **no engine code**: `?source=video&video=<url>`
+- **M-A — Camera-free file video (R6). ✅ shipped. ⭐ Unblocks camera-free
+  overlay/palette verification.** Pure host wiring, **no engine code**: `?source=video&video=<url>`
   → skip `getUserMedia`, feed a `<video src loop muted>` into `resources.video`;
   webcam nodes run unchanged. Real guards: `loop` **required** (the
   `currentTime !== lastVideoTime` gate freezes on a non-advancing clip),
@@ -219,6 +219,13 @@ boundaries allow.
   rAF loop adopts `RealtimeClock(1)`** (deferred from M-B).
   **Gate on a browser smoke test** — the effect (StrictMode guards, face bridge,
   mute mirror, AudioContext lifecycle) has no headless coverage.
+  - ✅ **The live loop now runs on `RealtimeClock(1)`** — `src/app/engineLoop.ts`
+    (`runEngineLoop`) replaced `useEngine`'s hand-rolled rAF recursion. Splitting
+    the loop out of the hook is what let the deferral be lifted early: the tick,
+    the report fan-out, the frame-drop guard and the stop condition are all
+    headlessly tested (`test/engine_loop.test.ts`) with an injected clock, so what
+    remains for the browser smoke test is only the *effect* (StrictMode guards,
+    camera acquisition, AudioContext lifecycle) — not pacing.
   - ✅ **`speed > 0` validation done** — `RealtimeClock` now throws a `RangeError`
     on a non-finite or non-positive speed rather than shipping a frozen clock
     (a speed of 0 pins engine time to `base`, so every tick gets `dt === 0` while

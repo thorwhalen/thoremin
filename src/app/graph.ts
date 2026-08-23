@@ -56,6 +56,45 @@ export const SLOTS: Record<string, SlotDef> = {
 /** Per-slot chosen node types (keys ⊆ SLOTS keys); all optional → defaults used. */
 export type SlotSelection = Partial<Record<keyof typeof SLOTS, string>>;
 
+/** Nothing selected — every slot uses its default. A module constant so passing
+ *  "no selection" does not create a new object identity on every render. */
+export const NO_SLOTS: SlotSelection = Object.freeze({});
+
+/**
+ * Parse a URL query string into a {@link SlotSelection}: `?slot.<slotName>=<nodeType>`,
+ * e.g. `?slot.mapping=voice-mapping`. Unknown `slot.*` keys and blank values are
+ * ignored; an invalid *node type* is not rejected here but by {@link resolveSlot},
+ * which warns and falls back to the slot default.
+ *
+ * This is a **developer-facing** seam, deliberately, and the same shape as M-A's
+ * `?source=video` (`src/app/sourceSpec.ts`): graphs are data, so selecting one
+ * belongs in the URL. Per the component-model governance rule, a slot earns a
+ * player-facing settings dropdown only once its role has >= 2 real
+ * implementations — `mapping` has one today.
+ *
+ * @param search a `location.search` string (leading `?` optional).
+ */
+export function parseSlotSelection(search: string): SlotSelection {
+  const params = new URLSearchParams(search);
+  const selection: SlotSelection = {};
+  for (const key of Object.keys(SLOTS) as (keyof typeof SLOTS)[]) {
+    const chosen = params.get(`slot.${key}`)?.trim();
+    if (chosen) selection[key] = chosen;
+  }
+  return selection;
+}
+
+/**
+ * A stable, order-independent string identity for a selection — so React effects
+ * can depend on *what was selected* rather than on the object's identity (which
+ * changes on every render and would tear the engine down each time).
+ */
+export function slotSelectionKey(selection: SlotSelection = NO_SLOTS): string {
+  return (Object.keys(SLOTS) as (keyof typeof SLOTS)[])
+    .map((k) => `${k}=${selection[k] ?? ''}`)
+    .join('&');
+}
+
 /**
  * Why a node type does NOT satisfy a slot, or `null` if it does. Checks, in order:
  * registered, carries the slot role, emits the slot's output port+kind, and

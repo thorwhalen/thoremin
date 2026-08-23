@@ -196,7 +196,8 @@ So, when you add a user-facing capability:
 | DAG engine (framework-agnostic) | `src/dag/` (`engine.ts`, `types.ts`, `registry.ts`, `recorder.ts`, `clock.ts`) |
 | Node library | `src/nodes/{sources,features,mapping,music,output}/` |
 | Default graph wiring | `src/app/graph.ts` |
-| React↔DAG bridge (webcam, AudioContext, rAF, recorder) | `src/app/useEngine.ts` |
+| React↔DAG bridge (webcam, AudioContext, recorder, slot selection) | `src/app/useEngine.ts` |
+| Live frame loop — the app's `Clock` adoption (tick + per-frame reporters + frame-drop guard) | `src/app/engineLoop.ts` |
 | Live control store (zustand+persist) — the hot per-tick mirror | `src/app/store.ts` |
 | Music theory + **sounds** (timbre presets) | `src/music/` (`theory.ts`, `sounds.ts`, `voicing.ts`, `expression.ts`) |
 | Overlay (compose elements here) | `src/nodes/output/canvas_overlay.ts` |

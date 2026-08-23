@@ -13,7 +13,15 @@ import { Engine, createRegistry, defineNode, type NodeRegistry } from '@/dag';
 import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
 import { CORE_NODES } from '@/nodes';
 import { voiceMappingNode } from '@/nodes/mapping/voice_mapping';
-import { SLOTS, resolveSlot, defaultGraph, type SlotSelection } from '@/app/graph';
+import {
+  SLOTS,
+  resolveSlot,
+  defaultGraph,
+  parseSlotSelection,
+  slotSelectionKey,
+  NO_SLOTS,
+  type SlotSelection,
+} from '@/app/graph';
 import {
   MAPPING_SLOT_INPUTS,
   MAPPING_SLOT_OUTPUT,
@@ -148,5 +156,56 @@ describe('defaultGraph slot binding', () => {
     const spec = defaultGraph({ mapping: 'indirect-map' }, reg, );
     expect(spec.nodes.find((n) => n.id === 'map')?.type).toBe('voice-mapping');
     expect(() => new Engine(spec, reg)).not.toThrow();
+  });
+});
+
+describe('parseSlotSelection (the URL seam)', () => {
+  it('selects nothing by default, so every slot uses its default', () => {
+    expect(parseSlotSelection('')).toEqual({});
+    expect(parseSlotSelection('?engine=dag&source=video&video=/a.mp4')).toEqual({});
+    expect(defaultGraph(parseSlotSelection(''), appRegistry())).toEqual(defaultGraph());
+  });
+
+  it('reads ?slot.<name>=<nodeType> for each known slot', () => {
+    expect(parseSlotSelection('?slot.mapping=voice-mapping')).toEqual({ mapping: 'voice-mapping' });
+    expect(parseSlotSelection('slot.mapping=alt-mapping')).toEqual({ mapping: 'alt-mapping' });
+  });
+
+  it('ignores blank values and unknown slot names', () => {
+    expect(parseSlotSelection('?slot.mapping=')).toEqual({});
+    expect(parseSlotSelection('?slot.mapping=%20%20')).toEqual({});
+    expect(parseSlotSelection('?slot.nonesuch=whatever')).toEqual({});
+  });
+
+  it('leaves validation to resolveSlot, which warns and falls back', () => {
+    const warnings: string[] = [];
+    const sel = parseSlotSelection('?slot.mapping=not-a-node');
+    expect(sel).toEqual({ mapping: 'not-a-node' }); // parsed, not judged
+    expect(resolveSlot('mapping', sel, appRegistry(), (m) => warnings.push(m))).toBe('voice-mapping');
+    expect(warnings[0]).toContain('is not a registered node type');
+  });
+
+  it('coexists with the other URL params (?source=video, ?engine=)', () => {
+    expect(parseSlotSelection('?engine=dag&slot.mapping=voice-mapping&source=video&video=/c.mp4')).toEqual({
+      mapping: 'voice-mapping',
+    });
+  });
+});
+
+describe('slotSelectionKey (the React effect identity)', () => {
+  it('is stable for equal selections and distinct for different ones', () => {
+    expect(slotSelectionKey({ mapping: 'a' })).toBe(slotSelectionKey({ mapping: 'a' }));
+    expect(slotSelectionKey({ mapping: 'a' })).not.toBe(slotSelectionKey({ mapping: 'b' }));
+    expect(slotSelectionKey({})).toBe(slotSelectionKey(NO_SLOTS));
+    expect(slotSelectionKey()).toBe(slotSelectionKey({}));
+  });
+
+  it('covers every slot, so adding one cannot silently stop triggering re-wires', () => {
+    for (const name of Object.keys(SLOTS)) expect(slotSelectionKey({})).toContain(`${name}=`);
+  });
+
+  it('does not depend on object identity (a fresh literal each render is fine)', () => {
+    const renders = [{ mapping: 'x' }, { mapping: 'x' }, { mapping: 'x' }];
+    expect(new Set(renders.map(slotSelectionKey)).size).toBe(1);
   });
 });
