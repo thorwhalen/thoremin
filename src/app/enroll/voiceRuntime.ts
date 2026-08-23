@@ -74,7 +74,12 @@ export function installVoice(): void {
   if (installed) return;
   installed = true;
   void loadVoiceManifest().then((manifest) => {
-    if (!manifest) return;
+    if (!manifest) {
+      // Unavailable now (offline, not generated): try again on the next panel open
+      // rather than leaving voice dead for the page's lifetime.
+      installed = false;
+      return;
+    }
     useVoiceManifest.setState({ manifest });
     sink = createVoiceSink({ manifest, baseUrl: underBase(VOICE_DIR), enabled: useVoice.getState().enabled });
     addGuidanceSink(sink);

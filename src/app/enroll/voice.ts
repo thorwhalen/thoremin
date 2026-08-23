@@ -92,9 +92,14 @@ export function createVoiceSink(options: VoiceSinkOptions): VoiceSink {
   return {
     say(line) {
       if (!enabled) return;
-      // A new instruction (or the end of a cue) makes every waiting nudge stale.
+      // A new instruction (or the end of a cue) makes every waiting nudge stale — and a
+      // new instruction makes an earlier, still-unspoken instruction stale too (a cue
+      // skipped as soon as it began must not be announced after its successor).
       if (line.kind !== 'guidance') {
         for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'guidance') queue.splice(i, 1);
+      }
+      if (line.kind === 'instruction') {
+        for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'instruction') queue.splice(i, 1);
       }
       // A `cannot` is written as "<reason> Moving on." — and must be SPOKEN the same
       // way: the reason first, then the runner's phrase.

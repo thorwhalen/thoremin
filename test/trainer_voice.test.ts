@@ -125,6 +125,20 @@ describe('the voice sink', () => {
     expect(p.played).toEqual(['voice/a.mp3']);
   });
 
+  it('a still-unspoken instruction is dropped by the next one (a cue skipped at once is not announced late)', async () => {
+    const p = controlledPlayer();
+    const two: VoiceManifest = { ...m, clips: { ...m.clips, 'Look right.': 'e.mp3' } };
+    const sink = createVoiceSink({ manifest: two, baseUrl: 'voice/', player: p.player, enabled: true });
+    sink.say(line('instruction', 'Look left.')); // playing
+    sink.say(line('instruction', 'Good.')); // (an end phrase would be 'end'; use a second instruction to model cue N, skipped)
+    sink.say(line('instruction', 'Look right.'));
+    expect(sink.pending()).toBe(1);
+    p.finish();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(p.played).toEqual(['voice/a.mp3', 'voice/e.mp3']);
+  });
+
   it('turning voice off clears the queue', () => {
     const p = controlledPlayer();
     const sink = createVoiceSink({ manifest: m, baseUrl: 'voice/', player: p.player, enabled: true });
