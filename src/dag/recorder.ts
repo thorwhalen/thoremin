@@ -95,6 +95,14 @@ export interface ReplayOptions {
   dt?: number;
   /** Host resources to expose to the node (usually empty in tests). */
   resources?: Record<string, unknown>;
+  /**
+   * Structured logger passed as `ctx.log`. Without it a node's log line is the
+   * one observable behaviour a replay test cannot see — which matters for the
+   * nodes that deliberately DEGRADE rather than throw (a malformed live config,
+   * a transient inference failure): "it kept going" and "it kept going and said
+   * why" are different guarantees, and only the second is worth relying on.
+   */
+  log?: (msg: string) => void;
 }
 
 /**
@@ -114,11 +122,12 @@ export async function replayNode(
 ): Promise<PortValues[]> {
   const dt = opts.dt ?? 1 / 60;
   const resources = opts.resources ?? {};
+  const log = opts.log;
   const ports = Object.keys(inputFramesByPort);
   const ticks = ports.reduce((max, p) => Math.max(max, inputFramesByPort[p].length), 0);
 
   if (handlers.init) {
-    await handlers.init({ tick: 0, time: 0, dt: 0, resources });
+    await handlers.init({ tick: 0, time: 0, dt: 0, resources, log });
   }
 
   const results: PortValues[] = [];
@@ -128,7 +137,7 @@ export async function replayNode(
       const v = inputFramesByPort[p][i];
       if (v !== undefined) inputs[p] = v;
     }
-    const ctx: NodeContext = { tick: i, time: i * dt, dt: i === 0 ? 0 : dt, resources };
+    const ctx: NodeContext = { tick: i, time: i * dt, dt: i === 0 ? 0 : dt, resources, log };
     results.push(handlers.process(inputs, ctx) ?? {});
   }
   handlers.dispose?.();

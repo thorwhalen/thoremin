@@ -208,7 +208,7 @@ Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).
 Gesture features → weighted prompts + config dials (steers a generative engine).
 
 - **roles:** mapping
-- **in:** features:hand-features, face:face-features
+- **in:** features:hand-features, face:face-features, steerConfig:steer-config
 - **out:** steer:generative-steer
 - **params:** strains (array=[]), dials (array=[]), smoothing (number=0), throttleSec (number=0)
 
