@@ -96,6 +96,9 @@ export function createVoiceSink(options: VoiceSinkOptions): VoiceSink {
       if (line.kind !== 'guidance') {
         for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'guidance') queue.splice(i, 1);
       }
+      // A `cannot` is written as "<reason> Moving on." — and must be SPOKEN the same
+      // way: the reason first, then the runner's phrase.
+      if (line.kind === 'end' && line.why) queue.push({ ...line, say: line.why, why: undefined });
       queue.push(line);
       pump();
     },

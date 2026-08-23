@@ -101,6 +101,18 @@ describe('the voice sink', () => {
     expect(p.played).toEqual(['voice/a.mp3', 'voice/c.mp3']);
   });
 
+  it('a `cannot` speaks the REASON and then "Moving on." — what is written is what is said', async () => {
+    const withReason: VoiceManifest = { ...m, clips: { ...m.clips, 'I did not see you move for that one.': 'r.mp3', 'Moving on.': 'd.mp3' } };
+    const p = controlledPlayer();
+    const sink = createVoiceSink({ manifest: withReason, baseUrl: 'voice/', player: p.player, enabled: true });
+    sink.say({ t: 0, kind: 'end', say: 'Moving on.', outcome: 'cannot', why: 'I did not see you move for that one.' });
+    expect(p.played).toEqual(['voice/r.mp3']);
+    p.finish();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(p.played).toEqual(['voice/r.mp3', 'voice/d.mp3']);
+  });
+
   it('a line with no clip is skipped, not an error — the text channel still has it', async () => {
     const p = controlledPlayer();
     const sink = createVoiceSink({ manifest: m, baseUrl: 'voice/', player: p.player, enabled: true });

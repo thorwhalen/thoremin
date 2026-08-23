@@ -9,9 +9,9 @@ from the same `speakableStrings()` the coverage test uses), and for each string 
 clip is not already in `public/voice/` asks braidio to synthesise it. Writes
 `public/voice/manifest.json` mapping text -> clip file.
 
-Idempotent and content-addressed: the clip file name is the SHA-1 of the text, so
-re-running regenerates exactly the strings whose wording changed, and nothing else is
-billed. (braidio's own on-disk cache, keyed on text + voice + model, is a second guard:
+Idempotent and content-addressed: the clip file name is the SHA-1 of voice + model +
+format + text, so re-running regenerates exactly the strings whose wording (or voice)
+changed, and nothing else is billed. (braidio's own on-disk cache, keyed on text + voice + model, is a second guard:
 a clip deleted from `public/` is re-served from it at no cost.)
 
 ONE voice for the whole set, fixed here so the set is reproducible: a guidance voice that
@@ -48,8 +48,11 @@ MANIFEST = OUT_DIR / "manifest.json"
 
 
 def clip_name(text: str) -> str:
-    """Content address: the first 12 hex chars of the text's SHA-1."""
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12] + ".mp3"
+    """Content address: the first 12 hex chars of the SHA-1 of voice + model + format +
+    text. The voice is PART of the address: a changed voice (or format) must produce
+    new files, not keep the old voice's clips under the same names."""
+    key = f"{VOICE_ID}|{MODEL_ID}|{OUTPUT_FORMAT}|{text}"
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:12] + ".mp3"
 
 
 def load_manifest() -> dict:
@@ -63,7 +66,9 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest()
     if manifest.get("voiceId") != VOICE_ID or manifest.get("modelId") != MODEL_ID:
-        print(f"voice/model changed -> regenerating the whole set", file=sys.stderr)
+        # The addresses include the voice, so the old clips are simply stale files
+        # (pruned below) and every string is written afresh.
+        print("voice/model changed -> regenerating the whole set", file=sys.stderr)
         manifest = {"voiceId": VOICE_ID, "modelId": MODEL_ID, "clips": {}}
 
     made, billed, kept = 0, 0, 0
