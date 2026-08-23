@@ -9,7 +9,7 @@ export * from './types';
 export { defineNode } from './node';
 export { NodeRegistry, createRegistry } from './registry';
 export { Engine } from './engine';
-export type { EngineOptions } from './engine';
+export type { EngineOptions, GraphChange } from './engine';
 export {
   StreamRecorder,
   serializeRecords,
