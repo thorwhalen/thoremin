@@ -17,7 +17,8 @@ import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
-import { labWantsFace } from '@/features/labConfig';
+import { demandWantsFace, labWantsFace } from '@/features/labConfig';
+import { useDemandedGroups } from './useDemandedGroups';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import RecordButton from './RecordButton';
 import TaggingControls from './tagging/TaggingControls';
@@ -38,9 +39,10 @@ import VersionBadge from './VersionBadge';
 function FaceChip() {
   const faceMapping = useControls((s) => s.faceMapping);
   const featureLab = useControls((s) => s.featureLab);
+  const demanded = useDemandedGroups();
   const status = useFaceStatus((s) => s.status);
   const label = useFaceStatus((s) => s.label);
-  if (faceMapping === 'none' && !labWantsFace(featureLab)) return null;
+  if (faceMapping === 'none' && !labWantsFace(featureLab) && !demandWantsFace(demanded)) return null;
 
   let dot = 'bg-white/40';
   let text = 'face starting…';

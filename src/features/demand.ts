@@ -45,6 +45,8 @@ export interface FeatureDemand {
   owners(): string[];
   /** Forget every claim. */
   reset(): void;
+  /** Be told after any change (claim / release / reset). Returns the unsubscribe. */
+  subscribe(listener: () => void): () => void;
 }
 
 /**
@@ -54,6 +56,10 @@ export interface FeatureDemand {
 export function createFeatureDemand(): FeatureDemand {
   const claims = new Map<string, ReadonlySet<string>>();
   let union: DemandedGroups = null;
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const l of listeners) l();
+  };
 
   const recompute = () => {
     if (claims.size === 0) {
@@ -73,15 +79,26 @@ export function createFeatureDemand(): FeatureDemand {
         claims.set(owner, new Set(groups));
       }
       recompute();
+      notify();
     },
     release(owner) {
-      if (claims.delete(owner)) recompute();
+      if (claims.delete(owner)) {
+        recompute();
+        notify();
+      }
     },
     groups: () => union,
     owners: () => [...claims.keys()],
     reset() {
       claims.clear();
       union = null;
+      notify();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

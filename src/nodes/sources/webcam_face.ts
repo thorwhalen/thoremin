@@ -26,7 +26,8 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { matrixToHeadPose, type FaceFrame, type FaceMapping, type FaceStatus } from '../domain';
-import { labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
+import type { DemandedGroups } from '@/features/demand';
+import { demandWantsFace, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm
@@ -115,19 +116,27 @@ type FaceControlsGetter = () => {
 /**
  * Should the face model be loaded and run?
  *
- * Two independent consumers can want the face, and either is sufficient:
+ * Three independent consumers can want the face, and any one is sufficient:
  *  - the MAPPING wants it — the face drives sound (`faceMapping !== 'none'`), falling
  *    back to the legacy `faceEnabled` flag when the newer field is absent (older
  *    callers / tests);
  *  - the LAB wants it — the Feature Instrumentation Lab is measuring face groups
  *    ({@link labWantsFace}). Before #136 only the mapping could turn the model on, so
  *    you could not look at a face meter without also handing the face control of the
- *    sound: a measuring instrument that cannot observe without altering.
+ *    sound: a measuring instrument that cannot observe without altering;
+ *  - a feature DEMAND wants it (#163, {@link demandWantsFace}) — the trainer has
+ *    claimed face groups for a running cue. Trainer v1 asked the vector node for
+ *    features without asking this gate for the model, and with the Lab closed and the
+ *    mapping off (both defaults) it sampled an absent face.
  *
- * Exported so the app shell can tell the player the face camera is running for either
- * reason (the FaceChip), and so the rule is directly testable.
+ * Exported so the app shell can tell the player the face camera is running for any of
+ * these reasons (the FaceChip), and so the rule is directly testable.
  */
-export function faceActive(controls: ReturnType<FaceControlsGetter> | undefined): boolean {
+export function faceActive(
+  controls: ReturnType<FaceControlsGetter> | undefined,
+  demanded: DemandedGroups = null,
+): boolean {
+  if (demandWantsFace(demanded)) return true;
   if (!controls) return false;
   if (labWantsFace(controls.featureLab)) return true;
   if (controls.faceMapping !== undefined) return controls.faceMapping !== 'none';
@@ -272,7 +281,8 @@ export const webcamFaceNode = defineNode<Params>({
       process(_inputs, ctx: NodeContext) {
         video = (ctx.resources.video as HTMLVideoElement | undefined) ?? video;
         const getControls = ctx.resources.controls as FaceControlsGetter | undefined;
-        const enabled = faceActive(getControls?.());
+        const getDemand = ctx.resources.featureDemand as (() => DemandedGroups) | undefined;
+        const enabled = faceActive(getControls?.(), getDemand?.() ?? null);
         if (!enabled) {
           // Release the model if one is loaded/loading; also clear a prior
           // failure latch so a deliberate re-enable retries the load.

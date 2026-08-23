@@ -163,3 +163,69 @@ describe('the live-vector tap stamps samples in MILLISECONDS (the sampler\'s uni
     resetLiveVector();
   });
 });
+
+describe('the face MODEL gate honours a demand (the second half of the v1 bug)', () => {
+  it('faceActive: mapping off + Lab hidden + no demand → off; a face-group demand → on', async () => {
+    const { faceActive } = await import('@/nodes/sources/webcam_face');
+    const { defaultFeatureLab } = await import('@/features/labConfig');
+    const controls = { faceMapping: 'none' as const, featureLab: defaultFeatureLab() };
+    expect(faceActive(controls)).toBe(false);
+    expect(faceActive(controls, null)).toBe(false);
+    // A hand-only demand must NOT load the face model.
+    expect(faceActive(controls, new Set(['hand.finger.flexion']))).toBe(false);
+    expect(faceActive(controls, new Set(['face.head']))).toBe(true);
+    // The demand is sufficient on its own, even with no controls snapshot at all.
+    expect(faceActive(undefined, new Set(['face.geom.mouth']))).toBe(true);
+  });
+
+  it('the webcam-face node reads the demand off ctx.resources and reports the model active', async () => {
+    const { webcamFaceNode } = await import('@/nodes/sources/webcam_face');
+    const { defaultFeatureLab } = await import('@/features/labConfig');
+    const h = webcamFaceNode.make(webcamFaceNode.params.parse({}));
+    const controls = () => ({ faceMapping: 'none' as const, featureLab: defaultFeatureLab() });
+    // No <video> resource, so the model is never loaded headlessly — but the STATUS says
+    // whether the node considers itself enabled, which is the gate under test.
+    const off = h.process({}, ctx({ controls })) as { status: { phase: string } };
+    const on = h.process({}, ctx({ controls, featureDemand: () => new Set(['face.head']) })) as { status: { phase: string } };
+    // 'idle' = the gate said no; anything else ('loading' here, with no landmarker yet)
+    // = the gate said yes and the node is on its way to a model.
+    expect(off.status.phase).toBe('idle');
+    expect(on.status.phase).toBe('loading');
+  });
+
+  it('the registry notifies subscribers on claim / release / reset (for the FaceChip)', () => {
+    const d = createFeatureDemand();
+    let n = 0;
+    const off = d.subscribe(() => {
+      n += 1;
+    });
+    d.claim('a', ['face.head']);
+    d.release('a');
+    d.release('a'); // nothing to release: no notification
+    d.reset();
+    expect(n).toBe(3);
+    off();
+    d.claim('b', ['face.au']);
+    expect(n).toBe(3);
+  });
+});
+
+describe('the production wiring (source guard — useEngine is outside the strict typecheck)', () => {
+  it('useEngine installs the demand resource under the key the nodes read', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
+    const engine = read('src/app/useEngine.ts');
+    // The install. Deleting this line leaves every unit test green (the nodes are always
+    // handed a hand-built getter in tests) — which is exactly how v1 shipped blind.
+    expect(engine).toMatch(/resources\.featureDemand\s*=\s*featureDemandResource/);
+    // And the three readers use the SAME resource key (uncorrelated string literals).
+    for (const file of [
+      'src/nodes/features/face_feature_vector.ts',
+      'src/nodes/features/hand_feature_vector.ts',
+      'src/nodes/sources/webcam_face.ts',
+    ]) {
+      expect(read(file), `${file} does not read ctx.resources.featureDemand`).toMatch(/ctx\.resources\.featureDemand/);
+    }
+  });
+});

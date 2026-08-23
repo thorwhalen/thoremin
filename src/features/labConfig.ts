@@ -92,6 +92,18 @@ export function labWantsFace(cfg: FeatureLabConfig | undefined): boolean {
   return cfg.groups.some((g) => FACE_GROUP_IDS.includes(g));
 }
 
+/**
+ * Does a live feature DEMAND (#163) need the face model loaded? The trainer claims
+ * face groups while a cue runs; without this the vector node would be computing from a
+ * face frame that is never produced, because the model gate only knew about the Lab
+ * and the sound mapping.
+ */
+export function demandWantsFace(demanded: DemandedGroups): boolean {
+  if (!demanded) return false;
+  for (const g of demanded) if (FACE_GROUP_IDS.includes(g)) return true;
+  return false;
+}
+
 // ---- The compute gate the feature-vector nodes share ------------------------------
 
 /** The slice of the lab config the feature-vector nodes need off a control snapshot. */
