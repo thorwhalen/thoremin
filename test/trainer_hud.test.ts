@@ -118,6 +118,7 @@ describe('the HUD resource reads the trainer store', () => {
     const between = trainerHudResource();
     expect(between?.status).toBe('between');
     expect(between?.cueName).toBe(STARTER_CUES[1].name);
+    expect(between?.say).toBe('');
     useTrainer.getState().stop(1200);
     expect(trainerHudResource()).toBeNull();
   });
@@ -130,7 +131,7 @@ describe('guidance sinks — the seam the voice layer plugs into', () => {
     appFeatureDemand.reset();
   });
 
-  it('receives every line the store transcribes, in order, and a throwing sink is isolated', () => {
+  it('receives every line the store transcribes, in order (after the event settles), and a throwing sink is isolated', async () => {
     const heard: string[] = [];
     const off = addGuidanceSink({ say: (l: TranscriptLine) => void heard.push(l.say) });
     addGuidanceSink({
@@ -140,6 +141,8 @@ describe('guidance sinks — the seam the voice layer plugs into', () => {
     });
     useTrainer.getState().start(1000);
     useTrainer.getState().skip(1100);
+    expect(heard).toEqual([]); // not yet: sinks run in a microtask, never inside the runner's dispatch
+    await Promise.resolve();
     expect(heard).toEqual([STARTER_CUES[0].instruction]);
     useTrainer.getState().stop(1200);
     off();
@@ -154,5 +157,91 @@ describe('the production wiring (source guard — useEngine is outside the stric
     expect(engine).toMatch(/resources\.trainerHud\s*=\s*trainerHudResource/);
     const overlay = readFileSync(resolve(process.cwd(), 'src/nodes/output/canvas_overlay.ts'), 'utf8');
     expect(overlay).toMatch(/ctx\.resources\.trainerHud/);
+  });
+});
+
+describe('the HUD pref is per-device, not an instrument parameter (the #136 lesson)', () => {
+  it('is NOT in the instrument overlay dial; toggling it dirties nothing and survives an instrument load', async () => {
+    const { OverlayDialSchema } = await import('@/nodes/output/canvas_overlay');
+    const { createThoreminRegistry } = await import('@/app/commands/registry');
+    const { ensureSeeded } = await import('@/app/dials/instruments');
+    const { dialsStore } = await import('@/app/dials/settingsStore');
+    const { useControls } = await import('@/app/store');
+    // Not a dial: the schema the instrument persists has no such key, and the path is
+    // not dispatchable as an instrument edit.
+    expect('trainerHud' in OverlayDialSchema.shape).toBe(false);
+    const reg = createThoreminRegistry();
+    await ensureSeeded();
+    await reg.dispatch('instrument.load', { name: 'Split Voices' });
+    const dirtyBefore = dialsStore.getState().dirty.length;
+    useControls.getState().setTrainerHud({ show: false });
+    expect(dialsStore.getState().dirty.length).toBe(dirtyBefore);
+    await reg.dispatch('instrument.load', { name: 'Pentatonic' });
+    // Loading an instrument does not flip the pref back on.
+    expect(useControls.getState().trainerHud.show).toBe(false);
+    useControls.getState().setTrainerHud({ show: true });
+  });
+
+  it('store-controls composes the pref into the overlay node\'s params each tick', async () => {
+    const { storeControlsNode } = await import('@/nodes/sources/store_controls');
+    const { TrainerHudParamsSchema, OverlayDialSchema } = await import('@/nodes/output/canvas_overlay');
+    const { useControls } = await import('@/app/store');
+    const h = storeControlsNode.make(storeControlsNode.params.parse({}));
+    const base = { ...useControls.getState(), overlay: OverlayDialSchema.parse({}) };
+    const controls = () => ({ ...base, trainerHud: TrainerHudParamsSchema.parse({ show: false, position: 'top' }) });
+    const out = h.process({}, { tick: 0, time: 0, dt: 1 / 30, resources: { controls } }) as { overlay?: { trainerHud?: { show: boolean; position: string } } };
+    expect(out.overlay?.trainerHud).toEqual({ show: false, position: 'top' });
+    // And a control store with NO pref yet (an older blob) composes the default.
+    const { trainerHud: _omit, ...withoutPref } = base;
+    void _omit;
+    const out2 = h.process({}, { tick: 0, time: 0, dt: 1 / 30, resources: { controls: () => withoutPref } }) as { overlay?: { trainerHud?: { show: boolean } } };
+    expect(out2.overlay?.trainerHud?.show).toBe(true);
+  });
+
+  it('mergeControls heals a missing or corrupt pref to the default', async () => {
+    const { mergeControls, useControls } = await import('@/app/store');
+    const current = useControls.getState();
+    expect(mergeControls({}, current).trainerHud.show).toBe(true);
+    expect(mergeControls({ trainerHud: { show: 'nope' } }, current).trainerHud).toEqual(current.trainerHud);
+    expect(mergeControls({ trainerHud: { show: false } }, current).trainerHud.show).toBe(false);
+  });
+});
+
+describe('the banner takes part in the cue layout', () => {
+  function runWith(params: Record<string, unknown>, snapshot: TrainerHudSnapshot | null, W = 1280, H = 720) {
+    const rc = makeCanvas(W, H);
+    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(params));
+    const ctx: NodeContext = { tick: 0, time: 1, dt: 0, resources: { canvas: rc.canvas, trainerHud: () => snapshot } };
+    handlers.process({ chord: [60, 64, 67], scale: [60, 62, 64, 65, 67, 69, 71] }, ctx);
+    return rc;
+  }
+
+  it('sits above the bottom inset (the object-cover crop band / tools bar), not flush with the edge', () => {
+    const rc = runWith({ ...onlyTrainerHud, trainerHud: { show: true, position: 'bottom' } }, snap, 1280, 720);
+    const box = rc.calls.find((c) => c.m === 'fillRect')!.args as number[];
+    const [, y, , h] = box;
+    expect(y + h).toBeLessThanOrEqual(720 - 60);
+  });
+
+  it('leaves room at the sides for the edge stacks, and wraps rather than overflowing', () => {
+    const rc = runWith({ ...onlyTrainerHud, trainerHud: { show: true, position: 'bottom' } }, snap, 640, 480);
+    const [x, , w] = rc.calls.find((c) => c.m === 'fillRect')!.args as number[];
+    expect(x).toBeGreaterThanOrEqual(100);
+    expect(x + w).toBeLessThanOrEqual(540);
+  });
+
+  it('with position "top" it stacks BELOW a top-anchored cue instead of painting over it', () => {
+    // chordName on top (its default), trainerHud on top too: the layout pass places the
+    // banner after the chord name on that edge.
+    const params = { ...onlyTrainerHud, chordName: { show: true, position: 'top' }, trainerHud: { show: true, position: 'top' } };
+    const rc = runWith(params, snap, 1280, 720);
+    const rects = rc.calls.filter((c) => c.m === 'fillRect').map((c) => c.args as number[]);
+    // The banner is the widest rect. Everything drawn BEFORE it on the top row (the
+    // chord name is earlier in z-order) must end above where the banner begins.
+    const bi = rects.findIndex((r) => r[2] === Math.max(...rects.map((x) => x[2])));
+    const banner = rects[bi];
+    const topRow = rects.slice(0, bi).filter((r) => r[1] < 100);
+    expect(topRow.length).toBeGreaterThan(0);
+    for (const r of topRow) expect(banner[1]).toBeGreaterThanOrEqual(r[1] + r[3] - 1e-6);
   });
 });

@@ -14,8 +14,8 @@ import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } 
 import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import type { FaceChord, FaceExpr } from '@/settings/schema';
-import type { OverlayDialParams } from '@/nodes/output/canvas_overlay';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
+import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 
 export interface VoiceControlSnapshot {
@@ -49,6 +49,9 @@ export interface ControlSnapshot {
    *  params here. Also read by `webcam-face`, which loads the face model when the Lab
    *  is measuring face groups even if the face drives no sound. */
   featureLab?: FeatureLabConfig;
+  /** The trainer's guidance HUD pref (#163) — per-device, like the Lab; composed into
+   *  the overlay node's params here. */
+  trainerHud?: TrainerHudParams;
   /** Legacy face on/off flag; superseded by {@link faceMapping}. Kept so older
    *  hosts / saved data still gate the `webcam-face` model load. */
   faceEnabled?: boolean;
@@ -181,7 +184,13 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         }
         // Recompose the overlay node's params: the instrument's overlay elements plus
         // the per-device Feature Lab config, which is owned outside the instrument (#136).
-        if (c.overlay) out.overlay = { ...c.overlay, featureLab: c.featureLab ?? defaultFeatureLab() };
+        if (c.overlay) {
+          out.overlay = {
+            ...c.overlay,
+            featureLab: c.featureLab ?? defaultFeatureLab(),
+            trainerHud: c.trainerHud ?? TrainerHudParamsSchema.parse({}),
+          };
+        }
         return out;
       },
     };

@@ -100,6 +100,39 @@ describe('load(): stored cues and routines reach the store', () => {
   });
 });
 
+describe('routine persistence through the store', () => {
+  it('saveRoutine hydrates FIRST (the routine in use changes synchronously), then persists; useRoutine/removeRoutine round-trip', async () => {
+    useTrainerStores(stores());
+    await useTrainer.getState().load();
+    const pending = useTrainer.getState().saveRoutine('Head only', ['rest', 'look-left', 'look-right']);
+    // Before the provider answers, the routine is already the saved one.
+    expect(useTrainer.getState().routine.map((c) => c.id)).toEqual(['rest', 'look-left', 'look-right']);
+    expect(useTrainer.getState().routineName).toBe('Head only');
+    await pending;
+    expect(useTrainer.getState().savedRoutines.map((r) => r.id)).toEqual(['head-only']);
+    // Back to the default, then the saved one by id.
+    await useTrainer.getState().useRoutine(null);
+    expect(useTrainer.getState().routine).toHaveLength(DEFAULT_ROUTINE_CUE_IDS.length);
+    await useTrainer.getState().useRoutine('head-only');
+    expect(useTrainer.getState().routine.map((c) => c.id)).toEqual(['rest', 'look-left', 'look-right']);
+    // Saving under the same name overwrites (one record), newest first.
+    await useTrainer.getState().saveRoutine('Head only', ['rest', 'look-up']);
+    expect(useTrainer.getState().savedRoutines).toHaveLength(1);
+    await useTrainer.getState().saveRoutine('Faces', ['rest', 'your-faces']);
+    expect(useTrainer.getState().savedRoutines.map((r) => r.id).sort()).toEqual(['faces', 'head-only']);
+    await useTrainer.getState().removeRoutine('head-only');
+    expect(useTrainer.getState().savedRoutines.map((r) => r.id)).toEqual(['faces']);
+    // A removed id falls back to the default rather than failing.
+    await useTrainer.getState().useRoutine('head-only');
+    expect(useTrainer.getState().routineName).toBe('Default');
+  });
+
+  it('setRoutine runs a repeated id once (the routine schema forbids duplicates; no duplicate rows)', () => {
+    useTrainer.getState().setRoutine(['rest', 'look-left', 'rest'], 'Dup');
+    expect(useTrainer.getState().routine.map((c) => c.id)).toEqual(['rest', 'look-left']);
+  });
+});
+
 describe('runner lifecycle through the store', () => {
   it('start() stops and DETACHES a previous runner, so it cannot keep writing into the store', () => {
     useTrainer.getState().start(1000);
@@ -114,11 +147,34 @@ describe('runner lifecycle through the store', () => {
     expect(useTrainer.getState().runner()).not.toBe(first);
   });
 
-  it('skip adds no blank line to the transcript', () => {
+  it('skip adds no blank line to the transcript, and the beat after a skip shows NOTHING (not an older "Good.")', () => {
     useTrainer.getState().start(1000);
     useTrainer.getState().skip(1100);
     expect(useTrainer.getState().transcript.every((l) => l.say.length > 0)).toBe(true);
+    expect(useTrainer.getState().lastEndSay).toBeNull();
     useTrainer.getState().stop(1200);
+  });
+
+  it('a guidance sink that reacts by stopping or skipping cannot corrupt the runner (sinks run after the event settles)', async () => {
+    const { addGuidanceSink, resetGuidanceSinks } = await import('@/app/enroll/guidance');
+    resetGuidanceSinks();
+    // A sink that skips on every instruction: each cue is skipped as soon as it starts.
+    const off = addGuidanceSink({
+      say: (l) => {
+        if (l.kind === 'instruction') useTrainer.getState().skip(5000);
+      },
+    });
+    useTrainer.getState().start(1000);
+    await new Promise((r) => setTimeout(r, 0));
+    // One skip per instruction, applied cleanly: the first cue is skipped, the runner
+    // is between cues (not restarted, not stopped), and outcomes are consistent.
+    const st = useTrainer.getState();
+    expect(st.outcomes[0]).toBe('skipped');
+    expect(['between', 'running']).toContain(st.status);
+    expect(st.runner()?.state().outcomes.filter((o) => o === 'skipped').length).toBe(1);
+    off();
+    useTrainer.getState().stop(6000);
+    resetGuidanceSinks();
   });
 });
 

@@ -238,29 +238,46 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     fireEvent.click(screen.getByText('Start'));
     expect(useTrainer.getState().status).toBe('running');
     expect(useTrainer.getState().index).toBe(0);
-    // The written instruction is ALWAYS shown (voice is a toggle; text is not) — large,
-    // in the "Now" block (and again in the transcript, which is why it is not getByText).
+    // While running the panel collapses to a slim strip (the instruction is on the
+    // video; a full panel would cover it) — and the written instruction is STILL in
+    // the strip (voice is a toggle; text is not), with the cue's name and position.
+    expect(document.querySelector('[data-compact]')).toBeTruthy();
     expect(document.querySelector('[data-say]')?.textContent).toBe(STARTER_CUES[0].instruction);
-    // Exactly one row is marked active.
-    const active = document.querySelectorAll('[data-cue][data-active]');
-    expect(active).toHaveLength(1);
-    expect(active[0].getAttribute('data-cue')).toBe(STARTER_CUES[0].id);
-    // Skip and Stop are offered while running; Start is not.
+    expect(document.body.textContent).toContain(`1/${STARTER_CUES.length}`);
+    expect(document.body.textContent).toContain(STARTER_CUES[0].name);
+    // Skip and Stop are offered while running; Start and the picker are not.
     expect(screen.getByText('Skip')).toBeTruthy();
     expect(screen.getByText('Stop')).toBeTruthy();
     expect(screen.queryByText('Start')).toBeNull();
+    expect(document.querySelector('[data-routine-picker]')).toBeNull();
     fireEvent.click(screen.getByText('Stop'));
     expect(useTrainer.getState().status).toBe('stopped');
+    // The full panel is back, with the stopped cue marked.
+    expect(document.querySelector('[data-compact]')).toBeNull();
+    expect(document.querySelectorAll('[data-cue]')).toHaveLength(STARTER_CUES.length);
   });
 
-  it('Skip moves on, and the skipped cue is marked as such', () => {
+  it('Skip moves on, and the skipped cue is marked as such (visible once the full panel is back)', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
     fireEvent.click(screen.getByText('Start'));
     fireEvent.click(screen.getByText('Skip'));
     expect(useTrainer.getState().outcomes[0]).toBe('skipped');
-    expect(screen.getByText('skipped')).toBeTruthy();
+    // The strip now names the NEXT cue.
+    expect(document.body.textContent).toContain(STARTER_CUES[1].name);
     fireEvent.click(screen.getByText('Stop'));
+    expect(screen.getAllByText('skipped').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('the HUD pref is a per-device checkbox in the panel, not an instrument dial', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const box = screen.getByLabelText(/instructions on the video/i) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    fireEvent.click(box);
+    expect(useControls.getState().trainerHud.show).toBe(false);
+    fireEvent.click(box);
+    expect(useControls.getState().trainerHud.show).toBe(true);
   });
 
   it('closing the panel mid-routine STOPS it (and releases the feature demand)', async () => {
@@ -270,8 +287,9 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     fireEvent.click(screen.getByText('Start'));
     expect(useTrainer.getState().status).toBe('running');
     expect(appFeatureDemand.groups()).not.toBeNull();
-    // The X button only writes useTools.open; the panel itself must notice.
-    fireEvent.click(screen.getByLabelText('Close the Trainer panel'));
+    // Closing the tool (the bar, another tool, the hotkey) only writes useTools.open;
+    // the panel itself must notice. (The running strip has no X: Stop is the way out.)
+    act(() => useTools.getState().close());
     expect(useTools.getState().open).toBeNull();
     expect(useTrainer.getState().status).toBe('stopped');
     expect(appFeatureDemand.groups()).toBeNull();
@@ -293,12 +311,26 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     fireEvent.click(screen.getByRole('button', { name: 'setup' }));
     expect(rows().length).toBeLessThan(STARTER_CUES.length);
     fireEvent.click(screen.getByRole('button', { name: 'setup' }));
+    // With a filter on, a reorder moves past the VISIBLE neighbour only, and changes
+    // what the player sees (not a hidden row behind it).
+    fireEvent.change(screen.getByLabelText('Filter cues'), { target: { value: 'look' } });
+    fireEvent.click(screen.getByLabelText('Move Look right up'));
+    const order = [...document.querySelectorAll('[data-picker-cue]')].map((el) => el.getAttribute('data-picker-cue'));
+    // ("Rest" also matches 'look' — "Look at the camera" — and stays first.)
+    expect(order.indexOf('look-right')).toBeLessThan(order.indexOf('look-left'));
+    expect(order[0]).toBe('rest');
+    fireEvent.change(screen.getByLabelText('Filter cues'), { target: { value: '' } });
     // Un-include the first tilt and Use: the routine shrinks by one.
     fireEvent.click(screen.getByLabelText('Include Tilt left'));
     expect(screen.getByText('Use')).toBeTruthy();
     fireEvent.click(screen.getByText('Use'));
     expect(useTrainer.getState().routine.map((c) => c.id)).not.toContain('tilt-left');
     expect(useTrainer.getState().routine).toHaveLength(STARTER_CUES.length - 1);
+    // The reorder made it through too: look-right now precedes look-left.
+    const ids = useTrainer.getState().routine.map((c) => c.id);
+    expect(ids.indexOf('look-right')).toBeLessThan(ids.indexOf('look-left'));
+    // And rest (hidden by the 'look' filter at the time) was NOT displaced: still first.
+    expect(ids[0]).toBe('rest');
     // Running hides the picker.
     fireEvent.click(screen.getByText('Start'));
     expect(document.querySelector('[data-routine-picker]')).toBeNull();

@@ -169,19 +169,24 @@ export function createRunner(options: RunnerOptions): Runner {
 
   const endCue = (outcome: CueOutcome, tMs: number, why?: string) => {
     const cue = activeCue();
-    if (!cue) return;
+    if (!cue || status !== 'running') return;
     session.endCue();
-    outcomes[index] = outcome;
+    const endedIndex = index;
+    outcomes[endedIndex] = outcome;
     const say = outcome === 'enough' ? RUNNER_PHRASES.enough : outcome === 'cannot' ? RUNNER_PHRASES.cannot : undefined;
-    emit({ type: 'cue-end', cue, index, outcome, why, say, samples: samplesOf(cue), t: tMs });
-    if (index + 1 >= cues.length) {
+    const samples = samplesOf(cue);
+    // Commit the state BEFORE emitting: a listener may re-enter (a sink that skips or
+    // stops), and it must see the runner as it is, not as it was.
+    const last = endedIndex + 1 >= cues.length;
+    if (last) {
       status = 'done';
       index = -1;
-      emit({ type: 'done', say: RUNNER_PHRASES.done, t: tMs });
-      return;
+    } else {
+      status = 'between';
+      nextAt = tMs + o.beatMs;
     }
-    status = 'between';
-    nextAt = tMs + o.beatMs;
+    emit({ type: 'cue-end', cue, index: endedIndex, outcome, why, say, samples, t: tMs });
+    if (last && status === 'done') emit({ type: 'done', say: RUNNER_PHRASES.done, t: tMs });
   };
 
   const consider = (tMs: number) => {
@@ -265,6 +270,7 @@ export function createRunner(options: RunnerOptions): Runner {
       if (status === 'running') endCue('skipped', tMs);
       else if (status === 'between') beginCue(index + 1, tMs);
     },
+    // (`stop` while 'between' leaves `index` at the ended cue; `state()` reports -1.)
     stop(tMs) {
       if (status === 'running') {
         session.endCue();

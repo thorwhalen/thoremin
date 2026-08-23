@@ -30,7 +30,7 @@ import type { OverlayParams } from '@/nodes/output/canvas_overlay';
  * surface named here must be reachable from the app shell — `tools.ts` is the registry
  * of shell surfaces and a test ties the two together.
  */
-export type OverlaySurface = 'instrument' | 'lab';
+export type OverlaySurface = 'instrument' | 'lab' | 'trainer';
 
 export interface OverlayControlDesc {
   /** The overlay ELEMENT this descriptor controls. Usually also the params key — see
@@ -142,7 +142,7 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'tagHud', label: 'Annotation HUD (recorded)' },
   // Trainer guidance on the video (#163): the instruction + nudges while a routine
   // runs. Shown only then; toggle to keep the video clean during training.
-  { name: 'trainerHud', label: 'Trainer guidance' },
+  { name: 'trainerHud', label: 'Trainer guidance', surface: 'trainer' },
 ];
 
 /** The descriptors rendered by a given UI surface. `surface` is optional on a

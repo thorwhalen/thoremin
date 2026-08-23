@@ -34,14 +34,21 @@ export default function RoutinePicker() {
   const byId = useMemo(() => new Map(cues.map((c) => [c.id, c])), [cues]);
 
   const toggle = (id: string) => setDraft(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+  /** The included cues the filter currently shows, in routine order. */
+  const visibleIncluded = ids.filter((id) => visible.some((c) => c.id === id));
+  /** Swap with the nearest VISIBLE included neighbour: with a filter on, a move must
+   *  change what the player sees, never a hidden row behind it. */
   const move = (id: string, dir: -1 | 1) => {
+    const vi = visibleIncluded.indexOf(id);
+    const other = visibleIncluded[vi + dir];
+    if (vi < 0 || !other) return;
     const i = ids.indexOf(id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= ids.length) return;
+    const j = ids.indexOf(other);
     const next = [...ids];
     [next[i], next[j]] = [next[j], next[i]];
     setDraft(next);
   };
+  const [selectedSaved, setSelectedSaved] = useState('');
   const dirty = draft !== null && draft.join(',') !== routine.map((c) => c.id).join(',');
 
   return (
@@ -137,9 +144,10 @@ export default function RoutinePicker() {
           </button>
           <select
             aria-label="Saved routines"
-            value=""
+            value={selectedSaved}
             onChange={(e) => {
               const id = e.target.value;
+              setSelectedSaved(id);
               if (id === '__default') void useTrainer.getState().useRoutine(null);
               else if (id) void useTrainer.getState().useRoutine(id);
               setDraft(null);
@@ -154,6 +162,19 @@ export default function RoutinePicker() {
               </option>
             ))}
           </select>
+          {selectedSaved && selectedSaved !== '__default' && (
+            <button
+              type="button"
+              aria-label="Delete the selected saved routine"
+              onClick={() => {
+                void useTrainer.getState().removeRoutine(selectedSaved);
+                setSelectedSaved('');
+              }}
+              className="rounded px-1.5 py-0.5 text-[10px] text-rose-300/80 hover:bg-rose-500/20"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
     </details>

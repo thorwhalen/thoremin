@@ -17,7 +17,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { ScaleTypeId } from '@/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
-import { OverlayDialSchema, type OverlayDialParams } from '@/nodes/output/canvas_overlay';
+import { OverlayDialSchema, TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 import { GesturePrefsSchema, defaultGesturePrefs, type GesturePrefs } from './gesturePrefs';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
@@ -160,6 +160,13 @@ export interface ControlState {
    * edited from the Gestures shell tool.
    */
   gestures: GesturePrefs;
+  /**
+   * The trainer's on-video guidance HUD (#163): shown, and on which edge. A per-DEVICE
+   * tooling pref like {@link featureLab} — the trainer is a shell tool, so hiding its
+   * banner must not mark the instrument edited nor flip when an instrument loads.
+   * `store-controls` composes it into the overlay node's params each tick.
+   */
+  trainerHud: TrainerHudParams;
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
@@ -186,6 +193,8 @@ export interface ControlState {
   /** Shallow-patch the gesture-dispatch prefs (e.g. setGestures({ enabled: true }),
    *  or a whole new `bindings` record for a binding change). */
   setGestures(patch: Partial<GesturePrefs>): void;
+  /** Shallow-patch the trainer HUD pref (e.g. setTrainerHud({ show: false })). */
+  setTrainerHud(patch: Partial<TrainerHudParams>): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
   applySettings(s: Settings): void;
 }
@@ -306,6 +315,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       featureLab = current.featureLab;
     }
   }
+  // And the trainer HUD pref (#163), the same way.
+  let trainerHud = current.trainerHud;
+  if (p.trainerHud) {
+    try {
+      trainerHud = TrainerHudParamsSchema.parse(p.trainerHud);
+    } catch {
+      trainerHud = current.trainerHud;
+    }
+  }
   // Re-parse faceChord: complete a partial blob from the defaults, then validate,
   // so a UI control never binds to an undefined/corrupt field (parity with overlay).
   let faceChord = current.faceChord;
@@ -386,7 +404,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       gestures = current.gestures;
     }
   }
-  return { ...current, ...p, overlay, featureLab, faceMapping, faceChord, faceExpr, handMap, midi, faceControls, gestures };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, faceControls, gestures };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -422,6 +440,7 @@ export const useControls = create<ControlState>()(
       faceControls: defaultFaceControls(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
+      trainerHud: TrainerHudParamsSchema.parse({}),
       setVoice: (side, patch) =>
         set((s) => {
           const next = { ...s[side], ...patch };
@@ -459,6 +478,7 @@ export const useControls = create<ControlState>()(
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
       setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
       setGestures: (patch) => set((s) => ({ gestures: { ...s.gestures, ...patch } })),
+      setTrainerHud: (patch) => set((s) => ({ trainerHud: { ...s.trainerHud, ...patch } })),
       // Restore exactly the schema fields (the setters are left untouched). Derived
       // from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
@@ -506,6 +526,7 @@ export const useControls = create<ControlState>()(
         faceCalibration: s.faceCalibration,
         featureLab: s.featureLab,
         gestures: s.gestures,
+        trainerHud: s.trainerHud,
       }),
     },
   ),

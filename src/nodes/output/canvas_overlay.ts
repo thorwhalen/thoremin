@@ -70,6 +70,17 @@ export type CuePosition = z.infer<typeof CuePositionEnum>;
  * Per-element configuration. Each element has its own sub-object so it can be
  * toggled and parameterized independently.
  */
+/** The trainer HUD's params — exported so the control store can carry the per-device
+ *  pref in exactly this shape and `store-controls` can compose it in. */
+export const TrainerHudParamsSchema = z
+  .object({
+    show: z.boolean().default(true),
+    /** Which edge the banner anchors to. */
+    position: z.enum(['bottom', 'top']).default('bottom'),
+  })
+  .prefault({});
+export type TrainerHudParams = z.infer<typeof TrainerHudParamsSchema>;
+
 const Params = z.object({
   /** Mirrored webcam backdrop. `alpha` is the "grey-out" amount (0 = hidden). */
   video: z.object({ show: z.boolean().default(true), alpha: z.number().min(0).max(1).default(0.35) }).prefault({}),
@@ -172,15 +183,12 @@ const Params = z.object({
    * instruction large across the bottom of the frame, the latest nudge beneath it, and
    * a coverage bar — the written channel of what the runner says, where the player is
    * actually looking. A no-op (draws nothing) unless the trainer is running, so it
-   * costs nothing the rest of the time. Not burned into the recorded `pureVideo`.
+   * costs nothing the rest of the time. Not burned into the recorded `pureVideo`. A
+   * CUE: it takes part in the edge layout, so it stacks with the other cues on its
+   * edge instead of painting over them. Per-device (not in the instrument's dial —
+   * see {@link OverlayDialSchema}).
    */
-  trainerHud: z
-    .object({
-      show: z.boolean().default(true),
-      /** Which edge the banner anchors to. */
-      position: z.enum(['bottom', 'top']).default('bottom'),
-    })
-    .prefault({}),
+  trainerHud: TrainerHudParamsSchema,
 });
 type Params = z.infer<typeof Params>;
 
@@ -201,9 +209,12 @@ export type OverlayParams = Params;
  * instrument being measured. Leaving it in the dial meant that toggling a meter marked
  * the instrument as having unsaved edits, and that loading an instrument silently
  * re-configured the meters — the same reason recording settings were moved out of the
- * instrument in #88.
+ * instrument in #88. The trainer's guidance HUD (#163) is omitted for the same reason:
+ * the trainer is a shell TOOL, and hiding a training aid must not edit the instrument.
+ * Both are per-device tooling prefs on the control store, composed into this node's
+ * params by `store-controls` each tick.
  */
-export const OverlayDialSchema = Params.omit({ featureLab: true });
+export const OverlayDialSchema = Params.omit({ featureLab: true, trainerHud: true });
 export type OverlayDialParams = z.infer<typeof OverlayDialSchema>;
 
 const RIGHT_COLOR = '#10b981';
@@ -1297,20 +1308,48 @@ const TRAINER_HUD_BAR = 4; // px, the coverage bar
 /** Approximate glyph widths (no measureText: the headless recording-canvas test). */
 const TRAINER_HUD_BIG_CHAR_W = 11.5;
 
-/** Paint the guidance banner: cue label, the instruction (wrapped to two lines), the
- *  latest nudge, and a coverage bar along the banner's edge. fillRect/fillText only. */
-function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayView, hud: TrainerHudSnapshot): void {
-  const maxW = Math.min(view.W - 2 * 24, 900);
-  const maxChars = Math.max(16, Math.floor((maxW - 2 * TRAINER_HUD_PAD) / TRAINER_HUD_BIG_CHAR_W));
-  const lines = wrapLines(hud.say, maxChars).slice(0, 3);
-  const label = `${hud.index}/${hud.total} · ${hud.cueName}`;
-  const rows = 1 + lines.length + (hud.guidance ? 1 : 0);
+/** How many characters fit on one line of the banner at this canvas width. The banner
+ *  leaves room at the sides for the left/right cue stacks (and, on the left, for the
+ *  Trainer panel's slim strip while a routine runs). */
+const TRAINER_HUD_SIDE = 120;
+/** The longest the banner may be, in px, and the most lines it shows. */
+const TRAINER_HUD_MAX_W = 900;
+const TRAINER_HUD_MAX_LINES = 3;
+
+/** The banner's geometry for this snapshot at this width — shared by `measure` (the
+ *  layout pass) and `draw`, so what is reserved is what is painted. */
+function trainerHudBox(view: OverlayView, hud: TrainerHudSnapshot) {
+  const boxW = Math.max(200, Math.min(view.W - 2 * TRAINER_HUD_SIDE, TRAINER_HUD_MAX_W));
+  const maxChars = Math.max(12, Math.floor((boxW - 2 * TRAINER_HUD_PAD) / TRAINER_HUD_BIG_CHAR_W));
+  const lines = clipLines(wrapLines(hud.say, maxChars), TRAINER_HUD_MAX_LINES, maxChars);
+  const smallChars = Math.max(12, Math.floor((boxW - 2 * TRAINER_HUD_PAD) / (TRAINER_HUD_SMALL * 0.55)));
+  const label = clipText(`${hud.index}/${hud.total} · ${hud.cueName}`, smallChars);
+  const guidance = hud.guidance ? clipText(hud.guidance, smallChars) : null;
   const lineH = TRAINER_HUD_BIG + 8;
-  const boxH = TRAINER_HUD_PAD * 2 + TRAINER_HUD_SMALL + 6 + lines.length * lineH + (hud.guidance ? TRAINER_HUD_SMALL + 8 : 0) + TRAINER_HUD_BAR;
-  const boxW = maxW;
-  const x0 = (view.W - boxW) / 2;
-  const y0 = view.params.trainerHud.position === 'top' ? CUE_TOP_INSET : view.H - boxH - 24;
-  void rows;
+  const boxH = TRAINER_HUD_PAD * 2 + TRAINER_HUD_SMALL + 6 + lines.length * lineH + (guidance ? TRAINER_HUD_SMALL + 8 : 0) + TRAINER_HUD_BAR;
+  return { boxW, boxH, lines, label, guidance, lineH };
+}
+
+/** Keep at most `max` lines; mark a dropped tail with an ellipsis (never silently). */
+function clipLines(lines: string[], max: number, maxChars: number): string[] {
+  if (lines.length <= max) return lines;
+  const kept = lines.slice(0, max);
+  kept[max - 1] = clipText(`${kept[max - 1]} …`, maxChars);
+  return kept;
+}
+
+function clipText(text: string, maxChars: number): string {
+  return text.length <= maxChars ? text : `${text.slice(0, Math.max(1, maxChars - 1))}…`;
+}
+
+/** Paint the guidance banner at its laid-out origin: cue label, the instruction
+ *  (wrapped), the latest nudge, and a coverage bar along the bottom edge. fillRect /
+ *  fillText only. */
+function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayView, hud: TrainerHudSnapshot): void {
+  const { boxW, boxH, lines, label, guidance, lineH } = trainerHudBox(view, hud);
+  const origin = view.layout.trainerHud ?? { x: (view.W - boxW) / 2, y: view.H - boxH - CUE_MARGIN };
+  const x0 = origin.x;
+  const y0 = origin.y;
 
   g.save();
   g.globalAlpha = 1;
@@ -1334,10 +1373,10 @@ function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayView, hud: Tra
   }
 
   // The latest guidance, beneath, italic.
-  if (hud.guidance) {
+  if (guidance) {
     g.font = `italic ${TRAINER_HUD_SMALL}px ui-sans-serif, system-ui, sans-serif`;
     g.fillStyle = 'rgba(167, 243, 208, 0.95)';
-    g.fillText(hud.guidance, x0 + TRAINER_HUD_PAD, y);
+    g.fillText(guidance, x0 + TRAINER_HUD_PAD, y);
   }
 
   // Coverage bar along the banner's bottom edge: the cue's own minimum, not a timer.
@@ -1352,6 +1391,14 @@ function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayView, hud: Tra
 const trainerHud: OverlayElement = {
   name: 'trainerHud',
   category: 'guide',
+  cue: true,
+  positionOf: (view) => view.params.trainerHud.position,
+  measure(view) {
+    const hud = view.inputs.trainerHud;
+    if (!hud || !view.params.trainerHud.show) return null;
+    const { boxW, boxH } = trainerHudBox(view, hud);
+    return { w: boxW, h: boxH };
+  },
   draw(g, view) {
     const hud = view.inputs.trainerHud;
     if (!hud || !view.params.trainerHud.show) return;
@@ -1509,6 +1556,7 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
 const CUE_MARGIN = 12;
 const CUE_GAP = 10;
 const CUE_TOP_INSET = 68; // leave room for the top-left brand / top-right panel
+const CUE_BOTTOM_INSET = 68; // and for the tools bar / the object-cover crop band
 
 /** Compute each active cue's top-left origin, auto-stacking cues that share an edge. */
 function layoutCues(view: OverlayView): Record<string, { x: number; y: number }> {
@@ -1524,13 +1572,25 @@ function layoutCues(view: OverlayView): Record<string, { x: number; y: number }>
       size: { w: number; h: number };
     }[];
     let off = edge === 'left' || edge === 'right' ? CUE_TOP_INSET : CUE_MARGIN;
-    // Center a horizontal (top/bottom) group of cues so a lone cue reads centered
-    // and away from the top-left brand / top-right panel.
+    // A horizontal (top/bottom) edge lays its cues out side by side, centered. A WIDE
+    // cue (a banner, wider than half the frame — the trainer's guidance) cannot share
+    // that row: it gets its own row, below the top row or above the bottom one, so it
+    // never paints over the chord name or a stacked cue.
+    const wide = edge === 'top' || edge === 'bottom' ? cues.filter((c) => c.size.w > view.W / 2) : [];
+    const rowCues = cues.filter((c) => !wide.includes(c));
     if (edge === 'top' || edge === 'bottom') {
-      const totalW = cues.reduce((s, c) => s + c.size.w, 0) + Math.max(0, cues.length - 1) * CUE_GAP;
+      const totalW = rowCues.reduce((s, c) => s + c.size.w, 0) + Math.max(0, rowCues.length - 1) * CUE_GAP;
       off = Math.max(CUE_MARGIN, (view.W - totalW) / 2);
+      const rowH = rowCues.reduce((m, c) => Math.max(m, c.size.h), 0);
+      let yBand = edge === 'top' ? CUE_MARGIN + (rowH ? rowH + CUE_GAP : 0) : view.H - CUE_BOTTOM_INSET - (rowH ? rowH + CUE_GAP : 0);
+      for (const { e, size } of wide) {
+        const x = Math.max(CUE_MARGIN, (view.W - size.w) / 2);
+        const y = edge === 'top' ? yBand : yBand - size.h;
+        layout[e.name] = { x, y };
+        yBand += edge === 'top' ? size.h + CUE_GAP : -(size.h + CUE_GAP);
+      }
     }
-    for (const { e, size } of cues) {
+    for (const { e, size } of rowCues) {
       let x = CUE_MARGIN;
       let y = CUE_MARGIN;
       if (edge === 'left') {
@@ -1547,7 +1607,9 @@ function layoutCues(view: OverlayView): Record<string, { x: number; y: number }>
         off += size.w + CUE_GAP;
       } else {
         x = off;
-        y = view.H - size.h - CUE_MARGIN;
+        // Mirror the top inset: a 4:3 camera shown object-cover on a 16:9 viewport
+        // loses ~60 px top and bottom, and the tools bar sits along the bottom edge.
+        y = view.H - size.h - CUE_BOTTOM_INSET;
         off += size.w + CUE_GAP;
       }
       layout[e.name] = { x, y };

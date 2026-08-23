@@ -36,6 +36,7 @@ import { create } from 'zustand';
 import {
   createRunner,
   createSession,
+  resolveRoutine,
   routineGroups,
   type Cue,
   type CueOutcome,
@@ -86,6 +87,10 @@ interface TrainerState {
   say: string | null;
   outcomes: (CueOutcome | null)[];
   transcript: TranscriptLine[];
+  /** What the runner said when the LAST cue ended ("Good." / "Moving on."), or null
+   *  after a skip — what the beat shows. Not "the last end line in the transcript":
+   *  a skip says nothing, and the previous cue's phrase must not be shown for it. */
+  lastEndSay: string | null;
 
   /** True once `build()` has run and a model can be cut. */
   built: boolean;
@@ -170,7 +175,9 @@ export const useTrainer = create<TrainerState>()((set, get) => {
   const onEvent = (e: RunnerEvent) => {
     const push = (line: TranscriptLine) => {
       set((st) => ({ transcript: [...st.transcript, line].slice(-TRANSCRIPT_LIMIT) }));
-      emitGuidance(line);
+      // Sinks run AFTER the runner's dispatch and the store's update have settled: a
+      // sink that reacts by skipping or stopping must not re-enter the runner mid-event.
+      queueMicrotask(() => emitGuidance(line));
     };
     switch (e.type) {
       case 'cue-start':
@@ -182,7 +189,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       case 'cue-end':
         // A skip says nothing; only an outcome with a phrase is a line of transcript.
         if (e.say) push({ t: e.t, kind: 'end', say: e.say, outcome: e.outcome, why: e.why });
-        set({ outcomes: runner?.state().outcomes ?? [] });
+        set({ outcomes: runner?.state().outcomes ?? [], lastEndSay: e.say ?? null });
         break;
       case 'done':
         push({ t: e.t, kind: 'done', say: e.say });
@@ -205,6 +212,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     ...IDLE,
     outcomes: STARTER_CUES.map(() => null),
     transcript: [],
+    lastEndSay: null,
     built: false,
     k: 3,
     suggestedK: 3,
@@ -230,11 +238,13 @@ export const useTrainer = create<TrainerState>()((set, get) => {
 
     async saveRoutine(name, cueIds) {
       const ids = cueIds ?? get().routine.map((c) => c.id);
+      // Hydrate first, persist after (the project's hot-path rule): the routine in use
+      // must not lag a slow provider, and Start must never run the pre-save one.
+      get().setRoutine(ids, name.trim() || 'Custom');
       const { routines } = getStores();
-      const rec = await routines.save(name, { cueIds: [...ids] });
+      await routines.save(name, { cueIds: [...new Set(ids)] });
       const savedRoutines = (await routines.list()).map(({ id, name: n }) => ({ id, name: n }));
       set({ savedRoutines });
-      get().setRoutine(ids, rec.name);
     },
 
     async useRoutine(id) {
@@ -254,19 +264,15 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     setRoutine(cueIds, name = 'Custom') {
       // Not while a runner is driving the current routine (same reason as in load()).
       if (get().status === 'running' || get().status === 'between') return;
-      const byId = new Map(get().cues.map((c) => [c.id, c]));
-      const routine: Cue[] = [];
-      const missing: string[] = [];
-      for (const id of cueIds) {
-        const c = byId.get(id);
-        if (c) routine.push(c);
-        else missing.push(id);
-      }
+      // The same resolution the routine collection uses: unknown ids reported, a
+      // repeated id runs once.
+      const { cues: routine, missing } = resolveRoutine(cueIds, get().cues);
       set({ routine, routineName: name, missing, outcomes: routine.map(() => null) });
     },
 
     start(tMs) {
       const routine = get().routine;
+      set({ lastEndSay: null });
       // A previous runner (a re-run, or a test driving the store directly) must be
       // stopped and detached first, or it stays 'running' on an orphaned session and
       // keeps writing events into this store.
@@ -334,6 +340,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         ...IDLE,
         outcomes: get().routine.map(() => null),
         transcript: [],
+        lastEndSay: null,
         built: false,
         k: 3,
         suggestedK: 3,

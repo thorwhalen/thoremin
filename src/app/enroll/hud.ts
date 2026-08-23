@@ -16,14 +16,14 @@ export function trainerHudResource(): TrainerHudSnapshot | null {
   if (s.status !== 'running' && s.status !== 'between') return null;
   const cue = s.index >= 0 ? s.routine[s.index] : undefined;
   if (!cue) return null;
-  const lastEnd = s.status === 'between' ? [...s.transcript].reverse().find((l) => l.kind === 'end') : undefined;
   const guidance = s.status === 'running' && s.say && s.say !== cue.instruction ? s.say : null;
   return {
     status: s.status,
     cueName: cue.name,
     index: s.index + 1,
     total: s.routine.length,
-    say: s.status === 'between' ? lastEnd?.say ?? '…' : cue.instruction,
+    // The beat shows what the runner just said for THIS cue-end — nothing after a skip.
+    say: s.status === 'between' ? s.lastEndSay ?? '' : cue.instruction,
     guidance,
     coverage: s.coverage,
   };

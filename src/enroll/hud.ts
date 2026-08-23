@@ -4,8 +4,10 @@
  *
  * The player is looking at the camera, not at a panel in the corner. The written
  * guidance therefore has to live where they are looking: the instruction, large,
- * across the bottom of the frame; the latest nudge beneath it; a coverage bar that
- * fills as the cue gets what it needs. This is the written channel of the same `say`
+ * in a banner along the bottom (or top) edge of the frame, laid out as a cue so it
+ * never paints over another; the latest nudge beneath it; a coverage bar that fills
+ * as the cue gets what it needs. While it runs, the Trainer panel collapses to a slim
+ * strip so the video stays visible. This is the written channel of the same `say`
  * strings the runner emits — voice (PR 3) is a toggle layered on the same strings.
  *
  * The type lives in the pure library so the overlay NODE can depend on it without
