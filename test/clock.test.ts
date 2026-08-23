@@ -89,6 +89,22 @@ describe('RealtimeClock', () => {
     expect(captured[3]).toBeCloseTo(100.6, 10);
   });
 
+  // Adoption guard (stream-applier.md, M-D): a non-positive speed pins engine
+  // time to `base` forever, so every tick gets dt === 0 while frames keep coming
+  // — smoothing filters and note envelopes stop advancing and the instrument
+  // looks hung. Refuse it at construction rather than shipping a frozen clock.
+  it.each([0, -1, -0.5, NaN, Infinity, -Infinity])('rejects a speed of %s', (speed) => {
+    expect(() => new RealtimeClock({ speed })).toThrow(RangeError);
+    expect(() => new RealtimeClock({ speed })).toThrow(/finite number > 0/);
+  });
+
+  it('accepts the speeds the design calls for (1, accelerated, slowed)', () => {
+    for (const speed of [1, 2, 0.5, 0.001, 1000]) {
+      expect(() => new RealtimeClock({ speed })).not.toThrow();
+    }
+    expect(() => new RealtimeClock()).not.toThrow(); // defaults to 1
+  });
+
   it('resolves without ticking if shouldStop is already true', async () => {
     const sched = fakeScheduler();
     const spy = vi.fn();

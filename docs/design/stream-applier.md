@@ -216,10 +216,18 @@ boundaries allow.
 - **M-D — The Applier (R4 complete, R5 orthogonality). ⚠ untested live surface.**
   `runHeadless` delegates (BatchClock + bounded recorder tap, no audio sink);
   `useEngine`'s effect becomes a thin Applier config — **this is where the live
-  rAF loop adopts `RealtimeClock(1)`** (deferred from M-B). Also validate
-  `speed > 0` on adoption (a non-positive speed collapses to a frozen clock).
+  rAF loop adopts `RealtimeClock(1)`** (deferred from M-B).
   **Gate on a browser smoke test** — the effect (StrictMode guards, face bridge,
   mute mirror, AudioContext lifecycle) has no headless coverage.
+  - ✅ **`speed > 0` validation done** — `RealtimeClock` now throws a `RangeError`
+    on a non-finite or non-positive speed rather than shipping a frozen clock
+    (a speed of 0 pins engine time to `base`, so every tick gets `dt === 0` while
+    frames keep coming: smoothing filters and note envelopes stop advancing and
+    the instrument looks hung).
+  - ✅ **The engine-lifecycle prerequisite is done** — `Engine.applyGraph()`
+    reconciles a *running* engine onto a new `GraphSpec`, keeping every unchanged
+    node (see below). The Applier can therefore change its source/graph without
+    reconstructing the engine and reloading the ML models.
 - **M-E — Composition + timestamp-aware replay (R2).** `defineMergeNode`; event
   sources buffer→list; a **separate** time-based `replay-source-timed` reading
   `StreamRecord.t` (index-by-tick stays canonical for CI goldens).
@@ -275,6 +283,35 @@ clock. M-C's value is the *contract* — open-closed source plugging and port co
 which pays off when the Applier (M-D) lands and when a second non-webcam origin actually
 appears. Neither is currently blocking anything, so the design is banked and the build is
 not scheduled.
+
+## Changing the graph while it runs (the lifecycle prerequisite)
+
+An Applier that can only pick its sources *once*, at construction, is not
+open-closed in any useful sense — switching source mid-session would mean a new
+`Engine`, and therefore a full `init()` sweep: the MediaPipe hand and face models
+reload, the audio graph is rebuilt. So the Applier rests on a prior guarantee:
+
+**`Engine.applyGraph(spec, registry?)`** reconciles a running engine onto a new
+`GraphSpec` in place, keeping every node whose id, type and *validated* params are
+unchanged, and returns a `GraphChange` (`added`/`removed`/`replaced`/`kept`/`rewired`).
+It plans synchronously (a bad spec throws before anything is touched), then awaits
+`init()` on the new instances **while the old graph keeps ticking**, then commits in
+one synchronous block. A rejected `init` tears down the half-built graph and leaves
+the running one playing.
+
+Consequences for this design:
+
+- **M-C's `source` slot** becomes a live selection, not a startup-only one: swapping
+  `webcam-hands` → `replay-source` is an `applyGraph` with one changed node.
+- **M-D's Applier** owns *which* graph and *which* clock; it does not need to own
+  engine construction. `useEngine` and `runHeadless` can both hand it a live engine.
+- **Boundary A is unaffected** — the batch path still swaps in a finished-frame node
+  rather than decoding video in Node; `applyGraph` is only how that swap is applied.
+
+The mechanism is documented in `docs/design/component-model.md`
+("Swapping at runtime: the engine lifecycle") and tested in
+`test/engine_lifecycle.test.ts`; it was built for #51's "engine lifecycle on swap"
+bullet, which #14 (the React Flow patcher) and this document's M-C/M-D both need.
 
 ## Relationship to existing work
 

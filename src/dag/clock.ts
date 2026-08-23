@@ -71,6 +71,20 @@ export class RealtimeClock implements Clock {
 
   constructor(opts: RealtimeClockOptions = {}) {
     this.speed = opts.speed ?? 1;
+    // Reject a non-positive / non-finite speed rather than silently freezing the
+    // instrument. `t = base + (real - base) * speed` at speed 0 pins engine time
+    // to `base` forever: every tick gets `dt === 0`, so smoothing filters, note
+    // envelopes and anything else integrating over dt stop advancing while the
+    // frames keep coming — a wedged instrument that looks like a hang, not a
+    // setting. A negative speed runs time backwards, which the engine clamps to
+    // `dt = 0` anyway. The design doc (stream-applier.md, M-D) calls for this
+    // check at the point the clock is adopted by the app; this is that check.
+    if (!Number.isFinite(this.speed) || this.speed <= 0) {
+      throw new RangeError(
+        `RealtimeClock: speed must be a finite number > 0 (got ${String(opts.speed)}). ` +
+          `Use a stop condition to pause; a zero/negative speed would freeze ctx.dt.`,
+      );
+    }
     this.now = opts.now ?? (() => performance.now() / 1000);
     // Referenced lazily inside run(), so importing this module in Node (where
     // requestAnimationFrame is absent but only BatchClock is used) is safe.
