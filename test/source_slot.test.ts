@@ -28,7 +28,7 @@ import { CORE_NODES } from '@/nodes';
 import { SLOTS, resolveSlot, defaultGraph, parseSlotSelection } from '@/app/graph';
 import { SOURCE_SLOT_CONTRACT, SOURCE_SLOT_OUTPUT } from '@/nodes/sources/source_contract';
 import { HandsFrameSchema } from '@/nodes/domain';
-import type { SynthParams, HandsFrame } from '@/nodes';
+import type { SynthParams, HandsFrame, HandFeatures } from '@/nodes';
 
 const appRegistry = () => createAppRegistry();
 
@@ -143,9 +143,17 @@ describe('the payoff: the whole instrument runs with no camera', () => {
     expect(HandsFrameSchema.safeParse(hands).success).toBe(true);
     expect(hands.hands).toHaveLength(1);
 
+    // The hand really was detected and mirrored into a side (the synthetic
+    // source emits a Right hand; mirrorHandedness routes it to `left`).
+    const feats = engine.getOutput('feat', 'features') as HandFeatures;
+    expect(feats.left.present || feats.right.present).toBe(true);
+
+    // And a voice is actually SOUNDING. `voices.length > 0` and `freq > 0` are
+    // both true of a silent, absent voice, so asserting those would pass on a
+    // graph where the source reaches nothing — which is the failure this whole
+    // test exists to notice.
     const params = engine.getOutput('merge', 'params') as SynthParams;
-    expect(params.voices.length).toBeGreaterThan(0);
-    expect(params.voices[0].freq).toBeGreaterThan(0);
+    expect(params.voices.some((v) => v.present && v.gain > 0)).toBe(true);
   });
 
   it('a replay source reproduces a recorded frame stream exactly', () => {
@@ -225,6 +233,14 @@ describe('port conformance (PortSpec.schema)', () => {
     await expect(
       runHeadless(spec('nothing'), reg(), { ticks: 1, validatePorts: false }),
     ).resolves.toBeTruthy();
+    // But an OMITTED-yet-present key must not be a silent opt-out. A caller
+    // forwarding an optional flag (`validatePorts: cfg.validate`, cfg.validate
+    // unset) passes the key with value undefined; resolving the default by spread
+    // order rather than by `??` would let that turn the gate off in exactly the
+    // batch runs it exists for, and record the fixture it exists to prevent.
+    await expect(
+      runHeadless(spec('nothing'), reg(), { ticks: 1, validatePorts: undefined }),
+    ).rejects.toThrow(/emitted nothing \(undefined\)/);
   });
 
   it('ignores ports that declare no schema (every existing node)', () => {
@@ -269,45 +285,90 @@ describe('source determinism (the seeded-RNG rule)', () => {
     expect(Object.keys(CANDIDATE_SOURCES).sort()).toEqual([...SLOTS.source.candidates].sort());
   });
 
-  it('no source-slot candidate reaches for Math.random or Date.now', () => {
-    // A recording is only worth keeping if replaying it reproduces the run. Any
-    // randomness in a generator source must come from `seed + ctx.tick`, never an
-    // ambient RNG, and no source may read the wall clock for its VALUES.
+  /** Drive one candidate over an explicit (tick, time) sequence and capture its frames. */
+  const driveSource = (type: string, times: number[], params: unknown = {}): string => {
+    const reg = createRegistry([...CORE_NODES, ...BROWSER_NODES]);
+    const engine = new Engine({ nodes: [{ id: 's', type, params }], edges: [] }, reg, {
+      validatePorts: true,
+    });
+    const out: unknown[] = [];
+    for (const t of times) {
+      engine.tick(t);
+      out.push(engine.getOutput('s', 'hands'));
+    }
+    return JSON.stringify(out);
+  };
+
+  const FRAMES = [
+    { width: 11, height: 11, hands: [] },
+    { width: 22, height: 22, hands: [] },
+    { width: 33, height: 33, hands: [] },
+  ];
+  const paramsFor = (type: string) => (type === 'replay-hands' ? { frames: FRAMES } : {});
+
+  it('BEHAVIOURAL: a finished-frame source is a pure function of the ctx it is given', () => {
+    // This is the real determinism check, and it replaces a source-text grep that
+    // could only ever see the spellings it was told about. Driving the same node
+    // twice over the SAME (tick, time) sequence catches `Math.random`,
+    // `Date.now`, `performance.now`, `crypto`, `new Date`, and anything reached
+    // through an imported helper — none of which a regex over one file can.
+    for (const type of SLOTS.source.candidates.filter((t) => t !== SLOTS.source.default)) {
+      const times = Array.from({ length: 20 }, (_, i) => i / 60);
+      expect(driveSource(type, times, paramsFor(type)), `${type} is not reproducible`).toBe(
+        driveSource(type, times, paramsFor(type)),
+      );
+    }
+  });
+
+  it('BEHAVIOURAL: a replay source ignores the clock entirely — same ticks, different times', () => {
+    // Stronger than the above and true only of a replay: its frames are a function
+    // of how many times it has been called, so re-running the same tick COUNT under
+    // a different wall clock must be byte-identical. `synthetic-hands` is exempt
+    // and must stay so — it is an animation, so varying with `ctx.time` is its job;
+    // `ctx.time` is the engine's INJECTED time (deterministic under a given clock),
+    // not an ambient one, which is the distinction the rule is really about.
+    const fast = Array.from({ length: 12 }, (_, i) => i / 60);
+    const slow = Array.from({ length: 12 }, (_, i) => 1000 + i / 5);
+    expect(driveSource('replay-hands', fast, { frames: FRAMES })).toBe(
+      driveSource('replay-hands', slow, { frames: FRAMES }),
+    );
+  });
+
+  it('BEHAVIOURAL: a replay swapped into a RUNNING graph still starts at frame 0', async () => {
+    // The engine's tick counter is monotonic for its whole life, so a source that
+    // indexed by `ctx.tick` would open on the last frame of a recording when
+    // swapped in mid-run — which is precisely what the source slot is for (#51).
+    const reg = appRegistry();
+    const engine = new Engine(defaultGraph({ source: 'synthetic-hands' }, reg), reg);
+    for (let i = 0; i < 50; i++) engine.tick();
+
+    const next = defaultGraph({ source: 'replay-hands' }, reg);
+    next.nodes = next.nodes.map((n) => (n.id === 'cam' ? { ...n, params: { frames: FRAMES } } : n));
+    expect((await engine.applyGraph(next, reg)).replaced).toEqual(['cam']);
+
+    const widths: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      engine.tick();
+      widths.push((engine.getOutput('cam', 'hands') as HandsFrame).width);
+    }
+    expect(widths).toEqual([11, 22, 33, 33]);
+  });
+
+  it('a cheap source grep backs the behavioural checks up (widened, and honest about scope)', () => {
+    // Kept as a second line of defence for the spellings that are unambiguous.
+    // `webcam-hands` is exempt from the clock rule BY NAME: MediaPipe's
+    // detectForVideo REQUIRES a strictly-increasing timestamp, and
+    // performance.now() is it.
+    const AMBIENT = [/Math\.random/, /Date\.now/, /new Date\(/, /crypto\./];
     for (const [type, file] of Object.entries(CANDIDATE_SOURCES)) {
       const src = readFileSync(resolve(process.cwd(), file), 'utf8');
-      expect(src, `${type} must not use Math.random`).not.toMatch(/Math\.random/);
-      expect(src, `${type} must not use Date.now`).not.toMatch(/Date\.now/);
-    }
-  });
-
-  it('the finished-frame candidates read no clock at all — their output is a function of ctx', () => {
-    // webcam-hands is exempt and must stay so: MediaPipe's detectForVideo
-    // REQUIRES a strictly-increasing timestamp, and performance.now() is it. The
-    // exemption is named here rather than left implicit.
-    const finishedFrame = SLOTS.source.candidates.filter((t) => t !== SLOTS.source.default);
-    expect(finishedFrame.length).toBeGreaterThan(0);
-    for (const type of finishedFrame) {
-      const src = readFileSync(resolve(process.cwd(), CANDIDATE_SOURCES[type]), 'utf8');
-      expect(src, `${type} must not read a clock`).not.toMatch(/performance\.now/);
-    }
-  });
-
-  it('a synthetic source replays identically from the same tick sequence', () => {
-    const reg = createRegistry([...CORE_NODES, ...BROWSER_NODES]);
-    const run = () => {
-      const engine = new Engine(
-        { nodes: [{ id: 's', type: 'synthetic-hands' }], edges: [] },
-        reg,
-        { validatePorts: true },
-      );
-      const out: number[] = [];
-      for (let i = 0; i < 20; i++) {
-        engine.tick();
-        out.push((engine.getOutput('s', 'hands') as HandsFrame).hands[0].keypoints[0].x);
+      for (const pattern of AMBIENT) {
+        expect(src, `${type} must not use ${pattern}`).not.toMatch(pattern);
       }
-      return out;
-    };
-    expect(run()).toEqual(run());
+      if (type !== SLOTS.source.default) {
+        expect(src, `${type} must not read the wall clock`).not.toMatch(/performance\.now/);
+      }
+    }
   });
 });
 

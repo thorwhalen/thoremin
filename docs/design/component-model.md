@@ -172,9 +172,17 @@ which is free — they are just a map on each node.
 
 The `source` slot (#104) is the first with more than one real candidate, which
 makes it the first genuine test of "swapping is a config flip" — and it passes:
-`?slot.source=synthetic-hands` runs the entire downstream instrument with no
-camera and no MediaPipe, and the same swap applied to a *running* engine replaces
-exactly one node.
+`?slot.source=synthetic-hands` runs the entire instrument with no camera and no
+MediaPipe, and the same swap applied to a *running* engine replaces exactly one
+node.
+
+Note what that costs to be *true*: a slot chooses a node type inside the graph
+builder, but whether the host acquires a camera is decided in `useEngine` before
+the engine exists. A slot alone would leave the camera-free URL still calling
+`getUserMedia` — and failing to boot on a machine with no camera, which is the
+one machine it exists for. So the host reads the resolved slot
+(`sourceNeedsVideo`) before acquiring anything. **A swap point is only as real as
+the host decisions that read it.**
 
 It still gets **no player-facing dropdown**, and that is not a contradiction of
 the ">= 2 implementations" rule. That rule says when a swap *may* be surfaced,

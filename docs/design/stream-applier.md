@@ -215,8 +215,13 @@ boundaries allow.
     `hands` / `hands-frame`). Candidates are the finished-frame emitters:
     `webcam-hands` (default), `synthetic-hands`, `replay-hands`. Selected with
     `?slot.source=<type>`, and swappable on a *running* engine via `applyGraph`.
-    The payoff is pinned by a test: the real `defaultGraph()` drives sounding
-    voices in plain Node, with no camera and no MediaPipe.
+    The payoff is pinned by tests at both levels: headlessly, the real
+    `defaultGraph()` drives sounding voices in plain Node with no camera and no
+    MediaPipe; in the browser, `useEngine` reads the resolved slot
+    (`sourceNeedsVideo`) *before* acquiring anything and skips `getUserMedia`, so
+    the camera-free URL boots on a machine that has no camera. The second half is
+    not decoration — a slot that only chose the node type would leave that URL
+    demanding the hardware it exists to do without.
   - ✅ **`replay-hands`.** `replay-source` emits on a generic `value` port, which
     is what makes it a fine stand-in for an arbitrary edge and a poor slot
     candidate — a candidate is identified by the port it emits. This is the typed

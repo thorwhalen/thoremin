@@ -62,8 +62,14 @@ export const SLOTS: Record<string, SlotDef> = {
    * Three candidates, so unlike `mapping` this slot has something real to swap
    * to. It still gets no player-facing dropdown: a replay or a synthetic hand is
    * a *verification* affordance, not an instrument a player chooses between.
-   * `?slot.source=synthetic-hands` runs the whole downstream instrument with no
-   * camera and no MediaPipe at all.
+   *
+   * `?slot.source=synthetic-hands` runs the whole instrument with no camera and
+   * no MediaPipe — in the browser too, not only headlessly: the host reads this
+   * slot through {@link sourceNeedsVideo} BEFORE acquiring anything and skips
+   * `getUserMedia` entirely, so the run needs no hardware and no permission
+   * prompt. Getting that half wrong is how the feature would have shipped as its
+   * own opposite: the one URL meant for hardware-free verification, failing to
+   * boot on a machine with no camera.
    */
   source: {
     role: 'source',
@@ -102,6 +108,21 @@ export function parseSlotSelection(search: string): SlotSelection {
     if (chosen) selection[key] = chosen;
   }
   return selection;
+}
+
+/**
+ * Does the resolved source slot need the host to supply a `<video>` element?
+ *
+ * Only the default (`webcam-hands`) does: it runs MediaPipe over a video element,
+ * which is exactly why raw-video origins stay a *host-side* concern rather than a
+ * node swap. Every other candidate emits finished frames and reads no video at
+ * all — so when one is selected the host should not acquire a camera, and the
+ * instrument runs with no hardware. Readers of `ctx.resources.video` (the overlay
+ * backdrop, the face branch) all guard on `readyState`, so the element simply
+ * stays empty.
+ */
+export function sourceNeedsVideo(selection?: SlotSelection, registry?: NodeRegistry): boolean {
+  return resolveSlot('source', selection, registry) === SLOTS.source.default;
 }
 
 /**

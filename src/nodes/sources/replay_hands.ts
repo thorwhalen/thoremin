@@ -13,9 +13,16 @@
  * boundary A — raw video decode is an offline pre-processing step, never an
  * in-loop batch source).
  *
- * Determinism is the point of a replay source, so it derives everything from
- * `ctx.tick` and never reads a clock or a random number generator
- * (`test/source_slot.test.ts` enforces that for every source-slot candidate).
+ * Determinism is the point of a replay source, so it never reads a clock or a
+ * random number generator — `test/source_slot.test.ts` enforces that
+ * behaviourally, by running each candidate twice under different wall clocks.
+ *
+ * It also counts its OWN frames rather than reading `ctx.tick`. The engine's tick
+ * counter is monotonic for the engine's whole life, which is only the same thing
+ * for an instance that existed at tick 0 — and the source slot's whole point is
+ * that a source can be swapped into a *running* graph (`applyGraph`, #51). Keyed
+ * on `ctx.tick`, a replay swapped in at tick 50 of a 3-frame recording would open
+ * on the last frame and never show the other two.
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
@@ -48,10 +55,13 @@ export const replayHandsNode = defineNode<Params>({
   outputs: [SOURCE_SLOT_OUTPUT],
   params: Params,
   make({ frames, loop }) {
+    // Per-INSTANCE, so a replay swapped into a running graph starts at frame 0.
+    let n = 0;
     return {
-      process(_inputs, ctx) {
+      process() {
         if (frames.length === 0) return { hands: EMPTY };
-        const i = loop ? ctx.tick % frames.length : Math.min(ctx.tick, frames.length - 1);
+        const i = loop ? n % frames.length : Math.min(n, frames.length - 1);
+        n += 1;
         return { hands: frames[i] as HandsFrame };
       },
     };
