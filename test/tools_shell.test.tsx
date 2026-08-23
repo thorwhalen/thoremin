@@ -368,3 +368,68 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     fireEvent.click(screen.getByText('Stop'));
   });
 });
+
+describe('the projection view (#163 §7-§8) is reachable and labels categories in FULL feature space', () => {
+  /** Drive a small many-pose take through the store so the panel can project it. */
+  function buildTake() {
+    const prng = (seed: number) => () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 2147483648 - 1;
+    };
+    const r = prng(9);
+    const jit = () => 0.3 * r();
+    const base = () => ({ 'face.head.yaw': jit(), 'face.head.pitch': jit(), 'face.head.roll': jit() });
+    useTrainer.getState().setRoutine(['rest', 'look-left', 'look-right', 'look-up', 'look-down', 'tilt-left', 'tilt-right']);
+    useTrainer.getState().start(1000);
+    let t = 1000;
+    const feed = (n: number, make: () => Record<string, number>) => {
+      for (let i = 0; i < n; i++) {
+        t += 33;
+        useTrainer.getState().sample(make(), t);
+      }
+    };
+    const hold = (ms: number, make: () => Record<string, number>) => {
+      const e = t + ms;
+      while (t < e) {
+        t += 33;
+        useTrainer.getState().sample(make(), t);
+      }
+    };
+    feed(120, base);
+    let held = base;
+    hold(1700, () => held());
+    for (const pose of [{ 'face.head.yaw': -25 }, { 'face.head.yaw': 25 }, { 'face.head.pitch': -25 }, { 'face.head.pitch': 25 }, { 'face.head.roll': 20 }, { 'face.head.roll': -20 }]) {
+      const at = () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v + jit()])) });
+      feed(8, () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v * 0.5])) }));
+      feed(25, at);
+      held = at;
+      hold(1700, () => held());
+    }
+    useTrainer.getState().build();
+  }
+
+  it('opens from the panel, shows a canvas once projected, and a labelled selection makes a category', async () => {
+    const { categoryKey } = await import('@/enroll');
+    useTools.setState({ open: 'trainer' });
+    act(() => buildTake());
+    render(<TrainerPanel />);
+    // The section is offered; opening it projects the take and shows the canvas.
+    fireEvent.click(screen.getByText(/Draw your own categories/));
+    expect(useTrainer.getState().layout.length).toBeGreaterThanOrEqual(5);
+    expect(screen.getByLabelText('Projection of your held poses')).toBeTruthy();
+    // Select the left-turn points (from the raw vectors) and label them via the store —
+    // the view passes INDICES; the centroid is computed in full feature space.
+    const pts = useTrainer.getState().session().points();
+    const left = pts.map((p, i) => [p.vector['face.head.yaw'] ?? 0, i] as const).filter(([y]) => y < -10).map(([, i]) => i);
+    act(() => {
+      useTrainer.getState().select(left);
+      useTrainer.getState().labelSelection('left');
+    });
+    // The labelled group shows in the view; the model is now the drawn one.
+    expect(screen.getByText('left')).toBeTruthy();
+    const model = useTrainer.getState().model!;
+    const leftCat = model.categories.find((c) => useTrainer.getState().labels[categoryKey(c)] === 'left')!;
+    const mean = left.reduce((s, i) => s + (pts[i].vector['face.head.yaw'] ?? 0), 0) / left.length;
+    expect(leftCat.centroid['face.head.yaw']).toBeCloseTo(mean, 5);
+  });
+});

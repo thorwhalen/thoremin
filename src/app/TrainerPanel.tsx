@@ -41,12 +41,13 @@
  * binding a category to a dial or a command is a later, separate decision and will go
  * through the #127 write path. A bad training run cannot break the instrument.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GraduationCap, X } from 'lucide-react';
 import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import RoutinePicker from './enroll/RoutinePicker';
+import ProjectionView from './enroll/ProjectionView';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
 import { toolById } from './tools';
@@ -89,6 +90,38 @@ function suggestedLabel(c: Category, cueNames: Map<string, string>): string {
 }
 
 const OUTCOME_GLYPH = { enough: '✓', cannot: '✗', skipped: '–' } as const;
+
+/** The projection + draw-your-own-categories view (#163 §7-§8), lazily projected when
+ *  first opened so a player who only wants the k-slider pays nothing for UMAP. */
+function ProjectionSection() {
+  const [open, setOpen] = useState(false);
+  const hasLayout = useTrainer((s) => s.layout.length > 0);
+  const groups = useTrainer((s) => s.labelGroups.length);
+  return (
+    <div className="border-t border-white/10 pt-3">
+      <button
+        type="button"
+        onClick={() => {
+          if (!open && !hasLayout) useTrainer.getState().project();
+          setOpen(!open);
+        }}
+        className="flex w-full items-center gap-2 text-[11px] text-white/70 hover:text-white"
+      >
+        <span className="flex-1 text-left">Draw your own categories{groups > 0 ? ` (${groups})` : ''}</span>
+        <span className="text-white/35">{open ? 'hide' : 'show'}</span>
+      </button>
+      {open && (
+        <div className="mt-2">
+          {hasLayout ? (
+            <ProjectionView />
+          ) : (
+            <p className="text-[10px] text-white/40">Not enough held poses to lay out — make a few more faces.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TrainerPanel() {
   const open = useTools((s) => s.open) === TOOL_ID;
@@ -307,6 +340,9 @@ export default function TrainerPanel() {
           {built ? 'Rebuild from this take' : 'Find my categories'}
         </button>
 
+        {built && (
+          <ProjectionSection />
+        )}
         {built && model && (
           <div className="space-y-2.5 border-t border-white/10 pt-3">
             <label className="block space-y-1">
