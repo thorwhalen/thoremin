@@ -131,8 +131,6 @@ export const CueSpecSchema = z
     sufficiency: SufficiencySchema,
     /** Follow-ups the evaluator can ask for, in order: "a bit further", "now slower". */
     variations: z.array(z.string().min(1)).default([]),
-    /** Asset path of the cached spoken instruction (relative to `public/`), if generated. */
-    voiceClip: z.string().optional(),
     /** Free-form labels for the picker's filter (`pose`, `expression`, `setup`, …). */
     tags: z.array(z.string()).default([]),
   })
@@ -170,9 +168,13 @@ export function cueFromRecord(record: CueRecord): Cue {
   return { id: record.id, name: record.name, ...record.cue };
 }
 
-/** The ordered list of cue ids a routine runs. */
+/** The ordered list of cue ids a routine runs. Ids are unique: a session holds samples
+ *  per cue id, so running one cue twice would silently replace the first run's take. */
 export const RoutineSpecSchema = z.object({
-  cueIds: z.array(z.string().min(1)).min(1),
+  cueIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length, { message: 'a routine lists each cue at most once' }),
 });
 export type RoutineSpec = z.infer<typeof RoutineSpecSchema>;
 
@@ -228,7 +230,7 @@ export function routineGroups(cues: readonly Pick<Cue, 'collects'>[]): string[] 
 /**
  * Resolve a routine's cue ids against a cue list, in order. Unknown ids are reported,
  * not thrown: a routine that names a cue someone deleted should run the rest and say
- * what it skipped.
+ * what it skipped. A repeated id runs once (its first occurrence).
  */
 export function resolveRoutine(
   cueIds: readonly string[],
@@ -237,7 +239,10 @@ export function resolveRoutine(
   const byId = new Map(cues.map((c) => [c.id, c]));
   const found: Cue[] = [];
   const missing: string[] = [];
+  const seen = new Set<string>();
   for (const id of cueIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
     const c = byId.get(id);
     if (c) found.push(c);
     else missing.push(id);

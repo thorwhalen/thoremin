@@ -34,18 +34,34 @@
  * unclipped average would inflate for seconds afterwards, making the next held pose
  * look like motion (or the reverse). A slow time constant does the rest.
  *
- * The clip needs something to clip against, so the first `warmupFrames` are a plain
- * mean: clipping from the very first difference would trap a feature whose first
- * frame happened to be quiet at a tiny estimate it could only grow out of at a few
- * percent per frame. (The routine starts with a rest cue, so the warm-up is quiet by
- * construction.)
+ * The clip needs something to clip against, so the first `warmupFrames` differences
+ * are kept and their MEDIAN is the estimate: clipping from the very first difference
+ * would trap a feature whose first frame happened to be quiet at a tiny estimate it
+ * could only grow out of at a few percent per frame, and a plain mean would let two
+ * frames of a head turn triple the seed. During the warm-up the estimate is still
+ * whatever mostly happened first — a steady sweep would measure as "noise" and read as
+ * held — so the sampler refuses to judge a feature until {@link NoiseEstimator.isWarm}.
+ * A routine is data and need not start with a rest cue; this is what keeps that from
+ * mattering.
  *
- * Two floors keep the ratio finite and honest:
+ * The clip and time constant are chosen together against one scenario: three seconds
+ * of continuous motion (a player sweeping around looking for a face) must not leave
+ * the estimate so inflated that the next deliberate move reads as held. Growth under
+ * the clip compounds at `2 * alpha` per frame; at `clip: 2`, `tauMs: 10000` that is
+ * ~1.8x over three seconds, and it decays back on the same time constant.
+ *
+ * Three floors keep the ratio finite and honest:
  *
  * - a feature that has been exactly constant so far (a blendshape the model pins at
  *   zero) has sigma 0; dividing by it would make its first twitch infinite. The floor
  *   is a small fraction of the feature's RUNNING RANGE over the session, so the unit
  *   is never smaller than 1% of everything the feature has done;
+ * - a unit can never be finer than the RESOLUTION at which a feature changes: the
+ *   smallest non-zero step ever seen. A channel the model has pinned (`noseSneer`,
+ *   `cheekSquint` — whose whole session range is one rounding quantum of ~1e-5) would
+ *   otherwise get the maximal SNR from the range floor, and a single quantum flip
+ *   would read as a hundred sigma and veto "held" for the whole vector. With the step
+ *   floor a flip is one sigma, which is what it is;
  * - a feature that never varies at all (range 0, sigma 0) gets weight 0 in the model:
  *   it carries no information, and no unit can be defined for it.
  *
@@ -64,16 +80,25 @@ export interface NoiseOptions {
   rangeFloor?: number;
   /** Frames of plain averaging before the clipped update takes over. */
   warmupFrames?: number;
+  /**
+   * A difference spanning a gap longer than this (ms) is not a frame-to-frame
+   * difference at all — the feature was absent, or nothing was fed for a while — and
+   * is skipped: the sample only re-anchors `last`. Folding it in would dent the
+   * estimate (normalised by the gap it reads near zero) and take `tauMs` to recover.
+   */
+  maxGapMs?: number;
 }
 
-const DEFAULTS = { tauMs: 5000, clip: 3, rangeFloor: 0.01, warmupFrames: 30 };
+const DEFAULTS = { tauMs: 10000, clip: 2, rangeFloor: 0.01, warmupFrames: 30, maxGapMs: 500 };
 
 /** A point-in-time, serializable snapshot of the estimator. */
 export interface NoiseSnapshot {
-  /** Per-feature jitter estimate (the raw sigma, before the range floor). */
+  /** Per-feature jitter estimate (the raw sigma, before the floors). */
   sigma: Record<string, number>;
   /** Per-feature running range over everything seen. */
   range: Record<string, number>;
+  /** Per-feature smallest non-zero per-frame step seen (the feature's resolution). */
+  step: Record<string, number>;
   /** How many frames it was built from. */
   frames: number;
 }
@@ -84,6 +109,11 @@ export interface NoiseEstimator {
   /** The effective sigma for `id` — the jitter estimate floored by the range — or
    *  `NaN` when the feature has never been seen. */
   sigma(id: string): number;
+  /**
+   * Whether `id`'s estimate is past its warm-up — i.e. is a NOISE estimate rather than
+   * a plain mean of whatever happened first. A never-seen feature is not warm.
+   */
+  isWarm(id: string): boolean;
   /** The features seen so far. */
   features(): string[];
   snapshot(): NoiseSnapshot;
@@ -96,15 +126,25 @@ interface Stat {
   sigma: number;
   /** Differences folded in so far (the warm-up counter). */
   n: number;
-  /** Sum of differences during warm-up. */
-  sum: number;
+  /** The warm-up differences (kept only until warm; the estimate is their median). */
+  warm: number[];
   lo: number;
   hi: number;
+  /** Smallest non-zero per-frame step seen; Infinity until one is. */
+  step: number;
 }
 
-/** `max(sigma, rangeFloor * range)` — the one rule, so the sampler and the weights agree. */
-export function effectiveSigma(sigma: number, range: number, rangeFloor: number): number {
-  return Math.max(sigma, rangeFloor * range);
+/** Median of a small array (copied; the input is not reordered). */
+function median(xs: readonly number[]): number {
+  const a = [...xs].sort((p, q) => p - q);
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+/** `max(sigma, rangeFloor * range, step)` — the one rule, so the sampler and the weights
+ *  agree. `step` is the feature's resolution (Infinity = not yet seen → ignored). */
+export function effectiveSigma(sigma: number, range: number, rangeFloor: number, step = Infinity): number {
+  return Math.max(sigma, rangeFloor * range, Number.isFinite(step) ? step : 0);
 }
 
 export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator {
@@ -120,21 +160,30 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
         if (!Number.isFinite(x)) continue;
         const s = stats.get(id);
         if (!s) {
-          stats.set(id, { last: x, lastT: tMs, sigma: 0, n: 0, sum: 0, lo: x, hi: x });
+          stats.set(id, { last: x, lastT: tMs, sigma: 0, n: 0, warm: [], lo: x, hi: x, step: Infinity });
           continue;
         }
         if (x < s.lo) s.lo = x;
         if (x > s.hi) s.hi = x;
         const dt = tMs - s.lastT;
+        if (dt > o.maxGapMs) {
+          // Too long since this feature was last seen: re-anchor, do not measure.
+          s.last = x;
+          s.lastT = tMs;
+          continue;
+        }
         // Per-frame difference, normalised to a nominal 33 ms frame so a dropped frame
         // does not read as a burst of noise. Guard dt<=0 (duplicate stamp) as one frame.
         const perFrame = Math.abs(x - s.last) * (dt > 0 ? Math.min(3, 33 / dt) : 1);
+        const rawStep = Math.abs(x - s.last);
+        if (rawStep > 0 && rawStep < s.step) s.step = rawStep;
         s.last = x;
         s.lastT = tMs;
         s.n += 1;
         if (s.n <= o.warmupFrames) {
-          s.sum += perFrame;
-          s.sigma = s.sum / s.n;
+          s.warm.push(perFrame);
+          s.sigma = median(s.warm);
+          if (s.n === o.warmupFrames) s.warm = [];
           continue;
         }
         // Clip against the RAW estimate, not the range-floored one: the floor grows
@@ -148,17 +197,23 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
     sigma(id) {
       const s = stats.get(id);
       if (!s) return NaN;
-      return effectiveSigma(s.sigma, s.hi - s.lo, o.rangeFloor);
+      return effectiveSigma(s.sigma, s.hi - s.lo, o.rangeFloor, s.step);
+    },
+    isWarm(id) {
+      const s = stats.get(id);
+      return !!s && s.n >= o.warmupFrames;
     },
     features: () => [...stats.keys()],
     snapshot() {
       const sigma: Record<string, number> = {};
       const range: Record<string, number> = {};
+      const step: Record<string, number> = {};
       for (const [id, s] of stats) {
         sigma[id] = s.sigma;
         range[id] = s.hi - s.lo;
+        step[id] = s.step;
       }
-      return { sigma, range, frames };
+      return { sigma, range, step, frames };
     },
     reset() {
       stats.clear();
@@ -187,7 +242,7 @@ export function scaleWeights(snapshot: NoiseSnapshot, options: ScaleOptions = {}
   const o = { ...SCALE_DEFAULTS, ...options };
   const out: FeatureWeights = {};
   for (const id of Object.keys(snapshot.sigma)) {
-    const s = effectiveSigma(snapshot.sigma[id], snapshot.range[id] ?? 0, o.rangeFloor);
+    const s = effectiveSigma(snapshot.sigma[id], snapshot.range[id] ?? 0, o.rangeFloor, snapshot.step?.[id]);
     out[id] = s > 0 ? 1 / s : 0;
   }
   return out;

@@ -9,6 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  CANNOT_REASONS,
   createRunner,
   createSession,
   defaultSufficiency,
@@ -70,8 +71,12 @@ interface Harness {
   kinds(): string[];
 }
 
-function harness(cues: Cue[], extra: Partial<Parameters<typeof createRunner>[0]> = {}, dwellMs = 200): Harness {
-  const session = createSession({ ...registry, sampler: { dwellMs } });
+function harness(
+  cues: Cue[],
+  extra: Partial<Parameters<typeof createRunner>[0]> = {},
+  sampler: { dwellMs?: number; stillSigma?: number } = { dwellMs: 200 },
+): Harness {
+  const session = createSession({ ...registry, sampler });
   const events: RunnerEvent[] = [];
   const runner = createRunner({ cues, session, beatMs: 500, repeatSayMs: 4000, ...extra });
   runner.subscribe((e) => events.push(e));
@@ -136,26 +141,30 @@ describe('the runner steps when it has ENOUGH, not when time passes', () => {
     h.wait(600);
     expect(h.runner.state().cue?.id).toBe('look');
 
-    // A timid 2-degree turn, held: a still-point, but only ~3 sigma from rest.
-    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: (2 * i) / 15 }));
-    h.feed(20, () => v({ ...restFrame(r)(), yaw: 2 }));
+    // A timid turn: a quick 1.5-degree move (quick enough to count as a MOVEMENT — a
+    // cue's first point must follow one), then held (with its jitter — a perfectly
+    // constant feature would have NO noise, and in noise units that is infinitely far):
+    // a still-point, but only ~5 sigma RMS from rest over the head features.
+    h.feed(2, (i) => v({ ...restFrame(r)(), yaw: (1.5 * (i + 1)) / 2 }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 1.5 + 0.3 * r() }));
     const guidance = h.events.filter((e) => e.type === 'guidance');
     expect(guidance).toHaveLength(1);
     expect(guidance[0].type === 'guidance' && guidance[0].say).toBe('A bit further.');
     expect(h.runner.state().status).toBe('running');
 
-    // The same guidance is NOT repeated every evaluation while nothing changes...
-    h.feed(20, () => v({ ...restFrame(r)(), yaw: 2 }));
+    // The same ASK is NOT repeated every evaluation while nothing changes — even though
+    // the evaluator now proposes the next WORDING (it cycles the variations)...
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 1.5 + 0.3 * r() }));
     expect(h.events.filter((e) => e.type === 'guidance')).toHaveLength(1);
-    // ...but is, with the NEXT variation, once `repeatSayMs` has passed.
-    h.feed(120, () => v({ ...restFrame(r)(), yaw: 2 }));
+    // ...but it is, with the next variation, once `repeatSayMs` (4 s here) has passed.
+    h.feed(150, () => v({ ...restFrame(r)(), yaw: 1.5 + 0.3 * r() }));
     const again = h.events.filter((e) => e.type === 'guidance');
     expect(again).toHaveLength(2);
     expect(again[1].type === 'guidance' && again[1].say).toBe('All the way, if you can.');
 
     // Now a real 25-degree turn, held.
-    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: 2 + (23 * i) / 15 }));
-    h.feed(20, () => v({ ...restFrame(r)(), yaw: 25 }));
+    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: 1.5 + (23.5 * i) / 15 }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 25 + 0.3 * r() }));
     expect(h.kinds().at(-2)).toBe('end:enough');
     expect(h.kinds().at(-1)).toBe('done');
     expect(h.runner.state().status).toBe('done');
@@ -168,11 +177,16 @@ describe('the runner steps when it has ENOUGH, not when time passes', () => {
     h.feed(40, restFrame(r));
     h.wait(600);
     expect(h.runner.state().cue?.id).toBe('impossible');
-    // The player holds still at rest for longer than the cue's patience.
+    // The player sits still at rest for longer than the cue's patience: they never
+    // moved, and the reason says so (not "not enough movement", which is for a player
+    // who did move but not far).
     h.feed(120, restFrame(r)); // 4 s
     const end = h.events.find((e) => e.type === 'cue-end' && e.cue.id === 'impossible');
     expect(end?.type === 'cue-end' && end.outcome).toBe('cannot');
-    expect(end?.type === 'cue-end' && end.why).toMatch(/moving on/i);
+    // The reason is one of the finite, speakable CANNOT_REASONS; "Moving on." is the
+    // runner's own phrase, said after it — never duplicated inside the reason.
+    expect(end?.type === 'cue-end' && end.why).toBe(CANNOT_REASONS.noMove);
+    expect(end?.type === 'cue-end' && end.why).not.toMatch(/moving on/i);
     expect(end?.type === 'cue-end' && end.say).toBe(RUNNER_PHRASES.cannot);
     h.wait(600);
     expect(h.runner.state().cue?.id).toBe('faces');
@@ -206,15 +220,114 @@ describe('the runner steps when it has ENOUGH, not when time passes', () => {
     expect(h.runner.state().status).toBe('done');
   });
 
-  it('the hold nudge fires when nothing has been held for a while', () => {
-    const h = harness([cue('sweep', { sufficiency: { kind: 'variety', minPoints: 3, minSeparation: 6, holdNudgeMs: 2000, patienceMs: 30000 } })]);
+  it('the hold nudge fires when nothing has been held for a while — at the cue\'s holdNudgeMs, not the runner\'s repeat interval', () => {
+    const h = harness([REST, cue('sweep', { sufficiency: { kind: 'variety', minPoints: 3, minSeparation: 6, holdNudgeMs: 2000, patienceMs: 30000 } })]);
     const r = prng(5);
     h.runner.start(h.t);
+    h.feed(40, restFrame(r));
+    h.wait(600);
+    const started = h.events.filter((e): e is Extract<RunnerEvent, { type: 'cue-start' }> => e.type === 'cue-start');
+    const t0 = started[1].t; // when the sweep cue actually began
     // Continuous motion for 3 s: never still, nothing held.
     h.feed(90, (i) => v({ ...restFrame(r)(), yaw: 30 * Math.sin(i / 4) }));
-    const g = h.events.filter((e) => e.type === 'guidance');
+    const g = h.events.filter((e): e is Extract<RunnerEvent, { type: 'guidance' }> => e.type === 'guidance');
     expect(g.length).toBeGreaterThanOrEqual(1);
-    expect(g[0].type === 'guidance' && g[0].say).toMatch(/hold it still/i);
+    expect(g[0].say).toMatch(/hold it still/i);
+    // Said once the cue's own holdNudgeMs elapsed (2 s), well before repeatSayMs (4 s):
+    // a NEW ask is not gated behind the repeat interval.
+    expect(g[0].t - t0).toBeGreaterThanOrEqual(2000);
+    expect(g[0].t - t0).toBeLessThan(3000);
+  });
+
+  it('frames between cues feed the noise estimate (no hole at the beat), and a bare nudge does not advance the variation cycle', () => {
+    // A longer rest, so the estimate is past its warm-up before the boundary is tested.
+    const longRest = cue('rest', { produces: 'baseline', sufficiency: { kind: 'frames', minFrames: 60, patienceMs: 5000 } });
+    const h = harness([longRest, cue('faces', { sufficiency: { kind: 'variety', minPoints: 3, minSeparation: 6, holdNudgeMs: 2000, patienceMs: 30000 }, variations: ['V1', 'V2', 'V3'] })], { repeatSayMs: 1000 });
+    const r = prng(12);
+    h.runner.start(h.t);
+    h.feed(66, restFrame(r)); // needs 60; enough on the next 250 ms evaluation
+    expect(h.runner.state().status).toBe('between');
+    const before = h.session.noise().snapshot().frames;
+    const sigmaBefore = h.session.sigma('yaw');
+    h.feed(12, restFrame(r)); // during the beat (500 ms here; 12 frames = 400 ms)
+    expect(h.session.noise().snapshot().frames).toBe(before + 12);
+    h.wait(400);
+    expect(h.runner.state().status).toBe('running');
+    // The estimate did not take a hit at the boundary.
+    expect(h.session.sigma('yaw')).toBeGreaterThan(sigmaBefore * 0.85);
+    expect(h.session.sigma('yaw')).toBeLessThan(sigmaBefore * 1.15);
+
+    // 3 s of continuous motion: the built-in hold nudge fires (and repeats)...
+    h.feed(90, (i) => v({ ...restFrame(r)(), yaw: 30 * Math.sin(i / 4) }));
+    const holds = h.events.filter((e) => e.type === 'guidance');
+    expect(holds.length).toBeGreaterThanOrEqual(1);
+    // ...then a held pose, rest, and the SAME pose again: a duplicate, nudged from the
+    // cue's list — starting at V1, because the hold nudges were not list entries.
+    const A = () => v({ ...restFrame(r)(), yaw: 25 + 0.3 * r() });
+    h.feed(10, (i) => v({ ...restFrame(r)(), yaw: (25 * i) / 10 }));
+    h.feed(20, A);
+    h.feed(10, (i) => v({ ...restFrame(r)(), yaw: 25 - (25 * i) / 10 }));
+    h.feed(20, restFrame(r));
+    h.feed(10, (i) => v({ ...restFrame(r)(), yaw: (25 * i) / 10 }));
+    h.feed(20, A);
+    const fromList = h.events.filter((e): e is Extract<RunnerEvent, { type: 'guidance' }> => e.type === 'guidance' && /^V\d$/.test(e.say));
+    expect(fromList.length).toBeGreaterThanOrEqual(1);
+    expect(fromList[0].say).toBe('V1');
+  });
+
+  it('the pose held while an instruction is given is NOT the cue\'s first point — only what follows a movement is', () => {
+    const h = harness([REST, LOOK, cue('look2', { collects: { groups: ['head'], omit: [], axes: [] } })]);
+    const r = prng(21);
+    h.runner.start(h.t);
+    h.feed(40, restFrame(r));
+    h.wait(600);
+    expect(h.runner.state().cue?.id).toBe('look');
+    // Still at rest for a second after "look": no point, no "a bit further".
+    h.feed(30, restFrame(r));
+    expect(h.session.pointsFor('look')).toHaveLength(0);
+    expect(h.events.filter((e) => e.type === 'guidance')).toHaveLength(0);
+    // Then the turn, held.
+    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: (25 * i) / 15 }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 25 + 0.3 * r() }));
+    expect(h.session.pointsFor('look')).toHaveLength(1);
+    expect(h.session.pointsFor('look')[0].vector.yaw).toBeGreaterThan(20);
+    // Keep holding LEFT through the beat and into "look2": that pose must not become
+    // look2's point — it is look's answer, not look2's.
+    h.wait(600);
+    expect(h.runner.state().cue?.id).toBe('look2');
+    h.feed(40, () => v({ ...restFrame(r)(), yaw: 25 + 0.3 * r() }));
+    expect(h.session.pointsFor('look2')).toHaveLength(0);
+    expect(h.runner.state().status).toBe('running');
+  });
+
+  it('a player who moves DURING the beat (right after "Good.") still counts as having moved', () => {
+    const h = harness([REST, LOOK, cue('look2', { collects: { groups: ['head'], omit: [], axes: [] } })]);
+    const r = prng(23);
+    h.runner.start(h.t);
+    h.feed(40, restFrame(r));
+    h.wait(600);
+    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: (25 * i) / 15 }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 25 + 0.3 * r() }));
+    expect(h.runner.state().status).toBe('between');
+    // The turn the other way happens entirely within the beat...
+    h.feed(12, (i) => v({ ...restFrame(r)(), yaw: 25 - (50 * (i + 1)) / 12 }));
+    h.wait(300);
+    expect(h.runner.state().cue?.id).toBe('look2');
+    // ...and the new pose is simply held once look2 begins.
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: -25 + 0.3 * r() }));
+    expect(h.session.pointsFor('look2')).toHaveLength(1);
+    expect(h.session.pointsFor('look2')[0].vector.yaw).toBeLessThan(-20);
+  });
+
+  it('a routine that does NOT start with a rest cue cannot mistake its first sweep for a held pose', () => {
+    // The noise estimate is a plain mean during its warm-up, so a steady sweep would
+    // measure as "noise" and read as held. The sampler refuses to judge until warm.
+    const h = harness([cue('sweep-first', { collects: { groups: ['head'], omit: [], axes: [] } })]);
+    const r = prng(8);
+    h.runner.start(h.t);
+    for (let i = 0; i < 20; i++) h.feed(1, (j) => v({ ...restFrame(r)(), yaw: 1.0 * (i * 1 + j) }));
+    expect(h.session.pointsFor('sweep-first')).toHaveLength(0);
+    expect(h.runner.state().status).toBe('running');
   });
 
   it('skip ends the active cue as skipped; stop aborts and keeps the samples', () => {
@@ -268,6 +381,7 @@ describe('the default evaluator, directly', () => {
     frames: 0,
     elapsedMs: 0,
     sinceLastSampleMs: 0,
+    moved: true,
     sigma,
     askedVariations: 0,
   };
@@ -340,10 +454,12 @@ describe('a routine over the REAL recording, in RAW units', () => {
       head('look-down', 'Look down.'),
       cue('dolly', { produces: 'nuisance', collects: { groups: ['head', 'expr'], omit: [], axes: ['scale'] }, sufficiency: { kind: 'frames', minFrames: 40, patienceMs: 10000 } }),
     ];
-    // 150 ms dwell: the clip SWEEPS through each pose (it was recorded to settle axis
-    // signs, not as a take) and holds the apex for barely 200 ms. At the default dwell
-    // nothing is held — see the case below — which is the sampler being right.
-    const h = harness(routine, {}, 150);
+    // Measured on this clip (recorded to settle axis signs, not as a take): right, up
+    // and down are genuinely held — 10-13 frames within 5 sigma of still (330-430 ms) —
+    // but the LEFT turn is a pure sweep: 2 frames within 5 sigma, 5 within 8. So this
+    // routine judges "held" at 8 sigma over 100 ms to catch that apex; the negative
+    // case below keeps the defaults and shows the sweep is correctly NOT a held pose.
+    const h = harness(routine, {}, { dwellMs: 100, stillSigma: 8 });
     h.runner.start(h.t);
     // The fixture's ground-truth windows (README), each re-timed to follow the last.
     const segments: [number, number][] = [

@@ -41,7 +41,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { GraduationCap, X } from 'lucide-react';
-import type { Category } from '@/enroll';
+import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import { useTools } from './toolsStore';
@@ -141,7 +141,10 @@ export default function TrainerPanel() {
   // The instruction stays up for the whole cue; a variation ("a bit further") is the
   // runner's LAST utterance and goes beneath it, never in its place.
   const guidance = status === 'running' && activeCue && say && say !== activeCue.instruction ? say : null;
-  const canBuild = status === 'done' || (status === 'stopped' && useTrainer.getState().session().ready());
+  // Buildable only with something to carve: a routine that ended with every vocabulary
+  // cue skipped or `cannot` is "done" and still has no still-points.
+  const canBuild = (status === 'done' || status === 'stopped') && useTrainer.getState().session().ready();
+  const lastEndSay = [...transcript].reverse().find((l) => l.kind === 'end')?.say ?? null;
   const cueNames = new Map(routine.map((c) => [c.id, c.name]));
   const latestEnd = [...transcript].reverse().find((l) => l.kind === 'end' && l.outcome === 'cannot');
 
@@ -166,7 +169,7 @@ export default function TrainerPanel() {
         {tool && <p className="text-[10px] uppercase tracking-widest text-emerald-500/70">{tool.description}</p>}
         {status === 'idle' && (
           <p className="text-[11px] leading-relaxed text-white/60">
-            Teach the instrument the faces <em>you</em> can actually make, instead of trying to hit the
+            Teach the instrument the positions <em>you</em> can actually hit, instead of trying to hit the
             ones it came with. It asks for one thing at a time and moves on when it has enough. About a
             minute. Nothing you do here changes the sound yet.
           </p>
@@ -208,14 +211,16 @@ export default function TrainerPanel() {
           )}
         </div>
 
-        {/* What the runner is saying now. Always written; voice is a toggle on the same string. */}
+        {/* What the runner is saying now. Always written; voice is a toggle on the same
+            string — so during the beat between cues the panel shows the END phrase the
+            runner just said ("Good."), and the next instruction only once it is said. */}
         {running && activeCue && (
           <div className="space-y-2 rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-3" aria-live="polite">
             <p className="text-[10px] uppercase tracking-widest text-emerald-400/70">
               {status === 'between' ? 'Next' : 'Now'} · {activeCue.name}
             </p>
             <p className="text-[14px] font-medium leading-snug text-white" data-say>
-              {activeCue.instruction}
+              {status === 'between' ? lastEndSay ?? '…' : activeCue.instruction}
             </p>
             {guidance && (
               <p className="text-[11px] italic text-emerald-200/80" data-guidance>
@@ -301,9 +306,10 @@ export default function TrainerPanel() {
                 className="w-full"
               />
               <span className="block text-[10px] leading-snug text-white/40">
-                Drag freely — this re-cuts the same recording, it does not retrain. Your take
-                looks most like <strong className="text-white/60">{suggestedK}</strong> groups to us,
-                but that is a guess and you know your own faces better.
+                Drag freely — this re-cuts the same recording, it does not retrain, and a name you
+                typed stays with its poses. Your take looks most like{' '}
+                <strong className="text-white/60">{suggestedK}</strong> groups to us, but that is a
+                guess and you know what you did better.
               </span>
             </label>
 
@@ -313,9 +319,9 @@ export default function TrainerPanel() {
                   <span className="w-4 text-[10px] tabular-nums text-white/35">{i + 1}</span>
                   <input
                     aria-label={`Name for category ${i + 1}`}
-                    placeholder={suggestedLabel(c, cueNames) || 'name this face…'}
-                    value={labels[c.id] ?? ''}
-                    onChange={(e) => useTrainer.getState().setLabel(c.id, e.target.value)}
+                    placeholder={suggestedLabel(c, cueNames) || 'name this one…'}
+                    value={labels[categoryKey(c)] ?? ''}
+                    onChange={(e) => useTrainer.getState().setLabel(categoryKey(c), e.target.value)}
                     className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85 placeholder:text-white/25"
                   />
                   <span className="text-[10px] tabular-nums text-white/35" title="how many held poses formed it">
@@ -326,7 +332,9 @@ export default function TrainerPanel() {
             </ul>
             <p className="text-[10px] leading-snug text-white/40">
               Built from {model.features.length} of your most distinctive features, measured in multiples of
-              their own jitter. Anything that moved while you changed camera distance was quieted.
+              their own jitter.
+              {routine.some((c, i) => c.produces === 'nuisance' && outcomes[i] === 'enough') &&
+                ' Anything that moved during the "should not matter" cue was quieted.'}
             </p>
           </div>
         )}

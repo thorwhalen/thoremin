@@ -53,6 +53,12 @@ const toyCue = (id: string, produces: Cue['produces'], extra: Partial<Cue> = {})
 /** A vector built from a few named channels. */
 const v = (o: Record<string, number>): FeatureVector => o;
 
+/** Deterministic "noise": a fixed pseudo-random sequence in [-1, 1). */
+const prng = (seed: number) => () => {
+  seed = (seed * 1664525 + 1013904223) % 4294967296;
+  return seed / 2147483648 - 1;
+};
+
 describe('still-point sampler (absolute metric, the v1 rule) — the "cluster poses, not transitions" guard', () => {
   const abs = { metric: 'absolute' as const };
   it('emits nothing while the vector is moving', () => {
@@ -143,12 +149,13 @@ describe('noise units — the estimator every distance is measured in (#163)', (
     const before = n.sigma('a');
     // A 1 s move of 20x the jitter per frame.
     for (let i = 0; i < 30; i++) n.push(v({ a: 0.5 + 0.2 * i + 0.01 * r() }), (t += 33));
-    const after = n.sigma('a');
-    // The raw estimate inflates by a few tens of percent, not several times; the UNIT
-    // (the floored sigma) may also rise with the range, but stays within a factor of
-    // the jitter rather than tracking the move itself.
-    expect(n.snapshot().sigma.a).toBeLessThan(before * 2);
-    expect(after).toBeLessThan(before * 8);
+    // The RAW estimate barely moves (the clip's job): a few tens of percent at most.
+    expect(n.snapshot().sigma.a).toBeLessThan(before * 1.5);
+    // The UNIT is then the range floor's job: 1% of everything the feature has done,
+    // i.e. an SNR cap of 100 — here the move was ~600 jitters, so the unit is the floor.
+    const snap = n.snapshot();
+    expect(n.sigma('a')).toBeCloseTo(Math.max(snap.sigma.a, 0.01 * snap.range.a), 9);
+    expect(n.sigma('a')).toBeLessThan(snap.range.a / 50);
   });
 
   it('a feature that has never varied has no unit (weight 0); one that varied once gets the range floor', () => {
@@ -160,6 +167,18 @@ describe('noise units — the estimator every distance is measured in (#163)', (
     expect(w.step).toBeGreaterThan(0);
     expect(w.step).toBeLessThanOrEqual(50 + 1e-9);
     expect(Number.isNaN(n.sigma('never'))).toBe(true);
+  });
+
+  it('a difference across a long gap re-anchors instead of denting the estimate', () => {
+    const n = createNoiseEstimator();
+    const r = prng(9);
+    let t = 0;
+    for (let i = 0; i < 200; i++) n.push(v({ a: 0.5 + 0.01 * r() }), (t += 33));
+    const before = n.sigma('a');
+    n.push(v({ a: 0.5 + 0.01 * r() }), (t += 1500)); // a 1.5 s hole (a beat, or a dropout)
+    expect(n.sigma('a')).toBeCloseTo(before, 6);
+    for (let i = 0; i < 10; i++) n.push(v({ a: 0.5 + 0.01 * r() }), (t += 33));
+    expect(n.sigma('a')).toBeGreaterThan(before * 0.8);
   });
 
   it('noiseDistance is RMS over the attention features in sigma, skipping what is unseen', () => {
@@ -224,6 +243,34 @@ describe('still-point sampler (noise-relative, the default) — "held" means "no
     }
     expect(head.points().length).toBeGreaterThanOrEqual(1);
     expect(all.points()).toHaveLength(0);
+  });
+
+  it('a PINNED channel flipping one quantum cannot veto "held" for the whole vector', () => {
+    // Real catalogs carry channels the model pins near zero (noseSneer, cheekSquint):
+    // their whole session range is one rounding quantum. Without a resolution floor a
+    // flip of that quantum reads as ~100 sigma and, RMS'd over the vector, vetoes the
+    // dwell; every still face would be "moving" 10% of the time.
+    const r = prng(13);
+    const noise = createNoiseEstimator();
+    let t = 0;
+    const frame = (i: number) =>
+      v({
+        a: 0.5 + 0.01 * r(),
+        b: 0.3 + 0.01 * r(),
+        // pinned: exactly 0, with a single-quantum flip every 9th frame
+        pinned: i % 9 === 0 ? 1e-5 : 0,
+      });
+    for (let i = 0; i < 60; i++) noise.push(frame(i), (t += 33));
+    const s = createStillPointSampler({ dwellMs: 200, noise });
+    for (let i = 60; i < 160; i++) {
+      const f = frame(i);
+      noise.push(f, (t += 33));
+      s.push(f, t);
+    }
+    expect(s.points()).toHaveLength(1);
+    // And in the model, the pinned channel's whole range is ~one sigma: inert.
+    const w = scaleWeights(noise.snapshot());
+    expect(w.pinned * 1e-5).toBeLessThanOrEqual(1.0000001);
   });
 
   it('a SHARED estimator is not fed twice (the session feeds it; the sampler only reads)', () => {
@@ -501,7 +548,10 @@ describe('end-to-end over the REAL recording', () => {
     // that rejects its own training data is the failure this asserts against.
     const pts = session.pointsFor('faces');
     const accepted = pts.filter((p) => !classify(model, p.vector).rejected).length;
-    expect(accepted / pts.length).toBeGreaterThan(0.8);
+    // (The reject radius is floored at the 90th percentile of member distances, so with
+    // a handful of points exactly one outlier may sit outside it.)
+    expect(pts.length).toBeGreaterThanOrEqual(4);
+    expect(accepted / pts.length).toBeGreaterThanOrEqual(0.8);
   });
 
   it('the model is measured in NOISE units: its weights are 1/sigma, so a 1-degree yaw jitter cannot outweigh a smile', () => {
@@ -554,5 +604,49 @@ describe('end-to-end over the REAL recording', () => {
     expect(feats).toContain('face.head.pitch');
     expect(feats).not.toContain('face.head.x');
     expect(feats).not.toContain('face.head.scale');
+  });
+
+  it('omitted features (where you SIT) never enter the model, even though the live vector carries them', () => {
+    // The vector nodes emit every feature of a demanded group, so face.head.x/y/scale
+    // ride along with yaw/pitch/roll. They must be projected out of the take: with a
+    // 2%-of-range floor their weight is enormous, and a 3%-of-frame chair shift would
+    // reject a perfectly held look-left.
+    const session = createSession({ sampler: { dwellMs: 200 } });
+    const rest = starterCueById('rest')!;
+    const left = starterCueById('look-left')!;
+    const right = starterCueById('look-right')!;
+    const r = prng(17);
+    let t = 0;
+    const frame = (yaw: number, x: number) =>
+      v({
+        'face.head.yaw': yaw + 0.3 * r(),
+        'face.head.pitch': 0.3 * r(),
+        'face.head.roll': 0.3 * r(),
+        'face.head.x': x + 0.001 * r(),
+        'face.head.y': 0.5 + 0.001 * r(),
+        'face.head.scale': 0.12 + 0.0005 * r(),
+        'face.blendshape.mouth.smileLeft': 0.05 + 0.01 * r(),
+      });
+    const feed = (cue: Cue, n: number, make: () => FeatureVector) => {
+      session.beginCue(cue);
+      for (let i = 0; i < n; i++) session.push(make(), (t += 33));
+      session.endCue();
+    };
+    feed(rest, 90, () => frame(0, 0.5));
+    const hold = (yaw: number, x: number) => {
+      let i = 0;
+      return () => frame(i++ < 12 ? (yaw * i) / 12 : yaw, x);
+    };
+    feed(left, 40, hold(-25, 0.5));
+    feed(right, 40, hold(25, 0.56)); // the chair moved 6% of the frame between the two
+    session.build();
+    const model = session.retrain(2);
+    for (const id of ['face.head.x', 'face.head.y', 'face.head.scale']) {
+      expect(session.features()).not.toContain(id);
+      expect(session.weights()[id]).toBeUndefined();
+    }
+    // A held left turn with the chair shifted is still a left turn.
+    const shifted = classify(model, frame(-25, 0.53));
+    expect(shifted.rejected).toBe(false);
   });
 });

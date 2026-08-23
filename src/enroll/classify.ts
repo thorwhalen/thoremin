@@ -12,8 +12,8 @@
  *
  * **2. No-man's-land is a real region, set by demonstration.** Without a reject option
  * every frame is classified as *something*, so the instrument asserts a category while
- * the player scratches their nose. The reject radius comes from the rest step — "this is
- * what nothing looks like" — rather than a magic constant, because the open-set
+ * the player scratches their nose. The reject radius comes from the baseline cue —
+ * "this is what nothing looks like" — rather than a magic constant, because the open-set
  * literature's consistent finding is that thresholds are task-specific and tuning is the
  * crucial part.
  *
@@ -55,8 +55,9 @@ function meanVector(
 
 export interface TrainOptions {
   /**
-   * Vectors from the REST step. Their spread sets the reject radius: whatever distance
-   * the player's own resting state wanders over is, by demonstration, "not a category".
+   * Vectors from the BASELINE (rest) cue. Their spread sets the reject radius: whatever
+   * distance the player's own resting state wanders over is, by demonstration, "not a
+   * category".
    */
   restVectors?: readonly FeatureVector[];
   /** Multiplier on the demonstrated rest spread. Larger = more forgiving. */
@@ -100,6 +101,7 @@ export function trainModel(
       centroid,
       size: idxs.length,
       radius,
+      members: [...idxs].sort((a, b) => a - b),
     });
   });
 

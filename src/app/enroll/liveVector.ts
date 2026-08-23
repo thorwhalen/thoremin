@@ -12,7 +12,7 @@
  * that resolution — the same hot-path/human-frequency split the repo already enforces
  * between `useControls` (hot, read synchronously each tick) and the dials store (edits).
  * So the tap writes a plain module variable, and the panel *polls* it at UI rate while a
- * step is running. The trainer is a human-frequency consumer of a hot signal, and the
+ * cue is running. The trainer is a human-frequency consumer of a hot signal, and the
  * cheapest correct shape for that is a holder plus a poll, not a subscription.
  *
  * Merging face and hand into ONE vector is the point, not a convenience: it is what makes

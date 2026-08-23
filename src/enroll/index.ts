@@ -105,6 +105,7 @@ export {
   type Sufficiency,
 } from './cue';
 export {
+  CANNOT_REASONS,
   DEFAULT_NUDGES,
   defaultSufficiency,
   distinctPoints,
@@ -125,6 +126,7 @@ export {
   type RunnerStatus,
 } from './runner';
 export { createSession, type Session, type SessionOptions } from './session';
+export { categoryKey } from './types';
 export type {
   Category,
   Classification,

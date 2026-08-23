@@ -21,6 +21,7 @@
  * localStorage in the browser), so this needs no DOM and proves the backend swaps.
  */
 import { describe, it, expect } from 'vitest';
+import { slugId } from '@/util/ids';
 import { createInMemoryProvider } from '@zodal/store';
 import {
   CueRecordSchema,
@@ -39,6 +40,7 @@ import {
   type CueSpec,
   type CueSpecInput,
   type RoutineRecord,
+  RoutineSpecSchema,
 } from '@/enroll';
 import { DEFAULT_ROUTINE_CUE_IDS, FACE_OMIT, FACE_TRAINING_GROUPS, STARTER_CUES } from '@/app/enroll/starterCues';
 import {
@@ -104,7 +106,6 @@ describe('cue schema — what a cue IS (the zodal SSOT)', () => {
     expect(c.collects.omit).toEqual([]);
     expect(c.collects.axes).toEqual([]);
     expect(c.rationale).toBe('');
-    expect(c.voiceClip).toBeUndefined();
   });
 
   it('applies the per-kind sufficiency defaults (noise units — the same number means the same thing for an angle and a blendshape)', () => {
@@ -246,6 +247,21 @@ describe('starter groups — what a face take records', () => {
 
 // ---- 4. Helpers ---------------------------------------------------------------
 
+describe('the override-by-name contract', () => {
+  it('every starter id is exactly slugId(name) — saving a cue under a starter\'s NAME replaces it', () => {
+    // cueStore's merge is by id and the store derives ids from names, so this equality
+    // is what makes "customise a starter by saving under its name" true.
+    for (const c of STARTER_CUES) expect(slugId(c.name, 'cue')).toBe(c.id);
+  });
+
+  it('a routine lists each cue at most once (a second run would replace the first\'s take)', () => {
+    expect(RoutineSpecSchema.safeParse({ cueIds: ['rest', 'look-left', 'rest'] }).success).toBe(false);
+    // resolveRoutine tolerates a duplicate from an older record: it runs the first.
+    const r = resolveRoutine(['rest', 'look-left', 'rest'], STARTER_CUES);
+    expect(r.cues.map((c) => c.id)).toEqual(['rest', 'look-left']);
+  });
+});
+
 describe('cue helpers — modality-neutral, over a toy registry', () => {
   const TOY_IDS = ['a', 'b', 'c'] as const;
   const TOY_GROUP: Record<string, string> = { a: 'g1', b: 'g1', c: 'g2' };
@@ -343,16 +359,31 @@ describe('cue and routine stores — the two zodal collections, over an in-memor
   });
 
   it('listCues over an empty store is exactly the starter set — starters are code, not seed rows', async () => {
-    expect(await listCues(cueStore())).toEqual([...STARTER_CUES]);
+    const { cues, unusable } = await listCues(cueStore());
+    expect(cues).toEqual([...STARTER_CUES]);
+    expect(unusable).toEqual([]);
   });
 
   it('listCues over a store that saved a cue under a starter name overrides that starter, at its position', async () => {
     const s = cueStore();
     const reworded = parsedSpec({ instruction: 'Look over your left shoulder, and hold it.' });
     await s.save('Look left', reworded, 1000);
-    const cues = await listCues(s);
+    const { cues } = await listCues(s);
     expect(cues.map((c) => c.id)).toEqual([...DEFAULT_ROUTINE_CUE_IDS]);
     expect(cues[DEFAULT_ROUTINE_CUE_IDS.indexOf('look-left')].instruction).toBe(reworded.instruction);
+  });
+
+  it('listCues DROPS a stored cue none of whose groups the catalog knows, and says which', async () => {
+    // The schema is modality-neutral and cannot know the catalog; a cue with no
+    // resolvable group would never count a frame and end with a misleading "I could not
+    // see you". This is the app-side place that knows, so it is the place that filters.
+    const s = cueStore();
+    await s.save('Elbow', parsedSpec({ collects: { groups: ['elbow.angle'], omit: [], axes: [] } }), 1000);
+    await s.save('Partly', parsedSpec({ collects: { groups: ['elbow.angle', 'face.head'], omit: [], axes: [] } }), 1001);
+    const { cues, unusable } = await listCues(s);
+    expect(unusable).toEqual(['elbow']);
+    expect(cues.some((c) => c.id === 'partly')).toBe(true);
+    expect(cues.some((c) => c.id === 'elbow')).toBe(false);
   });
 
   it('loadRoutine(null) resolves the default routine in DEFAULT_ROUTINE_CUE_IDS order, named Default, nothing missing', async () => {

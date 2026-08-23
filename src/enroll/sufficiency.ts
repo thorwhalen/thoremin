@@ -34,9 +34,25 @@ import type { FeatureVector, StillPoint } from './types';
 
 export type Verdict =
   | { verdict: 'need-more' }
-  | { verdict: 'need-variation'; say: string }
+  | {
+      verdict: 'need-variation';
+      /** What to say. */
+      say: string;
+      /**
+       * What KIND of ask this is (`'further'`, `'different'`, `'hold'`, …). The runner
+       * de-duplicates speech on this, not on the text: the default evaluator cycles a
+       * cue's variations, and two wordings of the same ask must not both be said 250 ms
+       * apart. Omitted → the text itself is the key.
+       */
+      key?: string;
+    }
   | { verdict: 'enough' }
-  | { verdict: 'cannot'; why: string };
+  | {
+      verdict: 'cannot';
+      /** Why, in a sentence. Drawn from {@link CANNOT_REASONS} — a FINITE set, so the
+       *  voice layer can cache it like any other utterance. */
+      why: string;
+    };
 
 /** Everything an evaluator may look at. All of it is already captured by the session. */
 export interface SufficiencyInput {
@@ -53,6 +69,9 @@ export interface SufficiencyInput {
   /** Milliseconds since the last sample (still-point or counted frame), or `elapsedMs`
    *  when there has been none. */
   sinceLastSampleMs: number;
+  /** Whether the player has moved at all since the cue began (the sampler's held
+   *  threshold was crossed). Tells "sat still" apart from "moved but never held". */
+  moved: boolean;
   /** The resting baseline (mean of the baseline cue's frames), if one has run. */
   baseline?: FeatureVector;
   /** The session's noise unit for a feature (NaN if unseen). */
@@ -70,6 +89,20 @@ export const DEFAULT_NUDGES = {
   further: 'A bit further, if you can.',
   different: 'Try one you have not done yet.',
   hold: 'Hold it still for a moment.',
+} as const;
+
+/**
+ * Every reason a cue can end in `cannot`. A closed set, without interpolated counts,
+ * because it is SPOKEN as well as written: the runner follows it with its own
+ * "Moving on." so none of these says so itself.
+ */
+export const CANNOT_REASONS = {
+  unseen: 'I could not see you for this one.',
+  tooFew: 'I did not get enough of that one.',
+  noHold: 'I did not catch a held position for that one.',
+  noMove: 'I did not see you move for that one.',
+  tooClose: 'I could not see enough movement for that one.',
+  notDistinct: 'I could not find enough different ones.',
 } as const;
 
 /** The cue's next variation, cycling; or the built-in nudge. */
@@ -118,13 +151,7 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
     case 'frames': {
       if (input.frames >= s.minFrames) return { verdict: 'enough' };
       if (outOfPatience) {
-        return {
-          verdict: 'cannot',
-          why:
-            input.frames === 0
-              ? 'I could not see you for this one. Moving on.'
-              : 'I did not get enough of that one. Moving on.',
-        };
+        return { verdict: 'cannot', why: input.frames === 0 ? CANNOT_REASONS.unseen : CANNOT_REASONS.tooFew };
       }
       return { verdict: 'need-more' };
     }
@@ -137,17 +164,14 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
       if (outOfPatience) {
         return {
           verdict: 'cannot',
-          why:
-            input.points.length === 0
-              ? 'I did not catch a held position for that one. Moving on.'
-              : 'I could not see enough movement for that one. Moving on.',
+          why: input.points.length > 0 ? CANNOT_REASONS.tooClose : input.moved ? CANNOT_REASONS.noHold : CANNOT_REASONS.noMove,
         };
       }
       // The latest point was held but did not go far enough: ask for more. (The runner
       // decides when to actually SAY it — once per new point, or after a pause.)
       const last = excursions[excursions.length - 1];
       if (input.points.length > 0 && Number.isFinite(last) && last < s.minExcursion) {
-        return { verdict: 'need-variation', say: nextVariation(cue, input.askedVariations, DEFAULT_NUDGES.further) };
+        return { verdict: 'need-variation', key: 'further', say: nextVariation(cue, input.askedVariations, DEFAULT_NUDGES.further) };
       }
       return { verdict: 'need-more' };
     }
@@ -158,20 +182,17 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
       if (outOfPatience) {
         return {
           verdict: 'cannot',
-          why:
-            kept.length === 0
-              ? 'I did not catch any held positions for that one. Moving on.'
-              : `I only found ${kept.length} distinct ${kept.length === 1 ? 'one' : 'ones'}. Moving on.`,
+          why: kept.length > 0 ? CANNOT_REASONS.notDistinct : input.moved ? CANNOT_REASONS.noHold : CANNOT_REASONS.noMove,
         };
       }
       // The latest point duplicated an earlier one: ask for something different.
       const lastIndex = input.points.length - 1;
       if (lastIndex >= 0 && !kept.includes(lastIndex)) {
-        return { verdict: 'need-variation', say: nextVariation(cue, input.askedVariations, DEFAULT_NUDGES.different) };
+        return { verdict: 'need-variation', key: 'different', say: nextVariation(cue, input.askedVariations, DEFAULT_NUDGES.different) };
       }
       // Nothing held for a while: the player is moving continuously (or not at all).
       if (input.sinceLastSampleMs > s.holdNudgeMs) {
-        return { verdict: 'need-variation', say: DEFAULT_NUDGES.hold };
+        return { verdict: 'need-variation', key: 'hold', say: DEFAULT_NUDGES.hold };
       }
       return { verdict: 'need-more' };
     }

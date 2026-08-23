@@ -91,9 +91,17 @@ interface TrainerState {
   k: number;
   suggestedK: number;
   model: TrainedModel | null;
-  /** Player-supplied names, by category id. Kept out of the model so a re-cut at a
-   *  different k cannot silently reattach a name to a different cluster. */
+  /**
+   * Player-supplied names, keyed by {@link categoryKey} (the category's MEMBER SET),
+   * not by its positional id: `cat-2` at k=3 is a different cluster from `cat-2` at
+   * k=4, but a name belongs to a set of held poses. Re-cutting keeps every name whose
+   * cluster survived the cut intact, and silently attaches none to a different one.
+   */
   labels: Record<string, string>;
+
+  /** Stored cues dropped on load because none of their groups exists in the catalog
+   *  (such a cue could never capture anything; see `cueStore.listCues`). */
+  unusable: string[];
 
   /** Read the cue + routine stores (idempotent; the panel calls it on open). */
   load(): Promise<void>;
@@ -106,7 +114,8 @@ interface TrainerState {
   stop(tMs: number): void;
   build(): void;
   setK(k: number): void;
-  setLabel(id: string, label: string): void;
+  /** Name a category, by its stable key (see `labels`). */
+  setLabel(key: string, label: string): void;
   reset(): void;
   /** Escape hatches for tests and for a future "export my training take". */
   session(): Session;
@@ -116,6 +125,8 @@ interface TrainerState {
 /** The capture objects live outside the store: mutable buffers, not UI state. */
 let session: Session = createSession();
 let runner: Runner | null = null;
+/** Detach the store from the current runner, so a replaced runner cannot keep writing. */
+let unsubscribe: (() => void) | null = null;
 
 /** The stores (localStorage by default). Swappable for tests via {@link useTrainerStores}. */
 let stores: { cues: CueStore; routines: RoutineStore } | null = null;
@@ -157,7 +168,8 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         push({ t: e.t, kind: 'guidance', say: e.say });
         break;
       case 'cue-end':
-        push({ t: e.t, kind: 'end', say: e.say ?? '', outcome: e.outcome, why: e.why });
+        // A skip says nothing; only an outcome with a phrase is a line of transcript.
+        if (e.say) push({ t: e.t, kind: 'end', say: e.say, outcome: e.outcome, why: e.why });
         set({ outcomes: runner?.state().outcomes ?? [] });
         break;
       case 'done':
@@ -175,6 +187,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     routine: [...STARTER_CUES],
     routineName: 'Default',
     missing: [],
+    unusable: [],
     loaded: false,
     ...IDLE,
     outcomes: STARTER_CUES.map(() => null),
@@ -188,9 +201,17 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     async load() {
       if (get().loaded) return;
       const { cues: cueStore, routines } = getStores();
-      const cues = await listCues(cueStore);
+      const { cues, unusable } = await listCues(cueStore);
       const r = await loadRoutine(null, cues, routines);
-      set({ cues, routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null), loaded: true });
+      set({
+        cues,
+        unusable,
+        routine: r.cues,
+        routineName: r.name,
+        missing: r.missing,
+        outcomes: r.cues.map(() => null),
+        loaded: true,
+      });
     },
 
     setRoutine(cueIds, name = 'Custom') {
@@ -207,9 +228,15 @@ export const useTrainer = create<TrainerState>()((set, get) => {
 
     start(tMs) {
       const routine = get().routine;
+      // A previous runner (a re-run, or a test driving the store directly) must be
+      // stopped and detached first, or it stays 'running' on an orphaned session and
+      // keeps writing events into this store.
+      unsubscribe?.();
+      unsubscribe = null;
+      runner?.stop(tMs);
       session = createSession();
       runner = createRunner({ cues: routine, session });
-      runner.subscribe(onEvent);
+      unsubscribe = runner.subscribe(onEvent);
       appFeatureDemand.claim(DEMAND_OWNER, routineGroups(routine));
       set({ transcript: [], outcomes: routine.map(() => null), built: false, model: null, labels: {} });
       runner.start(tMs);
@@ -254,11 +281,13 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       set({ k, model: session.retrain(k) });
     },
 
-    setLabel(id, label) {
-      set((s) => ({ labels: { ...s.labels, [id]: label } }));
+    setLabel(key, label) {
+      set((s) => ({ labels: { ...s.labels, [key]: label } }));
     },
 
     reset() {
+      unsubscribe?.();
+      unsubscribe = null;
       runner = null;
       session = createSession();
       appFeatureDemand.release(DEMAND_OWNER);

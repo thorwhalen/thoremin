@@ -35,7 +35,7 @@
 import { ALL_FEATURES, FEATURE_BY_ID } from '@/features/catalog';
 import { buildHierarchy, cutAt, suggestK, type Hierarchy } from './cluster';
 import { trainModel } from './classify';
-import { cueFeatures, samplingFor, type Cue } from './cue';
+import { cueFeatures, routineFeatures, samplingFor, type Cue } from './cue';
 import {
   combineWeights,
   nuisanceProfile,
@@ -92,6 +92,9 @@ export interface Session {
   featuresFor(cue: Cue): string[];
   /** Mean of the baseline cue's frames, if one has been captured. */
   baseline(): FeatureVector | undefined;
+  /** Whether the player has MOVED since the active cue began (the sampler crossed its
+   *  held threshold at least once). False for continuous cues and when idle. */
+  moved(): boolean;
   /** The session's noise unit for a feature (NaN if unseen). */
   sigma(id: string): number;
   /** The shared estimator (for a meter / a test). */
@@ -104,6 +107,15 @@ export interface Session {
   suggestedK(): number;
   /** Re-cut the built hierarchy into `k` categories and return the model. Cheap. */
   retrain(k: number): TrainedModel;
+  /**
+   * The model for an ARBITRARY partition of the pool (arrays of indices into
+   * {@link Session.points}) — what a player's own labelling in the projection view
+   * produces. `retrain(k)` is this over `cutAt(hierarchy, k)`; both use the same
+   * features, weights and baseline, so a hand-drawn category and an automatic one are
+   * the same kind of thing. Centroids are computed in FULL feature space from the raw
+   * vectors — never from a 2-D layout.
+   */
+  modelFor(clusters: readonly (readonly number[])[]): TrainedModel;
   /** The features the model is using, best-first. */
   features(): string[];
   /** The weights distances are measured under (noise scale x nuisance). */
@@ -151,6 +163,10 @@ export function createSession(options: SessionOptions = {}): Session {
   let active: Cue | null = null;
   let activeFeatures: string[] = [];
   let sampler: StillPointSampler | null = null;
+  /** The last frame the active cue sampled, and the pose at the end of the previous cue
+   *  (the reference "moved since your last answer" is judged against). */
+  let lastInCue: { v: FeatureVector; t: number } | null = null;
+  let endOfPreviousCue: { v: FeatureVector; t: number } | null = null;
 
   let hierarchy: Hierarchy = { heights: [], size: 0 };
   let chosenFeatures: string[] = [];
@@ -182,7 +198,16 @@ export function createSession(options: SessionOptions = {}): Session {
       points.delete(cue.id);
       frames.delete(cue.id);
       if (samplingFor(cue) === 'still-points') {
-        sampler = createStillPointSampler({ ...o.sampler, cue: cue.id, features: activeFeatures, noise });
+        // Disarmed: the pose held while this instruction is given is the PREVIOUS one
+        // (rest, or the last cue's answer). The first point must follow a movement.
+        sampler = createStillPointSampler({
+          armed: false,
+          ...o.sampler,
+          cue: cue.id,
+          features: activeFeatures,
+          noise,
+          ...(endOfPreviousCue ? { seed: endOfPreviousCue } : {}),
+        });
         points.set(cue.id, []);
       } else {
         sampler = null;
@@ -196,6 +221,7 @@ export function createSession(options: SessionOptions = {}): Session {
       // A frame with none of the cue's features is not a sample of this cue (no face in
       // shot, say) — it must not count toward "enough".
       if (!activeFeatures.some((id) => Number.isFinite(vector[id]))) return;
+      lastInCue = { v: vector, t: tMs };
       if (sampler) {
         const p = sampler.push(vector, tMs);
         if (p) points.get(active.id)!.push(p);
@@ -205,6 +231,8 @@ export function createSession(options: SessionOptions = {}): Session {
     },
 
     endCue() {
+      if (lastInCue) endOfPreviousCue = lastInCue;
+      lastInCue = null;
       active = null;
       sampler = null;
       activeFeatures = [];
@@ -216,12 +244,23 @@ export function createSession(options: SessionOptions = {}): Session {
     framesFor: (id) => frames.get(id)?.length ?? 0,
     featuresFor,
     baseline: () => meanOf(framesWhere('baseline')),
+    moved: () => sampler?.hasMoved() ?? false,
     sigma: (id) => noise.sigma(id),
     noise: () => noise,
     ready: () => vocabulary().length >= 2,
 
     build() {
-      const vocab = vocabulary().map((p) => p.vector);
+      // The take is the routine's feature set — the union of its cues' attention sets,
+      // `omit` applied. The live vector carries more than that (every feature of a
+      // demanded group, and whatever else the Lab had on), and none of it may be
+      // weighted, ranked or clustered: a chair shift is not an expression.
+      const recorded = new Set(routineFeatures([...cuesSeen.values()], allIds, groupOf));
+      const project = (v: FeatureVector): FeatureVector => {
+        const out: FeatureVector = {};
+        for (const k of Object.keys(v)) if (recorded.has(k)) out[k] = v[k];
+        return out;
+      };
+      const vocab = vocabulary().map((p) => project(p.vector));
       if (vocab.length === 0) {
         hierarchy = { heights: [], size: 0 };
         chosenFeatures = [];
@@ -230,14 +269,18 @@ export function createSession(options: SessionOptions = {}): Session {
       }
 
       // 1. Units: 1/sigma per feature, so every distance below is in noise units.
-      const scale = scaleWeights(noise.snapshot());
+      //    (Restricted to the recorded set: an unrecorded key must not even carry a
+      //    weight, so `weights()` reports exactly what the model can use.)
+      const scale = Object.fromEntries(
+        Object.entries(scaleWeights(noise.snapshot())).filter(([k]) => recorded.has(k)),
+      );
 
       // 2. Demonstrated invariance: what moved (in noise units) while nothing should
       //    have. One profile per nuisance cue, multiplied together.
       let weights = scale;
       for (const cue of cuesSeen.values()) {
         if (cue.produces !== 'nuisance') continue;
-        const scaled = (frames.get(cue.id) ?? []).map((v) => applyWeights(v, scale));
+        const scaled = (frames.get(cue.id) ?? []).map((v) => applyWeights(project(v), scale));
         const profile = nuisanceProfile(scaled, cue.collects.axes);
         weights = combineWeights(weights, weightsFromNuisance(profile, { scale: o.nuisanceScale }));
       }
@@ -245,6 +288,9 @@ export function createSession(options: SessionOptions = {}): Session {
       // 3. Declared invariance (#131), optional and OFF by default: it silences every
       //    feature that has not been assessed, which is most of the catalog, so turning
       //    it on without saying so would quietly shrink the model.
+      // (Reads the real catalog's `invariantTo` regardless of the injected registry — the
+      //  declarations live nowhere else. Off by default; with a toy registry every id is
+      //  simply "unassessed" and kept.)
       if (o.useDeclaredInvariance) {
         const axes = [...new Set([...cuesSeen.values()].flatMap((c) => c.collects.axes))];
         const all = Object.keys(vocab[0] ?? {});
@@ -261,20 +307,24 @@ export function createSession(options: SessionOptions = {}): Session {
     suggestedK: () => suggestK(hierarchy),
 
     retrain(k) {
+      return this.modelFor(cutAt(hierarchy, k));
+    },
+
+    modelFor(clusters) {
       const pool = vocabulary();
       const vocab = pool.map((p) => p.vector);
-      const clusters = cutAt(hierarchy, k);
       const model = trainModel(vocab, clusters, chosenFeatures, chosenWeights, {
         restVectors: framesWhere('baseline'),
       });
       // Which cues fed each category — a label suggestion the host may offer.
-      clusters.forEach((idxs, i) => {
-        const cat = model.categories.find((c) => c.id === `cat-${i + 1}`);
-        if (!cat) return;
+      for (const cat of model.categories) {
         const cues: Record<string, number> = {};
-        for (const j of idxs) cues[pool[j].cue] = (cues[pool[j].cue] ?? 0) + 1;
+        for (const j of cat.members) {
+          const id = pool[j]?.cue;
+          if (id !== undefined) cues[id] = (cues[id] ?? 0) + 1;
+        }
         cat.cues = cues;
-      });
+      }
       return model;
     },
 
@@ -289,6 +339,8 @@ export function createSession(options: SessionOptions = {}): Session {
       active = null;
       activeFeatures = [];
       sampler = null;
+      lastInCue = null;
+      endOfPreviousCue = null;
       hierarchy = { heights: [], size: 0 };
       chosenFeatures = [];
       chosenWeights = {};

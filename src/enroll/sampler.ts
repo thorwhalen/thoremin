@@ -88,6 +88,21 @@ export interface SamplerOptions {
    */
   minSeparation?: number;
   /**
+   * Whether the sampler may emit BEFORE the player has moved. Default true, so a
+   * standalone sampler fed a held pose reports it. A session starts each cue's sampler
+   * DISARMED: the pose held while an instruction is being given is the previous one
+   * (rest, or the last cue's answer), and a cue's first point must follow a movement —
+   * otherwise "look right" would inherit the left turn the player is still holding.
+   */
+  armed?: boolean;
+  /**
+   * A reference frame from BEFORE this sampler's first push — the pose at the end of
+   * the previous cue. With it, a player who moves during the beat between two cues
+   * (they hear "Good." and turn at once) still registers as having MOVED when the next
+   * cue's first frames arrive, instead of sitting disarmed at their new pose.
+   */
+  seed?: { v: FeatureVector; t: number };
+  /**
    * The noise estimator to judge against. Pass the session's so that "held", the
    * separation test and the model's distances all use ONE set of units; omitted, the
    * sampler keeps a private one (fine for a standalone use, but then it only learns
@@ -110,6 +125,7 @@ const DEFAULTS = {
   dwellMs: 220,
   speedWindowMs: 100,
   cue: 'vocabulary',
+  armed: true,
 };
 
 /** Per-metric default separation: 3 sigma, or 0.05 raw (the v1 value). */
@@ -189,6 +205,9 @@ export interface StillPointSampler {
   isSettling(): boolean;
   /** The last computed motion measure (noise-sigma or units/s, per `metric`), for a meter. */
   lastSpeed(): number;
+  /** True once the vector has exceeded the held threshold at least once since reset —
+   *  i.e. the player has MOVED. Tells "never moved" apart from "moved, never held". */
+  hasMoved(): boolean;
 }
 
 /**
@@ -204,23 +223,34 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
   const captured: StillPoint[] = [];
 
   /** Recent frames, trimmed to just cover the speed window. */
-  const history: { v: FeatureVector; t: number }[] = [];
+  const history: { v: FeatureVector; t: number }[] = o.seed ? [o.seed] : [];
   /** When the current held run began, or null when moving. */
   let settlingSince: number | null = null;
-  /** Running sum for the dwell-window mean. */
+  /** Running sum and count PER KEY for the dwell-window mean: a feature measurable on
+   *  only part of the dwell (a second hand flickering in and out) must average over the
+   *  frames it was present for, not be dragged toward zero by the ones it was not. */
   let acc: Record<string, number> = {};
-  let accN = 0;
+  let accN: Record<string, number> = {};
   /** Set after an emit; cleared once the player moves again. */
-  let armed = true;
+  let armed = o.armed;
   let lastEmitted: FeatureVector | null = null;
   let lastSpeed = 0;
+  let moved = false;
 
   const resetAccumulator = () => {
     acc = {};
-    accN = 0;
+    accN = {};
   };
 
   const attention = (v: FeatureVector): readonly string[] => o.features ?? Object.keys(v);
+
+  /** Noise-relative only: every attention feature PRESENT in this frame must have a
+   *  warm noise estimate, or "held" cannot be judged yet (see noise.ts). */
+  const judgeable = (v: FeatureVector): boolean => {
+    if (o.metric === 'absolute') return true;
+    for (const k of attention(v)) if (Number.isFinite(v[k]) && !noise.isWarm(k)) return false;
+    return true;
+  };
 
   const motion = (ref: FeatureVector, now: FeatureVector, dt: number): number => {
     if (o.metric === 'absolute') return absoluteSpeed(ref, now, dt);
@@ -235,6 +265,13 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
       // A private estimator learns only from what it is shown; a shared one is fed by
       // the session and must not see every frame twice.
       if (ownNoise) noise.push(vector, tMs);
+      if (!judgeable(vector)) {
+        // Still warming up: no dwell may begin, and nothing may be emitted.
+        settlingSince = null;
+        resetAccumulator();
+        history.length = 0;
+        return null;
+      }
       history.push({ v: vector, t: tMs });
       // Keep one sample older than the window, and drop the rest.
       while (history.length > 2 && tMs - history[1].t >= o.speedWindowMs) history.shift();
@@ -252,6 +289,7 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
         settlingSince = null;
         resetAccumulator();
         armed = true;
+        moved = true;
         return null;
       }
 
@@ -261,13 +299,13 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
         const x = vector[k];
         if (!Number.isFinite(x)) continue;
         acc[k] = (acc[k] ?? 0) + x;
+        accN[k] = (accN[k] ?? 0) + 1;
       }
-      accN += 1;
 
       if (!armed || tMs - settlingSince < o.dwellMs) return null;
 
       const mean: FeatureVector = {};
-      for (const k of Object.keys(acc)) mean[k] = acc[k] / accN;
+      for (const k of Object.keys(acc)) mean[k] = acc[k] / accN[k];
 
       if (lastEmitted && separation(mean, lastEmitted) < minSeparation) {
         // Too close to the last point to be a different pose. Stay disarmed rather than
@@ -288,14 +326,17 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
     reset() {
       captured.length = 0;
       history.length = 0;
+      if (o.seed) history.push(o.seed);
       settlingSince = null;
       resetAccumulator();
-      armed = true;
+      armed = o.armed;
       lastEmitted = null;
       lastSpeed = 0;
+      moved = false;
       if (ownNoise) noise.reset();
     },
     isSettling: () => settlingSince !== null,
     lastSpeed: () => lastSpeed,
+    hasMoved: () => moved,
   };
 }

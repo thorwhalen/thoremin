@@ -28,10 +28,12 @@
  * ## Speech is rate-limited HERE, not in the evaluator
  *
  * The evaluator is pure and reports the situation every time it is asked (every
- * `evaluateEveryMs`). If it says `need-variation`, the runner speaks only when the
- * situation has changed since it last spoke — a new sample arrived — or when
- * `repeatSayMs` has passed. Otherwise "a bit further" would be said four times a
- * second.
+ * `evaluateEveryMs`). If it says `need-variation`, the runner speaks when the ASK is
+ * new (a different `key` than the last thing said — "hold still" after "a bit
+ * further"), when the situation has changed since it last spoke (a new sample
+ * arrived), or when `repeatSayMs` has passed. Otherwise "a bit further" would be said
+ * four times a second — and, because the evaluator cycles a cue's variations, a
+ * different WORDING of the same ask is not a new ask.
  */
 import type { Cue } from './cue';
 import { samplingFor } from './cue';
@@ -92,7 +94,10 @@ const DEFAULTS = { evaluateEveryMs: 250, beatMs: 1500, repeatSayMs: 6000 };
 export interface Runner {
   /** Begin the routine at `tMs` (cue 0 starts immediately). */
   start(tMs: number): void;
-  /** Feed a live vector at `tMs`. No-op unless running. */
+  /** Feed a live vector at `tMs`. While running, the active cue samples it; between
+   *  cues it still feeds the session's noise estimate (a 1.5 s hole per cue boundary
+   *  would otherwise dent every threshold the next cue is judged by). No-op once done
+   *  or stopped. */
   push(vector: FeatureVector, tMs: number): void;
   /** Advance time without a sample (so patience and beats still elapse). */
   tick(tMs: number): void;
@@ -125,6 +130,8 @@ export function createRunner(options: RunnerOptions): Runner {
   let lastSampleCount = 0;
   /** Speech bookkeeping for the active cue. */
   let said: string | null = null;
+  /** The KEY of the last utterance (the instruction's is its own text). */
+  let saidKey: string | null = null;
   let saidAt = 0;
   let saidAtSampleCount = -1;
   let askedVariations = 0;
@@ -152,6 +159,7 @@ export function createRunner(options: RunnerOptions): Runner {
     lastSampleAt = null;
     lastSampleCount = 0;
     said = cue.instruction;
+    saidKey = cue.instruction;
     saidAt = tMs;
     saidAtSampleCount = 0;
     askedVariations = 0;
@@ -193,6 +201,7 @@ export function createRunner(options: RunnerOptions): Runner {
       frames: session.framesFor(cue.id),
       elapsedMs: tMs - startedAt,
       sinceLastSampleMs: lastSampleAt === null ? tMs - startedAt : tMs - lastSampleAt,
+      moved: session.moved(),
       baseline: session.baseline(),
       sigma: session.sigma,
       askedVariations,
@@ -206,13 +215,18 @@ export function createRunner(options: RunnerOptions): Runner {
         endCue('cannot', tMs, v.why);
         return;
       case 'need-variation': {
+        const key = v.key ?? v.say;
+        const newAsk = key !== saidKey;
         const changed = samples !== saidAtSampleCount;
         const stale = tMs - saidAt >= o.repeatSayMs;
-        if (v.say !== said ? changed || stale : stale) {
+        if (newAsk || changed || stale) {
           said = v.say;
+          saidKey = key;
           saidAt = tMs;
           saidAtSampleCount = samples;
-          askedVariations += 1;
+          // The cycle index counts the cue's OWN variations only: a built-in nudge
+          // ("hold it still") must not skip an entry of the list.
+          if (cue.variations.includes(v.say)) askedVariations += 1;
           emit({ type: 'guidance', cue, index, say: v.say, t: tMs });
         }
         return;
@@ -238,9 +252,9 @@ export function createRunner(options: RunnerOptions): Runner {
     },
     push(vector, tMs) {
       advance(tMs);
-      if (status !== 'running') return;
+      if (status !== 'running' && status !== 'between') return;
       session.push(vector, tMs);
-      consider(tMs);
+      if (status === 'running') consider(tMs);
     },
     tick(tMs) {
       advance(tMs);
