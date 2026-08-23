@@ -147,3 +147,19 @@ describe('the trainer claims the catalog while a step runs, and lets go after', 
     expect(featureDemandResource()).toBeNull();
   });
 });
+
+describe('the live-vector tap stamps samples in MILLISECONDS (the sampler\'s unit)', () => {
+  it('converts the DAG clock (seconds) at the boundary', async () => {
+    const { LiveVectorTap, readLiveVector, resetLiveVector } = await import('@/app/enroll/liveVector');
+    resetLiveVector();
+    const tap = new LiveVectorTap();
+    tap.onValue('faceVec.vector', { 'face.head.yaw': 3 }, ctx());
+    tap.onValue('faceVec.vector', { 'face.head.yaw': 4 }, { ...ctx(), time: 1.5 });
+    const live = readLiveVector();
+    expect(live?.vector['face.head.yaw']).toBe(4);
+    // 1.5 s of engine time is 1500 ms to the sampler. Passing seconds through would make
+    // a 220 ms dwell a 220 s one, and nothing would ever be sampled.
+    expect(live?.t).toBe(1500);
+    resetLiveVector();
+  });
+});

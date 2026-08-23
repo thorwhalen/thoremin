@@ -27,7 +27,11 @@ export const FEATURE_VECTOR_EDGES = ['faceVec.vector', 'handVec.vector'] as cons
 
 /** The latest merged vector, or null before the first tick with any source present. */
 let latest: FeatureVector | null = null;
-/** Wall-clock-ish tick time of the latest vector, in ms. */
+/** Tick time of the latest vector, in MILLISECONDS. The DAG clock (`ctx.time`) is in
+ *  seconds; the trainer's sampler (`dwellMs`, `speedWindowMs`) is in ms, and v1
+ *  passed the seconds through unconverted — a 220 ms dwell became 220 s, and the
+ *  speed estimate (displacement / dt) was a thousand times too large, so nothing
+ *  ever read as "held". Convert HERE, at the boundary, once. */
 let latestT = 0;
 
 /** Per-edge last value, so one absent source does not erase the other's keys. */
@@ -52,11 +56,12 @@ export class LiveVectorTap implements Tap {
       if (part) Object.assign(merged, part);
     }
     latest = merged;
-    latestT = ctx.time;
+    latestT = ctx.time * 1000;
   }
 }
 
-/** The most recent merged feature vector, or null if none has arrived yet. */
+/** The most recent merged feature vector (and its tick time in ms), or null if none
+ *  has arrived yet. */
 export function readLiveVector(): { vector: FeatureVector; t: number } | null {
   return latest ? { vector: latest, t: latestT } : null;
 }
