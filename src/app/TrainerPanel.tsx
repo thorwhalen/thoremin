@@ -49,6 +49,7 @@ import { useTrainer } from './enroll/store';
 import RoutinePicker from './enroll/RoutinePicker';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
+import { useTrainerPrefs } from './enroll/prefs';
 import { toolById } from './tools';
 
 const TOOL_ID = 'trainer';
@@ -112,6 +113,9 @@ export default function TrainerPanel() {
   const lastEndSay = useTrainer((s) => s.lastEndSay);
   const hudShow = useControls((s) => s.trainerHud.show);
   const setTrainerHud = useControls((s) => s.setTrainerHud);
+  const recordTake = useTrainerPrefs((s) => s.recordTake);
+  const setRecordTake = useTrainerPrefs((s) => s.setRecordTake);
+  const recording = useTrainer((s) => s.recording);
 
   const running = status === 'running' || status === 'between';
 
@@ -167,6 +171,11 @@ export default function TrainerPanel() {
       >
         <div className="flex items-center gap-2">
           <GraduationCap className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
+          {recording && (
+            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-red-400" title="This take is being recorded (camera, features, annotations)">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden /> rec
+            </span>
+          )}
           <span className="flex-1 truncate text-[11px] text-white/85">
             <span className="text-white/40">
               {index + 1}/{routine.length} ·{' '}
@@ -266,16 +275,21 @@ export default function TrainerPanel() {
         </div>
 
         <button
-          onClick={() => useTrainer.getState().start(nowMs())}
+          onClick={() => void useTrainer.getState().startTake(nowMs)}
           disabled={routine.length === 0}
           className="w-full rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/90 transition hover:bg-white/20 disabled:opacity-30"
         >
           {status === 'idle' ? 'Start' : 'Run again'}
         </button>
-        {/* A per-device pref (not an instrument parameter): where the guidance shows. */}
+        {/* Per-device prefs (not instrument parameters): the guidance on the video, and
+            whether the take is recorded. */}
         <label className="flex items-center gap-2 text-[10px] text-white/60">
           <input type="checkbox" checked={hudShow} onChange={(e) => setTrainerHud({ show: e.target.checked })} />
           Show the instructions on the video while it runs
+        </label>
+        <label className="flex items-center gap-2 text-[10px] text-white/60" title="Saves the clean camera video, the feature vectors and the cue/verdict annotations as a recording (like the Record button does).">
+          <input type="checkbox" checked={recordTake} onChange={(e) => setRecordTake(e.target.checked)} />
+          Record the take (camera + features + annotations)
         </label>
 
         {status === 'done' && (

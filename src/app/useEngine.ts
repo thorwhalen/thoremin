@@ -25,6 +25,7 @@ import { featureDemandResource } from './featureDemand';
 import { trainerHudResource } from './enroll/hud';
 import { useToasts } from './toasts';
 import { SessionRecorder, activeStreamLabels } from './recording/session';
+import { registerRecordingController, type StartTakeOptions } from './recording/controller';
 import { SinkCancelled } from './recording/sink';
 import {
   parseSession,
@@ -483,57 +484,69 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   /** Close the sheet without recording (config already auto-saved on every edit). */
   const closeRecording = useCallback(() => setRecPhase('idle'), []);
 
-  /** "Rec now": build the session recorder from the live host resources and start
-   * capture. Falls back to the sheet (not a crash) if audio isn't running yet or a
-   * stream fails to start. */
-  const recNow = useCallback(async () => {
-    if (recBusyRef.current) return;
-    const ac = resourcesRef.current.audioContext as AudioContext | undefined;
-    const master = masterGainRef.current;
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    const engine = engineRef.current;
-    if (!ac || !master || !canvas || !video || !engine) {
-      useToasts.getState().push('Start audio before recording', 4000, 'error');
-      return;
-    }
-    recBusyRef.current = true;
-    const rec = new SessionRecorder(
-      {
-        audioContext: ac,
-        masterGain: master,
-        canvas,
-        video,
-        cameraStream: cameraStreamRef.current,
-        engine,
-        resources: resourcesRef.current,
-        instrument: recInstrumentRef.current,
-        // If annotation mode is on, annotations.jsonl rides in the folder on the shared t0 (#92).
-        tagSource: tagStreamSource,
-      },
-      recSession,
-    );
-    sessionRecRef.current = rec;
-    try {
-      await rec.start();
-      setRecElapsedMs(0);
-      setRecPhase('recording');
-    } catch (e) {
-      rec.dispose();
-      sessionRecRef.current = null;
-      setRecPhase('settings');
-      // A dismissed folder picker is a deliberate cancel (nothing recorded yet),
-      // not an error — return to the sheet quietly.
-      if (e instanceof SinkCancelled) {
-        useToasts.getState().push('Recording cancelled', 3000);
-      } else {
-        console.error('[thoremin] could not start recording', e);
-        useToasts.getState().push("Couldn't start recording", 6000, 'error');
+  /** Start a take: build the session recorder from the live host resources and start
+   * capture. Shared by the Record button ("Rec now") and the recording controller
+   * (#163: the trainer records its take with its own annotation source). Resolves
+   * true once recording; false (with a toast) if audio isn't running yet, a stream
+   * fails to start, or a take is already running. */
+  const startTake = useCallback(
+    async (session: RecordingSession, opts: StartTakeOptions = {}): Promise<boolean> => {
+      if (recBusyRef.current || sessionRecRef.current) return false;
+      const ac = resourcesRef.current.audioContext as AudioContext | undefined;
+      const master = masterGainRef.current;
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      const engine = engineRef.current;
+      if (!ac || !master || !canvas || !video || !engine) {
+        useToasts.getState().push('Start audio before recording', 4000, 'error');
+        return false;
       }
-    } finally {
-      recBusyRef.current = false;
-    }
-  }, [recSession]);
+      recBusyRef.current = true;
+      const rec = new SessionRecorder(
+        {
+          audioContext: ac,
+          masterGain: master,
+          canvas,
+          video,
+          cameraStream: cameraStreamRef.current,
+          engine,
+          resources: resourcesRef.current,
+          instrument: opts.instrument ?? recInstrumentRef.current,
+          // If annotation mode is on, annotations.jsonl rides in the folder on the shared t0 (#92).
+          tagSource: opts.tagSource ?? tagStreamSource,
+        },
+        session,
+      );
+      sessionRecRef.current = rec;
+      try {
+        await rec.start();
+        setRecElapsedMs(0);
+        setRecPhase('recording');
+        return true;
+      } catch (e) {
+        rec.dispose();
+        sessionRecRef.current = null;
+        setRecPhase('settings');
+        // A dismissed folder picker is a deliberate cancel (nothing recorded yet),
+        // not an error — return to the sheet quietly.
+        if (e instanceof SinkCancelled) {
+          useToasts.getState().push('Recording cancelled', 3000);
+        } else {
+          console.error('[thoremin] could not start recording', e);
+          useToasts.getState().push("Couldn't start recording", 6000, 'error');
+        }
+        return false;
+      } finally {
+        recBusyRef.current = false;
+      }
+    },
+    [],
+  );
+
+  /** "Rec now": the button's take, with the sheet's session config. */
+  const recNow = useCallback(async () => {
+    await startTake(recSession);
+  }, [recSession, startTake]);
 
   /** Stop the take: convert audio, write every file + the manifest, toast the
    * result. `saving` covers the convert/write window (honest UI while it works). */
@@ -575,6 +588,18 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       setRecPhase('idle');
     }
   }, []);
+
+  // The recording controller (#163): the same start/stop the button uses, reachable
+  // from a store. Registered for the hook's life.
+  useEffect(
+    () =>
+      registerRecordingController({
+        start: startTake,
+        stop: stopRecording,
+        isRecording: () => sessionRecRef.current !== null,
+      }),
+    [startTake, stopRecording],
+  );
 
   // Tick the elapsed-time readout for the HUD while a take is running.
   useEffect(() => {
