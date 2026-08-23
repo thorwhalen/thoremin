@@ -12,10 +12,15 @@
  * spoken channel is reachable exactly where the trainer is.
  */
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { addGuidanceSink } from './guidance';
-import type { VoiceManifest } from './speakable';
-import { createVoiceSink, type VoiceSink } from './voice';
+import { clipFor, type VoiceManifest } from './speakable';
+import { createAudioElementPlayer, createVoiceSink, type AudioElementPlayer, type VoiceSink } from './voice';
+
+// localStorage in the browser; a no-op elsewhere (the Node test runtime), so the
+// persist middleware never warns about a missing window (the same guard as store.ts).
+const noopStorage: StateStorage = { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
+const prefStorage = (): StateStorage => (typeof window !== 'undefined' && window.localStorage ? window.localStorage : noopStorage);
 
 interface VoiceState {
   enabled: boolean;
@@ -26,6 +31,7 @@ interface VoiceState {
 export const useVoice = create<VoiceState>()(
   persist((set) => ({ enabled: false, setEnabled: (on) => set({ enabled: on }) }), {
     name: 'thoremin-trainer-voice',
+    storage: createJSONStorage(prefStorage),
   }),
 );
 
@@ -39,8 +45,19 @@ interface VoiceManifestState {
 /** The loaded clip set, for React: the picker marks cues that would be text-only. */
 export const useVoiceManifest = create<VoiceManifestState>()((_set, get) => ({
   manifest: null,
-  hasClip: (text) => !!get().manifest?.clips[text],
+  hasClip: (text) => {
+    const m = get().manifest;
+    return !!m && clipFor(m, text) !== null;
+  },
 }));
+
+/** The one audio element the default player reuses (see voice.ts on autoplay). */
+const audioPlayer: AudioElementPlayer = createAudioElementPlayer();
+
+/** Call inside a user gesture (the voice toggle's click): lifts the autoplay gate. */
+export function unlockVoice(): void {
+  audioPlayer.unlock();
+}
 
 /** Where the clips live, relative to the app's base URL. */
 export const VOICE_DIR = 'voice/';
@@ -57,7 +74,12 @@ function underBase(path: string): string {
 /** Fetch the manifest; null when unavailable (no server, not generated, offline). */
 export async function loadVoiceManifest(fetchImpl: typeof fetch = fetch): Promise<VoiceManifest | null> {
   try {
-    const res = await fetchImpl(underBase(`${VOICE_DIR}manifest.json`));
+    // The manifest is the one MUTABLE url in the clip set (the clips are content-
+    // addressed and immutable) and the server sends no Cache-Control: ask the browser
+    // to revalidate (one conditional request per page load, a 304 when unchanged)
+    // rather than trust heuristic freshness — otherwise a regenerated set could go
+    // silent until the cache expired.
+    const res = await fetchImpl(underBase(`${VOICE_DIR}manifest.json`), { cache: 'no-cache' });
     if (!res.ok) return null;
     const json = (await res.json()) as VoiceManifest;
     return json && typeof json === 'object' && json.clips ? json : null;
@@ -81,7 +103,7 @@ export function installVoice(): void {
       return;
     }
     useVoiceManifest.setState({ manifest });
-    sink = createVoiceSink({ manifest, baseUrl: underBase(VOICE_DIR), enabled: useVoice.getState().enabled });
+    sink = createVoiceSink({ manifest, baseUrl: underBase(VOICE_DIR), player: audioPlayer.play, enabled: useVoice.getState().enabled });
     addGuidanceSink(sink);
     useVoice.subscribe((s) => sink?.setEnabled(s.enabled));
   });

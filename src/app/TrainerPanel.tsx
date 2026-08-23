@@ -47,7 +47,7 @@ import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import RoutinePicker from './enroll/RoutinePicker';
-import { installVoice, useVoice } from './enroll/voiceRuntime';
+import { installVoice, unlockVoice, useVoice } from './enroll/voiceRuntime';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
 import { toolById } from './tools';
@@ -96,7 +96,11 @@ function VoiceToggle({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }
   return (
     <button
       type="button"
-      onClick={() => setOn(!on)}
+      onClick={() => {
+        // Inside the gesture: lift the audio element's autoplay gate before anything plays.
+        unlockVoice();
+        setOn(!on);
+      }}
       aria-pressed={on}
       aria-label={on ? 'Voice on — say the instructions out loud' : 'Voice off — instructions are written only'}
       title={on ? 'Voice on' : 'Voice off'}

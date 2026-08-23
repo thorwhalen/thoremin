@@ -59,17 +59,27 @@ describe('the voice sink', () => {
   const m: VoiceManifest = { voiceId: 'v', modelId: 'm', clips: { 'Look left.': 'a.mp3', 'A bit further.': 'b.mp3', 'Good.': 'c.mp3' } };
   const line = (kind: TranscriptLine['kind'], say: string): TranscriptLine => ({ t: 0, kind, say });
 
-  /** A player that resolves only when told to. */
+  /** A player that resolves only when told to, and notes aborts. */
   function controlledPlayer() {
     const played: string[] = [];
+    const aborted: string[] = [];
     let release: (() => void) | null = null;
-    const player = (url: string) =>
+    const player = (url: string, signal: AbortSignal) =>
       new Promise<void>((res) => {
         played.push(url);
         release = res;
+        signal.addEventListener('abort', () => {
+          aborted.push(url);
+          res();
+        });
       });
-    return { player, played, finish: () => release?.() };
+    return { player, played, aborted, finish: () => release?.() };
   }
+  const settle = async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  };
 
   it('is off by default, and says nothing while off', () => {
     const p = controlledPlayer();
@@ -87,8 +97,7 @@ describe('the voice sink', () => {
     expect(p.played).toEqual(['voice/a.mp3']);
     expect(sink.pending()).toBe(1);
     p.finish();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
     expect(p.played).toEqual(['voice/a.mp3', 'voice/b.mp3']);
   });
 
@@ -112,8 +121,7 @@ describe('the voice sink', () => {
     sink.say({ t: 0, kind: 'end', say: 'Moving on.', outcome: 'cannot', why: 'I did not see you move for that one.' });
     expect(p.played).toEqual(['voice/r.mp3']);
     p.finish();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
     expect(p.played).toEqual(['voice/r.mp3', 'voice/d.mp3']);
   });
 
@@ -134,19 +142,138 @@ describe('the voice sink', () => {
     sink.say(line('instruction', 'Look right.'));
     expect(sink.pending()).toBe(1);
     p.finish();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
     expect(p.played).toEqual(['voice/a.mp3', 'voice/e.mp3']);
   });
 
-  it('turning voice off clears the queue', () => {
+  it('turning voice off clears the queue AND silences the clip in flight', () => {
     const p = controlledPlayer();
     const sink = createVoiceSink({ manifest: m, baseUrl: 'voice/', player: p.player, enabled: true });
     sink.say(line('instruction', 'Look left.'));
     sink.say(line('guidance', 'A bit further.'));
+    expect(sink.isPlaying()).toBe(true);
     sink.setEnabled(false);
     expect(sink.pending()).toBe(0);
+    expect(sink.isPlaying()).toBe(false);
+    expect(p.aborted).toEqual(['voice/a.mp3']);
   });
+
+  it('stop() (the routine ended) drops what is waiting and silences what is playing; a cancelled clip cannot re-trigger the pump', async () => {
+    const p = controlledPlayer();
+    const sink = createVoiceSink({ manifest: m, baseUrl: 'voice/', player: p.player, enabled: true });
+    sink.say(line('instruction', 'Look left.'));
+    sink.say(line('end', 'Good.'));
+    sink.stop?.();
+    expect(sink.pending()).toBe(0);
+    expect(p.aborted).toEqual(['voice/a.mp3']);
+    // The old clip settling later must not start anything.
+    p.finish();
+    await settle();
+    expect(p.played).toEqual(['voice/a.mp3']);
+    // And the sink is usable again afterwards.
+    sink.say(line('instruction', 'Good.'));
+    expect(p.played).toEqual(['voice/a.mp3', 'voice/c.mp3']);
+  });
+
+  it('a newer nudge replaces a queued one: at most ONE nudge ever waits', async () => {
+    const p = controlledPlayer();
+    const two: VoiceManifest = { ...m, clips: { ...m.clips, 'Try another.': 'f.mp3', 'Once more.': 'g.mp3' } };
+    const sink = createVoiceSink({ manifest: two, baseUrl: 'voice/', player: p.player, enabled: true });
+    sink.say(line('instruction', 'Look left.')); // in flight
+    sink.say(line('guidance', 'A bit further.'));
+    sink.say(line('guidance', 'Try another.'));
+    sink.say(line('guidance', 'Once more.'));
+    expect(sink.pending()).toBe(1);
+    p.finish();
+    await settle();
+    expect(p.played).toEqual(['voice/a.mp3', 'voice/g.mp3']);
+  });
+
+  it('a clip that never ends does not wedge the sink: the next cancel aborts it', async () => {
+    const p = controlledPlayer();
+    const sink = createVoiceSink({ manifest: m, baseUrl: 'voice/', player: p.player, enabled: true });
+    sink.say(line('instruction', 'Look left.')); // never finishes on its own
+    sink.setEnabled(false);
+    sink.setEnabled(true);
+    sink.say(line('end', 'Good.'));
+    await settle();
+    expect(p.played).toEqual(['voice/a.mp3', 'voice/c.mp3']);
+  });
+
+  it('a player that throws synchronously or returns nothing cannot wedge the queue', async () => {
+    const played: string[] = [];
+    let n = 0;
+    const player = ((url: string) => {
+      played.push(url);
+      n += 1;
+      if (n === 1) throw new Error('boom');
+      return undefined as unknown as Promise<void>;
+    }) as unknown as (url: string, signal: AbortSignal) => Promise<void>;
+    const sink = createVoiceSink({ manifest: m, baseUrl: 'voice/', player, enabled: true });
+    sink.say(line('instruction', 'Look left.'));
+    await settle();
+    sink.say(line('end', 'Good.'));
+    await settle();
+    expect(played).toEqual(['voice/a.mp3', 'voice/c.mp3']);
+    expect(sink.isPlaying()).toBe(false);
+  });
+
+  it('a cue worded like an Object.prototype key is not a clip', () => {
+    const p = controlledPlayer();
+    const sink = createVoiceSink({ manifest: m, baseUrl: 'voice/', player: p.player, enabled: true });
+    sink.say(line('instruction', 'constructor'));
+    sink.say(line('instruction', 'hasOwnProperty'));
+    expect(p.played).toEqual([]);
+    expect(missingClips(m, ['constructor'])).toEqual(['constructor']);
+  });
+});
+
+describe('Stop reaches the sink through the store', () => {
+  it('a routine stopped mid-instruction drops the queued lines and silences the clip', async () => {
+    const { addGuidanceSink, resetGuidanceSinks } = await import('@/app/enroll/guidance');
+    const { useTrainer } = await import('@/app/enroll/store');
+    const { appFeatureDemand } = await import('@/app/featureDemand');
+    resetGuidanceSinks();
+    useTrainer.getState().reset();
+    appFeatureDemand.reset();
+    const p = controlledPlayer();
+    const full: VoiceManifest = { voiceId: 'v', modelId: 'm', clips: Object.fromEntries(speakableStrings(STARTER_CUES).map((s) => [s, `${s.length}.mp3`])) };
+    const sink = createVoiceSink({ manifest: full, baseUrl: 'voice/', player: p.player, enabled: true });
+    addGuidanceSink(sink);
+    useTrainer.getState().start(1000);
+    await settle();
+    expect(sink.isPlaying()).toBe(true);
+    useTrainer.getState().skip(1100);
+    useTrainer.getState().tick(2700); // the next cue's instruction is queued
+    await settle();
+    expect(sink.pending()).toBe(1);
+    useTrainer.getState().stop(2800);
+    await settle();
+    expect(sink.pending()).toBe(0);
+    expect(sink.isPlaying()).toBe(false);
+    expect(p.aborted).toHaveLength(1);
+    resetGuidanceSinks();
+  });
+
+  /** (helpers shared with the sink suite) */
+  function controlledPlayer() {
+    const played: string[] = [];
+    const aborted: string[] = [];
+    let release: (() => void) | null = null;
+    const player = (url: string, signal: AbortSignal) =>
+      new Promise<void>((res) => {
+        played.push(url);
+        release = res;
+        signal.addEventListener('abort', () => {
+          aborted.push(url);
+          res();
+        });
+      });
+    return { player, played, aborted, finish: () => release?.() };
+  }
+  const settle = async () => {
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+  };
 });
 
 describe('the voice runtime', () => {
@@ -160,9 +287,15 @@ describe('the voice runtime', () => {
       throw new Error('offline');
     }) as unknown as typeof fetch;
     expect(await loadVoiceManifest(throws)).toBeNull();
-    const good = (async () => ({ ok: true, json: async () => manifest() })) as unknown as typeof fetch;
+    let init: RequestInit | undefined;
+    const good = (async (_u: string, i?: RequestInit) => {
+      init = i;
+      return { ok: true, json: async () => manifest() };
+    }) as unknown as typeof fetch;
     const m = await loadVoiceManifest(good);
     expect(m?.voiceId).toBe(manifest().voiceId);
+    // The manifest is revalidated every load (the clips are immutable; it is not).
+    expect(init?.cache).toBe('no-cache');
   });
 
   it('the pref is off by default and persists per device under its own key', async () => {

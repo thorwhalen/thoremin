@@ -50,7 +50,7 @@ import {
 } from '@/enroll';
 import { appFeatureDemand } from '../featureDemand';
 import { createCueStore, createRoutineStore, listCues, loadRoutine, type CueStore, type RoutineStore } from './cueStore';
-import { emitGuidance } from './guidance';
+import { emitGuidance, emitGuidanceStop } from './guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 
 /** One line of what the runner said, for the panel's transcript. */
@@ -197,6 +197,8 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         break;
       case 'stopped':
         appFeatureDemand.release(DEMAND_OWNER);
+        // After any say already queued in a microtask (a tick then a stop in one turn).
+        queueMicrotask(() => emitGuidanceStop());
         break;
     }
   };

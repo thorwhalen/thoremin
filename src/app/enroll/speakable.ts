@@ -49,7 +49,13 @@ export interface VoiceManifest {
   clips: Record<string, string>;
 }
 
+/** The clip file for `text`, or null — OWN keys only: a cue worded "constructor" is not
+ *  a clip, whatever `Object.prototype` thinks. */
+export function clipFor(manifest: VoiceManifest, text: string): string | null {
+  return Object.hasOwn(manifest.clips, text) ? manifest.clips[text] : null;
+}
+
 /** Strings in `wanted` with no clip in `manifest` (the coverage check). */
 export function missingClips(manifest: VoiceManifest, wanted: readonly string[]): string[] {
-  return wanted.filter((s) => !manifest.clips[s]);
+  return wanted.filter((s) => !clipFor(manifest, s));
 }
