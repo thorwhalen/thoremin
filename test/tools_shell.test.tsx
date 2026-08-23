@@ -495,8 +495,13 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
     useTools.setState({ open: 'trainer' });
     act(() => buildTake());
     render(<TrainerPanel />);
-    // The section is offered; opening it projects the take and shows the canvas.
+    // The section is offered; opening it projects the take (after a double rAF, with a
+    // "laying out" indicator) and then shows the canvas.
     fireEvent.click(screen.getByText(/Draw your own categories/));
+    expect(useTrainer.getState().layout.length).toBe(0); // deferred, not yet
+    await act(async () => {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+    });
     expect(useTrainer.getState().layout.length).toBeGreaterThanOrEqual(5);
     expect(screen.getByLabelText('Projection of your held poses')).toBeTruthy();
     // Select the left-turn points (from the raw vectors) and label them via the store —
@@ -507,8 +512,11 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
       useTrainer.getState().select(left);
       useTrainer.getState().labelSelection('left');
     });
-    // The labelled group shows in the view; the model is now the drawn one.
-    expect(screen.getByText('left')).toBeTruthy();
+    // The labelled group shows in the projection's group list (and, read-only, in the
+    // category list — drawn mode is single-sourced), and the model is now the drawn one.
+    const groupList = screen.getByRole('list', { name: 'Labelled groups' });
+    expect(groupList.querySelector('[data-label-group="left"]')).toBeTruthy();
+    expect(useTrainer.getState().categorySource).toBe('drawn');
     const model = useTrainer.getState().model!;
     const leftCat = model.categories.find((c) => useTrainer.getState().labels[categoryKey(c)] === 'left')!;
     const mean = left.reduce((s, i) => s + (pts[i].vector['face.head.yaw'] ?? 0), 0) / left.length;

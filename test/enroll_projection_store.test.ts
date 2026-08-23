@@ -75,6 +75,10 @@ describe('projecting the take', () => {
     const cursor = useTrainer.getState().cursorAt(pts[0].vector)!;
     expect(cursor).toHaveLength(2);
     expect(Number.isFinite(cursor[0]) && Number.isFinite(cursor[1])).toBe(true);
+    // Null when the live vector holds NONE of the model's features (the face left frame),
+    // rather than a confident cursor parked at the origin.
+    expect(useTrainer.getState().cursorAt({})).toBeNull();
+    expect(useTrainer.getState().cursorAt({ 'hand.left.index.curl': 0.5 })).toBeNull();
     // And null before a projection exists.
     useTrainer.getState().reset();
     expect(useTrainer.getState().cursorAt(pts[0].vector)).toBeNull();

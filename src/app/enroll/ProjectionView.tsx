@@ -100,8 +100,14 @@ export default function ProjectionView() {
   if (!layout.length) return null;
 
   const pos = (e: React.PointerEvent) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    // The canvas is drawn at a fixed W×H backing store but displayed at CSS `w-full`,
+    // so a click's CSS pixels must be scaled into backing-store coordinates before
+    // toData, or a drag on any non-340px-wide canvas selects the wrong points.
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const fx = rect.width ? canvas.width / rect.width : 1;
+    const fy = rect.height ? canvas.height / rect.height : 1;
+    return { x: (e.clientX - rect.left) * fx, y: (e.clientY - rect.top) * fy };
   };
   const onDown = (e: React.PointerEvent) => {
     const { x, y } = pos(e);

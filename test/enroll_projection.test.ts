@@ -49,6 +49,17 @@ describe('fitProjection', () => {
     expect(p1.bounds.maxX).toBeGreaterThan(p1.bounds.minX);
   });
 
+  it('transform() is STABLE: the same vector maps to the same point on every call (a held pose does not jitter)', () => {
+    const p = fitProjection(blobs, features, weights);
+    const q = v({ a: 0.4, b: 20.3, c: 0.5 });
+    const first = p.transform(q);
+    for (let i = 0; i < 20; i++) {
+      const again = p.transform(q);
+      expect(again[0]).toBeCloseTo(first[0], 9);
+      expect(again[1]).toBeCloseTo(first[1], 9);
+    }
+  });
+
   it('transform() puts a live vector near its own blob — the cursor lives in the SAME embedding', () => {
     const p = fitProjection(blobs, features, weights);
     const groups = [0, 1, 2].map((b) => mean(p.layout.filter((_, i) => blobs[i].cue === `blob-${b}`)));

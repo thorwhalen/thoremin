@@ -117,6 +117,7 @@ function VoiceToggle({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }
  *  first opened so a player who only wants the k-slider pays nothing for UMAP. */
 function ProjectionSection() {
   const [open, setOpen] = useState(false);
+  const [projecting, setProjecting] = useState(false);
   const hasLayout = useTrainer((s) => s.layout.length > 0);
   const groups = useTrainer((s) => s.labelGroups.length);
   return (
@@ -124,8 +125,19 @@ function ProjectionSection() {
       <button
         type="button"
         onClick={() => {
-          if (!open && !hasLayout) useTrainer.getState().project();
-          setOpen(!open);
+          const next = !open;
+          setOpen(next);
+          if (next && !hasLayout) {
+            // UMAP fit is synchronous (~300 ms for a few hundred points); show the
+            // indicator and let it paint (a double rAF) before blocking the thread.
+            setProjecting(true);
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                useTrainer.getState().project();
+                setProjecting(false);
+              }),
+            );
+          }
         }}
         className="flex w-full items-center gap-2 text-[11px] text-white/70 hover:text-white"
       >
@@ -134,7 +146,9 @@ function ProjectionSection() {
       </button>
       {open && (
         <div className="mt-2">
-          {hasLayout ? (
+          {projecting ? (
+            <p className="text-[10px] text-white/40">Laying out your poses…</p>
+          ) : hasLayout ? (
             <ProjectionView />
           ) : (
             <p className="text-[10px] text-white/40">Not enough held poses to lay out — make a few more faces.</p>
@@ -428,13 +442,21 @@ export default function TrainerPanel() {
               {model.categories.map((c, i) => (
                 <li key={c.id} className="flex items-center gap-2">
                   <span className="w-4 text-[10px] tabular-nums text-white/35">{i + 1}</span>
-                  <input
-                    aria-label={`Name for category ${i + 1}`}
-                    placeholder={suggestedLabel(c, cueNames) || 'name this one…'}
-                    value={labels[categoryKey(c)] ?? ''}
-                    onChange={(e) => useTrainer.getState().setLabel(categoryKey(c), e.target.value)}
-                    className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85 placeholder:text-white/25"
-                  />
+                  {categorySource === 'drawn' ? (
+                    // Drawn groups are named in the projection view (the single source);
+                    // showing an editable box here would fork the name.
+                    <span className="min-w-0 flex-1 truncate px-2 py-1 text-[11px] text-white/85">
+                      {labels[categoryKey(c)] || `group ${i + 1}`}
+                    </span>
+                  ) : (
+                    <input
+                      aria-label={`Name for category ${i + 1}`}
+                      placeholder={suggestedLabel(c, cueNames) || 'name this one…'}
+                      value={labels[categoryKey(c)] ?? ''}
+                      onChange={(e) => useTrainer.getState().setLabel(categoryKey(c), e.target.value)}
+                      className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85 placeholder:text-white/25"
+                    />
+                  )}
                   <span className="text-[10px] tabular-nums text-white/35" title="how many held poses formed it">
                     {c.size}
                   </span>

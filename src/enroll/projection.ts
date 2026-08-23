@@ -118,12 +118,18 @@ export function fitProjection(
   }
   if (features.length === 0) throw new Error('projection: the model has no features — build() first');
   const rows = points.map((p) => toMetricRow(p.vector, features, weights));
+  // umap-js's transform() ALSO consumes `random` (search init + negative sampling), and
+  // a mulberry32 closure mutates on every draw — so a second transform of the SAME held
+  // pose would land somewhere else, and the live cursor would jitter. Re-seed before
+  // each transform so an identical vector always maps to the same point. (fit runs first
+  // and consumes the seeded sequence; the reset is only for the transform path.)
+  let rng = seededRandom(o.seed);
   const umap = new UMAP({
     nComponents: 2,
     nNeighbors: Math.max(2, Math.min(o.nNeighbors, points.length - 1)),
     minDist: o.minDist,
     nEpochs: safeEpochs(o.nEpochs),
-    random: seededRandom(o.seed),
+    random: () => rng(),
   });
   const layout = umap.fit(rows).map(([x, y]) => [x, y] as Point2);
   const xs = layout.map((p) => p[0]);
@@ -133,6 +139,7 @@ export function fitProjection(
     layout,
     bounds,
     transform(vector) {
+      rng = seededRandom(o.seed); // stable: a held pose maps to the same point every poll
       const [p] = umap.transform([toMetricRow(vector, features, weights)]);
       return [p[0], p[1]];
     },

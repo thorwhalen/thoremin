@@ -487,7 +487,12 @@ export const useTrainer = create<TrainerState>()((set, get) => {
 
     cursorAt(vector) {
       const proj = get().projection;
-      return proj ? proj.transform(vector) : null;
+      if (!proj) return null;
+      // No reading when the live vector holds NONE of the model's features (the face
+      // left frame): `toMetricRow` would map every missing feature to 0 and park a
+      // confident cursor at the metric-space origin. Null hides the cursor instead.
+      const hasReading = session.features().some((f) => Number.isFinite(vector[f]));
+      return hasReading ? proj.transform(vector) : null;
     },
 
     select(indices) {
