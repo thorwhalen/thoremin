@@ -54,6 +54,7 @@ import { createTrainerTagSource, type TrainerTagSource } from './annotations';
 import { recordingController } from '../recording/controller';
 import { useTrainerPrefs } from './prefs';
 import { TRAINER_TAKE_INSTRUMENT, trainerTakeSession } from './takeSession';
+import { parseSession, RECORDING_SESSION_KEY } from '../recording/schema';
 import { emitGuidance, emitGuidanceStop } from './guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 
@@ -171,6 +172,30 @@ const DEMAND_OWNER = 'trainer';
 
 /** The annotation source for the running take (created per start). */
 let tagSource: TrainerTagSource | null = null;
+/** The player's last Record-sheet config (for the take's location / fps / formats),
+ *  or the defaults. Read fresh at each start; localStorage may be absent in tests. */
+function playerRecordingBase() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RECORDING_SESSION_KEY) : null;
+    return parseSession(raw ? JSON.parse(raw) : null);
+  } catch {
+    return parseSession(null);
+  }
+}
+
+/** True during the controller-start await window, so a second Start (the button is
+ *  still rendered while `status` is 'idle' during that await) cannot re-enter. */
+let takeStarting = false;
+
+/** Reconcile the store's `recording` flag with the controller: another surface (the
+ *  Record HUD's Stop) can end the take without the trainer knowing, and a stale REC dot
+ *  would keep pulsing. Called on every poll. */
+function reconcileRecording(get: () => { recording: boolean }, set: (s: { recording: boolean }) => void): void {
+  if (get().recording && !recordingController().isRecording()) {
+    tagSource = null;
+    set({ recording: false });
+  }
+}
 
 /** Stop a running take (if any) and forget its annotation source. */
 async function endTake(set: (s: { recording: boolean }) => void): Promise<void> {
@@ -327,28 +352,40 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     },
 
     async startTake(now) {
-      if (useTrainerPrefs.getState().recordTake) {
-        const routine = get().routine;
-        tagSource = createTrainerTagSource({ active: () => true, cues: () => routine });
-        const ok = await recordingController().start(trainerTakeSession(), {
-          tagSource,
-          instrument: TRAINER_TAKE_INSTRUMENT,
-        });
-        set({ recording: ok });
-        if (!ok) tagSource = null;
+      const { status, recording } = get();
+      // Not while a routine runs, a take records, or a start is mid-flight (the Start
+      // button stays rendered during the controller-start await, when status is still
+      // 'idle') — a second call would orphan the recorder and lose the annotations.
+      if (takeStarting || recording || status === 'running' || status === 'between') return;
+      takeStarting = true;
+      try {
+        if (useTrainerPrefs.getState().recordTake) {
+          const routine = get().routine;
+          tagSource = createTrainerTagSource({ active: () => true, cues: () => routine });
+          const ok = await recordingController().start(trainerTakeSession(playerRecordingBase()), {
+            tagSource,
+            instrument: TRAINER_TAKE_INSTRUMENT,
+          });
+          set({ recording: ok });
+          if (!ok) tagSource = null;
+        }
+        get().start(now());
+      } finally {
+        takeStarting = false;
       }
-      get().start(now());
     },
 
     sample(vector, tMs) {
       if (!runner) return;
       runner.push(vector, tMs);
+      reconcileRecording(get, set);
       set(fromRunner());
     },
 
     tick(tMs) {
       if (!runner) return;
       runner.tick(tMs);
+      reconcileRecording(get, set);
       set(fromRunner());
     },
 

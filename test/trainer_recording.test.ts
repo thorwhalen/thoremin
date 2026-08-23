@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { createRunner, createSession, type Cue, type FeatureVector, type RunnerEvent } from '@/enroll';
 import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/app/enroll/annotations';
 import { trainerTakeSession, TRAINER_TAKE_INSTRUMENT } from '@/app/enroll/takeSession';
+import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
@@ -133,6 +134,16 @@ describe('the trainer annotation source', () => {
     expect(source.endTake(6)).toBe('');
   });
 
+  it('clamps an event stamped BEFORE the take\'s t0 to t0 (the stream\'s own invariant)', () => {
+    const source = createTrainerTagSource({ active: () => true, cues: () => [REST] });
+    source.beginTake({ t0: 5, startedAt: 'x', session: 's' });
+    // A cue-start whose tap stamp is one poll (33 ms) older than t0.
+    source.onEvent({ type: 'cue-start', cue: REST, index: 0, say: REST.instruction, t: 4967 });
+    const { events, intervals } = parseStream(source.endTake(8));
+    expect(events.every((e) => e.t >= 5)).toBe(true);
+    expect(intervals[0].start).toBe(5);
+  });
+
   it('the tag set covers every cue of the routine, the three outcomes and the nudge', () => {
     const defs = trainerTagDefs(STARTER_CUES);
     for (const c of STARTER_CUES) expect(defs.some((d) => d.id === TRAINER_TAGS.cue(c.id) && d.kind === 'interval')).toBe(true);
@@ -143,7 +154,7 @@ describe('the trainer annotation source', () => {
 
 describe('what a training take records', () => {
   it('only the CLEAN camera and the features — no overlay video, no audio — under the trainer label', () => {
-    const s = trainerTakeSession(new Date('2026-08-23T12:00:00Z'));
+    const s = trainerTakeSession(undefined, new Date('2026-08-23T12:00:00Z'));
     expect(s.streams).toMatchObject({ audio: false, overlayVideo: false, overlayAlpha: false, pureVideo: true, features: true });
     expect(s.name).toContain(TRAINER_TAKE_INSTRUMENT);
     const plan = planRecording({ session: s, stem: s.name, audioMime: 'audio/webm', videoMime: 'video/webm', includeAnnotations: true });
@@ -153,6 +164,17 @@ describe('what a training take records', () => {
     expect(kinds).toContain('annotations');
     expect(kinds).not.toContain('overlayVideo');
     expect(kinds.some((k) => k.startsWith('audio'))).toBe(false);
+  });
+
+  it('inherits the player\'s recording location and fps from their last Record-sheet config', () => {
+    const base = { ...DEFAULT_RECORDING_SESSION, location: 'directory' as const, fps: 24 };
+    const s = trainerTakeSession(base);
+    expect(s.location).toBe('directory');
+    expect(s.fps).toBe(24);
+    // But the streams are always the trainer's, and the name is the trainer's.
+    expect(s.streams.audio).toBe(false);
+    expect(s.streams.pureVideo).toBe(true);
+    expect(s.name).toContain(TRAINER_TAKE_INSTRUMENT);
   });
 });
 
@@ -205,6 +227,36 @@ describe('the trainer store drives the recorder through the controller seam', ()
     useTrainerPrefs.getState().setRecordTake(false);
   });
 
+  it('a second startTake while recording is a no-op: the take is not orphaned and is stopped exactly once', async () => {
+    useTrainerPrefs.getState().setRecordTake(true);
+    await useTrainer.getState().startTake(() => 1000);
+    expect(useTrainer.getState().recording).toBe(true);
+    expect(calls).toEqual([`start:pure:${TRAINER_TAKE_INSTRUMENT}:tags`]);
+    // A second Start (a second surface, or a double-click) must NOT start another take.
+    await useTrainer.getState().startTake(() => 1500);
+    expect(calls).toEqual([`start:pure:${TRAINER_TAKE_INSTRUMENT}:tags`]);
+    useTrainer.getState().stop(2000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(calls).toEqual([`start:pure:${TRAINER_TAKE_INSTRUMENT}:tags`, 'stop']);
+    useTrainerPrefs.getState().setRecordTake(false);
+  });
+
+  it('the REC flag reconciles when the take is stopped by ANOTHER surface (the Record HUD)', async () => {
+    useTrainerPrefs.getState().setRecordTake(true);
+    await useTrainer.getState().startTake(() => 1000);
+    expect(useTrainer.getState().recording).toBe(true);
+    // The Record HUD's Stop calls the controller directly, not the trainer store.
+    await recordingController().stop();
+    expect(recordingNow).toBe(false);
+    // The trainer's flag is still stale until its next poll...
+    expect(useTrainer.getState().recording).toBe(true);
+    useTrainer.getState().sample({ 'face.head.yaw': 1 }, 1100);
+    expect(useTrainer.getState().recording).toBe(false);
+    useTrainer.getState().stop(2000);
+    useTrainerPrefs.getState().setRecordTake(false);
+  });
+
   it('a recorder that cannot start (no audio yet, a dismissed picker) still lets the routine run, unrecorded', async () => {
     unregister();
     unregister = registerRecordingController({ ...fake, start: async () => false });
@@ -231,6 +283,6 @@ describe('the production wiring (source guard)', () => {
     expect(src).toMatch(/start:\s*startTake/);
     expect(src).toMatch(/stop:\s*stopRecording/);
     // And the button's "Rec now" goes through the same startTake (one code path).
-    expect(src).toMatch(/recNow = useCallback\(async \(\) => \{\s*await startTake\(recSession\)/);
+    expect(src).toMatch(/recNow = useCallback\(async \(\) => \{\s*await startTake\(recSession, \{ fromSheet: true \}\)/);
   });
 });

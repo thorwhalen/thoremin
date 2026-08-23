@@ -100,6 +100,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // pure-webcam recording stream (#88); null for a file source.
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const sessionRecRef = useRef<SessionRecorder | null>(null);
+  const activeSessionRef = useRef<RecordingSession | null>(null);
   const recInstrumentRef = useRef<string>('thoremin');
   const recBusyRef = useRef(false);
   // The registry the live engine was built against — `applyGraph` must resolve
@@ -491,21 +492,36 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
    * fails to start, or a take is already running. */
   const startTake = useCallback(
     async (session: RecordingSession, opts: StartTakeOptions = {}): Promise<boolean> => {
-      if (recBusyRef.current || sessionRecRef.current) return false;
+      if (recBusyRef.current || sessionRecRef.current) {
+        // The seam is used by more than one surface (the Record button and the trainer);
+        // an honest "why not" beats a silent false (its own doc promised a toast).
+        useToasts.getState().push(
+          sessionRecRef.current ? 'Already recording — stop the current take first' : 'Still saving the last take — try again in a moment',
+          4000,
+          'error',
+        );
+        return false;
+      }
+      // `fromSheet` is the Record-button flow: only it drives the settings sheet. A
+      // controller-started take (the trainer) must never pop the button's sheet.
+      const fromSheet = opts.fromSheet ?? false;
       const ac = resourcesRef.current.audioContext as AudioContext | undefined;
       const master = masterGainRef.current;
       const canvas = canvasRef.current;
       const video = videoRef.current;
       const engine = engineRef.current;
-      if (!ac || !master || !canvas || !video || !engine) {
-        useToasts.getState().push('Start audio before recording', 4000, 'error');
+      // Audio is only needed when the take actually records the master bus. A camera +
+      // features take (the trainer's) must not demand the player start audio first.
+      const needsAudio = session.streams.audio;
+      if (!canvas || !video || !engine || (needsAudio && (!ac || !master))) {
+        useToasts.getState().push(needsAudio ? 'Start audio before recording' : 'The camera is not ready yet', 4000, 'error');
         return false;
       }
       recBusyRef.current = true;
       const rec = new SessionRecorder(
         {
-          audioContext: ac,
-          masterGain: master,
+          audioContext: ac as AudioContext,
+          masterGain: master as AudioNode,
           canvas,
           video,
           cameraStream: cameraStreamRef.current,
@@ -518,6 +534,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         session,
       );
       sessionRecRef.current = rec;
+      activeSessionRef.current = session;
       try {
         await rec.start();
         setRecElapsedMs(0);
@@ -526,7 +543,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       } catch (e) {
         rec.dispose();
         sessionRecRef.current = null;
-        setRecPhase('settings');
+        if (fromSheet) setRecPhase('settings');
         // A dismissed folder picker is a deliberate cancel (nothing recorded yet),
         // not an error — return to the sheet quietly.
         if (e instanceof SinkCancelled) {
@@ -545,7 +562,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
 
   /** "Rec now": the button's take, with the sheet's session config. */
   const recNow = useCallback(async () => {
-    await startTake(recSession);
+    await startTake(recSession, { fromSheet: true });
   }, [recSession, startTake]);
 
   /** Stop the take: convert audio, write every file + the manifest, toast the
@@ -584,6 +601,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     } finally {
       rec.dispose();
       sessionRecRef.current = null;
+      activeSessionRef.current = null;
       recBusyRef.current = false;
       setRecPhase('idle');
     }
@@ -624,7 +642,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       recNow,
       stop: stopRecording,
       elapsedMs: recElapsedMs,
-      activeStreams: activeStreamLabels(recSession),
+      // While a take records, the chips reflect THAT take (the trainer's camera+features),
+      // not the button sheet's config; the sheet's config otherwise.
+      activeStreams: activeStreamLabels(recPhase === 'recording' ? activeSessionRef.current ?? recSession : recSession),
     },
   };
 }

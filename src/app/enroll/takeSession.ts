@@ -19,10 +19,18 @@ import { prefillName } from '../recording/naming';
 /** The instrument label a training take is filed under. */
 export const TRAINER_TAKE_INSTRUMENT = 'trainer';
 
-export function trainerTakeSession(now: Date = new Date()): RecordingSession {
+/**
+ * The recording session a training take uses. The STREAMS are fixed (the clean camera
+ * + the features + the annotations — never the overlay or audio), and the name is
+ * always the trainer's; everything else the player has chosen — where recordings go,
+ * the frame rate, the media formats — is inherited from `base` (their last Record-sheet
+ * config, so a training take lands wherever their other takes do).
+ */
+export function trainerTakeSession(base: RecordingSession = DEFAULT_RECORDING_SESSION, now: Date = new Date()): RecordingSession {
   return {
-    ...DEFAULT_RECORDING_SESSION,
+    ...base,
     name: prefillName({ instrument: TRAINER_TAKE_INSTRUMENT, date: now }),
-    streams: { ...DEFAULT_RECORDING_SESSION.streams, audio: false, overlayVideo: false, overlayAlpha: false, pureVideo: true, features: true },
+    singleFileWhenAlone: false,
+    streams: { ...base.streams, audio: false, overlayVideo: false, overlayAlpha: false, pureVideo: true, features: true },
   };
 }

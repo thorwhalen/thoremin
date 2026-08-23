@@ -85,6 +85,10 @@ export function createTrainerTagSource(options: TrainerTagSourceOptions): Traine
   let sink: TagEventSink | null = null;
   let defs: TagDef[] = [];
   let state: TagState = emptyTagState();
+  /** The take's origin in seconds (the anchor's t). Events before it are clamped to it,
+   *  so the stream's own `t >= t0` invariant holds even if the first cue-start's tap
+   *  stamp is one ~30 ms poll older than the recorder's t0. */
+  let t0 = 0;
 
   const apply = (tagId: string, tSeconds: number) => {
     if (!sink) return;
@@ -99,6 +103,7 @@ export function createTrainerTagSource(options: TrainerTagSourceOptions): Traine
       sink = new TagEventSink(config.codec);
       defs = trainerTagDefs(options.cues());
       state = emptyTagState();
+      t0 = meta.t0;
       sink.writeAnchor({
         anchor: true,
         t: meta.t0,
@@ -120,7 +125,7 @@ export function createTrainerTagSource(options: TrainerTagSourceOptions): Traine
     },
     onEvent(e) {
       if (!sink) return;
-      const t = e.t / 1000;
+      const t = Math.max(t0, e.t / 1000);
       switch (e.type) {
         case 'cue-start':
           apply(TRAINER_TAGS.cue(e.cue.id), t);
@@ -134,6 +139,9 @@ export function createTrainerTagSource(options: TrainerTagSourceOptions): Traine
           break;
         case 'done':
         case 'stopped': {
+          // The recorder's endTake also closeAll's, so this is a belt-and-braces close
+          // for a standalone source (a test, a future non-recorder consumer): idempotent
+          // because closeAll over an already-closed state emits nothing.
           const r = closeAll(state, defs, t, config, 'auto');
           state = r.state;
           sink.append(r.edges);
