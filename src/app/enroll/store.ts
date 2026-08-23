@@ -50,7 +50,6 @@ import {
 } from '@/enroll';
 import { appFeatureDemand } from '../featureDemand';
 import { createCueStore, createRoutineStore, listCues, loadRoutine, type CueStore, type RoutineStore } from './cueStore';
-import { emitGuidance } from './guidance';
 import { createTrainerTagSource, type TrainerTagSource } from './annotations';
 import { recordingController } from '../recording/controller';
 import { useTrainerPrefs } from './prefs';
