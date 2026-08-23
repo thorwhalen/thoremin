@@ -42,14 +42,16 @@
  * through the #127 write path. A bad training run cannot break the instrument.
  */
 import { useEffect, useRef, useState } from 'react';
-import { GraduationCap, X } from 'lucide-react';
+import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
 import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import RoutinePicker from './enroll/RoutinePicker';
 import ProjectionView from './enroll/ProjectionView';
+import { installVoice, unlockVoice, useVoice } from './enroll/voiceRuntime';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
+import { useTrainerPrefs } from './enroll/prefs';
 import { toolById } from './tools';
 
 const TOOL_ID = 'trainer';
@@ -90,6 +92,26 @@ function suggestedLabel(c: Category, cueNames: Map<string, string>): string {
 }
 
 const OUTCOME_GLYPH = { enough: '✓', cannot: '✗', skipped: '–' } as const;
+
+/** The voice toggle: a user gesture (which is also what unlocks audio playback). */
+function VoiceToggle({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        // Inside the gesture: lift the audio element's autoplay gate before anything plays.
+        unlockVoice();
+        setOn(!on);
+      }}
+      aria-pressed={on}
+      aria-label={on ? 'Voice on — say the instructions out loud' : 'Voice off — instructions are written only'}
+      title={on ? 'Voice on' : 'Voice off'}
+      className={`rounded p-1 transition hover:bg-white/10 ${on ? 'text-emerald-300' : 'text-white/40'}`}
+    >
+      {on ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+    </button>
+  );
+}
 
 /** The projection + draw-your-own-categories view (#163 §7-§8), lazily projected when
  *  first opened so a player who only wants the k-slider pays nothing for UMAP. */
@@ -145,12 +167,21 @@ export default function TrainerPanel() {
   const lastEndSay = useTrainer((s) => s.lastEndSay);
   const hudShow = useControls((s) => s.trainerHud.show);
   const setTrainerHud = useControls((s) => s.setTrainerHud);
+  const recordTake = useTrainerPrefs((s) => s.recordTake);
+  const setRecordTake = useTrainerPrefs((s) => s.setRecordTake);
+  const recording = useTrainer((s) => s.recording);
+  const voiceOn = useVoice((s) => s.enabled);
+  const setVoice = useVoice((s) => s.setEnabled);
 
   const running = status === 'running' || status === 'between';
 
-  // Read the cue + routine stores once the panel is first opened.
+  // Read the cue + routine stores once the panel is first opened; register the spoken
+  // channel (it fetches its clip manifest lazily and says nothing until it has one).
   useEffect(() => {
-    if (open) void useTrainer.getState().load();
+    if (open) {
+      void useTrainer.getState().load();
+      installVoice();
+    }
   }, [open]);
 
   // Poll the live vector into the runner while it runs. The interval is recreated only
@@ -200,6 +231,11 @@ export default function TrainerPanel() {
       >
         <div className="flex items-center gap-2">
           <GraduationCap className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
+          {recording && (
+            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-red-400" title="This take is being recorded (camera, features, annotations)">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden /> rec
+            </span>
+          )}
           <span className="flex-1 truncate text-[11px] text-white/85">
             <span className="text-white/40">
               {index + 1}/{routine.length} ·{' '}
@@ -210,6 +246,7 @@ export default function TrainerPanel() {
           <span className="text-[10px] tabular-nums text-white/40">
             {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
           </span>
+          <VoiceToggle on={voiceOn} setOn={setVoice} />
           <button
             onClick={() => useTrainer.getState().skip(nowMs())}
             className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
@@ -241,6 +278,7 @@ export default function TrainerPanel() {
       <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
         <GraduationCap className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
         <span className="flex-1 text-[11px] font-bold uppercase tracking-widest text-white/70">Trainer</span>
+        <VoiceToggle on={voiceOn} setOn={setVoice} />
         <button
           onClick={close}
           aria-label="Close the Trainer panel"
@@ -256,7 +294,8 @@ export default function TrainerPanel() {
           <p className="text-[11px] leading-relaxed text-white/60">
             Teach the instrument the positions <em>you</em> can actually hit, instead of trying to hit the
             ones it came with. It asks for one thing at a time and moves on when it has enough. About a
-            minute. Nothing you do here changes the sound yet.
+            minute. The instructions are written on the video; turn the speaker on to hear them too.
+            Nothing you do here changes the sound yet.
           </p>
         )}
 
@@ -299,16 +338,21 @@ export default function TrainerPanel() {
         </div>
 
         <button
-          onClick={() => useTrainer.getState().start(nowMs())}
+          onClick={() => void useTrainer.getState().startTake(nowMs)}
           disabled={routine.length === 0}
           className="w-full rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/90 transition hover:bg-white/20 disabled:opacity-30"
         >
           {status === 'idle' ? 'Start' : 'Run again'}
         </button>
-        {/* A per-device pref (not an instrument parameter): where the guidance shows. */}
+        {/* Per-device prefs (not instrument parameters): the guidance on the video, and
+            whether the take is recorded. */}
         <label className="flex items-center gap-2 text-[10px] text-white/60">
           <input type="checkbox" checked={hudShow} onChange={(e) => setTrainerHud({ show: e.target.checked })} />
           Show the instructions on the video while it runs
+        </label>
+        <label className="flex items-center gap-2 text-[10px] text-white/60" title="Saves the clean camera video, the feature vectors and the cue/verdict annotations as a recording (like the Record button does).">
+          <input type="checkbox" checked={recordTake} onChange={(e) => setRecordTake(e.target.checked)} />
+          Record the take (camera + features + annotations)
         </label>
 
         {status === 'done' && (
@@ -340,9 +384,7 @@ export default function TrainerPanel() {
           {built ? 'Rebuild from this take' : 'Find my categories'}
         </button>
 
-        {built && (
-          <ProjectionSection />
-        )}
+        {built && <ProjectionSection />}
         {built && model && (
           <div className="space-y-2.5 border-t border-white/10 pt-3">
             <label className="block space-y-1">

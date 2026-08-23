@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.dag.json --noEmit",
     "record": "vite-node scripts/record_stream.ts",
     "catalog": "vite-node scripts/gen_catalog.ts",
+    "voice": "vite-node scripts/cue_strings.ts | python3 scripts/gen_cue_voice.py",
     "check:models": "tsx scripts/check_models.ts"
   },
   "dependencies": {

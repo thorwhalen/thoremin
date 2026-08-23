@@ -269,6 +269,88 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     expect(screen.getAllByText('skipped').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('voice is a toggle in the panel (and in the running strip); text is not', async () => {
+    const { useVoice } = await import('@/app/enroll/voiceRuntime');
+    useVoice.getState().setEnabled(false);
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const toggle = () => screen.getByRole('button', { name: /^Voice (on|off)/ });
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggle());
+    expect(useVoice.getState().enabled).toBe(true);
+    // Still there while running (the strip), and the written line still shows.
+    fireEvent.click(screen.getByText('Start'));
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-say]')?.textContent).toBe(STARTER_CUES[0].instruction);
+    fireEvent.click(toggle());
+    expect(useVoice.getState().enabled).toBe(false);
+    fireEvent.click(screen.getByText('Stop'));
+  });
+
+  it('a cue with no cached clip is marked "text only" in the picker — but only when voice is on', async () => {
+    const { useVoice, useVoiceManifest, resetVoiceRuntime } = await import('@/app/enroll/voiceRuntime');
+    resetVoiceRuntime();
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    // A custom override of a starter, with a wording no clip was generated for.
+    act(() => {
+      useTrainer.setState({
+        cues: useTrainer.getState().cues.map((c) => (c.id === 'look-left' ? { ...c, instruction: 'Glance left, and hold it.' } : c)),
+      });
+      useVoiceManifest.setState({ manifest: { voiceId: 'v', modelId: 'm', clips: { 'Turn your head to look to your left, and hold it.': 'a.mp3' } } });
+      useVoice.getState().setEnabled(false);
+    });
+    expect(screen.queryAllByText('text only')).toHaveLength(0);
+    act(() => useVoice.getState().setEnabled(true));
+    // Every cue but the clipped starters is text-only; the reworded one is among them.
+    const badges = screen.getAllByText('text only');
+    expect(badges.length).toBeGreaterThanOrEqual(1);
+    const row = document.querySelector('[data-picker-cue="look-left"]');
+    expect(row?.textContent).toContain('text only');
+    act(() => useVoice.getState().setEnabled(false));
+    resetVoiceRuntime();
+  });
+
+  it('"Record the take" is a per-device checkbox; Start goes through the recording controller', async () => {
+    const { useTrainerPrefs } = await import('@/app/enroll/prefs');
+    const { registerRecordingController } = await import('@/app/recording/controller');
+    const calls: string[] = [];
+    const off = registerRecordingController({
+      start: async (_s, o) => {
+        calls.push(`start:${o?.instrument ?? ''}`);
+        return true;
+      },
+      stop: async () => {
+        calls.push('stop');
+      },
+      isRecording: () => false,
+    });
+    useTrainerPrefs.getState().setRecordTake(false);
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const box = screen.getByLabelText(/Record the take/i) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(useTrainerPrefs.getState().recordTake).toBe(true);
+    fireEvent.click(screen.getByText('Start'));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(calls).toEqual(['start:trainer']);
+    expect(useTrainer.getState().status).toBe('running');
+    // The running strip says so.
+    expect(document.body.textContent).toMatch(/rec/i);
+    fireEvent.click(screen.getByText('Stop'));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(calls).toEqual(['start:trainer', 'stop']);
+    useTrainerPrefs.getState().setRecordTake(false);
+    off();
+  });
+
   it('the HUD pref is a per-device checkbox in the panel, not an instrument dial', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
