@@ -104,6 +104,14 @@ interface TrainerState {
 
   /** True once `build()` has run and a model can be cut. */
   built: boolean;
+  /**
+   * Where the current categories come from: the automatic dendrogram `'cut'` (the k
+   * slider) or the player's `'drawn'` partition in the projection. The two write the
+   * SAME `model`/`labels`, so exactly one is authoritative at a time — labelling a
+   * selection switches to `'drawn'`, and re-cutting (the slider, or `useAutomaticCut`)
+   * switches back and discards the drawn groups.
+   */
+  categorySource: 'cut' | 'drawn';
   k: number;
   suggestedK: number;
   model: TrainedModel | null;
@@ -164,6 +172,8 @@ interface TrainerState {
   skip(tMs: number): void;
   stop(tMs: number): void;
   build(): void;
+  /** Discard the drawn groups and go back to the automatic k-cut model. */
+  useAutomaticCut(): void;
   /** Lay the built take out in 2-D (UMAP over the model metric). No-op if too small. */
   project(): void;
   /** The live cursor's position in the current layout, or null. */
@@ -322,6 +332,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     transcript: [],
     lastEndSay: null,
     built: false,
+    categorySource: 'cut',
     k: 3,
     suggestedK: 3,
     model: null,
@@ -454,7 +465,13 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       session.build();
       const suggested = session.suggestedK();
       const k = suggested > 0 ? suggested : get().k;
-      set({ built: true, suggestedK: suggested, k, model: session.retrain(k), projection: null, layout: [], selection: [], labelGroups: [] });
+      set({ built: true, categorySource: 'cut', suggestedK: suggested, k, model: session.retrain(k), projection: null, layout: [], selection: [], labelGroups: [] });
+    },
+
+    useAutomaticCut() {
+      if (!get().built) return;
+      const k = get().k;
+      set({ categorySource: 'cut', labelGroups: [], selection: [], model: session.retrain(k), labels: {} });
     },
 
     project() {
@@ -491,16 +508,21 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       const existing = get().labelGroups.find((g) => g.name === trimmed)?.members ?? [];
       const merged = [...new Set([...existing.filter((i) => !sel.includes(i)), ...sel])].sort((a, b) => a - b);
       const labelGroups = [...others, { name: trimmed, members: merged }];
-      set({ labelGroups, selection: [], ...modelFromGroups(labelGroups) });
+      set({ labelGroups, selection: [], categorySource: 'drawn', ...modelFromGroups(labelGroups) });
     },
 
     removeLabelGroup(name) {
       const labelGroups = get().labelGroups.filter((g) => g.name !== name);
+      if (labelGroups.length === 0) {
+        get().useAutomaticCut();
+        return;
+      }
       set({ labelGroups, ...modelFromGroups(labelGroups) });
     },
 
     setK(k) {
-      if (!get().built) {
+      if (!get().built || get().categorySource === 'drawn') {
+        // Drawn categories own the model; the slider only re-cuts the automatic one.
         set({ k });
         return;
       }
@@ -527,6 +549,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         layout: [],
         selection: [],
         labelGroups: [],
+        categorySource: 'cut',
         built: false,
         k: 3,
         suggestedK: 3,

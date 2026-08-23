@@ -163,6 +163,7 @@ export default function TrainerPanel() {
   const k = useTrainer((s) => s.k);
   const suggestedK = useTrainer((s) => s.suggestedK);
   const model = useTrainer((s) => s.model);
+  const categorySource = useTrainer((s) => s.categorySource);
   const labels = useTrainer((s) => s.labels);
   const lastEndSay = useTrainer((s) => s.lastEndSay);
   const hudShow = useControls((s) => s.trainerHud.show);
@@ -387,6 +388,18 @@ export default function TrainerPanel() {
         {built && <ProjectionSection />}
         {built && model && (
           <div className="space-y-2.5 border-t border-white/10 pt-3">
+            {categorySource === 'drawn' ? (
+              <p className="flex items-center gap-2 text-[10px] text-white/50">
+                <span className="flex-1">These are the groups you drew.</span>
+                <button
+                  type="button"
+                  onClick={() => useTrainer.getState().useAutomaticCut()}
+                  className="rounded border border-white/10 px-2 py-0.5 text-white/60 transition hover:bg-white/5 hover:text-white"
+                >
+                  Use automatic instead
+                </button>
+              </p>
+            ) : (
             <label className="block space-y-1">
               <span className="flex items-baseline gap-2 text-[11px] text-white/80">
                 <span className="flex-1">How many categories?</span>
@@ -409,6 +422,7 @@ export default function TrainerPanel() {
                 guess and you know what you did better.
               </span>
             </label>
+            )}
 
             <ul className="space-y-1">
               {model.categories.map((c, i) => (

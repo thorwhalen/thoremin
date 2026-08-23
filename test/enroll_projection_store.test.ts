@@ -111,6 +111,40 @@ describe('select and label → categories in FULL feature space', () => {
     expect(useTrainer.getState().labels[c.categoryId ? categoryKey(model.categories.find((x) => x.id === c.categoryId)!) : '']).toBe('to my left');
   });
 
+  it('drawn and automatic categories do not fight: labelling switches to drawn (the k-slider is inert), reverting restores the cut', () => {
+    threePoseTake();
+    useTrainer.getState().build();
+    expect(useTrainer.getState().categorySource).toBe('cut');
+    const cutModel = useTrainer.getState().model!;
+    const cutCount = cutModel.categories.length;
+    // Draw a group: the model becomes the drawn one, and the k-slider no longer re-cuts.
+    useTrainer.getState().select([0, 1]);
+    useTrainer.getState().labelSelection('mine');
+    expect(useTrainer.getState().categorySource).toBe('drawn');
+    const drawn = useTrainer.getState().model!;
+    expect(drawn.categories).toHaveLength(1);
+    useTrainer.getState().setK(6);
+    expect(useTrainer.getState().model).toBe(drawn); // slider did not overwrite the drawn model
+    expect(useTrainer.getState().k).toBe(6); // but the intended k is remembered
+    // Revert: back to the automatic cut at the remembered k, drawn groups gone.
+    useTrainer.getState().useAutomaticCut();
+    expect(useTrainer.getState().categorySource).toBe('cut');
+    expect(useTrainer.getState().labelGroups).toEqual([]);
+    expect(useTrainer.getState().model!.categories.length).toBeGreaterThanOrEqual(1);
+    void cutCount;
+  });
+
+  it('removing the LAST drawn group falls back to the automatic cut, not a null model', () => {
+    threePoseTake();
+    useTrainer.getState().build();
+    useTrainer.getState().select([0, 1]);
+    useTrainer.getState().labelSelection('a');
+    expect(useTrainer.getState().categorySource).toBe('drawn');
+    useTrainer.getState().removeLabelGroup('a');
+    expect(useTrainer.getState().categorySource).toBe('cut');
+    expect(useTrainer.getState().model).not.toBeNull();
+  });
+
   it('groups are a PARTITION: a point re-labelled leaves its old group; removing a group rebuilds the model', () => {
     threePoseTake();
     useTrainer.getState().build();
@@ -132,7 +166,9 @@ describe('select and label → categories in FULL feature space', () => {
     useTrainer.getState().removeLabelGroup('a');
     expect(useTrainer.getState().labelGroups.map((g) => g.name)).toEqual(['b']);
     expect(useTrainer.getState().model!.categories).toHaveLength(1);
+    // Removing the last drawn group reverts to the automatic cut (a model, not null).
     useTrainer.getState().removeLabelGroup('b');
-    expect(useTrainer.getState().model).toBeNull();
+    expect(useTrainer.getState().categorySource).toBe('cut');
+    expect(useTrainer.getState().model).not.toBeNull();
   });
 });
