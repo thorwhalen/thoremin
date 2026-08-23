@@ -23,7 +23,9 @@
  * fan-IN to a single input port is disallowed.
  */
 import type { GraphSpec, NodeRegistry, Role } from '@/dag';
-import { MAPPING_SLOT_CONTRACT, type SlotContract } from '@/nodes/mapping/mapping_contract';
+import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
+import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
+import type { SlotContract } from '@/nodes/slot_contract';
 
 /**
  * A Slot is a named, role-typed swap point the graph builder fills from config.
@@ -51,10 +53,88 @@ export const SLOTS: Record<string, SlotDef> = {
     candidates: ['voice-mapping'],
     contract: MAPPING_SLOT_CONTRACT,
   },
+  /**
+   * Where the hand frames come from (#104 / Stream Applier M-C). The candidates
+   * are the **finished-frame emitters** only — a file or stream feeding a
+   * `<video>` is a host-side concern (`sourceSpec.ts`), not a node swap, because
+   * `webcam-hands` does the identical job whatever produced the pixels.
+   *
+   * Three candidates, so unlike `mapping` this slot has something real to swap
+   * to. It still gets no player-facing dropdown: a replay or a synthetic hand is
+   * a *verification* affordance, not an instrument a player chooses between.
+   *
+   * `?slot.source=synthetic-hands` runs the whole instrument with no camera and
+   * no MediaPipe — in the browser too, not only headlessly: the host reads this
+   * slot through {@link sourceNeedsVideo} BEFORE acquiring anything and skips
+   * `getUserMedia` entirely, so the run needs no hardware and no permission
+   * prompt. Getting that half wrong is how the feature would have shipped as its
+   * own opposite: the one URL meant for hardware-free verification, failing to
+   * boot on a machine with no camera.
+   */
+  source: {
+    role: 'source',
+    default: 'webcam-hands',
+    candidates: ['webcam-hands', 'synthetic-hands', 'replay-hands'],
+    contract: SOURCE_SLOT_CONTRACT,
+  },
 };
 
 /** Per-slot chosen node types (keys ⊆ SLOTS keys); all optional → defaults used. */
 export type SlotSelection = Partial<Record<keyof typeof SLOTS, string>>;
+
+/** Nothing selected — every slot uses its default. A module constant so passing
+ *  "no selection" does not create a new object identity on every render. */
+export const NO_SLOTS: SlotSelection = Object.freeze({});
+
+/**
+ * Parse a URL query string into a {@link SlotSelection}: `?slot.<slotName>=<nodeType>`,
+ * e.g. `?slot.mapping=voice-mapping`. Unknown `slot.*` keys and blank values are
+ * ignored; an invalid *node type* is not rejected here but by {@link resolveSlot},
+ * which warns and falls back to the slot default.
+ *
+ * This is a **developer-facing** seam, deliberately, and the same shape as M-A's
+ * `?source=video` (`src/app/sourceSpec.ts`): graphs are data, so selecting one
+ * belongs in the URL. Per the component-model governance rule, a slot earns a
+ * player-facing settings dropdown only once its role has >= 2 real
+ * implementations — `mapping` has one today.
+ *
+ * @param search a `location.search` string (leading `?` optional).
+ */
+export function parseSlotSelection(search: string): SlotSelection {
+  const params = new URLSearchParams(search);
+  const selection: SlotSelection = {};
+  for (const key of Object.keys(SLOTS) as (keyof typeof SLOTS)[]) {
+    const chosen = params.get(`slot.${key}`)?.trim();
+    if (chosen) selection[key] = chosen;
+  }
+  return selection;
+}
+
+/**
+ * Does the resolved source slot need the host to supply a `<video>` element?
+ *
+ * Only the default (`webcam-hands`) does: it runs MediaPipe over a video element,
+ * which is exactly why raw-video origins stay a *host-side* concern rather than a
+ * node swap. Every other candidate emits finished frames and reads no video at
+ * all — so when one is selected the host should not acquire a camera, and the
+ * instrument runs with no hardware. Readers of `ctx.resources.video` (the overlay
+ * backdrop, the face branch) all guard on `readyState`, so the element simply
+ * stays empty.
+ */
+export function sourceNeedsVideo(selection?: SlotSelection, registry?: NodeRegistry): boolean {
+  return resolveSlot('source', selection, registry) === SLOTS.source.default;
+}
+
+/**
+ * A stable, order-independent string identity for a selection — so React effects
+ * can depend on *what was selected* rather than on the object's identity (which
+ * changes on every render and would tear the engine down each time).
+ */
+export function slotSelectionKey(selection: SlotSelection = NO_SLOTS): string {
+  return (Object.keys(SLOTS) as (keyof typeof SLOTS)[])
+    .map((k) => `${k}=${selection[k] ?? ''}`)
+    .join('&');
+}
 
 /**
  * Why a node type does NOT satisfy a slot, or `null` if it does. Checks, in order:
@@ -111,9 +191,16 @@ export function resolveSlot(
  */
 export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry): GraphSpec {
   const mappingType = resolveSlot('mapping', selection, registry);
+  const sourceType = resolveSlot('source', selection, registry);
+  // The default source's params are MediaPipe's (model size, hand count) and mean
+  // nothing to a replay or synthetic source. Rather than invent a shared params
+  // contract for a slot whose candidates genuinely have nothing in common, a
+  // swapped-in source takes its own defaults — the URL seam cannot express params
+  // anyway, and a candidate that needs them is a graph edit, not a selection.
+  const sourceParams = sourceType === SLOTS.source.default ? { modelType: 'full', maxHands: 2 } : {};
   return {
     nodes: [
-      { id: 'cam', type: 'webcam-hands', params: { modelType: 'full', maxHands: 2 } },
+      { id: 'cam', type: sourceType, params: sourceParams },
       { id: 'feat', type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
       // Face branch (idle until the player picks a face mapping in settings).
       { id: 'camFace', type: 'webcam-face', params: {} },

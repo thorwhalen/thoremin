@@ -66,6 +66,23 @@ export interface PortSpec {
   description?: string;
   /** Optional default value used when no edge feeds this input port. */
   default?: unknown;
+  /**
+   * Optional runtime shape check for values on this port. Where {@link kind} is
+   * an advisory *label*, this is an enforceable *contract* — but only where the
+   * cost is affordable, so the engine checks it on OUTPUT ports and only when
+   * {@link EngineOptions.validatePorts} is on (batch runs and tests; never the
+   * 60fps live path).
+   *
+   * The case worth declaring one for is the one a type system cannot catch: a
+   * node that emits **nothing** on a port it declares. `process()` returns a
+   * plain object, so a source whose pump has not latched yet, or whose generator
+   * has drained, silently yields `undefined` — the downstream node then reads
+   * its port default (or nothing) and the graph goes quiet with no error
+   * anywhere. A schema that is not `.optional()` turns that into a loud failure
+   * at the exact node and tick, which is why `emitTaps` is the wrong place for
+   * this check (it skips `undefined` by design).
+   */
+  schema?: ZodType;
 }
 
 /**

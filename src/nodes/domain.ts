@@ -6,6 +6,7 @@
  * Landmark indices follow MediaPipe Hands (21 points). We also tolerate named
  * keypoints (as emitted by @tensorflow-models/hand-pose-detection).
  */
+import { z } from 'zod';
 import type { SoundId } from '@/music/sounds';
 
 export interface Keypoint {
@@ -38,6 +39,37 @@ export interface HandsFrame {
   height: number;
   hands: Hand[];
 }
+
+/**
+ * Runtime shape of a {@link HandsFrame}, for `PortSpec.schema` on the source
+ * slot's output port (#104). The interfaces above stay the SSOT for the TYPE;
+ * this mirrors them for the values, which is the half a compiler cannot check —
+ * a generator or replay source that emits a malformed frame, or nothing at all,
+ * would otherwise surface far downstream as a wrong note rather than an error.
+ * `KeypointSchema` is `.passthrough()` so a detector that carries extra fields
+ * is not rejected for being richer than we modelled.
+ */
+export const KeypointSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number().optional(),
+    name: z.string().optional(),
+  })
+  .passthrough();
+
+export const HandSchema = z.object({
+  handedness: z.enum(['Left', 'Right']),
+  keypoints: z.array(KeypointSchema),
+  worldKeypoints: z.array(KeypointSchema).optional(),
+  score: z.number().optional(),
+});
+
+export const HandsFrameSchema = z.object({
+  width: z.number(),
+  height: z.number(),
+  hands: z.array(HandSchema),
+});
 
 /** The four non-thumb fingers, in radial order. */
 export const FINGER_NAMES = ['index', 'middle', 'ring', 'pinky'] as const;

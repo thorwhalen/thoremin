@@ -40,7 +40,20 @@ Discussion #3. Key rules from it:
   not DAG nodes** — the engine rejects fan-in to a single input port. Promote an
   element to a node only when something *outside* the node must consume/tap it.
 - **A role earns a settings swap-dropdown only when ≥2 real implementations
-  exist.** Don't build slot machinery for hypothetical swaps.
+  exist.** Don't build slot machinery for hypothetical swaps. (The rule says a
+  swap *may* be surfaced, not that it must: the `source` slot has three real
+  candidates and still gets no dropdown, because a replay or synthetic hand is a
+  verification affordance, not an instrument a player picks between.)
+- **Two slots exist**: `mapping` (one candidate) and `source` (#104 —
+  `webcam-hands` / `synthetic-hands` / `replay-hands`). Select with
+  `?slot.<name>=<nodeType>`. `?slot.source=synthetic-hands` runs the whole
+  instrument with no camera and no MediaPipe — the fastest way to exercise the
+  graph without hardware.
+- **`PortSpec.schema`** makes a port contract checkable (`kind` is only a label).
+  The engine checks it in `tick()`'s output path under
+  `EngineOptions.validatePorts` — off by default, **on** in `runHeadless`. It
+  exists mainly to catch a node emitting *nothing* on a port it declares, which
+  is otherwise a silent graph rather than an error.
 - Of the prerequisites before "node swapping is a config flip" is true, one
   remains: the registry is a **hand-listed array** with no discovery seam (the
   design doc's "Two corrections", #2). The other two are done — the mapping nodes
@@ -208,8 +221,10 @@ So, when you add a user-facing capability:
 |------|------|
 | DAG engine (framework-agnostic) | `src/dag/` (`engine.ts`, `types.ts`, `registry.ts`, `recorder.ts`, `clock.ts`) |
 | Node library | `src/nodes/{sources,features,mapping,music,output}/` |
-| Default graph wiring | `src/app/graph.ts` |
-| React↔DAG bridge (webcam, AudioContext, rAF, recorder) | `src/app/useEngine.ts` |
+| Default graph wiring + the `SLOTS` table (role-typed swap points) | `src/app/graph.ts` |
+| **Slot contracts** — what a candidate must declare to fill a slot | `src/nodes/slot_contract.ts`, `src/nodes/mapping/mapping_contract.ts`, `src/nodes/sources/source_contract.ts` |
+| React↔DAG bridge (webcam, AudioContext, recorder, slot selection) | `src/app/useEngine.ts` |
+| Live frame loop — the app's `Clock` adoption (tick + per-frame reporters + frame-drop guard) | `src/app/engineLoop.ts` |
 | Live control store (zustand+persist) — the hot per-tick mirror | `src/app/store.ts` |
 | Music theory + **sounds** (timbre presets) | `src/music/` (`theory.ts`, `sounds.ts`, `voicing.ts`, `expression.ts`) |
 | Overlay (compose elements here) | `src/nodes/output/canvas_overlay.ts` |

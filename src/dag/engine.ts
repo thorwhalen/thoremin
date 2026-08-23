@@ -29,6 +29,7 @@ import type {
   Tap,
 } from './types';
 import type { NodeRegistry } from './registry';
+import type { ZodType } from 'zod';
 
 interface BuiltNode {
   id: string;
@@ -43,6 +44,8 @@ interface BuiltNode {
   handlers: NodeHandlers;
   /** Declared output port names (for tap emission and validation). */
   outputPorts: string[];
+  /** output port name -> declared schema, for ports that declare one. Usually empty. */
+  outputSchemas: Map<string, ZodType>;
   /** input port name -> default value (from PortSpec.default), if any. */
   inputDefaults: Map<string, unknown>;
   /** incoming edges, grouped by target input port. */
@@ -56,6 +59,14 @@ export interface EngineOptions {
   nominalDt?: number;
   /** Taps notified of every output-port value each tick (e.g. a recorder). */
   taps?: Tap[];
+  /**
+   * Check every emitted value against its {@link PortSpec.schema}, throwing at
+   * the offending node and tick. Off by default: this is a batch/dev gate, and
+   * running Zod over every port of every node at 60fps is not something the live
+   * instrument should pay for. `runHeadless` turns it ON, so the fixture and
+   * end-to-end runs get the check for free.
+   */
+  validatePorts?: boolean;
   log?: (msg: string) => void;
 }
 
@@ -130,6 +141,7 @@ export class Engine {
   private taps: Tap[];
   private resources: Record<string, unknown>;
   private nominalDt: number;
+  private validatePorts: boolean;
   private log?: (msg: string) => void;
 
   /** Kept so {@link applyGraph} can re-resolve node types without the caller re-supplying it. */
@@ -156,6 +168,7 @@ export class Engine {
     this.taps = opts.taps ?? [];
     this.resources = opts.resources ?? {};
     this.nominalDt = opts.nominalDt ?? 1 / 60;
+    this.validatePorts = opts.validatePorts ?? false;
     this.log = opts.log;
     this.registry = registry;
     this.spec = spec;
@@ -374,8 +387,31 @@ export class Engine {
       const node = this.nodes.get(id)!;
       const inputs = this.gatherInputs(node);
       const out = node.handlers.process(inputs, ctx) ?? {};
+      if (this.validatePorts && node.outputSchemas.size) this.checkOutputPorts(node, out);
       this.outputs.set(id, out);
       if (this.taps.length) this.emitTaps(node, out, ctx);
+    }
+  }
+
+  /**
+   * Port conformance (batch/dev only — see {@link EngineOptions.validatePorts}).
+   * Runs in `tick`'s output path rather than `emitTaps` on purpose: taps skip
+   * `undefined`, and "the node emitted nothing" is exactly the failure this is
+   * here to catch. Throwing names the node, the port and the tick, because a
+   * malformed frame surfaces far downstream as a wrong note, not as an error.
+   */
+  private checkOutputPorts(node: BuiltNode, out: PortValues): void {
+    for (const [port, schema] of node.outputSchemas) {
+      const result = schema.safeParse(out[port]);
+      if (result.success) continue;
+      const detail =
+        out[port] === undefined
+          ? 'it emitted nothing (undefined) on a port whose schema is not optional'
+          : String(result.error.message);
+      throw new Error(
+        `Engine: node "${node.id}" (${node.type}) violated the schema of output port ` +
+          `"${port}" at tick ${this.tickIndex}: ${detail}`,
+      );
     }
   }
 
@@ -485,12 +521,17 @@ function compile(
       for (const p of def.inputs) {
         if (p.default !== undefined) inputDefaults.set(p.name, p.default);
       }
+      const outputSchemas = new Map<string, ZodType>();
+      for (const p of def.outputs) {
+        if (p.schema) outputSchemas.set(p.name, p.schema);
+      }
       nodes.set(n.id, {
         id: n.id,
         type: n.type,
         params,
         handlers: def.make(params as never),
         outputPorts: def.outputs.map((p) => p.name),
+        outputSchemas,
         inputDefaults,
         incoming: new Map(),
       });

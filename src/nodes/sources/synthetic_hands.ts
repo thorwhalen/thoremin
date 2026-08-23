@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import { makeHandKeypoints, type Hand, type HandsFrame } from '../domain';
+import { SOURCE_SLOT_OUTPUT } from './source_contract';
 
 const Params = z.object({
   width: z.number().default(640),
@@ -37,7 +38,7 @@ export const syntheticHandsNode = defineNode<Params>({
   title: 'Synthetic Hands',
   description: 'Camera-free animated hand landmark source for tests & demos.',
   inputs: [],
-  outputs: [{ name: 'hands', kind: 'hands-frame' }],
+  outputs: [SOURCE_SLOT_OUTPUT],
   params: Params,
   process(_inputs, p, ctx) {
     const margin = p.scale;

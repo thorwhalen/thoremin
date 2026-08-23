@@ -15,10 +15,12 @@
  *   - {@link RealtimeClock} — wall-clock paced, with a speed multiplier
  *                             (real-time playback, accelerated/slowed scrub).
  *
- * A future `Applier` (M-D) will own building the engine, wiring sources/sinks
- * and picking a clock; for now `runHeadless` uses `BatchClock` and the live
- * `useEngine` rAF loop is refit onto `RealtimeClock` when the Applier lands
- * (deferred here because that surface has no headless test — see the design doc).
+ * Both are in use: `runHeadless` (`src/dag/index.ts`) drives a `BatchClock`, and
+ * the live browser loop drives a `RealtimeClock` at speed 1 via `runEngineLoop`
+ * (`src/app/engineLoop.ts`), which is where `useEngine`'s hand-rolled
+ * requestAnimationFrame recursion used to be. A future `Applier` (M-D) will own
+ * building the engine, wiring sources/sinks and picking a clock; the clock seam
+ * it needs is already the one both paths run on.
  */
 
 /** Drives an engine tick callback until a stop condition is met. */
