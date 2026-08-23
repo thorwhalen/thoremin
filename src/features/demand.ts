@@ -31,6 +31,10 @@
  * nothing on the tick path may await or subscribe.
  */
 
+/** The formula-only group id (mirrors `DERIVED_GROUP` in the catalog; kept as a literal
+ *  here so this module has no import edge into the catalog). */
+const DERIVED_GROUP = 'derived';
+
 /** A live set of demanded feature groups, or `null` when nothing is demanded. */
 export type DemandedGroups = ReadonlySet<string> | null;
 
@@ -73,10 +77,13 @@ export function createFeatureDemand(): FeatureDemand {
 
   return {
     claim(owner, groups) {
-      if (groups.length === 0) {
+      // `derived` (Lab formulas) has no catalog features: demanding it would open the
+      // gate for an empty result. Drop it here so every claim is a claim on real work.
+      const real = groups.filter((g) => g !== DERIVED_GROUP);
+      if (real.length === 0) {
         claims.delete(owner);
       } else {
-        claims.set(owner, new Set(groups));
+        claims.set(owner, new Set(real));
       }
       recompute();
       notify();

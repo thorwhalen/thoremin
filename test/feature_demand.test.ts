@@ -19,6 +19,16 @@ import { useTrainer } from '@/app/enroll/store';
 const ctx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });
 
 describe('the demand registry', () => {
+  it('ignores groups that have no features (the formula-only `derived` group)', () => {
+    // Claiming `derived` alone would open the gate for nothing: no catalog feature
+    // carries that group, and the vector nodes would run for an empty result.
+    const d = createFeatureDemand();
+    d.claim('a', ['derived']);
+    expect(d.groups()).toBeNull();
+    d.claim('a', ['derived', 'face.head']);
+    expect([...d.groups()!]).toEqual(['face.head']);
+  });
+
   it('is empty (null) until someone claims, and unions claims across owners', () => {
     const d = createFeatureDemand();
     expect(d.groups()).toBeNull();
@@ -125,7 +135,10 @@ describe('the vector nodes serve a demand with the Lab CLOSED (the v1 trainer bu
       ctx({ controls: labHidden, featureDemand: () => new Set(['hand.finger.flexion']) }),
     ) as { vector: FeatureVector };
     const keys = Object.keys(demanded.vector);
-    expect(keys.length).toBeGreaterThan(0);
+    // Per-GROUP gating, observed: a flexion feature is there, a spread feature is not.
+    // (The side label is the DISPLAY side after the selfie mirror, so match either.)
+    expect(keys.some((k) => /^hand\.(left|right)\..*\.(mcp|pip)Angle$/.test(k))).toBe(true);
+    expect(keys.some((k) => /^hand\.(left|right)\.spread\./.test(k))).toBe(false);
     expect(keys.every((k) => k.startsWith('hand.'))).toBe(true);
   });
 });
@@ -227,5 +240,14 @@ describe('the production wiring (source guard — useEngine is outside the stric
     ]) {
       expect(read(file), `${file} does not read ctx.resources.featureDemand`).toMatch(/ctx\.resources\.featureDemand/);
     }
+  });
+});
+
+describe('the registry\'s `derived` literal matches the catalog\'s DERIVED_GROUP', () => {
+  it('(no import edge demand -> catalog, so the two are tied here)', async () => {
+    const { DERIVED_GROUP } = await import('@/features/catalog');
+    const d = createFeatureDemand();
+    d.claim('a', [DERIVED_GROUP]);
+    expect(d.groups()).toBeNull();
   });
 });
