@@ -81,6 +81,29 @@ export type SteerConfig = z.infer<typeof SteerConfigSchema>;
 
 type Ref = z.infer<typeof FeatureRef>;
 
+/**
+ * Smoothing-state keys for a strain/dial list: each entry's own name, made
+ * unique by counting repeats (`warm pads#0`, `warm pads#1`).
+ *
+ * **Identity only — never position.** Position looks like a harmless tiebreaker
+ * until you notice that insert, delete and reorder are exactly what a vibe editor
+ * is for: keying on position re-keys every entry after the edit point, so adding
+ * one prompt would duck every prompt below it back to rest — a dip across the
+ * whole mix with no gesture behind it, which is the failure this state is keyed
+ * carefully to avoid. Keying on identity alone still gets the intended case
+ * right: renaming the prompt at a slot yields a new key, so it eases in fresh.
+ *
+ * One builder, used by both `process()` and the prune, so the two cannot drift.
+ */
+function identityKeys(names: readonly string[]): string[] {
+  const seen = new Map<string, number>();
+  return names.map((name) => {
+    const n = seen.get(name) ?? 0;
+    seen.set(name, n + 1);
+    return `${name}#${n}`;
+  });
+}
+
 function readFeature(hands: HandFeatures, face: FaceFeatures, ref: Ref): number {
   if (ref.source === 'face') {
     if (!face.present) return 0;
@@ -110,14 +133,15 @@ export const indirectMapNode = defineNode<Params>({
   outputs: [{ name: 'steer', kind: 'generative-steer' }],
   params: Params,
   make(p) {
-    // Smoothed state is keyed by POSITION AND IDENTITY (`0:warm pads`), not by
-    // index alone. With a fixed config the two are the same thing; with a live
-    // one they are not — editing the text at slot 0 makes it a different prompt,
-    // and inheriting the old prompt's eased-in weight would be a glitch, not
-    // continuity. Editing a *neighbour* leaves this one's smoothing untouched,
-    // which index-only keying also gets right but only by luck.
+    // Smoothed state, keyed by {@link identityKeys} — the prompt's own text, not
+    // its slot. With a fixed config any keying works; with a live one only
+    // identity does. Editing the text at a slot makes it a different prompt, so
+    // it eases in from rest; adding, removing or reordering its neighbours leaves
+    // it exactly where it was.
     const weights = new Map<string, number>();
     const dialVals = new Map<string, number>();
+    let strainKeys = identityKeys(p.strains.map((x) => x.text));
+    let dialKeys = identityKeys(p.dials.map((x) => x.name));
     let lastEmit = -Infinity;
     let last: GenerativeSteer = { prompts: [], config: {} };
 
@@ -154,11 +178,15 @@ export const indirectMapNode = defineNode<Params>({
         };
       })();
       cfg = next;
-      // Drop smoothing state for strains/dials the new config no longer has, so
-      // a long editing session cannot grow these maps without bound.
-      const live = new Set(next.strains.map((s, i) => `${i}:${s.text}`));
+      strainKeys = identityKeys(next.strains.map((x) => x.text));
+      dialKeys = identityKeys(next.dials.map((x) => x.name));
+      // Drop smoothing state the new config no longer has an entry for. Beyond
+      // keeping the maps bounded across a long editing session, this is what
+      // makes a prompt you deleted and brought back ease in from rest rather than
+      // snapping to the momentum it had before you removed it.
+      const live = new Set(strainKeys);
       for (const k of weights.keys()) if (!live.has(k)) weights.delete(k);
-      const liveDials = new Set(next.dials.map((d, i) => `${i}:${d.name}`));
+      const liveDials = new Set(dialKeys);
       for (const k of dialVals.keys()) if (!liveDials.has(k)) dialVals.delete(k);
     };
 
@@ -179,16 +207,16 @@ export const indirectMapNode = defineNode<Params>({
         const prompts: WeightedPrompt[] = cfg.strains.map((s, i) => {
           const raw = readFeature(f, face, s);
           const target = rangeMap(raw, s.inMin, s.inMax, s.weightMin, s.weightMax);
-          const w = smooth(weights.get(`${i}:${s.text}`), target, cfg.smoothing);
-          weights.set(`${i}:${s.text}`, w);
+          const w = smooth(weights.get(strainKeys[i]), target, cfg.smoothing);
+          weights.set(strainKeys[i], w);
           return { text: s.text, weight: Math.round(w * 1000) / 1000 };
         });
         const config: Record<string, number> = {};
         cfg.dials.forEach((d, i) => {
           const raw = readFeature(f, face, d);
           const target = rangeMap(raw, d.inMin, d.inMax, d.outMin, d.outMax);
-          const v = smooth(dialVals.get(`${i}:${d.name}`), target, cfg.smoothing);
-          dialVals.set(`${i}:${d.name}`, v);
+          const v = smooth(dialVals.get(dialKeys[i]), target, cfg.smoothing);
+          dialVals.set(dialKeys[i], v);
           config[d.name] = Math.round(v * 1000) / 1000;
         });
 

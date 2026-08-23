@@ -226,6 +226,97 @@ describe('indirect-map steerConfig (the #141 prerequisite)', () => {
     expect(outs[8].weight).toBeCloseTo(outs[4].weight, 6); // exactly B's first step
   });
 
+  // ---- the edit shapes a vibe editor actually produces ---------------------
+  //
+  // An adversarial review found the original keying (`${i}:${text}`) mixed
+  // identity with POSITION, so inserting, deleting or reordering a prompt reset
+  // every entry after the edit point — a mix-wide duck with no gesture behind it,
+  // in exactly the operations an editor is for. Only a rename-at-a-fixed-index
+  // was covered, which is the single edit shape that keying happened to survive.
+  // These are the cases that were missing.
+
+  /** Drive with `smoothing`, holding the hand open, swapping config at `swapAt`. */
+  async function editAt(before: unknown[], after: unknown[], swapAt = 6, ticks = 8) {
+    const frames = Array.from({ length: ticks }, () => feat({ openness: 1 }));
+    const outs = await replayNode(indirectMapNode.make(indirectMapNode.params.parse({ ...PARAMS, smoothing: 0.6 })), {
+      features: frames,
+      steerConfig: frames.map((_, i) => ({ strains: i < swapAt ? before : after })),
+    });
+    return outs.map((o) => (o.steer as GenerativeSteer).prompts);
+  }
+
+  const S = (text: string) => ({
+    text,
+    hand: 'right' as const,
+    feature: 'openness' as const,
+    inMin: 0,
+    inMax: 1,
+    weightMin: 0,
+    weightMax: 2,
+  });
+  /** Find a prompt by text in one tick's output. */
+  const w = (prompts: { text: string; weight: number }[], text: string) =>
+    prompts.find((p) => p.text === text)!.weight;
+
+  it('DELETING a strain leaves the survivors exactly where they were', async () => {
+    const outs = await editAt([S('A'), S('B')], [S('B')]);
+    expect(w(outs[6], 'B')).toBeGreaterThan(w(outs[5], 'B')); // kept climbing, no reset
+    expect(outs[6]).toHaveLength(1);
+  });
+
+  it('INSERTING a strain at the front does not duck the ones below it', async () => {
+    const outs = await editAt([S('A'), S('B')], [S('C'), S('A'), S('B')]);
+    expect(w(outs[6], 'A')).toBeGreaterThan(w(outs[5], 'A'));
+    expect(w(outs[6], 'B')).toBeGreaterThan(w(outs[5], 'B'));
+    expect(w(outs[6], 'C')).toBeLessThan(w(outs[6], 'A')); // the NEW one eases in from rest
+  });
+
+  it('REORDERING strains preserves every weight', async () => {
+    const outs = await editAt([S('A'), S('B')], [S('B'), S('A')]);
+    expect(w(outs[6], 'A')).toBeGreaterThan(w(outs[5], 'A'));
+    expect(w(outs[6], 'B')).toBeGreaterThan(w(outs[5], 'B'));
+  });
+
+  it('DIALS behave the same way when one is removed', async () => {
+    const D = (name: string) => ({
+      name,
+      hand: 'right' as const,
+      feature: 'openness' as const,
+      inMin: 0,
+      inMax: 1,
+      outMin: 0,
+      outMax: 1,
+    });
+    const frames = Array.from({ length: 8 }, () => feat({ openness: 1 }));
+    const outs = (
+      await replayNode(indirectMapNode.make(indirectMapNode.params.parse({ ...PARAMS, smoothing: 0.6 })), {
+        features: frames,
+        steerConfig: frames.map((_, i) => ({ dials: i < 6 ? [D('bpm'), D('density')] : [D('density')] })),
+      })
+    ).map((o) => (o.steer as GenerativeSteer).config);
+    expect(outs[6].density).toBeGreaterThan(outs[5].density!);
+    expect(outs[6].bpm).toBeUndefined();
+  });
+
+  it('two strains with the SAME text keep separate smoothing state', async () => {
+    // Identity keying disambiguates repeats by occurrence, so a duplicated prompt
+    // is two entries, not one aliased pair. Opposite targets make aliasing
+    // unmistakable: entangled, the second entry would ease toward whatever the
+    // first just wrote and never settle at its own target of 0.
+    const up = { ...S('twin'), weightMin: 0, weightMax: 2 };
+    const flat = { ...S('twin'), weightMin: 0, weightMax: 0 };
+    const frames = Array.from({ length: 10 }, () => feat({ openness: 1 }));
+    const outs = (
+      await replayNode(indirectMapNode.make(indirectMapNode.params.parse({ ...PARAMS, smoothing: 0.6 })), {
+        features: frames,
+        steerConfig: frames.map(() => ({ strains: [up, flat] })),
+      })
+    ).map((o) => (o.steer as GenerativeSteer).prompts);
+    expect(outs[9]).toHaveLength(2);
+    expect(outs[9][0].weight).toBeGreaterThan(1); // climbing toward its own target of 2
+    expect(outs[9][1].weight).toBe(0); // sitting on its own target, untouched by its twin
+  });
+
   it('the exported schema is the contract a store/dial/editor all speak', () => {
     // Same schema validates the port value, the store slice and the persisted
     // dial — so those three cannot drift into disagreeing about the shape.
