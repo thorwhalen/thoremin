@@ -206,13 +206,37 @@ boundaries allow.
   Applier + a browser smoke test; M-B ships the abstraction + the fully-tested
   `BatchClock` path and a headless `RealtimeClock`.
 - **M-C — Source contract + `source` slot + conformance (R1/R4 foundation).
-  ✅ design resolved, build DEFERRED (#104).**
-  The async-iterable `Source` (signal/event); a `source` slot with a
-  `SOURCE_SLOT_CONTRACT` guaranteeing `hands`/`hands-frame`; `PortSpec.schema?`
-  validated in `tick()` (dev/batch, incl. `undefined`); the seeded-RNG rule.
+  ✅ the node-swap half SHIPPED (#104); the async-iterable `Source` deferred to M-D.**
   **`videoFileSource` is a host-side `Source`, NOT a slot candidate** — see the
   resolution below, which corrects the earlier "slot candidate" reading. M-A's host
   wiring is the right shape and stays.
+  - ✅ **The `source` slot.** `SLOTS.source` in `src/app/graph.ts`, contract in
+    `src/nodes/sources/source_contract.ts` (`SOURCE_SLOT_CONTRACT`, guaranteeing
+    `hands` / `hands-frame`). Candidates are the finished-frame emitters:
+    `webcam-hands` (default), `synthetic-hands`, `replay-hands`. Selected with
+    `?slot.source=<type>`, and swappable on a *running* engine via `applyGraph`.
+    The payoff is pinned by a test: the real `defaultGraph()` drives sounding
+    voices in plain Node, with no camera and no MediaPipe.
+  - ✅ **`replay-hands`.** `replay-source` emits on a generic `value` port, which
+    is what makes it a fine stand-in for an arbitrary edge and a poor slot
+    candidate — a candidate is identified by the port it emits. This is the typed
+    sibling: same replay semantics, the contract's port and schema.
+  - ✅ **Port conformance.** `PortSpec.schema?: ZodType`, checked in `tick()`'s
+    output path under `EngineOptions.validatePorts` (off by default; **on** in
+    `runHeadless`, so a fixture is never recorded from a bad frame). Deliberately
+    NOT in `emitTaps`, which skips `undefined` — and "the node emitted nothing"
+    is the failure this exists to catch.
+  - ✅ **The seeded-RNG rule**, enforced as a test rather than a lint (this repo
+    lints with `tsc`, so its boundaries are tests — as with the command firewall):
+    no source-slot candidate may use `Math.random` or `Date.now`, and the
+    finished-frame candidates may read no clock at all. `webcam-hands` is exempt
+    from the clock rule **by name**, because MediaPipe's `detectForVideo` requires
+    a strictly-increasing timestamp.
+  - ⏳ **The async-iterable `Source` interface + its pump — deferred to M-D**, on
+    purpose. The pump is a private detail of the Applier, so the interface has no
+    implementation and no consumer until the Applier exists; shipping it now would
+    be a contract nobody honours, which this repo has been burned by twice
+    (#119, #120). The node-swap half above needs none of it.
 - **M-D — The Applier (R4 complete, R5 orthogonality). ⚠ untested live surface.**
   `runHeadless` delegates (BatchClock + bounded recorder tap, no audio sink);
   `useEngine`'s effect becomes a thin Applier config — **this is where the live

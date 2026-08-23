@@ -1128,6 +1128,33 @@
     ]
   },
   {
+    "type": "replay-hands",
+    "title": "Replay Hands",
+    "description": "Replays a recorded hand-landmark stream, one frame per tick. Camera-free and deterministic.",
+    "roles": [
+      "source"
+    ],
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      }
+    ],
+    "params": [
+      {
+        "name": "frames",
+        "type": "array",
+        "default": []
+      },
+      {
+        "name": "loop",
+        "type": "boolean",
+        "default": false
+      }
+    ]
+  },
+  {
     "type": "replay-source",
     "title": "Replay Source",
     "description": "Emits a recorded value stream, one value per tick.",

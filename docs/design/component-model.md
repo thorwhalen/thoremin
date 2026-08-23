@@ -163,6 +163,33 @@ the Stream Applier's source selection all sit on top of; none of them needs to
 know about node instances. Edges are re-wired unconditionally on every apply,
 which is free — they are just a map on each node.
 
+### Slots today
+
+| slot | role | default | candidates | UI? |
+|---|---|---|---|---|
+| `mapping` | `mapping` | `voice-mapping` | `voice-mapping` | no — one implementation |
+| `source` | `source` | `webcam-hands` | `webcam-hands`, `synthetic-hands`, `replay-hands` | no — see below |
+
+The `source` slot (#104) is the first with more than one real candidate, which
+makes it the first genuine test of "swapping is a config flip" — and it passes:
+`?slot.source=synthetic-hands` runs the entire downstream instrument with no
+camera and no MediaPipe, and the same swap applied to a *running* engine replaces
+exactly one node.
+
+It still gets **no player-facing dropdown**, and that is not a contradiction of
+the ">= 2 implementations" rule. That rule says when a swap *may* be surfaced,
+not that it must be: a replay or a synthetic hand is a **verification
+affordance**, not an instrument a player chooses between. The rule's purpose is to
+stop slot machinery being built for hypothetical swaps; here the swap is real and
+the audience is a developer.
+
+Its contract also carries the first `PortSpec.schema`. `kind` was always advisory
+— a label. A slot whose candidates are written independently needs something
+checkable, and specifically it needs to catch the failure a type system cannot:
+a source that emits **nothing** on a port it declares. That is a silent graph, not
+an error, and it is why the check lives in `tick()`'s output path rather than in
+`emitTaps` (which skips `undefined` by design).
+
 ## Sub-components are functions inside a node — **not** DAG nodes
 
 The single strongest consensus across all review lenses: **overlay pieces (and

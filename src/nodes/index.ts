@@ -10,6 +10,7 @@ import { createRegistry, type NodeRegistry } from '@/dag';
 
 import { syntheticHandsNode } from './sources/synthetic_hands';
 import { replaySourceNode } from './sources/replay';
+import { replayHandsNode } from './sources/replay_hands';
 import { handFeaturesNode } from './features/hand_features';
 import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
@@ -35,6 +36,13 @@ import { performanceNode } from './music/performance';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
+export { replayHandsNode } from './sources/replay_hands';
+export {
+  SOURCE_SLOT_CONTRACT,
+  SOURCE_SLOT_OUTPUT,
+  SOURCE_SLOT_INPUTS,
+} from './sources/source_contract';
+export type { SlotContract } from './slot_contract';
 export { handFeaturesNode } from './features/hand_features';
 export { faceFeaturesNode } from './features/face_features';
 export { faceControlsNode } from './features/face_controls';
@@ -66,6 +74,7 @@ export * from './domain';
 export const CORE_NODES = [
   syntheticHandsNode,
   replaySourceNode,
+  replayHandsNode,
   handFeaturesNode,
   faceFeaturesNode,
   faceControlsNode,

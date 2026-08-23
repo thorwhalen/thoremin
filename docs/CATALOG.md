@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (31)
+## Nodes (32)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -125,6 +125,14 @@ Emits a recorded value stream, one value per tick.
 - **in:** —
 - **out:** value
 - **params:** values (array=[]), loop (boolean=false)
+
+#### `replay-hands` — Replay Hands
+Replays a recorded hand-landmark stream, one frame per tick. Camera-free and deterministic.
+
+- **roles:** source
+- **in:** —
+- **out:** hands:hands-frame
+- **params:** frames (array=[]), loop (boolean=false)
 
 ### Features
 _Raw sensor data → normalized control signals._

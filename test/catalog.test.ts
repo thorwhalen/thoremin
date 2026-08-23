@@ -4,6 +4,8 @@
  * is generated from. Guards that the manual can't drift from the code.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { buildCatalog } from '@/catalog';
 import { createCoreRegistry } from '@/nodes';
 
@@ -50,6 +52,17 @@ describe('buildCatalog', () => {
 
   it('is JSON-serializable (for the frontend manual)', () => {
     expect(() => JSON.stringify(catalog)).not.toThrow();
+  });
+
+  it('every node is filed under a real manual section, never the "Other" catch-all', () => {
+    // The manual's grouping is a HAND-LISTED table in scripts/gen_catalog.ts (the
+    // registry has no discovery seam — component-model.md, "Two corrections" #2).
+    // So adding a node and forgetting that table produces a manual that is not
+    // wrong, just quietly worse: the node lands in an unexplained "Other" heap at
+    // the bottom. Nothing else notices, which is why this does.
+    const manual = readFileSync(resolve(process.cwd(), 'public/manual.html'), 'utf8');
+    expect(manual).not.toContain('<h3>Other</h3>');
+    expect(readFileSync(resolve(process.cwd(), 'docs/CATALOG.md'), 'utf8')).not.toContain('### Other');
   });
 
   it('introspects the FULL app registry (incl. browser nodes) without dropping or throwing', async () => {
