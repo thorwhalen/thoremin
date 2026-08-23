@@ -32,12 +32,13 @@ export interface StillPoint {
   vector: FeatureVector;
   /** Milliseconds since the recording started. */
   t: number;
-  /** Which ritual step produced it (so a step can be re-run independently). */
-  step: StepId;
+  /**
+   * The id of the cue that produced it (#163). A cue can be re-run independently, the
+   * projection can colour points by cue, and a category that is mostly one cue's
+   * points has a ready-made name suggestion.
+   */
+  cue: string;
 }
-
-/** The steps of the enrollment ritual. Data, not control flow — see `ritual.ts`. */
-export type StepId = 'rest' | 'range' | 'nuisance' | 'vocabulary';
 
 /**
  * A nuisance profile: how much each feature moved while the player demonstrated
@@ -68,6 +69,11 @@ export interface Category {
   size: number;
   /** Mean weighted distance of its members from the centroid — its tightness. */
   radius: number;
+  /**
+   * Which cues its member still-points came from (cue id -> count). Filled by the
+   * session; a host may offer the dominant cue as the category's starting name.
+   */
+  cues?: Record<string, number>;
 }
 
 /**

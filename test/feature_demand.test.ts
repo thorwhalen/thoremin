@@ -143,19 +143,22 @@ describe('the vector nodes serve a demand with the Lab CLOSED (the v1 trainer bu
   });
 });
 
-describe('the trainer claims the catalog while a step runs, and lets go after', () => {
-  it('begin → claim; end → release; reset → release', () => {
+describe('the trainer claims its ROUTINE\'s groups while it runs, and lets go after', () => {
+  it('start → claim the union of the cues\' groups; stop → release; reset → release', () => {
     appFeatureDemand.reset();
     useTrainer.getState().reset();
     expect(featureDemandResource()).toBeNull();
-    useTrainer.getState().begin('rest');
+    useTrainer.getState().start(1000);
     const during = featureDemandResource();
     expect(during).not.toBeNull();
+    // The default (face) routine: face groups, and NOT hand groups — a face routine
+    // must not make the engine compute the hand catalog.
     expect(during!.has('face.head')).toBe(true);
-    expect(during!.has('hand.finger.flexion')).toBe(true);
-    useTrainer.getState().end();
+    expect(during!.has('face.geom.mouth')).toBe(true);
+    expect(during!.has('hand.finger.flexion')).toBe(false);
+    useTrainer.getState().stop(2000);
     expect(featureDemandResource()).toBeNull();
-    useTrainer.getState().begin('vocabulary');
+    useTrainer.getState().start(3000);
     useTrainer.getState().reset();
     expect(featureDemandResource()).toBeNull();
   });

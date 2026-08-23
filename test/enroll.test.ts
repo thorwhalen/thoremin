@@ -12,27 +12,51 @@ import {
   buildHierarchy,
   classify,
   createCategoryTracker,
-  createEnrollmentSession,
+  createNoiseEstimator,
+  createSession,
   createStillPointSampler,
   cutAt,
-  ENROLLMENT_STEPS,
+  noiseDistance,
   nuisanceProfile,
   rankFeatures,
+  scaleWeights,
   selectByInvariance,
   suggestK,
   trainModel,
   weightsFromNuisance,
+  type Cue,
   type FeatureVector,
 } from '@/enroll';
+import { starterCueById } from '@/app/enroll/starterCues';
 import { matrixToHeadPose } from '@/nodes/domain';
 import { loadStream } from './helpers/fixtures';
+
+/** A toy registry for sessions: every key is its own group named after itself. */
+const toyRegistry = (ids: string[]) => ({ allFeatureIds: ids, groupOf: (id: string) => ids.includes(id) ? 'toy' : undefined });
+const toyCue = (id: string, produces: Cue['produces'], extra: Partial<Cue> = {}): Cue =>
+  ({
+    id,
+    name: id,
+    instruction: `do ${id}.`,
+    rationale: '',
+    collects: { groups: ['toy'], omit: [], axes: produces === 'nuisance' ? ['scale'] : [] },
+    produces,
+    sufficiency:
+      produces === 'vocabulary'
+        ? { kind: 'variety', minPoints: 2, minSeparation: 3, holdNudgeMs: 8000, patienceMs: 60000 }
+        : { kind: 'frames', minFrames: 10, patienceMs: 20000 },
+    variations: [],
+    tags: [],
+    ...extra,
+  }) as Cue;
 
 /** A vector built from a few named channels. */
 const v = (o: Record<string, number>): FeatureVector => o;
 
-describe('still-point sampler — the "cluster poses, not transitions" guard', () => {
+describe('still-point sampler (absolute metric, the v1 rule) — the "cluster poses, not transitions" guard', () => {
+  const abs = { metric: 'absolute' as const };
   it('emits nothing while the vector is moving', () => {
-    const s = createStillPointSampler({ dwellMs: 200, speedThreshold: 0.3 });
+    const s = createStillPointSampler({ ...abs, dwellMs: 200, speedThreshold: 0.3 });
     let emitted = 0;
     for (let i = 0; i < 60; i++) {
       // 0.02/frame at 60fps = 1.2/s, well over the threshold.
@@ -42,14 +66,14 @@ describe('still-point sampler — the "cluster poses, not transitions" guard', (
   });
 
   it('emits ONE point for a held pose, not one per frame', () => {
-    const s = createStillPointSampler({ dwellMs: 200 });
+    const s = createStillPointSampler({ ...abs, dwellMs: 200 });
     let emitted = 0;
     for (let i = 0; i < 120; i++) if (s.push(v({ a: 0.5 }), i * 16.7)) emitted += 1;
     expect(emitted).toBe(1);
   });
 
   it('emits again only after the player MOVES to a new pose', () => {
-    const s = createStillPointSampler({ dwellMs: 200 });
+    const s = createStillPointSampler({ ...abs, dwellMs: 200 });
     const feed = (val: number, frames: number, t0: number) => {
       for (let i = 0; i < frames; i++) s.push(v({ a: val }), t0 + i * 16.7);
       return t0 + frames * 16.7;
@@ -71,7 +95,7 @@ describe('still-point sampler — the "cluster poses, not transitions" guard', (
     // This case separates them — a pose that creeps below the speed threshold travels
     // far past `minSeparation`, so ONLY the latch can stop it emitting a point every
     // dwell window and handing the clusterer a dwell-time histogram.
-    const s = createStillPointSampler({ dwellMs: 200, speedWindowMs: 100, speedThreshold: 0.35 });
+    const s = createStillPointSampler({ ...abs, dwellMs: 200, speedWindowMs: 100, speedThreshold: 0.35 });
     let a = 0.1;
     for (let i = 0; i < 120; i++) {
       a += 0.005; // 0.3/s — under the threshold, but 0.6 total: 12x minSeparation
@@ -81,16 +105,132 @@ describe('still-point sampler — the "cluster poses, not transitions" guard', (
   });
 
   it('averages the dwell window rather than taking the last frame', () => {
-    const s = createStillPointSampler({ dwellMs: 100 });
+    const s = createStillPointSampler({ ...abs, dwellMs: 100 });
     // Tiny alternating jitter around 0.5 — slow enough to count as held.
     for (let i = 0; i < 40; i++) s.push(v({ a: i % 2 ? 0.51 : 0.49 }), i * 16.7);
     expect(s.points()[0].vector.a).toBeCloseTo(0.5, 2);
   });
 
   it('a NaN feature ("not measurable") does not wedge the sampler', () => {
-    const s = createStillPointSampler({ dwellMs: 100 });
+    const s = createStillPointSampler({ ...abs, dwellMs: 100 });
     for (let i = 0; i < 40; i++) s.push(v({ a: 0.4, bad: NaN }), i * 16.7);
     expect(s.points()).toHaveLength(1);
+  });
+});
+
+describe('noise units — the estimator every distance is measured in (#163)', () => {
+  /** Deterministic "noise": a fixed pseudo-random sequence in [-1, 1). */
+  const prng = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 2147483648 - 1;
+  };
+
+  it('sigma converges to the per-frame jitter, per feature, in that feature\'s own units', () => {
+    const n = createNoiseEstimator();
+    const r = prng(1);
+    // `deg` jitters +-0.3 (degrees), `bs` jitters +-0.01 (a blendshape): 30x apart.
+    for (let i = 0; i < 300; i++) n.push(v({ deg: 10 + 0.3 * r(), bs: 0.2 + 0.01 * r() }), i * 33);
+    const ratio = n.sigma('deg') / n.sigma('bs');
+    expect(ratio).toBeGreaterThan(15);
+    expect(ratio).toBeLessThan(60);
+  });
+
+  it('a deliberate move barely inflates the estimate (the clip), so the next hold still reads as held', () => {
+    const n = createNoiseEstimator();
+    const r = prng(7);
+    let t = 0;
+    for (let i = 0; i < 200; i++) n.push(v({ a: 0.5 + 0.01 * r() }), (t += 33));
+    const before = n.sigma('a');
+    // A 1 s move of 20x the jitter per frame.
+    for (let i = 0; i < 30; i++) n.push(v({ a: 0.5 + 0.2 * i + 0.01 * r() }), (t += 33));
+    const after = n.sigma('a');
+    // The raw estimate inflates by a few tens of percent, not several times; the UNIT
+    // (the floored sigma) may also rise with the range, but stays within a factor of
+    // the jitter rather than tracking the move itself.
+    expect(n.snapshot().sigma.a).toBeLessThan(before * 2);
+    expect(after).toBeLessThan(before * 8);
+  });
+
+  it('a feature that has never varied has no unit (weight 0); one that varied once gets the range floor', () => {
+    const n = createNoiseEstimator({ rangeFloor: 0.01 });
+    for (let i = 0; i < 50; i++) n.push(v({ flat: 0, step: i < 25 ? 0 : 1 }), i * 33);
+    const w = scaleWeights(n.snapshot(), { rangeFloor: 0.02 });
+    expect(w.flat).toBe(0);
+    // `step` jumped once (sigma ~ 0 apart from that frame) so the floor rules: 2% of range 1.
+    expect(w.step).toBeGreaterThan(0);
+    expect(w.step).toBeLessThanOrEqual(50 + 1e-9);
+    expect(Number.isNaN(n.sigma('never'))).toBe(true);
+  });
+
+  it('noiseDistance is RMS over the attention features in sigma, skipping what is unseen', () => {
+    const sigma = (id: string) => ({ a: 0.1, b: 1 })[id] ?? NaN;
+    // a moved 0.3 (3 sigma), b moved 3 (3 sigma): RMS 3. c is unknown and ignored.
+    expect(noiseDistance(v({ a: 0.3, b: 3, c: 9 }), v({ a: 0, b: 0, c: 0 }), sigma, ['a', 'b', 'c'])).toBeCloseTo(3, 6);
+    expect(noiseDistance(v({ a: 0.3 }), v({ a: 0 }), sigma, ['zzz'])).toBe(0);
+  });
+});
+
+describe('still-point sampler (noise-relative, the default) — "held" means "no feature moved more than a few sigma"', () => {
+  const prng = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 2147483648 - 1;
+  };
+
+  it('a head turn in DEGREES and a smile in 0..1 are both seen as motion, and both holds as held', () => {
+    const s = createStillPointSampler({ dwellMs: 200 });
+    const r = prng(3);
+    let t = 0;
+    const frame = (yaw: number, smile: number) => v({ yaw: yaw + 0.3 * r(), smile: smile + 0.01 * r() });
+    // settle: hold (0, 0)
+    for (let i = 0; i < 60; i++) s.push(frame(0, 0), (t += 33));
+    // turn the head 25 degrees over 0.5 s, then hold
+    for (let i = 1; i <= 15; i++) s.push(frame((25 * i) / 15, 0), (t += 33));
+    for (let i = 0; i < 30; i++) s.push(frame(25, 0), (t += 33));
+    // now smile (0 -> 0.8 over 0.5 s) with the head still turned, then hold
+    for (let i = 1; i <= 15; i++) s.push(frame(25, (0.8 * i) / 15), (t += 33));
+    for (let i = 0; i < 30; i++) s.push(frame(25, 0.8), (t += 33));
+    const pts = s.points();
+    expect(pts).toHaveLength(3);
+    expect(pts[1].vector.yaw).toBeGreaterThan(20);
+    expect(pts[2].vector.smile).toBeGreaterThan(0.7);
+  });
+
+  it('the latch: a slow creep within the noise emits one point, not one per dwell window', () => {
+    const s = createStillPointSampler({ dwellMs: 200 });
+    const r = prng(5);
+    let a = 0.3;
+    for (let i = 0; i < 240; i++) {
+      a += 0.0005; // 0.12 total, but never more than a sigma or so per window
+      s.push(v({ a: a + 0.01 * r() }), i * 33);
+    }
+    expect(s.points()).toHaveLength(1);
+  });
+
+  it('attends only to `features`: a moving mouth does not stop a head cue from reading as held', () => {
+    const r = prng(11);
+    let t = 0;
+    // One shared estimator, warmed on a resting face first — as a session's is by the
+    // rest cue. (Cold, a smooth sweep from frame 0 would be learnt as the "noise".)
+    const noise = createNoiseEstimator();
+    for (let i = 0; i < 60; i++) noise.push(v({ yaw: 5 + 0.3 * r(), mouth: 0.5 + 0.01 * r() }), (t += 33));
+    const head = createStillPointSampler({ dwellMs: 200, features: ['yaw'], noise });
+    const all = createStillPointSampler({ dwellMs: 200, noise });
+    for (let i = 0; i < 90; i++) {
+      // yaw held; mouth sweeping continuously (a real move, 10x its own jitter per frame)
+      const f = v({ yaw: 5 + 0.3 * r(), mouth: 0.5 + 0.4 * Math.sin(i / 3) + 0.01 * r() });
+      noise.push(f, (t += 33));
+      head.push(f, t);
+      all.push(f, t);
+    }
+    expect(head.points().length).toBeGreaterThanOrEqual(1);
+    expect(all.points()).toHaveLength(0);
+  });
+
+  it('a SHARED estimator is not fed twice (the session feeds it; the sampler only reads)', () => {
+    const noise = createNoiseEstimator();
+    const s = createStillPointSampler({ dwellMs: 100, noise });
+    for (let i = 0; i < 20; i++) s.push(v({ a: i * 0.1 }), i * 33);
+    expect(noise.snapshot().frames).toBe(0);
   });
 });
 
@@ -252,23 +392,6 @@ describe('classification — soft membership, reject, hysteresis', () => {
   });
 });
 
-describe('the ritual is data, and says what it needs', () => {
-  it('has the four steps in order, each with a prompt and a rationale', () => {
-    expect(ENROLLMENT_STEPS.map((s) => s.id)).toEqual(['rest', 'range', 'nuisance', 'vocabulary']);
-    for (const s of ENROLLMENT_STEPS) {
-      expect(s.prompt.length).toBeGreaterThan(10);
-      expect(s.rationale.length).toBeGreaterThan(10);
-      expect(s.minSamples).toBeGreaterThan(0);
-    }
-  });
-
-  it('never tells the player WHICH face to make', () => {
-    // The whole feature exists because prescribed categories are the ones they can't hit.
-    const vocab = ENROLLMENT_STEPS.find((s) => s.id === 'vocabulary')!;
-    expect(vocab.prompt).toMatch(/whichever|you like|reliably/i);
-  });
-});
-
 describe('end-to-end over the REAL recording', () => {
   interface PoseRecord {
     present: boolean;
@@ -301,11 +424,19 @@ describe('end-to-end over the REAL recording', () => {
     return out;
   };
 
-  it('the sampler finds several distinct held poses in a real take', () => {
-    const s = createStillPointSampler({ dwellMs: 200, speedThreshold: 0.35 });
+  it('the sampler (absolute metric) finds several distinct held poses in a real take', () => {
+    const s = createStillPointSampler({ metric: 'absolute', dwellMs: 200, speedThreshold: 0.35 });
     for (const { v: vec, t } of range(0, 13.6)) s.push(vec, t);
     const pts = s.points();
     // Far fewer than the 400 frames, and more than one — i.e. it actually segmented.
+    expect(pts.length).toBeGreaterThan(2);
+    expect(pts.length).toBeLessThan(60);
+  });
+
+  it('the sampler (noise-relative, the default) finds several distinct held poses too', () => {
+    const s = createStillPointSampler({ dwellMs: 200 });
+    for (const { v: vec, t } of range(0, 13.6)) s.push(vec, t);
+    const pts = s.points();
     expect(pts.length).toBeGreaterThan(2);
     expect(pts.length).toBeLessThan(60);
   });
@@ -323,20 +454,22 @@ describe('end-to-end over the REAL recording', () => {
     expect(w.brow).toBeLessThan(w.jaw);
   });
 
+  /** The default face routine's cues, but attending to the toy keys above. */
+  const reg = toyRegistry(['smile', 'jaw', 'brow', 'browDown', 'squint', 'yaw', 'pitch']);
+  const rest = toyCue('rest', 'baseline');
+  const dolly = toyCue('dolly', 'nuisance');
+  const faces = toyCue('faces', 'vocabulary');
+  const feed = (session: ReturnType<typeof createSession>, cue: Cue, from: number, to: number) => {
+    session.beginCue(cue);
+    for (const { v: vec, t } of range(from, to)) session.push(vec, t);
+    session.endCue();
+  };
+
   it('a full session trains, and re-cutting to a different k needs no rebuild', () => {
-    const session = createEnrollmentSession({ dwellMs: 200 });
-
-    session.beginStep('rest');
-    for (const { v: vec, t } of range(7.7, 8.5)) session.push(vec, t); // a held, settled face
-    session.endStep();
-
-    session.beginStep('nuisance');
-    for (const { v: vec, t } of range(10.9, 13.6)) session.push(vec, t);
-    session.endStep();
-
-    session.beginStep('vocabulary');
-    for (const { v: vec, t } of range(0, 10.5)) session.push(vec, t);
-    session.endStep();
+    const session = createSession({ ...reg, sampler: { dwellMs: 200 } });
+    feed(session, rest, 7.7, 8.5); // a held, settled face
+    feed(session, dolly, 10.9, 13.6);
+    feed(session, faces, 0, 10.5);
 
     session.build();
     const k3 = session.retrain(3);
@@ -350,36 +483,76 @@ describe('end-to-end over the REAL recording', () => {
     const k2 = session.retrain(2);
     expect(k2.categories).toHaveLength(2);
 
-    // Every category came from real points.
-    for (const c of k3.categories) expect(c.size).toBeGreaterThan(0);
+    // Every category came from real points, and says which cue fed it.
+    for (const c of k3.categories) {
+      expect(c.size).toBeGreaterThan(0);
+      expect(c.cues?.faces).toBe(c.size);
+    }
   });
 
   it('a trained model recognises the take it was trained on', () => {
-    const session = createEnrollmentSession({ dwellMs: 200 });
-    session.beginStep('rest');
-    for (const { v: vec, t } of range(7.7, 8.5)) session.push(vec, t);
-    session.endStep();
-    session.beginStep('vocabulary');
-    for (const { v: vec, t } of range(0, 10.5)) session.push(vec, t);
-    session.endStep();
+    const session = createSession({ ...reg, sampler: { dwellMs: 200 } });
+    feed(session, rest, 7.7, 8.5);
+    feed(session, faces, 0, 10.5);
     session.build();
     const model = session.retrain(3);
 
     // Each captured still-point should land in SOME category, not no-man's-land — a model
     // that rejects its own training data is the failure this asserts against.
-    const pts = session.pointsFor('vocabulary');
+    const pts = session.pointsFor('faces');
     const accepted = pts.filter((p) => !classify(model, p.vector).rejected).length;
     expect(accepted / pts.length).toBeGreaterThan(0.8);
   });
 
-  it('reports progress and refuses to claim readiness before the required steps', () => {
-    const session = createEnrollmentSession();
+  it('the model is measured in NOISE units: its weights are 1/sigma, so a 1-degree yaw jitter cannot outweigh a smile', () => {
+    const session = createSession({ ...reg, sampler: { dwellMs: 200 } });
+    feed(session, rest, 7.7, 8.5);
+    feed(session, faces, 0, 10.5);
+    session.build();
+    const w = session.weights();
+    const scale = scaleWeights(session.noise().snapshot());
+    // The weights carry the scale (times the nuisance factor, 1 here — no nuisance cue).
+    for (const id of session.features()) expect(w[id]).toBeCloseTo(scale[id], 6);
+    // And a distance between two vocabulary points is O(sigma), not O(raw units).
+    const pts = session.pointsFor('faces');
+    const d = noiseDistance(pts[0].vector, pts[1].vector, session.sigma, session.features());
+    expect(d).toBeGreaterThan(1);
+    expect(d).toBeLessThan(1e4);
+  });
+
+  it('the dolly cue, in noise units, still quiets `brow` and leaves `jaw` alone', () => {
+    const session = createSession({ ...reg, sampler: { dwellMs: 200 } });
+    feed(session, rest, 7.7, 8.5);
+    feed(session, dolly, 10.9, 13.6);
+    feed(session, faces, 0, 10.5);
+    session.build();
+    const w = session.weights();
+    const scale = scaleWeights(session.noise().snapshot());
+    // Divide the scale out to read the nuisance factor alone.
+    const brow = w.brow / scale.brow;
+    const jaw = w.jaw / scale.jaw;
+    expect(brow).toBeLessThan(jaw);
+    expect(brow).toBeLessThan(0.6);
+  });
+
+  it('reports readiness only once there is a vocabulary to carve', () => {
+    const session = createSession({ ...reg, sampler: { dwellMs: 200 } });
     expect(session.ready()).toBe(false);
-    session.beginStep('rest');
-    for (const { v: vec, t } of range(7.7, 8.5)) session.push(vec, t);
-    session.endStep();
+    feed(session, rest, 7.7, 8.5);
     expect(session.ready()).toBe(false); // rest alone is not enough
-    const rest = session.progress().find((p) => p.id === 'rest')!;
-    expect(rest.coverage).toBeGreaterThan(0);
+    expect(session.framesFor('rest')).toBeGreaterThan(10);
+    expect(session.baseline()).toBeDefined();
+    feed(session, faces, 0, 10.5);
+    expect(session.ready()).toBe(true);
+  });
+
+  it('the shipped starter cues resolve against the REAL catalog (face.head -> yaw/pitch/roll, raw position omitted)', () => {
+    const session = createSession();
+    const lookLeft = starterCueById('look-left')!;
+    const feats = session.featuresFor(lookLeft);
+    expect(feats).toContain('face.head.yaw');
+    expect(feats).toContain('face.head.pitch');
+    expect(feats).not.toContain('face.head.x');
+    expect(feats).not.toContain('face.head.scale');
   });
 });

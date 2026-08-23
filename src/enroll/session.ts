@@ -1,8 +1,9 @@
 /**
- * The enrollment session (#160) — the facade that runs the ritual and produces a model.
+ * The trainer session (#160, reworked for #163) — the take, and the model built from it.
  *
- * This is the one stateful object a host holds. It owns the per-step capture (a
- * still-point sampler for the pose steps, raw accumulation for the spread steps), and
+ * This is the one stateful object a host holds. It owns the per-cue capture (a
+ * still-point sampler for vocabulary cues, raw accumulation for the baseline and
+ * nuisance cues), the session-wide noise estimator every distance is measured in, and
  * turns the accumulated take into a {@link TrainedModel} on demand.
  *
  * **`retrain(k)` is deliberately cheap and repeatable.** It re-cuts the already-built
@@ -11,11 +12,30 @@
  * and each move is a tree cut over the same recording, not a retrain. `build()` (the
  * expensive part) happens once when the take finishes.
  *
+ * ## Keyed by cue, not by step
+ *
+ * v1 had four hardcoded steps. Now a session holds samples per CUE id, and the cue's
+ * `produces` says what they are for: `baseline` frames set the reject radius,
+ * `nuisance` frames set the down-weighting, and the still-points of EVERY `vocabulary`
+ * cue — "look left" and "your faces" alike — form one pool the hierarchy is built over.
+ * Each still-point remembers its cue, so a category can report which cues fed it (a
+ * free label suggestion: a category that is 90% "look left" points is probably that).
+ *
+ * ## Units (#163)
+ *
+ * The live vector is raw catalog output in mixed units. Every distance here is taken
+ * in NOISE UNITS — a feature's displacement divided by its own jitter, estimated over
+ * the whole take by one shared {@link NoiseEstimator} — by folding `1/sigma` into the
+ * model's weights. Centroids stay raw, so classifying a live raw vector needs no
+ * transform and the model stays self-contained. See `noise.ts`.
+ *
  * Nothing here touches React, the DAG, MediaPipe or audio. The host pushes feature
  * vectors in and reads a model out.
  */
+import { ALL_FEATURES, FEATURE_BY_ID } from '@/features/catalog';
 import { buildHierarchy, cutAt, suggestK, type Hierarchy } from './cluster';
 import { trainModel } from './classify';
+import { cueFeatures, samplingFor, type Cue } from './cue';
 import {
   combineWeights,
   nuisanceProfile,
@@ -24,125 +44,184 @@ import {
   weightsFromNuisance,
   weightsFromSelection,
 } from './invariance';
-import { createStillPointSampler, type StillPointSampler } from './sampler';
-import { ENROLLMENT_STEPS, canTrain, stepById, stepCoverage } from './ritual';
-import type {
-  FeatureVector,
-  FeatureWeights,
-  StepId,
-  StillPoint,
-  TrainedModel,
-} from './types';
+import { applyWeights, createNoiseEstimator, scaleWeights, type NoiseEstimator, type NoiseOptions } from './noise';
+import { createStillPointSampler, type SamplerOptions, type StillPointSampler } from './sampler';
+import type { FeatureVector, FeatureWeights, StillPoint, TrainedModel } from './types';
 
 export interface SessionOptions {
   /** Cap on how many features the model uses. See `rankFeatures` for why a cap exists. */
   maxFeatures?: number;
-  /** Honour declared `invariantTo` in addition to the demonstrated nuisance profile. */
+  /** Honour declared `invariantTo` (#131) in addition to the demonstrated nuisance. */
   useDeclaredInvariance?: boolean;
-  /** Passed through to the sampler. */
-  speedThreshold?: number;
-  dwellMs?: number;
+  /** Passed through to every still-point sampler (dwell, held threshold, …). */
+  sampler?: Omit<SamplerOptions, 'cue' | 'features' | 'noise'>;
+  /** The noise estimator's options. */
+  noise?: NoiseOptions;
+  /**
+   * Nuisance weighting scale, in noise units: the demonstrated spread at which a
+   * feature is considered fully nuisance-driven. A feature that swings this many
+   * sigma while nothing should have changed is badly confounded.
+   */
+  nuisanceScale?: number;
+  /**
+   * Resolves a feature id to its group — how a cue's `collects.groups` becomes a list
+   * of ids. Defaults to the catalog; inject a toy registry in tests.
+   */
+  groupOf?: (id: string) => string | undefined;
+  /** The feature ids a cue's groups are resolved against. Defaults to the catalog. */
+  allFeatureIds?: readonly string[];
 }
 
-/** Per-step progress, for the coverage meter. */
-export interface StepProgress {
-  id: StepId;
-  samples: number;
-  coverage: number;
-}
-
-export interface EnrollmentSession {
-  /** Start (or restart) one step. Re-running a step discards only that step's samples. */
-  beginStep(id: StepId): void;
-  /** Feed a live feature vector. No-op when no step is active. */
+export interface Session {
+  /** Start capturing for `cue`. Re-running a cue discards only that cue's samples. */
+  beginCue(cue: Cue): void;
+  /** Feed a live feature vector. Every frame feeds the noise estimate; the active
+   *  cue (if any) samples it. */
   push(vector: FeatureVector, tMs: number): void;
-  /** Finish the active step. */
-  endStep(): void;
-  /** Progress for every step. */
-  progress(): StepProgress[];
-  /** Whether enough has been captured to train. */
+  /** Finish the active cue. */
+  endCue(): void;
+  /** The active cue, or null. */
+  activeCue(): Cue | null;
+  /** Still-points captured for a cue. */
+  pointsFor(cueId: string): StillPoint[];
+  /** Every still-point, across all vocabulary cues. */
+  points(): StillPoint[];
+  /** Frames captured for a continuous cue (those carrying >= 1 attention feature). */
+  framesFor(cueId: string): number;
+  /** A cue's resolved attention features. */
+  featuresFor(cue: Cue): string[];
+  /** Mean of the baseline cue's frames, if one has been captured. */
+  baseline(): FeatureVector | undefined;
+  /** The session's noise unit for a feature (NaN if unseen). */
+  sigma(id: string): number;
+  /** The shared estimator (for a meter / a test). */
+  noise(): NoiseEstimator;
+  /** Whether there is anything to build a model from. */
   ready(): boolean;
-  /** Build the hierarchy from the vocabulary take. Call once when the take finishes. */
+  /** Build the hierarchy from the vocabulary pool. Call once when the take finishes. */
   build(): void;
   /** The k the merge-gap heuristic suggests. A SUGGESTION — see `suggestK`. */
   suggestedK(): number;
   /** Re-cut the built hierarchy into `k` categories and return the model. Cheap. */
   retrain(k: number): TrainedModel;
-  /** The still-points captured for a step (for display / debugging). */
-  pointsFor(id: StepId): StillPoint[];
   /** The features the model is using, best-first. */
   features(): string[];
-  /** The weights distances are measured under. */
+  /** The weights distances are measured under (noise scale x nuisance). */
   weights(): FeatureWeights;
   reset(): void;
 }
 
-const DEFAULTS = { maxFeatures: 24, useDeclaredInvariance: false };
+const DEFAULTS = { maxFeatures: 24, useDeclaredInvariance: false, nuisanceScale: 4 };
 
-export function createEnrollmentSession(options: SessionOptions = {}): EnrollmentSession {
+// The only place this module touches the catalog: resolving a cue's groups to ids.
+const defaultGroupOf = (id: string): string | undefined => FEATURE_BY_ID[id]?.group;
+const defaultFeatureIds = (): readonly string[] => ALL_FEATURES.map((f) => f.id);
+
+/** Mean of `vectors` over the union of their finite keys. */
+function meanOf(vectors: readonly FeatureVector[]): FeatureVector | undefined {
+  if (vectors.length === 0) return undefined;
+  const sum: Record<string, number> = {};
+  const n: Record<string, number> = {};
+  for (const v of vectors) {
+    for (const k of Object.keys(v)) {
+      const x = v[k];
+      if (!Number.isFinite(x)) continue;
+      sum[k] = (sum[k] ?? 0) + x;
+      n[k] = (n[k] ?? 0) + 1;
+    }
+  }
+  const out: FeatureVector = {};
+  for (const k of Object.keys(sum)) out[k] = sum[k] / n[k];
+  return out;
+}
+
+export function createSession(options: SessionOptions = {}): Session {
   const o = { ...DEFAULTS, ...options };
+  const noise = createNoiseEstimator(o.noise);
+  const groupOf = o.groupOf ?? defaultGroupOf;
+  const allIds = o.allFeatureIds ?? defaultFeatureIds();
 
-  /** Still-points per step (the 'still-points' steps). */
-  const points = new Map<StepId, StillPoint[]>();
-  /** Raw frames per step (the 'continuous' steps — rest and nuisance). */
-  const raw = new Map<StepId, FeatureVector[]>();
+  /** Still-points per vocabulary cue. */
+  const points = new Map<string, StillPoint[]>();
+  /** Raw frames per continuous cue. */
+  const frames = new Map<string, FeatureVector[]>();
+  /** Every cue that has run, by id (for `produces` / `axes` at build time). */
+  const cuesSeen = new Map<string, Cue>();
 
-  let active: StepId | null = null;
+  let active: Cue | null = null;
+  let activeFeatures: string[] = [];
   let sampler: StillPointSampler | null = null;
 
   let hierarchy: Hierarchy = { heights: [], size: 0 };
   let chosenFeatures: string[] = [];
   let chosenWeights: FeatureWeights = {};
 
-  const samplesFor = (id: StepId): number =>
-    (points.get(id)?.length ?? 0) + (raw.get(id)?.length ?? 0);
+  const featuresFor = (cue: Cue): string[] => cueFeatures(cue, allIds, groupOf);
+  const vocabulary = (): StillPoint[] => {
+    const out: StillPoint[] = [];
+    for (const cue of cuesSeen.values()) {
+      if (cue.produces !== 'vocabulary') continue;
+      out.push(...(points.get(cue.id) ?? []));
+    }
+    return out;
+  };
+  const framesWhere = (produces: Cue['produces']): FeatureVector[] => {
+    const out: FeatureVector[] = [];
+    for (const cue of cuesSeen.values()) {
+      if (cue.produces !== produces) continue;
+      out.push(...(frames.get(cue.id) ?? []));
+    }
+    return out;
+  };
 
   return {
-    beginStep(id) {
-      active = id;
-      const step = stepById(id);
-      points.delete(id);
-      raw.delete(id);
-      if (step?.sampling === 'still-points') {
-        sampler = createStillPointSampler({
-          step: id,
-          ...(o.speedThreshold !== undefined ? { speedThreshold: o.speedThreshold } : {}),
-          ...(o.dwellMs !== undefined ? { dwellMs: o.dwellMs } : {}),
-        });
-        points.set(id, []);
+    beginCue(cue) {
+      active = cue;
+      cuesSeen.set(cue.id, cue);
+      activeFeatures = featuresFor(cue);
+      points.delete(cue.id);
+      frames.delete(cue.id);
+      if (samplingFor(cue) === 'still-points') {
+        sampler = createStillPointSampler({ ...o.sampler, cue: cue.id, features: activeFeatures, noise });
+        points.set(cue.id, []);
       } else {
         sampler = null;
-        raw.set(id, []);
+        frames.set(cue.id, []);
       }
     },
 
     push(vector, tMs) {
+      noise.push(vector, tMs);
       if (!active) return;
+      // A frame with none of the cue's features is not a sample of this cue (no face in
+      // shot, say) — it must not count toward "enough".
+      if (!activeFeatures.some((id) => Number.isFinite(vector[id]))) return;
       if (sampler) {
         const p = sampler.push(vector, tMs);
-        if (p) points.get(active)!.push(p);
+        if (p) points.get(active.id)!.push(p);
       } else {
-        raw.get(active)!.push(vector);
+        frames.get(active.id)!.push(vector);
       }
     },
 
-    endStep() {
+    endCue() {
       active = null;
       sampler = null;
+      activeFeatures = [];
     },
 
-    progress: () =>
-      ENROLLMENT_STEPS.map((s) => ({
-        id: s.id,
-        samples: samplesFor(s.id),
-        coverage: stepCoverage(s, samplesFor(s.id)),
-      })),
-
-    ready: () =>
-      canTrain(Object.fromEntries(ENROLLMENT_STEPS.map((s) => [s.id, samplesFor(s.id)]))),
+    activeCue: () => active,
+    pointsFor: (id) => (points.get(id) ?? []).slice(),
+    points: vocabulary,
+    framesFor: (id) => frames.get(id)?.length ?? 0,
+    featuresFor,
+    baseline: () => meanOf(framesWhere('baseline')),
+    sigma: (id) => noise.sigma(id),
+    noise: () => noise,
+    ready: () => vocabulary().length >= 2,
 
     build() {
-      const vocab = (points.get('vocabulary') ?? []).map((p) => p.vector);
+      const vocab = vocabulary().map((p) => p.vector);
       if (vocab.length === 0) {
         hierarchy = { heights: [], size: 0 };
         chosenFeatures = [];
@@ -150,21 +229,30 @@ export function createEnrollmentSession(options: SessionOptions = {}): Enrollmen
         return;
       }
 
-      // 1. Demonstrated invariance: what moved while nothing should have.
-      const nuisance = raw.get('nuisance') ?? [];
-      const profile = nuisanceProfile(nuisance, stepById('nuisance')?.axes ?? []);
-      let weights = weightsFromNuisance(profile);
+      // 1. Units: 1/sigma per feature, so every distance below is in noise units.
+      const scale = scaleWeights(noise.snapshot());
 
-      // 2. Declared invariance (#131), optional and OFF by default: it silences every
+      // 2. Demonstrated invariance: what moved (in noise units) while nothing should
+      //    have. One profile per nuisance cue, multiplied together.
+      let weights = scale;
+      for (const cue of cuesSeen.values()) {
+        if (cue.produces !== 'nuisance') continue;
+        const scaled = (frames.get(cue.id) ?? []).map((v) => applyWeights(v, scale));
+        const profile = nuisanceProfile(scaled, cue.collects.axes);
+        weights = combineWeights(weights, weightsFromNuisance(profile, { scale: o.nuisanceScale }));
+      }
+
+      // 3. Declared invariance (#131), optional and OFF by default: it silences every
       //    feature that has not been assessed, which is most of the catalog, so turning
       //    it on without saying so would quietly shrink the model.
       if (o.useDeclaredInvariance) {
+        const axes = [...new Set([...cuesSeen.values()].flatMap((c) => c.collects.axes))];
         const all = Object.keys(vocab[0] ?? {});
-        const sel = selectByInvariance(stepById('nuisance')?.axes ?? [], all);
+        const sel = selectByInvariance(axes, all);
         weights = combineWeights(weights, weightsFromSelection([...sel.keep, ...sel.unassessed], all));
       }
 
-      // 3. Rank by signal-after-weighting and keep the top slice.
+      // 4. Rank by signal-to-noise after weighting and keep the top slice.
       chosenFeatures = rankFeatures(vocab, weights, o.maxFeatures);
       chosenWeights = weights;
       hierarchy = buildHierarchy(vocab, chosenFeatures, weights);
@@ -173,21 +261,33 @@ export function createEnrollmentSession(options: SessionOptions = {}): Enrollmen
     suggestedK: () => suggestK(hierarchy),
 
     retrain(k) {
-      const vocab = (points.get('vocabulary') ?? []).map((p) => p.vector);
+      const pool = vocabulary();
+      const vocab = pool.map((p) => p.vector);
       const clusters = cutAt(hierarchy, k);
-      return trainModel(vocab, clusters, chosenFeatures, chosenWeights, {
-        restVectors: raw.get('rest') ?? [],
+      const model = trainModel(vocab, clusters, chosenFeatures, chosenWeights, {
+        restVectors: framesWhere('baseline'),
       });
+      // Which cues fed each category — a label suggestion the host may offer.
+      clusters.forEach((idxs, i) => {
+        const cat = model.categories.find((c) => c.id === `cat-${i + 1}`);
+        if (!cat) return;
+        const cues: Record<string, number> = {};
+        for (const j of idxs) cues[pool[j].cue] = (cues[pool[j].cue] ?? 0) + 1;
+        cat.cues = cues;
+      });
+      return model;
     },
 
-    pointsFor: (id) => (points.get(id) ?? []).slice(),
     features: () => chosenFeatures.slice(),
     weights: () => ({ ...chosenWeights }),
 
     reset() {
       points.clear();
-      raw.clear();
+      frames.clear();
+      cuesSeen.clear();
+      noise.reset();
       active = null;
+      activeFeatures = [];
       sampler = null;
       hierarchy = { heights: [], size: 0 };
       chosenFeatures = [];
