@@ -36,6 +36,7 @@ import { create } from 'zustand';
 import {
   createRunner,
   createSession,
+  resolveRoutine,
   routineGroups,
   type Cue,
   type CueOutcome,
@@ -49,6 +50,7 @@ import {
 } from '@/enroll';
 import { appFeatureDemand } from '../featureDemand';
 import { createCueStore, createRoutineStore, listCues, loadRoutine, type CueStore, type RoutineStore } from './cueStore';
+import { emitGuidance } from './guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 
 /** One line of what the runner said, for the panel's transcript. */
@@ -85,6 +87,10 @@ interface TrainerState {
   say: string | null;
   outcomes: (CueOutcome | null)[];
   transcript: TranscriptLine[];
+  /** What the runner said when the LAST cue ended ("Good." / "Moving on."), or null
+   *  after a skip — what the beat shows. Not "the last end line in the transcript":
+   *  a skip says nothing, and the previous cue's phrase must not be shown for it. */
+  lastEndSay: string | null;
 
   /** True once `build()` has run and a model can be cut. */
   built: boolean;
@@ -103,10 +109,19 @@ interface TrainerState {
    *  (such a cue could never capture anything; see `cueStore.listCues`). */
   unusable: string[];
 
+  /** Saved routines (metadata), newest first — for the picker. */
+  savedRoutines: { id: string; name: string }[];
+
   /** Read the cue + routine stores (idempotent; the panel calls it on open). */
   load(): Promise<void>;
   /** Replace the routine with these cue ids (resolved against `cues`). */
   setRoutine(cueIds: readonly string[], name?: string): void;
+  /** Persist the current routine (or `cueIds`) under `name`, and use it. */
+  saveRoutine(name: string, cueIds?: readonly string[]): Promise<void>;
+  /** Load a saved routine by id and use it (a missing id falls back to the default). */
+  useRoutine(id: string | null): Promise<void>;
+  /** Delete a saved routine. */
+  removeRoutine(id: string): Promise<void>;
   start(tMs: number): void;
   sample(vector: FeatureVector, tMs: number): void;
   tick(tMs: number): void;
@@ -158,8 +173,12 @@ export const useTrainer = create<TrainerState>()((set, get) => {
   };
 
   const onEvent = (e: RunnerEvent) => {
-    const push = (line: TranscriptLine) =>
+    const push = (line: TranscriptLine) => {
       set((st) => ({ transcript: [...st.transcript, line].slice(-TRANSCRIPT_LIMIT) }));
+      // Sinks run AFTER the runner's dispatch and the store's update have settled: a
+      // sink that reacts by skipping or stopping must not re-enter the runner mid-event.
+      queueMicrotask(() => emitGuidance(line));
+    };
     switch (e.type) {
       case 'cue-start':
         push({ t: e.t, kind: 'instruction', say: e.say });
@@ -170,7 +189,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       case 'cue-end':
         // A skip says nothing; only an outcome with a phrase is a line of transcript.
         if (e.say) push({ t: e.t, kind: 'end', say: e.say, outcome: e.outcome, why: e.why });
-        set({ outcomes: runner?.state().outcomes ?? [] });
+        set({ outcomes: runner?.state().outcomes ?? [], lastEndSay: e.say ?? null });
         break;
       case 'done':
         push({ t: e.t, kind: 'done', say: e.say });
@@ -188,10 +207,12 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     routineName: 'Default',
     missing: [],
     unusable: [],
+    savedRoutines: [],
     loaded: false,
     ...IDLE,
     outcomes: STARTER_CUES.map(() => null),
     transcript: [],
+    lastEndSay: null,
     built: false,
     k: 3,
     suggestedK: 3,
@@ -207,29 +228,51 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       // the read resolved): the runner holds ITS cue list, and the panel renders the
       // store's — they must not diverge mid-run. Swap the routine only when idle.
       const running = get().status === 'running' || get().status === 'between';
+      const savedRoutines = (await routines.list()).map(({ id, name }) => ({ id, name }));
       set(
         running
-          ? { cues, unusable, loaded: true }
-          : { cues, unusable, routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null), loaded: true },
+          ? { cues, unusable, savedRoutines, loaded: true }
+          : { cues, unusable, savedRoutines, routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null), loaded: true },
       );
+    },
+
+    async saveRoutine(name, cueIds) {
+      const ids = cueIds ?? get().routine.map((c) => c.id);
+      // Hydrate first, persist after (the project's hot-path rule): the routine in use
+      // must not lag a slow provider, and Start must never run the pre-save one.
+      get().setRoutine(ids, name.trim() || 'Custom');
+      const { routines } = getStores();
+      await routines.save(name, { cueIds: [...new Set(ids)] });
+      const savedRoutines = (await routines.list()).map(({ id, name: n }) => ({ id, name: n }));
+      set({ savedRoutines });
+    },
+
+    async useRoutine(id) {
+      if (get().status === 'running' || get().status === 'between') return;
+      const { routines } = getStores();
+      const r = await loadRoutine(id, get().cues, routines);
+      set({ routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null) });
+    },
+
+    async removeRoutine(id) {
+      const { routines } = getStores();
+      await routines.remove(id);
+      const savedRoutines = (await routines.list()).map(({ id: i, name }) => ({ id: i, name }));
+      set({ savedRoutines });
     },
 
     setRoutine(cueIds, name = 'Custom') {
       // Not while a runner is driving the current routine (same reason as in load()).
       if (get().status === 'running' || get().status === 'between') return;
-      const byId = new Map(get().cues.map((c) => [c.id, c]));
-      const routine: Cue[] = [];
-      const missing: string[] = [];
-      for (const id of cueIds) {
-        const c = byId.get(id);
-        if (c) routine.push(c);
-        else missing.push(id);
-      }
+      // The same resolution the routine collection uses: unknown ids reported, a
+      // repeated id runs once.
+      const { cues: routine, missing } = resolveRoutine(cueIds, get().cues);
       set({ routine, routineName: name, missing, outcomes: routine.map(() => null) });
     },
 
     start(tMs) {
       const routine = get().routine;
+      set({ lastEndSay: null });
       // A previous runner (a re-run, or a test driving the store directly) must be
       // stopped and detached first, or it stays 'running' on an orphaned session and
       // keeps writing events into this store.
@@ -297,6 +340,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         ...IDLE,
         outcomes: get().routine.map(() => null),
         transcript: [],
+        lastEndSay: null,
         built: false,
         k: 3,
         suggestedK: 3,

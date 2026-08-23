@@ -137,6 +137,11 @@
         "name": "tagHud",
         "type": "object",
         "default": {}
+      },
+      {
+        "name": "trainerHud",
+        "type": "object",
+        "default": {}
       }
     ]
   },

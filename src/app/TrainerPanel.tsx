@@ -9,9 +9,11 @@
  * ## Cues, a runner, and a conversation
  *
  * The panel renders whatever routine the store loaded — a list of cues, which are
- * data — and, while the runner runs, shows what the runner SAYS: the cue's instruction,
- * large; the latest guidance ("a bit further, if you can"), beneath it; and a short
- * transcript. The runner steps when it has ENOUGH, not when time passes: the coverage
+ * data, editable through the {@link RoutinePicker} — and, while the runner runs, shows
+ * what the runner SAYS: the cue's instruction, large; the latest guidance ("a bit
+ * further, if you can"), beneath it; and a short transcript. The same strings are
+ * painted ON THE VIDEO by the overlay's `trainerHud` element (the player is looking at
+ * the camera, not at this panel); the panel is the full record, the HUD is the glance. The runner steps when it has ENOUGH, not when time passes: the coverage
  * meter is the cue's own minimum, and a cue the player cannot produce ends in
  * `cannot` and moves on rather than trapping them.
  *
@@ -44,7 +46,9 @@ import { GraduationCap, X } from 'lucide-react';
 import { categoryKey, type Category } from '@/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
+import RoutinePicker from './enroll/RoutinePicker';
 import { useTools } from './toolsStore';
+import { useControls } from './store';
 import { toolById } from './tools';
 
 const TOOL_ID = 'trainer';
@@ -105,6 +109,9 @@ export default function TrainerPanel() {
   const suggestedK = useTrainer((s) => s.suggestedK);
   const model = useTrainer((s) => s.model);
   const labels = useTrainer((s) => s.labels);
+  const lastEndSay = useTrainer((s) => s.lastEndSay);
+  const hudShow = useControls((s) => s.trainerHud.show);
+  const setTrainerHud = useControls((s) => s.setTrainerHud);
 
   const running = status === 'running' || status === 'between';
 
@@ -144,9 +151,54 @@ export default function TrainerPanel() {
   // Buildable only with something to carve: a routine that ended with every vocabulary
   // cue skipped or `cannot` is "done" and still has no still-points.
   const canBuild = (status === 'done' || status === 'stopped') && useTrainer.getState().session().ready();
-  const lastEndSay = [...transcript].reverse().find((l) => l.kind === 'end')?.say ?? null;
   const cueNames = new Map(routine.map((c) => [c.id, c.name]));
   const latestEnd = [...transcript].reverse().find((l) => l.kind === 'end' && l.outcome === 'cannot');
+
+  // While a routine runs the panel collapses to a slim strip: the instruction is on
+  // the video (the HUD), and a full-height panel would sit over it. Skip / Stop and
+  // the meter stay within reach; the full panel returns when the routine ends.
+  if (running && activeCue) {
+    return (
+      <div
+        data-tool={TOOL_ID}
+        data-compact
+        className="absolute bottom-14 left-3 z-40 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col gap-1 rounded-2xl border border-emerald-400/30 bg-black/70 px-3 py-2 backdrop-blur"
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-2">
+          <GraduationCap className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
+          <span className="flex-1 truncate text-[11px] text-white/85">
+            <span className="text-white/40">
+              {index + 1}/{routine.length} ·{' '}
+            </span>
+            {activeCue.name}
+            {status === 'between' && <span className="text-white/40"> · next</span>}
+          </span>
+          <span className="text-[10px] tabular-nums text-white/40">
+            {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
+          </span>
+          <button
+            onClick={() => useTrainer.getState().skip(nowMs())}
+            className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
+          >
+            Skip
+          </button>
+          <button
+            onClick={() => useTrainer.getState().stop(nowMs())}
+            className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
+          >
+            Stop
+          </button>
+        </div>
+        {/* The written channel is ALWAYS here too, in case the HUD is hidden. */}
+        <p className="truncate text-[11px] text-white" data-say title={activeCue.instruction}>
+          {status === 'between' ? lastEndSay ?? '' : activeCue.instruction}
+        </p>
+        {guidance && <p className="truncate text-[10px] italic text-emerald-200/80" data-guidance>{guidance}</p>}
+        <Coverage value={coverage} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -209,55 +261,22 @@ export default function TrainerPanel() {
           {missing.length > 0 && (
             <p className="text-[10px] text-amber-300/80">Skipping {missing.length} cue(s) this routine names that no longer exist.</p>
           )}
+          {/* The picker (#163 §3): filter, include, reorder, save. Not while running. */}
+          {!running && <RoutinePicker />}
         </div>
 
-        {/* What the runner is saying now. Always written; voice is a toggle on the same
-            string — so during the beat between cues the panel shows the END phrase the
-            runner just said ("Good."), and the next instruction only once it is said. */}
-        {running && activeCue && (
-          <div className="space-y-2 rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-3" aria-live="polite">
-            <p className="text-[10px] uppercase tracking-widest text-emerald-400/70">
-              {status === 'between' ? 'Next' : 'Now'} · {activeCue.name}
-            </p>
-            <p className="text-[14px] font-medium leading-snug text-white" data-say>
-              {status === 'between' ? lastEndSay ?? '…' : activeCue.instruction}
-            </p>
-            {guidance && (
-              <p className="text-[11px] italic text-emerald-200/80" data-guidance>
-                {guidance}
-              </p>
-            )}
-            {activeCue.rationale && <p className="text-[10px] leading-snug text-white/40">{activeCue.rationale}</p>}
-            <Coverage value={coverage} />
-            <div className="flex items-center gap-2">
-              <span className="flex-1 text-[10px] tabular-nums text-white/40">
-                {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
-              </span>
-              <button
-                onClick={() => useTrainer.getState().skip(nowMs())}
-                className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
-              >
-                Skip
-              </button>
-              <button
-                onClick={() => useTrainer.getState().stop(nowMs())}
-                className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
-              >
-                Stop
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!running && (
-          <button
-            onClick={() => useTrainer.getState().start(nowMs())}
-            disabled={routine.length === 0}
-            className="w-full rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/90 transition hover:bg-white/20 disabled:opacity-30"
-          >
-            {status === 'idle' ? 'Start' : 'Run again'}
-          </button>
-        )}
+        <button
+          onClick={() => useTrainer.getState().start(nowMs())}
+          disabled={routine.length === 0}
+          className="w-full rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/90 transition hover:bg-white/20 disabled:opacity-30"
+        >
+          {status === 'idle' ? 'Start' : 'Run again'}
+        </button>
+        {/* A per-device pref (not an instrument parameter): where the guidance shows. */}
+        <label className="flex items-center gap-2 text-[10px] text-white/60">
+          <input type="checkbox" checked={hudShow} onChange={(e) => setTrainerHud({ show: e.target.checked })} />
+          Show the instructions on the video while it runs
+        </label>
 
         {status === 'done' && (
           <p className="text-[11px] text-emerald-200/80">That is everything. Now find your categories.</p>
