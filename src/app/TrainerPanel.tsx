@@ -184,6 +184,8 @@ export default function TrainerPanel() {
   const setTrainerHud = useControls((s) => s.setTrainerHud);
   const recordTake = useTrainerPrefs((s) => s.recordTake);
   const setRecordTake = useTrainerPrefs((s) => s.setRecordTake);
+  const manualAdvance = useTrainerPrefs((s) => s.manualAdvance);
+  const setManualAdvance = useTrainerPrefs((s) => s.setManualAdvance);
   const recording = useTrainer((s) => s.recording);
   const voiceOn = useVoice((s) => s.enabled);
   const setVoice = useVoice((s) => s.setEnabled);
@@ -213,6 +215,29 @@ export default function TrainerPanel() {
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [running]);
+
+  // Enter = "I've done it, move on" while a cue is running — the manual override, and
+  // the only way forward in manual mode. Ignored when a form field OR another
+  // interactive element is focused: a focused button (Done/Skip/Stop) already activates
+  // on Enter, so handling it here too would fire complete() twice and skip a cue.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      // One advance per physical press, never per auto-repeat: holding Enter would else
+      // march through every cue (each freshly begun after the beat, with ~0 samples).
+      // (Same guard as src/app/tagging/keymap.ts.)
+      if (e.repeat) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(el.tagName) || el.isContentEditable)) return;
+      if (useTrainer.getState().status === 'running') {
+        e.preventDefault();
+        useTrainer.getState().complete(nowMs());
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   // Closing the panel (the X, or switching tools) must stop a running routine: otherwise
   // the poll keeps sampling and the feature-demand claim (#163) keeps the catalog
@@ -262,6 +287,15 @@ export default function TrainerPanel() {
             {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
           </span>
           <VoiceToggle on={voiceOn} setOn={setVoice} />
+          {status === 'running' && (
+            <button
+              onClick={() => useTrainer.getState().complete(nowMs())}
+              title="I've done this one — move on (Enter)"
+              className="rounded bg-emerald-500/80 px-2 py-0.5 text-[10px] font-bold text-black transition hover:bg-emerald-400"
+            >
+              Done
+            </button>
+          )}
           <button
             onClick={() => useTrainer.getState().skip(nowMs())}
             className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
@@ -368,6 +402,10 @@ export default function TrainerPanel() {
         <label className="flex items-center gap-2 text-[10px] text-white/60" title="Saves the clean camera video, the feature vectors and the cue/verdict annotations as a recording (like the Record button does).">
           <input type="checkbox" checked={recordTake} onChange={(e) => setRecordTake(e.target.checked)} />
           Record the take (camera + features + annotations)
+        </label>
+        <label className="flex items-center gap-2 text-[10px] text-white/60" title="Instead of the trainer deciding when you've done each cue, you press Done (or Enter) to move on.">
+          <input type="checkbox" checked={manualAdvance} onChange={(e) => setManualAdvance(e.target.checked)} />
+          I'll say when I'm done (press Done or Enter to advance)
         </label>
 
         {status === 'done' && (

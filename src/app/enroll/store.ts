@@ -169,6 +169,8 @@ interface TrainerState {
   startTake(now: () => number): Promise<void>;
   sample(vector: FeatureVector, tMs: number): void;
   tick(tMs: number): void;
+  /** The player's "Done": complete the active cue, keeping its samples, and move on. */
+  complete(tMs: number): void;
   skip(tMs: number): void;
   stop(tMs: number): void;
   build(): void;
@@ -399,7 +401,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       unsubscribe = null;
       runner?.stop(tMs);
       session = createSession();
-      runner = createRunner({ cues: routine, session });
+      runner = createRunner({ cues: routine, session, manualAdvance: useTrainerPrefs.getState().manualAdvance });
       const offEvents = runner.subscribe(onEvent);
       const offTake = runner.subscribe(onEventForTake);
       unsubscribe = () => {
@@ -447,6 +449,11 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       if (!runner) return;
       runner.tick(tMs);
       reconcileRecording(get, set);
+      set(fromRunner());
+    },
+
+    complete(tMs) {
+      runner?.complete(tMs);
       set(fromRunner());
     },
 

@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { categoryKey, classify, type FeatureVector } from '@/enroll';
 import { useTrainer } from '@/app/enroll/store';
+import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { appFeatureDemand } from '@/app/featureDemand';
 
 const prng = (seed: number) => () => {
@@ -20,7 +21,10 @@ function threePoseTake() {
   const jit = () => 0.3 * r();
   const base = (): FeatureVector => ({ 'face.head.yaw': jit(), 'face.head.pitch': jit(), 'face.head.roll': jit() });
   useTrainer.getState().setRoutine(['rest', 'look-left', 'look-right', 'look-up', 'look-down', 'tilt-left', 'tilt-right']);
+  // Manual advance: `complete()` drives every boundary, so the take is deterministic.
+  useTrainerPrefs.getState().setManualAdvance(true);
   useTrainer.getState().start(1000);
+  useTrainerPrefs.getState().setManualAdvance(false);
   let t = 1000;
   const feed = (n: number, make: () => FeatureVector) => {
     for (let i = 0; i < n; i++) {
@@ -28,16 +32,14 @@ function threePoseTake() {
       useTrainer.getState().sample(make(), t);
     }
   };
-  const holdThrough = (ms: number, make: () => FeatureVector) => {
-    const end = t + ms;
-    while (t < end) {
-      t += 33;
-      useTrainer.getState().sample(make(), t);
-    }
+  // Hold each pose long enough for a still-point, then press "Done" (complete) to move
+  // on: the manual-advance flow, deterministic and independent of the excursion bar.
+  const advance = () => {
+    t += 100;
+    useTrainer.getState().complete(t);
   };
   feed(120, base); // rest
-  let held = base;
-  holdThrough(1700, () => held());
+  advance(); // "Done" with rest -> between
   const poses: FeatureVector[] = [
     { 'face.head.yaw': -25 },
     { 'face.head.yaw': 25 },
@@ -47,12 +49,13 @@ function threePoseTake() {
     { 'face.head.roll': -20 },
   ];
   for (const pose of poses) {
+    advance(); // between -> begin the next movement cue (running)
     const at = () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v + jit()])) });
     feed(8, () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v * 0.5])) }));
     feed(25, at);
-    held = at;
-    holdThrough(1700, () => held());
+    advance(); // "Done" -> end this cue
   }
+  for (let guard = 0; useTrainer.getState().status !== 'done' && guard < 20; guard++) advance();
 }
 
 beforeEach(() => {

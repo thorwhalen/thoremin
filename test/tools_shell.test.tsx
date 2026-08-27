@@ -23,6 +23,7 @@ import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
 import { useTrainer } from '@/app/enroll/store';
+import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { defaultFeatureLab } from '@/features/labConfig';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
@@ -32,6 +33,10 @@ beforeEach(() => {
   useControls.getState().setFeatureLab(defaultFeatureLab());
   useControls.setState({ gestures: defaultGesturePrefs() });
   useTrainer.getState().reset();
+  // Recording defaults ON in production (its own test below covers that path); the
+  // routine-mechanics tests turn it OFF so Start begins the routine synchronously,
+  // and clear manual mode so the runner auto-advances.
+  useTrainerPrefs.setState({ recordTake: false, manualAdvance: false });
 });
 afterEach(cleanup);
 
@@ -362,6 +367,86 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     expect(useControls.getState().trainerHud.show).toBe(true);
   });
 
+  it('recording the take is ON by default (the maintainer\'s call) and the box shows it', () => {
+    // The SHIPPED default, read past whatever the deterministic beforeEach set.
+    expect(useTrainerPrefs.getInitialState().recordTake).toBe(true);
+    useTrainerPrefs.setState({ recordTake: true });
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const box = screen.getByLabelText(/Record the take/i) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+  });
+
+  it('manual advance is a per-device checkbox, OFF by default, and toggling it wires the pref', () => {
+    expect(useTrainerPrefs.getInitialState().manualAdvance).toBe(false);
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    const box = screen.getByLabelText(/I'll say when I'm done/i) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(useTrainerPrefs.getState().manualAdvance).toBe(true);
+    fireEvent.click(box);
+    expect(useTrainerPrefs.getState().manualAdvance).toBe(false);
+  });
+
+  it('the Done button ends the running cue as complete (the "I did it" override)', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    fireEvent.click(screen.getByText('Start'));
+    expect(useTrainer.getState().status).toBe('running');
+    expect(useTrainer.getState().index).toBe(0);
+    // The Done button is offered while running; clicking it completes the cue.
+    fireEvent.click(screen.getByText('Done'));
+    expect(useTrainer.getState().outcomes[0]).toBe('enough');
+    fireEvent.click(screen.getByText('Stop'));
+  });
+
+  it('pressing Enter advances the cue (the keyboard override), but not while typing, and not on auto-repeat', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    fireEvent.click(screen.getByText('Start'));
+    expect(useTrainer.getState().status).toBe('running');
+    // Enter from a text field is ignored (you might be naming something).
+    const field = document.createElement('input');
+    document.body.appendChild(field);
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(useTrainer.getState().outcomes[0]).toBeNull();
+    document.body.removeChild(field);
+    // A held-key AUTO-REPEAT is ignored — else leaning on Enter would march through every
+    // cue, each freshly begun with ~0 samples (the review's finding).
+    fireEvent.keyDown(document.body, { key: 'Enter', repeat: true });
+    expect(useTrainer.getState().outcomes[0]).toBeNull();
+    // A genuine (non-repeat) Enter anywhere else is the "I did it" override.
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    expect(useTrainer.getState().outcomes[0]).toBe('enough');
+    fireEvent.click(screen.getByText('Stop'));
+  });
+
+  it('in manual mode the routine never auto-advances — only Done/Enter moves it on', () => {
+    useTrainerPrefs.setState({ manualAdvance: true });
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    fireEvent.click(screen.getByText('Start'));
+    // Drive far more than enough of the first (frames) cue directly through the store:
+    // in manual mode it must NOT advance on its own.
+    const rest = STARTER_CUES[0];
+    act(() => {
+      let t = 2000;
+      for (let i = 0; i < 200; i++) {
+        t += 33;
+        useTrainer.getState().sample({ 'face.head.yaw': 0, 'face.head.pitch': 0, 'face.head.roll': 0 }, t);
+      }
+    });
+    expect(rest.produces).toBe('baseline');
+    expect(useTrainer.getState().status).toBe('running');
+    expect(useTrainer.getState().index).toBe(0);
+    expect(useTrainer.getState().outcomes[0]).toBeNull();
+    // The player presses Done: now it moves on.
+    fireEvent.click(screen.getByText('Done'));
+    expect(useTrainer.getState().outcomes[0]).toBe('enough');
+    fireEvent.click(screen.getByText('Stop'));
+  });
+
   it('closing the panel mid-routine STOPS it (and releases the feature demand)', async () => {
     const { appFeatureDemand } = await import('@/app/featureDemand');
     useTools.setState({ open: 'trainer' });
@@ -462,7 +547,11 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
     const jit = () => 0.3 * r();
     const base = () => ({ 'face.head.yaw': jit(), 'face.head.pitch': jit(), 'face.head.roll': jit() });
     useTrainer.getState().setRoutine(['rest', 'look-left', 'look-right', 'look-up', 'look-down', 'tilt-left', 'tilt-right']);
+    // Manual advance: `complete()` drives every boundary, so the take is deterministic
+    // and independent of the excursion threshold. Restore right after start().
+    useTrainerPrefs.setState({ manualAdvance: true });
     useTrainer.getState().start(1000);
+    useTrainerPrefs.setState({ manualAdvance: false });
     let t = 1000;
     const feed = (n: number, make: () => Record<string, number>) => {
       for (let i = 0; i < n; i++) {
@@ -477,16 +566,21 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
         useTrainer.getState().sample(make(), t);
       }
     };
-    feed(120, base);
-    let held = base;
-    hold(1700, () => held());
+    const advance = () => {
+      t += 100;
+      useTrainer.getState().complete(t);
+    };
+    void hold;
+    feed(120, base); // rest baseline
+    advance(); // "Done" with rest
     for (const pose of [{ 'face.head.yaw': -25 }, { 'face.head.yaw': 25 }, { 'face.head.pitch': -25 }, { 'face.head.pitch': 25 }, { 'face.head.roll': 20 }, { 'face.head.roll': -20 }]) {
+      advance(); // begin the next movement cue
       const at = () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v + jit()])) });
       feed(8, () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v * 0.5])) }));
-      feed(25, at);
-      held = at;
-      hold(1700, () => held());
+      feed(25, at); // hold -> a still-point for this pose
+      advance(); // "Done" -> end this cue
     }
+    for (let guard = 0; useTrainer.getState().status !== 'done' && guard < 20; guard++) advance();
     useTrainer.getState().build();
   }
 

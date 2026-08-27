@@ -116,13 +116,13 @@ describe('cue schema — what a cue IS (the zodal SSOT)', () => {
     expect(SufficiencySchema.parse({ kind: 'excursion' })).toEqual({
       kind: 'excursion',
       minPoints: 1,
-      minExcursion: 8,
+      minExcursion: 12,
       patienceMs: 20000,
     });
     expect(SufficiencySchema.parse({ kind: 'variety' })).toEqual({
       kind: 'variety',
       minPoints: 6,
-      minSeparation: 6,
+      minSeparation: 10,
       holdNudgeMs: 8000,
       patienceMs: 60000,
     });

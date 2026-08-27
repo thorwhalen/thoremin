@@ -12,6 +12,7 @@ import {
   CANNOT_REASONS,
   createRunner,
   createSession,
+  CueSchema,
   defaultSufficiency,
   RUNNER_PHRASES,
   type Cue,
@@ -453,6 +454,94 @@ describe('the session invalidates its build when a cue is re-run', () => {
   });
 });
 
+describe('manual advance — the player decides, and the override', () => {
+  it('complete() ends the active cue as done (keeping its samples) and moves on — the "I did it" override', () => {
+    // A HIGH excursion bar (100 sigma) so a solidly-held pose is CAPTURED as a
+    // still-point yet has not auto-completed: exactly the case the override is for.
+    const look = cue('look', {
+      collects: { groups: ['head'], omit: [], axes: [] },
+      sufficiency: { kind: 'excursion', minPoints: 1, minExcursion: 100, patienceMs: 20000 },
+    });
+    const h = harness([REST, look, FACES]);
+    const r = prng(50);
+    h.runner.start(h.t);
+    h.feed(40, restFrame(r)); // rest reaches enough on its own
+    h.wait(600);
+    expect(h.runner.state().cue?.id).toBe('look');
+    // Turn ~8 degrees and hold: captured (~37 sigma at this jitter) but under 100.
+    h.feed(6, (i) => v({ ...restFrame(r)(), yaw: (8 * (i + 1)) / 6 }));
+    h.feed(20, () => v({ ...restFrame(r)(), yaw: 8 + 0.3 * r() }));
+    expect(h.runner.state().status).toBe('running'); // auto did not fire (37 < 100)
+    const captured = h.session.pointsFor('look').length;
+    expect(captured).toBeGreaterThanOrEqual(1); // a still-point WAS captured
+    // The player presses Done: the cue completes as 'enough', its samples kept.
+    h.runner.complete(h.t);
+    expect(h.kinds().at(-1)).toBe('end:enough');
+    expect(h.session.pointsFor('look')).toHaveLength(captured);
+    h.wait(600); // the beat elapses and 'faces' begins on its own
+    expect(h.runner.state().cue?.id).toBe('faces');
+    // complete() on the running last cue finishes the routine.
+    h.runner.complete(h.t);
+    expect(h.runner.state().status).toBe('done');
+  });
+
+  it('manual mode: the runner NEVER auto-advances or nudges — only the player moves on', () => {
+    const h = harness([REST, LOOK], { manualAdvance: true });
+    const r = prng(51);
+    h.runner.start(h.t);
+    // Feed far more than enough of REST (a frames cue): it must NOT advance on its own.
+    h.feed(200, restFrame(r));
+    expect(h.runner.state().status).toBe('running');
+    expect(h.runner.state().cue?.id).toBe('rest');
+    expect(h.events.some((e) => e.type === 'guidance')).toBe(false);
+    expect(h.events.some((e) => e.type === 'cue-end')).toBe(false);
+    // A big deliberate movement also does not auto-advance.
+    h.runner.complete(h.t); // done with rest
+    h.wait(600);
+    expect(h.runner.state().cue?.id).toBe('look');
+    h.feed(15, (i) => v({ ...restFrame(r)(), yaw: (30 * i) / 15 }));
+    h.feed(40, () => v({ ...restFrame(r)(), yaw: 30 + 0.3 * r() }));
+    expect(h.runner.state().status).toBe('running'); // still waiting for the player
+    expect(h.events.some((e) => e.type === 'guidance')).toBe(false); // no nudges in manual mode
+    h.runner.complete(h.t);
+    expect(h.kinds().at(-1)).toBe('done');
+  });
+
+  it('the raised excursion default rejects incidental drift but accepts a real look', () => {
+    // Build the cue through the SHIPPED schema so the excursion bar is the real
+    // default (30 sigma), not the toy helper's 8. (enroll_cues.test.ts pins the 30.)
+    // CueSchema = {id, name} & CueSpecSchema — CueSpecSchema alone strips id/name.
+    const look = CueSchema.parse({
+      id: 'look-default',
+      name: 'Look',
+      instruction: 'Look.',
+      rationale: '',
+      collects: { groups: ['head'], omit: [], axes: [] },
+      produces: 'vocabulary',
+      sufficiency: { kind: 'excursion' },
+      variations: [],
+      tags: [],
+    }) as Cue;
+    expect(look.sufficiency).toMatchObject({ kind: 'excursion', minExcursion: 12 });
+    const h2 = harness([REST, look]);
+    const r = prng(52);
+    h2.runner.start(h2.t);
+    h2.feed(60, restFrame(r));
+    h2.wait(600);
+    expect(h2.runner.state().cue?.id).toBe('look-default');
+    // The excursion is RMS over {yaw,pitch,roll}; at this jitter (sigma_yaw ~0.12) a pure
+    // yaw of d degrees is ~4.7*d sigma. A held ~2-degree drift (~9 sigma) is CAPTURED but
+    // below the 12 bar -> must NOT complete.
+    h2.feed(3, (i) => v({ ...restFrame(r)(), yaw: (2 * (i + 1)) / 3 }));
+    h2.feed(30, () => v({ ...restFrame(r)(), yaw: 2 + 0.3 * r() }));
+    expect(h2.runner.state().status).toBe('running');
+    // A real ~10-degree turn (~47 sigma), held: above the bar -> completes.
+    h2.feed(12, (i) => v({ ...restFrame(r)(), yaw: 2 + (8 * (i + 1)) / 12 }));
+    h2.feed(30, () => v({ ...restFrame(r)(), yaw: 10 + 0.3 * r() }));
+    expect(h2.runner.state().status).toBe('done');
+  });
+});
+
 describe('the default evaluator, directly', () => {
   const sigma = () => 1;
   const base = {
@@ -594,5 +683,54 @@ describe('a routine over the REAL recording, in RAW units', () => {
     // told to hold it, would — and the runner would say "a bit further" if they did not.
     expect(h.runner.state().status).toBe('running');
     expect(h.session.pointsFor('look-left')).toHaveLength(0);
+  });
+
+  it('the SHIPPED default excursion (not the toy 8) still lets the clip\'s genuinely-held head moves reach ENOUGH', () => {
+    // The regression guard for the excursion bar: the metric is RMS over {yaw,pitch,roll},
+    // so a single-axis turn is diluted ~sqrt(3). On this clip the genuinely-held moves
+    // read (RMS) right ~46, up ~38, DOWN ~19 sigma. A bar of 30 would REJECT the ~19 sigma
+    // look-down and time it out; the shipped default (12) must accept it. This drives head
+    // cues built through the REAL schema (default excursion), not the toy cue() helper
+    // that hardcodes 8, so if the default is ever raised too far this goes red.
+    const headDefault = (id: string, instruction: string): Cue =>
+      CueSchema.parse({
+        id,
+        name: id,
+        instruction,
+        rationale: '',
+        collects: { groups: ['head'], omit: [], axes: [] },
+        produces: 'vocabulary',
+        sufficiency: { kind: 'excursion' },
+        variations: ['A bit further, if you can.'],
+        tags: [],
+      }) as Cue;
+    const routine: Cue[] = [
+      cue('rest', { produces: 'baseline', sufficiency: { kind: 'frames', minFrames: 15, patienceMs: 5000 } }),
+      headDefault('look-right', 'Look right.'),
+      headDefault('look-up', 'Look up.'),
+      headDefault('look-down', 'Look down.'),
+    ];
+    // The shipped-like sampler (dwell 200, stillSigma 5, the harness default): these three
+    // are genuinely HELD in the clip and each yields a still-point (unlike the left sweep).
+    const h2 = harness(routine);
+    h2.runner.start(h2.t);
+    for (const [from, to] of [
+      [7.7, 8.5], // rest
+      [5.9, 7.1], // right (+35)
+      [0.2, 1.5], // up (pitch -37)
+      [1.6, 3.4], // down (+26)
+    ] as [number, number][]) {
+      const seg = window(from, to);
+      h2.feed(seg.length, (i) => seg[i]);
+      h2.wait(600);
+    }
+    const ends = h2.events.filter((e): e is Extract<RunnerEvent, { type: 'cue-end' }> => e.type === 'cue-end');
+    expect(ends.map((e) => `${e.cue.id}:${e.outcome}`)).toEqual([
+      'rest:enough',
+      'look-right:enough',
+      'look-up:enough',
+      'look-down:enough',
+    ]);
+    expect(h2.runner.state().status).toBe('done');
   });
 });
