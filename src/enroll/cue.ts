@@ -79,7 +79,24 @@ export const SufficiencySchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('excursion'),
     minPoints: z.number().int().min(1).default(1),
-    minExcursion: z.number().min(0).default(8),
+    /**
+     * Default 12 noise-sigma. The distance is the RMS of the cue's features (a head cue:
+     * yaw, pitch, roll), each in units of its own jitter — so a single-axis turn is
+     * DILUTED by ~sqrt(3), and this is measured against that RMS, not one axis.
+     *
+     * Measured on the recorded clip (`video_head_pose`), the genuinely-held deliberate
+     * moves read (RMS, shipped sampler): look-right ~46σ, look-up ~38σ, look-down ~19σ —
+     * the weakest, a soft chin-down, is ~19. The old default of 8 fired on a sub-2° twitch
+     * ("Good" before the player did the cue); an over-eager 30 would REJECT that ~19σ
+     * look-down and time out. 12 clears the weakest held move with ~1.5x margin (and room
+     * for the ~1.8x sigma inflation across a routine of back-to-back moves) while still
+     * rejecting a held sub-2° drift (~9σ RMS).
+     *
+     * A fixed sigma bar is inherently camera-dependent (the player's live report of "fires
+     * too early" was on a different sensor than this clip): the RELIABLE controls for
+     * pacing are the Done/Enter override and manual mode. Live-tune per #146 §8.
+     */
+    minExcursion: z.number().min(0).default(12),
     patienceMs: z.number().min(1000).default(20000),
   }),
   /**
@@ -90,7 +107,12 @@ export const SufficiencySchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('variety'),
     minPoints: z.number().int().min(1).default(6),
-    minSeparation: z.number().min(0).default(6),
+    /** Noise-sigma (RMS over the cue's features) two held poses must differ by to count
+     *  as DISTINCT. Bumped modestly from 6 (which accepted micro-variations of one
+     *  expression) to 10 — a separable expression change, without demanding so much that
+     *  a player's real repertoire fails to accumulate. No expression clip to measure
+     *  against yet; provisional, live-tune per #146 §8. */
+    minSeparation: z.number().min(0).default(10),
     /** Without a new still-point for this long, ask the player to hold still. */
     holdNudgeMs: z.number().min(1000).default(8000),
     patienceMs: z.number().min(1000).default(60000),

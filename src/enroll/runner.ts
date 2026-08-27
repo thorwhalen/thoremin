@@ -87,9 +87,17 @@ export interface RunnerOptions {
   beatMs?: number;
   /** Minimum gap before the same guidance is repeated with no new sample in between. */
   repeatSayMs?: number;
+  /**
+   * Manual mode (#163 live feedback): the runner NEVER decides a cue is done — no
+   * `enough`, no `cannot`, no nudges. It shows the instruction and the meter and waits
+   * for the player's {@link Runner.complete} (a "Done" press) or {@link Runner.skip}.
+   * The take is still sampled; the meter still fills. For a player who finds the
+   * automatic advance too eager, or wants to take their time.
+   */
+  manualAdvance?: boolean;
 }
 
-const DEFAULTS = { evaluateEveryMs: 250, beatMs: 1500, repeatSayMs: 6000 };
+const DEFAULTS = { evaluateEveryMs: 250, beatMs: 1500, repeatSayMs: 6000, manualAdvance: false };
 
 export interface Runner {
   /** Begin the routine at `tMs` (cue 0 starts immediately). */
@@ -101,6 +109,9 @@ export interface Runner {
   push(vector: FeatureVector, tMs: number): void;
   /** Advance time without a sample (so patience and beats still elapse). */
   tick(tMs: number): void;
+  /** The player says they have DONE the active cue: end it as complete, keeping whatever
+   *  was captured, and move on. Works in either mode — it is the manual override. */
+  complete(tMs: number): void;
   /** The player skips the active cue. */
   skip(tMs: number): void;
   /** Abort the routine. Captured samples stay in the session. */
@@ -192,6 +203,9 @@ export function createRunner(options: RunnerOptions): Runner {
   const consider = (tMs: number) => {
     const cue = activeCue();
     if (!cue || status !== 'running') return;
+    // Manual mode: the player decides when a cue is done. The runner never ends a cue
+    // on its own and stays silent (no nudges); the meter still fills from the samples.
+    if (o.manualAdvance) return;
     if (tMs - lastEvaluatedAt < o.evaluateEveryMs) return;
     lastEvaluatedAt = tMs;
     const samples = samplesOf(cue);
@@ -265,6 +279,12 @@ export function createRunner(options: RunnerOptions): Runner {
     tick(tMs) {
       advance(tMs);
       consider(tMs);
+    },
+    complete(tMs) {
+      // The player's "Done": the cue is complete (its samples kept), whatever the
+      // evaluator thinks. In 'between', it jumps straight to the next cue.
+      if (status === 'running') endCue('enough', tMs);
+      else if (status === 'between') beginCue(index + 1, tMs);
     },
     skip(tMs) {
       if (status === 'running') endCue('skipped', tMs);

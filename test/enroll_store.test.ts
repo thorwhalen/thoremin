@@ -12,6 +12,7 @@ import { createInMemoryProvider } from '@zodal/store';
 import { CueSpecSchema, categoryKey, type CueRecord, type FeatureVector, type RoutineRecord } from '@/enroll';
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { useTrainer, useTrainerStores } from '@/app/enroll/store';
+import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from '@/app/enroll/starterCues';
 import { appFeatureDemand } from '@/app/featureDemand';
 
@@ -155,6 +156,43 @@ describe('runner lifecycle through the store', () => {
     useTrainer.getState().stop(1200);
   });
 
+  it('with manualAdvance=false (the default), a fed movement AUTO-advances the cue — guards the store->runner wiring', () => {
+    // The mutation guard for start()'s `manualAdvance: useTrainerPrefs.getState().manualAdvance`
+    // (store.ts): were the runner built in manual mode, the default player's routine would
+    // never advance on its own. Here a real fed movement must reach 'enough' with NO
+    // complete() call — so hardcoding manualAdvance:true turns this red.
+    useTrainerPrefs.setState({ manualAdvance: false });
+    const st = useTrainer.getState();
+    st.setRoutine(['rest', 'look-left']);
+    st.start(1000);
+    const r = prng(11);
+    const jit = () => 0.3 * r();
+    const base = (): FeatureVector => ({ 'face.head.yaw': jit(), 'face.head.pitch': jit(), 'face.head.roll': jit() });
+    let t = 1000;
+    const feed = (n: number, make: (i: number) => FeatureVector) => {
+      for (let i = 0; i < n; i++) {
+        t += 33;
+        useTrainer.getState().sample(make(i), t);
+      }
+    };
+    const tick = (ms: number) => {
+      const e = t + ms;
+      while (t < e) {
+        t += 100;
+        useTrainer.getState().tick(t);
+      }
+    };
+    feed(100, () => base()); // rest (minFrames 90) reaches enough on its own
+    tick(1700); // the beat elapses -> look-left begins on its own
+    expect(useTrainer.getState().outcomes[0]).toBe('enough');
+    expect(useTrainer.getState().status).toBe('running');
+    // A big, held ~30-degree yaw: excursion far past the 12-sigma bar -> auto 'enough'.
+    feed(8, (i) => ({ ...base(), 'face.head.yaw': (30 * (i + 1)) / 8 }));
+    feed(40, () => ({ ...base(), 'face.head.yaw': 30 + jit() }));
+    expect(useTrainer.getState().outcomes[1]).toBe('enough');
+    useTrainer.getState().stop(t + 100);
+  });
+
   it('a guidance sink that reacts by stopping or skipping cannot corrupt the runner (sinks run after the event settles)', async () => {
     const { addGuidanceSink, resetGuidanceSinks } = await import('@/app/enroll/guidance');
     resetGuidanceSinks();
@@ -180,14 +218,21 @@ describe('runner lifecycle through the store', () => {
 
 describe('labels survive a re-cut', () => {
   /** Drive a take with three well-separated held "faces" via a one-cue routine. */
+  // A deterministic take: hold each pose long enough for a still-point, then press
+  // "Done" (complete) to advance — the manual-advance flow, so it never depends on the
+  // excursion threshold. Distinct held poses become distinct clusters to label.
   function takeWithThreeFaces() {
     const r = prng(4);
     const jitter = () => 0.3 * r();
     const base = (): FeatureVector => ({ 'face.head.yaw': jitter(), 'face.head.pitch': jitter(), 'face.head.roll': jitter() });
-    // Head cues only, for a fast, deterministic take.
     const st = useTrainer.getState();
     st.setRoutine(['rest', 'look-left', 'look-right', 'look-up']);
+    // Manual advance: every cue boundary is a `complete()` here, so the take is
+    // deterministic and never depends on the excursion threshold. Restore the pref
+    // right after start() — the runner has already captured it.
+    useTrainerPrefs.getState().setManualAdvance(true);
     st.start(1000);
+    useTrainerPrefs.getState().setManualAdvance(false);
     let t = 1000;
     const feed = (n: number, make: () => FeatureVector) => {
       for (let i = 0; i < n; i++) {
@@ -195,28 +240,22 @@ describe('labels survive a re-cut', () => {
         useTrainer.getState().sample(make(), t);
       }
     };
-    const wait = (ms: number) => {
-      const end = t + ms;
-      while (t < end) {
-        t += 100;
-        useTrainer.getState().tick(t);
-      }
+    const advance = () => {
+      t += 100;
+      useTrainer.getState().complete(t);
     };
-    feed(120, base); // rest
-    // Through each beat the player keeps holding the previous pose (frames keep
-    // arriving, as the live panel's poll does); the move happens inside the next cue.
-    let held: () => FeatureVector = base;
-    const holdThrough = (ms: number) => feed(Math.round(ms / 33), held);
-    holdThrough(1700);
+    feed(120, base); // rest baseline (fixes the noise scale)
+    advance(); // "Done" with rest -> between
     const poses: FeatureVector[] = [{ 'face.head.yaw': -25 }, { 'face.head.yaw': 25 }, { 'face.head.pitch': -25 }];
     for (const pose of poses) {
+      advance(); // between -> begin the next movement cue (running)
       const at = () => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v + jitter()])) });
-      feed(8, (): FeatureVector => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v * 0.5])) })); // the move
-      feed(25, at); // the hold
-      held = at;
-      holdThrough(1700);
+      feed(8, (): FeatureVector => ({ ...base(), ...Object.fromEntries(Object.entries(pose).map(([k, v]) => [k, v * 0.5])) })); // the move arms the sampler
+      feed(25, at); // the hold -> a still-point for this pose
+      advance(); // "Done" -> end this cue
     }
-    void wait;
+    // Drain any cue the poses did not cover, so the routine reaches 'done'.
+    for (let guard = 0; useTrainer.getState().status !== 'done' && guard < 20; guard++) advance();
     return useTrainer.getState();
   }
 
