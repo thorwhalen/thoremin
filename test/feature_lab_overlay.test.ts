@@ -33,6 +33,21 @@ describe('featureLab overlay element (#119)', () => {
     expect(parsed.featureLab.show).toBe(false);
   });
 
+  it('tells the player how to turn it off, in the panel they are looking at', () => {
+    // The meters keep drawing after the Lab panel is closed, and their off switch is
+    // inside that panel — which is how this became a panel players could not get rid
+    // of. The tools bar carries the real control (tools_shell.test.tsx); this line is
+    // the signpost to it, drawn at the thing covering their video.
+    const rc = runLab({ featureLab: { show: true, columns: 3, groups: ['face.blendshape.jaw'] } }, 40);
+    expect(rc.texts()).toContain('stop in the Tools bar');
+  });
+
+  it('drops the hint rather than overlapping the title on a one-column panel', () => {
+    const rc = runLab({ featureLab: { show: true, columns: 1, groups: ['face.blendshape.jaw'] } }, 40);
+    expect(rc.texts()).toContain('Feature Lab'); // still titled
+    expect(rc.texts()).not.toContain('stop in the Tools bar');
+  });
+
   it('draws a titled panel with grouped bars + labels once shown and warmed', () => {
     const rc = runLab({ featureLab: { show: true, groups: ['face.blendshape.jaw'] } }, 40);
     const texts = rc.texts();
