@@ -1185,15 +1185,19 @@ const featureLabElement: OverlayElement = {
     g.fillText('Feature Lab', panelLeft + PAD, panelTop + 15);
     // ...and, when the panel is wide enough to hold it beside the title, where to
     // turn it off. Skipped on a one-column panel rather than overlapping the title.
+    //
+    // Left-aligned just after the title rather than right-aligned at the panel edge:
+    // the panel is right-anchored, so its outer edge is the first thing `object-cover`
+    // crops away on a window narrower than the camera's aspect ratio. Tucked against
+    // the title it survives that crop for as long as the title itself does. (The real
+    // control is the tools bar, which is DOM and never cropped — this is the signpost.)
     const titleW = 'Feature Lab'.length * LAB_TITLE_CHAR_W;
     if (titleW + LAB_HINT.length * LAB_HINT_CHAR_W + 3 * PAD <= panelW) {
       g.globalAlpha = 0.5;
       g.fillStyle = '#9ca3af';
       g.font = '10px monospace';
-      g.textAlign = 'right';
-      g.fillText(LAB_HINT, panelLeft + panelW - PAD, panelTop + 15);
+      g.fillText(LAB_HINT, panelLeft + PAD + titleW + PAD, panelTop + 15);
       g.globalAlpha = 1;
-      g.textAlign = 'left';
     }
 
     // Shown but nothing to measure (no face/hands, or the enabled groups are empty
