@@ -1066,6 +1066,20 @@ const LAB_HEADER_H = 16; // px per group header
 const LAB_TITLE_H = 22;
 const LAB_BAR_H = 6;
 const LAB_TOP = 68; // == CUE_TOP_INSET: clear the top-left brand / top-right panel
+/**
+ * The way out, drawn in the panel's own title row.
+ *
+ * The meters keep drawing after the Lab panel is closed — deliberate, you watch them
+ * while you play — which is exactly how this panel became something players could not
+ * get rid of: its off switch is a checkbox INSIDE the panel they had just shut, the
+ * config is persisted so a reload brings the bars back, and the Lab is not a dial so
+ * the command palette cannot reach it. The tools bar now carries the real control; this
+ * line says so, at the thing the player is actually looking at.
+ */
+const LAB_HINT = 'stop in the Tools bar';
+/** Approximate glyph widths (no measureText: the headless recording-canvas test). */
+const LAB_TITLE_CHAR_W = 7.6; // bold 13px monospace
+const LAB_HINT_CHAR_W = 6; // 10px monospace
 
 /** Terse meter label: the feature id with its group (or the `face.`/`hand.`
  *  prefix) stripped, so the group header carries the context. */
@@ -1169,6 +1183,18 @@ const featureLabElement: OverlayElement = {
     g.font = 'bold 13px monospace';
     g.textAlign = 'left';
     g.fillText('Feature Lab', panelLeft + PAD, panelTop + 15);
+    // ...and, when the panel is wide enough to hold it beside the title, where to
+    // turn it off. Skipped on a one-column panel rather than overlapping the title.
+    const titleW = 'Feature Lab'.length * LAB_TITLE_CHAR_W;
+    if (titleW + LAB_HINT.length * LAB_HINT_CHAR_W + 3 * PAD <= panelW) {
+      g.globalAlpha = 0.5;
+      g.fillStyle = '#9ca3af';
+      g.font = '10px monospace';
+      g.textAlign = 'right';
+      g.fillText(LAB_HINT, panelLeft + panelW - PAD, panelTop + 15);
+      g.globalAlpha = 1;
+      g.textAlign = 'left';
+    }
 
     // Shown but nothing to measure (no face/hands, or the enabled groups are empty
     // this frame): keep the panel + a hint so the lab doesn't read as "broken".

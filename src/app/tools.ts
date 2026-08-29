@@ -44,6 +44,26 @@ export interface Tool {
   hotkey?: string;
   /** For `kind: 'link'` — the href. */
   href?: string;
+  /**
+   * True when the tool keeps **doing something visible after its panel is closed**.
+   * The Feature Lab is the only one: its meters go on drawing over the video, which
+   * is deliberate — you want to watch them while you play, with the panel out of the
+   * way.
+   *
+   * It is also how the Lab became un-closable. `#136` asked "can a player FIND this?"
+   * and answered it with this registry. Nobody asked the mirror question: once it is
+   * running, can a player find the way back OUT? For the Lab the answer was no. The
+   * off switch is a checkbox inside the panel, so closing the panel hid the only
+   * control that could undo what the panel had started; the state is persisted, so a
+   * reload brought the meters back; and the Lab is deliberately not a dial, so the
+   * command palette could not reach it either. The video ended up covered in bars
+   * with nothing on screen to explain them.
+   *
+   * So a tool that runs detached owes the bar a **stop** control, live whenever it is
+   * running — reachable with its panel shut, and with no memory of how it was
+   * started. `tools_shell.test.tsx` enforces that rather than trusting this comment.
+   */
+  runsDetached?: boolean;
 }
 
 export const TOOLS: readonly Tool[] = [
@@ -53,6 +73,7 @@ export const TOOLS: readonly Tool[] = [
     description:
       'Measure the raw face and hand features the instrument plays from — live, normalized meters.',
     kind: 'panel',
+    runsDetached: true,
   },
   {
     id: 'commands',

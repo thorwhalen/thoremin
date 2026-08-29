@@ -617,3 +617,97 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
     expect(leftCat.centroid['face.head.yaw']).toBeCloseTo(mean, 5);
   });
 });
+
+// ---- the way back OUT of a tool that keeps running (#136's mirror image) ----
+//
+// The Feature Lab shipped findable and un-closable. "Start measuring" draws meters
+// over the video; the only switch that stops them is a checkbox INSIDE the panel, so
+// closing the panel hid the undo for what the panel had started. The config is
+// persisted, so a reload brought the bars back, and the Lab is deliberately not a dial,
+// so the command palette could not reach it either. The video ended up covered in bars
+// with nothing on screen to explain them or turn them off.
+//
+// These tests are written over the REGISTRY, not over the Lab: any tool that declares
+// `runsDetached` has to prove it can be stopped from the bar with its panel shut.
+
+/** Per detached tool: how to start it, and how to ask whether it is running. */
+const DETACHED: Record<string, { start: () => void; running: () => boolean }> = {
+  lab: {
+    start: () => useControls.getState().setFeatureLab({ show: true }),
+    running: () => useControls.getState().featureLab.show,
+  },
+};
+
+const detachedTools = TOOLS.filter((t) => t.runsDetached);
+
+describe('a tool that keeps running after its panel closes', () => {
+  it('declares at least one such tool, and each has a harness here', () => {
+    // If this fails you added `runsDetached` without teaching this file how to drive
+    // it — which would let the rest of the block silently cover nothing.
+    expect(detachedTools.length).toBeGreaterThan(0);
+    for (const t of detachedTools) {
+      expect(DETACHED[t.id], `no start/running harness for tool '${t.id}'`).toBeTruthy();
+    }
+  });
+
+  for (const tool of detachedTools) {
+    it(`${tool.id}: the bar offers a STOP control while it runs, with the panel closed`, () => {
+      act(() => DETACHED[tool.id].start());
+      useTools.setState({ open: null }); // the panel is shut — the reported situation
+      render(<ToolsBar />);
+
+      const stop = screen.getByLabelText(`Stop ${tool.label}`);
+      act(() => {
+        fireEvent.click(stop);
+      });
+      expect(DETACHED[tool.id].running()).toBe(false);
+    });
+
+    it(`${tool.id}: reads as RUNNING in the bar even with its panel closed`, () => {
+      act(() => DETACHED[tool.id].start());
+      useTools.setState({ open: null });
+      const { container } = render(<ToolsBar />);
+      // Otherwise what is drawn over the video has no visible source.
+      expect(container.querySelector(`[data-running="${tool.id}"]`)).toBeTruthy();
+    });
+
+    it(`${tool.id}: shows no stop control when it is not running`, () => {
+      const { container } = render(<ToolsBar />);
+      expect(DETACHED[tool.id].running()).toBe(false);
+      expect(screen.queryByLabelText(`Stop ${tool.label}`)).toBeNull();
+      expect(container.querySelector(`[data-running="${tool.id}"]`)).toBeNull();
+    });
+  }
+
+  it('the reported bug, end to end: start the meters, close the panel, still get out', () => {
+    render(
+      <>
+        <ToolsBar />
+        <LabPanel />
+      </>,
+    );
+
+    // Open the Lab and press its own call to action.
+    act(() => {
+      fireEvent.click(screen.getByText('Feature Lab').closest('button')!);
+    });
+    act(() => {
+      fireEvent.click(screen.getByText('Start measuring'));
+    });
+    expect(useControls.getState().featureLab.show).toBe(true);
+
+    // Close the panel the obvious way — its X. The meters keep drawing (deliberate:
+    // you watch them while you play), which is exactly where the player got stranded.
+    act(() => {
+      fireEvent.click(screen.getByLabelText('Close the Feature Lab'));
+    });
+    expect(useTools.getState().open).toBeNull();
+    expect(useControls.getState().featureLab.show).toBe(true);
+
+    // ...and the bar still offers the way out, without reopening anything.
+    act(() => {
+      fireEvent.click(screen.getByLabelText('Stop Feature Lab'));
+    });
+    expect(useControls.getState().featureLab.show).toBe(false);
+  });
+});
