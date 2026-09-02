@@ -256,3 +256,13 @@ epic), **#5** (the umbrella DAG roadmap) and **#146** (the standing live-verific
 list: everything that can only be confirmed with a webcam and human eyes).
 Discussions #3 (architecture) and #4 (mapping spectrum) are the design record.
 Per-subsystem SSOT design docs live in `docs/design/`.
+
+**Rhythm from gesture (#178).** Melody and timbre tolerate a 30-60 Hz control
+rate; rhythm does not — perceptually meaningful timing lives at 1-20 ms, under a
+frame period. So rhythm has to be *inferred* against a musical prior, never
+measured frame-to-onset. The research map is
+[`docs/research/rhythm-from-gesture-research-map.md`](docs/research/rhythm-from-gesture-research-map.md)
+(signal theory, Bayesian rhythm models, entrainment, conducting-gesture systems,
+21 references). #178 proposes extracting the engine as a shared package
+(`ictus`) since `muvid` needs the same latent state from dancer motion — read §1
+and §6 of the map before touching anything timing-related.
