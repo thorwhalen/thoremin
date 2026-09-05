@@ -154,10 +154,22 @@ describe('the pump: how frames between ticks reach a node', () => {
   it('a SIGNAL source with no new frame holds its last value; an EVENT source publishes empty', async () => {
     const sig = probeRig('hands');
     await sig.engine.init();
-    await new Applier({ engine: sig.engine, resources: sig.resources, sources: [listSource('s', 'signal', 'hands', ['only'])], clock: pacedClock(6) }).run();
-    // Once latched the value is HELD across later ticks rather than reverting to null —
-    // "the camera produced no new frame" is not "there is no hand".
-    expect(sig.seen[sig.seen.length - 1]).toBe('only');
+    // The source yields ONE frame and then stays open, so every tick after the first is a
+    // tick with nothing new — which is the only situation where "hold" means anything.
+    // Asserting the last value alone would pass even if the value were re-published every
+    // tick, or if only the tick that received the frame were observed.
+    const held: Source = {
+      id: 's', kind: 'signal', outputResource: 'hands',
+      async *frames() { yield 'only'; await new Promise((r) => setTimeout(r, 60)); },
+      exhausted: () => false,
+      dispose: () => {},
+    };
+    let n = 0;
+    await new Applier({ engine: sig.engine, resources: sig.resources, sources: [held], clock: pacedClock(12), shouldStop: () => n++ >= 5 }).run();
+    const afterFirstFrame = sig.seen.slice(sig.seen.indexOf('only'));
+    // Several ticks, and the value survives on ALL of them — not just the one that got it.
+    expect(afterFirstFrame.length).toBeGreaterThan(1);
+    expect(afterFirstFrame.every((v) => v === 'only')).toBe(true);
 
     // For the event side the source must stay OPEN with nothing pending — an already
     // exhausted, empty source correctly ends the run before any tick. A live keyboard
@@ -170,8 +182,8 @@ describe('the pump: how frames between ticks reach a node', () => {
       exhausted: () => false,
       dispose: () => {},
     };
-    let n = 0;
-    await new Applier({ engine: ev.engine, resources: ev.resources, sources: [idle], clock: pacedClock(10), shouldStop: () => n++ >= 3 }).run();
+    let evTicks = 0;
+    await new Applier({ engine: ev.engine, resources: ev.resources, sources: [idle], clock: pacedClock(10), shouldStop: () => evTicks++ >= 3 }).run();
     // "No keys were pressed" is information, so it publishes an empty list rather than
     // holding the last one — the opposite of the signal rule above.
     expect(ev.seen.length).toBeGreaterThan(0);
@@ -198,19 +210,28 @@ describe('when a run stops', () => {
     expect(seen.length).toBeLessThan(1000);
   });
 
-  it('keeps running while ONE source still has frames', async () => {
-    const { engine, resources } = probeRig('hands');
+  it('keeps running while ONE source is still open — exhaustion is every(), not some()', async () => {
+    // Asserting a flag the source's own generator sets proves nothing about the Applier:
+    // it would hold even if the run stopped immediately. What has to be observed is the
+    // ENGINE still ticking while one source reports exhausted and another does not.
+    const { engine, resources, seen } = probeRig('hands');
     await engine.init();
-    const drained = listSource('a', 'signal', 'hands', []);
-    let openDone = false;
-    const open: Source = {
-      id: 'b', kind: 'signal', outputResource: 'other',
-      async *frames() { for (let i = 0; i < 3; i++) yield i; openDone = true; },
-      exhausted: () => openDone,
+    const drained: Source = {
+      id: 'a', kind: 'signal', outputResource: 'hands',
+      async *frames() { /* nothing, immediately done */ },
+      exhausted: () => true,
       dispose: () => {},
     };
-    await new Applier({ engine, resources, sources: [drained, open], clock: pacedClock(50) }).run();
-    expect(openDone).toBe(true);
+    const stillOpen: Source = {
+      id: 'b', kind: 'signal', outputResource: 'other',
+      async *frames() { await new Promise((r) => setTimeout(r, 60)); },
+      exhausted: () => false,
+      dispose: () => {},
+    };
+    let n = 0;
+    await new Applier({ engine, resources, sources: [drained, stillOpen], clock: pacedClock(20), shouldStop: () => n++ >= 4 }).run();
+    // With `some()` semantics the exhausted source would have ended the run at tick zero.
+    expect(seen.length).toBeGreaterThan(1);
   });
 
   it('honours an extra shouldStop', async () => {
