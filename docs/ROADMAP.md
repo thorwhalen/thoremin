@@ -1,6 +1,6 @@
 # Thoremin Roadmap
 
-Status board, swept 2026-08-17 (previous sweep 2026-07-12). Two horizons:
+Status board, swept 2026-09-05 (previous sweeps 2026-08-17, 2026-07-12). Two horizons:
 
 1. **What shipped** and **what is next** (below) — the live planning surface.
 2. **Longer-horizon engine milestones (M0–M8)** — the original platform/engine arc,
@@ -13,9 +13,9 @@ time-anchored taps over a *recording* (#92); **tags** are keywords on a saved
 
 ---
 
-## Shipped (2026-06 → 2026-08)
+## Shipped (2026-06 → 2026-09)
 
-The five tracks below all landed. Each row is the issue, the PR that closed it, and
+The tracks below all landed. Each row is the issue, the PR that closed it, and
 what it actually gives you.
 
 ### Interaction / control
@@ -88,28 +88,47 @@ that were *merged and deployed* yet not actually usable, or not actually enforce
 | **#131** Invariance labels + deconfounding | #151 | 2026-08-11 | Items 1+2 of #131: `invariantTo` labels on `FeatureDef` (an honest, per-feature statement of what will contaminate it) and `residual(x, z)` / `deconfound(x, [z…])` helpers in the formula compiler, so a user can write `residual(smile, yaw)` and get a pose-corrected smile with no new node. **Item 3 (the rolling correlation view) was split out as #150 and is still open.** |
 | **#129** Gestures as a command dispatcher | #152 | 2026-08-11 | The **fourth** dispatcher into the registry, after panels, keyboard and the AI assistant: discrete hand poses (fist / open / pinch) → `registry.dispatch`, edge-triggered, with held and cooled variants and user-bindable mappings (`src/app/gestureDispatch.ts`). |
 
+### The trainer, the engine lifecycle, and the sign check (2026-08-17 → 2026-09-02)
+
+The wave after the 2026-08-17 sweep, and the largest single run in this repo's history:
+21 PRs. Its through-line is that **the instrument stopped being the only thing that
+learns** — the trainer asks the player to demonstrate their own categories, on a clock
+and in a recording that can be replayed headlessly afterwards.
+
+| Issue | PR | Merged | What shipped |
+|-------|----|--------|--------------|
+| **#153** No test CI | #154 | 2026-08-17 | The gate this repo never had: `typecheck` / `test` / `build` on `pull_request` + `push: main`. The deploy is deliberately **not** made conditional on it. |
+| **#150** Rolling correlation view | #157 | 2026-08-17 | Item 3 of #131: a rolling correlation matrix over the watched features, on one shared exponentially-weighted moments implementation, cost-guarded. It is what makes `invariantTo` and `residual()`/`deconfound()` actionable — it tells you *which* confound to remove. |
+| **#76** Face/head axes as a dial | #156 | 2026-08-17 | The per-axis live-tuning surface, landed **deliberately before** the sign check, so the signs could then be settled against a real UI rather than in the abstract. |
+| **#127** Dispatch middleware | #159 | 2026-08-22 | One middleware seam on `registry.dispatch`, read three ways: undo/redo, the telemetry journal, and command export/replay. Order stated as data, gate outermost. |
+| **#76 / #146** Head-pose signs | #161 | 2026-08-23 | Settled the axis signs **headlessly** against a committed fixture (`test/fixtures/video_head_pose/`) — and found a genuinely **inverted pitch axis** in the process. Pitch, smile and brow are now pinned; **yaw and roll are not** (see below). |
+| **#51** Engine graph lifecycle | #165 | 2026-08-23 | `Engine.applyGraph` reconciles a live engine onto a new `GraphSpec`, keeping every node whose id + type + validated params are unchanged — so a swap reloads no ML model and rebuilds no audio graph. Plans synchronously, inits the new nodes while the old graph keeps ticking, commits atomically. |
+| **#101** M-D, first half | #166 | 2026-08-23 | The live loop runs on the `Clock` (`src/app/engineLoop.ts`), retiring `useEngine`'s hand-rolled rAF recursion, and the graph builds on a `?slot.<name>=` selection. |
+| **#104** M-C: the source slot | #167 | 2026-08-23 | `SLOTS.source` with three real candidates (`webcam-hands` / `synthetic-hands` / `replay-hands`) + `PortSpec.schema` conformance checked in `tick()`. **`?slot.source=synthetic-hands` runs the whole instrument with no camera and no MediaPipe** — the single most useful verification affordance in the repo. |
+| **#141** Gesture meaning as a live input | #169 | 2026-08-23 | `indirect-map`'s `steerConfig` becomes a live input port rather than a build-time param, so what a gesture *means* can change without rebuilding the graph. |
+| **#160 → #163** Trainer v2 | #162, #164, #170, #171, #172, #173, #174, #176 | 2026-08-23 → 08-27 | The trainer: **cues** (one thing to do, phrased in the player's own words) and **routines** as zodal collections; a runner with distances in **noise units** (a feature's displacement over its own jitter, so one threshold means the same thing for every feature); spoken guidance cached content-addressed via braidio; a projection view the player draws their own categories in; live feedback with an accurate excursion bar and a manual mode. **PR #173 is the load-bearing one**: a take records the clean camera + `features.jsonl` + cue-interval `annotations.jsonl` on one clock — and since #176, recording is **on by default**. |
+| **#177** Feature Lab meters | #177 | 2026-08-29 | The Lab's meters could not be turned off. |
+| **#178** Rhythm from gesture | #179 | 2026-09-02 | Research map only, no code: rhythm lives at 1–20 ms and a control loop runs at 30–60 Hz, so rhythm must be *inferred* against a musical prior, never measured frame-to-onset. Proposes extracting the engine as a shared package (`ictus`) since `muvid` needs the same latent state from dancer motion. |
+
+**What the trainer changes about everything else.** A take is now the repo's cheapest
+source of ground truth. `test/fixtures/video_head_pose/README.md` records why yaw and roll
+stayed open after #161: the clip's own metadata cannot say whether it was mirrored, so
+"the person turned to *their* left" is unrecoverable from the file. A cue *asks* for that
+in the player's terms, which is exactly the missing frame of reference.
+
 ### Stream Applier (M8, epic #101)
 
 | Milestone | Issue | PR | Status |
 |-----------|-------|----|--------|
 | **M-A** camera-free pre-recorded video source (`?source=video`) | #102 | #105 | shipped |
-| **M-B** `Clock` abstraction + speed multiplier | #103 | #106 | shipped (`BatchClock` fully tested; the live `RealtimeClock` adoption is deferred to M-D) |
-| **M-C** async-iterator `Source` contract + `source` slot | #104 | — | **design resolved, build deferred** — see below |
+| **M-B** `Clock` abstraction + speed multiplier | #103 | #106 | shipped (`BatchClock` fully tested; the live `RealtimeClock` adoption landed later, in #166) |
+| **M-C** `source` slot + typed `replay-hands` + `PortSpec.schema` conformance | #104 | #167 | **shipped** — `?slot.source=synthetic-hands` runs the whole instrument with no camera and no MediaPipe |
+| **M-D** (first half) live loop on the `Clock` + `?slot.<name>=` selection | #101 | #166 | shipped — `src/app/engineLoop.ts`; the `Source` interface, its pump and the `Applier` remain |
+| **#51** graph lifecycle: re-wire a running engine | #51 | #165 | shipped — `Engine.applyGraph` reconciles onto a new `GraphSpec` without rebuilding audio or reloading models |
 
 ---
 
 ## Open decisions
-
-### M-C (#104) — resolved, deferred
-
-The design fork is settled: a pre-recorded **video** source is a **host-side
-`Source`** (`outputResource: 'video'`) that feeds the unchanged `webcam-*` nodes
-through `ctx.resources` — it is *not* a node swap. Node-swap is reserved for sources
-that emit **finished frames** (replay / synthetic), which are ordinary zero-input
-nodes. So `videoFileSource` is **not** a slot candidate; M-A's host wiring is the
-right shape and stays. Recorded in
-[design/stream-applier.md](design/stream-applier.md#m-c-resolved-host-side-source-for-video-node-swap-for-frame-emitters).
-Ready to build; not scheduled.
 
 ### #128 — the generative layer: **DECIDED (retired to `?engine=legacy`)**
 
@@ -139,11 +158,6 @@ such — a bracketed `#n` in this list always means an issue.
 
 ### Feature Lab
 
-- **[#150] Rolling correlation view** — item 3 of #131, split out when items 1+2 landed
-  in PR #151. A rolling correlation matrix over the currently-watched features, so
-  coupling between them is *visible* rather than inferred. It is what makes the
-  `invariantTo` labels and the `residual`/`deconfound` helpers actionable: it tells you
-  which confound to remove.
 - **[#148] Adopt the handedness dwell in `hand-features`** — PR #149 fixed handedness
   flicker with hysteresis in the Lab's feature path, but not in the SOUND path. Either
   adopt it there too, or decide the divergence is wanted and say why.
@@ -156,53 +170,54 @@ such — a bracketed `#n` in this list always means an issue.
   (the `*ZeroDeg` seam exists), and **demoting the emotion classifier to opt-in** once
   `controls` proves out. The **axis-sign live check** is the #146 item.
 
-- **[#160] Trainer mode — learn the player's OWN categories from a live stream.**
-  Research: [`docs/research/trainer-mode.md`](research/trainer-mode.md) (26 refs).
-  Reframes the face-mapping problem: the difficulty hitting the shipped expression
-  categories is **identity bias** — a named, measured gap — and the field's answer is
-  personalization, whose usual blocker (subject-specific labels are unavailable) simply
-  does not apply to an instrument whose player is sitting at the camera. So: stop tuning
-  a population model, let each player carve their own space.
+- **[#160] Trainer mode → the BINDING half is what remains.** Research:
+  [`docs/research/trainer-mode.md`](research/trainer-mode.md) (26 refs). The premise —
+  stop tuning a population model against identity bias, let each player carve their own
+  space — is unchanged and is now **mostly built**.
 
-  Four things the research settles, each load-bearing:
+  **What shipped** (#162 the core, #164 the feature-demand prep, then #163's five PRs
+  #170–#174 and #176): cues and routines as zodal collections; a runner; **noise units**
+  (`src/enroll/noise.ts` — a feature's displacement over its own frame-to-frame jitter,
+  which is what lets one threshold mean the same thing for a value in degrees and a
+  0..1 blendshape); still-point sampling with a velocity gate; hierarchical clustering
+  cut at k; a reject region that *holds the last category* rather than going silent; a
+  projection view the player labels; spoken guidance; and a recorded take.
 
-  1. **Train on the FEATURE VECTOR, not the face.** `src/features/catalog.ts` already
-     emits a flat named scalar vector from face *and* hands through one contract, so
-     `Record<featureId, number>` makes this modality-general on day one. Building it
-     against `FaceFrame` is the one decision that would make it face-only forever.
-  2. **Build a hierarchy, cut it at k.** That is what makes "specify the count before
-     *or afterwards*" nearly free — one recording supports 3 then 5 then 4 categories
-     with no retraining. The player drags a slider; the vocabulary gets finer or coarser.
-  3. **Cluster the still points, not the frames.** A free-motion stream is mostly
-     transitions; clustering every frame finds the centre of the motion envelope rather
-     than the expressions. Velocity-gate to poses actually held.
-  4. **No-man's-land is a reject region, hysteretic, and NOT silent** — it should hold
-     the last category, not drop out. An instrument that goes quiet whenever the
-     classifier is unsure is unplayable.
+  **What did NOT ship is the last verb: bind.** The pipeline ends in an in-memory
+  zustand field (`model: TrainedModel | null`, `src/app/enroll/store.ts:117`) that **no
+  sound path reads** — `TrainedModel` appears nowhere in `src/nodes/`, `src/music/`,
+  `src/app/graph.ts`, `src/app/dials/` or `src/app/commands/`. The temporal layer that
+  would make a category playable, `createCategoryTracker`
+  (`src/enroll/classify.ts:226`), has **zero callers outside `test/enroll.test.ts`**.
+  So a player can today teach the trainer four categories, see them projected, name
+  them — and change nothing they can hear.
 
-  The invariance half ("camera distance shouldn't matter") is **~70% already shipped**:
-  #131's `invariantTo` vocabulary already names `scale` as camera distance and ships
-  `residual()`/`deconfound()`. Nothing consumes it — level 1 is a selection policy, not
-  new mathematics. Level 2 (learn the nuisance from a demonstration clip) is the elegant
-  target; level 3 (adversarial invariance) is knowingly declined.
+  #160 therefore stays open as the **binding** issue, not as the trainer issue.
+  `src/app/gestureDispatch.ts` is the closest existing precedent for the missing
+  shape — a discrete recognized thing, edge-triggered, dispatching a command — and the
+  open design question is whether a learned category binds like that (a command
+  dispatcher), like a dial, or as a node in the graph.
 
-  Four maintainer questions are open in the issue (discrete vs continuous; persistence;
-  command vs dial; acceptable recording length).
+- **[#163] Trainer v2 — cues, routines, spoken guidance, projection view.** The five PRs
+  above landed; the issue stays open on its own live-run gate, which #146 covers.
 
-### Command dispatch
+### Rhythm
 
-- **[#127] #87 Phase 4 — DONE (PR #159).** One middleware seam on `registry.dispatch`
-  (`src/app/commands/middleware.ts`), read three ways: undo/redo, the telemetry journal,
-  and command export/replay. Order is stated as data, gate outermost, because a blocked
-  command did not run and must not be journaled or undoable. Undo is hand-written, not
-  `acture-undo`: that package observes `setStateWithPatches` on a `PatchCapableAdapter`,
-  and this registry deliberately holds no adapter while zodal's settings store emits no
-  patches. History snapshots the whole editable layer per dispatch rather than
-  registering per-command inverses, so a command added later gets undo for free and
-  `dial.patch` cannot be half-undone. Bound to ⌘/Ctrl-Z + both redo spellings — an undo
-  history reachable only from a module export is the #137 trap. Two properties to know:
-  slider drags bypass the registry (Decision B) so they appear in neither surface, and
-  the journal has **no egress and no persistence**.
+- **[#178] Infer rhythm from low-rate gesture — propose `ictus`.** Research map only
+  (#179): melody and timbre tolerate a 30–60 Hz control rate, rhythm does not, so rhythm
+  must be *inferred* against a musical prior rather than measured frame-to-onset. Read §1
+  and §6 of [`docs/research/rhythm-from-gesture-research-map.md`](research/rhythm-from-gesture-research-map.md)
+  before touching anything timing-related. Proposes extracting the engine as a package
+  shared with `muvid`.
+
+### Waiting on the maintainer
+
+- **[#168] Decisions needed from you.** The standing list of questions only the
+  maintainer can answer. Q1 (yaw) and Q2 (frown) were answered 2026-08-23 with a
+  redirect — *don't chase them from the old clip; let the trainer produce the material*,
+  which is what the trainer-take → fixture path exists to do. Q3 (MIDI mute semantics),
+  Q4 (#148 handedness dwell), Q5 (#82 ADR) and Q6 (#141 needs a Gemini key) are open.
+  It also carries thorwhalen/tw_platform#156, which is not a thoremin decision.
 
 ### Generative
 
@@ -212,14 +227,13 @@ such — a bracketed `#n` in this list always means an issue.
 
 ### Engine / platform
 
-- **[#101] Stream Applier epic** (M8) — M-A and M-B shipped; M-C (#104) resolved but
-  deferred (above); M-D…M-G in [design/stream-applier.md](design/stream-applier.md).
-- **[#104] M-C** — async-iterator `Source` contract + `source` slot. Design resolved,
-  build deferred; see "Open decisions" above.
+- **[#101] Stream Applier epic** (M8) — M-A, M-B and M-C have shipped, and M-D's clock
+  half landed with #166. **What remains of M-D** is the `Source` interface, its pump and
+  the `Applier` that `runHeadless` and `useEngine` both collapse into; M-E…M-G are
+  designed and unstarted. SSOT: [design/stream-applier.md](design/stream-applier.md) —
+  its per-milestone bullets, not its header, are the authority on status.
 - **[#14] React Flow patcher UI** driven by Zod node configs (M6's remaining half).
-- **[#51] Node-swap slots** — blocked on the mapping input/params contract; the
-  developer-facing seam exists (`SLOTS` in `src/app/graph.ts`), but a slot only earns
-  a user-facing dropdown at ≥2 real candidates.
+  **Build is parked**; the open question is scope, not schedule — see #181.
 
 ### Design now, build later
 
@@ -234,17 +248,10 @@ such — a bracketed `#n` in this list always means an issue.
   issue — earlier revisions of this file listed it as `[#93]` alongside issues, which
   was wrong: there is no issue #93.
 - **[#5]** The original DAG roadmap issue, kept as the umbrella. Its M2 "CI gate" line
-  was unbacked until #153 (below).
+  was unbacked until #153, which closed it (PR #154).
 
-### Infrastructure
-
-- **[#153] No test CI** — `npm test` / `typecheck` / `build` were local-only gates on a
-  repo whose `main` auto-deploys to production; no test workflow had ever existed here.
-  A `pull_request` + `push: main` workflow closes it. Note the deploy is **not** made
-  conditional on the gate — that is a separate, deliberate decision.
-
-Closed since the 2026-07-12 sweep: **#87, #126, #128, #129, #130, #131, #136, #137,
-#143, #144** (see the shipped tables above).
+Closed since the 2026-07-12 sweep: **#51, #87, #104, #126, #127, #128, #129, #130,
+#131, #136, #137, #143, #144, #150, #153** (see the shipped tables above).
 
 ---
 
@@ -260,10 +267,10 @@ these rather than inside them, so read the status column, not the milestone numb
 | **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | done — but the "CI gate" half was **claimed years before it existed**: no test workflow had ever been committed to this repo. Closed by #153. |
 | **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) was decided in **#128** — the legacy AI-DJ is retired to `?engine=legacy`; a DAG-native, gesture-steered generative layer is now the new-feature issue **#141**. |
 | **M4** | Broaden the feature surface + tonal depth. | done and then some — face blendshapes, face expression, head/jaw/brow pose control, gesture classifier, Tonal.js chords/voicings, and the ~200-feature catalog (#119). |
-| **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | nodes built + tested (`transport` / `score` / `performance`); **not wired into the default graph**. |
-| **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120); the patcher (#14) is open. |
+| **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | nodes built + tested (`transport` / `score` / `performance`); **not wired into the default graph**, which the manual and `docs/CATALOG.md` both say plainly. Stable but *undecided* — #180 asks for the decision: wire it (it would need a score, and there is no content pipeline), or retire it to node-library-only the way #128 retired the generative nodes. |
+| **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120) and made reachable (#137 / PR #147); the patcher (#14) is open, with its **scope** the actual open question (#181). |
 | **M7** | (optional) Pluggable Python feature service + self-hosted generative service behind the existing node facades. | optional, untouched. |
-| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | in progress — M-A + M-B shipped; M-C resolved/deferred; M-D…M-G designed. See [design/stream-applier.md](design/stream-applier.md). |
+| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | in progress — M-A, M-B and M-C shipped; M-D half shipped (the live loop runs on the `Clock`, #166), its `Source` + pump + `Applier` remaining; M-E…M-G designed. See [design/stream-applier.md](design/stream-applier.md). |
 
 ### Open engine decisions (recorded; defaults taken)
 
