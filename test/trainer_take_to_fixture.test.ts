@@ -21,7 +21,9 @@ import {
   edgeEventsFromRows,
   insideAnyCue,
   findStem,
-} from '../scripts/trainer_take_to_fixture';
+  stripRawPositions,
+} from '../scripts/lib_trainer_take';
+import { FACE_OMIT } from '@/app/enroll/starterCues';
 import { resolveIntervals } from '@/taglog/affordances/resolve';
 import { valuesFromNDJSON } from '@/dag';
 
@@ -68,6 +70,48 @@ function makeTake(opts: {
 function outRoot(): string {
   return mkdtempSync(join(tmpdir(), 'fixtures-'));
 }
+
+describe('raw image-space coordinates are stripped, not merely undetected', () => {
+  // The array check cannot see these: a landmark coordinate flattened into the vector as
+  // a plain number lives in a `Record<string, number>` with no arrays anywhere. Over a
+  // take, `face.head.x`/`face.head.y` are a frame-by-frame nose-tip trajectory.
+  it('removes the raw-position ids the trainer itself omits, and keeps everything else', () => {
+    const ids = new Set(FACE_OMIT);
+    const v = { 'face.head.yaw': -21.4, 'face.head.pitch': 3.2, 'face.head.x': 0.4931, 'face.head.y': 0.5127 };
+    const { value, stripped } = stripRawPositions(v, ids);
+    expect(stripped.sort()).toEqual(['face.head.x', 'face.head.y']);
+    expect(value).toEqual({ 'face.head.yaw': -21.4, 'face.head.pitch': 3.2 });
+  });
+
+  it('leaves a value with no raw positions untouched, by identity', () => {
+    const v = { 'face.head.yaw': -21.4 };
+    const r = stripRawPositions(v, new Set(FACE_OMIT));
+    expect(r.value).toBe(v);
+    expect(r.stripped).toEqual([]);
+  });
+
+  it('strips them out of the WRITTEN fixture, and reports what it removed', () => {
+    const dir = makeTake({
+      cues: [['look-left', 1, 3]],
+      features: [['faceVec.vector', 2, { 'face.head.yaw': -25, 'face.head.x': 0.49, 'face.head.y': 0.51 }]],
+    });
+    const root = outRoot();
+    const r = convertTake(dir, 'stripped', { fixturesRoot: root });
+
+    const values = valuesFromNDJSON(readFileSync(join(root, 'stripped', 'faceVec.vector.ndjson'), 'utf8'));
+    expect(values).toEqual([{ 'face.head.yaw': -25 }]);
+
+    // Reported, never silent — the whole posture of this converter is that a dropped
+    // field must be visible to whoever reads the fixture later.
+    expect(r.strippedRawPositions).toEqual([
+      { id: 'face.head.x', records: 1 },
+      { id: 'face.head.y', records: 1 },
+    ]);
+    const meta = JSON.parse(readFileSync(join(root, 'stripped', 'meta.json'), 'utf8'));
+    expect(meta.strippedRawPositions).toHaveLength(2);
+    expect(readFileSync(join(root, 'stripped', 'README.md'), 'utf8')).toContain('face.head.x');
+  });
+});
 
 describe('landmark refusal — the guarantee about what enters the repo', () => {
   it('detects a face mesh however deeply it is nested', () => {
@@ -278,6 +322,24 @@ describe('refusals that protect the caller', () => {
     expect(existsSync(join(root, 'grew', 'faceVec.vector.ndjson.gz'))).toBe(true);
     // The stale plain file must be gone, or loadStream would keep returning it.
     expect(existsSync(join(root, 'grew', 'faceVec.vector.ndjson'))).toBe(false);
+  });
+
+  it('clears a superseded stream whose key disappears on regeneration', () => {
+    // Broader than the gzip flip: re-record with no hands in frame and `handVec.vector`
+    // is never emitted, so its file would survive and loadStream would keep serving the
+    // PREVIOUS take's hand data while meta.json correctly omits the key.
+    const root = outRoot();
+    const both = makeTake({
+      cues: [['a', 1, 3]],
+      features: [['faceVec.vector', 2, { v: 1 }], ['handVec.vector', 2, { h: 1 }]],
+    });
+    convertTake(both, 'shrank', { fixturesRoot: root });
+    expect(existsSync(join(root, 'shrank', 'handVec.vector.ndjson'))).toBe(true);
+
+    const faceOnly = makeTake({ cues: [['a', 1, 3]], features: [['faceVec.vector', 2, { v: 2 }]] });
+    const r = convertTake(faceOnly, 'shrank', { fixturesRoot: root, force: true });
+    expect(r.streams.map((s) => s.key)).toEqual(['faceVec.vector']);
+    expect(existsSync(join(root, 'shrank', 'handVec.vector.ndjson'))).toBe(false);
   });
 
   it('refuses a directory holding more than one take, naming them', () => {

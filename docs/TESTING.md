@@ -29,7 +29,7 @@ Tiers 1–3 are the CI gate: `npm test` (vitest, Node env, no camera/GPU/audio).
 
 ```bash
 npm run typecheck   # strict DAG typecheck (tsconfig.dag.json)
-npm test            # vitest — 87+ test files
+npm test            # vitest — 108 test files, 1384 tests
 npm run build       # vite build (this is what verifies the React layer)
 npm run catalog     # regenerate docs/CATALOG.md + public/manual.html + public/catalog.json
 ```
@@ -63,7 +63,7 @@ verdict on the PR, before merge.
 
 ## The test families
 
-The suite grew from ~33 files to 75+ across the 2026-06/07 tracks. Roughly:
+The suite grew from ~33 files to 108 across the 2026-06 → 2026-09 tracks. Roughly:
 
 | Family | Files | Covers |
 |--------|-------|--------|
@@ -104,7 +104,8 @@ stream by its logical key and never see the envelope.
 > **`meta.json` is written, never read.** This section used to claim
 > `graphSpecHash` was "the staleness key… the fixture is flagged for re-recording
 > rather than letting a stale stream silently pass". **Nothing enforces that.**
-> Two scripts emit `meta.json` and no code in `test/` or `src/` opens it — and the
+> Three scripts emit `meta.json` (`record_stream.ts`, `build_video_fixture.ts` and the
+> trainer-take converter) and no code in `test/` or `src/` opens it — and the
 > two face fixtures ship without one at all. Treat it as provenance for a human
 > reading the directory, which is genuinely useful, and not as a guard. Making it
 > a real staleness key would mean a test that loads it and compares, which does
@@ -131,19 +132,22 @@ inside a cue, and writes `test/fixtures/<scenario>/` with the per-edge streams, 
 
 Two behaviours worth knowing:
 
-- **It refuses a take carrying a point cloud** — a face mesh or a hand keypoint list —
-  rather than trimming it, because a converter that silently drops a field is one nobody
-  checks. `trainerTakeSession` also pins `featureEdges` so neither reaches the take:
-  before that pin the field was always empty, and **empty means every edge**, so takes
-  were recording `camFace.face` and its full 478-point mesh.
+- **No image-space geometry reaches a fixture**, by two mechanisms, because they are two
+  different problems:
+  - A face mesh or hand keypoint **array** makes it reject the take outright rather than
+    trim it — a converter that silently drops a field is one nobody checks.
+    `trainerTakeSession` also pins `featureEdges` so neither reaches the take: before that
+    pin the field was always empty, and **empty means every edge**, so takes were
+    recording `camFace.face` and its full 478-point mesh.
+  - Individual landmark **coordinates flattened into the vector as scalars** are invisible
+    to any check on a container's shape, so they are stripped by feature id and the removal
+    is **reported** in `meta.json` and the generated README. `face.head.x`/`face.head.y`
+    are the nose tip's normalized coordinates — over a take, a nose trajectory.
 
-  Be precise about the claim: it excludes *shape*, not every landmark-derived number.
-  Four catalog features are single-point **positions** — `face.head.x`/`face.head.y` are
-  the nose tip's normalized coordinates, `palm.x`/`palm.y` the palm centroid. Those locate
-  a face in a frame; they do not describe one, and they are the same class of thing as the
-  head-pose matrix translation the committed `video_head_pose` fixture already carries. If
-  that ever stops being acceptable, the fix is a feature-id denylist, not a change to the
-  array check.
+  Stripping costs nothing: `FACE_OMIT` (`src/app/enroll/starterCues.ts`) is the trainer's
+  own declaration that the learner does not use those features. They are recorded only
+  because `routineGroups` unions a routine's demanded groups without applying each cue's
+  `omit`, so the engine computes a superset of what the learner consumes.
 
 - **It refuses to overwrite an existing fixture** without `--force`. Every committed
   fixture name matches the scenario regex, so `video_head_pose` is a reachable typo — and
