@@ -97,9 +97,50 @@ test/fixtures/<scenario>/
 ```
 
 Each NDJSON line is one `StreamRecord`: `{"tick":N,"t":seconds,"value":...}`.
-`meta.json`'s `graphSpecHash` is the **staleness key**: if a node's params or
-the upstream graph change, the hash mismatches and the fixture is flagged for
-re-recording rather than letting a stale stream silently pass.
+A large stream may be committed gzipped (`<key>.ndjson.gz`); `loadStream` in
+`test/helpers/fixtures.ts` decompresses transparently, so tests always address a
+stream by its logical key and never see the envelope.
+
+> **`meta.json` is written, never read.** This section used to claim
+> `graphSpecHash` was "the staleness key… the fixture is flagged for re-recording
+> rather than letting a stale stream silently pass". **Nothing enforces that.**
+> Two scripts emit `meta.json` and no code in `test/` or `src/` opens it — and the
+> two face fixtures ship without one at all. Treat it as provenance for a human
+> reading the directory, which is genuinely useful, and not as a guard. Making it
+> a real staleness key would mean a test that loads it and compares, which does
+> not exist.
+
+## Fixtures from a trainer take
+
+A recorded training take is the cheapest ground truth this repo can produce, because
+the cue states what the player was *asked* to do in their own words. That is the frame
+of reference a video clip cannot supply: `test/fixtures/video_head_pose/README.md`
+records why yaw and roll stayed open after #161 — nothing in a file says whether the
+recording was mirrored, so "the person turned to *their* left" is unrecoverable from
+the pixels.
+
+```bash
+# unzip the take first: a 'downloads' take is a .zip
+npx vite-node scripts/trainer_take_to_fixture.ts -- <take-dir> <scenario> [--dry-run]
+```
+
+It resolves the cue intervals through taglog's own `resolveIntervals` (the same one the
+Audacity/WebVTT/CSV exporters use, so the boundaries agree), keeps only the records
+inside a cue, and writes `test/fixtures/<scenario>/` with the per-edge streams, a
+`cues.json` index, `meta.json` and a generated `README.md`.
+
+Two behaviours worth knowing:
+
+- **It refuses a take carrying landmark or keypoint geometry** rather than trimming it.
+  A 478-point face mesh is facial geometry in a way blendshape coefficients and a pose
+  triple are not, and a converter that silently drops a field is one nobody checks.
+  `trainerTakeSession` also pins `featureEdges` so the mesh never reaches the take —
+  before that pin the field was always empty, and **empty means every edge**, so takes
+  were recording `camFace.face` and its full mesh.
+- **A cue the take stopped during extends to the end of the recording**, not to a point.
+  `resolveIntervals` returns `end === start` for an unclosed open unless told when
+  recording stopped; taking that literally would discard every sample of the one cue an
+  abandoned take still has.
 
 ## Recording fixtures
 

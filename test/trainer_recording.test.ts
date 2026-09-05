@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { createRunner, createSession, type Cue, type FeatureVector, type RunnerEvent } from '@/enroll';
 import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/app/enroll/annotations';
 import { trainerTakeSession, TRAINER_TAKE_INSTRUMENT } from '@/app/enroll/takeSession';
+import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
 import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { useTrainer } from '@/app/enroll/store';
@@ -175,6 +176,42 @@ describe('what a training take records', () => {
     expect(s.streams.audio).toBe(false);
     expect(s.streams.pureVideo).toBe(true);
     expect(s.name).toContain(TRAINER_TAKE_INSTRUMENT);
+  });
+
+  // `featureEdges` is a subset filter where EMPTY MEANS EVERY EDGE, and nothing in the
+  // app ever wrote it — so before the pin every training take recorded every output port
+  // of every node, including `camFace.face` and its 478 face-mesh landmarks per tick.
+  // These three tests are the guard on that; the first two are the ones that go red if
+  // the pin is removed.
+  it('pins the feature edges to the ones the trainer itself learns from, whatever the player last chose', () => {
+    const narrowed = {
+      ...DEFAULT_RECORDING_SESSION,
+      streams: { ...DEFAULT_RECORDING_SESSION.streams, features: true, featureEdges: ['handVec.vector'] },
+    };
+    const s = trainerTakeSession(narrowed);
+    expect(s.streams.featureEdges).toEqual([...FEATURE_VECTOR_EDGES]);
+    // The specific loss the pin prevents: the face vector surviving the player's filter.
+    expect(s.streams.featureEdges).toContain('faceVec.vector');
+  });
+
+  it('pins them over the shipped default, which is empty — and empty records the face mesh', () => {
+    // The default is `[]`, and this is the case that actually happened in production:
+    // no UI writes this field, so every take took the empty path and recorded every edge
+    // — `camFace.face` included, which is 478 landmarks per tick. A non-empty pin is the
+    // difference between a take that carries a face mesh and one that does not.
+    expect(DEFAULT_RECORDING_SESSION.streams.featureEdges).toEqual([]);
+    const s = trainerTakeSession(DEFAULT_RECORDING_SESSION);
+    expect(s.streams.featureEdges.length).toBeGreaterThan(0);
+    expect(s.streams.featureEdges).toEqual([...FEATURE_VECTOR_EDGES]);
+    expect(s.streams.featureEdges).not.toContain('camFace.face');
+  });
+
+  it('records exactly the edges the live tap reads — the two must not drift apart', () => {
+    // FEATURE_VECTOR_EDGES is the SSOT `LiveVectorTap` filters on. If a third vector node
+    // is added and only one of the two sites is updated, the trainer would learn from a
+    // signal its own recording does not contain (or vice versa).
+    const s = trainerTakeSession();
+    expect(new Set(s.streams.featureEdges)).toEqual(new Set(FEATURE_VECTOR_EDGES));
   });
 });
 

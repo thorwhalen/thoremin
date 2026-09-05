@@ -245,7 +245,8 @@ So, when you add a user-facing capability:
 | **Trainer** (#160/#163) — learn a player's OWN categories. Pure core over `FeatureVector` (never a face type): `cue.ts` (Zod cues/routines), `noise.ts` (every distance in multiples of a feature's own jitter), `sampler.ts`, `sufficiency.ts` (the `SufficiencyEvaluator` seam), `runner.ts`, `session.ts`, `cluster.ts`, `classify.ts`. Host glue: starter face cues + the two zodal collections + the store | `src/enroll/`, `src/app/enroll/` (`starterCues.ts`, `cueStore.ts`, `store.ts`), `src/app/TrainerPanel.tsx` |
 | **Feature demand** (#163) — a non-Lab consumer claims feature GROUPS; the vector nodes (and the face-model gate) compute them with the Lab closed | `src/features/demand.ts`, `src/app/featureDemand.ts` |
 | Legacy app (**frozen**) | `src/App.tsx`, `src/components/`, `src/hooks/`, `src/plugins/ai-dj/` |
-| Fixtures + replay | `test/fixtures/`, `scripts/record_stream.ts`, `src/dag/recorder.ts` |
+| Fixtures + replay | `test/fixtures/`, `scripts/record_stream.ts`, `src/dag/recorder.ts`, `test/helpers/fixtures.ts` (the one loader) |
+| **Trainer take → fixture** — the cue interval is the ground truth a clip cannot supply; refuses landmark geometry | `scripts/trainer_take_to_fixture.ts`, `docs/TESTING.md` |
 | Conceptual model | `docs/design/component-model.md` |
 
 ## Roadmap & tracking
