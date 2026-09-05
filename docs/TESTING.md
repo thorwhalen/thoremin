@@ -131,12 +131,24 @@ inside a cue, and writes `test/fixtures/<scenario>/` with the per-edge streams, 
 
 Two behaviours worth knowing:
 
-- **It refuses a take carrying landmark or keypoint geometry** rather than trimming it.
-  A 478-point face mesh is facial geometry in a way blendshape coefficients and a pose
-  triple are not, and a converter that silently drops a field is one nobody checks.
-  `trainerTakeSession` also pins `featureEdges` so the mesh never reaches the take —
+- **It refuses a take carrying a point cloud** — a face mesh or a hand keypoint list —
+  rather than trimming it, because a converter that silently drops a field is one nobody
+  checks. `trainerTakeSession` also pins `featureEdges` so neither reaches the take:
   before that pin the field was always empty, and **empty means every edge**, so takes
-  were recording `camFace.face` and its full mesh.
+  were recording `camFace.face` and its full 478-point mesh.
+
+  Be precise about the claim: it excludes *shape*, not every landmark-derived number.
+  Four catalog features are single-point **positions** — `face.head.x`/`face.head.y` are
+  the nose tip's normalized coordinates, `palm.x`/`palm.y` the palm centroid. Those locate
+  a face in a frame; they do not describe one, and they are the same class of thing as the
+  head-pose matrix translation the committed `video_head_pose` fixture already carries. If
+  that ever stops being acceptable, the fix is a feature-id denylist, not a change to the
+  array check.
+
+- **It refuses to overwrite an existing fixture** without `--force`. Every committed
+  fixture name matches the scenario regex, so `video_head_pose` is a reachable typo — and
+  its ground-truth table was established by reading traces against video frames, so it is
+  not regenerable.
 - **A cue the take stopped during extends to the end of the recording**, not to a point.
   `resolveIntervals` returns `end === start` for an unclosed open unless told when
   recording stopped; taking that literally would discard every sample of the one cue an

@@ -16,14 +16,23 @@
  *
  * ## Three things it refuses to do
  *
- * 1. **Emit face-mesh landmarks.** A 478-point mesh is facial geometry; blendshape
- *    coefficients and a head-pose triple are not, and neither reconstructs a face. The
- *    committed `video_head_pose` fixture already strips them by hand for exactly this
- *    reason. Here it is enforced: any value carrying a `landmarks` array is rejected
- *    outright rather than trimmed, because a converter that silently drops a field is a
- *    converter nobody checks. (`trainerTakeSession` now also pins `featureEdges` so the
- *    mesh never reaches the take in the first place — this is the second line of defence,
- *    and it is the one that guards what enters the repo.)
+ * 1. **Emit a face MESH or a hand keypoint list.** Any value carrying a `landmarks` or
+ *    `keypoints` array is rejected outright rather than trimmed, because a converter that
+ *    silently drops a field is a converter nobody checks. `trainerTakeSession` also pins
+ *    `featureEdges` so the mesh never reaches the take in the first place; this is the
+ *    second line of defence, and the one that guards what enters the repo.
+ *
+ *    **Be precise about what this does and does not claim.** It excludes *point clouds* —
+ *    the 478-point mesh and the 21-point hand keypoint list, which are shape and do
+ *    reconstruct a face. It does **not** claim the emitted vectors are free of every
+ *    landmark-derived number: four catalog features are positions computed from a single
+ *    point — `face.head.x` / `face.head.y` are the nose tip's normalized image coordinates
+ *    (`src/features/face_catalog.ts`), and `palm.x` / `palm.y` are the palm centroid. Two
+ *    coordinates of one point are the same class of thing as the head-pose matrix's
+ *    translation, which the committed `video_head_pose` fixture already carries by
+ *    deliberate decision. They locate a face in a frame; they do not describe it.
+ *    If that distinction ever stops being acceptable, the fix is a feature-id denylist
+ *    here, not a change to the array check.
  * 2. **Write outside `test/fixtures/`.** The output name is a bare scenario name, not a
  *    path.
  * 3. **Invent a clock.** Every emitted record keeps the take's own `tick` and `t`, so the
@@ -37,7 +46,7 @@
  * `<stem>.annotations.jsonl` and `<stem>.manifest.json`. `<scenario>` becomes
  * `test/fixtures/<scenario>/`.
  */
-import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { resolveIntervals } from '@/taglog/affordances/resolve';
@@ -45,6 +54,13 @@ import type { EdgeEvent, ResolvedInterval, TagKind, TagStatus } from '@/taglog/a
 
 /** Gzip anything at or above this many bytes, mirroring the existing committed fixtures. */
 const GZIP_THRESHOLD_BYTES = 200_000;
+
+/**
+ * Refuse a features file bigger than this rather than hit Node's ~512 MiB string cap
+ * with an opaque `ERR_STRING_TOO_LONG`. A take with the edges pinned is a few MB for a
+ * multi-minute routine; anything near this is a pre-pin take carrying the face mesh.
+ */
+const MAX_FEATURES_BYTES = 256 * 1024 * 1024;
 
 /** One line of `features.jsonl`, as written by `FeatureJsonlTap`. */
 interface FeatureLine {
@@ -125,14 +141,22 @@ export function carriesLandmarks(v: unknown): boolean {
 
 /** Find the take's stem from the files present, so the caller need not repeat it. */
 export function findStem(dir: string): string {
-  const names = readdirSync(dir);
-  const feat = names.find((n) => n.endsWith('.features.jsonl'));
-  if (!feat) {
+  const feats = readdirSync(dir).filter((n) => n.endsWith('.features.jsonl')).sort();
+  if (feats.length === 0) {
     throw new Error(
       `${dir}: no *.features.jsonl. Is this an unzipped take folder? A 'downloads' take is a .zip — unzip it first.`,
     );
   }
-  return basename(feat, '.features.jsonl');
+  if (feats.length > 1) {
+    // Downloads is where takes accumulate and the instruction here is "unzip it first",
+    // so two takes in one folder is an ordinary mistake. `readdirSync` order is not
+    // specified, so picking the first would convert an arbitrary one and say nothing.
+    throw new Error(
+      `${dir}: ${feats.length} takes found (${feats.map((f) => basename(f, '.features.jsonl')).join(', ')}). ` +
+        `Point this at one take folder, not a directory holding several.`,
+    );
+  }
+  return basename(feats[0], '.features.jsonl');
 }
 
 /**
@@ -206,6 +230,8 @@ export function insideAnyCue(tAbs: number, windows: readonly CueWindow[]): boole
 export interface ConvertOptions {
   /** Write nothing; just report what would be written. */
   dryRun?: boolean;
+  /** Replace an existing fixture directory. Off by default — see the overwrite guard. */
+  force?: boolean;
   /** Where `test/fixtures` lives (injected so tests can point at a temp dir). */
   fixturesRoot: string;
 }
@@ -248,6 +274,23 @@ export function convertTake(takeDir: string, scenario: string, opts: ConvertOpti
   // Group the feature stream by edge key, keeping only ticks inside a cue.
   const featPath = join(takeDir, `${stem}.features.jsonl`);
   if (!existsSync(featPath)) throw new Error(`${featPath} is missing`);
+  // The file is read whole, so it is bounded by Node's maximum string length
+  // (~512 MiB of chars). That limit is not theoretical here: it is reached by exactly
+  // the takes the landmark guard exists for. Every take recorded before `featureEdges`
+  // was pinned used the empty default, which `FeatureJsonlTap` reads as "record every
+  // edge" — including `camFace.face` and its 478 mesh points on every tick, ~36 KB per
+  // line. Such a take blows the string limit long before the guard can look at it, and
+  // `ERR_STRING_TOO_LONG` names neither the cause nor the fix. So check the size first
+  // and say the thing the guard would have said.
+  const featBytes = statSync(featPath).size;
+  if (featBytes > MAX_FEATURES_BYTES) {
+    throw new Error(
+      `${featPath} is ${(featBytes / 1024 / 1024).toFixed(0)} MB, past what this converter reads in one pass. ` +
+        `A take that large was almost certainly recorded before \`trainerTakeSession\` pinned \`featureEdges\`: ` +
+        `the empty default records EVERY edge, including the 478-point face mesh on \`camFace.face\`. ` +
+        `Re-record on a current build (a pinned take is a few MB), or pre-filter the file to the two vector edges.`,
+    );
+  }
   const byKey = new Map<string, StreamRecordOut[]>();
   const totals = new Map<string, number>();
   let lastT = t0;
@@ -271,6 +314,16 @@ export function convertTake(takeDir: string, scenario: string, opts: ConvertOpti
   sealOpenEnded(windows, lastT, t0);
 
   const outDir = join(opts.fixturesRoot, scenario);
+  if (!opts.dryRun && !opts.force && existsSync(outDir)) {
+    // Every committed fixture name matches the scenario regex, so a typo — or reusing the
+    // name of the fixture this take was meant to supersede — silently clobbered a
+    // hand-written README and its ground-truth table, which is the irreplaceable part.
+    throw new Error(
+      `${outDir} already exists. Converting would overwrite its streams and its README ` +
+        `(the ground-truth table is hand-written and not regenerable). Choose another scenario name, ` +
+        `or pass --force if replacing it is what you mean.`,
+    );
+  }
   if (!opts.dryRun) mkdirSync(outDir, { recursive: true });
 
   const streams: ConvertResult['streams'] = [];
@@ -284,7 +337,15 @@ export function convertTake(takeDir: string, scenario: string, opts: ConvertOpti
     // diffed and re-generated without spurious churn. The Python-generated fixtures
     // pass `mtime=0` explicitly for the same reason.
     const bytes = gzipped ? gzipSync(raw) : raw;
-    if (!opts.dryRun) writeFileSync(join(outDir, `${key}.ndjson${gzipped ? '.gz' : ''}`), bytes);
+    if (!opts.dryRun) {
+      writeFileSync(join(outDir, `${key}.ndjson${gzipped ? '.gz' : ''}`), bytes);
+      // Crossing the threshold on a regeneration would otherwise leave BOTH forms, and
+      // `loadStream` tries `.ndjson` before `.ndjson.gz` — so a re-recorded take that
+      // grew past the threshold would be silently ignored in favour of the stale plain
+      // file. Remove the counterpart rather than trusting whoever regenerates to notice.
+      const stale = join(outDir, `${key}.ndjson${gzipped ? '' : '.gz'}`);
+      if (existsSync(stale)) rmSync(stale);
+    }
     streams.push({ key, kept: records.length, total: totals.get(key) ?? 0, bytes: bytes.byteLength, gzipped });
   }
 
@@ -358,9 +419,11 @@ The take's own \`tick\`/\`t\` are preserved, so the streams stay mutually aligne
 |---|---|---|
 ${streamRows}
 
-**No landmark or keypoint geometry.** The converter rejects any take carrying it rather
-than trimming it, and \`trainerTakeSession\` pins the recorded edges to the derived feature
-vectors so it never reaches the take.
+**No point clouds.** The converter rejects any take carrying a face mesh or a hand
+keypoint list rather than trimming it, and \`trainerTakeSession\` pins the recorded edges to
+the derived feature vectors so neither reaches the take. Note the emitted vectors do
+include four single-point *positions* (nose tip, palm centroid) — coordinates that locate
+a face in a frame, not shape that describes one.
 
 ## The cues
 
@@ -384,15 +447,16 @@ npx vite-node scripts/trainer_take_to_fixture.ts -- <take-dir> ${r.scenario}
 function main(argv: string[]): void {
   const args = argv.filter((a) => a !== '--');
   const dryRun = args.includes('--dry-run');
+  const force = args.includes('--force');
   const positional = args.filter((a) => !a.startsWith('--'));
   const [takeDir, scenario] = positional;
   if (!takeDir || !scenario) {
-    console.error('usage: vite-node scripts/trainer_take_to_fixture.ts -- <take-dir> <scenario> [--dry-run]');
+    console.error('usage: vite-node scripts/trainer_take_to_fixture.ts -- <take-dir> <scenario> [--dry-run] [--force]');
     process.exit(2);
     return;
   }
   const fixturesRoot = join(process.cwd(), 'test', 'fixtures');
-  const r = convertTake(takeDir, scenario, { dryRun, fixturesRoot });
+  const r = convertTake(takeDir, scenario, { dryRun, force, fixturesRoot });
   const where = join('test', 'fixtures', scenario);
   console.log(`${dryRun ? '[dry run] would write' : 'wrote'} ${where}/`);
   console.log(`  take   ${r.stem}  (t0 = ${r.t0})`);

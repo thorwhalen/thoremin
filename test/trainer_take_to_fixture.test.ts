@@ -246,6 +246,48 @@ describe('refusals that protect the caller', () => {
     expect(() => convertTake(dir, 'truncated', { fixturesRoot: outRoot() })).toThrow(/line 2 is not JSON/);
   });
 
+  it('refuses to overwrite an existing fixture — the README is hand-written and not regenerable', () => {
+    // Every committed fixture name matches the scenario regex, so `video_head_pose` is a
+    // reachable typo — and its ground-truth table was established by reading traces
+    // against video frames. Losing it silently is the expensive failure.
+    const dir = makeTake({ cues: [['a', 1, 3]], features: [['faceVec.vector', 2, { v: 1 }]] });
+    const root = outRoot();
+    convertTake(dir, 'twice', { fixturesRoot: root });
+    expect(() => convertTake(dir, 'twice', { fixturesRoot: root })).toThrow(/already exists/);
+    // --force is the deliberate escape hatch.
+    expect(() => convertTake(dir, 'twice', { fixturesRoot: root, force: true })).not.toThrow();
+  });
+
+  it('removes the stale counterpart when a regeneration crosses the gzip threshold', () => {
+    // loadStream tries `<key>.ndjson` BEFORE `<key>.ndjson.gz`, so leaving both would make
+    // a re-recorded, larger take silently lose to the stale plain file.
+    const root = outRoot();
+    const small = makeTake({ cues: [['a', 1, 3]], features: [['faceVec.vector', 2, { v: 1 }]] });
+    const r1 = convertTake(small, 'grew', { fixturesRoot: root });
+    expect(r1.streams[0].gzipped).toBe(false);
+    expect(existsSync(join(root, 'grew', 'faceVec.vector.ndjson'))).toBe(true);
+
+    const big = makeTake({
+      cues: [['a', 1, 3]],
+      features: Array.from({ length: 6000 }, (_, i): [string, number, unknown] => [
+        'faceVec.vector', 1 + (i / 6000) * 2, { 'face.head.yaw': i * 0.001, 'face.head.pitch': i * 0.002 },
+      ]),
+    });
+    const r2 = convertTake(big, 'grew', { fixturesRoot: root, force: true });
+    expect(r2.streams[0].gzipped).toBe(true);
+    expect(existsSync(join(root, 'grew', 'faceVec.vector.ndjson.gz'))).toBe(true);
+    // The stale plain file must be gone, or loadStream would keep returning it.
+    expect(existsSync(join(root, 'grew', 'faceVec.vector.ndjson'))).toBe(false);
+  });
+
+  it('refuses a directory holding more than one take, naming them', () => {
+    // Downloads is where takes accumulate, and the instruction is "unzip it first".
+    // readdirSync order is unspecified, so picking one silently converts an arbitrary take.
+    const dir = makeTake({ cues: [['a', 1, 3]], features: [['faceVec.vector', 2, {}]] });
+    writeFileSync(join(dir, 'trainer-2026-08-24T09-00-00.features.jsonl'), '');
+    expect(() => findStem(dir)).toThrow(/2 takes found/);
+  });
+
   it('dry-run writes nothing', () => {
     const dir = makeTake({ cues: [['a', 1, 3]], features: [['faceVec.vector', 2, { v: 1 }]] });
     const root = outRoot();
