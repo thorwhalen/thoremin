@@ -101,7 +101,7 @@ and in a recording that can be replayed headlessly afterwards.
 | **#150** Rolling correlation view | #157 | 2026-08-17 | Item 3 of #131: a rolling correlation matrix over the watched features, on one shared exponentially-weighted moments implementation, cost-guarded. It is what makes `invariantTo` and `residual()`/`deconfound()` actionable — it tells you *which* confound to remove. |
 | **#76** Face/head axes as a dial | #156 | 2026-08-17 | The per-axis live-tuning surface, landed **deliberately before** the sign check, so the signs could then be settled against a real UI rather than in the abstract. |
 | **#127** Dispatch middleware | #159 | 2026-08-22 | One middleware seam on `registry.dispatch`, read three ways: undo/redo, the telemetry journal, and command export/replay. Order stated as data, gate outermost. |
-| **#76 / #146** Head-pose signs | #161 | 2026-08-23 | Settled the axis signs **headlessly** against a committed fixture (`test/fixtures/video_head_pose/`) — and found a genuinely **inverted pitch axis** in the process. Pitch, smile and brow are now pinned; **yaw and roll are not** (see below). |
+| **#76 / #146** Head-pose signs | #161 | 2026-08-23 | Settled the axis signs **headlessly** against a committed fixture (`test/fixtures/video_head_pose/`) — and found a genuinely **inverted pitch axis** in the process. Per axis: **pitch** settled and fixed; **smile** pinned on its positive half only, because a visible frown barely moves `mouthFrown*` at all — the darker-timbre half is a *signal* problem, not a sign problem; **brow** measured and found confounded by camera distance (it swings a third of full scale from leaning in, expression held); **yaw and roll** not settled, because nothing in a recording says whether it was mirrored. |
 | **#51** Engine graph lifecycle | #165 | 2026-08-23 | `Engine.applyGraph` reconciles a live engine onto a new `GraphSpec`, keeping every node whose id + type + validated params are unchanged — so a swap reloads no ML model and rebuilds no audio graph. Plans synchronously, inits the new nodes while the old graph keeps ticking, commits atomically. |
 | **#101** M-D, first half | #166 | 2026-08-23 | The live loop runs on the `Clock` (`src/app/engineLoop.ts`), retiring `useEngine`'s hand-rolled rAF recursion, and the graph builds on a `?slot.<name>=` selection. |
 | **#104** M-C: the source slot | #167 | 2026-08-23 | `SLOTS.source` with three real candidates (`webcam-hands` / `synthetic-hands` / `replay-hands`) + `PortSpec.schema` conformance checked in `tick()`. **`?slot.source=synthetic-hands` runs the whole instrument with no camera and no MediaPipe** — the single most useful verification affordance in the repo. |
@@ -150,11 +150,20 @@ such — a bracketed `#n` in this list always means an issue.
 
 ### Live verification — the one blocking several others
 
-- **[#146] Live verification needed (webcam + human eyes)** — a standing list of things
-  that shipped, pass every headless test, and cannot be *confirmed* without a camera and
-  a person: head-pose axis signs (#76), the annotations export (#125), AI multi-tool
-  (#133), the Feature Lab (#136), FLAC export (#143). This is the honest bottleneck for
-  anything face/head-driven, because the suite is structurally unable to close it.
+- **[#146] Live verification needed** — **re-scored 2026-09-05.** It had grown to 63
+  items across a body and five comments, and roughly **40% were already closed by the
+  suite** and had never been re-scored. Worse, two of its four head-pose checks are
+  *refuted* headlessly: a visible frown barely moves `mouthFrown*`, and `browRaise` swings
+  a third of full scale from camera distance alone — so running them live as written would
+  produce a misleading verdict. Both are now decisions rather than observations.
+
+  The body is now sorted by **what it costs the maintainer**: (A) needs a camera — one
+  run plus 12 checks; (B) needs a human but **no camera** — a DAW, an API key, ears, or a
+  one-line answer — 21 checks; (C) already closed, listed so nobody re-runs them.
+
+  **A1 is one ~2-minute trainer run**, and it closes the oldest thing in the issue. The
+  cue is what a clip could not supply: mirror state is not recoverable from pixels, but a
+  cue asks the player to turn to *their* left. That is #168 Q1's answer taken literally.
 
 ### Feature Lab
 
