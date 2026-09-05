@@ -107,6 +107,8 @@ export class Applier {
   private readonly pumps: Promise<void>[] = [];
   private stopped = false;
   private disposed = false;
+  /** First error thrown by a source when no `onError` was given; raised by `run()`. */
+  private sourceError: unknown;
 
   constructor(o: ApplierOptions) {
     this.engine = o.engine;
@@ -152,6 +154,9 @@ export class Applier {
       (time) => this.tick(time),
       () => this.stopped || this.disposed || this.extraStop?.() === true || this.sourcesExhausted(),
     );
+    // A source failure surfaces here rather than as an unhandled rejection — see
+    // `startPumps`. The run has already stopped; this is how the caller learns why.
+    if (this.sourceError !== undefined) throw this.sourceError;
   }
 
   /** One tick: publish what the pumps collected, advance the engine, fan out to sinks. */
@@ -223,7 +228,12 @@ export class Applier {
             // error that caused it would be lost.
             this.stopped = true;
             if (this.onError) this.onError(err);
-            else throw err;
+            // Deliberately NOT rethrown. These promises are never awaited — they outlive
+            // the tick loop by design — so a throw here is an UNHANDLED REJECTION, which
+            // in Node is a process-level crash: a bad source would take down a whole test
+            // run rather than failing its own. Stash it and let `run()` raise it, so the
+            // caller gets it from the `await` they already have.
+            else if (this.sourceError === undefined) this.sourceError = err;
           }
         })(),
       );

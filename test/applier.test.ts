@@ -213,6 +213,33 @@ describe('dispose and failure', () => {
     expect(seen.length).toBeLessThan(1000);
   });
 
+  it('a source error with NO onError surfaces from run(), not as an unhandled rejection', async () => {
+    // The pump promises are never awaited, so a `throw` inside one would be an unhandled
+    // rejection — in Node a process-level crash, which would take down a whole test run
+    // rather than failing this one. It has to come back through the await the caller
+    // already has.
+    const { engine, resources } = probeRig('hands');
+    await engine.init();
+    const boom: Source = {
+      id: 'boom', kind: 'signal', outputResource: 'hands',
+      async *frames() { yield 'one'; throw new Error('source died'); },
+      exhausted: () => false,
+      dispose: () => {},
+    };
+    let unhandled: unknown = null;
+    const onUnhandled = (e: unknown) => { unhandled = e; };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      await expect(
+        new Applier({ engine, resources, sources: [boom], clock: pacedClock(1000) }).run(),
+      ).rejects.toThrow('source died');
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toBeNull();
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   it('a tick error rethrows by default — batch must fail loudly', async () => {
     const registry = createRegistry([
       defineNode({
