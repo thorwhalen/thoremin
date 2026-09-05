@@ -20,11 +20,14 @@ export {
 export type { ReplayOptions } from './recorder';
 export { BatchClock, RealtimeClock } from './clock';
 export type { Clock, RealtimeClockOptions } from './clock';
+export { Applier } from './applier';
+export type { ApplierOptions, Source, SourceContext } from './applier';
 
 import { Engine, type EngineOptions } from './engine';
 import { NodeRegistry } from './registry';
 import { StreamRecorder } from './recorder';
 import { BatchClock } from './clock';
+import { Applier } from './applier';
 import type { GraphSpec } from './types';
 
 /**
@@ -54,8 +57,11 @@ export async function runHeadless(
     taps: [recorder],
   });
   await engine.init();
-  // BatchClock calls engine.tick() with no argument, exactly as the previous
-  // inline for-loop did, so recorded goldens are byte-identical.
-  await new BatchClock(opts.ticks).run(() => engine.tick(), () => false);
+  // Batch is an Applier config: a BatchClock, one recording tap, no sources and no
+  // sinks. The Applier forwards the clock's time argument verbatim, and BatchClock
+  // passes none, so the engine synthesizes `tickIndex * nominalDt` exactly as the
+  // original inline for-loop did — recorded goldens are byte-identical, which
+  // `test/applier_byte_identity.test.ts` pins rather than merely asserts.
+  await new Applier({ engine, clock: new BatchClock(opts.ticks) }).run();
   return { engine, recorder };
 }

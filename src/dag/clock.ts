@@ -31,6 +31,17 @@ export interface Clock {
    * returned promise resolves once it is true (or the batch count is reached).
    */
   run(onTick: (time?: number) => void, shouldStop: () => boolean): Promise<void>;
+  /**
+   * True when the loop yields to the event loop between ticks.
+   *
+   * `onTick` is **synchronous**, so a clock that never yields gives a host-side
+   * {@link Source}'s async iterator no turn to produce a frame: the pump would sit
+   * un-serviced and the graph would tick forever on a frozen resource. That is not a
+   * hypothetical — `BatchClock`'s loop is a plain `for`, so it starves any async source
+   * completely. `Applier` refuses that combination rather than letting it look like a
+   * hang. Optional so the interface stays backward-compatible; absent means "not paced".
+   */
+  readonly paced?: boolean;
 }
 
 /**
@@ -40,6 +51,11 @@ export interface Clock {
  * bearing — the recorded-fixture goldens depend on that synthesized time.
  */
 export class BatchClock implements Clock {
+  /** Synchronous by construction: the loop never yields, so async sources cannot be
+   *  serviced under it. Batch replays through zero-input NODES (`replay-source`,
+   *  `synthetic-hands`) instead — design invariant 4, "sources are ordinary nodes". */
+  readonly paced = false;
+
   constructor(private readonly ticks: number) {}
 
   async run(onTick: (time?: number) => void, shouldStop: () => boolean): Promise<void> {
@@ -92,6 +108,10 @@ export class RealtimeClock implements Clock {
     // requestAnimationFrame is absent but only BatchClock is used) is safe.
     this.schedule = opts.schedule ?? ((cb) => void requestAnimationFrame(cb));
   }
+
+  /** Yields between frames (rAF / the injected `schedule`), so async sources can be
+   *  pumped under it. */
+  readonly paced = true;
 
   run(onTick: (time?: number) => void, shouldStop: () => boolean): Promise<void> {
     return new Promise<void>((resolve) => {

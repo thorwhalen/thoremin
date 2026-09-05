@@ -5,8 +5,9 @@
 > speed, #103 / PR #106), and **M-C** (#104 / PR #167 — the `source` slot, the typed
 > `replay-hands` candidate, and `PortSpec.schema` conformance). **M-D is in progress:**
 > its clock half landed with the live loop (#166 / `src/app/engineLoop.ts`); what
-> remains is the `Source` interface + pump and the `Applier` itself. M-E…M-G are
-> designed, unstarted.
+> remains is its live half — `useEngine` becoming an Applier config. The `Source`
+> interface, its pump and the `Applier` are built (`src/dag/applier.ts`), and
+> `runHeadless` delegates to it. M-E…M-G are designed, unstarted.
 >
 > This document is the single source of truth; the ROADMAP and the tracking issues
 > point here. It supersedes ad-hoc source/replay wiring. **The per-milestone bullets
@@ -76,6 +77,17 @@ These come from the existing engine (`src/dag/engine.ts`) and are load-bearing:
   is an *offline* pre-processing step (`scripts/video_to_landmarks.py`), never an
   in-loop batch source. Automated raw-video regression, if ever needed, is a
   separate Playwright/headless-Chrome investment — out of scope.
+- **(C) A synchronous clock cannot service an async `Source`.** `Clock.run`'s `onTick`
+  is **synchronous**, so a clock whose loop never yields — `BatchClock`'s plain `for` —
+  gives a source's async iterator no turn to produce a frame. The graph would tick to
+  completion against a resource nothing ever wrote, which presents as "my source did
+  nothing" and is hard to trace. Rather than paper over it, `Clock` declares
+  `paced: boolean` and `Applier` **refuses** the combination with a message naming the
+  fix. This is not a limitation in practice: it falls straight out of invariant 4 —
+  batch replays through zero-input **nodes** (`replay-source`, `synthetic-hands`), and a
+  host-side `Source` exists for live origins, which are inherently paced. Discovered
+  while building M-D, and stated here because the design had not anticipated it.
+
 - **(B) Accelerated/slowed audio is not a time-multiply.** Control-rate params
   scale with `ctx.time` for free; audio rides `AudioContext.currentTime` and does
   not. Policy: **real-time = live audio; accelerated/slowed = control-rate
@@ -139,8 +151,9 @@ interface Clock {
   it forces for any clock). Control-rate `dt` scales for free. `now`/`schedule`
   are injectable so the clock is fully headless-testable. Speed ≠ 1 is gated to
   recorded/generated sources and obeys boundary B for audio; a **non-positive
-  speed** collapses to a frozen clock (`dt = 0`) — validated when `RealtimeClock`
-  is adopted into the app (M-D).
+  speed** would collapse to a frozen clock (`dt = 0`), so `RealtimeClock` **throws a
+  `RangeError`** on a non-finite or non-positive speed rather than shipping one
+  (`src/dag/clock.ts`; landed with M-D).
 
 ### Applier — applies an Engine to a SourceSet under a Clock
 
@@ -158,11 +171,13 @@ class Applier {
 }
 ```
 
-Will live at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable
-substrate once it stabilizes at M-D and a second consumer appears). Not built yet —
-this section describes the target, not the code. M-D is *partly* landed: the live
-loop already runs on a `Clock` (#166), so what is missing is the `Source` interface,
-its pump, and the `Applier` that ties them to the engine. `useEngine`
+Lives at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable substrate
+once it stabilizes and a second consumer appears). **Built**, with two departures from
+the sketch above, both deliberate: it takes a **live `Engine`** rather than a
+spec+registry (the lifecycle section below licenses this — and it is what keeps
+`runHeadless` byte-identical, since the engine keeps its own `validatePorts` default and
+tap wiring), and it takes the **`resources` object** the engine was constructed with, so
+the pump writes latched frames into the same reference every node reads. `useEngine`
 (live/paced) and `runHeadless` (batch) both collapse to configs of it, differing
 on **{clock, sinks, taps} jointly** — not "only the clock". Batch attaches a
 recording tap and **no audio sink** (the synth self-no-ops when the audio
@@ -206,7 +221,8 @@ boundaries allow.
   loop-boundary MediaPipe tracking-reset. Medium, not 15 lines. The hand model
   still loads (not free). Known limitation: the instrument mirrors the video
   (selfie assumption), so a non-mirror-image clip renders flipped with Left/Right
-  swapped — a per-source `mirror` flag is deferred to the M-C Source contract.
+  swapped — a per-source `mirror` flag is deferred to the host-side **`Source`** contract, which
+  M-C did **not** ship — it moved to M-D along with the async-iterable interface.
 - **M-B — Clock + speed multiplier (R5 control-rate core). ✅ shipped.**
   `src/dag/clock.ts` (`Clock` / `BatchClock` / `RealtimeClock`); refit the
   **`runHeadless`** loop → `BatchClock(ticks)` (preserve the no-arg `tick()`
@@ -250,10 +266,12 @@ boundaries allow.
     implementation and no consumer until the Applier exists; shipping it now would
     be a contract nobody honours, which this repo has been burned by twice
     (#119, #120). The node-swap half above needs none of it.
-- **M-D — The Applier (R4 complete, R5 orthogonality). ⚠ untested live surface.**
-  `runHeadless` delegates (BatchClock + bounded recorder tap, no audio sink);
-  `useEngine`'s effect becomes a thin Applier config — **this is where the live
-  rAF loop adopts `RealtimeClock(1)`** (deferred from M-B).
+- **M-D — The Applier (R4 complete, R5 orthogonality). ◑ engine half SHIPPED; live
+  half remains. ⚠ untested live surface.**
+  `runHeadless` **now delegates** to `Applier` (`src/dag/applier.ts`: BatchClock +
+  the recorder tap, no sources, no sinks). What remains is the other caller:
+  `useEngine`'s effect becoming a thin Applier config. The live rAF loop already
+  adopted `RealtimeClock(1)` (#166), so that deferral from M-B is discharged.
   **Gate on a browser smoke test** — the effect (StrictMode guards, face bridge,
   mute mirror, AudioContext lifecycle) has no headless coverage.
   - ✅ **The live loop now runs on `RealtimeClock(1)`** — `src/app/engineLoop.ts`
