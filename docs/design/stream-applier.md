@@ -1,11 +1,18 @@
 # Stream Applier — pluggable sources + batch/paced execution
 
 > **Status:** design agreed (2026-07); being built incrementally (M-A…M-G below).
-> **M-A** (camera-free video source, #102 / PR #105) and **M-B** (Clock + speed,
-> #103 / PR #106) have **shipped**. **M-C** (#104) is **design-resolved but
-> deferred** — see [M-C resolved](#m-c-resolved-host-side-source-for-video-node-swap-for-frame-emitters).
-> This document is the single source of truth; the ROADMAP and the tracking
-> issues point here. It supersedes ad-hoc source/replay wiring.
+> **Shipped:** **M-A** (camera-free video source, #102 / PR #105), **M-B** (Clock +
+> speed, #103 / PR #106), and **M-C** (#104 / PR #167 — the `source` slot, the typed
+> `replay-hands` candidate, and `PortSpec.schema` conformance). **M-D is in progress:**
+> its clock half landed with the live loop (#166 / `src/app/engineLoop.ts`); what
+> remains is the `Source` interface + pump and the `Applier` itself. M-E…M-G are
+> designed, unstarted.
+>
+> This document is the single source of truth; the ROADMAP and the tracking issues
+> point here. It supersedes ad-hoc source/replay wiring. **The per-milestone bullets
+> under [Incremental build order](#incremental-build-order) are the authority on
+> status** — this header is a summary of them, and when the two disagree the bullets
+> are right.
 
 ## The idea in one line
 
@@ -152,8 +159,10 @@ class Applier {
 ```
 
 Will live at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable
-substrate once it stabilizes at M-D and a second consumer appears). Not built yet
-— M-D is unstarted, and this section describes the target, not the code. `useEngine`
+substrate once it stabilizes at M-D and a second consumer appears). Not built yet —
+this section describes the target, not the code. M-D is *partly* landed: the live
+loop already runs on a `Clock` (#166), so what is missing is the `Source` interface,
+its pump, and the `Applier` that ties them to the engine. `useEngine`
 (live/paced) and `runHeadless` (batch) both collapse to configs of it, differing
 on **{clock, sinks, taps} jointly** — not "only the clock". Batch attaches a
 recording tap and **no audio sink** (the synth self-no-ops when the audio
@@ -201,10 +210,9 @@ boundaries allow.
 - **M-B — Clock + speed multiplier (R5 control-rate core). ✅ shipped.**
   `src/dag/clock.ts` (`Clock` / `BatchClock` / `RealtimeClock`); refit the
   **`runHeadless`** loop → `BatchClock(ticks)` (preserve the no-arg `tick()`
-  call). No engine change. The live `useEngine` rAF adoption of `RealtimeClock`
-  is **deferred to M-D** — it is the untested live surface and lands with the
-  Applier + a browser smoke test; M-B ships the abstraction + the fully-tested
-  `BatchClock` path and a headless `RealtimeClock`.
+  call). No engine change. M-B shipped the abstraction + the fully-tested
+  `BatchClock` path and a headless `RealtimeClock`; the live rAF adoption was
+  deferred to M-D and **has since landed there** (#166) — see the M-D bullet.
 - **M-C — Source contract + `source` slot + conformance (R1/R4 foundation).
   ✅ the node-swap half SHIPPED (#104); the async-iterable `Source` deferred to M-D.**
   **`videoFileSource` is a host-side `Source`, NOT a slot candidate** — see the
@@ -279,10 +287,11 @@ boundaries allow.
 
 ## M-C resolved: host-side Source for video, node-swap for frame-emitters
 
-> **Decision recorded 2026-07-12 (issue #104). READY to build; DEFERRED — nothing
-> currently blocks on it.** This resolves the one open fork in the design above and
-> **corrects** the earlier suggestion that `videoFileSource` would become a *slot
-> candidate*.
+> **Decision recorded 2026-07-12 (issue #104); BUILT in PR #167.** This resolved the
+> one open fork in the design above and **corrects** the earlier suggestion that
+> `videoFileSource` would become a *slot candidate*. The section is kept because the
+> decision it records — which origins are node swaps and which are host-side feeds —
+> still governs every source added from here on.
 
 The fork was: when the frames come from a file instead of a camera, is that a
 **different node** (swapped into a `source` slot) or a **different feed into the same
@@ -314,11 +323,13 @@ Consequences for the rest of the design (all consistent with what is written abo
 - The `SOURCE_SLOT_CONTRACT` still guarantees `hands` / `hands-frame` — it just governs
   the frame-emitters.
 
-**Why deferred:** M-A already delivers R6 (camera-free runs) and M-B already delivers the
-clock. M-C's value is the *contract* — open-closed source plugging and port conformance —
-which pays off when the Applier (M-D) lands and when a second non-webcam origin actually
-appears. Neither is currently blocking anything, so the design is banked and the build is
-not scheduled.
+**What it bought:** the *contract* — open-closed source plugging and port conformance.
+That is why the node-swap half was worth building ahead of a second non-webcam origin:
+`?slot.source=synthetic-hands` now runs the whole instrument headlessly, with no camera
+and no MediaPipe, which is what makes the graph verifiable without hardware. The
+host-side `Source` half (the async iterable and its pump) is still M-D's, for the reason
+stated there: the pump is a private detail of the Applier, so the interface has no
+honest consumer until the Applier exists.
 
 ## Changing the graph while it runs (the lifecycle prerequisite)
 
