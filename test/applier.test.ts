@@ -69,8 +69,51 @@ describe('an async source needs a clock that yields', () => {
     await engine.init();
     const src = listSource('s', 'signal', 'hands', ['a']);
     await expect(new Applier({ engine, resources, sources: [src], clock: new BatchClock(10) }).run()).rejects.toThrow(
-      /unpaced clock.*BatchClock/s,
+      /unpaced clock/,
     );
+  });
+
+  it('names the offending clock in a way minification cannot erase', async () => {
+    // The message's whole purpose is traceability, and esbuild renames class bindings by
+    // default — so `clock.constructor.name` would read "(l)" in exactly the production
+    // build where the source is not at hand. `paced` is data on the object and survives.
+    const { engine, resources } = probeRig('hands');
+    await engine.init();
+    const src = listSource('s', 'signal', 'hands', ['a']);
+    await expect(new Applier({ engine, resources, sources: [src], clock: new BatchClock(10) }).run()).rejects.toThrow(
+      /paced=false/,
+    );
+  });
+
+  it('refuses sources with no resources object — the pump would publish where nothing reads', async () => {
+    // Reachable by omission: `resources` is optional, and the engine was constructed with
+    // its own, so nothing looks missing at the call site. The pump would then write every
+    // frame into a private {} and the graph would tick on a resource nothing ever wrote.
+    const { engine } = probeRig('hands');
+    await engine.init();
+    const src = listSource('s', 'signal', 'hands', ['a']);
+    await expect(new Applier({ engine, sources: [src], clock: pacedClock(4) }).run()).rejects.toThrow(
+      /no resources object/,
+    );
+  });
+
+  it('refuses two sources sharing an id — ids key the frame buffers', async () => {
+    const { engine, resources } = probeRig('hands');
+    await engine.init();
+    await expect(
+      new Applier({
+        engine, resources, clock: pacedClock(4),
+        sources: [listSource('hands', 'signal', 'a', []), listSource('hands', 'signal', 'b', [])],
+      }).run(),
+    ).rejects.toThrow(/duplicate Source id "hands"/);
+  });
+
+  it('refuses a second run() — two iterators on one camera, two clocks on one engine', async () => {
+    const { engine } = probeRig('x');
+    await engine.init();
+    const applier = new Applier({ engine, clock: new BatchClock(1) });
+    await applier.run();
+    await expect(applier.run()).rejects.toThrow(/called twice/);
   });
 
   it('declares pacing on the clocks themselves, so the check needs no instanceof', () => {
@@ -189,6 +232,23 @@ describe('dispose and failure', () => {
     expect(good.dispose).toHaveBeenCalled();
   });
 
+  it('dispose() detaches every tap it attached — the engine outlives the Applier', async () => {
+    // The Applier takes a live, caller-owned engine that survives applyGraph swaps and
+    // StrictMode remounts. A tap attached for "the lifetime of this run" and never
+    // detached would keep receiving values from every later run on that engine.
+    const { engine } = probeRig('x');
+    await engine.init();
+    const seen: string[] = [];
+    const applier = new Applier({ engine, clock: new BatchClock(2) });
+    applier.addTap({ onValue: (k) => seen.push(k) });
+    await applier.run();
+    const during = seen.length;
+    expect(during).toBeGreaterThan(0);
+    applier.dispose();
+    engine.tick();
+    expect(seen).toHaveLength(during);
+  });
+
   it('dispose() is idempotent', () => {
     const good = { ...listSource('good', 'signal', 'b', []), dispose: vi.fn() };
     const { engine } = probeRig('x');
@@ -261,6 +321,73 @@ describe('sinks', () => {
     await new Applier({ engine, clock: new BatchClock(3), sinks: [(t) => times.push(t)] }).run();
     // BatchClock passes no time — the sink sees undefined, exactly as the engine does.
     expect(times).toEqual([undefined, undefined, undefined]);
+  });
+
+  it('a THROWING sink is caught, reported, and does not kill the loop', async () => {
+    // A sink is host code — canvas, audio, a React bridge — and is the most likely thing
+    // in the tick path to throw. Outside the guard it would escape the paced clock's
+    // frame callback, skipping `schedule()`: the instrument freezes and run() never
+    // settles. A lost 2D context on a GPU reset is enough to reach it.
+    const { engine } = probeRig('x');
+    await engine.init();
+    const errs: unknown[] = [];
+    let good = 0;
+    await new Applier({
+      engine,
+      clock: new BatchClock(3),
+      sinks: [() => { throw new Error('canvas gone'); }, () => { good++; }],
+      onError: (e) => errs.push(e),
+    }).run();
+    expect(errs.length).toBeGreaterThan(0);
+    expect((errs[0] as Error).message).toBe('canvas gone');
+    // The run completed, and the OTHER sink still ran.
+    expect(good).toBe(3);
+  });
+
+  it('a throwing sink with no onError surfaces from run(), never as a hang', async () => {
+    const { engine } = probeRig('x');
+    await engine.init();
+    await expect(
+      new Applier({ engine, clock: new BatchClock(3), sinks: [() => { throw new Error('sink died'); }] }).run(),
+    ).rejects.toThrow('sink died');
+  });
+
+  it('EVENT frames survive a tick that threw — they are put back, not dropped', async () => {
+    // publish() drains the buffer BEFORE the tick. If the tick fails and onError swallows
+    // it, those frames were never consumed by the engine and are gone from the buffer —
+    // for an event source that is the only record of a keypress.
+    const registry = createRegistry([
+      defineNode({
+        type: 'flaky', roles: ['source'], params: z.object({}), inputs: [], outputs: [{ name: 'seen', kind: 'any' }],
+        make: () => {
+          let n = 0;
+          return {
+            process: (_i, ctx) => {
+              n++;
+              if (n === 1) throw new Error('first tick fails');
+              return { seen: (ctx.resources as Record<string, unknown>).keys };
+            },
+          };
+        },
+      }),
+    ]);
+    const seen: unknown[] = [];
+    const resources: Record<string, unknown> = {};
+    const engine = new Engine({ nodes: [{ id: 'f', type: 'flaky', params: {} }], edges: [] }, registry, {
+      resources,
+      taps: [{ onValue: (k, v) => { if (k === 'f.seen') seen.push(v); } }],
+    });
+    await engine.init();
+    const src: Source = {
+      id: 'k', kind: 'event', outputResource: 'keys',
+      async *frames() { yield 'noteOn'; yield 'noteOff'; await new Promise((r) => setTimeout(r, 50)); },
+      exhausted: () => false,
+      dispose: () => {},
+    };
+    let n = 0;
+    await new Applier({ engine, resources, sources: [src], clock: pacedClock(10), shouldStop: () => n++ >= 4, onError: () => {} }).run();
+    // The first tick threw; the two frames must appear on a LATER tick rather than vanish.
+    expect(seen.flatMap((v) => (Array.isArray(v) ? v : []))).toEqual(['noteOn', 'noteOff']);
   });
 
   it('do not run when the tick threw', async () => {

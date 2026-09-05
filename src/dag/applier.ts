@@ -107,22 +107,43 @@ export class Applier {
   private readonly pumps: Promise<void>[] = [];
   private stopped = false;
   private disposed = false;
-  /** First error thrown by a source when no `onError` was given; raised by `run()`. */
-  private sourceError: unknown;
+  private started = false;
+  private readonly resourcesGiven: boolean;
+  /** Detach functions for taps attached through {@link addTap}, released on dispose. */
+  private readonly tapDetachers: (() => void)[] = [];
+  /** First error from a source, a tick or a sink. Raised by `run()` once the loop has
+   *  ended, so no failure escapes a frame callback and none is silent. */
+  private runError: unknown;
 
   constructor(o: ApplierOptions) {
     this.engine = o.engine;
     this.clock = o.clock;
     this.resources = o.resources ?? {};
+    this.resourcesGiven = o.resources !== undefined;
     this.sources = o.sources ?? [];
     this.sinks = o.sinks ?? [];
     this.extraStop = o.shouldStop;
     this.onError = o.onError;
   }
 
-  /** Attach a tap for the lifetime of this run. Returns the detach function. */
+  /**
+   * Attach a tap for the lifetime of this run. Returns the detach function.
+   *
+   * The Applier takes a **live, caller-owned** engine that outlives it — across
+   * `applyGraph` swaps and StrictMode remounts — so a tap attached here and never
+   * detached would keep receiving values from every later run. `dispose()` releases
+   * every tap attached through this method, which is what makes "for the lifetime of
+   * this run" true rather than aspirational.
+   */
   addTap(tap: Tap): () => void {
-    return this.engine.addTap(tap);
+    const detach = this.engine.addTap(tap);
+    this.tapDetachers.push(detach);
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      detach();
+    };
   }
 
   /**
@@ -137,6 +158,30 @@ export class Applier {
    * returns false for an empty set rather than the vacuous truth of `every()`.
    */
   async run(): Promise<void> {
+    // A second run() would start a second iterator per source (two consumers of one
+    // camera), replace the pending buffers under the live pumps, and tick one engine
+    // from two clock loops. A React effect under StrictMode is enough to reach it.
+    if (this.started) throw new Error('Applier: run() called twice — construct a new Applier per run.');
+    this.started = true;
+    if (this.sources.length > 0 && this.resourcesGiven === false) {
+      // The same failure the paced check exists to prevent, reached a different way:
+      // the pump would publish every latched frame into a private object no node can
+      // read, and the engine's own `resources` is a DIFFERENT reference, so the graph
+      // ticks on a resource nothing ever wrote. Nothing looks missing at the call site,
+      // because the engine was constructed with resources of its own.
+      throw new Error(
+        `Applier: ${this.sources.length} source(s) given with no resources object. Pass the SAME one the ` +
+          `engine was constructed with (EngineOptions.resources) — the pump writes latched frames into it ` +
+          `in place, and that is the only way a node sees them.`,
+      );
+    }
+    const ids = new Set<string>();
+    for (const src of this.sources) {
+      // `pending` is keyed by id; two sources sharing one would share a buffer, and the
+      // first one's drain would blank the second's resource on every tick.
+      if (ids.has(src.id)) throw new Error(`Applier: duplicate Source id "${src.id}" — ids key the frame buffers and must be unique.`);
+      ids.add(src.id);
+    }
     if (this.sources.length > 0 && this.clock.paced !== true) {
       // Fail here rather than at the end of a run that produced nothing. `onTick` is
       // synchronous, so an unpaced clock never gives a source's async iterator a turn:
@@ -144,7 +189,7 @@ export class Applier {
       // which reads as "my source did nothing" and is genuinely hard to trace back.
       throw new Error(
         `Applier: ${this.sources.length} source(s) given with an unpaced clock ` +
-          `(${this.clock.constructor.name}). A host-side Source is an async iterator and needs a clock ` +
+          `(paced=${String(this.clock.paced)}). A host-side Source is an async iterator and needs a clock ` +
           `that yields between ticks; a synchronous one starves it. For batch, replay through a ` +
           `zero-input NODE (replay-source / synthetic-hands) instead — see design invariant 4.`,
       );
@@ -154,29 +199,85 @@ export class Applier {
       (time) => this.tick(time),
       () => this.stopped || this.disposed || this.extraStop?.() === true || this.sourcesExhausted(),
     );
-    // A source failure surfaces here rather than as an unhandled rejection — see
-    // `startPumps`. The run has already stopped; this is how the caller learns why.
-    if (this.sourceError !== undefined) throw this.sourceError;
+    // Every deferred failure — a source, a tick, a sink — surfaces here rather than as
+    // an unhandled rejection or an escaped frame callback. The run has already stopped;
+    // this is how the caller learns why.
+    if (this.runError !== undefined) throw this.runError;
   }
 
-  /** One tick: publish what the pumps collected, advance the engine, fan out to sinks. */
+  /**
+   * One tick: publish what the pumps collected, advance the engine, fan out to sinks.
+   *
+   * **Nothing may throw out of here.** A paced clock calls this from inside its frame
+   * callback and schedules the next frame *after* the call returns
+   * (`RealtimeClock.run`: `onTick(...)` then `this.schedule(frame)`). An exception
+   * escaping would skip that scheduling, so the loop would stop AND the promise
+   * `run()` is awaiting would never settle — a silent, permanent hang rather than a
+   * failure. So the error is stashed and `run()` raises it once the loop has ended,
+   * which is the same discipline the pump uses.
+   *
+   * The sinks are inside the guard for the same reason: a sink is host code (canvas,
+   * audio, a React bridge), it is the most likely thing here to throw, and a lost
+   * canvas context freezing the instrument forever is exactly the failure this shape
+   * exists to prevent.
+   */
   private tick(time?: number): void {
-    this.publish();
+    const drained = this.publish();
     try {
       // Forwarded verbatim. `tick(undefined)` === `tick()` (Engine reads `time ??
       // tickIndex * nominalDt`); substituting a wall clock here is the one change that
       // would move every recorded golden. See the module docstring.
       this.engine.tick(time);
     } catch (err) {
-      if (!this.onError) throw err;
+      // The engine did not consume what publish() drained, so put it back rather than
+      // dropping it. For an `event` source those frames are the only record of a
+      // keypress; silently losing them on a recoverable node error is data loss.
+      this.restore(drained);
+      this.fail(err, { stop: false });
+      return;
+    }
+    for (const sink of this.sinks) {
+      try {
+        sink(time);
+      } catch (err) {
+        this.fail(err, { stop: false });
+      }
+    }
+  }
+
+  /**
+   * Route a failure, without ever letting it escape a frame callback.
+   *
+   * Two policies, split on whether the caller supplied `onError`:
+   *
+   * - **`onError` given** — the caller has said "hand me errors, keep going". The error
+   *   is reported and `run()` does **not** reject. This is the live path's rule, already
+   *   stated in `runEngineLoop`: *one bad frame must never stop the instrument*. A
+   *   degenerate landmark or a transient audio state should cost a frame, not a session.
+   * - **`onError` absent** — batch must fail loudly, so the first error is stashed and
+   *   `run()` raises it. Stashed rather than thrown, because a throw here would skip the
+   *   paced clock's `schedule()` and leave `run()`'s promise permanently pending.
+   *
+   * `stop` is separate from either: a *source* failure ends the run whatever the policy,
+   * because a dead source will never produce another frame and ticking on a frozen
+   * resource is indistinguishable from a hang. A *tick* or *sink* failure does not.
+   */
+  private fail(err: unknown, opts: { stop: boolean }): void {
+    if (opts.stop) this.stopped = true;
+    if (this.onError) {
       this.onError(err);
       return;
     }
-    for (const sink of this.sinks) sink(time);
+    this.stopped = true;
+    if (this.runError === undefined) this.runError = err;
   }
 
-  /** Move each source's collected frames into `resources` under its output key. */
-  private publish(): void {
+  /**
+   * Move each source's collected frames into `resources` under its output key, and
+   * return what was drained so a failed tick can put it back.
+   */
+  private publish(): Map<string, unknown[]> {
+    const drained = new Map<string, unknown[]>();
     for (const src of this.sources) {
       const buf = this.pending.get(src.id);
       if (!buf || buf.length === 0) {
@@ -187,7 +288,18 @@ export class Applier {
         continue;
       }
       this.resources[src.outputResource] = src.kind === 'signal' ? buf[buf.length - 1] : buf.slice();
+      drained.set(src.id, buf.slice());
       buf.length = 0;
+    }
+    return drained;
+  }
+
+  /** Put drained frames back at the FRONT of their buffers, preserving arrival order,
+   *  after a tick that did not consume them. */
+  private restore(drained: Map<string, unknown[]>): void {
+    for (const [id, frames] of drained) {
+      const buf = this.pending.get(id);
+      if (buf) buf.unshift(...frames);
     }
   }
 
@@ -226,14 +338,12 @@ export class Applier {
             // A source that dies must stop the run rather than starve it silently: an
             // engine ticking forever on a frozen last frame looks like a hang, and the
             // error that caused it would be lost.
-            this.stopped = true;
-            if (this.onError) this.onError(err);
             // Deliberately NOT rethrown. These promises are never awaited — they outlive
             // the tick loop by design — so a throw here is an UNHANDLED REJECTION, which
             // in Node is a process-level crash: a bad source would take down a whole test
-            // run rather than failing its own. Stash it and let `run()` raise it, so the
-            // caller gets it from the `await` they already have.
-            else if (this.sourceError === undefined) this.sourceError = err;
+            // run rather than failing its own. `fail` stashes it for `run()` to raise, so
+            // the caller gets it from the `await` they already have.
+            this.fail(err, { stop: true });
           }
         })(),
       );
@@ -245,6 +355,14 @@ export class Applier {
     if (this.disposed) return;
     this.disposed = true;
     this.abort.abort();
+    for (const detach of this.tapDetachers) {
+      try {
+        detach();
+      } catch {
+        // One tap failing to detach must not strand the others.
+      }
+    }
+    this.tapDetachers.length = 0;
     for (const src of this.sources) {
       try {
         src.dispose();
