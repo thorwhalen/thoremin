@@ -72,7 +72,8 @@ export { progressionNode } from './music/progression';
 export { transportNode } from './music/transport';
 export { scoreNode } from './music/score';
 export { performanceNode } from './music/performance';
-export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt } from './output/generative';
+export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt, GenerativeEngineFactory, GenerativeEngineOpts } from './output/generative';
+export type { GenerativeStatus } from './output/lyria';
 export * from './domain';
 
 /** The pure node definitions, safe to instantiate anywhere (incl. Node tests). */

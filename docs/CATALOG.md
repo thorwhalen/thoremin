@@ -350,11 +350,11 @@ Renders synth params to sound-preset voices (browser only).
 - **params:** freqGlide (number=0.03), gainGlide (number=0.08)
 
 #### `lyria` — Lyria Generative
-Steers a generative engine (Lyria RealTime) from weighted prompts + config dials.
+Steers a generative engine (Lyria RealTime) from weighted prompts + config dials. Off by default; loads its SDK only when enabled, and needs a Gemini API key.
 
 - **roles:** synth, generate
-- **in:** steer:generative-steer, playing:boolean
-- **out:** state:string
+- **in:** steer:generative-steer, enabled:boolean, playing:boolean, volume:number
+- **out:** status:load-status
 - **params:** throttleSec (number=0.2)
 
 #### `midi-out` — MIDI Output
