@@ -15,7 +15,10 @@
     "record": "vite-node scripts/record_stream.ts",
     "catalog": "vite-node scripts/gen_catalog.ts",
     "voice": "vite-node scripts/cue_strings.ts | python3 scripts/gen_cue_voice.py",
-    "check:models": "tsx scripts/check_models.ts"
+    "check:models": "tsx scripts/check_models.ts",
+    "smoke": "npm run smoke:setup && npm run smoke:run",
+    "smoke:setup": "npm --prefix smoke ci --no-audit --no-fund && npx --prefix smoke playwright install chromium",
+    "smoke:run": "npx --prefix smoke playwright test -c smoke/playwright.config.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.12",

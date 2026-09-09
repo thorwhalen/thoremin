@@ -55,3 +55,8 @@ Thumbs.db
 # Generated/large test media (commit derived NDJSON fixtures, not raw video)
 /media/
 /node_modules
+
+# Browser smoke harness (self-contained sub-project, #209)
+smoke/node_modules/
+smoke/test-results/
+smoke/playwright-report/

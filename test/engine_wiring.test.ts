@@ -67,6 +67,15 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(c).toMatch(/sinks:\s*\[\s*toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\)\s*\]/);
   });
 
+  it('publishes the read-only debug handle when the engine is ready, and removes it on teardown (#209)', () => {
+    // The browser smoke harness observes the live loop through `window.thoremin`.
+    // If this call is dropped the harness goes red for a reason nobody can see in
+    // the app; if the uninstall is dropped a torn-down engine stays reachable.
+    const c = code(useEngine);
+    expect(c).toMatch(/uninstallDebug = installDebugHandle\(engine, resources\)/);
+    expect(c).toMatch(/uninstallDebug\(\)/);
+  });
+
   it('releases the Applier on unmount, so its taps do not outlive the run', () => {
     // The engine is caller-owned and survives StrictMode remounts; a tap the Applier
     // attached and never detached would keep receiving values from every later run.

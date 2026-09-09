@@ -38,6 +38,7 @@ import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus } from './faceStatus';
 import { useMidiStatus } from './midiStatus';
 import { useGenerativeStatus, makeGenerativeReporter } from './generativeStatus';
+import { installDebugHandle } from './debugHandle';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -130,6 +131,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
 
   useEffect(() => {
     let disposed = false;
+    let uninstallDebug: () => void = () => {};
     // The acquired stream is held here (not read back off video.srcObject) so
     // cleanup can always stop the exact stream this run acquired. Under React
     // StrictMode the effect runs mount→cleanup→mount; an aborted run must stop
@@ -273,6 +275,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           return;
         }
         engineRef.current = engine;
+        // The read-only `window.thoremin` probe the browser smoke harness (and a person
+        // at the devtools console) reads the live loop through (#209). Removed on teardown.
+        uninstallDebug = installDebugHandle(engine, resources);
         setStatus('ready');
 
         // The selection may have changed during the model load, while the
@@ -429,6 +434,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useMidiStatus.getState().reset();
       useGestureStatus.getState().reset();
       useGenerativeStatus.getState().reset();
+      uninstallDebug();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
       useControls.getState().setSteerPlaying(false);
       sessionRecRef.current?.dispose();

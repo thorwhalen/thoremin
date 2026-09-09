@@ -1,0 +1,8 @@
+{
+  "name": "thoremin-smoke",
+  "private": true,
+  "description": "Browser smoke harness for thoremin (Playwright). Self-contained on purpose: its dependencies never touch the app's package.json or node_modules.",
+  "devDependencies": {
+    "@playwright/test": "^1.56.0"
+  }
+}
