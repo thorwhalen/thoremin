@@ -29,7 +29,7 @@ Tiers 1–3 are the CI gate: `npm test` (vitest, Node env, no camera/GPU/audio).
 
 ```bash
 npm run typecheck   # strict DAG typecheck (tsconfig.dag.json)
-npm test            # vitest — 108 test files, 1384 tests
+npm test            # vitest — 124 test files, 1540 tests
 npm run build       # vite build (this is what verifies the React layer)
 npm run catalog     # regenerate docs/CATALOG.md + public/manual.html + public/catalog.json
 ```
@@ -76,7 +76,7 @@ The suite grew from ~33 files to 108 across the 2026-06 → 2026-09 tracks. Roug
 | **Annotations** (#92) | `taglog_affordances`, `taglog_adapters`, `taglog_provider`, `taglog_presentation`, `tagging_store`, `tagging_export`, `tag_hud_overlay` | The extraction-ready `src/taglog/` core + the thoremin glue + the exporters. |
 | **Assistant** (#87 P3) | `assistant_session`, `assistant_tools` | Tool exposure and the session/confirmation flow, against a mock model. |
 | **Output** | `midi_out`, `overlay_elements`, `render_audio` | The MIDI sink, the overlay elements, the offline synth DSP. |
-| **Fixtures** | `fixture_replay`, `video_fixtures`, `hand_pipeline` | The record/replay regression gates. |
+| **Fixtures** | `fixture_replay`, `video_fixtures`, `video_body_fixtures`, `hand_pipeline` | The record/replay regression gates. |
 
 ### What is *not* covered headlessly
 
@@ -200,11 +200,35 @@ media/.venv/bin/python scripts/video_to_face.py media/videos/face_expressions.mp
 Raw `.mp4`s stay gitignored under `media/`; only the derived NDJSON is committed
 (`test/fixtures/video_*/`) and replayed by `test/video_fixtures.test.ts` — no
 camera/GPU in CI. Current committed video fixtures: `video_hand_sweep`,
-`video_hand_open_close`, `video_hand_pinch` (full hand pipeline) and
+`video_hand_open_close`, `video_hand_pinch` (full hand pipeline),
 `video_face_expressions` (blendshapes for the `face-features` node, plus the
 gzipped `face.landmarks` mesh stream replay-testing the `face.geom.*` /
-`face.gaze.*` / `face.head.*` catalog groups through `face-feature-vector`).
+`face.gaze.*` / `face.head.*` catalog groups through `face-feature-vector`),
+`video_head_pose` (the head-pose stream, see its README) and
+`video_body_que_calor` (a dancer through `body-feature-vector`, below).
 All tracked at ~100% detection on the generated clips.
+
+**Bodies (#186).** Same shape, one more script. The raw video is fetched with the
+`yb` package into the app-data dir (`~/.local/share/thoremin/videos/…`, never the
+repo), cut to a short excerpt with ffmpeg, decoded by PoseLandmarker into a
+`BodyFrame` stream, then replayed through `body-feature-vector` to build the fixture:
+
+```bash
+# 1. video → 33 pose landmarks + world landmarks + visibility (BodyFrame NDJSON, gzipped)
+media/.venv/bin/python scripts/video_to_pose.py ~/.local/share/thoremin/videos/dance/clip.mp4 \
+  ~/.local/share/thoremin/landmarks/dance/clip.pose.ndjson.gz --model full
+
+# 2. pose → committed fixture (camBody.body.ndjson.gz + bodyVec.vector.ndjson.gz + meta.json).
+#    --bpm / --origin record the ground truth the clip cannot say about itself.
+vite-node scripts/build_body_fixture.ts video_body_que_calor \
+  ~/.local/share/thoremin/landmarks/dance/clip.pose.ndjson.gz --bpm 129.2 --origin 51.2 --clip "…"
+```
+
+`video_body_que_calor` is 20 s of the *Chorégraphie Que Calor* run-through (the paces
+project's proof-of-concept clip: 129.2 bpm, routine origin 51.2 s), 600 frames at
+30 fps, 100 % detected, recorded with the `full` model (the live node defaults to
+`lite`), replayed by `test/video_body_fixtures.test.ts` as both a verification and a
+regression gate.
 
 **Live capture, in the app.** Recording v2 (#88) ships the feature-JSONL stream: a
 `FeatureJsonlTap` attached via `engine.addTap` writes `{tick,t,key,value}` per edge

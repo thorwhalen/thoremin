@@ -550,7 +550,7 @@ export const BODY_BONES: ReadonlyArray<readonly [number, number]> = [
 /**
  * One frame of full-body pose (#186). Produced by the browser `webcam-body`
  * source, the camera-free `synthetic-body`, or a `replay-body` of a recorded
- * stream (the planned `scripts/video_to_pose.py`, arriving with the body fixtures). `landmarks` are the 33 BlazePose points in
+ * stream (`scripts/video_to_pose.py`). `landmarks` are the 33 BlazePose points in
  * PIXEL coordinates of the source frame (like a hand's `keypoints`); `world` is
  * MediaPipe's metric, hip-centred set (metres) when the detector supplies it —
  * the basis for scale-free angles and velocities; `visibility` is the per-point

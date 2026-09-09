@@ -1,0 +1,15 @@
+{
+  "scenario": "video_body_que_calor",
+  "source": "video",
+  "clip": "Chorégraphie Que Calor (youtu.be/q_TUyxUhoEw), the at-tempo run-through: 51.2 s to 71.2 s of the original, scaled to 640x360, 30 fps; pose_landmarker_full",
+  "frames": 600,
+  "fps": 30,
+  "bodyDetectedFrames": 600,
+  "detectionRate": 100,
+  "music": {
+    "bpm": 129.2,
+    "originS": 51.2
+  },
+  "srcHash": "ba29448cc5d2",
+  "recorderVersion": 1
+}

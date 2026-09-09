@@ -2,9 +2,9 @@
  * `webcam-body` source node (browser-only, #186) — runs MediaPipe
  * **PoseLandmarker** on the shared host `<video>` and outputs the latest
  * {@link BodyFrame} (33 BlazePose landmarks in pixels + metric world landmarks +
- * per-point visibility). Its offline counterpart, a `scripts/video_to_pose.py`
- * in the `video_to_landmarks.py` family, is planned with the body fixtures and
- * will emit the same frame shape.
+ * per-point visibility). Its offline counterpart, `scripts/video_to_pose.py`,
+ * emits the same frame shape from a video, so a recorded stream replays through
+ * the same downstream nodes.
  *
  * The body is the most expensive model the graph can host, so it must cost
  * nothing until wanted. Rather than hand-roll a fourth copy of the load / release

@@ -42,3 +42,15 @@ export function loadStream(scenario: string, key: string): unknown[] {
   }
   throw new Error(`missing fixture ${path} — regenerate it (\`npm run record\`; see docs/TESTING.md)`);
 }
+
+/**
+ * Round every value of a feature vector to `dp` decimals, normalising `-0` to `0`:
+ * `JSON.stringify(-0)` writes `0`, so a baseline read back from disk would never equal
+ * a freshly rounded `-0` and a regression gate would fail on a fixture it had just
+ * built. NaN stays NaN so a finiteness check still catches it. The one function both
+ * the fixture builders and the replay tests use, so the two sides cannot drift.
+ */
+export function roundVector(v: Record<string, number>, dp = 6): Record<string, number> {
+  const k = 10 ** dp;
+  return Object.fromEntries(Object.entries(v).map(([id, x]) => [id, Math.round(x * k) / k + 0]));
+}
