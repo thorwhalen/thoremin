@@ -93,7 +93,7 @@ describe('useEngine constructs an Applier with options that actually exist', () 
   it('still passes the options that carry the live loop', () => {
     // A dropped `clock` or `sinks` would not be a type error (both are optional-ish in
     // shape terms) but would silently change what the instrument does.
-    for (const required of ['engine', 'clock', 'sinks', 'shouldStop']) {
+    for (const required of ['engine', 'clock', 'sinks', 'shouldStop', 'onError']) {
       expect(passed, `useEngine stopped passing "${required}" to the Applier`).toContain(required);
     }
   });
