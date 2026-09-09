@@ -87,6 +87,32 @@ describe('steer.strain.*', () => {
   });
 });
 
+  it('review catches: the last strain cannot be removed; an inverted weight range is refused; text is trimmed; duplicates edit one at a time', async () => {
+    await reg.dispatch('steer.strain.remove', { text: 'bright plucked arpeggios' });
+    const last = await reg.dispatch('steer.strain.remove', { text: 'warm ambient pads' });
+    expect(last.ok).toBe(false);
+    if (!last.ok) expect(last.error.code).toBe('last_strain');
+    expect(texts()).toEqual(['warm ambient pads']);
+
+    const inverted = await reg.dispatch('steer.strain.range', { text: 'warm ambient pads', weightMin: 3, weightMax: 0.5 });
+    expect(inverted.ok).toBe(false);
+    if (!inverted.ok) expect(inverted.error.code).toBe('invalid_range');
+
+    await reg.dispatch('steer.strain.add', { text: '  rain on glass  ' });
+    expect(texts()).toContain('rain on glass');
+    expect(texts()).not.toContain('  rain on glass  ');
+
+    // A hand-edited blob with two identical texts: edits address the FIRST only.
+    const cfg = currentSteerConfig();
+    const dup = { ...cfg.strains[0] };
+    dialsStore.set('steerConfig', { ...cfg, strains: [cfg.strains[0], dup, cfg.strains[1]] });
+    await reg.dispatch('steer.strain.rename', { text: 'warm ambient pads', to: 'first' });
+    expect(texts()).toEqual(['first', 'warm ambient pads', 'rain on glass']);
+    await reg.dispatch('steer.strain.bind', { text: 'warm ambient pads', hand: 'left' });
+    expect(currentSteerConfig().strains[1].hand).toBe('left');
+    expect(currentSteerConfig().strains[0].hand).toBe('right');
+  });
+
 describe('steer.dial.*', () => {
   it('set creates a binding with the knob’s natural range, then updates it in place', async () => {
     await reg.dispatch('steer.dial.set', { name: 'bpm', hand: 'left', feature: 'x' });

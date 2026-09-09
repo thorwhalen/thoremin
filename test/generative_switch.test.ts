@@ -69,6 +69,14 @@ describe('the store: the steer preset field and the transient transport', () => 
     expect(mergeControls({ steer: { volume: 'loud' } }, initial).steer).toEqual(initial.steer);
   });
 
+  it('mergeControls completes a PARTIAL steering config (the shape #202 persisted) from the default — sound-identical, and never a phantom edit', () => {
+    const initial = useControls.getState();
+    const healed = mergeControls({ steer: { enabled: true, volume: 0.5, config: { smoothing: 0.3, throttleSec: 0.2 } } }, initial).steer;
+    expect(healed.config.smoothing).toBe(0.3); // the player's values win
+    expect(healed.config.strains).toEqual(DEFAULT_STEER.config.strains); // the arrays are filled
+    expect(healed.config.dials).toEqual(DEFAULT_STEER.config.dials);
+  });
+
   it('the transport never resumes from storage, even from a hand-edited blob', () => {
     const initial = useControls.getState();
     expect(mergeControls({ steer: { enabled: true }, steerPlaying: true }, initial).steerPlaying).toBe(false);

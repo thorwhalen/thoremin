@@ -48,13 +48,15 @@ const FeatureRef = z.object({
 });
 
 export const SteerStrainSchema = FeatureRef.extend({
-  text: z.string(),
+  /** The prompt the engine hears — and the strain's identity (trimmed, never empty). */
+  text: z.string().trim().min(1),
   weightMin: z.number().default(0),
   weightMax: z.number().default(2),
 });
 
 export const SteerDialSchema = FeatureRef.extend({
-  name: z.string(), // e.g. 'density', 'brightness', 'bpm'
+  /** The engine knob this drives — one of the `GenerativeConfig` fields. */
+  name: z.enum(STEER_DIAL_NAMES),
   outMin: z.number().default(0),
   outMax: z.number().default(1),
 });

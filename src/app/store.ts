@@ -29,6 +29,7 @@ import {
   BodySettingsSchema,
   type BodySettings,
   DEFAULT_STEER,
+  defaultSteerConfig,
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
@@ -412,7 +413,13 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   let steer = current.steer;
   if (p.steer) {
     try {
-      steer = SteerSettingsSchema.parse({ ...DEFAULT_STEER, ...p.steer });
+      const parsed = SteerSettingsSchema.parse({ ...DEFAULT_STEER, ...p.steer });
+      // A PARTIAL config (the shape #202 persisted: smoothing + cadence, no arrays) is
+      // completed from the default. Absent arrays already meant "the starter strains" to
+      // the node, so this is sound-identical; it exists so the working layer and a saved
+      // instrument (which `normalizeLayer` completes the same way) can never differ by a
+      // key nobody edited and flag a phantom "unsaved edits".
+      steer = { ...parsed, config: { ...defaultSteerConfig(), ...parsed.config } };
     } catch {
       steer = current.steer;
     }

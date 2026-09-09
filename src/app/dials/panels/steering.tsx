@@ -5,10 +5,13 @@
  * `VibeEditor` of the frozen legacy app, rebuilt small on the command write path.
  *
  * Every control dispatches one of the scalar `steer.*` commands (`commands/steer.ts`)
- * through {@link dispatchCommand}; the panel never writes the dial itself. The
- * strain's text is its identity (rename → `steer.strain.rename`), so a text field
- * commits on blur / Enter rather than on every keystroke — a strain renamed per
- * keystroke would ease in from rest nine times while you type "warm pads".
+ * through {@link dispatchCommand}; the panel never writes the dial itself. Text and
+ * number fields commit on blur / Enter rather than on every keystroke: a strain
+ * renamed per keystroke would ease in from rest nine times while you type "warm
+ * pads", a weight typed as "0." would land as 0 halfway, and each keystroke would be
+ * one undo entry. A refused commit (a duplicate name, an out-of-range weight) toasts
+ * and the field reverts to the stored value, so the row never shows a value the
+ * store does not hold.
  *
  * Reads the effective `steerConfig` through the same healing the commands use, so the
  * list shown is exactly the list a command will edit.
@@ -50,7 +53,8 @@ function BindingControls({
         aria-label="Source"
         onChange={(e) => {
           const source = e.target.value as Binding['source'];
-          // A source change must carry a feature that fits it, or the command refuses.
+          // A source change must carry a feature that fits it (one atomic command), or
+          // the command refuses the mismatch.
           onBind({ source, feature: featuresFor(source)[0] });
         }}
       >
@@ -77,51 +81,72 @@ function BindingControls({
   );
 }
 
-/** A text field that commits on blur / Enter (see the module header for why). */
-function CommitText({ value, onCommit, ariaLabel }: { value: string; onCommit: (next: string) => void; ariaLabel: string }) {
-  const [draft, setDraft] = useState(value);
+/**
+ * A field that commits on blur / Enter and reverts on Escape or on a refused commit.
+ * `onCommit` resolves to whether the store accepted the value; a refusal (toasted by
+ * the dispatcher) resets the draft so the row never displays a value the store does
+ * not hold.
+ */
+function useCommitField<T extends string | number>(value: T, onCommit: (next: T) => Promise<boolean>, parse: (raw: string) => T | null) {
+  const [draft, setDraft] = useState(String(value));
   const [editingFor, setEditingFor] = useState(value);
-  // A rename that landed (or a config swap) resets the draft to the new identity.
+  // A commit that landed (or a config swap) resets the draft to the new stored value.
   if (editingFor !== value) {
     setEditingFor(value);
-    setDraft(value);
+    setDraft(String(value));
   }
+  const revert = () => setDraft(String(value));
   const commit = () => {
-    const next = draft.trim();
-    if (next && next !== value) onCommit(next);
-    else setDraft(value);
+    const next = parse(draft);
+    if (next === null || next === value) return revert();
+    void onCommit(next).then((accepted) => {
+      if (!accepted) revert();
+    });
   };
-  return (
-    <input
-      className="w-40 rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20"
-      value={draft}
-      aria-label={ariaLabel}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-        if (e.key === 'Escape') setDraft(value);
-      }}
-    />
-  );
+  return {
+    value: draft,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setDraft(e.target.value),
+    onBlur: commit,
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      if (e.key === 'Escape') revert();
+    },
+  };
+}
+
+const parseText = (raw: string): string | null => {
+  const t = raw.trim();
+  return t ? t : null;
+};
+const parseNumber = (raw: string): number | null => {
+  const n = Number(raw.trim());
+  return raw.trim() === '' || !Number.isFinite(n) ? null : n;
+};
+
+/** Dispatch one command and report whether it was accepted. */
+const accepted = (id: string, params: Record<string, unknown>): Promise<boolean> => dispatchCommand(id, params).then((r) => r.ok);
+
+function CommitText({ value, onCommit, ariaLabel }: { value: string; onCommit: (next: string) => Promise<boolean>; ariaLabel: string }) {
+  const field = useCommitField(value, onCommit, parseText);
+  return <input className="w-40 rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20" aria-label={ariaLabel} {...field} />;
+}
+
+function CommitNumber({ value, onCommit, ariaLabel, min, max, step }: { value: number; onCommit: (next: number) => Promise<boolean>; ariaLabel: string; min?: number; max?: number; step?: number }) {
+  const field = useCommitField(value, onCommit, parseNumber);
+  return <input type="number" min={min} max={max} step={step} className="w-16 rounded bg-white/10 px-1 py-0.5 text-xs" aria-label={ariaLabel} {...field} />;
 }
 
 function StrainRow({ strain }: { strain: SteerStrain }) {
   const t = strain.text;
   return (
     <li className="flex flex-wrap items-center gap-1 text-xs" data-strain={t}>
-      <CommitText value={t} ariaLabel={`Strain text ${t}`} onCommit={(to) => dispatchCommand('steer.strain.rename', { text: t, to })} />
-      <BindingControls binding={strain} onBind={(patch) => dispatchCommand('steer.strain.bind', { text: t, ...patch })} />
+      <CommitText value={t} ariaLabel={`Strain text ${t}`} onCommit={(to) => accepted('steer.strain.rename', { text: t, to })} />
+      <BindingControls binding={strain} onBind={(patch) => void dispatchCommand('steer.strain.bind', { text: t, ...patch })} />
       <label className="flex items-center gap-1 text-[10px] text-white/60">
         max
-        <input
-          type="number" min={0} max={4} step={0.1} value={strain.weightMax}
-          className="w-14 rounded bg-white/10 px-1 py-0.5 text-xs"
-          aria-label={`Weight max ${t}`}
-          onChange={(e) => dispatchCommand('steer.strain.range', { text: t, weightMax: Number(e.target.value) })}
-        />
+        <CommitNumber value={strain.weightMax} min={0} max={4} step={0.1} ariaLabel={`Weight max ${t}`} onCommit={(weightMax) => accepted('steer.strain.range', { text: t, weightMax })} />
       </label>
-      <button type="button" className="rounded px-1 text-white/50 hover:text-white" aria-label={`Remove strain ${t}`} onClick={() => dispatchCommand('steer.strain.remove', { text: t })}>
+      <button type="button" className="rounded px-1 text-white/50 hover:text-white" aria-label={`Remove strain ${t}`} onClick={() => void dispatchCommand('steer.strain.remove', { text: t })}>
         ×
       </button>
     </li>
@@ -133,18 +158,13 @@ function DialRow({ dial }: { dial: SteerDial }) {
   return (
     <li className="flex flex-wrap items-center gap-1 text-xs" data-dial={n}>
       <span className="w-20 text-white/80">{n}</span>
-      <BindingControls binding={dial} onBind={(patch) => dispatchCommand('steer.dial.set', { name: n, ...patch })} />
+      <BindingControls binding={dial} onBind={(patch) => void dispatchCommand('steer.dial.set', { name: n, ...patch })} />
       <label className="flex items-center gap-1 text-[10px] text-white/60">
-        {dial.outMin}
+        <CommitNumber value={dial.outMin} step={0.05} ariaLabel={`Out min ${n}`} onCommit={(outMin) => accepted('steer.dial.set', { name: n, outMin })} />
         <span>→</span>
-        <input
-          type="number" step={0.05} value={dial.outMax}
-          className="w-16 rounded bg-white/10 px-1 py-0.5 text-xs"
-          aria-label={`Out max ${n}`}
-          onChange={(e) => dispatchCommand('steer.dial.set', { name: n, outMax: Number(e.target.value) })}
-        />
+        <CommitNumber value={dial.outMax} step={0.05} ariaLabel={`Out max ${n}`} onCommit={(outMax) => accepted('steer.dial.set', { name: n, outMax })} />
       </label>
-      <button type="button" className="rounded px-1 text-white/50 hover:text-white" aria-label={`Remove dial ${n}`} onClick={() => dispatchCommand('steer.dial.remove', { name: n })}>
+      <button type="button" className="rounded px-1 text-white/50 hover:text-white" aria-label={`Remove dial ${n}`} onClick={() => void dispatchCommand('steer.dial.remove', { name: n })}>
         ×
       </button>
     </li>
@@ -160,16 +180,19 @@ export function SteeringEditor() {
   const add = () => {
     const text = newText.trim();
     if (!text) return;
-    dispatchCommand('steer.strain.add', { text });
-    setNewText('');
+    void accepted('steer.strain.add', { text }).then((ok) => {
+      if (ok) setNewText('');
+    });
   };
 
   return (
     <div className="space-y-2" data-steering-editor>
       <p className="text-[10px] uppercase tracking-wider text-white/40">Strains — what your gestures blend in</p>
       <ul className="space-y-1">
-        {cfg.strains.map((s) => (
-          <StrainRow key={s.text} strain={s} />
+        {cfg.strains.map((s, i) => (
+          // Keyed by text AND position: the commands refuse creating a duplicate text, but
+          // a hand-edited blob may hold one, and two rows must never share a React key.
+          <StrainRow key={`${s.text}#${i}`} strain={s} />
         ))}
       </ul>
       <form
@@ -204,7 +227,7 @@ export function SteeringEditor() {
             value=""
             aria-label="Add engine dial"
             onChange={(e) => {
-              if (e.target.value) dispatchCommand('steer.dial.set', { name: e.target.value });
+              if (e.target.value) void dispatchCommand('steer.dial.set', { name: e.target.value });
             }}
           >
             <option value="">an engine dial…</option>

@@ -56,6 +56,17 @@ export function currentSteerConfig(): Required<SteerConfig> {
   };
 }
 
+/** The index of the FIRST strain with this text. Duplicates can only arrive from a
+ *  hand-edited blob (the commands refuse creating them); editing one at a time is
+ *  the honest behaviour, and matches how the node disambiguates (`text#0`, `text#1`). */
+const indexOfStrain = (cfg: Required<SteerConfig>, text: string): number => cfg.strains.findIndex((s) => s.text === text);
+
+/** Replace the strain at `i`. */
+const withStrainAt = (cfg: Required<SteerConfig>, i: number, strain: SteerStrain): SteerConfig => ({
+  ...cfg,
+  strains: cfg.strains.map((s, k) => (k === i ? strain : s)),
+});
+
 /** Write a whole config through the validated dial path. */
 function write(next: SteerConfig): Result<{ key: string; value: unknown }> {
   return applyDialSet(DIAL_KEY, next);
@@ -122,8 +133,12 @@ export const removeStrainCmd = defineCommand({
   params: z.object({ text: Text }),
   execute: ({ text }) => {
     const cfg = currentSteerConfig();
-    if (!cfg.strains.some((s) => s.text === text)) return err('unknown_strain', `No strain "${text}".`, { text });
-    const r = write({ ...cfg, strains: cfg.strains.filter((s) => s.text !== text) });
+    const i = indexOfStrain(cfg, text);
+    if (i < 0) return err('unknown_strain', `No strain "${text}".`, { text });
+    // An empty strain list would leave the engine playing its last prompt forever (it
+    // ignores an empty update), with an editor showing nothing. Keep one.
+    if (cfg.strains.length === 1) return err('last_strain', 'Keep at least one strain — rename it instead.', { text });
+    const r = write({ ...cfg, strains: cfg.strains.filter((_, k) => k !== i) });
     return r.ok ? ok({ text }) : r;
   },
 });
@@ -136,9 +151,10 @@ export const renameStrainCmd = defineCommand({
   params: z.object({ text: Text, to: Text.describe('The new text.') }),
   execute: ({ text, to }) => {
     const cfg = currentSteerConfig();
-    if (!cfg.strains.some((s) => s.text === text)) return err('unknown_strain', `No strain "${text}".`, { text });
+    const i = indexOfStrain(cfg, text);
+    if (i < 0) return err('unknown_strain', `No strain "${text}".`, { text });
     if (to !== text && cfg.strains.some((s) => s.text === to)) return err('duplicate_strain', `A strain "${to}" already exists.`, { text: to });
-    const r = write({ ...cfg, strains: cfg.strains.map((s) => (s.text === text ? { ...s, text: to } : s)) });
+    const r = write(withStrainAt(cfg, i, { ...cfg.strains[i], text: to }));
     return r.ok ? ok({ text: to }) : r;
   },
 });
@@ -157,11 +173,11 @@ export const bindStrainCmd = defineCommand({
   }),
   execute: ({ text, ...binding }) => {
     const cfg = currentSteerConfig();
-    const cur = cfg.strains.find((s) => s.text === text);
-    if (!cur) return err('unknown_strain', `No strain "${text}".`, { text });
-    const b = bindingOf(cur, binding);
+    const i = indexOfStrain(cfg, text);
+    if (i < 0) return err('unknown_strain', `No strain "${text}".`, { text });
+    const b = bindingOf(cfg.strains[i], binding);
     if (!b.ok) return b;
-    const r = write({ ...cfg, strains: cfg.strains.map((s) => (s.text === text ? { ...s, ...b.value } : s)) });
+    const r = write(withStrainAt(cfg, i, { ...cfg.strains[i], ...b.value }));
     return r.ok ? ok({ text }) : r;
   },
 });
@@ -178,10 +194,14 @@ export const rangeStrainCmd = defineCommand({
   }),
   execute: ({ text, weightMin, weightMax }) => {
     const cfg = currentSteerConfig();
-    const cur = cfg.strains.find((s) => s.text === text);
-    if (!cur) return err('unknown_strain', `No strain "${text}".`, { text });
+    const i = indexOfStrain(cfg, text);
+    if (i < 0) return err('unknown_strain', `No strain "${text}".`, { text });
+    const cur = cfg.strains[i];
     const next = { ...cur, weightMin: weightMin ?? cur.weightMin, weightMax: weightMax ?? cur.weightMax };
-    const r = write({ ...cfg, strains: cfg.strains.map((s) => (s.text === text ? next : s)) });
+    if (next.weightMin > next.weightMax) {
+      return err('invalid_range', `weightMin (${next.weightMin}) must not exceed weightMax (${next.weightMax}); use invert to flip the direction.`, { text });
+    }
+    const r = write(withStrainAt(cfg, i, next));
     return r.ok ? ok({ text }) : r;
   },
 });

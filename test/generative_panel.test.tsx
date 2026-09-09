@@ -118,3 +118,45 @@ describe('SteeringEditor (#188 PR 5) — the strain editor on the command write 
     expect(currentSteerConfig().dials.some((d) => d.name === 'bpm')).toBe(false);
   });
 });
+
+describe('SteeringEditor — fields commit on blur and revert on refusal (#188 PR 5 review)', () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it('a weight typed halfway is not written; blur commits once; an emptied field reverts', async () => {
+    render(<SteeringEditor />);
+    const w = screen.getByLabelText('Weight max warm ambient pads') as HTMLInputElement;
+    fireEvent.change(w, { target: { value: '1.' } });
+    await flush();
+    expect(currentSteerConfig().strains[0].weightMax).toBe(2); // not per keystroke
+    fireEvent.change(w, { target: { value: '1.5' } });
+    fireEvent.blur(w);
+    await flush();
+    expect(currentSteerConfig().strains[0].weightMax).toBe(1.5);
+    fireEvent.change(w, { target: { value: '' } });
+    fireEvent.blur(w);
+    await flush();
+    expect(currentSteerConfig().strains[0].weightMax).toBe(1.5);
+    expect(w.value).toBe('1.5');
+  });
+
+  it('a refused rename (a duplicate) reverts the field to the stored text', async () => {
+    render(<SteeringEditor />);
+    const t = screen.getByLabelText('Strain text warm ambient pads') as HTMLInputElement;
+    fireEvent.change(t, { target: { value: 'bright plucked arpeggios' } });
+    fireEvent.blur(t);
+    await flush();
+    await flush();
+    expect(currentSteerConfig().strains[0].text).toBe('warm ambient pads');
+    expect(t.value).toBe('warm ambient pads');
+  });
+
+  it('the last strain cannot be removed from the panel (the command refuses, the row stays)', async () => {
+    render(<SteeringEditor />);
+    fireEvent.click(screen.getByLabelText('Remove strain bright plucked arpeggios'));
+    await flush();
+    fireEvent.click(screen.getByLabelText('Remove strain warm ambient pads'));
+    await flush();
+    expect(currentSteerConfig().strains).toHaveLength(1);
+    expect(screen.getByDisplayValue('warm ambient pads')).toBeTruthy();
+  });
+});

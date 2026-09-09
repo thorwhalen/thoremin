@@ -33,10 +33,11 @@ export interface RiskMeta {
 const DESTRUCTIVE_COMMANDS = new Set<string>(['instrument.load', 'instrument.save', 'instrument.create']);
 
 /** The default thoremin risk map: destructive for the instrument mutations above,
- *  additive for reversible dial edits, query for everything else. */
+ *  additive for reversible dial edits (the generic verbs, the per-dial ones and the
+ *  `steer.*` verbs that write the steering dial, #188), query for everything else. */
 export function defaultGetRisk(id: string): RiskMeta {
   if (DESTRUCTIVE_COMMANDS.has(id)) return { sideEffect: 'destructive' };
-  return { sideEffect: id.startsWith('dial.') ? 'additive' : 'query' };
+  return { sideEffect: id.startsWith('dial.') || id.startsWith('steer.') ? 'additive' : 'query' };
 }
 
 /** One-use approval token store. `approve` is called by the runtime AFTER a human
