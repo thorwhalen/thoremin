@@ -76,8 +76,6 @@ export function continuity(ref: readonly number[], est: readonly number[], toler
     const ibi = R[i] - R[i - 1];
     // Nearest estimate to R[i] and to R[i-1].
     const j = nearestIndex(E, R[i]);
-    const jPrev = nearestIndex(E, R[i - 1]);
-    if (j <= 0 && jPrev < 0) continue;
     const phaseOk = Math.abs(E[j] - R[i]) <= tolerance * ibi;
     const estIbi = j > 0 ? E[j] - E[j - 1] : NaN;
     const periodOk = Number.isFinite(estIbi) && Math.abs(estIbi - ibi) <= tolerance * ibi;

@@ -40,7 +40,7 @@ export interface IctusOptions {
 export interface IctusState extends MusicalTime {
   dynamics: number;
   articulation: number;
-  /** The anchor this sample produced, if any. */
+  /** The anchor this call produced, if any (null from `state()` and `advance()`). */
   anchor: Anchor | null;
 }
 
@@ -62,7 +62,6 @@ export function createIctus(options: IctusOptions = {}): Ictus {
   const detector = createIctusDetector(options.detector);
   const prior = options.prior ?? createAdaptiveOscillator(options.oscillator);
   const dynamics = createDynamicsEstimator(options.dynamics);
-  let lastAnchor: Anchor | null = null;
 
   const compose = (anchor: Anchor | null): IctusState => {
     const s = prior.state();
@@ -74,7 +73,6 @@ export function createIctus(options: IctusOptions = {}): Ictus {
     prior.update(a);
     dynamics.update(a);
     detector.setPeriod(prior.state().period);
-    lastAnchor = a;
     return compose(a);
   };
 
@@ -92,12 +90,11 @@ export function createIctus(options: IctusOptions = {}): Ictus {
       prior.advance(t);
       return compose(null);
     },
-    state: () => compose(lastAnchor),
+    state: () => compose(null),
     reset() {
       detector.reset();
       prior.reset();
       dynamics.reset();
-      lastAnchor = null;
     },
   };
 }

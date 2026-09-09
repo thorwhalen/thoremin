@@ -77,17 +77,54 @@ describe('adaptive oscillator', () => {
     expect(s.state).toBe('running');
   });
 
-  it('survives a dropped anchor: the beat count skips one, the tempo holds', () => {
+  it('survives a dropped anchor: free-runs through it without entering hold, the tempo holds', () => {
     const osc = createAdaptiveOscillator();
     const period = 0.6;
     const times = Array.from({ length: 12 }, (_, i) => 1 + i * period).filter((_, i) => i !== 6);
-    drive(osc, times);
+    const states = new Set<string>();
+    let t = 0;
+    for (const at of times) {
+      while (t + 1 / 30 < at) {
+        t += 1 / 30;
+        osc.advance(t);
+        states.add(osc.state().state);
+      }
+      osc.update(anchor(at));
+      t = at;
+    }
     const s = osc.state();
     expect(s.tempo).toBeCloseTo(100, 0);
     expect(s.state).toBe('running');
+    // A single missed beat (an anchor at two periods) is below the hold threshold.
+    expect(states.has('hold')).toBe(false);
     // 11 anchors over 11 periods: the beat count is still ~11 (the missed beat was
     // free-run through, not lost).
     expect(Math.round(s.beat)).toBe(11);
+  });
+
+  it('a single mid-beat rebound (a weak anchor) does not flip the tempo to double', () => {
+    const osc = createAdaptiveOscillator();
+    const period = 0.6;
+    const times = Array.from({ length: 8 }, (_, i) => 1 + i * period);
+    drive(osc, times);
+    const tEnd = times[times.length - 1];
+    // The rebound: mid-beat, above the confidence floor but not a strong stroke.
+    osc.update(anchor(tEnd + period / 2, 0.3));
+    // Then the real beats continue.
+    drive(osc, [1, 2, 3, 4].map((k) => tEnd + k * period));
+    const s = osc.state();
+    expect(s.tempo).toBeCloseTo(100, 0);
+    expect(Math.round(s.beat)).toBe(11);
+  });
+
+  it('a lock seeded at half the real period recovers once the real beats arrive', () => {
+    const osc = createAdaptiveOscillator();
+    // Two anchors 0.3 s apart seed 200 bpm; the conductor is actually at 100 bpm.
+    drive(osc, [1, 1.3]);
+    drive(osc, Array.from({ length: 10 }, (_, i) => 1.3 + (i + 1) * 0.6));
+    const s = osc.state();
+    expect(s.state).toBe('running');
+    expect(Math.abs(s.tempo - 100) / 100).toBeLessThan(0.08);
   });
 
   it('a doubled anchor (a rebound firing mid-beat) is gated by the attentional pulse', () => {
@@ -142,13 +179,45 @@ describe('adaptive oscillator', () => {
     expect(osc.state().tempo).toBeCloseTo(100, 0);
   });
 
-  it('a zero-confidence anchor leaves the state untouched once running', () => {
+  it('a below-floor anchor is not an observation: the next real beat still measures a full interval', () => {
+    const osc = createAdaptiveOscillator();
+    const period = 0.6;
+    drive(osc, [1, 1.6, 2.2, 2.8, 3.4]);
+    const before = osc.state();
+    osc.update(anchor(3.4 + 0.45, 0));
+    expect(osc.state().period).toBeCloseTo(before.period, 10);
+    expect(osc.state().anchors).toBe(before.anchors);
+    // The on-time real beat after it: the period must not shrink (a weak anchor that
+    // advanced the clock would make this interval read as 0.15 s).
+    drive(osc, [4.0]);
+    expect(osc.state().period).toBeCloseTo(period, 2);
+  });
+
+  it('an out-of-order anchor is ignored rather than driving the period to the floor', () => {
     const osc = createAdaptiveOscillator();
     drive(osc, [1, 1.6, 2.2, 2.8]);
     const before = osc.state();
-    osc.update(anchor(before.t + 0.45, 0));
-    const after = osc.state();
-    expect(after.period).toBeCloseTo(before.period, 10);
+    osc.update(anchor(2.5));
+    expect(osc.state().period).toBeCloseTo(before.period, 10);
+  });
+
+  it('measures the phase error at the anchor time, not at the last advance (no one-frame lag)', () => {
+    const osc = createAdaptiveOscillator();
+    const period = 0.6;
+    const dt = 1 / 30;
+    let t = 0;
+    // Anchors arrive one frame AFTER their refined time, as the detector delivers them.
+    for (let k = 0; k < 12; k++) {
+      const at = 1 + k * period;
+      while (t + dt <= at + dt) {
+        t += dt;
+        osc.advance(t);
+      }
+      osc.update(anchor(at));
+    }
+    const s = osc.state();
+    // The prediction for the next beat is within 5 ms of the truth, not a frame late.
+    expect(Math.abs(s.nextBeatAt - (1 + 12 * period))).toBeLessThan(0.005);
   });
 
   it('re-locks after a tempo jump instead of staying lost (Pardo\'s failure mode)', () => {

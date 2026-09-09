@@ -11,7 +11,13 @@
  * - `turning` (default): the bottom of the stroke — a local maximum of the (median
  *   filtered) vertical position — with the anchor time refined below the frame period
  *   by a parabolic fit through the three position samples around it, and the peak
- *   deceleration of the approach measured as the articulation signal.
+ *   deceleration of the approach measured as the articulation signal. This is a
+ *   deliberate v1 departure from the research map's "peak deceleration, parabolic fit
+ *   of the speed minimum": at 30 Hz the speed near a turning point is V-shaped (|v|
+ *   crosses zero linearly), so a parabola fitted to it is biased by half a frame,
+ *   whereas the position is smooth and parabolic there and the fit is exact to a few
+ *   milliseconds (the synthetic test pins < 8 ms). The braking sharpness is still
+ *   measured, as the articulation axis; it is not the timing reference.
  * - `zeroCrossing`: conga's bounce detector — the vertical-velocity sign change,
  *   interpolated linearly. Kept for comparison on the fixtures.
  *
@@ -175,7 +181,6 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   };
 
   const emit = (t: number, x: number, amplitude: number): Anchor => {
-    decayEnvelope(t);
     // Relative strength against the envelope BEFORE this stroke updates it, so the
     // first big stroke after quiet ones reads > 1 (a crescendo), then the envelope
     // catches up.
@@ -227,6 +232,10 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
       p2 = pt;
       if (!prevPt || dt <= 0) return null;
 
+      // The envelope decays with time whether or not anything fires, so a player who
+      // starts beating smaller is re-normalised and can beat again (a stale envelope
+      // would gate them out forever).
+      decayEnvelope(pt.t);
       // The stroke's top is the highest point since the last anchor.
       if (pt.y < strokeTop) strokeTop = pt.y;
       // Approach statistics: speed and the largest drop in speed while moving down.

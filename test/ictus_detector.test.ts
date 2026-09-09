@@ -151,22 +151,28 @@ function loadFixture(scenario: string): { samples: Sample[]; meta: Meta } {
 function detect(samples: Sample[]) {
   const ictus = createIctus();
   const times: number[] = [];
+  /** The follower's prediction of the NEXT beat, made at each anchor (§2.8: score the
+   *  predictions, not just the detections). */
+  const predicted: number[] = [];
+  const statesAtAnchors: string[] = [];
   let last = ictus.state();
   let atLastAnchor = last;
   for (const s of samples) {
     last = ictus.feed(s);
     if (last.anchor) {
       times.push(last.anchor.t);
+      statesAtAnchors.push(last.state);
+      if (Number.isFinite(last.nextBeatAt)) predicted.push(last.nextBeatAt);
       atLastAnchor = last;
     }
   }
-  return { times, last, atLastAnchor };
+  return { times, last, atLastAnchor, predicted, statesAtAnchors };
 }
 
 describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 70 bpm)', (scenario) => {
   const { samples, meta } = loadFixture(scenario);
   const period = 60 / meta.statedBpm;
-  const { times, last, atLastAnchor } = detect(samples);
+  const { times, last, atLastAnchor, predicted, statesAtAnchors } = detect(samples);
   // Score over the span the detector was beating: first anchor to last anchor.
   const first = times[0];
   const lastT = times[times.length - 1];
@@ -197,10 +203,20 @@ describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 7
     expect(fit.fMeasure).toBeGreaterThan(0.45);
   });
 
-  it('the oscillator locks, reports the stated tempo within 10% at the last beat, and enters hold when she stops', () => {
-    expect(atLastAnchor.state).toBe('running');
+  it('the oscillator is running at most anchors, reports the stated tempo within 10% at the last beat, and enters hold when she stops', () => {
+    const runningFraction = statesAtAnchors.filter((st) => st === 'running').length / statesAtAnchors.length;
+    expect(runningFraction).toBeGreaterThanOrEqual(0.75);
     expect(Math.abs(atLastAnchor.tempo - meta.statedBpm) / meta.statedBpm).toBeLessThan(0.1);
     // Every clip ends with the conductor lowering her hands: the follower must notice.
     expect(last.state).toBe('hold');
+  });
+
+  it('the follower PREDICTS the next beat: predictions score against the grid too', () => {
+    // The prediction made at each anchor for the beat after it, scored like the detections.
+    // Looser than the detections by construction (a prediction carries the period error),
+    // and the 2/4 clip's alternating long/short beats are the hardest case.
+    expect(predicted.length).toBeGreaterThan(5);
+    const f30 = fMeasure(fit.grid, predicted, 0.3 * period);
+    expect(f30).toBeGreaterThanOrEqual(scenario === 'conducting_24' ? 0.5 : 0.6);
   });
 });

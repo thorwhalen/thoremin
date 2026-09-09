@@ -76,7 +76,8 @@ function main(): void {
     kind: 'conducting-pattern',
     statedBpm: bpm,
     pattern,
-    window: { from, to: Number.isFinite(to) ? to : records[records.length - 1]?.t ?? null },
+    // The window actually built (the requested `--to` may exceed the clip).
+    window: { from, to: records[records.length - 1]?.t ?? null },
     ticks: out.length,
     fps: round(fps, 3),
     detectedFrames: detected,
