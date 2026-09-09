@@ -258,6 +258,8 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // nothing for a player who never opens the Lab.
       { id: 'faceVec', type: 'face-feature-vector', params: {} },
       { id: 'handVec', type: 'hand-feature-vector', params: {} },
+      // Body features (#186): the third vector tap, off the gated body branch.
+      { id: 'bodyVec', type: 'body-feature-vector', params: {} },
       // Gesture dispatch (#129): discrete pose classification (fist/open/pinch),
       // tapped additively off the hand-features stream the mapping already reads.
       // Nothing in the GRAPH consumes it — the app-level gesture dispatcher
@@ -409,6 +411,8 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'cam', port: 'hands' }, to: { node: 'handVec', port: 'hands' } },
       { from: { node: 'faceVec', port: 'vector' }, to: { node: 'overlay', port: 'faceVector' } },
       { from: { node: 'handVec', port: 'vector' }, to: { node: 'overlay', port: 'handVector' } },
+      { from: { node: 'camBody', port: 'body' }, to: { node: 'bodyVec', port: 'body' } },
+      { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'overlay', port: 'bodyVector' } },
       // Gesture dispatch (#129): the classifier taps the SAME hand-features stream
       // the mapping/overlay read (additive fan-out — the original edges are
       // untouched). Its `poses` output is read app-side by the gesture dispatcher.

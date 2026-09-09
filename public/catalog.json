@@ -1,5 +1,41 @@
 [
   {
+    "type": "body-feature-vector",
+    "title": "Body Feature Vector",
+    "description": "Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "body",
+        "kind": "body-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vector",
+        "kind": "feature-vector"
+      }
+    ],
+    "params": [
+      {
+        "name": "mirrorX",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "groups",
+        "type": "array"
+      },
+      {
+        "name": "windowSeconds",
+        "type": "number",
+        "default": 1
+      }
+    ]
+  },
+  {
     "type": "canvas-overlay",
     "title": "Canvas Overlay",
     "description": "Mirrored video + composable overlay elements (guides, landmarks, markers, cues).",
@@ -66,6 +102,10 @@
       },
       {
         "name": "handVector",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "bodyVector",
         "kind": "feature-vector"
       }
     ],

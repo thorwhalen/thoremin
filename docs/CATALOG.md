@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (35)
+## Nodes (36)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -216,6 +216,14 @@ Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand cat
 - **in:** hands:hands-frame
 - **out:** vector:feature-vector
 - **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array), handednessDwellFrames (number=3)
+
+#### `body-feature-vector` — Body Feature Vector
+Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).
+
+- **roles:** feature
+- **in:** body:body-frame
+- **out:** vector:feature-vector
+- **params:** mirrorX (boolean=true), groups (array), windowSeconds (number=1)
 
 ### Mapping (direct ↔ indirect)
 _Features → engine parameters, across the expression spectrum._
@@ -372,7 +380,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 

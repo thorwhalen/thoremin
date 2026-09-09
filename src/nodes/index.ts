@@ -20,6 +20,7 @@ import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
 import { handFeatureVectorNode } from './features/hand_feature_vector';
+import { bodyFeatureVectorNode } from './features/body_feature_vector';
 import { voiceMappingNode } from './mapping/voice_mapping';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { indirectMapNode } from './mapping/indirect_map';
@@ -56,6 +57,7 @@ export { gestureClassifierNode } from './features/gesture_classifier';
 export type { Pose, GestureEvent } from './features/gesture_classifier';
 export { faceFeatureVectorNode } from './features/face_feature_vector';
 export { handFeatureVectorNode } from './features/hand_feature_vector';
+export { bodyFeatureVectorNode } from './features/body_feature_vector';
 export type { FeatureVector } from '@/features/catalog';
 export { voiceMappingNode } from './mapping/voice_mapping';
 export { keyboardControlNode } from './mapping/keyboard_control';
@@ -90,6 +92,7 @@ export const CORE_NODES = [
   gestureClassifierNode,
   faceFeatureVectorNode,
   handFeatureVectorNode,
+  bodyFeatureVectorNode,
   voiceMappingNode,
   keyboardControlNode,
   indirectMapNode,

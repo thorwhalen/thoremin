@@ -50,7 +50,8 @@ describe('production app graph', () => {
     expect(order.indexOf('merge')).toBeLessThan(order.indexOf('midiOut'));
     // Gesture classification taps the hand features, so it evaluates after them (#129).
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('gesture'));
-    // The body branch (#186) sits before the overlay that draws its skeleton.
+    // The body branch (#186) sits before the overlay that draws its skeleton, and its
+    // feature-vector tap between the two.
     expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('overlay'));
     // Generative layer (#141 / #188): indirect-map taps the hand + face features and
     // feeds the lyria sink; both sit after their sources and after the store node.
@@ -58,10 +59,13 @@ describe('production app graph', () => {
     expect(order.indexOf('faceFeat')).toBeLessThan(order.indexOf('imap'));
     expect(order.indexOf('ui')).toBeLessThan(order.indexOf('imap'));
     expect(order.indexOf('imap')).toBeLessThan(order.indexOf('gen'));
+    // The body vector tap (#186) sits between its source and the overlay.
+    expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('bodyVec'));
+    expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('overlay'));
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
-    // source + the #141/#188 generative pair (indirect-map + lyria).
-    expect(order).toHaveLength(21);
+    // source and its vector tap + the #141/#188 generative pair (indirect-map + lyria).
+    expect(order).toHaveLength(22);
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
@@ -162,6 +166,9 @@ describe('production app graph', () => {
     // ...and feed the overlay's featureLab meters.
     expect(has('faceVec', 'vector', 'overlay', 'faceVector')).toBe(true);
     expect(has('handVec', 'vector', 'overlay', 'handVector')).toBe(true);
+    // The body tap (#186): same additive shape off the gated body branch.
+    expect(has('camBody', 'body', 'bodyVec', 'body')).toBe(true);
+    expect(has('bodyVec', 'vector', 'overlay', 'bodyVector')).toBe(true);
     // The original face-mesh + hand-feature edges are untouched (additive).
     expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true);
     expect(has('cam', 'hands', 'feat', 'hands')).toBe(true);

@@ -134,3 +134,46 @@ export interface TwoHandCtx {
   right?: HandCtx;
   mirrorX: boolean;
 }
+
+/**
+ * One past sample of a body, as the kinematic/effort features read it (#186). Always
+ * the IMAGE landmarks: MediaPipe's world set is re-centred on the hips every frame, so
+ * a velocity taken in it is blind to walking and jumping. Image pixels divided by the
+ * image torso length keep the camera-distance invariance and see locomotion.
+ */
+export interface BodyHistorySample {
+  /** The image landmark getter of that frame (pixels). */
+  pt: (i: number) => Vec3 | undefined;
+  vis: (i: number) => number;
+  /** Torso length in that frame's IMAGE coordinates (pixels). */
+  torso: number;
+  /** Seconds from that sample to the NEXT one (the current frame for the last entry). */
+  dtS: number;
+  /** That frame's normalised centre of mass, when it had one. */
+  com?: { x: number; y: number };
+}
+
+/**
+ * Per-frame body context (#186). `P` is the 33 image landmarks (pixels), `W` the 33
+ * world landmarks (metres, hip origin) when present; `useWorld` says which set the
+ * geometric features read. `torso` is the shoulder-mid..hip-mid length in the active
+ * set (the scale every length is divided by; > 0 or NaN). `history` holds the previous
+ * samples, oldest first, over the node's window; `dtS` is the seconds since the last
+ * one. `vis(i)` is the landmark's visibility 0..1.
+ */
+export interface BodyCtx {
+  present: boolean;
+  P: (i: number) => Vec3 | undefined;
+  W: (i: number) => Vec3 | undefined;
+  useWorld: boolean;
+  /** Torso length in the ACTIVE set (world when present) — the scale for angles/shape. */
+  torso: number;
+  /** Torso length in IMAGE pixels — the scale for every kinematic/effort feature. */
+  torsoImg: number;
+  vis: (i: number) => number;
+  mirrorX: boolean;
+  width: number;
+  height: number;
+  dtS: number;
+  history: readonly BodyHistorySample[];
+}
