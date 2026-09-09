@@ -110,7 +110,9 @@ export function TopSection({
   children: ReactNode;
 }) {
   return (
-    <details open={defaultOpen} className="group border-t border-white/10 pt-3 [&[open]>summary>span.mk]:rotate-90">
+    // `data-section` is the stable hook the browser smoke harness walks (#209): the
+    // rendered label is CSS-uppercased and nested collapsibles share the element type.
+    <details open={defaultOpen} data-section={label} className="group border-t border-white/10 pt-3 [&[open]>summary>span.mk]:rotate-90">
       <summary className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-white/70 transition hover:text-white">
         <span className="mk inline-block transition-transform">▸</span>
         {label}

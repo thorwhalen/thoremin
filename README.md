@@ -64,6 +64,8 @@ npm run record     # regenerate test fixtures
 ```
 
 Chrome recommended. Audio starts only after a click (browser requirement).
+
+To run the browser smoke harness locally (`npm run smoke`) you also need Chromium, which the first run downloads through Playwright into its own cache; see `docs/TESTING.md` → Tier 5.
 `?source=video&video=<url>` runs the instrument camera-free from a pre-recorded
 clip.
 

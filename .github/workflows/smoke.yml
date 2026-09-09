@@ -1,0 +1,68 @@
+# The browser smoke job (#209).
+#
+# ci.yml is the gate the repo documents (typecheck / test / build), and none of it
+# runs a browser. This job boots the BUILT bundle headless in Chromium and asks the
+# two questions the gate cannot: does the shipped app actually play (engine ticking,
+# audio up, overlay drawing, no uncaught error), and can a player reach every tool
+# and every settings section from a cold load — the shipping rule, executed.
+#
+# Its own job on purpose: it installs a browser and takes longer than the whole
+# vitest suite, so it must never slow the gate down or be skipped to keep the gate
+# fast. Like ci.yml it is advisory to the deploy — a red verdict beside the PR, not
+# a precondition. Whether it should gate anything (and whether #201's React-layer
+# type ratchet should live here) is the maintainer's call, not this file's.
+#
+# The harness is a self-contained sub-project (`smoke/`): its Playwright dependency
+# never enters the app's package.json or node_modules. Locally: `npm run smoke`.
+name: Browser smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: built bundle, headless Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            smoke/package-lock.json
+
+      - name: Install the app (lockfile-exact)
+        run: npm ci
+
+      - name: Install the harness (lockfile-exact) and Chromium
+        run: |
+          npm --prefix smoke ci --no-audit --no-fund
+          npx --prefix smoke playwright install --with-deps chromium
+
+      - name: Build, serve and smoke the bundle
+        run: npm run smoke:run
+        env:
+          CI: "1"
+
+      - name: Keep the report and traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            smoke/playwright-report
+            smoke/test-results
+          retention-days: 7

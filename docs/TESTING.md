@@ -53,6 +53,7 @@ while main auto-deployed to production.
 | `npm test` | **yes** | same |
 | `npm run build` | **yes** | same |
 | `npm run catalog` | **no** — still yours to run | run it locally after adding/renaming a node or changing a port/param, and commit the result |
+| `npm run smoke` | **yes**, as its own job | `.github/workflows/smoke.yml` — the browser smoke harness (#209): builds the bundle, serves it with `vite preview`, boots it headless in Chromium with `?slot.source=synthetic-hands`, and asserts the engine ticks, the audio graph comes up, the overlay draws, no page error fires, and every tool in `src/app/tools.ts` and every settings section is reachable from a cold load. Deliberately **not** part of `npm test`: it installs a browser and takes longer than the whole vitest suite. |
 | `npm run lint` | **no**, deliberately | `tsc --noEmit` over the *whole* tree, including the React layer the repo ships no `@types/react` for. It is red (19 errors as of 2026-08-17) and has been for a long time. Adding a known-red check would train everyone to ignore the X, which is worse than not having it. `npm run typecheck` (strict, `tsconfig.dag.json`) plus `npm run build` (which is what actually verifies the React layer) is the honest pair. |
 
 The CI job is *advisory to the deploy*, not a precondition for it: `deploy.yml` still
@@ -86,6 +87,26 @@ device I/O need a real browser + camera. They are build-checked and structured w
 feature detection + graceful fallback, but their end-to-end behaviour is verified by
 hand. This is a known gap — the Applier's M-D milestone is explicitly gated on a
 browser smoke test for exactly this reason.
+
+## Tier 5: the browser smoke harness (#209)
+
+Everything above runs in Node or jsdom. Nothing there can say whether the **built bundle, in a real browser, actually plays** — which is how #189's live loop was verified by hand and how a React-layer runtime error can ship green (#201). The smoke harness under `smoke/` closes that gap without touching the gate:
+
+```bash
+npm run smoke          # one command: installs the harness + Chromium (first time), builds, serves, runs
+npm run smoke:run      # just build + serve + run (after the first setup)
+```
+
+It is a **self-contained sub-project** (`smoke/package.json`, its own lockfile and `node_modules`), so `@playwright/test` never enters the app's `package.json` or the shared `node_modules`, and vitest (`test/**` only) never sees its `*.smoke.ts` files. It needs Chromium, which `npm run smoke:setup` downloads once (~150 MB, into Playwright's cache outside the repo).
+
+What it asserts, against the production build served at the deployed base path:
+
+- **boot**: `ready` → Tap to play → `live`; the live feature vector's time rises (clock → Applier → tick → nodes → tap all ran); the AudioContext is `running` behind a non-zero master gain; the merged voices are sounding; the overlay canvas changes between frames; no uncaught page error or `console.error` during the boot; the frozen `?engine=legacy` view still mounts.
+- **reachability**: every tool in `src/app/tools.ts` opens from the tools bar (panels show their close button, the palette its input, links resolve), and every settings section of the instrument editor expands to controls, reached the way a player reaches it (instruments → Edit → section). Both sweeps are data-driven from the shell's own registries, so a new tool or section is covered the day it is added.
+
+The app cooperates through one read-only probe, `window.thoremin` (`src/app/debugHandle.ts`): `getOutput(node, port)`, `liveVectorTime()`, `audio()`. It has no setters and reaches no secret; a person checking a live change gets the same handle in the devtools console. `engine_wiring.test.ts` pins that `useEngine` installs and uninstalls it.
+
+Whether the smoke job should gate the deploy, and whether #201's React-layer type ratchet should live beside it, are the maintainer's decisions; the harness is where such a check would go.
 
 ## On-disk fixture layout
 
