@@ -5,9 +5,11 @@
 > speed, #103 / PR #106), and **M-C** (#104 / PR #167 — the `source` slot, the typed
 > `replay-hands` candidate, and `PortSpec.schema` conformance). **M-D is in progress:**
 > its clock half landed with the live loop (#166 / `src/app/engineLoop.ts`); what
-> remains is its live half — `useEngine` becoming an Applier config. The `Source`
-> interface, its pump and the `Applier` are built (`src/dag/applier.ts`), and
-> `runHeadless` delegates to it. M-E…M-G are designed, unstarted.
+> **M-D is done** — both callers are Applier configs (`runHeadless` in #184,
+> `useEngine` in #189), and `runEngineLoop` retired with it. **M-E is partly landed**:
+> `defineMergeNode` (R2 composition) is built and the `event`-kind accumulate half came
+> with the Applier's pump; the timestamp-aware `replay-source-timed` remains. M-F and
+> M-G are designed, unstarted.
 >
 > This document is the single source of truth; the ROADMAP and the tracking issues
 > point here. It supersedes ad-hoc source/replay wiring. **The per-milestone bullets
@@ -266,12 +268,22 @@ boundaries allow.
     implementation and no consumer until the Applier exists; shipping it now would
     be a contract nobody honours, which this repo has been burned by twice
     (#119, #120). The node-swap half above needs none of it.
-- **M-D — The Applier (R4 complete, R5 orthogonality). ◑ engine half SHIPPED; live
-  half remains. ⚠ untested live surface.**
-  `runHeadless` **now delegates** to `Applier` (`src/dag/applier.ts`: BatchClock +
-  the recorder tap, no sources, no sinks). What remains is the other caller:
-  `useEngine`'s effect becoming a thin Applier config. The live rAF loop already
-  adopted `RealtimeClock(1)` (#166), so that deferral from M-B is discharged.
+- **M-D — The Applier (R4 complete, R5 orthogonality). ✅ SHIPPED (#184 + #189).**
+  Both callers are configs of it: `runHeadless` (BatchClock + the recorder tap, no
+  sources, no sinks) and `useEngine` (RealtimeClock + the three React bridges as sinks,
+  `disposed` as the stop condition). `runEngineLoop` — M-B's intermediate step — was
+  removed with it rather than left beside the Applier, after its guarantees were checked
+  off against `applier.test.ts` and the two missing ones ported.
+  - ⚠ **The browser smoke test the gate named does not exist** — this repo has no
+    Playwright or e2e harness. What stands in for it: the jsdom camera-free boot test
+    mounts the REAL hook and observes the loop *running* (engine time advances through
+    the live feature tap, which only fires inside `tick()`) and *stopping* (rAF stops
+    being re-armed on unmount). AudioContext, MediaPipe and real rAF under load remain
+    unreached; that residual is a no-camera item on #146.
+  - **Units are a boundary concern.** The React bridges take milliseconds; a `Clock`
+    reports seconds. Converted once in `useEngine` and guarded structurally — passing
+    seconds through turns a 400 ms gesture hold into 400 s and the dispatcher stops
+    firing with every unit test green (the same slip #164 fixed for the trainer).
   **Gate on a browser smoke test** — the effect (StrictMode guards, face bridge,
   mute mirror, AudioContext lifecycle) has no headless coverage.
   - ✅ **The live loop now runs on `RealtimeClock(1)`** — `src/app/engineLoop.ts`
@@ -290,9 +302,18 @@ boundaries allow.
     reconciles a *running* engine onto a new `GraphSpec`, keeping every unchanged
     node (see below). The Applier can therefore change its source/graph without
     reconstructing the engine and reloading the ML models.
-- **M-E — Composition + timestamp-aware replay (R2).** `defineMergeNode`; event
-  sources buffer→list; a **separate** time-based `replay-source-timed` reading
-  `StreamRecord.t` (index-by-tick stays canonical for CI goldens).
+- **M-E — Composition + timestamp-aware replay (R2). ◑ two of three landed.**
+  - ✅ **`defineMergeNode({type, kind, combine})`** (`src/dag/merge.ts`). The engine
+    rejects fan-in to one input port, so composition has to be an explicit typed node.
+    Kind-preserving, two inputs (`a`/`b`), one output (`merged`), pure. `combine` is
+    called on ticks where **one** side is absent — deciding what an absent side means is
+    the merge's job, not the engine's — but not when **both** are, so two silences merge
+    to silence rather than to `combine(undefined, undefined)`.
+  - ✅ **Event sources buffer→list** — landed with the Applier's pump (an `event` source
+    accumulates every frame since the last tick; a `signal` source latches the newest).
+  - ⏳ **`replay-source-timed`** reading `StreamRecord.t` (index-by-tick stays canonical
+    for CI goldens). Not built: it belongs in `src/nodes/sources/`, which another session
+    is currently working in.
 - **M-F — State-feedback generators (R3, `getOutput` option).**
   `stateGeneratorSource`; assert topo order + deterministic one-tick output; the
   fed-back snapshot appears in the recorded tap. #87 command-dispatch is the

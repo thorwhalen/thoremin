@@ -21,6 +21,8 @@ export type { ReplayOptions } from './recorder';
 export { BatchClock, RealtimeClock } from './clock';
 export type { Clock, RealtimeClockOptions } from './clock';
 export { Applier } from './applier';
+export { defineMergeNode, MERGE_INPUTS, MERGE_OUTPUT } from './merge';
+export type { MergeNodeSpec } from './merge';
 export type { ApplierOptions, Source, SourceContext } from './applier';
 
 import { Engine, type EngineOptions } from './engine';

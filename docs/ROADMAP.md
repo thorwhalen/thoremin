@@ -236,11 +236,20 @@ such — a bracketed `#n` in this list always means an issue.
 
 ### Engine / platform
 
-- **[#101] Stream Applier epic** (M8) — M-A, M-B and M-C have shipped, and M-D's clock
-  half landed with #166. **What remains of M-D** is the `Source` interface, its pump and
-  the `Applier` that `runHeadless` and `useEngine` both collapse into; M-E…M-G are
-  designed and unstarted. SSOT: [design/stream-applier.md](design/stream-applier.md) —
-  its per-milestone bullets, not its header, are the authority on status.
+- **[#101] Stream Applier epic** (M8) — **M-A…M-D have shipped.** Both callers are
+  Applier configs now (`runHeadless` #184, `useEngine` #189), and `runEngineLoop` retired
+  with M-D. **M-E is two-thirds landed**: `defineMergeNode` (R2 composition) and the
+  `event`-kind accumulate half; the timestamp-aware `replay-source-timed` remains, and it
+  belongs in `src/nodes/sources/`. M-F (state-feedback generators) and M-G (time-scaled
+  audio + a `delay` node) are designed and unstarted. SSOT:
+  [design/stream-applier.md](design/stream-applier.md) — its per-milestone bullets, not
+  its header, are the authority on status.
+
+  One thing worth knowing before touching the live loop: **M-D's stated gate, a browser
+  smoke test, does not exist** — this repo has no Playwright or e2e harness. What stands
+  in for it is a jsdom test that mounts the real hook and watches the loop run and stop.
+  AudioContext, MediaPipe and real rAF under load are still unverified, as a no-camera
+  item on #146.
 - **[#14] React Flow patcher UI** driven by Zod node configs (M6's remaining half).
   **Build is parked**; the open question is scope, not schedule — see #181.
 
@@ -279,7 +288,7 @@ these rather than inside them, so read the status column, not the milestone numb
 | **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | nodes built + tested (`transport` / `score` / `performance`); **not wired into the default graph**, which the manual and `docs/CATALOG.md` both say plainly. Stable but *undecided* — #180 asks for the decision: wire it (it would need a score, and there is no content pipeline), or retire it to node-library-only the way #128 retired the generative nodes. |
 | **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120) and made reachable (#137 / PR #147); the patcher (#14) is open, with its **scope** the actual open question (#181). |
 | **M7** | (optional) Pluggable Python feature service + self-hosted generative service behind the existing node facades. | optional, untouched. |
-| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | in progress — M-A, M-B and M-C shipped; M-D half shipped (the live loop runs on the `Clock`, #166), its `Source` + pump + `Applier` remaining; M-E…M-G designed. See [design/stream-applier.md](design/stream-applier.md). |
+| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | in progress — **M-A…M-D shipped** (both callers are Applier configs); M-E two-thirds landed (`defineMergeNode` + event accumulate; timed replay remains); M-F/M-G designed. See [design/stream-applier.md](design/stream-applier.md). |
 
 ### Open engine decisions (recorded; defaults taken)
 
