@@ -16,6 +16,7 @@ import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
+import { startBodyRouteDemand } from './bodyRouteDemand';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import { demandWantsFace, labWantsFace } from '@/features/labConfig';
@@ -101,6 +102,9 @@ export default function App({
   // #92: install the MODAL tag-toggle keymap (1..9 / 0) — inert unless tagging mode
   // is on, so it never shadows other digit bindings.
   useEffect(() => installTaggingKeymap(), []);
+  // #186: the body routes claim the feature groups they read, so a configured route
+  // is fed even with the Lab closed (the groups are computed only on demand).
+  useEffect(() => startBodyRouteDemand(), []);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">

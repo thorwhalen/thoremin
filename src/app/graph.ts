@@ -250,6 +250,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { id: 'handVec', type: 'hand-feature-vector', params: {} },
       // Body features (#186): the third vector tap, off the gated body branch.
       { id: 'bodyVec', type: 'body-feature-vector', params: {} },
+      // Body → sound (#186 PR E): routes body features to voice modulations per the
+      // bodyMap dial; neutral (no change) until a route is set.
+      { id: 'bodyRoute', type: 'body-route', params: {} },
       // Gesture dispatch (#129): discrete pose classification (fist/open/pinch),
       // tapped additively off the hand-features stream the mapping already reads.
       // Nothing in the GRAPH consumes it — the app-level gesture dispatcher
@@ -411,6 +414,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'handVec', port: 'vector' }, to: { node: 'overlay', port: 'handVector' } },
       { from: { node: 'camBody', port: 'body' }, to: { node: 'bodyVec', port: 'body' } },
       { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'overlay', port: 'bodyVector' } },
+      { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'bodyRoute', port: 'vector' } },
+      { from: { node: 'ui', port: 'bodyMap' }, to: { node: 'bodyRoute', port: 'bodyMap' } },
+      { from: { node: 'bodyRoute', port: 'mods' }, to: { node: 'map', port: 'mods' } },
       // Gesture dispatch (#129): the classifier taps the SAME hand-features stream
       // the mapping/overlay read (additive fan-out — the original edges are
       // untouched). Its `poses` output is read app-side by the gesture dispatcher.

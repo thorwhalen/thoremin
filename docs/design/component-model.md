@@ -99,7 +99,7 @@ not afterthoughts.
 `voice-mapping`, `chord`, and `score` all *emit* the same `synth-params` output
 contract — so people assume they're drop-in. But their **input** ports differ:
 `voice-mapping` takes `magnetism`, `octaveShift`, `mute`, `scaleRight`, `scaleLeft`,
-`soundRight`, `soundLeft` (plus an optional `face`) side-inputs; `chord`/`score` do
+`soundRight`, `soundLeft` (plus an optional `face`, and since #186 an optional `mods` from the body router) side-inputs; `chord`/`score` do
 not. Repointing a `slot` from `voice-mapping` to `chord` would leave **7 `ui → map`
 edges** wired to input ports that don't exist on the new node → `validateEdge` throws.
 

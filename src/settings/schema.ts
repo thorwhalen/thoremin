@@ -14,6 +14,7 @@ import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { SOUND_IDS, type SoundId } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
+import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { SteerConfigSchema, type SteerConfig } from '@/nodes/mapping/indirect_map';
@@ -257,6 +258,9 @@ export const SettingsSchema = z.object({
   midi: MidiSettingsSchema.default(DEFAULT_MIDI),
   // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
   body: BodySettingsSchema.default(DEFAULT_BODY),
+  // The body→sound routing (#186 PR E): four route slots over the catalog. `.default`
+  // keeps pre-routing presets valid (no routes = byte-identical sound).
+  bodyMap: BodyMapSchema.default(() => structuredClone(DEFAULT_BODY_MAP)),
   // The generative layer (#141 / #188). `.default(...)` keeps pre-#188 presets valid (off).
   steer: SteerSettingsSchema.default(DEFAULT_STEER),
   // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for

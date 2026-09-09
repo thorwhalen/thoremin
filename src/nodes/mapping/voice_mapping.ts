@@ -24,6 +24,7 @@ import { SoundSchema, SOUND_IDS } from '@/music/sounds';
 import { ABSENT_HAND, type FaceFeatures, type HandFeatures, type SynthParams, type VoiceParams } from '../domain';
 import { MAPPING_SLOT_INPUTS, MAPPING_SLOT_OUTPUT } from './mapping_contract';
 import { BEND_SEMITONES, DEFAULT_HAND_MAP, fingerEffects, type HandMap } from './hand_map';
+import { NEUTRAL_MODS, type VoiceMods } from './body_map';
 
 /** How much a full smile / open mouth add to brightness / vibrato (0..1). */
 const FACE_SMILE_BRIGHTNESS = 0.5;
@@ -111,6 +112,7 @@ function voiceFor(
   hm: HandMap,
   ctrl: Control,
   faceMod: FaceMod,
+  mods: VoiceMods = NEUTRAL_MODS,
 ): VoiceParams {
   if (!feat.present || ctrl.mute) {
     return { id, present: false, freq: midiToFreq(scaleMidis[0] ?? 60), gain: 0, sound, brightness: 1, vibrato: 0, pan: 0 };
@@ -125,28 +127,30 @@ function voiceFor(
 
   // Pitch: scale-snapped position, plus keyboard octave shift, plus finger octave
   // and pitch-bend contributions folded into the note.
+  // Body (or any routed feature) modulations (#186) fold in beside the finger ones.
   const midi =
     magneticPitch(px, scaleMidis, ctrl.magnetism) +
     ctrl.octaveShift * 12 +
-    fx.octave * 12 +
-    fx.pitchBend * BEND_SEMITONES;
+    (fx.octave + mods.octave) * 12 +
+    (fx.pitchBend + mods.pitchBend) * BEND_SEMITONES;
   const freq = midiToFreq(midi);
 
   let gain = (1 - py) * hm.maxGain;
   if (hm.opennessGatesGain) gain *= feat.openness;
   gain *= fx.gate; // finger gate (1 when no finger routes to gate)
+  gain *= mods.gate * mods.gain; // routed gate / gain (1 when nothing routes to them)
 
   // Openness shapes brightness: closed hand stays mellow (0.3) but never fully
   // muffled; open hand is fully present (1.0). Off → neutral (fully open). A smile
   // (face) and any finger→brightness routing brighten further.
   const baseBright = hm.opennessControlsBrightness ? 0.3 + 0.7 * feat.openness : 1;
-  const brightness = clamp01(baseBright + faceMod.brightness + fx.brightness);
+  const brightness = clamp01(baseBright + faceMod.brightness + fx.brightness + mods.brightness);
   // Pinch adds vibrato (0 = none .. 1 = full wobble); an open mouth / finger add more.
   const baseVib = hm.pinchControlsVibrato ? clamp01(feat.pinch) : 0;
-  const vibrato = clamp01(baseVib + faceMod.vibrato + fx.vibrato);
+  const vibrato = clamp01(baseVib + faceMod.vibrato + fx.vibrato + mods.vibrato);
   // Hand x places the voice in stereo; a finger→pan routing pushes it further.
   const basePan = hm.panByPosition ? clampPan((px - 0.5) * 2 * hm.panSpread) : 0;
-  const pan = clampPan(basePan + fx.pan);
+  const pan = clampPan(basePan + fx.pan + mods.pan);
   return { id, present: true, freq, gain, sound, brightness, vibrato, pan };
 }
 
@@ -201,6 +205,9 @@ export const voiceMappingNode = defineNode<Params>({
     const faceMapping = controls?.faceMapping;
     const timbreMode = faceMapping === undefined || faceMapping === 'timbre';
     const face = inputs.face as FaceFeatures | undefined;
+    // A partial record (a hand-authored spec, a replay) must not NaN the voice: fill
+    // every missing key with its neutral value.
+    const mods: VoiceMods = { ...NEUTRAL_MODS, ...((inputs.mods as Partial<VoiceMods> | undefined) ?? {}) };
     const faceMod: FaceMod =
       timbreMode && p.faceControlsExpression && face?.present
         ? {
@@ -210,8 +217,8 @@ export const voiceMappingNode = defineNode<Params>({
         : NO_FACE_MOD;
 
     const voices: VoiceParams[] = [
-      voiceFor(0, f.right, rightScale, instR, hm, ctrl, faceMod),
-      voiceFor(1, f.left, leftScale, instL, hm, ctrl, faceMod),
+      voiceFor(0, f.right, rightScale, instR, hm, ctrl, faceMod, mods),
+      voiceFor(1, f.left, leftScale, instL, hm, ctrl, faceMod, mods),
     ];
     const out: SynthParams = { voices };
     return { params: out };

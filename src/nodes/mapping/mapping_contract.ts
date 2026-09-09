@@ -40,6 +40,9 @@ export const MAPPING_SLOT_INPUTS: PortSpec[] = [
   { name: 'soundLeft', kind: 'sound' },
   // Optional facial expression (from face-features).
   { name: 'face', kind: 'face-features' },
+  // Optional voice modulations from a feature router (#186: body-route). Additive for
+  // the finger effects, multiplicative for gate/gain; absent = no change.
+  { name: 'mods', kind: 'voice-mods' },
 ];
 
 /** The output port a mapping-slot node must emit (consumed by synth + overlay). */

@@ -23,6 +23,7 @@ import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL } from '@/nodes/features/conductor';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
+import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
 import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, defaultSteerConfig, type Settings } from './schema';
 
@@ -122,6 +123,9 @@ export const thoreminDials = defineDials(
     // The hand→sound mapping (note source + finger routing + knobs) — a whole-object
     // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.
     handMap: HandMapSchema.default(DEFAULT_HAND_MAP).meta({ facets: ['Hand'], title: 'Hand mapping' }),
+    // The body→sound routing (#186): a whole-object dial like `handMap`, reachable
+    // leaf-by-leaf through `dial.setIn` (`bodyMap.routes.a.target`, …).
+    bodyMap: BodyMapSchema.default(() => structuredClone(DEFAULT_BODY_MAP)).meta({ facets: ['Body'], title: 'Body mapping', description: 'Which body features drive which sound aspects' }),
     // The head/face CONTROL axes (#76) — a whole-object dial like `overlay` / `handMap`,
     // rendered by a bespoke widget in the Face panel and reachable leaf-by-leaf through
     // `dial.setIn` (paths.ts derives `faceControls.yawGain`, `faceControls.headRangeDeg`,
@@ -206,6 +210,7 @@ export function settingsToLayer(s: Settings): Layer {
     steerConfig: s.steer.config,
     overlay: s.overlay,
     handMap: s.handMap,
+    bodyMap: s.bodyMap,
     faceControls: s.faceControls,
     conductor: s.conductor,
   });
@@ -242,6 +247,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     steer: { enabled: v['steer.enabled'], volume: v['steer.volume'], config: v.steerConfig },
     overlay: v.overlay,
     handMap: v.handMap,
+    bodyMap: v.bodyMap,
     faceControls: v.faceControls,
     conductor: v.conductor,
   });

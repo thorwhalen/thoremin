@@ -202,19 +202,37 @@ export const setDialCmd = defineCommand({
  * unknown object keys, so a junk path would deep-set a junk key, still PARSE, and land in
  * the dials layer as silent garbage.
  */
-export function applyDialSetIn(path: string, value: unknown): Result<{ path: string; key: string; value: unknown }> {
+/**
+ * Resolve one leaf write to the whole-object value its dial would hold afterwards —
+ * the one contract `dial.setIn` and a leaf write inside `dial.patch` share. `base` is
+ * the value to write into (the dial's current value, or an earlier fold in the same
+ * batch); the result is the dial key, the coerced leaf, and the next whole object.
+ */
+function resolveLeafWrite(
+  path: string,
+  value: unknown,
+  base?: unknown,
+): Result<{ key: string; value: unknown; next: unknown }> {
   const target = resolveDialPath(path);
   if (!target) return err('unknown_path', `No dial for path "${path}".`, { path });
   const leaf = leafByPath[path];
   if (!leaf || target.rest.length === 0) {
     return err('unknown_path', `"${path}" is not a settable leaf of dial "${target.key}".`, { path, key: target.key });
   }
-  const current = dialsStore.getState().effective[target.key];
+  const current = base === undefined ? dialsStore.getState().effective[target.key] : base;
   if (current === null || typeof current !== 'object') {
     return err('unknown_path', `Dial "${target.key}" has no structured value to write into.`, { path, key: target.key });
   }
   const coerced = coerceScalar(value, leaf.kind);
-  const next = setIn(current as Record<string, unknown>, target.rest, coerced);
+  return ok({ key: target.key, value: coerced, next: setIn(current as Record<string, unknown>, target.rest, coerced) });
+}
+
+export function applyDialSetIn(path: string, value: unknown): Result<{ path: string; key: string; value: unknown }> {
+  const resolved = resolveLeafWrite(path, value);
+  if (!resolved.ok) return resolved as unknown as Result<{ path: string; key: string; value: unknown }>;
+  const target = { key: resolved.value.key };
+  const coerced = resolved.value.value;
+  const next = resolved.value.next;
   const reason = invalidWritesReason([[target.key, next]]);
   if (reason) return err('invalid_value', `Invalid value for "${path}": ${reason}`, { path, value: coerced });
   setDial(target.key as SettingKey, next);
@@ -277,7 +295,7 @@ export const patchDialsCmd = defineCommand({
     writes: z
       .array(
         z.object({
-          key: z.string().describe('The dial key.'),
+          key: z.string().describe('A dial key, or a leaf path of a structured dial (the same paths dial.setIn accepts, e.g. "bodyMap.routes.a.feature").'),
           // OPTIONAL — an omitted value clears the dial. Not a convenience: the sync-hands
           // voice mirror (the panel's main patch caller) copies the source hand's fields
           // onto the other hand, and the #63 octave-range dials are legitimately ABSENT on
@@ -292,8 +310,30 @@ export const patchDialsCmd = defineCommand({
       .describe('An ordered list of { key, value } dial writes, applied in sequence.'),
   }),
   execute: ({ writes }) => {
-    const bad = writes.find((w) => !isDial(w.key));
-    if (bad) return err('unknown_dial', `No dial named "${bad.key}".`, { key: bad.key });
+    // A write may name a dial OR a leaf path into a structured dial (`bodyMap.routes.a.feature`,
+    // #186): the leaf writes are folded onto their dial's current value, in order (a
+    // later leaf sees an earlier one), so one gesture that seeds several leaves of one
+    // route lands as ONE whole-object write — and shares the all-or-nothing validation
+    // below with the plain dial writes. Precedence note: a plain write to a structured
+    // dial in the same batch is not folded into (the fold starts from the STORE value), so
+    // the folded write wins; today `DIAL_VALUE` is scalar-only, so that batch cannot be
+    // expressed anyway — the note is for whoever grows it.
+    const folded = new Map<string, unknown>();
+    const dialWrites: Array<{ key: string; value?: unknown }> = [];
+    for (const w of writes) {
+      if (isDial(w.key)) {
+        dialWrites.push(w);
+        continue;
+      }
+      if (w.value === undefined) {
+        return err('invalid_value', `A leaf path ("${w.key}") cannot be cleared — it needs a value.`, { key: w.key });
+      }
+      const resolved = resolveLeafWrite(w.key, w.value, folded.get(w.key.split('.')[0]) ?? folded.get(resolveDialPath(w.key)?.key ?? ''));
+      if (!resolved.ok) return resolved as unknown as Result<{ count: number }>;
+      folded.set(resolved.value.key, resolved.value.next);
+    }
+    for (const [key, value] of folded) dialWrites.push({ key, value });
+    writes = dialWrites as typeof writes;
     // A CLEAR (omitted value) is only ever meaningful for a genuinely optional dial. On a
     // dial with a declared default, SettingsSchema would re-fill that default — so the
     // command would report `ok`, the audio would silently reset, and the dials layer would

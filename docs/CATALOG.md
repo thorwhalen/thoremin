@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (38)
+## Nodes (39)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -232,9 +232,17 @@ _Features → engine parameters, across the expression spectrum._
 Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).
 
 - **roles:** mapping
-- **in:** features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features
+- **in:** features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features, mods:voice-mods
 - **out:** params:synth-params
 - **params:** magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"triangle"})
+
+#### `body-route` — Body Route
+Routes catalog features (body first) to voice modulations — brightness, vibrato, pan, pitch bend, octave, gate, gain — per the body map.
+
+- **roles:** mapping, control
+- **in:** vector:feature-vector, bodyMap:body-map
+- **out:** mods:voice-mods
+- **params:** map (object={"routes":{"a":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"b":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"c":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"d":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1}}})
 
 #### `indirect-map` — Indirect Map
 Gesture features → weighted prompts + config dials (steers a generative engine).

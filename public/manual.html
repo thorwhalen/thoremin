@@ -42,7 +42,7 @@
           letter-spacing: .06em; border-radius: 999px; padding: .1rem .4rem; margin-left: .35rem; vertical-align: 1px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 38 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 39 nodes.</p>
   <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md">the User Guide</a>. This page is the <b>node</b> catalog.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>Everything runs <b>client-side</b>: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.</p><p>This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here are built and tested but are not wired into the default graph: the generative ones, and `transport` + `performance` (conductor mode's original clock and control mapping, kept for the non-conductor chain now that `conductor` + `score` are wired behind the Conductor dial, #187).</p>
   <h3>Example pipelines</h3>
@@ -131,7 +131,7 @@
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -272,9 +272,19 @@
       <p>Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).</p>
       <dl>
         <dt>roles</dt><dd>mapping</dd>
-        <dt>in</dt><dd>features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features</dd>
+        <dt>in</dt><dd>features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features, mods:voice-mods</dd>
         <dt>out</dt><dd>params:synth-params</dd>
         <dt>params</dt><dd>magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"triangle"})</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>body-route</code> <span class="title">Body Route</span></h4>
+      <p>Routes catalog features (body first) to voice modulations — brightness, vibrato, pan, pitch bend, octave, gate, gain — per the body map.</p>
+      <dl>
+        <dt>roles</dt><dd>mapping, control</dd>
+        <dt>in</dt><dd>vector:feature-vector, bodyMap:body-map</dd>
+        <dt>out</dt><dd>mods:voice-mods</dd>
+        <dt>params</dt><dd>map (object={"routes":{"a":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"b":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"c":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"d":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1}}})</dd>
       </dl>
     </div>
     <div class="node">
