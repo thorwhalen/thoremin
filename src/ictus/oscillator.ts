@@ -36,11 +36,12 @@
  *   lock and re-seed from those two anchors (Pardo's single hypothesis never re-locks
  *   after a jump; this one does).
  * - **Octave guard.** After a jump to double tempo every SECOND anchor still lands near
- *   a modelled beat, so the phase-error rule alone settles at half tempo. Two
+ *   a modelled beat, so the phase-error rule alone settles at half tempo. Three
  *   consecutive intervals near HALF or DOUBLE the period that agree with each other
- *   re-seed the period from them — but only when the three anchors involved were all
- *   strong (`strongConfidence`), because a single rebound firing mid-beat produces the
- *   same two half-intervals and must not.
+ *   re-seed the period from them. Three, not two, because a single rebound firing
+ *   mid-beat produces exactly two agreeing half-intervals (before it and after it) and
+ *   must not re-seed; a real doubling keeps producing them. No strength requirement:
+ *   real conductors' strokes vary too much for a confidence gate to be reliable.
  *
  * The follower state machine (§6.3): `ready` until two anchors give a plausible
  * period; `running` while anchors keep arriving; `hold` when the expected beat is
@@ -81,8 +82,9 @@ export interface OscillatorOptions {
   maxPeriod?: number;
   /** An anchor below this confidence is ignored entirely (no state change). */
   confidenceFloor?: number;
-  /** Anchors at or above this confidence count as strong for the octave guard. */
-  strongConfidence?: number;
+  /** Consecutive agreeing odd intervals that re-seed the period (the octave guard).
+   *  Three: a single rebound yields two. */
+  octaveAfterOdd?: number;
   /** Missing the expected beat by this many periods enters `hold`. Above 2 so that a
    *  single dropped detection (an anchor at about two periods) free-runs through. */
   holdAfterPeriods?: number;
@@ -110,7 +112,7 @@ const DEFAULTS: Required<OscillatorOptions> = {
   minPeriod: 0.2,
   maxPeriod: 2.0,
   confidenceFloor: 0.2,
-  strongConfidence: 0.6,
+  octaveAfterOdd: 3,
   holdAfterPeriods: 2.25,
   confidenceDecayPerPeriod: 0.5,
   lostAfterMisses: 2,
@@ -151,14 +153,12 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
   let anchors = 0;
   let lastAnchorT = NaN;
   let prevAnchorT = NaN;
-  /** The previous accepted anchor's confidence (the octave guard needs three strong anchors). */
-  let prevC = 0;
   let beatsPerBar = o.beatsPerBar;
   /** Anchors accepted since the last (re)start, for the ready → running transition. */
   let consecutive = 0;
   /** Consecutive anchors outside the attentional window (the lost-lock counter). */
   let misses = 0;
-  /** Consecutive strong odd intervals, and the previous odd interval (octave guard). */
+  /** Consecutive agreeing odd intervals, and the previous odd interval (octave guard). */
   let oddCount = 0;
   let lastOdd = NaN;
   /** Consecutive hold restarts and the interval the previous one arrived at (the
@@ -272,7 +272,6 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
           }
           holdRestarts++;
           holdRestartIai = iai;
-          prevC = c;
           advanceTo(tNow);
           return;
         }
@@ -289,7 +288,6 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
           state = 'running';
           confidence = 0.5;
         }
-        prevC = c;
         advanceTo(tNow);
         return;
       }
@@ -299,19 +297,17 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       const e = wrapPhase(phase);
       const ratio = iai / period;
       const odd = Math.abs(ratio - 0.5) < o.octaveTolerance * 0.5 || Math.abs(ratio - 2) < o.octaveTolerance * 2;
-      const strong = c >= o.strongConfidence && prevC >= o.strongConfidence;
-      if (odd && strong && agrees(iai, lastOdd)) oddCount++;
-      else oddCount = odd && strong ? 1 : 0;
+      if (odd && agrees(iai, lastOdd)) oddCount++;
+      else oddCount = odd ? 1 : 0;
       lastOdd = odd ? iai : NaN;
       const lost = Math.abs(e) > o.lostPhaseError ? ++misses >= o.lostAfterMisses : ((misses = 0), false);
-      const reseed = oddCount >= 2 && iai >= o.minPeriod && iai <= o.maxPeriod;
+      const reseed = oddCount >= o.octaveAfterOdd && iai >= o.minPeriod && iai <= o.maxPeriod;
       if (lost || reseed) {
-        // Lost (two anchors in a row where the beat was not) or re-seeded (two strong odd
+        // Lost (two anchors in a row where the beat was not) or re-seeded (three odd
         // intervals that agree): restart from the last two anchors.
         restartLock(reseed ? iai : a.t - prevAnchorT, 0.3);
         prevAnchorT = lastAnchorT;
         lastAnchorT = a.t;
-        prevC = c;
         advanceTo(tNow);
         return;
       }
@@ -333,7 +329,6 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       confidence = Math.max(0, Math.min(1, 0.5 * confidence + 0.5 * Math.max(0, r)));
       prevAnchorT = lastAnchorT;
       lastAnchorT = a.t;
-      prevC = c;
       consecutive++;
       advanceTo(tNow);
     },
@@ -359,7 +354,6 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       anchors = 0;
       lastAnchorT = NaN;
       prevAnchorT = NaN;
-      prevC = 0;
       consecutive = 0;
       misses = 0;
       oddCount = 0;

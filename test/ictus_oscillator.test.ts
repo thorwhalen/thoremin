@@ -102,19 +102,37 @@ describe('adaptive oscillator', () => {
     expect(Math.round(s.beat)).toBe(11);
   });
 
-  it('a single mid-beat rebound (a weak anchor) does not flip the tempo to double', () => {
+  it('a single mid-beat rebound does not flip the tempo to double, whatever its confidence', () => {
     const osc = createAdaptiveOscillator();
     const period = 0.6;
     const times = Array.from({ length: 8 }, (_, i) => 1 + i * period);
     drive(osc, times);
     const tEnd = times[times.length - 1];
-    // The rebound: mid-beat, above the confidence floor but not a strong stroke.
-    osc.update(anchor(tEnd + period / 2, 0.3));
+    // The rebound: mid-beat, at FULL confidence (a rebound yields two agreeing
+    // half-intervals; a real doubling yields three or more).
+    osc.update(anchor(tEnd + period / 2, 1));
     // Then the real beats continue.
     drive(osc, [1, 2, 3, 4].map((k) => tEnd + k * period));
     const s = osc.state();
     expect(s.tempo).toBeCloseTo(100, 0);
     expect(Math.round(s.beat)).toBe(11);
+  });
+
+  it('a genuine doubling of the tempo with mid-strength strokes is followed within four beats', () => {
+    const osc = createAdaptiveOscillator();
+    const slow = Array.from({ length: 8 }, (_, i) => 1 + i * 0.6);
+    drive(osc, slow);
+    const t0 = slow[slow.length - 1];
+    let t = t0;
+    for (let k = 1; k <= 8; k++) {
+      while (t + 1 / 30 < t0 + k * 0.3) {
+        t += 1 / 30;
+        osc.advance(t);
+      }
+      osc.update(anchor(t0 + k * 0.3, 0.5));
+      t = t0 + k * 0.3;
+    }
+    expect(osc.state().tempo).toBeCloseTo(200, 0);
   });
 
   it('a lock seeded at half the real period recovers once the real beats arrive', () => {

@@ -94,6 +94,22 @@ describe('ictus detector (synthetic stroke)', () => {
     expect(fired).toBe(0);
   });
 
+  it('a player who starts beating much smaller can beat again within seconds (the envelope decays)', () => {
+    const det = createIctusDetector();
+    for (const s of synthetic(0.7, 0, 4.55, 100)) det.push(s);
+    const t0 = 4.55 + 1 / FPS;
+    const fired: number[] = [];
+    for (let i = 0; i * (1 / FPS) <= 20; i++) {
+      const t = t0 + i / FPS;
+      if (det.push({ t, ...stroke(t, 0.7, 0, 15) })) fired.push(t - t0);
+    }
+    // 15% of the earlier amplitude is below the 20% envelope gate at first; once the
+    // envelope has decayed it beats every stroke.
+    expect(fired.length).toBeGreaterThan(10);
+    expect(fired[0]).toBeLessThan(12);
+    expect(det.envelope()).toBeLessThan(30);
+  });
+
   it('strength and sharpness describe the stroke: a bigger stroke reads > 1, a sharper one reads higher', () => {
     const det = createIctusDetector();
     for (const s of synthetic(0.7, 0, 3.5, 60)) det.push(s);
