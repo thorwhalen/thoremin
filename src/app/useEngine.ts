@@ -6,7 +6,8 @@
  * real work; this hook just supplies host resources and timing.
  *
  * Two seams the hook deliberately does NOT own:
- *  - **Pacing** is a `Clock` (`src/dag/clock.ts`), driven via `runEngineLoop`.
+ *  - **Pacing, outputs and teardown** are an `Applier` (`src/dag/applier.ts`): a
+ *    `RealtimeClock`, the React bridges as sinks, `disposed` as the stop condition.
  *    The hook used to hand-roll its own rAF recursion, which left the shipped
  *    `RealtimeClock` exercised only by unit tests while players ran other code.
  *  - **Which graph** comes from a {@link SlotSelection}. A change to it re-wires
@@ -14,10 +15,9 @@
  *    so the camera is not re-acquired and the ML models are not reloaded.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Engine } from '@/dag';
+import { Applier, Engine, RealtimeClock } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
-import { runEngineLoop } from './engineLoop';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
@@ -95,6 +95,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
   const resourcesRef = useRef<Record<string, unknown>>({});
+  /** The live Applier, so cleanup can release it (and its taps) on unmount. */
+  const applierRef = useRef<Applier | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   // The raw camera MediaStream (camera source only), kept reachable for the
   // pure-webcam recording stream (#88); null for a file source.
@@ -349,13 +351,52 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           lastPosesKey = key;
         };
 
-        // Pacing lives in the Clock, the frame-drop guard and the report fan-out
-        // in `runEngineLoop` (headlessly tested); the stop condition is the same
-        // `disposed` flag the rest of this effect's cleanup uses.
+        // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
+        // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
+        // which is exactly what the Applier's options express — a `RealtimeClock`, the
+        // three React bridges as sinks, no taps (the recorder attaches its own when a
+        // take starts), and `disposed` as the stop condition.
+        //
+        // The sinks were previously `runEngineLoop`'s "reporters". They are the same
+        // functions, called at the same point (after a successful tick) — but now inside
+        // the Applier's guard, so a bridge that throws is reported and the instrument
+        // keeps playing instead of the rAF chain dying silently. `onError` is what makes
+        // that the policy: with it supplied, `run()` does not reject and one bad frame
+        // costs a frame, not the session.
+        //
+        // No `sources` are passed: the graph's frame emitters are ordinary zero-input
+        // NODES (design invariant 4 — `webcam-hands` / `synthetic-hands` / `replay-hands`
+        // fill the `source` slot), and the browser resources they read are host-owned and
+        // already in `resourcesRef`. A host-side `Source` is for an origin the Applier
+        // pumps itself, which nothing here is yet.
+        //
         // (#90) Mute is a store flag toggled by the app-level keyboard handler
         // (the `m` key → toggleMuted) and flows INTO the graph via store-controls,
         // so there is no graph→store mute mirror in the loop.
-        void runEngineLoop(engine, [reportFace, reportMidi, reportGesture], () => disposed);
+        // UNITS. The bridges take MILLISECONDS (`reportGesture` feeds
+        // `gestureDispatcher.tick`, whose dwell/hold/cooldown are in ms); a `Clock`
+        // reports engine time in SECONDS. Converting here, once, at the boundary is the
+        // same fix #164 made for the trainer's sampler, where passing seconds through
+        // unconverted turned a 220 ms dwell into 220 s and nothing ever read as "held".
+        // The `?? performance.now()/1000` mirrors what `runEngineLoop` did: a clock that
+        // synthesises time passes none, and a bridge still needs a real stamp.
+        const toMs = (report: (nowMs: number) => void) => (t: number | undefined) =>
+          report((t ?? performance.now() / 1000) * 1000);
+
+        const applier = new Applier({
+          engine,
+          clock: new RealtimeClock(),
+          resources,
+          sinks: [toMs(reportFace), toMs(reportMidi), toMs(reportGesture)],
+          shouldStop: () => disposed,
+          onError: (err) => {
+            // Same disposition `runEngineLoop` had: log and keep going. A degenerate
+            // landmark or a transient audio state must not end the session.
+            if (!disposed) console.error('[thoremin] engine frame failed', err);
+          },
+        });
+        applierRef.current = applier;
+        void applier.run();
       } catch (e) {
         if (disposed) return;
         console.error('[thoremin] engine setup failed', e);
@@ -368,6 +409,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       // Setting `disposed` is what stops the loop: the clock polls it before
       // every frame, so an already-scheduled frame resolves without ticking.
       disposed = true;
+      // Dispose the Applier before the engine: it detaches any tap it attached and
+      // releases its sources, and it must not observe a disposed engine mid-teardown.
+      applierRef.current?.dispose();
+      applierRef.current = null;
       engineRef.current?.dispose();
       engineRef.current = null;
       registryRef.current = null;
