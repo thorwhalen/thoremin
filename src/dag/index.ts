@@ -23,7 +23,8 @@ export type { Clock, RealtimeClockOptions } from './clock';
 export { Applier } from './applier';
 export { defineMergeNode, MERGE_INPUTS, MERGE_OUTPUT } from './merge';
 export type { MergeNodeSpec } from './merge';
-export type { ApplierOptions, Source, SourceContext } from './applier';
+export { STATE_READER_KEY } from './applier';
+export type { ApplierOptions, Source, SourceContext, StateReader } from './applier';
 
 import { Engine, type EngineOptions } from './engine';
 import { NodeRegistry } from './registry';

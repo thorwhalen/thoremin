@@ -139,7 +139,7 @@ export class Engine {
   /** latest outputs per node: nodeId -> { port -> value }. */
   private outputs = new Map<string, PortValues>();
   private taps: Tap[];
-  private resources: Record<string, unknown>;
+  private resourcesObject: Record<string, unknown>;
   private nominalDt: number;
   private validatePorts: boolean;
   private log?: (msg: string) => void;
@@ -166,7 +166,7 @@ export class Engine {
 
   constructor(spec: GraphSpec, registry: NodeRegistry, opts: EngineOptions = {}) {
     this.taps = opts.taps ?? [];
-    this.resources = opts.resources ?? {};
+    this.resourcesObject = opts.resources ?? {};
     this.nominalDt = opts.nominalDt ?? 1 / 60;
     this.validatePorts = opts.validatePorts ?? false;
     this.log = opts.log;
@@ -364,7 +364,7 @@ export class Engine {
   }
 
   private makeContext(time: number, dt: number): NodeContext {
-    return { tick: Math.max(0, this.tickIndex), time, dt, resources: this.resources, log: this.log };
+    return { tick: Math.max(0, this.tickIndex), time, dt, resources: this.resourcesObject, log: this.log };
   }
 
   /**
@@ -439,6 +439,20 @@ export class Engine {
   /** Read the latest value produced on a node's output port (for overlays/UI). */
   getOutput(nodeId: string, port: string): unknown {
     return this.outputs.get(nodeId)?.[port];
+  }
+
+  /**
+   * The live host-resources object every node reads as `ctx.resources`.
+   *
+   * The SAME reference `makeContext` hands out on every tick, so a host that writes into
+   * it in place (the webcam feed, an Applier's pumped frames) is seen by nodes on the
+   * next tick with no engine API for it. Exposed so an `Applier` can take the engine's
+   * own object rather than being handed one separately: two references that are supposed
+   * to be the same object, and silently are not, is a failure with no symptom except a
+   * graph that reads nothing.
+   */
+  get resources(): Record<string, unknown> {
+    return this.resourcesObject;
   }
 
   /** The computed topological evaluation order (node ids). */

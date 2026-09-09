@@ -178,14 +178,15 @@ once it stabilizes and a second consumer appears). **Built**, with two departure
 the sketch above, both deliberate: it takes a **live `Engine`** rather than a
 spec+registry (the lifecycle section below licenses this — and it is what keeps
 `runHeadless` byte-identical, since the engine keeps its own `validatePorts` default and
-tap wiring), and it takes the **`resources` object** the engine was constructed with, so
-the pump writes latched frames into the same reference every node reads. `useEngine`
+tap wiring), and it takes its **`resources` from the engine itself** (`Engine.resources`),
+so the pump writes latched frames into the very object every node reads — two references
+that are meant to be the same and silently are not is a failure with no symptom. `useEngine`
 (live/paced) and `runHeadless` (batch) both collapse to configs of it, differing
 on **{clock, sinks, taps} jointly** — not "only the clock". Batch attaches a
 recording tap and **no audio sink** (the synth self-no-ops when the audio
 resource is absent); paced attaches the AV sinks.
 
-The Applier also injects `resources.stateReader = { get: (n, p) => engine.getOutput(n, p) }`
+The Applier injects `resources.stateReader = { get: (n, p) => engine.getOutput(n, p) }`
 — the one-tick feedback channel for R3.
 
 ### State-feedback + composition
@@ -314,10 +315,21 @@ boundaries allow.
   - ⏳ **`replay-source-timed`** reading `StreamRecord.t` (index-by-tick stays canonical
     for CI goldens). Not built: it belongs in `src/nodes/sources/`, which another session
     is currently working in.
-- **M-F — State-feedback generators (R3, `getOutput` option).**
-  `stateGeneratorSource`; assert topo order + deterministic one-tick output; the
-  fed-back snapshot appears in the recorded tap. #87 command-dispatch is the
-  prime consumer.
+- **M-F — State-feedback generators (R3, `getOutput` option). ◑ the channel is built;
+  the source is not.**
+  - ✅ **`resources.stateReader`** — the Applier publishes a `StateReader`
+    (`{ get(nodeId, port) }`, backed by `engine.getOutput`) onto the engine's own
+    resources, so a node reaches it as `ctx.resources.stateReader` and is trivially
+    fakeable in a `replayNode` test. Pinned by a test that a zero-input source reading a
+    DOWNSTREAM node observes tick **N-1**: the engine evaluates topo-first, so the
+    feedback falls out of evaluation order rather than needing a cycle the engine would
+    reject. Total by design — an absent node or port reads `undefined`, because a source
+    must tolerate a first-tick absence.
+  - ⏳ **`stateGeneratorSource`** — the node that consumes it: seed-derived randomness
+    (`seed + ctx.tick`, never `Math.random`, or recordings stop reproducing) and
+    re-emitting the read snapshot on a second port so replay reproduces the feedback and
+    it stays tappable. Not built: it belongs in `src/nodes/sources/`, which another
+    session is working in. #87 command-dispatch is the prime consumer.
 - **M-G — Honest time-scaled audio + delay node (principled end-state).**
   `OfflineAudioContext` render-then-play behind an explicit action; recorder
   backpressure (fold into #88 recording-v2); the `delay` node + delayed-edge
