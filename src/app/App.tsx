@@ -30,6 +30,7 @@ import ToolsBar from './ToolsBar';
 import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel from './TrainerPanel';
+import SongPanel from './SongPanel';
 import VersionBadge from './VersionBadge';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
@@ -143,6 +144,9 @@ export default function App({
 
       {/* Trainer mode (#160) — renders when its tool is the open one. */}
       <TrainerPanel />
+
+      {/* The song player (#186) — renders when its tool is the open one. */}
+      <SongPanel />
 
       {/* Bottom-right: the multi-stream recorder (#88) — a button that morphs into
           a settings sheet (out-of-instrument config) then a compact HUD. Available

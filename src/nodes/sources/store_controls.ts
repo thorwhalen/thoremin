@@ -13,7 +13,8 @@ import type { NodeContext } from '@/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';
-import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
+import type { FaceChord, FaceExpr, SteerSettings, SongSettings } from '@/settings/schema';
+import type { SongHandle } from '@/song/analyze';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import type { ConductorDialParams } from '@/nodes/features/conductor';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
@@ -81,6 +82,10 @@ export interface ControlSnapshot {
   /** The generative TRANSPORT — transient store state (never persisted), fed to
    *  `lyria`'s `playing` input. */
   steerPlaying?: boolean;
+  /** The song player (#186 PR G): its preset fields, the loaded song and the transport. */
+  song?: SongSettings;
+  loadedSong?: SongHandle | null;
+  songPlaying?: boolean;
   /** The head/face CONTROL axis tuning (#76): per-axis gain / deadzone / neutral zero
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */
@@ -136,6 +141,12 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'steerPlaying', kind: 'boolean' },
     { name: 'steerVolume', kind: 'number' },
     { name: 'steerConfig', kind: 'steer-config' },
+    // The song player (#186 PR G): the loaded song (a stable handle), the transport, the
+    // manual rate and the level -> `song-player`'s live inputs.
+    { name: 'song', kind: 'song-handle' },
+    { name: 'songPlaying', kind: 'boolean' },
+    { name: 'songRate', kind: 'number' },
+    { name: 'songVolume', kind: 'number' },
     // The head/face control axis tuning (#76) → `face-controls`' `config` input, so
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
@@ -181,6 +192,10 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           steerEnabled: c.steer?.enabled ?? false,
           steerPlaying: c.steerPlaying ?? false,
           steerVolume: c.steer?.volume ?? 0.7,
+          song: c.loadedSong ?? null,
+          songPlaying: c.songPlaying ?? false,
+          songRate: c.song?.rate ?? 1,
+          songVolume: c.song?.volume ?? 0.8,
           rightSpec,
           chordSpec,
           chordScale: generateScale(chordSpec),

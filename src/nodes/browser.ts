@@ -14,6 +14,7 @@ import { storeControlsNode } from './sources/store_controls';
 import { webAudioSynthNode } from './output/webaudio_synth';
 import { canvasOverlayNode } from './output/canvas_overlay';
 import { midiOutNode } from './output/midi_out';
+import { songPlayerNode } from './output/song_player';
 
 export { webcamHandsNode } from './sources/webcam_hands';
 export { webcamFaceNode } from './sources/webcam_face';
@@ -26,6 +27,8 @@ export { canvasOverlayNode } from './output/canvas_overlay';
 // (not in the pure CORE_NODES) because its default sink lazy-loads the browser-only
 // WEBMIDI.js library; its facade types + browser adapter live alongside it.
 export { midiOutNode } from './output/midi_out';
+// The song player (#186): its default stretcher is a DOM audio element, loaded lazily.
+export { songPlayerNode } from './output/song_player';
 export type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus, MidiPhase } from './output/midi_out';
 export { openWebMidiSink } from './output/midi_engine';
 // The browser-only Lyria engine (`./output/lyria_engine`) is deliberately NOT
@@ -45,6 +48,7 @@ export const BROWSER_NODES = [
   webAudioSynthNode,
   canvasOverlayNode,
   midiOutNode,
+  songPlayerNode,
 ];
 
 /** Registry with every node available in the browser app. */

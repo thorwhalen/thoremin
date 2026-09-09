@@ -133,7 +133,11 @@ export default function ToolsBar() {
   // means for each one.
   const metersOn = useControls((s) => s.featureLab.show);
   const setFeatureLab = useControls((s) => s.setFeatureLab);
-  const isRunning = (t: Tool) => t.runsDetached === true && t.id === 'lab' && metersOn;
+  // The song (#186) keeps playing with its panel shut, so it owes the bar a stop too.
+  const songPlaying = useControls((s) => s.songPlaying);
+  const setSongPlaying = useControls((s) => s.setSongPlaying);
+  const isRunning = (t: Tool) => t.runsDetached === true && ((t.id === 'lab' && metersOn) || (t.id === 'song' && songPlaying));
+  const stopFor = (t: Tool) => (t.id === 'lab' ? () => setFeatureLab({ show: false }) : t.id === 'song' ? () => setSongPlaying(false) : undefined);
 
   return (
     <div className="absolute bottom-3 left-3 z-40 flex max-w-[min(28rem,calc(100vw-1.5rem))] flex-wrap items-center gap-1.5">
@@ -142,7 +146,7 @@ export default function ToolsBar() {
           key={t.id}
           tool={t}
           running={isRunning(t)}
-          onStop={t.id === 'lab' ? () => setFeatureLab({ show: false }) : undefined}
+          onStop={stopFor(t)}
         />
       ))}
       {/* The deployed-commit badge rides the same meta strip (it used to be absolutely

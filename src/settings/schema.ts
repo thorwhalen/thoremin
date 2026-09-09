@@ -168,6 +168,15 @@ export type BodySettings = z.infer<typeof BodySettingsSchema>;
 
 /** The shipped body defaults: off (the model is the most expensive in the graph), lite. */
 export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
+
+/** The song player (#186 PR G): the manual playback rate and the song's level. The song
+ *  itself is transient runtime state (a decoded file), never a preset field. */
+export const SongSettingsSchema = z.object({
+  rate: z.number().min(0.5).max(2),
+  volume: z.number().min(0).max(1),
+});
+export type SongSettings = z.infer<typeof SongSettingsSchema>;
+export const DEFAULT_SONG: SongSettings = { rate: 1, volume: 0.8 };
 /**
  * The generative layer (#141 / #188): gesture features steering a cloud generative
  * engine (Lyria RealTime) through the `indirect-map → lyria` branch. A preset field:
@@ -257,6 +266,8 @@ export const SettingsSchema = z.object({
   midi: MidiSettingsSchema.default(DEFAULT_MIDI),
   // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
   body: BodySettingsSchema.default(DEFAULT_BODY),
+  // The song player (#186 PR G). `.default` keeps pre-song presets valid.
+  song: SongSettingsSchema.default(DEFAULT_SONG),
   // The generative layer (#141 / #188). `.default(...)` keeps pre-#188 presets valid (off).
   steer: SteerSettingsSchema.default(DEFAULT_STEER),
   // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for

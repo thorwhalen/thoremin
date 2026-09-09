@@ -28,6 +28,9 @@ import {
   DEFAULT_BODY,
   BodySettingsSchema,
   type BodySettings,
+  DEFAULT_SONG,
+  SongSettingsSchema,
+  type SongSettings,
   DEFAULT_STEER,
   defaultSteerConfig,
   FaceChordSchema,
@@ -42,6 +45,7 @@ import {
   type MidiSettings,
   type SteerSettings,
 } from '@/settings/schema';
+import { releaseSong, type SongHandle } from '@/song/analyze';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
 import {
   FaceControlsDialSchema,
@@ -150,6 +154,16 @@ export interface ControlState {
   /** The body source (#186): on/off + model. A preset field; read live by `webcam-body`
    *  through `ctx.resources.controls` (its gate, like the face's `faceMapping`). */
   body: BodySettings;
+  /** The song player's preset fields (#186 PR G): manual rate + level. */
+  song: SongSettings;
+  /** The loaded song (#186 PR G): a decoded file's handle — TRANSIENT, like `muted` and
+   *  `steerPlaying`: not a preset field, never persisted (an object URL and a beat grid
+   *  mean nothing after a reload, and a decoded song must never reach `persist`). Flows
+   *  to `song-player` through `store-controls` as the `song` port, same object until a
+   *  new file is loaded, so the node detects a new song by identity. */
+  loadedSong: SongHandle | null;
+  /** The song transport (#186 PR G): transient, like `steerPlaying`. */
+  songPlaying: boolean;
   /** The generative layer (#141 / #188): on/off, level, and what the gestures mean
    *  (`config`). A preset field (in {@link SETTINGS_KEYS}); read live by `indirect-map`
    *  / `lyria` via `store-controls` → their `steerConfig` / `enabled` / `volume` inputs. */
@@ -206,6 +220,11 @@ export interface ControlState {
   setMuted(v: boolean): void;
   /** Toggle the master mute — the `m` key (app-level keyboard handler, #90) calls this. */
   toggleMuted(): void;
+  /** Load / unload the song (transient; releases the previous song's object URL). */
+  setLoadedSong(song: SongHandle | null): void;
+  /** Set / toggle the song transport (transient, see {@link songPlaying}). */
+  setSongPlaying(v: boolean): void;
+  toggleSongPlaying(): void;
   /** Set / toggle the generative transport (transient, see {@link steerPlaying}). */
   setSteerPlaying(v: boolean): void;
   toggleSteerPlaying(): void;
@@ -407,6 +426,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
     }
   }
   // Heal the body settings (#186): a pre-body blob has none → off, lite.
+  // Heal the song settings (#186): a pre-song blob has none → rate 1, level 0.8.
+  let song = current.song;
+  if (p.song) {
+    try {
+      song = SongSettingsSchema.parse({ ...DEFAULT_SONG, ...p.song });
+    } catch {
+      song = current.song;
+    }
+  }
   let body = current.body;
   if (p.body) {
     try {
@@ -476,7 +504,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, song, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying, loadedSong: current.loadedSong, songPlaying: current.songPlaying };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -510,6 +538,9 @@ export const useControls = create<ControlState>()(
       handMap: defaultHandMap(),
       midi: { ...DEFAULT_MIDI },
       body: { ...DEFAULT_BODY },
+      song: { ...DEFAULT_SONG },
+      loadedSong: null,
+      songPlaying: false,
       steer: defaultSteer(),
       steerPlaying: false,
       faceControls: defaultFaceControls(),
@@ -536,6 +567,14 @@ export const useControls = create<ControlState>()(
       setMasterVolume: (v) => set({ masterVolume: v }),
       setMuted: (v) => set({ muted: v }),
       toggleMuted: () => set((s) => ({ muted: !s.muted })),
+      setLoadedSong: (song) =>
+        set((s) => {
+          if (s.loadedSong && s.loadedSong !== song) releaseSong(s.loadedSong);
+          // A new song starts stopped: the player presses play when ready.
+          return { loadedSong: song, songPlaying: false };
+        }),
+      setSongPlaying: (v) => set({ songPlaying: v }),
+      toggleSongPlaying: () => set((s) => ({ songPlaying: !s.songPlaying })),
       setSteerPlaying: (v) => set({ steerPlaying: v }),
       toggleSteerPlaying: () => set((s) => ({ steerPlaying: !s.steerPlaying })),
       setFaceMapping: (v) => set({ faceMapping: v }),

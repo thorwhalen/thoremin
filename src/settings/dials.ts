@@ -24,7 +24,7 @@ import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/feat
 import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL } from '@/nodes/features/conductor';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
-import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, defaultSteerConfig, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_SONG, defaultSteerConfig, type Settings } from './schema';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const SoundEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
@@ -103,6 +103,11 @@ export const thoreminDials = defineDials(
     // variant live (the node reloads when it changes).
     'body.enabled': z.boolean().default(DEFAULT_BODY.enabled).meta({ facets: ['Body'], title: 'Body tracking', description: 'Track the full body (33 pose landmarks) from the webcam — the source for body features and the dance pulse' }),
     'body.model': z.enum(BODY_MODELS).default(DEFAULT_BODY.model).meta({ facets: ['Body', 'advanced'], title: 'Body model', description: 'lite (fast, 6 MB) or full (steadier on fast motion, 9 MB)' }),
+
+    // The song player (#186 PR G): the manual rate (the pace controller drives it when
+    // following, PR H) and the song's level in the mix.
+    'song.rate': z.number().min(0.5).max(2).default(DEFAULT_SONG.rate).meta({ facets: ['Song'], title: 'Song rate', description: 'Playback speed of the loaded song, pitch preserved (1 = original)' }),
+    'song.volume': z.number().min(0).max(1).default(DEFAULT_SONG.volume).meta({ facets: ['Song'], title: 'Song volume' }),
     // The generative layer (#141 / #188): on/off + the generative bus level. The
     // transport (playing) is transient hot-store state, not a dial (see schema.ts).
     'steer.enabled': z.boolean().default(false).meta({ facets: ['Generative'], title: 'Generative layer', description: 'Let your gestures steer a cloud generative engine (Lyria RealTime; needs your Gemini key)' }),
@@ -201,6 +206,8 @@ export function settingsToLayer(s: Settings): Layer {
     'midi.port': s.midi.port,
     'body.enabled': s.body.enabled,
     'body.model': s.body.model,
+    'song.rate': s.song.rate,
+    'song.volume': s.song.volume,
     'steer.enabled': s.steer.enabled,
     'steer.volume': s.steer.volume,
     steerConfig: s.steer.config,
@@ -239,6 +246,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
     midi: { enabled: v['midi.enabled'], port: v['midi.port'] },
     body: { enabled: v['body.enabled'], model: v['body.model'] },
+    song: { rate: v['song.rate'], volume: v['song.volume'] },
     steer: { enabled: v['steer.enabled'], volume: v['steer.volume'], config: v.steerConfig },
     overlay: v.overlay,
     handMap: v.handMap,

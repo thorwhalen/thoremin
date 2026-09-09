@@ -280,6 +280,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // external instrument/DAW. Off by default (its `enabled` input defaults false)
       // and a no-op where Web MIDI is unsupported, so it costs nothing until turned on.
       { id: 'midiOut', type: 'midi-out', params: {} },
+      // The song player (#186 PR G): a loaded song played at a live rate into the master
+      // bus. Idle (no-op) until a song is loaded from the Song tool.
+      { id: 'songPlayer', type: 'song-player', params: {} },
       // Generative layer (#141 / #188): the *indirect* end of the mapping spectrum — the
       // same hand/face features steer weighted text prompts + config dials of a cloud
       // generative engine (Lyria RealTime), which sums into the master bus out of band.
@@ -402,6 +405,12 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
       // Live overlay element config from the UI store (toggle elements without rebuild).
       { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'overlayConfig' } },
+      // The song player's live inputs (#186 PR G). The #147 guard in app_graph.test.ts
+      // asserts all four: an unconnected `playing` is a player that can never start.
+      { from: { node: 'ui', port: 'song' }, to: { node: 'songPlayer', port: 'song' } },
+      { from: { node: 'ui', port: 'songPlaying' }, to: { node: 'songPlayer', port: 'playing' } },
+      { from: { node: 'ui', port: 'songRate' }, to: { node: 'songPlayer', port: 'rate' } },
+      { from: { node: 'ui', port: 'songVolume' }, to: { node: 'songPlayer', port: 'volume' } },
       // Feature Lab (#119): the pure feature vectors tap the SAME face/hand frames
       // the rest of the graph reads (additive fan-out), and feed the overlay's
       // featureLab meters. Recorded by the existing feature-JSONL tap.

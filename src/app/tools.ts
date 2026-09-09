@@ -97,6 +97,13 @@ export const TOOLS: readonly Tool[] = [
     kind: 'panel',
   },
   {
+    id: 'song',
+    label: 'Song',
+    description: 'Load a song, read its beat, and play it at a rate you set — or, with a body tracked, at your pulse.',
+    kind: 'panel',
+    runsDetached: true,
+  },
+  {
     id: 'manual',
     label: 'Manual',
     description: 'The generated capabilities manual: every node, dial, sound and overlay element.',

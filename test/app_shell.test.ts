@@ -23,6 +23,7 @@ const SURFACES: Record<string, string> = {
   commands: 'CommandPaletteOverlay',
   gestures: 'GesturesPanel',
   trainer: 'TrainerPanel',
+  song: 'SongPanel',
 };
 
 describe('app shell', () => {
