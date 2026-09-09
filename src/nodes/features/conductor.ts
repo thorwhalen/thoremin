@@ -18,9 +18,14 @@
  * from height), and — while confident — converges its phase onto the inferred beat
  * through a servo with an explicit horizon (`servoBeats`, Personal Orchestra's Δt): the
  * score does not jump to the ictus, it catches up over about a beat, which is what
- * filters a novice's jitter without making the orchestra feel deaf. In `hold` (the
- * conductor stopped, a fermata, a lost hand) the beat freezes: `bpm` reads 0 and the
- * score sustains whatever is sounding.
+ * filters a novice's jitter without making the orchestra feel deaf. Two rules keep
+ * that honest: the beat never goes backwards (a late ictus is absorbed by slowing,
+ * never by rewinding, because a rewind across a note's onset would retrigger it), and
+ * nothing plays until the follower has seen a first stroke (every shipped system gates
+ * the start on a preparatory gesture, §6.3): enabling the dial with no hand in frame
+ * starts nothing. In `hold` (the conductor stopped, a fermata, a lost hand) the beat
+ * freezes: `bpm` reads 0 and the score sustains whatever is sounding. Disabling resets
+ * the beat to 0, so re-enabling starts the piece from the top on a clean downbeat.
  *
  * The dial. {@link ConductorDialSchema} IS this node's params (the `faceControls`
  * pattern): the `conductor` dial re-exports it, the `config` input overrides the
@@ -216,6 +221,7 @@ export const conductorNode = defineNode<Params>({
             lastPt = null;
             speedEw = 0;
             speedEnv = 0;
+            beatOut = 0;
             wasEnabled = false;
           }
           return emit(idleTime(ctx.time, c.beatsPerBar), 0, 0, 0.5, false, c);
@@ -249,17 +255,21 @@ export const conductorNode = defineNode<Params>({
         // 2. Blend the inferred tempo with the speed fallback by confidence; integrate.
         const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
         let bpm: number;
-        if (s.state === 'hold') {
+        if (s.state === 'hold' || s.anchors === 0) {
+          // Holding, or no stroke seen yet (the preparatory beat has not come): frozen.
           bpm = 0;
         } else {
           const w = s.state === 'running' && c.fallbackBelowConfidence > 0 ? clamp01(s.confidence / c.fallbackBelowConfidence) : s.state === 'running' ? 1 : 0;
           bpm = w * s.tempo + (1 - w) * fallbackBpm;
-          beatOut += (bpm / 60) * ctx.dt;
-          // 3. Phase servo: converge onto the inferred beat over `servoBeats`.
+          const advanced = beatOut + (bpm / 60) * ctx.dt;
+          // 3. Phase servo: converge onto the inferred beat over `servoBeats`, never
+          //    below where the beat already was (a rewind would retrigger a note).
+          let corrected = advanced;
           if (w > 0 && Number.isFinite(s.period) && s.period > 0) {
-            const err = wrapPhase(beatOut - beatAt(s, ctx.time));
-            beatOut -= w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
+            const err = wrapPhase(advanced - beatAt(s, ctx.time));
+            corrected = advanced - w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
           }
+          beatOut = Math.max(beatOut, corrected);
         }
 
         const wholeBeat = Math.floor(beatOut);

@@ -54,6 +54,41 @@ describe('conductor node on the 4/4 fixture (stated 70 bpm)', () => {
     }
   });
 
+  it('enabled with no hand in frame, or a hand that never strokes: nothing plays until the first beat', async () => {
+    const h = conductorNode.make(conductorNode.params.parse({ enabled: true, ...RECORDED }));
+    const empty: HandsFrame[] = Array.from({ length: 150 }, () => ({ width: 1920, height: 1080, hands: [] }));
+    const outs = await replayNode(h, { hands: empty }, { dt: 1 / FPS });
+    for (const o of outs) {
+      expect(o.beat).toBe(0);
+      expect(o.bpm).toBe(0);
+    }
+    // A hand held still (the first frames of the clip before she beats) is the same.
+    const still = frames.slice(0, 2).concat(Array.from({ length: 60 }, () => frames[1]));
+    const h2 = conductorNode.make(conductorNode.params.parse({ enabled: true, ...RECORDED }));
+    const outs2 = await replayNode(h2, { hands: still }, { dt: 1 / FPS });
+    expect(outs2[outs2.length - 1].beat).toBe(0);
+  });
+
+  it('the beat never goes backwards, even with a tight servo and dropped frames', async () => {
+    const h = conductorNode.make(conductorNode.params.parse({ enabled: true, servoBeats: 0.25, ...RECORDED }));
+    // Every third frame, so dt is 0.1 s: a coarse, jittery clock.
+    const sparse = frames.filter((_, i) => i % 3 === 0);
+    const outs = await replayNode(h, { hands: sparse }, { dt: 3 / FPS });
+    const beats = outs.map((o) => o.beat as number);
+    for (let i = 1; i < beats.length; i++) expect(beats[i]).toBeGreaterThanOrEqual(beats[i - 1]);
+    expect(beats[beats.length - 1]).toBeGreaterThan(5);
+  });
+
+  it('disabling resets the beat, so re-enabling starts from the top', async () => {
+    const h = conductorNode.make(conductorNode.params.parse({ enabled: true, ...RECORDED }));
+    const n = 240;
+    const config = frames.slice(0, n).map((_, i) => (i < 150 ? { enabled: true, ...RECORDED } : i < 180 ? { enabled: false } : { enabled: true, ...RECORDED }));
+    const outs = await replayNode(h, { hands: frames.slice(0, n), config }, { dt: 1 / FPS });
+    expect(outs[149].beat as number).toBeGreaterThan(2);
+    expect(outs[160].beat).toBe(0);
+    expect(outs[n - 1].beat as number).toBeLessThan(outs[149].beat as number);
+  });
+
   it('disabled: the beat is frozen, enabled is false and velocityScale is 0', async () => {
     const h = conductorNode.make(conductorNode.params.parse({ enabled: false, ...RECORDED }));
     const outs = await replayNode(h, { hands: frames.slice(0, 120) }, { dt: 1 / FPS });
@@ -92,7 +127,7 @@ describe('conductor mode in the real default graph (replayed hands, dial on)', (
       ticks,
       nominalDt: 1 / FPS,
       resources: { controls },
-      recordOnly: ['score.params', 'merge.params', 'conductor.beat'],
+      recordOnly: ['score.params', 'merge.params', 'conductor.beat', 'conductor.time'],
     });
     const score = recorder.values('score.params') as SynthParams[];
     const sounding = score.filter((p) => p.voices.some((v) => v.present)).length;
@@ -100,8 +135,14 @@ describe('conductor mode in the real default graph (replayed hands, dial on)', (
     const merged = recorder.values('merge.params') as SynthParams[];
     const scoreVoiceAtMerge = merged.some((p) => p.voices.some((v) => v.present && v.id >= SCORE_VOICE_ID_BASE));
     expect(scoreVoiceAtMerge).toBe(true);
+    // The ictus, not the fallback, is what drives it: the follower is running most of
+    // the time and the beat at 10 s is the bar-level tempo (10 s * 70/60 ≈ 11.7 beats,
+    // ±15%). The 50 bpm fallback alone would give 8.3 beats and never run.
+    const times = recorder.values('conductor.time') as { state: string }[];
+    expect(times.filter((t) => t.state === 'running').length / times.length).toBeGreaterThan(0.6);
     const beats = recorder.values('conductor.beat') as number[];
-    expect(beats[beats.length - 1]).toBeGreaterThan(5);
+    expect(beats[beats.length - 1]).toBeGreaterThan(11.7 * 0.85);
+    expect(beats[beats.length - 1]).toBeLessThan(11.7 * 1.15);
   });
 
   it('with the dial off, not one score voice sounds', async () => {

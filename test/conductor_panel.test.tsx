@@ -8,9 +8,17 @@
  * green — the #119/#120 failure mode the shipping rule exists for.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import DialsControlsPanel from '@/app/dials/DialsControlsPanel';
 import { ConductorControls } from '@/app/dials/panels/conductor';
+import { dialsStore } from '@/app/dials/settingsStore';
+import type { ConductorDialParams } from '@/nodes/features/conductor';
+
+const conductor = () => dialsStore.getState().effective.conductor as ConductorDialParams;
+const drain = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 afterEach(() => cleanup());
 
@@ -32,5 +40,22 @@ describe('ConductorControls', () => {
     expect(point.disabled).toBe(true);
     // The copy says what happens when you stop beating (the hold state).
     expect(screen.getByText(/Stop beating and it holds/)).toBeTruthy();
+  });
+
+  it('the toggle and the hand chooser dispatch into the dial (the leaf paths are real)', async () => {
+    render(<ConductorControls />);
+    expect(conductor().enabled).toBe(false);
+    fireEvent.click(screen.getByLabelText('Conduct the score'));
+    await drain();
+    expect(conductor().enabled).toBe(true);
+    const hand = screen.getByLabelText('Beating hand') as HTMLSelectElement;
+    expect(hand.disabled).toBe(false);
+    fireEvent.change(hand, { target: { value: 'left' } });
+    await drain();
+    expect(conductor().hand).toBe('left');
+    // Restore for the other tests.
+    fireEvent.click(screen.getByLabelText('Conduct the score'));
+    await drain();
+    expect(conductor().enabled).toBe(false);
   });
 });

@@ -21,6 +21,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import { midiToFreq } from '@/music/theory';
 import { SoundSchema } from '@/music/sounds';
+import { MAX_POSE_VOICES, POSE_VOICE_ID_BASE } from './pose_chord';
 import type { SynthParams, VoiceParams } from '../domain';
 
 const Note = z.object({
@@ -47,8 +48,9 @@ type Params = z.infer<typeof Params>;
  *  C major scale, one note per beat over an eight-beat loop — the same piece
  *  `scripts/gen_conductor_demo.ts` renders, so a conductor hears the scale speed up and
  *  slow down with the hand. */
-/** First voice id of the score's voices (after the pose chord's 6..10). */
-export const SCORE_VOICE_ID_BASE = 11;
+/** First voice id of the score's voices: right after the pose chord's block, derived so
+ *  a change to either chord's voice count cannot silently reintroduce a collision. */
+export const SCORE_VOICE_ID_BASE = POSE_VOICE_ID_BASE + MAX_POSE_VOICES;
 
 export const DEMO_SCALE_NOTES = [60, 62, 64, 65, 67, 69, 71, 72].map((midi, i) => ({ midi, start: i, duration: 0.9, velocity: 1 }));
 

@@ -2,9 +2,12 @@
  * The CONDUCTOR section of the settings panel (#187): conduct the score with a hand.
  * Off by default; the toggle, the hand and point choosers and the follow-tightness
  * slider all write leaves of the structured `conductor` dial through `dispatchDialSetIn`
- * (the single write path). What the follower is doing right now (ready / running /
- * hold, tempo, confidence) is the graph's business and is read off the overlay and the
- * Conductor tool panel (PR 4), not here: this section is the instrument parameter.
+ * (the single write path). The catch-up slider dispatches on every notch (it steps in
+ * quarter beats, so a drag is at most fifteen writes), which also means ⌘Z steps back
+ * a notch at a time; that is the accepted trade for keeping it on the write path. What
+ * the follower is doing right now (ready / running / hold, tempo, confidence) is the
+ * graph's business and is read off the overlay and the Conductor tool panel (PR 4),
+ * not here: this section is the instrument parameter.
  */
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
@@ -81,7 +84,6 @@ export function ConductorControls() {
           value={servo}
           disabled={!enabled}
           onChange={(e) => dispatchDialSetIn('conductor.servoBeats', Number(e.target.value))}
-          onPointerUp={(e) => dispatchDialSetIn('conductor.servoBeats', Number((e.target as HTMLInputElement).value))}
         />
       </label>
       <p className="text-[10px] leading-relaxed text-white/40">
