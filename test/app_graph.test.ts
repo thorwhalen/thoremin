@@ -52,9 +52,16 @@ describe('production app graph', () => {
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('gesture'));
     // The body branch (#186) sits before the overlay that draws its skeleton.
     expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('overlay'));
+    // Generative layer (#141 / #188): indirect-map taps the hand + face features and
+    // feeds the lyria sink; both sit after their sources and after the store node.
+    expect(order.indexOf('feat')).toBeLessThan(order.indexOf('imap'));
+    expect(order.indexOf('faceFeat')).toBeLessThan(order.indexOf('imap'));
+    expect(order.indexOf('ui')).toBeLessThan(order.indexOf('imap'));
+    expect(order.indexOf('imap')).toBeLessThan(order.indexOf('gen'));
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
-    // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body source.
-    expect(order).toHaveLength(19);
+    // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
+    // source + the #141/#188 generative pair (indirect-map + lyria).
+    expect(order).toHaveLength(21);
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
@@ -68,6 +75,31 @@ describe('production app graph', () => {
     // The body node is a slot candidate, so it declares NO inputs: its gate is the
     // `body.enabled` dial read off the control store (see `bodyActive`), not a port.
     expect(edges.filter((e) => e.to.node === 'camBody')).toEqual([]);
+  });
+
+  it('wires the generative layer enable/transport/level/steering live from the store — the #141/#188 guard', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The exact wiring: the steer dials + the transient transport flow from the store
+    // into the nodes' live inputs; the features fan out additively (the original
+    // feat → map / faceFeat → map edges are untouched).
+    expect(has('ui', 'steerEnabled', 'gen', 'enabled')).toBe(true);
+    expect(has('ui', 'steerPlaying', 'gen', 'playing')).toBe(true);
+    expect(has('ui', 'steerVolume', 'gen', 'volume')).toBe(true);
+    expect(has('ui', 'steerConfig', 'imap', 'steerConfig')).toBe(true);
+    expect(has('imap', 'steer', 'gen', 'steer')).toBe(true);
+    expect(has('feat', 'features', 'imap', 'features')).toBe(true);
+    expect(has('faceFeat', 'features', 'imap', 'face')).toBe(true);
+    expect(has('feat', 'features', 'map', 'features')).toBe(true);
+    // The structural guard (#137's lesson, #141's stated trap): `enabled` left
+    // UNCONNECTED means a capability in the bundle with no way to switch it on.
+    const inbound = edges.filter((e) => e.to.node === 'gen').map((e) => e.to.port);
+    expect(inbound).toContain('enabled');
+    expect(inbound).toContain('playing');
+    expect(inbound).toContain('steer');
+    const imapInbound = edges.filter((e) => e.to.node === 'imap').map((e) => e.to.port);
+    expect(imapInbound).toContain('steerConfig');
   });
 
   it('wires the face overlays (mesh + expression readout + both chord highlights)', () => {

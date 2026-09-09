@@ -93,6 +93,48 @@ describe('layers saved before a dial existed (the additive-dial dirty regression
 });
 
 describe('instruments orchestration over the dials store', () => {
+
+  it('a pre-#188 instrument (no steer keys, JSON round-tripped) is NOT dirty after restoreSession', async () => {
+    // getSelectedName/setSelectedName use localStorage, absent in the Node runtime —
+    // stub it for this test (restored after) so the selected-name round-trip works.
+    const orig = (globalThis as { localStorage?: unknown }).localStorage;
+    const m = new Map<string, string>();
+    // `thoremin-controls` present → isFreshBrowser() false → the resume path (the
+    // one every returning player takes, and the one this regression lives in).
+    m.set('thoremin-controls', '{}');
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, String(v)),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    try {
+      await ensureSeeded();
+      // The post-#188 WORKING layer always carries the steer keys (settingsToLayer
+      // emits them unconditionally) — pin that shape explicitly so this test stays
+      // valid regardless of what earlier tests loaded. JSON round-trip = what real
+      // localStorage persistence does (drops undefined-valued keys).
+      const working = {
+        ...JSON.parse(JSON.stringify(dialsStore.getState().layer)),
+        'steer.enabled': false,
+        'steer.volume': 0.7,
+        steerConfig: { smoothing: 0.6, throttleSec: 0.2 },
+      };
+      dialsStore.setLayer(working);
+      // Simulate an instrument saved before the steer dials existed: the working
+      // layer minus the #188 keys, JSON round-tripped (what localStorage does).
+      const { 'steer.enabled': _e, 'steer.volume': _v, steerConfig: _c, ...old } = working;
+      await instruments.save('Pre-Steer', JSON.parse(JSON.stringify(old)));
+      setSelectedName('Pre-Steer');
+      await restoreSession();
+      // Absent-with-a-default resolves identically to present-at-default, so having
+      // changed NOTHING the player must not see the "edited" badge — normalizeLayer
+      // fills the defaults in on load (the #136 lesson, missing-key direction).
+      expect(dialsStore.getState().dirty).toEqual([]);
+    } finally {
+      (globalThis as { localStorage?: unknown }).localStorage = orig;
+    }
+  });
+
   it('selectInstrument loads the layer as a clean baseline (dirty empty)', async () => {
     await ensureSeeded();
     const layer = await selectInstrument('Split Voices');

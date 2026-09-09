@@ -13,7 +13,7 @@ import type { NodeContext } from '@/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';
-import type { FaceChord, FaceExpr } from '@/settings/schema';
+import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
@@ -74,6 +74,12 @@ export interface ControlSnapshot {
    *  the raw store (its gate, like `faceMapping` for the face) — not emitted as a port,
    *  because a slot candidate declares no inputs. */
   body?: { enabled: boolean; model: BodyModel };
+  /** The generative layer (#141 / #188): on/off + level + what the gestures mean. Fed
+   *  to `lyria`'s `enabled` / `volume` and `indirect-map`'s `steerConfig` live inputs. */
+  steer?: SteerSettings;
+  /** The generative TRANSPORT — transient store state (never persisted), fed to
+   *  `lyria`'s `playing` input. */
+  steerPlaying?: boolean;
   /** The head/face CONTROL axis tuning (#76): per-axis gain / deadzone / neutral zero
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */
@@ -119,6 +125,13 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // so the settings panel / palette / AI can turn MIDI on without a graph rebuild.
     { name: 'midiEnabled', kind: 'boolean' },
     { name: 'midiPort', kind: 'string' },
+    // The generative layer (#141 / #188): the switch, the transport and the level for
+    // the `lyria` node, and what the gestures mean for `indirect-map` — all live, so the
+    // settings panel / palette / AI can steer the layer without a graph rebuild.
+    { name: 'steerEnabled', kind: 'boolean' },
+    { name: 'steerPlaying', kind: 'boolean' },
+    { name: 'steerVolume', kind: 'number' },
+    { name: 'steerConfig', kind: 'steer-config' },
     // The head/face control axis tuning (#76) → `face-controls`' `config` input, so
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
@@ -160,6 +173,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           mute: c.muted ?? false,
           midiEnabled: c.midi?.enabled ?? false,
           midiPort: c.midi?.port ?? '',
+          steerEnabled: c.steer?.enabled ?? false,
+          steerPlaying: c.steerPlaying ?? false,
+          steerVolume: c.steer?.volume ?? 0.7,
           rightSpec,
           chordSpec,
           chordScale: generateScale(chordSpec),
@@ -169,6 +185,8 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         // the node on its build-time params, and an explicitly-emitted `undefined` would
         // be indistinguishable from that anyway — so skip the key entirely.
         if (c.faceControls) out.faceControls = c.faceControls;
+        // Same rule as faceControls: absent → the node keeps its build-time starter strains.
+        if (c.steer?.config) out.steerConfig = c.steer.config;
         if (c.faceChord) {
           out.chordConfig = {
             sound: c.faceChord.sound,

@@ -28,15 +28,18 @@ import {
   DEFAULT_BODY,
   BodySettingsSchema,
   type BodySettings,
+  DEFAULT_STEER,
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
   MidiSettingsSchema,
+  SteerSettingsSchema,
   SettingsSchema,
   type Settings,
   type FaceChord,
   type FaceExpr,
   type MidiSettings,
+  type SteerSettings,
 } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
 import {
@@ -53,6 +56,8 @@ const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
  *  {@link defaultHandMap}: the initializer and the healers must never hand out the
  *  module-level constant itself, or an edit in one instrument would mutate the default. */
 const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CONTROLS_DIAL });
+/** A fresh generative-layer default (the `config` object is cloned for the same reason). */
+const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: { ...DEFAULT_STEER.config } });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -141,6 +146,19 @@ export interface ControlState {
   /** The body source (#186): on/off + model. A preset field; read live by `webcam-body`
    *  through `ctx.resources.controls` (its gate, like the face's `faceMapping`). */
   body: BodySettings;
+  /** The generative layer (#141 / #188): on/off, level, and what the gestures mean
+   *  (`config`). A preset field (in {@link SETTINGS_KEYS}); read live by `indirect-map`
+   *  / `lyria` via `store-controls` → their `steerConfig` / `enabled` / `volume` inputs. */
+  steer: SteerSettings;
+  /**
+   * The generative TRANSPORT: is the engine streaming right now. Like {@link muted},
+   * deliberately NOT a dial and NOT persisted: a dial rides saved instruments, and an
+   * instrument saved while playing would start a paid cloud stream on load and flip
+   * dirty on every play/pause. Toggled directly by the Generative panel's button (the
+   * `m`-key precedent, #91); flows to the `lyria` node's `playing` input through
+   * `store-controls`. Always false after a reload.
+   */
+  steerPlaying: boolean;
   /**
    * The head/face CONTROL axis tuning (#76): per-axis gain (negative flips a
    * direction), deadzone, neutral zero and shared smoothing for the `face-controls`
@@ -180,6 +198,9 @@ export interface ControlState {
   setMuted(v: boolean): void;
   /** Toggle the master mute — the `m` key (app-level keyboard handler, #90) calls this. */
   toggleMuted(): void;
+  /** Set / toggle the generative transport (transient, see {@link steerPlaying}). */
+  setSteerPlaying(v: boolean): void;
+  toggleSteerPlaying(): void;
   setFaceMapping(v: FaceMapping): void;
   /** Patch the face-chord settings (e.g. setFaceChord({ voicing: 'spread' })). */
   setFaceChord(patch: Partial<FaceChord>): void;
@@ -386,6 +407,16 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       body = current.body;
     }
   }
+  // Heal the generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter
+  // strains; a partial one is completed; a corrupt one falls back whole.
+  let steer = current.steer;
+  if (p.steer) {
+    try {
+      steer = SteerSettingsSchema.parse({ ...DEFAULT_STEER, ...p.steer });
+    } catch {
+      steer = current.steer;
+    }
+  }
   // Heal the face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning;
   // a partial one is completed; a corrupt one falls back whole rather than leaving the
   // panel to dereference an undefined into a NaN slider.
@@ -419,7 +450,9 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       gestures = current.gestures;
     }
   }
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, faceControls, gestures };
+  // The transport never resumes from storage (it is not persisted; `current` wins even
+  // over a hand-edited blob), so a reload can never start a paid stream by itself.
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, steer, faceControls, gestures, steerPlaying: current.steerPlaying };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -453,6 +486,8 @@ export const useControls = create<ControlState>()(
       handMap: defaultHandMap(),
       midi: { ...DEFAULT_MIDI },
       body: { ...DEFAULT_BODY },
+      steer: defaultSteer(),
+      steerPlaying: false,
       faceControls: defaultFaceControls(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
@@ -476,6 +511,8 @@ export const useControls = create<ControlState>()(
       setMasterVolume: (v) => set({ masterVolume: v }),
       setMuted: (v) => set({ muted: v }),
       toggleMuted: () => set((s) => ({ muted: !s.muted })),
+      setSteerPlaying: (v) => set({ steerPlaying: v }),
+      toggleSteerPlaying: () => set((s) => ({ steerPlaying: !s.steerPlaying })),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),
       setExpressionSensitivity: (emotion, value) =>
@@ -497,7 +534,15 @@ export const useControls = create<ControlState>()(
       setTrainerHud: (patch) => set((s) => ({ trainerHud: { ...s.trainerHud, ...patch } })),
       // Restore exactly the schema fields (the setters are left untouched). Derived
       // from SETTINGS_KEYS, so a new preset field needs no edit.
-      applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
+      applySettings: (st) =>
+        set((s) => {
+          const next = pickSettings(st as unknown as Record<string, unknown>);
+          // Switching the generative layer OFF pauses its transport (#188): a stale
+          // `steerPlaying` would otherwise auto-start a paid stream on the next enable,
+          // with no Play press — within a session, the very thing "not a dial" prevents.
+          const steerOff = next.steer?.enabled === false && s.steer.enabled !== false;
+          return steerOff ? { ...next, steerPlaying: false } : next;
+        }),
     }),
     {
       name: 'thoremin-controls',
@@ -531,7 +576,11 @@ export const useControls = create<ControlState>()(
       // the node used before the dial existed, so a returning player's `controls` mode
       // sounds and feels exactly as it did. Healed by mergeControls, so no data transform
       // is needed; the bump is the version marker for the schema growth.
-      version: 10,
+      // Version 11: #188 added the `steer` preset field (the generative layer: enabled /
+      // volume / config). ADDITIVE with a default (off), healed by mergeControls, so no
+      // data transform is needed — the bump is the version marker for the schema growth.
+      // The transport (`steerPlaying`) is transient and not persisted, like `muted`.
+      version: 11,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

@@ -31,6 +31,7 @@
  */
 import { GoogleGenAI, type LiveMusicSession, type LiveMusicServerMessage } from '@google/genai';
 import { getStoredKey } from '@/keys/providerKeys';
+import { LYRIA_KEY_PROVIDER } from './lyria';
 import type { LoadResult } from '@/lazy';
 import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from './generative';
 
@@ -246,9 +247,7 @@ export class LyriaEngine implements GenerativeEngine {
   }
 }
 
-/** The provider whose key Lyria uses — the same store the assistant's Google
- *  provider reads, so one pasted key serves both. */
-export const LYRIA_KEY_PROVIDER = 'google' as const;
+export { LYRIA_KEY_PROVIDER } from './lyria';
 
 /**
  * The default {@link GenerativeEngineFactory}: build a {@link LyriaEngine} from the
@@ -261,11 +260,12 @@ export async function createLyriaEngine(opts: GenerativeEngineOpts): Promise<Loa
     return {
       resource: null,
       reason: 'no-key',
+      retry: true,
       message: 'Add a Gemini API key (the assistant’s Google key) to enable the generative layer.',
     };
   }
   if (!opts.audioContext || !opts.destination) {
-    return { resource: null, reason: 'no-audio', message: 'Tap to play first: the generative layer needs the audio graph.' };
+    return { resource: null, reason: 'no-audio', retry: true, message: 'Tap to play first: the generative layer needs the audio graph.' };
   }
   if (opts.signal.aborted) return { resource: null, reason: 'aborted', message: 'Cancelled' };
   const engine = new LyriaEngine({ apiKey, audioContext: opts.audioContext, destination: opts.destination });

@@ -16,6 +16,7 @@ import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/
 import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
+import { SteerConfigSchema, type SteerConfig } from '@/nodes/mapping/indirect_map';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -162,6 +163,32 @@ export type BodySettings = z.infer<typeof BodySettingsSchema>;
 
 /** The shipped body defaults: off (the model is the most expensive in the graph), lite. */
 export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
+/**
+ * The generative layer (#141 / #188): gesture features steering a cloud generative
+ * engine (Lyria RealTime) through the `indirect-map → lyria` branch. A preset field:
+ * "this instrument has a generative layer, at this level, driven by these strains"
+ * is instrument identity, like "plays over MIDI". `config` is the node's own
+ * {@link SteerConfigSchema}, imported rather than restated so the dial, the store and
+ * the port can never disagree about the shape; `{}` means the branch's build-time
+ * starter strains. The TRANSPORT (playing) is deliberately NOT here: a persisted
+ * transport would ride a saved instrument and start a paid stream on load, so it is
+ * transient hot-store state on the `muted` precedent (see `src/app/store.ts`).
+ */
+export const SteerSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  volume: z.number().min(0).max(1).default(0.7),
+  config: SteerConfigSchema.default({ smoothing: 0.6, throttleSec: 0.2 }),
+});
+export type SteerSettings = z.infer<typeof SteerSettingsSchema>;
+
+/** The default steering CONFIG: the smoothing + cadence every instrument starts with
+ *  (strains/dials absent → the branch's starter strains in graph.ts). Concrete rather
+ *  than `{}` so the structured dial's scalar leaves (`steerConfig.smoothing`,
+ *  `steerConfig.throttleSec`) resolve for `dial.setIn` / the palette / the AI. */
+export const DEFAULT_STEER_CONFIG: SteerConfig = { smoothing: 0.6, throttleSec: 0.2 };
+
+/** The shipped generative defaults: off, 0.7, the default steering config. */
+export const DEFAULT_STEER: SteerSettings = { enabled: false, volume: 0.7, config: { ...DEFAULT_STEER_CONFIG } };
 
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
@@ -206,6 +233,8 @@ export const SettingsSchema = z.object({
   midi: MidiSettingsSchema.default(DEFAULT_MIDI),
   // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
   body: BodySettingsSchema.default(DEFAULT_BODY),
+  // The generative layer (#141 / #188). `.default(...)` keeps pre-#188 presets valid (off).
+  steer: SteerSettingsSchema.default(DEFAULT_STEER),
   // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for
   // the `face-controls` node. The schema is the node's own params, imported rather
   // than restated (see FaceControlsDialSchema) so the two can never drift.

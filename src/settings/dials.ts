@@ -22,7 +22,8 @@ import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
-import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, type Settings } from './schema';
+import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
+import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_STEER_CONFIG, type Settings } from './schema';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const SoundEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
@@ -101,6 +102,10 @@ export const thoreminDials = defineDials(
     // variant live (the node reloads when it changes).
     'body.enabled': z.boolean().default(DEFAULT_BODY.enabled).meta({ facets: ['Body'], title: 'Body tracking', description: 'Track the full body (33 pose landmarks) from the webcam — the source for body features and the dance pulse' }),
     'body.model': z.enum(BODY_MODELS).default(DEFAULT_BODY.model).meta({ facets: ['Body', 'advanced'], title: 'Body model', description: 'lite (fast, 6 MB) or full (steadier on fast motion, 9 MB)' }),
+    // The generative layer (#141 / #188): on/off + the generative bus level. The
+    // transport (playing) is transient hot-store state, not a dial (see schema.ts).
+    'steer.enabled': z.boolean().default(false).meta({ facets: ['Generative'], title: 'Generative layer', description: 'Let your gestures steer a cloud generative engine (Lyria RealTime; needs your Gemini key)' }),
+    'steer.volume': z.number().min(0).max(1).default(0.7).meta({ facets: ['Generative'], title: 'Generative volume' }),
 
     // Complex/structured settings — rendered by bespoke widgets (the expression
     // table, the overlay accordion); carried as whole-object dial values.
@@ -121,6 +126,16 @@ export const thoreminDials = defineDials(
     // `dial.setIn` (paths.ts derives `faceControls.yawGain`, `faceControls.headRangeDeg`,
     // … straight from this schema). Facet 'Face' so it files with the mapping chooser it
     // belongs to; the panel only shows it in the `controls` mode that uses it.
+    // What the gestures MEAN to the generative engine (#141 / #188): which strains and
+    // config dials they drive. The node's own SteerConfigSchema (a whole-object dial like
+    // `handMap`); its arrays are edited by domain commands, its scalar leaves
+    // (`steerConfig.smoothing`, `steerConfig.throttleSec`) by `dial.setIn`. Absent
+    // strains/dials = the branch's starter strains in graph.ts.
+    steerConfig: SteerConfigSchema.default({ ...DEFAULT_STEER_CONFIG }).meta({
+      facets: ['Generative', 'advanced'],
+      title: 'Generative steering',
+      description: 'Which strains (text prompts) and engine dials your hand and face features drive',
+    }),
     faceControls: FaceControlsDialSchema.default(DEFAULT_FACE_CONTROLS_DIAL).meta({
       facets: ['Face', 'advanced'],
       title: 'Face control axes',
@@ -176,6 +191,9 @@ export function settingsToLayer(s: Settings): Layer {
     'midi.port': s.midi.port,
     'body.enabled': s.body.enabled,
     'body.model': s.body.model,
+    'steer.enabled': s.steer.enabled,
+    'steer.volume': s.steer.volume,
+    steerConfig: s.steer.config,
     overlay: s.overlay,
     handMap: s.handMap,
     faceControls: s.faceControls,
@@ -210,6 +228,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
     midi: { enabled: v['midi.enabled'], port: v['midi.port'] },
     body: { enabled: v['body.enabled'], model: v['body.model'] },
+    steer: { enabled: v['steer.enabled'], volume: v['steer.volume'], config: v.steerConfig },
     overlay: v.overlay,
     handMap: v.handMap,
     faceControls: v.faceControls,

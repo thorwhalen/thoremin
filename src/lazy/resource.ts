@@ -28,7 +28,20 @@ import type { LoadStatus } from './status';
 /** What a loader resolves: the thing, or an actionable reason it cannot be had. */
 export type LoadResult<T> =
   | { resource: T; message?: string; detail?: unknown }
-  | { resource: null; reason: string; message?: string; detail?: unknown };
+  | {
+      resource: null;
+      reason: string;
+      message?: string;
+      detail?: unknown;
+      /**
+       * The reason may clear by itself — a key the player is about to paste, an
+       * audio graph the next tap creates. A transient result does NOT latch (rule 3):
+       * the resource asks again after `retryDelayMs`, so the player never has to
+       * toggle the control to make a fixed prerequisite count. Omit for a reason
+       * only a disable → enable can change (`unsupported`, `denied`).
+       */
+      retry?: boolean;
+    };
 
 /** What a loader receives. `signal` aborts when the request is released mid-load, so
  *  a loader that can stop a download early should; `progress` drives the readout. */
@@ -52,6 +65,11 @@ export interface LazyResourceOptions<T> {
    * Return null to proceed. Re-checked on every fresh request (after a release).
    */
   gate?: () => { reason: string; message?: string; detail?: unknown } | null;
+  /** How long after a transient `unavailable` (see `LoadResult.retry`) before the
+   *  next `request()` asks the loader again. Default 1000 ms. */
+  retryDelayMs?: number;
+  /** The clock for that delay (injectable for tests). Default `Date.now`. */
+  now?: () => number;
   /** A noun for the default messages ("MIDI output", "generative engine"). */
   label?: string;
   /** Where a failure is reported once (the node's `ctx.log`, or `console.warn`). */
@@ -85,6 +103,9 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
   const label = opts.label ?? 'resource';
   const msg = _messages(label);
   const unload = opts.unload ?? (() => {});
+  const retryDelayMs = opts.retryDelayMs ?? 1000;
+  const now = opts.now ?? (() => Date.now());
+  let retryAt = -Infinity; // a transient unavailable: ask again no sooner than this
 
   let held: T | null = null;
   let loading = false;
@@ -128,8 +149,18 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
     }
     const res = outcome.res;
     if (res.resource === null) {
-      const { reason, message, detail } = res as { resource: null; reason: string; message?: string; detail?: unknown };
+      const { reason, message, detail, retry } = res as {
+        resource: null;
+        reason: string;
+        message?: string;
+        detail?: unknown;
+        retry?: boolean;
+      };
       status = { phase: 'unavailable', reason, message: message ?? msg.unavailable, detail };
+      if (retry) {
+        attempted = false; // transient: not latched, but paced (never once per tick)
+        retryAt = now() + retryDelayMs;
+      }
       return;
     }
     held = res.resource;
@@ -139,6 +170,7 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
   return {
     request() {
       if (disposed || held || loading || attempted) return;
+      if (now() < retryAt) return; // a transient unavailable, still within its pause
       const blocked = opts.gate?.();
       if (blocked) {
         attempted = true;
@@ -178,6 +210,7 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
       controller = null;
       loading = false;
       attempted = false; // Rule 4
+      retryAt = -Infinity;
       if (held !== null) {
         const h = held;
         held = null;
@@ -187,7 +220,7 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
     },
     want(enabled) {
       if (enabled) this.request();
-      else if (held !== null || loading || attempted || controller !== null) this.release();
+      else if (held !== null || loading || attempted || controller !== null || retryAt !== -Infinity) this.release();
     },
     current: () => held,
     status: () => status,
