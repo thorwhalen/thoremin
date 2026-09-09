@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { runHeadless, replayNode } from '@/dag';
-import { createCoreRegistry, bodyPulseNode, createInterimPulseEngine, makeBodyKeypoints, type BodyFrame, type PulseState } from '@/nodes';
+import { createCoreRegistry, bodyPulseNode, createInterimPulseEngine, createAcfPeriodEstimator, acfPeaks, makeBodyKeypoints, PULSE_HOLD_CONFIDENCE, type BodyFrame, type PulseState } from '@/nodes';
 import { defaultGraph } from '@/app/graph';
 import type { FeatureVector } from '@/features/catalog';
 import { loadStream } from './helpers/fixtures';
@@ -148,30 +148,86 @@ describe('body-pulse on the synthetic body, and body.rhythm in the vector', () =
   });
 });
 
+describe('the estimator and the detector (the parts an ictus adapter reuses)', () => {
+  it('the per-lag normalisation does not crush a slow, perfectly regular bounce', () => {
+    // A plain /a0 autocorrelation caps a 2.4 s bounce in a 5 s window near r = 0.4 because
+    // the overlap shrinks with the lag; normalising by the overlapping energies keeps a
+    // regular signal near 1 at every period in range.
+    for (const period of [0.4, 1.2, 2.4]) {
+      const x = Array.from({ length: 150 }, (_, i) => Math.abs(Math.sin((Math.PI * i) / 30 / period)));
+      const peaks = acfPeaks(x, 8, 75);
+      const best = peaks[0];
+      expect(Math.abs(best.lag / 30 / period - 1), `period ${period}`).toBeLessThan(0.05);
+      expect(best.r, `strength at ${period}`).toBeGreaterThan(0.8);
+    }
+    // And the search never returns a lag beyond maxLag.
+    const slow = Array.from({ length: 150 }, (_, i) => Math.abs(Math.sin((Math.PI * i) / 30 / 2.6)));
+    for (const p of acfPeaks(slow, 8, 75)) expect(p.lag).toBeLessThanOrEqual(75);
+  });
+
+  it('a NaN channel (an unobserved landmark) drops a lock instead of extrapolating it', () => {
+    const e = createInterimPulseEngine();
+    for (let i = 0; i < 240; i++) e.push(i / 30, Math.abs(Math.sin((Math.PI * i) / 30 / 0.5)));
+    expect(e.state().confidence).toBeGreaterThan(0.3);
+    expect(Number.isFinite(e.state().phase)).toBe(true);
+    for (let i = 240; i < 360; i++) e.push(i / 30, NaN); // 4 s unobserved
+    expect(Number.isFinite(e.state().phase)).toBe(false);
+    // Coming back, the old phase is not resurrected: it must be re-acquired.
+    e.push(12, 0.5);
+    expect(Number.isFinite(e.state().phase)).toBe(false);
+  });
+
+  it('the estimator is usable on its own (the seam an ictus adapter seeds from)', () => {
+    const est = createAcfPeriodEstimator({ windowS: 4 });
+    const samples = Array.from({ length: 120 }, (_, i) => ({ t: i / 30, v: Math.abs(Math.sin((Math.PI * i) / 30 / 0.6)) }));
+    const r = est.estimate(samples)!;
+    expect(Math.abs(r.candidates[0].periodS / 0.6 - 1)).toBeLessThan(0.05);
+    expect(r.sigma).toBeGreaterThan(0);
+  });
+});
+
 describe('the real dancer (video_body_que_calor): a harmonic of the beat, honestly', () => {
-  it('reports a period that is a harmonic of 129.2 bpm, with the bar among its candidates', async () => {
+  const beat = 60 / 129.2;
+  const replay = async (channel: 'head' | 'hip') => {
     const frames = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
-    const out = await replayNode(bodyPulseNode.make(bodyPulseNode.params.parse({})), { body: frames }, { dt: 1 / 30 });
-    const beat = 60 / 129.2;
-    const states = out.map((o) => o.pulse as PulseState);
+    const out = await replayNode(bodyPulseNode.make(bodyPulseNode.params.parse({ channel })), { body: frames }, { dt: 1 / 30 });
+    return out.map((o) => o.pulse as PulseState);
+  };
+  /** The distinct anchors the engine accepted over the clip. */
+  const anchorsOf = (states: PulseState[]) => {
+    const a: number[] = [];
+    for (const s of states) if (Number.isFinite(s.lastAnchorT) && (a.length === 0 || Math.abs(a[a.length - 1] - s.lastAnchorT) > 1e-6)) a.push(s.lastAnchorT);
+    return a;
+  };
+  /** Circular resultant of the anchors' phases against a grid of `level` beats, with
+   *  0 and 0.5 treated alike (a down-bounce and an up-groove are the same pulse). */
+  const foldedR = (anchors: number[], level: number) => {
+    const ph = anchors.map((t) => ((((t / (beat * level)) % 1) + 1) % 1) * 2 % 1);
+    const c = ph.reduce((a, p) => a + Math.cos(2 * Math.PI * p), 0) / ph.length;
+    const s = ph.reduce((a, p) => a + Math.sin(2 * Math.PI * p), 0) / ph.length;
+    return Math.hypot(c, s);
+  };
+
+  it('the head channel: when confident, the period is a harmonic of 129.2 bpm; the anchors are phase-coherent with the beat', async () => {
+    const states = await replay('head');
     const last = states[states.length - 1];
-    // A choreography phrase repeats at the bar, a bounce at the beat; both are the same
-    // pulse to an octave-agnostic controller. What must never happen is a period
-    // unrelated to the music.
     expect(Number.isFinite(last.periodS)).toBe(true);
-    expect(nearHarmonic(last.periodS, beat)).toBe(true);
-    const anyBar = last.candidates.some((c) => nearHarmonic(c.periodS, beat, [2, 4], 0.08));
-    expect(anyBar).toBe(true);
-    // Over the second half of the clip, whenever the engine is CONFIDENT the estimate is
-    // on a harmonic; the low-confidence stretches (a phrase change) are what the pace
-    // controller's confidence hold exists for, so they are not counted against it.
-    // Measured on this fixture (head channel): confidence >= 0.15 in 76 of the last 300
-    // ticks, 91 % of them on a harmonic; the hips manage 48 %, which is why the head is
-    // the default channel. Confidence is low in absolute terms on a real dancer — the pace
-    // controller's hold threshold (PR H) is set from this number, not from the synthetic.
-    const confident = states.slice(300).filter((s) => s.confidence >= 0.15);
-    expect(confident.length).toBeGreaterThan(30);
+    // Measured on this fixture with the shipped engine: at the hold threshold 164 of the
+    // last 300 ticks are confident and 90 % of those sit within 6 % of a harmonic
+    // (chance for the search range is 17 %); the resultant of the 13 accepted anchors
+    // against the folded beat grid is 0.66 (chance for n = 13 is about 0.28).
+    const confident = states.slice(300).filter((s) => s.confidence >= PULSE_HOLD_CONFIDENCE);
+    expect(confident.length).toBeGreaterThan(100);
     const onHarmonic = confident.filter((s) => nearHarmonic(s.periodS, beat)).length;
     expect(onHarmonic / confident.length).toBeGreaterThan(0.8);
+    const anchors = anchorsOf(states);
+    expect(anchors.length).toBeGreaterThan(8);
+    expect(foldedR(anchors, 1)).toBeGreaterThan(0.4);
+  });
+
+  it('the hips carry the steps, not the pulse: their anchors are not phase-coherent (why the head is the default)', async () => {
+    const states = await replay('hip');
+    const anchors = anchorsOf(states);
+    expect(foldedR(anchors, 1)).toBeLessThan(0.4);
   });
 });

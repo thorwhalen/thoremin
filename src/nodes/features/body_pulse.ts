@@ -8,9 +8,11 @@
  * default, or the hip midpoint's (the bounce) — a POSITION, not a speed, because
  * positions autocorrelate far better than their derivatives (the body research
  * map §4.2, measured by the paces project on real pose data). The head is the
- * default because on the real dancer fixture it stays on a harmonic of the beat
- * 91 % of the time the engine is confident, where the hips manage 48 %: a
- * choreography moves the hips with the steps, the head with the pulse.
+ * default because on the real dancer fixture, at the controller's hold threshold
+ * (`PULSE_HOLD_CONFIDENCE`), its period sits on a harmonic of the beat 90 % of the
+ * time against the hips' 50 %, and its anchors are phase-coherent with the music
+ * at the half-beat (resultant R = 0.66 over the clip) where the hips' are not (0.18):
+ * a choreography moves the hips with the steps, the head with the pulse.
  *
  * The engine behind it is the {@link PulseEngine} seam. Today it is the interim
  * causal-ACF + phase-lock engine in `pulse_engine.ts`; the conductor epic's `ictus`
@@ -41,15 +43,22 @@ const Params = z.object({
   maxPeriodS: z.number().positive().default(2.5),
   /** ACF strength below which no pulse is reported. */
   minStrength: z.number().min(0).max(1).default(0.15),
-});
+  /** Landmarks below this visibility are treated as unobserved (NaN into the engine). */
+  minVisibility: z.number().min(0).max(1).default(0.5),
+}).refine((p) => p.minPeriodS < p.maxPeriodS, { message: 'minPeriodS must be below maxPeriodS' });
 type Params = z.infer<typeof Params>;
 
 /** The engine factory seam: a host may inject `ctx.resources.createPulseEngine`. */
 export type PulseEngineFactory = (opts: { windowS: number; minPeriodS: number; maxPeriodS: number; minStrength: number }) => PulseEngine;
 
-/** The channel value for a frame: the chosen landmark's height in torso lengths, or NaN. */
-export function pulseChannelValue(frame: BodyFrame, channel: PulseChannel): number {
+/** The channel value for a frame: the chosen landmark's height in torso lengths, or NaN
+ *  when a landmark it needs is missing or below `minVisibility` (an off-screen head gets
+ *  an extrapolated coordinate from the tracker, not a usable one). */
+export function pulseChannelValue(frame: BodyFrame, channel: PulseChannel, minVisibility = 0.5): number {
   const L = frame.landmarks;
+  const vis = (i: number) => (frame.visibility[i] ?? 1) >= minVisibility;
+  const needed = [BLM.left_shoulder, BLM.right_shoulder, BLM.left_hip, BLM.right_hip, ...(channel === 'head' ? [BLM.nose] : [])];
+  if (!needed.every(vis)) return NaN;
   const ls = L[BLM.left_shoulder];
   const rs = L[BLM.right_shoulder];
   const lh = L[BLM.left_hip];
@@ -90,7 +99,9 @@ export const bodyPulseNode = defineNode<Params>({
         }
         if (frame === lastFrame) return { pulse: last };
         lastFrame = frame;
-        const v = pulseChannelValue(frame, p.channel);
+        // A NaN channel is pushed as NaN on purpose: the engine treats it as "no
+        // observation" and drops a lock it cannot see across.
+        const v = pulseChannelValue(frame, p.channel, p.minVisibility);
         engine.push(ctx.time, v);
         last = engine.state();
         return { pulse: last };
