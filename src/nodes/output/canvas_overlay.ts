@@ -1300,7 +1300,7 @@ const featureLabElement: OverlayElement = {
       // static registry) fall back to the `derived` group + a gold accent.
       const feat = FEATURE_BY_ID[id];
       const group = feat?.group ?? DERIVED_GROUP;
-      const color = !feat ? CHORD_COLOR : feat.source === 'face' ? FACE_COLOR : RIGHT_COLOR;
+      const color = !feat ? CHORD_COLOR : feat.source === 'face' ? FACE_COLOR : feat.source === 'body' ? BODY_COLOR : RIGHT_COLOR;
       // Group header (repeats when a group continues into a new column).
       if (group !== lastGroup) {
         if (y + LAB_HEADER_H + LAB_ROW_H > panelBottom && !nextColumn()) break;
@@ -1742,6 +1742,7 @@ export const canvasOverlayNode = defineNode<Params>({
     // tap the existing camFace/cam edges; the lab element normalizes + draws them.
     { name: 'faceVector', kind: 'feature-vector' },
     { name: 'handVector', kind: 'feature-vector' },
+    { name: 'bodyVector', kind: 'feature-vector' },
   ],
   outputs: [],
   params: Params,
@@ -1821,6 +1822,7 @@ export const canvasOverlayNode = defineNode<Params>({
           inputs.faceVector as FeatureVector | undefined,
           inputs.handVector as FeatureVector | undefined,
           ctx.dt,
+          inputs.bodyVector as FeatureVector | undefined,
         );
 
         view.layout = layoutCues(view);

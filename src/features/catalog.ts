@@ -8,16 +8,18 @@
  * "affordances first, data-driven" rule lands: adding a feature is appending a
  * `FeatureDef` in the sub-catalogs; nothing here changes.
  */
-import { kp, LM, type Hand, type HandsFrame, type FaceFrame } from '@/nodes/domain';
+import { kp, LM, BLM, type BodyFrame, type Hand, type HandsFrame, type FaceFrame } from '@/nodes/domain';
 import { dist3, type Vec3 } from './math';
 import { iod as iodOf, type FaceLandmarks } from './landmarks';
 import { FACE_FEATURES } from './face_catalog';
 import { HAND_PAIR_FEATURES, HAND_SIDE_FEATURES } from './hand_catalog';
-import type { Controllability, FaceCtx, FeatureSource, HandCtx, Invariance } from './types';
+import { BODY_FEATURES } from './body_catalog';
+import type { BodyCtx, BodyHistorySample, Controllability, FaceCtx, FeatureSource, HandCtx, Invariance } from './types';
 
-export type { Controllability, FaceCtx, HandCtx, TwoHandCtx, FeatureDef, FeatureSource, FeatureVector } from './types';
+export type { BodyCtx, BodyHistorySample, Controllability, FaceCtx, HandCtx, TwoHandCtx, FeatureDef, FeatureSource, FeatureVector } from './types';
 export { FACE_FEATURES } from './face_catalog';
 export { HAND_SIDE_FEATURES, HAND_PAIR_FEATURES } from './hand_catalog';
+export { BODY_FEATURES } from './body_catalog';
 
 /** The two hands, in display order. */
 export const HAND_SIDES = ['left', 'right'] as const;
@@ -76,13 +78,24 @@ const HAND_GROUPS: [string, string][] = [
   ['hand.twohand.relational', 'Two-hand'],
 ];
 
+/** The body groups (#186): angles, positions, kinematics, shape, Laban effort, relations. */
+const BODY_GROUPS: [string, string][] = [
+  ['body.angle', 'Joint angles'],
+  ['body.pos', 'Body positions'],
+  ['body.kin', 'Body kinematics'],
+  ['body.shape', 'Body shape'],
+  ['body.effort', 'Laban effort'],
+  ['body.rel', 'Body relations'],
+];
+
 /** The group id for user-defined derived (formula) features. */
 export const DERIVED_GROUP = 'derived';
 
-/** All feature groups, in display order (face groups, hand groups, then derived). */
+/** All feature groups, in display order (face, hand, body groups, then derived). */
 export const FEATURE_GROUPS: readonly FeatureGroupInfo[] = [
   ...FACE_GROUPS.map(([id, label]): FeatureGroupInfo => ({ id, label, source: 'face' })),
   ...HAND_GROUPS.map(([id, label]): FeatureGroupInfo => ({ id, label, source: 'hand' })),
+  ...BODY_GROUPS.map(([id, label]): FeatureGroupInfo => ({ id, label, source: 'body' })),
   { id: DERIVED_GROUP, label: 'Derived (formula)', source: 'face' },
 ];
 
@@ -151,6 +164,9 @@ function buildAllFeatures(): FlatFeature[] {
   for (const f of HAND_PAIR_FEATURES) {
     out.push({ id: `hand.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
   }
+  for (const f of BODY_FEATURES) {
+    out.push({ id: f.id, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
+  }
   return out;
 }
 
@@ -207,6 +223,51 @@ export function buildHandCtx(hand: Hand, frame: HandsFrame, opts: HandCtxOptions
     mirrorX: opts.mirrorX,
     width: frame.width,
     height: frame.height,
+  };
+}
+
+/** Options for {@link buildBodyCtx}: the selfie mirror, the seconds since the previous
+ *  sample, and the window of previous samples (oldest first). */
+export interface BodyCtxOptions {
+  mirrorX: boolean;
+  dtS: number;
+  history: readonly BodyHistorySample[];
+}
+
+/** The torso length (shoulder-mid to hip-mid) of a body frame in the given point set. */
+function torsoLength(get: (i: number) => Vec3 | undefined): number {
+  const ls = get(BLM.left_shoulder);
+  const rs = get(BLM.right_shoulder);
+  const lh = get(BLM.left_hip);
+  const rh = get(BLM.right_hip);
+  if (!ls || !rs || !lh || !rh) return NaN;
+  const s = { x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2, z: ((ls.z ?? 0) + (rs.z ?? 0)) / 2 };
+  const h = { x: (lh.x + rh.x) / 2, y: (lh.y + rh.y) / 2, z: ((lh.z ?? 0) + (rh.z ?? 0)) / 2 };
+  const d = dist3(s, h);
+  return d > 1e-9 ? d : NaN;
+}
+
+/** Build the body context the body catalog consumes from a raw {@link BodyFrame}. Uses
+ *  world landmarks (metric, hip-centred) when present, else image landmarks. */
+export function buildBodyCtx(frame: BodyFrame, opts: BodyCtxOptions): BodyCtx {
+  const world = frame.world;
+  const useWorld = !!(world && world.length >= 33);
+  const P = (i: number): Vec3 | undefined => frame.landmarks[i];
+  const W = (i: number): Vec3 | undefined => world?.[i];
+  const vis = (i: number): number => frame.visibility[i] ?? 1;
+  return {
+    present: frame.present,
+    P,
+    W,
+    useWorld,
+    torso: torsoLength(useWorld ? W : P),
+    torsoImg: torsoLength(P),
+    vis,
+    mirrorX: opts.mirrorX,
+    width: frame.width,
+    height: frame.height,
+    dtS: opts.dtS,
+    history: opts.history,
   };
 }
 

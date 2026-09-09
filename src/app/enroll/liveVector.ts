@@ -22,8 +22,8 @@
 import type { NodeContext, Tap } from '@/dag';
 import type { FeatureVector } from '@/enroll';
 
-/** The edge keys the tap listens to — the catalog's two vector-producing nodes. */
-export const FEATURE_VECTOR_EDGES = ['faceVec.vector', 'handVec.vector'] as const;
+/** The edge keys the tap listens to — the catalog's three vector-producing nodes. */
+export const FEATURE_VECTOR_EDGES = ['faceVec.vector', 'handVec.vector', 'bodyVec.vector'] as const;
 
 /** The latest merged vector, or null before the first tick with any source present. */
 let latest: FeatureVector | null = null;

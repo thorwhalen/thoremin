@@ -141,11 +141,13 @@ export default function LabControls() {
   );
 }
 
-/** Group visibility checkboxes, split by source (face / hand / derived). */
+/** Group visibility checkboxes, split by source (face / hand / body / derived). */
 function GroupPicker({ groups, onToggle }: { groups: string[]; onToggle: (id: string, on: boolean) => void }) {
   const enabled = new Set(groups);
   const faceGroups = FEATURE_GROUPS.filter((g) => g.source === 'face' && g.id !== 'derived');
   const handGroups = FEATURE_GROUPS.filter((g) => g.source === 'hand');
+  // Checking a body group turns the body model on (labWantsBody), the face rule.
+  const bodyGroups = FEATURE_GROUPS.filter((g) => g.source === 'body');
   const derivedGroup = FEATURE_GROUPS.find((g) => g.id === 'derived');
   const Row = ({ id, label }: { id: string; label: string }) => (
     // The tooltip carries the group's declared confound profile (#131) — what the
@@ -168,6 +170,10 @@ function GroupPicker({ groups, onToggle }: { groups: string[]; onToggle: (id: st
           <p className="text-[9px] uppercase tracking-widest text-emerald-300/70">Hand</p>
           {handGroups.map((g) => <Row key={g.id} id={g.id} label={g.label} />)}
           {derivedGroup && <Row id={derivedGroup.id} label={derivedGroup.label} />}
+        </div>
+        <div className="space-y-1">
+          <p className="text-[9px] uppercase tracking-widest text-sky-300/70">Body</p>
+          {bodyGroups.map((g) => <Row key={g.id} id={g.id} label={g.label} />)}
         </div>
       </div>
     </details>

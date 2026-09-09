@@ -71,6 +71,8 @@ export type LabMeterComputer = (
   faceVec: FeatureVector | undefined,
   handVec: FeatureVector | undefined,
   dt: number,
+  /** The body vector (#186); optional so pre-body callers and tests are unchanged. */
+  bodyVec?: FeatureVector | undefined,
 ) => FeatureMeters | undefined;
 
 /**
@@ -132,7 +134,7 @@ export function createLabMeterComputer(): LabMeterComputer {
   let derivedSig = '';
   let compiled: { id: string; fn: CompiledFormula }[] = [];
 
-  return (cfg, faceVec, handVec, dt) => {
+  return (cfg, faceVec, handVec, dt, bodyVec) => {
     if (!cfg.show) {
       prevShow = false;
       return undefined;
@@ -150,7 +152,7 @@ export function createLabMeterComputer(): LabMeterComputer {
     resetNonce = cfg.resetNonce;
     normalizer.setMode(cfg.normalizer);
 
-    const raw: FeatureVector = { ...(faceVec ?? {}), ...(handVec ?? {}) };
+    const raw: FeatureVector = { ...(faceVec ?? {}), ...(handVec ?? {}), ...(bodyVec ?? {}) };
     const enabled = new Set(cfg.groups);
 
     // Derived (formula) features over the MERGED scope, so a formula may combine face +
