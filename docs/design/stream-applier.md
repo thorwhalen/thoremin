@@ -1,21 +1,30 @@
 # Stream Applier — pluggable sources + batch/paced execution
 
-> **Status:** design agreed (2026-07); being built incrementally (M-A…M-G below).
-> **Shipped:** **M-A** (camera-free video source, #102 / PR #105), **M-B** (Clock +
-> speed, #103 / PR #106), and **M-C** (#104 / PR #167 — the `source` slot, the typed
-> `replay-hands` candidate, and `PortSpec.schema` conformance). **M-D is in progress:**
-> its clock half landed with the live loop (#166 / `src/app/engineLoop.ts`, since removed in #189); what
-> **M-D is done** — both callers are Applier configs (`runHeadless` in #184,
-> `useEngine` in #189), and `runEngineLoop` retired with it. **M-E is partly landed**:
-> `defineMergeNode` (R2 composition) is built and the `event`-kind accumulate half came
-> with the Applier's pump; the timestamp-aware `replay-source-timed` remains. M-F and
-> M-G are designed, unstarted.
+> **Status: DELIVERED.** Every requirement R1–R6 is met and the epic (#101) is closed.
+> What the design set out to separate — *where data comes from*, *when the engine
+> advances*, *what happens to the outputs* — is now three independent choices, and both
+> callers are thin configs of one `Applier`.
 >
-> This document is the single source of truth; the ROADMAP and the tracking issues
-> point here. It supersedes ad-hoc source/replay wiring. **The per-milestone bullets
-> under [Incremental build order](#incremental-build-order) are the authority on
-> status** — this header is a summary of them, and when the two disagree the bullets
-> are right.
+> | | shipped in |
+> |---|---|
+> | **M-A** camera-free video source | #102 / PR #105 |
+> | **M-B** `Clock` + speed multiplier | #103 / PR #106 |
+> | **M-C** `source` slot, typed `replay-hands`, `PortSpec.schema` | #104 / PR #167 |
+> | **M-D** the `Applier`; `runHeadless` and `useEngine` both configs of it | PR #184, #189 |
+> | **M-E** `defineMergeNode` (R2) + `event`-kind accumulation | PR #191, #184 |
+> | **M-F** the `StateReader` feedback channel (R3) | PR #192 |
+> | **M-G** boundary (B) enforced; delayed edges + the `delay` node | PR #210, #214 |
+>
+> **Three things are deliberately not built**, each with a home that is not this document:
+> the timestamp-aware `replay-source-timed` and `stateGeneratorSource` (both belong in
+> `src/nodes/sources/`, tracked in #215); the `OfflineAudioContext` render-at-speed action
+> (its value is a listening judgment — #146 B9); and recorder backpressure (folds into
+> #88). None of them block anything that is built.
+>
+> This document remains the single source of truth for **how** the pieces fit. The
+> per-milestone bullets under [Incremental build order](#incremental-build-order) are the
+> authority on what each one actually did — this header summarises them, and when the two
+> disagree the bullets are right.
 
 ## The idea in one line
 

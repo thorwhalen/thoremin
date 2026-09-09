@@ -123,8 +123,16 @@ in the player's terms, which is exactly the missing frame of reference.
 | **M-A** camera-free pre-recorded video source (`?source=video`) | #102 | #105 | shipped |
 | **M-B** `Clock` abstraction + speed multiplier | #103 | #106 | shipped (`BatchClock` fully tested; the live `RealtimeClock` adoption landed later, in #166) |
 | **M-C** `source` slot + typed `replay-hands` + `PortSpec.schema` conformance | #104 | #167 | **shipped** — `?slot.source=synthetic-hands` runs the whole instrument with no camera and no MediaPipe |
-| **M-D** (first half) live loop on the `Clock` + `?slot.<name>=` selection | #101 | #166 | shipped — `src/app/engineLoop.ts` (since removed in #189); the `Source` interface, its pump and the `Applier` remain |
+| **M-D** the `Applier` — both callers are configs of it | #101 | #166, #184, #189 | shipped — `runHeadless` (BatchClock + recorder tap) and `useEngine` (RealtimeClock + the React bridges as sinks). `runEngineLoop`, the intermediate step, retired with it |
+| **M-E** `defineMergeNode` (R2) + `event`-kind accumulation | #101 | #191, #184 | shipped — the engine rejects fan-in to one port, so composition is an explicit typed node |
+| **M-F** the `StateReader` feedback channel (R3) | #101 | #192 | shipped — the Applier publishes it on the engine's own resources |
+| **M-G** boundary (B) enforced + delayed edges + the `delay` node | #101 | #210, #214 | shipped — accelerated playback **mutes** rather than pitch-shifting, enforced by a structural guard over every `synth`-role node; feedback is now *declared* by `EdgeSpec.delayed` rather than inferred from evaluation order |
 | **#51** graph lifecycle: re-wire a running engine | #51 | #165 | shipped — `Engine.applyGraph` reconciles onto a new `GraphSpec` without rebuilding audio or reloading models |
+
+**#101 is closed.** Three pieces were deliberately not built and have homes elsewhere:
+`replay-source-timed` and `stateGeneratorSource` (#215), the `OfflineAudioContext`
+render-at-speed action (#146 B9 — its value is a listening judgment), and recorder
+backpressure (#88).
 
 ---
 
@@ -236,20 +244,18 @@ such — a bracketed `#n` in this list always means an issue.
 
 ### Engine / platform
 
-- **[#101] Stream Applier epic** (M8) — **M-A…M-D have shipped.** Both callers are
-  Applier configs now (`runHeadless` #184, `useEngine` #189), and `runEngineLoop` retired
-  with M-D. **M-E is two-thirds landed**: `defineMergeNode` (R2 composition) and the
-  `event`-kind accumulate half; the timestamp-aware `replay-source-timed` remains, and it
-  belongs in `src/nodes/sources/`. M-F (state-feedback generators) and M-G (time-scaled
-  audio + a `delay` node) are designed and unstarted. SSOT:
-  [design/stream-applier.md](design/stream-applier.md) — its per-milestone bullets, not
-  its header, are the authority on status.
+- **[#215] Two source nodes the Stream Applier designed but did not build** —
+  `replay-source-timed` (replay by `StreamRecord.t` rather than by index; index-by-tick
+  stays canonical for CI goldens) and `stateGeneratorSource` (R3's consumer: seeded
+  randomness, re-emit the read snapshot so a replay reproduces the feedback). Both belong
+  in `src/nodes/sources/`. The mechanisms they sit on all exist; this was sequencing, not
+  design. **#101 itself is closed** — see the shipped table above.
 
   One thing worth knowing before touching the live loop: **M-D's stated gate, a browser
-  smoke test, does not exist** — this repo has no Playwright or e2e harness. What stands
-  in for it is a jsdom test that mounts the real hook and watches the loop run and stop.
-  AudioContext, MediaPipe and real rAF under load are still unverified, as a no-camera
-  item on #146.
+  smoke test, does not exist** — this repo has no Playwright or e2e harness (#209). What
+  stands in for it is a jsdom test that mounts the real hook and watches the loop run and
+  stop.
+
 - **[#14] React Flow patcher UI** driven by Zod node configs (M6's remaining half).
   **Build is parked**; the open question is scope, not schedule — see #181.
 
@@ -288,7 +294,7 @@ these rather than inside them, so read the status column, not the milestone numb
 | **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | **Decided (#180 → #187, Option A: wire it) and wired.** The `conductor` node (PR 2 of #187) wraps `src/ictus` (PR 1): the beating hand's ictus → an adaptive oscillator → `beat` / `bpm` / `velocityScale` for the `score` node, which is now in the default graph behind the `conductor.enabled` dial (off by default; the built-in demo scale until the score pipeline, PR 3). `transport` / `performance` stay registered for the non-conductor chain. Remaining per the #187 plan: score pipeline, the Conductor tool + scheduler, the orchestra node, meter recognition, the audio pacer. |
 | **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120) and made reachable (#137 / PR #147); the patcher (#14) is open, with its **scope** the actual open question (#181). |
 | **M7** | (optional) Pluggable Python feature service + self-hosted generative service behind the existing node facades. | optional, untouched. |
-| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | in progress — **M-A…M-D shipped** (both callers are Applier configs); M-E two-thirds landed (`defineMergeNode` + event accumulate; timed replay remains); M-F/M-G designed. See [design/stream-applier.md](design/stream-applier.md). |
+| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | **done** — M-A…M-G shipped; #101 closed. Two source nodes split out to #215, the offline render to #146 B9. See [design/stream-applier.md](design/stream-applier.md). |
 
 ### Open engine decisions (recorded; defaults taken)
 
