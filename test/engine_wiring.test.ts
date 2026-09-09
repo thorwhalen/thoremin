@@ -46,11 +46,12 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(c).toMatch(/clock:\s*new RealtimeClock\(/);
   });
 
-  it('feeds the Applier the three per-frame bridges as sinks', () => {
+  it('feeds the Applier the four per-frame bridges as sinks', () => {
     // A bridge dropped from this list stops updating its panel at frame rate while
     // nothing fails — the face readout, the MIDI status, or (worst) the gesture
-    // dispatcher, which would stop dispatching commands entirely.
-    expect(code(useEngine)).toMatch(/sinks:\s*\[[^\]]*reportFace[^\]]*reportMidi[^\]]*reportGesture[^\]]*\]/);
+    // dispatcher, which would stop dispatching commands entirely — or (#188) the
+    // generative readout, which would show "off" while a paid stream plays.
+    expect(code(useEngine)).toMatch(/sinks:\s*\[[^\]]*reportFace[^\]]*reportMidi[^\]]*reportGesture[^\]]*reportGenerative[^\]]*\]/);
   });
 
   it('converts the clock time to MILLISECONDS for every bridge', () => {
@@ -63,7 +64,7 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     const c = code(useEngine);
     expect(c).toMatch(/\* 1000/);
     // Each bridge goes through the converter rather than being passed raw.
-    expect(c).toMatch(/sinks:\s*\[\s*toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\)\s*\]/);
+    expect(c).toMatch(/sinks:\s*\[\s*toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\)\s*\]/);
   });
 
   it('releases the Applier on unmount, so its taps do not outlive the run', () => {

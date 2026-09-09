@@ -252,6 +252,59 @@ describe('lazyResource', () => {
     expect(r.status()).toMatchObject({ phase: 'ready', detail: { ports: ['IAC Driver', 'Synth'] } });
   });
 
+  it('a transient unavailable (retry) is paced, not latched: the loader is asked again after the delay, with no toggle', async () => {
+    let t = 0;
+    let haveKey = false;
+    let calls = 0;
+    const r = lazyResource<string>({
+      load: async () => {
+        calls++;
+        return haveKey ? { resource: 'engine' } : { resource: null, reason: 'no-key', retry: true, message: 'Add a key' };
+      },
+      retryDelayMs: 1000,
+      now: () => t,
+    });
+    r.want(true);
+    await flush();
+    expect(r.status()).toMatchObject({ phase: 'unavailable', reason: 'no-key' });
+    for (let i = 0; i < 20; i++) r.want(true); // within the pause: no re-ask
+    expect(calls).toBe(1);
+    t = 1000;
+    r.want(true); // the pause elapsed: ask again (still no key)
+    await flush();
+    expect(calls).toBe(2);
+    haveKey = true;
+    t = 2000;
+    r.want(true);
+    await flush();
+    expect(r.current()).toBe('engine');
+    expect(r.status().phase).toBe('ready');
+    // A non-transient unavailable still latches.
+    const latched = lazyResource<string>({ load: async () => ({ resource: null, reason: 'unsupported' }), now: () => 0 });
+    latched.want(true);
+    await flush();
+    latched.want(true);
+    expect(latched.status().phase).toBe('unavailable');
+  });
+
+  it('want(false) during a transient pause releases (so the next enable asks at once)', async () => {
+    let t = 0;
+    let calls = 0;
+    const r = lazyResource<string>({
+      load: async () => {
+        calls++;
+        return { resource: null, reason: 'no-audio', retry: true };
+      },
+      now: () => t,
+    });
+    r.want(true);
+    await flush();
+    r.want(false);
+    expect(r.status().phase).toBe('off');
+    r.want(true);
+    expect(calls).toBe(2);
+  });
+
   it('unload is called for a held resource on release, and only once', async () => {
     const d = deferredLoader<string>();
     const unloaded: string[] = [];

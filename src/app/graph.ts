@@ -27,6 +27,27 @@ import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
 import { BODY_SLOT_CONTRACT } from '@/nodes/sources/body_contract';
 import type { SlotContract } from '@/nodes/slot_contract';
+import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
+
+/**
+ * The generative branch's STARTER steering (#141 / #188): what the gestures mean to
+ * the engine until the player edits `steerConfig`. Build-time params of `indirect-map`
+ * (its `steerConfig` port overrides them live; unset fields keep these). Chosen so
+ * that enabling the layer and pressing play does something audible with two hands:
+ * the right hand's openness fades a pad in, the left hand's height brings in an
+ * arpeggio, the right hand's height brightens the mix. The hand `y` feature is in
+ * IMAGE coordinates (0 at the top), so "raise the hand = more" is the inverted
+ * `inMin: 1, inMax: 0` range, exactly as `voice-mapping` inverts it for gain.
+ * Exported for the tests.
+ */
+export const STARTER_STEER = {
+  strains: [
+    { text: 'warm ambient pads', source: 'hand', hand: 'right', feature: 'openness', inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 },
+    { text: 'bright plucked arpeggios', source: 'hand', hand: 'left', feature: 'y', inMin: 1, inMax: 0, weightMin: 0, weightMax: 2 },
+  ],
+  dials: [{ name: 'brightness', source: 'hand', hand: 'right', feature: 'y', inMin: 1, inMax: 0, outMin: 0.2, outMax: 0.9 }],
+  ...DEFAULT_STEER_CONFIG,
+} as const;
 
 /**
  * A Slot is a named, role-typed swap point the graph builder fills from config.
@@ -259,6 +280,14 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // external instrument/DAW. Off by default (its `enabled` input defaults false)
       // and a no-op where Web MIDI is unsupported, so it costs nothing until turned on.
       { id: 'midiOut', type: 'midi-out', params: {} },
+      // Generative layer (#141 / #188): the *indirect* end of the mapping spectrum — the
+      // same hand/face features steer weighted text prompts + config dials of a cloud
+      // generative engine (Lyria RealTime), which sums into the master bus out of band.
+      // An ADDITIVE parallel branch, not a slot swap (indirect-map deliberately fails the
+      // mapping contract). Off by default: `lyria` loads nothing until its `enabled`
+      // input is true, so the branch costs a few pure ticks and nothing else.
+      { id: 'imap', type: 'indirect-map', params: STARTER_STEER },
+      { id: 'gen', type: 'lyria', params: {} },
       // Overlay elements default on (video/scaleGuide/landmarks/markers); the
       // opt-in index-finger guide is off by default. See canvas_overlay.ts.
       { id: 'overlay', type: 'canvas-overlay', params: {} },
@@ -334,6 +363,18 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'merge', port: 'params' }, to: { node: 'midiOut', port: 'params' } },
       { from: { node: 'ui', port: 'midiEnabled' }, to: { node: 'midiOut', port: 'enabled' } },
       { from: { node: 'ui', port: 'midiPort' }, to: { node: 'midiOut', port: 'port' } },
+      // Generative layer (#141 / #188): additive taps off the SAME feature streams the
+      // mapping reads; the switch / transport / level / steering config all arrive
+      // live from the store. `gen.enabled` left unconnected would be #137 node-for-node
+      // (a capability in the bundle with no way to switch it on), which is why
+      // app_graph.test.ts asserts these edges structurally.
+      { from: { node: 'feat', port: 'features' }, to: { node: 'imap', port: 'features' } },
+      { from: { node: 'faceFeat', port: 'features' }, to: { node: 'imap', port: 'face' } },
+      { from: { node: 'ui', port: 'steerConfig' }, to: { node: 'imap', port: 'steerConfig' } },
+      { from: { node: 'imap', port: 'steer' }, to: { node: 'gen', port: 'steer' } },
+      { from: { node: 'ui', port: 'steerEnabled' }, to: { node: 'gen', port: 'enabled' } },
+      { from: { node: 'ui', port: 'steerPlaying' }, to: { node: 'gen', port: 'playing' } },
+      { from: { node: 'ui', port: 'steerVolume' }, to: { node: 'gen', port: 'volume' } },
       // Feed the MERGED params (hand voices + both chord instruments) to the overlay:
       // the hand voices stay at indices 0/1 (synth-merge concatenates them first), so
       // the per-hand note labels/markers are unchanged, while the keyboard strip's

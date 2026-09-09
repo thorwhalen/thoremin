@@ -35,7 +35,12 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { lazyResource, withActive, type LoadStatus } from '@/lazy';
+import { getStoredKey } from '@/keys/providerKeys';
 import type { GenerativeEngine, GenerativeEngineFactory, GenerativeSteer } from './generative';
+
+/** The provider whose key Lyria uses — the same store the assistant's Google
+ *  provider reads, so one pasted key serves both. */
+export const LYRIA_KEY_PROVIDER = 'google' as const;
 
 const Params = z.object({
   /** Minimum seconds between pushed steer updates (Lyria likes ~0.2s). */
@@ -48,9 +53,26 @@ type Params = z.infer<typeof Params>;
  *  turn into a key prompt; `error` + `reason: 'connect'` is a failed or lost session. */
 export type GenerativeStatus = LoadStatus;
 
-/** The default browser factory: lazy-load the Lyria adapter only when the layer is
- *  enabled, so nothing generative is imported until asked for. */
+/**
+ * The default browser factory: lazy-load the Lyria adapter only when the layer is
+ * enabled AND its prerequisites exist, so nothing generative is imported until it
+ * could actually be used. A missing key or a not-yet-tapped audio graph is a
+ * *transient* unavailability (`retry`): the resource asks again after a pause, so
+ * pasting the key or tapping to play makes the layer come alive without the player
+ * having to switch it off and on (a review catch on #188 PR 4).
+ */
 const _defaultFactory: GenerativeEngineFactory = async (opts) => {
+  if (!getStoredKey(LYRIA_KEY_PROVIDER)) {
+    return {
+      resource: null,
+      reason: 'no-key',
+      retry: true,
+      message: 'Add a Gemini API key (the assistant\u2019s Google key) to enable the generative layer.',
+    };
+  }
+  if (!opts.audioContext || !opts.destination) {
+    return { resource: null, reason: 'no-audio', retry: true, message: 'Tap to play first: the generative layer needs the audio graph.' };
+  }
   const { createLyriaEngine } = await import('./lyria_engine');
   return createLyriaEngine(opts);
 };

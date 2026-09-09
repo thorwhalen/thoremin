@@ -37,6 +37,7 @@ import { prefillName } from './recording/naming';
 import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus } from './faceStatus';
 import { useMidiStatus } from './midiStatus';
+import { useGenerativeStatus, makeGenerativeReporter } from './generativeStatus';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -351,6 +352,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           lastPosesKey = key;
         };
 
+        // Bridge the `lyria` node's status to React (#188), so the Generative settings
+        // section can render an honest readout (loading / ready / playing / needs a
+        // key). Change-gated inside the reporter, like the others.
+        const reportGenerative = makeGenerativeReporter(engine);
+
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
         // which is exactly what the Applier's options express — a `RealtimeClock`, the
@@ -387,7 +393,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           engine,
           clock: new RealtimeClock(),
           resources,
-          sinks: [toMs(reportFace), toMs(reportMidi), toMs(reportGesture)],
+          sinks: [toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -420,6 +426,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       resetLiveVector();
       useMidiStatus.getState().reset();
       useGestureStatus.getState().reset();
+      useGenerativeStatus.getState().reset();
+      // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
+      useControls.getState().setSteerPlaying(false);
       sessionRecRef.current?.dispose();
       sessionRecRef.current = null;
       cameraStreamRef.current = null;

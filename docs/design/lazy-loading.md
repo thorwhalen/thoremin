@@ -73,7 +73,7 @@ Five rules, each a test in `test/lazy_resource.test.ts`:
 
 1. **Request once.** `request()` on every tick starts at most one load, including while an older, released load is still settling.
 2. **A late arrival is discarded.** A load that resolves after `release()` / `dispose()` is unloaded on arrival, never attached, touches nothing that belongs to a newer load, and the loader's `AbortSignal` fires so a download can stop early.
-3. **A failure is not re-hammered.** After `unavailable` / `error` (from the loader or the `gate`), `request()` is a no-op until `release()`.
+3. **A failure is not re-hammered.** After `unavailable` / `error` (from the loader or the `gate`), `request()` is a no-op until `release()`. A loader may mark an `unavailable` result `retry: true` when the reason can clear by itself (a key the player is about to paste, an audio graph the next tap creates): that result is not latched but *paced* (`retryDelayMs`, 1 s by default), so the player never has to toggle the control to make a fixed prerequisite count.
 4. **Re-enable retries.** `release()` clears the failure, so disable → enable is the player's "try again".
 5. **Never throw.** A rejecting (or synchronously throwing) loader becomes an `error` status; an `unload` that throws is logged, never propagated.
 

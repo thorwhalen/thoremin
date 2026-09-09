@@ -390,6 +390,28 @@ describe('lyria node (contract logic, mock engine)', () => {
     expect(engine.calls.filter((c) => c === 'connect')).toHaveLength(2);
   });
 
+  it('a missing prerequisite (no key) is transient: once the key exists the engine is built with no toggle', async () => {
+    let haveKey = false;
+    let built = 0;
+    const factory: GenerativeEngineFactory = async () => {
+      if (!haveKey) return { resource: null, reason: 'no-key', retry: true, message: 'Add a key' };
+      built++;
+      return { resource: new MockEngine() };
+    };
+    const handlers = lyriaNode.make(lyriaNode.params.parse({}));
+    const resources = { createGenerativeEngine: factory };
+    handlers.process({ enabled: true }, ctxAt(0, 0.1, resources));
+    await flush();
+    expect(statusOf(handlers.process({ enabled: true }, ctxAt(1, 0.1, resources)))).toMatchObject({ phase: 'unavailable', reason: 'no-key' });
+    haveKey = true;
+    // The resource re-asks after its pause (1 s of wall clock); wait it out.
+    await new Promise((r) => setTimeout(r, 1050));
+    handlers.process({ enabled: true }, ctxAt(2, 0.1, resources));
+    await flush();
+    expect(built).toBe(1);
+    expect(statusOf(handlers.process({ enabled: true }, ctxAt(3, 0.1, resources))).phase).toBe('ready');
+  });
+
   it('the vendor SDK is never statically re-exported by the registries (the bundle-split guard)', () => {
     // A static re-export of `lyria_engine` from either registry module puts
     // `@google/genai` in the main bundle for every player (#188). Only the node's

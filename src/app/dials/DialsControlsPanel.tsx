@@ -35,6 +35,7 @@ import { FaceControls } from './panels/face';
 import { OverlayControls } from './panels/overlay';
 import { MidiControls } from './panels/midi';
 import { BodyControls } from './panels/body';
+import { GenerativeControls } from './panels/generative';
 
 export default function DialsControlsPanel() {
   const { state, set } = useDialsSettings();
@@ -80,6 +81,11 @@ export default function DialsControlsPanel() {
       {/* MIDI output (#137): drive an external synth/DAW with the same voices. */}
       <TopSection label="MIDI">
         <MidiControls />
+      </TopSection>
+
+      {/* The generative layer (#141 / #188): gestures steer a cloud generative engine. */}
+      <TopSection label="Generative">
+        <GenerativeControls />
       </TopSection>
 
       {/* The Feature Lab is NOT here. It measures the instrument rather than being part

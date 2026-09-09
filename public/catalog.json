@@ -1375,6 +1375,22 @@
         "kind": "string"
       },
       {
+        "name": "steerEnabled",
+        "kind": "boolean"
+      },
+      {
+        "name": "steerPlaying",
+        "kind": "boolean"
+      },
+      {
+        "name": "steerVolume",
+        "kind": "number"
+      },
+      {
+        "name": "steerConfig",
+        "kind": "steer-config"
+      },
+      {
         "name": "faceControls",
         "kind": "face-controls-config"
       }
