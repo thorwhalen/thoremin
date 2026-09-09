@@ -91,7 +91,8 @@ Three idioms the existing sites need, stated so they are not re-derived:
 |---|---|---|
 | `lyria` (`src/nodes/output/lyria.ts`) | **adopts in #188 PR 3** | `createGenerativeEngine` seam; default lazily imports `lyria_engine.ts`, which reads the BYO key from the assistant's provider-key store. `LyriaEngine` leaves `browser.ts`'s static exports. |
 | `midi-out` | reference site, not migrated | Mutation-verified as is; migrate when a change touches it. Its `MidiPhase` maps to `LoadStatus` as `connecting → loading`, `unsupported/no-ports/denied → unavailable + reason`. |
-| `webcam-face`, `webcam-hands` | reference site, not migrated | Owned by the body-features work (#186); asked to adopt for the body model rather than write a fourth copy. |
+| `webcam-body` (`src/nodes/sources/webcam_body.ts`) | **adopted (#186 PR B)** | `createBodyLandmarker` seam on `ctx.resources`; default lazily imports tasks-vision. Keyed by the `body.model` dial (release on change); `gate` reports `unavailable` / `no-camera` until the shared `<video>` has frames, and the node releases-and-retries when they arrive. `active` while a body is detected. |
+| `webcam-face`, `webcam-hands` | reference site, not migrated | Same family as `webcam-body`; migrate when a change touches them. |
 | recording formats | reference site | Already a registry of `load()` thunks; the status here is per conversion, not per node. |
 | conductor assets (#187) | asked to adopt | Any score / model / sample fetched on first use. |
 | an in-browser generator (`generative-instruments.md` §3b) | must adopt | ~300 kB gzip of library and 12–18 MB of checkpoint, with a progress bar. |

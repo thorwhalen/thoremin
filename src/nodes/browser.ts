@@ -8,6 +8,7 @@ import { createRegistry, type NodeRegistry } from '@/dag';
 import { CORE_NODES } from './index';
 import { webcamHandsNode } from './sources/webcam_hands';
 import { webcamFaceNode } from './sources/webcam_face';
+import { webcamBodyNode } from './sources/webcam_body';
 import { keyboardSourceNode } from './sources/keyboard';
 import { storeControlsNode } from './sources/store_controls';
 import { webAudioSynthNode } from './output/webaudio_synth';
@@ -16,6 +17,7 @@ import { midiOutNode } from './output/midi_out';
 
 export { webcamHandsNode } from './sources/webcam_hands';
 export { webcamFaceNode } from './sources/webcam_face';
+export { webcamBodyNode, bodyActive, resultToBodyFrame } from './sources/webcam_body';
 export { keyboardSourceNode } from './sources/keyboard';
 export { storeControlsNode } from './sources/store_controls';
 export { webAudioSynthNode } from './output/webaudio_synth';
@@ -34,6 +36,7 @@ export type { LyriaEngineOptions } from './output/lyria_engine';
 export const BROWSER_NODES = [
   webcamHandsNode,
   webcamFaceNode,
+  webcamBodyNode,
   keyboardSourceNode,
   storeControlsNode,
   webAudioSynthNode,

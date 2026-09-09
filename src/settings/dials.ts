@@ -22,7 +22,7 @@ import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
-import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, type Settings } from './schema';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const SoundEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
@@ -96,6 +96,12 @@ export const thoreminDials = defineDials(
     'midi.enabled': z.boolean().default(false).meta({ facets: ['MIDI'], title: 'MIDI output', description: 'Send the played voices to a Web MIDI output (external synth or DAW)' }),
     'midi.port': z.string().default('').meta({ facets: ['MIDI'], title: 'MIDI port', description: 'MIDI output port name (empty = first available)' }),
 
+    // The body source (#186): the most expensive model in the graph, so it is a dial
+    // the player turns on, never a default. `body.model` swaps the PoseLandmarker
+    // variant live (the node reloads when it changes).
+    'body.enabled': z.boolean().default(DEFAULT_BODY.enabled).meta({ facets: ['Body'], title: 'Body tracking', description: 'Track the full body (33 pose landmarks) from the webcam — the source for body features and the dance pulse' }),
+    'body.model': z.enum(BODY_MODELS).default(DEFAULT_BODY.model).meta({ facets: ['Body', 'advanced'], title: 'Body model', description: 'lite (fast, 6 MB) or full (steadier on fast motion, 9 MB)' }),
+
     // Complex/structured settings — rendered by bespoke widgets (the expression
     // table, the overlay accordion); carried as whole-object dial values.
     'faceExpr.sensitivity': z
@@ -168,6 +174,8 @@ export function settingsToLayer(s: Settings): Layer {
     'faceExpr.degrees': s.faceExpr.degrees,
     'midi.enabled': s.midi.enabled,
     'midi.port': s.midi.port,
+    'body.enabled': s.body.enabled,
+    'body.model': s.body.model,
     overlay: s.overlay,
     handMap: s.handMap,
     faceControls: s.faceControls,
@@ -201,6 +209,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
     midi: { enabled: v['midi.enabled'], port: v['midi.port'] },
+    body: { enabled: v['body.enabled'], model: v['body.model'] },
     overlay: v.overlay,
     handMap: v.handMap,
     faceControls: v.faceControls,

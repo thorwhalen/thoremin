@@ -20,15 +20,14 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 import type { NodeContext } from '@/dag';
+import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '../domain';
 
 // tasks-vision assets, loaded from a CDN on demand. The wasm fileset is pinned to
 // the installed `@mediapipe/tasks-vision` version (shared with `webcam-face`), and
 // the model is the float16 `hand_landmarker.task` (21 landmarks per hand).
-const TASKS_VISION_VERSION = '0.10.35';
-const WASM_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
 const MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+  `${MEDIAPIPE_MODELS_BASE}/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`;
 
 const Params = z.object({
   // Retained for graph/preset compatibility; tasks-vision ships a single
@@ -143,7 +142,7 @@ export const webcamHandsNode = defineNode<Params>({
       async init(ctx: NodeContext) {
         video = ctx.resources.video as HTMLVideoElement | undefined;
         const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
-        const fileset = await vision.FilesetResolver.forVisionTasks(WASM_BASE);
+        const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
         try {
           landmarker = await vision.HandLandmarker.createFromOptions(fileset, optionsFor('GPU'));
         } catch (gpuErr) {

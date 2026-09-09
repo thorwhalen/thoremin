@@ -169,6 +169,7 @@ which is free — they are just a map on each node.
 |---|---|---|---|---|
 | `mapping` | `mapping` | `voice-mapping` | `voice-mapping` | no — one implementation |
 | `source` | `source` | `webcam-hands` | `webcam-hands`, `synthetic-hands`, `replay-hands` | no — see below |
+| `body` | `source` | `webcam-body` | `webcam-body`, `synthetic-body`, `replay-body` | no — same ruling; a second camera branch (#186), gated off until wanted, never a candidate of `source` (hands and body run together) |
 
 The `source` slot (#104) is the first with more than one real candidate, which
 makes it the first genuine test of "swapping is a config flip" — and it passes:

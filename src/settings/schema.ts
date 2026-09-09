@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
 import { SOUND_IDS, type SoundId } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
-import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
+import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
@@ -151,6 +151,18 @@ export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
 /** The shipped MIDI defaults: off, first available port. */
 export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '' };
 
+/** The body source (#186): on/off + which PoseLandmarker model to load. `BODY_MODELS`
+ *  is the node's own list (`@/nodes/domain`), re-exported so the panel reads one SSOT. */
+export { BODY_MODELS };
+export const BodySettingsSchema = z.object({
+  enabled: z.boolean(),
+  model: z.enum(BODY_MODELS),
+});
+export type BodySettings = z.infer<typeof BodySettingsSchema>;
+
+/** The shipped body defaults: off (the model is the most expensive in the graph), lite. */
+export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
+
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
   root: z.number().int().min(0).max(11),
@@ -192,6 +204,8 @@ export const SettingsSchema = z.object({
   handMap: HandMapSchema,
   // MIDI output (#137). `.default(...)` keeps pre-MIDI presets valid (off).
   midi: MidiSettingsSchema.default(DEFAULT_MIDI),
+  // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
+  body: BodySettingsSchema.default(DEFAULT_BODY),
   // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for
   // the `face-controls` node. The schema is the node's own params, imported rather
   // than restated (see FaceControlsDialSchema) so the two can never drift.

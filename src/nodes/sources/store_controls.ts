@@ -12,7 +12,7 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { SoundId } from '@/music/sounds';
-import { legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
+import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';
 import type { FaceChord, FaceExpr } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
@@ -70,6 +70,10 @@ export interface ControlSnapshot {
   /** MIDI output (#137): on/off + target port name ('' = first available). Fed to
    *  the `midi-out` node's `enabled`/`port` inputs as live ports. */
   midi?: { enabled: boolean; port: string };
+  /** The body source (#186): on/off + PoseLandmarker model. Read by `webcam-body` off
+   *  the raw store (its gate, like `faceMapping` for the face) — not emitted as a port,
+   *  because a slot candidate declares no inputs. */
+  body?: { enabled: boolean; model: BodyModel };
   /** The head/face CONTROL axis tuning (#76): per-axis gain / deadzone / neutral zero
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */

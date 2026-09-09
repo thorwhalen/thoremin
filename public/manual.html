@@ -42,7 +42,7 @@
           letter-spacing: .06em; border-radius: 999px; padding: .1rem .4rem; margin-left: .35rem; vertical-align: 1px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 32 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 35 nodes.</p>
   <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md">the User Guide</a>. This page is the <b>node</b> catalog.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>Everything runs <b>client-side</b>: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.</p><p>This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.</p>
   <h3>Example pipelines</h3>
@@ -106,6 +106,16 @@
       </dl>
     </div>
     <div class="node">
+      <h4><code>webcam-body</code> <span class="title">Webcam Body</span></h4>
+      <p>MediaPipe PoseLandmarker full-body pose (33 landmarks) from the shared webcam. Lazy-loaded, off by default.</p>
+      <dl>
+        <dt>roles</dt><dd>source</dd>
+        <dt>in</dt><dd>—</dd>
+        <dt>out</dt><dd>body:body-frame, status:body-status</dd>
+        <dt>params</dt><dd>model (enum(lite | full)="lite"), delegate (enum(GPU | CPU)="GPU"), minTrackingConfidence (number=0.5)</dd>
+      </dl>
+    </div>
+    <div class="node">
       <h4><code>keyboard-source</code> <span class="title">Keyboard Source</span></h4>
       <p>Global keyboard input → held / pressed / released key events.</p>
       <dl>
@@ -152,6 +162,26 @@
         <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>hands:hands-frame</dd>
+        <dt>params</dt><dd>frames (array=[]), loop (boolean=false)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>synthetic-body</code> <span class="title">Synthetic Body</span></h4>
+      <p>Camera-free animated full-body skeleton (bounce / sway / arms) for tests &amp; demos.</p>
+      <dl>
+        <dt>roles</dt><dd>source</dd>
+        <dt>in</dt><dd>—</dd>
+        <dt>out</dt><dd>body:body-frame, status:body-status</dd>
+        <dt>params</dt><dd>width (number=640), height (number=480), bouncePeriod (number=0.5), bounceAmount (number=0.04), swayPeriod (number=2.4), armPeriod (number=3.2), kneeBend (number=0.3), torso (number=120)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>replay-body</code> <span class="title">Replay Body</span></h4>
+      <p>Replays a recorded full-body pose stream, one frame per tick. Camera-free and deterministic.</p>
+      <dl>
+        <dt>roles</dt><dd>source</dd>
+        <dt>in</dt><dd>—</dd>
+        <dt>out</dt><dd>body:body-frame, status:body-status</dd>
         <dt>params</dt><dd>frames (array=[]), loop (boolean=false)</dd>
       </dl>
     </div></div></section>
@@ -406,9 +436,9 @@
       <p>Mirrored video + composable overlay elements (guides, landmarks, markers, cues).</p>
       <dl>
         <dt>roles</dt><dd>overlay</dd>
-        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector</dd>
+        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector</dd>
         <dt>out</dt><dd>—</dd>
-        <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})</dd>
+        <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})</dd>
       </dl>
     </div></div></section>
 </div></body></html>

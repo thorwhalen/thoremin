@@ -50,9 +50,24 @@ describe('production app graph', () => {
     expect(order.indexOf('merge')).toBeLessThan(order.indexOf('midiOut'));
     // Gesture classification taps the hand features, so it evaluates after them (#129).
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('gesture'));
+    // The body branch (#186) sits before the overlay that draws its skeleton.
+    expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('overlay'));
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
-    // taps + the #13 midi-out sink + the #129 gesture-classifier tap.
-    expect(order).toHaveLength(18);
+    // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body source.
+    expect(order).toHaveLength(19);
+  });
+
+  it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // Without these two edges body tracking would run and show nothing: the toggle
+    // would look dead, which is the failure the shipping rule exists to catch.
+    expect(has('camBody', 'body', 'overlay', 'bodyFrame')).toBe(true);
+    expect(has('camBody', 'status', 'overlay', 'bodyStatus')).toBe(true);
+    // The body node is a slot candidate, so it declares NO inputs: its gate is the
+    // `body.enabled` dial read off the control store (see `bodyActive`), not a port.
+    expect(edges.filter((e) => e.to.node === 'camBody')).toEqual([]);
   });
 
   it('wires the face overlays (mesh + expression readout + both chord highlights)', () => {

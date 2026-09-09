@@ -104,6 +104,27 @@ export function demandWantsFace(demanded: DemandedGroups): boolean {
   return false;
 }
 
+/**
+ * The feature groups sourced from the BODY (#186), same exclusion as the face set.
+ * Empty until the body catalog lands; the gates below are then already correct.
+ */
+export const BODY_GROUP_IDS: readonly string[] = FEATURE_GROUPS.filter(
+  (g) => g.source === 'body' && g.id !== DERIVED_GROUP,
+).map((g) => g.id);
+
+/** Does the Lab need the body model loaded? (The face rule, for `webcam-body`.) */
+export function labWantsBody(cfg: FeatureLabConfig | undefined): boolean {
+  if (!cfg?.show) return false;
+  return cfg.groups.some((g) => BODY_GROUP_IDS.includes(g));
+}
+
+/** Does a live feature DEMAND (#163) need the body model loaded? */
+export function demandWantsBody(demanded: DemandedGroups): boolean {
+  if (!demanded) return false;
+  for (const g of demanded) if (BODY_GROUP_IDS.includes(g)) return true;
+  return false;
+}
+
 // ---- The compute gate the feature-vector nodes share ------------------------------
 
 /** The slice of the lab config the feature-vector nodes need off a control snapshot. */

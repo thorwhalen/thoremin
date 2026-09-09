@@ -44,11 +44,15 @@ Discussion #3. Key rules from it:
   swap *may* be surfaced, not that it must: the `source` slot has three real
   candidates and still gets no dropdown, because a replay or synthetic hand is a
   verification affordance, not an instrument a player picks between.)
-- **Two slots exist**: `mapping` (one candidate) and `source` (#104 —
-  `webcam-hands` / `synthetic-hands` / `replay-hands`). Select with
-  `?slot.<name>=<nodeType>`. `?slot.source=synthetic-hands` runs the whole
-  instrument with no camera and no MediaPipe — the fastest way to exercise the
-  graph without hardware.
+- **Three slots exist**: `mapping` (one candidate), `source` (#104 —
+  `webcam-hands` / `synthetic-hands` / `replay-hands`) and `body` (#186 —
+  `webcam-body` / `synthetic-body` / `replay-body`; a second camera branch, always
+  wired and gated off until the `body.enabled` dial, the Lab or a trainer cue wants
+  it, because hands and body are different instruments a player may run together).
+  Select with `?slot.<name>=<nodeType>`. `?slot.source=synthetic-hands` runs the
+  whole instrument with no camera and no MediaPipe — the fastest way to exercise
+  the graph without hardware; `?slot.body=synthetic-body` does the same for the
+  body path.
 - **`PortSpec.schema`** makes a port contract checkable (`kind` is only a label).
   The engine checks it in `tick()`'s output path under
   `EngineOptions.validatePorts` — off by default, **on** in `runHeadless`. It
