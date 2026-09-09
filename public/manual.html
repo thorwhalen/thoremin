@@ -382,11 +382,11 @@
     </div>
     <div class="node">
       <h4><code>lyria</code> <span class="title">Lyria Generative</span></h4>
-      <p>Steers a generative engine (Lyria RealTime) from weighted prompts + config dials.</p>
+      <p>Steers a generative engine (Lyria RealTime) from weighted prompts + config dials. Off by default; loads its SDK only when enabled, and needs a Gemini API key.</p>
       <dl>
         <dt>roles</dt><dd>synth, generate</dd>
-        <dt>in</dt><dd>steer:generative-steer, playing:boolean</dd>
-        <dt>out</dt><dd>state:string</dd>
+        <dt>in</dt><dd>steer:generative-steer, enabled:boolean, playing:boolean, volume:number</dd>
+        <dt>out</dt><dd>status:load-status</dd>
         <dt>params</dt><dd>throttleSec (number=0.2)</dd>
       </dl>
     </div>

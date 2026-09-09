@@ -1,16 +1,32 @@
 /**
  * LyriaEngine (browser-only) — implements the {@link GenerativeEngine} facade
- * against Google Lyria RealTime via `@google/genai`. Ported from the deployed
- * app's `LyriaSession` (src/plugins/ai-dj): WebSocket session, 48 kHz stereo PCM
+ * against Google Lyria RealTime via `@google/genai`. Ported from the legacy app's
+ * `LyriaSession` (src/plugins/ai-dj): WebSocket session, 48 kHz stereo PCM
  * decoded + scheduled ahead through Web Audio, weighted prompts + config.
  *
- * This is the host-injected engine the `lyria` node drives (via
- * `ctx.resources.generativeEngine`). It is never imported by Node tests or by
- * the node itself (the node depends only on the facade); it is type-checked but
- * exercised only in the browser with a real API key.
+ * This module statically imports `@google/genai`, so it must only ever be reached
+ * via the `lyria` node's *dynamic* `import('./lyria_engine')` — which fires the
+ * first time the generative layer is enabled in a browser — and is never re-exported
+ * from `src/nodes/browser.ts` or `src/nodes/index.ts` (a static re-export is how the
+ * SDK sat in the main chunk before #188). It is never imported by Node tests or by
+ * the node itself, which depends only on the facade.
+ *
+ * {@link createLyriaEngine} is the default {@link GenerativeEngineFactory}: it reads
+ * the player's Gemini key from the shared provider-key store (`src/keys` — the one
+ * BYO-key module the assistant uses too, #133; #141 settled the posture) and
+ * resolves `{ resource: null, reason: 'no-key' }` when there is none, so a panel can
+ * show a key prompt instead of a dead toggle. It never throws for a missing key or
+ * a missing audio graph; a truly unexpected fault rejects and the node reports it.
+ *
+ * API version: the SDK's default for the Gemini API is `v1beta`, and the current
+ * docs' samples use it for `live.music`; the legacy plugin pinned `v1alpha`. The
+ * default here follows the SDK (an override is available); confirming it against
+ * the live service is a #146 item, since the engine has never been constructed.
  */
 import { GoogleGenAI, type LiveMusicSession, type LiveMusicServerMessage } from '@google/genai';
-import type { GenerativeConfig, GenerativeEngine, WeightedPrompt } from './generative';
+import { getStoredKey } from '@/keys/providerKeys';
+import type { LoadResult } from '@/lazy';
+import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from './generative';
 
 function decodeBase64(base64: string): Uint8Array {
   const bin = atob(base64);
@@ -34,10 +50,19 @@ export interface LyriaEngineOptions {
   apiKey: string;
   audioContext: AudioContext;
   /** Lyria PCM is mixed into this node (typically the app's masterGain). */
-  destination: GainNode;
+  destination: AudioNode;
   model?: string;
   bufferSeconds?: number;
+  /** Gemini API version for the music session. Omitted = the SDK default (`v1beta`). */
+  apiVersion?: string;
 }
+
+/** Lyria RealTime streams 48 kHz 16-bit stereo PCM. */
+const LYRIA_SAMPLE_RATE = 48000;
+const LYRIA_CHANNELS = 2;
+const DEFAULT_MODEL = 'lyria-realtime-exp';
+const DEFAULT_BUFFER_SECONDS = 2;
+const GAIN_RAMP_SECONDS = 0.1;
 
 export class LyriaEngine implements GenerativeEngine {
   private ai: GoogleGenAI;
@@ -46,18 +71,19 @@ export class LyriaEngine implements GenerativeEngine {
   private connecting: Promise<LiveMusicSession> | null = null;
   private ac: AudioContext;
   private out: GainNode;
-  private dest: GainNode;
+  private dest: AudioNode;
   private nextStartTime = 0;
   private bufferTime: number;
   private playing = false;
+  private volume = 1;
 
   constructor(opts: LyriaEngineOptions) {
-    this.ai = new GoogleGenAI({ apiKey: opts.apiKey, apiVersion: 'v1alpha' });
-    this.model = opts.model ?? 'lyria-realtime-exp';
+    this.ai = new GoogleGenAI({ apiKey: opts.apiKey, ...(opts.apiVersion ? { apiVersion: opts.apiVersion } : {}) });
+    this.model = opts.model ?? DEFAULT_MODEL;
     this.ac = opts.audioContext;
     this.dest = opts.destination;
     this.out = this.ac.createGain();
-    this.bufferTime = opts.bufferSeconds ?? 2;
+    this.bufferTime = opts.bufferSeconds ?? DEFAULT_BUFFER_SECONDS;
   }
 
   async connect(): Promise<void> {
@@ -79,12 +105,16 @@ export class LyriaEngine implements GenerativeEngine {
         },
       },
     });
-    this.session = await this.connecting;
+    try {
+      this.session = await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
   }
 
   private schedule(chunks: { data?: string; mimeType?: string }[]): void {
     if (!this.playing || !chunks[0]?.data) return;
-    const buffer = decodePcm(decodeBase64(chunks[0].data), this.ac, 48000, 2);
+    const buffer = decodePcm(decodeBase64(chunks[0].data), this.ac, LYRIA_SAMPLE_RATE, LYRIA_CHANNELS);
     const src = this.ac.createBufferSource();
     src.buffer = buffer;
     src.connect(this.out);
@@ -102,7 +132,7 @@ export class LyriaEngine implements GenerativeEngine {
     if (this.ac.state === 'suspended') await this.ac.resume();
     this.out.connect(this.dest);
     this.out.gain.setValueAtTime(0, this.ac.currentTime);
-    this.out.gain.linearRampToValueAtTime(1, this.ac.currentTime + 0.1);
+    this.out.gain.linearRampToValueAtTime(this.volume, this.ac.currentTime + GAIN_RAMP_SECONDS);
     this.playing = true;
     this.session?.play();
   }
@@ -110,7 +140,7 @@ export class LyriaEngine implements GenerativeEngine {
   async pause(): Promise<void> {
     this.playing = false;
     this.session?.pause();
-    this.out.gain.linearRampToValueAtTime(0, this.ac.currentTime + 0.1);
+    this.out.gain.linearRampToValueAtTime(0, this.ac.currentTime + GAIN_RAMP_SECONDS);
     this.nextStartTime = 0;
   }
 
@@ -121,6 +151,12 @@ export class LyriaEngine implements GenerativeEngine {
     } catch {
       /* ignore */
     }
+    try {
+      this.session?.close();
+    } catch {
+      /* ignore */
+    }
+    this.session = null;
     this.out.disconnect();
     this.out = this.ac.createGain();
     this.nextStartTime = 0;
@@ -150,4 +186,37 @@ export class LyriaEngine implements GenerativeEngine {
   resetContext(): void {
     this.session?.resetContext();
   }
+
+  /** The generative bus gain (the `steer.volume` dial). Applied immediately while
+   *  playing, and remembered as the level `play()` ramps up to. */
+  setVolume(gain: number): void {
+    this.volume = Math.min(1, Math.max(0, gain));
+    if (this.playing) this.out.gain.setTargetAtTime(this.volume, this.ac.currentTime, 0.05);
+  }
+}
+
+/** The provider whose key Lyria uses — the same store the assistant's Google
+ *  provider reads, so one pasted key serves both. */
+export const LYRIA_KEY_PROVIDER = 'google' as const;
+
+/**
+ * The default {@link GenerativeEngineFactory}: build a {@link LyriaEngine} from the
+ * host audio graph and the stored Gemini key. Resolves — never throws — a null
+ * result with an actionable reason when the key or the audio graph is missing.
+ */
+export async function createLyriaEngine(opts: GenerativeEngineOpts): Promise<LoadResult<GenerativeEngine>> {
+  const apiKey = getStoredKey(LYRIA_KEY_PROVIDER);
+  if (!apiKey) {
+    return {
+      resource: null,
+      reason: 'no-key',
+      message: 'Add a Gemini API key (the assistant’s Google key) to enable the generative layer.',
+    };
+  }
+  if (!opts.audioContext || !opts.destination) {
+    return { resource: null, reason: 'no-audio', message: 'Tap to play first: the generative layer needs the audio graph.' };
+  }
+  if (opts.signal.aborted) return { resource: null, reason: 'aborted', message: 'Cancelled' };
+  const engine = new LyriaEngine({ apiKey, audioContext: opts.audioContext, destination: opts.destination });
+  return { resource: engine, message: 'Generative engine ready' };
 }

@@ -26,10 +26,13 @@ export { canvasOverlayNode } from './output/canvas_overlay';
 export { midiOutNode } from './output/midi_out';
 export type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus, MidiPhase } from './output/midi_out';
 export { openWebMidiSink } from './output/midi_engine';
-// The browser-only Lyria engine (implements the GenerativeEngine facade the
-// `lyria` node drives). The node itself is Node-safe and lives in CORE_NODES.
-export { LyriaEngine } from './output/lyria_engine';
-export type { LyriaEngineOptions } from './output/lyria_engine';
+// The browser-only Lyria engine (`./output/lyria_engine`) is deliberately NOT
+// re-exported here (#188): the `lyria` node dynamically imports it the first time
+// the generative layer is enabled, and a static re-export from this module — which
+// the app shell imports — would put `@google/genai` back in the main bundle for
+// every player. Only the facade + factory types are surfaced.
+export type { GenerativeEngineFactory, GenerativeEngineOpts } from './output/generative';
+export type { GenerativeStatus } from './output/lyria';
 
 export const BROWSER_NODES = [
   webcamHandsNode,
