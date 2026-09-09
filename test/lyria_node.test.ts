@@ -101,6 +101,7 @@ describe('lyria node (contract logic, mock engine)', () => {
       const w = 0.5 + (i % 10) * 0.05; // changes every tick
       const bpm = i < 17 ? 120 : 90; // tempo change at tick 17
       handlers.process({ enabled: true, playing: true, steer: steer(w, bpm) }, ctxAt(i, dt, resources));
+      if (i === 2) await flush(); // let connect() resolve: steering only flows on an open session
     }
     // play() is fire-and-forget after connect() resolves (a microtask), so flush.
     await flush();
@@ -269,6 +270,124 @@ describe('lyria node (contract logic, mock engine)', () => {
     const statuses = rec.values('gen.status') as GenerativeStatus[];
     expect(statuses[5].phase).toBe('off');
     expect(engine.calls).toEqual([]);
+  });
+
+  // ---- the connect step (review of #197): failable, not re-hammered, never stale ----
+
+  /** A mock whose connect() the test settles, with an optional liveness probe. */
+  class DeferredEngine extends MockEngine {
+    resolvers: Array<{ resolve: () => void; reject: (e: unknown) => void }> = [];
+    alive: boolean | undefined = undefined;
+    override connect(): Promise<void> {
+      this.calls.push('connect');
+      return new Promise<void>((resolve, reject) => this.resolvers.push({ resolve, reject }));
+    }
+    connected(): boolean {
+      return this.alive ?? true;
+    }
+  }
+
+  it('a connect that rejects is an error status (reason connect), logged once, NOT retried every tick; pause then play retries', async () => {
+    const engine = new DeferredEngine();
+    const logs: string[] = [];
+    const handlers = lyriaNode.make(lyriaNode.params.parse({}));
+    const resources = { generativeEngine: engine };
+    const at = (i: number) => ({ ...ctxAt(i, 0.1, resources), log: (m: string) => logs.push(m) });
+    handlers.process({ enabled: true }, at(0));
+    await flush();
+    handlers.process({ enabled: true, playing: true }, at(1));
+    expect(statusOf(handlers.process({ enabled: true, playing: true }, at(2)))).toMatchObject({ phase: 'loading', message: 'Connecting to Lyria...' });
+    engine.resolvers[0].reject(new Error('401 bad key'));
+    await flush();
+    for (let i = 3; i < 10; i++) {
+      const out = handlers.process({ enabled: true, playing: true, steer: steer(1, 120) }, at(i));
+      expect(statusOf(out)).toMatchObject({ phase: 'error', reason: 'connect', message: '401 bad key' });
+    }
+    expect(engine.calls.filter((c) => c === 'connect')).toHaveLength(1);
+    expect(logs).toHaveLength(1);
+    // Pause clears the latch (status back to ready); play tries a fresh connect.
+    expect(statusOf(handlers.process({ enabled: true, playing: false }, at(10))).phase).toBe('ready');
+    handlers.process({ enabled: true, playing: true }, at(11));
+    expect(engine.calls.filter((c) => c === 'connect')).toHaveLength(2);
+    expect(engine.calls).not.toContain('play');
+  });
+
+  it('a connect settling after the engine was dropped and replaced touches nothing: the new engine connects and plays exactly once', async () => {
+    const a = new DeferredEngine();
+    const b = new DeferredEngine();
+    const engines = [a, b];
+    const factory: GenerativeEngineFactory = async () => ({ resource: engines.shift()! });
+    const handlers = lyriaNode.make(lyriaNode.params.parse({}));
+    const resources = { createGenerativeEngine: factory };
+    handlers.process({ enabled: true, playing: true }, ctxAt(0, 0.1, resources));
+    await flush();
+    handlers.process({ enabled: true, playing: true }, ctxAt(1, 0.1, resources)); // A connecting
+    handlers.process({ enabled: false }, ctxAt(2, 0.1, resources)); // drop A
+    handlers.process({ enabled: true, playing: true }, ctxAt(3, 0.1, resources)); // load B
+    await flush();
+    handlers.process({ enabled: true, playing: true }, ctxAt(4, 0.1, resources)); // B connecting
+    a.resolvers[0].reject(new Error('late failure')); // A's stale connect fails
+    await flush();
+    let out = handlers.process({ enabled: true, playing: true }, ctxAt(5, 0.1, resources));
+    expect(statusOf(out).phase).toBe('loading'); // B still connecting, untouched by A's failure
+    expect(b.calls.filter((c) => c === 'connect')).toHaveLength(1);
+    b.resolvers[0].resolve();
+    await flush();
+    out = handlers.process({ enabled: true, playing: true, steer: steer(1, 120) }, ctxAt(6, 0.1, resources));
+    expect(statusOf(out).phase).toBe('active');
+    expect(b.calls.filter((c) => c === 'connect')).toHaveLength(1);
+    expect(b.calls.filter((c) => c === 'play')).toHaveLength(1);
+    expect(a.calls).toContain('stop');
+  });
+
+  it('pause then play while a connect is in flight plays exactly once (the first start is a late arrival)', async () => {
+    const engine = new DeferredEngine();
+    const handlers = lyriaNode.make(lyriaNode.params.parse({}));
+    const resources = { generativeEngine: engine };
+    handlers.process({ enabled: true }, ctxAt(0, 0.1, resources));
+    await flush();
+    handlers.process({ enabled: true, playing: true }, ctxAt(1, 0.1, resources)); // start 1, connecting
+    handlers.process({ enabled: true, playing: false }, ctxAt(2, 0.1, resources)); // pause: start 1 is stale
+    handlers.process({ enabled: true, playing: true }, ctxAt(3, 0.1, resources)); // start 2
+    for (const r of engine.resolvers) r.resolve();
+    await flush();
+    expect(engine.calls.filter((c) => c === 'play')).toHaveLength(1);
+    expect(engine.calls).not.toContain('pause'); // never started, so nothing to pause
+  });
+
+  it('steering is pushed only once a session is open, and the current steer reaches a fresh session', async () => {
+    const engine = new DeferredEngine();
+    const handlers = lyriaNode.make(lyriaNode.params.parse({ throttleSec: 0 }));
+    const resources = { generativeEngine: engine };
+    handlers.process({ enabled: true }, ctxAt(0, 0.1, resources));
+    await flush();
+    for (let i = 1; i < 5; i++) handlers.process({ enabled: true, playing: true, steer: steer(1, 120) }, ctxAt(i, 0.1, resources));
+    expect(engine.prompts).toHaveLength(0); // nothing while connecting: the engine has no session yet
+    engine.resolvers[0].resolve();
+    await flush();
+    handlers.process({ enabled: true, playing: true, steer: steer(1, 120) }, ctxAt(5, 0.1, resources));
+    expect(engine.prompts).toHaveLength(1);
+    expect(engine.prompts[0][0].text).toBe('ambient pads');
+  });
+
+  it('a session the server closed is reported as an error, not active, and play after pause reconnects', async () => {
+    const engine = new DeferredEngine();
+    const handlers = lyriaNode.make(lyriaNode.params.parse({}));
+    const resources = { generativeEngine: engine };
+    handlers.process({ enabled: true }, ctxAt(0, 0.1, resources));
+    await flush();
+    handlers.process({ enabled: true, playing: true }, ctxAt(1, 0.1, resources));
+    engine.resolvers[0].resolve();
+    await flush();
+    expect(statusOf(handlers.process({ enabled: true, playing: true }, ctxAt(2, 0.1, resources))).phase).toBe('active');
+    engine.alive = false;
+    const out = handlers.process({ enabled: true, playing: true }, ctxAt(3, 0.1, resources));
+    expect(statusOf(out)).toMatchObject({ phase: 'error', reason: 'connect', message: 'The connection to Lyria closed' });
+    expect(engine.calls.filter((c) => c === 'connect')).toHaveLength(1);
+    engine.alive = true;
+    handlers.process({ enabled: true, playing: false }, ctxAt(4, 0.1, resources));
+    handlers.process({ enabled: true, playing: true }, ctxAt(5, 0.1, resources));
+    expect(engine.calls.filter((c) => c === 'connect')).toHaveLength(2);
   });
 
   it('the vendor SDK is never statically re-exported by the registries (the bundle-split guard)', () => {

@@ -20,9 +20,16 @@
  * switched on, so `@google/genai` is never in the main bundle and never fetched
  * by a player who does not use it. A host may also hand over a ready-made engine
  * as `ctx.resources.generativeEngine` (the pre-#188 contract; still honoured).
- * The `status` output says where the engine is — off, loading, ready, active, or
- * unavailable with a reason (`no-key`) — so a panel can be honest instead of
- * showing a dead toggle.
+ *
+ * **Connecting is a second, failable step** on top of loading, and it follows the
+ * same rules: a failed connect is an `error` status that is NOT retried every tick
+ * (pause/play or disable/enable is the player's "try again"); a connect that
+ * settles after the engine was dropped, or after a pause, touches nothing; the
+ * steering diff is reset when a connection opens so the current prompts reach a
+ * fresh session; and a session the server closed is reported as an error, not as
+ * `active`. The `status` output says where the engine is — off, loading, ready,
+ * connecting, active, or unavailable with a reason (`no-key`) — so a panel can be
+ * honest instead of showing a dead toggle.
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
@@ -38,7 +45,7 @@ type Params = z.infer<typeof Params>;
 
 /** Lifecycle/capability status surfaced on the node's `status` port: the shared
  *  lazy-load vocabulary. `unavailable` + `reason: 'no-key'` is the one a panel must
- *  turn into a key prompt. */
+ *  turn into a key prompt; `error` + `reason: 'connect'` is a failed or lost session. */
 export type GenerativeStatus = LoadStatus;
 
 /** The default browser factory: lazy-load the Lyria adapter only when the layer is
@@ -59,6 +66,8 @@ function _factoryFor(resources: Record<string, unknown>): GenerativeEngineFactor
   return _defaultFactory;
 }
 
+const _errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
 export const lyriaNode = defineNode<Params>({
   type: 'lyria',
   roles: ['synth', 'generate'],
@@ -75,8 +84,17 @@ export const lyriaNode = defineNode<Params>({
   outputs: [{ name: 'status', kind: 'load-status' }],
   params: Params,
   make(p) {
+    // The transport's own little state machine, on top of the loaded engine:
+    //   started    — the transport is on (play requested)
+    //   connecting — a connect() is in flight for the CURRENT start
+    //   startGen   — bumped on every start/pause/drop, so a connect() settling for an
+    //                older start (or an older engine) is a late arrival: touch nothing
+    //   failure    — why the last start failed; cleared by pause or by dropping the
+    //                engine, so play is not re-hammered every tick (rule 3)
     let started = false;
     let connecting = false;
+    let startGen = 0;
+    let failure: string | null = null;
     let lastSentAt = -Infinity;
     let lastPromptsKey = '';
     let lastConfigKey = '';
@@ -85,15 +103,23 @@ export const lyriaNode = defineNode<Params>({
     let resources: Record<string, unknown> = {};
     let log: ((msg: string) => void) | undefined;
 
-    /** Forget the per-engine steering diff state, so a re-created engine gets the
-     *  current prompts/config pushed again rather than being assumed up to date. */
-    const forgetEngine = () => {
-      started = false;
-      connecting = false;
+    /** Forget the per-engine steering diff state, so a (re)created or (re)connected
+     *  engine gets the current prompts/config pushed again rather than being assumed
+     *  up to date. */
+    const forgetSteering = () => {
       lastPromptsKey = '';
       lastConfigKey = '';
       lastBpm = undefined;
+      lastSentAt = -Infinity;
+    };
+    /** The engine went away (disabled, or dropped): reset everything per-engine. */
+    const forgetEngine = () => {
+      started = false;
+      connecting = false;
+      startGen++;
+      failure = null;
       lastVolume = undefined;
+      forgetSteering();
     };
 
     const engine = lazyResource<GenerativeEngine>({
@@ -113,6 +139,33 @@ export const lyriaNode = defineNode<Params>({
       log: (m) => (log ?? console.warn)(m),
     });
 
+    const start = (e: GenerativeEngine): void => {
+      started = true;
+      connecting = true;
+      const myGen = ++startGen;
+      const current = () => myGen === startGen && engine.current() === e;
+      void Promise.resolve(e.connect())
+        .then(() => {
+          if (!current()) return; // paused, restarted, or the engine was dropped meanwhile
+          connecting = false;
+          forgetSteering(); // a fresh session knows nothing: re-send the current steer
+          return e.play();
+        })
+        .catch((err) => {
+          if (!current()) return;
+          connecting = false;
+          started = false;
+          failure = _errorText(err);
+          (log ?? console.warn)(`[lyria] could not start the generative engine: ${failure}`);
+        });
+    };
+
+    const statusOf = (base: LoadStatus): GenerativeStatus => {
+      if (failure) return { ...base, phase: 'error', reason: 'connect', message: failure };
+      if (started && connecting) return { ...base, phase: 'loading', message: 'Connecting to Lyria...' };
+      return withActive(base, started, 'Playing');
+    };
+
     return {
       process(inputs, ctx: NodeContext) {
         resources = ctx.resources;
@@ -124,7 +177,7 @@ export const lyriaNode = defineNode<Params>({
         engine.want(enabled);
         const e = engine.current();
         if (!e) {
-          if (started) forgetEngine(); // the engine went away (disabled) while playing
+          if (started || failure) forgetEngine(); // the engine went away while in use
           return { status: engine.status() };
         }
 
@@ -135,34 +188,37 @@ export const lyriaNode = defineNode<Params>({
           e.setVolume?.(volume);
         }
 
-        // ---- lifecycle ----
-        if (playing && !started) {
-          started = true;
-          connecting = true;
-          // The engine is responsible for connect-once idempotency. Guard play()
-          // with the *current* started state: if the transport was paused
-          // between connect() resolving and this microtask, don't start playing.
-          void Promise.resolve(e.connect())
-            .then(() => {
-              connecting = false;
-              if (started && engine.current() === e) return e.play();
-            })
-            .catch((err) => {
-              connecting = false;
-              started = false;
-              (log ?? console.warn)(`[lyria] could not start the generative engine: ${String(err)}`);
-            });
-        } else if (!playing && started) {
+        // ---- a session the server closed is an error, not `active` ----
+        if (started && !connecting && e.connected?.() === false) {
           started = false;
-          connecting = false;
-          void Promise.resolve(e.pause()).catch(() => {
-            /* best effort */
-          });
+          startGen++;
+          failure = 'The connection to Lyria closed';
+          (log ?? console.warn)(`[lyria] ${failure}`);
         }
 
-        // ---- steering (throttled + diffed) ----
+        // ---- lifecycle ----
+        if (playing && !started && !failure) {
+          start(e);
+        } else if (!playing && (started || failure)) {
+          // Pause. Also the player's "try again" after a failure: the latch clears
+          // here, so the NEXT play attempts a fresh connect (rule 4), and a connect
+          // still in flight for this start becomes a late arrival (rule 2).
+          // Nothing to pause while still connecting: that start is discarded on arrival.
+          const wasPlaying = started && !connecting;
+          started = false;
+          connecting = false;
+          failure = null;
+          startGen++;
+          if (wasPlaying) {
+            void Promise.resolve(e.pause()).catch(() => {
+              /* best effort */
+            });
+          }
+        }
+
+        // ---- steering (throttled + diffed; only once a session is open) ----
         const steer = inputs.steer as GenerativeSteer | undefined;
-        if (started && steer && ctx.time - lastSentAt >= p.throttleSec) {
+        if (started && !connecting && steer && ctx.time - lastSentAt >= p.throttleSec) {
           let sent = false;
 
           const configKey = JSON.stringify(steer.config ?? {});
@@ -187,10 +243,7 @@ export const lyriaNode = defineNode<Params>({
           if (sent) lastSentAt = ctx.time;
         }
 
-        const base = engine.status();
-        const status: GenerativeStatus =
-          started && connecting ? { ...base, phase: 'loading', message: 'Connecting to Lyria...' } : withActive(base, started, 'Playing');
-        return { status };
+        return { status: statusOf(engine.status()) };
       },
       dispose() {
         engine.dispose();

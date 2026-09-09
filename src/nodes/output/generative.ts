@@ -50,6 +50,10 @@ export interface GenerativeEngine {
   /** The engine's own output gain 0..1 (the `steer.volume` dial). Optional: a
    *  mock or a MIDI-emitting engine has nothing to attenuate. */
   setVolume?(gain: number): void;
+  /** Is the session still open? Optional; a session-shaped engine reports false
+   *  after the server closes or errors the socket, so the node can say so instead of
+   *  reporting `active` over a dead connection. */
+  connected?(): boolean;
 }
 
 /** What a {@link GenerativeEngineFactory} receives from the node: the host audio
