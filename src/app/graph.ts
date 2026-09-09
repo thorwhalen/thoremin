@@ -32,22 +32,11 @@ import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 /**
  * The generative branch's STARTER steering (#141 / #188): what the gestures mean to
  * the engine until the player edits `steerConfig`. Build-time params of `indirect-map`
- * (its `steerConfig` port overrides them live; unset fields keep these). Chosen so
- * that enabling the layer and pressing play does something audible with two hands:
- * the right hand's openness fades a pad in, the left hand's height brings in an
- * arpeggio, the right hand's height brightens the mix. The hand `y` feature is in
- * IMAGE coordinates (0 at the top), so "raise the hand = more" is the inverted
- * `inMin: 1, inMax: 0` range, exactly as `voice-mapping` inverts it for gain.
- * Exported for the tests.
+ * (its `steerConfig` port overrides them live). The SAME object as the settings
+ * default (`DEFAULT_STEER_CONFIG`), so an instrument that never touched the dial and
+ * one that holds the default agree exactly. Exported for the tests.
  */
-export const STARTER_STEER = {
-  strains: [
-    { text: 'warm ambient pads', source: 'hand', hand: 'right', feature: 'openness', inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 },
-    { text: 'bright plucked arpeggios', source: 'hand', hand: 'left', feature: 'y', inMin: 1, inMax: 0, weightMin: 0, weightMax: 2 },
-  ],
-  dials: [{ name: 'brightness', source: 'hand', hand: 'right', feature: 'y', inMin: 1, inMax: 0, outMin: 0.2, outMax: 0.9 }],
-  ...DEFAULT_STEER_CONFIG,
-} as const;
+export const STARTER_STEER = DEFAULT_STEER_CONFIG;
 
 /**
  * A Slot is a named, role-typed swap point the graph builder fills from config.

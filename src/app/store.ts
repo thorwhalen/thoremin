@@ -29,6 +29,7 @@ import {
   BodySettingsSchema,
   type BodySettings,
   DEFAULT_STEER,
+  defaultSteerConfig,
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
@@ -57,7 +58,7 @@ const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
  *  module-level constant itself, or an edit in one instrument would mutate the default. */
 const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CONTROLS_DIAL });
 /** A fresh generative-layer default (the `config` object is cloned for the same reason). */
-const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: { ...DEFAULT_STEER.config } });
+const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structuredClone(DEFAULT_STEER.config) });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -412,7 +413,13 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   let steer = current.steer;
   if (p.steer) {
     try {
-      steer = SteerSettingsSchema.parse({ ...DEFAULT_STEER, ...p.steer });
+      const parsed = SteerSettingsSchema.parse({ ...DEFAULT_STEER, ...p.steer });
+      // A PARTIAL config (the shape #202 persisted: smoothing + cadence, no arrays) is
+      // completed from the default. Absent arrays already meant "the starter strains" to
+      // the node, so this is sound-identical; it exists so the working layer and a saved
+      // instrument (which `normalizeLayer` completes the same way) can never differ by a
+      // key nobody edited and flag a phantom "unsaved edits".
+      steer = { ...parsed, config: { ...defaultSteerConfig(), ...parsed.config } };
     } catch {
       steer = current.steer;
     }

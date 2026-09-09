@@ -26,19 +26,21 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { DIAL_COMMANDS } from './dials';
 import { DIAL_FIELD_COMMANDS } from './perDial';
 import { INSTRUMENT_COMMANDS } from './instruments';
+import { STEER_COMMANDS } from './steer';
 import { confirmationGate, createApprovalStore, defaultGetRisk, type ApprovalStore } from './confirmation';
 import { createDialsHistory, type DialsHistory } from './history';
 import { createJournal, type Journal } from './journal';
 import { installMiddleware } from './middleware';
 
 /** Build a registry with all thoremin commands registered: the generic dial verbs,
- *  one typed `set` command per dial (generated from the dials SSOT), and the
- *  instrument load/save/create commands. */
+ *  one typed `set` command per dial (generated from the dials SSOT), the instrument
+ *  load/save/create commands, and the generative steering commands (#188). */
 export function createThoreminRegistry(): Registry {
   const r = createRegistry();
   r.registerAll(DIAL_COMMANDS);
   r.registerAll(DIAL_FIELD_COMMANDS);
   r.registerAll(INSTRUMENT_COMMANDS);
+  r.registerAll(STEER_COMMANDS);
   return r;
 }
 

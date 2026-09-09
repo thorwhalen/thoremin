@@ -23,7 +23,7 @@ import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
-import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_STEER_CONFIG, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, defaultSteerConfig, type Settings } from './schema';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const SoundEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
@@ -131,7 +131,7 @@ export const thoreminDials = defineDials(
     // `handMap`); its arrays are edited by domain commands, its scalar leaves
     // (`steerConfig.smoothing`, `steerConfig.throttleSec`) by `dial.setIn`. Absent
     // strains/dials = the branch's starter strains in graph.ts.
-    steerConfig: SteerConfigSchema.default({ ...DEFAULT_STEER_CONFIG }).meta({
+    steerConfig: SteerConfigSchema.default(() => defaultSteerConfig()).meta({
       facets: ['Generative', 'advanced'],
       title: 'Generative steering',
       description: 'Which strains (text prompts) and engine dials your hand and face features drive',

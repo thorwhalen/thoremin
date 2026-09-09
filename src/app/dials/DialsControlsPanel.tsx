@@ -97,6 +97,7 @@ export default function DialsControlsPanel() {
           <p>↑ / ↓ — octave shift</p>
           <p>← / → — less / more scale-snap</p>
           <p>m — mute</p>
+          <p>p — play / pause the generative layer (when it is on)</p>
           <p>⌘K / Ctrl-K — command palette (set any dial by name)</p>
         </div>
       </TopSection>

@@ -17,6 +17,8 @@ import { dispatchDialSet } from '../../dispatchDial';
 import { useGenerativeStatus } from '../../generativeStatus';
 import { useControls } from '../../store';
 import { useDialsSettings } from '../useDialsSettings';
+import { CollapsibleSection } from '../primitives';
+import { SteeringEditor } from './steering';
 
 /** Where the key lives: the assistant's Google provider — one key serves both. */
 const NO_KEY_HINT =
@@ -58,6 +60,9 @@ export function GenerativeControls() {
         </label>
       </div>
       <LoadStatusReadout status={status} enabled={enabled} offMessage="Generative layer off" />
+      <CollapsibleSection label="Steering — what your gestures mean">
+        <SteeringEditor />
+      </CollapsibleSection>
       {needsKey && <p className="text-[10px] leading-relaxed text-amber-300/80">{NO_KEY_HINT}</p>}
       <p className="text-[10px] leading-relaxed text-white/40">
         Your hands conduct a cloud generative engine (Lyria RealTime). By default the right hand's openness fades a pad in,

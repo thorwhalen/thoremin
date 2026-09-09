@@ -25,6 +25,7 @@ import {
 } from '@zodal/dials-ui';
 import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
+import { defaultSteerConfig } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import type { Settings } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
@@ -357,6 +358,15 @@ export function normalizeLayer(layer: Layer): Layer {
     // Object-valued defaults (overlay/handMap) are cloned so layers never share a
     // mutable sub-object with the defaults (the schema.ts HandMap lesson).
     out[key] = typeof dflt === 'object' && dflt !== null ? structuredClone(dflt) : dflt;
+  }
+  // A partial steering config (#202 persisted smoothing + cadence with no arrays) is
+  // completed from the default, exactly as `mergeControls` completes the hot store's —
+  // both halves of the dirty compare must heal identically or a key nobody edited
+  // reads as an unsaved edit (#188 PR 5 review).
+  const sc = out.steerConfig as Record<string, unknown> | undefined;
+  if (sc && typeof sc === 'object' && (sc.strains === undefined || sc.dials === undefined)) {
+    if (out === layer) out = { ...layer };
+    out.steerConfig = { ...defaultSteerConfig(), ...sc };
   }
   if (!out.overlay) return out;
   try {

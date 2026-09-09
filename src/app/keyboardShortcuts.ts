@@ -63,6 +63,17 @@ export function redoLastChange(): void {
   history.redo();
 }
 
+/**
+ * Toggle the generative transport (#188) — a non-dial store flag like mute, toggled
+ * directly. Only while the layer is enabled: a transport flag left true on a disabled
+ * layer would make the next enable auto-start a paid stream with no Play press.
+ */
+export function toggleGenerativePlaying(): void {
+  const s = useControls.getState();
+  if (!s.steer.enabled) return;
+  s.toggleSteerPlaying();
+}
+
 /** A keymap: a tinykeys key-binding string → a zero-arg action. */
 export type Keymap = Record<string, () => void>;
 
@@ -73,6 +84,7 @@ export const DEFAULT_KEYMAP: Keymap = {
   ArrowRight: () => adjustMagnetism(MAGNETISM_STEP),
   ArrowLeft: () => adjustMagnetism(-MAGNETISM_STEP),
   m: toggleMute,
+  p: toggleGenerativePlaying,
   // `$mod` is Cmd on macOS, Ctrl elsewhere. Both redo spellings are bound: Shift-Cmd-Z is
   // the macOS convention, Ctrl-Y the Windows one, and a player should not have to know
   // which platform the binding table was written on.

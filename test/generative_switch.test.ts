@@ -69,6 +69,14 @@ describe('the store: the steer preset field and the transient transport', () => 
     expect(mergeControls({ steer: { volume: 'loud' } }, initial).steer).toEqual(initial.steer);
   });
 
+  it('mergeControls completes a PARTIAL steering config (the shape #202 persisted) from the default — sound-identical, and never a phantom edit', () => {
+    const initial = useControls.getState();
+    const healed = mergeControls({ steer: { enabled: true, volume: 0.5, config: { smoothing: 0.3, throttleSec: 0.2 } } }, initial).steer;
+    expect(healed.config.smoothing).toBe(0.3); // the player's values win
+    expect(healed.config.strains).toEqual(DEFAULT_STEER.config.strains); // the arrays are filled
+    expect(healed.config.dials).toEqual(DEFAULT_STEER.config.dials);
+  });
+
   it('the transport never resumes from storage, even from a hand-edited blob', () => {
     const initial = useControls.getState();
     expect(mergeControls({ steer: { enabled: true }, steerPlaying: true }, initial).steerPlaying).toBe(false);
@@ -109,7 +117,7 @@ describe('the store: the steer preset field and the transient transport', () => 
 
 describe('the starter steering', () => {
   it('reads "raise the hand" as MORE (image y is 0 at the top), matching the panel copy', () => {
-    for (const ref of [...STARTER_STEER.strains, ...STARTER_STEER.dials]) {
+    for (const ref of [...STARTER_STEER.strains!, ...STARTER_STEER.dials!]) {
       if (ref.feature === 'y') {
         expect(ref.inMin).toBeGreaterThan(ref.inMax);
       }
@@ -200,7 +208,7 @@ describe('the production graph, driven headlessly through the switch', () => {
     expect(engines[0].calls.filter((c) => c === 'play')).toHaveLength(1);
     expect(status().phase).toBe('active');
     const texts = engines[0].prompts.at(-1)?.map((p) => p.text);
-    expect(texts).toEqual(STARTER_STEER.strains.map((s) => s.text));
+    expect(texts).toEqual(STARTER_STEER.strains!.map((s) => s.text));
     expect(engines[0].configs.at(-1)).toHaveProperty('brightness');
     // The steer stream is recorded like any other edge (a `generate` edge, tapped).
     const steers = rec.values('imap.steer') as Array<{ prompts: WeightedPrompt[] }>;

@@ -36,11 +36,22 @@ import { isErr, type Result } from 'acture';
 import { registry } from './commands/registry';
 import { useToasts } from './toasts';
 
-/** Toast a rejected write — a refused value is the player's to see, not a silent no-op. */
-function toastOnFailure(dispatched: Promise<Result<unknown>>): void {
-  void dispatched.then((result) => {
+/** Toast a rejected write — a refused value is the player's to see, not a silent no-op.
+ *  Returns the result too, so a control that must revert its draft on refusal can. */
+function toastOnFailure(dispatched: Promise<Result<unknown>>): Promise<Result<unknown>> {
+  return dispatched.then((result) => {
     if (isErr(result)) useToasts.getState().push(result.error.message, 5000, 'error');
+    return result;
   });
+}
+
+/**
+ * Dispatch a DOMAIN command (one whose parameters are scalars but whose effect is a
+ * whole structured dial — the `steer.*` verbs over `steerConfig`'s arrays) for a
+ * discrete panel control, with the same refused-write toast as the dial verbs.
+ */
+export function dispatchCommand(id: string, params: Record<string, unknown>): Promise<Result<unknown>> {
+  return toastOnFailure(registry.dispatch(id, params));
 }
 
 /** Dispatch `dial.set` for a discrete panel write on a SCALAR dial. */

@@ -7,7 +7,7 @@
  * keyboard_control.test.ts (the export is shared).
  */
 import { describe, it, expect } from 'vitest';
-import { shiftOctave, adjustMagnetism, toggleMute, DEFAULT_KEYMAP } from '../src/app/keyboardShortcuts';
+import { shiftOctave, adjustMagnetism, toggleMute, toggleGenerativePlaying, DEFAULT_KEYMAP } from '../src/app/keyboardShortcuts';
 import { registry } from '../src/app/commands/registry';
 import { useControls } from '../src/app/store';
 
@@ -70,6 +70,23 @@ describe('keyboard shortcuts (#90)', () => {
       'ArrowRight',
       'ArrowUp',
       'm',
+      'p',
     ]);
+  });
+});
+
+describe('the generative transport shortcut (#188)', () => {
+  it("'p' toggles the transient transport only while the layer is enabled", () => {
+    expect(DEFAULT_KEYMAP.p).toBe(toggleGenerativePlaying);
+    const s = useControls.getState();
+    s.applySettings({ ...s, steer: { ...s.steer, enabled: false } });
+    s.setSteerPlaying(false);
+    toggleGenerativePlaying();
+    expect(useControls.getState().steerPlaying).toBe(false); // disabled: a no-op, never a stale flag
+    s.applySettings({ ...useControls.getState(), steer: { ...useControls.getState().steer, enabled: true } });
+    toggleGenerativePlaying();
+    expect(useControls.getState().steerPlaying).toBe(true);
+    toggleGenerativePlaying();
+    expect(useControls.getState().steerPlaying).toBe(false);
   });
 });
