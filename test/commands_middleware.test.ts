@@ -167,6 +167,53 @@ describe('undo/redo over the dials layer (#127)', () => {
     expect(dialsStore.getState().effective['right.root']).toBe(5);
   });
 
+  // Decision B (docs + CLAUDE.md): a continuous range slider being DRAGGED writes the
+  // store directly, deliberately, because routing a write-per-pointer-move through Zod
+  // validation and a promise costs latency on the one interaction where latency is
+  // audible. #127 then chose to snapshot the WHOLE editable layer per dispatch rather
+  // than register per-command inverses, so a command added later gets undo for free.
+  //
+  // Each decision is right on its own. Together they lose data: undo wrote `entry.before`
+  // back wholesale, so every direct write made after the last dispatch was destroyed —
+  // silently, and with no way to get it back, since a drag was never in the history.
+  it('does not destroy direct writes made after the last dispatched command', async () => {
+    const { registry, history } = wiredRegistry();
+    await registry.dispatch('dial.set', { key: 'right.root', value: 5 });
+
+    // The drag: a direct store write, exactly as a slider does it.
+    dialsStore.setLayer({ ...dialsStore.getState().layer, 'right.detune': 42 });
+    expect(dialsStore.getState().layer['right.detune']).toBe(42);
+
+    history.undo();
+
+    // The command's own key reverts...
+    expect(dialsStore.getState().layer['right.root']).toBeUndefined();
+    // ...and the drag survives, because undo never touched that key.
+    expect(dialsStore.getState().layer['right.detune']).toBe(42);
+  });
+
+  it('redo also leaves untouched keys alone', async () => {
+    const { registry, history } = wiredRegistry();
+    await registry.dispatch('dial.set', { key: 'right.root', value: 5 });
+    history.undo();
+    dialsStore.setLayer({ ...dialsStore.getState().layer, 'right.detune': 7 });
+
+    history.redo();
+    expect(dialsStore.getState().effective['right.root']).toBe(5);
+    expect(dialsStore.getState().layer['right.detune']).toBe(7);
+  });
+
+  it('undo REMOVES a key the command added, rather than leaving it behind', async () => {
+    // The delta has to handle key creation, not just value change: `before` has no such
+    // key at all, so "write before's value" would write undefined and leave the key set.
+    const { registry, history } = wiredRegistry();
+    expect(dialsStore.getState().layer['left.root']).toBeUndefined();
+    await registry.dispatch('dial.set', { key: 'left.root', value: 9 });
+    expect('left.root' in dialsStore.getState().layer).toBe(true);
+    history.undo();
+    expect('left.root' in dialsStore.getState().layer).toBe(false);
+  });
+
   it('treats an atomic dial.patch as ONE undo entry', async () => {
     const { registry, history } = wiredRegistry();
     await registry.dispatch('dial.patch', {

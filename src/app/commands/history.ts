@@ -37,6 +37,15 @@
  *   skips drags entirely. That is arguably the correct coalescing — you rarely want to
  *   undo one pointer-move frame — but it is a consequence, not a decision anyone made,
  *   so it is stated rather than discovered.
+ *
+ *   It also had a sharp edge that took a sweep to find. Entries snapshot the WHOLE
+ *   editable layer, so applying `before` wholesale reverted *everything* written since
+ *   the dispatch — including those invisible drags, which could never be redone because
+ *   they were never recorded. Undo is therefore applied as a **key delta**
+ *   ({@link applyDelta}): only the keys the command itself changed are moved, and a
+ *   concurrent drag on any other key survives. Two decisions that were each correct
+ *   alone combined into silent data loss, which is the kind of thing only an adversarial
+ *   read finds.
  * - **Undo/redo apply via `setLayer`, outside dispatch.** So the middleware never sees
  *   its own writes and cannot record an undo of an undo. `redo` is what re-applies.
  */
@@ -132,6 +141,42 @@ export function layersEqual(a: Layer, b: Layer): boolean {
 }
 
 /**
+ * Move the CURRENT layer from `from` to `to`, touching only the keys those two differ on.
+ *
+ * The whole point is the keys they do NOT differ on: those are left exactly as the live
+ * layer has them. A history entry snapshots the whole editable layer either side of a
+ * dispatch, so writing `before` back wholesale also reverts everything written since —
+ * and slider drags are written outside dispatch on purpose (Decision B: routing a
+ * write-per-pointer-move through validation and a promise costs latency where latency is
+ * audible). Undo then silently destroyed the drag, with no way back, because a drag was
+ * never in the history to redo.
+ *
+ * Three cases, and the second and third are why this is not a spread:
+ *  - **changed** in both -> take `to`'s value
+ *  - **added** by the step (absent in `from`, present in `to`) -> set it
+ *  - **removed** by the step (present in `from`, absent in `to`) -> DELETE the key,
+ *    because writing `undefined` leaves the key present, and `'k' in layer` is the
+ *    difference between a dial that is unset and one explicitly set to nothing.
+ */
+function applyDelta(current: Layer, from: Layer, to: Layer): Layer {
+  const out = cloneLayer(current) as Record<string, unknown>;
+  const keys = new Set([...Object.keys(from), ...Object.keys(to)]);
+  for (const k of keys) {
+    const inFrom = k in from;
+    const inTo = k in to;
+    if (inFrom && inTo) {
+      if (!deepEqual((from as Record<string, unknown>)[k], (to as Record<string, unknown>)[k])) {
+        out[k] = cloneValue((to as Record<string, unknown>)[k]);
+      }
+      continue;
+    }
+    if (inTo) out[k] = cloneValue((to as Record<string, unknown>)[k]);
+    else delete out[k];
+  }
+  return out as Layer;
+}
+
+/**
  * Build an undo history over a dials-like store. `limit` bounds the undo stack; the
  * oldest entry is dropped when it is exceeded.
  */
@@ -162,14 +207,14 @@ export function createDialsHistory(
     undo() {
       const entry = undoStack.pop();
       if (!entry) return false;
-      store.setLayer(cloneLayer(entry.before));
+      store.setLayer(applyDelta(store.getState().layer, entry.after, entry.before));
       redoStack.push(entry);
       return true;
     },
     redo() {
       const entry = redoStack.pop();
       if (!entry) return false;
-      store.setLayer(cloneLayer(entry.after));
+      store.setLayer(applyDelta(store.getState().layer, entry.before, entry.after));
       undoStack.push(entry);
       return true;
     },
