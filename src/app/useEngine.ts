@@ -392,7 +392,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         const applier = new Applier({
           engine,
           clock: new RealtimeClock(),
-          resources,
+          // No `resources` here: #192 made the Applier take them from the engine, so the
+          // two can never be different objects. Passing one was harmless at runtime (it
+          // was the same reference) but it was a type error nothing could see — see below.
           sinks: [toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative)],
           shouldStop: () => disposed,
           onError: (err) => {
