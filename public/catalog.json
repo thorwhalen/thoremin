@@ -156,6 +156,15 @@
         "kind": "body-status"
       },
       {
+        "name": "conductorTime",
+        "kind": "musical-time"
+      },
+      {
+        "name": "conductorEnabled",
+        "kind": "boolean",
+        "default": false
+      },
+      {
         "name": "expression",
         "kind": "face-expression"
       },
@@ -225,6 +234,11 @@
       },
       {
         "name": "bodySkeleton",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "conductorHud",
         "type": "object",
         "default": {}
       },
@@ -354,6 +368,10 @@
       {
         "name": "config",
         "kind": "conductor-config"
+      },
+      {
+        "name": "doc",
+        "kind": "score-doc"
       }
     ],
     "outputs": [

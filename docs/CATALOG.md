@@ -342,7 +342,7 @@ _Direct a fixed piece with gesture (tempo + dynamics)._
 The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.
 
 - **roles:** feature, mapping
-- **in:** hands:hands-frame, config:conductor-config
+- **in:** hands:hands-frame, config:conductor-config, doc:score-doc
 - **out:** time:musical-time, beat:number, bpm:number, velocityScale:number, phase:number, dynamics:number, articulation:number, confidence:number, enabled:boolean
 - **params:** enabled (boolean=false), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), mirrorX (boolean=true), mirrorHandedness (boolean=true), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), phaseGain (number=0.5), periodGain (number=0.4)
 
@@ -404,7 +404,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
 - **out:** —
-- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
+- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 

@@ -89,6 +89,44 @@ describe('conductor node on the 4/4 fixture (stated 70 bpm)', () => {
     expect(outs[n - 1].beat as number).toBeLessThan(outs[149].beat as number);
   });
 
+  it('a fermata in the loaded score stops the beat exactly there and holds until the next stroke', async () => {
+    // A document whose only content is a fermata at beat 4, in 3/4.
+    const doc = {
+      v: 1,
+      title: 'fermata test',
+      source: 'builtin',
+      parts: [{ id: 'p', name: 'p', percussion: false, notes: [{ midi: 60, start: 0, duration: 12, velocity: 1 }] }],
+      tempoMap: [],
+      timeSignatures: [{ beat: 0, numerator: 3, denominator: 4 }],
+      dynamics: [],
+      fermatas: [4],
+      lengthBeats: 12,
+    };
+    const h = conductorNode.make(conductorNode.params.parse({ enabled: true, ...RECORDED }));
+    const outs = await replayNode(h, { hands: frames, doc: frames.map(() => doc) }, { dt: 1 / FPS });
+    const beats = outs.map((o) => o.beat as number);
+    const times = outs.map((o) => o.time as { state: string; beatsPerBar: number; anchors: number });
+    // The meter comes from the score, not the dial.
+    expect(times.every((t) => t.beatsPerBar === 3)).toBe(true);
+    // The beat reaches 4 and stops there for a while (hold), then goes on.
+    const firstAt4 = beats.findIndex((b) => b >= 4);
+    expect(firstAt4).toBeGreaterThan(0);
+    expect(beats[firstAt4]).toBe(4);
+    expect(times[firstAt4].state).toBe('hold');
+    expect(outs[firstAt4].bpm).toBe(0);
+    let heldTicks = 0;
+    let k = firstAt4;
+    while (k < beats.length && beats[k] === 4) {
+      heldTicks++;
+      k++;
+    }
+    // Held across at least a few frames, and released only by a NEW stroke.
+    expect(heldTicks).toBeGreaterThan(2);
+    expect(k).toBeLessThan(beats.length);
+    expect(times[k].anchors).toBeGreaterThan(times[firstAt4].anchors);
+    expect(beats[beats.length - 1]).toBeGreaterThan(4);
+  });
+
   it('disabled: the beat is frozen, enabled is false and velocityScale is 0', async () => {
     const h = conductorNode.make(conductorNode.params.parse({ enabled: false, ...RECORDED }));
     const outs = await replayNode(h, { hands: frames.slice(0, 120) }, { dt: 1 / FPS });
