@@ -151,6 +151,17 @@ export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
 /** The shipped MIDI defaults: off, first available port. */
 export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '' };
 
+/** The body source (#186): on/off + which PoseLandmarker model to load. */
+export const BODY_MODELS = ['lite', 'full'] as const;
+export const BodySettingsSchema = z.object({
+  enabled: z.boolean(),
+  model: z.enum(BODY_MODELS),
+});
+export type BodySettings = z.infer<typeof BodySettingsSchema>;
+
+/** The shipped body defaults: off (the model is the most expensive in the graph), lite. */
+export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
+
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
   root: z.number().int().min(0).max(11),
@@ -192,6 +203,8 @@ export const SettingsSchema = z.object({
   handMap: HandMapSchema,
   // MIDI output (#137). `.default(...)` keeps pre-MIDI presets valid (off).
   midi: MidiSettingsSchema.default(DEFAULT_MIDI),
+  // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
+  body: BodySettingsSchema.default(DEFAULT_BODY),
   // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for
   // the `face-controls` node. The schema is the node's own params, imported rather
   // than restated (see FaceControlsDialSchema) so the two can never drift.

@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
+import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import { matrixToHeadPose, type FaceFrame, type FaceMapping, type FaceStatus } from '../domain';
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsFace, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
@@ -36,10 +37,8 @@ import { demandWantsFace, labWantsFace, type FeatureLabConfig } from '@/features
 // `face_landmarker.task` — the same model family `scripts/video_to_face.py`
 // uses, so live and recorded blendshapes are shape-compatible (same model,
 // identical blendshape names).
-const TASKS_VISION_VERSION = '0.10.35';
-const WASM_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
 const MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+  `${MEDIAPIPE_MODELS_BASE}/face_landmarker/face_landmarker/float16/1/face_landmarker.task`;
 
 const Params = z.object({
   /** Run inference on the GPU (WebGL) when available, else CPU. */
@@ -231,7 +230,7 @@ export const webcamFaceNode = defineNode<Params>({
       void (async () => {
         try {
           const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
-          const fileset = await vision.FilesetResolver.forVisionTasks(WASM_BASE);
+          const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
           let lm: FaceLandmarkerLike;
           try {
             lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor(p.delegate));

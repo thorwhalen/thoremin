@@ -25,6 +25,9 @@ import {
   DEFAULT_FACE_CHORD,
   DEFAULT_FACE_EXPR,
   DEFAULT_MIDI,
+  DEFAULT_BODY,
+  BodySettingsSchema,
+  type BodySettings,
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
@@ -135,6 +138,9 @@ export interface ControlState {
    *  field (in {@link SETTINGS_KEYS}); read live by the `midi-out` node via
    *  `store-controls` → its `enabled`/`port` inputs. */
   midi: MidiSettings;
+  /** The body source (#186): on/off + model. A preset field; read live by `webcam-body`
+   *  through `ctx.resources.controls` (its gate, like the face's `faceMapping`). */
+  body: BodySettings;
   /**
    * The head/face CONTROL axis tuning (#76): per-axis gain (negative flips a
    * direction), deadzone, neutral zero and shared smoothing for the `face-controls`
@@ -371,6 +377,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       midi = current.midi;
     }
   }
+  // Heal the body settings (#186): a pre-body blob has none → off, lite.
+  let body = current.body;
+  if (p.body) {
+    try {
+      body = BodySettingsSchema.parse({ ...DEFAULT_BODY, ...p.body });
+    } catch {
+      body = current.body;
+    }
+  }
   // Heal the face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning;
   // a partial one is completed; a corrupt one falls back whole rather than leaving the
   // panel to dereference an undefined into a NaN slider.
@@ -404,7 +419,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       gestures = current.gestures;
     }
   }
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, faceControls, gestures };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, faceControls, gestures };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -437,6 +452,7 @@ export const useControls = create<ControlState>()(
       featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
       midi: { ...DEFAULT_MIDI },
+      body: { ...DEFAULT_BODY },
       faceControls: defaultFaceControls(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),

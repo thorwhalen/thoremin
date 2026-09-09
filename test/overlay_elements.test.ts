@@ -17,7 +17,10 @@ import { canvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes
 import { OVERLAY_CONTROLS } from '@/app/overlayControls';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import {
+  BLM,
+  makeBodyKeypoints,
   makeHandKeypoints,
+  type BodyFrame,
   type HandFeatures,
   type HandsFrame,
   type SynthParams,
@@ -230,6 +233,36 @@ describe('canvas-overlay composable elements', () => {
     expect(drawChord([48, 52, 57], { ...onlyChord, chordGuide: { show: false } }).count('stroke')).toBe(0); // off
     // C# (pitch class 1) is not in the scale {C,D,E,G,A} → no match.
     expect(drawChord([49]).count('stroke')).toBe(0);
+  });
+
+  it('bodySkeleton (Input, #186): bones + a dot per visible landmark, mirrored; nothing when absent', () => {
+    const { landmarks, world } = makeBodyKeypoints({ width: 640, height: 480, cx: 0.5, cy: 0.6, torso: 100, leftArm: 0.5, rightArm: 0.2, kneeBend: 0, lean: 0 });
+    const bodyFrame: BodyFrame = { width: 640, height: 480, present: true, landmarks, world, visibility: new Array(33).fill(1) };
+    const rc = drawWith(onlyElement('bodySkeleton'), { bodyFrame });
+    expect(rc.calls.filter((c) => c.m === 'arc')).toHaveLength(33);
+    expect(rc.calls.filter((c) => c.m === 'lineTo').length).toBeGreaterThan(10);
+    // Mirrored like every in-scene element: the subject's left shoulder (larger source x)
+    // is drawn at SMALLER canvas x.
+    const arcs = rc.calls.filter((c) => c.m === 'arc');
+    const ls = arcs[BLM.left_shoulder].args[0] as number;
+    const rs = arcs[BLM.right_shoulder].args[0] as number;
+    expect(ls).toBeLessThan(rs);
+    // Absent / toggled off / no frame → nothing.
+    expect(drawWith(onlyElement('bodySkeleton'), { bodyFrame: { ...bodyFrame, present: false, landmarks: [] } }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+    expect(drawWith(onlyElement('bodySkeleton')).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+    expect(drawWith({ ...onlyElement('bodySkeleton'), bodySkeleton: { show: false } }, { bodyFrame }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+    // A hidden landmark (visibility below 0.5) gets no dot.
+    const half = { ...bodyFrame, visibility: bodyFrame.visibility.map((v, i) => (i === BLM.nose ? 0.1 : v)) };
+    expect(drawWith(onlyElement('bodySkeleton'), { bodyFrame: half }).calls.filter((c) => c.m === 'arc')).toHaveLength(32);
+  });
+
+  it('bodySkeleton: prints the load state instead of a skeleton while the model loads or fails', () => {
+    const loading = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'loading', bodyDetected: false } });
+    expect(textsOf(loading).some((t) => /loading/.test(t))).toBe(true);
+    const failed = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'error', bodyDetected: false } });
+    expect(textsOf(failed).some((t) => /failed/.test(t))).toBe(true);
+    const idle = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'idle', bodyDetected: false } });
+    expect(textsOf(idle).some((t) => /body model/.test(t))).toBe(false);
   });
 
   it('faceLandmarks (Input): one dot per landmark when a present face frame has them', () => {

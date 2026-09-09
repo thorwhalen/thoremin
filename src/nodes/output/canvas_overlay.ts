@@ -51,6 +51,10 @@ import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import {
+  BODY_BONES,
+  BODY_LANDMARK_COUNT,
+  type BodyFrame,
+  type BodyStatus,
   FINGER_NAMES,
   kp,
   LM,
@@ -98,6 +102,8 @@ const Params = z.object({
   fingerLines: z.object({ show: z.boolean().default(false), showLabels: z.boolean().default(true) }).prefault({}),
   /** The detected face mesh (input feature) — available when a face mapping is on. */
   faceLandmarks: z.object({ show: z.boolean().default(true) }).prefault({}),
+  /** The full-body skeleton (#186) — drawn when body tracking is on; shows the load state. */
+  bodySkeleton: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
   /**
@@ -220,6 +226,8 @@ export type OverlayDialParams = z.infer<typeof OverlayDialSchema>;
 const RIGHT_COLOR = '#10b981';
 const LEFT_COLOR = '#3b82f6';
 const FACE_COLOR = '#22d3ee'; // cyan — distinct from hands (emerald/blue) + chord (gold)
+/** The body skeleton's colour (#186): distinct from hands/face/chord. */
+const BODY_COLOR = '#7dd3fc';
 const CHORD_COLOR = '#f5d142'; // warm gold
 
 /** Everything an overlay element needs to draw a frame. */
@@ -243,6 +251,10 @@ export interface OverlayView {
     octaveShift: number;
     chord?: number[];
     faceFrame?: FaceFrame;
+    /** The latest full-body pose (#186), for the skeleton element. */
+    bodyFrame?: BodyFrame;
+    /** The body model's lifecycle, so the skeleton element can say 'loading'. */
+    bodyStatus?: BodyStatus;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */
     handMap?: HandMap;
@@ -573,6 +585,61 @@ const faceMesh: OverlayElement = {
       const sy = lm.y * H;
       g.moveTo(sx + r, sy);
       g.arc(sx, sy, r, 0, Math.PI * 2);
+    }
+    g.fill();
+    g.restore();
+  },
+};
+
+/**
+ * The full-body skeleton (#186): bones + joints of the latest body frame, mirrored
+ * like everything else in the scene. While the model is loading (or failed) it
+ * prints the state in the corner instead — the player's only feedback that the
+ * body toggle did something, since the status has no React chip of its own.
+ */
+const bodySkeleton: OverlayElement = {
+  name: 'bodySkeleton',
+  category: 'input',
+  draw(g, { W, H, inputs, params }) {
+    if (!params.bodySkeleton.show) return;
+    const status = inputs.bodyStatus;
+    const body = inputs.bodyFrame;
+    if (status && status.phase !== 'idle' && status.phase !== 'ready') {
+      g.save();
+      g.globalAlpha = 0.8;
+      g.fillStyle = BODY_COLOR;
+      g.font = '12px system-ui, sans-serif';
+      g.textAlign = 'left';
+      g.textBaseline = 'top';
+      g.fillText(status.phase === 'error' ? 'body model failed to load' : 'body model loading…', 12, H - 20);
+      g.restore();
+      return;
+    }
+    if (!body?.present || body.landmarks.length < BODY_LANDMARK_COUNT) return;
+    const sx = (i: number) => mirrorX(body.landmarks[i].x, body.width, W);
+    const sy = (i: number) => (body.landmarks[i].y / body.height) * H;
+    const vis = (i: number) => (body.visibility[i] ?? 1) >= 0.5;
+    g.save();
+    g.strokeStyle = BODY_COLOR;
+    g.lineWidth = 3;
+    g.lineCap = 'round';
+    g.globalAlpha = 0.7;
+    g.beginPath();
+    for (const [a, b] of BODY_BONES) {
+      if (!vis(a) || !vis(b)) continue;
+      g.moveTo(sx(a), sy(a));
+      g.lineTo(sx(b), sy(b));
+    }
+    g.stroke();
+    g.fillStyle = BODY_COLOR;
+    g.globalAlpha = 0.9;
+    g.beginPath();
+    for (let i = 0; i < BODY_LANDMARK_COUNT; i++) {
+      if (!vis(i)) continue;
+      const x = sx(i);
+      const y = sy(i);
+      g.moveTo(x + 4, y);
+      g.arc(x, y, 4, 0, Math.PI * 2);
     }
     g.fill();
     g.restore();
@@ -1560,6 +1627,7 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   keyboardStripElement,
   indexFingerGuide,
   faceMesh,
+  bodySkeleton,
   landmarkDots,
   controlMarkers,
   fingerLinesElement,
@@ -1662,6 +1730,9 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'chordScale', kind: 'number[]' },
     { name: 'chord', kind: 'number[]' },
     { name: 'faceFrame', kind: 'face-frame' },
+    // The body branch (#186): the latest pose + the model's load state, for the skeleton.
+    { name: 'bodyFrame', kind: 'body-frame' },
+    { name: 'bodyStatus', kind: 'body-status' },
     { name: 'expression', kind: 'face-expression' },
     { name: 'octaveShift', kind: 'number', default: 0 },
     { name: 'overlayConfig', kind: 'overlay-config' },
@@ -1730,6 +1801,8 @@ export const canvasOverlayNode = defineNode<Params>({
             octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
             chord: inputs.chord as number[] | undefined,
             faceFrame: inputs.faceFrame as FaceFrame | undefined,
+            bodyFrame: inputs.bodyFrame as BodyFrame | undefined,
+            bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
             expression: inputs.expression as ExpressionScores | undefined,
             handMap: controls?.handMap,
             faceDegrees: controls?.faceExpr?.degrees,

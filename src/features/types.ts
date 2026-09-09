@@ -28,7 +28,7 @@ export type FeatureVector = Record<string, number>;
 export type Controllability = 'easy' | 'moderate' | 'involuntary';
 
 /** Which raw source a feature reads. */
-export type FeatureSource = 'face' | 'hand';
+export type FeatureSource = 'face' | 'hand' | 'body';
 
 /** The confound axes a feature can declare invariance to (#131): `scale` =
  *  camera distance, `position` = translation in the frame, `yaw`/`pitch`/`roll`

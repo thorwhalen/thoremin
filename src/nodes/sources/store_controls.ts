@@ -70,6 +70,10 @@ export interface ControlSnapshot {
   /** MIDI output (#137): on/off + target port name ('' = first available). Fed to
    *  the `midi-out` node's `enabled`/`port` inputs as live ports. */
   midi?: { enabled: boolean; port: string };
+  /** The body source (#186): on/off + PoseLandmarker model. Read by `webcam-body` off
+   *  the raw store (its gate, like `faceMapping` for the face) — not emitted as a port,
+   *  because a slot candidate declares no inputs. */
+  body?: { enabled: boolean; model: 'lite' | 'full' };
   /** The head/face CONTROL axis tuning (#76): per-axis gain / deadzone / neutral zero
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */

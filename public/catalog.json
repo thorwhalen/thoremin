@@ -40,6 +40,14 @@
         "kind": "face-frame"
       },
       {
+        "name": "bodyFrame",
+        "kind": "body-frame"
+      },
+      {
+        "name": "bodyStatus",
+        "kind": "body-status"
+      },
+      {
         "name": "expression",
         "kind": "face-expression"
       },
@@ -100,6 +108,11 @@
       },
       {
         "name": "faceLandmarks",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "bodySkeleton",
         "type": "object",
         "default": {}
       },
@@ -1138,6 +1151,38 @@
     ]
   },
   {
+    "type": "replay-body",
+    "title": "Replay Body",
+    "description": "Replays a recorded full-body pose stream, one frame per tick. Camera-free and deterministic.",
+    "roles": [
+      "source"
+    ],
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "body",
+        "kind": "body-frame",
+        "description": "The latest full-body pose frame (33 landmarks; absent when nobody is in frame)."
+      },
+      {
+        "name": "status",
+        "kind": "body-status"
+      }
+    ],
+    "params": [
+      {
+        "name": "frames",
+        "type": "array",
+        "default": []
+      },
+      {
+        "name": "loop",
+        "type": "boolean",
+        "default": false
+      }
+    ]
+  },
+  {
     "type": "replay-hands",
     "title": "Replay Hands",
     "description": "Replays a recorded hand-landmark stream, one frame per tick. Camera-free and deterministic.",
@@ -1356,6 +1401,68 @@
       }
     ],
     "params": []
+  },
+  {
+    "type": "synthetic-body",
+    "title": "Synthetic Body",
+    "description": "Camera-free animated full-body skeleton (bounce / sway / arms) for tests & demos.",
+    "roles": [
+      "source"
+    ],
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "body",
+        "kind": "body-frame",
+        "description": "The latest full-body pose frame (33 landmarks; absent when nobody is in frame)."
+      },
+      {
+        "name": "status",
+        "kind": "body-status"
+      }
+    ],
+    "params": [
+      {
+        "name": "width",
+        "type": "number",
+        "default": 640
+      },
+      {
+        "name": "height",
+        "type": "number",
+        "default": 480
+      },
+      {
+        "name": "bouncePeriod",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "bounceAmount",
+        "type": "number",
+        "default": 0.04
+      },
+      {
+        "name": "swayPeriod",
+        "type": "number",
+        "default": 2.4
+      },
+      {
+        "name": "armPeriod",
+        "type": "number",
+        "default": 3.2
+      },
+      {
+        "name": "kneeBend",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "torso",
+        "type": "number",
+        "default": 120
+      }
+    ]
   },
   {
     "type": "synthetic-hands",
@@ -1590,6 +1697,43 @@
         "name": "gainGlide",
         "type": "number",
         "default": 0.08
+      }
+    ]
+  },
+  {
+    "type": "webcam-body",
+    "title": "Webcam Body",
+    "description": "MediaPipe PoseLandmarker full-body pose (33 landmarks) from the shared webcam. Lazy-loaded, off by default.",
+    "roles": [
+      "source"
+    ],
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "body",
+        "kind": "body-frame",
+        "description": "The latest full-body pose frame (33 landmarks; absent when nobody is in frame)."
+      },
+      {
+        "name": "status",
+        "kind": "body-status"
+      }
+    ],
+    "params": [
+      {
+        "name": "model",
+        "type": "enum(lite | full)",
+        "default": "lite"
+      },
+      {
+        "name": "delegate",
+        "type": "enum(GPU | CPU)",
+        "default": "GPU"
+      },
+      {
+        "name": "minTrackingConfidence",
+        "type": "number",
+        "default": 0.5
       }
     ]
   },

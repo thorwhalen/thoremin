@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (32)
+## Nodes (35)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -93,6 +93,14 @@ MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by
 - **in:** —
 - **out:** face:face-frame, status:face-status
 - **params:** delegate (enum(GPU | CPU)="GPU")
+
+#### `webcam-body` — Webcam Body
+MediaPipe PoseLandmarker full-body pose (33 landmarks) from the shared webcam. Lazy-loaded, off by default.
+
+- **roles:** source
+- **in:** —
+- **out:** body:body-frame, status:body-status
+- **params:** model (enum(lite | full)="lite"), delegate (enum(GPU | CPU)="GPU"), minTrackingConfidence (number=0.5)
 
 #### `keyboard-source` — Keyboard Source
 Global keyboard input → held / pressed / released key events.
@@ -132,6 +140,22 @@ Replays a recorded hand-landmark stream, one frame per tick. Camera-free and det
 - **roles:** source
 - **in:** —
 - **out:** hands:hands-frame
+- **params:** frames (array=[]), loop (boolean=false)
+
+#### `synthetic-body` — Synthetic Body
+Camera-free animated full-body skeleton (bounce / sway / arms) for tests & demos.
+
+- **roles:** source
+- **in:** —
+- **out:** body:body-frame, status:body-status
+- **params:** width (number=640), height (number=480), bouncePeriod (number=0.5), bounceAmount (number=0.04), swayPeriod (number=2.4), armPeriod (number=3.2), kneeBend (number=0.3), torso (number=120)
+
+#### `replay-body` — Replay Body
+Replays a recorded full-body pose stream, one frame per tick. Camera-free and deterministic.
+
+- **roles:** source
+- **in:** —
+- **out:** body:body-frame, status:body-status
 - **params:** frames (array=[]), loop (boolean=false)
 
 ### Features
@@ -348,7 +372,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector
 - **out:** —
-- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
+- **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 

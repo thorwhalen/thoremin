@@ -11,6 +11,8 @@ import { createRegistry, type NodeRegistry } from '@/dag';
 import { syntheticHandsNode } from './sources/synthetic_hands';
 import { replaySourceNode } from './sources/replay';
 import { replayHandsNode } from './sources/replay_hands';
+import { syntheticBodyNode } from './sources/synthetic_body';
+import { replayBodyNode } from './sources/replay_body';
 import { handFeaturesNode } from './features/hand_features';
 import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
@@ -37,6 +39,9 @@ import { performanceNode } from './music/performance';
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
 export { replayHandsNode } from './sources/replay_hands';
+export { syntheticBodyNode } from './sources/synthetic_body';
+export { replayBodyNode } from './sources/replay_body';
+export { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT } from './sources/body_contract';
 export {
   SOURCE_SLOT_CONTRACT,
   SOURCE_SLOT_OUTPUT,
@@ -75,6 +80,8 @@ export const CORE_NODES = [
   syntheticHandsNode,
   replaySourceNode,
   replayHandsNode,
+  syntheticBodyNode,
+  replayBodyNode,
   handFeaturesNode,
   faceFeaturesNode,
   faceControlsNode,

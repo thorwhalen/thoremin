@@ -69,6 +69,7 @@ export interface OverlayControlDesc {
 export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'landmarks', label: 'Hand landmarks' },
   { name: 'faceLandmarks', label: 'Face mesh', needsFace: true },
+  { name: 'bodySkeleton', label: 'Body skeleton' },
   {
     // Feature Instrumentation Lab (#119) — owned by the LAB panel, not the instrument's
     // Overlay section: the Lab measures the instrument, so its config is a per-device

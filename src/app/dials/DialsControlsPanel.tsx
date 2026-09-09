@@ -34,6 +34,7 @@ import { HandControls } from './panels/hand';
 import { FaceControls } from './panels/face';
 import { OverlayControls } from './panels/overlay';
 import { MidiControls } from './panels/midi';
+import { BodyControls } from './panels/body';
 
 export default function DialsControlsPanel() {
   const { state, set } = useDialsSettings();
@@ -65,6 +66,11 @@ export default function DialsControlsPanel() {
 
       <TopSection label="Face">
         <FaceControls />
+      </TopSection>
+
+      {/* Body tracking (#186): the pose source, off by default (the heaviest model). */}
+      <TopSection label="Body">
+        <BodyControls />
       </TopSection>
 
       <TopSection label="Overlay">

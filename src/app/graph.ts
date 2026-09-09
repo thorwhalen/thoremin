@@ -25,6 +25,7 @@
 import type { GraphSpec, NodeRegistry, Role } from '@/dag';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
+import { BODY_SLOT_CONTRACT } from '@/nodes/sources/body_contract';
 import type { SlotContract } from '@/nodes/slot_contract';
 
 /**
@@ -76,6 +77,21 @@ export const SLOTS: Record<string, SlotDef> = {
     default: 'webcam-hands',
     candidates: ['webcam-hands', 'synthetic-hands', 'replay-hands'],
     contract: SOURCE_SLOT_CONTRACT,
+  },
+  /**
+   * Where the full-body pose frames come from (#186). A SECOND slot rather than a
+   * candidate of `source`: hands and body are different instruments a player may
+   * run together, so the body branch is always wired (like the face branch) and
+   * gated off until the `body.enabled` dial, the Lab or a trainer cue wants it —
+   * `webcam-body` loads nothing until then. `?slot.body=synthetic-body` runs the
+   * whole body path with no camera and no model, headlessly or in the browser.
+   * No player-facing dropdown, for the same reason as `source`.
+   */
+  body: {
+    role: 'source',
+    default: 'webcam-body',
+    candidates: ['webcam-body', 'synthetic-body', 'replay-body'],
+    contract: BODY_SLOT_CONTRACT,
   },
 };
 
@@ -192,6 +208,7 @@ export function resolveSlot(
 export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry): GraphSpec {
   const mappingType = resolveSlot('mapping', selection, registry);
   const sourceType = resolveSlot('source', selection, registry);
+  const bodyType = resolveSlot('body', selection, registry);
   // The default source's params are MediaPipe's (model size, hand count) and mean
   // nothing to a replay or synthetic source. Rather than invent a shared params
   // contract for a slot whose candidates genuinely have nothing in common, a
@@ -204,6 +221,8 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { id: 'feat', type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
       // Face branch (idle until the player picks a face mapping in settings).
       { id: 'camFace', type: 'webcam-face', params: {} },
+      // Body branch (#186): idle (empty frame, no model) until body tracking is wanted.
+      { id: 'camBody', type: bodyType, params: {} },
       { id: 'faceFeat', type: 'face-features', params: { smoothing: 0.3 } },
       // Chord path: classify the expression, then play its diatonic triad.
       { id: 'faceExpr', type: 'face-expression', params: {} },
@@ -334,6 +353,10 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'chordSel', port: 'chord' }, to: { node: 'overlay', port: 'chord' } },
       // The raw face frame (mesh) + classified expression, for the face overlays.
       { from: { node: 'camFace', port: 'face' }, to: { node: 'overlay', port: 'faceFrame' } },
+      // The body skeleton + the body model's load state (#186). A synthetic/replay body
+      // emits no `status`, which the overlay treats as 'nothing to report'.
+      { from: { node: 'camBody', port: 'body' }, to: { node: 'overlay', port: 'bodyFrame' } },
+      { from: { node: 'camBody', port: 'status' }, to: { node: 'overlay', port: 'bodyStatus' } },
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
       // Live overlay element config from the UI store (toggle elements without rebuild).
       { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'overlayConfig' } },
