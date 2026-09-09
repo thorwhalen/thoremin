@@ -2,46 +2,59 @@
  * `webcam-body` source node (browser-only, #186) — runs MediaPipe
  * **PoseLandmarker** on the shared host `<video>` and outputs the latest
  * {@link BodyFrame} (33 BlazePose landmarks in pixels + metric world landmarks +
- * per-point visibility). The live counterpart of `scripts/video_to_pose.py`,
- * emitting the same frame shape so a recorded stream replays through the same
- * downstream nodes.
+ * per-point visibility). Its offline counterpart, a `scripts/video_to_pose.py`
+ * in the `video_to_landmarks.py` family, is planned with the body fixtures and
+ * will emit the same frame shape.
  *
- * It follows `webcam-face`, not `webcam-hands`, on every design point, because
- * the body is the most expensive model the graph can host and must cost nothing
- * until wanted:
+ * The body is the most expensive model the graph can host, so it must cost
+ * nothing until wanted. Rather than hand-roll a fourth copy of the load / release
+ * / late-arrival / failure-latch machine (`webcam-face` and `midi-out` each have
+ * one), this node is the first adopter of the catalogued pattern in `src/lazy`
+ * (#188, `docs/design/lazy-loading.md`):
  *
- * 1. **Off by default, lazy.** Nothing is downloaded at `init()`; the runtime and
- *    the model load on first *enable* — the `body.enabled` dial, the Feature Lab
- *    measuring a body group, or a trainer cue claiming one ({@link bodyActive}).
- * 2. **Lazy offload.** Disabling releases the landmarker so the hands model never
- *    competes with an idle body model for the tick budget.
- * 3. **Detached inference.** Its own `requestAnimationFrame` loop caches the
- *    latest frame; `process()` returns the cache, so the engine tick never waits
- *    on inference and the frame-drop guard sees a constant-cost node.
+ * 1. **Off by default, lazy.** Nothing loads at `init()`. `process()` calls
+ *    `want(enabled)` each tick; the loader (a dynamic `import()` of tasks-vision +
+ *    `PoseLandmarker.createFromOptions`, GPU then CPU) runs at most once per
+ *    request and never blocks the engine.
+ * 2. **Gated.** `enabled` is {@link bodyActive}: the `body.enabled` dial, the Lab
+ *    measuring a body group, or a trainer cue claiming one — the face rule. With
+ *    no camera frames the gate reports `unavailable` / `no-camera` instead of
+ *    downloading a model that could never detect anything, and retries by itself
+ *    the moment frames arrive.
+ * 3. **Keyed by model.** The dial picks `lite` / `full` live; a change releases the
+ *    current load (a superseded load is a late arrival, discarded on settle) and
+ *    the next tick starts the new one — including after a failed load, since a
+ *    release clears the failure latch.
+ * 4. **Detached inference.** Its own `requestAnimationFrame` loop caches the latest
+ *    frame while a landmarker is held; `process()` returns the cache.
  *
- * The runtime is the tasks-vision fileset the hands/face sources already load
- * (one Emscripten module, three tasks — see `tasks_vision.ts`); the only new
- * download is the pose model itself: `lite` 5.8 MB (default) or `full` 9.4 MB.
+ * The `status` port speaks the shared `LoadStatus` vocabulary, so the overlay's
+ * skeleton element (and any panel readout) can say "loading" / "needs the camera"
+ * / "failed" without knowing this node.
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsBody, labWantsBody, type FeatureLabConfig } from '@/features/labConfig';
-import { ABSENT_BODY_STATUS, EMPTY_BODY_FRAME, type BodyFrame, type BodyStatus, type Keypoint } from '../domain';
+import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@/lazy';
+import {
+  BODY_MODELS,
+  EMPTY_BODY_FRAME,
+  type BodyFrame,
+  type BodyModel,
+  type Keypoint,
+} from '../domain';
 import { BODY_SLOT_OUTPUT } from './body_contract';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
-
-/** The two live-capable PoseLandmarker variants (heavy is ~30 MB and ~5 fps in a browser). */
-export const BODY_MODELS = ['lite', 'full'] as const;
-export type BodyModel = (typeof BODY_MODELS)[number];
 
 export function bodyModelUrl(model: BodyModel): string {
   return `${MEDIAPIPE_MODELS_BASE}/pose_landmarker/pose_landmarker_${model}/float16/latest/pose_landmarker_${model}.task`;
 }
 
 const Params = z.object({
-  /** Which pose model to download: `lite` (fast, default) or `full` (steadier on fast motion). */
+  /** Which pose model to download when the dial does not say: `lite` (fast, 5.8 MB)
+   *  or `full` (steadier on fast motion, 9.4 MB). The `body.model` dial overrides live. */
   model: z.enum(BODY_MODELS).default('lite'),
   /** Run inference on the GPU (WebGL) when available, else CPU. */
   delegate: z.enum(['GPU', 'CPU']).default('GPU'),
@@ -79,7 +92,7 @@ export function resultToBodyFrame(res: PoseLandmarkerResultLike, w: number, h: n
 }
 
 /** The minimal runtime surface of MediaPipe used here (browser-only, lazy). */
-interface PoseLandmarkerLike {
+export interface PoseLandmarkerLike {
   detectForVideo(video: HTMLVideoElement, timestampMs: number): PoseLandmarkerResultLike;
   close(): void;
 }
@@ -98,6 +111,44 @@ interface TasksVisionModule {
     ): Promise<PoseLandmarkerLike>;
   };
 }
+
+/** What the loader hands back: the landmarker and the model it was built for. */
+export interface BodyLandmarkerHandle {
+  landmarker: PoseLandmarkerLike;
+  model: BodyModel;
+}
+
+/** The loader seam: a host may inject one via `ctx.resources.createBodyLandmarker`
+ *  (tests, headless hosts); the default dynamically imports tasks-vision. */
+export type BodyLandmarkerFactory = (
+  opts: { model: BodyModel; delegate: 'GPU' | 'CPU'; minTrackingConfidence: number },
+  ctx: LoadContext,
+) => Promise<LoadResult<BodyLandmarkerHandle>>;
+
+const defaultFactory: BodyLandmarkerFactory = async (opts, lctx) => {
+  const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
+  const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
+  if (lctx.signal.aborted) return { resource: null, reason: 'aborted' };
+  const options = (delegate: 'GPU' | 'CPU') => ({
+    baseOptions: { modelAssetPath: bodyModelUrl(opts.model), delegate },
+    numPoses: 1,
+    minTrackingConfidence: opts.minTrackingConfidence,
+    outputSegmentationMasks: false,
+    runningMode: 'VIDEO' as const,
+  });
+  let landmarker: PoseLandmarkerLike;
+  try {
+    landmarker = await vision.PoseLandmarker.createFromOptions(fileset, options(opts.delegate));
+  } catch (gpuErr) {
+    // GPU/WebGL unavailable on this client → the CPU delegate (the float16 model runs
+    // on CPU). If CPU was already chosen, the failure stands.
+    if (opts.delegate !== 'GPU') throw gpuErr;
+    if (lctx.signal.aborted) return { resource: null, reason: 'aborted' };
+    console.warn('[thoremin] body model GPU delegate failed; falling back to CPU', gpuErr);
+    landmarker = await vision.PoseLandmarker.createFromOptions(fileset, options('CPU'));
+  }
+  return { resource: { landmarker, model: opts.model }, message: `Body model (${opts.model}) ready` };
+};
 
 type BodyControlsGetter = () => {
   body?: { enabled?: boolean; model?: BodyModel };
@@ -120,6 +171,12 @@ export function bodyActive(
   return controls.body?.enabled === true;
 }
 
+/** The status reason when the node is wanted but the host has no camera frames. */
+export const NO_CAMERA_REASON = 'no-camera';
+
+const hasFrames = (video: HTMLVideoElement | undefined): boolean =>
+  !!video && video.readyState >= 2 && video.videoWidth > 0;
+
 export const webcamBodyNode = defineNode<Params>({
   type: 'webcam-body',
   roles: ['source'],
@@ -129,23 +186,36 @@ export const webcamBodyNode = defineNode<Params>({
   inputs: [],
   outputs: [
     BODY_SLOT_OUTPUT,
-    // Lifecycle + detection status, drawn by the overlay's body skeleton element
-    // so a player sees "loading" before the first skeleton appears.
+    // Lifecycle + detection status in the shared LoadStatus vocabulary (#188), drawn
+    // by the overlay's body skeleton element so a player sees "loading" / "needs the
+    // camera" / "failed" before the first skeleton appears.
     { name: 'status', kind: 'body-status' },
   ],
   params: Params,
   make(p) {
-    let landmarker: PoseLandmarkerLike | null = null;
-    /** The model the loaded (or loading) landmarker was created with. */
-    let loadedModel: BodyModel = p.model;
-    let loading = false;
-    let loadGen = 0;
-    let failedGen = -1;
     let latest: BodyFrame = EMPTY_BODY_FRAME;
     let raf: number | null = null;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
     let lastVideoTime = -1;
+    let factory: BodyLandmarkerFactory | undefined;
+    /** The model the current (or in-flight) load targets — the keyed-request idiom. */
+    let requestedModel: BodyModel = p.model;
+
+    const resource = lazyResource<BodyLandmarkerHandle>({
+      load: (lctx) =>
+        (factory ?? defaultFactory)(
+          { model: requestedModel, delegate: p.delegate, minTrackingConfidence: p.minTrackingConfidence },
+          lctx,
+        ),
+      unload: (h) => h.landmarker.close(),
+      gate: () =>
+        hasFrames(video)
+          ? null
+          : { reason: NO_CAMERA_REASON, message: 'Body tracking needs the camera' },
+      label: 'body model',
+      log: (m) => console.warn(`[thoremin] ${m}`),
+    });
 
     const stopLoop = () => {
       if (raf !== null) {
@@ -154,29 +224,18 @@ export const webcamBodyNode = defineNode<Params>({
       }
     };
 
-    const offload = () => {
-      loadGen++;
-      failedGen = -1;
-      stopLoop();
-      landmarker?.close();
-      landmarker = null;
-      latest = EMPTY_BODY_FRAME;
-      lastVideoTime = -1;
-    };
-
     const loop = () => {
       if (disposed) return;
-      if (
-        landmarker &&
-        video &&
-        video.readyState >= 2 &&
-        video.videoWidth > 0 &&
-        video.currentTime !== lastVideoTime
-      ) {
+      const held = resource.current();
+      if (!held) {
+        raf = null;
+        return; // released: the loop ends itself; a re-request restarts it
+      }
+      if (video && hasFrames(video) && video.currentTime !== lastVideoTime) {
         lastVideoTime = video.currentTime;
         try {
           latest = resultToBodyFrame(
-            landmarker.detectForVideo(video, performance.now()),
+            held.landmarker.detectForVideo(video, performance.now()),
             video.videoWidth,
             video.videoHeight,
           );
@@ -187,57 +246,11 @@ export const webcamBodyNode = defineNode<Params>({
       raf = requestAnimationFrame(loop);
     };
 
-    const optionsFor = (model: BodyModel, delegate: 'GPU' | 'CPU') => ({
-      baseOptions: { modelAssetPath: bodyModelUrl(model), delegate },
-      numPoses: 1,
-      minTrackingConfidence: p.minTrackingConfidence,
-      outputSegmentationMasks: false,
-      runningMode: 'VIDEO' as const,
-    });
-
-    const ensureLoaded = (model: BodyModel) => {
-      if (landmarker || loading || disposed || failedGen === loadGen) return;
-      loading = true;
-      loadedModel = model;
-      const gen = loadGen;
-      void (async () => {
-        try {
-          const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
-          const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
-          let lm: PoseLandmarkerLike;
-          try {
-            lm = await vision.PoseLandmarker.createFromOptions(fileset, optionsFor(model, p.delegate));
-          } catch (gpuErr) {
-            if (p.delegate !== 'GPU') throw gpuErr;
-            console.warn('[thoremin] body model GPU delegate failed; falling back to CPU', gpuErr);
-            lm = await vision.PoseLandmarker.createFromOptions(fileset, optionsFor(model, 'CPU'));
-          }
-          if (disposed || gen !== loadGen) {
-            lm.close();
-            return;
-          }
-          landmarker = lm;
-          failedGen = -1;
-          if (raf === null) raf = requestAnimationFrame(loop);
-        } catch (err) {
-          console.warn('[thoremin] body model failed to load', err);
-          failedGen = gen;
-        } finally {
-          loading = false;
-        }
-      })();
-    };
-
-    const statusOf = (enabled: boolean): BodyStatus => {
-      if (!enabled) return ABSENT_BODY_STATUS;
-      if (failedGen === loadGen) return { phase: 'error', bodyDetected: false };
-      if (landmarker) return { phase: 'ready', bodyDetected: latest.present };
-      return { phase: 'loading', bodyDetected: false };
-    };
-
     return {
       init(ctx: NodeContext) {
+        // Cheap: capture the shared <video> and any injected loader. No download.
         video = ctx.resources.video as HTMLVideoElement | undefined;
+        factory = ctx.resources.createBodyLandmarker as BodyLandmarkerFactory | undefined;
       },
       process(_inputs, ctx: NodeContext) {
         video = (ctx.resources.video as HTMLVideoElement | undefined) ?? video;
@@ -245,20 +258,37 @@ export const webcamBodyNode = defineNode<Params>({
         const getDemand = ctx.resources.featureDemand as (() => DemandedGroups) | undefined;
         const controls = getControls?.();
         const enabled = bodyActive(controls, getDemand?.() ?? null);
-        if (!enabled) {
-          if (landmarker || loading || failedGen === loadGen) offload();
-          return { body: EMPTY_BODY_FRAME, status: statusOf(false) };
+
+        if (enabled) {
+          const model: BodyModel = controls?.body?.model ?? p.model;
+          const st = resource.status();
+          // Keyed request: a model change supersedes whatever is held or loading
+          // (a late arrival is discarded on settle) and clears a failure latch.
+          if (model !== requestedModel) {
+            requestedModel = model;
+            resource.release();
+          } else if (st.phase === 'unavailable' && st.reason === NO_CAMERA_REASON && hasFrames(video)) {
+            // The camera arrived after the gate said no: retry now, not on toggle.
+            resource.release();
+          }
         }
-        // The dial picks the model live; a change while loaded releases the old model
-        // and the next tick loads the new one (no graph rebuild).
-        const model: BodyModel = controls?.body?.model ?? p.model;
-        if ((landmarker || loading) && model !== loadedModel) offload();
-        if (video) ensureLoaded(model);
-        return { body: latest, status: statusOf(true) };
+        resource.want(enabled);
+
+        const held = resource.current();
+        if (held) {
+          if (raf === null) raf = requestAnimationFrame(loop);
+        } else {
+          stopLoop();
+          latest = EMPTY_BODY_FRAME;
+          lastVideoTime = -1;
+        }
+        const status: LoadStatus = withActive(resource.status(), latest.present, 'Body detected');
+        return { body: held ? latest : EMPTY_BODY_FRAME, status };
       },
       dispose() {
         disposed = true;
-        offload();
+        stopLoop();
+        resource.dispose();
       },
     };
   },

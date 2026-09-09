@@ -1,34 +1,28 @@
 /**
  * `webcam-body` (#186), headlessly: the pure result → frame converter, the gate
  * that decides whether the (expensive) pose model is wanted, and the lazy-load
- * lifecycle driven through a mocked tasks-vision module — off by default, loads
- * on enable, swaps model on the dial, releases on disable.
+ * lifecycle through the injected loader seam (`ctx.resources.createBodyLandmarker`,
+ * the `src/lazy` pattern): off by default, `no-camera` until the video has frames
+ * (then a self-retry), loads the dial's model on enable, swaps model on change —
+ * also after a FAILED load — and releases on disable.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NodeContext } from '@/dag';
-import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME } from '@/nodes/domain';
+import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@/nodes/domain';
 import { defaultFeatureLab } from '@/features/labConfig';
+import {
+  resultToBodyFrame,
+  bodyActive,
+  webcamBodyNode,
+  NO_CAMERA_REASON,
+  type BodyLandmarkerFactory,
+  type PoseLandmarkerLike,
+} from '@/nodes/sources/webcam_body';
 
-const created: Array<{ modelAssetPath: string; delegate?: string }> = [];
-const closed: number[] = [];
-vi.mock('@mediapipe/tasks-vision', () => ({
-  FilesetResolver: { forVisionTasks: async () => ({}) },
-  PoseLandmarker: {
-    createFromOptions: async (_fs: unknown, opts: { baseOptions: { modelAssetPath: string; delegate?: string } }) => {
-      created.push(opts.baseOptions);
-      const id = created.length;
-      return {
-        detectForVideo: () => ({ landmarks: [], worldLandmarks: [] }),
-        close: () => closed.push(id),
-      };
-    },
-  },
-}));
-
-// Imported after the mock is registered.
-const { resultToBodyFrame, bodyActive, webcamBodyNode, bodyModelUrl } = await import('@/nodes/sources/webcam_body');
-
-const flush = () => new Promise((r) => setTimeout(r, 0));
+const flush = async () => {
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+};
 
 describe('resultToBodyFrame', () => {
   it('scales normalized landmarks to pixels, keeps z, visibility and world landmarks', () => {
@@ -64,9 +58,7 @@ describe('bodyActive (the gate)', () => {
   it('the dial turns it on', () => {
     expect(bodyActive({ body: { enabled: true } })).toBe(true);
   });
-  it('a demanded body group turns it on even with the dial off (the trainer path)', () => {
-    // No body groups are catalogued yet, so a demand for one cannot match; the rule
-    // still holds structurally: a non-body demand never turns the body on.
+  it('a non-body demand never turns it on', () => {
     expect(bodyActive({ body: { enabled: false } }, new Set(['face.geom']))).toBe(false);
   });
   it('the Lab measuring a non-body group does not turn it on', () => {
@@ -75,53 +67,135 @@ describe('bodyActive (the gate)', () => {
   });
 });
 
-describe('webcam-body lifecycle (mocked tasks-vision)', () => {
+describe('webcam-body lifecycle (injected loader)', () => {
+  const created: string[] = [];
+  const closed: string[] = [];
+  let failModel: string | null = null;
+
+  const factory: BodyLandmarkerFactory = async ({ model }) => {
+    if (model === failModel) throw new Error(`no ${model} for you`);
+    created.push(model);
+    const landmarker: PoseLandmarkerLike = {
+      detectForVideo: () => ({ landmarks: [], worldLandmarks: [] }),
+      close: () => closed.push(model),
+    };
+    return { resource: { landmarker, model } };
+  };
+
+  const liveVideo = { readyState: 2, videoWidth: 640, videoHeight: 480, currentTime: 0 } as unknown as HTMLVideoElement;
+  const deadVideo = { readyState: 0, videoWidth: 0, videoHeight: 0, currentTime: 0 } as unknown as HTMLVideoElement;
+  const ctxWith = (controls: unknown, video: HTMLVideoElement = liveVideo): NodeContext => ({
+    tick: 0,
+    time: 0,
+    dt: 0,
+    resources: { video, controls: () => controls, createBodyLandmarker: factory },
+  });
+  const phase = (out: Record<string, unknown>) => (out.status as { phase: string; reason?: string });
+
   beforeEach(() => {
     created.length = 0;
     closed.length = 0;
+    failModel = null;
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
 
-  const video = { readyState: 0, videoWidth: 0, videoHeight: 0, currentTime: 0 } as unknown as HTMLVideoElement;
-  const ctxWith = (controls: unknown): NodeContext => ({
-    tick: 0,
-    time: 0,
-    dt: 0,
-    resources: { video, controls: () => controls },
-  });
-
-  it('loads nothing until enabled, loads the dial’s model on enable, swaps on change, releases on disable', async () => {
+  it('loads nothing until enabled; loads the dial’s model on enable; swaps on change; releases on disable', async () => {
     const h = webcamBodyNode.make(webcamBodyNode.params.parse({}));
     await h.init?.(ctxWith({ body: { enabled: false, model: 'lite' } }));
-    expect(created).toHaveLength(0);
     let out = h.process({}, ctxWith({ body: { enabled: false, model: 'lite' } }));
     expect(out.body).toEqual(EMPTY_BODY_FRAME);
-    expect(out.status).toEqual({ phase: 'idle', bodyDetected: false });
+    expect(phase(out).phase).toBe('off');
     expect(created).toHaveLength(0);
 
     out = h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }));
-    expect((out.status as { phase: string }).phase).toBe('loading');
+    expect(phase(out).phase).toBe('loading');
     await flush();
-    await flush();
-    expect(created).toHaveLength(1);
-    expect(created[0].modelAssetPath).toBe(bodyModelUrl('lite'));
+    expect(created).toEqual(['lite']);
     out = h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }));
-    expect((out.status as { phase: string }).phase).toBe('ready');
+    expect(phase(out).phase).toBe('ready');
 
-    // The dial picks `full`: the lite landmarker is released and full is loaded.
-    h.process({}, ctxWith({ body: { enabled: true, model: 'full' } }));
+    // The dial picks `full`: lite is released, full loads.
+    out = h.process({}, ctxWith({ body: { enabled: true, model: 'full' } }));
+    expect(phase(out).phase).toBe('loading');
     await flush();
-    await flush();
-    expect(closed).toEqual([1]);
-    expect(created).toHaveLength(2);
-    expect(created[1].modelAssetPath).toBe(bodyModelUrl('full'));
+    expect(closed).toEqual(['lite']);
+    expect(created).toEqual(['lite', 'full']);
 
-    // Disable: released, idle, nothing new created.
+    // Disable: released, off, nothing new created.
     out = h.process({}, ctxWith({ body: { enabled: false, model: 'full' } }));
-    expect(closed).toEqual([1, 2]);
-    expect(out.status).toEqual({ phase: 'idle', bodyDetected: false });
+    expect(closed).toEqual(['lite', 'full']);
+    expect(phase(out).phase).toBe('off');
     h.dispose?.();
     expect(created).toHaveLength(2);
+  });
+
+  it('a failed load is not re-hammered, and switching model retries (the review’s finding)', async () => {
+    failModel = 'lite';
+    const h = webcamBodyNode.make(webcamBodyNode.params.parse({}));
+    await h.init?.(ctxWith({ body: { enabled: true, model: 'lite' } }));
+    h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }));
+    await flush();
+    let out = h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }));
+    expect(phase(out).phase).toBe('error');
+    // Ticking on does not retry the failed model.
+    for (let i = 0; i < 5; i++) h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }));
+    await flush();
+    expect(created).toEqual([]);
+    // Picking the other model on the dial retries at once.
+    out = h.process({}, ctxWith({ body: { enabled: true, model: 'full' } }));
+    expect(phase(out).phase).toBe('loading');
+    await flush();
+    expect(created).toEqual(['full']);
+    expect(phase(h.process({}, ctxWith({ body: { enabled: true, model: 'full' } }))).phase).toBe('ready');
+    h.dispose?.();
+  });
+
+  it('with no camera frames it says so (no download), and retries by itself when frames arrive', async () => {
+    const h = webcamBodyNode.make(webcamBodyNode.params.parse({}));
+    await h.init?.(ctxWith({ body: { enabled: true, model: 'lite' } }, deadVideo));
+    let out = h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }, deadVideo));
+    expect(phase(out)).toMatchObject({ phase: 'unavailable', reason: NO_CAMERA_REASON });
+    await flush();
+    expect(created).toEqual([]);
+    // The camera comes up: the next tick loads without the player touching anything.
+    out = h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }, liveVideo));
+    expect(phase(out).phase).toBe('loading');
+    await flush();
+    expect(created).toEqual(['lite']);
+    h.dispose?.();
+  });
+
+  it('reports active while a body is detected', async () => {
+    const present: BodyFrame = { ...EMPTY_BODY_FRAME, present: true };
+    const detecting: BodyLandmarkerFactory = async ({ model }) => ({
+      resource: {
+        model,
+        landmarker: {
+          detectForVideo: () => ({
+            landmarks: [Array.from({ length: BODY_LANDMARK_COUNT }, () => ({ x: 0.5, y: 0.5, visibility: 1 }))],
+          }),
+          close: () => {},
+        },
+      },
+    });
+    // Run the rAF loop exactly ONCE when first scheduled (the loop re-arms itself, and a
+    // stub that always ran it would spin the microtask queue forever).
+    let armed = 0;
+    vi.stubGlobal('requestAnimationFrame', (cb: () => void) => {
+      if (armed++ === 0) queueMicrotask(cb);
+      return 1;
+    });
+    const h = webcamBodyNode.make(webcamBodyNode.params.parse({}));
+    const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { video: { ...liveVideo, currentTime: 1 }, controls: () => ({ body: { enabled: true } }), createBodyLandmarker: detecting } };
+    await h.init?.(ctx);
+    h.process({}, ctx);
+    await flush();
+    h.process({}, ctx); // schedules the loop
+    await flush();
+    const out = h.process({}, ctx);
+    expect((out.body as BodyFrame).present).toBe(present.present);
+    expect(phase(out).phase).toBe('active');
+    h.dispose?.();
   });
 });

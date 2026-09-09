@@ -26,7 +26,7 @@ export const replayBodyNode = defineNode<Params>({
   inputs: [],
   outputs: [
     BODY_SLOT_OUTPUT,
-    // A replay is always 'ready'; `bodyDetected` follows the replayed frame.
+    // A replay is always loaded: 'active' while the replayed frame has a body, else 'ready'.
     { name: 'status', kind: 'body-status' },
   ],
   params: Params,
@@ -34,7 +34,8 @@ export const replayBodyNode = defineNode<Params>({
     let n = 0;
     return {
       process() {
-        const ready = (present: boolean): BodyStatus => ({ phase: 'ready', bodyDetected: present });
+        const ready = (present: boolean): BodyStatus =>
+          present ? { phase: 'active', message: 'Replayed body' } : { phase: 'ready', message: 'Replay: nobody in frame' };
         if (frames.length === 0) return { body: EMPTY_BODY_FRAME, status: ready(false) };
         const i = loop ? n % frames.length : Math.min(n, frames.length - 1);
         n += 1;

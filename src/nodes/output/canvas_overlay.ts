@@ -604,14 +604,16 @@ const bodySkeleton: OverlayElement = {
     if (!params.bodySkeleton.show) return;
     const status = inputs.bodyStatus;
     const body = inputs.bodyFrame;
-    if (status && status.phase !== 'idle' && status.phase !== 'ready') {
+    // Anything but off / ready / active is worth a word: loading, no camera, failed.
+    // Top-left, clear of the Lab panel and the trainer HUD that anchor to the bottom.
+    if (status && status.phase !== 'off' && status.phase !== 'ready' && status.phase !== 'active') {
       g.save();
       g.globalAlpha = 0.8;
       g.fillStyle = BODY_COLOR;
       g.font = '12px system-ui, sans-serif';
       g.textAlign = 'left';
       g.textBaseline = 'top';
-      g.fillText(status.phase === 'error' ? 'body model failed to load' : 'body model loading…', 12, H - 20);
+      g.fillText(`Body: ${status.message}`, 12, 12);
       g.restore();
       return;
     }

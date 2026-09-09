@@ -353,8 +353,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'chordSel', port: 'chord' }, to: { node: 'overlay', port: 'chord' } },
       // The raw face frame (mesh) + classified expression, for the face overlays.
       { from: { node: 'camFace', port: 'face' }, to: { node: 'overlay', port: 'faceFrame' } },
-      // The body skeleton + the body model's load state (#186). A synthetic/replay body
-      // emits no `status`, which the overlay treats as 'nothing to report'.
+      // The body skeleton + the body model's load state (#186). Every body candidate
+      // emits `status` (a synthetic/replay body is simply always loaded), so the swap
+      // stays edge-stable.
       { from: { node: 'camBody', port: 'body' }, to: { node: 'overlay', port: 'bodyFrame' } },
       { from: { node: 'camBody', port: 'status' }, to: { node: 'overlay', port: 'bodyStatus' } },
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },

@@ -133,7 +133,7 @@ describe('the payoff: the whole body path runs with no camera', () => {
     const engine = new Engine(defaultGraph({ source: 'synthetic-hands' }, reg), reg, { validatePorts: true });
     expect(() => engine.tick()).not.toThrow();
     expect(engine.getOutput('camBody', 'body')).toEqual(EMPTY_BODY_FRAME);
-    expect(engine.getOutput('camBody', 'status')).toEqual({ phase: 'idle', bodyDetected: false });
+    expect((engine.getOutput('camBody', 'status') as { phase: string }).phase).toBe('off');
   });
 
   it('a replay body with nothing to replay emits the empty frame, never nothing', () => {

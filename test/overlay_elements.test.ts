@@ -257,12 +257,16 @@ describe('canvas-overlay composable elements', () => {
   });
 
   it('bodySkeleton: prints the load state instead of a skeleton while the model loads or fails', () => {
-    const loading = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'loading', bodyDetected: false } });
-    expect(textsOf(loading).some((t) => /loading/.test(t))).toBe(true);
-    const failed = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'error', bodyDetected: false } });
-    expect(textsOf(failed).some((t) => /failed/.test(t))).toBe(true);
-    const idle = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'idle', bodyDetected: false } });
-    expect(textsOf(idle).some((t) => /body model/.test(t))).toBe(false);
+    const loading = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'loading', message: 'Loading body model...' } });
+    expect(textsOf(loading)).toContain('Body: Loading body model...');
+    const failed = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'error', message: 'Could not load body model' } });
+    expect(textsOf(failed)).toContain('Body: Could not load body model');
+    const noCam = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'unavailable', reason: 'no-camera', message: 'Body tracking needs the camera' } });
+    expect(textsOf(noCam)).toContain('Body: Body tracking needs the camera');
+    for (const phase of ['off', 'ready', 'active'] as const) {
+      const quiet = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase, message: 'x' } });
+      expect(textsOf(quiet).some((t) => t.startsWith('Body:'))).toBe(false);
+    }
   });
 
   it('faceLandmarks (Input): one dot per landmark when a present face frame has them', () => {

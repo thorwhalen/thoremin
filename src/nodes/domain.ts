@@ -8,6 +8,7 @@
  */
 import { z } from 'zod';
 import type { SoundId } from '@/music/sounds';
+import type { LoadStatus } from '@/lazy';
 
 export interface Keypoint {
   x: number;
@@ -549,7 +550,7 @@ export const BODY_BONES: ReadonlyArray<readonly [number, number]> = [
 /**
  * One frame of full-body pose (#186). Produced by the browser `webcam-body`
  * source, the camera-free `synthetic-body`, or a `replay-body` of a recorded
- * stream (`scripts/video_to_pose.py`). `landmarks` are the 33 BlazePose points in
+ * stream (the planned `scripts/video_to_pose.py`, arriving with the body fixtures). `landmarks` are the 33 BlazePose points in
  * PIXEL coordinates of the source frame (like a hand's `keypoints`); `world` is
  * MediaPipe's metric, hip-centred set (metres) when the detector supplies it —
  * the basis for scale-free angles and velocities; `visibility` is the per-point
@@ -586,12 +587,16 @@ export const EMPTY_BODY_FRAME: BodyFrame = {
   visibility: [],
 };
 
-/** Lifecycle + detection status of the live body model (mirrors {@link FaceStatus}). */
-export interface BodyStatus {
-  phase: 'idle' | 'loading' | 'ready' | 'error';
-  bodyDetected: boolean;
-}
-export const ABSENT_BODY_STATUS: BodyStatus = { phase: 'idle', bodyDetected: false };
+/** The two live-capable PoseLandmarker variants (`heavy` is ~30 MB and ~5 fps in a
+ *  browser, so it is not offered). The one definition the dial schema, the store
+ *  snapshot and the `webcam-body` node all read. */
+export const BODY_MODELS = ['lite', 'full'] as const;
+export type BodyModel = (typeof BODY_MODELS)[number];
+
+/** The body model's lifecycle on the `status` port: the shared lazy-loading
+ *  vocabulary (#188, `src/lazy/status.ts`) — `active` while a body is detected. */
+export type BodyStatus = LoadStatus;
+export const ABSENT_BODY_STATUS: BodyStatus = { phase: 'off', message: 'Body tracking off' };
 
 /** Fetch a body landmark by index (undefined when absent / out of range). */
 export function blm(frame: BodyFrame, index: number): Keypoint | undefined {

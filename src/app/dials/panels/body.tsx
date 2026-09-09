@@ -10,8 +10,8 @@ import { selectCls } from '../primitives';
 import { BODY_MODELS } from '@/settings/schema';
 
 const MODEL_LABEL: Record<(typeof BODY_MODELS)[number], string> = {
-  lite: 'lite (fast, 6 MB)',
-  full: 'full (steadier, 9 MB)',
+  lite: 'lite (fast, 5.8 MB download)',
+  full: 'full (steadier on fast motion, 9.4 MB download)',
 };
 
 export function BodyControls() {

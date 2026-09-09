@@ -42,7 +42,7 @@ export const syntheticBodyNode = defineNode<Params>({
   outputs: [
     BODY_SLOT_OUTPUT,
     // Every body candidate reports a status so the overlay edge stays valid across a
-    // swap; a synthetic body is always 'ready' and always present.
+    // swap; a synthetic body is always present, so always 'active'.
     { name: 'status', kind: 'body-status' },
   ],
   params: Params,
@@ -72,7 +72,7 @@ export const syntheticBodyNode = defineNode<Params>({
       world,
       visibility: new Array(BODY_LANDMARK_COUNT).fill(1),
     };
-    const status: BodyStatus = { phase: 'ready', bodyDetected: true };
+    const status: BodyStatus = { phase: 'active', message: 'Synthetic body' };
     return { body: frame, status };
   },
 });
