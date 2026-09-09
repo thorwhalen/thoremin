@@ -63,7 +63,7 @@ describe('runHeadless is byte-identical to its pre-Applier self', () => {
   it('pins the SYNTHESIZED time base — a wall-clock one would pass every other test', async () => {
     // The failure this gate exists for, demonstrated rather than asserted in prose.
     // `runEngineLoop` substitutes the wall clock when a clock passes no time
-    // (src/app/engineLoop.ts: `const seconds = t ?? now()`) — correct for the live loop,
+    // (`const seconds = t ?? now()`, as the since-removed `runEngineLoop` did) — correct
     // wrong for batch. Building the Applier on that path would shift every `t` uniformly:
     // the digests move, and nothing that compares recorded values to each other notices.
     const { recorder } = await runHeadless(sweepSpec(), createCoreRegistry(), { ticks: 60, nominalDt: 1 / 30 });
