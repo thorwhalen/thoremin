@@ -18,7 +18,7 @@
  * puts a stop button next to it — the state and its undo in the one place a player
  * already looks for "what else is here".
  */
-import { FlaskConical, Command, BookOpen, Hand, X, type LucideIcon } from 'lucide-react';
+import { FlaskConical, Command, BookOpen, Hand, Music2, X, type LucideIcon } from 'lucide-react';
 import { TOOLS, type Tool } from './tools';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
@@ -31,6 +31,7 @@ const ICONS: Record<string, LucideIcon> = {
   lab: FlaskConical,
   commands: Command,
   gestures: Hand,
+  conductor: Music2,
   manual: BookOpen,
 };
 

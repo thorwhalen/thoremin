@@ -435,6 +435,11 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'conductor', port: 'enabled' }, to: { node: 'score', port: 'enabled' } },
       // The loaded piece (#187 PR 3): a ScoreDoc from the store, or nothing (the demo scale).
       { from: { node: 'ui', port: 'scoreDoc' }, to: { node: 'score', port: 'doc' } },
+      // The same piece feeds the conductor its meter and fermatas (PR 4), and the
+      // conductor's musical time + enable flag reach the overlay's beat HUD.
+      { from: { node: 'ui', port: 'scoreDoc' }, to: { node: 'conductor', port: 'doc' } },
+      { from: { node: 'conductor', port: 'time' }, to: { node: 'overlay', port: 'conductorTime' } },
+      { from: { node: 'conductor', port: 'enabled' }, to: { node: 'overlay', port: 'conductorEnabled' } },
       // The conducted score joins the hand voices and both face chords at the merge, so
       // the master mute and the synth/MIDI/overlay taps cover it for free.
       { from: { node: 'score', port: 'params' }, to: { node: 'merge', port: 'd' } },

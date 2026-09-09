@@ -39,6 +39,7 @@ import { useFaceStatus } from './faceStatus';
 import { useMidiStatus } from './midiStatus';
 import { useGenerativeStatus, makeGenerativeReporter } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
+import { useConductorStatus, makeConductorReporter } from './conductorStatus';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -361,6 +362,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // section can render an honest readout (loading / ready / playing / needs a
         // key). Change-gated inside the reporter, like the others.
         const reportGenerative = makeGenerativeReporter(engine);
+        // Bridge the `conductor` node's musical time to React (#187), for the Conductor
+        // tool panel's live readout. Change-gated inside the reporter, like the others.
+        const reportConductor = makeConductorReporter(engine);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -400,7 +404,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative)],
+          sinks: [toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -434,6 +438,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useMidiStatus.getState().reset();
       useGestureStatus.getState().reset();
       useGenerativeStatus.getState().reset();
+      useConductorStatus.getState().reset();
       uninstallDebug();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
       useControls.getState().setSteerPlaying(false);

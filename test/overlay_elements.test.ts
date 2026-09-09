@@ -235,6 +235,22 @@ describe('canvas-overlay composable elements', () => {
     expect(drawChord([49]).count('stroke')).toBe(0);
   });
 
+  it('conductorHud (Output, #187): a phase ring + count + tempo while conducting; nothing when off', () => {
+    const running = { t: 1, beat: 5.25, phase: 0.25, tempo: 70, period: 60 / 70, confidence: 0.8, nextBeatAt: 1.6, beatsPerBar: 4, beatInBar: 1, state: 'running', anchors: 6 };
+    const rc = drawWith(onlyElement('conductorHud'), { conductorTime: running, conductorEnabled: true });
+    const arcs = rc.calls.filter((c) => c.m === 'arc');
+    expect(arcs.length).toBeGreaterThanOrEqual(2); // the ring and the phase arc
+    const texts = rc.calls.filter((c) => c.m === 'fillText').map((c) => String(c.args[0]));
+    expect(texts).toContain('2'); // beat 5 in 4/4 is the second beat of the bar
+    expect(texts.some((t) => /70 bpm/.test(t))).toBe(true);
+    // Holding: the words say so, no phase arc.
+    const held = drawWith(onlyElement('conductorHud'), { conductorTime: { ...running, state: 'hold', tempo: 0 }, conductorEnabled: true });
+    expect(held.calls.filter((c) => c.m === 'fillText').map((c) => String(c.args[0]))).toContain('holding');
+    // Off: nothing at all.
+    expect(drawWith(onlyElement('conductorHud'), { conductorTime: running, conductorEnabled: false }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+    expect(drawWith(onlyElement('conductorHud'), { conductorEnabled: true }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+  });
+
   it('bodySkeleton (Input, #186): bones + a dot per visible landmark, mirrored; nothing when absent', () => {
     const { landmarks, world } = makeBodyKeypoints({ width: 640, height: 480, cx: 0.5, cy: 0.6, torso: 100, leftArm: 0.5, rightArm: 0.2, kneeBend: 0, lean: 0 });
     const bodyFrame: BodyFrame = { width: 640, height: 480, present: true, landmarks, world, visibility: new Array(33).fill(1) };

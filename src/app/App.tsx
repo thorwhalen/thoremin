@@ -32,6 +32,7 @@ import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel from './TrainerPanel';
 import ScoreLoader from './ScoreLoader';
+import ConductorPanel from './ConductorPanel';
 import VersionBadge from './VersionBadge';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
@@ -148,6 +149,8 @@ export default function App({
 
       {/* Trainer mode (#160) — renders when its tool is the open one. */}
       <TrainerPanel />
+      {/* Conductor mode (#187) — renders when its tool is the open one. */}
+      <ConductorPanel />
       {/* The conductor's score (#187 PR 3): loads the selected piece when conducting is on. */}
       <ScoreLoader />
 

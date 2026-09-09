@@ -27,6 +27,14 @@
  * freezes: `bpm` reads 0 and the score sustains whatever is sounding. Disabling resets
  * the beat to 0, so re-enabling starts the piece from the top on a clean downbeat.
  *
+ * The score (PR 3/4): the loaded `ScoreDoc` on the `doc` input supplies the meter
+ * (beats per bar from its time signature, so `beatInBar` counts the way the piece is
+ * written) and its **fermatas**: when the beat would cross a fermata, it stops exactly
+ * there and holds — `bpm` 0, the note sustains, the HUD says "holding" — until the
+ * conductor's next stroke, the preparatory beat that releases a fermata in every
+ * shipped system (§6.3). Without a document the dial's `beatsPerBar` is used and there
+ * are no fermatas.
+ *
  * The dial. {@link ConductorDialSchema} IS this node's params (the `faceControls`
  * pattern): the `conductor` dial re-exports it, the `config` input overrides the
  * build-time params live per tick, and `commands/paths.ts` derives a `dial.setIn`
@@ -44,6 +52,7 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@/ictus';
 import { LM, type Hand, type HandsFrame } from '../domain';
+import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@/score/schema';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
 export type ConductorHand = (typeof CONDUCTOR_HANDS)[number];
@@ -146,6 +155,8 @@ export const conductorNode = defineNode<Params>({
   inputs: [
     { name: 'hands', kind: 'hands-frame' },
     { name: 'config', kind: 'conductor-config' },
+    // The loaded piece (#187 PR 3/4): its time signature and fermatas. Optional.
+    { name: 'doc', kind: 'score-doc' },
   ],
   outputs: [
     { name: 'time', kind: 'musical-time', schema: MusicalTimeSchema },
@@ -166,10 +177,32 @@ export const conductorNode = defineNode<Params>({
     /** The beat the score reads: integrated here, phase-servoed onto the ictus. */
     let beatOut = 0;
     let wasEnabled = false;
+    // The document's fermatas (sorted beats) and meter, re-read when the doc object changes.
+    let docRef: unknown = null;
+    let fermatas: number[] = [];
+    let docMeter: ((beat: number) => number) | null = null;
+    /** Fermata hold: the beat we stopped at, and the anchor count when we stopped (a
+     *  NEW stroke — one more anchor — releases it). */
+    let fermataAt: number | null = null;
+    let fermataAnchors = 0;
     // Speed-based fallback: EW speed of the tracked point and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
     let speedEw = 0;
     let speedEnv = 0;
+
+    const resolveDoc = (raw: unknown): void => {
+      if (raw === docRef) return;
+      docRef = raw;
+      fermatas = [];
+      docMeter = null;
+      fermataAt = null;
+      if (!raw || typeof raw !== 'object') return;
+      const parsed = ScoreDocSchema.safeParse(raw);
+      if (!parsed.success) return;
+      const doc = parsed.data as ScoreDoc;
+      fermatas = [...doc.fermatas].sort((a, b) => a - b);
+      docMeter = (beat) => beatsPerBarAt(doc, beat);
+    };
 
     const resolveConfig = (raw: unknown): Params => {
       if (raw === lastConfigRef) return cfg;
@@ -215,6 +248,8 @@ export const conductorNode = defineNode<Params>({
     return {
       process(inputs, ctx: NodeContext) {
         const c = resolveConfig(inputs.config);
+        resolveDoc(inputs.doc);
+        const beatsPerBar = docMeter ? docMeter(beatOut) : c.beatsPerBar;
         if (!c.enabled) {
           if (wasEnabled) {
             ictus = null;
@@ -222,9 +257,10 @@ export const conductorNode = defineNode<Params>({
             speedEw = 0;
             speedEnv = 0;
             beatOut = 0;
+            fermataAt = null;
             wasEnabled = false;
           }
-          return emit(idleTime(ctx.time, c.beatsPerBar), 0, 0, 0.5, false, c);
+          return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
         }
         if (!wasEnabled || !ictus) {
           ictus = createIctus({
@@ -255,7 +291,11 @@ export const conductorNode = defineNode<Params>({
         // 2. Blend the inferred tempo with the speed fallback by confidence; integrate.
         const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
         let bpm: number;
-        if (s.state === 'hold' || s.anchors === 0) {
+        // A fermata releases on the NEXT stroke after it was reached.
+        if (fermataAt !== null && s.anchors > fermataAnchors) fermataAt = null;
+        if (fermataAt !== null) {
+          bpm = 0;
+        } else if (s.state === 'hold' || s.anchors === 0) {
           // Holding, or no stroke seen yet (the preparatory beat has not come): frozen.
           bpm = 0;
         } else {
@@ -269,10 +309,22 @@ export const conductorNode = defineNode<Params>({
             const err = wrapPhase(advanced - beatAt(s, ctx.time));
             corrected = advanced - w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
           }
-          beatOut = Math.max(beatOut, corrected);
+          let next = Math.max(beatOut, corrected);
+          // 4. Fermatas: stop exactly on one the beat would cross, and hold there.
+          for (const f of fermatas) {
+            if (f > beatOut && f <= next) {
+              next = f;
+              fermataAt = f;
+              fermataAnchors = s.anchors;
+              bpm = 0;
+              break;
+            }
+          }
+          beatOut = next;
         }
 
         const wholeBeat = Math.floor(beatOut);
+        const bpb = docMeter ? docMeter(beatOut) : c.beatsPerBar;
         const time: MusicalTime = {
           t: ctx.time,
           beat: beatOut,
@@ -281,9 +333,10 @@ export const conductorNode = defineNode<Params>({
           period: bpm > 0 ? 60 / bpm : Infinity,
           confidence: s.confidence,
           nextBeatAt: bpm > 0 ? ctx.time + ((1 - (beatOut - wholeBeat)) * 60) / bpm : Infinity,
-          beatsPerBar: c.beatsPerBar,
-          beatInBar: ((wholeBeat % c.beatsPerBar) + c.beatsPerBar) % c.beatsPerBar,
-          state: s.state,
+          beatsPerBar: bpb,
+          beatInBar: ((wholeBeat % bpb) + bpb) % bpb,
+          // A fermata reads as a hold to every consumer (the HUD, the panel, the score).
+          state: fermataAt !== null ? 'hold' : s.state,
           anchors: s.anchors,
         };
         return emit(time, bpm, s.dynamics, s.articulation, true, c);

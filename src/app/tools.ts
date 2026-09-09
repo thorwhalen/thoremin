@@ -90,6 +90,13 @@ export const TOOLS: readonly Tool[] = [
     kind: 'panel',
   },
   {
+    id: 'conductor',
+    label: 'Conductor',
+    description:
+      'Conduct a score with your hand: beat time in front of the camera and the piece follows your tempo and dynamics.',
+    kind: 'panel',
+  },
+  {
     id: 'trainer',
     label: 'Trainer',
     description:
