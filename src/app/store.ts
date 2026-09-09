@@ -48,6 +48,7 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
+import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL, type ConductorDialParams } from '@/nodes/features/conductor';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
@@ -59,6 +60,8 @@ const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
 const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CONTROLS_DIAL });
 /** A fresh generative-layer default (the `config` object is cloned for the same reason). */
 const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structuredClone(DEFAULT_STEER.config) });
+/** A fresh copy of the shipped conductor dial (#187): off. */
+const defaultConductor = (): ConductorDialParams => ({ ...DEFAULT_CONDUCTOR_DIAL });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -170,6 +173,10 @@ export interface ControlState {
    * rebuild or a face-model reload.
    */
   faceControls: FaceControlsDialParams;
+  /** The conductor dial (#187): on/off, hand, point, servo horizon, fallback and
+   *  dynamics ranges. A preset field, fed live to the `conductor` node's `config` port
+   *  through store-controls, so conducting starts with no rebuild. */
+  conductor: ConductorDialParams;
   /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
    *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
@@ -449,6 +456,16 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   // has none → the defaults; a corrupt blob falls back rather than crashing a newer
   // reader. Note the blob's `bindings` record replaces the default wholesale (an
   // unbound-by-the-user gesture must STAY unbound, not be re-seeded every load).
+  // Heal the conductor dial (#187) exactly like faceControls: a pre-conductor blob has
+  // none → off; a corrupt one falls back rather than crashing a newer reader.
+  let conductor = current.conductor;
+  if (p.conductor) {
+    try {
+      conductor = ConductorDialSchema.parse(p.conductor);
+    } catch {
+      conductor = current.conductor;
+    }
+  }
   let gestures = current.gestures;
   if (p.gestures) {
     try {
@@ -459,7 +476,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, steer, faceControls, gestures, steerPlaying: current.steerPlaying };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -496,6 +513,7 @@ export const useControls = create<ControlState>()(
       steer: defaultSteer(),
       steerPlaying: false,
       faceControls: defaultFaceControls(),
+      conductor: defaultConductor(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       trainerHud: TrainerHudParamsSchema.parse({}),
@@ -587,7 +605,10 @@ export const useControls = create<ControlState>()(
       // volume / config). ADDITIVE with a default (off), healed by mergeControls, so no
       // data transform is needed — the bump is the version marker for the schema growth.
       // The transport (`steerPlaying`) is transient and not persisted, like `muted`.
-      version: 11,
+      // Version 12: #187 added the `conductor` preset field (the conductor node's params:
+      // off by default, hand/point, servo horizon, fallback + dynamics ranges). ADDITIVE
+      // with a default, healed by mergeControls; the bump marks the schema growth.
+      version: 12,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

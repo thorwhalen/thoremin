@@ -10,7 +10,7 @@ The mapping layer spans a spectrum: **direct** (a gesture *is* a note/parameter 
 
 Everything runs **client-side**: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.
 
-This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.
+This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here are built and tested but are not wired into the default graph: the generative ones, and `transport` + `performance` (conductor mode's original clock and control mapping, kept for the non-conductor chain now that `conductor` + `score` are wired behind the Conductor dial, #187).
 
 ## Example pipelines
 
@@ -18,8 +18,8 @@ This page catalogs the engine's building blocks — every node, its ports and it
   Hand x → scale-snapped pitch, y → volume. Two hands = two voices.
 - **Gesture → harmony** — `hand-features → pick('right.x') → progression → chord → webaudio-synth`  
   Hand position walks an in-key chord progression.
-- **Conductor** — `control → performance → transport → score → webaudio-synth`  
-  A control signal directs a fixed piece's tempo + dynamics (accelerando/crescendo…).
+- **Conductor** — `webcam-hands → conductor → score → synth-merge → webaudio-synth`  
+  The beating hand becomes musical time (src/ictus): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece's tempo + dynamics, directed live. Behind the Conductor dial.
 - **Indirect / AI (gesture or expression)** — `hand-features / face-features → indirect-map → lyria`  
   Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (36)
+## Nodes (37)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -272,7 +272,7 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord); master mute.
 
 - **roles:** mapping
-- **in:** a:synth-params, b:synth-params, c:synth-params, mute:boolean
+- **in:** a:synth-params, b:synth-params, c:synth-params, d:synth-params, mute:boolean
 - **out:** params:synth-params
 - **params:** —
 
@@ -322,6 +322,14 @@ Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pi
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._
 
+#### `conductor` — Conductor
+The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.
+
+- **roles:** feature, mapping
+- **in:** hands:hands-frame, config:conductor-config
+- **out:** time:musical-time, beat:number, bpm:number, velocityScale:number, phase:number, dynamics:number, articulation:number, confidence:number, enabled:boolean
+- **params:** enabled (boolean=false), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), mirrorX (boolean=true), mirrorHandedness (boolean=true), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), phaseGain (number=0.5), periodGain (number=0.4)
+
 #### `transport` — Transport
 Beat clock: integrates BPM over time into a running beat position.
 
@@ -334,7 +342,7 @@ Beat clock: integrates BPM over time into a running beat position.
 An immutable piece performed live: beat + velocityScale → sounding synth voices.
 
 - **roles:** music
-- **in:** beat:number, velocityScale:number
+- **in:** beat:number, velocityScale:number, enabled:boolean
 - **out:** params:synth-params
 - **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")
 

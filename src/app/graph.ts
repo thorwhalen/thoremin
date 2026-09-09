@@ -37,6 +37,7 @@ import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
  * one that holds the default agree exactly. Exported for the tests.
  */
 export const STARTER_STEER = DEFAULT_STEER_CONFIG;
+import { DEMO_SCALE_NOTES } from '@/nodes/music/score';
 
 /**
  * A Slot is a named, role-typed swap point the graph builder fills from config.
@@ -257,6 +258,14 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // dispatches per the user's binding map. Pure per-tick classification, so it
       // costs nothing meaningful when gesture bindings are disabled.
       { id: 'gesture', type: 'gesture-classifier', params: {} },
+      // Conductor mode (#187, settling #180): the beating hand becomes musical time
+      // (src/ictus) and the `score` node performs a piece at that tempo and dynamics.
+      // Both idle until the `conductor.enabled` dial is on — the conductor emits a
+      // frozen beat and `enabled: false`, and the score emits silent voices — so the
+      // hand instrument is untouched for a player who never conducts. The score's
+      // content is the built-in demo scale until the score pipeline lands (PR 3).
+      { id: 'conductor', type: 'conductor', params: {} },
+      { id: 'score', type: 'score', params: { notes: DEMO_SCALE_NOTES, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
       // handler that dispatches dial commands; octave-shift / magnetism / mute now
       // flow from the store via `ui` (store-controls), so no keyboard nodes here.
@@ -406,6 +415,21 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // the mapping/overlay read (additive fan-out — the original edges are
       // untouched). Its `poses` output is read app-side by the gesture dispatcher.
       { from: { node: 'feat', port: 'features' }, to: { node: 'gesture', port: 'features' } },
+      // Conductor mode (#187): the follower taps the SAME hand frames (additive fan-out);
+      // its dial reaches it as a LIVE `config` input — the #147 template, so turning
+      // conducting on is a dial write, never a rebuild — and `app_graph.test.ts` asserts
+      // this edge structurally (a node with an unconnected enable is how #120 shipped
+      // unreachable). The score reads ONE beat from ONE node: the conductor integrates
+      // the beat itself (blending the ictus with a speed fallback by confidence), so no
+      // second beat source fans into `score.beat`.
+      { from: { node: 'cam', port: 'hands' }, to: { node: 'conductor', port: 'hands' } },
+      { from: { node: 'ui', port: 'conductor' }, to: { node: 'conductor', port: 'config' } },
+      { from: { node: 'conductor', port: 'beat' }, to: { node: 'score', port: 'beat' } },
+      { from: { node: 'conductor', port: 'velocityScale' }, to: { node: 'score', port: 'velocityScale' } },
+      { from: { node: 'conductor', port: 'enabled' }, to: { node: 'score', port: 'enabled' } },
+      // The conducted score joins the hand voices and both face chords at the merge, so
+      // the master mute and the synth/MIDI/overlay taps cover it for free.
+      { from: { node: 'score', port: 'params' }, to: { node: 'merge', port: 'd' } },
     ],
   };
 }

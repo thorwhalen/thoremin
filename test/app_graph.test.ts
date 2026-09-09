@@ -53,6 +53,10 @@ describe('production app graph', () => {
     // The body branch (#186) sits before the overlay that draws its skeleton, and its
     // feature-vector tap between the two.
     expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('overlay'));
+    // Conductor mode (#187): the follower taps the hand frames and the score merges in.
+    expect(order.indexOf('cam')).toBeLessThan(order.indexOf('conductor'));
+    expect(order.indexOf('conductor')).toBeLessThan(order.indexOf('score'));
+    expect(order.indexOf('score')).toBeLessThan(order.indexOf('merge'));
     // Generative layer (#141 / #188): indirect-map taps the hand + face features and
     // feeds the lyria sink; both sit after their sources and after the store node.
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('imap'));
@@ -64,8 +68,9 @@ describe('production app graph', () => {
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('overlay'));
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
-    // source and its vector tap + the #141/#188 generative pair (indirect-map + lyria).
-    expect(order).toHaveLength(22);
+    // source and its vector tap + the #141/#188 generative pair (indirect-map + lyria)
+    // + the #187 conductor and score.
+    expect(order).toHaveLength(24);
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
@@ -206,6 +211,26 @@ describe('production app graph', () => {
     // that the mounted node is actually read lives in test/gesture_dispatch.test.ts.
   });
 
+  it('wires the conductor live from the store and the score behind it — the #187 guard', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The dial reaches the node as a LIVE input (the #147 template): `config` left
+    // unconnected would mean conducting can never be turned on from the app.
+    expect(has('ui', 'conductor', 'conductor', 'config')).toBe(true);
+    expect(has('cam', 'hands', 'conductor', 'hands')).toBe(true);
+    // The score reads ONE beat from ONE node, plus the dynamics and the enable gate.
+    expect(has('conductor', 'beat', 'score', 'beat')).toBe(true);
+    expect(has('conductor', 'velocityScale', 'score', 'velocityScale')).toBe(true);
+    expect(has('conductor', 'enabled', 'score', 'enabled')).toBe(true);
+    expect(edges.filter((e) => e.to.node === 'score' && e.to.port === 'beat')).toHaveLength(1);
+    // The conducted score joins the other producers at the merge (mute + taps cover it).
+    expect(has('score', 'params', 'merge', 'd')).toBe(true);
+    const inbound = edges.filter((e) => e.to.node === 'conductor').map((e) => e.to.port);
+    expect(inbound).toContain('config');
+    expect(inbound).toContain('hands');
+  });
+
   it('routes the mute to the merge so it silences the chords too (#91)', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
@@ -237,12 +262,13 @@ describe('production app graph', () => {
     expect(params[0].voices).toHaveLength(2);
 
     // The synth's actual input is the merge of hand voices (0,1) + the 4 stable
-    // emotion-chord voices (2..5) + the 5 stable pose-chord voices (6..10) — all
-    // distinct ids, all silent while both face chord sources are idle (#76).
+    // emotion-chord voices (2..5) + the 5 stable pose-chord voices (6..10) + the 8
+    // demo-score voices (11..18, #187) — all distinct ids, all silent while both face
+    // chord sources are idle (#76) and conducting is off.
     const merged = recorder.values('merge.params') as SynthParams[];
     const ids = merged[0].voices.map((v) => v.id);
-    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    expect(new Set(ids).size).toBe(11); // no id collision across hands + both chords
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(new Set(ids).size).toBe(19); // no id collision across hands + chords + score
     expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });
 });

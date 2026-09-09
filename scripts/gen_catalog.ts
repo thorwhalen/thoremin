@@ -23,7 +23,7 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Features', blurb: 'Raw sensor data → normalized control signals.', types: ['hand-features', 'face-features', 'face-controls', 'face-expression', 'gesture-classifier', 'face-feature-vector', 'hand-feature-vector', 'body-feature-vector'] },
   { name: 'Mapping (direct ↔ indirect)', blurb: 'Features → engine parameters, across the expression spectrum.', types: ['voice-mapping', 'indirect-map', 'keyboard-control', 'pick', 'one-euro', 'synth-merge', 'chord-select'] },
   { name: 'Music logic (tonal guidance)', blurb: 'Harmony kept in-key.', types: ['chord', 'progression', 'expression-chord', 'pose-chord'] },
-  { name: 'Conductor mode', blurb: 'Direct a fixed piece with gesture (tempo + dynamics).', types: ['transport', 'score', 'performance'] },
+  { name: 'Conductor mode', blurb: 'Direct a fixed piece with gesture (tempo + dynamics).', types: ['conductor', 'transport', 'score', 'performance'] },
   { name: 'Synthesis & generation', blurb: 'Make sound — direct synthesis, steered AI music, or an external MIDI instrument.', types: ['webaudio-synth', 'lyria', 'midi-out'] },
   { name: 'Output', blurb: 'Audio + the captured video with overlaid guides.', types: ['canvas-overlay'] },
 ];
@@ -37,7 +37,7 @@ The mapping layer spans a spectrum: **direct** (a gesture *is* a note/parameter 
 
 Everything runs **client-side**: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.
 
-This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here (the generative and conductor-mode ones) are built and tested but are not wired into the default graph.`;
+This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here are built and tested but are not wired into the default graph: the generative ones, and \`transport\` + \`performance\` (conductor mode's original clock and control mapping, kept for the non-conductor chain now that \`conductor\` + \`score\` are wired behind the Conductor dial, #187).`;
 
 /**
  * The AI-assistant section. The model table is generated from the SAME registry the app
@@ -62,7 +62,7 @@ Two things worth knowing:
 const EXAMPLES: Array<{ title: string; chain: string; note: string }> = [
   { title: 'Theremin (direct)', chain: 'webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)', note: 'Hand x → scale-snapped pitch, y → volume. Two hands = two voices.' },
   { title: 'Gesture → harmony', chain: "hand-features → pick('right.x') → progression → chord → webaudio-synth", note: 'Hand position walks an in-key chord progression.' },
-  { title: 'Conductor', chain: 'control → performance → transport → score → webaudio-synth', note: 'A control signal directs a fixed piece\'s tempo + dynamics (accelerando/crescendo…).' },
+  { title: 'Conductor', chain: 'webcam-hands → conductor → score → synth-merge → webaudio-synth', note: 'The beating hand becomes musical time (src/ictus): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece\'s tempo + dynamics, directed live. Behind the Conductor dial.' },
   { title: 'Indirect / AI (gesture or expression)', chain: 'hand-features / face-features → indirect-map → lyria', note: 'Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.' },
   { title: 'Discrete triggers', chain: 'hand-features → gesture-classifier → (events)', note: 'Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.' },
 ];
