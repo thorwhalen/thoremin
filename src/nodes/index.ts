@@ -29,6 +29,7 @@ import { synthMergeNode } from './mapping/synth_merge';
 import { chordSelectNode } from './mapping/chord_select';
 import { pickNode } from './mapping/pick';
 import { oneEuroNode } from './mapping/one_euro';
+import { delayNode } from './mapping/delay';
 import { lyriaNode } from './output/lyria';
 import { chordNode } from './music/chord';
 import { expressionChordNode } from './music/expression_chord';
@@ -76,6 +77,7 @@ export { synthMergeNode } from './mapping/synth_merge';
 export { chordSelectNode } from './mapping/chord_select';
 export { pickNode } from './mapping/pick';
 export { oneEuroNode } from './mapping/one_euro';
+export { delayNode } from './mapping/delay';
 export { lyriaNode } from './output/lyria';
 export { chordNode, voiceChord } from './music/chord';
 export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './music/expression_chord';
@@ -111,6 +113,7 @@ export const CORE_NODES = [
   chordSelectNode,
   pickNode,
   oneEuroNode,
+  delayNode,
   lyriaNode,
   chordNode,
   expressionChordNode,

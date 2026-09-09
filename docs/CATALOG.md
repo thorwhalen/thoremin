@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (37)
+## Nodes (38)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -283,6 +283,14 @@ Pick the first non-empty of two chord-tone streams (e.g. emotion triad vs pose c
 - **in:** a:number[], b:number[]
 - **out:** chord:number[]
 - **params:** —
+
+#### `delay` — Delay
+Emit the input value from N ticks ago; nothing until that much history exists.
+
+- **roles:** mapping
+- **in:** value:any
+- **out:** value:any
+- **params:** ticks (number=1)
 
 ### Music logic (tonal guidance)
 _Harmony kept in-key._

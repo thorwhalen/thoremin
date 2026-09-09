@@ -49,7 +49,7 @@ interface BuiltNode {
   /** input port name -> default value (from PortSpec.default), if any. */
   inputDefaults: Map<string, unknown>;
   /** incoming edges, grouped by target input port. */
-  incoming: Map<string, { node: string; port: string }>;
+  incoming: Map<string, { node: string; port: string; delayed?: boolean }>;
 }
 
 export interface EngineOptions {
@@ -140,6 +140,23 @@ export class Engine {
   private outputs = new Map<string, PortValues>();
   private taps: Tap[];
   private resourcesObject: Record<string, unknown>;
+  /**
+   * What every node had emitted by the end of the PREVIOUS tick — the source for
+   * {@link EdgeSpec.delayed} edges.
+   *
+   * Kept as a snapshot rather than by clearing `outputs`, because `outputs` is
+   * deliberately never cleared: it holds the *latest value a node produced*, which is
+   * what `getOutput` promises and what overlays, the StateReader and the UI read. A node
+   * that emits nothing this tick must keep showing its last value there.
+   */
+  private prevOutputs: Map<string, PortValues> = new Map();
+  /**
+   * Whether the compiled graph contains any delayed edge. When it does not — every graph
+   * shipped today — the per-tick snapshot below is skipped entirely, so a graph without
+   * feedback pays nothing for this feature and its recorded output is unchanged by
+   * construction rather than by testing. (It is tested anyway.)
+   */
+  private hasDelayedEdges = false;
   private nominalDt: number;
   private validatePorts: boolean;
   private log?: (msg: string) => void;
@@ -172,9 +189,10 @@ export class Engine {
     this.log = opts.log;
     this.registry = registry;
     this.spec = spec;
-    const { nodes, order } = compile(spec, registry, new Map());
+    const { nodes, order, hasDelayed } = compile(spec, registry, new Map());
     this.nodes = nodes;
     this.order = order;
+    this.hasDelayedEdges = hasDelayed;
     for (const id of nodes.keys()) this.outputs.set(id, {});
   }
 
@@ -257,7 +275,7 @@ export class Engine {
     const previousSpec = this.spec;
 
     // 1. PLAN — throws before anything is mutated.
-    const { nodes, order, fresh, kept } = compile(next, registry, previous);
+    const { nodes, order, fresh, kept, hasDelayed } = compile(next, registry, previous);
 
     // 2. PREPARE — init the new instances while the old graph keeps ticking.
     if (this.started) {
@@ -296,7 +314,14 @@ export class Engine {
     }
     this.nodes = nodes;
     this.order = order;
+    this.hasDelayedEdges = hasDelayed;
     this.outputs = outputs;
+    // Re-base the delayed-read snapshot on the committed outputs. Carrying the OLD
+    // snapshot across a swap would feed a rebuilt node a value from a graph that no
+    // longer exists; starting from `outputs` means a delayed edge reads what the kept
+    // nodes actually hold, and nothing for the fresh ones — the same one-tick hole a
+    // fresh node has on its ordinary inputs.
+    this.prevOutputs = new Map(outputs);
     this.spec = next;
     this.registry = registry;
     this.version += 1;
@@ -378,6 +403,11 @@ export class Engine {
     // caller bug; doing nothing is the safe reading of it.
     if (this.disposed) return;
     this.tickIndex += 1;
+    // Snapshot before anything runs, so every delayed read in this tick sees the same
+    // end-of-last-tick state regardless of evaluation order. Shallow: the port objects
+    // are the very ones the nodes emitted and are treated as immutable, as `getOutput`
+    // already assumes.
+    if (this.hasDelayedEdges) this.prevOutputs = new Map(this.outputs);
     const t = time ?? (this.tickIndex * this.nominalDt);
     const dt = this.tickIndex === 0 ? 0 : Math.max(0, t - this.lastTime);
     this.lastTime = t;
@@ -420,7 +450,12 @@ export class Engine {
     // Start from declared defaults so unconnected inputs are well-defined.
     for (const [port, def] of node.inputDefaults) inputs[port] = def;
     for (const [port, src] of node.incoming) {
-      const upstream = this.outputs.get(src.node);
+      // A delayed edge reads the snapshot taken at the top of this tick — i.e. what the
+      // source had emitted by the END of the previous one. Reading `this.outputs` would
+      // give whatever is there NOW, which for a node earlier in the order is this tick's
+      // value (no delay at all) and for a later one is last tick's (a delay by accident
+      // of ordering). The snapshot makes it one tick either way.
+      const upstream = (src.delayed ? this.prevOutputs : this.outputs).get(src.node);
       const v = upstream ? upstream[src.port] : undefined;
       if (v !== undefined) inputs[port] = v;
     }
@@ -504,7 +539,7 @@ function compile(
   spec: GraphSpec,
   registry: NodeRegistry,
   reusable: ReadonlyMap<string, BuiltNode>,
-): { nodes: Map<string, BuiltNode>; order: string[]; fresh: string[]; kept: string[] } {
+): { nodes: Map<string, BuiltNode>; order: string[]; fresh: string[]; kept: string[]; hasDelayed: boolean } {
   const nodes = new Map<string, BuiltNode>();
   const fresh: string[] = [];
   const kept: string[] = [];
@@ -562,10 +597,10 @@ function compile(
             `fan-in to one input is not allowed (use a merge node).`,
         );
       }
-      target.incoming.set(e.to.port, { node: e.from.node, port: e.from.port });
+      target.incoming.set(e.to.port, { node: e.from.node, port: e.from.port, delayed: e.delayed });
     }
 
-    return { nodes, order: topoSort(nodes, spec.edges), fresh, kept };
+    return { nodes, order: topoSort(nodes, spec.edges), fresh, kept, hasDelayed: spec.edges.some((e) => e.delayed === true) };
   } catch (err) {
     // Release anything this failed compile constructed. Reused instances belong
     // to the live graph and are deliberately left alone.
@@ -598,6 +633,14 @@ function topoSort(nodes: ReadonlyMap<string, BuiltNode>, edges: readonly EdgeSpe
     adj.set(id, new Set());
   }
   for (const e of edges) {
+    // A delayed edge carries LAST tick's value, so it imposes no ordering constraint on
+    // this one — it is deliberately invisible here. That is the whole mechanism: the same
+    // pair of nodes that would be a cycle through an ordinary edge is acyclic through a
+    // delayed one, with no special case in the sort itself.
+    //
+    // It also legalises the self-loop the next line rejects: `a.out -> a.in` delayed is a
+    // node reading its own previous output, which is an accumulator, not a cycle.
+    if (e.delayed) continue;
     if (e.from.node === e.to.node) {
       throw new Error(`Engine: self-loop on node "${e.from.node}" not allowed in v0`);
     }

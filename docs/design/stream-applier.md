@@ -348,10 +348,26 @@ boundaries allow.
   - ⏳ **`OfflineAudioContext` render-then-play** behind an explicit action. Not built:
     its value is a listening judgment (does the rendered take sound right?), which is a
     human-only check — tracked on #146 rather than blocking the mechanism above.
-  - ⏳ **The `delay` node + delayed-edge topoSort** (the only engine change on the whole
-    path), and migrating `StateReader` onto it. Not built: it is a purity improvement
-    over the working topo-order channel from M-F, and it is a real engine change, so it
-    earns its own PR and its own byte-identity check.
+  - ✅ **Delayed edges + the `delay` node.** `EdgeSpec.delayed` marks an edge as carrying
+    the source's value from the **previous** tick. `topoSort` skips such edges entirely,
+    so they impose no ordering and therefore cannot form a cycle — the same pair of nodes
+    that is illegal through an ordinary edge is legal through a delayed one, with no
+    special case in the sort. It also legalises a self-loop, which delayed is an
+    accumulator rather than a cycle. Reads come from a snapshot taken at the top of the
+    tick, NOT from `outputs`: `outputs` is deliberately never cleared (it is what
+    `getOutput` promises), so reading it gives this tick's value for a node that already
+    ran and last tick's for one that has not — a delay by accident of ordering, which is
+    precisely the trick this replaces.
+
+    The **`delay` node** (`src/nodes/mapping/delay.ts`) is the other tool and a different
+    one: it aligns streams by N ticks and has no effect on ordering at all. It cannot
+    break a cycle — the sort still sees its edges — which is the mistake worth naming.
+    Reach for the edge when the graph would otherwise be cyclic, the node when it would
+    not.
+
+    `StateReader` is deliberately NOT migrated yet: it works, it is used, and swapping its
+    backing is a separate change with its own blast radius. The delay mechanism it would
+    move onto now exists, which was the prerequisite.
   - ⏳ **Recorder backpressure** — folds into #88, not this milestone.
 
 ## M-C resolved: host-side Source for video, node-swap for frame-emitters

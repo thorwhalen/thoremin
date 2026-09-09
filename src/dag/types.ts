@@ -154,6 +154,20 @@ export interface NodeSpec {
 export interface EdgeSpec {
   from: { node: string; port: string };
   to: { node: string; port: string };
+  /**
+   * Carry the source port's value from the **previous** tick instead of this one.
+   *
+   * This is what lets a graph express feedback. The engine evaluates nodes once per tick
+   * in topological order, so an ordinary edge from a node that runs *later* would be a
+   * cycle — which `topoSort` rejects. A delayed edge is excluded from that dependency
+   * ordering entirely: it cannot create a cycle, because it does not constrain the order.
+   *
+   * The delay is **one tick, not a fixed duration**. Under a `RealtimeClock` at speed 1
+   * that is one frame; at another speed, or under a `BatchClock`, it is still one tick and
+   * therefore a different amount of wall time. Feedback built on it is frame-rate
+   * dependent by construction, which is a property to design around rather than a bug.
+   */
+  delayed?: boolean;
 }
 
 /** A complete, serializable description of a dataflow graph. */
