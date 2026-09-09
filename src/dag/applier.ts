@@ -27,9 +27,10 @@
  * `tickIndex * nominalDt`; every committed fixture was recorded that way. `Engine.tick`
  * reads `time ?? tickIndex * nominalDt`, so forwarding the optional parameter is exactly
  * equivalent to omitting it. What is **not** equivalent — and is the trap this module
- * exists to avoid — is `src/app/engineLoop.ts`'s `const seconds = t ?? now()`, which
- * substitutes the *wall clock* when the clock passes nothing. That is right for the live
- * loop (its reporters need a real millisecond stamp) and would silently move every batch
+ * exists to avoid — is substituting the *wall clock* when the clock passes nothing
+ * (`const seconds = t ?? now()`, as the since-removed `runEngineLoop` did). That is right
+ * for the live loop, whose bridges need a real millisecond stamp — `useEngine` still does
+ * it, in its sinks, where it belongs — and it would silently move every batch
  * run's time base. `test/applier_byte_identity.test.ts` is the gate on it.
  */
 import type { Engine } from './engine';

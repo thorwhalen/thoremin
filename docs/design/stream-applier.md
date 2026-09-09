@@ -4,7 +4,7 @@
 > **Shipped:** **M-A** (camera-free video source, #102 / PR #105), **M-B** (Clock +
 > speed, #103 / PR #106), and **M-C** (#104 / PR #167 — the `source` slot, the typed
 > `replay-hands` candidate, and `PortSpec.schema` conformance). **M-D is in progress:**
-> its clock half landed with the live loop (#166 / `src/app/engineLoop.ts`); what
+> its clock half landed with the live loop (#166 / `src/app/engineLoop.ts`, since removed in #189); what
 > **M-D is done** — both callers are Applier configs (`runHeadless` in #184,
 > `useEngine` in #189), and `runEngineLoop` retired with it. **M-E is partly landed**:
 > `defineMergeNode` (R2 composition) is built and the `event`-kind accumulate half came
@@ -287,7 +287,7 @@ boundaries allow.
     firing with every unit test green (the same slip #164 fixed for the trainer).
   **Gate on a browser smoke test** — the effect (StrictMode guards, face bridge,
   mute mirror, AudioContext lifecycle) has no headless coverage.
-  - ✅ **The live loop now runs on `RealtimeClock(1)`** — `src/app/engineLoop.ts`
+  - ✅ **The live loop now runs on `RealtimeClock(1)`** — `src/app/engineLoop.ts` (since removed in #189, when `useEngine` became an Applier config)
     (`runEngineLoop`) replaced `useEngine`'s hand-rolled rAF recursion. Splitting
     the loop out of the hook is what let the deferral be lifted early: the tick,
     the report fan-out, the frame-drop guard and the stop condition are all
