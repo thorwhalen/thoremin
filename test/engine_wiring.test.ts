@@ -18,7 +18,7 @@
  * It reads source rather than rendering because mounting the hook boots the
  * webcam and the ML models, which no unit test should do (same rationale as
  * `app_shell.test.ts`). The loop's actual behaviour is covered headlessly in
- * `engine_loop.test.ts`, and the re-wire mechanism in `engine_lifecycle.test.ts`.
+ * `applier.test.ts`, and the re-wire mechanism in `engine_lifecycle.test.ts`.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -37,15 +37,39 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(code(useEngine)).not.toMatch(/requestAnimationFrame|cancelAnimationFrame/);
   });
 
-  it('drives the engine through runEngineLoop', () => {
-    expect(code(useEngine)).toMatch(/runEngineLoop\(/);
+  it('drives the engine through an Applier on a RealtimeClock', () => {
+    // #101 M-D: the live half. `runEngineLoop` was the intermediate step and is gone —
+    // if this reverts to a bespoke loop, the Applier's guards (the per-sink catch, the
+    // tap release on dispose) silently stop applying to the code players actually run.
+    const c = code(useEngine);
+    expect(c).toMatch(/new Applier\(/);
+    expect(c).toMatch(/clock:\s*new RealtimeClock\(/);
   });
 
-  it('feeds the loop the three per-frame reporters', () => {
-    // A reporter dropped from this list stops updating its panel at frame rate
-    // while nothing fails — the face readout, the MIDI status, or (worst) the
-    // gesture dispatcher, which would stop dispatching commands entirely.
-    expect(code(useEngine)).toMatch(/runEngineLoop\(\s*engine,\s*\[reportFace,\s*reportMidi,\s*reportGesture\]/);
+  it('feeds the Applier the three per-frame bridges as sinks', () => {
+    // A bridge dropped from this list stops updating its panel at frame rate while
+    // nothing fails — the face readout, the MIDI status, or (worst) the gesture
+    // dispatcher, which would stop dispatching commands entirely.
+    expect(code(useEngine)).toMatch(/sinks:\s*\[[^\]]*reportFace[^\]]*reportMidi[^\]]*reportGesture[^\]]*\]/);
+  });
+
+  it('converts the clock time to MILLISECONDS for every bridge', () => {
+    // A `Clock` reports SECONDS; the bridges take milliseconds — `reportGesture` feeds
+    // `gestureDispatcher.tick`, whose dwell/hold/cooldown are in ms. Passing seconds
+    // through turns a 400 ms hold into 400 s and the dispatcher silently stops firing,
+    // with every unit test still green. This is the same 1000x slip #164 fixed for the
+    // trainer's sampler, and the reason it is guarded structurally is that the hook
+    // cannot be mounted headlessly to observe it.
+    const c = code(useEngine);
+    expect(c).toMatch(/\* 1000/);
+    // Each bridge goes through the converter rather than being passed raw.
+    expect(c).toMatch(/sinks:\s*\[\s*toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\)\s*\]/);
+  });
+
+  it('releases the Applier on unmount, so its taps do not outlive the run', () => {
+    // The engine is caller-owned and survives StrictMode remounts; a tap the Applier
+    // attached and never detached would keep receiving values from every later run.
+    expect(code(useEngine)).toMatch(/applierRef\.current\?\.dispose\(\)/);
   });
 });
 

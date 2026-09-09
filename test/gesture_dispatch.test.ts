@@ -300,10 +300,15 @@ describe('the classifier output reaches the app dispatch path (the #137-style gu
     expect(src).toMatch(/getOutput\(\s*'gesture'\s*,\s*'poses'\s*\)/);
     expect(src).toMatch(/createGestureDispatcher\(/);
     expect(src).toMatch(/gestureDispatcher\.tick\(/);
-    // Wired into the live frame loop, not merely defined. The loop is now driven
-    // by a Clock via `runEngineLoop` (it used to be a hand-rolled rAF recursion),
-    // so the reporter is passed in the per-frame list rather than called inline —
-    // same guarantee, one indirection later.
-    expect(src).toMatch(/runEngineLoop\([^)]*\breportGesture\b/s);
+    // Wired into the live frame loop, not merely defined. The loop is now an
+    // `Applier` (#101 M-D) — it was a hand-rolled rAF recursion, then `runEngineLoop`
+    // — so the bridge is passed as a per-frame SINK rather than called inline. Same
+    // guarantee, one indirection later.
+    expect(src).toMatch(/sinks:\s*\[[^\]]*\breportGesture\b[^\]]*\]/s);
+    // And through the ms converter: `gestureDispatcher.tick` measures dwell, hold and
+    // cooldown in MILLISECONDS while a Clock reports seconds. Handed seconds, a 400 ms
+    // hold becomes 400 s and the dispatcher stops firing entirely — silently, with this
+    // file's behavioural tests still green, because they drive the dispatcher directly.
+    expect(src).toMatch(/toMs\(reportGesture\)/);
   });
 });

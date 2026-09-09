@@ -411,6 +411,33 @@ describe('sinks', () => {
     expect(seen.flatMap((v) => (Array.isArray(v) ? v : []))).toEqual(['noteOn', 'noteOff']);
   });
 
+  it('runs every sink, in order, once per tick', async () => {
+    // A sink dropped from the list stops updating its panel at frame rate while nothing
+    // fails. Order matters too: these are the React bridges, and one that throws must not
+    // reorder the rest (the guard is per-sink).
+    const { engine } = probeRig('x');
+    await engine.init();
+    const calls: string[] = [];
+    await new Applier({
+      engine,
+      clock: new BatchClock(3),
+      sinks: [() => calls.push('a'), () => calls.push('b'), () => calls.push('c')],
+    }).run();
+    expect(calls).toEqual(['a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c']);
+  });
+
+  it('never ticks if it is already stopped when it starts', async () => {
+    // The teardown race: a React effect can dispose before the first frame runs, and a
+    // tick against released handles (a closed MediaPipe landmarker, disconnected audio)
+    // is the failure this prevents.
+    const { engine, seen } = probeRig('x');
+    await engine.init();
+    const calls: number[] = [];
+    await new Applier({ engine, clock: new BatchClock(5), shouldStop: () => true, sinks: [() => calls.push(1)] }).run();
+    expect(seen).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
   it('do not run when the tick threw', async () => {
     const registry = createRegistry([
       defineNode({
