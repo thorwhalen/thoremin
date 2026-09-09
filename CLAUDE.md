@@ -219,12 +219,12 @@ So, when you add a user-facing capability:
 
 | Area | Path |
 |------|------|
-| DAG engine (framework-agnostic) | `src/dag/` (`engine.ts`, `types.ts`, `registry.ts`, `recorder.ts`, `clock.ts`) |
+| DAG engine (framework-agnostic) | `src/dag/` (`engine.ts`, `types.ts`, `registry.ts`, `recorder.ts`, `clock.ts`, `applier.ts`, `merge.ts`) |
 | Node library | `src/nodes/{sources,features,mapping,music,output}/` |
 | Default graph wiring + the `SLOTS` table (role-typed swap points) | `src/app/graph.ts` |
 | **Slot contracts** — what a candidate must declare to fill a slot | `src/nodes/slot_contract.ts`, `src/nodes/mapping/mapping_contract.ts`, `src/nodes/sources/source_contract.ts` |
 | React↔DAG bridge (webcam, AudioContext, recorder, slot selection) | `src/app/useEngine.ts` |
-| Live frame loop — the app's `Clock` adoption (tick + per-frame reporters + frame-drop guard) | `src/app/engineLoop.ts` |
+| Live frame loop — an `Applier` config: `RealtimeClock`, the React bridges as sinks (through the seconds→ms converter), `disposed` as the stop condition | `src/app/useEngine.ts` (the effect), `src/dag/applier.ts` |
 | Live control store (zustand+persist) — the hot per-tick mirror | `src/app/store.ts` |
 | Music theory + **sounds** (timbre presets) | `src/music/` (`theory.ts`, `sounds.ts`, `voicing.ts`, `expression.ts`) |
 | Overlay (compose elements here) | `src/nodes/output/canvas_overlay.ts` |
