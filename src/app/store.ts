@@ -42,6 +42,7 @@ import {
   type MidiSettings,
   type SteerSettings,
 } from '@/settings/schema';
+import { BodyMapSchema, DEFAULT_BODY_MAP, type BodyMap } from '@/nodes/mapping/body_map';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
 import {
   FaceControlsDialSchema,
@@ -150,6 +151,9 @@ export interface ControlState {
   /** The body source (#186): on/off + model. A preset field; read live by `webcam-body`
    *  through `ctx.resources.controls` (its gate, like the face's `faceMapping`). */
   body: BodySettings;
+  /** The body→sound routing (#186 PR E). A preset field; flows to `body-route` through
+   *  `store-controls` as the `bodyMap` port, so a route edit is live without a rebuild. */
+  bodyMap: BodyMap;
   /** The generative layer (#141 / #188): on/off, level, and what the gestures mean
    *  (`config`). A preset field (in {@link SETTINGS_KEYS}); read live by `indirect-map`
    *  / `lyria` via `store-controls` → their `steerConfig` / `enabled` / `volume` inputs. */
@@ -407,6 +411,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
     }
   }
   // Heal the body settings (#186): a pre-body blob has none → off, lite.
+  // Heal the body map (#186): a pre-routing blob has none → no routes.
+  let bodyMap = current.bodyMap;
+  if (p.bodyMap) {
+    try {
+      bodyMap = BodyMapSchema.parse(p.bodyMap);
+    } catch {
+      bodyMap = current.bodyMap;
+    }
+  }
   let body = current.body;
   if (p.body) {
     try {
@@ -476,7 +489,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -510,6 +523,7 @@ export const useControls = create<ControlState>()(
       handMap: defaultHandMap(),
       midi: { ...DEFAULT_MIDI },
       body: { ...DEFAULT_BODY },
+      bodyMap: structuredClone(DEFAULT_BODY_MAP),
       steer: defaultSteer(),
       steerPlaying: false,
       faceControls: defaultFaceControls(),
@@ -608,7 +622,10 @@ export const useControls = create<ControlState>()(
       // Version 12: #187 added the `conductor` preset field (the conductor node's params:
       // off by default, hand/point, servo horizon, fallback + dynamics ranges). ADDITIVE
       // with a default, healed by mergeControls; the bump marks the schema growth.
-      version: 12,
+      // v13 (#186): `body` + `bodyMap` added to the preset fields; both heal in mergeControls
+      // (a pre-#186 blob reads as off / no routes), so no data transform is needed — the
+      // bump is the version marker for the schema growth.
+      version: 13,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

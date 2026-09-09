@@ -23,6 +23,7 @@ import { faceFeatureVectorNode } from './features/face_feature_vector';
 import { handFeatureVectorNode } from './features/hand_feature_vector';
 import { bodyFeatureVectorNode } from './features/body_feature_vector';
 import { voiceMappingNode } from './mapping/voice_mapping';
+import { bodyRouteNode } from './mapping/body_route';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { indirectMapNode } from './mapping/indirect_map';
 import { synthMergeNode } from './mapping/synth_merge';
@@ -71,6 +72,9 @@ export { handFeatureVectorNode } from './features/hand_feature_vector';
 export { bodyFeatureVectorNode } from './features/body_feature_vector';
 export type { FeatureVector } from '@/features/catalog';
 export { voiceMappingNode } from './mapping/voice_mapping';
+export { bodyRouteNode } from './mapping/body_route';
+export { BODY_ROUTE_TARGETS, BODY_ROUTE_SLOTS, BodyMapSchema, DEFAULT_BODY_MAP, NEUTRAL_MODS, bodyRouteMods } from './mapping/body_map';
+export type { BodyMap, BodyRoute, BodyRouteTarget, BodyRouteSlot, VoiceMods } from './mapping/body_map';
 export { keyboardControlNode } from './mapping/keyboard_control';
 export { indirectMapNode } from './mapping/indirect_map';
 export { synthMergeNode } from './mapping/synth_merge';
@@ -107,6 +111,7 @@ export const CORE_NODES = [
   handFeatureVectorNode,
   bodyFeatureVectorNode,
   voiceMappingNode,
+  bodyRouteNode,
   keyboardControlNode,
   indirectMapNode,
   synthMergeNode,

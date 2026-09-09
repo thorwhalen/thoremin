@@ -13,6 +13,7 @@ import type { NodeContext } from '@/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';
+import type { BodyMap } from '@/nodes/mapping/body_map';
 import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import type { ConductorDialParams } from '@/nodes/features/conductor';
@@ -75,6 +76,8 @@ export interface ControlSnapshot {
    *  the raw store (its gate, like `faceMapping` for the face) — not emitted as a port,
    *  because a slot candidate declares no inputs. */
   body?: { enabled: boolean; model: BodyModel };
+  /** The body→sound routing (#186 PR E), fed to `body-route` as the `bodyMap` port. */
+  bodyMap?: BodyMap;
   /** The generative layer (#141 / #188): on/off + level + what the gestures mean. Fed
    *  to `lyria`'s `enabled` / `volume` and `indirect-map`'s `steerConfig` live inputs. */
   steer?: SteerSettings;
@@ -140,6 +143,8 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
     { name: 'conductor', kind: 'conductor-config' },
+    // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
+    { name: 'bodyMap', kind: 'body-map' },
   ],
   params: Params,
   make() {
@@ -190,6 +195,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         // the node on its build-time params, and an explicitly-emitted `undefined` would
         // be indistinguishable from that anyway — so skip the key entirely.
         if (c.faceControls) out.faceControls = c.faceControls;
+        if (c.bodyMap) out.bodyMap = c.bodyMap;
         // Same rule as faceControls: absent → the node keeps its build-time starter strains.
         if (c.steer?.config) out.steerConfig = c.steer.config;
         if (c.conductor) out.conductor = c.conductor;

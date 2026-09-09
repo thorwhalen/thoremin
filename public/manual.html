@@ -131,7 +131,7 @@
       <dl>
         <dt>roles</dt><dd>source, control</dd>
         <dt>in</dt><dd>—</dd>
-        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config</dd>
+        <dt>out</dt><dd>scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map</dd>
         <dt>params</dt><dd>—</dd>
       </dl>
     </div>
@@ -272,9 +272,19 @@
       <p>Hand features → tonal synth parameters (x→pitch w/ scale snap, y→volume).</p>
       <dl>
         <dt>roles</dt><dd>mapping</dd>
-        <dt>in</dt><dd>features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features</dd>
+        <dt>in</dt><dd>features:hand-features, magnetism:number, octaveShift:number, mute:boolean, scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, face:face-features, mods:voice-mods</dd>
         <dt>out</dt><dd>params:synth-params</dd>
         <dt>params</dt><dd>magnetism (number=0.8), maxGain (number=0.5), opennessGatesGain (boolean=false), opennessControlsBrightness (boolean=true), pinchControlsVibrato (boolean=true), faceControlsExpression (boolean=true), panByPosition (boolean=true), panSpread (number=0.5), right (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"sine"}), left (object={"scale":{"root":0,"type":"major","octaves":2,"baseOctave":3},"sound":"triangle"})</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>body-route</code> <span class="title">Body Route</span></h4>
+      <p>Routes catalog features (body first) to voice modulations — brightness, vibrato, pan, pitch bend, octave, gate, gain — per the body map.</p>
+      <dl>
+        <dt>roles</dt><dd>mapping, control</dd>
+        <dt>in</dt><dd>vector:feature-vector, bodyMap:body-map</dd>
+        <dt>out</dt><dd>mods:voice-mods</dd>
+        <dt>params</dt><dd>map (object={"routes":{"a":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"b":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"c":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1},"d":{"feature":"","target":"none","inMin":0,"inMax":1,"invert":false,"smoothing":0.5,"depth":1}}})</dd>
       </dl>
     </div>
     <div class="node">

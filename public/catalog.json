@@ -36,6 +36,78 @@
     ]
   },
   {
+    "type": "body-route",
+    "title": "Body Route",
+    "description": "Routes catalog features (body first) to voice modulations — brightness, vibrato, pan, pitch bend, octave, gate, gain — per the body map.",
+    "roles": [
+      "mapping",
+      "control"
+    ],
+    "inputs": [
+      {
+        "name": "vector",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "bodyMap",
+        "kind": "body-map",
+        "description": "Live routing config (the bodyMap dial)"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "mods",
+        "kind": "voice-mods"
+      }
+    ],
+    "params": [
+      {
+        "name": "map",
+        "type": "object",
+        "default": {
+          "routes": {
+            "a": {
+              "feature": "",
+              "target": "none",
+              "inMin": 0,
+              "inMax": 1,
+              "invert": false,
+              "smoothing": 0.5,
+              "depth": 1
+            },
+            "b": {
+              "feature": "",
+              "target": "none",
+              "inMin": 0,
+              "inMax": 1,
+              "invert": false,
+              "smoothing": 0.5,
+              "depth": 1
+            },
+            "c": {
+              "feature": "",
+              "target": "none",
+              "inMin": 0,
+              "inMax": 1,
+              "invert": false,
+              "smoothing": 0.5,
+              "depth": 1
+            },
+            "d": {
+              "feature": "",
+              "target": "none",
+              "inMin": 0,
+              "inMax": 1,
+              "invert": false,
+              "smoothing": 0.5,
+              "depth": 1
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
     "type": "canvas-overlay",
     "title": "Canvas Overlay",
     "description": "Mirrored video + composable overlay elements (guides, landmarks, markers, cues).",
@@ -1598,6 +1670,10 @@
       {
         "name": "conductor",
         "kind": "conductor-config"
+      },
+      {
+        "name": "bodyMap",
+        "kind": "body-map"
       }
     ],
     "params": []
@@ -1834,6 +1910,10 @@
       {
         "name": "face",
         "kind": "face-features"
+      },
+      {
+        "name": "mods",
+        "kind": "voice-mods"
       }
     ],
     "outputs": [
