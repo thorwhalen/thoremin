@@ -228,6 +228,9 @@ describe('production app graph', () => {
     expect(edges.filter((e) => e.to.node === 'score' && e.to.port === 'beat')).toHaveLength(1);
     // The conducted score joins the other producers at the merge (mute + taps cover it).
     expect(has('score', 'params', 'merge', 'd')).toBe(true);
+    // The loaded piece reaches the score live from the store (PR 3): a ScoreDoc that
+    // could be loaded but never played is the #120 failure mode again.
+    expect(has('ui', 'scoreDoc', 'score', 'doc')).toBe(true);
     const inbound = edges.filter((e) => e.to.node === 'conductor').map((e) => e.to.port);
     expect(inbound).toContain('config');
     expect(inbound).toContain('hands');
@@ -264,13 +267,14 @@ describe('production app graph', () => {
     expect(params[0].voices).toHaveLength(2);
 
     // The synth's actual input is the merge of hand voices (0,1) + the 4 stable
-    // emotion-chord voices (2..5) + the 5 stable pose-chord voices (6..10) + the 8
-    // demo-score voices (11..18, #187) — all distinct ids, all silent while both face
-    // chord sources are idle (#76) and conducting is off.
+    // emotion-chord voices (2..5) + the 5 stable pose-chord voices (6..10) — all
+    // distinct ids, all silent while both face chord sources are idle (#76). The score
+    // (#187) emits voices only while its notes sound (ids from 11), and conducting is
+    // off here, so it contributes none.
     const merged = recorder.values('merge.params') as SynthParams[];
     const ids = merged[0].voices.map((v) => v.id);
-    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
-    expect(new Set(ids).size).toBe(19); // no id collision across hands + chords + score
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(new Set(ids).size).toBe(11); // no id collision across hands + both chords
     expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });
 });

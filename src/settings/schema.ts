@@ -22,7 +22,24 @@ import { SteerConfigSchema, type SteerConfig } from '@/nodes/mapping/indirect_ma
 // validate against the node's own contract without reaching into `src/nodes`.
 export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map';
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
-import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL } from '@/nodes/features/conductor';
+import { ConductorDialSchema } from '@/nodes/features/conductor';
+
+/** The piece id that means "the built-in demo scale" (no document loaded). */
+export const BUILTIN_PIECE = 'builtin';
+/** The default piece: the shipped Beethoven 5 opening (see `src/score/library.ts`). */
+export const DEFAULT_PIECE = 'beethoven-symphony-5-1';
+/**
+ * The conductor settings (#187): the node's own params (lifted 1:1, the `faceControls`
+ * pattern) plus `piece` — WHICH score to conduct (a shipped demo's id, a saved score's
+ * id, or {@link BUILTIN_PIECE}). `piece` is an app-level selection the node never sees
+ * (the node's `config` port strips it): the app's `ScoreLoader` watches it and hands the
+ * loaded `ScoreDoc` to the graph.
+ */
+export const ConductorSettingsSchema = ConductorDialSchema.extend({
+  piece: z.string().default(DEFAULT_PIECE),
+});
+export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
+export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -271,7 +288,7 @@ export const SettingsSchema = z.object({
   faceControls: FaceControlsDialSchema.default(DEFAULT_FACE_CONTROLS_DIAL),
   // The conductor (#187): the node's params lifted 1:1 as a structured dial, like
   // `faceControls`. `.default(...)` keeps pre-conductor presets valid (off).
-  conductor: ConductorDialSchema.default(DEFAULT_CONDUCTOR_DIAL),
+  conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

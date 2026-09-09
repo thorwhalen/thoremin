@@ -1519,7 +1519,7 @@
   {
     "type": "score",
     "title": "Score",
-    "description": "An immutable piece performed live: beat + velocityScale → sounding synth voices.",
+    "description": "An immutable piece performed live: beat + velocityScale → the sounding synth voices. Plays a loaded ScoreDoc (MIDI / MusicXML) or the built-in demo scale.",
     "roles": [
       "music"
     ],
@@ -1538,6 +1538,10 @@
         "name": "enabled",
         "kind": "boolean",
         "default": true
+      },
+      {
+        "name": "doc",
+        "kind": "score-doc"
       }
     ],
     "outputs": [
@@ -1566,6 +1570,11 @@
         "name": "sound",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "triangle"
+      },
+      {
+        "name": "parts",
+        "type": "array",
+        "default": []
       }
     ]
   },
@@ -1674,6 +1683,10 @@
       {
         "name": "bodyMap",
         "kind": "body-map"
+      },
+      {
+        "name": "scoreDoc",
+        "kind": "score-doc"
       }
     ],
     "params": []

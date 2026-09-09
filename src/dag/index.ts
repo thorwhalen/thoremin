@@ -24,7 +24,6 @@ export { Applier } from './applier';
 export { defineMergeNode, MERGE_INPUTS, MERGE_OUTPUT } from './merge';
 export type { MergeNodeSpec } from './merge';
 export { STATE_READER_KEY } from './applier';
-export { TIME_SCALE_KEY, realtimeOutputAllowed } from './timescale';
 export type { ApplierOptions, Source, SourceContext, StateReader } from './applier';
 
 import { Engine, type EngineOptions } from './engine';

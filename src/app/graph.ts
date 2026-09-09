@@ -433,6 +433,8 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'conductor', port: 'beat' }, to: { node: 'score', port: 'beat' } },
       { from: { node: 'conductor', port: 'velocityScale' }, to: { node: 'score', port: 'velocityScale' } },
       { from: { node: 'conductor', port: 'enabled' }, to: { node: 'score', port: 'enabled' } },
+      // The loaded piece (#187 PR 3): a ScoreDoc from the store, or nothing (the demo scale).
+      { from: { node: 'ui', port: 'scoreDoc' }, to: { node: 'score', port: 'doc' } },
       // The conducted score joins the hand voices and both face chords at the merge, so
       // the master mute and the synth/MIDI/overlay taps cover it for free.
       { from: { node: 'score', port: 'params' }, to: { node: 'merge', port: 'd' } },

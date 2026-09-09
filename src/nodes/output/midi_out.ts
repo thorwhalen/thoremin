@@ -28,7 +28,6 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { realtimeOutputAllowed } from '@/dag';
 import { freqToMidi } from '@/music/theory';
 import type { SynthParams, VoiceParams } from '../domain';
 
@@ -286,12 +285,7 @@ export const midiOutNode = defineNode<Params>({
         // An injected factory means the host vouches for capability (tests / custom
         // hosts); otherwise gate on the real Web MIDI feature test.
         supported = factory !== undefined || webMidiSupported();
-        // Boundary B (#101 M-G): a MIDI stream to a DAW is real-time output like audio —
-        // notes at 2x reach a synth that is still running at 1x. Forcing the DISABLED
-        // path rather than adding a new one is deliberate: that path already panics
-        // (all-notes-off) and holds no port, so silence is the behaviour that already
-        // exists and is already tested, not a second thing to get right.
-        const enabled = inputs.enabled === true && realtimeOutputAllowed(ctx);
+        const enabled = inputs.enabled === true;
         wantSink = enabled;
         const requestedPort = typeof inputs.port === 'string' ? inputs.port : '';
         wantPort = requestedPort;
