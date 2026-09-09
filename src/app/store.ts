@@ -57,7 +57,7 @@ const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
  *  module-level constant itself, or an edit in one instrument would mutate the default. */
 const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CONTROLS_DIAL });
 /** A fresh generative-layer default (the `config` object is cloned for the same reason). */
-const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: { ...DEFAULT_STEER.config } });
+const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structuredClone(DEFAULT_STEER.config) });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored

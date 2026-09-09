@@ -5,6 +5,7 @@
  * store falls back to in-memory storage in the Node runtime, so this exercises the real
  * seeding path without a browser.
  */
+import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { describe, it, expect } from 'vitest';
 import {
   SEED_INSTRUMENTS,
@@ -117,7 +118,7 @@ describe('instruments orchestration over the dials store', () => {
         ...JSON.parse(JSON.stringify(dialsStore.getState().layer)),
         'steer.enabled': false,
         'steer.volume': 0.7,
-        steerConfig: { smoothing: 0.6, throttleSec: 0.2 },
+        steerConfig: structuredClone(DEFAULT_STEER_CONFIG),
       };
       dialsStore.setLayer(working);
       // Simulate an instrument saved before the steer dials existed: the working

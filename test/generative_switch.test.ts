@@ -109,7 +109,7 @@ describe('the store: the steer preset field and the transient transport', () => 
 
 describe('the starter steering', () => {
   it('reads "raise the hand" as MORE (image y is 0 at the top), matching the panel copy', () => {
-    for (const ref of [...STARTER_STEER.strains, ...STARTER_STEER.dials]) {
+    for (const ref of [...STARTER_STEER.strains!, ...STARTER_STEER.dials!]) {
       if (ref.feature === 'y') {
         expect(ref.inMin).toBeGreaterThan(ref.inMax);
       }
@@ -200,7 +200,7 @@ describe('the production graph, driven headlessly through the switch', () => {
     expect(engines[0].calls.filter((c) => c === 'play')).toHaveLength(1);
     expect(status().phase).toBe('active');
     const texts = engines[0].prompts.at(-1)?.map((p) => p.text);
-    expect(texts).toEqual(STARTER_STEER.strains.map((s) => s.text));
+    expect(texts).toEqual(STARTER_STEER.strains!.map((s) => s.text));
     expect(engines[0].configs.at(-1)).toHaveProperty('brightness');
     // The steer stream is recorded like any other edge (a `generate` edge, tapped).
     const steers = rec.values('imap.steer') as Array<{ prompts: WeightedPrompt[] }>;

@@ -23,37 +23,45 @@ import { rangeMap } from '@/music/theory';
 import { ABSENT_FACE, ABSENT_HAND, type FaceFeatures, type HandFeatures, type SingleHandFeatures } from '../domain';
 import type { GenerativeSteer, WeightedPrompt } from '../output/generative';
 
+/** The vocabularies a steering entry is built from — exported so an editor and the
+ *  `steer.*` commands offer exactly what the node reads, never a second list. */
+export const STEER_SOURCES = ['hand', 'face'] as const;
+export const STEER_HANDS = ['left', 'right'] as const;
+export const STEER_HAND_FEATURES = ['x', 'y', 'openness', 'pinch'] as const;
+export const STEER_FACE_FEATURES = ['smile', 'mouthOpen', 'browRaise', 'browFurrow', 'eyeBlink'] as const;
+export const STEER_FEATURES = [...STEER_HAND_FEATURES, ...STEER_FACE_FEATURES] as const;
+/** The engine config knobs a dial may drive (the names `GenerativeConfig` carries). */
+export const STEER_DIAL_NAMES = ['density', 'brightness', 'bpm', 'guidance', 'temperature'] as const;
+
 const FeatureRef = z.object({
   /** Which input to read from: a hand feature or a face expression control. */
-  source: z.enum(['hand', 'face']).default('hand'),
+  source: z.enum(STEER_SOURCES).default('hand'),
   /** For source='hand': which hand. */
-  hand: z.enum(['left', 'right']).default('right'),
+  hand: z.enum(STEER_HANDS).default('right'),
   /**
    * Feature name. hand: x | y | openness | pinch. face: smile | mouthOpen |
    * browRaise | browFurrow | eyeBlink.
    */
-  feature: z
-    .enum(['x', 'y', 'openness', 'pinch', 'smile', 'mouthOpen', 'browRaise', 'browFurrow', 'eyeBlink'])
-    .default('openness'),
+  feature: z.enum(STEER_FEATURES).default('openness'),
   inMin: z.number().default(0),
   inMax: z.number().default(1),
 });
 
-const Strain = FeatureRef.extend({
+export const SteerStrainSchema = FeatureRef.extend({
   text: z.string(),
   weightMin: z.number().default(0),
   weightMax: z.number().default(2),
 });
 
-const Dial = FeatureRef.extend({
+export const SteerDialSchema = FeatureRef.extend({
   name: z.string(), // e.g. 'density', 'brightness', 'bpm'
   outMin: z.number().default(0),
   outMax: z.number().default(1),
 });
 
 const Params = z.object({
-  strains: z.array(Strain).default([]),
-  dials: z.array(Dial).default([]),
+  strains: z.array(SteerStrainSchema).default([]),
+  dials: z.array(SteerDialSchema).default([]),
   /** Exponential smoothing factor 0..1 per update (0 = instant, higher = smoother/slower). */
   smoothing: z.number().min(0).max(0.999).default(0),
   /** Minimum seconds between emitted updates (Lyria likes ~0.2s). 0 = every tick. */
@@ -72,12 +80,14 @@ type Params = z.infer<typeof Params>;
  * persisted dial and the value arriving on the port.
  */
 export const SteerConfigSchema = z.object({
-  strains: z.array(Strain).optional(),
-  dials: z.array(Dial).optional(),
+  strains: z.array(SteerStrainSchema).optional(),
+  dials: z.array(SteerDialSchema).optional(),
   smoothing: z.number().min(0).max(0.999).optional(),
   throttleSec: z.number().min(0).optional(),
 });
 export type SteerConfig = z.infer<typeof SteerConfigSchema>;
+export type SteerStrain = z.infer<typeof SteerStrainSchema>;
+export type SteerDial = z.infer<typeof SteerDialSchema>;
 
 type Ref = z.infer<typeof FeatureRef>;
 

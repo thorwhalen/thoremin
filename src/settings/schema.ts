@@ -17,6 +17,10 @@ import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } fro
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { SteerConfigSchema, type SteerConfig } from '@/nodes/mapping/indirect_map';
+// Re-exported so the `steer.*` commands (whose import allowlist stops at `@/settings`)
+// validate against the node's own contract without reaching into `src/nodes`.
+export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map';
+export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -177,18 +181,37 @@ export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
 export const SteerSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   volume: z.number().min(0).max(1).default(0.7),
-  config: SteerConfigSchema.default({ smoothing: 0.6, throttleSec: 0.2 }),
+  config: SteerConfigSchema.default(() => defaultSteerConfig()),
 });
 export type SteerSettings = z.infer<typeof SteerSettingsSchema>;
 
-/** The default steering CONFIG: the smoothing + cadence every instrument starts with
- *  (strains/dials absent → the branch's starter strains in graph.ts). Concrete rather
- *  than `{}` so the structured dial's scalar leaves (`steerConfig.smoothing`,
- *  `steerConfig.throttleSec`) resolve for `dial.setIn` / the palette / the AI. */
-export const DEFAULT_STEER_CONFIG: SteerConfig = { smoothing: 0.6, throttleSec: 0.2 };
+/**
+ * The default steering CONFIG — what the gestures mean until the player edits it:
+ * the right hand's openness fades a pad in, raising the left hand brings in an
+ * arpeggio, raising the right hand brightens the mix. The hand `y` feature is in IMAGE
+ * coordinates (0 at the top), so "raise = more" is the inverted `inMin: 1, inMax: 0`,
+ * exactly as `voice-mapping` inverts it for gain. COMPLETE (strains, dials, smoothing,
+ * cadence) rather than partial, so the structured dial always fully specifies the
+ * steering — the editor and the `steer.*` commands read and write one whole object,
+ * and the scalar leaves resolve for `dial.setIn`. `graph.ts` hands the same object to
+ * `indirect-map` as its build-time params, so an unset dial and the default agree.
+ */
+export const DEFAULT_STEER_CONFIG: SteerConfig = {
+  strains: [
+    { text: 'warm ambient pads', source: 'hand', hand: 'right', feature: 'openness', inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 },
+    { text: 'bright plucked arpeggios', source: 'hand', hand: 'left', feature: 'y', inMin: 1, inMax: 0, weightMin: 0, weightMax: 2 },
+  ],
+  dials: [{ name: 'brightness', source: 'hand', hand: 'right', feature: 'y', inMin: 1, inMax: 0, outMin: 0.2, outMax: 0.9 }],
+  smoothing: 0.6,
+  throttleSec: 0.2,
+};
+
+/** A fresh, unshared copy of {@link DEFAULT_STEER_CONFIG} (its arrays must never be
+ *  aliased between the defaults, the store and an instrument). */
+export const defaultSteerConfig = (): SteerConfig => structuredClone(DEFAULT_STEER_CONFIG);
 
 /** The shipped generative defaults: off, 0.7, the default steering config. */
-export const DEFAULT_STEER: SteerSettings = { enabled: false, volume: 0.7, config: { ...DEFAULT_STEER_CONFIG } };
+export const DEFAULT_STEER: SteerSettings = { enabled: false, volume: 0.7, config: defaultSteerConfig() };
 
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({

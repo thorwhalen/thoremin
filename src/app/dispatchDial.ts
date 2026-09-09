@@ -43,6 +43,15 @@ function toastOnFailure(dispatched: Promise<Result<unknown>>): void {
   });
 }
 
+/**
+ * Dispatch a DOMAIN command (one whose parameters are scalars but whose effect is a
+ * whole structured dial — the `steer.*` verbs over `steerConfig`'s arrays) for a
+ * discrete panel control, with the same refused-write toast as the dial verbs.
+ */
+export function dispatchCommand(id: string, params: Record<string, unknown>): void {
+  toastOnFailure(registry.dispatch(id, params));
+}
+
 /** Dispatch `dial.set` for a discrete panel write on a SCALAR dial. */
 export function dispatchDialSet(key: string, value: unknown): void {
   toastOnFailure(registry.dispatch('dial.set', { key, value }));

@@ -14,10 +14,14 @@ import { GenerativeControls } from '@/app/dials/panels/generative';
 import { useGenerativeStatus } from '@/app/generativeStatus';
 import { useControls } from '@/app/store';
 import { dialsStore } from '@/app/dials/settingsStore';
+import { SteeringEditor } from '@/app/dials/panels/steering';
+import { currentSteerConfig } from '@/app/commands/steer';
+import { defaultSteerConfig } from '@/settings/schema';
 
 beforeEach(() => {
   useControls.getState().setSteerPlaying(false);
   dialsStore.set('steer.enabled', false);
+  dialsStore.set('steerConfig', defaultSteerConfig());
 });
 afterEach(() => {
   cleanup();
@@ -65,5 +69,52 @@ describe('GenerativeControls', () => {
     useGenerativeStatus.getState().report({ phase: 'active', message: 'Playing' });
     render(<GenerativeControls />);
     expect(screen.getByText('Playing')).toBeTruthy();
+  });
+});
+
+describe('SteeringEditor (#188 PR 5) — the strain editor on the command write path', () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it('is mounted inside the Generative section', () => {
+    render(<GenerativeControls />);
+    expect(screen.getByText(/Steering — what your gestures mean/)).toBeTruthy();
+  });
+
+  it('lists the starter strains and dials, and adding a strain dispatches steer.strain.add', async () => {
+    render(<SteeringEditor />);
+    expect(screen.getByDisplayValue('warm ambient pads')).toBeTruthy();
+    expect(screen.getByDisplayValue('bright plucked arpeggios')).toBeTruthy();
+    expect(screen.getByText('brightness')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('New strain text'), { target: { value: 'rain on glass' } });
+    fireEvent.click(screen.getByText('Add strain'));
+    await flush();
+    expect(currentSteerConfig().strains.map((s) => s.text)).toContain('rain on glass');
+    expect(screen.getByDisplayValue('rain on glass')).toBeTruthy();
+  });
+
+  it('removing, rebinding and renaming go through the commands (the panel never writes the dial)', async () => {
+    render(<SteeringEditor />);
+    fireEvent.click(screen.getByLabelText('Remove strain bright plucked arpeggios'));
+    await flush();
+    expect(currentSteerConfig().strains.map((s) => s.text)).toEqual(['warm ambient pads']);
+    const featureSelects = screen.getAllByLabelText('Feature');
+    fireEvent.change(featureSelects[0], { target: { value: 'pinch' } });
+    await flush();
+    expect(currentSteerConfig().strains[0].feature).toBe('pinch');
+    const text = screen.getByLabelText('Strain text warm ambient pads');
+    fireEvent.change(text, { target: { value: 'cold pads' } });
+    fireEvent.blur(text);
+    await flush();
+    expect(currentSteerConfig().strains[0].text).toBe('cold pads');
+  });
+
+  it('driving a new engine dial adds it with its natural range; removing it drops it', async () => {
+    render(<SteeringEditor />);
+    fireEvent.change(screen.getByLabelText('Add engine dial'), { target: { value: 'bpm' } });
+    await flush();
+    expect(currentSteerConfig().dials.find((d) => d.name === 'bpm')).toMatchObject({ outMin: 60, outMax: 200 });
+    fireEvent.click(screen.getByLabelText('Remove dial bpm'));
+    await flush();
+    expect(currentSteerConfig().dials.some((d) => d.name === 'bpm')).toBe(false);
   });
 });
