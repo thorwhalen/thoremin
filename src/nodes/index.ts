@@ -22,6 +22,7 @@ import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
 import { handFeatureVectorNode } from './features/hand_feature_vector';
 import { bodyFeatureVectorNode } from './features/body_feature_vector';
+import { bodyPulseNode } from './features/body_pulse';
 import { voiceMappingNode } from './mapping/voice_mapping';
 import { bodyRouteNode } from './mapping/body_route';
 import { keyboardControlNode } from './mapping/keyboard_control';
@@ -70,6 +71,9 @@ export type { Pose, GestureEvent } from './features/gesture_classifier';
 export { faceFeatureVectorNode } from './features/face_feature_vector';
 export { handFeatureVectorNode } from './features/hand_feature_vector';
 export { bodyFeatureVectorNode } from './features/body_feature_vector';
+export { bodyPulseNode, pulseChannelValue, PULSE_CHANNELS } from './features/body_pulse';
+export { createInterimPulseEngine, createAcfPeriodEstimator, createExtremaAnchorDetector, acfPeaks, UNKNOWN_PULSE, PULSE_HOLD_CONFIDENCE } from './features/pulse_engine';
+export type { PulseEngine, PulseState, PulseAnchor, InterimPulseOptions } from './features/pulse_engine';
 export type { FeatureVector } from '@/features/catalog';
 export { voiceMappingNode } from './mapping/voice_mapping';
 export { bodyRouteNode } from './mapping/body_route';
@@ -110,6 +114,7 @@ export const CORE_NODES = [
   faceFeatureVectorNode,
   handFeatureVectorNode,
   bodyFeatureVectorNode,
+  bodyPulseNode,
   voiceMappingNode,
   bodyRouteNode,
   keyboardControlNode,

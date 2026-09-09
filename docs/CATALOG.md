@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (39)
+## Nodes (40)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -221,9 +221,17 @@ Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand cat
 Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).
 
 - **roles:** feature
-- **in:** body:body-frame
+- **in:** body:body-frame, pulse:pulse-state
 - **out:** vector:feature-vector
 - **params:** mirrorX (boolean=true), groups (array), windowSeconds (number=1)
+
+#### `body-pulse` — Body Pulse
+Period, phase and confidence of the body's repeating vertical motion (the dance pulse), behind the ictus engine seam.
+
+- **roles:** feature
+- **in:** body:body-frame
+- **out:** pulse:pulse-state
+- **params:** channel (enum(hip | head)="head"), windowS (number=5), minPeriodS (number=0.25), maxPeriodS (number=2.5), minStrength (number=0.15)
 
 ### Mapping (direct ↔ indirect)
 _Features → engine parameters, across the expression spectrum._

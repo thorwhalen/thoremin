@@ -20,7 +20,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // Layer grouping for the manual (type → category, in display order).
 const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Inputs (sources)', blurb: 'Where signals enter the graph.', types: ['webcam-hands', 'webcam-face', 'webcam-body', 'keyboard-source', 'store-controls', 'synthetic-hands', 'replay-source', 'replay-hands', 'synthetic-body', 'replay-body'] },
-  { name: 'Features', blurb: 'Raw sensor data → normalized control signals.', types: ['hand-features', 'face-features', 'face-controls', 'face-expression', 'gesture-classifier', 'face-feature-vector', 'hand-feature-vector', 'body-feature-vector'] },
+  { name: 'Features', blurb: 'Raw sensor data → normalized control signals.', types: ['hand-features', 'face-features', 'face-controls', 'face-expression', 'gesture-classifier', 'face-feature-vector', 'hand-feature-vector', 'body-feature-vector', 'body-pulse'] },
   { name: 'Mapping (direct ↔ indirect)', blurb: 'Features → engine parameters, across the expression spectrum.', types: ['voice-mapping', 'body-route', 'indirect-map', 'keyboard-control', 'pick', 'one-euro', 'synth-merge', 'chord-select', 'delay'] },
   { name: 'Music logic (tonal guidance)', blurb: 'Harmony kept in-key.', types: ['chord', 'progression', 'expression-chord', 'pose-chord'] },
   { name: 'Conductor mode', blurb: 'Direct a fixed piece with gesture (tempo + dynamics).', types: ['conductor', 'transport', 'score', 'performance'] },

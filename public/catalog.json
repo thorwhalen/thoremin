@@ -10,6 +10,10 @@
       {
         "name": "body",
         "kind": "body-frame"
+      },
+      {
+        "name": "pulse",
+        "kind": "pulse-state"
       }
     ],
     "outputs": [
@@ -32,6 +36,53 @@
         "name": "windowSeconds",
         "type": "number",
         "default": 1
+      }
+    ]
+  },
+  {
+    "type": "body-pulse",
+    "title": "Body Pulse",
+    "description": "Period, phase and confidence of the body's repeating vertical motion (the dance pulse), behind the ictus engine seam.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "body",
+        "kind": "body-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "pulse",
+        "kind": "pulse-state"
+      }
+    ],
+    "params": [
+      {
+        "name": "channel",
+        "type": "enum(hip | head)",
+        "default": "head"
+      },
+      {
+        "name": "windowS",
+        "type": "number",
+        "default": 5
+      },
+      {
+        "name": "minPeriodS",
+        "type": "number",
+        "default": 0.25
+      },
+      {
+        "name": "maxPeriodS",
+        "type": "number",
+        "default": 2.5
+      },
+      {
+        "name": "minStrength",
+        "type": "number",
+        "default": 0.15
       }
     ]
   },

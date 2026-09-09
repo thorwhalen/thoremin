@@ -31,7 +31,7 @@ const compute = (id: string, frame: BodyFrame) => {
 
 describe('body catalog — registry', () => {
   it('registers six body groups and every body feature under one of them, ids unique', () => {
-    expect(BODY_GROUP_IDS).toEqual(['body.angle', 'body.pos', 'body.kin', 'body.shape', 'body.effort', 'body.rel']);
+    expect(BODY_GROUP_IDS).toEqual(['body.angle', 'body.pos', 'body.kin', 'body.shape', 'body.effort', 'body.rel', 'body.rhythm']);
     expect(FEATURE_GROUPS.filter((g) => g.source === 'body').map((g) => g.id)).toEqual(BODY_GROUP_IDS);
     const ids = BODY_FEATURES.map((f) => f.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -264,6 +264,7 @@ describe('the body path, headless: synthetic-body → body-feature-vector', () =
     for (const v of vectors) expect(allFinite(v)).toBe(true);
     // From the third tick on, every group has produced something.
     const keys = new Set(Object.keys(vectors[10]));
+    // (body.rhythm needs the pulse node, absent from this two-node graph.)
     for (const g of ['body.angle', 'body.pos', 'body.kin', 'body.shape', 'body.effort', 'body.rel']) {
       expect([...keys].some((k) => k.startsWith(g + '.')), g).toBe(true);
     }

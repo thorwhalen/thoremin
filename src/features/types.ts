@@ -176,4 +176,15 @@ export interface BodyCtx {
   height: number;
   dtS: number;
   history: readonly BodyHistorySample[];
+  /** The dancer's pulse (#186 PR F), when a `body-pulse` node feeds it; the
+   *  `body.rhythm` features read it. Absent → those features are NaN (dropped). */
+  pulse?: PulseStateLike;
+}
+
+/** The slice of the pulse state the catalog reads (the full type lives with the engine). */
+export interface PulseStateLike {
+  periodS: number;
+  bpm: number;
+  phase: number;
+  confidence: number;
 }

@@ -54,7 +54,9 @@ describe(`${SC}: a real dancer through the body pipeline`, () => {
     // From a few frames in, every group has produced something — including the
     // window-based effort features.
     const keys = Object.keys(vectors[40]);
-    for (const g of BODY_GROUP_IDS) expect(keys.some((k) => k.startsWith(g + '.')), g).toBe(true);
+    // (body.rhythm needs the pulse node, which this single-node replay omits; it is
+    // covered on this fixture by test/body_pulse.test.ts.)
+    for (const g of BODY_GROUP_IDS.filter((g) => g !== 'body.rhythm')) expect(keys.some((k) => k.startsWith(g + '.')), g).toBe(true);
     expect(keys.length).toBeGreaterThanOrEqual(45);
     // A dancer MOVES — not a standing person with tracker jitter: the mean quantity of
     // motion is well above jitter level, and the hips travel across the frame.
