@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (38)
+## Nodes (39)
 
 ### Inputs (sources)
 _Where signals enter the graph._
