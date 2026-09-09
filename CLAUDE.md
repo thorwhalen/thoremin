@@ -250,6 +250,7 @@ So, when you add a user-facing capability:
 | **Feature demand** (#163) — a non-Lab consumer claims feature GROUPS; the vector nodes (and the face-model gate) compute them with the Lab closed | `src/features/demand.ts`, `src/app/featureDemand.ts` |
 | Legacy app (**frozen**) | `src/App.tsx`, `src/components/`, `src/hooks/`, `src/plugins/ai-dj/` |
 | Fixtures + replay | `test/fixtures/`, `scripts/record_stream.ts`, `src/dag/recorder.ts`, `test/helpers/fixtures.ts` (the one loader) |
+| **ictus** (#178/#187) — musical time from low-rate gesture: ictus detector, adaptive oscillator (`RhythmPrior`), dynamics/articulation, beat metrics. Pure, causal, no DAG/React imports (a package-in-waiting; tests import only `@/ictus`). Consumed by the conductor node (#187) and the body pacer (#186) | `src/ictus/` (see its `README.md`), `test/fixtures/conducting_*/` (70 bpm conducting-pattern clips), `scripts/build_conducting_fixture.ts` |
 | **Trainer take → fixture** — the cue interval is the ground truth a clip cannot supply; refuses landmark geometry | `scripts/lib_trainer_take.ts` (logic) + `scripts/trainer_take_to_fixture.ts` (CLI), `docs/TESTING.md` |
 | Conceptual model | `docs/design/component-model.md` |
 

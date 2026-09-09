@@ -1,0 +1,20 @@
+{
+  "scenario": "conducting_44",
+  "source": "video",
+  "sourceId": "9GWBRdtvHkA",
+  "kind": "conducting-pattern",
+  "statedBpm": 70,
+  "pattern": "4/4",
+  "window": {
+    "from": 0,
+    "to": 13.5
+  },
+  "ticks": 405,
+  "fps": 30,
+  "detectedFrames": 372,
+  "recordedKeys": [
+    "src.hands"
+  ],
+  "compaction": "xy to 0.1 px, z to 1e-4, keypoint names dropped",
+  "builtAt": "2026-09-09T05:13:01.170Z"
+}
