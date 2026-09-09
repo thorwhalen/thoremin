@@ -16,6 +16,7 @@ import { replayBodyNode } from './sources/replay_body';
 import { handFeaturesNode } from './features/hand_features';
 import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
+import { conductorNode } from './features/conductor';
 import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
@@ -52,6 +53,15 @@ export type { SlotContract } from './slot_contract';
 export { handFeaturesNode } from './features/hand_features';
 export { faceFeaturesNode } from './features/face_features';
 export { faceControlsNode } from './features/face_controls';
+export {
+  conductorNode,
+  ConductorDialSchema,
+  DEFAULT_CONDUCTOR_DIAL,
+  MusicalTimeSchema,
+  CONDUCTOR_HANDS,
+  CONDUCTOR_POINTS,
+} from './features/conductor';
+export type { ConductorDialParams, ConductorHand, ConductorPoint } from './features/conductor';
 export { faceExpressionNode } from './features/face_expression';
 export { gestureClassifierNode } from './features/gesture_classifier';
 export type { Pose, GestureEvent } from './features/gesture_classifier';
@@ -72,7 +82,7 @@ export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './mu
 export { poseChordNode, POSE_VOICE_ID_BASE, MAX_POSE_VOICES, yawToDegree } from './music/pose_chord';
 export { progressionNode } from './music/progression';
 export { transportNode } from './music/transport';
-export { scoreNode } from './music/score';
+export { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES } from './music/score';
 export { performanceNode } from './music/performance';
 export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt, GenerativeEngineFactory, GenerativeEngineOpts } from './output/generative';
 export type { GenerativeStatus } from './output/lyria';
@@ -88,6 +98,7 @@ export const CORE_NODES = [
   handFeaturesNode,
   faceFeaturesNode,
   faceControlsNode,
+  conductorNode,
   faceExpressionNode,
   gestureClassifierNode,
   faceFeatureVectorNode,

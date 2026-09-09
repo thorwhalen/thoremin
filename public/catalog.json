@@ -267,6 +267,135 @@
     "params": []
   },
   {
+    "type": "conductor",
+    "title": "Conductor",
+    "description": "The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.",
+    "roles": [
+      "feature",
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "conductor-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "time",
+        "kind": "musical-time"
+      },
+      {
+        "name": "beat",
+        "kind": "number"
+      },
+      {
+        "name": "bpm",
+        "kind": "number"
+      },
+      {
+        "name": "velocityScale",
+        "kind": "number"
+      },
+      {
+        "name": "phase",
+        "kind": "number"
+      },
+      {
+        "name": "dynamics",
+        "kind": "number"
+      },
+      {
+        "name": "articulation",
+        "kind": "number"
+      },
+      {
+        "name": "confidence",
+        "kind": "number"
+      },
+      {
+        "name": "enabled",
+        "kind": "boolean"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "hand",
+        "type": "enum(auto | right | left)",
+        "default": "auto"
+      },
+      {
+        "name": "point",
+        "type": "enum(wrist | indexTip)",
+        "default": "wrist"
+      },
+      {
+        "name": "mirrorX",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "beatsPerBar",
+        "type": "number",
+        "default": 4
+      },
+      {
+        "name": "servoBeats",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "fallbackBelowConfidence",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "fallbackBpmMin",
+        "type": "number",
+        "default": 50
+      },
+      {
+        "name": "fallbackBpmMax",
+        "type": "number",
+        "default": 160
+      },
+      {
+        "name": "dynMin",
+        "type": "number",
+        "default": 0.35
+      },
+      {
+        "name": "dynMax",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "phaseGain",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "periodGain",
+        "type": "number",
+        "default": 0.4
+      }
+    ]
+  },
+  {
     "type": "expression-chord",
     "title": "Expression Chord",
     "description": "Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face \"chord\" mode).",
@@ -1305,6 +1434,11 @@
         "name": "velocityScale",
         "kind": "number",
         "default": 1
+      },
+      {
+        "name": "enabled",
+        "kind": "boolean",
+        "default": true
       }
     ],
     "outputs": [
@@ -1433,6 +1567,10 @@
       {
         "name": "faceControls",
         "kind": "face-controls-config"
+      },
+      {
+        "name": "conductor",
+        "kind": "conductor-config"
       }
     ],
     "params": []
@@ -1455,6 +1593,10 @@
       },
       {
         "name": "c",
+        "kind": "synth-params"
+      },
+      {
+        "name": "d",
         "kind": "synth-params"
       },
       {

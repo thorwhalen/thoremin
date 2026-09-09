@@ -36,6 +36,7 @@ import { OverlayControls } from './panels/overlay';
 import { MidiControls } from './panels/midi';
 import { BodyControls } from './panels/body';
 import { GenerativeControls } from './panels/generative';
+import { ConductorControls } from './panels/conductor';
 
 export default function DialsControlsPanel() {
   const { state, set } = useDialsSettings();
@@ -72,6 +73,11 @@ export default function DialsControlsPanel() {
       {/* Body tracking (#186): the pose source, off by default (the heaviest model). */}
       <TopSection label="Body">
         <BodyControls />
+      </TopSection>
+
+      {/* The conductor (#187): conduct the score with a hand. Off by default. */}
+      <TopSection label="Conductor">
+        <ConductorControls />
       </TopSection>
 
       <TopSection label="Overlay">

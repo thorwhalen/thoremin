@@ -15,6 +15,7 @@ import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';
 import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
+import type { ConductorDialParams } from '@/nodes/features/conductor';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 
@@ -84,6 +85,9 @@ export interface ControlSnapshot {
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */
   faceControls?: FaceControlsDialParams;
+  /** The conductor dial (#187): fed to the `conductor` node's `config` input as a live
+   *  override of its build-time params, so turning conducting on needs no rebuild. */
+  conductor?: ConductorDialParams;
 }
 
 const Params = z.object({});
@@ -135,6 +139,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // The head/face control axis tuning (#76) → `face-controls`' `config` input, so
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
+    { name: 'conductor', kind: 'conductor-config' },
   ],
   params: Params,
   make() {
@@ -187,6 +192,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         if (c.faceControls) out.faceControls = c.faceControls;
         // Same rule as faceControls: absent → the node keeps its build-time starter strains.
         if (c.steer?.config) out.steerConfig = c.steer.config;
+        if (c.conductor) out.conductor = c.conductor;
         if (c.faceChord) {
           out.chordConfig = {
             sound: c.faceChord.sound,

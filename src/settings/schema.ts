@@ -21,6 +21,7 @@ import { SteerConfigSchema, type SteerConfig } from '@/nodes/mapping/indirect_ma
 // validate against the node's own contract without reaching into `src/nodes`.
 export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map';
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
+import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL } from '@/nodes/features/conductor';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -264,6 +265,9 @@ export const SettingsSchema = z.object({
   // `.default(...)` keeps presets saved before #76's dials valid — they get the shipped
   // axis tuning, which is byte-identical to the build-time params they were played with.
   faceControls: FaceControlsDialSchema.default(DEFAULT_FACE_CONTROLS_DIAL),
+  // The conductor (#187): the node's params lifted 1:1 as a structured dial, like
+  // `faceControls`. `.default(...)` keeps pre-conductor presets valid (off).
+  conductor: ConductorDialSchema.default(DEFAULT_CONDUCTOR_DIAL),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

@@ -105,7 +105,7 @@ describe('structured-dial leaf paths (#126)', () => {
     expect(new Set(paths).size).toBe(paths.length);
     const owners = new Set(structuredDialLeaves().map((l) => l.key));
     expect(owners).toEqual(
-      new Set(['overlay', 'handMap', 'faceControls', 'faceExpr.degrees', 'faceExpr.sensitivity', 'steerConfig']),
+      new Set(['overlay', 'handMap', 'faceControls', 'faceExpr.degrees', 'faceExpr.sensitivity', 'steerConfig', 'conductor']),
     );
     // Every declared structured dial has at least one settable leaf — otherwise it would
     // be silently unreachable by BOTH `dial.set` (skipped: not a scalar) and `dial.setIn`.

@@ -21,6 +21,7 @@ import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
+import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL } from '@/nodes/features/conductor';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
 import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, defaultSteerConfig, type Settings } from './schema';
@@ -141,6 +142,15 @@ export const thoreminDials = defineDials(
       title: 'Face control axes',
       description: 'Per-axis gain / deadzone / neutral zero / smoothing for the head-pose control mode',
     }),
+    // The conductor (#187) — a whole-object dial like `faceControls`: `paths.ts` derives
+    // `conductor.enabled`, `conductor.hand`, `conductor.servoBeats`, … from the node's own
+    // schema, so the panel, the palette, a keybinding and the AI assistant can all start
+    // conducting or retune the follower. Off by default.
+    conductor: ConductorDialSchema.default(DEFAULT_CONDUCTOR_DIAL).meta({
+      facets: ['Conductor'],
+      title: 'Conductor',
+      description: 'Conduct the score with your hand: on/off, which hand and point to follow, how tightly the score follows the beat',
+    }),
   }),
   // No cross-field constraints: since #75 the chord/head-pose modes no longer require
   // a seven-note melody scale — the chord SOURCE (auto-derived or custom) is what a
@@ -197,6 +207,7 @@ export function settingsToLayer(s: Settings): Layer {
     overlay: s.overlay,
     handMap: s.handMap,
     faceControls: s.faceControls,
+    conductor: s.conductor,
   });
 }
 
@@ -232,5 +243,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     overlay: v.overlay,
     handMap: v.handMap,
     faceControls: v.faceControls,
+    conductor: v.conductor,
   });
 }

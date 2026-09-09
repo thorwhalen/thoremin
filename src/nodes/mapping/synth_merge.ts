@@ -41,6 +41,8 @@ export const synthMergeNode = defineNode({
     { name: 'b', kind: 'synth-params' },
     // Optional third stream (e.g. the head-pose chord); absent → contributes nothing.
     { name: 'c', kind: 'synth-params' },
+    // Optional fourth stream (#187: the conducted score); absent → contributes nothing.
+    { name: 'd', kind: 'synth-params' },
     // Master mute: true → silence every merged voice at this single convergence
     // point (all producers pass through here). Absent → false (passthrough).
     { name: 'mute', kind: 'boolean', default: false },
@@ -50,7 +52,8 @@ export const synthMergeNode = defineNode({
     const a = asParams(inputs.a);
     const b = asParams(inputs.b);
     const c = asParams(inputs.c);
-    const voices = [...a.voices, ...b.voices, ...c.voices];
+    const d = asParams(inputs.d);
+    const voices = [...a.voices, ...b.voices, ...c.voices, ...d.voices];
     // Master mute: zero every voice (and mark it absent) so hands + both chord
     // instruments go quiet together. The synth's per-voice release ramp makes
     // this a smooth, click-free fade rather than an abrupt cut.
