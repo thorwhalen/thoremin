@@ -49,7 +49,8 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
-import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL, type ConductorDialParams } from '@/nodes/features/conductor';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings } from '@/settings/schema';
+import type { ScoreDoc } from '@/score/schema';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
@@ -62,7 +63,7 @@ const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CON
 /** A fresh generative-layer default (the `config` object is cloned for the same reason). */
 const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structuredClone(DEFAULT_STEER.config) });
 /** A fresh copy of the shipped conductor dial (#187): off. */
-const defaultConductor = (): ConductorDialParams => ({ ...DEFAULT_CONDUCTOR_DIAL });
+const defaultConductor = (): ConductorSettings => ({ ...DEFAULT_CONDUCTOR });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -180,7 +181,14 @@ export interface ControlState {
   /** The conductor dial (#187): on/off, hand, point, servo horizon, fallback and
    *  dynamics ranges. A preset field, fed live to the `conductor` node's `config` port
    *  through store-controls, so conducting starts with no rebuild. */
-  conductor: ConductorDialParams;
+  conductor: ConductorSettings;
+  /**
+   * The loaded score (#187 PR 3): the `ScoreDoc` the `score` node plays, handed to the
+   * graph through `store-controls` as the live `scoreDoc` port. TRANSIENT, like
+   * {@link muted}: never persisted (a parsed movement is hundreds of kilobytes; the
+   * `conductor.piece` dial remembers WHICH piece, and the app reloads it on demand).
+   */
+  scoreDoc: ScoreDoc | null;
   /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
    *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
@@ -210,6 +218,8 @@ export interface ControlState {
   setMuted(v: boolean): void;
   /** Toggle the master mute — the `m` key (app-level keyboard handler, #90) calls this. */
   toggleMuted(): void;
+  /** Replace the loaded score (transient, see {@link scoreDoc}). */
+  setScoreDoc: (doc: ScoreDoc | null) => void;
   /** Set / toggle the generative transport (transient, see {@link steerPlaying}). */
   setSteerPlaying(v: boolean): void;
   toggleSteerPlaying(): void;
@@ -474,7 +484,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   let conductor = current.conductor;
   if (p.conductor) {
     try {
-      conductor = ConductorDialSchema.parse(p.conductor);
+      conductor = ConductorSettingsSchema.parse({ ...current.conductor, ...p.conductor });
     } catch {
       conductor = current.conductor;
     }
@@ -489,7 +499,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -526,6 +536,7 @@ export const useControls = create<ControlState>()(
       bodyMap: structuredClone(DEFAULT_BODY_MAP),
       steer: defaultSteer(),
       steerPlaying: false,
+      scoreDoc: null,
       faceControls: defaultFaceControls(),
       conductor: defaultConductor(),
       faceCalibration: null,
@@ -551,6 +562,7 @@ export const useControls = create<ControlState>()(
       setMuted: (v) => set({ muted: v }),
       toggleMuted: () => set((s) => ({ muted: !s.muted })),
       setSteerPlaying: (v) => set({ steerPlaying: v }),
+      setScoreDoc: (doc) => set({ scoreDoc: doc }),
       toggleSteerPlaying: () => set((s) => ({ steerPlaying: !s.steerPlaying })),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),

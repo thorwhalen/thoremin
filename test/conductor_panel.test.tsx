@@ -12,9 +12,9 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import DialsControlsPanel from '@/app/dials/DialsControlsPanel';
 import { ConductorControls } from '@/app/dials/panels/conductor';
 import { dialsStore } from '@/app/dials/settingsStore';
-import type { ConductorDialParams } from '@/nodes/features/conductor';
+import type { ConductorSettings } from '@/settings/schema';
 
-const conductor = () => dialsStore.getState().effective.conductor as ConductorDialParams;
+const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const drain = async () => {
   await Promise.resolve();
   await Promise.resolve();
@@ -40,6 +40,22 @@ describe('ConductorControls', () => {
     expect(point.disabled).toBe(true);
     // The copy says what happens when you stop beating (the hold state).
     expect(screen.getByText(/Stop beating and it holds/)).toBeTruthy();
+  });
+
+  it('offers the built-in scale, the shipped demos and a file picker, and the piece chooser dispatches', async () => {
+    render(<ConductorControls />);
+    const piece = screen.getByLabelText('Piece') as HTMLSelectElement;
+    const labels = Array.from(piece.options).map((o) => o.textContent ?? '');
+    expect(labels.some((l) => /Built-in scale/.test(l))).toBe(true);
+    expect(labels.some((l) => /Beethoven/.test(l))).toBe(true);
+    expect(labels.some((l) => /Haydn/.test(l))).toBe(true);
+    expect(screen.getByLabelText(/Load a MIDI or MusicXML file/)).toBeTruthy();
+    fireEvent.change(piece, { target: { value: 'haydn-op76-3' } });
+    await drain();
+    expect(conductor().piece).toBe('haydn-op76-3');
+    fireEvent.change(piece, { target: { value: 'beethoven-symphony-5-1' } });
+    await drain();
+    expect(conductor().piece).toBe('beethoven-symphony-5-1');
   });
 
   it('the toggle and the hand chooser dispatch into the dial (the leaf paths are real)', async () => {

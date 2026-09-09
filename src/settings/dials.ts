@@ -21,7 +21,7 @@ import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
-import { ConductorDialSchema, DEFAULT_CONDUCTOR_DIAL } from '@/nodes/features/conductor';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR } from './schema';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
@@ -150,7 +150,7 @@ export const thoreminDials = defineDials(
     // `conductor.enabled`, `conductor.hand`, `conductor.servoBeats`, … from the node's own
     // schema, so the panel, the palette, a keybinding and the AI assistant can all start
     // conducting or retune the follower. Off by default.
-    conductor: ConductorDialSchema.default(DEFAULT_CONDUCTOR_DIAL).meta({
+    conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR).meta({
       facets: ['Conductor'],
       title: 'Conductor',
       description: 'Conduct the score with your hand: on/off, which hand and point to follow, how tightly the score follows the beat',

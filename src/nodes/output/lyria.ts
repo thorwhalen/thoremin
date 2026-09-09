@@ -34,7 +34,6 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import { realtimeOutputAllowed } from '@/dag';
 import { lazyResource, withActive, type LoadStatus } from '@/lazy';
 import { getStoredKey } from '@/keys/providerKeys';
 import type { GenerativeEngine, GenerativeEngineFactory, GenerativeSteer } from './generative';
@@ -193,10 +192,7 @@ export const lyriaNode = defineNode<Params>({
       process(inputs, ctx: NodeContext) {
         resources = ctx.resources;
         log = ctx.log;
-        // Boundary B (#101 M-G) is strictest here: the design says live/streaming
-        // generative audio "cannot be scaled at all" — there is no offline render to
-        // fall back to, because the stream is produced elsewhere in real time.
-        const enabled = inputs.enabled === true && realtimeOutputAllowed(ctx);
+        const enabled = inputs.enabled === true;
         const playing = enabled && inputs.playing === true;
 
         // ---- obtain / drop the engine (never awaited; the resource reports phase) ----

@@ -136,7 +136,11 @@ stream by its logical key and never see the envelope.
 
 `test/fixtures/conducting_{44,34,24}/` are 11 to 14.5 s excerpts of a conductor beating 4/4, 3/4 and 2/4 patterns at a **stated** 70 bpm, as hand-landmark streams (`src.hands.ndjson.gz`) plus a `meta.json` carrying the ground truth a clip cannot supply on its own: the stated tempo and pattern, and the window in which she is actually beating. The raw video lives in the app-data dir (`~/.local/share/thoremin/videos/conducting/`, fetched with `yb`; its README records sources and excerpt times) and never in the repo. `scripts/video_to_landmarks.py` decodes an excerpt; `scripts/build_conducting_fixture.ts` compacts the stream (coordinates to a tenth of a pixel, keypoint names dropped) and writes the fixture. The reference beat grid is built from the stated tempo alone (`fitGrid` in `src/ictus/metrics.ts` fits only its phase), so a detector firing at the wrong rate cannot pass, and the assertions are the MIR beat-tracking metrics (`test/ictus_detector.test.ts`). One thing these clips taught, worth knowing before tightening a threshold: a human conductor keeps the bar at 70 bpm but gives the downbeat stroke ~1.05 s and the inner beats ~0.7 s, so beat-level metrics against a metronomic grid top out around 0.8 until the meter recogniser lands.
 
-## Fixtures from a trainer take
+## The shipped scores as test inputs (#187 PR 3)
+
+`public/scores/` holds the two demo pieces the conductor mode ships (a public-domain Beethoven 5 MIDI from Mutopia, a CC0 Haydn quartet from OpenScore, licences in `LICENSES.md` there); `test/score_load.test.ts`, `test/score_node.test.ts` and `test/score_loader.test.ts` read them from disk, so the loaders and the `score` node are exercised on real content rather than a hand-made fixture. They are app content, not fixtures: add a piece only with a redistributable licence.
+
+
 
 A recorded training take is the cheapest ground truth this repo can produce, because
 the cue states what the player was *asked* to do in their own words. That is the frame

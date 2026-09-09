@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -355,12 +355,12 @@ Beat clock: integrates BPM over time into a running beat position.
 - **params:** startBeat (number=0)
 
 #### `score` — Score
-An immutable piece performed live: beat + velocityScale → sounding synth voices.
+An immutable piece performed live: beat + velocityScale → the sounding synth voices. Plays a loaded ScoreDoc (MIDI / MusicXML) or the built-in demo scale.
 
 - **roles:** music
-- **in:** beat:number, velocityScale:number, enabled:boolean
+- **in:** beat:number, velocityScale:number, enabled:boolean, doc:score-doc
 - **out:** params:synth-params
-- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle")
+- **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), parts (array=[])
 
 #### `performance` — Performance
 Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.
