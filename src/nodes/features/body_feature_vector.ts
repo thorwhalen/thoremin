@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import type { BodyFrame } from '../domain';
-import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type FeatureVector } from '@/features/catalog';
+import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type FeatureVector, type PulseStateLike } from '@/features/catalog';
 import type { DemandedGroups } from '@/features/demand';
 import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
 
@@ -58,7 +58,11 @@ export const bodyFeatureVectorNode = defineNode<Params>({
   roles: ['feature'],
   title: 'Body Feature Vector',
   description: 'Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).',
-  inputs: [{ name: 'body', kind: 'body-frame' }],
+  inputs: [
+    { name: 'body', kind: 'body-frame' },
+    // The dancer's pulse (#186 PR F), folded into the same vector as `body.rhythm.*`.
+    { name: 'pulse', kind: 'pulse-state' },
+  ],
   outputs: [{ name: 'vector', kind: 'feature-vector' }],
   params: Params,
   make(p) {
@@ -95,7 +99,8 @@ export const bodyFeatureVectorNode = defineNode<Params>({
         if (frame === lastFrame) return { vector: lastVector };
         const dtS = lastTime === null ? NaN : ctx.time - lastTime;
         if (history.length) history[history.length - 1] = { ...history[history.length - 1], dtS };
-        const bctx = buildBodyCtx(frame, { mirrorX: p.mirrorX, dtS, history });
+        const pulse = inputs.pulse as PulseStateLike | undefined;
+        const bctx = buildBodyCtx(frame, { mirrorX: p.mirrorX, dtS, history, pulse });
         for (const feat of BODY_FEATURES) {
           if (!enabled(feat.group)) continue;
           const v = feat.compute(bctx);

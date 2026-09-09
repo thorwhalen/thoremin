@@ -288,6 +288,7 @@ const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
   'body.shape': BODY_RELATIVE,
   'body.effort': BODY_RELATIVE,
   'body.rel': BODY_RELATIVE,
+  'body.rhythm': WORLD_GEOMETRY,
 };
 
 function withGroupInvariance(f: BodyFeature): BodyFeature {
@@ -392,6 +393,20 @@ function relationFeatures(): BodyFeature[] {
   return out;
 }
 
+/** Within this fraction of a period after an anchor the `beat` flag is 1. */
+const BEAT_WINDOW = 0.15;
+
+function rhythmFeatures(): BodyFeature[] {
+  const p = (c: BodyCtx) => c.pulse;
+  return [
+    { id: 'body.rhythm.period', group: 'body.rhythm', source: 'body', invariantTo: WORLD_GEOMETRY, controllability: 'easy', description: 'The dance pulse period (seconds), from body-pulse', compute: (c) => p(c)?.periodS ?? NaN },
+    { id: 'body.rhythm.bpm', group: 'body.rhythm', source: 'body', invariantTo: WORLD_GEOMETRY, controllability: 'easy', description: 'The dance pulse tempo (beats per minute)', compute: (c) => p(c)?.bpm ?? NaN },
+    { id: 'body.rhythm.phase', group: 'body.rhythm', source: 'body', range: [0, 1], circular: true, invariantTo: WORLD_GEOMETRY, controllability: 'easy', description: 'Position within the current pulse, 0 at the anchor .. 1', compute: (c) => p(c)?.phase ?? NaN },
+    { id: 'body.rhythm.confidence', group: 'body.rhythm', source: 'body', range: [0, 1], invariantTo: WORLD_GEOMETRY, controllability: 'involuntary', description: 'How much to trust the pulse (autocorrelation strength × anchor regularity)', compute: (c) => p(c)?.confidence ?? NaN },
+    { id: 'body.rhythm.beat', group: 'body.rhythm', source: 'body', range: [0, 1], invariantTo: WORLD_GEOMETRY, controllability: 'easy', description: 'A pulse-synchronous gate: 1 just after each anchor, else 0', compute: (c) => { const ph = p(c)?.phase; return Number.isFinite(ph) ? ((ph as number) < BEAT_WINDOW ? 1 : 0) : NaN; } },
+  ];
+}
+
 /** The body catalog, in display order; ids are final (no per-side expansion). */
 export const BODY_FEATURES: readonly BodyFeature[] = [
   ...angleFeatures(),
@@ -400,4 +415,5 @@ export const BODY_FEATURES: readonly BodyFeature[] = [
   ...shapeFeatures(),
   ...effortFeatures(),
   ...relationFeatures(),
+  ...rhythmFeatures(),
 ].map(withGroupInvariance);

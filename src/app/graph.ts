@@ -253,6 +253,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // Body → sound (#186 PR E): routes body features to voice modulations per the
       // bodyMap dial; neutral (no change) until a route is set.
       { id: 'bodyRoute', type: 'body-route', params: {} },
+      // The dance pulse (#186 PR F): period/phase/confidence from the raw body frame,
+      // folded into the body vector as body.rhythm.*; the pace controller reads it too.
+      { id: 'pulse', type: 'body-pulse', params: {} },
       // Gesture dispatch (#129): discrete pose classification (fist/open/pinch),
       // tapped additively off the hand-features stream the mapping already reads.
       // Nothing in the GRAPH consumes it — the app-level gesture dispatcher
@@ -413,6 +416,8 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'faceVec', port: 'vector' }, to: { node: 'overlay', port: 'faceVector' } },
       { from: { node: 'handVec', port: 'vector' }, to: { node: 'overlay', port: 'handVector' } },
       { from: { node: 'camBody', port: 'body' }, to: { node: 'bodyVec', port: 'body' } },
+      { from: { node: 'camBody', port: 'body' }, to: { node: 'pulse', port: 'body' } },
+      { from: { node: 'pulse', port: 'pulse' }, to: { node: 'bodyVec', port: 'pulse' } },
       { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'overlay', port: 'bodyVector' } },
       { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'bodyRoute', port: 'vector' } },
       { from: { node: 'ui', port: 'bodyMap' }, to: { node: 'bodyRoute', port: 'bodyMap' } },

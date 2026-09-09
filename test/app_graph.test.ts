@@ -66,13 +66,16 @@ describe('production app graph', () => {
     // The body vector tap (#186) sits between its source and the overlay.
     expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('bodyVec'));
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('overlay'));
+    // The pulse (#186 PR F) sits between the body source and the vector it feeds.
+    expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('pulse'));
+    expect(order.indexOf('pulse')).toBeLessThan(order.indexOf('bodyVec'));
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
-    // source, its vector tap and the body-route (#186 PR E) + the #141/#188 generative
-    // pair (indirect-map + lyria) + the #187 conductor and score.
+    // source, its vector tap, the body-route (#186 PR E) and the dance pulse (#186 PR F)
+    // + the #141/#188 generative pair (indirect-map + lyria) + the #187 conductor and score.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    expect(order).toHaveLength(25);
+    expect(order).toHaveLength(26);
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
