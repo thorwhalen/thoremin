@@ -396,6 +396,33 @@
     ]
   },
   {
+    "type": "delay",
+    "title": "Delay",
+    "description": "Emit the input value from N ticks ago; nothing until that much history exists.",
+    "roles": [
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "value",
+        "kind": "any"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "value",
+        "kind": "any"
+      }
+    ],
+    "params": [
+      {
+        "name": "ticks",
+        "type": "number",
+        "default": 1
+      }
+    ]
+  },
+  {
     "type": "expression-chord",
     "title": "Expression Chord",
     "description": "Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face \"chord\" mode).",
