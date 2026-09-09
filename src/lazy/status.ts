@@ -34,10 +34,16 @@ export interface LoadStatus {
   phase: LoadPhase;
   /** Short, human-readable explanation of the phase, always present. */
   message: string;
-  /** Machine-readable cause for `unavailable` / `error` (`no-key`, `denied`, `unsupported`, …). */
+  /** Machine-readable cause for `unavailable` / `error` (`no-key`, `denied`, `unsupported`, …),
+   *  and optionally a qualifier for `loading` (`permission`: waiting on a browser prompt,
+   *  which wants different player instructions than a download). */
   reason?: string;
   /** 0..1 while `loading`, when the loader can report it (a multi-megabyte download). */
   progress?: number;
+  /** Node-specific data that travels with the phase — the MIDI port list that comes
+   *  back WITH a `no-ports` / `port-not-found` result, for a selector to offer. Typed by
+   *  the node, opaque here. */
+  detail?: unknown;
 }
 
 /** A `ready` status becomes `active` while the node is doing its job; anything else is

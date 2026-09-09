@@ -27,8 +27,8 @@ import type { LoadStatus } from './status';
 
 /** What a loader resolves: the thing, or an actionable reason it cannot be had. */
 export type LoadResult<T> =
-  | { resource: T; message?: string }
-  | { resource: null; reason: string; message?: string };
+  | { resource: T; message?: string; detail?: unknown }
+  | { resource: null; reason: string; message?: string; detail?: unknown };
 
 /** What a loader receives. `signal` aborts when the request is released mid-load, so
  *  a loader that can stop a download early should; `progress` drives the readout. */
@@ -44,6 +44,14 @@ export interface LazyResourceOptions<T> {
   load: Loader<T>;
   /** Close / dispose the held thing (also called on a late arrival). */
   unload?: (resource: T) => void;
+  /**
+   * A synchronous capability check run by `request()` BEFORE the loader: return a
+   * reason (+ message) when this host can never provide the thing (no Web MIDI, no
+   * WebGPU), and the status is `unavailable` on the same tick with nothing imported
+   * — no one-tick "Loading..." flash, no vendor code fetched where it cannot work.
+   * Return null to proceed. Re-checked on every fresh request (after a release).
+   */
+  gate?: () => { reason: string; message?: string; detail?: unknown } | null;
   /** A noun for the default messages ("MIDI output", "generative engine"). */
   label?: string;
   /** Where a failure is reported once (the node's `ctx.log`, or `console.warn`). */
@@ -85,18 +93,32 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
   let gen = 0; // bumped by release(): a load from an older generation is a late arrival
   let controller: AbortController | null = null;
   let status: LoadStatus = { phase: 'off', message: msg.off };
-  let progress = 0;
 
   type Outcome = { kind: 'result'; res: LoadResult<T> } | { kind: 'error'; error: unknown };
 
+  /** Rule 5 extends to teardown: a `close()` that throws (a landmarker, a port) is
+   *  logged, never propagated into `process()` or left as an unhandled rejection. */
+  const safeUnload = (resource: T): void => {
+    try {
+      unload(resource);
+    } catch (err) {
+      opts.log?.(`[lazy] ${label}: unload failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
   const settle = (myGen: number, outcome: Outcome): void => {
-    loading = false;
     if (myGen !== gen || disposed) {
       // Rule 2: released or disposed while loading — never attach, never mark attempted
-      // (so the NEXT request after the release starts fresh instead of staying wedged).
-      if (outcome.kind === 'result' && outcome.res.resource !== null) unload(outcome.res.resource);
+      // (so the NEXT request after the release starts fresh instead of staying wedged),
+      // and touch NOTHING else: `loading` / `controller` belong to whatever load the
+      // current generation may have in flight. (Clearing `loading` here was the bug the
+      // review of this module found: it let a second load start beside the first and
+      // let a disabled node attach a resource — the #147 bug class, re-made.)
+      if (outcome.kind === 'result' && outcome.res.resource !== null) safeUnload(outcome.res.resource);
       return;
     }
+    loading = false;
+    controller = null;
     attempted = true;
     if (outcome.kind === 'error') {
       const detail = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
@@ -106,27 +128,35 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
     }
     const res = outcome.res;
     if (res.resource === null) {
-      const { reason, message } = res as { resource: null; reason: string; message?: string };
-      status = { phase: 'unavailable', reason, message: message ?? msg.unavailable };
+      const { reason, message, detail } = res as { resource: null; reason: string; message?: string; detail?: unknown };
+      status = { phase: 'unavailable', reason, message: message ?? msg.unavailable, detail };
       return;
     }
     held = res.resource;
-    status = { phase: 'ready', message: res.message ?? msg.ready };
+    status = { phase: 'ready', message: res.message ?? msg.ready, detail: res.detail };
   };
 
   return {
     request() {
       if (disposed || held || loading || attempted) return;
+      const blocked = opts.gate?.();
+      if (blocked) {
+        attempted = true;
+        status = { phase: 'unavailable', reason: blocked.reason, message: blocked.message ?? msg.unavailable, detail: blocked.detail };
+        return;
+      }
       loading = true;
-      progress = 0;
       const myGen = gen;
-      controller = new AbortController();
-      status = { phase: 'loading', message: msg.loading, progress };
+      const myController = new AbortController();
+      controller = myController;
+      // `progress` stays absent until the loader reports one: a readout must not draw a
+      // stuck 0% bar for a permission prompt or a socket that cannot say how far it is.
+      status = { phase: 'loading', message: msg.loading };
       const ctx: LoadContext = {
-        signal: controller.signal,
+        signal: myController.signal,
         progress: (f) => {
-          if (myGen !== gen) return;
-          progress = Math.min(1, Math.max(0, f));
+          if (myGen !== gen || myController.signal.aborted) return;
+          const progress = Math.min(1, Math.max(0, f));
           if (status.phase === 'loading') status = { ...status, progress };
         },
       };
@@ -140,7 +170,7 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
       p.then(
         (res) => settle(myGen, { kind: 'result', res }),
         (error) => settle(myGen, { kind: 'error', error }),
-      );
+      ).catch((err) => opts.log?.(`[lazy] ${label}: settle failed: ${String(err)}`));
     },
     release() {
       gen++;
@@ -151,13 +181,13 @@ export function lazyResource<T>(opts: LazyResourceOptions<T>): LazyResource<T> {
       if (held !== null) {
         const h = held;
         held = null;
-        unload(h);
+        safeUnload(h);
       }
       status = { phase: 'off', message: msg.off };
     },
     want(enabled) {
       if (enabled) this.request();
-      else if (held !== null || loading || attempted) this.release();
+      else if (held !== null || loading || attempted || controller !== null) this.release();
     },
     current: () => held,
     status: () => status,

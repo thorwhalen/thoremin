@@ -24,8 +24,8 @@ describe('LoadStatusReadout', () => {
 
   it('says off (and reports phase off) when the enable control is off, whatever the status', () => {
     const stale: LoadStatus = { phase: 'error', message: 'Could not load' };
-    render(<LoadStatusReadout status={stale} enabled={false} offMessage="Generative layer off" />);
-    const el = screen.getByText('Generative layer off');
+    render(<LoadStatusReadout status={stale} enabled={false} offMessage="Generative off" />);
+    const el = screen.getByText('Generative off');
     expect(phaseOf(el)).toBe('off');
     expect(screen.queryByText('Could not load')).toBeNull();
   });
