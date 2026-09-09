@@ -72,14 +72,44 @@ Measured on this machine (esbuild `--bundle --minify`, gzip; checkpoints summed 
 | Option | Library (raw / gzip) | Model / runtime download | Notes |
 |---|---|---|---|
 | **Lyria RealTime** via `@google/genai` (cloud) | 207 kB / 38 kB | none (stream) | Already a dependency. **Currently in the main chunk** (§5). BYO key, `v1alpha`, 48 kHz stereo PCM, ~2 s lead. |
-| **Magenta.js MusicRNN** (`@magenta/music/es6/music_rnn`) | 1,251 kB / 298 kB | `basic_rnn` 12.7 MB, `melody_rnn` 13.6 MB, `drum_kit_rnn` 11.6 MB | Melody/drum continuation, per-bar. Pins `@tensorflow/tfjs ^2.7`; thoremin ships 4.22 → a second TF.js copy unless aliased. |
-| **Magenta.js MusicVAE / GrooVAE** (`…/music_vae`) | 1,263 kB / 302 kB | `mel_2bar_small` 17.3 MB, `drums_2bar_lokl_small` 18.1 MB, `groovae_2bar_humanize` 16.0 MB, `trio_4bar` 68.9 MB, `mel_4bar_med_q2` 133.8 MB | Latent-space *interpolation* is the gesture-friendly operation (a 2-D hand position → a point between two saved bars). GrooVAE humanises a quantised drum pattern: the natural partner for #187's beat. |
+| **Magenta.js MusicRNN** (`@magenta/music/es6/music_rnn`) | 1,251 kB / 298 kB | `basic_rnn` 13.0 MB, `melody_rnn` 13.9 MB, `drum_kit_rnn` 11.9 MB, `chord_pitches_improv` 5.6 MB | Melody/drum continuation, per-bar. Pins `@tensorflow/tfjs ^2.7`; thoremin ships 4.22, and the ES6 bundles deliberately do not bundle TF.js, so a host on 4.x gets two TF.js registries that fight (`magenta-js` #628, #356) [10]. |
+| **Magenta.js MusicVAE / GrooVAE** (`…/music_vae`) | 1,263 kB / 302 kB | `mel_2bar_small` 17.7 MB, `drums_2bar_lokl_small` 18.5 MB, `groovae_2bar_humanize` 16.3 MB, `tap2drum_2bar` 16.3 MB, `mel_4bar_med_q2` 68.5 MB | Latent-space *interpolation* is the gesture-friendly operation (a 2-D hand position → a point between two saved bars). GrooVAE humanises a quantised drum pattern and `tap2drum` turns a tapped rhythm into a groove: the natural partners for #187's beat. |
+| **Magenta.js Piano Genie** (`…/piano_genie`) | (core + 0.25 MB) | **1.2 MB** | Eight buttons → plausible 88-key piano, in real time. The smallest neural model here, and exactly the "few gesture axes → many notes" shape a theremin has. |
 | **Magenta.js Coconet** (`coconet/bach`) | (core 1,681 kB / 404 kB) | 2.2 MB | Four-part harmonisation of a melody. The smallest useful checkpoint by far. |
 | **ONNX Runtime Web** (`onnxruntime-web`) | 403 kB / 110 kB (`/webgpu` entry 113 kB / 37 kB) | wasm 13.6 MB (simd-threaded), 15.7 MB (jspi), 27.1 MB (jsep/WebGPU) | A runtime, not a model. No small steerable symbolic music model is published in ONNX; exporting one is a research task, not an integration. Threaded builds need COOP/COEP headers the static host does not set. |
 | **transformers.js** (`@huggingface/transformers`) | 9.5 MB unpacked | MusicGen-small ≥ 300 MB | Audio-domain generation; seconds per clip. Not a live instrument. |
 | **Rule-based / tiny** (Tonal.js harmoniser, Euclidean/Markov rhythm, n-gram melody) | < 20 kB | none | Already have `tonal` as a dependency. Not "AI" in the maintainer's sense, but the honest baseline any model must beat, and the right *fallback* voice when a model has not loaded yet. |
 
-<!-- RESEARCH: §4 continues with the literature-backed assessment; filled from the research memo. -->
+### 4a. The cloud option is real, experimental, and drifting
+
+Lyria RealTime (`models/lyria-realtime-exp`) is the only streaming, continuously steerable *audio* generator with a public API. It is still labelled experimental (model page last updated 2026-04-28) [2]; the docs (2026-09-04) specify weighted prompts, `bpm` 60–200, `density`/`brightness` 0–1, `guidance` 0–6, `temperature` 0–3, and a control-to-effect latency of at most two seconds, with `bpm`/`scale` changes needing a context reset [1][2]. Two things have moved since `LyriaEngine` was written: the official client samples now pass `apiVersion: "v1beta"` while the WebSocket endpoint is still the `v1alpha` path [1][3], and the SDK builds the URL from whatever version the client is given [8]. The pricing page (2026-09-08) lists Lyria 3 / 3.5 per song and has **no row at all** for RealTime, so its quota and cost posture is unverified [4]. Lyria 3 and 3.5 (2026) are offline song generators, not successors to the stream [5]; Google's own camera-steered demo (Lyria Camera, 2025-12) steers RealTime through Gemini *captions*, not a continuous latent [7]. Consequence for PR 3: treat the vendor call as the one thing that *will* have drifted, keep it behind the facade, and confirm the version string at first construction (a #146 item).
+
+### 4b. Magenta.js: small, useful, and frozen
+
+`@magenta/music` 1.23.1 was published 2021-11-01; the JS repo's last non-bot commit is 2024-03-25 and the Python parent was archived 2026-01-06 [9][10][12]. Its checkpoints are the only ready-made, permissively licensed (Apache-2.0) symbolic models small enough to lazy-load: 5.6–18.5 MB for the useful ones, 1.2 MB for Piano Genie [11]. Measured on a CPU backend in Node (no WebGL), a 2-bar MusicRNN continuation takes 0.75–1.55 s and a MusicVAE 2-bar sample 0.45–0.63 s; the browser WebGL backend is normally several times faster, so "a few hundred milliseconds per two bars" is the defensible estimate, and either way it is a *per-bar, ahead-of-time* budget, never per-frame. The blocking cost is the dependency: it pins TF.js 2.7 and thoremin ships 4.22, and the ES6 bundles leave TF.js to the host, so the honest options are to pin the whole app back to 2.x (no), or to load Magenta with its own TF.js in a separate bundle (a second ~1 MB runtime, feasible behind the lazy pattern but ugly), or to re-export the two or three small checkpoints to a runtime we already have (TF.js 4 Graph models, an engineering task with no published artefact) [10]. This is why §3b is *second*, not now.
+
+### 4c. Magenta RealTime 2 is the thing to watch, not to ship
+
+MRT2 (2026-06-04) is open-weights (Apache-2.0 code, CC-BY-4.0 weights) with a 230 M-parameter `small` variant, 40 ms frames, about 200 ms control latency, and frame-aligned MIDI conditioning [14][15][16]. Officially it streams in real time on Apple Silicon only [14]. A community browser port exists (jax-js on WebGPU for the language model, onnxruntime-web wasm for the codec, ~1.7 GB fp32 fetched on first use, COOP/COEP required) but claims generation, not sustained real time [17][18]; an iPhone Neural Engine port reaches ~14 ms per 40 ms frame, which bounds what a laptop WebGPU might do [19]. Nothing here is a static-site deliverable in 2026: the download is three orders of magnitude over the lazy budget and the host would need cross-origin isolation headers. The `GenerativeEngine` facade is where it plugs in the day that changes; nothing else in this design would move.
+
+### 4d. ONNX Runtime Web and transformers.js: runtimes without a model
+
+`onnxruntime-web` 1.29.0 ships 14–28 MB wasm binaries; multithreading needs `crossOriginIsolated` (COOP + COEP headers the static host does not set), WebGPU is in every major browser since early 2026, WebNN is still behind a flag [21][22][23][24][26]. No permissively licensed symbolic music model under 50 MB is published in ONNX: the smallest (`musiclang-4k-onnx`, 56 MB quantized) is GPL-3.0; the rest are 0.5–8 GB [31][32][33][34]. `@huggingface/transformers` 4.2 can run MusicGen-small, but that is a 656 MB, non-commercial, offline text-to-audio model with a known WebGPU defect [27][28][29]. So "an ONNX model" is not an integration but a training or distillation project; the design records that so the next session does not re-survey it.
+
+### 4e. The tiny baseline is not nothing
+
+`tonal` (already a dependency, 43 kB minified) gives scales, chords, progressions and voicings [36]; Euclidean rhythms are 15 kB [37]; a first-order Markov melody or a rule-based harmoniser is a few hundred lines. Rule-based accompaniment is microseconds per event, needs no download, and is the *fallback voice* the `music`+`generate` node should play while a checkpoint downloads, so that enabling the layer is never a silent wait. It is also the baseline a 15 MB model has to audibly beat before its download is justified; recording the comparison is a #146 item, not an assumption.
+
+### 4f. What the literature says about gesture-steered generation
+
+The canonical browser "conducting" demo (Google's Semi-Conductor, 2018) drives tempo, volume and instrumentation of a *fixed* score from pose [39]; MediaPipe-hands controllers in the browser drive Web Audio, MIDI and OSC, not a generator [40]; recent gesture-to-music work (GestAlt at NIME 2025, Gesture2Music 2025–26) maps landmark sequences to note-level events with adaptive or learned models at ~30 ms inference, still triggering predefined samples rather than a generative audio model [41][42]. CHI 2026's design-space survey of live music agents is the right citation for positioning [43]. Nobody has published MediaPipe hands steering Lyria RealTime or Magenta RT in a browser; the closest thing in Google's own material is "mapping human actions to musical controls" with MIDI sliders [6][44]. That is the space #141 sits in, and the reason its feel is an ears question (#146) and not a literature question.
+
+### 4g. Recommendation
+
+1. **Build the cloud branch now** (§3a, §6): it is wiring, the nodes exist, and it is the only steerable audio generator available. It ships behind the lazy pattern, BYO key, off by default, and honest about its two-second lead.
+2. **Do not add Magenta.js as a dependency today.** Its TF.js pin is a runtime conflict, not a version nit. Prototype §3b as a *headless* experiment (Node, the fixtures, `tap2drum`/`groovae_2bar` conditioned on #187's beat) before any bundle decision; the fixture-replay harness makes that cheap.
+3. **Keep the `GenerativeEngine` facade vendor-shaped and the `music`+`generate` node contract symbolic** (voices in, voices out), so MRT2-in-the-browser or an in-house small model plugs in without touching the graph.
+4. **Ship the tiny baseline with §3b**, not after it: rule-based accompaniment is the fallback voice and the control.
 
 ## 5. Lazy loading as a catalogued pattern
 
@@ -124,14 +154,16 @@ Node-specific phases (`connecting`, `no-ports`, `denied`) map onto these as `loa
 
 ```ts
 const res = lazyResource<T>({
-  load: (signal) => Promise<LoadResult<T>>,   // the seam: injected factory or default import()
-  unload: (t) => void,                         // close/dispose the held thing
+  load: (ctx) => Promise<LoadResult<T>>,   // the seam: the injected factory, or the default import()
+  unload: (t) => void,                     // close/dispose the held thing (also a late arrival)
+  label: 'generative engine',
 });
-res.request();        // idle → loading (once; a failed load is not retried until release())
+res.want(enabled);    // the per-tick line: request() when enabled, release() otherwise
+res.request();        // off → loading, once; a failed load is not retried until release()
 res.release();        // drop the held thing; a load still in flight is discarded on arrival
 res.current();        // T | null, synchronously
-res.status();         // { phase, reason?, message, progress? } — the status port's value
-res.dispose();        // release + never accept a late arrival
+res.status();         // { phase, message, reason?, progress? } — the status port's value
+res.dispose();        // release, and refuse every later arrival
 ```
 
 It encodes, with tests, the five behaviours the table in §5a lists: request-once, discard-late-arrivals, no-rehammer, retry-on-re-enable, never-throw. `lazyResource` is what the `lyria` node adopts first (PR 3), and what #186's body model and #187's conductor assets are asked to adopt rather than each inventing a fourth copy. `midi-out` and `webcam-face` stay as they are until a change touches them (both are mutation-verified; a refactor for its own sake is not in scope).
@@ -175,7 +207,7 @@ Additive fan-out off edges that already exist; no existing edge changes; `?slot.
 
 ### 6c. Engine construction without touching `useEngine`
 
-`lyria`'s loader seam: `ctx.resources.createGenerativeEngine?: (opts: { audioContext, destination }) => Promise<LoadResult<GenerativeEngine>>`. The default factory (in `lyria.ts`, one line) dynamically imports `./lyria_engine`, which reads the Gemini key through the assistant's `getStoredKey('google')` and returns `{ resource: null, reason: 'no-key' }` when absent. So the host injects nothing new: `audioContext` and `masterGain` are already on `resources`, and the key store is the one #133 shipped. Tests inject a mock factory exactly as `midi-out` tests inject `createMidiSink`.
+`lyria`'s loader seam: `ctx.resources.createGenerativeEngine?: (opts: { audioContext, destination }) => Promise<LoadResult<GenerativeEngine>>`. The default factory (in `lyria.ts`, one line) dynamically imports `./lyria_engine`, which reads the Gemini key through the assistant's `getStoredKey('google')` and returns `{ resource: null, reason: 'no-key' }` when absent. So the host injects nothing new: `audioContext` and `masterGain` are already on `resources`, and the key store is the one #133 shipped. Tests inject a mock factory exactly as `midi-out` tests inject `createMidiSink`. The engine module is the one place the vendor call lives, and it is the place §4a says has drifted (`v1alpha` → `v1beta` in the official samples): PR 3 aligns the client to the documented version and the first live construction confirms it (#146).
 
 ### 6d. The write path for a collection of prompts
 
@@ -188,7 +220,7 @@ A **Generative** section in the settings panel (the MIDI section is the template
 ## 7. Method (so the numbers can be re-measured)
 
 - Library sizes: `esbuild --bundle --minify --format=esm --platform=browser` of an entry importing the package, then `gzip -c | wc -c`. `@google/genai` measured at the repo's installed version; `@magenta/music@1.23.1` and `onnxruntime-web@1.29.0` installed into a scratch directory outside the repo.
-- Checkpoints: `weights_manifest.json` from `storage.googleapis.com/magentadata/js/checkpoints/<name>/`, weight shapes summed as float32.
+- Checkpoints: bytes on the wire, from an HTTP HEAD of every shard listed in each `weights_manifest.json` under `storage.googleapis.com/magentadata/js/checkpoints/<name>/` (a float32 sum of the declared shapes agrees for the RNN/VAE-small models and overstates the quantised `mel_4bar_med_q2`, which is why the wire figure is the one reported). Magenta CPU-backend latencies: Node v23, `@tensorflow/tfjs` 2.7.0, no WebGL.
 - App chunks: `npm run build` on main at `e207ad0`; sizes from Vite's report.
 - Registry: `npm view <pkg> version dist.unpackedSize` (2026-09-09).
 
@@ -205,4 +237,52 @@ A **Generative** section in the settings panel (the MIDI section is the template
 
 Out of scope, recorded so nobody re-derives it: the in-browser `music`+`generate` node (§3b) is a separate epic that should start after #187's beat state exists to condition on; a generated timbre (§3c) waits for a client-side audio model worth its download.
 
-<!-- REFERENCES: appended from the research memo. -->
+## References
+
+1. [Real-time music generation using Lyria RealTime — Gemini API docs (updated 2026-09-04)](https://ai.google.dev/gemini-api/docs/realtime-music-generation)
+2. [Lyria RealTime experimental — model page (updated 2026-04-28)](https://ai.google.dev/gemini-api/docs/models/lyria-realtime-exp)
+3. [Live Music API — WebSockets API reference (updated 2026-09-04)](https://ai.google.dev/api/live_music)
+4. [Gemini API pricing (updated 2026-09-08)](https://ai.google.dev/gemini-api/docs/pricing)
+5. [Gemini API release notes](https://ai.google.dev/gemini-api/docs/changelog)
+6. [Introducing Lyria RealTime API — Google Magenta (2025-06-12)](https://magenta.withgoogle.com/lyria-realtime)
+7. [Lyria Camera — Google Magenta (2025-12-03)](https://magenta.withgoogle.com/lyria-camera-announce)
+8. [googleapis/js-genai — src/music.ts](https://github.com/googleapis/js-genai/blob/main/src/music.ts)
+9. [@magenta/music on npm (1.23.1, 2021-11-01)](https://www.npmjs.com/package/@magenta/music)
+10. [magenta-js/music README](https://github.com/magenta/magenta-js/blob/master/music/README.md)
+11. [magenta-js checkpoints.json](https://github.com/magenta/magenta-js/blob/master/music/checkpoints/checkpoints.json)
+12. [magenta/magenta (archived 2026-01-06)](https://github.com/magenta/magenta)
+13. [Magenta RealTime: An Open-Weights Live Music Model (2025-06-20)](https://magenta.withgoogle.com/magenta-realtime)
+14. [Magenta RealTime 2: Open & Local Live Music Models (2026-06-04)](https://magenta.withgoogle.com/magenta-realtime-2)
+15. [magenta/magenta-realtime — README and MODEL.md](https://github.com/magenta/magenta-realtime)
+16. [google/magenta-realtime-2 — Hugging Face](https://huggingface.co/google/magenta-realtime-2)
+17. [blanchon/magenta-realtime-2-onnx — Hugging Face (2026-06-08)](https://huggingface.co/blanchon/magenta-realtime-2-onnx)
+18. [blanchon/magenta-realtime-2-demo — in-browser Space](https://huggingface.co/spaces/blanchon/magenta-realtime-2-demo)
+19. [mattmireles/magenta-realtime-2-iphone — Core ML port (2026-08-25)](https://huggingface.co/mattmireles/magenta-realtime-2-iphone)
+20. [magenta-community/magenta-realtime-2-small — PyTorch port](https://huggingface.co/magenta-community/magenta-realtime-2-small)
+21. [onnxruntime-web on npm (1.29.0, 2026-08-24)](https://www.npmjs.com/package/onnxruntime-web)
+22. [ONNX Runtime Web: env flags and session options](https://onnxruntime.ai/docs/tutorials/web/env-flags-and-session-options.html)
+23. [ONNX Runtime Web: Using WebGPU](https://onnxruntime.ai/docs/tutorials/web/ep-webgpu.html)
+24. [ONNX Runtime Web: Using WebNN](https://onnxruntime.ai/docs/tutorials/web/ep-webnn.html)
+25. [microsoft/onnxruntime discussion #24161 — WASM size with the WebGPU backend](https://github.com/microsoft/onnxruntime/discussions/24161)
+26. [WebGPU hits critical mass: all major browsers now ship it (2026)](https://www.webgpu.com/news/webgpu-hits-critical-mass-all-major-browsers/)
+27. [@huggingface/transformers on npm (4.2.0, 2026-04-22)](https://www.npmjs.com/package/@huggingface/transformers)
+28. [Xenova/musicgen-small — Hugging Face](https://huggingface.co/Xenova/musicgen-small)
+29. [transformers.js issue #1308 — WebGPU error running musicgen-small](https://github.com/huggingface/transformers.js/issues/1308)
+30. [transformers.js issue #1223 — Music/Piano Transformer to ONNX](https://github.com/huggingface/transformers.js/issues/1223)
+31. [musiclang/musiclang-4k-onnx — Hugging Face](https://huggingface.co/musiclang/musiclang-4k-onnx)
+32. [skytnt/midi-model — Hugging Face](https://huggingface.co/skytnt/midi-model)
+33. [stanford-crfm/music-small-800k (Anticipatory Music Transformer)](https://huggingface.co/stanford-crfm/music-small-800k)
+34. [loubb/aria-medium-base — Hugging Face](https://huggingface.co/loubb/aria-medium-base)
+35. [Tone.js](https://github.com/tonejs/tone.js/)
+36. [tonal on npm (6.4.3)](https://www.npmjs.com/package/tonal)
+37. [euclidean-rhythms on npm](https://www.npmjs.com/package/euclidean-rhythms)
+38. [Tone.CtrlMarkov (Tone.js r13 docs)](https://tonejs.github.io/docs/r13/CtrlMarkov)
+39. [googlecreativelab/semi-conductor (2018)](https://github.com/googlecreativelab/semi-conductor)
+40. [An Accessible, Browser-Based Gestural Controller for Web Audio, MIDI, and OSC — Computer Music Journal 47(3), 2023](https://direct.mit.edu/comj/article/47/3/6/125444/An-Accessible-Browser-Based-Gestural-Controller)
+41. [Adaptation and Perceived Creative Autonomy in Gesture-Controlled Interactive Music (GestAlt) — NIME 2025](https://nime.org/proc/nime2025_55/index.html)
+42. [Gesture2Music: A Low-Latency Real-Time Framework for Continuous Gesture-Driven Music Generation — arXiv 2511.00793](https://arxiv.org/abs/2511.00793)
+43. [A Design Space for Live Music Agents — arXiv 2602.05064 (CHI 2026)](https://arxiv.org/abs/2602.05064)
+44. [Jump to play: Building with Gemini & MediaPipe — Google Developers Blog (2026-03-24)](https://developers.googleblog.com/jump-to-play-building-with-gemini-mediapipe/)
+45. [JayusAsterion/hand-music-controller](https://github.com/JayusAsterion/hand-music-controller)
+46. [Google DeepMind — Lyria RealTime](https://deepmind.google/models/lyria/lyria-realtime/)
+47. [microsoft/onnxruntime issue #26827 — Safari/WebKit 26 in JSEP mode](https://github.com/microsoft/onnxruntime/issues/26827)
