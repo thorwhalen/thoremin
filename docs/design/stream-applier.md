@@ -330,11 +330,29 @@ boundaries allow.
     re-emitting the read snapshot on a second port so replay reproduces the feedback and
     it stays tappable. Not built: it belongs in `src/nodes/sources/`, which another
     session is working in. #87 command-dispatch is the prime consumer.
-- **M-G — Honest time-scaled audio + delay node (principled end-state).**
-  `OfflineAudioContext` render-then-play behind an explicit action; recorder
-  backpressure (fold into #88 recording-v2); the `delay` node + delayed-edge
-  topoSort (the only engine change on the whole path); migrate `StateReader` onto
-  it.
+- **M-G — Honest time-scaled audio + delay node (principled end-state). ◑ the HONEST
+  half is enforced; the render action and the delay node remain.**
+  - ✅ **Boundary (B) is now a mechanism, not a policy.** `Clock` declares `timeScale`
+    (engine seconds per wall second; **absent** = no wall-clock relation at all, which
+    `BatchClock` reports rather than lying with `1`), the `Applier` publishes it onto the
+    engine's resources, and `realtimeOutputAllowed` (`src/dag/timescale.ts`) is consulted
+    by every node with `roles: ['synth']` — `webaudio-synth` (tears its voices down, so
+    the result is silence rather than a chord frozen at its last value), `midi-out`
+    (forced through the existing disabled path, which already panics all-notes-off) and
+    `lyria` (which the design says cannot be scaled at all). A **structural test**
+    enumerates the registry's `synth`-role nodes and fails if one does not consult the
+    helper, so a future output node cannot quietly pitch-shift.
+    Absence means *allowed*, deliberately: `replayNode` passes no resources and a batch
+    run has no `AudioContext`, so muting on absence would buy no safety and break every
+    node test.
+  - ⏳ **`OfflineAudioContext` render-then-play** behind an explicit action. Not built:
+    its value is a listening judgment (does the rendered take sound right?), which is a
+    human-only check — tracked on #146 rather than blocking the mechanism above.
+  - ⏳ **The `delay` node + delayed-edge topoSort** (the only engine change on the whole
+    path), and migrating `StateReader` onto it. Not built: it is a purity improvement
+    over the working topo-order channel from M-F, and it is a real engine change, so it
+    earns its own PR and its own byte-identity check.
+  - ⏳ **Recorder backpressure** — folds into #88, not this milestone.
 
 ## M-C resolved: host-side Source for video, node-swap for frame-emitters
 
