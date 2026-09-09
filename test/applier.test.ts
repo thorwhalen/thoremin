@@ -6,7 +6,7 @@
  * when a run stops. Everything here is plain Node — no DOM, no camera, no audio.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { Applier, BatchClock, RealtimeClock, Engine, createRegistry, defineNode, type Clock, type Source, type GraphSpec } from '@/dag';
+import { Applier, BatchClock, RealtimeClock, Engine, createRegistry, defineNode, STATE_READER_KEY, type Clock, type Source, type StateReader, type GraphSpec } from '@/dag';
 import { z } from 'zod';
 
 /** A node that copies a named resource onto its output port, so a test can see what the
@@ -28,7 +28,7 @@ function probeRig(key: string) {
   const seen: unknown[] = [];
   const resources: Record<string, unknown> = {};
   const engine = new Engine(spec, registry, { resources, taps: [{ onValue: (k, v) => { if (k === 'p.seen') seen.push(v); } }] });
-  return { engine, resources, seen };
+  return { engine, seen };
 }
 
 /** A source that yields the given frames, one per microtask, then reports exhausted. */
@@ -65,10 +65,10 @@ function pacedClock(maxFrames: number): Clock {
 
 describe('an async source needs a clock that yields', () => {
   it('REFUSES an unpaced clock rather than ticking forever on a resource nothing wrote', async () => {
-    const { engine, resources } = probeRig('hands');
+    const { engine } = probeRig('hands');
     await engine.init();
     const src = listSource('s', 'signal', 'hands', ['a']);
-    await expect(new Applier({ engine, resources, sources: [src], clock: new BatchClock(10) }).run()).rejects.toThrow(
+    await expect(new Applier({ engine, sources: [src], clock: new BatchClock(10) }).run()).rejects.toThrow(
       /unpaced clock/,
     );
   });
@@ -77,32 +77,34 @@ describe('an async source needs a clock that yields', () => {
     // The message's whole purpose is traceability, and esbuild renames class bindings by
     // default — so `clock.constructor.name` would read "(l)" in exactly the production
     // build where the source is not at hand. `paced` is data on the object and survives.
-    const { engine, resources } = probeRig('hands');
+    const { engine } = probeRig('hands');
     await engine.init();
     const src = listSource('s', 'signal', 'hands', ['a']);
-    await expect(new Applier({ engine, resources, sources: [src], clock: new BatchClock(10) }).run()).rejects.toThrow(
+    await expect(new Applier({ engine, sources: [src], clock: new BatchClock(10) }).run()).rejects.toThrow(
       /paced=false/,
     );
   });
 
-  it('refuses sources with no resources object — the pump would publish where nothing reads', async () => {
-    // Reachable by omission: `resources` is optional, and the engine was constructed with
-    // its own, so nothing looks missing at the call site. The pump would then write every
-    // frame into a private {} and the graph would tick on a resource nothing ever wrote.
-    const { engine } = probeRig('hands');
+  it('publishes into the ENGINE\'s own resources — the two cannot be different objects', async () => {
+    // This replaced a guard. `resources` used to be a separate constructor option, so the
+    // Applier could publish into an object no node read — a graph ticking on a resource
+    // nothing ever wrote, with no symptom. Taking it from the engine makes that
+    // unrepresentable rather than merely detected, which is why the guard is gone.
+    const { engine, seen } = probeRig('hands');
     await engine.init();
-    const src = listSource('s', 'signal', 'hands', ['a']);
-    await expect(new Applier({ engine, sources: [src], clock: pacedClock(4) }).run()).rejects.toThrow(
-      /no resources object/,
-    );
+    const src = listSource('s', 'signal', 'hands', ['latched']);
+    await new Applier({ engine, sources: [src], clock: pacedClock(6) }).run();
+    // The probe node reads ctx.resources.hands, so seeing the frame proves the pump
+    // wrote where the engine reads.
+    expect(seen).toContain('latched');
   });
 
   it('refuses two sources sharing an id — ids key the frame buffers', async () => {
-    const { engine, resources } = probeRig('hands');
+    const { engine } = probeRig('hands');
     await engine.init();
     await expect(
       new Applier({
-        engine, resources, clock: pacedClock(4),
+        engine, clock: pacedClock(4),
         sources: [listSource('hands', 'signal', 'a', []), listSource('hands', 'signal', 'b', [])],
       }).run(),
     ).rejects.toThrow(/duplicate Source id "hands"/);
@@ -131,10 +133,10 @@ describe('an async source needs a clock that yields', () => {
 
 describe('the pump: how frames between ticks reach a node', () => {
   it('a SIGNAL source latches the newest frame and drops the intermediates', async () => {
-    const { engine, resources, seen } = probeRig('hands');
+    const { engine, seen } = probeRig('hands');
     await engine.init();
     const src = listSource('s', 'signal', 'hands', ['a', 'b', 'c']);
-    await new Applier({ engine, resources, sources: [src], clock: pacedClock(6) }).run();
+    await new Applier({ engine, sources: [src], clock: pacedClock(6) }).run();
     // Newest wins: a stale pose is worse than the current one. The three frames all
     // land between the first scheduled frame and the tick that follows them.
     expect(seen).toContain('c');
@@ -142,10 +144,10 @@ describe('the pump: how frames between ticks reach a node', () => {
   });
 
   it('an EVENT source accumulates every frame since the last tick', async () => {
-    const { engine, resources, seen } = probeRig('keys');
+    const { engine, seen } = probeRig('keys');
     await engine.init();
     const src = listSource('s', 'event', 'keys', ['x', 'y', 'z']);
-    await new Applier({ engine, resources, sources: [src], clock: pacedClock(6) }).run();
+    await new Applier({ engine, sources: [src], clock: pacedClock(6) }).run();
     // Nothing dropped: a lost keypress is information no later frame can recover.
     const batches = (seen as unknown[][]).filter((b) => Array.isArray(b) && b.length > 0);
     expect(batches.flat()).toEqual(['x', 'y', 'z']);
@@ -165,7 +167,7 @@ describe('the pump: how frames between ticks reach a node', () => {
       dispose: () => {},
     };
     let n = 0;
-    await new Applier({ engine: sig.engine, resources: sig.resources, sources: [held], clock: pacedClock(12), shouldStop: () => n++ >= 5 }).run();
+    await new Applier({ engine: sig.engine, sources: [held], clock: pacedClock(12), shouldStop: () => n++ >= 5 }).run();
     const afterFirstFrame = sig.seen.slice(sig.seen.indexOf('only'));
     // Several ticks, and the value survives on ALL of them — not just the one that got it.
     expect(afterFirstFrame.length).toBeGreaterThan(1);
@@ -183,7 +185,7 @@ describe('the pump: how frames between ticks reach a node', () => {
       dispose: () => {},
     };
     let evTicks = 0;
-    await new Applier({ engine: ev.engine, resources: ev.resources, sources: [idle], clock: pacedClock(10), shouldStop: () => evTicks++ >= 3 }).run();
+    await new Applier({ engine: ev.engine, sources: [idle], clock: pacedClock(10), shouldStop: () => evTicks++ >= 3 }).run();
     // "No keys were pressed" is information, so it publishes an empty list rather than
     // holding the last one — the opposite of the signal rule above.
     expect(ev.seen.length).toBeGreaterThan(0);
@@ -203,10 +205,10 @@ describe('when a run stops', () => {
   });
 
   it('stops once every source is exhausted, without needing the clock to run out', async () => {
-    const { engine, resources, seen } = probeRig('hands');
+    const { engine, seen } = probeRig('hands');
     await engine.init();
     const src = listSource('s', 'signal', 'hands', ['a']);
-    await new Applier({ engine, resources, sources: [src], clock: pacedClock(1000) }).run();
+    await new Applier({ engine, sources: [src], clock: pacedClock(1000) }).run();
     expect(seen.length).toBeLessThan(1000);
   });
 
@@ -214,7 +216,7 @@ describe('when a run stops', () => {
     // Asserting a flag the source's own generator sets proves nothing about the Applier:
     // it would hold even if the run stopped immediately. What has to be observed is the
     // ENGINE still ticking while one source reports exhausted and another does not.
-    const { engine, resources, seen } = probeRig('hands');
+    const { engine, seen } = probeRig('hands');
     await engine.init();
     const drained: Source = {
       id: 'a', kind: 'signal', outputResource: 'hands',
@@ -229,7 +231,7 @@ describe('when a run stops', () => {
       dispose: () => {},
     };
     let n = 0;
-    await new Applier({ engine, resources, sources: [drained, stillOpen], clock: pacedClock(20), shouldStop: () => n++ >= 4 }).run();
+    await new Applier({ engine, sources: [drained, stillOpen], clock: pacedClock(20), shouldStop: () => n++ >= 4 }).run();
     // With `some()` semantics the exhausted source would have ended the run at tick zero.
     expect(seen.length).toBeGreaterThan(1);
   });
@@ -240,6 +242,79 @@ describe('when a run stops', () => {
     let n = 0;
     await new Applier({ engine, clock: new BatchClock(100), shouldStop: () => ++n > 3 }).run();
     expect(seen.length).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('the state reader — R3 one-tick feedback (#101 M-F)', () => {
+  it('publishes a stateReader on the engine\'s resources', async () => {
+    const { engine } = probeRig('x');
+    await engine.init();
+    await new Applier({ engine, clock: new BatchClock(1) }).run();
+    const sr = engine.resources[STATE_READER_KEY] as StateReader | undefined;
+    expect(typeof sr?.get).toBe('function');
+  });
+
+  it('reads the latest value a node emitted', async () => {
+    const registry = createRegistry([
+      defineNode({
+        type: 'counter', roles: ['source'], params: z.object({}), inputs: [], outputs: [{ name: 'n', kind: 'any' }],
+        make: () => { let n = 0; return { process: () => ({ n: n++ }) }; },
+      }),
+    ]);
+    const engine = new Engine({ nodes: [{ id: 'c', type: 'counter', params: {} }], edges: [] }, registry, {});
+    await engine.init();
+    await new Applier({ engine, clock: new BatchClock(3) }).run();
+    const sr = engine.resources[STATE_READER_KEY] as StateReader;
+    expect(sr.get('c', 'n')).toBe(2);
+    // A port or node that never emitted reads undefined rather than throwing — a source
+    // must tolerate a first-tick absence, which is only possible if this is total.
+    expect(sr.get('c', 'nope')).toBeUndefined();
+    expect(sr.get('nope', 'n')).toBeUndefined();
+  });
+
+  it('a zero-input source reading a DOWNSTREAM node gets tick N-1 — the feedback, with no cycle', async () => {
+    // The whole basis of R3: the engine evaluates topo-first, so when a source reads a
+    // node that runs after it, it necessarily sees the previous tick's value. If this
+    // ever returned the CURRENT tick, the graph would contain a cycle the engine rejects.
+    const observed: unknown[] = [];
+    const registry = createRegistry([
+      defineNode({
+        type: 'feedback-src', roles: ['source'], params: z.object({}), inputs: [], outputs: [{ name: 'out', kind: 'any' }],
+        make: () => ({
+          process: (_i, ctx) => {
+            const sr = (ctx.resources as Record<string, unknown>)[STATE_READER_KEY] as StateReader | undefined;
+            observed.push(sr?.get('sink', 'echo'));
+            return { out: ctx.tick };
+          },
+        }),
+      }),
+      defineNode({
+        type: 'echo-sink', roles: ['mapping'], params: z.object({}),
+        inputs: [{ name: 'in', kind: 'any' }], outputs: [{ name: 'echo', kind: 'any' }],
+        process: (inputs) => ({ echo: inputs.in }),
+      }),
+    ]);
+    const engine = new Engine({
+      nodes: [{ id: 'src', type: 'feedback-src', params: {} }, { id: 'sink', type: 'echo-sink', params: {} }],
+      edges: [{ from: { node: 'src', port: 'out' }, to: { node: 'sink', port: 'in' } }],
+    }, registry, {});
+    await engine.init();
+    await new Applier({ engine, clock: new BatchClock(4) }).run();
+    // Tick 0 sees nothing (the sink has not run); thereafter it sees the PREVIOUS tick.
+    expect(observed).toEqual([undefined, 0, 1, 2]);
+  });
+
+  it('is stable across ticks, so a node may hold onto it', async () => {
+    const { engine } = probeRig('x');
+    await engine.init();
+    const applier = new Applier({ engine, clock: new BatchClock(2) });
+    await applier.run();
+    const first = engine.resources[STATE_READER_KEY];
+    await new Applier({ engine, clock: new BatchClock(1) }).run();
+    // A second Applier over the same engine republishes an equivalent reader; what must
+    // not happen is the key vanishing between runs.
+    expect(engine.resources[STATE_READER_KEY]).toBeDefined();
+    expect(typeof (first as StateReader).get).toBe('function');
   });
 });
 
@@ -280,7 +355,7 @@ describe('dispose and failure', () => {
   });
 
   it('a source that throws stops the run rather than starving it on a frozen frame', async () => {
-    const { engine, resources, seen } = probeRig('hands');
+    const { engine, seen } = probeRig('hands');
     await engine.init();
     const errs: unknown[] = [];
     const boom: Source = {
@@ -289,7 +364,7 @@ describe('dispose and failure', () => {
       exhausted: () => false,
       dispose: () => {},
     };
-    await new Applier({ engine, resources, sources: [boom], clock: pacedClock(1000), onError: (e) => errs.push(e) }).run();
+    await new Applier({ engine, sources: [boom], clock: pacedClock(1000), onError: (e) => errs.push(e) }).run();
     expect(errs).toHaveLength(1);
     expect(seen.length).toBeLessThan(1000);
   });
@@ -299,7 +374,7 @@ describe('dispose and failure', () => {
     // rejection — in Node a process-level crash, which would take down a whole test run
     // rather than failing this one. It has to come back through the await the caller
     // already has.
-    const { engine, resources } = probeRig('hands');
+    const { engine } = probeRig('hands');
     await engine.init();
     const boom: Source = {
       id: 'boom', kind: 'signal', outputResource: 'hands',
@@ -312,7 +387,7 @@ describe('dispose and failure', () => {
     process.on('unhandledRejection', onUnhandled);
     try {
       await expect(
-        new Applier({ engine, resources, sources: [boom], clock: pacedClock(1000) }).run(),
+        new Applier({ engine, sources: [boom], clock: pacedClock(1000) }).run(),
       ).rejects.toThrow('source died');
       await new Promise((r) => setTimeout(r, 10));
       expect(unhandled).toBeNull();
@@ -406,7 +481,7 @@ describe('sinks', () => {
       dispose: () => {},
     };
     let n = 0;
-    await new Applier({ engine, resources, sources: [src], clock: pacedClock(10), shouldStop: () => n++ >= 4, onError: () => {} }).run();
+    await new Applier({ engine, sources: [src], clock: pacedClock(10), shouldStop: () => n++ >= 4, onError: () => {} }).run();
     // The first tick threw; the two frames must appear on a LATER tick rather than vanish.
     expect(seen.flatMap((v) => (Array.isArray(v) ? v : []))).toEqual(['noteOn', 'noteOff']);
   });

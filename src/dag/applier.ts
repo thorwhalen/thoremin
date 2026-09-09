@@ -36,6 +36,22 @@ import type { Engine } from './engine';
 import type { Clock } from './clock';
 import type { Tap } from './types';
 
+/** The `ctx.resources` key the state reader is published under. */
+export const STATE_READER_KEY = 'stateReader';
+
+/**
+ * Read the latest value a node emitted (R3, #101 M-F).
+ *
+ * Read from a **zero-input source** — which the engine evaluates topo-first — a
+ * downstream node's port yields its value from **tick N-1**. That is the feedback, and
+ * it is why this needs no cycle and no engine change. The delay is one *tick*, not a
+ * fixed duration, so under accelerated play it is not time-invariant; M-G's `delay` node
+ * is the principled end state and is a one-line swap of what backs `get`.
+ */
+export interface StateReader {
+  get(nodeId: string, port: string): unknown;
+}
+
 /** What a source's generator is handed when the Applier starts pumping it. */
 export interface SourceContext {
   /** Aborted when the Applier is disposed, so a live generator can stop cleanly. */
@@ -68,14 +84,6 @@ export interface Source<Frame = unknown> {
 export interface ApplierOptions {
   engine: Engine;
   clock: Clock;
-  /**
-   * The SAME object the engine was constructed with (`EngineOptions.resources`). The
-   * pump writes latched/accumulated frames into it in place; the engine hands that
-   * object to every node as `ctx.resources` on every tick, so nodes see updates without
-   * any engine API for it. This mirrors what `useEngine` already does with its
-   * `resourcesRef`. Omit when there are no sources.
-   */
-  resources?: Record<string, unknown>;
   /** Open-closed over origin (R4). Empty is normal: a graph whose sources are ordinary
    *  zero-input nodes (replay/synthetic) needs none. */
   sources?: readonly Source[];
@@ -105,10 +113,11 @@ export class Applier {
   /** Per-source accumulated frames, drained into `resources` at each tick. */
   private readonly pending = new Map<string, unknown[]>();
   private readonly pumps: Promise<void>[] = [];
+  /** Backed by the engine, and stable across ticks so a node can hold onto it. */
+  private readonly stateReader: StateReader;
   private stopped = false;
   private disposed = false;
   private started = false;
-  private readonly resourcesGiven: boolean;
   /** Detach functions for taps attached through {@link addTap}, released on dispose. */
   private readonly tapDetachers: (() => void)[] = [];
   /** First error from a source, a tick or a sink. Raised by `run()` once the loop has
@@ -118,11 +127,14 @@ export class Applier {
   constructor(o: ApplierOptions) {
     this.engine = o.engine;
     this.clock = o.clock;
-    this.resources = o.resources ?? {};
-    this.resourcesGiven = o.resources !== undefined;
+    // Taken FROM the engine, never passed alongside it. Handing the Applier a separate
+    // object invites the two to be different references — the pump then publishes where
+    // no node reads, and the only symptom is a graph that quietly sees nothing.
+    this.resources = o.engine.resources;
     this.sources = o.sources ?? [];
     this.sinks = o.sinks ?? [];
     this.extraStop = o.shouldStop;
+    this.stateReader = { get: (nodeId, port) => this.engine.getOutput(nodeId, port) };
     this.onError = o.onError;
   }
 
@@ -163,18 +175,6 @@ export class Applier {
     // from two clock loops. A React effect under StrictMode is enough to reach it.
     if (this.started) throw new Error('Applier: run() called twice — construct a new Applier per run.');
     this.started = true;
-    if (this.sources.length > 0 && this.resourcesGiven === false) {
-      // The same failure the paced check exists to prevent, reached a different way:
-      // the pump would publish every latched frame into a private object no node can
-      // read, and the engine's own `resources` is a DIFFERENT reference, so the graph
-      // ticks on a resource nothing ever wrote. Nothing looks missing at the call site,
-      // because the engine was constructed with resources of its own.
-      throw new Error(
-        `Applier: ${this.sources.length} source(s) given with no resources object. Pass the SAME one the ` +
-          `engine was constructed with (EngineOptions.resources) — the pump writes latched frames into it ` +
-          `in place, and that is the only way a node sees them.`,
-      );
-    }
     const ids = new Set<string>();
     for (const src of this.sources) {
       // `pending` is keyed by id; two sources sharing one would share a buffer, and the
@@ -194,6 +194,13 @@ export class Applier {
           `zero-input NODE (replay-source / synthetic-hands) instead — see design invariant 4.`,
       );
     }
+    // R3's one-tick feedback channel (#101 M-F). A zero-input source runs topo-FIRST,
+    // so when it reads a DOWNSTREAM node's output it gets that node's value from tick
+    // N-1 — the intended feedback, with no cycle and no engine change. Injected here
+    // rather than by each source because the engine is the Applier's to know about;
+    // a node only ever sees `ctx.resources.stateReader`, which is what makes it
+    // trivially fakeable in a `replayNode` test.
+    this.resources[STATE_READER_KEY] = this.stateReader;
     this.startPumps();
     await this.clock.run(
       (time) => this.tick(time),
