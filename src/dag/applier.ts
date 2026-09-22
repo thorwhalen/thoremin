@@ -36,6 +36,7 @@
 import type { Engine } from './engine';
 import type { Clock } from './clock';
 import type { Tap } from './types';
+import { TIME_SCALE_KEY } from './timescale';
 
 /** The `ctx.resources` key the state reader is published under. */
 export const STATE_READER_KEY = 'stateReader';
@@ -202,6 +203,10 @@ export class Applier {
     // a node only ever sees `ctx.resources.stateReader`, which is what makes it
     // trivially fakeable in a `replayNode` test.
     this.resources[STATE_READER_KEY] = this.stateReader;
+    // Boundary B (#101 M-G): publish how fast engine time runs against wall time, so
+    // real-time output nodes can go silent rather than pitch-shift when it is not 1.
+    // Republished per run because a run may be started under a different clock.
+    this.resources[TIME_SCALE_KEY] = this.clock.timeScale;
     this.startPumps();
     await this.clock.run(
       (time) => this.tick(time),

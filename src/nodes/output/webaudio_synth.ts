@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
+import { realtimeOutputAllowed } from '@/dag';
 import { getSound } from '@/music/sounds';
 import type { SynthParams, VoiceParams } from '../domain';
 
@@ -277,6 +278,16 @@ export const webAudioSynthNode = defineNode<Params>({
         const audio = getAudio(ctx);
         if (!audio) return {};
         const { ac, master } = audio;
+        // Boundary B (#101 M-G): audio rides `AudioContext.currentTime`, which is wall
+        // time and cannot be multiplied. At any scale but real time this must go SILENT
+        // rather than pitch-shift. Tearing the voices down rather than skipping the tick
+        // is the difference between silence and a chord frozen at its last value: a
+        // skipped tick leaves the oscillators running exactly as they were.
+        if (!realtimeOutputAllowed(ctx)) {
+          for (const voice of voices.values()) teardownVoice(voice, ac, true);
+          voices.clear();
+          return {};
+        }
         bus = ensureBus(ac, master, bus);
         const sp = inputs.params as SynthParams | undefined;
         if (!sp) return {};
