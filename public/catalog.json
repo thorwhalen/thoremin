@@ -1535,6 +1535,37 @@
     ]
   },
   {
+    "type": "replay-source-timed",
+    "title": "Replay Source (timed)",
+    "description": "Emits a recorded value stream by timestamp against ctx.time (hold-last, never interpolated), so a take replays at its own pace at any tick rate or clock speed.",
+    "roles": [
+      "source"
+    ],
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "name": "records",
+        "type": "array",
+        "default": []
+      },
+      {
+        "name": "loop",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "toleranceSec",
+        "type": "number",
+        "default": 0.000001
+      }
+    ]
+  },
+  {
     "type": "score",
     "title": "Score",
     "description": "An immutable piece performed live: beat + velocityScale → the sounding synth voices. Plays a loaded ScoreDoc (MIDI / MusicXML) or the built-in demo scale.",

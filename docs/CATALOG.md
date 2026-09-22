@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (39)
+## Nodes (40)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -133,6 +133,14 @@ Emits a recorded value stream, one value per tick.
 - **in:** —
 - **out:** value
 - **params:** values (array=[]), loop (boolean=false)
+
+#### `replay-source-timed` — Replay Source (timed)
+Emits a recorded value stream by timestamp against ctx.time (hold-last, never interpolated), so a take replays at its own pace at any tick rate or clock speed.
+
+- **roles:** source
+- **in:** —
+- **out:** value
+- **params:** records (array=[]), loop (boolean=false), toleranceSec (number=0.000001)
 
 #### `replay-hands` — Replay Hands
 Replays a recorded hand-landmark stream, one frame per tick. Camera-free and deterministic.

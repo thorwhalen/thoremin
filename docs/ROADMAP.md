@@ -129,10 +129,10 @@ in the player's terms, which is exactly the missing frame of reference.
 | **M-G** boundary (B) enforced + delayed edges + the `delay` node | #101 | #210, #214 | shipped — accelerated playback **mutes** rather than pitch-shifting, enforced by a structural guard over every `synth`-role node; feedback is now *declared* by `EdgeSpec.delayed` rather than inferred from evaluation order |
 | **#51** graph lifecycle: re-wire a running engine | #51 | #165 | shipped — `Engine.applyGraph` reconciles onto a new `GraphSpec` without rebuilding audio or reloading models |
 
-**#101 is closed.** Three pieces were deliberately not built and have homes elsewhere:
-`replay-source-timed` and `stateGeneratorSource` (#215), the `OfflineAudioContext`
-render-at-speed action (#146 B9 — its value is a listening judgment), and recorder
-backpressure (#88).
+**#101 is closed.** Two pieces were deliberately not built and have homes elsewhere: the
+`OfflineAudioContext` render-at-speed action (#146 B9 — its value is a listening
+judgment), and recorder backpressure (#88). The two source nodes split out to #215,
+`replay-source-timed` and `stateGeneratorSource`, are now built.
 
 ---
 
@@ -250,12 +250,12 @@ Remaining: human-only verification (Gemini key + ears) at **#146 §B8**.
 
 ### Engine / platform
 
-- **[#215] Two source nodes the Stream Applier designed but did not build** —
-  `replay-source-timed` (replay by `StreamRecord.t` rather than by index; index-by-tick
-  stays canonical for CI goldens) and `stateGeneratorSource` (R3's consumer: seeded
-  randomness, re-emit the read snapshot so a replay reproduces the feedback). Both belong
-  in `src/nodes/sources/`. The mechanisms they sit on all exist; this was sequencing, not
-  design. **#101 itself is closed** — see the shipped table above.
+- **[#215] Two source nodes the Stream Applier designed** — **built**:
+  `replay-source-timed` (replay by `StreamRecord.t`, hold-last; index-by-tick
+  `replay-source` stays canonical for CI goldens) and the `stateGeneratorSource` factory
+  (R3's consumer: seeded randomness from `seed + ctx.tick`, the read snapshot re-emitted
+  so a replay reproduces the feedback). See `docs/design/stream-applier.md` M-E / M-F.
+  **#101 itself is closed** — see the shipped table above.
 
   One thing worth knowing before touching the live loop: **M-D's stated gate, a browser
   smoke test, does not exist** — this repo has no Playwright or e2e harness (#209). What
