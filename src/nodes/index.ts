@@ -10,6 +10,7 @@ import { createRegistry, type NodeRegistry } from '@/dag';
 
 import { syntheticHandsNode } from './sources/synthetic_hands';
 import { replaySourceNode } from './sources/replay';
+import { replaySourceTimedNode } from './sources/replay_timed';
 import { replayHandsNode } from './sources/replay_hands';
 import { syntheticBodyNode } from './sources/synthetic_body';
 import { replayBodyNode } from './sources/replay_body';
@@ -42,6 +43,14 @@ import { performanceNode } from './music/performance';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
+export { replaySourceTimedNode } from './sources/replay_timed';
+export {
+  stateGeneratorSource,
+  stateGeneratorParams,
+  tickRng,
+  STATE_GENERATOR_OUTPUTS,
+} from './sources/state_generator';
+export type { StateGeneratorSpec, StateGeneratorInput, StateGeneratorParams } from './sources/state_generator';
 export { replayHandsNode } from './sources/replay_hands';
 export { syntheticBodyNode } from './sources/synthetic_body';
 export { replayBodyNode } from './sources/replay_body';
@@ -98,6 +107,7 @@ export * from './domain';
 export const CORE_NODES = [
   syntheticHandsNode,
   replaySourceNode,
+  replaySourceTimedNode,
   replayHandsNode,
   syntheticBodyNode,
   replayBodyNode,

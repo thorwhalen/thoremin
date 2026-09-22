@@ -11,7 +11,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { valuesFromNDJSON } from '@/dag';
+import { parseRecords, type StreamRecord } from '@/dag';
 
 /** The committed-fixtures root (`test/fixtures`). */
 export const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
@@ -25,12 +25,21 @@ export const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'fix
  * with the way to regenerate it.
  */
 export function loadStream(scenario: string, key: string): unknown[] {
+  return loadRecords(scenario, key).map((r) => r.value);
+}
+
+/**
+ * Load one recorded edge stream with its timestamps: the full `StreamRecord`s
+ * (`tick`, `t`, `value`). What a timestamp-aware consumer (`replay-source-timed`)
+ * needs; {@link loadStream} is this with the values projected out.
+ */
+export function loadRecords(scenario: string, key: string): StreamRecord[] {
   const path = join(FIXTURES, scenario, `${key}.ndjson`);
-  if (existsSync(path)) return valuesFromNDJSON(readFileSync(path, 'utf8'));
+  if (existsSync(path)) return parseRecords(readFileSync(path, 'utf8'));
   const gzPath = `${path}.gz`;
   if (existsSync(gzPath)) {
     try {
-      return valuesFromNDJSON(gunzipSync(readFileSync(gzPath)).toString('utf8'));
+      return parseRecords(gunzipSync(readFileSync(gzPath)).toString('utf8'));
     } catch (err) {
       // A present-but-corrupt/truncated .gz (e.g. a partially synced checkout)
       // must fail as loudly as a missing one — a bare zlib error names neither

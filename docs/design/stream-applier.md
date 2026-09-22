@@ -15,11 +15,11 @@
 > | **M-F** the `StateReader` feedback channel (R3) | PR #192 |
 > | **M-G** boundary (B) enforced; delayed edges + the `delay` node | PR #210, #214 |
 >
-> **Three things are deliberately not built**, each with a home that is not this document:
-> the timestamp-aware `replay-source-timed` and `stateGeneratorSource` (both belong in
-> `src/nodes/sources/`, tracked in #215); the `OfflineAudioContext` render-at-speed action
-> (its value is a listening judgment — #146 B9); and recorder backpressure (folds into
-> #88). None of them block anything that is built.
+> **Two things are deliberately not built**, each with a home that is not this document:
+> the `OfflineAudioContext` render-at-speed action (its value is a listening judgment —
+> #146 B9); and recorder backpressure (folds into #88). None of them block anything that
+> is built. The two source nodes split out to #215 — the timestamp-aware
+> `replay-source-timed` and `stateGeneratorSource` — are now built (see M-E and M-F below).
 >
 > This document remains the single source of truth for **how** the pieces fit. The
 > per-milestone bullets under [Incremental build order](#incremental-build-order) are the
@@ -312,7 +312,7 @@ boundaries allow.
     reconciles a *running* engine onto a new `GraphSpec`, keeping every unchanged
     node (see below). The Applier can therefore change its source/graph without
     reconstructing the engine and reloading the ML models.
-- **M-E — Composition + timestamp-aware replay (R2). ◑ two of three landed.**
+- **M-E — Composition + timestamp-aware replay (R2). ✅ all three landed.**
   - ✅ **`defineMergeNode({type, kind, combine})`** (`src/dag/merge.ts`). The engine
     rejects fan-in to one input port, so composition has to be an explicit typed node.
     Kind-preserving, two inputs (`a`/`b`), one output (`merged`), pure. `combine` is
@@ -321,11 +321,19 @@ boundaries allow.
     to silence rather than to `combine(undefined, undefined)`.
   - ✅ **Event sources buffer→list** — landed with the Applier's pump (an `event` source
     accumulates every frame since the last tick; a `signal` source latches the newest).
-  - ⏳ **`replay-source-timed`** reading `StreamRecord.t` (index-by-tick stays canonical
-    for CI goldens). Not built: it belongs in `src/nodes/sources/`, which another session
-    is currently working in.
-- **M-F — State-feedback generators (R3, `getOutput` option). ◑ the channel is built;
-  the source is not.**
+  - ✅ **`replay-source-timed`** (`src/nodes/sources/replay_timed.ts`, #215) reads
+    `StreamRecord.t` against `ctx.time`. A **separate node**, not a flag on
+    `replay-source`, so index-by-tick stays canonical for CI goldens with no path to
+    resampling by accident (`test/replay_timed.test.ts` pins `replay-source`'s output
+    byte for byte). Resampling is **hold-last** — the pump's `signal` reading — and never
+    interpolates, which would be wrong for anything nominal. `Clock.timeScale` is honoured
+    *through* `ctx.time` (a `RealtimeClock` at 2x already hands the engine 2x time), and
+    deliberately not re-applied, which would play at 4x. The time origin is the node's
+    own first tick, so a replay swapped into a running graph opens on its first record.
+    A 1 µs tolerance absorbs the recorder's 6-decimal rounding of `t`, without which the
+    24 fps fixture drops a frame.
+- **M-F — State-feedback generators (R3, `getOutput` option). ✅ the channel and its
+  source are both built.**
   - ✅ **`resources.stateReader`** — the Applier publishes a `StateReader`
     (`{ get(nodeId, port) }`, backed by `engine.getOutput`) onto the engine's own
     resources, so a node reaches it as `ctx.resources.stateReader` and is trivially
@@ -334,11 +342,17 @@ boundaries allow.
     feedback falls out of evaluation order rather than needing a cycle the engine would
     reject. Total by design — an absent node or port reads `undefined`, because a source
     must tolerate a first-tick absence.
-  - ⏳ **`stateGeneratorSource`** — the node that consumes it: seed-derived randomness
-    (`seed + ctx.tick`, never `Math.random`, or recordings stop reproducing) and
-    re-emitting the read snapshot on a second port so replay reproduces the feedback and
-    it stays tappable. Not built: it belongs in `src/nodes/sources/`, which another
-    session is working in. #87 command-dispatch is the prime consumer.
+  - ✅ **`stateGeneratorSource`** (`src/nodes/sources/state_generator.ts`, #215) — the
+    node that consumes it. A **factory**, like `defineMergeNode`: the computation is a
+    function and cannot be a serializable param, so it is fixed per node type, while
+    *which ports to read* (`reads: { name: { node, port } }`) and the `seed` are params.
+    The three requirements: a first-tick `undefined` read skips `compute` and emits
+    nothing on `value` (or, with `acceptsAbsent`, lets the generator seed); `compute` is
+    handed an `rng` seeded afresh from `(seed, ctx.tick)` every tick, so a draw depends on
+    where the take is and never on what earlier ticks drew; and the read snapshot is
+    re-emitted on a second port, `snapshot`, every tick — replaying the recorded snapshots
+    through the node with the same seed reproduces `value` exactly
+    (`test/state_generator.test.ts`). #87 command-dispatch is the prime consumer.
 - **M-G — Honest time-scaled audio + delay node (principled end-state). ◑ the HONEST
   half is enforced; the render action and the delay node remain.**
   - ✅ **Boundary (B) is now a mechanism, not a policy.** `Clock` declares `timeScale`
