@@ -42,6 +42,16 @@ export interface Clock {
    * hang. Optional so the interface stays backward-compatible; absent means "not paced".
    */
   readonly paced?: boolean;
+  /**
+   * Engine seconds per wall-clock second; 1 = real time. **Absent** means the clock has
+   * no wall-clock relation at all (a batch run), which is different from "real time" and
+   * is why consumers must not read absence as 1.
+   *
+   * Published by the `Applier` onto `ctx.resources` so real-time output nodes can honour
+   * design boundary (B) — accelerated or slowed playback mutes audio rather than
+   * pitch-shifting it. See `src/dag/timescale.ts`.
+   */
+  readonly timeScale?: number;
 }
 
 /**
@@ -55,6 +65,12 @@ export class BatchClock implements Clock {
    *  serviced under it. Batch replays through zero-input NODES (`replay-source`,
    *  `synthetic-hands`) instead — design invariant 4, "sources are ordinary nodes". */
   readonly paced = false;
+
+  /** Deliberately undefined: a batch run has NO wall-clock relation, so it is neither
+   *  real time nor a multiple of it. A batch run also has no AudioContext, so the audio
+   *  question does not arise — but saying `1` here would be a lie a future consumer
+   *  could act on. */
+  readonly timeScale = undefined;
 
   constructor(private readonly ticks: number) {}
 
@@ -112,6 +128,12 @@ export class RealtimeClock implements Clock {
   /** Yields between frames (rAF / the injected `schedule`), so async sources can be
    *  pumped under it. */
   readonly paced = true;
+
+  /** Engine seconds per wall second — exactly the speed multiplier. At anything but 1,
+   *  real-time output nodes go silent rather than pitch-shift (boundary B). */
+  get timeScale(): number {
+    return this.speed;
+  }
 
   run(onTick: (time?: number) => void, shouldStop: () => boolean): Promise<void> {
     return new Promise<void>((resolve) => {
