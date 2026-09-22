@@ -143,11 +143,14 @@ backpressure (#88).
 The legacy AI-DJ is retired to `?engine=legacy` — a status decision, no code change; it
 keeps working there. The reframing fact: the legacy AI-DJ is **slider**-steered, and the
 compelling version (hand/face features steering a generative model) exists only as the
-`indirect-map` node, which has never run in a browser. So "port it forward" was really
-"first-run an unproven feature", now split out and budgeted honestly as **#141**
-(gesture-steered generative layer, DAG-native) — which depends on the #126 dials/command
-surface, now merged. The `lyria` / `indirect-map` / `generative` nodes stay in the registry,
-catalogued and role-tested, so this is fully reversible.
+`indirect-map` node, which had never run in a browser. So "port it forward" was really
+"first-run an unproven feature", split out and budgeted honestly as **#141**
+(gesture-steered generative layer, DAG-native) — which depended on the #126 dials/command
+surface, then merged. **#141 has since shipped and closed** (via #188's PR chain,
+#195-#208): `indirect-map` → `lyria` is a live additive branch in `graph.ts`, gated
+behind `steer.enabled`. The `lyria` / `indirect-map` / `generative` nodes are no longer
+registry-only — see the "Generative" section under Next for what remains (human-only
+verification, #146 §B8).
 
 ---
 
@@ -233,14 +236,17 @@ such — a bracketed `#n` in this list always means an issue.
   maintainer can answer. Q1 (yaw) and Q2 (frown) were answered 2026-08-23 with a
   redirect — *don't chase them from the old clip; let the trainer produce the material*,
   which is what the trainer-take → fixture path exists to do. Q3 (MIDI mute semantics),
-  Q4 (#148 handedness dwell), Q5 (#82 ADR) and Q6 (#141 needs a Gemini key) are open.
-  It also carries thorwhalen/tw_platform#156, which is not a thoremin decision.
+  Q4 (#148 handedness dwell) and Q5 (#82 ADR) are open. Q6 (#141 needing a Gemini key)
+  is superseded — #141 shipped and closed; what remains is the live verification at
+  #146 §B8. It also carries thorwhalen/tw_platform#156, which is not a thoremin decision.
 
 ### Generative
 
-- **[#141] Gesture-steered generative layer** — DAG-native, budgeted as new work rather
-  than as a port, per the #128 decision. The `indirect-map` node it would build on has
-  never run in a browser, so this is a first-run, not a migration.
+**Shipped and closed.** #141 (gesture-steered generative layer, DAG-native, budgeted
+as new work rather than a port per the #128 decision) landed as #188's PR chain
+(#195-#208): `LyriaEngine` construction, the `indirect-map` → `lyria` additive branch
+in `graph.ts`, the live `steerConfig` write path + transport, and the steering editor.
+Remaining: human-only verification (Gemini key + ears) at **#146 §B8**.
 
 ### Engine / platform
 
@@ -289,7 +295,7 @@ these rather than inside them, so read the status column, not the milestone numb
 | **M0** | Baseline + node contract: DAG engine, recorder/replay, pure node library, music theory, headless tests. | done |
 | **M1** | First real video→sound vertical slice in the browser, on-device. | done |
 | **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | done — but the "CI gate" half was **claimed years before it existed**: no test workflow had ever been committed to this repo. Closed by #153. |
-| **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) was decided in **#128** — the legacy AI-DJ is retired to `?engine=legacy`; a DAG-native, gesture-steered generative layer is now the new-feature issue **#141**. |
+| **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) was decided in **#128** — the legacy AI-DJ is retired to `?engine=legacy`; the DAG-native, gesture-steered generative layer (**#141**) has since shipped too (#188's PR chain, #195-#208), live behind `steer.enabled`. |
 | **M4** | Broaden the feature surface + tonal depth. | done and then some — face blendshapes, face expression, head/jaw/brow pose control, gesture classifier, Tonal.js chords/voicings, and the ~200-feature catalog (#119). |
 | **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | **Decided (#180 → #187, Option A: wire it) and wired.** The `conductor` node (PR 2 of #187) wraps `src/ictus` (PR 1): the beating hand's ictus → an adaptive oscillator → `beat` / `bpm` / `velocityScale` for the `score` node, which is now in the default graph behind the `conductor.enabled` dial (off by default; the built-in demo scale until the score pipeline, PR 3). `transport` / `performance` stay registered for the non-conductor chain. The score pipeline (PR 3) loads MIDI / MusicXML lazily into a `ScoreDoc` (two shipped public-domain / CC0 demos, a file picker, saved scores) that the `score` node plays instead of the demo scale. Remaining per the #187 plan: the Conductor tool + scheduler, the orchestra node, meter recognition, the audio pacer. |
 | **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120) and made reachable (#137 / PR #147); the patcher (#14) is open, with its **scope** the actual open question (#181). |
@@ -306,6 +312,7 @@ these rather than inside them, so read the status column, not the milestone numb
    Python/`theremin` or generative service can plug in later (M7). The AI assistant
    deliberately follows this too: client-side, BYO-key, no `aix`.
 4. **Fixture videos** — commit small derived NDJSON; raw `.mp4`s optional/external.
-5. **Lyria API key** — key-in-localStorage; a proxy/platform-managed key only if a
-   generative layer comes to the default app (**#141**; the legacy AI-DJ that used it is
-   retired to `?engine=legacy` per #128).
+5. **Lyria API key** — key-in-localStorage, unchanged now that the generative layer
+   is in the default app (**#141**, shipped); a proxy/platform-managed key stays a
+   later option if the BYO-key posture ever needs to change. The legacy AI-DJ that
+   used a different key path is retired to `?engine=legacy` per #128.
