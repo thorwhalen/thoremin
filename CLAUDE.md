@@ -19,8 +19,12 @@ no backend compute — the app is a static Vite bundle).
   plugin is not lost, but it gets no new features, is excluded from refactors, and
   new work never lands there. **#128 decided this** (closed 2026-07-15): the legacy
   AI-DJ is formally retired to `?engine=legacy` rather than ported. The compelling
-  version — hand/face features steering a generative model — is budgeted honestly as
-  new work in **#141**, not as a port.
+  version — hand/face features steering a generative model — was budgeted honestly as
+  new work in **#141**, not as a port. **#141 is now closed (shipped)**: the
+  `indirect-map` → `lyria` additive branch is live in `src/app/graph.ts`, gated behind
+  the `steer.enabled` dial and the Generative settings section (#188's PR chain,
+  #195-#208). What remains is the human-only live verification (a Gemini key + ears)
+  tracked as **#146 §B8**.
 
 Outward-facing changes (deploying, moving the default) still get the user's OK.
 
