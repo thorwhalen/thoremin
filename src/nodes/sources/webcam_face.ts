@@ -18,11 +18,12 @@
  *    released (`FaceLandmarker.close()`) and its loop cancelled, so two
  *    always-on ML models (hands + face) don't compete for the tick budget.
  * 3. **Detached inference, like `webcam-hands`.** Inference runs in its own
- *    `requestAnimationFrame` loop and caches the latest frame; `process()` just
+ *    frame pump (`frame_pump.ts`: capture-time stamped, #226) and caches the latest frame; `process()` just
  *    returns that cache — decoupling detection rate from the engine tick rate
  *    and guaranteeing the first tick after enabling never blocks.
  */
 import { z } from 'zod';
+import { createFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
@@ -168,17 +169,23 @@ export const webcamFaceNode = defineNode<Params>({
     // offload() bumps loadGen, so toggling face control off→on retries exactly once.
     let failedGen = -1;
     let latest: FaceFrame = ABSENT_FRAME;
-    let raf: number | null = null;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
-    let lastVideoTime = -1;
 
-    const stopLoop = () => {
-      if (raf !== null) {
-        cancelAnimationFrame(raf);
-        raf = null;
-      }
-    };
+    // One inference per captured frame, stamped with the CAPTURE time (#226); see
+    // `frame_pump.ts`. Started once the model is loaded, stopped on offload.
+    const pump = createFramePump(
+      () => video,
+      (stamp, v) => {
+        if (disposed || !landmarker) return false;
+        try {
+          latest = { ...blendshapesToFaceFrame(landmarker.detectForVideo(v, stamp.tMs)), ...stampToTiming(stamp) };
+        } catch {
+          /* transient inference error; keep the last frame */
+        }
+      },
+    );
+    const stopLoop = () => pump.stop();
 
     /** Release the model + loop and reset to the absent frame. */
     const offload = () => {
@@ -188,28 +195,6 @@ export const webcamFaceNode = defineNode<Params>({
       landmarker?.close();
       landmarker = null;
       latest = ABSENT_FRAME;
-      lastVideoTime = -1;
-    };
-
-    const loop = () => {
-      if (disposed) return;
-      // Only run inference on a fresh, ready video frame; performance.now() is
-      // monotonic, satisfying FaceLandmarker's strictly-increasing-timestamp rule.
-      if (
-        landmarker &&
-        video &&
-        video.readyState >= 2 &&
-        video.videoWidth > 0 &&
-        video.currentTime !== lastVideoTime
-      ) {
-        lastVideoTime = video.currentTime;
-        try {
-          latest = blendshapesToFaceFrame(landmarker.detectForVideo(video, performance.now()));
-        } catch {
-          /* transient inference error; keep the last frame */
-        }
-      }
-      raf = requestAnimationFrame(loop);
     };
 
     const optionsFor = (delegate: 'GPU' | 'CPU') => ({
@@ -248,7 +233,7 @@ export const webcamFaceNode = defineNode<Params>({
           }
           landmarker = lm;
           failedGen = -1;
-          if (raf === null) raf = requestAnimationFrame(loop);
+          pump.start();
         } catch (err) {
           // Load failed (offline / unsupported / blocked). Latch this generation
           // so we don't re-attempt the heavy create every tick; toggling face

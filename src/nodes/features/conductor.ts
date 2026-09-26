@@ -52,6 +52,7 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@/ictus';
 import { LM, type Hand, type HandsFrame } from '../domain';
+import { frameTime } from '../sources/frame_pump';
 import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@/score/schema';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
@@ -185,6 +186,9 @@ export const conductorNode = defineNode<Params>({
      *  NEW stroke — one more anchor — releases it). */
     let fermataAt: number | null = null;
     let fermataAnchors = 0;
+    /** The hands frame seen on the previous tick: the same object again is not a new
+     *  observation (#225). */
+    let lastFrame: HandsFrame | undefined;
     // Speed-based fallback: EW speed of the tracked point and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
     let speedEw = 0;
@@ -271,12 +275,23 @@ export const conductorNode = defineNode<Params>({
         }
 
         // 1. Feed the tracked point (or free-run when no hand is in frame).
+        //    Only a NEW camera frame is an observation (#225): the engine ticks at the
+        //    display rate over a slower camera, and the same frame fed twice at two
+        //    tick times flattens the detector's parabolic fit and biases the ictus. The
+        //    sample time is the frame's capture time when the source stamped one
+        //    (#226), else the tick time.
         const frame = inputs.hands as HandsFrame | undefined;
-        const hand = frame ? pickHand(frame, c) : undefined;
+        const fresh = frame !== lastFrame;
+        lastFrame = frame;
+        const hand = frame && fresh ? pickHand(frame, c) : undefined;
         let s: IctusState;
         if (hand && frame && frame.height > 0) {
           const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
-          const pt = { t: ctx.time, x: kp.x / frame.height, y: kp.y / frame.height };
+          let t = frameTime(frame, ctx.time);
+          // The detector needs non-decreasing times; a stamped frame after an unstamped
+          // one (or the reverse) must not rewind it.
+          if (lastPt && t <= lastPt.t) t = lastPt.t + 1e-4;
+          const pt = { t, x: kp.x / frame.height, y: kp.y / frame.height };
           if (lastPt && pt.t > lastPt.t) {
             const speed = Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) / (pt.t - lastPt.t);
             speedEw += 0.3 * (speed - speedEw);

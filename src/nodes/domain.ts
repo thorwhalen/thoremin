@@ -39,6 +39,12 @@ export interface HandsFrame {
   width: number;
   height: number;
   hands: Hand[];
+  /** Capture time in seconds (`performance.now()/1000` base, the engine's realtime
+   *  base), stamped by the live sources (#226). Absent on replayed and synthetic
+   *  frames; consumers use `frameTime(frame, ctx.time)`. */
+  t?: number;
+  /** Seconds from capture to inference, measured by the source (#226/#227). */
+  lag?: number;
 }
 
 /**
@@ -70,6 +76,8 @@ export const HandsFrameSchema = z.object({
   width: z.number(),
   height: z.number(),
   hands: z.array(HandSchema),
+  t: z.number().optional(),
+  lag: z.number().optional(),
 });
 
 /** The four non-thumb fingers, in radial order. */
@@ -196,6 +204,9 @@ export interface FaceFrame {
    *  matrix — present only when the live source enables that output (issue #76).
    *  The offline blendshape fixture has no matrix, so this is absent there. */
   headPose?: HeadPose;
+  /** Capture time in seconds and capture-to-inference lag, as on {@link HandsFrame}. */
+  t?: number;
+  lag?: number;
 }
 
 // ---- Head pose (from the MediaPipe facial transformation matrix, #76) ------
@@ -566,6 +577,9 @@ export interface BodyFrame {
   world?: Keypoint[];
   /** Per-landmark visibility 0..1, aligned with `landmarks`. */
   visibility: number[];
+  /** Capture time in seconds and capture-to-inference lag, as on {@link HandsFrame}. */
+  t?: number;
+  lag?: number;
 }
 
 /** Runtime shape of a {@link BodyFrame}, for the body slot's output port schema. */
@@ -576,6 +590,8 @@ export const BodyFrameSchema = z.object({
   landmarks: z.array(KeypointSchema),
   world: z.array(KeypointSchema).optional(),
   visibility: z.array(z.number()),
+  t: z.number().optional(),
+  lag: z.number().optional(),
 });
 
 /** What a body source emits when nobody is in frame (never `undefined`). */

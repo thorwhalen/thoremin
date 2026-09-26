@@ -25,7 +25,7 @@
  *    current load (a superseded load is a late arrival, discarded on settle) and
  *    the next tick starts the new one — including after a failed load, since a
  *    release clears the failure latch.
- * 4. **Detached inference.** Its own `requestAnimationFrame` loop caches the latest
+ * 4. **Detached inference.** Its own frame pump (`frame_pump.ts`, capture-time stamped, #226) caches the latest
  *    frame while a landmarker is held; `process()` returns the cache.
  *
  * The `status` port speaks the shared `LoadStatus` vocabulary, so the overlay's
@@ -33,6 +33,7 @@
  * / "failed" without knowing this node.
  */
 import { z } from 'zod';
+import { createFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import type { DemandedGroups } from '@/features/demand';
@@ -194,10 +195,8 @@ export const webcamBodyNode = defineNode<Params>({
   params: Params,
   make(p) {
     let latest: BodyFrame = EMPTY_BODY_FRAME;
-    let raf: number | null = null;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
-    let lastVideoTime = -1;
     let factory: BodyLandmarkerFactory | undefined;
     /** The model the current (or in-flight) load targets — the keyed-request idiom. */
     let requestedModel: BodyModel = p.model;
@@ -217,34 +216,25 @@ export const webcamBodyNode = defineNode<Params>({
       log: (m) => console.warn(`[thoremin] ${m}`),
     });
 
-    const stopLoop = () => {
-      if (raf !== null) {
-        cancelAnimationFrame(raf);
-        raf = null;
-      }
-    };
-
-    const loop = () => {
-      if (disposed) return;
-      const held = resource.current();
-      if (!held) {
-        raf = null;
-        return; // released: the loop ends itself; a re-request restarts it
-      }
-      if (video && hasFrames(video) && video.currentTime !== lastVideoTime) {
-        lastVideoTime = video.currentTime;
+    // One inference per captured frame, stamped with the CAPTURE time (#226); see
+    // `frame_pump.ts`. Started when the model is held, stopped when it is released.
+    const pump = createFramePump(
+      () => video,
+      (stamp, v) => {
+        if (disposed) return false;
+        const held = resource.current();
+        if (!held) return false;
         try {
-          latest = resultToBodyFrame(
-            held.landmarker.detectForVideo(video, performance.now()),
-            video.videoWidth,
-            video.videoHeight,
-          );
+          latest = {
+            ...resultToBodyFrame(held.landmarker.detectForVideo(v, stamp.tMs), v.videoWidth, v.videoHeight),
+            ...stampToTiming(stamp),
+          };
         } catch {
           /* transient inference error; keep the last frame */
         }
-      }
-      raf = requestAnimationFrame(loop);
-    };
+      },
+    );
+    const stopLoop = () => pump.stop();
 
     return {
       init(ctx: NodeContext) {
@@ -276,11 +266,10 @@ export const webcamBodyNode = defineNode<Params>({
 
         const held = resource.current();
         if (held) {
-          if (raf === null) raf = requestAnimationFrame(loop);
+          pump.start();
         } else {
           stopLoop();
           latest = EMPTY_BODY_FRAME;
-          lastVideoTime = -1;
         }
         const status: LoadStatus = withActive(resource.status(), latest.present, 'Body detected');
         return { body: held ? latest : EMPTY_BODY_FRAME, status };

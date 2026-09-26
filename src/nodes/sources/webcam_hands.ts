@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
+import { createFramePump, stampToTiming } from './frame_pump';
 import type { NodeContext } from '@/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '../domain';
@@ -105,32 +106,25 @@ export const webcamHandsNode = defineNode<Params>({
   make(p) {
     let landmarker: HandLandmarkerLike | null = null;
     let latest: HandsFrame = EMPTY;
-    let raf: number | null = null;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
-    let lastVideoTime = -1;
 
-    const loop = () => {
-      if (disposed) return;
-      // Only run inference on a fresh, ready video frame; performance.now() is
-      // monotonic, satisfying detectForVideo's strictly-increasing-timestamp rule.
-      if (
-        landmarker &&
-        video &&
-        video.readyState >= 2 &&
-        video.videoWidth > 0 &&
-        video.currentTime !== lastVideoTime
-      ) {
-        lastVideoTime = video.currentTime;
+    // One inference per captured frame, stamped with the frame's CAPTURE time (#226):
+    // the pump reads `requestVideoFrameCallback`'s `captureTime` where the browser
+    // has it and polls `currentTime` under `requestAnimationFrame` where it does not.
+    // The stamp is strictly increasing, which is what detectForVideo requires.
+    const pump = createFramePump(
+      () => video,
+      (stamp, v) => {
+        if (!landmarker) return false;
         try {
-          const res = landmarker.detectForVideo(video, performance.now());
-          latest = resultToHandsFrame(res, video.videoWidth, video.videoHeight);
+          const res = landmarker.detectForVideo(v, stamp.tMs);
+          latest = { ...resultToHandsFrame(res, v.videoWidth, v.videoHeight), ...stampToTiming(stamp) };
         } catch {
           /* transient inference error; keep last frame */
         }
-      }
-      raf = requestAnimationFrame(loop);
-    };
+      },
+    );
 
     const optionsFor = (delegate: 'GPU' | 'CPU') => ({
       baseOptions: { modelAssetPath: MODEL_URL, delegate },
@@ -156,14 +150,14 @@ export const webcamHandsNode = defineNode<Params>({
           landmarker = null;
           return;
         }
-        raf = requestAnimationFrame(loop);
+        pump.start();
       },
       process() {
         return { hands: latest };
       },
       dispose() {
         disposed = true;
-        if (raf !== null) cancelAnimationFrame(raf);
+        pump.stop();
         landmarker?.close();
         landmarker = null;
       },
