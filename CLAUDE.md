@@ -106,7 +106,7 @@ via the provider. Never `await` a provider in the tick/audio loop.
   `src/dag`, `src/nodes`, `src/music`, `src/app/graph.ts`, tests, scripts). The
   React layer (`src/app/*.tsx`, `src/components`) is **not** strict-typechecked
   (the repo ships no `@types/react`); it is verified by `npm run build`.
-- `npm test` — vitest (106 test files, 1353 tests). **Test against the real fixtures**
+- `npm test` — vitest (the suite grows with every PR; `npx vitest run 2>&1 | tail -4` prints the current file and test counts). **Test against the real fixtures**
   (`test/fixtures/`, recorded hand/face videos, NDJSON intermediate streams). New
   behaviour gets a fixture-replay test, not just a unit test.
 - `npm run build` — vite build must stay green (verifies the React layer).
