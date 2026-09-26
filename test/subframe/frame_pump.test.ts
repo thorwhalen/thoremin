@@ -1,12 +1,11 @@
 /**
- * The frame pump (#226): frames are stamped with their CAPTURE time, strictly
- * increasing, from the video frame callback's metadata when it describes the frame
- * the driver is looking at — held one animation frame for a callback that fires
- * late — and from the clock (minus the recent lag while the channel is live)
- * otherwise. The animation-frame loop stays the driver, so a browser that never fires
- * the callback for the hidden `<video>` degrades to the pre-#226 behaviour rather
- * than to silence. All paths are exercised here with fake schedulers; the live
- * webcam behaviour is on #146's list.
+ * The frame pump (#226): the animation-frame loop delivers every new frame at once
+ * (never held, never dropped) and stamps it from the video frame callback's metadata
+ * when that already describes the frame, else from the clock minus the recent lag
+ * the callbacks taught it (even late ones), else from the clock. A browser that never
+ * fires the callback for the hidden `<video>` degrades to the pre-#226 behaviour
+ * rather than to silence. All paths are exercised here with fake schedulers; the
+ * live webcam behaviour is on #146's list.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -155,32 +154,37 @@ describe('createFramePump', () => {
     expect(pump.metadataChannel).toBe(true);
     expect(got.length).toBe(0);
 
-    // Frame 1 (mediaTime 0, captured at 960) is presented; the callback fires (and
-    // delivers the frame itself); the animation frame that follows sees nothing new.
+    // Frame 1 (mediaTime 0, captured at 960) is presented; its callback fires, then
+    // the animation frame delivers it from capture.
     v.video.readyState = 4;
-    clock = 990;
     v.fire(990, { mediaTime: 0, captureTime: 960, presentationTime: 985 });
-    expect(got.length).toBe(1);
-    expect(got[0]).toEqual({ tMs: 960, source: 'capture', lagMs: 30 });
     clock = 1000;
     s.tick();
     expect(got.length).toBe(1);
-    expect(v.handle).toBe(2); // re-registered
+    expect(got[0]).toEqual({ tMs: 960, source: 'capture', lagMs: 40 });
+    expect(v.handle).toBe(2); // the callback re-registered itself
 
-    // Frame 2: the callback re-registered itself; same story.
+    // Frame 2 likewise, 33.3 ms later.
     v.video.currentTime = 0.0333;
-    clock = 1025;
     v.fire(1025, { mediaTime: 0.0333, captureTime: 993.3, presentationTime: 1020 });
     clock = 1040;
     s.tick();
-    expect(got.length).toBe(2);
     expect(got[1].source).toBe('capture');
     expect(got[1].tMs).toBeCloseTo(993.3, 6);
+    expect(got[1].lagMs).toBeCloseTo(46.7, 6);
+
+    // Frame 3: its metadata has not arrived. Stamped at the clock minus the recent
+    // lag (an exponentially weighted mean: 40, then 46.7 at a gain of 0.2), at once.
+    v.video.currentTime = 0.0667;
+    clock = 1073;
+    s.tick();
+    expect(got[2].source).toBe('estimated');
+    expect(got[2].tMs).toBeCloseTo(1073 - (40 + 0.2 * 6.7), 6);
 
     // Same frame on the next animation frame: no delivery.
-    clock = 1056;
+    clock = 1089;
     s.tick();
-    expect(got.length).toBe(2);
+    expect(got.length).toBe(3);
 
     pump.stop();
     expect(v.cancelled).toEqual([v.handle]);
@@ -188,10 +192,13 @@ describe('createFramePump', () => {
     expect(s.armed).toBe(false);
     // A late callback after stop changes nothing.
     v.fire(1100, { mediaTime: 0.1, captureTime: 1090 });
-    expect(got.length).toBe(2);
+    expect(got.length).toBe(3);
   });
 
-  it('holds a frame one animation frame for a callback that fires late, and still stamps it from capture', () => {
+  it('learns the lag from callbacks that fire late, so every frame is estimated rather than clock-stamped', () => {
+    // Every callback arrives one animation frame after its frame was delivered: no
+    // frame ever matches at delivery, but the lag they report (capture to delivery)
+    // stamps the following frames to within the lag's jitter.
     const v = vfcVideo();
     const s = scheduler();
     let clock = 1000;
@@ -202,46 +209,29 @@ describe('createFramePump', () => {
       cancelAnimationFrame: s.caf,
     });
     pump.start();
-    v.video.readyState = 0;
-    s.tick(); // registers the channel
-    v.video.readyState = 4;
-    // Frame 1's callback arrives first: delivered from capture, the channel is live.
-    clock = 1000;
-    v.fire(1000, { mediaTime: 0, captureTime: 960 });
-    expect(got.length).toBe(1);
-    expect(got[0].source).toBe('capture');
-    // Frame 2 is current before its callback fired: the driver HOLDS it ...
-    v.video.currentTime = 0.0333;
-    clock = 1033;
-    s.tick();
-    expect(got.length).toBe(1);
-    // ... and the callback delivers it, from capture.
-    clock = 1038;
-    v.fire(1038, { mediaTime: 0.0333, captureTime: 993.3 });
-    expect(got.length).toBe(2);
-    expect(got[1].source).toBe('capture');
-    expect(got[1].tMs).toBeCloseTo(993.3, 6);
-    expect(got[1].lagMs).toBeCloseTo(44.7, 6);
-    // Frame 3: the callback never comes. Held one animation frame, then stamped at
-    // the clock minus the recent capture lag, and labelled as such.
-    v.video.currentTime = 0.0667;
-    clock = 1066;
-    s.tick();
-    expect(got.length).toBe(2);
-    clock = 1083;
-    s.tick();
-    expect(got.length).toBe(3);
-    expect(got[2].source).toBe('estimated');
-    // The recent lag is an exponentially weighted mean over the capture-stamped frames
-    // (40 ms, then 44.7 ms at a gain of 0.2).
-    expect(got[2].tMs).toBeCloseTo(1083 - (40 + 0.2 * 4.7), 6);
+    const period = 1000 / 30;
+    for (let i = 0; i < 30; i++) {
+      v.video.currentTime = i / 30;
+      clock = 1000 + i * period;
+      s.tick(); // delivers frame i at once
+      expect(got.length).toBe(i + 1);
+      // The callback for frame i comes one animation frame later, saying it was
+      // captured 42 ms before its delivery.
+      clock += period / 2;
+      v.fire(clock, { mediaTime: i / 30, captureTime: 1000 + i * period - 42 });
+    }
+    expect(got[0].source).toBe('clock');
+    expect(got.slice(1).every((g) => g.source === 'estimated')).toBe(true);
+    // Frame 1 is the transition: its estimate lands behind the clock-stamped frame 0
+    // and is pushed forward to stay increasing. From frame 2 on, the estimated stamps
+    // sit where the capture times were.
+    expect(got[1].tMs).toBe(got[0].tMs + MIN_STAMP_STEP_MS);
+    for (let i = 2; i < 30; i++) expect(got[i].tMs).toBeCloseTo(1000 + i * period - 42, 3);
+    expect(got[5].lagMs).toBeCloseTo(42, 6);
     pump.stop();
   });
 
-  it('never holds twice in a row: a camera at the animation rate, with a late callback, keeps flowing', () => {
-    // Every callback arrives one animation frame after its frame became current, and
-    // by then the next frame is current: the held frame is always superseded. The
-    // current frame must go out at once (estimated), never be re-held.
+  it('a camera at the animation rate with late callbacks still delivers every frame', () => {
     const v = vfcVideo();
     const s = scheduler();
     let clock = 1000;
@@ -252,46 +242,14 @@ describe('createFramePump', () => {
       cancelAnimationFrame: s.caf,
     });
     pump.start();
-    v.video.readyState = 0;
-    s.tick();
-    v.video.readyState = 4;
-    // One matched capture first, so the channel is proven and holds are allowed.
-    v.fire(1000, { mediaTime: 0, captureTime: 970 });
-    expect(got.length).toBe(1);
     const period = 1000 / 60;
-    for (let i = 1; i <= 60; i++) {
+    for (let i = 0; i < 120; i++) {
       v.video.currentTime = i / 60;
       clock = 1000 + i * period;
-      s.tick(); // sees frame i, metadata is for frame i-1
-      v.fire(clock + 1, { mediaTime: (i - 1) / 60, captureTime: clock - 40 }); // late: for frame i-1
-    }
-    expect(got.length).toBeGreaterThanOrEqual(59);
-    expect(got.filter((g) => g.source === 'estimated').length).toBeGreaterThan(50);
-    pump.stop();
-  });
-
-  it('a channel that fires but never matches costs no latency: no hold before a matched capture', () => {
-    const v = vfcVideo();
-    const s = scheduler();
-    let clock = 1000;
-    const got: FrameStamp[] = [];
-    const pump = createFramePump(() => v.video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
-      now: () => clock,
-      requestAnimationFrame: s.raf,
-      cancelAnimationFrame: s.caf,
-    });
-    pump.start();
-    v.video.readyState = 0;
-    s.tick();
-    v.video.readyState = 4;
-    for (let i = 0; i < 5; i++) {
-      v.video.currentTime = i / 30;
-      clock = 1000 + (i * 1000) / 30;
-      v.fire(clock, { mediaTime: i / 30 + 0.01, captureTime: clock - 30 }); // mediaTime never matches
       s.tick();
-      expect(got.length).toBe(i + 1); // delivered on the same animation frame
+      v.fire(clock + 1, { mediaTime: (i - 1) / 60, captureTime: clock - period - 40 }); // for the PREVIOUS frame
     }
-    expect(got.every((g) => g.source === 'clock')).toBe(true);
+    expect(got.length).toBe(120);
     pump.stop();
   });
 
@@ -319,7 +277,7 @@ describe('createFramePump', () => {
     pump.stop();
   });
 
-  it('a callback that never fires (hidden element) costs nothing: frames flow from the clock without a hold', () => {
+  it('a callback that never fires (hidden element) costs nothing: frames flow from the clock', () => {
     const video: FakeVideo = {
       readyState: 4,
       videoWidth: 640,
@@ -346,7 +304,7 @@ describe('createFramePump', () => {
     pump.stop();
   });
 
-  it('a channel that goes quiet stops holding frames after CHANNEL_LIVE_MS', () => {
+  it('a channel that fires but never matches costs nothing and teaches nothing: clock stamps', () => {
     const v = vfcVideo();
     const s = scheduler();
     let clock = 1000;
@@ -358,11 +316,37 @@ describe('createFramePump', () => {
     });
     pump.start();
     v.video.readyState = 0;
-    s.tick(); // registers the channel
+    s.tick();
+    v.video.readyState = 4;
+    for (let i = 0; i < 5; i++) {
+      v.video.currentTime = i / 30;
+      clock = 1000 + (i * 1000) / 30;
+      v.fire(clock, { mediaTime: i / 30 + 0.01, captureTime: clock - 30 }); // mediaTime never matches
+      s.tick();
+      expect(got.length).toBe(i + 1);
+    }
+    expect(got.every((g) => g.source === 'clock')).toBe(true);
+    pump.stop();
+  });
+
+  it('a channel that goes quiet stops estimating after CHANNEL_LIVE_MS', () => {
+    const v = vfcVideo();
+    const s = scheduler();
+    let clock = 1000;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => v.video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
+      now: () => clock,
+      requestAnimationFrame: s.raf,
+      cancelAnimationFrame: s.caf,
+    });
+    pump.start();
+    v.video.readyState = 0;
+    s.tick();
     v.video.readyState = 4;
     v.fire(1000, { mediaTime: 0, captureTime: 970 });
+    s.tick();
     expect(got.length).toBe(1);
-    // Long after the last callback: a new frame is not held.
+    expect(got[0].source).toBe('capture');
     clock = 1000 + CHANNEL_LIVE_MS + 1;
     v.video.currentTime = 0.5;
     s.tick();

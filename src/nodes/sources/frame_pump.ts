@@ -16,22 +16,19 @@
  * needs, and it costs nothing to read.
  *
  * The shape, and why. The animation-frame loop stays the DRIVER: it polls
- * `currentTime` and runs inference as before, so a browser that never fires the
- * video frame callback for an element that is not rendered (the app's `<video>` is
+ * `currentTime` and runs inference on every new frame at once, exactly as before, so
+ * no frame is ever held or dropped and a browser that never fires the video frame
+ * callback for an element that is not rendered (the app's `<video>` is
  * `display: none`) degrades to exactly the pre-#226 behaviour instead of a silent
  * instrument. The video frame callback is a SIDE CHANNEL that records each presented
- * frame's metadata. A new frame whose `currentTime` matches the recorded `mediaTime`
- * is stamped from that metadata (`captureTime`, else `presentationTime`). Because
- * the callback may fire one vsync after `currentTime` has already moved on, a frame
- * without matching metadata is HELD for one animation frame once the channel has
- * proven itself (a callback has matched a frame); the callback then delivers it
- * itself when its metadata arrives, and if none does, the frame is stamped at the
- * clock minus the recent capture lag (source `estimated`) so that one missed frame
- * does not stand out from its neighbours by a whole lag. A frame is never held twice
- * in a row: when the camera outpaces the animation loop the held frame is superseded
- * and the current one goes out at once, estimated — a camera at or above the display
- * rate must never stall the instrument. Without a proven channel there is no hold and
- * the stamp is the clock, as before.
+ * frame's metadata. When the driver sees a new frame whose `currentTime` matches the
+ * recorded `mediaTime`, the frame is stamped from that metadata (`captureTime`, else
+ * `presentationTime`). When the callback runs late — after the driver has already
+ * delivered the frame, which the spec allows by one vsync — the metadata still
+ * teaches the pump the camera's lag (capture to delivery), and every frame whose own
+ * metadata has not arrived is stamped at the clock minus that recent lag (source
+ * `estimated`): a few milliseconds of jitter instead of a whole lag of bias. With no
+ * lag learned yet, the stamp is the clock.
  *
  * {@link pickFrameStamp} is the pure decision and is unit-tested. A stamp says which
  * source it came from (`FrameTiming.tSource`), is strictly increasing by at least a
@@ -93,6 +90,8 @@ export const CHANNEL_LIVE_MS = 500;
 /** The recent-lag estimate ignores any single lag above this (ms): a stalled frame
  *  must not drag every estimated stamp early. */
 export const MAX_LAG_EW_MS = 200;
+/** Gain of the exponentially weighted recent lag. */
+export const LAG_EW_GAIN = 0.2;
 
 const plausible = (candidate: number | undefined, nowMs: number): candidate is number =>
   typeof candidate === 'number' &&
@@ -191,35 +190,27 @@ export function createFramePump(
   let lastCallbackMs = -Infinity;
   let lastVideoTime = -1;
   let lastMs = -Infinity;
-  /** The `currentTime` of a frame held for one animation frame awaiting its metadata. */
-  let held = -1;
-  /** Exponentially weighted capture lag over capture-stamped frames (ms). */
+  /** When the last frame was delivered (clock ms), for a callback that comes late. */
+  let lastDeliveryMs = NaN;
+  /** Exponentially weighted capture-to-delivery lag (ms); NaN until learned. */
   let lagEw = NaN;
-  /** Whether holding a frame for its callback has been paying off: set when the
-   *  callback delivers a held frame, cleared when a hold expired unmatched (the
-   *  callbacks run later than one animation frame, or the camera outpaces the loop),
-   *  so a hold that cannot help is not repeated on every frame. */
-  let holdsWork = true;
 
   const ready = (v: HTMLVideoElement) => v.readyState >= 2 && v.videoWidth > 0;
   const channelLive = () => now() - lastCallbackMs < CHANNEL_LIVE_MS;
+  const learnLag = (lagMs: number) => {
+    const lag = Math.min(MAX_LAG_EW_MS, Math.max(0, lagMs));
+    lagEw = Number.isFinite(lagEw) ? lagEw + LAG_EW_GAIN * (lag - lagEw) : lag;
+  };
 
   const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined) => {
-    const stamp = pickFrameStamp(now(), meta, lastMs, channelLive() ? lagEw : NaN);
+    const nowMs = now();
+    const stamp = pickFrameStamp(nowMs, meta, lastMs, channelLive() ? lagEw : NaN);
     if (onFrame(stamp, v) === false) return;
     lastMs = stamp.tMs;
     lastVideoTime = v.currentTime;
-    if (held !== -1) holdsWork = meta !== undefined; // a held frame: did the callback deliver it?
-    held = -1;
-    if (stamp.source === 'capture') {
-      const lag = Math.min(MAX_LAG_EW_MS, Math.max(0, stamp.lagMs));
-      lagEw = Number.isFinite(lagEw) ? lagEw + 0.2 * (lag - lagEw) : lag;
-    }
+    lastDeliveryMs = nowMs;
+    if (stamp.source === 'capture') learnLag(stamp.lagMs);
   };
-  /** Hold a frame for its metadata only once the channel is live AND has matched a
-   *  frame before (otherwise a channel that fires but never matches would cost an
-   *  animation frame of latency on every frame for nothing). */
-  const mayHold = () => holdsWork && channelLive() && Number.isFinite(lagEw);
 
   const unregisterVfc = () => {
     if (vfcId !== null && vfcVideo && typeof vfcVideo.cancelVideoFrameCallback === 'function') vfcVideo.cancelVideoFrameCallback(vfcId);
@@ -238,10 +229,10 @@ export function createFramePump(
       if (!running || vfcVideo !== v) return;
       latestMeta = meta;
       lastCallbackMs = now();
-      // The frame the driver is (or was) waiting on: deliver it now, from capture.
-      if (ready(v) && v.currentTime !== lastVideoTime && metadataMatches(meta, v.currentTime)) {
-        deliver(v, meta);
-        holdsWork = true;
+      // Late for a frame the driver already delivered: still learn the lag from it.
+      if (metadataMatches(meta, lastVideoTime) && Number.isFinite(lastDeliveryMs) && typeof meta.captureTime === 'number') {
+        const lag = lastDeliveryMs - meta.captureTime;
+        if (lag >= -MAX_FUTURE_MS && lag <= MAX_PLAUSIBLE_LAG_MS) learnLag(lag);
       }
       ensureVfc(v);
     });
@@ -253,11 +244,7 @@ export function createFramePump(
     const v = getVideo() as (HTMLVideoElement & VideoFrameCallbackTarget) | undefined;
     if (v) {
       ensureVfc(v);
-      if (ready(v) && v.currentTime !== lastVideoTime) {
-        if (metadataMatches(latestMeta, v.currentTime)) deliver(v, latestMeta!);
-        else if (held === -1 && mayHold()) held = v.currentTime; // wait ONE animation frame for the callback
-        else deliver(v, undefined); // held already (superseded or not): out it goes, estimated
-      }
+      if (ready(v) && v.currentTime !== lastVideoTime) deliver(v, metadataMatches(latestMeta, v.currentTime) ? latestMeta! : undefined);
     }
     rafId = raf(tick);
   };
@@ -284,8 +271,7 @@ export function createFramePump(
       latestMeta = null;
       lastCallbackMs = -Infinity;
       lastVideoTime = -1;
-      held = -1;
-      holdsWork = true;
+      lastDeliveryMs = NaN;
     },
   };
 }
