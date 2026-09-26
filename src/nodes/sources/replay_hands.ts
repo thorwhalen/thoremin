@@ -62,6 +62,9 @@ export const replayHandsNode = defineNode<Params>({
         if (frames.length === 0) return { hands: EMPTY };
         const i = loop ? n % frames.length : Math.min(n, frames.length - 1);
         n += 1;
+        // The frame as recorded, stamps included (#226): its `tOrigin` is another
+        // document's, so `frameTime` samples it at the tick, and its `t` is what lets
+        // the conductor tell the two per-tick copies of one camera frame apart.
         return { hands: frames[i] as HandsFrame };
       },
     };

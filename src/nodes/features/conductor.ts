@@ -51,7 +51,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@/ictus';
-import { LM, type Hand, type HandsFrame } from '../domain';
+import { LM, frameTime, type Hand, type HandsFrame } from '../domain';
 import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@/score/schema';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
@@ -122,6 +122,7 @@ export const MusicalTimeSchema = z.object({
   beatInBar: z.number(),
   state: z.enum(['ready', 'running', 'hold']),
   anchors: z.number(),
+  lastAnchorAt: z.number().optional(),
 });
 
 /** The live `config` port: a partial override of the params (the dial's value). */
@@ -145,6 +146,12 @@ function pickHand(frame: HandsFrame, cfg: Params): Hand | undefined {
 }
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/** Two samples closer than this (seconds) are not two camera frames: a stamp-source
+ *  switch (a clock stamp followed by an estimated one, pushed forward to stay
+ *  increasing) can put them a millisecond apart, and a backward difference over that
+ *  would latch the speed fallback. No camera this app meets exceeds 240 fps. */
+const MIN_SAMPLE_SPACING = 0.004;
 
 export const conductorNode = defineNode<Params>({
   type: 'conductor',
@@ -185,6 +192,9 @@ export const conductorNode = defineNode<Params>({
      *  NEW stroke — one more anchor — releases it). */
     let fermataAt: number | null = null;
     let fermataAnchors = 0;
+    /** The hands frame seen on the previous tick: the same object again is not a new
+     *  observation (#225). */
+    let lastFrame: HandsFrame | undefined;
     // Speed-based fallback: EW speed of the tracked point and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
     let speedEw = 0;
@@ -271,12 +281,28 @@ export const conductorNode = defineNode<Params>({
         }
 
         // 1. Feed the tracked point (or free-run when no hand is in frame).
+        //    Only a NEW camera frame is an observation (#225): the engine ticks at the
+        //    display rate over a slower camera, and the same frame fed twice at two
+        //    tick times flattens the detector's parabolic fit and biases the ictus. The
+        //    sample time is the frame's capture time when the source stamped one
+        //    (#226), else the tick time.
         const frame = inputs.hands as HandsFrame | undefined;
-        const hand = frame ? pickHand(frame, c) : undefined;
+        // The same object again, or a distinct copy carrying the same stamp (a replayed
+        // recording stores every tick, so a camera frame comes back as two parsed
+        // copies), is not a new observation.
+        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
+        const fresh = frame !== lastFrame && !sameStamp;
+        lastFrame = frame;
+        const hand = frame && fresh ? pickHand(frame, c) : undefined;
         let s: IctusState;
-        if (hand && frame && frame.height > 0) {
+        // The sample time: the frame's capture stamp in real time at speed 1, else the
+        // tick. A sample that would not advance the detector (a stamped frame arriving
+        // behind the last tick-timed one, right after a slot swap) is skipped rather
+        // than given an invented time.
+        const t = frameTime(frame, ctx);
+        if (hand && frame && frame.height > 0 && !(lastPt && t < lastPt.t + MIN_SAMPLE_SPACING)) {
           const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
-          const pt = { t: ctx.time, x: kp.x / frame.height, y: kp.y / frame.height };
+          const pt = { t, x: kp.x / frame.height, y: kp.y / frame.height };
           if (lastPt && pt.t > lastPt.t) {
             const speed = Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) / (pt.t - lastPt.t);
             speedEw += 0.3 * (speed - speedEw);
@@ -338,6 +364,7 @@ export const conductorNode = defineNode<Params>({
           // A fermata reads as a hold to every consumer (the HUD, the panel, the score).
           state: fermataAt !== null ? 'hold' : s.state,
           anchors: s.anchors,
+          lastAnchorAt: s.lastAnchorAt,
         };
         return emit(time, bpm, s.dynamics, s.articulation, true, c);
       },

@@ -231,6 +231,7 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       beatInBar: ((wholeBeat % beatsPerBar) + beatsPerBar) % beatsPerBar,
       state,
       anchors,
+      lastAnchorAt: Number.isFinite(lastAnchorT) ? lastAnchorT : undefined,
     };
   };
 

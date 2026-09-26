@@ -95,6 +95,10 @@ export interface MusicalTime {
   state: FollowerState;
   /** Anchors accepted since the last reset. */
   anchors: number;
+  /** The refined time of the last accepted anchor, seconds; absent before the first.
+   *  What a scheduler aligns to, and what a test reads to check the follower's
+   *  timing without re-deriving it from the beat. */
+  lastAnchorAt?: number;
 }
 
 /** A tempo/phase model over sparse anchors. Implementations: the adaptive oscillator
