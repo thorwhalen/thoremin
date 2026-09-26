@@ -1,0 +1,181 @@
+{
+  "instrument": "guitar",
+  "dataDir": "videos/air/guitar",
+  "sources": [
+    {
+      "id": "MtFmLEQ1zoc",
+      "title": "Practice With Me! Chord Transitions - C & G",
+      "channel": "for3v3rfaithful",
+      "player": "for3v3rfaithful",
+      "why": "Close-up of the fretting hand, real-time C<->G switching for ten minutes; the cleanest continuous-play source found.",
+      "license": null,
+      "chords": [
+        "C",
+        "G"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "D6U-kZ1jHiA",
+      "title": "Practice With Me! Chord Transitions - D & G",
+      "channel": "for3v3rfaithful",
+      "player": "for3v3rfaithful",
+      "why": "Same player and framing as MtFmLEQ1zoc with a different chord pair: adds D and a second G from the same hand.",
+      "license": null,
+      "chords": [
+        "D",
+        "G"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "DKqbdVSeAEg",
+      "title": "Chord Switching Practice - C to G",
+      "channel": "Good Guitarist",
+      "player": "good-guitarist",
+      "why": "A second player and camera for the C/G pair, so a leave-one-player-out fold tests transfer across players.",
+      "license": null,
+      "chords": [
+        "C",
+        "G"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      },
+      "notes": "Instructor talks between drill segments; the audio labeller marks the talk N."
+    },
+    {
+      "id": "2pXS8k1zx8U",
+      "title": "Chord Progression Practice - G Em C D",
+      "channel": "Good Guitarist",
+      "player": "good-guitarist",
+      "why": "A four-chord progression (I-V-vi-IV) from the same player: Em and D on top of G and C.",
+      "license": null,
+      "chords": [
+        "G",
+        "Em",
+        "C",
+        "D"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "mRKy7O5yuks",
+      "title": "Chord Switching Practice - C to F",
+      "channel": "Good Guitarist",
+      "player": "good-guitarist",
+      "why": "F is a barre shape: the first non-open shape, and the one most players struggle with.",
+      "license": null,
+      "chords": [
+        "C",
+        "F"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "vBkZQiqTen0",
+      "title": "Chord Switching Practice - G to Em",
+      "channel": "Good Guitarist",
+      "player": "good-guitarist",
+      "why": "G/Em pair from the same player; more Em frames, which the progression video alone gives few of.",
+      "license": null,
+      "chords": [
+        "G",
+        "Em"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "qXK_If0QzDM",
+      "title": "One Minute Changes - Stage 1",
+      "channel": "JustinGuitar",
+      "player": "justinguitar",
+      "why": "The canonical chord-change drill from a third player; stage 1 of that course is A, D and E.",
+      "license": null,
+      "chords": [
+        "A",
+        "D",
+        "E"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      },
+      "notes": "720p, more talking than the drill channels; the chord list is the course's stage-1 set and is checked by the labeller's per-chord counts."
+    },
+    {
+      "id": "LNS_m2IosVY",
+      "title": "How to play guitar chords - LEFT HANDED absolute beginners",
+      "channel": "GCH Guitar Academy",
+      "player": "gch-lefty",
+      "why": "A left-handed player: the fretting hand is the right hand and sits on the viewer's left, which the pick and the featurizer must both survive.",
+      "license": null,
+      "chords": [
+        "Em7",
+        "C",
+        "Am",
+        "G7"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "min"
+      },
+      "notes": "Vocabulary from the video's chapters (E minor 7th; C, A minor, G7). 720p and the hand is small: MediaPipe finds a hand in only 13% of frames, so this source contributes little; kept because it is the only left-handed one."
+    },
+    {
+      "id": "dkmVG82lSH4",
+      "title": "C G Am F Play Along Loop",
+      "channel": "Play Along (MaeBelleMusic)",
+      "player": "maebelle",
+      "why": "A play-along loop with almost no talking: long continuous labelled audio for Am and F.",
+      "license": null,
+      "chords": [
+        "C",
+        "G",
+        "Am",
+        "F"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      },
+      "notes": "Camera framing was not verifiable from metadata; kept only if the hand-detection rate after extraction is usable."
+    },
+    {
+      "id": "T071wzJmseU",
+      "title": "Matt \"Airistotle\" Burns (USA) - Air Guitar World Champion 2016",
+      "channel": "Air Guitar World Championships",
+      "player": "airistotle",
+      "why": "Air guitar, no instrument: the domain-shift probe. Never trained on and never labelled from its audio (the backing track is not what the hand mimes); scored by what the model predicts on it.",
+      "license": null,
+      "chords": [
+        "E",
+        "A",
+        "D",
+        "G"
+      ],
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      },
+      "holdout": true,
+      "notes": "Wide stage shot; the hand is small in frame and detection may fail, which is itself the finding. The chord list is the union of open shapes an E-rooted rock miming could plausibly evoke and is documentation only."
+    }
+  ]
+}
