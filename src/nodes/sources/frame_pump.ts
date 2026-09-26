@@ -16,25 +16,27 @@
  * needs, and it costs nothing to read.
  *
  * The shape, and why. The animation-frame loop stays the DRIVER: it polls
- * `currentTime` and runs inference exactly as before, so a browser that never fires
- * the video frame callback for an element that is not rendered (the app's `<video>`
- * is `display: none`) degrades to exactly the pre-#226 behaviour instead of a silent
+ * `currentTime` and runs inference as before, so a browser that never fires the
+ * video frame callback for an element that is not rendered (the app's `<video>` is
+ * `display: none`) degrades to exactly the pre-#226 behaviour instead of a silent
  * instrument. The video frame callback is a SIDE CHANNEL that records each presented
- * frame's metadata; when the driver sees a new frame whose `currentTime` matches the
- * recorded `mediaTime`, the frame is stamped from that metadata (its `captureTime`,
- * else its `presentationTime`), otherwise from the clock. {@link pickFrameStamp} is
- * the pure decision and is unit-tested; the stamp says which source it came from
- * (`FrameTiming.tSource`), is strictly increasing by at least a millisecond
- * (MediaPipe's `detectForVideo` requires increasing timestamps and works in whole
- * milliseconds), and carries the measured capture-to-inference lag, the first term of
- * the latency budget #227 wants measured. The sources put it on the frame, so the
- * recorder keeps it.
+ * frame's metadata. A new frame whose `currentTime` matches the recorded `mediaTime`
+ * is stamped from that metadata (`captureTime`, else `presentationTime`). Because
+ * the callback may fire one vsync after `currentTime` has already moved on, a frame
+ * without matching metadata is HELD for one animation frame while the channel is
+ * live; the callback then delivers it itself when its metadata arrives, and if none
+ * does, the frame is stamped at the clock minus the recent capture lag (source
+ * `estimated`) so that one missed frame does not stand out from its neighbours by a
+ * whole lag. Without a live channel there is no hold and the stamp is the clock.
  *
- * Time base: `captureTime` and `presentationTime` are `DOMHighResTimeStamp`s in the
- * same base as `performance.now()`, which is also the base of the engine's
- * `RealtimeClock` at speed 1; `frameTime` in `domain.ts` is the one place that
- * decides whether a consumer may use it. A capture time in the future, or more than a
- * second old, is not trusted.
+ * {@link pickFrameStamp} is the pure decision and is unit-tested. A stamp says which
+ * source it came from (`FrameTiming.tSource`), is strictly increasing by at least a
+ * millisecond (MediaPipe's `detectForVideo` requires increasing timestamps and works
+ * in whole milliseconds), carries the measured capture-to-inference lag (the first
+ * term of the latency budget #227 wants measured) and the time base's origin
+ * (`performance.timeOrigin`), which is how a consumer tells a live stamp from one in
+ * a replayed recording. The sources put all of it on the frame, so the recorder
+ * keeps it. A capture time in the future, or more than a second old, is not trusted.
  */
 import type { FrameTiming } from '../domain';
 
@@ -63,7 +65,9 @@ export interface FrameStamp {
    *  {@link MIN_STAMP_STEP_MS} greater than the previous frame's. */
   tMs: number;
   /** Where the stamp came from: the camera (`capture`), the compositor
-   *  (`presentation`) or the wall clock at the moment the pump noticed the frame
+   *  (`presentation`), the clock minus the recent capture lag (`estimated`: the
+   *  metadata for this one frame was missed, or the stamp had to be pushed forward
+   *  to stay increasing) or the wall clock at the moment the pump noticed the frame
    *  (`clock`, the pre-#226 behaviour). */
   source: StampSource;
   /** Milliseconds from the stamp to the moment the frame was handed to inference. */
@@ -80,6 +84,8 @@ export const MIN_STAMP_STEP_MS = 1;
 /** `mediaTime` must match `currentTime` this closely (seconds) for the metadata to
  *  describe the frame the driver is looking at. */
 export const MEDIA_TIME_TOLERANCE_S = 0.002;
+/** The metadata channel counts as live for this long after its last callback (ms). */
+export const CHANNEL_LIVE_MS = 500;
 
 const plausible = (candidate: number | undefined, nowMs: number): candidate is number =>
   typeof candidate === 'number' &&
@@ -90,10 +96,11 @@ const plausible = (candidate: number | undefined, nowMs: number): candidate is n
 /**
  * Choose a frame's timestamp. `nowMs` is the clock at the moment the frame is being
  * handed to inference; `meta` the video frame callback's metadata for THIS frame
- * (absent when none matched); `lastMs` the previous stamp (`-Infinity` for the first).
- * Pure.
+ * (absent when none matched); `lastMs` the previous stamp (`-Infinity` for the
+ * first); `estimatedLagMs` the recent capture lag when the channel is live but this
+ * frame's metadata was missed (NaN otherwise). Pure.
  */
-export function pickFrameStamp(nowMs: number, meta: VideoFrameMetadataLike | undefined, lastMs: number): FrameStamp {
+export function pickFrameStamp(nowMs: number, meta: VideoFrameMetadataLike | undefined, lastMs: number, estimatedLagMs = NaN): FrameStamp {
   let tMs: number;
   let source: StampSource;
   if (plausible(meta?.captureTime, nowMs)) {
@@ -102,17 +109,29 @@ export function pickFrameStamp(nowMs: number, meta: VideoFrameMetadataLike | und
   } else if (plausible(meta?.presentationTime, nowMs)) {
     tMs = meta!.presentationTime!;
     source = 'presentation';
+  } else if (Number.isFinite(estimatedLagMs) && estimatedLagMs >= 0) {
+    tMs = nowMs - estimatedLagMs;
+    source = 'estimated';
   } else {
     tMs = nowMs;
     source = 'clock';
   }
-  if (!(tMs >= lastMs + MIN_STAMP_STEP_MS)) tMs = lastMs + MIN_STAMP_STEP_MS;
+  if (!(tMs >= lastMs + MIN_STAMP_STEP_MS)) {
+    tMs = lastMs + MIN_STAMP_STEP_MS;
+    if (source !== 'clock') source = 'estimated';
+  }
   return { tMs, source, lagMs: nowMs - tMs };
 }
 
 /** The timing fields a source spreads onto a frame from a {@link FrameStamp}. */
-export function stampToTiming(stamp: FrameStamp): Required<FrameTiming> {
-  return { t: stamp.tMs / 1000, tSource: stamp.source, lag: stamp.lagMs / 1000 };
+export function stampToTiming(stamp: FrameStamp, originMs: number = timeOrigin()): Required<FrameTiming> {
+  return { t: stamp.tMs / 1000, tSource: stamp.source, tOrigin: originMs, lag: stamp.lagMs / 1000 };
+}
+
+/** This document's `performance.timeOrigin` (ms since the epoch); NaN where absent. */
+export function timeOrigin(): number {
+  const o = typeof performance !== 'undefined' ? performance.timeOrigin : NaN;
+  return typeof o === 'number' ? o : NaN;
 }
 
 /** Does this metadata describe the frame the element currently shows? */
@@ -162,10 +181,25 @@ export function createFramePump(
   let vfcVideo: (HTMLVideoElement & VideoFrameCallbackTarget) | null = null;
   /** The most recent presented frame's metadata (the side channel). */
   let latestMeta: VideoFrameMetadataLike | null = null;
+  let lastCallbackMs = -Infinity;
   let lastVideoTime = -1;
   let lastMs = -Infinity;
+  /** The `currentTime` of a frame held for one animation frame awaiting its metadata. */
+  let held = -1;
+  /** Exponentially weighted capture lag over capture-stamped frames (ms). */
+  let lagEw = NaN;
 
   const ready = (v: HTMLVideoElement) => v.readyState >= 2 && v.videoWidth > 0;
+  const channelLive = () => now() - lastCallbackMs < CHANNEL_LIVE_MS;
+
+  const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined) => {
+    const stamp = pickFrameStamp(now(), meta, lastMs, channelLive() ? lagEw : NaN);
+    if (onFrame(stamp, v) === false) return;
+    lastMs = stamp.tMs;
+    lastVideoTime = v.currentTime;
+    held = -1;
+    if (stamp.source === 'capture') lagEw = Number.isFinite(lagEw) ? lagEw + 0.2 * (stamp.lagMs - lagEw) : stamp.lagMs;
+  };
 
   const unregisterVfc = () => {
     if (vfcId !== null && vfcVideo && typeof vfcVideo.cancelVideoFrameCallback === 'function') vfcVideo.cancelVideoFrameCallback(vfcId);
@@ -183,6 +217,9 @@ export function createFramePump(
       vfcId = null;
       if (!running || vfcVideo !== v) return;
       latestMeta = meta;
+      lastCallbackMs = now();
+      // The frame the driver is (or was) waiting on: deliver it now, from capture.
+      if (ready(v) && v.currentTime !== lastVideoTime && metadataMatches(meta, v.currentTime)) deliver(v, meta);
       ensureVfc(v);
     });
   };
@@ -194,12 +231,9 @@ export function createFramePump(
     if (v) {
       ensureVfc(v);
       if (ready(v) && v.currentTime !== lastVideoTime) {
-        const meta = metadataMatches(latestMeta, v.currentTime) ? latestMeta! : undefined;
-        const stamp = pickFrameStamp(now(), meta, lastMs);
-        if (onFrame(stamp, v) !== false) {
-          lastMs = stamp.tMs;
-          lastVideoTime = v.currentTime;
-        }
+        if (metadataMatches(latestMeta, v.currentTime)) deliver(v, latestMeta!);
+        else if (channelLive() && held !== v.currentTime) held = v.currentTime; // wait one frame for the callback
+        else deliver(v, undefined);
       }
     }
     rafId = raf(tick);
@@ -225,7 +259,9 @@ export function createFramePump(
       }
       unregisterVfc();
       latestMeta = null;
+      lastCallbackMs = -Infinity;
       lastVideoTime = -1;
+      held = -1;
     },
   };
 }

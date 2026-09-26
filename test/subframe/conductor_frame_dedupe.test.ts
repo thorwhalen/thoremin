@@ -161,8 +161,10 @@ describe('conductor node sample time (#226)', () => {
   const n = Math.round(seconds * FPS);
   const lag = 0.02;
   const plain = Array.from({ length: n }, (_, i) => frameAt(i / FPS, phase));
-  /** Stamped 20 ms BEFORE the tick that consumes them, in the tick's time base. */
-  const stamped = Array.from({ length: n }, (_, i) => frameAt(i / FPS, phase, undefined, { t: i / FPS - lag, tSource: 'capture', lag }));
+  /** Stamped 20 ms BEFORE the tick that consumes them, in the tick's time base, by
+   *  this document (the origin is this process's). */
+  const origin = performance.timeOrigin;
+  const stamped = Array.from({ length: n }, (_, i) => frameAt(i / FPS, phase, undefined, { t: i / FPS - lag, tSource: 'capture', tOrigin: origin, lag }));
 
   /** Mean wrapped phase difference over the last second (once the servo has converged). */
   const meanShift = (a: number[], b: number[]) => {
@@ -181,12 +183,16 @@ describe('conductor node sample time (#226)', () => {
     expect(shift).toBeLessThan(2 * (lag / PERIOD));
   });
 
-  it('under a batch or scaled clock, or without a source, the stamp is ignored', async () => {
+  it('under a batch or scaled clock, without a source, or from another session, the stamp is ignored', async () => {
     const pPlain = phases(await run(plain, 1 / FPS));
     expect(phases(await run(stamped, 1 / FPS))).toEqual(pPlain); // no timeScale: batch
     expect(phases(await run(stamped, 1 / FPS, { timeScale: 0.5 }))).toEqual(pPlain);
+    const pPlainRt = phases(await run(plain, 1 / FPS, REALTIME));
     const unsourced = stamped.map((f) => ({ ...f, tSource: undefined }));
-    expect(phases(await run(unsourced, 1 / FPS, REALTIME))).toEqual(phases(await run(plain, 1 / FPS, REALTIME)));
+    expect(phases(await run(unsourced, 1 / FPS, REALTIME))).toEqual(pPlainRt);
+    // A recording made in another session (another time origin) replayed live.
+    const foreign = stamped.map((f) => ({ ...f, tOrigin: origin - 3600000 }));
+    expect(phases(await run(foreign, 1 / FPS, REALTIME))).toEqual(pPlainRt);
   });
 
   it('a stamp that does not advance the detector is skipped, not given an invented time', async () => {

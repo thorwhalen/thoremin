@@ -26,7 +26,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
-import { HandsFrameSchema, type HandsFrame } from '../domain';
+import { HandsFrameSchema, stripFrameTiming, type HandsFrame } from '../domain';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 
 /**
@@ -62,7 +62,9 @@ export const replayHandsNode = defineNode<Params>({
         if (frames.length === 0) return { hands: EMPTY };
         const i = loop ? n % frames.length : Math.min(n, frames.length - 1);
         n += 1;
-        return { hands: frames[i] as HandsFrame };
+        // A recording's capture stamps (#226) are in the session that made it, not in
+        // this one: a replayed frame carries none, so consumers sample it at the tick.
+        return { hands: stripFrameTiming(frames[i] as HandsFrame) as HandsFrame };
       },
     };
   },
