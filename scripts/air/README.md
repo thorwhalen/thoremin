@@ -47,6 +47,20 @@ On 31,000 labelled frames from three players, chord shapes are 96% separable wit
 
 The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`): the chord model eats the per-finger joint angles, curls, spreads, thumb opposition, pinch distances and openness that the Lab and the trainer already compute, selected by their *declared invariance* (scale, position, yaw, pitch, roll), so a trained model can later run in the app as one more consumer of the `hand-feature-vector` node. The **labels come from the sound**: real-instrument footage is self-labelling (a strummed G is a G), air footage is not, which is why the model is learned on real playing and probed on air. The **held-out number is leave-one-player-out** (two channels contribute several videos each, so the unit is the player, not the video), because a per-frame random split lets adjacent frames leak and reports an accuracy no new player would see. The air-guitar probe is never labelled from its audio and never trained on; it is reported as what the model predicts, not as an accuracy.
 
+## The other instruments
+
+Same five steps, different label source and tracker. `label_pitch.py` (pyin, range per instrument) labels flute and bass; `label_onsets.py` labels drum hits; `extract.py --streams hands face` for flute, `hands` for bass, `pose` for drums (`--file` adds a local clip such as a self-recorded take). Then:
+
+```bash
+npx vite-node scripts/air/build_pitch_dataset.ts flute      # both hands + embouchure blendshapes -> pitch class
+npx vite-node scripts/air/build_pitch_dataset.ts bass       # fretting hand shape + neck position -> pitch class
+npx vite-node scripts/air/train_air_model.ts flute pitch_class
+npx vite-node scripts/air/train_air_model.ts bass pitch_class
+npx vite-node scripts/air/eval_drum_strokes.ts --file own_air_drums_2021   # strokes vs audio onsets, drums by clustering
+```
+
+Results per instrument are in the research doc §6.3 (guitar) and §7 (bass, flute, drums).
+
 ## Modules
 
 | file | role |
@@ -55,10 +69,15 @@ The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`)
 | `lib_sources.ts` | Zod schema of a source list; rejects local paths and unknown chord names |
 | `lib_chord_shape_features.ts` | fretting-hand pick + catalog-backed featurizer |
 | `lib_chord_shape_dataset.ts` | the landmark ↔ label join behind two seams, `featurize` (frame → vector) and `labelOf` (time → label); margin around chord changes, no-chord spans dropped; an unlabelled probe join |
-| `lib_chord_shape_model.ts` | softmax regression (Adam, L2, class-balanced), the trainer's nearest-centroid baseline, metrics, leave-one-group-out, gap-aware vote smoothing |
+| `lib_chord_shape_model.ts` | softmax regression (Adam, L2, class-balanced), the trainer's nearest-centroid baseline, metrics, leave-one-group-out, gap-aware vote smoothing, the enrolment split |
+| `lib_air_train.ts` | the held-out harness every instrument's CLI runs (three numbers + probe report + markdown) |
+| `lib_wind_string_features.ts` | flute (both hands + embouchure) and bass (shape + neck position) featurizers on a frame bundle |
+| `lib_drum_strokes.ts` | wrist tracks from the pose stream, frame-level stroke detection in noise units, k-means drum assignment |
+| `label_pitch.py`, `label_onsets.py` | audio → note segments (pyin); audio → hit onsets; both with `--self-test` |
 | `label_chords.py` | audio → chord segments; `--self-test` recovers a synthetic progression |
 | `fetch.py`, `extract.py` | download; run `video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py` per source |
-| `build_chord_shape_dataset.ts`, `train_chord_shape.ts`, `enrol_chord_shape.ts` | the three CLIs: join, held-out training, enrolment budget |
+| `build_chord_shape_dataset.ts`, `train_chord_shape.ts`, `enrol_chord_shape.ts` | the guitar CLIs: join, held-out training, enrolment budget |
+| `build_pitch_dataset.ts`, `train_air_model.ts`, `eval_drum_strokes.ts` | flute/bass join, the generic held-out trainer, the drum stroke evaluation |
 
 ## Adding a source
 
