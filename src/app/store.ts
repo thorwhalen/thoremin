@@ -49,7 +49,7 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings } from '@/settings/schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, type AirDrumSettings } from '@/settings/schema';
 import type { ScoreDoc } from '@/score/schema';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
@@ -64,6 +64,8 @@ const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CON
 const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structuredClone(DEFAULT_STEER.config) });
 /** A fresh copy of the shipped conductor dial (#187): off. */
 const defaultConductor = (): ConductorSettings => ({ ...DEFAULT_CONDUCTOR });
+/** A fresh copy of the shipped air-drum dial (#233): off. */
+const defaultAirDrum = (): AirDrumSettings => ({ ...DEFAULT_AIR_DRUM });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -182,6 +184,9 @@ export interface ControlState {
    *  dynamics ranges. A preset field, fed live to the `conductor` node's `config` port
    *  through store-controls, so conducting starts with no rebuild. */
   conductor: ConductorSettings;
+  /** The air drum dial (#233): on/off, hands, point, sounds, lead, magnetism. A preset
+   *  field, fed live to the `air-drum` node's `config` port through store-controls. */
+  airDrum: AirDrumSettings;
   /**
    * The loaded score (#187 PR 3): the `ScoreDoc` the `score` node plays, handed to the
    * graph through `store-controls` as the live `scoreDoc` port. TRANSIENT, like
@@ -489,6 +494,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       conductor = current.conductor;
     }
   }
+  // Heal the air drum dial (#233) the same way.
+  let airDrum = current.airDrum;
+  if (p.airDrum) {
+    try {
+      airDrum = AirDrumSettingsSchema.parse({ ...current.airDrum, ...p.airDrum });
+    } catch {
+      airDrum = current.airDrum;
+    }
+  }
   let gestures = current.gestures;
   if (p.gestures) {
     try {
@@ -499,7 +513,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -539,6 +553,7 @@ export const useControls = create<ControlState>()(
       scoreDoc: null,
       faceControls: defaultFaceControls(),
       conductor: defaultConductor(),
+      airDrum: defaultAirDrum(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       trainerHud: TrainerHudParamsSchema.parse({}),
@@ -637,7 +652,9 @@ export const useControls = create<ControlState>()(
       // v13 (#186): `body` + `bodyMap` added to the preset fields; both heal in mergeControls
       // (a pre-#186 blob reads as off / no routes), so no data transform is needed — the
       // bump is the version marker for the schema growth.
-      version: 13,
+      // v14 (#233): `airDrum` added to the preset fields (the air-drum node's params, off
+      // by default); heals in mergeControls, so no data transform is needed.
+      version: 14,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

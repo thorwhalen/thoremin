@@ -97,6 +97,12 @@ export const TOOLS: readonly Tool[] = [
     kind: 'panel',
   },
   {
+    id: 'airDrum',
+    label: 'Air drum',
+    description: 'Strike the air with a hand and hear a drum at the strike — the hit is predicted before the camera sees it land.',
+    kind: 'panel',
+  },
+  {
     id: 'trainer',
     label: 'Trainer',
     description:

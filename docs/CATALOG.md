@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (40)
+## Nodes (42)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, bodyMap:body-map, scoreDoc:score-doc
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -415,4 +415,23 @@ Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 - **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
+
+### Other
+
+
+#### `air-drum` — Air drum
+Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.
+
+- **roles:** feature, mapping
+- **in:** hands:hands-frame, config:air-drum-config, time:musical-time
+- **out:** hits:drum-hits, status:air-drum-status, enabled:boolean
+- **params:** enabled (boolean=false), hand (enum(both | right | left)="both"), point (enum(wrist | indexTip)="wrist"), rightSound (enum(kick | snare | hihat | tom)="kick"), leftSound (enum(kick | snare | hihat | tom)="snare"), minLead (number=0.05), magnetism (number=0), mirrorHandedness (boolean=true), volume (number=0.8), minStroke (number=0.03)
+
+#### `drum-out` — Drum out
+Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).
+
+- **roles:** synth
+- **in:** hits:drum-hits
+- **out:** —
+- **params:** —
 

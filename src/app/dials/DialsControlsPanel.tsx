@@ -37,6 +37,7 @@ import { MidiControls } from './panels/midi';
 import { BodyControls } from './panels/body';
 import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
+import { AirDrumControls } from './panels/airDrum';
 
 export default function DialsControlsPanel() {
   const { state, set } = useDialsSettings();
@@ -78,6 +79,10 @@ export default function DialsControlsPanel() {
       {/* The conductor (#187): conduct the score with a hand. Off by default. */}
       <TopSection label="Conductor">
         <ConductorControls />
+      </TopSection>
+      {/* The air drum (#233): strike the air, hear a drum at the strike. Off by default. */}
+      <TopSection label="Air drum">
+        <AirDrumControls />
       </TopSection>
 
       <TopSection label="Overlay">

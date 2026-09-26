@@ -268,6 +268,11 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // hand instrument is untouched for a player who never conducts. The score's
       // content is the built-in demo scale until the score pipeline lands (PR 3).
       { id: 'conductor', type: 'conductor', params: {} },
+      // The air drum (#233): each hand a stick, the hit predicted before the frame that
+      // shows it, sounded on the audio clock by `drum-out`. Both idle until the
+      // `airDrum.enabled` dial is on.
+      { id: 'airDrum', type: 'air-drum', params: {} },
+      { id: 'drumOut', type: 'drum-out', params: {} },
       { id: 'score', type: 'score', params: { notes: DEMO_SCALE_NOTES, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
       // handler that dispatches dial commands; octave-shift / magnetism / mute now
@@ -443,6 +448,12 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // The conducted score joins the hand voices and both face chords at the merge, so
       // the master mute and the synth/MIDI/overlay taps cover it for free.
       { from: { node: 'score', port: 'params' }, to: { node: 'merge', port: 'd' } },
+      // The air drum (#233): the hands, the dial (live, the #147 template), the conductor's
+      // musical time for the timing magnet, and the hits to the audio scheduler.
+      { from: { node: 'cam', port: 'hands' }, to: { node: 'airDrum', port: 'hands' } },
+      { from: { node: 'ui', port: 'airDrum' }, to: { node: 'airDrum', port: 'config' } },
+      { from: { node: 'conductor', port: 'time' }, to: { node: 'airDrum', port: 'time' } },
+      { from: { node: 'airDrum', port: 'hits' }, to: { node: 'drumOut', port: 'hits' } },
     ],
   };
 }
