@@ -1,0 +1,49 @@
+{
+  "scenario": "subframe_stick_surface_30",
+  "source": "an.impacts",
+  "clip": "stick-surface-30fps-e0.5-11e7ab71",
+  "spec": {
+    "object": "stick",
+    "kind": "surface",
+    "tempo": [
+      [
+        0,
+        96
+      ],
+      [
+        8,
+        112
+      ]
+    ],
+    "beats": 8,
+    "subdivision": 1,
+    "pattern": [
+      1,
+      0.6,
+      0.8,
+      0.6
+    ],
+    "lead_in": 0.5,
+    "tail": 0.5,
+    "jitter_sd": 0.012,
+    "jitter_rho": 0.3,
+    "jitter_bias": 0,
+    "rise": 0.18,
+    "fall": 0.18,
+    "brake": 0.03,
+    "show_surface": null,
+    "fps": 30,
+    "exposure": 0.5,
+    "exposure_samples": null,
+    "timestamp_jitter_sd": 0,
+    "timestamp_noise_sd": 0,
+    "phase": 0,
+    "timestamps": "nominal",
+    "width": 640,
+    "height": 360,
+    "trajectory_hz": 1000,
+    "seed": 3
+  },
+  "regenerate": "an impacts clip <out> with the spec above (render off), then scripts/subframe/build_fixture.ts",
+  "builtAt": "2026-09-26T14:58:55.430Z"
+}

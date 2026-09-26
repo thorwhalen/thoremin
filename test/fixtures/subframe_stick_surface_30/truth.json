@@ -1,0 +1,252 @@
+{
+ "schema": "an.impacts/truth",
+ "generator": {
+  "package": "an",
+  "version": "0.1.86",
+  "module": "an.impacts.clip"
+ },
+ "spec": {
+  "object": "stick",
+  "kind": "surface",
+  "tempo": [
+   [
+    0,
+    96
+   ],
+   [
+    8,
+    112
+   ]
+  ],
+  "beats": 8,
+  "subdivision": 1,
+  "pattern": [
+   1,
+   0.6,
+   0.8,
+   0.6
+  ],
+  "lead_in": 0.5,
+  "tail": 0.5,
+  "jitter_sd": 0.012,
+  "jitter_rho": 0.3,
+  "jitter_bias": 0,
+  "rise": 0.18,
+  "fall": 0.18,
+  "brake": 0.03,
+  "show_surface": null,
+  "fps": 30,
+  "exposure": 0.5,
+  "exposure_samples": null,
+  "timestamp_jitter_sd": 0,
+  "timestamp_noise_sd": 0,
+  "phase": 0,
+  "timestamps": "nominal",
+  "width": 640,
+  "height": 360,
+  "trajectory_hz": 1000,
+  "seed": 3
+ },
+ "clip": {
+  "duration": 5.100749966770219,
+  "fps": 30,
+  "width": 640,
+  "height": 360,
+  "frame_count": 153,
+  "rendered": false,
+  "files": {
+   "truth": "truth.json",
+   "keypoints": "keypoints.ndjson",
+   "trajectory": "trajectory.csv",
+   "scene": "scene.json"
+  }
+ },
+ "objects": [
+  {
+   "name": "stick",
+   "impact_keypoint": "tip",
+   "keypoints": [
+    "pivot",
+    "tip"
+   ]
+  }
+ ],
+ "events": [
+  {
+   "object": "stick",
+   "index": 0,
+   "beat": 0,
+   "amplitude": 1,
+   "t_grid": 0.5,
+   "t_impact": 0.5008826799222551,
+   "offset": 0.0008826799222551029,
+   "kind": "surface",
+   "t_peak_speed": 0.5008826799222551,
+   "peak_speed_px": 2111.0524681440274,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": -0.0008826799222551029,
+    "nearest_error": 0.007450653411078201
+   }
+  },
+  {
+   "object": "stick",
+   "index": 1,
+   "beat": 1,
+   "amplitude": 0.6,
+   "t_grid": 1.1185786160820683,
+   "t_impact": 1.1189463884855297,
+   "offset": 0.00036777240346141937,
+   "kind": "surface",
+   "t_peak_speed": 1.1189463884855297,
+   "peak_speed_px": 1266.6314812751343,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": -0.018946388485529653,
+    "nearest_error": -0.010613055152196349
+   }
+  },
+  {
+   "object": "stick",
+   "index": 2,
+   "beat": 2,
+   "amplitude": 0.8,
+   "t_grid": 1.724659835607656,
+   "t_impact": 1.7236447063865414,
+   "offset": -0.0010151292211144636,
+   "kind": "surface",
+   "t_peak_speed": 1.7236447063865414,
+   "peak_speed_px": 1688.8419748180017,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": 0.009688626946791956,
+    "nearest_error": -0.015311373053208177
+   }
+  },
+  {
+   "object": "stick",
+   "index": 3,
+   "beat": 3,
+   "amplitude": 0.6,
+   "t_grid": 2.3187386544930453,
+   "t_impact": 2.313817933217919,
+   "offset": -0.004920721275126105,
+   "kind": "surface",
+   "t_peak_speed": 2.313817933217919,
+   "peak_speed_px": 1266.6314812751343,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": -0.013817933217919354,
+    "nearest_error": -0.00548459988458605
+   }
+  },
+  {
+   "object": "stick",
+   "index": 4,
+   "beat": 4,
+   "amplitude": 1,
+   "t_grid": 2.9012812302060906,
+   "t_impact": 2.911354449712429,
+   "offset": 0.010073219506338216,
+   "kind": "surface",
+   "t_peak_speed": 2.911354449712429,
+   "peak_speed_px": 2111.052468169285,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": -0.011354449712428938,
+    "nearest_error": -0.003021116379095634
+   }
+  },
+  {
+   "object": "stick",
+   "index": 5,
+   "beat": 5,
+   "amplitude": 0.6,
+   "t_grid": 3.472727079326929,
+   "t_impact": 3.4778069478702576,
+   "offset": 0.005079868543328647,
+   "kind": "surface",
+   "t_peak_speed": 3.4778069478702576,
+   "peak_speed_px": 1266.6314812751343,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": -0.011140281203590785,
+    "nearest_error": -0.0028069478702574813
+   }
+  },
+  {
+   "object": "stick",
+   "index": 6,
+   "beat": 6,
+   "amplitude": 0.8,
+   "t_grid": 4.033491069691504,
+   "t_impact": 4.038119035133927,
+   "offset": 0.004627965442423054,
+   "kind": "surface",
+   "t_peak_speed": 4.038119035133927,
+   "peak_speed_px": 1688.8419747415096,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": -0.004785701800593678,
+    "nearest_error": 0.0035476315327391816
+   }
+  },
+  {
+   "object": "stick",
+   "index": 7,
+   "beat": 7,
+   "amplitude": 0.6,
+   "t_grid": 4.583965229737397,
+   "t_impact": 4.600749966770219,
+   "offset": 0.016784737032821795,
+   "kind": "surface",
+   "t_peak_speed": 4.600749966770219,
+   "peak_speed_px": 1266.6314812212295,
+   "fall": 0.18,
+   "brake": 0,
+   "impact_xy": [
+    387.8745425694758,
+    218.57956149109026
+   ],
+   "frames": {
+    "lowest_error": -0.0007499667702193236,
+    "nearest_error": 0.007583366563113536
+   }
+  }
+ ]
+}
