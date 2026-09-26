@@ -1,4 +1,4 @@
-"""Render the air-guitar chord-shape demo: footage + hand + recognised chord, with sound.
+"""Render an air-instrument recognition demo: footage + hands + the recognised label, with sound.
 
 Reads a timeline written by ``chord_shape_timeline.ts`` (per-frame prediction and the
 audio label), the source video and its hand landmarks, and writes an mp4 in which:
@@ -8,7 +8,9 @@ audio label), the source video and its hand landmarks, and writes an mp4 in whic
   with the chord heard in the audio, red when not, grey when the audio has no chord);
 - the soundtrack is a synthesised strum of the recognised chord (Karplus-Strong), with
   the original recording mixed underneath at ``--original-gain`` so the two can be
-  compared by ear.
+  compared by ear. ``--voice bass`` or ``--voice flute`` plays the recognised PITCH
+  CLASS as a single note instead (a plucked bass, a breathy flute tone), for the
+  pitch timelines of ``air_pitch_timeline.ts``.
 
 Everything it reads and writes lives under the local data dir; YouTube-derived output
 never goes in the repository.
@@ -50,6 +52,25 @@ def chord_midis(symbol):
     return [base] + [base + 12 + i for i in ivs] + [base + 24]
 
 
+def note_midi(label, voice):
+    """The MIDI note a pitch-class label sounds as in ``voice`` ('D5'/'D#5' keep their octave)."""
+    pc = NOTE[label[0]] + (1 if label[1:2] == '#' else -1 if label[1:2] == 'b' else 0)
+    octave = int(label[-1]) if label[-1].isdigit() else None
+    if voice == 'bass':
+        return 28 + (pc - 4) % 12  # E1..D#2
+    return 12 * ((octave or 5) + 1) + pc if octave else 60 + (pc % 12) + (12 if pc < 7 else 0)
+
+
+def flute_tone(freq, dur, *, rng):
+    """A soft sine with a little second harmonic and breath noise, gentle attack and release."""
+    n = int(SR * dur)
+    t = np.arange(n) / SR
+    env = np.minimum(1, t / 0.04) * np.minimum(1, (dur - t) / 0.06).clip(0, 1)
+    vib = 1 + 0.004 * np.sin(2 * np.pi * 5 * t)
+    tone = np.sin(2 * np.pi * freq * t * vib) + 0.25 * np.sin(4 * np.pi * freq * t * vib)
+    return env * (tone + 0.05 * rng.normal(0, 1, n))
+
+
 def pluck(freq, dur, *, rng, decay=0.996):
     """One Karplus-Strong string."""
     n = int(SR * dur)
@@ -62,8 +83,8 @@ def pluck(freq, dur, *, rng, decay=0.996):
     return out
 
 
-def synth_track(events, duration, *, strum_gap=0.018, ring=1.6, seed=0):
-    """``events``: (time, chord or None). A chord strums at each event; None mutes."""
+def synth_track(events, duration, *, strum_gap=0.018, ring=1.6, seed=0, voice='chord'):
+    """``events``: (time, label or None). A chord strums (or a note sounds) at each event; None mutes."""
     rng = np.random.default_rng(seed)
     track = np.zeros(int(SR * (duration + ring)) + 1)
     cache = {}
@@ -71,6 +92,14 @@ def synth_track(events, duration, *, strum_gap=0.018, ring=1.6, seed=0):
         if chord is None:
             continue
         end = events[k + 1][0] if k + 1 < len(events) else duration
+        if voice != 'chord':
+            freq = 440 * 2 ** ((note_midi(chord, voice) - 69) / 12)
+            dur = min(ring, end - t + 0.05) if voice == 'bass' else max(0.08, end - t)
+            s = pluck(freq, dur, rng=rng, decay=0.998) if voice == 'bass' else flute_tone(freq, dur, rng=rng)
+            i0 = int(SR * t)
+            seg = s[: len(track) - i0]
+            track[i0 : i0 + len(seg)] += seg * (0.5 if voice == 'bass' else 0.25)
+            continue
         dur = min(ring, end - t + 0.25)
         for j, m in enumerate(chord_midis(chord)):
             key = (m, round(dur, 2))
@@ -113,6 +142,9 @@ def main():
     ap.add_argument('--width', type=int, default=960)
     ap.add_argument('--original-gain', type=float, default=0.25)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--voice', default='chord', choices=['chord', 'bass', 'flute'])
+    ap.add_argument('--says', default='hand says', help='the label in front of the prediction')
+    ap.add_argument('--restrum', type=float, default=1.0, help='re-sound a held label every N s')
     a = ap.parse_args()
 
     tl = json.loads(Path(a.timeline).read_text())
@@ -161,14 +193,14 @@ def main():
             pred, truth = shown['pred'], shown['truth']
             color = (150, 150, 150) if truth in (None, 'N') else ((80, 200, 80) if truth == pred else (60, 60, 230))
             cv2.rectangle(img, (0, 0), (W, 70), (20, 20, 20), -1)
-            cv2.putText(img, f'hand says: {pred}', (16, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.4, color, 3, cv2.LINE_AA)
+            cv2.putText(img, f'{a.says}: {pred}', (16, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.4, color, 3, cv2.LINE_AA)
             cv2.putText(img, f'audio says: {truth or "-"}', (W - 300, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.9,
                         (220, 220, 220), 2, cv2.LINE_AA)
         enc.stdin.write(img.tobytes())
     enc.stdin.close()
     enc.wait()
 
-    track = synth_track(strum_events(frames, a.start, a.duration), a.duration)
+    track = synth_track(strum_events(frames, a.start, a.duration, restrum=a.restrum), a.duration, voice=a.voice)
     orig = tmp / 'orig.f32'
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', str(a.start), '-t', str(a.duration), '-i', a.video,
                     '-vn', '-ac', '1', '-ar', str(SR), '-f', 'f32le', str(orig)], check=True)

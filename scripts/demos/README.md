@@ -8,7 +8,10 @@ Each script turns something that has landed into a short video, GIF or data file
 | `render_impact_demo.py` | the clip with its ground truth drawn on (contact plane, exact contact point, a scrolling strip of frame / impact / beat times), optionally with drum hits at one strategy's onsets, at any playback speed |
 | `air_drum_hits.ts` | the hits the shipped `air-drum` node plays over one `an.impacts` clip, with a simulated capture-to-tick delay and an optional pull toward a beat follower; same file shape as `impact_onsets.ts` |
 | `chord_shape_timeline.ts` | per-frame chord-shape predictions for one guitar video, enrolled on the first seconds of each chord and scored on the rest |
-| `render_chord_demo.py` | the footage with the hand skeleton, the recognised chord and a synthesised strum of it, the original audio mixed underneath |
+| `render_chord_demo.py` | the footage with the hand skeleton, the recognised chord and a synthesised strum of it (or, with `--voice bass|flute`, the recognised pitch class as a single note), the original audio mixed underneath |
+| `air_pitch_timeline.ts` | one leave-one-player-out fold of the bass or flute pitch model, per frame, in the chord-timeline shape |
+| `drum_strokes_timeline.ts` | a drums source's wrist strokes, their drum assignment and (for real footage) the audio onsets, as `eval_drum_strokes.ts` computes them |
+| `render_drum_demo.py` | the footage with the pose arms and a ring per stroke; real footage in stereo (recording left, a click per stroke right), air footage with a synthetic kit per assigned drum |
 | `tour_live.mjs` | a scripted tour of the built bundle with `synthetic-hands`, recording the page's own Web Audio output alongside the screen (Playwright from `smoke/node_modules`) |
 
 ```bash
