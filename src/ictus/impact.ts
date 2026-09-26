@@ -686,9 +686,13 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
       if (!committed && Number.isFinite(level) && d > prevD && ts.length >= o.minApproachSamples) {
         const from = approachStart(ts.length);
         const f = ts.length - from >= o.minApproachSamples ? fitQuadratic(ts.slice(from), ds.slice(from), t) : null;
-        if (f && f.b > 0 && Math.max(f.b, peakSpeed) >= o.minApproachSpeed) {
+        if (f && f.b > 0) {
           const x = crossingTau(f, level);
-          if (Number.isFinite(x.tau)) {
+          // The speed gate for a prediction is the speed the fit EXPECTS at the crossing
+          // (a stroke speeds up into its hit; gating on the speed now would wait until
+          // the hand is already fast, and cost a soft stroke its lead).
+          const expectedSpeed = Number.isFinite(x.tau) ? Math.abs(f.b + 2 * f.c * x.tau) : 0;
+          if (Number.isFinite(x.tau) && Math.max(expectedSpeed, peakSpeed) >= o.minApproachSpeed) {
             const crossing = t + x.tau;
             const tPred = crossing + lag;
             const amplitude = level - topD;
