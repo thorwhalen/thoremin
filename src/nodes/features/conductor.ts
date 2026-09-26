@@ -147,6 +147,12 @@ function pickHand(frame: HandsFrame, cfg: Params): Hand | undefined {
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+/** Two samples closer than this (seconds) are not two camera frames: a stamp-source
+ *  switch (a clock stamp followed by an estimated one, pushed forward to stay
+ *  increasing) can put them a millisecond apart, and a backward difference over that
+ *  would latch the speed fallback. No camera this app meets exceeds 240 fps. */
+const MIN_SAMPLE_SPACING = 0.004;
+
 export const conductorNode = defineNode<Params>({
   type: 'conductor',
   roles: ['feature', 'mapping'],
@@ -294,7 +300,7 @@ export const conductorNode = defineNode<Params>({
         // behind the last tick-timed one, right after a slot swap) is skipped rather
         // than given an invented time.
         const t = frameTime(frame, ctx);
-        if (hand && frame && frame.height > 0 && !(lastPt && t <= lastPt.t)) {
+        if (hand && frame && frame.height > 0 && !(lastPt && t < lastPt.t + MIN_SAMPLE_SPACING)) {
           const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
           const pt = { t, x: kp.x / frame.height, y: kp.y / frame.height };
           if (lastPt && pt.t > lastPt.t) {

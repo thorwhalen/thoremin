@@ -13,7 +13,6 @@ import {
   metadataMatches,
   pickFrameStamp,
   stampToTiming,
-  CHANNEL_LIVE_MS,
   MAX_FUTURE_MS,
   MAX_PLAUSIBLE_LAG_MS,
   MIN_STAMP_STEP_MS,
@@ -329,7 +328,7 @@ describe('createFramePump', () => {
     pump.stop();
   });
 
-  it('a channel that goes quiet stops estimating after CHANNEL_LIVE_MS', () => {
+  it('a channel that goes quiet (a hidden tab) keeps estimating from the lag it learned', () => {
     const v = vfcVideo();
     const s = scheduler();
     let clock = 1000;
@@ -347,11 +346,12 @@ describe('createFramePump', () => {
     s.tick();
     expect(got.length).toBe(1);
     expect(got[0].source).toBe('capture');
-    clock = 1000 + CHANNEL_LIVE_MS + 1;
+    clock = 1000 + 2000;
     v.video.currentTime = 0.5;
     s.tick();
     expect(got.length).toBe(2);
-    expect(got[1].source).toBe('clock');
+    expect(got[1].source).toBe('estimated');
+    expect(got[1].tMs).toBe(clock - 30);
     pump.stop();
   });
 

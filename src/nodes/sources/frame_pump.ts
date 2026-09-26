@@ -85,8 +85,6 @@ export const MIN_STAMP_STEP_MS = 1;
 /** `mediaTime` must match `currentTime` this closely (seconds) for the metadata to
  *  describe the frame the driver is looking at. */
 export const MEDIA_TIME_TOLERANCE_S = 0.002;
-/** The metadata channel counts as live for this long after its last callback (ms). */
-export const CHANNEL_LIVE_MS = 500;
 /** The recent-lag estimate ignores any single lag above this (ms): a stalled frame
  *  must not drag every estimated stamp early. */
 export const MAX_LAG_EW_MS = 200;
@@ -187,7 +185,6 @@ export function createFramePump(
   let vfcVideo: (HTMLVideoElement & VideoFrameCallbackTarget) | null = null;
   /** The most recent presented frame's metadata (the side channel). */
   let latestMeta: VideoFrameMetadataLike | null = null;
-  let lastCallbackMs = -Infinity;
   let lastVideoTime = -1;
   let lastMs = -Infinity;
   /** When the last frame was delivered (clock ms), for a callback that comes late. */
@@ -196,7 +193,6 @@ export function createFramePump(
   let lagEw = NaN;
 
   const ready = (v: HTMLVideoElement) => v.readyState >= 2 && v.videoWidth > 0;
-  const channelLive = () => now() - lastCallbackMs < CHANNEL_LIVE_MS;
   const learnLag = (lagMs: number) => {
     const lag = Math.min(MAX_LAG_EW_MS, Math.max(0, lagMs));
     lagEw = Number.isFinite(lagEw) ? lagEw + LAG_EW_GAIN * (lag - lagEw) : lag;
@@ -204,7 +200,10 @@ export function createFramePump(
 
   const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined) => {
     const nowMs = now();
-    const stamp = pickFrameStamp(nowMs, meta, lastMs, channelLive() ? lagEw : NaN);
+    // The learned lag describes the pipeline, not the channel: once known it is used
+    // even after the callbacks go quiet (a hidden tab), so a return does not start
+    // again from a clock stamp.
+    const stamp = pickFrameStamp(nowMs, meta, lastMs, lagEw);
     if (onFrame(stamp, v) === false) return;
     lastMs = stamp.tMs;
     lastVideoTime = v.currentTime;
@@ -228,7 +227,6 @@ export function createFramePump(
       vfcId = null;
       if (!running || vfcVideo !== v) return;
       latestMeta = meta;
-      lastCallbackMs = now();
       // Late for a frame the driver already delivered: still learn the lag from it.
       if (metadataMatches(meta, lastVideoTime) && Number.isFinite(lastDeliveryMs) && typeof meta.captureTime === 'number') {
         const lag = lastDeliveryMs - meta.captureTime;
@@ -269,7 +267,6 @@ export function createFramePump(
       }
       unregisterVfc();
       latestMeta = null;
-      lastCallbackMs = -Infinity;
       lastVideoTime = -1;
       lastDeliveryMs = NaN;
     },
