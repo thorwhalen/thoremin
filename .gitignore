@@ -60,3 +60,7 @@ Thumbs.db
 smoke/node_modules/
 smoke/test-results/
 smoke/playwright-report/
+
+# Python bytecode from the scripts/ helpers
+__pycache__/
+*.pyc
