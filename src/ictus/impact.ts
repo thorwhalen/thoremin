@@ -80,10 +80,17 @@ export interface ImpactPredictorOptions {
    *  three-sample parabola around the bottom (`vertex`, the shipped ictus detector's
    *  estimate, biased late on a sharp-arrival slow-departure turn). */
   airReference?: 'departure' | 'vertex';
-  /** The lead the consumer needs, seconds: a prediction is committed at the last
-   *  sample that still leaves at least this much, given the sample period. 0 = as
-   *  late as possible. */
+  /** The lead the consumer needs, seconds, measured from the SAMPLE's time: a
+   *  prediction is committed at the last sample that still leaves at least this
+   *  much, given the sample period. 0 = as late as possible. A consumer that sees a
+   *  sample later than it was captured (a camera pipeline) adds that age through
+   *  {@link ImpactPredictor.setMinLead} before each push, so the lead is real at the
+   *  moment of the decision. */
   minLead?: number;
+  /** The slowest approach that is a stroke, in the caller's depth units per second
+   *  (0 = no gate): a slow drift down and up spans as much depth as a stroke but
+   *  never at a stroke's speed. */
+  minApproachSpeed?: number;
   /** Approach samples needed before a prediction is trusted (3 = an exact quadratic). */
   minApproachSamples?: number;
   /** The approach fit uses the samples of the last this many seconds before the
@@ -138,6 +145,7 @@ const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
   airBelowRebound: 0.5,
   airReference: 'departure',
   minLead: 0.03,
+  minApproachSpeed: 0,
   minApproachSamples: 3,
   approachWindow: 0.15,
   maxApproachSamples: 12,
@@ -205,6 +213,9 @@ export interface ImpactPredictor {
   push(sample: Sample): ImpactEvent[];
   /** The current period estimate for the refractory window (the prior calls this). */
   setPeriod(period: number): void;
+  /** The lead the next prediction must leave from its sample's time, seconds (see
+   *  the option): a consumer whose samples are older than "now" adds their age. */
+  setMinLead(lead: number): void;
   /** The learned floor (depth, caller's units); NaN until learned. */
   level(): number;
   /** The learned lag (seconds). */
@@ -414,6 +425,7 @@ interface Learning {
 export function createImpactPredictor(options: ImpactPredictorOptions = {}): ImpactPredictor {
   const o = { ...DEFAULTS, ...options };
   const sign = o.yDown ? 1 : -1;
+  let minLead = o.minLead;
   const levelKnown = typeof options.level === 'number' && Number.isFinite(options.level);
 
   // The stroke in progress: samples since the top (the least depth since the last
@@ -599,6 +611,12 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
               approachSpeed = Math.abs(approach.b + 2 * approach.c * x.tau);
             }
           }
+          // A slow approach is a drift, not a stroke: no event, and the history goes on.
+          if (o.minApproachSpeed > 0 && approach && Math.max(Math.abs(approach.b), Number.isFinite(approachSpeed) ? approachSpeed : 0) < o.minApproachSpeed) {
+            lastConfirmT = t;
+            clearStroke();
+            return events;
+          }
           // The post-hoc estimate: for a surface stroke the approach crossing plus
           // the learned lag (the crossing is exact where the plane is); for an air
           // stroke the three-sample vertex (the smooth turn is what a parabola fits,
@@ -665,7 +683,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
       if (!committed && Number.isFinite(level) && d > prevD && ts.length >= o.minApproachSamples) {
         const from = approachStart(ts.length);
         const f = ts.length - from >= o.minApproachSamples ? fitQuadratic(ts.slice(from), ds.slice(from), t) : null;
-        if (f && f.b > 0) {
+        if (f && f.b > 0 && f.b >= o.minApproachSpeed) {
           const x = crossingTau(f, level);
           if (Number.isFinite(x.tau)) {
             const crossing = t + x.tau;
@@ -689,7 +707,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
             // the needed lead, allowing for the prediction still moving by its
             // tolerance; a stroke whose first usable fit is already the last chance
             // commits on it rather than a frame late.
-            const lastChance = !Number.isFinite(dt) || lead - dt - o.stabilityTolerance < o.minLead;
+            const lastChance = !Number.isFinite(dt) || lead - dt - o.stabilityTolerance < minLead;
             const stable = !Number.isFinite(o.stabilityTolerance) || agrees || (first && lastChance);
             if (stable && lastChance && descended && passesAmplitude(amplitude) && t - lastConfirmT >= o.refractoryFraction * period) {
               const strength = strengthOf(amplitude);
@@ -707,6 +725,9 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     },
     setPeriod(p) {
       if (Number.isFinite(p) && p > 0) period = p;
+    },
+    setMinLead(lead) {
+      if (Number.isFinite(lead)) minLead = Math.max(0, lead);
     },
     level: () => level,
     lag: () => lag,

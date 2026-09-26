@@ -81,12 +81,12 @@ export function AirDrumControls() {
           </select>
         </label>
       ))}
-      <label className="flex items-center justify-between gap-2 text-xs" title="How far ahead a hit is committed: your audio latency plus a frame. Too late and the hit sounds a frame after the strike.">
+      <label className="flex items-center justify-between gap-2 text-xs" title="How far ahead of the strike a hit is committed, from the moment the app decides (the camera's delay is added on top): your audio output latency plus a margin. Too late and the hit sounds a frame after the strike.">
         <span>Lead ({Math.round(minLead * 1000)} ms)</span>
         <input
           type="range"
           min={0}
-          max={0.15}
+          max={0.2}
           step={0.01}
           value={minLead}
           disabled={!enabled}

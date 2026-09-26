@@ -54,9 +54,11 @@ const Params = z.object({
   /** The drum each hand plays. */
   rightSound: z.enum(DRUM_SOUNDS).default('kick'),
   leftSound: z.enum(DRUM_SOUNDS).default('snare'),
-  /** How far ahead a hit must be committed, seconds: the audio output latency plus a
-   *  frame. Earlier costs almost nothing in accuracy; too late and the hit is sounded
-   *  on confirmation instead, one frame late. */
+  /** How far ahead of the strike a hit must be committed, seconds, counted from the
+   *  moment this node decides (the frame's age — capture to inference to tick — is
+   *  added on top, so the lead is real): the audio output latency plus a margin.
+   *  Earlier costs almost nothing in accuracy; too late and the hit is sounded on
+   *  confirmation instead, one frame late. */
   minLead: z.number().min(0).max(0.2).default(0.05),
   /** Timing magnetism, 0..1: how far a predicted hit is pulled toward the conductor's
    *  expected beat (nothing when the conductor is off). */
@@ -69,6 +71,10 @@ const Params = z.object({
   /** The smallest stroke that counts, as a fraction of the frame height: a still hand's
    *  jitter and the small bounce of hands coming into frame do not drum. */
   minStroke: z.number().min(0.005).max(0.2).default(0.03),
+  /** The slowest approach that is a stroke, in frame heights per second: a slow
+   *  drift down and up (a melodic hand sweeping) spans a stroke's depth but never at a
+   *  stroke's speed (a real stroke peaks well above 1). */
+  minSpeed: z.number().min(0).max(5).default(0.5),
 });
 type Params = z.infer<typeof Params>;
 
@@ -88,7 +94,8 @@ export interface DrumHit {
   sound: DrumSound;
   /** Predicted ahead of the impact (true) or sounded late on confirmation (false). */
   predicted: boolean;
-  /** `t` minus the sample time it was decided at, seconds (negative = late). */
+  /** `t` minus the engine time at which it was decided, seconds: the lead a scheduler
+   *  really gets (negative = a late ghost note: how far behind the strike it sounds). */
   lead: number;
   /** The magnet's pull, seconds (0 without a running conductor or with magnetism 0). */
   pull: number;
@@ -182,9 +189,14 @@ export const airDrumNode = defineNode<Params>({
     };
 
     const makeStick = (c: Params): Stick => ({
-      predictor: createImpactPredictor({ minLead: c.minLead, minAmplitude: c.minStroke }),
+      predictor: createImpactPredictor({ minLead: c.minLead, minAmplitude: c.minStroke, minApproachSpeed: c.minSpeed }),
       lastT: -Infinity,
     });
+    /** The config fields that shape a stick: a change rebuilds both sticks (a switched
+     *  tracked point or hand must not read as a stroke, and the floor belongs to the
+     *  old point), so every dial leaf takes effect live. */
+    const stickKey = (c: Params) => `${c.point}|${c.hand}|${c.mirrorHandedness}|${c.minStroke}|${c.minSpeed}`;
+    let sticksKey = '';
 
     const reset = () => {
       sticks = null;
@@ -199,8 +211,9 @@ export const airDrumNode = defineNode<Params>({
           if (sticks) reset();
           return { hits: [], status, enabled: false };
         }
-        if (!sticks) {
+        if (!sticks || sticksKey !== stickKey(c)) {
           sticks = { right: makeStick(c), left: makeStick(c) };
+          sticksKey = stickKey(c);
           status = { ...IDLE_STATUS, enabled: true, ready: { right: false, left: false } };
         }
         const hits: DrumHit[] = [];
@@ -211,12 +224,17 @@ export const airDrumNode = defineNode<Params>({
         const time = inputs.time as MusicalTime | undefined;
         if (frame && fresh && frame.height > 0) {
           const t = frameTime(frame, ctx);
+          // The frame's age: the sample was captured `age` seconds before this decision
+          // (the camera, inference and the tick), so the lead the predictor must leave
+          // from the sample's time is the dial's lead plus that age.
+          const age = Math.max(0, ctx.time - t);
           const hands: PlayerHand[] = c.hand === 'both' ? ['right', 'left'] : [c.hand];
           for (const which of hands) {
             const stick = sticks[which];
             const hand = frame.hands.find((h) => h.handedness === labelFor(which, c.mirrorHandedness));
             if (!hand || t < stick.lastT + MIN_SAMPLE_SPACING) continue;
             stick.lastT = t;
+            stick.predictor.setMinLead(c.minLead + age);
             const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
             const sound = which === 'right' ? c.rightSound : c.leftSound;
             for (const e of stick.predictor.push({ t, x: kp.x / frame.height, y: kp.y / frame.height })) {
@@ -225,13 +243,16 @@ export const airDrumNode = defineNode<Params>({
                 let pull = 0;
                 if (time && c.magnetism > 0) {
                   const m = magnetise(e.t, time, c.magnetism);
-                  at = m.t;
-                  pull = m.pull;
+                  // Never behind the decision: a pull toward a beat already past is
+                  // truncated to "now", and reported as what it really moved.
+                  at = Math.max(ctx.time, m.t);
+                  pull = at - e.t;
                 }
-                hits.push({ t: at, velocity: clamp01(e.strength) * c.volume, hand: which, sound, predicted: true, lead: at - e.at, pull });
+                // The lead a scheduler really gets: from NOW, not from the sample.
+                hits.push({ t: at, velocity: clamp01(e.strength) * c.volume, hand: which, sound, predicted: true, lead: at - ctx.time, pull });
               } else if (e.predicted === null) {
-                // Unpredicted: a ghost note, now.
-                hits.push({ t: e.at, velocity: clamp01(e.strength) * c.volume * GHOST_VELOCITY, hand: which, sound, predicted: false, lead: e.t - e.at, pull: 0 });
+                // Unpredicted: a ghost note, now; its lead is how late that is.
+                hits.push({ t: ctx.time, velocity: clamp01(e.strength) * c.volume * GHOST_VELOCITY, hand: which, sound, predicted: false, lead: e.t - ctx.time, pull: 0 });
               }
             }
             if (!status.ready[which] && Number.isFinite(stick.predictor.level())) status = { ...status, ready: { ...status.ready, [which]: true } };

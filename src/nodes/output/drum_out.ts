@@ -34,20 +34,35 @@ export interface DrumSink {
 /** The slice of `AudioContext` the clock map reads. */
 export interface AudioClockLike {
   currentTime: number;
+  state?: string;
   getOutputTimestamp?: () => { contextTime?: number; performanceTime?: number };
 }
 
+/** The output timestamp pair is trusted only when it agrees with the plain map to
+ *  within this (seconds): before the context has rendered a frame Chromium reports
+ *  zeros, and a suspended context reports a frozen pair. */
+export const MAX_STAMP_DISAGREEMENT_S = 0.25;
+
 /**
- * Map an engine time to a context time. With `getOutputTimestamp` the map is exact
- * (the pair describes the same instant on both clocks); without it, offset from now
- * by the distance from the tick.
+ * Map an engine time to a context time. With a live `getOutputTimestamp` pair the map
+ * is exact (the pair describes the same instant on both clocks); without one, or with
+ * a stale or zero one, offset from now by the distance from the tick.
  */
 export function engineToContextTime(ac: AudioClockLike, tEngine: number, tTick: number): number {
+  const plain = ac.currentTime + (tEngine - tTick);
   const stamp = typeof ac.getOutputTimestamp === 'function' ? ac.getOutputTimestamp() : undefined;
-  if (stamp && typeof stamp.contextTime === 'number' && typeof stamp.performanceTime === 'number' && Number.isFinite(stamp.contextTime) && Number.isFinite(stamp.performanceTime)) {
-    return stamp.contextTime + (tEngine - stamp.performanceTime / 1000);
+  if (
+    stamp &&
+    typeof stamp.contextTime === 'number' &&
+    typeof stamp.performanceTime === 'number' &&
+    Number.isFinite(stamp.contextTime) &&
+    Number.isFinite(stamp.performanceTime) &&
+    stamp.performanceTime > 0
+  ) {
+    const exact = stamp.contextTime + (tEngine - stamp.performanceTime / 1000);
+    if (Math.abs(exact - plain) <= MAX_STAMP_DISAGREEMENT_S) return exact;
   }
-  return ac.currentTime + (tEngine - tTick);
+  return plain;
 }
 
 /** How a sink is made: injected through `ctx.resources.createDrumSink` (tests, custom
@@ -154,6 +169,9 @@ export const drumOutNode = defineNode<Params>({
           sinkAc = ac ?? null;
         }
         const clock: AudioClockLike = ac ?? { currentTime: 0 };
+        // A context that is not running (suspended, interrupted, not yet resumed) has a
+        // frozen clock: hits scheduled against it would burst out on resume. Drop them.
+        if (clock.state !== undefined && clock.state !== 'running') return {};
         const parsed = DrumHitsSchema.safeParse(raw);
         if (!parsed.success) return {};
         for (const hit of parsed.data as DrumHit[]) {

@@ -15,6 +15,16 @@ describe('engineToContextTime', () => {
     expect(engineToContextTime(ac, 12.05, 12.0)).toBeCloseTo(4.95, 9);
   });
 
+  it('distrusts a zero or stale output timestamp (before the context renders, or suspended)', () => {
+    // Chromium before the first render: zeros. The exact map would put the hit at
+    // "seconds since page load" on the context clock.
+    const zeros = { currentTime: 0, getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 0 }) };
+    expect(engineToContextTime(zeros, 812.05, 812.0)).toBeCloseTo(0.05, 9);
+    // A frozen pair from a suspension a second ago disagrees with the plain map.
+    const stale = { currentTime: 5, getOutputTimestamp: () => ({ contextTime: 5, performanceTime: 11000 }) };
+    expect(engineToContextTime(stale, 12.05, 12.0)).toBeCloseTo(5.05, 9);
+  });
+
   it('falls back to now plus the distance from the tick', () => {
     expect(engineToContextTime({ currentTime: 5 }, 12.05, 12.0)).toBeCloseTo(5.05, 9);
     const broken = { currentTime: 5, getOutputTimestamp: () => ({}) };
@@ -68,6 +78,18 @@ describe('drum-out node', () => {
     // Absent scale = a batch run = not real time either? No: absence means yes (see
     // src/dag/timescale.ts), so a host that never declares a scale still sounds.
     h.process({ hits: [hit(100.05)] }, { tick: 3, time: 100.03, dt: 0.016, resources: base });
+    expect(m.played).toHaveLength(1);
+  });
+
+  it('plays nothing on a context that is not running', () => {
+    const m = mockSink();
+    const h = drumOutNode.make({});
+    const suspended = { currentTime: 10, state: 'suspended' } as unknown as AudioContext;
+    const resources = { audioContext: suspended, masterGain: master, createDrumSink: () => m.sink, timeScale: 1 };
+    h.process({ hits: [hit(100.05)] }, { tick: 1, time: 100, dt: 0.016, resources });
+    expect(m.played).toHaveLength(0);
+    const running = { currentTime: 10, state: 'running' } as unknown as AudioContext;
+    h.process({ hits: [hit(100.05)] }, { tick: 2, time: 100.02, dt: 0.016, resources: { ...resources, audioContext: running } });
     expect(m.played).toHaveLength(1);
   });
 

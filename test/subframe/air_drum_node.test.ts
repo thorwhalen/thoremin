@@ -43,6 +43,23 @@ function loadFrames(name: string): { truth: Truth; frames: HandsFrame[] } {
 }
 
 const { truth, frames } = loadFrames('subframe_stick_surface_30');
+
+describe.each(['subframe_stick_air_30', 'subframe_ball_air_60'])('air-drum node on %s (a stroke that turns in the air)', (name) => {
+  const air = loadFrames(name);
+  const fps = air.truth.spec.fps;
+  it('predicts every stroke after the first, within 25 ms of the turn, ahead of it', async () => {
+    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.03 }));
+    const outs = await replayNode(h, { hands: air.frames }, { dt: 1 / fps });
+    const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
+    expect(hits).toHaveLength(air.truth.events.length);
+    for (const hit of hits.slice(1)) {
+      expect(hit.predicted).toBe(true);
+      const e = air.truth.events.reduce((b, x) => (Math.abs(x.t_impact - hit.t) < Math.abs(b.t_impact - hit.t) ? x : b));
+      expect(Math.abs(hit.t - e.t_impact)).toBeLessThan(0.025);
+      expect(hit.tick / fps).toBeLessThan(e.t_impact);
+    }
+  });
+});
 const FPS = truth.spec.fps;
 const nearest = (t: number) => truth.events.reduce((b, e) => (Math.abs(e.t_impact - t) < Math.abs(b.t_impact - t) ? e : b));
 
@@ -126,6 +143,58 @@ describe('air-drum node on the synthetic surface fixture', () => {
       expect(Math.abs(pulled.hits[i].t - grid)).toBeLessThan(Math.abs(free.hits[i].t - grid));
       expect(pulled.hits[i].pull).not.toBe(0);
     }
+  });
+
+  it('a frame older than the tick (a camera pipeline) still gets the required lead from the DECISION, not the capture', async () => {
+    // Live at speed 1, every frame stamped 60 ms before the tick that consumes it: the
+    // predictor must leave the dial's lead PLUS that age from the sample's time, so a
+    // scheduler still gets the lead from now. Leads are reported from now.
+    const age = 0.06;
+    const origin = performance.timeOrigin;
+    const stamped = frames.map((f, i) => ({ ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: origin, lag: age }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.03 }));
+    const outs = await replayNode(h, { hands: stamped }, { dt: 1 / FPS, resources: { timeScale: 1 } });
+    const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
+    const predicted = hits.filter((x) => x.predicted);
+    expect(predicted.length).toBeGreaterThanOrEqual(truth.events.length - 2);
+    for (const hit of predicted) {
+      expect(hit.lead).toBeGreaterThanOrEqual(0.03 - 0.012);
+      expect(hit.t - hit.tick / FPS).toBeCloseTo(hit.lead, 9);
+      // The strike, in the stamped time base, is `age` behind the tick clock: the sound
+      // still lands within the predictor's bound of it.
+      const e = nearest(hit.t + age);
+      expect(Math.abs(hit.t + age - e.t_impact)).toBeLessThan(0.02);
+    }
+  });
+
+  it('a changed lead takes effect live, without toggling the dial', async () => {
+    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.03 }));
+    const config = frames.map((_, i) => ({ enabled: true, minLead: i < 90 ? 0.03 : 0.1 }));
+    const outs = await replayNode(h, { hands: frames, config }, { dt: 1 / FPS });
+    const late = outs.slice(90).flatMap((o) => o.hits as DrumHit[]).filter((x) => x.predicted);
+    expect(late.length).toBeGreaterThan(2);
+    for (const hit of late) expect(hit.lead).toBeGreaterThanOrEqual(0.1 - 0.012);
+  });
+
+  it('switching the tracked point live with still hands drums nothing, and slow sway drums nothing', async () => {
+    const still: HandsFrame[] = frames.map(() => ({
+      width: 1280,
+      height: 720,
+      hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, (_, k) => ({ x: 600, y: k === 8 ? 300 : 400 })) }],
+    }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true }));
+    const config = still.map((_, i) => ({ enabled: true, point: Math.floor(i / 20) % 2 ? 'indexTip' : 'wrist' }));
+    const outs = await replayNode(h, { hands: still, config }, { dt: 1 / FPS });
+    expect(outs.flatMap((o) => o.hits as DrumHit[])).toHaveLength(0);
+    // A melodic hand sweeping slowly up and down by a tenth of the frame: not a stroke.
+    const sway: HandsFrame[] = Array.from({ length: 600 }, (_, i) => ({
+      width: 1280,
+      height: 720,
+      hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 36 * Math.sin((2 * Math.PI * 0.3 * i) / FPS) + 1.5 * Math.sin(i * 7.1) })) }],
+    }));
+    const h2 = airDrumNode.make(airDrumNode.params.parse({ enabled: true }));
+    const outs2 = await replayNode(h2, { hands: sway }, { dt: 1 / FPS });
+    expect(outs2.flatMap((o) => o.hits as DrumHit[])).toHaveLength(0);
   });
 
   it('the config input overrides the params live: enabling mid-stream starts drumming', async () => {
