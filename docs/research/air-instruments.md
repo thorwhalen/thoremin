@@ -1,0 +1,172 @@
+# Air instruments: prior art, a footage pipeline, and a first model (guitar chord shapes)
+
+*Research map, September 2026. Builds on [`intent-and-subframe-timing.md`](intent-and-subframe-timing.md) (the timing budget and the actuality / intent / sounding-good trade-off), [`body-and-pace-research-map.md`](body-and-pace-research-map.md) (the body slot and the impact as a phase anchor) and [`rhythm-from-gesture-research-map.md`](rhythm-from-gesture-research-map.md) (the `ictus` prior). Pipeline code: [`scripts/air/`](../../scripts/air/README.md); tests: `test/air/`.*
+
+## 0. What this map answers
+
+The request: air guitar, flute, bass and drums, learned from YouTube footage of people playing the real instruments, with body, hand and mouth tracking. Guitar chords first, because a chord shape is a *pose*, and a pose needs none of the sub-frame timing machinery the other three need. This document (1) collects the prior art on air instruments and on recognising guitar chords from video, (2) records the footage pipeline that now exists in the repository and what it keeps out of it, (3) reports the first model, guitar chord shape from the fretting hand, with its held-out numbers, and (4) lays out flute, bass and drums as footage, tracking and a plan each.
+
+## 1. Headline findings
+
+- **Chord shape from hand landmarks is a solved-looking problem in-distribution and an open one across players and cameras.** Every recent MediaPipe-landmark paper reports 95 to 98% on a random split of its own frames [E12, E15, A6, A7]; the two that tested on new footage or new capture conditions report 83% [E13], "above 85% under the same acquisition conditions" [E14], and a Stanford project that scored 100% in-distribution and then recognised only two of five chords on new images [E10]. The honest number is leave-one-player-out, and almost nobody reports it. Ours is in §6.3.
+- **Real-instrument footage labels itself through the sound.** Audio chord recognition on a solo strummed guitar with a per-video vocabulary of two to four chords is near-perfect with 1999-vintage chroma templates plus Viterbi decoding [F1, F2]; the 76 to 94% ceiling that human annotators reach on full mixes [F7] does not apply to a beginner drilling C to G. Air footage has no such label, which is why the model is learned on real playing and only *probed* on air.
+- **The domain shift from guitar to air is real and unmeasured.** No study trains on footage with the instrument and tests without it. The nearest evidence, MediaPipe's own sim-to-real table (25.7% error synthetic-only, 16.1% real-only, 13.4% combined [G1]), the in-distribution collapse above, and Godøy's finding that air-instrument mimicry keeps the gross gesture but loses the detail [A4], all point the same way: expect a shift, and plan for a short per-player calibration on air rather than pure transfer. The trainer (`src/enroll/`) is built for exactly that.
+- **The fretting hand is the hard case for the hand tracker.** Fingers pressed to a neck occlude each other and are foreshortened from the front; MediaPipe Hands reports no occlusion-specific metric [G1], a metamorphic-testing study found it degrades "largely" with four joints occluded [G2], and the guitar-vision literature has fought this since 2006 (neck-mounted cameras [E1], coloured markers [E2, E3], fretboard rectification [E5, E6]). Detection rate on our footage is reported per video in §6.3 because it is a finding, not a nuisance.
+- **Drums are the timing problem in its purest form**, and Dahl's air-drumming measurement is the paper the sub-frame stream should read first: at 200 fps the velocity reversal (the "hit") comes *after* the audio onset and drifts with tempo (−3 ms fast, +44 ms slow), while acceleration peaks come *before* it and hold steady, so trigger on the acceleration peak [B2]. That is the conducting map's peak-deceleration ictus, measured on drummers.
+- **There is no camera-based air flute in the literature.** Breath is sensed with microphones [C4, C5], the mouth with a head-worn camera in 2003 [C2], the face with optic flow in 2005 [C3]. MediaPipe's mouth blendshapes are a newer sensor than any published air-wind instrument, so flute is where this project has the least to copy and the most to try.
+
+## 2. Prior art, by instrument
+
+### 2.1 Air guitar
+
+The Helsinki University of Technology Virtual Air Guitar (2005 to 2006) is the origin: data gloves, a magnetic tracker and, in the desktop version, a webcam; hand distance sets the pitch, a strumming motion of the right hand plucks, and a "guitar control language" turns gestures into musically plausible output on an electric-guitar physical model with amplifier distortion [A2, A3]. Its companion latency study is the one the timing report already leans on: 16 subjects on a delayed theremin found 20 to 30 ms just noticeable, with slow vibrato passages hiding much more [A1]. Two design facts from that work carry over. Without tactile feedback players tolerate more latency than with it (their virtual xylophone ran at about 60 ms strike-to-sound and players did not find it very noticeable [A2]). And the instrument mapped *intent*, not fingering: the air guitar never tried to read a chord shape, it read hand distance and strum energy and let the control language pick plausible notes, an early instance of the "sounds good over faithful" compromise of the timing report's §3.
+
+Godøy, Haga and Jensenius filmed novices and experts miming to recordings and found that novices reproduce the *overall* activity of sound-producing gestures but not the detail [A4]. For an air instrument this cuts both ways: the coarse gesture (a strum, a chord change, a hit) is what an untrained player will actually produce, and the fine one (which fingers are down) is what a real-guitar-trained recogniser looks for.
+
+The recent wave is MediaPipe plus a small classifier. AirStrum [A6, unverified journal details] classifies left-hand landmark images with a CNN and reads strum velocity from the right hand, reporting 95.9%; a 2025 browser-native "AIR Guitar" [A7, unverified authors] is the closest thing to thoremin in the literature: MediaPipe keypoints, a client-side SVM and Web Audio, 96.1% chord accuracy with the SVM costing a third of the frame rate against the CNN's two thirds, and 99.6% on Nashville-number finger gestures (hold up 1 to 7). That last number is the pragmatic alternative to fretting-shape recognition: a *number gesture* is unambiguous, camera-facing and needs no guitar to have been learned. "Air Guitar Hero" [A5] is an EMG neuroprosthetic-training interface, not a camera system.
+
+### 2.2 Air drums
+
+Camera and inertial systems split the field. Aerodrums (2014) tracks retro-reflective markers on sticks and feet with a PS3 Eye camera and needs a dark room [B4]; Freedrum and the AirSticks put an IMU on each stick over Bluetooth MIDI [B5, B6]; Airstic Drum combined the two so an accelerometer threshold tells a real-drum hit from an air strike [B1]. Rosa-Pujazón et al. built a Kinect drumkit and had to add a linear predictor of hand motion to offset the sensor lag, with trajectory and arm-pose features to classify the strike [B3]. None of these are webcam-only, and the ones that are cameras use markers or depth. Their common lesson is the one the timing report's §5.3 derives from first principles: an air hit has no contact plane, so it is *predicted* from the approach, never observed.
+
+Dahl's NIME 2014 study is the measurement behind that [B2]. Air-drummers at several tempi under 200 fps motion capture, aligned to the sound they were playing to: the velocity reversal is a poor trigger (late, tempo-dependent), the acceleration-magnitude peak is a good one (−33 to −14 ms before the onset, stable across tempo). At 30 fps a webcam sees a peak that lasts 30 to 60 ms about once, so the braking-onset detector plus stroke-template extrapolation that the sub-frame stream is building is not optional; drums are last in this stream's order for that reason, and the drum plan in §7 is written against the harness that stream produces.
+
+### 2.3 Air flute, and wind instruments generally
+
+The lineage is short. Ystad and Voinier instrumented a real flute body as a controller for a synthesis model [C1]: a prop, not air. Lyons' Mouthesizer put a head-worn camera on the mouth and turned opening shape into MIDI controllers [C2], then face-region optic flow into note triggers [C3]: the ancestors of steering synthesis from face landmarks, which thoremin already does with blendshapes for the face-chord node. Breath has always been a microphone: BLUI localises where on a laptop screen the user blows from a single mic [C4]; Ocarina's iPhone flute is mic breath plus multitouch finger holes [C5]. A 2023 comparison of camera-tracked virtual trumpet valves against a haptic glove and a real trumpet found the camera version easy but tactile-poor [C6]. There is no published webcam air flute; the demos that exist are not evaluated.
+
+What that means for thoremin: the fingering half of a flute is a hand-shape problem like guitar (six to nine finger-hole states, both hands, seen from the side), and the mouth half is new. MediaPipe's `mouthPucker`, `mouthFunnel`, `jawOpen` and the cheek blendshapes are the embouchure sensor; breath itself is not visible, but its *onset* (the lips closing to a pucker, the cheeks tensing) is, and the microphone the app already opens for the assistant is the other channel. §7 lays out what footage teaches which half.
+
+### 2.4 Air bass, other strings, surveys and sensors
+
+No dedicated air-bass paper exists. Bass differs from guitar in the things that matter to a tracker: one finger per note rather than a shape, wider fret spacing, and a plucking hand whose alternation (index, middle) is a rhythm signal. Han and Gold's Leap Motion Air-Keys and Air-Pads record the design constraints of hand-sensor instruments [D1]; Serafin et al.'s Computer Music Journal survey gives nine design guidelines for virtual-reality instruments [D2]; Guzsvinecz et al. review the accuracy envelopes of Kinect and Leap [D3]. The number that calibrates expectations for a webcam: against marker-based motion capture, MediaPipe's finger-segment angles carry about 10.9° RMSE, better than Leap Motion's 14.7° [D4]. Two chord shapes that differ by less than that at one joint are not separable per frame, only by aggregation over time.
+
+## 3. Chord shapes from video: what the literature reports
+
+The problem has a twenty-year record, and the methods track the sensors. Burns and Wanderley mounted the camera on the neck (the player's-eye view), found fingertips with a circular Hough transform and frets and strings with a linear one, and reported 5 ± 2 px fingertip error at 640 × 480 over frets 1 to 5, with self-occlusion failures on C7 and Dm7 [E1]. Kerdvibulvech and Saito put coloured markers on the fingertips, tracked them with particle filters and an AR marker for the neck pose, and classified chords with PCA [E2, E3]. Paleari et al. used a frontal camera under two metres to disambiguate string and fret for 89% of audio-transcribed notes [E4]. Hrybyk and Kim's ISMIR 2010 study is the one to remember for the *role* of video: coloured dots on the fretboard for homography, PCA "eigenchords" over the rectified image, 24 chords from three guitarists; audio got the chord right 98.6% of the time and video got the *voicing* right 94.4%, but video alone got the chord only 34%, and combining them lifted voicing-level accuracy from 61.1 to 93.1% [E5]. Sound names the chord; the image says how it was fingered. That division is exactly the one our pipeline uses, with the audio as the label and the hand as the feature. Scarr and Green (markerless fretboard normalisation, 2010) [E6], Wang and Ohya (finger contours 2016, then a CNN hand-pose estimator with 6.1 mm joint error and a released annotated guitar-video dataset 2018) [E7, E8], Duke and Salgian (real-time tablature 2019) [E11] and TapToTab (YOLO fretboard plus audio, 2024) [E16] continue the fretboard-first line.
+
+The landmark-first line starts around 2018. Ooaku et al. got about 90% on three chords and 70% on five from finger patterns [E9]; the Stanford CS230 report trained GoogLeNet on 1,797 frames of five chords, scored 100% on its test split and recognised only F and Em on new realistic images [E10]. GuitarGuru (MediaPipe → CNN, 97.1% [E12, unverified]), Kristian et al. (14 chords, 13k images from 10 contributors, 83% on 115 *new* live examples [E13]), Marullo et al. (MediaPipe plus RGB-D from 18 players, four chords plus "unknown", random forest above 85% balanced accuracy "under the same acquisition conditions" [E14]) and Naya and Tanuwijaya (63-dimensional landmark vectors, seven chords, 97.6% in 5-fold CV, the most occlusion-robust of their 1-D CNNs [E15]) are the current state. Read together: landmarks plus any small classifier saturate on a random split; the only two papers that held out *conditions* landed at 83 to 85%; nobody held out *players* on landmarks and said so. Datasets do not help: GuitarSet [E17] and Guitar-TECHS [E18] are audio-only; GAPS has performance video of classical guitar from 200+ performers [E19], which is fingerstyle, not chord shapes; Ego-Exo4D's music scenario has 3-D hand-pose annotations for guitar, piano and violin [E20] and is the one to look at when the model outgrows YouTube.
+
+Two consequences for the design in §6. First, evaluate leave-one-video-out and say so. Second, do not build a fretboard detector: the app has no fretboard. A recogniser that needs the neck in frame has learned the neck, and the air player brings none.
+
+## 4. Labels from the audio
+
+Fujishima's pitch-class profile with template matching [F1] and Sheh and Ellis' HMM decoding over chroma [F2] are the whole method, and librosa ships both halves (`chroma_cqt`, `sequence.viterbi`). librosa's own documentation warns that its chroma-template example is "not accurate enough to use in practice" [F6], which is true of full mixes with a 24-chord vocabulary and a flat prior. It is not true of the case here: one acoustic guitar, no vocals, a vocabulary of two to four chords declared per video, and a sticky self-transition. NNLS chroma [F3] and the deep chroma extractor that madmom ships [F4, F5] buy 10 to 15 points on full mixes (about 78 to 80% major/minor WCSR against 67 to 78% for hand-crafted chroma); Byambatsogt et al. measured guitar-specific audio recognition at 88.2% root and 82.9% major/minor accuracy over a 98-class vocabulary [F8]; Pauwels et al.'s twenty-year review puts inter-annotator agreement at 76 to 94% [F7]. With the vocabulary collapsed to the video's own chords the ceiling is the boundary placement, and the join in `lib_chord_shape_dataset.ts` drops a quarter second on either side of every change so the boundary's exact position does not matter.
+
+`scripts/air/label_chords.py` implements it: harmonic component (HPSS), constant-Q chroma at 36 bins per octave, temporal median over five hops, cosine match against binary triad templates for the declared vocabulary, a no-chord state whose emission is a floor raised over quiet frames, and Viterbi with a 0.97 self-transition. Its `--self-test` synthesises a seven-segment progression with plucked harmonic tones and recovers it with 98% frame agreement, 100% away from the changes. A recent ISMIR 2025 paper on joint strumming-direction and chord transcription from audio plus a wrist IMU [F9] is the pointer for when strum *direction* becomes a target.
+
+## 5. The footage pipeline in this repository
+
+Five idempotent steps, documented in [`scripts/air/README.md`](../../scripts/air/README.md): fetch (the ecosystem's `yb`, 1080p cap), extract (the existing `scripts/video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py`, so there is one MediaPipe pipeline for fixtures and for this), label (the audio decoder of §4), join, train. The committed artefact is the source list, `scripts/air/sources/guitar.json`, a Zod-validated document (`test/air/sources.test.ts`) whose entries carry the id, why the clip was chosen, its licence as yt-dlp reports it, the chord vocabulary the labeller may emit, and how to pick the fretting hand (by image-x side, robust to the label flicker of #144, or by MediaPipe label). Everything derived, video, landmarks, labels, datasets, weights, results, lives under `~/.local/share/thoremin/<kind>/air/<instrument>/` and never in the repository, per the ecosystem's provenance rule (a public repo holds nothing derived from a private-licence source, however small).
+
+The guitar set is ten videos: two channels of close-up chord-switching drills (C/G, D/G, C/G, C/F, G/Em), a four-chord progression (G Em C D), JustinGuitar's One Minute Changes (A, D, E), a left-handed lesson (the fretting hand on the viewer's left, which the pick must survive), a C G Am F play-along loop, and one Air Guitar World Championship performance flagged `holdout`: scored, never trained on. All are standard-YouTube-licence; no Creative Commons drill footage was found.
+
+## 6. The first model: guitar chord shapes from the fretting hand
+
+### 6.1 The featurizer is the catalog
+
+`scripts/air/lib_chord_shape_features.ts` computes nothing new. It builds the catalog's `HandCtx` for the fretting hand and evaluates every `HAND_SIDE_FEATURES` entry whose declared invariance (#131) covers scale, position, yaw, pitch and roll: the five fingers' MCP, PIP and DIP joint angles and curls, the four adjacent spreads and thumb opposition, the pinch distances and openness; 30 features, side-relative ids (`index.curl`, not `hand.left.index.curl`), from the world landmarks when present. Palm orientation is excluded by default because it measures the camera angle, not the shape; `--orientation` adds it for a camera-locked variant. Raw positions are never used. The point is architectural, not statistical: the vector is the one the Lab plots, the trainer clusters and the gesture dispatcher reads, so a chord-shape model is one more consumer of `hand-feature-vector` and can run in the browser with no second implementation to drift.
+
+### 6.2 Two models, three numbers
+
+Softmax regression (multinomial logistic regression, Adam, L2, class-balanced because the audio hands out very different amounts of each chord) on standardized features with mean-imputation of anything MediaPipe could not compute that frame. Beside it, the trainer's own nearest-centroid classifier (`src/enroll/classify.ts`, inverse-spread weights) as the baseline that answers whether the in-app machinery for learning a player's own categories would already do. Both are evaluated three ways and the three are always reported together: leave-one-video-out (the honest number: a shape learned on other players' hands and cameras must transfer), the same with a nine-frame majority vote that never crosses a time gap (a chord is held for beats, and a flicker to a neighbouring shape is not a change), and a within-video random split (the optimistic bound that the literature of §3 reports, included so the two can be compared on the same data). `test/air/chord_shape_model.test.ts` runs the whole protocol on synthetic hands: three "players" with systematic 0.08 rad offsets on every joint, five shapes, per-frame jitter, 92 to 100% leave-one-player-out across seeds.
+
+### 6.3 Results on the footage
+
+<!-- RESULTS -->
+
+### 6.4 What the numbers mean, and the air domain shift
+
+<!-- DISCUSSION -->
+
+## 7. Flute, bass, drums: footage, tracking and a plan
+
+Each follows the same pipeline with a different label source and a different tracker, in the order the request gave and for the reason §1 states: each needs strictly more of the timing machinery than the last.
+
+**Flute.** Two halves. *Fingering*: side-view tutorial footage of a flautist's hands on the tube, hand landmarks for both hands, labels from the audio by pitch (a monophonic instrument: `librosa.pyin` gives the note, the fingering chart gives the finger-hole state per note, and the join is note → expected hole pattern), evaluated leave-one-video-out exactly as for guitar. The featurizer is the same catalog vector on two hands. *Embouchure*: `video_to_face.py` on front-facing footage, the mouth and cheek blendshapes (`mouthPucker`, `mouthFunnel`, `jawOpen`, `cheekPuff`, `mouthPressLeft/Right`) as features, note onsets from the audio as the label for "blowing started". The open question is whether pucker onset precedes the audio onset by enough to be a predictor rather than a follower; that is a measurement, and it belongs with the sub-frame stream's harness. Air version: fingers on nothing, mouth to nothing; the microphone gives breath onset for free and the face gives the shape.
+
+**Bass.** Fretting is one finger at a time on wide frets, so the target is a *position* (which finger, roughly where along the neck) rather than a shape; the featurizer adds the two catalog features the guitar model excluded, wrist and palm position relative to the body (the body slot's torso frame makes them camera-invariant, #186). Plucking is an alternating two-finger rhythm, which is an ictus source: the plucking hand's fingertip velocity reversals are the anchors, at eighth-note rate, the first place the `ictus` prior is needed in this stream. Footage: bass-line play-alongs with a fixed camera on both hands; labels from the audio by pitch (`pyin` again, bass register). Evaluate pitch-class recall leave-one-video-out for the fretting hand and beat F-measure for the plucking hand.
+
+**Drums.** The sub-frame problem itself, and Dahl's paper [B2] is the specification: trigger on the acceleration peak of the stroke, not the reversal; predict the reversal from the braking profile; use the rhythm prior. Footage: the maintainer's own air-drum clip (already local, a 2021 phone recording, to be run through `video_to_pose.py` for both wrists) plus drum-cover and air-drum videos with audible hits; labels from the audio by onset (`librosa.onset` on the percussive component), which is the one label a drum recording gives for free. The body slot's pose stream (33 landmarks, wrists and elbows) is the tracker; the sub-frame stream's synthetic harness (the `an` package's impact clips with ground-truth hit times) is where the predictor is developed, and the YouTube drum footage is where it is confirmed. Deliverables: the `AnchorDetector` for the wrists, scored with the same beat metrics as the conducting fixtures, plus a per-hit timing error distribution against the audio onsets in milliseconds, which is the number that says whether an air drum is playable.
+
+## 8. What stays local and what is committed
+
+Committed: the scripts, their tests on synthetic hands, the source lists, this document with its numbers. Local under the app-data dir, never committed: the videos and their metadata, every landmark stream, every label file, every dataset, model and result file. The tests cannot depend on the local data and do not; the CI gate (`npm run typecheck`, `npm test`) is green without any footage on the machine. When a fixture is wanted for the app (a replay of a chord change through the `hand-feature-vector` node, say), it is recorded from the maintainer's own hand with the existing `npm run record` path, not cut from YouTube.
+
+## REFERENCES
+
+**A. Air guitar**
+
+1. [A1] Mäki-Patola T, Hämäläinen P. Latency tolerance for gesture controlled continuous sound instrument without tactile feedback. Proc. ICMC. 2004. [PDF](https://users.aalto.fi/~hamalap5/publications/icmcarticlefinal10.pdf)
+2. [A2] Mäki-Patola T, Laitinen J, Kanerva A, Takala T. Experiments with virtual reality instruments. NIME 2005, pp. 11–16. [PDF](https://www.nime.org/proceedings/2005/nime2005_011.pdf)
+3. [A3] Karjalainen M, Mäki-Patola T, Kanerva A, Huovilainen A. Virtual air guitar. J. Audio Eng. Soc. 54(10):964–980. 2006. [AES](http://www.aes.org/e-lib/download.cfm?ID=13884)
+4. [A4] Godøy RI, Haga E, Jensenius AR. Playing "air instruments": mimicry of sound-producing gestures by novices and experts. Gesture Workshop 2005, LNCS 3881:256–267. 2006. [Springer](https://link.springer.com/chapter/10.1007/11678816_29)
+5. [A5] Armiger RS, Vogelstein RJ. Air-Guitar Hero: a real-time video game interface for training and evaluation of dexterous upper-extremity neuroprosthetic control algorithms. IEEE BioCAS. 2008. [IEEE](https://ieeexplore.ieee.org/document/4696889/)
+6. [A6] Beulah et al. AirStrum: a virtual guitar using real-time hand gesture recognition and strumming technique. Romanian J. Inf. Technol. Autom. Control. 2024. [PDF](https://rria.ici.ro/documents/1235/art._10_Beulah_Panda_Nair.pdf) [unverified: journal details and author list]
+7. [A7] AIR Guitar: a browser-native number-gesture instrument for everyday music-making. 2025. [ResearchGate](https://researchgate.net/publication/399444430) [unverified: authors and venue]
+
+**B. Air drums**
+
+8. [B1] Kanke H, Takegawa Y, Terada T, Tsukamoto M. Airstic Drum: a drumstick for integration of real and virtual drums. ACE 2012, LNCS. 2012. [DOI](https://doi.org/10.1007/978-3-642-34292-9_5)
+9. [B2] Dahl L. Triggering sounds from discrete air gestures: what movement feature has the best timing? NIME 2014. [PDF](https://www.nime.org/proceedings/2014/nime2014_514.pdf)
+10. [B3] Rosa-Pujazón A, Barbancho I, Tardón LJ, Barbancho AM. Fast-gesture recognition and classification using Kinect: an application for a virtual reality drumkit. Multimedia Tools and Applications. 2016. [Springer](https://link.springer.com/article/10.1007/s11042-015-2729-8)
+11. [B4] Aerodrums (Lee R, Morvan Y). Product, 2014–. [Wikipedia](https://en.wikipedia.org/wiki/Aerodrums)
+12. [B5] Freedrum. Vendor and press page. 2018. [Nordic Semiconductor](https://www.nordicsemi.com/Nordic-news/2018/10/Freedrum-employs-nRF52832-to-wirelessly-connect-drumstick-attached-devices)
+13. [B6] Trolland S, Ilsar A, Frame C, McCormack J, Wilson E. AirSticks 2.0: instrument design for expressive gestural interaction. NIME 2022. [DOI](https://doi.org/10.21428/92fbeb44.c400bdc2)
+
+**C. Air flute, wind, mouth**
+
+14. [C1] Ystad S, Voinier T. A virtually real flute. Computer Music Journal 25(2):13–24. 2001. [MIT Press](https://direct.mit.edu/comj/article/25/2/13/93608/A-Virtually-Real-Flute)
+15. [C2] Lyons MJ, Haehnel M, Tetsutani N. Designing, playing, and performing with a vision-based mouth interface. NIME 2003, pp. 116–121. [arXiv](https://arxiv.org/abs/2010.03213)
+16. [C3] Funk M, Kuwabara K, Lyons MJ. Sonification of facial actions for musical expression. NIME 2005. [arXiv](https://arxiv.org/abs/2010.03223)
+17. [C4] Patel SN, Abowd GD. BLUI: low-cost localized blowable user interfaces. UIST 2007. [DOI](https://doi.org/10.1145/1294211.1294250)
+18. [C5] Wang G. Ocarina: designing the iPhone's magic flute. Computer Music Journal 38(2):8–21. 2014. [MIT Press](https://direct.mit.edu/comj/article/38/2/8/94458/)
+19. [C6] Blewett DJ, Gerhard D. Brass haptics: comparing virtual and physical trumpets in extended realities. Arts 12(4):145. 2023. [DOI](https://doi.org/10.3390/arts12040145)
+
+**D. Air bass, surveys, sensors**
+
+20. [D1] Han J, Gold N. Lessons learned in exploring the Leap Motion sensor for gesture-based instrument design. NIME 2014. [NIME](https://nime.org/proc/nime2014_ngold/index.html)
+21. [D2] Serafin S, Erkut C, Kojs J, Nilsson NC, Nordahl R. Virtual reality musical instruments: state of the art, design principles, and future directions. Computer Music Journal 40(3):22–40. 2016. [MIT Press](https://direct.mit.edu/comj/article/40/3/22/94804/)
+22. [D3] Guzsvinecz T, Szücs V, Sik-Lányi C. Suitability of the Kinect sensor and Leap Motion controller: a literature review. Sensors 19(5):1072. 2019. [DOI](https://doi.org/10.3390/s19051072)
+23. [D4] Maggioni V, Coste C, Durand S, Bailly F. Optimisation and comparison of markerless and marker-based motion capture methods for hand and finger movement analysis. Sensors 25(4):1079. 2025. [DOI](https://doi.org/10.3390/s25041079)
+
+**E. Visual guitar chord and fingering recognition**
+
+24. [E1] Burns A-M, Wanderley MM. Visual methods for the retrieval of guitarist fingering. NIME 2006. [PDF](https://www.nime.org/proceedings/2006/nime2006_196.pdf)
+25. [E2] Kerdvibulvech C, Saito H. Real-time guitar chord recognition system using stereo cameras for supporting guitarists. ECTI Trans. EEC 5(2):147–157. 2007. [PDF](http://hvrl.ics.keio.ac.jp/paper/pdf/international_Journal/2007/chutisant_ECTI07.pdf)
+26. [E3] Kerdvibulvech C, Saito H. Guitarist fingertip tracking by integrating a Bayesian classifier into particle filters. Advances in Human-Computer Interaction. 2008. [Wiley](https://onlinelibrary.wiley.com/doi/10.1155/2008/384749)
+27. [E4] Paleari M, Huet B, Schutz A, Slock D. A multimodal approach to music transcription. IEEE ICIP 2008. [PDF](https://www.eurecom.fr/en/publication/2491/download/mm-palema-081012.pdf)
+28. [E5] Hrybyk A, Kim YE. Combined audio and video analysis for guitar chord identification. ISMIR 2010. [PDF](https://ismir2010.ismir.net/proceedings/ismir2010-29.pdf)
+29. [E6] Scarr J, Green R. Retrieval of guitarist fingering information using computer vision. IVCNZ 2010. [DOI](https://doi.org/10.1109/IVCNZ.2010.6148852)
+30. [E7] Wang Z, Ohya J. Tracking the guitarist's fingers as well as recognizing pressed chords from a video sequence. IS&T Electronic Imaging (IPAS). 2016. [IS&T](https://library.imaging.org/ei/articles/28/15/art00010)
+31. [E8] Wang Z, Ohya J. A 3D guitar fingering assessing system based on CNN-hand pose estimation and SVR-assessment. IS&T Electronic Imaging (IRIACV). 2018. [DOI](https://doi.org/10.2352/ISSN.2470-1173.2018.09.IRIACV-204)
+32. [E9] Ooaku T, Linh TD, Arai M, Maekawa T, Mizutani K. Guitar chord recognition based on finger patterns with deep learning. ICCIP 2018. [DOI](https://doi.org/10.1145/3290420.3290422)
+33. [E10] Tran L, Zhang S, Zhou E. CNN transfer learning for visual guitar chord classification. Stanford CS230 report. 2019. [PDF](https://cs230.stanford.edu/projects_fall_2019/reports/26255715.pdf)
+34. [E11] Duke B, Salgian A. Guitar tablature generation using computer vision. ISVC 2019, LNCS 11845. [DOI](https://doi.org/10.1007/978-3-030-33723-0_20)
+35. [E12] Nagpurkar V et al. GuitarGuru: a realtime guitar chords detection system. IEEE CSCITA 2023. [DOI](https://doi.org/10.1109/CSCITA55725.2023.10104798) [accuracy figure unverified]
+36. [E13] Kristian Y, Zaman L, Tenoyo M, Jodhinata A. Advancing guitar chord recognition: a visual method based on deep CNNs and deep transfer learning. ECTI-CIT 18(2). 2024. [ECTI](https://ph01.tci-thaijo.org/index.php/ecticit/article/view/254624)
+37. [E14] Marullo G et al. Three-dimensional vision-based recognition of guitar chords. Computer Music Journal 49:1–16. 2025. [DOI](https://doi.org/10.1162/comj.a.690)
+38. [E15] Naya RA, Tanuwijaya E. Comparative analysis of 1D CNN architectures for guitar chord recognition from static hand landmarks. J. Applied Informatics and Computing 9(6). 2025. [DOI](https://doi.org/10.30871/jaic.v9i6.11339)
+39. [E16] Ghaleb A et al. TapToTab: video-based guitar tabs generation using AI and audio analysis. arXiv:2409.08618. 2024. [arXiv](https://arxiv.org/abs/2409.08618)
+40. [E17] Xi Q, Bittner R, Pauwels J, Ye X, Bello JP. GuitarSet: a dataset for guitar transcription. ISMIR 2018. [PDF](https://archives.ismir.net/ismir2018/paper/000188.pdf)
+41. [E18] Pedroza H et al. Guitar-TECHS: an electric guitar dataset covering techniques, musical excerpts, chords and scales using a diverse array of hardware. ICASSP 2025. [arXiv](https://arxiv.org/abs/2501.03720)
+42. [E19] Riley X, Guo Z, Edwards AC, Dixon S. GAPS: a large and diverse classical guitar dataset and benchmark transcription model. ISMIR 2024. [arXiv](https://arxiv.org/abs/2408.08653)
+43. [E20] Grauman K et al. Ego-Exo4D: understanding skilled human activity from first- and third-person perspectives. CVPR 2024. [arXiv](https://arxiv.org/abs/2311.18259)
+
+**F. Audio chord recognition as a label source**
+
+44. [F1] Fujishima T. Realtime chord recognition of musical sound: a system using Common Lisp Music. ICMC 1999, pp. 464–467. [Semantic Scholar](https://www.semanticscholar.org/paper/c9a84645f0e9f3498bf8e4ebfdc1150a86faf78c)
+45. [F2] Sheh A, Ellis DPW. Chord segmentation and recognition using EM-trained hidden Markov models. ISMIR 2003. [PDF](https://www.ee.columbia.edu/~dpwe/pubs/ismir03-chords.pdf)
+46. [F3] Mauch M, Dixon S. Approximate note transcription for the improved identification of difficult chords. ISMIR 2010. [DBLP](https://dblp.org/rec/conf/ismir/MauchD10.html)
+47. [F4] Korzeniowski F, Widmer G. Feature learning for chord recognition: the deep chroma extractor. ISMIR 2016. [arXiv](https://arxiv.org/abs/1612.05065)
+48. [F5] Böck S, Korzeniowski F, Schlüter J, Krebs F, Widmer G. madmom: a new Python audio and music signal processing library. ACM Multimedia 2016. [DOI](https://doi.org/10.1145/2964284.2973795)
+49. [F6] librosa documentation, `librosa.sequence.viterbi_discriminative`. [librosa](https://librosa.org/doc/main/generated/librosa.sequence.viterbi_discriminative.html)
+50. [F7] Pauwels J, O'Hanlon K, Gómez E, Sandler MB. 20 years of automatic chord recognition from audio. ISMIR 2019. [PDF](https://archives.ismir.net/ismir2019/paper/000004.pdf)
+51. [F8] Byambatsogt G, Choimaa L, Koutaki G. Guitar chord sensing and recognition using multi-task learning and physical data augmentation with robotics. Sensors 20. 2020. [PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC7663498/)
+52. [F9] Murgul S, Schimper J, Heizmann M. Joint transcription of acoustic guitar strumming directions and chords. ISMIR 2025. [arXiv](https://arxiv.org/abs/2508.07973)
+
+**G. Hand tracking under occlusion; domain shift**
+
+53. [G1] Zhang F, Bazarevsky V, Vakunov A, et al. MediaPipe Hands: on-device real-time hand tracking. CVPR Workshop on CV for AR/VR. 2020. [arXiv](https://arxiv.org/abs/2006.10214)
+54. [G2] Pu M, Chong CY, Lim MK. Robustness evaluation in hand pose estimation models using metamorphic testing. IEEE MET 2023. [DOI](https://doi.org/10.1109/MET59151.2023.00012)
+55. [G3] Jin Y et al. Audio matters too! Enhancing markerless motion capture with audio signals for string performance capture. SIGGRAPH 2024. [arXiv](https://arxiv.org/abs/2405.04963)
