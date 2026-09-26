@@ -1,5 +1,5 @@
 /**
- * Joining a landmark stream with audio-derived chord labels into labelled samples.
+ * Joining a landmark stream with time-stamped labels into labelled samples.
  *
  * The audio is the label source because real-instrument footage carries its own ground
  * truth in the sound (a strummed G is a G) where air footage carries none. The join
@@ -8,13 +8,19 @@
  * so frames within `marginSeconds` of any boundary are dropped rather than labelled
  * with a shape the hand was only half-way into. Segments labelled `N` (no chord: talk,
  * silence, single notes) contribute nothing.
+ *
+ * Two seams, so the next instruments reuse the join instead of rewriting it:
+ * `featurize` turns a frame into a vector (guitar: the fretting hand's chord shape;
+ * flute: two hands plus face; bass: hand plus body-relative position) and `labelOf`
+ * turns a time into a label (guitar: chord segments with a change margin; drums will
+ * pass an onset-window lookup). A holdout probe has no labels at all and goes through
+ * {@link joinUnlabelledFrames}, which stamps every frame `?`.
  */
 import { readFileSync } from 'node:fs';
 import { parseRecords, type StreamRecord } from '@/dag';
+import type { FeatureVector } from '@/features/catalog';
 import type { HandsFrame } from '@/nodes/domain';
-import { chordShapeVector, frettingHand, type FeatureSelection } from './lib_chord_shape_features';
 import type { Sample } from './lib_chord_shape_model';
-import type { FrettingHandPick } from './lib_sources';
 
 /** One labelled span of audio, seconds. `label` is a chord shape or `N` (no chord). */
 export interface ChordSegment {
@@ -34,6 +40,8 @@ export interface ChordLabelsFile {
 }
 
 export const NO_CHORD = 'N';
+/** The label of a frame from a holdout probe: nothing known, scored by prediction only. */
+export const PROBE_LABEL = '?';
 
 /**
  * The label active at time `t`, or `null` when `t` is within `margin` of a segment
@@ -50,55 +58,62 @@ export function labelAt(segments: readonly ChordSegment[], t: number, margin: nu
   return null;
 }
 
+/** The `labelOf` seam built from chord segments. */
+export const segmentLabeller =
+  (segments: readonly ChordSegment[], marginSeconds = 0.25) =>
+  (t: number): string | null =>
+    labelAt(segments, t, marginSeconds);
+
+export type Featurize = (frame: HandsFrame) => FeatureVector | undefined;
+export type LabelOf = (t: number) => string | null;
+
 export interface JoinOptions {
   group: string;
-  pick: FrettingHandPick;
-  /** Seconds around a chord change to drop. Default 0.25. */
-  marginSeconds?: number;
+  featurize: Featurize;
+  labelOf: LabelOf;
   /** Keep only frames inside these windows (seconds); absent = all. */
   windows?: readonly (readonly [number, number])[];
   /** Restrict to a vocabulary; frames labelled outside it are dropped. */
   vocabulary?: ReadonlySet<string>;
-  features?: FeatureSelection;
-  /** Minimum MediaPipe hand score to keep a frame (absent score = keep). */
-  minScore?: number;
 }
 
 export interface JoinStats {
   frames: number;
+  /** Frames where `featurize` found something to featurize. */
   handFrames: number;
   labelledFrames: number;
   samples: number;
   perLabel: Record<string, number>;
 }
 
-/** Join one video's landmark records with its chord segments. */
-export function joinLabelledFrames(
-  records: readonly StreamRecord[],
-  segments: readonly ChordSegment[],
-  o: JoinOptions,
-): { samples: Sample[]; stats: JoinStats } {
-  const margin = o.marginSeconds ?? 0.25;
+/** Join one video's landmark records with a label lookup. */
+export function joinLabelledFrames(records: readonly StreamRecord[], o: JoinOptions): { samples: Sample[]; stats: JoinStats } {
   const inWindow = (t: number) => !o.windows || o.windows.some(([a, b]) => t >= a && t < b);
   const stats: JoinStats = { frames: 0, handFrames: 0, labelledFrames: 0, samples: 0, perLabel: {} };
   const samples: Sample[] = [];
   for (const r of records) {
     if (!inWindow(r.t)) continue;
     stats.frames += 1;
-    const frame = r.value as HandsFrame;
-    const hand = frettingHand(frame, o.pick);
-    if (!hand) continue;
-    if (o.minScore !== undefined && hand.score !== undefined && hand.score < o.minScore) continue;
+    const vector = o.featurize(r.value as HandsFrame);
+    if (!vector) continue;
     stats.handFrames += 1;
-    const label = labelAt(segments, r.t, margin);
+    const label = o.labelOf(r.t);
     if (label === null) continue;
     if (o.vocabulary && !o.vocabulary.has(label)) continue;
     stats.labelledFrames += 1;
-    samples.push({ vector: chordShapeVector(hand, frame, o.features), label, group: o.group, t: r.t });
+    samples.push({ vector, label, group: o.group, t: r.t });
     stats.perLabel[label] = (stats.perLabel[label] ?? 0) + 1;
   }
   stats.samples = samples.length;
   return { samples, stats };
+}
+
+/** The probe join: every featurizable frame, labelled {@link PROBE_LABEL}. */
+export function joinUnlabelledFrames(
+  records: readonly StreamRecord[],
+  o: Pick<JoinOptions, 'group' | 'featurize' | 'windows'>,
+): { samples: Sample[]; stats: JoinStats } {
+  return joinLabelledFrames(records, { ...o, labelOf: () => PROBE_LABEL });
 }
 
 export function readLandmarks(path: string): StreamRecord[] {

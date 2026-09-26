@@ -38,7 +38,7 @@ Each step is idempotent and skips outputs that exist; `--only <id>` restricts an
 
 ## Design in three sentences
 
-The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`): the chord model eats the per-finger joint angles, curls, spreads, thumb opposition, pinch distances and openness that the Lab and the trainer already compute, selected by their *declared invariance* (scale, position, yaw, pitch, roll), so a trained model can later run in the app as one more consumer of the `hand-feature-vector` node. The **labels come from the sound**: real-instrument footage is self-labelling (a strummed G is a G), air footage is not, which is why the model is learned on real playing and probed on air. The **held-out number is leave-one-video-out**, because a per-frame random split lets adjacent frames leak and reports an accuracy no new player would see.
+The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`): the chord model eats the per-finger joint angles, curls, spreads, thumb opposition, pinch distances and openness that the Lab and the trainer already compute, selected by their *declared invariance* (scale, position, yaw, pitch, roll), so a trained model can later run in the app as one more consumer of the `hand-feature-vector` node. The **labels come from the sound**: real-instrument footage is self-labelling (a strummed G is a G), air footage is not, which is why the model is learned on real playing and probed on air. The **held-out number is leave-one-player-out** (two channels contribute several videos each, so the unit is the player, not the video), because a per-frame random split lets adjacent frames leak and reports an accuracy no new player would see. The air-guitar probe is never labelled from its audio and never trained on; it is reported as what the model predicts, not as an accuracy.
 
 ## Modules
 
@@ -47,7 +47,7 @@ The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`)
 | `lib_air_paths.ts` | the app-data layout, and the `THOREMIN_DATA_DIR` override |
 | `lib_sources.ts` | Zod schema of a source list; rejects local paths and unknown chord names |
 | `lib_chord_shape_features.ts` | fretting-hand pick + catalog-backed featurizer |
-| `lib_chord_shape_dataset.ts` | the landmark ↔ label join (margin around chord changes, no-chord spans dropped) |
+| `lib_chord_shape_dataset.ts` | the landmark ↔ label join behind two seams, `featurize` (frame → vector) and `labelOf` (time → label); margin around chord changes, no-chord spans dropped; an unlabelled probe join |
 | `lib_chord_shape_model.ts` | softmax regression (Adam, L2, class-balanced), the trainer's nearest-centroid baseline, metrics, leave-one-group-out, gap-aware vote smoothing |
 | `label_chords.py` | audio → chord segments; `--self-test` recovers a synthetic progression |
 | `fetch.py`, `extract.py` | download; run `video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py` per source |
@@ -55,4 +55,4 @@ The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`)
 
 ## Adding a source
 
-Append to `sources/guitar.json`: the 11-character id, title, channel, one sentence on why, `license` as yt-dlp reports it (`null` = standard licence), the chords the labeller may emit, and how to pick the fretting hand (`{"by":"x","side":"max"}` for a right-handed player facing the camera; `"min"` for a left-handed one; `{"by":"handedness","label":...}` when the label is reliable). `windows` (seconds) trims a long lesson to its drill; `holdout: true` scores a source without ever training on it. `npm test` validates the file.
+Append to `sources/guitar.json`: the 11-character id, title, channel, `player` (the held-out unit; two videos of one player share it), one sentence on why, `license` as yt-dlp reports it (`null` = standard licence), the chords the labeller may emit, and how to pick the fretting hand (`{"by":"x","side":"max"}` for a right-handed player facing the camera; `"min"` for a left-handed one; `{"by":"handedness","label":...}` when the label is reliable, remembering that MediaPipe's "Left" on unmirrored video is the physical right hand). `windows` (seconds) trims a long lesson to its drill; `holdout: true` marks a probe that is never labelled and never trained on. `npm test` validates the file. Other instruments get their own `<instrument>.json`; the schema (`lib_sources.ts`) is a discriminated union on the instrument, so their label-specific fields are added there.

@@ -19,7 +19,12 @@ prior are near-perfect, and the self-test below shows the method on synthetic ch
 Output: ``labels/air/<instrument>/<id>.chords.json`` with
 ``{video, vocabulary, hopSeconds, segments: [{start, end, label}], stats}``.
 Segments shorter than ``--min-seconds`` become ``N`` (a chord change bounces through
-neighbouring shapes for a hop or two; those frames are dropped, not mislabelled).
+neighbouring shapes for a hop or two; those frames are dropped, not mislabelled). A
+lone plucked note is ``N`` too: every chord tone must carry energy (``min_coverage``),
+because a single note's harmonics already sketch a triad. Sources flagged ``holdout``
+are never labelled: a mimed performance's backing track is not what the hand plays.
+The label is the SOUNDING chord; with a capo the shape is the same and the sound is
+transposed, so a capo'd source must declare shape names, not pitches.
 
 Runs under the shared ``python3`` (needs librosa, numpy; ffmpeg on PATH for decoding).
 
@@ -40,6 +45,9 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from extract import cut_windows  # noqa: E402  (same excerpt as the landmark extractor, so times line up)
+
 NO_CHORD = "N"
 PITCH_CLASS = {"C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3, "E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8, "Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11}
 QUALITY_INTERVALS = {
@@ -114,12 +122,23 @@ def decode_chords(
     no_chord_floor: float,
     silence_ratio: float,
     temperature: float,
+    min_coverage: float,
 ) -> np.ndarray:
     """Viterbi path over ``[*vocabulary, N]`` for each chroma frame (state indices)."""
     import librosa
 
     templates = np.stack([chord_template(c) for c in vocabulary])  # (K, 12)
     sim = templates @ chroma  # (K, T) cosine similarities in [0, 1]
+    # A single plucked note has a triad-like chroma (its harmonics 3 and 5 land on the
+    # fifth and the major third), so cosine alone calls a lone G3 a "G". Require every
+    # chord tone to carry energy: scale the emission by the weakest chord tone relative
+    # to the strongest chroma bin, and let it through untouched only above the floor.
+    peak = np.maximum(chroma.max(axis=0, keepdims=True), 1e-9)  # (1, T)
+    for k, name in enumerate(vocabulary):
+        root, intervals = parse_chord(name)
+        tones = [(root + i) % 12 for i in intervals]
+        weakest = chroma[tones, :].min(axis=0) / peak[0]
+        sim[k] *= np.minimum(1.0, weakest / min_coverage)
     # No-chord emission: a floor, raised to dominate where the audio is quiet.
     quiet = rms < silence_ratio * np.median(rms[rms > 0]) if np.any(rms > 0) else np.ones_like(rms, dtype=bool)
     n_emit = np.full(chroma.shape[1], no_chord_floor)
@@ -169,6 +188,7 @@ def label_audio(
     silence_ratio: float = 0.25,
     temperature: float = 0.05,
     min_seconds: float = 0.4,
+    min_coverage: float = 0.3,
 ) -> dict:
     import librosa
 
@@ -177,7 +197,7 @@ def label_audio(
     n = min(chroma.shape[1], len(rms))
     chroma, rms = chroma[:, :n], rms[:n]
     states = [*vocabulary, NO_CHORD]
-    path = decode_chords(chroma, rms, vocabulary=vocabulary, stay=stay, no_chord_floor=no_chord_floor, silence_ratio=silence_ratio, temperature=temperature)
+    path = decode_chords(chroma, rms, vocabulary=vocabulary, stay=stay, no_chord_floor=no_chord_floor, silence_ratio=silence_ratio, temperature=temperature, min_coverage=min_coverage)
     hop_seconds = hop / sr
     segments = path_to_segments(path, states=states, hop_seconds=hop_seconds, min_seconds=min_seconds, total_seconds=len(y) / sr)
     seconds_per_label: dict[str, float] = {}
@@ -195,7 +215,9 @@ def label_audio(
 
 def synth_progression(plan: list[tuple[str | None, float]], *, sr: int, strum_hz: float = 2.0, seed: int = 0) -> tuple[np.ndarray, list[dict]]:
     """Plucked-ish chord tones (fundamental + 3 harmonics, decaying, re-struck at
-    ``strum_hz``) in guitar register; ``None`` is silence. Returns audio and the truth."""
+    ``strum_hz``) in guitar register; ``None`` is silence; a name prefixed ``note:``
+    (e.g. ``note:G``) is a single plucked note, whose truth is ``N``. Returns audio and
+    the truth."""
     rnd = np.random.default_rng(seed)
     out = []
     truth = []
@@ -205,7 +227,10 @@ def synth_progression(plan: list[tuple[str | None, float]], *, sr: int, strum_hz
         t = np.arange(n) / sr
         seg = np.zeros(n)
         if name is not None:
-            root, intervals = parse_chord(name)
+            single = name.startswith("note:")
+            root, intervals = parse_chord(name[5:] if single else name)
+            if single:
+                intervals = (0,)
             # Voice the chord across two octaves in guitar range (E2 = 82.4 Hz up).
             midi = [40 + ((root + i - 4) % 12) + o for i in intervals for o in (0, 12)]
             env = np.exp(-3.0 * (t % (1.0 / strum_hz)))
@@ -214,7 +239,7 @@ def synth_progression(plan: list[tuple[str | None, float]], *, sr: int, strum_hz
                 for h, amp in ((1, 1.0), (2, 0.5), (3, 0.3), (4, 0.15)):
                     seg += amp * np.sin(2 * np.pi * f * h * t + rnd.uniform(0, 2 * np.pi))
             seg *= env / len(midi)
-            truth.append({"start": t0, "end": t0 + dur, "label": name})
+            truth.append({"start": t0, "end": t0 + dur, "label": NO_CHORD if single else name})
         else:
             truth.append({"start": t0, "end": t0 + dur, "label": NO_CHORD})
         out.append(seg)
@@ -233,7 +258,7 @@ def label_at(segments: list[dict], t: float) -> str:
 
 def self_test() -> int:
     sr = 22050
-    plan = [("C", 3.0), ("G", 3.0), ("Am", 2.5), (None, 1.5), ("F", 3.0), ("D", 2.0), ("Em", 2.5)]
+    plan = [("C", 3.0), ("G", 3.0), ("Am", 2.5), (None, 1.5), ("F", 3.0), ("D", 2.0), ("Em", 2.5), ("note:G", 2.0), ("C", 2.0), ("note:C", 2.0)]
     y, truth = synth_progression(plan, sr=sr)
     vocab = ["C", "G", "Am", "F", "D", "Em", "E", "A"]
     res = label_audio(y, sr=sr, vocabulary=vocab)
@@ -281,16 +306,19 @@ def main() -> int:
         if wanted and vid not in wanted:
             continue
         out = out_dir / f"{vid}.chords.json"
+        if src.get("holdout"):
+            print(f"skip {vid}: holdout probe, its audio is not a label", file=sys.stderr)
+            continue
         if out.exists() and not args.force:
             print(f"skip {vid}: present", file=sys.stderr)
             continue
-        video = vid_dir / f"{vid}.excerpt.mp4"
-        if not video.exists():
-            video = vid_dir / f"{vid}.mp4"
+        video = vid_dir / f"{vid}.mp4"
         if not video.exists():
             print(f"missing video {vid}", file=sys.stderr)
             failures.append(vid)
             continue
+        if src.get("windows"):
+            video = cut_windows(video, src["windows"], out=vid_dir / f"{vid}.excerpt.mp4")
         print(f"label {vid} vocabulary={src['chords']}", file=sys.stderr)
         try:
             y = decode_audio(video, sr=sr)

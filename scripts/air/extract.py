@@ -54,7 +54,7 @@ def media_python(explicit: str | None) -> Path:
 
 
 def cut_windows(video: Path, windows: list[list[float]], *, out: Path) -> Path:
-    """Concatenate the source's windows into one excerpt (native fps, no audio)."""
+    """Concatenate the source's windows into one excerpt (native fps, audio kept)."""
     if out.exists():
         return out
     parts = []

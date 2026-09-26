@@ -97,9 +97,11 @@ export interface SoftmaxTrainOptions {
   seed?: number;
   /** Explicit class order; default = sorted labels seen in training. */
   classes?: readonly string[];
+  /** Weight each class's loss by N / (C * n_c). Default true. */
+  classBalanced?: boolean;
 }
 
-const SOFTMAX_DEFAULTS = { epochs: 300, learningRate: 0.05, l2: 1e-3, seed: 1 };
+const SOFTMAX_DEFAULTS = { epochs: 300, learningRate: 0.05, l2: 1e-3, seed: 1, classBalanced: true };
 
 /** Deterministic tiny PRNG (mulberry32) so a training run is reproducible from its seed. */
 export function mulberry32(seed: number): () => number {
@@ -151,7 +153,7 @@ export function trainSoftmax(
   // chord, and a model that learns "it is usually G" is not a chord recogniser.
   const counts = new Array<number>(C).fill(0);
   for (const yi of y) counts[yi] += 1;
-  const classWeight = counts.map((n) => (n > 0 ? N / (C * n) : 0));
+  const classWeight = counts.map((n) => (o.classBalanced && n > 0 ? N / (C * n) : 1));
 
   for (let epoch = 1; epoch <= o.epochs; epoch++) {
     const gW = W.map((r) => r.map(() => 0));
@@ -219,13 +221,9 @@ export function trainCentroid(samples: readonly Sample[], features: readonly str
   const weights: Record<string, number> = {};
   features.forEach((f, j) => (weights[f] = 1 / st.std[j]));
   const clusters = classes.map((c) => samples.map((s, i) => (s.label === c ? i : -1)).filter((i) => i >= 0));
-  // Impute NaN to the mean before handing over: the trainer's mean skips NaN but its
-  // distance does not.
-  const vectors = samples.map((s) => {
-    const v: FeatureVector = {};
-    features.forEach((f, j) => (v[f] = Number.isFinite(s.vector[f]) ? s.vector[f] : st.mean[j]));
-    return v;
-  });
+  // NaN stays NaN: the trainer's mean and its weighted distance both skip non-finite
+  // entries per feature, which is the right imputation (ignore, do not invent).
+  const vectors = samples.map((s) => s.vector);
   const m = trainModel(vectors, clusters, [...features], weights, { defaultRejectRadius: Infinity, acceptQuantile: 1 });
   m.rejectRadius = Infinity;
   m.categories.forEach((cat, i) => (cat.label = classes[i]));
@@ -233,11 +231,7 @@ export function trainCentroid(samples: readonly Sample[], features: readonly str
 }
 
 export function predictCentroid(cm: CentroidModel, vector: FeatureVector): string {
-  const st = cm.model.features;
-  const v: FeatureVector = {};
-  for (const f of st) v[f] = Number.isFinite(vector[f]) ? vector[f] : 0;
-  const r = classify(cm.model, v);
-  // categoryId maps to the category with that id; label carries the class.
+  const r = classify(cm.model, vector);
   const cat = cm.model.categories.find((c) => c.id === r.categoryId) ?? cm.model.categories[0];
   return cat.label;
 }
@@ -315,6 +309,7 @@ export function smoothPredictions(
   maxGap = 0.2,
 ): string[] {
   if (window <= 1) return [...predicted];
+  // An even window has no centre; use the next odd size so the vote is symmetric.
   const half = Math.floor(window / 2);
   const contiguous = (a: number, b: number): boolean => {
     if (!times) return true;
@@ -329,8 +324,9 @@ export function smoothPredictions(
       if (!contiguous(i, j)) continue;
       counts.set(predicted[j], (counts.get(predicted[j]) ?? 0) + 1);
     }
+    // Ties keep the frame's own prediction (a tie is not evidence of a flicker).
     let best = predicted[i];
-    let bestN = -1;
+    let bestN = counts.get(best) ?? 0;
     for (const [k, n] of counts) if (n > bestN) [best, bestN] = [k, n];
     return best;
   });
@@ -352,10 +348,17 @@ export const centroidTrainer: Trainer = (train, features) => {
 
 export interface GroupFold {
   group: string;
-  /** Frame-level evaluation on the held-out group. */
+  /** Frame-level evaluation on the scorable held-out frames. */
   raw: Evaluation;
   /** After majority-vote smoothing over `smoothWindow` frames. */
   smoothed: Evaluation;
+  /**
+   * Held-out frames whose label no training fold contained. They cannot be scored as
+   * a classification and are excluded from `raw`; `accuracyAllFrames` counts them as
+   * errors so the exclusion is never silent.
+   */
+  unscorable: number;
+  accuracyAllFrames: number;
 }
 
 export interface LeaveOneGroupOutResult {
@@ -396,7 +399,15 @@ export function leaveOneGroupOut(
     const truth = scorable.map((s) => s.label);
     const pred = scorable.map((s) => f(s.vector));
     const smooth = smoothPredictions(pred, smoothWindow, scorable.map((s) => s.t ?? 0));
-    folds.push({ group: g, raw: evaluate(truth, pred), smoothed: evaluate(truth, smooth) });
+    const raw = evaluate(truth, pred);
+    const unscorable = test.length - scorable.length;
+    folds.push({
+      group: g,
+      raw,
+      smoothed: evaluate(truth, smooth),
+      unscorable,
+      accuracyAllFrames: (raw.accuracy * scorable.length) / test.length,
+    });
     pooledT.push(...truth);
     pooledP.push(...pred);
     pooledS.push(...smooth);
@@ -410,9 +421,8 @@ export function leaveOneGroupOut(
 }
 
 /**
- * The optimistic bound: a random per-frame split inside every group, stratified by
- * group only. Adjacent frames leak across it; that is the point of reporting it next
- * to the honest number.
+ * The optimistic bound: a plain random per-frame split over all groups. Adjacent frames
+ * leak across it; that is the point of reporting it next to the honest number.
  */
 export function withinGroupSplit(
   samples: readonly Sample[],
@@ -436,12 +446,15 @@ export function withinGroupSplit(
 export function formatFolds(r: LeaveOneGroupOutResult): string {
   const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
   const rows = r.folds.map(
-    (f) => `| ${f.group} | ${f.raw.n} | ${pct(f.raw.accuracy)} | ${pct(f.raw.macroF1)} | ${pct(f.smoothed.accuracy)} |`,
+    (f) =>
+      `| ${f.group} | ${f.raw.n} | ${f.unscorable} | ${pct(f.raw.accuracy)} | ${pct(f.raw.macroF1)} | ${pct(f.smoothed.accuracy)} | ${pct(f.accuracyAllFrames)} |`,
   );
+  const unscorable = r.folds.reduce((s, f) => s + f.unscorable, 0);
+  const allFrames = r.pooledRaw.n + unscorable;
   return [
-    `| held-out group | frames | accuracy | macro-F1 | accuracy, ${r.smoothWindow}-frame vote |`,
-    '|---|---|---|---|---|',
+    `| held-out group | frames | unscorable | accuracy | macro-F1 | accuracy, ${r.smoothWindow}-frame vote | accuracy, all frames |`,
+    '|---|---|---|---|---|---|---|',
     ...rows,
-    `| **pooled** | ${r.pooledRaw.n} | **${pct(r.pooledRaw.accuracy)}** | ${pct(r.pooledRaw.macroF1)} | **${pct(r.pooledSmoothed.accuracy)}** |`,
+    `| **pooled** | ${r.pooledRaw.n} | ${unscorable} | **${pct(r.pooledRaw.accuracy)}** | ${pct(r.pooledRaw.macroF1)} | **${pct(r.pooledSmoothed.accuracy)}** | ${pct(allFrames ? (r.pooledRaw.accuracy * r.pooledRaw.n) / allFrames : 0)} |`,
   ].join('\n');
 }
