@@ -39,6 +39,7 @@ import { useFaceStatus } from './faceStatus';
 import { useMidiStatus } from './midiStatus';
 import { useGenerativeStatus, makeGenerativeReporter } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
+import { installLatencyProbe, latencyProbeRequested } from './latencyProbe';
 import { useConductorStatus, makeConductorReporter } from './conductorStatus';
 import { useAirDrumStatus, makeAirDrumReporter } from './airDrumStatus';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
@@ -134,6 +135,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   useEffect(() => {
     let disposed = false;
     let uninstallDebug: () => void = () => {};
+    let uninstallLatency: () => void = () => {};
     // The acquired stream is held here (not read back off video.srcObject) so
     // cleanup can always stop the exact stream this run acquired. Under React
     // StrictMode the effect runs mount→cleanup→mount; an aborted run must stop
@@ -280,6 +282,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // The read-only `window.thoremin` probe the browser smoke harness (and a person
         // at the devtools console) reads the live loop through (#209). Removed on teardown.
         uninstallDebug = installDebugHandle(engine, resources);
+        // `?probe=latency` (#227): per-stage timings of this live loop, plus the
+        // microphone strike test. Absent the parameter, nothing is attached.
+        if (latencyProbeRequested()) uninstallLatency = installLatencyProbe(engine, resources);
         setStatus('ready');
 
         // The selection may have changed during the model load, while the
@@ -444,6 +449,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useConductorStatus.getState().reset();
       useAirDrumStatus.getState().reset();
       uninstallDebug();
+      uninstallLatency();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
       useControls.getState().setSteerPlaying(false);
       sessionRecRef.current?.dispose();

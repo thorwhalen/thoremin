@@ -106,6 +106,10 @@ What it asserts, against the production build served at the deployed base path:
 
 The app cooperates through one read-only probe, `window.thoremin` (`src/app/debugHandle.ts`): `getOutput(node, port)`, `liveVectorTime()`, `audio()`. It has no setters and reaches no secret; a person checking a live change gets the same handle in the devtools console. `engine_wiring.test.ts` pins that `useEngine` installs and uninstalls it.
 
+- **latency probe**: `?probe=latency` shows its panel and measures the tick and the audio path; without the parameter nothing is installed.
+
+**Measuring latency (#227).** `?probe=latency` (`src/app/latencyProbe.ts`, core in `src/latency/`) attaches an engine tap that times every stage from camera capture to loudspeaker on the live instrument, shows it in a panel and on `window.thoreminLatency`, and runs the microphone strike test (glass-to-air onset latency). `node smoke/latency/measure.mjs --headed --video clip.y4m` drives it in Chromium and adds offline audio measurements; the results and the procedure for a person with a webcam are in [`docs/research/latency-budget-and-browser-realtime.md`](research/latency-budget-and-browser-realtime.md).
+
 Whether the smoke job should gate the deploy, and whether #201's React-layer type ratchet should live beside it, are the maintainer's decisions; the harness is where such a check would go.
 
 ## On-disk fixture layout

@@ -76,6 +76,14 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(c).toMatch(/uninstallDebug\(\)/);
   });
 
+  it('installs the latency probe only under ?probe=latency, and uninstalls it (#227)', () => {
+    // The probe is an engine tap plus a window handle and a DOM panel; a dropped
+    // uninstall would leave a tap on a torn-down engine and a stale panel on screen.
+    const c = code(useEngine);
+    expect(c).toMatch(/if \(latencyProbeRequested\(\)\) uninstallLatency = installLatencyProbe\(engine, resources\)/);
+    expect(c).toMatch(/uninstallLatency\(\)/);
+  });
+
   it('releases the Applier on unmount, so its taps do not outlive the run', () => {
     // The engine is caller-owned and survives StrictMode remounts; a tap the Applier
     // attached and never detached would keep receiving values from every later run.

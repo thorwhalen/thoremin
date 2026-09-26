@@ -51,7 +51,7 @@ The dictated recollection was "the video frame rate is 44 per second". Nothing i
 
 **The tick loop.** `RealtimeClock` (`src/dag/clock.ts`) schedules through `requestAnimationFrame`, so the engine ticks at the display refresh rate: 60 Hz on most screens, 120 Hz on ProMotion displays. `ctx.dt` is the real, jittery interval between animation frames (`src/dag/engine.ts`). The 60 Hz tick is not a second measurement of the hand: the source nodes (`src/nodes/sources/webcam_hands.ts`, `webcam_face.ts`, `webcam_body.ts`) each run their own animation-frame loop and call `detectForVideo` only when `video.currentTime` has changed, so inference runs **once per new camera frame**, and a tick between camera frames re-reads the cached last result. The effective control rate is therefore the camera rate, about 30 Hz, sampled by a 60 Hz tick.
 
-**Timestamps.** Each inference is stamped with `performance.now()` at the moment inference *runs*, not the moment the frame was *captured*. The `requestVideoFrameCallback` API exposes a `captureTime` for `getUserMedia` sources, which the spec says should be present for local cameras [13]; the code does not use it. The difference is one or two frame periods of unknown and variable offset, which is exactly the quantity a sub-frame estimator needs to be stable.
+**Timestamps.** *(Updated 2026-09-26: #226 is implemented.)* When this map was written, each inference was stamped with `performance.now()` at the moment inference *ran*, not the moment the frame was *captured*. The frame pump (`src/nodes/sources/frame_pump.ts`) now stamps every frame with `requestVideoFrameCallback`'s `captureTime`, which the spec says should be present for local cameras [13], and carries the capture-to-inference lag on the frame (`FrameTiming.lag`). That lag is the first measured term of the budget below.
 
 **Inference cost.** MediaPipe Tasks Vision in `VIDEO` mode, GPU delegate with CPU fallback, float16 hand and face landmarkers, pose `lite` by default. `detectForVideo` is synchronous on the main thread inside the animation loop, so a slow inference drops display frames rather than camera frames. Published figures for the hand pipeline are on the order of 10 to 30 ms per frame on a laptop GPU [14].
 
@@ -63,19 +63,22 @@ The dictated recollection was "the video frame rate is 44 per second". Nothing i
 
 ### 2.1 The latency budget that follows
 
-The frame period is the *smallest* term in the chain, which is the point the dictation was reaching for. An estimated event-to-sound budget for a purely reactive design, with the caveat that none of this is measured in the app yet:
+The frame period is the *smallest* term in the chain, which is the point the dictation was reaching for. This section first held an *estimated* budget (about 80 to 150 ms). It is now **measured** on the running app (M1 Max MacBook Pro, Chrome 153, real hand footage through the camera path, built-in speakers), stage by stage, in [`latency-budget-and-browser-realtime.md`](latency-budget-and-browser-realtime.md) §1, which also says how to re-take it on any machine (`?probe=latency`, the microphone strike test, `smoke/latency/measure.mjs`). The short version:
 
-| Stage | Typical | Source of the number |
+| Stage | Measured (mean ± jitter) | Was estimated |
 |---|---|---|
-| Exposure and readout of the frame containing the event | 0 to 33 ms (uniform over the frame period) | 30 fps camera, §2 |
-| Camera to browser video element | one to two frame periods is common for USB and built-in webcams | not measured; the capture timestamp is not read, so it cannot be |
-| Hand landmark inference | 10 to 30 ms | [14] |
-| Tick quantisation | 0 to 16.7 ms | 60 Hz animation loop, §2 |
-| Audio parameter smoothing | 30 ms time constant (63 % of the way in 30 ms, 95 % in 90 ms) | `webaudio_synth.ts` |
-| Audio output latency, `interactive` hint | roughly 10 to 30 ms on a laptop | not read from the context; the budget should read `outputLatency` |
-| **Total, reactive** | **about 80 to 150 ms** | |
+| Wait for the frame containing the event | 0 to 33 ms, mean 16.7 (period 33.3 ± 3.4 ms) | 0 to 33 ms |
+| Sensor, readout, USB, OS capture | not measurable in a page; the strike test measures it glass to air | one to two frame periods |
+| Capture stamp to inference | 4.4 ± 2.0 ms (fake camera) | not measured |
+| Hand landmark inference (GPU, main thread) | 21.2 ± 4.4 ms; the CPU/WebAssembly delegate 43.2 ± 9.5 ms | 10 to 30 ms |
+| Wait for the tick | ~0 ms (the pump runs first in each animation frame) | 0 to 16.7 ms |
+| The DAG tick itself | 0.13 ± 0.11 ms | not estimated |
+| Parameter write to loudspeaker | 31.8 ± 1.6 ms (`baseLatency` 5.8, `outputLatency` 29) | 10 to 30 ms |
+| Synth output compressor look-ahead | 6.0 ms | not known |
+| Pitch glide, 30 ms constant | 20.8 ms to half, 69 ms to 90 % | 30 ms to 63 % |
+| **Total, to half-way to the new pitch** | **about 101 ms plus the camera hardware** | 80 to 150 ms |
 
-Against a 10 to 30 ms perceptual budget (§1), a reactive design misses by a factor of five to ten. Reading the exact capture time, moving audio to a scheduled clock and skipping the smoothing for onsets would recover perhaps 40 ms. The rest can only be recovered by **producing the sound before the event is observed**, which is prediction, §5.2. So the design consequence is not "we need a faster camera"; it is "the instrument must anticipate, and the camera rate sets how far ahead it must anticipate".
+Against a 10 to 30 ms perceptual budget (§1), a reactive design still misses by a factor of four or more. The measurements move where the recoverable time is: shortening the glide and removing the compressor's look-ahead recover about 20 ms to half-way (about 50 ms to 90 %), and a different programming language recovers at most the 0.13 ms tick. The rest can only be recovered by **producing the sound before the event is observed**, which is prediction, §5.2. So the design consequence is unchanged, and now measured: not "we need a faster camera" or "a faster language", but "the instrument must anticipate, and the camera rate sets how far ahead it must anticipate".
 
 ---
 
