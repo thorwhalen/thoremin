@@ -39,6 +39,7 @@ import { useFaceStatus } from './faceStatus';
 import { useMidiStatus } from './midiStatus';
 import { useGenerativeStatus, makeGenerativeReporter } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
+import { latencyProbeRequested } from '@/latency/param';
 import { useConductorStatus, makeConductorReporter } from './conductorStatus';
 import { useAirDrumStatus, makeAirDrumReporter } from './airDrumStatus';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
@@ -134,6 +135,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   useEffect(() => {
     let disposed = false;
     let uninstallDebug: () => void = () => {};
+    let uninstallLatency: () => void = () => {};
     // The acquired stream is held here (not read back off video.srcObject) so
     // cleanup can always stop the exact stream this run acquired. Under React
     // StrictMode the effect runs mount→cleanup→mount; an aborted run must stop
@@ -280,6 +282,18 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // The read-only `window.thoremin` probe the browser smoke harness (and a person
         // at the devtools console) reads the live loop through (#209). Removed on teardown.
         uninstallDebug = installDebugHandle(engine, resources);
+        // `?probe=latency` (#227): per-stage timings of this live loop, plus the
+        // microphone strike test. Absent the parameter nothing is loaded or attached;
+        // present, its `tickEnd` becomes the Applier's FIRST sink (below), so it closes
+        // each tick's compute time before any bridge runs.
+        let latencyTickEnd: (() => void) | null = null;
+        if (latencyProbeRequested()) {
+          const { installLatencyProbe } = await import('./latencyProbe');
+          if (disposed) return;
+          const probe = installLatencyProbe(engine, resources);
+          uninstallLatency = probe.uninstall;
+          latencyTickEnd = probe.tickEnd;
+        }
         setStatus('ready');
 
         // The selection may have changed during the model load, while the
@@ -401,13 +415,15 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         const toMs = (report: (nowMs: number) => void) => (t: number | undefined) =>
           report((t ?? performance.now() / 1000) * 1000);
 
+        // The latency probe's tick-end stamp (if any) goes FIRST, before the bridges.
+        const latencySinks = latencyTickEnd ? [latencyTickEnd] : [];
         const applier = new Applier({
           engine,
           clock: new RealtimeClock(),
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportAirDrum)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportAirDrum)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -444,6 +460,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useConductorStatus.getState().reset();
       useAirDrumStatus.getState().reset();
       uninstallDebug();
+      uninstallLatency();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
       useControls.getState().setSteerPlaying(false);
       sessionRecRef.current?.dispose();

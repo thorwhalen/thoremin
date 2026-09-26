@@ -64,7 +64,8 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     const c = code(useEngine);
     expect(c).toMatch(/\* 1000/);
     // Each bridge goes through the converter rather than being passed raw.
-    expect(c).toMatch(/sinks:\s*\[\s*toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportAirDrum\)\s*\]/);
+    // (`...latencySinks` is the #227 probe's tick-end stamp: empty unless ?probe=latency.)
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportAirDrum\)\s*\]/);
   });
 
   it('publishes the read-only debug handle when the engine is ready, and removes it on teardown (#209)', () => {
@@ -74,6 +75,18 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     const c = code(useEngine);
     expect(c).toMatch(/uninstallDebug = installDebugHandle\(engine, resources\)/);
     expect(c).toMatch(/uninstallDebug\(\)/);
+  });
+
+  it('loads the latency probe only under ?probe=latency, closes ticks in the first sink, and uninstalls it (#227)', () => {
+    // The probe is an engine tap plus a window handle and a DOM panel; a dropped
+    // uninstall would leave a tap on a torn-down engine and a stale panel on screen.
+    const c = code(useEngine);
+    expect(c).toMatch(/if \(latencyProbeRequested\(\)\) \{\s*const \{ installLatencyProbe \} = await import\('\.\/latencyProbe'\)/);
+    expect(c).toMatch(/uninstallLatency = probe\.uninstall/);
+    expect(c).toMatch(/uninstallLatency\(\)/);
+    // The tick-end stamp must be the FIRST sink, or it would time the bridges too.
+    expect(c).toMatch(/const latencySinks = latencyTickEnd \? \[latencyTickEnd\] : \[\]/);
+    expect(c).toMatch(/sinks: \[\.\.\.latencySinks, toMs\(reportFace\)/);
   });
 
   it('releases the Applier on unmount, so its taps do not outlive the run', () => {
