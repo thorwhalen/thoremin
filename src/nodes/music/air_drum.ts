@@ -54,11 +54,11 @@ const Params = z.object({
   /** The drum each hand plays. */
   rightSound: z.enum(DRUM_SOUNDS).default('kick'),
   leftSound: z.enum(DRUM_SOUNDS).default('snare'),
-  /** How far ahead of the strike a hit must be committed, seconds, counted from the
+  /** How far ahead of the strike a hit should be committed, seconds, counted from the
    *  moment this node decides (the frame's age — capture to inference to tick — is
-   *  added on top, so the lead is real): the audio output latency plus a margin.
-   *  Earlier costs almost nothing in accuracy; too late and the hit is sounded on
-   *  confirmation instead, one frame late. */
+   *  added on top, so the lead is real): the audio output latency plus a margin. A
+   *  TARGET: a camera pipeline slower than the stroke's fall can defeat it, in which
+   *  case the hit sounds as soon as it can and is reported as late, not predicted. */
   minLead: z.number().min(0).max(0.2).default(0.05),
   /** Timing magnetism, 0..1: how far a predicted hit is pulled toward the conductor's
    *  expected beat (nothing when the conductor is off). */
@@ -248,8 +248,11 @@ export const airDrumNode = defineNode<Params>({
                   at = Math.max(ctx.time, m.t);
                   pull = at - e.t;
                 }
-                // The lead a scheduler really gets: from NOW, not from the sample.
-                hits.push({ t: at, velocity: clamp01(e.strength) * c.volume, hand: which, sound, predicted: true, lead: at - ctx.time, pull });
+                // The lead a scheduler really gets: from NOW, not from the sample. A camera
+                // pipeline older than the stroke's fall leaves none: that hit is honest
+                // about being late (it is not "predicted"), and sounds as soon as it can.
+                const lead = at - ctx.time;
+                hits.push({ t: Math.max(at, ctx.time), velocity: clamp01(e.strength) * c.volume, hand: which, sound, predicted: lead >= 0, lead, pull });
               } else if (e.predicted === null) {
                 // Unpredicted: a ghost note, now; its lead is how late that is.
                 hits.push({ t: ctx.time, velocity: clamp01(e.strength) * c.volume * GHOST_VELOCITY, hand: which, sound, predicted: false, lead: e.t - ctx.time, pull: 0 });

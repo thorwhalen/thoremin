@@ -439,6 +439,8 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   let topD = Infinity;
   let maxD = -Infinity;
   let maxT = NaN;
+  /** The fastest downward step of the stroke in progress (depth units per second). */
+  let peakSpeed = 0;
   let level = levelKnown ? (options.level as number) : NaN;
   let lag = 0;
   let lagN = 0;
@@ -459,6 +461,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     topD = Infinity;
     maxD = -Infinity;
     maxT = NaN;
+    peakSpeed = 0;
     committed = null;
     tentative = NaN;
   };
@@ -587,7 +590,11 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
 
       // 1. The reversal: depth came back up from the running maximum by more than the
       //    noise margin, and the stroke was big enough. Confirm at THIS sample.
-      if (ts.length >= 1 && d < maxD - margin && t - lastConfirmT >= o.refractoryFraction * period) {
+      // A stroke whose fastest step never reached the speed floor is a drift (a slow
+      // sweep spans a stroke's depth but never at a stroke's speed): no event; the
+      // history simply carries on, and nothing here delays the next real stroke.
+      const fastEnough = !(o.minApproachSpeed > 0) || peakSpeed >= o.minApproachSpeed;
+      if (ts.length >= 1 && d < maxD - margin && fastEnough && t - lastConfirmT >= o.refractoryFraction * period) {
         const amplitude = maxD - topD;
         if (passesAmplitude(amplitude)) {
           const iMax = ts.lastIndexOf(maxT);
@@ -610,12 +617,6 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
               crossing = maxT + x.tau;
               approachSpeed = Math.abs(approach.b + 2 * approach.c * x.tau);
             }
-          }
-          // A slow approach is a drift, not a stroke: no event, and the history goes on.
-          if (o.minApproachSpeed > 0 && approach && Math.max(Math.abs(approach.b), Number.isFinite(approachSpeed) ? approachSpeed : 0) < o.minApproachSpeed) {
-            lastConfirmT = t;
-            clearStroke();
-            return events;
           }
           // The post-hoc estimate: for a surface stroke the approach crossing plus
           // the learned lag (the crossing is exact where the plane is); for an air
@@ -663,11 +664,13 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
         topD = Math.min(topD, d);
         maxD = -Infinity;
         maxT = NaN;
+        peakSpeed = 0;
         committed = null;
         tentative = NaN;
       }
       ts.push(t);
       ds.push(d);
+      if (Number.isFinite(prevD) && Number.isFinite(dt) && dt > 0 && d > prevD) peakSpeed = Math.max(peakSpeed, (d - prevD) / dt);
       if (d > maxD) {
         maxD = d;
         maxT = t;
@@ -683,7 +686,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
       if (!committed && Number.isFinite(level) && d > prevD && ts.length >= o.minApproachSamples) {
         const from = approachStart(ts.length);
         const f = ts.length - from >= o.minApproachSamples ? fitQuadratic(ts.slice(from), ds.slice(from), t) : null;
-        if (f && f.b > 0 && f.b >= o.minApproachSpeed) {
+        if (f && f.b > 0 && Math.max(f.b, peakSpeed) >= o.minApproachSpeed) {
           const x = crossingTau(f, level);
           if (Number.isFinite(x.tau)) {
             const crossing = t + x.tau;

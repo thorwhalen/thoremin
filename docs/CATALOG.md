@@ -387,7 +387,7 @@ Strike the air with a hand and hear a drum at the strike: each hand is a stick w
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:air-drum-config, time:musical-time
 - **out:** hits:drum-hits, status:air-drum-status, enabled:boolean
-- **params:** enabled (boolean=false), hand (enum(both | right | left)="both"), point (enum(wrist | indexTip)="wrist"), rightSound (enum(kick | snare | hihat | tom)="kick"), leftSound (enum(kick | snare | hihat | tom)="snare"), minLead (number=0.05), magnetism (number=0), mirrorHandedness (boolean=true), volume (number=0.8), minStroke (number=0.03)
+- **params:** enabled (boolean=false), hand (enum(both | right | left)="both"), point (enum(wrist | indexTip)="wrist"), rightSound (enum(kick | snare | hihat | tom)="kick"), leftSound (enum(kick | snare | hihat | tom)="snare"), minLead (number=0.05), magnetism (number=0), mirrorHandedness (boolean=true), volume (number=0.8), minStroke (number=0.03), minSpeed (number=0.5)
 
 #### `drum-out` — Drum out
 Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).

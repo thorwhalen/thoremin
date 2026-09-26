@@ -25,6 +25,11 @@ describe('engineToContextTime', () => {
     expect(engineToContextTime(stale, 12.05, 12.0)).toBeCloseTo(5.05, 9);
   });
 
+  it('allows the exact map to lead the plain one by the output latency (Bluetooth headphones)', () => {
+    const bt = { currentTime: 5, outputLatency: 0.3, getOutputTimestamp: () => ({ contextTime: 5.5, performanceTime: 12000 }) };
+    expect(engineToContextTime(bt, 12.05, 12.0)).toBeCloseTo(5.55, 9);
+  });
+
   it('falls back to now plus the distance from the tick', () => {
     expect(engineToContextTime({ currentTime: 5 }, 12.05, 12.0)).toBeCloseTo(5.05, 9);
     const broken = { currentTime: 5, getOutputTimestamp: () => ({}) };

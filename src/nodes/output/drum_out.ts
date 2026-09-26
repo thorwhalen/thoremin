@@ -35,6 +35,9 @@ export interface DrumSink {
 export interface AudioClockLike {
   currentTime: number;
   state?: string;
+  /** Seconds between the context's time and the sound leaving the device; the exact
+   *  map legitimately leads the plain one by this much. */
+  outputLatency?: number;
   getOutputTimestamp?: () => { contextTime?: number; performanceTime?: number };
 }
 
@@ -60,7 +63,8 @@ export function engineToContextTime(ac: AudioClockLike, tEngine: number, tTick: 
     stamp.performanceTime > 0
   ) {
     const exact = stamp.contextTime + (tEngine - stamp.performanceTime / 1000);
-    if (Math.abs(exact - plain) <= MAX_STAMP_DISAGREEMENT_S) return exact;
+    const slack = MAX_STAMP_DISAGREEMENT_S + (typeof ac.outputLatency === 'number' && Number.isFinite(ac.outputLatency) ? ac.outputLatency : 0);
+    if (Math.abs(exact - plain) <= slack) return exact;
   }
   return plain;
 }

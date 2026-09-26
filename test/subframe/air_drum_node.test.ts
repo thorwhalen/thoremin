@@ -167,6 +167,38 @@ describe('air-drum node on the synthetic surface fixture', () => {
     }
   });
 
+  it('a pipeline older than the fall leaves no lead: such hits are honest (not "predicted") and still land on the strike', async () => {
+    // 60 Hz ticks over the 30 fps frames, each frame's age varying 60-110 ms.
+    const origin = performance.timeOrigin;
+    const doubled: HandsFrame[] = [];
+    frames.forEach((f, i) => {
+      const age = 0.06 + 0.05 * ((i * 7) % 11) / 10;
+      const stamped = { ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: origin, lag: age };
+      doubled.push(stamped, stamped);
+    });
+    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.05 }));
+    const outs = await replayNode(h, { hands: doubled }, { dt: 1 / (2 * FPS), resources: { timeScale: 1 } });
+    const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
+    expect(hits.length).toBe(truth.events.length);
+    for (const hit of hits) {
+      // Never labelled predicted with no lead; never scheduled behind the decision.
+      expect(hit.predicted).toBe(hit.lead >= 0);
+      expect(hit.t).toBeGreaterThanOrEqual(hit.tick / (2 * FPS) - 1e-9);
+      // A predicted hit still lands near the strike (in the stamped base the strike is
+      // `age` behind the tick clock; compare in the stamped base); a late one sounds as
+      // soon as it can, which is at most the pipeline's age after the strike.
+      const i = Math.floor(hit.tick / 2);
+      const age = 0.06 + 0.05 * ((i * 7) % 11) / 10;
+      const e = nearest(hit.t + age);
+      if (hit.predicted) expect(Math.abs(hit.t + age - e.t_impact)).toBeLessThan(0.05);
+      // (a ghost note is confirmed one frame after the bottom, on a tick up to a frame
+      // later, and the pipeline's age on top of that)
+      else expect(hit.t + age - e.t_impact).toBeLessThan(age + 2 / FPS + 0.02);
+    }
+    // The point of the test: some hits ARE late in this pipeline, and say so.
+    expect(hits.some((x) => !x.predicted)).toBe(true);
+  });
+
   it('a changed lead takes effect live, without toggling the dial', async () => {
     const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.03 }));
     const config = frames.map((_, i) => ({ enabled: true, minLead: i < 90 ? 0.03 : 0.1 }));
@@ -186,6 +218,19 @@ describe('air-drum node on the synthetic surface fixture', () => {
     const config = still.map((_, i) => ({ enabled: true, point: Math.floor(i / 20) % 2 ? 'indexTip' : 'wrist' }));
     const outs = await replayNode(h, { hands: still, config }, { dt: 1 / FPS });
     expect(outs.flatMap((o) => o.hits as DrumHit[])).toHaveLength(0);
+    // A soft stroke that BRAKES into its bottom (a cosine dip of 8 % of the height over
+    // 200 ms) is still a stroke: the gate is on the stroke's peak speed, not its speed
+    // at the bottom.
+    const soft: HandsFrame[] = [];
+    for (let i = 0; i < 300; i++) {
+      const t = i / FPS;
+      const phase = (t % 1) / 0.2;
+      const dip = phase < 1 ? 0.5 * (1 - Math.cos(2 * Math.PI * phase)) : 0;
+      soft.push({ width: 1280, height: 720, hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 0.08 * 720 * dip })) }] });
+    }
+    const h3 = airDrumNode.make(airDrumNode.params.parse({ enabled: true }));
+    const outs3 = await replayNode(h3, { hands: soft }, { dt: 1 / FPS });
+    expect(outs3.flatMap((o) => o.hits as DrumHit[]).length).toBeGreaterThanOrEqual(8);
     // A melodic hand sweeping slowly up and down by a tenth of the frame: not a stroke.
     const sway: HandsFrame[] = Array.from({ length: 600 }, (_, i) => ({
       width: 1280,

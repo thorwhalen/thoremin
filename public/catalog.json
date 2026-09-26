@@ -85,6 +85,11 @@
         "name": "minStroke",
         "type": "number",
         "default": 0.03
+      },
+      {
+        "name": "minSpeed",
+        "type": "number",
+        "default": 0.5
       }
     ]
   },
