@@ -29,7 +29,7 @@ Tiers 1–3 are the CI gate: `npm test` (vitest, Node env, no camera/GPU/audio).
 
 ```bash
 npm run typecheck   # strict DAG typecheck (tsconfig.dag.json)
-npm test            # vitest — 124 test files, 1540 tests
+npm test            # vitest — the summary it prints is the current file and test count
 npm run build       # vite build (this is what verifies the React layer)
 npm run catalog     # regenerate docs/CATALOG.md + public/manual.html + public/catalog.json
 ```
