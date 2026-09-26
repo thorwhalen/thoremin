@@ -110,6 +110,9 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
   let state: MusicalTime['state'] = 'ready';
   let confidence = 0;
 
+  /** The beat frozen at the moment the follower entered `hold`. */
+  let holdBeat = 0;
+
   /** Time of beat index n (relative to the last anchor's index), from the fit. */
   const timeOf = (n: number): number => {
     const x = n - lastN;
@@ -121,20 +124,39 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
     const x = n - lastN;
     return Math.max(o.minPeriod, Math.min(o.maxPeriod, fit.b + 2 * fit.c * x));
   };
-  /** Continuous beat index at time tt (inverting the fit near the last anchor). */
+  /** A fit is usable only where its slope (the period) stays plausible over the
+   *  beats it will be evaluated on: the last anchor, and up to two beats ahead. A
+   *  quadratic whose curvature drives the period out of range there is replaced by
+   *  the linear fit. */
+  const plausible = (f: Fit): boolean => {
+    for (const x of [-1, 0, 1, 2]) {
+      const slope = f.b + 2 * f.c * x;
+      if (!(slope >= o.minPeriod && slope <= o.maxPeriod)) return false;
+    }
+    return true;
+  };
+  /** Continuous beat index at time tt: the fit inverted in closed form, the root on
+   *  the branch that contains the last anchor, clamped to a few beats around it. */
   const beatAtTime = (tt: number): number => {
     if (!fit) return 0;
-    // Newton from the linear guess; the quadratic term is small.
-    let n = lastN + (tt - fit.a) / Math.max(1e-6, fit.b);
-    for (let i = 0; i < 4; i++) {
-      const p = periodAt(n);
-      n += (tt - timeOf(n)) / p;
+    let x: number;
+    if (Math.abs(fit.c) < 1e-9) x = (tt - fit.a) / fit.b;
+    else {
+      // c x² + b x + (a - tt) = 0; the root nearest x = 0 on the increasing branch.
+      const disc = fit.b * fit.b - 4 * fit.c * (fit.a - tt);
+      if (disc < 0) x = (tt - fit.a) / fit.b;
+      else {
+        const sq = Math.sqrt(disc);
+        const r1 = (-fit.b - sq) / (2 * fit.c);
+        const r2 = (-fit.b + sq) / (2 * fit.c);
+        x = Math.abs(r1) <= Math.abs(r2) ? r1 : r2;
+      }
     }
-    return n;
+    return lastN + Math.max(-2, Math.min(4, x));
   };
 
   const snapshot = (): MusicalTime => {
-    const beat = state === 'ready' ? 0 : beatAtTime(t);
+    const beat = state === 'ready' ? 0 : state === 'hold' ? holdBeat : beatAtTime(t);
     const wholeBeat = Math.floor(beat);
     const phase = beat - wholeBeat;
     const period = periodAt(beat);
@@ -158,12 +180,18 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
   return {
     advance(tNew) {
       if (!(tNew > t)) return;
+      const dt = tNew - t;
       t = tNew;
       if (state === 'running' && ts.length) {
         const since = t - ts[ts.length - 1];
         const p = periodAt(lastN);
-        if (since > o.holdAfterPeriods * p) state = 'hold';
-        else if (since > p) confidence *= Math.pow(0.5, (since - p) / p);
+        // Once the expected beat is overdue, confidence decays by the time elapsed
+        // (not per call), as the oscillator's does.
+        if (since > p) confidence *= Math.pow(0.5, Math.min(dt, since - p) / p);
+        if (since > o.holdAfterPeriods * p) {
+          holdBeat = beatAtTime(t);
+          state = 'hold';
+        }
       }
     },
     update(a: Anchor) {
@@ -171,13 +199,28 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
       if (ts.length && !(a.t > ts[ts.length - 1])) return;
       anchors++;
       if (state === 'hold') {
-        // A preparatory beat after a hold: keep the tempo, restart the phase here.
+        // A preparatory beat after a hold: keep the tempo, restart the phase here on
+        // the next whole beat, and carry on running from a linear fit through this
+        // anchor at the kept period (the beat count continues; a fermata does not
+        // rewind the score).
+        const period = periodAt(lastN);
+        const n = Math.floor(holdBeat) + 1;
         ns.length = 0;
         ts.length = 0;
-        state = 'ready';
+        ns.push(n);
+        ts.push(a.t);
+        lastN = n;
+        fit = { a: a.t, b: period, c: 0, rms: 0 };
+        state = 'running';
+        confidence = 0.5;
+        if (a.t > t) t = a.t;
+        return;
       }
-      const p = periodAt(lastN);
-      const n = ts.length ? lastN + Math.max(1, Math.round((a.t - ts[ts.length - 1]) / p)) : 0;
+      // The beat index: the nearest whole number of periods since the last anchor
+      // once a tempo is known, else simply the next beat (the first interval IS the
+      // period; rounding it against a guessed tempo would read a slow player as a
+      // multiple of the guess).
+      const n = ts.length ? lastN + (fit ? Math.max(1, Math.round((a.t - ts[ts.length - 1]) / periodAt(lastN))) : 1) : 0;
       ns.push(n);
       ts.push(a.t);
       lastN = n;
@@ -194,7 +237,9 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
           fit = null;
           state = 'ready';
         } else {
-          fit = fitTrend(ns, ts, ns.length >= o.quadraticAfter);
+          const q = ns.length >= o.quadraticAfter ? fitTrend(ns, ts, true) : null;
+          fit = q && plausible(q) ? q : fitTrend(ns, ts, false);
+          if (fit && !plausible(fit)) fit = null;
           state = fit ? 'running' : 'ready';
           const period = periodAt(lastN);
           confidence = fit ? Math.max(0, Math.min(1, 1 - fit.rms / (0.1 * period))) : 0;
@@ -217,6 +262,7 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
       anchors = 0;
       state = 'ready';
       confidence = 0;
+      holdBeat = 0;
     },
   };
 }

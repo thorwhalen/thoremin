@@ -31,7 +31,9 @@
  * - `predictKnown` — the same on surface clips with the contact plane GIVEN (a
  *                    calibrated table).
  * - `sounded`      — what the instrument would play: the prediction when there was
- *                    one, else the confirmation (late).
+ *                    one (never earlier than its commit time plus the required lead),
+ *                    else the confirmation, sounded at the confirming sample plus the
+ *                    required lead — late, and scored as late.
  * - `grid:<prior>` — the rhythm prior's nearest expected beat at the prediction (the
  *                    pure intent estimate); priors: `osc` (the adaptive oscillator)
  *                    and `trend` (the least-squares tempo trend).
@@ -176,6 +178,8 @@ interface PredictorRun {
   predictions: Estimate[];
   confirmations: Estimate[];
   sounded: Estimate[];
+  /** Predictions committed with less lead than the consumer needs. */
+  shortLeads: number;
   /** Per prior name, per magnetism: the pulled prediction, with the grid. */
   magnet: Map<string, Map<number, Estimate[]>>;
   grid: Map<string, Estimate[]>;
@@ -183,13 +187,15 @@ interface PredictorRun {
 }
 
 function runPredictor(samples: Sample[], opts: ImpactPredictorOptions, magnetisms: number[], priors: Record<string, () => RhythmPrior>): PredictorRun {
-  const pred = createImpactPredictor(opts);
+  const pred = createImpactPredictor({ minAmplitude: 12, ...opts });
+  const minLead = opts.minLead ?? 0.03;
   const live = Object.fromEntries(Object.entries(priors).map(([k, mk]) => [k, mk()]));
   const names = Object.keys(live);
   const run: PredictorRun = {
     predictions: [],
     confirmations: [],
     sounded: [],
+    shortLeads: 0,
     magnet: new Map(names.map((n) => [n, new Map(magnetisms.map((m) => [m, []]))])),
     grid: new Map(names.map((n) => [n, []])),
     kinds: [],
@@ -200,7 +206,10 @@ function runPredictor(samples: Sample[], opts: ImpactPredictorOptions, magnetism
     for (const e of events) {
       if (e.kind === 'predict') {
         run.predictions.push({ t: e.t, at: e.at });
-        run.sounded.push({ t: e.t, at: e.at });
+        // What sounds: the prediction, but never earlier than the consumer can act
+        // (the commit time plus the lead it needs).
+        run.sounded.push({ t: Math.max(e.t, e.at + minLead), at: e.at });
+        if (e.lead < minLead) run.shortLeads++;
         for (const n of names) {
           const state = live[n].state();
           for (const m of magnetisms) {
@@ -212,7 +221,9 @@ function runPredictor(samples: Sample[], opts: ImpactPredictorOptions, magnetism
         }
       } else {
         run.confirmations.push({ t: e.t, at: e.at });
-        if (e.predicted === null) run.sounded.push({ t: e.t, at: e.at });
+        // Unpredicted: the instrument learns of the stroke at `at` and can sound it no
+        // earlier than `at` plus its lead — late, and scored as late.
+        if (e.predicted === null) run.sounded.push({ t: e.at + minLead, at: e.at });
         const anchor: Anchor = { t: e.t, confidence: e.confidence, strength: e.strength, sharpness: NaN, lateral: 0 };
         for (const n of names) live[n].update(anchor);
         if (names.length) pred.setPeriod(live[names[0]].state().period);
@@ -307,6 +318,8 @@ console.error(`${clips.length} clips from ${SET}`);
 const records: Record_[] = [];
 const tallies = new Map<string, { events: number; missed: number; spurious: number }>();
 const kindHits = { total: 0, right: 0 };
+/** Per minLead: predictions committed short of it, and predictions in all. */
+const shortLeads = new Map<number, { short: number; total: number }>();
 
 function score(clip: Clip, estimator: string, noise: number, minLead: number, estimates: Estimate[]) {
   const { pairs, missed, spurious } = match(clip.truth.events, estimates);
@@ -340,6 +353,12 @@ for (const clip of clips) {
       const run = runPredictor(samples, { minLead }, MAGNETISMS, PRIORS);
       score(clip, 'predict', noise, minLead, run.predictions);
       score(clip, 'confirm', noise, minLead, run.confirmations);
+      if (noise === NOISES[0]) {
+        const sl = shortLeads.get(minLead) ?? { short: 0, total: 0 };
+        sl.short += run.shortLeads;
+        sl.total += run.predictions.length;
+        shortLeads.set(minLead, sl);
+      }
       score(clip, 'sounded', noise, minLead, run.sounded);
       for (const p of Object.keys(PRIORS)) {
         score(clip, `grid:${p}`, noise, minLead, run.grid.get(p)!);
@@ -431,6 +450,7 @@ for (const axis of ['fps', 'exposure', 'timing', 'object'] as Axis[]) {
   md.push(table(`By ${axis} — noise ${NOISES[0]} px, minLead ${ML} s`, rows, `estimator / ${axis}`));
 }
 md.push(`Stroke kind classified correctly by the predictor (auto mode, noise ${NOISES[0]} px): ${kindHits.right}/${kindHits.total}.`, '');
+md.push(`Predictions committed with less lead than required (noise ${NOISES[0]} px): ${[...shortLeads.entries()].map(([ml, s]) => `minLead ${ml}: ${s.short}/${s.total}`).join('; ')}.`, '');
 
 const summary = md.join('\n');
 const cells: Record<string, CellStats> = {};

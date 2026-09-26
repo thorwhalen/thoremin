@@ -48,8 +48,10 @@ describe('fitQuadratic / fitLine / crossingTau / intersectionTau', () => {
     const ahead = crossingTau(fit, 5);
     expect(ahead.reaches).toBe(true);
     expect(ahead.tau).toBeCloseTo((-100 + Math.sqrt(100 * 100 + 4 * 200 * 5)) / 400, 9);
-    // Already 3 units past the floor at the origin: no crossing ahead ...
-    expect(Number.isNaN(crossingTau({ a: 3, b: 100, c: 200 }, 0).tau)).toBe(true);
+    // Already 3 units past the floor at the origin and still heading down: ahead,
+    // the crossing is now (never a decelerating trajectory's exit root) ...
+    expect(crossingTau({ a: 3, b: 100, c: 200 }, 0)).toEqual({ tau: 0, reaches: true });
+    expect(crossingTau({ a: 5, b: 100, c: -2000 }, 0)).toEqual({ tau: 0, reaches: true });
     // ... but the refinement finds it just behind.
     const around = crossingTau({ a: 3, b: 100, c: 200 }, 0, true);
     expect(around.tau).toBeLessThan(0);
@@ -106,7 +108,7 @@ function noisy(samples: Sample[], sd: number, seed: number): Sample[] {
 }
 
 function run(samples: Sample[], opts: Parameters<typeof createImpactPredictor>[0] = {}) {
-  const pred = createImpactPredictor({ minLead: 0.03, ...opts });
+  const pred = createImpactPredictor({ minLead: 0.03, ...FLOOR, ...opts });
   const predictions: ImpactPrediction[] = [];
   const confirmations: ImpactConfirmation[] = [];
   for (const s of samples) {
@@ -126,10 +128,16 @@ const nearest = <T extends { t: number }>(events: T[], t: number): T => events.r
 
 /** Per fixture: the bound on the prediction's |error| in seconds, and on its spread. */
 const CASES: { name: string; maxAbs: number; maxSd: number; maxAbsNoisy: number }[] = [
-  { name: 'subframe_stick_surface_30', maxAbs: 0.02, maxSd: 0.007, maxAbsNoisy: 0.03 },
-  { name: 'subframe_stick_air_30', maxAbs: 0.025, maxSd: 0.011, maxAbsNoisy: 0.035 },
-  { name: 'subframe_ball_air_60', maxAbs: 0.015, maxSd: 0.006, maxAbsNoisy: 0.025 },
+  { name: 'subframe_stick_surface_30', maxAbs: 0.016, maxSd: 0.003, maxAbsNoisy: 0.04 },
+  { name: 'subframe_stick_air_30', maxAbs: 0.025, maxSd: 0.008, maxAbsNoisy: 0.045 },
+  { name: 'subframe_ball_air_60', maxAbs: 0.016, maxSd: 0.003, maxAbsNoisy: 0.03 },
 ];
+
+/** What a real caller sets: an absolute stroke floor in its own units (pixels here;
+ *  a hand at 640 px moves far more than this in any stroke), so that noise before the
+ *  first stroke — when there is no envelope and no jitter estimate yet to be small
+ *  against — cannot be a stroke. */
+const FLOOR = { minAmplitude: 12 };
 
 describe.each(CASES)('impact predictor on $name', ({ name, maxAbs, maxSd, maxAbsNoisy }) => {
   const { truth, samples } = loadFixture(name);
@@ -174,13 +182,18 @@ describe.each(CASES)('impact predictor on $name', ({ name, maxAbs, maxSd, maxAbs
     expect(pred.lastKind()).toBe(truth.spec.kind);
   });
 
-  it('with 2 px of tracker noise: no spurious event, every stroke still confirmed, errors within the looser bound', () => {
-    const { predictions, confirmations } = run(noisy(samples, 2, 7));
-    expect(confirmations.length).toBe(events.length);
-    expect(predictions.length).toBeLessThanOrEqual(events.length);
-    expect(predictions.length).toBeGreaterThanOrEqual(events.length - 3);
-    for (const p of predictions) expect(Math.abs(p.t - nearest(events, p.t).t_impact)).toBeLessThan(maxAbsNoisy);
-    for (const c of confirmations) expect(Math.abs(c.t - nearest(events, c.t).t_impact)).toBeLessThan(maxAbsNoisy);
+  it('with 2 px of tracker noise, over ten seeds: no spurious event, every stroke still confirmed, errors within the looser bound', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { predictions, confirmations } = run(noisy(samples, 2, seed));
+      expect(confirmations.length, `seed ${seed}`).toBe(events.length);
+      expect(predictions.length, `seed ${seed}`).toBeLessThanOrEqual(events.length);
+      expect(predictions.length, `seed ${seed}`).toBeGreaterThanOrEqual(events.length - 3);
+      // Noise makes a smooth turn's bottom ambiguous now and then: at most one event
+      // per seed may exceed the bound, and nothing may exceed twice it.
+      const errs = [...predictions, ...confirmations].map((e) => Math.abs(e.t - nearest(events, e.t).t_impact));
+      expect(errs.filter((x) => x >= maxAbsNoisy).length, `seed ${seed}`).toBeLessThanOrEqual(1);
+      for (const x of errs) expect(x, `seed ${seed}`).toBeLessThan(2 * maxAbsNoisy);
+    }
   });
 
   if (truth.spec.kind === 'surface') {

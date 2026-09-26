@@ -96,6 +96,10 @@ export interface ImpactPredictorOptions {
   /** A prediction is trusted once consecutive samples agree within this (seconds);
    *  NaN disables the check. */
   stabilityTolerance?: number;
+  /** A prediction needs the point to have come at least this fraction of the
+   *  predicted stroke down from its top: the observed descent, not the predicted
+   *  amplitude, is what says a stroke is under way. */
+  minDescentFraction?: number;
   /** Departure samples the kink fit uses (after the bottom). */
   departureSamples?: number;
   /** A stroke smaller than this fraction of the recent envelope is not a stroke. */
@@ -134,6 +138,7 @@ const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
   approachWindow: 0.15,
   maxApproachSamples: 12,
   stabilityTolerance: 0.012,
+  minDescentFraction: 0.25,
   departureSamples: 3,
   minAmplitudeFraction: 0.2,
   minAmplitudeNoiseUnits: 20,
@@ -294,6 +299,9 @@ export function crossingTau(fit: { a: number; b: number; c: number }, level: num
     if (past || (b > 0 && tau >= 0)) return { tau, reaches: true };
     return { tau: NaN, reaches: false };
   }
+  // Looking ahead from at or below the level while still heading toward it: the
+  // crossing is now (not the exit root of a decelerating trajectory).
+  if (!past && k >= 0 && b > 0) return { tau: 0, reaches: true };
   const disc = b * b - 4 * c * k;
   if (disc >= 0) {
     const sq = Math.sqrt(disc);
@@ -361,6 +369,10 @@ class JitterEstimator {
     if (this.ring.length < JITTER_WINDOW) this.ring.push(resid);
     else this.ring[this.i] = resid;
     this.i = (this.i + 1) % JITTER_WINDOW;
+  }
+  /** How many residuals have been seen (the warm-up gate reads it). */
+  count(): number {
+    return this.ring.length === JITTER_WINDOW ? JITTER_WINDOW : this.ring.length;
   }
   /** NaN until the first residual. */
   value(): number {
@@ -446,6 +458,9 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   const passesAmplitude = (amplitude: number): boolean => {
     if (!(amplitude > 0)) return false;
     if (amplitude < o.minAmplitude) return false;
+    // Warm-up: until the jitter estimate has enough residuals to mean anything, a
+    // stroke must be big against something — the envelope or the absolute floor.
+    if (jitterEst.count() < JITTER_WINDOW / 2 && envelope <= 0 && !(o.minAmplitude > 0)) return false;
     const jitter = jitterEst.value();
     if (Number.isFinite(jitter) && amplitude < o.minAmplitudeNoiseUnits * jitter) return false;
     if (envelope > 0 && amplitude < o.minAmplitudeFraction * envelope) return false;
@@ -497,7 +512,8 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
       kind = airVotes * 2 > votes.length ? 'air' : airVotes * 2 === votes.length ? votes[votes.length - 1] : 'surface';
     }
     lastKind = kind;
-    if (kind === 'surface' && Number.isFinite(kinkTau)) {
+    const dtDep = L.departT[0] - L.bottomT;
+    if (kind === 'surface' && Number.isFinite(kinkTau) && Math.abs(kinkTau) < 2 * dtDep) {
       const kinkT = L.bottomT + kinkTau;
       learnLevel(evalQ(approach, kinkTau));
       learnLag(kinkT - L.crossing);
@@ -647,13 +663,20 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
             const crossing = t + x.tau;
             const tPred = crossing + lag;
             const amplitude = level - topD;
-            const stable = !Number.isFinite(o.stabilityTolerance) || (Number.isFinite(tentative) && Math.abs(tPred - tentative) <= o.stabilityTolerance);
+            // The point must have actually come a good part of the way down: a fit
+            // through a few noise samples at rest can "reach" a floor a stroke away.
+            const descended = d - topD >= o.minDescentFraction * amplitude;
+            const agrees = Number.isFinite(tentative) && Math.abs(tPred - tentative) <= o.stabilityTolerance;
+            const first = !Number.isFinite(tentative);
             tentative = tPred;
             const lead = tPred - t;
             // As late as possible: commit now if the next sample would leave less than
-            // the needed lead (or the lead is already short).
-            const lastChance = !Number.isFinite(dt) || lead - dt < o.minLead;
-            if (stable && lastChance && passesAmplitude(amplitude) && t - lastConfirmT >= o.refractoryFraction * period) {
+            // the needed lead, allowing for the prediction still moving by its
+            // tolerance; a stroke whose first usable fit is already the last chance
+            // commits on it rather than a frame late.
+            const lastChance = !Number.isFinite(dt) || lead - dt - o.stabilityTolerance < o.minLead;
+            const stable = !Number.isFinite(o.stabilityTolerance) || agrees || (first && lastChance);
+            if (stable && lastChance && descended && passesAmplitude(amplitude) && t - lastConfirmT >= o.refractoryFraction * period) {
               const strength = strengthOf(amplitude);
               committed = { kind: 'predict', t: tPred, at: t, lead, strength, confidence: clamp01(strength), crossing };
               events.push(committed);
