@@ -72,7 +72,7 @@ describe('production app graph', () => {
     // pair (indirect-map + lyria) + the #187 conductor and score.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    expect(order).toHaveLength(25);
+    expect(order).toHaveLength(27);
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {

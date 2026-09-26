@@ -24,6 +24,7 @@ const SURFACES: Record<string, string> = {
   gestures: 'GesturesPanel',
   trainer: 'TrainerPanel',
   conductor: 'ConductorPanel',
+  airDrum: 'AirDrumPanel',
 };
 
 describe('app shell', () => {

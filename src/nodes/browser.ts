@@ -14,6 +14,7 @@ import { storeControlsNode } from './sources/store_controls';
 import { webAudioSynthNode } from './output/webaudio_synth';
 import { canvasOverlayNode } from './output/canvas_overlay';
 import { midiOutNode } from './output/midi_out';
+import { drumOutNode } from './output/drum_out';
 
 export { webcamHandsNode } from './sources/webcam_hands';
 export { webcamFaceNode } from './sources/webcam_face';
@@ -28,6 +29,9 @@ export { canvasOverlayNode } from './output/canvas_overlay';
 export { midiOutNode } from './output/midi_out';
 export type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus, MidiPhase } from './output/midi_out';
 export { openWebMidiSink } from './output/midi_engine';
+// The air drum's audio (#233): WebAudio drums from primitives behind a sink facade.
+export { drumOutNode, createWebAudioDrumSink, engineToContextTime } from './output/drum_out';
+export type { DrumSink, DrumSinkFactory } from './output/drum_out';
 // The browser-only Lyria engine (`./output/lyria_engine`) is deliberately NOT
 // re-exported here (#188): the `lyria` node dynamically imports it the first time
 // the generative layer is enabled, and a static re-export from this module — which
@@ -45,6 +49,7 @@ export const BROWSER_NODES = [
   webAudioSynthNode,
   canvasOverlayNode,
   midiOutNode,
+  drumOutNode,
 ];
 
 /** Registry with every node available in the browser app. */

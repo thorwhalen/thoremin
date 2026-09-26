@@ -21,7 +21,7 @@ import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR } from './schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, AirDrumSettingsSchema, DEFAULT_AIR_DRUM } from './schema';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
@@ -155,6 +155,14 @@ export const thoreminDials = defineDials(
       title: 'Conductor',
       description: 'Conduct the score with your hand: on/off, which hand and point to follow, how tightly the score follows the beat',
     }),
+    // The air drum (#233) — a whole-object dial like `conductor`: `paths.ts` derives
+    // `airDrum.enabled`, `airDrum.rightSound`, `airDrum.minLead`, … from the node's own
+    // schema. Off by default.
+    airDrum: AirDrumSettingsSchema.default(DEFAULT_AIR_DRUM).meta({
+      facets: ['Air drum'],
+      title: 'Air drum',
+      description: 'Strike the air and hear a drum at the strike: on/off, which hands and point, the sounds, how far ahead a hit is committed, timing magnetism',
+    }),
   }),
   // No cross-field constraints: since #75 the chord/head-pose modes no longer require
   // a seven-note melody scale — the chord SOURCE (auto-derived or custom) is what a
@@ -213,6 +221,7 @@ export function settingsToLayer(s: Settings): Layer {
     bodyMap: s.bodyMap,
     faceControls: s.faceControls,
     conductor: s.conductor,
+    airDrum: s.airDrum,
   });
 }
 
@@ -250,5 +259,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     bodyMap: v.bodyMap,
     faceControls: v.faceControls,
     conductor: v.conductor,
+    airDrum: v.airDrum,
   });
 }

@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (40)
+## Nodes (42)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, bodyMap:body-map, scoreDoc:score-doc
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -377,6 +377,25 @@ Control signal → tempo (bpm) + dynamics (velocityScale), with optional humaniz
 - **in:** control:number
 - **out:** bpm:number, velocityScale:number
 - **params:** bpmMin (number=60), bpmMax (number=160), dynMin (number=0.4), dynMax (number=1), humanizeBpm (number=0), humanizeVel (number=0)
+
+### Air instruments
+_Strike, pluck or blow at nothing — hits predicted before the frame that shows them (#233)._
+
+#### `air-drum` — Air drum
+Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.
+
+- **roles:** feature, mapping
+- **in:** hands:hands-frame, config:air-drum-config, time:musical-time
+- **out:** hits:drum-hits, status:air-drum-status, enabled:boolean
+- **params:** enabled (boolean=false), hand (enum(both | right | left)="both"), point (enum(wrist | indexTip)="wrist"), rightSound (enum(kick | snare | hihat | tom)="kick"), leftSound (enum(kick | snare | hihat | tom)="snare"), minLead (number=0.05), magnetism (number=0), mirrorHandedness (boolean=true), volume (number=0.8), minStroke (number=0.03), minSpeed (number=0.5)
+
+#### `drum-out` — Drum out
+Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).
+
+- **roles:** synth
+- **in:** hits:drum-hits
+- **out:** —
+- **params:** —
 
 ### Synthesis & generation
 _Make sound — direct synthesis, steered AI music, or an external MIDI instrument._

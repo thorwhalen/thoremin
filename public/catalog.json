@@ -1,5 +1,99 @@
 [
   {
+    "type": "air-drum",
+    "title": "Air drum",
+    "description": "Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.",
+    "roles": [
+      "feature",
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "air-drum-config"
+      },
+      {
+        "name": "time",
+        "kind": "musical-time"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "hits",
+        "kind": "drum-hits"
+      },
+      {
+        "name": "status",
+        "kind": "air-drum-status"
+      },
+      {
+        "name": "enabled",
+        "kind": "boolean"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "hand",
+        "type": "enum(both | right | left)",
+        "default": "both"
+      },
+      {
+        "name": "point",
+        "type": "enum(wrist | indexTip)",
+        "default": "wrist"
+      },
+      {
+        "name": "rightSound",
+        "type": "enum(kick | snare | hihat | tom)",
+        "default": "kick"
+      },
+      {
+        "name": "leftSound",
+        "type": "enum(kick | snare | hihat | tom)",
+        "default": "snare"
+      },
+      {
+        "name": "minLead",
+        "type": "number",
+        "default": 0.05
+      },
+      {
+        "name": "magnetism",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "volume",
+        "type": "number",
+        "default": 0.8
+      },
+      {
+        "name": "minStroke",
+        "type": "number",
+        "default": 0.03
+      },
+      {
+        "name": "minSpeed",
+        "type": "number",
+        "default": 0.5
+      }
+    ]
+  },
+  {
     "type": "body-feature-vector",
     "title": "Body Feature Vector",
     "description": "Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).",
@@ -511,6 +605,22 @@
         "default": 1
       }
     ]
+  },
+  {
+    "type": "drum-out",
+    "title": "Drum out",
+    "description": "Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "hits",
+        "kind": "drum-hits"
+      }
+    ],
+    "outputs": [],
+    "params": []
   },
   {
     "type": "expression-chord",
@@ -1728,6 +1838,10 @@
       {
         "name": "conductor",
         "kind": "conductor-config"
+      },
+      {
+        "name": "airDrum",
+        "kind": "air-drum-config"
       },
       {
         "name": "bodyMap",

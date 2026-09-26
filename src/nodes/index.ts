@@ -18,6 +18,7 @@ import { handFeaturesNode } from './features/hand_features';
 import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
 import { conductorNode } from './features/conductor';
+import { airDrumNode } from './music/air_drum';
 import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
@@ -68,6 +69,19 @@ export {
   conductorNode,
   ConductorDialSchema,
   DEFAULT_CONDUCTOR_DIAL,
+} from './features/conductor';
+export {
+  airDrumNode,
+  AirDrumDialSchema,
+  DEFAULT_AIR_DRUM_DIAL,
+  DrumHitsSchema,
+  DRUM_SOUNDS,
+  AIR_DRUM_HANDS,
+  AIR_DRUM_POINTS,
+  IDLE_STATUS as AIR_DRUM_IDLE_STATUS,
+} from './music/air_drum';
+export type { AirDrumDialParams, AirDrumStatus, DrumHit, DrumSound } from './music/air_drum';
+export {
   MusicalTimeSchema,
   CONDUCTOR_HANDS,
   CONDUCTOR_POINTS,
@@ -115,6 +129,7 @@ export const CORE_NODES = [
   faceFeaturesNode,
   faceControlsNode,
   conductorNode,
+  airDrumNode,
   faceExpressionNode,
   gestureClassifierNode,
   faceFeatureVectorNode,
