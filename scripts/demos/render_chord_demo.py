@@ -58,7 +58,9 @@ def note_midi(label, voice):
     octave = int(label[-1]) if label[-1].isdigit() else None
     if voice == 'bass':
         return 28 + (pc - 4) % 12  # E1..D#2
-    return 12 * ((octave or 5) + 1) + pc if octave else 60 + (pc % 12) + (12 if pc < 7 else 0)
+    # Flute: a bare class is the first octave (C4..B4); 'D5' / 'D#5' are their own
+    # classes an octave up, so they must sound an octave up.
+    return 12 * (octave + 1) + pc if octave else 60 + pc % 12
 
 
 def flute_tone(freq, dur, *, rng):
