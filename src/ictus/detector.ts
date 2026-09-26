@@ -79,6 +79,11 @@ export interface DetectorOptions {
   /** A gap between consecutive samples longer than this (seconds) restarts the
    *  detector's history: the point was lost, not still. */
   maxGap?: number;
+  /** Refine the anchor time below the sample period (the parabolic fit in `turning`
+   *  mode, the linear interpolation in `zeroCrossing`). Off = the frame-snapped
+   *  detector: the sample's own time. Exists for the ablation that scores what the
+   *  refinement buys (`scripts/subframe/score.ts`); on in every shipped use. */
+  refine?: boolean;
 }
 
 const DEFAULTS: Required<DetectorOptions> = {
@@ -93,6 +98,7 @@ const DEFAULTS: Required<DetectorOptions> = {
   minAmplitudeNoiseUnits: 20,
   envelopeDecayPerSecond: 0.9,
   maxGap: 0.5,
+  refine: true,
 };
 
 interface Point {
@@ -266,7 +272,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
         if (!(p1.vy > 0 && p2.vy <= 0)) return null;
         const amplitude = p1.y - strokeTop;
         if (!passesAmplitude(amplitude)) return null;
-        const frac = p1.vy / (p1.vy - p2.vy);
+        const frac = o.refine ? p1.vy / (p1.vy - p2.vy) : 0;
         return emit(p1.t + frac * (p2.t - p1.t), p1.x + frac * (p2.x - p1.x), amplitude);
       }
 
@@ -276,7 +282,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
       if (!isBottom) return null;
       const amplitude = p1.y - Math.min(strokeTop, p0.y);
       if (!passesAmplitude(amplitude)) return null;
-      const off = parabolicOffset(p0.y, p1.y, p2.y);
+      const off = o.refine ? parabolicOffset(p0.y, p1.y, p2.y) : 0;
       const step = off >= 0 ? p2.t - p1.t : p1.t - p0.t;
       const x = p1.x + off * (off >= 0 ? p2.x - p1.x : p1.x - p0.x);
       return emit(p1.t + off * step, x, amplitude);

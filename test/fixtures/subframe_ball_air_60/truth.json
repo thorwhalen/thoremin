@@ -1,0 +1,241 @@
+{
+ "schema": "an.impacts/truth",
+ "generator": {
+  "package": "an",
+  "version": "0.1.86",
+  "module": "an.impacts.clip"
+ },
+ "spec": {
+  "object": "ball",
+  "kind": "air",
+  "tempo": 110,
+  "beats": 8,
+  "subdivision": 1,
+  "pattern": [
+   1,
+   0.7
+  ],
+  "lead_in": 0.5,
+  "tail": 0.5,
+  "jitter_sd": 0.012,
+  "jitter_rho": 0,
+  "jitter_bias": 0,
+  "rise": 0.18,
+  "fall": 0.18,
+  "brake": 0.03,
+  "show_surface": null,
+  "fps": 60,
+  "exposure": 0.5,
+  "exposure_samples": null,
+  "timestamp_jitter_sd": 0,
+  "timestamp_noise_sd": 0,
+  "phase": 0,
+  "timestamps": "nominal",
+  "width": 640,
+  "height": 360,
+  "trajectory_hz": 1000,
+  "seed": 4
+ },
+ "clip": {
+  "duration": 4.818181818181818,
+  "fps": 60,
+  "width": 640,
+  "height": 360,
+  "frame_count": 289,
+  "rendered": false,
+  "files": {
+   "truth": "truth.json",
+   "keypoints": "keypoints.ndjson",
+   "trajectory": "trajectory.csv",
+   "scene": "scene.json"
+  }
+ },
+ "objects": [
+  {
+   "name": "ball",
+   "impact_keypoint": "bottom",
+   "keypoints": [
+    "center",
+    "bottom"
+   ]
+  }
+ ],
+ "events": [
+  {
+   "object": "ball",
+   "index": 0,
+   "beat": 0,
+   "amplitude": 1,
+   "t_grid": 0.5,
+   "t_impact": 0.5097258680843821,
+   "offset": 0.009725868084382139,
+   "kind": "air",
+   "t_peak_speed": 0.4797258680843821,
+   "peak_speed_px": 1888.8259259313143,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": 0.00694079858228458,
+    "nearest_error": -0.005559201417715487
+   }
+  },
+  {
+   "object": "ball",
+   "index": 1,
+   "beat": 1,
+   "amplitude": 0.7,
+   "t_grid": 1.0454545454545454,
+   "t_impact": 1.0477966683223316,
+   "offset": 0.002342122867786234,
+   "kind": "air",
+   "t_peak_speed": 1.0177966683223316,
+   "peak_speed_px": 1322.1781481604467,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": 0.0022033316776683964,
+    "nearest_error": 0.006369998344335048
+   }
+  },
+  {
+   "object": "ball",
+   "index": 2,
+   "beat": 2,
+   "amplitude": 1,
+   "t_grid": 1.5909090909090908,
+   "t_impact": 1.589647926975182,
+   "offset": -0.0012611639339088487,
+   "kind": "air",
+   "t_peak_speed": 1.559647926975182,
+   "peak_speed_px": 1888.8259259398408,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": -0.00631459364184872,
+    "nearest_error": -0.0021479269751820684
+   }
+  },
+  {
+   "object": "ball",
+   "index": 3,
+   "beat": 3,
+   "amplitude": 0.7,
+   "t_grid": 2.1363636363636367,
+   "t_impact": 2.1580893359451365,
+   "offset": 0.021725699581499835,
+   "kind": "air",
+   "t_peak_speed": 2.1280893359451367,
+   "peak_speed_px": 1322.1781481604467,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": -0.008089335945136611,
+    "nearest_error": -0.003922669278469737
+   }
+  },
+  {
+   "object": "ball",
+   "index": 4,
+   "beat": 4,
+   "amplitude": 1,
+   "t_grid": 2.6818181818181817,
+   "t_impact": 2.680258582968949,
+   "offset": -0.001559598849232735,
+   "kind": "air",
+   "t_peak_speed": 2.650258582968949,
+   "peak_speed_px": 1888.8259259398408,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": 0.0030747503643842045,
+    "nearest_error": 0.007241417031051078
+   }
+  },
+  {
+   "object": "ball",
+   "index": 5,
+   "beat": 5,
+   "amplitude": 0.7,
+   "t_grid": 3.227272727272727,
+   "t_impact": 3.2085538556804862,
+   "offset": -0.018718871592240838,
+   "kind": "air",
+   "t_peak_speed": 3.1785538556804864,
+   "peak_speed_px": 1322.1781481604467,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": -0.008553855680486055,
+    "nearest_error": -0.004387189013819626
+   }
+  },
+  {
+   "object": "ball",
+   "index": 6,
+   "beat": 6,
+   "amplitude": 1,
+   "t_grid": 3.772727272727273,
+   "t_impact": 3.7801233110907915,
+   "offset": 0.007396038363518542,
+   "kind": "air",
+   "t_peak_speed": 3.7501233110907917,
+   "peak_speed_px": 1888.8259259398408,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": 0.0032100222425417435,
+    "nearest_error": 0.007376688909208173
+   }
+  },
+  {
+   "object": "ball",
+   "index": 7,
+   "beat": 7,
+   "amplitude": 0.7,
+   "t_grid": 4.318181818181818,
+   "t_impact": 4.308663536741685,
+   "offset": -0.009518281440133336,
+   "kind": "air",
+   "t_peak_speed": 4.278663536741685,
+   "peak_speed_px": 1322.178148097919,
+   "fall": 0.18,
+   "brake": 0.03,
+   "impact_xy": [
+    320,
+    270
+   ],
+   "frames": {
+    "lowest_error": -0.008663536741685185,
+    "nearest_error": -0.004496870075017867
+   }
+  }
+ ]
+}
