@@ -11,14 +11,17 @@
  * enrolment alone. Written to `results/air/guitar/chord_shapes.enrol.json` (local) and
  * printed as a markdown table for the research doc.
  *
+ * Works for any instrument's dataset (`<instrument> <name>` positional, default
+ * `guitar chord_shapes`): the question "how much of the player's own footage does it
+ * take" is the same for a flute fingering.
+ *
  * Usage:
- *   npx vite-node scripts/air/enrol_chord_shape.ts [--seconds 2,5,10,20] [--gap 2] [--epochs 200]
+ *   npx vite-node scripts/air/enrol_chord_shape.ts [guitar chord_shapes] [--seconds 2,5,10,20] [--gap 2] [--epochs 200]
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { airDir } from './lib_air_paths';
+import { AIR_INSTRUMENTS, airDir, type AirInstrument } from './lib_air_paths';
 import { samplesFromNdjson } from './lib_chord_shape_dataset';
-import { chordShapeFeatureIds } from './lib_chord_shape_features';
 import { enrolmentSplit, evaluate, predict, predictCentroid, trainCentroid, trainSoftmax } from './lib_chord_shape_model';
 
 function arg(name: string, fallback: string): string {
@@ -26,16 +29,20 @@ function arg(name: string, fallback: string): string {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
 
+const positional = process.argv.slice(2).filter((a, i, all) => !a.startsWith('--') && !(i > 0 && all[i - 1].startsWith('--')));
+const instrument = (positional[0] ?? 'guitar') as AirInstrument;
+const name = positional[1] ?? 'chord_shapes';
+if (!AIR_INSTRUMENTS.includes(instrument)) throw new Error(`unknown instrument ${instrument}`);
 const budgets = arg('seconds', '2,5,10,20').split(',').map(Number);
 const gap = Number(arg('gap', '2'));
 const epochs = Number(arg('epochs', '200'));
 /** Frames per second the landmark streams were decoded at (25 to 30 here; 27 splits the difference). */
 const fps = Number(arg('fps', '27'));
 
-const dsPath = join(airDir('datasets', 'guitar'), 'chord_shapes.ndjson');
-if (!existsSync(dsPath)) throw new Error(`no dataset at ${dsPath}; run build_chord_shape_dataset.ts first`);
+const dsPath = join(airDir('datasets', instrument), `${name}.ndjson`);
+if (!existsSync(dsPath)) throw new Error(`no dataset at ${dsPath}; build it first`);
 const all = samplesFromNdjson(readFileSync(dsPath, 'utf8'));
-const F = chordShapeFeatureIds();
+const F = Object.keys(all[0].vector);
 const players = [...new Set(all.map((s) => s.group))].sort();
 
 interface Row {
@@ -71,9 +78,9 @@ for (const seconds of budgets) {
     });
   }
 }
-const resDir = airDir('results', 'guitar');
+const resDir = airDir('results', instrument);
 mkdirSync(resDir, { recursive: true });
-writeFileSync(join(resDir, 'chord_shapes.enrol.json'), JSON.stringify({ budgets, gap, fps, epochs, rows }, null, 1));
+writeFileSync(join(resDir, `${name}.enrol.json`), JSON.stringify({ budgets, gap, fps, epochs, rows }, null, 1));
 
 const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
 console.log('| player | enrolment s/chord | enrol frames | test frames | chords | own only, softmax | others + own, softmax | own only, centroid |');

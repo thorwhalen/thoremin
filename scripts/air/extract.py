@@ -20,6 +20,7 @@ skipped when present, so re-running after adding a source is cheap.
 
 Usage:
     python3 scripts/air/extract.py guitar [--streams hands pose face] [--only ID ...]
+    python3 scripts/air/extract.py drums --streams pose --file <a local clip>   # e.g. a self-recorded take
 """
 from __future__ import annotations
 
@@ -85,6 +86,7 @@ def main() -> int:
     ap.add_argument("--only", nargs="*", default=None)
     ap.add_argument("--python", default=None, help="interpreter with mediapipe + opencv")
     ap.add_argument("--pose-model", default="full", choices=["lite", "full", "heavy"])
+    ap.add_argument("--file", nargs="*", default=None, help="local clips (not in the source list) to decode into the same landmarks dir, named by stem")
     args = ap.parse_args()
 
     py = media_python(args.python)
@@ -96,6 +98,7 @@ def main() -> int:
     wanted = set(args.only) if args.only else None
     log = out_dir / "extract.log"
     failures = []
+    jobs: list[tuple[str, Path]] = []
     for src in doc["sources"]:
         vid = src["id"]
         if wanted and vid not in wanted:
@@ -107,6 +110,15 @@ def main() -> int:
             continue
         if src.get("windows"):
             video = cut_windows(video, src["windows"], out=vid_dir / f"{vid}.excerpt.mp4")
+        jobs.append((vid, video))
+    for f in args.file or []:
+        path = Path(f).expanduser()
+        if not path.exists():
+            print(f"missing local clip {path.name}", file=sys.stderr)
+            failures.append(path.stem)
+            continue
+        jobs.append((path.stem, path))
+    for vid, video in jobs:
         for stream in args.streams:
             script, pattern, extra = STREAM_SCRIPTS[stream]
             out = out_dir / pattern.format(id=vid)

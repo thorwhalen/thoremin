@@ -1,0 +1,81 @@
+{
+  "instrument": "flute",
+  "dataDir": "videos/air/flute",
+  "sources": [
+    {
+      "id": "xuuF11azh3A",
+      "title": "Learn EVERY Flute Fingering from a Pro Flutist",
+      "channel": "Lance Suzuki",
+      "player": "lance-suzuki",
+      "why": "Every note demonstrated in turn on a fixed close shot of both hands: the densest fingering-to-pitch source found.",
+      "license": null,
+      "leftHand": "max",
+      "face": true,
+      "windows": [[0, 1200]],
+      "notes": "37 minutes; the first twenty cover the first two octaves, which is the fingering range this model targets."
+    },
+    {
+      "id": "rZH_ETMCyMs",
+      "title": "How to Play ALL THE NOTES On the Flute (Fingerings + Timestamps)",
+      "channel": "Lauren Teaches Flute",
+      "player": "lauren-teaches-flute",
+      "why": "The same every-note format from a second player and camera, so the fingering model has a held-out player.",
+      "license": null,
+      "leftHand": "max",
+      "face": true
+    },
+    {
+      "id": "oyDMlzflx2I",
+      "title": "Try My Flute Warm Up in G Major",
+      "channel": "Lance Suzuki",
+      "player": "lance-suzuki",
+      "why": "Long tones, scales, thirds and arpeggios played continuously: many notes, little talk, same player as the fingering video.",
+      "license": null,
+      "leftHand": "max",
+      "face": true
+    },
+    {
+      "id": "KbBN3xF86Is",
+      "title": "Flute Scale Practice to IMPROVE your Tone and Technique",
+      "channel": "Lance Suzuki",
+      "player": "lance-suzuki",
+      "why": "A chromatic scale chapter: every semitone in order, the fingering model's whole vocabulary in one pass.",
+      "license": null,
+      "leftHand": "max",
+      "face": true
+    },
+    {
+      "id": "l4KHpvOZxd0",
+      "title": "Flute WARM-UP Play-Along - Scales (Concone Op.11)",
+      "channel": "Play-Along for Flute",
+      "player": "play-along-for-flute",
+      "why": "A play-along with no talk: continuous solo flute for the pitch labeller, a fourth player.",
+      "license": null,
+      "leftHand": "max",
+      "face": true,
+      "notes": "Framing not verifiable from metadata; kept only if the hand-detection rate is usable."
+    },
+    {
+      "id": "bKxnlXJyAvQ",
+      "title": "Flute Practice With Me - Standard of Excellence Bk1 Pg 5",
+      "channel": "Musician's Addition",
+      "player": "musicians-addition",
+      "why": "A beginner practising first notes at home: a non-professional hand and an amateur camera, the case an air flautist is.",
+      "license": null,
+      "leftHand": "max",
+      "face": true,
+      "notes": "Framing not verifiable from metadata; kept only if the hand-detection rate is usable."
+    },
+    {
+      "id": "AhO4viOGGTw",
+      "title": "Flute Embouchure Explained - The Band Face Hack",
+      "channel": "Dr. Selfridge Music",
+      "player": "selfridge",
+      "why": "A close-up on the mouth while shaping an embouchure on the headjoint: the embouchure half's clearest footage, no fingering.",
+      "license": null,
+      "leftHand": "max",
+      "face": true,
+      "notes": "720p, 24 fps; face stream is the point, the hand stream is incidental."
+    }
+  ]
+}

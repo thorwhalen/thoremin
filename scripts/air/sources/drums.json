@@ -1,0 +1,85 @@
+{
+  "instrument": "drums",
+  "dataDir": "videos/air/drums",
+  "sources": [
+    {
+      "id": "bTuZkz09Crg",
+      "title": "Day 2 of 31 Single Stroke Roll ft. ATL DRUM ACADEMY",
+      "channel": "ATL DRUM ACADEMY",
+      "player": "atl-drum-academy",
+      "why": "Single-stroke roll at 60 fps on a fixed camera: the cleanest stroke-per-hit footage, one drum.",
+      "license": null
+    },
+    {
+      "id": "LCVliBvczG8",
+      "title": "16 Basic Drum Set Grooves for Beginners",
+      "channel": "Chris Johnson",
+      "player": "chris-johnson",
+      "why": "A full kit with kick, snare, hi-hat and toms: the limb-to-drum assignment source.",
+      "license": null
+    },
+    {
+      "id": "QRBzyirReLs",
+      "title": "Practice With Me - 85 BPM Single Stroke Roll, 3 min",
+      "channel": "ADHDrums",
+      "player": "adhdrums",
+      "why": "An unedited single-take practice at one tempo, from a third drummer.",
+      "license": null
+    },
+    {
+      "id": "H3SoYdS31Ik",
+      "title": "Drum Warm Up - Singles, Doubles & Paradiddles",
+      "channel": "Sight Read Drums",
+      "player": "sight-read-drums",
+      "why": "Singles, doubles and paradiddles in chapters: sticking patterns the two wrists must be told apart on.",
+      "license": null
+    },
+    {
+      "id": "WlmRf8alZb4",
+      "title": "Practice your SINGLES (8th/16th/32nd notes)",
+      "channel": "Alejandro Sifuentes",
+      "player": "alejandro-sifuentes",
+      "why": "Singles at three subdivisions: strokes at rates up to and beyond what a 24 fps camera resolves.",
+      "license": null,
+      "windows": [
+        [
+          0,
+          540
+        ]
+      ]
+    },
+    {
+      "id": "FqJdzYY_Fas",
+      "title": "Best Drummer Ever [HD]",
+      "channel": "William Wei",
+      "player": "william-wei",
+      "why": "Air drumming on a fixed camera, whole upper body, one take: strokes with no hits in the audio.",
+      "license": null,
+      "air": true
+    },
+    {
+      "id": "YmhdvtCTfJI",
+      "title": "43 Minute Air Drumming Workout w/ Andrew W.K.",
+      "channel": "AndrewWK",
+      "player": "andrew-wk",
+      "why": "Sustained whole-body air drumming on a locked-off camera; a four-minute excerpt.",
+      "license": null,
+      "air": true,
+      "windows": [
+        [
+          60,
+          300
+        ]
+      ]
+    },
+    {
+      "id": "R8Z6deMf_3c",
+      "title": "AIR DRUMMING IN REAL LIFE! - Drum Cover Medley",
+      "channel": "COOP3RDRUMM3R",
+      "player": "coop3rdrumm3r",
+      "why": "Air drumming by a drummer, so the strokes are a drummer's strokes; a medley with cuts between songs.",
+      "license": null,
+      "air": true
+    }
+  ]
+}

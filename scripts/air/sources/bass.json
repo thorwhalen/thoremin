@@ -1,0 +1,134 @@
+{
+  "instrument": "bass",
+  "dataDir": "videos/air/bass",
+  "sources": [
+    {
+      "id": "7IPvdXjr-GM",
+      "title": "Lesson #1: Warm Up Session Lvl.1 (Bass Exercise)",
+      "channel": "CoverSolutions",
+      "player": "coversolutions",
+      "why": "A slow warm-up walked up and down the neck with the camera on the fretting hand: position changes with solo bass audio.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "TcYNZDA6NB4",
+      "title": "(Only Metronome) Warm up & Basic Chromatic exercise w/ tabs (2)",
+      "channel": "BassTabs World",
+      "player": "basstabs-world",
+      "why": "A deliberately slow chromatic exercise with metronome and bass only: every semitone, clean pitch labels.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "ihQvPkbWMTk",
+      "title": "(Only Metronome) C Major Scale Exercise with tabs",
+      "channel": "BassTabs World",
+      "player": "basstabs-world",
+      "why": "A short C major scale from the same player and setup, for more of that player's positions.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "9JX_siO1UNM",
+      "title": "19-02 - A - Bass Technique - Fluency Exercise #1",
+      "channel": "Tom Bornemann",
+      "player": "tom-bornemann",
+      "why": "A fretting-hand fluency drill from a second player and camera.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "CkdOpDLP7Ho",
+      "title": "21-07 - A - Finger Exercise in G major (slow & fast)",
+      "channel": "Tom Bornemann",
+      "player": "tom-bornemann",
+      "why": "The same exercise at two tempi: whether the fret-position features hold when the hand moves fast.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "CF3t_JAiZ-I",
+      "title": "20-01-B Finger Independence Exercise",
+      "channel": "Tom Bornemann",
+      "player": "tom-bornemann",
+      "why": "An arpeggio drill with the index anchored: several frets under one hand position.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "QtM3PgqrDUw",
+      "title": "8. Finger Combinations Exercise - Closeup",
+      "channel": "Andre Tonelli",
+      "player": "andre-tonelli",
+      "why": "A close-up on the fretting hand alone: the framing that gave the guitar model its best detection.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      },
+      "notes": "Only one hand in frame; the positional pick accepts a lone hand on the chosen half."
+    },
+    {
+      "id": "xNaHq1htrUk",
+      "title": "Bass Warm up Exercise on E string (Chromatic Scale)",
+      "channel": "etpbass",
+      "player": "etpbass",
+      "why": "A chromatic scale on one string: pitch changes with position only, the cleanest test of the along-the-neck feature.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      },
+      "notes": "720p, a 2012 upload; kept for the one-string design, dropped if detection is poor."
+    },
+    {
+      "id": "TUibV4lm5CI",
+      "title": "Tricky Finger Exercise - \"Close to the Edge\"",
+      "channel": "Trevor the Bass Teacher",
+      "player": "trevor",
+      "why": "The longest solo clip found (eight minutes) from a fifth player.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      }
+    },
+    {
+      "id": "VwwbRf7DA-c",
+      "title": "JF Bass Gym - Ex.23 - Finger Independence Drill",
+      "channel": "Janusz Frychel",
+      "player": "janusz-frychel",
+      "why": "4K footage of a groove drill; only the opening solo section before the backing track joins is usable.",
+      "license": null,
+      "frettingHand": {
+        "by": "x",
+        "side": "max"
+      },
+      "windows": [
+        [
+          0,
+          100
+        ]
+      ]
+    }
+  ]
+}

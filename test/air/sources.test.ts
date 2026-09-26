@@ -14,8 +14,8 @@ const SOURCES_DIR = join(__dirname, '..', '..', 'scripts', 'air', 'sources');
 describe('committed source lists', () => {
   const files = readdirSync(SOURCES_DIR).filter((f) => f.endsWith('.json'));
 
-  it('exist for guitar', () => {
-    expect(files).toContain('guitar.json');
+  it('exist for all four instruments', () => {
+    for (const f of ['guitar.json', 'flute.json', 'bass.json', 'drums.json']) expect(files).toContain(f);
   });
 
   for (const f of files) {
@@ -75,12 +75,19 @@ describe('source schema', () => {
     expect(() => parseSources(docOf([ok, ok]))).toThrow(/duplicate/);
   });
 
-  it('parses a flute list without guitar fields, and refuses guitar fields there', () => {
-    const { chords: _c, frettingHand: _f, ...generic } = ok;
-    const flute = parseSources(docOf([generic], 'flute'));
+  it('parses flute, bass and drums lists with their own fields, and refuses the wrong ones', () => {
+    const { chords: _c, frettingHand, ...generic } = ok;
+    const flute = parseSources(docOf([{ ...generic, leftHand: 'max', face: true }], 'flute'));
     expect(flute.instrument).toBe('flute');
-    expect(() => parseSources(docOf([ok], 'flute'))).toThrow();
-    expect(() => parseGuitarSources(docOf([generic], 'flute'))).toThrow(/guitar/);
+    expect(() => parseSources(docOf([generic], 'flute'))).toThrow(); // leftHand/face required
+    expect(() => parseSources(docOf([{ ...ok, leftHand: 'max', face: true }], 'flute'))).toThrow(); // chords not a flute field
+    const bass = parseSources(docOf([{ ...generic, frettingHand, pitchRange: ['E1', 'G4'] }], 'bass'));
+    expect(bass.instrument).toBe('bass');
+    expect(() => parseSources(docOf([{ ...generic, frettingHand, pitchRange: ['E', 'G4'] }], 'bass'))).toThrow(); // octave required
+    expect(() => parseSources(docOf([{ ...generic, frettingHand, pitchRange: ['G4', 'E1'] }], 'bass'))).toThrow(/low, then high/);
+    const drums = parseSources(docOf([{ ...generic, air: true }], 'drums'));
+    expect(drums.instrument).toBe('drums');
+    expect(() => parseGuitarSources(docOf([{ ...generic, leftHand: 'max', face: true }], 'flute'))).toThrow(/guitar/);
     expect(() => parseSources(docOf([generic], 'guitar'))).toThrow();
   });
 });
