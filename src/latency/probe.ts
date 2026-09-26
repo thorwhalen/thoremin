@@ -14,9 +14,14 @@
  * - **Delivery → tick** — the tick's clock minus (capture + lag). The pump and the
  *   engine both run under `requestAnimationFrame`; the pump starts first, so this is
  *   the synchronous inference on the main thread plus any wait for the next tick.
- * - **Tick compute** — from the tick's clock reading to the last node output of the
- *   same tick: every node (features, mapping, synth parameter writes, the overlay
- *   canvas) in the JavaScript that the "would Rust help?" question is about.
+ * - **Tick compute** — from the tick's clock reading to {@link LatencyProbe.endTick},
+ *   which the host calls from the FIRST Applier sink, i.e. right after
+ *   `engine.tick()` returns: every node (features, mapping, the synth's parameter
+ *   writes, the overlay canvas), the JavaScript the "would Rust help?" question is
+ *   about. (A tap alone cannot see this: the synth and the overlay declare no output
+ *   ports, so no tap fires after them.) Outside a cross-origin-isolated page
+ *   `performance.now()` is coarsened to about 0.1 ms, so single samples of this stage
+ *   are quantised; the mean over many is still informative.
  * - **Schedule → speaker** — from `AudioContext.getOutputTimestamp()`: a parameter
  *   change written at `currentTime` during the tick is heard at the output timestamp's
  *   `performanceTime` plus `(currentTime - contextTime)`. This includes the browser's
@@ -103,7 +108,7 @@ export class LatencyProbe implements Tap {
   private lastFrameT = NaN;
   private tick = -1;
   private tickStartMs = NaN;
-  private lastTapMs = NaN;
+  private tickClosed = true;
 
   constructor(options: LatencyProbeOptions = {}) {
     this.sourceKey = options.sourceKey ?? 'cam.hands';
@@ -115,8 +120,15 @@ export class LatencyProbe implements Tap {
 
   onValue(key: string, value: unknown, ctx: NodeContext): void {
     if (ctx.tick !== this.tick) this.startTick(ctx);
-    this.lastTapMs = this.now();
     if (key === this.sourceKey) this.onSource(value as HandsFrame & FrameTiming, ctx);
+  }
+
+  /** Call once right after each `engine.tick()` returns (the first Applier sink): closes
+   *  the tick's compute time. A second call for the same tick is ignored. */
+  endTick(): void {
+    if (this.tickClosed || !Number.isFinite(this.tickStartMs)) return;
+    this.tickClosed = true;
+    this.samples.tickCompute.push(this.now() - this.tickStartMs);
   }
 
   /** Subscribe to each new camera frame; returns the unsubscriber. */
@@ -154,13 +166,11 @@ export class LatencyProbe implements Tap {
     };
   }
 
-  /** Close the previous tick (its compute time) and open this one. */
+  /** Open a tick: its clock reading, its period, an audio sample. */
   private startTick(ctx: NodeContext): void {
-    if (Number.isFinite(this.tickStartMs) && Number.isFinite(this.lastTapMs)) {
-      this.samples.tickCompute.push(this.lastTapMs - this.tickStartMs);
-    }
     this.tick = ctx.tick;
     this.tickStartMs = ctx.time * 1000;
+    this.tickClosed = false;
     if (ctx.dt > 0) this.samples.tickPeriod.push(ctx.dt * 1000);
     this.sampleAudio();
   }

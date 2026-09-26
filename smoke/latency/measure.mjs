@@ -72,7 +72,10 @@ function parseArgs(argv) {
 }
 
 async function startPreview(port) {
-  const proc = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+  // vite itself, not through npx: killing an npx wrapper can leave the server running
+  // and the next run failing on --strictPort.
+  const vite = resolve(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
+  const proc = spawn(process.execPath, [vite, 'preview', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
   const url = `http://localhost:${port}${BASE_PATH}`;
   for (let i = 0; i < 100; i++) {
     try {
@@ -228,12 +231,14 @@ async function main() {
   const { proc, url } = await startPreview(args.port);
   const launchArgs = ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'];
   if (args.video) launchArgs.push(`--use-file-for-fake-video-capture=${args.video}`);
-  const browser = await chromium.launch({ headless: !args.headed, args: launchArgs });
+  let browser;
   try {
+    browser = await chromium.launch({ headless: !args.headed, args: launchArgs });
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     page.on('pageerror', (e) => console.error('[page error]', e.message));
-    const report = { measuredAt: new Date().toISOString(), options: { ...args, video: args.video ? '(local file)' : null } };
+    // No local paths in the report: it is meant to be shareable.
+    const report = { measuredAt: new Date().toISOString(), options: { ...args, video: args.video ? '(local file)' : null, out: args.out ? '(local file)' : null } };
     report.app = await measureApp(page, url, args);
     await page.goto(url + 'manual.html'); // a light static page on the same origin
     report.env = await measureEnv(page);
@@ -248,7 +253,7 @@ async function main() {
     if (args.out) writeFileSync(args.out, json);
     console.log(json);
   } finally {
-    await browser.close();
+    await browser?.close();
     proc.kill();
   }
 }

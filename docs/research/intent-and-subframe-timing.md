@@ -69,16 +69,16 @@ The frame period is the *smallest* term in the chain, which is the point the dic
 |---|---|---|
 | Wait for the frame containing the event | 0 to 33 ms, mean 16.7 (period 33.3 ± 3.4 ms) | 0 to 33 ms |
 | Sensor, readout, USB, OS capture | not measurable in a page; the strike test measures it glass to air | one to two frame periods |
-| Capture stamp to inference | 4.4 ± 2.0 ms (fake camera) | not measured |
-| Hand landmark inference (GPU, main thread) | 21.2 ± 4.4 ms; the CPU/WebAssembly delegate 43.2 ± 9.5 ms | 10 to 30 ms |
-| Wait for the tick | ~0 ms (the pump runs first in each animation frame) | 0 to 16.7 ms |
-| The DAG tick itself | 0.13 ± 0.11 ms | not estimated |
-| Parameter write to loudspeaker | 31.8 ± 1.6 ms (`baseLatency` 5.8, `outputLatency` 29) | 10 to 30 ms |
+| Capture stamp to inference | 4.1 ± 2.5 ms (fake camera) | not measured |
+| Hand landmark inference (GPU, main thread) | 20.5 ± 4.1 ms; the CPU/WebAssembly delegate 42.4 ± 9.1 ms | 10 to 30 ms |
+| Wait for the tick | ~0 ms (the pump happens to run first in each animation frame) | 0 to 16.7 ms |
+| The DAG tick itself, overlay included | 0.27 ± 0.20 ms | not estimated |
+| Parameter write to loudspeaker | 31.9 ± 1.6 ms (reported `baseLatency` 5.8, `outputLatency` 29) | 10 to 30 ms |
 | Synth output compressor look-ahead | 6.0 ms | not known |
 | Pitch glide, 30 ms constant | 20.8 ms to half, 69 ms to 90 % | 30 ms to 63 % |
-| **Total, to half-way to the new pitch** | **about 101 ms plus the camera hardware** | 80 to 150 ms |
+| **Total, to half-way to the new pitch** | **about 100 ms plus the camera hardware** | 80 to 150 ms |
 
-Against a 10 to 30 ms perceptual budget (§1), a reactive design still misses by a factor of four or more. The measurements move where the recoverable time is: shortening the glide and removing the compressor's look-ahead recover about 20 ms to half-way (about 50 ms to 90 %), and a different programming language recovers at most the 0.13 ms tick. The rest can only be recovered by **producing the sound before the event is observed**, which is prediction, §5.2. So the design consequence is unchanged, and now measured: not "we need a faster camera" or "a faster language", but "the instrument must anticipate, and the camera rate sets how far ahead it must anticipate".
+Against a 10 to 30 ms perceptual budget (§1), a reactive design still misses by a factor of four or more. The measurements move where the recoverable time is: shortening the glide and removing the compressor's look-ahead recover about 20 ms to half-way (about 50 ms to 90 %), and a different programming language recovers at most the 0.3 ms tick. The rest can only be recovered by **producing the sound before the event is observed**, which is prediction, §5.2. So the design consequence is unchanged, and now measured: not "we need a faster camera" or "a faster language", but "the instrument must anticipate, and the camera rate sets how far ahead it must anticipate".
 
 ---
 

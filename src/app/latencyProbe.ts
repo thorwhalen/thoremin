@@ -6,7 +6,9 @@
  * control, so it gets no dial and no Tools-bar entry. With the parameter absent
  * nothing here runs and no tap is attached.
  *
- * With it present, three things are installed on the live engine:
+ * `useEngine` imports this module lazily, only when `latencyProbeRequested()`
+ * (`src/latency/param.ts`) says so. With the parameter present, three things are
+ * installed on the live engine:
  *
  * 1. The {@link LatencyProbe} tap: per-stage timings of the running instrument
  *    (camera period, capture → delivery, inference, tick compute, audio
@@ -27,9 +29,11 @@
  * OFF, or the browser would remove the very tone it is listening for. Nothing is
  * recorded to disk and nothing leaves the page.
  *
- * The answer tone goes straight to the host master gain, not through the synth's
- * internal bus; the bus's compressor look-ahead is measured separately (offline, by
- * the headless script) and added in the report, not hidden in this number.
+ * The answer tone goes to the context's destination through its own gain, not through
+ * the host master gain (so muting the instrument with `m`, which the test asks for,
+ * keeps the beep) and not through the synth's internal bus; the bus's compressor
+ * look-ahead is measured separately (offline, by the headless script) and added in
+ * the report, not hidden in this number.
  */
 import { LatencyProbe, STAGES, type AudioLike, type LatencySnapshot, type ProbeFrame } from '@/latency/probe';
 import { formatSummary, summarize, type Summary } from '@/latency/stats';
@@ -37,9 +41,6 @@ import { pairStrikes, strikeOnsets, toneOnsets, TONE_DEFAULTS, type StrikePair }
 import { createStrikeTrigger } from '@/latency/strike';
 import type { Tap } from '@/dag';
 
-/** The URL switch. */
-export const LATENCY_PROBE_PARAM = 'probe';
-export const LATENCY_PROBE_VALUE = 'latency';
 export const LATENCY_HANDLE_KEY = 'thoreminLatency';
 
 /** Palm landmarks (MediaPipe hand indices): wrist and the four finger bases. */
@@ -48,10 +49,6 @@ const PALM = [0, 5, 9, 13, 17] as const;
 const ANSWER = { hz: TONE_DEFAULTS.toneHz, durationS: 0.02, rampS: 0.001, gain: 0.35 } as const;
 /** Refresh period of the on-screen panel, ms. */
 const PANEL_REFRESH_MS = 500;
-
-export function latencyProbeRequested(search: string = typeof location !== 'undefined' ? location.search : ''): boolean {
-  return new URLSearchParams(search).get(LATENCY_PROBE_PARAM) === LATENCY_PROBE_VALUE;
-}
 
 export interface StrikeResult {
   /** Seconds of microphone audio analysed. */
@@ -63,7 +60,7 @@ export interface StrikeResult {
   heardAnswers: number;
   pairs: StrikePair[];
   latency: Summary;
-  micSettings: MediaTrackSettings | null;
+  micSettings: Record<string, unknown> | null;
 }
 
 export interface LatencyHandle {
@@ -92,8 +89,10 @@ function palmY(f: ProbeFrame['frame']): number | undefined {
 const RECORDER_WORKLET = `
 class ThoreminLatencyRecorder extends AudioWorkletProcessor {
   process(inputs) {
+    // A block with no input channel still takes up its time: post silence, or every
+    // later onset would shift early.
     const ch = inputs[0] && inputs[0][0];
-    if (ch) this.port.postMessage(ch.slice(0));
+    this.port.postMessage(ch ? ch.slice(0) : new Float32Array(128));
     return true;
   }
 }
@@ -108,8 +107,18 @@ interface MicSession {
   triggers: number;
 }
 
-function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext | undefined, getMaster: () => AudioNode | undefined) {
+function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext | undefined) {
   let session: MicSession | null = null;
+  /** A start in flight (the permission prompt, the worklet load): a second start waits
+   *  for it instead of opening a second microphone. */
+  let starting: Promise<void> | null = null;
+
+  /** Release everything a session holds. Synchronous enough for a teardown. */
+  const release = (s: MicSession) => {
+    s.stopFrames();
+    s.stream.getTracks().forEach((t) => t.stop());
+    void s.ac.close().catch(() => {});
+  };
 
   const answer = (ac: AudioContext) => {
     const t0 = ac.currentTime;
@@ -120,53 +129,67 @@ function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext |
     g.gain.linearRampToValueAtTime(ANSWER.gain, t0 + ANSWER.rampS);
     g.gain.setValueAtTime(ANSWER.gain, t0 + ANSWER.durationS - ANSWER.rampS);
     g.gain.linearRampToValueAtTime(0, t0 + ANSWER.durationS);
-    osc.connect(g).connect(getMaster() ?? ac.destination);
+    osc.connect(g).connect(ac.destination);
     osc.start(t0);
     osc.stop(t0 + ANSWER.durationS + 0.01);
   };
 
   return {
-    async start(): Promise<void> {
-      if (session) return;
+    start(): Promise<void> {
+      if (session) return Promise.resolve();
+      if (starting) return starting;
       const appAc = getAppAudio();
-      if (!appAc || appAc.state !== 'running') throw new Error('Tap to play first: the strike test answers through the instrument audio.');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
-      const ac = new AudioContext({ latencyHint: 'interactive' });
-      const url = URL.createObjectURL(new Blob([RECORDER_WORKLET], { type: 'application/javascript' }));
-      try {
-        await ac.audioWorklet.addModule(url);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-      const src = ac.createMediaStreamSource(stream);
-      const rec = new AudioWorkletNode(ac, 'thoremin-latency-recorder');
-      const sink = ac.createGain();
-      sink.gain.value = 0; // pulled by the graph, never heard
-      src.connect(rec).connect(sink).connect(ac.destination);
-      const chunks: Float32Array[] = [];
-      rec.port.onmessage = (e: MessageEvent<Float32Array>) => chunks.push(e.data);
-      const trigger = createStrikeTrigger();
-      const s: MicSession = { ac, stream, chunks, triggers: 0, stopFrames: () => {} };
-      s.stopFrames = probe.onFrame((f) => {
-        if (trigger.push(f.frame.t ?? f.tickMs / 1000, palmY(f.frame))) {
-          answer(appAc);
-          s.triggers++;
+      if (!appAc || appAc.state !== 'running') return Promise.reject(new Error('Tap to play first: the strike test answers through the instrument audio.'));
+      starting = (async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+        const ac = new AudioContext({ latencyHint: 'interactive' });
+        const s: MicSession = { ac, stream, chunks: [], triggers: 0, stopFrames: () => {} };
+        try {
+          const url = URL.createObjectURL(new Blob([RECORDER_WORKLET], { type: 'application/javascript' }));
+          try {
+            await ac.audioWorklet.addModule(url);
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+          const src = ac.createMediaStreamSource(stream);
+          const rec = new AudioWorkletNode(ac, 'thoremin-latency-recorder');
+          const sink = ac.createGain();
+          sink.gain.value = 0; // pulled by the graph, never heard
+          src.connect(rec).connect(sink).connect(ac.destination);
+          rec.port.onmessage = (e: MessageEvent<Float32Array>) => s.chunks.push(e.data);
+        } catch (e) {
+          release(s);
+          throw e;
         }
+        const trigger = createStrikeTrigger();
+        s.stopFrames = probe.onFrame((f) => {
+          if (trigger.push(f.frame.t ?? f.tickMs / 1000, palmY(f.frame))) {
+            answer(appAc);
+            s.triggers++;
+          }
+        });
+        session = s;
+      })().finally(() => {
+        starting = null;
       });
-      session = s;
+      return starting;
+    },
+
+    /** Abandon a running session without analysing it (teardown). */
+    abort(): void {
+      if (session) release(session);
+      session = null;
     },
 
     async stop(): Promise<StrikeResult> {
       const s = session;
       if (!s) throw new Error('The strike test is not running.');
       session = null;
-      s.stopFrames();
       const micSettings = s.stream.getAudioTracks()[0]?.getSettings() ?? null;
-      s.stream.getTracks().forEach((t) => t.stop());
       const sampleRate = s.ac.sampleRate;
-      await s.ac.close();
+      release(s);
       const total = s.chunks.reduce((n, c) => n + c.length, 0);
       const pcm = new Float32Array(total);
       let off = 0;
@@ -184,10 +207,17 @@ function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext |
         heardAnswers: answers.length,
         pairs,
         latency: summarize(pairs.map((p) => p.latencyMs)),
-        micSettings,
+        micSettings: micSettings && withoutDeviceIds(micSettings),
       };
     },
   };
+}
+
+/** Track settings minus the per-device identifiers: the report is meant to be pasted
+ *  into a public issue. */
+function withoutDeviceIds(settings: MediaTrackSettings): Record<string, unknown> {
+  const { deviceId: _d, groupId: _g, ...rest } = settings;
+  return rest;
 }
 
 function environment(resources: Record<string, unknown>): Record<string, unknown> {
@@ -196,7 +226,7 @@ function environment(resources: Record<string, unknown>): Record<string, unknown
   return {
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
     devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : null,
-    camera: track ? { label: track.label, settings: track.getSettings() } : null,
+    camera: track ? withoutDeviceIds(track.getSettings()) : null,
     crossOriginIsolated: typeof window !== 'undefined' ? window.crossOriginIsolated : null,
   };
 }
@@ -230,7 +260,7 @@ function mountPanel(handle: LatencyHandle): () => void {
         .then(() => {
           striking = true;
           strikeBtn.textContent = 'Strike test: stop';
-          strikeText = 'Listening. Slap the table with a flat hand, in view, 20+ times, a second apart.';
+          strikeText = 'Listening. Press M to mute the instrument (the beep still plays), then slap the table with a flat hand, in view, 20+ times, a second apart.';
         })
         .catch((e: unknown) => (strikeText = `strike test: ${e instanceof Error ? e.message : String(e)}`));
     } else {
@@ -266,15 +296,19 @@ function mountPanel(handle: LatencyHandle): () => void {
   };
 }
 
-/**
- * Attach the probe to a live engine and publish its handle and panel. Returns the
- * uninstaller (detaches the tap, removes the handle and the panel).
- */
-export function installLatencyProbe(engine: { addTap(tap: Tap): () => void }, resources: Record<string, unknown>): () => void {
+export interface InstalledLatencyProbe {
+  /** Give this to the Applier as its FIRST sink: it closes each tick's compute time. */
+  tickEnd: () => void;
+  /** Detach the tap, stop any strike test, remove the handle and the panel. */
+  uninstall: () => void;
+}
+
+/** Attach the probe to a live engine and publish its handle and panel. */
+export function installLatencyProbe(engine: { addTap(tap: Tap): () => void }, resources: Record<string, unknown>): InstalledLatencyProbe {
   const getAudio = () => resources.audioContext as AudioContext | undefined;
   const probe = new LatencyProbe({ audio: () => getAudio() as AudioLike | undefined });
   const detach = engine.addTap(probe);
-  const strike = createStrikeTest(probe, getAudio, () => resources.masterGain as AudioNode | undefined);
+  const strike = createStrikeTest(probe, getAudio);
   const handle: LatencyHandle = Object.freeze({
     snapshot: () => probe.snapshot(),
     report: () => ({ measuredAt: new Date().toISOString(), environment: environment(resources), ...probe.snapshot() }),
@@ -284,9 +318,13 @@ export function installLatencyProbe(engine: { addTap(tap: Tap): () => void }, re
   });
   window[LATENCY_HANDLE_KEY] = handle;
   const unmount = mountPanel(handle);
-  return () => {
-    detach();
-    unmount();
-    if (window[LATENCY_HANDLE_KEY] === handle) delete window[LATENCY_HANDLE_KEY];
+  return {
+    tickEnd: () => probe.endTick(),
+    uninstall: () => {
+      strike.abort();
+      detach();
+      unmount();
+      if (window[LATENCY_HANDLE_KEY] === handle) delete window[LATENCY_HANDLE_KEY];
+    },
   };
 }

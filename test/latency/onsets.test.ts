@@ -58,6 +58,14 @@ describe('strike-test onset analysis', () => {
     });
   });
 
+  it('pairs with the first onset of a bouncing strike, and never with the beep itself', () => {
+    // A slap at 1000 with a bounce at 1080; the answer at 1105 is also heard as a
+    // broadband onset at 1105.2. The latency is from the slap, not the bounce or the beep.
+    expect(pairStrikes([1000, 1080, 1105.2], [1105])).toEqual([{ strikeMs: 1000, answerMs: 1105, latencyMs: 105 }]);
+    // A missed strike right after a beep must not pair the next beep with the old beep.
+    expect(pairStrikes([1000, 1105.2, 1500.1], [1105, 1500])).toEqual([{ strikeMs: 1000, answerMs: 1105, latencyMs: 105 }]);
+  });
+
   it('leaves a missed strike and a false answer unpaired', () => {
     const pairs = pairStrikes([100, 1000], [1105, 3000]);
     expect(pairs).toEqual([{ strikeMs: 1000, answerMs: 1105, latencyMs: 105 }]);

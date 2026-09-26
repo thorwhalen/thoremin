@@ -190,29 +190,52 @@ export interface PairOptions {
   minLatencyMs?: number;
   /** ...and at most this. */
   maxLatencyMs?: number;
+  /** A broadband onset this close to an answer IS the answer (the beep is loud in every
+   *  band), not a strike, and is dropped. */
+  answerGuardMs?: number;
+  /** Broadband onsets closer than this to the previous one belong to the same strike
+   *  (a bounce, a second finger, a re-armed tail); the strike is the cluster's FIRST. */
+  clusterGapMs?: number;
 }
 
-export const PAIR_DEFAULTS: Required<PairOptions> = { minLatencyMs: 10, maxLatencyMs: 600 };
+export const PAIR_DEFAULTS: Required<PairOptions> = { minLatencyMs: 10, maxLatencyMs: 600, answerGuardMs: 5, clusterGapMs: 150 };
+
+/** The strikes proper: broadband onsets that are not answers, one per cluster (its first). */
+export function strikeClusters(strikesMs: readonly number[], answersMs: readonly number[], options: PairOptions = {}): number[] {
+  const o = { ...PAIR_DEFAULTS, ...options };
+  const own = [...strikesMs]
+    .filter((s) => !answersMs.some((a) => Math.abs(a - s) <= o.answerGuardMs))
+    .sort((a, b) => a - b);
+  const starts: number[] = [];
+  let prev = -Infinity;
+  for (const s of own) {
+    if (s - prev > o.clusterGapMs) starts.push(s);
+    prev = s;
+  }
+  return starts;
+}
 
 /**
- * Pair each answer with the latest unused strike before it within the latency
- * window. Strikes the app missed and answers with no strike (false triggers) are
- * left out; the caller reports both counts.
+ * Pair each answer with the latest unused strike (a cluster's first onset, see
+ * {@link strikeClusters}) before it within the latency window. Strikes the app missed
+ * and answers with no strike (false triggers) are left out; the caller reports both
+ * counts.
  */
 export function pairStrikes(strikesMs: readonly number[], answersMs: readonly number[], options: PairOptions = {}): StrikePair[] {
   const o = { ...PAIR_DEFAULTS, ...options };
+  const strikes = strikeClusters(strikesMs, answersMs, o);
   const used = new Set<number>();
   const pairs: StrikePair[] = [];
-  for (const a of answersMs) {
+  for (const a of [...answersMs].sort((x, y) => x - y)) {
     let best = -1;
-    strikesMs.forEach((s, i) => {
+    strikes.forEach((s, i) => {
       const d = a - s;
       if (d < o.minLatencyMs || d > o.maxLatencyMs || used.has(i)) return;
-      if (best < 0 || s > strikesMs[best]) best = i;
+      if (best < 0 || s > strikes[best]) best = i;
     });
     if (best < 0) continue;
     used.add(best);
-    pairs.push({ strikeMs: strikesMs[best], answerMs: a, latencyMs: a - strikesMs[best] });
+    pairs.push({ strikeMs: strikes[best], answerMs: a, latencyMs: a - strikes[best] });
   }
   return pairs;
 }

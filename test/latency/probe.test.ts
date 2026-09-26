@@ -38,8 +38,10 @@ describe('latency probe', () => {
       const ctx: NodeContext = { tick, time: tickMs / 1000, dt: tick ? TICK_MS / 1000 : 0, resources: {} };
       clock = tickMs;
       probe.onValue('cam.hands', frame, ctx);
+      probe.onValue('merge.params', 1, ctx);
       clock = tickMs + COMPUTE_MS;
-      probe.onValue('synth.out', 1, ctx);
+      probe.endTick(); // the host's first Applier sink
+      probe.endTick(); // a second call for the same tick is ignored
     }
     return { probe, seen };
   }

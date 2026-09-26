@@ -4,9 +4,11 @@
  *
  * The probe is opt-in by URL, so nothing else in the suite would notice it rotting.
  * This boots it with synthetic hands (no camera, so the camera stages stay empty by
- * design), taps to play, and asserts the panel is up and the two stages that need no
- * camera are being measured: the tick's compute time and the audio schedule-to-speaker
- * time. The numbers themselves are the business of `smoke/latency/measure.mjs`.
+ * design), taps to play, and asserts the panel is up and the stages that need neither
+ * camera nor sound hardware are being measured: the tick's compute time (closed by the
+ * probe's Applier sink) and period. The audio schedule-to-speaker stage needs an output
+ * device with real timestamps, which a CI runner may not have, so it is not asserted.
+ * The numbers themselves are the business of `smoke/latency/measure.mjs`.
  */
 import { test, expect } from '@playwright/test';
 
@@ -16,15 +18,14 @@ declare global {
   }
 }
 
-test('?probe=latency shows the panel and measures the tick and the audio path', async ({ page }) => {
+test('?probe=latency shows the panel and measures the tick', async ({ page }) => {
   await page.goto('?probe=latency&slot.source=synthetic-hands');
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 60_000 });
   await expect(page.getByTestId('latency-probe')).toBeVisible();
   await expect
-    .poll(() => page.evaluate(() => window.thoreminLatency?.snapshot().stages.scheduleToSpeaker.n ?? 0), { timeout: 15_000 })
+    .poll(() => page.evaluate(() => window.thoreminLatency?.snapshot().stages.tickCompute.n ?? 0), { timeout: 15_000 })
     .toBeGreaterThan(10);
   const s = await page.evaluate(() => window.thoreminLatency!.snapshot().stages);
-  expect(s.tickCompute.n).toBeGreaterThan(10);
   expect(s.tickCompute.mean).toBeGreaterThanOrEqual(0);
   expect(s.tickPeriod.mean).toBeGreaterThan(0);
 });
