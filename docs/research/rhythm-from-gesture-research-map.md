@@ -2,6 +2,8 @@
 
 *Thor Whalen — 2026-07-06*
 
+*See also [intent-and-subframe-timing.md](intent-and-subframe-timing.md) (2026-09-26), which verifies the perceptual latency threshold and thoremin's real frame rate, and separates sub-frame localisation from prediction for impact instruments.*
+
 ## 0. Problem statement
 
 A camera-based instrument turns face/hand landmarks into musical control. Melodic,

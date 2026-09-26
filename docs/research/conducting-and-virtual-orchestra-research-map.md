@@ -2,6 +2,8 @@
 
 *thoremin, 2026-09-09. Phase 1 deliverable of [#187](https://github.com/thorwhalen/thoremin/issues/187); the companion to [`rhythm-from-gesture-research-map.md`](rhythm-from-gesture-research-map.md) (#178), whose §1 and §6 this document assumes and does not repeat.*
 
+*See also [intent-and-subframe-timing.md](intent-and-subframe-timing.md) (2026-09-26): the verified latency thresholds, the code-derived frame rate and latency budget, and the air-impact prediction problem that extends §2.6 here.*
+
 ## 0. Problem statement and scope
 
 The maintainer's direction (#187): find methods and models for the movements made to conduct an orchestra, and make a virtual orchestra that those movements control; the same movements should also be able to pace a pre-existing audio recording or score. That settles #180 in favour of wiring conductor mode, and it names the piece #180 found missing: this repo has no content pipeline, so `src/nodes/music/score.ts` (built, tested, catalogued, unwired) has never had a real score to play.
