@@ -449,6 +449,27 @@
         <dt>params</dt><dd>bpmMin (number=60), bpmMax (number=160), dynMin (number=0.4), dynMax (number=1), humanizeBpm (number=0), humanizeVel (number=0)</dd>
       </dl>
     </div></div></section>
+<section><h3>Air instruments</h3><p class="blurb">Strike, pluck or blow at nothing — hits predicted before the frame that shows them (#233).</p><div class="grid">
+    <div class="node">
+      <h4><code>air-drum</code> <span class="title">Air drum</span></h4>
+      <p>Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.</p>
+      <dl>
+        <dt>roles</dt><dd>feature, mapping</dd>
+        <dt>in</dt><dd>hands:hands-frame, config:air-drum-config, time:musical-time</dd>
+        <dt>out</dt><dd>hits:drum-hits, status:air-drum-status, enabled:boolean</dd>
+        <dt>params</dt><dd>enabled (boolean=false), hand (enum(both | right | left)="both"), point (enum(wrist | indexTip)="wrist"), rightSound (enum(kick | snare | hihat | tom)="kick"), leftSound (enum(kick | snare | hihat | tom)="snare"), minLead (number=0.05), magnetism (number=0), mirrorHandedness (boolean=true), volume (number=0.8), minStroke (number=0.03)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>drum-out</code> <span class="title">Drum out</span></h4>
+      <p>Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).</p>
+      <dl>
+        <dt>roles</dt><dd>synth</dd>
+        <dt>in</dt><dd>hits:drum-hits</dd>
+        <dt>out</dt><dd>—</dd>
+        <dt>params</dt><dd>—</dd>
+      </dl>
+    </div></div></section>
 <section><h3>Synthesis &amp; generation</h3><p class="blurb">Make sound — direct synthesis, steered AI music, or an external MIDI instrument.</p><div class="grid">
     <div class="node">
       <h4><code>webaudio-synth</code> <span class="title">Web Audio Synth</span></h4>
@@ -489,27 +510,6 @@
         <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector</dd>
         <dt>out</dt><dd>—</dd>
         <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), timbreLevels (object={}), faceExpression (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})</dd>
-      </dl>
-    </div></div></section>
-<section><h3>Other</h3><div class="grid">
-    <div class="node">
-      <h4><code>air-drum</code> <span class="title">Air drum</span></h4>
-      <p>Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.</p>
-      <dl>
-        <dt>roles</dt><dd>feature, mapping</dd>
-        <dt>in</dt><dd>hands:hands-frame, config:air-drum-config, time:musical-time</dd>
-        <dt>out</dt><dd>hits:drum-hits, status:air-drum-status, enabled:boolean</dd>
-        <dt>params</dt><dd>enabled (boolean=false), hand (enum(both | right | left)="both"), point (enum(wrist | indexTip)="wrist"), rightSound (enum(kick | snare | hihat | tom)="kick"), leftSound (enum(kick | snare | hihat | tom)="snare"), minLead (number=0.05), magnetism (number=0), mirrorHandedness (boolean=true), volume (number=0.8), minStroke (number=0.03)</dd>
-      </dl>
-    </div>
-    <div class="node">
-      <h4><code>drum-out</code> <span class="title">Drum out</span></h4>
-      <p>Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).</p>
-      <dl>
-        <dt>roles</dt><dd>synth</dd>
-        <dt>in</dt><dd>hits:drum-hits</dd>
-        <dt>out</dt><dd>—</dd>
-        <dt>params</dt><dd>—</dd>
       </dl>
     </div></div></section>
 </div></body></html>
