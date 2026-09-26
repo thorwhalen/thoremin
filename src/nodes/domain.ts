@@ -83,14 +83,6 @@ export function frameTime(frame: FrameTiming | undefined, ctx: { time: number; r
   return ctx.time;
 }
 
-/** A frame without its timing fields: what a replay source emits, so a recording's
- *  stamps (another session's time base) never reach a consumer as live ones. */
-export function stripFrameTiming<F extends FrameTiming>(frame: F): Omit<F, keyof FrameTiming> {
-  if (frame.t === undefined && frame.tSource === undefined && frame.tOrigin === undefined && frame.lag === undefined) return frame;
-  const { t: _t, tSource: _s, tOrigin: _o, lag: _l, ...rest } = frame;
-  return rest;
-}
-
 export interface HandsFrame extends FrameTiming {
   width: number;
   height: number;

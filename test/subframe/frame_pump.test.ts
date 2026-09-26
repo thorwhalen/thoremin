@@ -21,7 +21,7 @@ import {
   type FrameStamp,
   type VideoFrameMetadataLike,
 } from '@/nodes/sources/frame_pump';
-import { frameTime, stripFrameTiming, type HandsFrame } from '@/nodes';
+import { frameTime } from '@/nodes';
 
 describe('pickFrameStamp', () => {
   it('prefers the capture time and reports the lag to inference', () => {
@@ -65,7 +65,7 @@ describe('pickFrameStamp', () => {
   });
 });
 
-describe('frameTime and stripFrameTiming', () => {
+describe('frameTime', () => {
   const rt = (time: number) => ({ time, resources: { timeScale: 1 } });
   const origin = performance.timeOrigin;
   it('uses the stamp only in real time at speed 1, from this document, and only when it is a real stamp', () => {
@@ -79,13 +79,6 @@ describe('frameTime and stripFrameTiming', () => {
     expect(frameTime({ t: 10.02, tSource: 'capture', tOrigin: origin }, { time: 10.05, resources: { timeScale: 0.5 } })).toBe(10.05);
     expect(frameTime({}, rt(10.05))).toBe(10.05);
     expect(frameTime(undefined, rt(10.05))).toBe(10.05);
-  });
-
-  it('a replay source strips the timing fields and leaves the rest', () => {
-    const f: HandsFrame = { width: 1, height: 2, hands: [], t: 3, tSource: 'capture', tOrigin: 4, lag: 5 };
-    expect(stripFrameTiming(f)).toEqual({ width: 1, height: 2, hands: [] });
-    const plain: HandsFrame = { width: 1, height: 2, hands: [] };
-    expect(stripFrameTiming(plain)).toBe(plain);
   });
 });
 
@@ -242,6 +235,63 @@ describe('createFramePump', () => {
     // The recent lag is an exponentially weighted mean over the capture-stamped frames
     // (40 ms, then 44.7 ms at a gain of 0.2).
     expect(got[2].tMs).toBeCloseTo(1083 - (40 + 0.2 * 4.7), 6);
+    pump.stop();
+  });
+
+  it('never holds twice in a row: a camera at the animation rate, with a late callback, keeps flowing', () => {
+    // Every callback arrives one animation frame after its frame became current, and
+    // by then the next frame is current: the held frame is always superseded. The
+    // current frame must go out at once (estimated), never be re-held.
+    const v = vfcVideo();
+    const s = scheduler();
+    let clock = 1000;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => v.video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
+      now: () => clock,
+      requestAnimationFrame: s.raf,
+      cancelAnimationFrame: s.caf,
+    });
+    pump.start();
+    v.video.readyState = 0;
+    s.tick();
+    v.video.readyState = 4;
+    // One matched capture first, so the channel is proven and holds are allowed.
+    v.fire(1000, { mediaTime: 0, captureTime: 970 });
+    expect(got.length).toBe(1);
+    const period = 1000 / 60;
+    for (let i = 1; i <= 60; i++) {
+      v.video.currentTime = i / 60;
+      clock = 1000 + i * period;
+      s.tick(); // sees frame i, metadata is for frame i-1
+      v.fire(clock + 1, { mediaTime: (i - 1) / 60, captureTime: clock - 40 }); // late: for frame i-1
+    }
+    expect(got.length).toBeGreaterThanOrEqual(59);
+    expect(got.filter((g) => g.source === 'estimated').length).toBeGreaterThan(50);
+    pump.stop();
+  });
+
+  it('a channel that fires but never matches costs no latency: no hold before a matched capture', () => {
+    const v = vfcVideo();
+    const s = scheduler();
+    let clock = 1000;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => v.video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
+      now: () => clock,
+      requestAnimationFrame: s.raf,
+      cancelAnimationFrame: s.caf,
+    });
+    pump.start();
+    v.video.readyState = 0;
+    s.tick();
+    v.video.readyState = 4;
+    for (let i = 0; i < 5; i++) {
+      v.video.currentTime = i / 30;
+      clock = 1000 + (i * 1000) / 30;
+      v.fire(clock, { mediaTime: i / 30 + 0.01, captureTime: clock - 30 }); // mediaTime never matches
+      s.tick();
+      expect(got.length).toBe(i + 1); // delivered on the same animation frame
+    }
+    expect(got.every((g) => g.source === 'clock')).toBe(true);
     pump.stop();
   });
 
