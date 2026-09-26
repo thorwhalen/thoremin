@@ -20,6 +20,7 @@ import { mkdirSync, writeFileSync, readdirSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { homedir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(join(here, '..', '..', 'smoke', 'package.json'));
@@ -30,7 +31,7 @@ const arg = (name, def) => {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : def;
 };
 const url = arg('url', 'http://localhost:4391/thoremin/');
-const out = arg('out', 'tour');
+const out = arg('out', join(process.env.THOREMIN_DATA_DIR ?? join(homedir(), '.local', 'share', 'thoremin'), 'demos', 'tour'));
 const query = arg('query', '?slot.source=synthetic-hands');
 const screensOnly = process.argv.includes('--screens-only');
 const W = 1280;

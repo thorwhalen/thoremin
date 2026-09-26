@@ -11,11 +11,12 @@ Each script turns something that has landed into a short video, GIF or data file
 | `tour_live.mjs` | a scripted tour of the built bundle with `synthetic-hands`, recording the page's own Web Audio output alongside the screen (Playwright from `smoke/node_modules`) |
 
 ```bash
-an impacts clip OUT --object stick --kind surface --tempo 0:96,16:132 --beats 16 --pattern 1,0.6,0.8,0.6 --jitter-sd 0.012 --exposure 0.5 --seed 7
-npx vite-node scripts/demos/impact_onsets.ts OUT/<clip> onsets.json
-python3 scripts/demos/render_impact_demo.py --clip OUT/<clip> --onsets onsets.json --strategy predicted --speed 0.25 --out predicted.slow.mp4
-npx vite-node scripts/demos/chord_shape_timeline.ts --video 2pXS8k1zx8U --out timeline.json
-python3 scripts/demos/render_chord_demo.py --timeline timeline.json --video V.mp4 --landmarks L.ndjson --start 110 --out guitar.mp4
+OUT=~/.local/share/thoremin/demos   # never inside the repo
+an impacts clip $OUT/clips --object stick --kind surface --tempo 0:96,16:132 --beats 16 --pattern 1,0.6,0.8,0.6 --jitter-sd 0.012 --exposure 0.5 --seed 7
+npx vite-node scripts/demos/impact_onsets.ts $OUT/clips/<clip> $OUT/onsets.json
+python3 scripts/demos/render_impact_demo.py --clip $OUT/clips/<clip> --onsets $OUT/onsets.json --strategy predicted --speed 0.25 --out $OUT/predicted.slow.mp4
+npx vite-node scripts/demos/chord_shape_timeline.ts --video 2pXS8k1zx8U   # -> $OUT/guitar/2pXS8k1zx8U.timeline.json
+python3 scripts/demos/render_chord_demo.py --timeline $OUT/guitar/2pXS8k1zx8U.timeline.json --video V.mp4 --landmarks L.ndjson --start 110 --out $OUT/guitar/guitar.mp4
 npm run build && npx vite preview --port 4391 --strictPort &   # then:
-node scripts/demos/tour_live.mjs --url http://localhost:4391/thoremin/ --out tour/
+node scripts/demos/tour_live.mjs --url http://localhost:4391/thoremin/ --out $OUT/tour
 ```

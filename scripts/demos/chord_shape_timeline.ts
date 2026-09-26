@@ -18,6 +18,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { dataRoot } from '../air/lib_air_paths';
 import type { HandsFrame } from '@/nodes/domain';
 import { chordLabelsPath, landmarksPath } from '../air/lib_air_paths';
 import { joinLabelledFrames, readChordLabels, readLandmarks, segmentLabeller, NO_CHORD } from '../air/lib_chord_shape_dataset';
@@ -31,7 +32,7 @@ function arg(name: string, fallback: string): string {
 }
 
 const videoId = arg('video', '2pXS8k1zx8U');
-const out = arg('out', 'chord_timeline.json');
+const out = arg('out', join(dataRoot(), 'demos', 'guitar', `${videoId}.timeline.json`));
 const seconds = Number(arg('seconds', '3'));
 const gap = Number(arg('gap', '2'));
 const smooth = Number(arg('smooth', '9'));

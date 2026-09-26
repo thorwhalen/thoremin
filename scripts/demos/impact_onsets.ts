@@ -4,9 +4,11 @@
  *
  * The same estimators the benchmark scores (`scripts/subframe/score.ts`), run on the
  * clip's keypoint stream, but reduced to the one thing a listener hears: when each
- * stroke sounds. The rule is the same for all three — a stroke sounds at its estimate
- * but never before the estimator knows it (`max(t, at)`), with no output latency added
- * (real output latency delays all three equally; it is not what differs here):
+ * stroke sounds. The rule is the benchmark's `sounded` rule, applied to all three: a
+ * stroke sounds at its estimate but never earlier than the moment the estimator
+ * committed to it plus the lead a consumer needs to schedule it
+ * (`max(t, at + minLead)`, minLead 30 ms by default). Output latency beyond that is not
+ * added (it delays all three equally; it is not what differs here):
  *
  * - `frameSnapped` — the frame-snapped baseline (`lowest` in the doc: the ictus
  *   detector with no refinement and no median). It learns of a stroke from the frame
@@ -24,7 +26,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createIctusDetector, type Anchor, type Sample } from '@/ictus';
+import { createAdaptiveOscillator, createIctusDetector, type Anchor, type Sample } from '@/ictus';
 import { createImpactPredictor } from '@/ictus/impact';
 import { magnetise } from '@/ictus/magnet';
 import { createTrendPrior } from '@/ictus/trend_prior';
@@ -55,7 +57,7 @@ for (const line of readFileSync(join(clipDir, 'keypoints.ndjson'), 'utf8').split
 }
 
 type Onset = { t: number; at: number };
-const sound = (t: number, at: number): Onset => ({ t: Math.max(t, at), at });
+const sound = (t: number, at: number): Onset => ({ t: Math.max(t, at + minLead), at });
 
 // The frame-snapped baseline, configured as the benchmark's `lowest`.
 const det = createIctusDetector({ initialPeriod: 0.5, refine: false, medianFilter: false });
@@ -65,13 +67,17 @@ for (const s of samples) {
   if (a) frameSnapped.push(sound(a.t, s.t));
 }
 
-// The predictor with a learned floor, and the magnet toward the trend prior.
+// The predictor with a learned floor, and the magnet toward the trend prior. As in the
+// benchmark, the predictor's period feedback comes from the shipped oscillator (the
+// first prior score.ts runs), while the magnet pulls toward the trend prior's grid.
 const pred = createImpactPredictor({ minAmplitude: 12, minLead });
+const osc = createAdaptiveOscillator({ initialTempo: 100 });
 const prior = createTrendPrior({ memory: 12, quadraticAfter: 5 });
 const predicted: Onset[] = [];
 const magnet: Onset[] = [];
 for (const s of samples) {
   const events = pred.push(s);
+  osc.advance(s.t);
   prior.advance(s.t);
   for (const e of events) {
     if (e.kind === 'predict') {
@@ -83,8 +89,9 @@ for (const s of samples) {
         magnet.push(sound(e.t, e.at));
       }
       const anchor: Anchor = { t: e.t, confidence: e.confidence, strength: e.strength, sharpness: NaN, lateral: 0 };
+      osc.update(anchor);
       prior.update(anchor);
-      pred.setPeriod(prior.state().period);
+      pred.setPeriod(osc.state().period);
     }
   }
 }
