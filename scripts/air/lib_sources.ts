@@ -10,11 +10,11 @@
  * no local path, and the licence note is mandatory (standard YouTube licence footage
  * is kept locally for private derivation only and never redistributed).
  *
- * The document is a discriminated union on `instrument`: guitar sources carry a chord
- * vocabulary and a fretting-hand pick; the other instruments carry only the common
- * fields until their label sources exist (flute: pitch; bass: pitch; drums: onsets), so
- * a `flute.json` parses today and its instrument-specific fields are added at this one
- * seam when its pipeline lands.
+ * The document is a discriminated union on `instrument`. Guitar sources carry a chord
+ * vocabulary and a fretting-hand pick; flute sources a pitch range and which hand is
+ * nearer the mouth; bass sources a fretting-hand pick and a pitch range; drum sources
+ * whether the clip is air (no hits in the audio). Each instrument's label-specific
+ * fields live here, at one seam.
  */
 import { z } from 'zod';
 
@@ -25,6 +25,8 @@ export type GuitarChordShape = (typeof GUITAR_CHORD_SHAPES)[number];
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 /** Anything that looks like a path on someone's machine. */
 const LOCAL_PATH = /(\/(Users|home|root|tmp|private|Volumes)\/|(^|[\s"'(])~\/|[A-Za-z]:\\)/;
+/** A note name with octave, as librosa spells it: `E1`, `C#4`, `Bb3`. */
+const NOTE_NAME = /^[A-G][#b]?-?\d$/;
 
 /**
  * How to pick the fretting hand in a frame with up to two hands.
@@ -73,6 +75,9 @@ const SourceBase = z.object({
   holdout: z.boolean().optional(),
 });
 
+/** Lowest and highest note the pitch labeller may emit (librosa spelling, `E1`..`C7`). */
+const PitchRange = z.tuple([z.string().regex(NOTE_NAME), z.string().regex(NOTE_NAME)]);
+
 export const GuitarSource = SourceBase.extend({
   /** Chords the audio labeller may emit on this video (a per-video prior). */
   chords: z.array(z.enum(GUITAR_CHORD_SHAPES)).min(1),
@@ -80,8 +85,30 @@ export const GuitarSource = SourceBase.extend({
 }).strict();
 export type GuitarSource = z.infer<typeof GuitarSource>;
 
-export const GenericSource = SourceBase.strict();
-export type GenericSource = z.infer<typeof GenericSource>;
+export const FluteSource = SourceBase.extend({
+  pitchRange: PitchRange.optional(),
+  /**
+   * Which detected hand is the player's LEFT (the one nearer the embouchure), by image
+   * x: a flautist facing the camera holds the flute out to the viewer's left, so the
+   * left hand is the `max`-x one; a side view from the player's right flips it.
+   */
+  leftHand: z.enum(['min', 'max']),
+  /** The face is in frame for the embouchure half (drives the face stream extraction). */
+  face: z.boolean(),
+}).strict();
+export type FluteSource = z.infer<typeof FluteSource>;
+
+export const BassSource = SourceBase.extend({
+  pitchRange: PitchRange.optional(),
+  frettingHand: FrettingHandPick,
+}).strict();
+export type BassSource = z.infer<typeof BassSource>;
+
+export const DrumsSource = SourceBase.extend({
+  /** Air drums: no hits in the audio, so no onset labels; strokes only. */
+  air: z.boolean().optional(),
+}).strict();
+export type DrumsSource = z.infer<typeof DrumsSource>;
 
 const noLocalPaths = (doc: unknown): boolean => !LOCAL_PATH.test(JSON.stringify(doc));
 const uniqueIds = (d: { sources: { id: string }[] }): boolean => new Set(d.sources.map((s) => s.id)).size === d.sources.length;
@@ -99,14 +126,17 @@ const docOf = <I extends string, S extends z.ZodTypeAny>(instrument: I, source: 
 export const AirSources = z
   .discriminatedUnion('instrument', [
     docOf('guitar', GuitarSource),
-    docOf('flute', GenericSource),
-    docOf('bass', GenericSource),
-    docOf('drums', GenericSource),
+    docOf('flute', FluteSource),
+    docOf('bass', BassSource),
+    docOf('drums', DrumsSource),
   ])
   .refine(uniqueIds, { message: 'duplicate source id' })
   .refine(noLocalPaths, { message: 'no local paths in a committed source list' });
 export type AirSources = z.infer<typeof AirSources>;
 export type GuitarSources = Extract<AirSources, { instrument: 'guitar' }>;
+export type FluteSources = Extract<AirSources, { instrument: 'flute' }>;
+export type BassSources = Extract<AirSources, { instrument: 'bass' }>;
+export type DrumsSources = Extract<AirSources, { instrument: 'drums' }>;
 
 export const youtubeUrl = (id: string): string => `https://www.youtube.com/watch?v=${id}`;
 
@@ -115,9 +145,14 @@ export function parseSources(json: string): AirSources {
   return AirSources.parse(JSON.parse(json));
 }
 
+/** Parse a source list and refuse any instrument but the one asked for. */
+export function parseSourcesFor<I extends AirSources['instrument']>(json: string, instrument: I): Extract<AirSources, { instrument: I }> {
+  const doc = parseSources(json);
+  if (doc.instrument !== instrument) throw new Error(`expected a ${instrument} source list, got ${doc.instrument}`);
+  return doc as Extract<AirSources, { instrument: I }>;
+}
+
 /** Parse a guitar source list, refusing any other instrument. */
 export function parseGuitarSources(json: string): GuitarSources {
-  const doc = parseSources(json);
-  if (doc.instrument !== 'guitar') throw new Error(`expected a guitar source list, got ${doc.instrument}`);
-  return doc;
+  return parseSourcesFor(json, 'guitar');
 }
