@@ -56,7 +56,7 @@ npx vite-node scripts/air/build_pitch_dataset.ts flute      # both hands + embou
 npx vite-node scripts/air/build_pitch_dataset.ts bass       # fretting hand shape + neck position -> pitch class
 npx vite-node scripts/air/train_air_model.ts flute pitch_class
 npx vite-node scripts/air/train_air_model.ts bass pitch_class
-npx vite-node scripts/air/eval_drum_strokes.ts --file own_air_drums_2021   # strokes vs audio onsets, drums by clustering
+npx vite-node scripts/air/eval_drum_strokes.ts --file <stem of a local clip>   # strokes vs audio onsets, drums by clustering
 ```
 
 Results per instrument are in the research doc §6.3 (guitar) and §7 (bass, flute, drums).

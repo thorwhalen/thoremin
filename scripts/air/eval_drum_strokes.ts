@@ -5,29 +5,38 @@
  *
  * Scoring is the beat-tracking F-measure from `src/ictus/metrics.ts` (an onset and a
  * stroke match within a window), at two windows: one frame period (the honest
- * frame-level number) and 70 ms (the MIR convention). A stroke detector that fires on
- * every hit but one frame late scores well here and is still useless as an instrument;
- * the sub-frame stream owns that gap.
+ * frame-level number) and 70 ms (the MIR convention), each raw AND after removing the
+ * median signed lag between strokes and onsets. The wrist's reversal trails the sound
+ * by a roughly constant amount (Dahl's finding), so the raw one-frame F-measure mostly
+ * measures that lag, and the lag itself is reported in milliseconds: it is the number
+ * the sub-frame stream must predict away. Flams (two hits inside the onset labeller's
+ * minimum gap) count as one onset and two strokes, against precision.
  *
  * Usage:
- *   npx vite-node scripts/air/eval_drum_strokes.ts [--min-strength 3] [--file <stem> ...]
+ *   npx vite-node scripts/air/eval_drum_strokes.ts [--min-noise 12] [--file <stem> ...]
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fMeasure, medianInterval } from '@/ictus/metrics';
 import { airDir } from './lib_air_paths';
 import { readLandmarks } from './lib_chord_shape_dataset';
-import { assignStrokes, strokesOf, wristTracks, type Cluster, type Stroke } from './lib_drum_strokes';
+import { assignStrokes, median, strokesOf, timingErrors, wristTracks, type Cluster, type Stroke } from './lib_drum_strokes';
 import { parseSourcesFor } from './lib_sources';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
-const minStrength = Number(arg('min-strength', '3'));
+const minNoise = Number(arg('min-noise', '12'));
 const extraFiles = (() => {
   const i = process.argv.indexOf('--file');
-  return i >= 0 ? process.argv.slice(i + 1).filter((a) => !a.startsWith('--')) : [];
+  if (i < 0) return [];
+  const out: string[] = [];
+  for (const a of process.argv.slice(i + 1)) {
+    if (a.startsWith('--')) break;
+    out.push(a);
+  }
+  return out;
 })();
 
 interface Row {
@@ -42,8 +51,12 @@ interface Row {
   right: number;
   medianGap: number;
   onsets?: number;
+  /** Median signed stroke-minus-onset lag, seconds (positive = the wrist reverses after the sound). */
+  lag?: number;
   fFrame?: number;
   f70?: number;
+  fFrameLagged?: number;
+  f70Lagged?: number;
   drums: Cluster[];
 }
 
@@ -62,7 +75,7 @@ for (const job of jobs) {
   const tracks = wristTracks(records);
   const bodyFrames = tracks.left.length;
   const fps = records.length > 1 ? (records.length - 1) / (records[records.length - 1].t - records[0].t) : 30;
-  const strokes: Stroke[] = strokesOf(records, { minStrength });
+  const strokes: Stroke[] = strokesOf(records, { minAmplitudeNoiseUnits: minNoise });
   const drums = assignStrokes(strokes);
   const row: Row = {
     id: job.id,
@@ -84,20 +97,29 @@ for (const job of jobs) {
     row.onsets = onsets.length;
     row.fFrame = fMeasure(onsets, est, 1 / fps);
     row.f70 = fMeasure(onsets, est, 0.07);
+    const lag = median(timingErrors(onsets, est, 0.1));
+    if (Number.isFinite(lag)) {
+      row.lag = lag;
+      const shifted = est.map((t) => t - lag);
+      row.fFrameLagged = fMeasure(onsets, shifted, 1 / fps);
+      row.f70Lagged = fMeasure(onsets, shifted, 0.07);
+    }
   }
   rows.push(row);
-  console.error(`${job.id}: strokes=${strokes.length} drums=${drums.length}${row.f70 !== undefined ? ` F@70ms=${row.f70.toFixed(3)}` : ''}`);
+  console.error(`${job.id}: strokes=${strokes.length} drums=${drums.length}${row.f70 !== undefined ? ` F@70ms=${row.f70.toFixed(3)} lag=${((row.lag ?? 0) * 1000).toFixed(0)}ms` : ''}`);
 }
 const resDir = airDir('results', 'drums');
 mkdirSync(resDir, { recursive: true });
-writeFileSync(join(resDir, 'strokes.results.json'), JSON.stringify({ minStrength, rows }, null, 1));
+writeFileSync(join(resDir, 'strokes.results.json'), JSON.stringify({ minNoise, rows }, null, 1));
 
 const pct = (x?: number) => (x === undefined ? '' : `${(100 * x).toFixed(1)}%`);
-console.log('| source (player) | frames | body found | fps | strokes L/R | median gap s | onsets | F, 1 frame | F, 70 ms | drums (clusters) |');
-console.log('|---|---|---|---|---|---|---|---|---|---|');
+console.log('| source (player) | frames | body found | fps | strokes L/R | median gap s | onsets | lag ms | F, 1 frame raw / lag-corrected | F, 70 ms raw / lag-corrected | drums L+R (clusters) |');
+console.log('|---|---|---|---|---|---|---|---|---|---|---|');
 for (const r of rows) {
-  const clusters = r.drums.map((c) => `(${c.x.toFixed(2)}, ${c.y.toFixed(2)}) x${c.count}`).join('; ');
+  const clusters = r.drums.map((c) => `${c.wrist[0].toUpperCase()}(${c.x.toFixed(2)}, ${c.y.toFixed(2)}) x${c.count}`).join('; ');
+  const nL = r.drums.filter((d) => d.wrist === 'left').length;
+  const nR = r.drums.length - nL;
   console.log(
-    `| ${r.id} (${r.player})${r.air ? ' air' : ''} | ${r.frames} | ${((100 * r.bodyFrames) / Math.max(1, r.frames)).toFixed(0)}% | ${r.fps.toFixed(1)} | ${r.left}/${r.right} | ${Number.isFinite(r.medianGap) ? r.medianGap.toFixed(3) : ''} | ${r.onsets ?? ''} | ${pct(r.fFrame)} | ${pct(r.f70)} | ${r.drums.length}: ${clusters} |`,
+    `| ${r.id} (${r.player})${r.air ? ' air' : ''} | ${r.frames} | ${((100 * r.bodyFrames) / Math.max(1, r.frames)).toFixed(0)}% | ${r.fps.toFixed(1)} | ${r.left}/${r.right} | ${Number.isFinite(r.medianGap) ? r.medianGap.toFixed(3) : ''} | ${r.onsets ?? ''} | ${r.lag === undefined ? '' : (1000 * r.lag).toFixed(0)} | ${pct(r.fFrame)} / ${pct(r.fFrameLagged)} | ${pct(r.f70)} / ${pct(r.f70Lagged)} | ${nL}+${nR}: ${clusters} |`,
   );
 }

@@ -1,45 +1,49 @@
 /**
  * Strokes from a drummer's wrists, and which drum each stroke went to. The parts of the
- * drum problem that are NOT sub-frame timing: sub-frame timing (predicting the hit
- * before the frame that shows it, the `ictus` prior, the commit-and-correct rule) is the
- * sub-frame stream's, in `src/ictus/`. This module finds strokes at FRAME resolution
- * and says where they landed; §7 of the research doc says where the two meet.
+ * drum problem that are NOT sub-frame timing: predicting the hit before the frame that
+ * shows it, the `ictus` prior and the commit-and-correct rule are the sub-frame
+ * stream's, in `src/ictus/`. This module finds strokes at frame resolution and says
+ * where they landed; §7.3 of the research doc says where the two meet.
  *
- * A stroke, here, is a wrist moving down and reversing: the frame where the wrist's
- * image-y velocity crosses from downward (+y) to upward (−y) after a downward run
- * whose peak speed exceeds a threshold in NOISE units (the wrist's own frame-to-frame
- * jitter, the trainer's `noise.ts` idea applied to a velocity), with a refractory gap
- * so one reversal is one stroke. The time reported is the reversal frame's, linearly
- * interpolated between the last downward and first upward sample, which is as far as a
- * frame-level detector may honestly go. Dahl's finding [B2] that the acceleration
- * peak leads the audio onset while the reversal trails it is what the sub-frame stream
- * builds on; the reversal is reported here because it is what a frame shows.
+ * The stroke detector IS the ictus detector (`createIctusDetector` in
+ * `src/ictus/detector.ts`), one per wrist, fed the wrist's image position: a stroke is a
+ * turning point of image-y (down positive), refined by parabola below the frame
+ * period, gated by an online noise estimate (each sample's residual against the median
+ * of its neighbours, in the trainer's noise-unit convention) and a recent-amplitude
+ * envelope, with a tempo-relative refractory window and a restart after a tracking
+ * gap. A {@link Stroke} is that detector's `Anchor` plus the wrist and the landing
+ * point. Nothing is re-derived here, so what a drum stroke is in the offline scorer and
+ * in the live conductor node is one definition, and the sub-frame stream's improvements
+ * to the detector reach this evaluation for free.
  *
  * Assignment: every stroke's landing point (the wrist's image position at the
  * reversal, normalised by the shoulder width and centred on the shoulder midpoint so
- * the camera distance and framing drop out) is clustered with k-means; the number of
- * clusters is chosen by the largest relative drop in within-cluster spread, capped.
- * Each cluster is a "drum" (or a place in the air the player keeps returning to), and
- * a stroke is assigned to its nearest centre. No audio is used: which drum sounded is
- * a spatial fact the video carries and the audio, without a drum-sound classifier,
- * does not.
+ * the camera distance and framing drop out) is clustered PER WRIST by recursive
+ * bisection: a cluster is split into two only if it is wide (RMS radius above
+ * `minSpread` shoulder widths), the split removes at least `minGain` of its spread, and
+ * both halves keep at least `minSize` strokes, so a tight cloud is one drum with jitter
+ * and a stray mis-tracked point never becomes a drum. Each cluster is a "drum" (or a
+ * place in the air the player keeps returning to). No audio is used: which drum
+ * sounded is a spatial fact the video carries and the audio, without a drum-sound
+ * classifier, does not. The wrists are clustered separately because a wrist is not a
+ * stick tip: the same snare hit by the left and the right hand lands the two wrists in
+ * two different places.
  */
 import type { StreamRecord } from '@/dag';
+import { createIctusDetector, type DetectorOptions } from '@/ictus/detector';
+import type { Anchor } from '@/ictus/types';
 import type { BodyFrame } from '@/nodes/domain';
 import { BLM } from '@/nodes/domain';
 
 export type Wrist = 'left' | 'right';
 
-export interface Stroke {
+/** A detected stroke: the ictus detector's anchor, plus whose wrist and where it landed. */
+export interface Stroke extends Anchor {
   wrist: Wrist;
-  /** Reversal time, seconds (interpolated between the two frames around the reversal). */
-  t: number;
-  /** Peak downward speed of the run, in noise units. */
-  strength: number;
   /** Landing point, shoulder-normalised (x to the right, y down, origin the shoulder midpoint). */
   x: number;
   y: number;
-  /** Assigned cluster (drum) index, after {@link assignStrokes}. */
+  /** Assigned cluster (drum) index within this wrist's clusters, after {@link assignStrokes}. */
   drum?: number;
 }
 
@@ -84,87 +88,72 @@ export function wristTracks(records: readonly StreamRecord[], minVisibility = MI
   return out;
 }
 
-export interface StrokeOptions {
-  /** Peak downward speed a run must reach, in noise units. Default 3. */
-  minStrength?: number;
-  /** Seconds after a stroke during which no second stroke is accepted. Default 0.08. */
-  refractorySeconds?: number;
-  /** Fallback noise sigma (px/s) when the track is too short to estimate one. */
-  fallbackSigma?: number;
-}
-
-/** Median absolute deviation, scaled to a Gaussian sigma. */
-function madSigma(xs: readonly number[]): number {
-  if (xs.length === 0) return NaN;
-  const sorted = [...xs].sort((a, b) => a - b);
-  const med = sorted[Math.floor(sorted.length / 2)];
-  const dev = xs.map((x) => Math.abs(x - med)).sort((a, b) => a - b);
-  return 1.4826 * dev[Math.floor(dev.length / 2)];
-}
-
 /**
- * Detect strokes on one wrist track. The velocity noise is the MAD of the y velocity
- * over the whole track, which is dominated by the still and slow frames a drumming
- * clip has plenty of, so a stroke's speed is measured against how much the wrist
- * jitters when it is not striking.
+ * Detector options for a drum wrist. The ictus defaults are tuned for a conductor's
+ * beat (period 0.6 s, refractory a quarter of it, a median-of-three prefilter against
+ * one-frame landmark spikes); a drummer's single hand strikes at up to 6 to 8 Hz on a
+ * roll, five frames per cycle at 30 fps, and the three-sample median flattens exactly
+ * that (2 of 36 strokes found on a 6 Hz groove with it, 36 of 36 without) and biases
+ * the parabolic timing by half a frame on a short stroke. So the prefilter is off for
+ * drums and the initial period and refractory fraction are shorter; a one-frame spike
+ * is instead rejected by the amplitude gates. Everything else (noise units, envelope,
+ * gap restart) is the shared definition.
  */
+export const DRUM_DETECTOR_DEFAULTS: DetectorOptions = {
+  mode: 'turning',
+  yDown: true,
+  medianFilter: false,
+  initialPeriod: 0.3,
+  refractoryFraction: 0.2,
+  minAmplitudeNoiseUnits: 12,
+  /**
+   * Absolute floor in SHOULDER WIDTHS (the detector is fed the shoulder-normalised
+   * position, so this is resolution-independent): a stroke moves the wrist by at least
+   * a twentieth of the shoulder width. Without it the first seconds of a still wrist,
+   * before the online noise estimate and the envelope exist, yield anchors on jitter.
+   */
+  minAmplitude: 0.05,
+};
+
+export interface StrokeOptions extends DetectorOptions {
+  /** Anchors below this `strength` (fraction of the recent envelope) are not strokes. Default 0.3. */
+  minStrength?: number;
+}
+
+/** Strokes on one wrist track: the ictus detector fed the visible, shoulder-normalised samples in order. */
 export function detectStrokes(track: readonly WristSample[], wrist: Wrist, o: StrokeOptions = {}): Stroke[] {
-  const minStrength = o.minStrength ?? 3;
-  const refractory = o.refractorySeconds ?? 0.08;
-  const pts = track.filter((s) => s.visible);
-  if (pts.length < 3) return [];
-  const vy: number[] = [];
-  for (let i = 1; i < pts.length; i++) {
-    const dt = pts[i].t - pts[i - 1].t;
-    vy.push(dt > 0 ? (pts[i].y - pts[i - 1].y) / dt : 0);
-  }
-  let sigma = madSigma(vy);
-  if (!(sigma > 0)) sigma = o.fallbackSigma ?? 1;
+  const { minStrength = 0.3, ...detOpts } = o;
+  const det = createIctusDetector({ ...DRUM_DETECTOR_DEFAULTS, ...detOpts });
   const strokes: Stroke[] = [];
-  let runPeak = 0;
-  let lastStroke = -Infinity;
-  for (let i = 0; i < vy.length; i++) {
-    const v = vy[i];
-    if (v > 0) {
-      runPeak = Math.max(runPeak, v);
-      continue;
-    }
-    // v <= 0: the wrist is moving up (or still). A reversal ends a downward run.
-    if (runPeak > 0) {
-      const strength = runPeak / sigma;
-      const a = pts[i]; // last sample of the downward run
-      const b = pts[i + 1]; // first sample moving up
-      const t = i + 1 < pts.length && vy[i] < 0 && i > 0 ? interpolateReversal(pts[i - 1], a, b) : a.t;
-      if (strength >= minStrength && t - lastStroke >= refractory) {
-        strokes.push({ wrist, t, strength, x: a.nx, y: a.ny });
-        lastStroke = t;
-      }
-      runPeak = 0;
-    }
+  const recent: WristSample[] = [];
+  for (const s of track) {
+    if (!s.visible || !Number.isFinite(s.nx) || !Number.isFinite(s.ny)) continue;
+    recent.push(s);
+    if (recent.length > 8) recent.shift();
+    // Shoulder-normalised coordinates, so the amplitude gates mean the same thing on a
+    // 720p phone clip and a 4K lesson.
+    const anchor = det.push({ t: s.t, x: s.nx, y: s.ny });
+    if (!anchor || anchor.strength < minStrength) continue;
+    // The landing point: the sample nearest the anchor's (interpolated) time, which is
+    // a frame or two before the sample that confirmed it.
+    let best = recent[0];
+    for (const r of recent) if (Math.abs(r.t - anchor.t) < Math.abs(best.t - anchor.t)) best = r;
+    strokes.push({ ...anchor, wrist, x: best.nx, y: best.ny });
   }
   return strokes;
 }
 
-/** Where, between the lowest sample and its neighbours, the parabola through them peaks. */
-function interpolateReversal(prev: WristSample, low: WristSample, next: WristSample): number {
-  const y0 = prev.y;
-  const y1 = low.y;
-  const y2 = next.y;
-  const denom = y0 - 2 * y1 + y2;
-  if (!(Math.abs(denom) > 1e-9)) return low.t;
-  const delta = (0.5 * (y0 - y2)) / denom; // in frames, -0.5..0.5 around `low`
-  const dt = (next.t - prev.t) / 2;
-  return low.t + Math.max(-0.5, Math.min(0.5, delta)) * dt;
-}
-
 export interface Cluster {
+  wrist: Wrist;
   x: number;
   y: number;
   count: number;
+  /** RMS radius of the cluster, shoulder widths. */
+  radius: number;
 }
 
 /** Plain k-means on (x, y) with deterministic seeding (farthest-first). */
-export function kmeans(points: readonly { x: number; y: number }[], k: number, iterations = 50): { centres: Cluster[]; labels: number[] } {
+export function kmeans(points: readonly { x: number; y: number }[], k: number, iterations = 50): { centres: { x: number; y: number; count: number }[]; labels: number[] } {
   const pts = points.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
   if (pts.length === 0 || k <= 0) return { centres: [], labels: [] };
   const centres: { x: number; y: number }[] = [{ x: pts[0].x, y: pts[0].y }];
@@ -206,58 +195,109 @@ export function kmeans(points: readonly { x: number; y: number }[], k: number, i
   }
   const counts = centres.map(() => 0);
   for (const l of labels) counts[l] += 1;
-  return { centres: centres.map((c, j) => ({ ...c, count: counts[j] })), labels };
+  return { centres: centres.map((c, j) => ({ ...c, count: counts[j] })).filter((c) => c.count > 0), labels };
 }
 
-function withinSpread(points: readonly { x: number; y: number }[], centres: readonly Cluster[], labels: readonly number[]): number {
-  let s = 0;
-  points.forEach((p, i) => {
-    const c = centres[labels[i]];
-    s += (p.x - c.x) ** 2 + (p.y - c.y) ** 2;
-  });
-  return points.length ? s / points.length : 0;
-}
+const rmsRadius = (pts: readonly { x: number; y: number }[], c: { x: number; y: number }): number =>
+  pts.length ? Math.sqrt(pts.reduce((s, p) => s + (p.x - c.x) ** 2 + (p.y - c.y) ** 2, 0) / pts.length) : 0;
 
 export interface AssignOptions {
-  /** Most drums to consider. Default 5. */
+  /** Most drums per wrist. Default 5. */
   maxDrums?: number;
-  /** A further cluster must cut the within-cluster spread by at least this fraction. Default 0.35. */
+  /** A split must cut the cluster's spread (mean squared radius) by at least this fraction. Default 0.35. */
   minGain?: number;
-  /**
-   * Do not split a cluster whose RMS radius is under this many shoulder widths
-   * (default 0.1): a drum is a target the size of a hand, and a tight cloud of landing
-   * points is one drum with jitter, however well two centres would fit it.
-   */
+  /** A cluster with an RMS radius under this many shoulder widths is never split. Default 0.1. */
   minSpread?: number;
+  /** Both halves of a split must keep at least this many strokes. Default 4. */
+  minSize?: number;
 }
 
 /**
- * Cluster the strokes' landing points into drums and label each stroke. Returns the
- * centres in shoulder units; strokes without a finite landing point stay unassigned.
+ * Cluster one wrist's strokes into drums by recursive bisection and label each stroke's
+ * `drum`. Strokes without a finite landing point stay unassigned.
  */
-export function assignStrokes(strokes: Stroke[], o: AssignOptions = {}): Cluster[] {
-  const maxK = o.maxDrums ?? 5;
+export function assignWristStrokes(strokes: Stroke[], wrist: Wrist, o: AssignOptions = {}): Cluster[] {
+  const maxDrums = o.maxDrums ?? 5;
   const minGain = o.minGain ?? 0.35;
   const minSpread = o.minSpread ?? 0.1;
-  const pts = strokes.filter((s) => Number.isFinite(s.x) && Number.isFinite(s.y));
-  if (pts.length < 2) return [];
-  let best = kmeans(pts, 1);
-  let bestSpread = withinSpread(pts, best.centres, best.labels);
-  for (let k = 2; k <= Math.min(maxK, pts.length); k++) {
-    if (Math.sqrt(bestSpread) < minSpread) break;
-    const trial = kmeans(pts, k);
-    const spread = withinSpread(pts, trial.centres, trial.labels);
-    if (bestSpread > 0 && (bestSpread - spread) / bestSpread >= minGain) {
-      best = trial;
-      bestSpread = spread;
-    } else break;
+  const minSize = o.minSize ?? 4;
+  const pts = strokes.filter((s) => s.wrist === wrist && Number.isFinite(s.x) && Number.isFinite(s.y));
+  if (pts.length === 0) return [];
+  let groups: Stroke[][] = [pts];
+  let split = true;
+  while (split && groups.length < maxDrums) {
+    split = false;
+    // Try the widest cluster first.
+    const order = groups
+      .map((g, i) => ({ i, r: rmsRadius(g, centreOf(g)) }))
+      .sort((a, b) => b.r - a.r);
+    for (const { i, r } of order) {
+      const g = groups[i];
+      if (r < minSpread || g.length < 2 * minSize) continue;
+      const km = kmeans(g, 2);
+      if (km.centres.length < 2) continue;
+      const halves: Stroke[][] = [[], []];
+      km.labels.forEach((l, j) => halves[l].push(g[j]));
+      if (halves[0].length < minSize || halves[1].length < minSize) continue;
+      const before = r * r;
+      const after = halves.reduce((s, h) => s + h.length * rmsRadius(h, centreOf(h)) ** 2, 0) / g.length;
+      if (before > 0 && (before - after) / before >= minGain) {
+        groups.splice(i, 1, halves[0], halves[1]);
+        split = true;
+        break;
+      }
+    }
   }
-  pts.forEach((s, i) => (s.drum = best.labels[i]));
-  return best.centres;
+  groups.sort((a, b) => centreOf(a).x - centreOf(b).x);
+  const clusters: Cluster[] = groups.map((g) => {
+    const c = centreOf(g);
+    return { wrist, x: c.x, y: c.y, count: g.length, radius: rmsRadius(g, c) };
+  });
+  groups.forEach((g, i) => g.forEach((s) => (s.drum = i)));
+  return clusters;
+}
+
+function centreOf(g: readonly { x: number; y: number }[]): { x: number; y: number } {
+  return { x: g.reduce((s, p) => s + p.x, 0) / g.length, y: g.reduce((s, p) => s + p.y, 0) / g.length };
+}
+
+/** Both wrists' clusters, left then right. */
+export function assignStrokes(strokes: Stroke[], o: AssignOptions = {}): Cluster[] {
+  return [...assignWristStrokes(strokes, 'left', o), ...assignWristStrokes(strokes, 'right', o)];
 }
 
 /** Strokes on both wrists of a pose stream, merged in time order. */
 export function strokesOf(records: readonly StreamRecord[], o: StrokeOptions = {}): Stroke[] {
   const tracks = wristTracks(records);
   return [...detectStrokes(tracks.left, 'left', o), ...detectStrokes(tracks.right, 'right', o)].sort((a, b) => a.t - b.t);
+}
+
+/**
+ * Signed timing error of each stroke against its nearest reference onset, seconds
+ * (positive = the stroke is late). The median is the systematic lag a frame-level
+ * reversal carries against the sound (Dahl's finding: the reversal trails the onset),
+ * and the honest F-measure is taken after removing it, so a detector that fires on
+ * every hit one frame late is not scored as missing every hit.
+ */
+export function timingErrors(reference: readonly number[], strokes: readonly number[], window: number): number[] {
+  const ref = [...reference].sort((a, b) => a - b);
+  const out: number[] = [];
+  for (const t of strokes) {
+    let best = NaN;
+    let bestD = Infinity;
+    for (const r of ref) {
+      const d = Math.abs(t - r);
+      if (d < bestD) [best, bestD] = [r, d];
+      if (r > t + window) break;
+    }
+    if (bestD <= window) out.push(t - best);
+  }
+  return out;
+}
+
+export function median(xs: readonly number[]): number {
+  if (xs.length === 0) return NaN;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }

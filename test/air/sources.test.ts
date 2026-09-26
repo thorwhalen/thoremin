@@ -80,10 +80,11 @@ describe('source schema', () => {
     const flute = parseSources(docOf([{ ...generic, leftHand: 'max', face: true }], 'flute'));
     expect(flute.instrument).toBe('flute');
     expect(() => parseSources(docOf([generic], 'flute'))).toThrow(); // leftHand/face required
-    expect(() => parseSources(docOf([ok], 'flute'))).toThrow(); // chords not a flute field
+    expect(() => parseSources(docOf([{ ...ok, leftHand: 'max', face: true }], 'flute'))).toThrow(); // chords not a flute field
     const bass = parseSources(docOf([{ ...generic, frettingHand, pitchRange: ['E1', 'G4'] }], 'bass'));
     expect(bass.instrument).toBe('bass');
     expect(() => parseSources(docOf([{ ...generic, frettingHand, pitchRange: ['E', 'G4'] }], 'bass'))).toThrow(); // octave required
+    expect(() => parseSources(docOf([{ ...generic, frettingHand, pitchRange: ['G4', 'E1'] }], 'bass'))).toThrow(/low, then high/);
     const drums = parseSources(docOf([{ ...generic, air: true }], 'drums'));
     expect(drums.instrument).toBe('drums');
     expect(() => parseGuitarSources(docOf([{ ...generic, leftHand: 'max', face: true }], 'flute'))).toThrow(/guitar/);

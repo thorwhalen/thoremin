@@ -6,9 +6,12 @@ Same idea as ``label_chords.py``, one octave down in ambition: a flute or a bass
 played alone is monophonic, so a pitch tracker gives the sounding note directly.
 Method: probabilistic YIN (``librosa.pyin``) on the audio, restricted to the source's
 declared pitch range, frame-wise MIDI rounding, a voiced-probability floor, then a
-temporal median over a few hops and a merge into note segments; segments shorter than
-``--min-seconds`` become ``N`` (a pitch tracker flickers by an octave or a semitone at
-a note's edges, and those frames are dropped by the join's margin anyway).
+per-source tuning offset (the median deviation from the nearest semitone, so a sharp
+instrument does not round every note to its neighbour), a temporal median over a few
+hops and a merge into note segments; segments shorter than ``--min-seconds`` become
+``N`` (a pitch tracker flickers by an octave or a semitone at a note's edges, and those
+frames are dropped by the join's margin anyway). The labeller therefore favours held
+notes: a run of very short notes loses its edges and some of its middle.
 
 Output: ``labels/air/<instrument>/<id>.pitch.json`` with
 ``{video, range, hopSeconds, segments: [{start, end, label}], stats}`` where a label is
@@ -37,7 +40,10 @@ sys.path.insert(0, str(HERE))
 from extract import cut_windows  # noqa: E402
 from label_chords import NO_CHORD, decode_audio, path_to_segments  # noqa: E402
 
-DEFAULT_RANGE = {"flute": ("C4", "C7"), "bass": ("E1", "G4")}
+# The flute range stops at C6: the third octave uses different fingerings from the
+# first two, and the fingering-class labeller in TypeScript folds octaves 1 and 2
+# together except for the two notes (D5, D#5) whose fingering differs.
+DEFAULT_RANGE = {"flute": ("C4", "C6"), "bass": ("E1", "G4")}
 
 
 def data_root() -> Path:
@@ -83,30 +89,36 @@ def track_notes(
     n_state = len(states) - 1
     midi = np.full(len(f0), n_state, dtype=int)
     ok = np.isfinite(f0) & (vprob >= voiced_floor)
-    m = np.round(librosa.hz_to_midi(f0[ok])).astype(int)
+    # Per-source tuning: an instrument tuned 40 cents sharp (or a phone's clock drift)
+    # would otherwise round every note to the wrong neighbour. The offset is the median
+    # deviation of the voiced frames from the nearest semitone, removed before rounding.
+    fractional = librosa.hz_to_midi(f0[ok])
+    tuning = float(np.median(fractional - np.round(fractional))) if ok.sum() > 10 else 0.0
+    m = np.round(fractional - tuning).astype(int)
     m = np.clip(m, lo_m, hi_m) - lo_m
     midi[ok] = m
     if len(midi) > median_hops:
         # Median over hops removes one-hop octave/semitone flickers; N (the last state)
         # is numerically largest so it never becomes a mid-range note by averaging.
         midi = median_filter(midi, size=median_hops, mode="nearest")
-    return midi, states, hop / sr
+    return midi, states, hop / sr, tuning
 
 
-def label_audio(y: np.ndarray, *, sr: int, lo: str, hi: str, min_seconds: float = 0.12, **kw) -> dict:
-    path, states, hop_s = track_notes(y, sr=sr, lo=lo, hi=hi, **kw)
+def label_audio(y: np.ndarray, *, sr: int, lo: str, hi: str, min_seconds: float = 0.08, **kw) -> dict:
+    path, states, hop_s, tuning = track_notes(y, sr=sr, lo=lo, hi=hi, **kw)
     segments = path_to_segments(path, states=states, hop_seconds=hop_s, min_seconds=min_seconds, total_seconds=len(y) / sr)
     per: dict[str, float] = {}
     for s in segments:
         per[s["label"]] = round(per.get(s["label"], 0.0) + s["end"] - s["start"], 2)
-    return {"range": [lo, hi], "hopSeconds": hop_s, "segments": segments, "stats": {"secondsPerLabel": per, "durationSeconds": round(len(y) / sr, 2)}}
+    return {"range": [lo, hi], "hopSeconds": hop_s, "tuningSemitones": round(tuning, 3), "segments": segments, "stats": {"secondsPerLabel": per, "durationSeconds": round(len(y) / sr, 2)}}
 
 
 # ---- Self-test ------------------------------------------------------------------
 
-def synth_melody(plan: list[tuple[str | None, float]], *, sr: int, seed: int = 0) -> tuple[np.ndarray, list[dict]]:
+def synth_melody(plan: list[tuple[str | None, float]], *, sr: int, seed: int = 0, detune_cents: float = 0.0, vibrato_cents: float = 0.0) -> tuple[np.ndarray, list[dict]]:
     """Harmonic tones (flute-ish: fundamental strong, few harmonics) with a soft attack;
-    ``None`` is silence. Returns audio and the truth segments."""
+    ``None`` is silence; optional constant detuning and 5.5 Hz vibrato. Returns audio
+    and the truth segments."""
     rnd = np.random.default_rng(seed)
     out, truth, t0 = [], [], 0.0
     for name, dur in plan:
@@ -114,10 +126,12 @@ def synth_melody(plan: list[tuple[str | None, float]], *, sr: int, seed: int = 0
         t = np.arange(n) / sr
         seg = np.zeros(n)
         if name is not None:
-            f = 440.0 * 2 ** ((note_to_midi(name) - 69) / 12)
+            cents = detune_cents + vibrato_cents * np.sin(2 * np.pi * 5.5 * t)
+            f = 440.0 * 2 ** ((note_to_midi(name) - 69 + cents / 100.0) / 12)
+            phase = 2 * np.pi * np.cumsum(f) / sr
             env = np.minimum(1.0, t / 0.03) * np.minimum(1.0, (dur - t) / 0.03)
             for h, amp in ((1, 1.0), (2, 0.35), (3, 0.15)):
-                seg += amp * np.sin(2 * np.pi * f * h * t + rnd.uniform(0, 2 * np.pi))
+                seg += amp * np.sin(h * phase + rnd.uniform(0, 2 * np.pi))
             seg *= env * 0.4
         truth.append({"start": t0, "end": t0 + dur, "label": name or NO_CHORD})
         out.append(seg)
@@ -136,19 +150,24 @@ def label_at(segments: list[dict], t: float) -> str:
 def self_test() -> int:
     sr = 22050
     ok_all = True
-    for instrument, plan in (
-        ("flute", [("G4", 0.6), ("A4", 0.6), ("B4", 0.6), ("C5", 0.6), (None, 0.4), ("D5", 0.5), ("E5", 0.5), ("G5", 0.8), ("G4", 0.6)]),
-        ("bass", [("E1", 0.8), ("A1", 0.8), ("D2", 0.8), ("G2", 0.8), (None, 0.4), ("C2", 0.6), ("F2", 0.6), ("B1", 0.8)]),
+    for instrument, plan, detune, vib in (
+        ("flute", [("G4", 0.6), ("A4", 0.6), ("B4", 0.6), ("C5", 0.6), (None, 0.4), ("D5", 0.5), ("E5", 0.5), ("G5", 0.8), ("G4", 0.6)], 0.0, 0.0),
+        ("bass", [("E1", 0.8), ("A1", 0.8), ("D2", 0.8), ("G2", 0.8), (None, 0.4), ("C2", 0.6), ("F2", 0.6), ("B1", 0.8)], 0.0, 0.0),
+        # A flute 45 cents sharp with 25 cents of vibrato: the tuning offset and the
+        # median must hold the note together instead of splitting it across neighbours.
+        ("flute", [("G4", 0.8), ("A4", 0.8), ("B4", 0.8), (None, 0.3), ("D5", 0.8), ("C5", 0.8)], 45.0, 25.0),
+        # Short notes (0.2 s): what the minimum segment length lets through.
+        ("flute", [("G4", 0.2), ("A4", 0.2), ("B4", 0.2), ("C5", 0.2), ("D5", 0.2), ("E5", 0.2), ("G4", 0.2), ("A4", 0.2)], 0.0, 0.0),
     ):
         lo, hi = DEFAULT_RANGE[instrument]
-        y, truth = synth_melody(plan, sr=sr)
+        y, truth = synth_melody(plan, sr=sr, detune_cents=detune, vibrato_cents=vib)
         res = label_audio(y, sr=sr, lo=lo, hi=hi)
         grid = np.arange(0.0, len(y) / sr, 0.02)
         got = np.array([label_at(res["segments"], t) for t in grid])
         want = np.array([label_at(truth, t) for t in grid])
         inner = np.array([not any(abs(t - s["start"]) < 0.1 or abs(t - s["end"]) < 0.1 for s in truth) for t in grid])
         agree = float(np.mean(got[inner] == want[inner]))
-        print(f"self-test {instrument}: agreement away from note edges {agree:.3f}; segments {[(s['label'], round(s['end'] - s['start'], 2)) for s in res['segments']]}")
+        print(f"self-test {instrument} detune={detune}c vibrato={vib}c: agreement away from note edges {agree:.3f} (tuning est {res['tuningSemitones']:+.2f} st); segments {[(s['label'], round(s['end'] - s['start'], 2)) for s in res['segments']]}")
         ok_all &= agree >= 0.95
     print("PASS" if ok_all else "FAIL")
     return 0 if ok_all else 1
@@ -159,7 +178,7 @@ def main() -> int:
     ap.add_argument("instrument", nargs="?")
     ap.add_argument("--only", nargs="*", default=None)
     ap.add_argument("--self-test", action="store_true")
-    ap.add_argument("--min-seconds", type=float, default=0.12)
+    ap.add_argument("--min-seconds", type=float, default=0.08)
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
     if args.self_test:

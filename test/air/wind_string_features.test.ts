@@ -14,6 +14,8 @@ import {
   embouchureVector,
   fluteFeatureIds,
   fluteFeaturizer,
+  fluteFingeringClass,
+  fluteFingeringLabeller,
 } from '../../scripts/air/lib_wind_string_features';
 import { SHAPES, frameOf, syntheticHand } from './synthetic_hand';
 
@@ -127,5 +129,22 @@ describe('bassHandsFeaturizer', () => {
     expect(Number.isNaN(lone['neck.distance'])).toBe(true);
     expect(Number.isFinite(lone['index.curl'])).toBe(true);
     expect(f(frameOf([]))).toBeUndefined();
+  });
+});
+
+describe('fluteFingeringClass', () => {
+  it('folds the first two octaves except D5/D#5, and drops the third octave', () => {
+    expect(fluteFingeringClass('G4')).toBe('G');
+    expect(fluteFingeringClass('G5')).toBe('G');
+    expect(fluteFingeringClass('D4')).toBe('D');
+    expect(fluteFingeringClass('D5')).toBe('D5');
+    expect(fluteFingeringClass('Eb5')).toBe('D#5');
+    expect(fluteFingeringClass('C6')).toBe('C');
+    expect(fluteFingeringClass('C#6')).toBe('N');
+    expect(fluteFingeringClass('B3')).toBe('N');
+    expect(fluteFingeringClass('N')).toBe('N');
+    const l = fluteFingeringLabeller([{ start: 0, end: 1, label: 'D5' }, { start: 1, end: 2, label: 'F#6' }], 0.1);
+    expect(l(0.5)).toBe('D5');
+    expect(l(1.5)).toBeNull();
   });
 });

@@ -76,7 +76,16 @@ const SourceBase = z.object({
 });
 
 /** Lowest and highest note the pitch labeller may emit (librosa spelling, `E1`..`C7`). */
-const PitchRange = z.tuple([z.string().regex(NOTE_NAME), z.string().regex(NOTE_NAME)]);
+const NOTE_ORDER = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const midiOf = (note: string): number => {
+  const m = /^([A-G])([#b]?)(-?\d)$/.exec(note)!;
+  const flats: Record<string, string> = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
+  const pc = flats[`${m[1]}${m[2]}`] ?? `${m[1]}${m[2]}`;
+  return 12 * (Number(m[3]) + 1) + NOTE_ORDER.indexOf(pc);
+};
+const PitchRange = z
+  .tuple([z.string().regex(NOTE_NAME), z.string().regex(NOTE_NAME)])
+  .refine(([lo, hi]) => midiOf(lo) < midiOf(hi), { message: 'pitch range must be low, then high' });
 
 export const GuitarSource = SourceBase.extend({
   /** Chords the audio labeller may emit on this video (a per-video prior). */

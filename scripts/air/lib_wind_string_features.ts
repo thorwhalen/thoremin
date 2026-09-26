@@ -23,7 +23,7 @@
 import type { FeatureVector } from '@/features/catalog';
 import type { FaceFrame, Hand, HandsFrame } from '@/nodes/domain';
 import { LM } from '@/nodes/domain';
-import type { FrameBundle } from './lib_chord_shape_dataset';
+import { NO_CHORD, labelAt, pitchClassOf, type ChordSegment, type FrameBundle } from './lib_chord_shape_dataset';
 import { chordShapeVector, frettingHand, type FeatureSelection } from './lib_chord_shape_features';
 import type { FrettingHandPick } from './lib_sources';
 
@@ -145,3 +145,34 @@ export function fluteFeatureIds(shapeIds: readonly string[], withFace = true): s
 export function bassFeatureIds(shapeIds: readonly string[]): string[] {
   return [...shapeIds, 'neck.distance', 'neck.dx', 'neck.dy'];
 }
+
+/**
+ * The flute's FINGERING class of a note name. On the Boehm flute the first and second
+ * octaves share their fingerings (the second is overblown, the difference is in the
+ * embouchure) except D5 and D#5, played with the left index lifted; the third octave
+ * uses different fingerings again and is out of this model's range. So: C4..C#5 and
+ * E5..C6 map to their pitch class, D5 and D#5 keep their octave (`D5`, `D#5`), and
+ * anything else (including `N`) is `N`.
+ */
+export function fluteFingeringClass(note: string): string {
+  if (note === NO_CHORD) return NO_CHORD;
+  const m = /^([A-G][#b]?)(-?\d)$/.exec(note);
+  if (!m) throw new Error(`not a note name: ${note}`);
+  const pc = pitchClassOf(note);
+  const octave = Number(m[2]);
+  const order = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const midi = 12 * (octave + 1) + order.indexOf(pc);
+  if (midi < 60 || midi > 84) return NO_CHORD; // C4..C6
+  if (midi === 74 || midi === 75) return `${pc}5`;
+  return pc;
+}
+
+/** The `labelOf` seam for flute fingering classes over note segments. */
+export const fluteFingeringLabeller =
+  (segments: readonly ChordSegment[], marginSeconds = 0.08) =>
+  (t: number): string | null => {
+    const l = labelAt(segments, t, marginSeconds);
+    if (l === null) return null;
+    const c = fluteFingeringClass(l);
+    return c === NO_CHORD ? null : c;
+  };

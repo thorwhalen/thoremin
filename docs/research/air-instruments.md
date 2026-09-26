@@ -141,7 +141,7 @@ Each runs through the same pipeline with a different label source and tracker (`
 
 ### 7.1 Bass: position is not a shape either
 
-Ten videos, six players, 9,729 labelled frames (hand detection 68 to 100%; two "only metronome" videos yielded no pitch labels because the click dominates their audio). Target: the pitch class of the sounding note from the fretting hand's shape and its position along the neck.
+Ten videos from seven players, 9,729 labelled frames over the six players whose audio yielded labels (hand detection 68 to 100%; the two "only metronome" videos of the seventh player yielded no pitch labels because the click dominates their audio). Target: the pitch class of the sounding note from the fretting hand's shape and its position along the neck.
 
 | held-out player | frames | accuracy | macro-F1 | accuracy, 9-frame vote |
 |---|---|---|---|---|
@@ -160,7 +160,22 @@ For the air instrument this is a clarification rather than a loss. An air bass h
 
 ### 7.2 Flute: fingering from both hands, embouchure from the face
 
-<!-- FLUTE -->
+Seven videos, five players, tracked for hands and face (a fixed camera on a flautist gives the tracker 65 to 87% of frames with a hand and, when the player faces the camera, 97 to 100% with a face; the play-along source had no person in frame and was dropped). Labels: the pitch class of the sounding note from `label_pitch.py`, 32,139 frames over four players after the join (both hands required). Features: both hands' chord-shape vectors, prefixed by side, plus twenty embouchure blendshapes (`mouthPucker`, `mouthFunnel`, `jawOpen`, the cheek and lip-press shapes), 100 in all.
+
+| held-out player | frames | accuracy | macro-F1 | accuracy, 9-frame vote |
+|---|---|---|---|---|
+| lance-suzuki (three videos) | 22,508 | 4.9% | 3.2% | 4.8% |
+| lauren-teaches-flute | 3,364 | 8.4% | 3.2% | 8.6% |
+| musicians-addition | 5,744 | 44.9% | 21.2% | 46.6% |
+| selfridge (embouchure clip, two notes) | 523 | 0.0% | 0.0% | 0.0% |
+| **pooled, softmax** | 32,139 | **12.3%** | 8.5% | 12.6% |
+| **pooled, centroid** | 32,139 | **11.0%** | 6.1% | 11.1% |
+
+Chance is 8%. Hands only, without the face, gives 11.5% pooled: the embouchure neither helps nor hurts a fingering model. The within-player random split reaches 66.9% (65.5% hands only), which looks like separability until the enrolment experiment is run on the same data: with ten seconds of their own footage per pitch class, the two players who cover all twelve classes reach only 29.7% and 18.0% (softmax) or 23.9% and 36.6% (centroid), and the beginner who plays three notes 62.8%. That is the number that matters, and it says the within-player 67% is mostly adjacent frames leaking across a random split, not fingering being read.
+
+Unlike the guitar, this is not a vocabulary problem: Boehm fingerings are standard, two flautists playing G finger the same keys. It is a resolution problem. A flute key press moves a fingertip a few millimetres and a joint a few degrees, the hand is seen edge-on with the tube in front of it, and MediaPipe's finger-angle error against motion capture is about 11° [D4]; the signal is under the noise floor of the sensor at this distance and angle. What does survive is coarse: which hand is on the tube, and the beginner's three notes (an open-ish B, a closed-ish G) separated by whole fingers. The literature has no webcam flute to compare against (§2.3), and this is why.
+
+For the air instrument the consequence is a design rather than a model. Fingering as a *set of small key presses* is not readable; fingering as a set of *large, deliberate finger lifts* is the guitar result again (an enrolled shape per note, at a scale the tracker sees), and an air flautist has no tube in the way, so the lifts can be as large as they like. The embouchure half stands on its own: the face stream found the mouth in 97 to 100% of frames on the front-facing sources, `mouthPucker` and `mouthFunnel` are the shape a flautist makes and nothing else in the catalog is, and the onset question (does the pucker settle before the sound starts, by how much) is a measurement against the pitch labels' segment starts that belongs with the sub-frame stream's timing harness, since it is a timing question. The footage and labels for it are now local.
 
 ### 7.3 Drums: strokes and drums at frame resolution; the timing is the sub-frame stream's
 

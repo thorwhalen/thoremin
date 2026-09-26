@@ -5,9 +5,10 @@
  * the hands and face streams (both hands + the embouchure blendshapes per frame); the
  * bass join on the hands stream (fretting-hand shape + position along the neck).
  *
- * The label is the PITCH CLASS of the sounding note. For the flute the first and
- * second octaves share most fingerings, so the class is the fingering up to the
- * octave key and the embouchure; for the bass the same pitch class sits on several
+ * The label: for the flute, the FINGERING class (`fluteFingeringClass`: the pitch
+ * class over the first two octaves, which share fingerings, except D5 and D#5 which
+ * keep their octave because their fingering differs; the third octave is out of
+ * range); for the bass, the pitch class of the sounding note, which sits on several
  * strings at different frets, so the number is an upper bound on what a position
  * model can do. Frames within `--margin` seconds of a note change are dropped.
  *
@@ -30,7 +31,7 @@ import {
 } from './lib_chord_shape_dataset';
 import type { Sample } from './lib_chord_shape_model';
 import { parseSourcesFor } from './lib_sources';
-import { bassFeaturizer, fluteFeaturizer } from './lib_wind_string_features';
+import { bassFeaturizer, fluteFeaturizer, fluteFingeringLabeller } from './lib_wind_string_features';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -58,7 +59,8 @@ for (const src of sources) {
     console.error(`skip ${src.id}: missing ${stats[src.id].missing}`);
     continue;
   }
-  const labelOf = pitchClassLabeller(readSegmentLabels(labels).segments, margin);
+  const segments = readSegmentLabels(labels).segments;
+  const labelOf = instrument === 'flute' ? fluteFingeringLabeller(segments, margin) : pitchClassLabeller(segments, margin);
   let result: { samples: Sample[]; stats: JoinStats };
   if (instrument === 'flute') {
     const s = src as Extract<typeof src, { leftHand: 'min' | 'max' }>;
