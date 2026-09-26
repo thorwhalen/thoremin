@@ -64,7 +64,7 @@ for (const line of readFileSync(join(clipDir, 'keypoints.ndjson'), 'utf8').split
     // The mirrored webcam labels the player's RIGHT hand 'Left'.
     hands: [{ handedness: 'Left', keypoints }],
     t: rec.t,
-    tSource: 'rvfc',
+    tSource: 'capture',
     tOrigin: performance.timeOrigin,
   } as HandsFrame);
 }
@@ -104,5 +104,5 @@ const nearest = (t: number) => truth.events.reduce((b, e) => (Math.abs(e.t_impac
 const errI = hits.map((h) => h.t - nearest(h.t).t_impact);
 const errG = hits.map((h) => h.t - nearest(h.t).t_grid);
 console.log(
-  `${name}: ${hits.length}/${truth.events.length} hits, ${hits.filter((h) => h.predicted).length} predicted, ${hits.filter((h) => !h.predicted).length} ghost | vs impact mean ${ms(mean(errI))} MAE ${ms(mean(errI.map(Math.abs)))} | vs beat MAE ${ms(mean(errG.map(Math.abs)))} | mean |pull| ${ms(mean(hits.map((h) => Math.abs(h.pull))))}`,
+  `${name}: ${hits.length}/${truth.events.length} hits, ${hits.filter((h) => h.predicted).length} predicted, ${hits.filter((h) => !h.predicted).length} not ahead | vs impact mean ${ms(mean(errI))} MAE ${ms(mean(errI.map(Math.abs)))} | vs beat MAE ${ms(mean(errG.map(Math.abs)))} | mean |pull| ${ms(mean(hits.map((h) => Math.abs(h.pull))))}`,
 );
