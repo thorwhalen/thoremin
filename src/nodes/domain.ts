@@ -35,16 +35,42 @@ export interface Hand {
 }
 
 /** One frame of detected hands, carrying the source frame dimensions. */
-export interface HandsFrame {
+/**
+ * When a frame was captured (#226). Stamped by the live webcam sources; absent on
+ * synthetic frames and on recordings made before the stamp existed. A recording made
+ * since carries the stamps of the session that made it, in THAT session's time base,
+ * which is why a consumer never reads `t` directly: {@link frameTime} decides.
+ */
+export interface FrameTiming {
+  /** Capture time in seconds, `performance.now()/1000` base (the engine's realtime
+   *  base at speed 1). */
+  t?: number;
+  /** What `t` is: the camera's capture time, the compositor's presentation time, or
+   *  the clock at the moment the source noticed the frame (the pre-#226 stamp). */
+  tSource?: 'capture' | 'presentation' | 'clock';
+  /** Seconds from `t` to the start of inference, measured by the source (#226/#227). */
+  lag?: number;
+}
+
+export const FRAME_TIME_SOURCES = ['capture', 'presentation', 'clock'] as const;
+
+/**
+ * The sample time a consumer should use for a frame: the frame's own stamp when the
+ * engine runs in real time at speed 1 (the one case where the stamp and `ctx.time`
+ * share a base — the Applier publishes the clock's scale under `resources.timeScale`),
+ * else `ctx.time`. A stamped frame under a batch or scaled clock (a replayed
+ * recording, a test) is sampled at the tick, as before #226.
+ */
+export function frameTime(frame: FrameTiming | undefined, ctx: { time: number; resources: Record<string, unknown> }): number {
+  const t = frame?.t;
+  if (typeof t === 'number' && Number.isFinite(t) && frame?.tSource !== undefined && ctx.resources.timeScale === 1) return t;
+  return ctx.time;
+}
+
+export interface HandsFrame extends FrameTiming {
   width: number;
   height: number;
   hands: Hand[];
-  /** Capture time in seconds (`performance.now()/1000` base, the engine's realtime
-   *  base), stamped by the live sources (#226). Absent on replayed and synthetic
-   *  frames; consumers use `frameTime(frame, ctx.time)`. */
-  t?: number;
-  /** Seconds from capture to inference, measured by the source (#226/#227). */
-  lag?: number;
 }
 
 /**
@@ -72,12 +98,18 @@ export const HandSchema = z.object({
   score: z.number().optional(),
 });
 
+/** Runtime shape of {@link FrameTiming}, spread into each frame schema. */
+export const FrameTimingSchema = {
+  t: z.number().optional(),
+  tSource: z.enum(FRAME_TIME_SOURCES).optional(),
+  lag: z.number().optional(),
+};
+
 export const HandsFrameSchema = z.object({
   width: z.number(),
   height: z.number(),
   hands: z.array(HandSchema),
-  t: z.number().optional(),
-  lag: z.number().optional(),
+  ...FrameTimingSchema,
 });
 
 /** The four non-thumb fingers, in radial order. */
@@ -191,7 +223,7 @@ export function legacyFaceToMapping(faceEnabled: boolean | undefined): FaceMappi
  * keyed by name (e.g. `mouthSmileLeft`, `jawOpen`, `browInnerUp`). Produced by
  * the browser `webcam-face` node or by `scripts/video_to_face.py`.
  */
-export interface FaceFrame {
+export interface FaceFrame extends FrameTiming {
   present: boolean;
   blendshapes: Record<string, number>;
   /** Normalized (x, y in 0..1) face mesh landmark points in the source frame, with
@@ -204,9 +236,6 @@ export interface FaceFrame {
    *  matrix — present only when the live source enables that output (issue #76).
    *  The offline blendshape fixture has no matrix, so this is absent there. */
   headPose?: HeadPose;
-  /** Capture time in seconds and capture-to-inference lag, as on {@link HandsFrame}. */
-  t?: number;
-  lag?: number;
 }
 
 // ---- Head pose (from the MediaPipe facial transformation matrix, #76) ------
@@ -567,7 +596,7 @@ export const BODY_BONES: ReadonlyArray<readonly [number, number]> = [
  * the basis for scale-free angles and velocities; `visibility` is the per-point
  * likelihood the landmark is in frame and unoccluded (0..1).
  */
-export interface BodyFrame {
+export interface BodyFrame extends FrameTiming {
   width: number;
   height: number;
   present: boolean;
@@ -577,9 +606,6 @@ export interface BodyFrame {
   world?: Keypoint[];
   /** Per-landmark visibility 0..1, aligned with `landmarks`. */
   visibility: number[];
-  /** Capture time in seconds and capture-to-inference lag, as on {@link HandsFrame}. */
-  t?: number;
-  lag?: number;
 }
 
 /** Runtime shape of a {@link BodyFrame}, for the body slot's output port schema. */
@@ -590,8 +616,7 @@ export const BodyFrameSchema = z.object({
   landmarks: z.array(KeypointSchema),
   world: z.array(KeypointSchema).optional(),
   visibility: z.array(z.number()),
-  t: z.number().optional(),
-  lag: z.number().optional(),
+  ...FrameTimingSchema,
 });
 
 /** What a body source emits when nobody is in frame (never `undefined`). */

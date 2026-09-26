@@ -51,8 +51,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@/ictus';
-import { LM, type Hand, type HandsFrame } from '../domain';
-import { frameTime } from '../sources/frame_pump';
+import { LM, frameTime, type Hand, type HandsFrame } from '../domain';
 import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@/score/schema';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
@@ -123,6 +122,7 @@ export const MusicalTimeSchema = z.object({
   beatInBar: z.number(),
   state: z.enum(['ready', 'running', 'hold']),
   anchors: z.number(),
+  lastAnchorAt: z.number().optional(),
 });
 
 /** The live `config` port: a partial override of the params (the dial's value). */
@@ -281,16 +281,21 @@ export const conductorNode = defineNode<Params>({
         //    sample time is the frame's capture time when the source stamped one
         //    (#226), else the tick time.
         const frame = inputs.hands as HandsFrame | undefined;
-        const fresh = frame !== lastFrame;
+        // The same object again, or a distinct copy carrying the same stamp (a replayed
+        // recording stores every tick, so a camera frame comes back as two parsed
+        // copies), is not a new observation.
+        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
+        const fresh = frame !== lastFrame && !sameStamp;
         lastFrame = frame;
         const hand = frame && fresh ? pickHand(frame, c) : undefined;
         let s: IctusState;
-        if (hand && frame && frame.height > 0) {
+        // The sample time: the frame's capture stamp in real time at speed 1, else the
+        // tick. A sample that would not advance the detector (a stamped frame arriving
+        // behind the last tick-timed one, right after a slot swap) is skipped rather
+        // than given an invented time.
+        const t = frameTime(frame, ctx);
+        if (hand && frame && frame.height > 0 && !(lastPt && t <= lastPt.t)) {
           const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
-          let t = frameTime(frame, ctx.time);
-          // The detector needs non-decreasing times; a stamped frame after an unstamped
-          // one (or the reverse) must not rewind it.
-          if (lastPt && t <= lastPt.t) t = lastPt.t + 1e-4;
           const pt = { t, x: kp.x / frame.height, y: kp.y / frame.height };
           if (lastPt && pt.t > lastPt.t) {
             const speed = Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) / (pt.t - lastPt.t);
@@ -353,6 +358,7 @@ export const conductorNode = defineNode<Params>({
           // A fermata reads as a hold to every consumer (the HUD, the panel, the score).
           state: fermataAt !== null ? 'hold' : s.state,
           anchors: s.anchors,
+          lastAnchorAt: s.lastAnchorAt,
         };
         return emit(time, bpm, s.dynamics, s.articulation, true, c);
       },
