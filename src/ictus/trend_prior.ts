@@ -129,7 +129,7 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
    *  quadratic whose curvature drives the period out of range there is replaced by
    *  the linear fit. */
   const plausible = (f: Fit): boolean => {
-    for (const x of [-1, 0, 1, 2]) {
+    for (const x of [-2, -1, 0, 1, 2, 3, 4]) {
       const slope = f.b + 2 * f.c * x;
       if (!(slope >= o.minPeriod && slope <= o.maxPeriod)) return false;
     }
@@ -143,8 +143,10 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
     if (Math.abs(fit.c) < 1e-9) x = (tt - fit.a) / fit.b;
     else {
       // c x² + b x + (a - tt) = 0; the root nearest x = 0 on the increasing branch.
+      // Past the vertex the fit turns back (no root): hold at the vertex rather than
+      // switch to another formula, which would jump.
       const disc = fit.b * fit.b - 4 * fit.c * (fit.a - tt);
-      if (disc < 0) x = (tt - fit.a) / fit.b;
+      if (disc < 0) x = -fit.b / (2 * fit.c);
       else {
         const sq = Math.sqrt(disc);
         const r1 = (-fit.b - sq) / (2 * fit.c);
@@ -152,6 +154,9 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
         x = Math.abs(r1) <= Math.abs(r2) ? r1 : r2;
       }
     }
+    // After the last anchor the beat never reads below that anchor's index (the fit
+    // passes through it, so this only guards the clamp above).
+    if (ts.length && tt >= ts[ts.length - 1]) x = Math.max(0, x);
     return lastN + Math.max(-2, Math.min(4, x));
   };
 
@@ -230,7 +235,7 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
       }
       if (ts.length >= 2) {
         const iai = ts[ts.length - 1] - ts[ts.length - 2];
-        if (ts.length === 2 && (iai < o.minPeriod || iai > o.maxPeriod)) {
+        if (ts.length === 2 && !fit && (iai < o.minPeriod || iai > o.maxPeriod)) {
           // Not a plausible first interval: start over from this anchor.
           ns.splice(0, 1);
           ts.splice(0, 1);
@@ -240,6 +245,10 @@ export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
           const q = ns.length >= o.quadraticAfter ? fitTrend(ns, ts, true) : null;
           fit = q && plausible(q) ? q : fitTrend(ns, ts, false);
           if (fit && !plausible(fit)) fit = null;
+          // Anchor the fit at the last anchor: the beat at that anchor IS its index, so
+          // `floor(beat)` cannot slip back a beat when the fit's residual there is
+          // negative (a consumer keyed to whole beats would fire twice).
+          if (fit) fit = { ...fit, a: ts[ts.length - 1] };
           state = fit ? 'running' : 'ready';
           const period = periodAt(lastN);
           confidence = fit ? Math.max(0, Math.min(1, 1 - fit.rms / (0.1 * period))) : 0;

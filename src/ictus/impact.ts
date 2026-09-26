@@ -96,9 +96,13 @@ export interface ImpactPredictorOptions {
   /** A prediction is trusted once consecutive samples agree within this (seconds);
    *  NaN disables the check. */
   stabilityTolerance?: number;
-  /** A prediction needs the point to have come at least this fraction of the
-   *  predicted stroke down from its top: the observed descent, not the predicted
-   *  amplitude, is what says a stroke is under way. */
+  /** A prediction needs the point to have come down from its top by at least this
+   *  fraction of the predicted stroke — and by the noise-unit and absolute floors —
+   *  because the observed descent, not the predicted amplitude, is what says a stroke
+   *  is under way (a fit through a few noise samples at rest can "reach" a floor a
+   *  stroke away). It caps the achievable lead: a quadratic fall covers fraction f of
+   *  its extent (1 − √f) of its duration before the impact, so 0.15 leaves about
+   *  60 % of the fall (110 ms of a 180 ms stroke) for the prediction. */
   minDescentFraction?: number;
   /** Departure samples the kink fit uses (after the bottom). */
   departureSamples?: number;
@@ -138,7 +142,7 @@ const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
   approachWindow: 0.15,
   maxApproachSamples: 12,
   stabilityTolerance: 0.012,
-  minDescentFraction: 0.25,
+  minDescentFraction: 0.15,
   departureSamples: 3,
   minAmplitudeFraction: 0.2,
   minAmplitudeNoiseUnits: 20,
@@ -300,8 +304,12 @@ export function crossingTau(fit: { a: number; b: number; c: number }, level: num
     return { tau: NaN, reaches: false };
   }
   // Looking ahead from at or below the level while still heading toward it: the
-  // crossing is now (not the exit root of a decelerating trajectory).
-  if (!past && k >= 0 && b > 0) return { tau: 0, reaches: true };
+  // crossing was a moment ago — the backward root (never the exit root of a
+  // decelerating trajectory, never "now" when it was earlier).
+  if (!past && k >= 0 && b > 0) {
+    const back = crossingTau(fit, level, true);
+    return { tau: Number.isFinite(back.tau) ? Math.min(0, back.tau) : 0, reaches: true };
+  }
   const disc = b * b - 4 * c * k;
   if (disc >= 0) {
     const sq = Math.sqrt(disc);
@@ -663,12 +671,19 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
             const crossing = t + x.tau;
             const tPred = crossing + lag;
             const amplitude = level - topD;
-            // The point must have actually come a good part of the way down: a fit
-            // through a few noise samples at rest can "reach" a floor a stroke away.
-            const descended = d - topD >= o.minDescentFraction * amplitude;
-            const agrees = Number.isFinite(tentative) && Math.abs(tPred - tentative) <= o.stabilityTolerance;
-            const first = !Number.isFinite(tentative);
-            tentative = tPred;
+            // The point must have actually come part of the way down: a fit through a
+            // few noise samples at rest can "reach" a floor a stroke away. The
+            // tentative prediction only starts counting once it has (a fit from before
+            // is not one this one has to agree with).
+            const jit = jitterEst.value();
+            const descent = d - topD;
+            const descended =
+              descent >= o.minDescentFraction * amplitude &&
+              descent >= o.minAmplitude * 0.5 &&
+              (!Number.isFinite(jit) || descent >= o.minAmplitudeNoiseUnits * jit);
+            const agrees = descended && Number.isFinite(tentative) && Math.abs(tPred - tentative) <= o.stabilityTolerance;
+            const first = descended && !Number.isFinite(tentative);
+            if (descended) tentative = tPred;
             const lead = tPred - t;
             // As late as possible: commit now if the next sample would leave less than
             // the needed lead, allowing for the prediction still moving by its

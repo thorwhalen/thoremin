@@ -8,7 +8,7 @@
 
 The numbers come from the `an.impacts` harness [1]: clips of a stick or a ball striking a surface, or turning in mid-air with no contact, on a known tempo grid with humanised timing, sampled by a camera model with a shutter and capture-time jitter, each with a ground-truth sidecar (the intended grid time, the executed impact time in continuous seconds, and what every frame shows). Nothing was rendered: the keypoints are exact and tracker noise is added by the scorer. The benchmark set is 288 clips (object × surface/air × 24/30/60 fps × instantaneous/180-degree shutter × four capture-timing regimes × three seeds), 24 strokes each at a 96 → 132 bpm accelerando with accents (1, .6, .8, .6) and 12 ms of AR(1) timing jitter; `scripts/subframe/gen_clip_sets.py` regenerates it under `~/.local/share/thoremin/synthetic/` (never committed).
 
-The short version: **a surface impact can be predicted about 50 ms before it happens with less error than the frame-snapped detector has after it**; an air impact can be predicted as early with about the frame-snapped detector's error; the shipped adaptive oscillator estimates the *intended* beat 65 to 75 ms late under an accelerando and a tempo-trend prior fixes that; and pulling a prediction halfway toward that prior's grid buys 15 % on intent for 60 % on actuality, which is the dial the earlier report asked for. What is not shipped is the instrument that consumes it (§6).
+The short version: **a surface impact can be predicted about 50 ms before it happens with less error than the frame-snapped detector has after it**; an air impact can be predicted as early with about the frame-snapped detector's error; the shipped adaptive oscillator estimates the *intended* beat 65 to 75 ms late under an accelerando and a tempo-trend prior fixes that; and pulling a prediction halfway toward that prior's grid buys about 10 % on intent for 60 % on actuality, which is the dial the earlier report asked for. What is not shipped is the instrument that consumes it (§6).
 
 ---
 
@@ -30,7 +30,7 @@ The estimators:
 | `confirm` | the impact predictor's post-hoc estimate at the first sample past the bottom | one frame after |
 | `predict` | the impact predictor's committed prediction, one per stroke, the floor learned | before |
 | `predictKnown` | the same with the contact plane given (a calibrated table), surface clips only | before |
-| `sounded` | what the instrument plays: the prediction when there was one, else the confirmation | mixed |
+| `sounded` | what the instrument plays: the prediction (never earlier than its commit plus the required lead), else the confirmation sounded at the confirming sample plus the required lead — late, and scored as late | mixed |
 | `grid:<prior>` | the rhythm prior's nearest expected beat, read at the moment of the prediction: the pure intent estimate | before |
 | `magnet<m>:<prior>` | the prediction pulled toward that grid by magnetism `m` (§2.5) | before |
 
@@ -82,13 +82,13 @@ All tables: 288 clips, 3 456 events per stroke kind; errors in ms, negative = ea
 | `parabolaRaw` (no median) | air | 2.8 | 5.5 | 4.8 | 13.2 | −31 | 0 |
 | `confirm` | surface | −3.5 | 7.0 | 5.9 | 16.3 | −27 | 0 |
 | `confirm` | air | 1.9 | 6.9 | 5.3 | 15.0 | −31 | 0 |
-| **`predict`** | surface | −3.0 | **6.6** | 5.4 | 14.6 | **+52** | 240 |
-| **`predict`** | air | −4.7 | **9.8** | 8.3 | 21.7 | **+55** | 276 |
-| **`predictKnown`** (plane given) | surface | −3.5 | **5.6** | 4.8 | 12.8 | **+51** | 114 |
-| `sounded` | surface | 3.3 | 18.4 | 9.9 | 48.8 | +46 | 0 |
-| `sounded` | air | 1.8 | 21.2 | 12.7 | 60.1 | +48 | 0 |
+| **`predict`** | surface | −3.1 | **7.1** | 5.6 | 15.1 | **+53** | 213 |
+| **`predict`** | air | −4.7 | **9.8** | 8.3 | 21.5 | **+57** | 259 |
+| **`predictKnown`** (plane given) | surface | −3.6 | **6.0** | 5.0 | 13.6 | **+53** | 91 |
+| `sounded` | surface | 2.6 | 17.6 | 9.5 | 44.6 | +48 | 0 |
+| `sounded` | air | 1.4 | 20.9 | 12.6 | 58.8 | +50 | 0 |
 
-Read across a row: `predict` on a surface commits 52 ms *before* the impact with a 6.6 ms spread, where the frame-snapped detector reports 27 ms *after* it with a 10.8 ms spread: 80 ms earlier and 40 % tighter. Against the best *post-hoc* estimator on the set, the unfiltered parabola (7.3), the prediction is about 10 % tighter and 70 ms earlier; the earliness is the point, the tightness is the bonus. With the plane known the spread is half the baseline's. The 240 misses are mostly one per clip: the first stroke, before a floor exists. `sounded` is what a player would hear from a consumer with 30 ms of latency: the prediction (never earlier than its commit plus the lead), else the confirmation sounded at the confirming sample plus the lead — one frame plus 30 ms late by construction, which is what puts its 95th percentile at 49 to 60 ms: the unpredicted first stroke of every clip is loud in that column, and it is the honest price of a floor that has to be learned. On air the prediction is as early but only as accurate as the baseline; its post-hoc `confirm` is much better (6.9), so the air prediction's extra error is in the extrapolation across the brake, which the learned lag removes on average (the mean is −5) but not stroke by stroke.
+Read across a row: `predict` on a surface commits 53 ms *before* the impact with a 7.1 ms spread, where the frame-snapped detector reports 27 ms *after* it with a 10.8 ms spread: 80 ms earlier and a third tighter. Against the best *post-hoc* estimator on the set, the unfiltered parabola (7.3), the prediction is as tight and 80 ms earlier; the earliness is the point, the tightness is the bonus. With the plane known the spread is half the baseline's. The 213 misses are mostly one per clip: the first stroke, before a floor exists. `sounded` is what a player would hear from a consumer with 30 ms of latency: the prediction (never earlier than its commit plus the lead), else the confirmation sounded at the confirming sample plus the lead — one frame plus 30 ms late by construction, which is what puts its 95th percentile at 45 to 59 ms: the unpredicted first stroke of every clip is loud in that column, and it is the honest price of a floor that has to be learned. On air the prediction is as early but only as accurate as the baseline; its post-hoc `confirm` is much better (6.9), so the air prediction's extra error is in the extrapolation across the brake, which the learned lag removes on average (the mean is −5) but not stroke by stroke.
 
 Two things about the baselines. The shipped detector with its median-of-three prefilter is *worse* on timing than the frame-snapped detector (12.4 versus 10.8 on surfaces) and two frames late; without the filter it is the best post-hoc estimator for air (5.5). The median replaces the extremum sample by a neighbour exactly where the parabola needs it. The filter exists to kill one-frame landmark spikes on real MediaPipe streams, so this is a trade to revisit rather than a bug, but it is a real 5 ms and a frame of latency on every ictus.
 
@@ -97,9 +97,9 @@ Two things about the baselines. The shipped detector with its median-of-three pr
 | estimator | 24 fps | 30 fps | 60 fps |
 |---|---|---|---|
 | `lowest` sd / MAE | 13.8 / 11.6 | 11.8 / 9.8 | 5.4 / 4.4 |
-| `predict` sd / MAE | 11.0 / 9.2 | 8.8 / 8.0 | 4.2 / 4.1 |
-| `predictKnown` sd / MAE | 7.1 / 6.3 | 6.0 / 5.6 | 2.9 / 2.8 |
-| `predict` mean lead | +51 | +56 | +53 |
+| `predict` sd / MAE | 11.4 / 9.3 | 8.7 / 7.8 | 4.2 / 4.0 |
+| `predictKnown` sd / MAE | 7.8 / 6.6 | 6.0 / 5.6 | 2.9 / 2.8 |
+| `predict` mean lead | +55 | +57 | +53 |
 
 The frame-snapped error scales with the frame period, as it must (a uniform error over the period has sd 0.29 periods: 12, 9.6 and 4.8 ms). The prediction's error scales less than proportionally because more of the approach is sampled at a higher rate, and its lead does not depend on the rate at all: the sound is scheduled at the predicted time. At 60 fps with a known plane the prediction is 2.9 ms, under the 4 ms intrinsic variability of human tapping [3]. This is the number that says the webcam route can match Aerodrums' 125 fps hardware route [12] on timing, given the plane.
 
@@ -108,10 +108,10 @@ The frame-snapped error scales with the frame period, as it must (a uniform erro
 | estimator | instantaneous shutter: mean / sd | 180° shutter: mean / sd |
 |---|---|---|
 | `lowest` | +2.1 / 10.5 | −5.3 / 10.0 |
-| `predict` | −0.2 / 7.8 | −7.5 / 7.4 |
-| `predictKnown` | **+0.2 / 3.9** | −7.1 / 4.7 |
+| `predict` | −0.3 / 8.3 | −7.5 / 7.3 |
+| `predictKnown` | **+0.1 / 4.6** | −7.2 / 4.9 |
 
-With an open shutter what a frame *shows* is the average of the object's positions over the exposure, and the observation stream stamps the frame with its exposure's opening time, so every estimator sees the object a half-exposure earlier than it was there: 8.3 ms at 30 fps and a 180-degree shutter, 5.6 ms averaged over the three rates. The bias is constant, identical for all estimators, and is what an end-to-end latency calibration (#227) removes; the *spread* is untouched (`predictKnown` 3.9 versus 4.7). In the real pipeline the same bias hides inside the capture timestamp, whichever instant the camera driver chooses to stamp, and is one more reason the earlier report's latency budget should be measured rather than derived.
+With an open shutter what a frame *shows* is the average of the object's positions over the exposure, and the observation stream stamps the frame with its exposure's opening time, so every estimator sees the object a half-exposure earlier than it was there: 8.3 ms at 30 fps and a 180-degree shutter, 5.6 ms averaged over the three rates. The bias is constant, identical for all estimators, and is what an end-to-end latency calibration (#227) removes; the *spread* is untouched (`predictKnown` 4.6 versus 4.9). In the real pipeline the same bias hides inside the capture timestamp, whichever instant the camera driver chooses to stamp, and is one more reason the earlier report's latency budget should be measured rather than derived.
 
 ### 3.4 Capture timing: what #226 is worth
 
@@ -120,28 +120,28 @@ The four regimes: `exact` (frames on time, reported truthfully); `capture-jitter
 | estimator | exact | capture-jitter (nominal) | capture-jitter (actual) | stamp-noise |
 |---|---|---|---|---|
 | `lowest` sd | 10.8 | 10.9 | 10.7 | 11.3 |
-| `predict` sd / missed | 7.9 / 74 | 8.0 / 152 | 7.5 / 75 | 9.7 / 215 |
-| `predictKnown` sd / missed | 4.3 / 0 | 5.9 / 36 | 4.3 / 0 | 7.7 / 78 |
+| `predict` sd / missed | 7.7 / 74 | 8.3 / 142 | 7.3 / 75 | 10.6 / 181 |
+| `predictKnown` sd / missed | 4.3 / 0 | 6.2 / 31 | 4.2 / 0 | 8.5 / 60 |
 
-The frame-snapped detector does not care (its error is dominated by the frame period). The predictor does: 4 ms of noise on the timestamps costs the known-plane prediction 80 % of its precision (4.3 → 7.7) and makes it *decline* to predict one stroke in eleven (the stability check refuses a fit that keeps moving), while an irregular camera reported truthfully costs nothing. Honest timestamps are what a sub-frame estimator needs, and they are what #226 (landed as [PR #228](https://github.com/thorwhalen/thoremin/pull/228)) provides when the browser reports the capture time.
+The frame-snapped detector does not care (its error is dominated by the frame period). The predictor does: 4 ms of noise on the timestamps doubles the known-plane prediction's spread (4.3 → 8.5) and makes it *decline* to predict one stroke in fourteen (the stability check refuses a fit that keeps moving), while an irregular camera reported truthfully costs nothing. Honest timestamps are what a sub-frame estimator needs, and they are what #226 (landed as [PR #228](https://github.com/thorwhalen/thoremin/pull/228)) provides when the browser reports the capture time.
 
 ### 3.5 How early, and what it costs
 
 | required lead | `predict` mean lead (surface / air) | sd (surface / air) | strokes not predicted (surface / air) |
 |---|---|---|---|
-| 0 ms (as late as possible) | +28 / +32 | 6.3 / 10.3 | 290 / 389 |
-| 30 ms | +52 / +55 | 6.6 / 9.8 | 240 / 276 |
-| 60 ms | +68 / +72 | 7.1 / 10.2 | 223 / 246 |
+| 0 ms (as late as possible) | +28 / +32 | 6.3 / 10.3 | 270 / 358 |
+| 30 ms | +53 / +57 | 7.1 / 9.8 | 213 / 259 |
+| 60 ms | +83 / +85 | 8.4 / 10.3 | 169 / 182 |
 
-Committing earlier costs almost nothing in accuracy (the fit at 60 ms out is nearly as good as at 30), which is the Knibbe, Benko and Wilson finding [13] for a 30 Hz sensor: a stroke is predictable well inside its own duration. The commit rule allows for the prediction still moving by its stability tolerance, so the mean lead sits about a frame above the required minimum; even so, at 30 ms required, 11 % of predictions (700 of 6 396) were committed with less than the required lead, and at 60 ms, 29 %, because a stroke's first trusted fit can already be its last chance. A consumer sounds those at its commit time plus its latency, which is what the `sounded` row scores. The practical setting is the consumer's audio latency plus one frame period, which is what 30 ms is at 30 fps.
+Committing earlier costs almost nothing in accuracy (the fit at 60 ms out is nearly as good as at 30), which is the Knibbe, Benko and Wilson finding [13] for a 30 Hz sensor: a stroke is predictable well inside its own duration. The commit rule allows for the prediction still moving by its stability tolerance, so the mean lead sits about a frame above the required minimum; even so, at 30 ms required, 10 % of predictions (633 of 6 440) were committed with less than the required lead, and at 60 ms, 7 %, because a stroke's first trusted fit can already be its last chance, and the required observed descent (§2.3) caps the lead at about 60 % of the fall. A consumer sounds those at its commit time plus its latency, which is what the `sounded` row scores. The practical setting is the consumer's audio latency plus one frame period, which is what 30 ms is at 30 fps.
 
 ### 3.6 Tracker noise
 
 | noise | `lowest` sd / spurious | `predict` sd (surface / air) / spurious | `predictKnown` sd / missed |
 |---|---|---|---|
-| 0 px | 10.8 / 0 | 6.6 / 9.8 / 0 | 5.6 / 114 |
-| 1 px | 10.8 / 271 | 7.1 / 10.4 / 0 | 5.9 / 145 |
-| 2 px | 10.9 / 278 | 8.4 / 10.9 / 0 | 6.7 / 220 |
+| 0 px | 10.8 / 0 | 7.1 / 9.8 / 0 | 6.0 / 91 |
+| 1 px | 10.8 / 271 | 7.4 / 10.4 / 0 | 6.3 / 118 |
+| 2 px | 10.9 / 278 | 9.5 / 11.2 / 0 | 8.4 / 195 |
 
 Gaussian noise on the keypoints (the harness's keypoints are an ideal tracker's) degrades the prediction gracefully to 2 px, which is about MediaPipe's frame-to-frame jitter on a still hand at 640 px. The unfiltered frame-snapped detector fires on noise between strokes (271 spurious of 6 912); the predictor's gates — an absolute floor the caller sets in its own units (12 px here; a stroke is hundreds), noise units against an online *median* of residuals (so a clean sharp kink is not mistaken for noise), a warm-up before the estimate means anything, and a required observed descent before a prediction (a fit through a few noise samples at rest can "reach" a floor a stroke away) — leave no spurious prediction at 1 or 2 px; the misses come from the stability check declining a fit that keeps moving.
 
@@ -164,11 +164,11 @@ The magnet at strength 0.5 toward each prior's grid, scored on both axes:
 
 | what sounds | actuality MAE (surface / air) | intent MAE (surface / air) |
 |---|---|---|
-| `predict` (magnetism 0) | **5.4 / 8.3** | 11.2 / 12.5 |
-| `magnet0.5:trend12q` | 8.9 / 10.0 | **9.5 / 10.5** |
-| `magnet0.5:osc` | 13.6 / 14.1 | 17.2 / 17.5 |
+| `predict` (magnetism 0) | **5.6 / 8.3** | 11.3 / 12.5 |
+| `magnet0.5:trend12q` | 8.9 / 9.7 | **10.1 / 10.8** |
+| `magnet0.5:osc` | 13.9 / 14.4 | 17.5 / 17.8 |
 
-Pulling halfway toward a good grid moves the sounded onset 15 % closer to the intended time at a 60 % cost in fidelity to the executed one; pulling toward a *late* grid (the oscillator's) makes both worse. That is the whole argument of the earlier report's §3 in two rows: magnetism is only as good as the prior, and it is a dial, not a setting.
+Pulling halfway toward a good grid moves the sounded onset about 10 % closer to the intended time at a 60 % cost in fidelity to the executed one; pulling toward a *late* grid (the oscillator's) makes both worse. That is the whole argument of the earlier report's §3 in two rows: magnetism is only as good as the prior, and it is a dial, not a setting.
 
 ---
 

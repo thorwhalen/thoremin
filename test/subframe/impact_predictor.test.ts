@@ -49,9 +49,14 @@ describe('fitQuadratic / fitLine / crossingTau / intersectionTau', () => {
     expect(ahead.reaches).toBe(true);
     expect(ahead.tau).toBeCloseTo((-100 + Math.sqrt(100 * 100 + 4 * 200 * 5)) / 400, 9);
     // Already 3 units past the floor at the origin and still heading down: ahead,
-    // the crossing is now (never a decelerating trajectory's exit root) ...
-    expect(crossingTau({ a: 3, b: 100, c: 200 }, 0)).toEqual({ tau: 0, reaches: true });
-    expect(crossingTau({ a: 5, b: 100, c: -2000 }, 0)).toEqual({ tau: 0, reaches: true });
+    // the crossing was a moment ago — the backward root, never a decelerating
+    // trajectory's exit root, never "now" ...
+    const behind = crossingTau({ a: 3, b: 100, c: 200 }, 0);
+    expect(behind.reaches).toBe(true);
+    expect(behind.tau).toBeCloseTo((-100 + Math.sqrt(100 * 100 - 4 * 200 * 3)) / 400, 6);
+    const decel = crossingTau({ a: 5, b: 100, c: -2000 }, 0);
+    expect(decel.tau).toBeLessThan(0);
+    expect(decel.tau).toBeGreaterThan(-0.04);
     // ... but the refinement finds it just behind.
     const around = crossingTau({ a: 3, b: 100, c: 200 }, 0, true);
     expect(around.tau).toBeLessThan(0);
