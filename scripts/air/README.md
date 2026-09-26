@@ -30,11 +30,18 @@ python3 scripts/air/label_chords.py guitar          # --self-test runs it on syn
 # 4. Join landmarks + labels -> samples (one FeatureVector + label + video id per frame).
 npx vite-node scripts/air/build_chord_shape_dataset.ts
 
-# 5. Train, evaluate leave-one-video-out, write the numbers and the model (all local).
+# 5. Train, evaluate leave-one-player-out, write the numbers and the model (all local).
 npx vite-node scripts/air/train_chord_shape.ts
+
+# 6. The enrolment experiment: seconds of the player's own footage vs everyone else's.
+npx vite-node scripts/air/enrol_chord_shape.ts
 ```
 
 Each step is idempotent and skips outputs that exist; `--only <id>` restricts any step to some sources.
+
+## The result, in one sentence
+
+On 31,000 labelled frames from three players, chord shapes are 96% separable within a player and 24% across players (a chord is not a shape: players finger G differently), while two seconds of a player's own footage per chord gives 90 to 98%; so the air guitar's chord vocabulary is enrolled per player through the trainer, and the numbers are in the research doc §6.3.
 
 ## Design in three sentences
 
@@ -51,7 +58,7 @@ The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`)
 | `lib_chord_shape_model.ts` | softmax regression (Adam, L2, class-balanced), the trainer's nearest-centroid baseline, metrics, leave-one-group-out, gap-aware vote smoothing |
 | `label_chords.py` | audio → chord segments; `--self-test` recovers a synthetic progression |
 | `fetch.py`, `extract.py` | download; run `video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py` per source |
-| `build_chord_shape_dataset.ts`, `train_chord_shape.ts` | the two CLIs |
+| `build_chord_shape_dataset.ts`, `train_chord_shape.ts`, `enrol_chord_shape.ts` | the three CLIs: join, held-out training, enrolment budget |
 
 ## Adding a source
 

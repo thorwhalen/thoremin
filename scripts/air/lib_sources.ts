@@ -19,7 +19,7 @@
 import { z } from 'zod';
 
 /** The open-chord vocabulary the guitar model learns first; barre shapes come later. */
-export const GUITAR_CHORD_SHAPES = ['C', 'G', 'D', 'E', 'A', 'Em', 'Am', 'Dm', 'F', 'B7', 'Cadd9', 'G7', 'D7', 'E7', 'A7'] as const;
+export const GUITAR_CHORD_SHAPES = ['C', 'G', 'D', 'E', 'A', 'Em', 'Am', 'Dm', 'F', 'B7', 'Cadd9', 'G7', 'D7', 'E7', 'A7', 'Em7', 'Am7'] as const;
 export type GuitarChordShape = (typeof GUITAR_CHORD_SHAPES)[number];
 
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;

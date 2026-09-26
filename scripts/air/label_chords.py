@@ -20,8 +20,10 @@ Output: ``labels/air/<instrument>/<id>.chords.json`` with
 ``{video, vocabulary, hopSeconds, segments: [{start, end, label}], stats}``.
 Segments shorter than ``--min-seconds`` become ``N`` (a chord change bounces through
 neighbouring shapes for a hop or two; those frames are dropped, not mislabelled). A
-lone plucked note is ``N`` too: every chord tone must carry energy (``min_coverage``),
-because a single note's harmonics already sketch a triad. Sources flagged ``holdout``
+lone plucked note is ``N`` too: every chord tone must carry energy (``min_coverage``,
+the weakest chord tone relative to the strongest chroma bin; 0.15 by default, since a
+strummed open chord triples its root and leaves the third at a fraction of it), because
+a single note's harmonics already sketch a triad. Sources flagged ``holdout``
 are never labelled: a mimed performance's backing track is not what the hand plays.
 The label is the SOUNDING chord; with a capo the shape is the same and the sound is
 transposed, so a capo'd source must declare shape names, not pitches.
@@ -188,7 +190,7 @@ def label_audio(
     silence_ratio: float = 0.25,
     temperature: float = 0.05,
     min_seconds: float = 0.4,
-    min_coverage: float = 0.3,
+    min_coverage: float = 0.15,
 ) -> dict:
     import librosa
 
@@ -236,7 +238,7 @@ def synth_progression(plan: list[tuple[str | None, float]], *, sr: int, strum_hz
             env = np.exp(-3.0 * (t % (1.0 / strum_hz)))
             for m in midi:
                 f = 440.0 * 2 ** ((m - 69) / 12)
-                for h, amp in ((1, 1.0), (2, 0.5), (3, 0.3), (4, 0.15)):
+                for h, amp in ((1, 1.0), (2, 0.5), (3, 0.3), (4, 0.15), (5, 0.1)):
                     seg += amp * np.sin(2 * np.pi * f * h * t + rnd.uniform(0, 2 * np.pi))
             seg *= env / len(midi)
             truth.append({"start": t0, "end": t0 + dur, "label": NO_CHORD if single else name})
@@ -286,6 +288,7 @@ def main() -> int:
     ap.add_argument("--stay", type=float, default=0.97)
     ap.add_argument("--no-chord-floor", type=float, default=0.72)
     ap.add_argument("--min-seconds", type=float, default=0.4)
+    ap.add_argument("--min-coverage", type=float, default=0.15, help="weakest chord tone / strongest chroma bin a frame needs to be a chord (0 = off)")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
     if args.self_test:
@@ -322,7 +325,7 @@ def main() -> int:
         print(f"label {vid} vocabulary={src['chords']}", file=sys.stderr)
         try:
             y = decode_audio(video, sr=sr)
-            res = label_audio(y, sr=sr, vocabulary=list(src["chords"]), stay=args.stay, no_chord_floor=args.no_chord_floor, min_seconds=args.min_seconds)
+            res = label_audio(y, sr=sr, vocabulary=list(src["chords"]), stay=args.stay, no_chord_floor=args.no_chord_floor, min_seconds=args.min_seconds, min_coverage=max(args.min_coverage, 1e-6))
         except Exception as e:  # noqa: BLE001
             print(f"ERROR {vid}: {e}", file=sys.stderr)
             failures.append(vid)

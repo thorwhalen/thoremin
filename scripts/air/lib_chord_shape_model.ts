@@ -458,3 +458,35 @@ export function formatFolds(r: LeaveOneGroupOutResult): string {
     `| **pooled** | ${r.pooledRaw.n} | ${unscorable} | **${pct(r.pooledRaw.accuracy)}** | ${pct(r.pooledRaw.macroF1)} | **${pct(r.pooledSmoothed.accuracy)}** | ${pct(allFrames ? (r.pooledRaw.accuracy * r.pooledRaw.n) / allFrames : 0)} |`,
   ].join('\n');
 }
+
+// ---- Enrolment: how much of a player's OWN footage buys back the transfer gap ----
+
+export interface EnrolmentSplitOptions {
+  /** Seconds of the player's own frames per label to enrol (earliest first). */
+  seconds: number;
+  /** The stream's frame rate, to turn seconds into frames. */
+  fps: number;
+  /** Test frames start this long after the last enrolled frame of their label. Default 2. */
+  gapSeconds?: number;
+}
+
+/**
+ * Split one player's samples into an enrolment set (the first `seconds` of each label,
+ * in time order, which is what a player would demonstrate to the trainer) and a test
+ * set (that label's later frames, at least `gapSeconds` after the enrolment ends, so no
+ * adjacent frame leaks). Labels with nothing left after the gap contribute no test frames.
+ */
+export function enrolmentSplit(samples: readonly Sample[], o: EnrolmentSplitOptions): { enrol: Sample[]; test: Sample[] } {
+  const gap = o.gapSeconds ?? 2;
+  const n = Math.max(1, Math.round(o.seconds * o.fps));
+  const enrol: Sample[] = [];
+  const test: Sample[] = [];
+  for (const label of new Set(samples.map((s) => s.label))) {
+    const ss = samples.filter((s) => s.label === label).sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
+    const k = Math.min(ss.length, n);
+    enrol.push(...ss.slice(0, k));
+    const lastT = ss[k - 1].t ?? 0;
+    test.push(...ss.slice(k).filter((s) => (s.t ?? 0) > lastT + gap));
+  }
+  return { enrol, test };
+}

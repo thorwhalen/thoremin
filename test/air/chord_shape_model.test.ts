@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { chordShapeFeatureIds, chordShapeVector } from '../../scripts/air/lib_chord_shape_features';
 import {
   centroidTrainer,
+  enrolmentSplit,
   evaluate,
   formatFolds,
   leaveOneGroupOut,
@@ -230,5 +231,34 @@ describe('leaveOneGroupOut', () => {
     expect(fold.unscorable).toBe(10);
     expect(fold.accuracyAllFrames).toBeCloseTo((fold.raw.accuracy * fold.raw.n) / (fold.raw.n + 10), 9);
     expect(formatFolds(r)).toContain('| 10 |');
+  });
+});
+
+describe('enrolmentSplit', () => {
+  it('enrols the first seconds of each label and tests only after a gap', () => {
+    const data = makeDataset(1, 60); // t runs 0..(5*60-1)/30 s, labels in blocks of 2 s
+    const { enrol, test } = enrolmentSplit(data, { seconds: 0.5, fps: 30, gapSeconds: 0.5 });
+    const labels = [...new Set(data.map((s) => s.label))];
+    for (const l of labels) {
+      const e = enrol.filter((s) => s.label === l);
+      expect(e.length).toBe(15);
+      const lastEnrolT = Math.max(...e.map((s) => s.t ?? 0));
+      for (const s of test.filter((x) => x.label === l)) expect(s.t).toBeGreaterThan(lastEnrolT + 0.5);
+    }
+    expect(enrol.length + test.length).toBeLessThan(data.length);
+    expect(test.length).toBeGreaterThan(0);
+  });
+
+  it('a few seconds of a new player beat every other player put together on synthetic hands', () => {
+    // A player whose offsets are large (a different fingering), enrolled for 1 s per shape.
+    const others = makeDataset(2, 40, { seed: 11 });
+    const mine = makeDataset(1, 40, { seed: 12, offsetSd: 0.25 }).map((s) => ({ ...s, group: 'new' }));
+    const { enrol, test } = enrolmentSplit(mine, { seconds: 1, fps: 30, gapSeconds: 0.2 });
+    const truth = test.map((s) => s.label);
+    const own = trainSoftmax(enrol, FEATURES, { epochs: 150 });
+    const transfer = trainSoftmax(others, FEATURES, { epochs: 150 });
+    const accOwn = evaluate(truth, test.map((s) => predict(own, s.vector))).accuracy;
+    const accTransfer = evaluate(truth, test.map((s) => predict(transfer, s.vector))).accuracy;
+    expect(accOwn).toBeGreaterThan(accTransfer);
   });
 });

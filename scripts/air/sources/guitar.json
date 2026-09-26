@@ -127,20 +127,16 @@
       "why": "A left-handed player: the fretting hand is the right hand and sits on the viewer's left, which the pick and the featurizer must both survive.",
       "license": null,
       "chords": [
+        "Em7",
         "C",
-        "G",
-        "D",
-        "E",
-        "A",
-        "Em",
         "Am",
-        "Dm"
+        "G7"
       ],
       "frettingHand": {
         "by": "x",
         "side": "min"
       },
-      "notes": "Vocabulary is the full open set because the lesson's chord order was not stated in the metadata."
+      "notes": "Vocabulary from the video's chapters (E minor 7th; C, A minor, G7). 720p and the hand is small: MediaPipe finds a hand in only 13% of frames, so this source contributes little; kept because it is the only left-handed one."
     },
     {
       "id": "dkmVG82lSH4",
