@@ -17,8 +17,15 @@
  * panel you just closed. So the bar shows a live dot while such a tool is running and
  * puts a stop button next to it — the state and its undo in the one place a player
  * already looks for "what else is here".
+ *
+ * And it owns its own height. The bar wraps to more rows as tools are added or the screen
+ * narrows, and the tool panels open ABOVE it: anchored at a constant, they covered the
+ * bar's first row as soon as it wrapped, so switching tool meant closing the open one
+ * first. The bar writes its live height to the `--tools-bar-h` CSS variable, which the
+ * `.shell-tool-panel` and `.shell-instruments-card` rules in `index.css` read.
  */
-import { FlaskConical, Command, BookOpen, Hand, Music2, X, type LucideIcon } from 'lucide-react';
+import { useLayoutEffect, useRef } from 'react';
+import { FlaskConical, Command, BookOpen, Hand, Music2, GraduationCap, X, type LucideIcon } from 'lucide-react';
 import { TOOLS, type Tool } from './tools';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
@@ -32,6 +39,7 @@ const ICONS: Record<string, LucideIcon> = {
   commands: Command,
   gestures: Hand,
   conductor: Music2,
+  trainer: GraduationCap,
   manual: BookOpen,
 };
 
@@ -127,6 +135,29 @@ function ToolButton({
   );
 }
 
+/** The CSS variable the panels position themselves by (see `index.css`). */
+export const TOOLS_BAR_HEIGHT_VAR = '--tools-bar-h';
+
+/** Keep {@link TOOLS_BAR_HEIGHT_VAR} equal to the bar's rendered height while it is
+ *  mounted; on unmount, fall back to the stylesheet's one-row default. Without a
+ *  `ResizeObserver` (jsdom) it measures once. */
+function publishHeight(bar: HTMLElement | null): (() => void) | undefined {
+  if (!bar) return undefined;
+  const root = document.documentElement.style;
+  const write = () => {
+    const h = bar.getBoundingClientRect().height;
+    if (h > 0) root.setProperty(TOOLS_BAR_HEIGHT_VAR, `${h}px`);
+  };
+  write();
+  if (typeof ResizeObserver === 'undefined') return () => root.removeProperty(TOOLS_BAR_HEIGHT_VAR);
+  const ro = new ResizeObserver(write);
+  ro.observe(bar);
+  return () => {
+    ro.disconnect();
+    root.removeProperty(TOOLS_BAR_HEIGHT_VAR);
+  };
+}
+
 export default function ToolsBar() {
   // The one detached-running signal there is today. Read here rather than inside
   // ToolButton so the button stays presentational and `tools.ts` stays React-free:
@@ -135,9 +166,11 @@ export default function ToolsBar() {
   const metersOn = useControls((s) => s.featureLab.show);
   const setFeatureLab = useControls((s) => s.setFeatureLab);
   const isRunning = (t: Tool) => t.runsDetached === true && t.id === 'lab' && metersOn;
+  const barRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => publishHeight(barRef.current), []);
 
   return (
-    <div className="absolute bottom-3 left-3 z-40 flex max-w-[min(28rem,calc(100vw-1.5rem))] flex-wrap items-center gap-1.5">
+    <div ref={barRef} data-tools-bar className="absolute bottom-3 left-3 z-40 flex max-w-[min(28rem,calc(100vw-1.5rem))] flex-wrap items-center gap-1.5">
       {TOOLS.map((t) => (
         <ToolButton
           key={t.id}

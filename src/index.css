@@ -80,3 +80,31 @@
   outline: none;
 }
 
+
+/* Shell layout: the floating controls own two corners, and the panels keep clear of them.
+   Controls rendered UNDER another surface on the Round 4 main (Record and its sheet beneath the
+   Instruments panel, the assistant's robot over its last rows, a tool panel over the
+   wrapped tools bar); `smoke/tests/occlusion.smoke.ts` hit-tests every one of them, so
+   a change here that re-covers a control fails there rather than in front of a player.
+
+   --tools-bar-h      the tools bar's live height. ToolsBar measures itself and writes it
+                      (the bar wraps to more rows on a narrow screen, so no constant is
+                      right); 2rem is one row, for the first paint.
+   --shell-corner-br  the bottom-right stack the Instruments panel must end above: the
+                      assistant launcher (AssistantOverlay: bottom-16 + h-11 = 6.75rem)
+                      over the Record button, plus a 0.5rem gap. */
+:root {
+  --tools-bar-h: 2rem;
+  --shell-corner-br: 7.25rem;
+}
+/* A tool's panel (Feature Lab, Gestures, Conductor, Trainer) sits above the tools bar,
+   however many rows the bar has wrapped to. 0.75rem is the bar's own bottom inset. */
+.shell-tool-panel {
+  bottom: calc(var(--tools-bar-h) + 1.25rem);
+  max-height: calc(100dvh - var(--tools-bar-h) - 2.5rem);
+}
+/* The Instruments panel (top-right, top inset 0.75rem) ends above the bottom-right stack,
+   and above the tools bar too where a narrow screen puts the two in one column. */
+.shell-instruments-card {
+  max-height: calc(100dvh - 0.75rem - max(var(--shell-corner-br), var(--tools-bar-h) + 1.25rem));
+}

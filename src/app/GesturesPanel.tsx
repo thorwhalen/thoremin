@@ -195,7 +195,7 @@ export default function GesturesPanel() {
   const tool = toolById(TOOL_ID);
 
   return (
-    <div className="absolute bottom-14 left-3 z-40 flex max-h-[calc(100dvh-5rem)] w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur">
+    <div className="shell-tool-panel absolute left-3 z-40 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur">
       <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
         <Hand className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
         <span className="flex-1 text-[11px] font-bold uppercase tracking-widest text-white/70">Gestures</span>

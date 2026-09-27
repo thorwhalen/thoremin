@@ -35,7 +35,7 @@ import { layerToSettings } from '@/settings/dials';
 import { AIR_UI } from './panels/air';
 
 const cardCls =
-  'absolute right-3 top-3 flex max-h-[calc(100dvh-1.5rem)] w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
+  'shell-instruments-card absolute right-3 top-3 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
 
 type SortMode = 'default' | 'star' | 'name';
 
