@@ -9,9 +9,9 @@
  * the model can idle again.
  */
 import type { FeatureDemand } from '@/features/demand';
-import { MOUTH_GROUPS, type AirFluteDialParams } from '@/nodes/music/air_flute';
-import { appFeatureDemand } from './featureDemand';
-import { useControls } from './store';
+import { MOUTH_GROUPS, type AirFluteDialParams } from '@/extensions/air/nodes/air_flute';
+import { appFeatureDemand } from '@/app/featureDemand';
+import { useControls } from '@/app/store';
 
 export const AIR_FLUTE_DEMAND_OWNER = 'air-flute';
 

@@ -26,7 +26,6 @@ import { z } from 'zod';
 import type { MusicalTime } from '@/ictus';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
-import type { AirFluteStatus } from '../music/air_flute';
 import {
   chordName,
   classifyChord,
@@ -252,6 +251,18 @@ const CONDUCTOR_COLOR = '#34d399';
 const CHORD_COLOR = '#f5d142'; // warm gold
 
 /** Everything an overlay element needs to draw a frame. */
+/**
+ * What the breath cue reads from a wind instrument's status (the air flute's today). A
+ * structural slice, so the overlay names no extension: any status with these fields draws.
+ */
+export interface BreathStatus {
+  enabled: boolean;
+  breath: string;
+  face: boolean;
+  mouthReady: boolean;
+  sounding: boolean;
+}
+
 export interface OverlayView {
   W: number;
   H: number;
@@ -300,7 +311,7 @@ export interface OverlayView {
      *  from `ctx.resources.trainerHud`. */
     trainerHud?: TrainerHudSnapshot | null;
     /** The air flute's live status (#249), for its breath cue. */
-    airFluteStatus?: AirFluteStatus;
+    airFluteStatus?: BreathStatus;
   };
   params: Params;
   /** Computed top-left origin per cue element name (set by the layout pass). */
@@ -2061,7 +2072,7 @@ export const canvasOverlayNode = defineNode<Params>({
             faceMapping: controls?.faceMapping,
             tagOverlay,
             trainerHud: trainerHudSnapshot,
-            airFluteStatus: inputs.airFluteStatus as AirFluteStatus | undefined,
+            airFluteStatus: inputs.airFluteStatus as BreathStatus | undefined,
           },
         };
         if (Array.isArray(inputs.elements)) {

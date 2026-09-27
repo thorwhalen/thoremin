@@ -6,7 +6,7 @@
  */
 import type { HandsFrame } from '@/nodes/domain';
 import type { FeatureVector } from '@/enroll';
-import { fingeringVector } from '@/nodes/music/air_flute';
+import { fingeringVector } from '@/extensions/air/nodes/air_flute';
 import { SHAPES, noise, perturb, rng, syntheticHand } from './synthetic_hand';
 
 const W = 640;

@@ -11,15 +11,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { createInMemoryProvider } from '@zodal/store';
-import { SEQUENCE_HUSH_ID, SequenceTrainer } from '@/app/air/SequenceTrainer';
-import { setShape, readShape } from '@/app/air/shapeTap';
-import { AIR_GUITAR_NODE_ID } from '@/app/airGuitarStatus';
-import { useGuitarVocabulary, useVocabularyStore, type VocabularyRecord } from '@/app/air/vocabularyStore';
+import { SEQUENCE_HUSH_ID, SequenceTrainer } from '@/extensions/air/app/SequenceTrainer';
+import { setShape, readShape } from '@/extensions/air/app/shapeTap';
+import { AIR_GUITAR_NODE_ID } from '@/extensions/air/app/airGuitarStatus';
+import { useGuitarVocabulary, useVocabularyStore, type VocabularyRecord } from '@/extensions/air/app/vocabularyStore';
 import { GUITAR_STARTER_SEQUENCES, useSequenceStore, listSequences } from '@/app/enroll/sequenceStore';
 import { useControls } from '@/app/store';
-import { emptyVocabulary } from '@/air/vocabulary';
-import { chordShapeFeatureIds } from '@/features/hand_shape';
-import { parseChordName } from '@/music/guitar';
+import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
+import { parseChordName } from '@/extensions/air/lib/guitar';
 import type { SequenceRecord, TargetCheck } from '@/enroll';
 import { enrolSamples } from './air/synthetic_guitar';
 

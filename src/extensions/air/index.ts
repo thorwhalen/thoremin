@@ -2,24 +2,26 @@
  * The air extension (PR 5a of the instruments-as-graphs ADR): the drum, the bass, the guitar
  * and the flute as ONE manifest. The app folds over `EXTENSIONS` for its node registry, its
  * branch table, its dials form, its `store-controls` ports and its derivation. Still named in
- * core, on purpose or until 5b: the settings schema's typed spread of the air shape, the hot
- * store's fields, `AIR_INSTRUMENTS` (the library's class derivation), the seeds, the readout
- * table `panels/air.tsx`, and the catalog script's category row.
+ * core, on purpose: the settings schema's typed spread of the air shape, the hot store's
+ * fields, `AIR_INSTRUMENTS` (the library's class derivation), the seeds, and the catalog
+ * script's category row.
  *
- * The node files still live at their pre-extension paths (`src/nodes/music/air_*`,
- * `src/nodes/output/{drum,pluck}_out`): 5b moves them once the trainer stream is done with
- * `src/air`. This manifest is what makes that move a `git mv`.
+ * Since 5b the air files live here: `nodes/` (the four instruments and their two sinks),
+ * `lib/` (vocabulary, fingering prior, hand shape, guitar voicings), `app/` (status stores,
+ * taps, enrolment and training components, pattern and pad collections) and `panels/` (the
+ * editor sections). What they import from core is the SDK surface, listed as data in
+ * `test/extensions_boundary.test.ts`.
  *
  * Pure: no React (the editor sections and status hooks are `./ui.tsx`, the React half).
  */
 import type { Extension } from '@/instruments/extension';
 import type { NodeDef } from '@/dag';
-import { airDrumNode } from '@/nodes/music/air_drum';
-import { airBassNode } from '@/nodes/music/air_bass';
-import { airGuitarNode } from '@/nodes/music/air_guitar';
-import { airFluteNode } from '@/nodes/music/air_flute';
-import { drumOutNode } from '@/nodes/output/drum_out';
-import { pluckOutNode } from '@/nodes/output/pluck_out';
+import { airDrumNode } from '@/extensions/air/nodes/air_drum';
+import { airBassNode } from '@/extensions/air/nodes/air_bass';
+import { airGuitarNode } from '@/extensions/air/nodes/air_guitar';
+import { airFluteNode } from '@/extensions/air/nodes/air_flute';
+import { drumOutNode } from '@/extensions/air/nodes/drum_out';
+import { pluckOutNode } from '@/extensions/air/nodes/pluck_out';
 import { AIR_BRANCHES } from './branches';
 import { AIR_DIAL_SLICES } from './dials';
 

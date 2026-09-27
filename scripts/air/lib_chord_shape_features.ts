@@ -24,14 +24,14 @@
  * the catalog falls back to image coordinates and the yaw/pitch invariance degrades to
  * in-plane invariance; real footage decoded by `video_to_landmarks.py` carries them.
  */
-import { chordShapeVector, type FeatureSelection } from '@/features/hand_shape';
+import { chordShapeVector, type FeatureSelection } from '@/extensions/air/lib/hand_shape';
 import type { FeatureVector } from '@/features/catalog';
 import type { Hand, HandsFrame } from '@/nodes/domain';
 import type { FrettingHandPick } from './lib_sources';
 
-// The featurizer itself lives in `src/features/hand_shape.ts` since the air guitar (#249)
+// The featurizer itself lives in `src/extensions/air/lib/hand_shape.ts` since the air guitar (#249)
 // runs it live; re-exported so the pipeline's imports keep working.
-export { chordShapeFeatureIds, chordShapeVector, type FeatureSelection } from '@/features/hand_shape';
+export { chordShapeFeatureIds, chordShapeVector, type FeatureSelection } from '@/extensions/air/lib/hand_shape';
 
 /** Mean image-x of a hand's keypoints (for the positional pick). */
 function meanX(hand: Hand): number {

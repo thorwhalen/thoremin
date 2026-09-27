@@ -70,23 +70,6 @@ export {
   DEFAULT_CONDUCTOR_DIAL,
 } from './features/conductor';
 export {
-  airDrumNode,
-  AirDrumDialSchema,
-  DEFAULT_AIR_DRUM_DIAL,
-  DrumHitsSchema,
-  DRUM_SOUNDS,
-  AIR_DRUM_HANDS,
-  AIR_DRUM_POINTS,
-  IDLE_STATUS as AIR_DRUM_IDLE_STATUS,
-} from './music/air_drum';
-export type { AirDrumDialParams, AirDrumStatus, DrumHit, DrumSound } from './music/air_drum';
-export { airBassNode, AirBassDialSchema, NoteEventsSchema, IDLE_AIR_BASS_STATUS, neckNote } from './music/air_bass';
-export type { AirBassDialParams, AirBassStatus, NoteEvent } from './music/air_bass';
-export { airGuitarNode, AirGuitarDialSchema, IDLE_AIR_GUITAR_STATUS, strumNotes } from './music/air_guitar';
-export type { AirGuitarDialParams, AirGuitarStatus } from './music/air_guitar';
-export { airFluteNode, AirFluteDialSchema, IDLE_AIR_FLUTE_STATUS, FLUTE_VOICE_ID } from './music/air_flute';
-export type { AirFluteDialParams, AirFluteStatus } from './music/air_flute';
-export {
   MusicalTimeSchema,
   CONDUCTOR_HANDS,
   CONDUCTOR_POINTS,

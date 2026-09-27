@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, afterEach, beforeAll, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
-import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE } from '@/app/airDrumStatus';
+import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE } from '@/extensions/air/app/airDrumStatus';
 import { createInMemoryProvider } from '@zodal/store';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import {

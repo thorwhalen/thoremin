@@ -30,11 +30,11 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@/enroll';
-import { chordShapeVector } from '@/features/hand_shape';
+import { chordShapeVector } from '@/extensions/air/lib/hand_shape';
 import { parseNoteName } from '@/music/notes';
 import { midiToFreq } from '@/music/theory';
-import type { HandsFrame, SynthParams, VoiceParams } from '../domain';
-import { labelFor, type PlayerHand } from './air_bass';
+import type { HandsFrame, SynthParams, VoiceParams } from '@/nodes/domain';
+import { labelFor, type PlayerHand } from '@/extensions/air/nodes/air_bass';
 
 /** The flute's synth voice id. The hands are 0-1, the chords 2-10, and the score takes
  *  11 + its note index, unbounded (a symphony movement has thousands of notes), so the

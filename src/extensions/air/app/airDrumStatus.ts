@@ -11,7 +11,7 @@
  * output and reports only when something a player can see changed.
  */
 import { create } from 'zustand';
-import { IDLE_STATUS, type AirDrumStatus } from '@/nodes/music/air_drum';
+import { IDLE_STATUS, type AirDrumStatus } from '@/extensions/air/nodes/air_drum';
 
 export type AirDrumLive = AirDrumStatus;
 export const ABSENT_AIR_DRUM_LIVE: AirDrumLive = IDLE_STATUS;

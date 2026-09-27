@@ -12,7 +12,7 @@
  * A tick that re-reports the same list object is not a new hit; a hit's `t` is in the
  * future (a prediction), so the holder keeps them in arrival order and the take sorts.
  */
-import type { DrumHit } from '@/nodes/music/air_drum';
+import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 
 export interface OutputReader {
   getOutput(nodeId: string, port: string): unknown;

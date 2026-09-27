@@ -11,16 +11,16 @@
  * floors learned, hits, the last hit's lead — as {@link AirDrumReadout}, which the
  * instrument's row in the list shows too.
  */
-import { dispatchDialSetIn } from '../../dispatchDial';
-import { useDialsSettings } from '../useDialsSettings';
-import { selectCls } from '../primitives';
-import { describeLive, useAirDrumStatus } from '../../airDrumStatus';
-import { DrumPadEditor } from './airDrumPads';
+import { dispatchDialSetIn } from '@/app/dispatchDial';
+import { useDialsSettings } from '@/app/dials/useDialsSettings';
+import { selectCls } from '@/app/dials/primitives';
+import { describeLive, useAirDrumStatus } from '@/extensions/air/app/airDrumStatus';
+import { DrumPadEditor } from '@/extensions/air/panels/airDrumPads';
 import { useEffect, useState } from 'react';
-import { PatternTrainer } from '../../drums/PatternTrainer';
-import { trainedPatternIds, usePatternModelsVersion } from '../../drums/patternModels';
+import { PatternTrainer } from '@/extensions/air/app/PatternTrainer';
+import { trainedPatternIds, usePatternModelsVersion } from '@/extensions/air/app/patternModels';
 import { DRUM_PATTERNS } from '@/music/drum_patterns';
-import { AIR_DRUM_HANDS, AIR_DRUM_POINTS, DRUM_SOUNDS, type AirDrumDialParams } from '@/nodes/music/air_drum';
+import { AIR_DRUM_HANDS, AIR_DRUM_POINTS, DRUM_SOUNDS, type AirDrumDialParams } from '@/extensions/air/nodes/air_drum';
 
 const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {
   both: 'both hands',

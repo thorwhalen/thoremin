@@ -8,8 +8,8 @@
  * `scripts/demos/render_take_audio.mjs`, which calls `window.renderTake(take)` and saves
  * the returned 16-bit PCM. Nothing here is part of the app bundle.
  */
-import { createWebAudioDrumSink } from '@/nodes/output/drum_out';
-import { createWebAudioPluckSink } from '@/nodes/output/pluck_out';
+import { createWebAudioDrumSink } from '@/extensions/air/nodes/drum_out';
+import { createWebAudioPluckSink } from '@/extensions/air/nodes/pluck_out';
 import type { DrumSound } from '@/nodes/music/drum_pads';
 
 interface Take {

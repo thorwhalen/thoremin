@@ -15,10 +15,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@/dag';
-import { airDrumNode, type DrumHit, type HandsFrame } from '@/nodes';
+import { type HandsFrame } from '@/nodes';
+import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
 import { DEFAULT_PADS_SET, PAD_IDS, STARTER_KIT, hitPad, padDistance, toDisplay, type Pad, type Pads } from '@/nodes/music/drum_pads';
-import { fallingSegment, landingAt, velocityOf, SOFTEST_HIT } from '@/nodes/music/air_drum';
-import { drumVoice } from '@/nodes/output/drum_out';
+import { fallingSegment, landingAt, velocityOf, SOFTEST_HIT } from '@/extensions/air/nodes/air_drum';
+import { drumVoice } from '@/extensions/air/nodes/drum_out';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip } from '../../scripts/air/lib_synthetic_grip';
 import { FIXTURES } from '../helpers/fixtures';
 

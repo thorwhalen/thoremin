@@ -30,11 +30,11 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@/ictus';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@/enroll';
-import { chordShapeVector } from '@/features/hand_shape';
-import { guitarVoicing, parseChordName } from '@/music/guitar';
-import { LM, frameTime, type HandsFrame } from '../domain';
-import { NoteEventsSchema, type NoteEvent } from './note_events';
-import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
+import { chordShapeVector } from '@/extensions/air/lib/hand_shape';
+import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';
+import { LM, frameTime, type HandsFrame } from '@/nodes/domain';
+import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
+import { PLAYER_HANDS, labelFor, type PlayerHand } from '@/extensions/air/nodes/air_bass';
 
 export const STRUM_POINTS = ['wrist', 'indexTip'] as const;
 

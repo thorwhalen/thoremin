@@ -11,9 +11,9 @@ import { runHeadless } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { DEFAULT_AIR_GUITAR } from '@/settings/schema';
-import { emptyVocabulary, trainVocabulary, withEntry } from '@/air/vocabulary';
-import { chordShapeFeatureIds } from '@/features/hand_shape';
-import { guitarVoicing, parseChordName } from '@/music/guitar';
+import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
+import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';
 import { enrolSamples, guitarTake } from './synthetic_guitar';
 
 describe('air guitar in the default graph', () => {

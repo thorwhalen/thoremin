@@ -6,7 +6,7 @@
  * safe to commit. Handedness is as the player sees it (no mirror).
  */
 import { makeHandKeypoints, type HandsFrame } from '@/nodes/domain';
-import { chordShapeVector } from '@/features/hand_shape';
+import { chordShapeVector } from '@/extensions/air/lib/hand_shape';
 import type { FeatureVector } from '@/enroll';
 import { SHAPES, frameOf, noise, perturb, rng, syntheticHand } from './synthetic_hand';
 

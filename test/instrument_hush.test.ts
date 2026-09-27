@@ -11,10 +11,11 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { replayNode } from '@/dag';
 import { synthMergeNode } from '@/nodes';
-import { drumOutNode, type DrumSink } from '@/nodes/browser';
-import { pluckOutNode } from '@/nodes/output/pluck_out';
+import { drumOutNode, type DrumSink } from '@/extensions/air/nodes/drum_out';
+import { pluckOutNode } from '@/extensions/air/nodes/pluck_out';
 import { hushOf, storeControlsNode } from '@/nodes/sources/store_controls';
-import type { SynthParams, VoiceParams, DrumHit } from '@/nodes';
+import type { SynthParams, VoiceParams } from '@/nodes';
+import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 import { defaultGraph } from '@/app/graph';
 import { useControls, migrateControls } from '@/app/store';
 

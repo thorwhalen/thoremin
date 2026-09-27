@@ -25,7 +25,7 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { realtimeOutputAllowed } from '@/dag';
-import { DRUM_SOUNDS, DrumHitsSchema, type DrumHit, type DrumSound } from '../music/air_drum';
+import { DRUM_SOUNDS, DrumHitsSchema, type DrumHit, type DrumSound } from '@/extensions/air/nodes/air_drum';
 
 /** Per-hit shading of a voice beyond its loudness. */
 export interface DrumTouch {

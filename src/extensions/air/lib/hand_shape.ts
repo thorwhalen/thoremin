@@ -19,7 +19,7 @@
  * Ids are SIDE-RELATIVE (`index.curl`, not `hand.left.index.curl`): a shape is the same
  * shape on either hand. Pure and Node-safe.
  */
-import { buildHandCtx, HAND_SIDE_FEATURES, type FeatureVector } from './catalog';
+import { buildHandCtx, HAND_SIDE_FEATURES, type FeatureVector } from '@/features/catalog';
 import type { Hand, HandsFrame } from '@/nodes/domain';
 
 const SHAPE_INVARIANCES = ['scale', 'position', 'yaw', 'pitch', 'roll'] as const;

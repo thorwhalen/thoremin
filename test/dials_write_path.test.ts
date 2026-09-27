@@ -25,17 +25,25 @@
  * face calibration), stay legitimate — they are not param mutations.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 
 /** The settings-panel sources this rule governs: the composition root + every section. */
 const PANEL_DIR = 'src/app/dials/panels';
+/** Every extension's panels directory (`src/extensions/<ext>/panels`), since 5b. */
+const EXTENSION_PANEL_DIRS = existsSync('src/extensions')
+  ? readdirSync('src/extensions', { withFileTypes: true })
+      .filter((d) => d.isDirectory() && existsSync(join('src/extensions', d.name, 'panels')))
+      .map((d) => join('src/extensions', d.name, 'panels'))
+  : [];
 const PANEL_FILES = [
   'src/app/dials/DialsControlsPanel.tsx',
-  ...readdirSync(PANEL_DIR)
-    .filter((f) => /\.tsx?$/.test(f))
-    .map((f) => join(PANEL_DIR, f)),
+  ...[PANEL_DIR, ...EXTENSION_PANEL_DIRS].flatMap((dir) =>
+    readdirSync(dir)
+      .filter((f) => /\.tsx?$/.test(f))
+      .map((f) => join(dir, f)),
+  ),
 ];
 
 /** The names that, once bound in a panel, ARE a direct write into the dials store. */

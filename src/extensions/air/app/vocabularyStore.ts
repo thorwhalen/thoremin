@@ -21,11 +21,11 @@ import { z } from 'zod';
 import { create } from 'zustand';
 import type { DataProvider } from '@zodal/store';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
-import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type TrainVocabularyOptions, type Vocabulary } from '@/air/vocabulary';
-import { chordShapeFeatureIds } from '@/features/hand_shape';
+import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type TrainVocabularyOptions, type Vocabulary } from '@/extensions/air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { ALL_FEATURES } from '@/features/catalog';
-import { MOUTH_GROUPS } from '@/nodes/music/air_flute';
-import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '@/air/fingering_prior';
+import { MOUTH_GROUPS } from '@/extensions/air/nodes/air_flute';
+import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
 
 /** The mouth gate's reject, in multiples of the enrolment's own reach (see
  *  `TrainVocabularyOptions.rejectScale`). */

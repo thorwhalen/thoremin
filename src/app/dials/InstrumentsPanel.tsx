@@ -65,7 +65,7 @@ import { INSTRUMENT_CLASSES } from '@/instruments/classes';
 /** A class's colour (the class registry's SSOT), for the row stripe and the heading swatch. */
 const classColour = (id: string): string => INSTRUMENT_CLASSES.find((c) => c.id === id)?.colour ?? 'rgba(255,255,255,0.3)';
 import { layerToSettings } from '@/settings/dials';
-import { AIR_UI } from './panels/air';
+import { EXTENSION_PANELS } from '@/app/extensions';
 
 const cardFrame =
   'shell-instruments-card absolute right-3 top-3 flex max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
@@ -470,7 +470,8 @@ export default function InstrumentsPanel() {
    *  its class heading when that class is collapsed: never hidden with the row). */
   const renderReadouts = (ids: readonly AirInstrumentId[]) =>
     ids.map((id) => {
-      const Readout = AIR_UI[id].Readout;
+      const Readout = EXTENSION_PANELS.find((p) => p.instrumentId === id)?.Readout;
+      if (!Readout) return null;
       return (
         <div key={id} className="px-2 pb-2">
           <Readout />

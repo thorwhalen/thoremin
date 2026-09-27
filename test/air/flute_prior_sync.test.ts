@@ -4,14 +4,14 @@
  * that re-derives it when the dial changes, and the saved-sequence helpers.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema, priorOptionsFrom } from '@/air/fingering_prior';
-import { emptyVocabulary } from '@/air/vocabulary';
-import { FLUTE_FINGER_FEATURES, deriveFluteFingerModel, startFlutePriorSync } from '@/app/air/vocabularyStore';
+import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema, priorOptionsFrom } from '@/extensions/air/lib/fingering_prior';
+import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
+import { FLUTE_FINGER_FEATURES, deriveFluteFingerModel, startFlutePriorSync } from '@/extensions/air/app/vocabularyStore';
 import { FLUTE_STARTER_SEQUENCES, GUITAR_STARTER_SEQUENCES, mergeSequences, parseTargets } from '@/app/enroll/sequenceStore';
 import { AirFluteSettingsSchema } from '@/settings/schema';
 import { structuredDialLeaves } from '@/app/commands/paths';
 import { FLUTE_CHART } from '@/music/fingerings';
-import { priorClasses } from '@/air/fingering_prior';
+import { priorClasses } from '@/extensions/air/lib/fingering_prior';
 
 describe('the prior dial', () => {
   it('defaults to the flute chart over its first two octaves, worth ten samples', () => {

@@ -15,12 +15,12 @@
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
-import { useAirDrumStatus } from '@/app/airDrumStatus';
-import { visibleCrop } from '@/app/dials/panels/airDrumPads';
+import { useAirDrumStatus } from '@/extensions/air/app/airDrumStatus';
+import { visibleCrop } from '@/extensions/air/panels/airDrumPads';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { PAD_IDS, type Pads } from '@/nodes/music/drum_pads';
-import { createPadLayoutStore, padLayoutWrites } from '@/app/drums/padLayouts';
+import { createPadLayoutStore, padLayoutWrites } from '@/extensions/air/app/padLayouts';
 import { leafByPath } from '@/app/commands/paths';
 import type { AirDrumSettings } from '@/settings/schema';
 

@@ -10,10 +10,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { classify, type FeatureVector, type TrainedModel } from '@/enroll';
-import { fingeringVector } from '@/nodes/music/air_flute';
+import { fingeringVector } from '@/extensions/air/nodes/air_flute';
 import { FLUTE_CHART, chartNotes, fingeringFor, type FingerId } from '@/music/fingerings';
-import { chordShapeFeatureIds } from '@/features/hand_shape';
-import { emptyVocabulary, withEntry } from '@/air/vocabulary';
+import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
+import { emptyVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
 import {
   DEFAULT_ANCHORS,
   DEFAULT_FINGERING_PRIOR,
@@ -25,7 +25,7 @@ import {
   priorCentroid,
   priorClasses,
   priorOptionsFrom,
-} from '@/air/fingering_prior';
+} from '@/extensions/air/lib/fingering_prior';
 import { noise, perturb, rng, syntheticHand, type HandShape } from './synthetic_hand';
 import type { HandsFrame } from '@/nodes/domain';
 
