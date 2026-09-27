@@ -18,6 +18,10 @@
  * it a home fails the build, and building a tool without registering it means no button,
  * which is the failure mode we are pricing in.
  *
+ * Not every surface is a tool. An INSTRUMENT is chosen from the Instruments view, never
+ * from here: the air drum was a tool panel for one release and moved out (#249) because
+ * "one place to choose instruments from" is the maintainer's rule, not a preference.
+ *
  * Kept React-free (plain data, no icons) so it is importable in plain Node tests; the
  * icon for each id is chosen in {@link ToolsBar}.
  */
@@ -94,12 +98,6 @@ export const TOOLS: readonly Tool[] = [
     label: 'Conductor',
     description:
       'Conduct a score with your hand: beat time in front of the camera and the piece follows your tempo and dynamics.',
-    kind: 'panel',
-  },
-  {
-    id: 'airDrum',
-    label: 'Air drum',
-    description: 'Strike the air with a hand and hear a drum at the strike — the hit is predicted before the camera sees it land.',
     kind: 'panel',
   },
   {

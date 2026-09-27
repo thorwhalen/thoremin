@@ -21,6 +21,7 @@ import {
 } from './summarize';
 import type { Settings } from '@/settings/schema';
 import type { PositionSource } from '@/nodes/mapping/hand_map';
+import { AIR_INSTRUMENTS } from './category';
 
 /** A derived, read-only tag: a `sys:*` id, an emoji, and a tooltip label. Shape-
  *  compatible with how custom tags render (emoji + tooltip), differing only in source. */
@@ -62,28 +63,40 @@ export const FINGER_FX_TAG = { emoji: '🎛️', label: 'Finger FX routing activ
 
 /**
  * Derive the ordered system tags for an instrument summary. Order is deterministic —
- * scale quality, note source, face mode, split voices, finger FX — so the column reads
+ * air instruments, scale quality, note source, face mode, split voices, finger FX — so the column reads
  * consistently across rows.
  */
 export function deriveSystemTags(sum: InstrumentSummary): SystemTag[] {
   const tags: SystemTag[] = [];
 
-  const scale = SCALE_QUALITY_TAGS[sum.scaleQuality];
-  tags.push({ id: `${SYSTEM_TAG_PREFIX}scale:${sum.scaleQuality}`, ...scale });
+  // The air instruments first (#249): what you mime is the most distinguishing fact.
+  for (const a of AIR_INSTRUMENTS) {
+    if ((sum.air as readonly string[]).includes(a.id)) {
+      tags.push({ id: `${SYSTEM_TAG_PREFIX}air:${a.id}`, emoji: a.emoji, label: a.label });
+    }
+  }
 
-  const note = NOTE_SOURCE_TAGS[sum.noteSource];
-  tags.push({ id: `${SYSTEM_TAG_PREFIX}note:${sum.noteSource}`, ...note });
+  // Scale and note source describe the theremin voices; with them silent they describe
+  // nothing the player hears.
+  if (sum.handVoices) {
+    const scale = SCALE_QUALITY_TAGS[sum.scaleQuality];
+    tags.push({ id: `${SYSTEM_TAG_PREFIX}scale:${sum.scaleQuality}`, ...scale });
+
+    const note = NOTE_SOURCE_TAGS[sum.noteSource];
+    tags.push({ id: `${SYSTEM_TAG_PREFIX}note:${sum.noteSource}`, ...note });
+  }
 
   if (sum.faceMode !== 'none') {
     const face = FACE_MODE_TAGS[sum.faceMode];
     tags.push({ id: `${SYSTEM_TAG_PREFIX}face:${sum.faceMode}`, ...face });
   }
 
-  if (!sum.syncHands) {
+  // Split voices and finger FX shape the theremin voices too: moot when they are silent.
+  if (sum.handVoices && !sum.syncHands) {
     tags.push({ id: `${SYSTEM_TAG_PREFIX}voices:split`, ...SPLIT_VOICES_TAG });
   }
 
-  if (sum.fingerFx.length > 0) {
+  if (sum.handVoices && sum.fingerFx.length > 0) {
     tags.push({ id: `${SYSTEM_TAG_PREFIX}fingerfx`, ...FINGER_FX_TAG });
   }
 

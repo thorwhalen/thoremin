@@ -243,7 +243,7 @@ So, when you add a user-facing capability:
 | **Feature catalog** (#119) — data-driven features, safe formula compiler, online normalizer | `src/features/` (`catalog.ts`, `formula.ts`, `normalizer.ts`) |
 | **Feature Lab** (#119/#136) — config SSOT, the shell panel, saved views (zodal collection) | `src/features/labConfig.ts`, `src/app/LabPanel.tsx`, `src/app/LabControls.tsx`, `src/app/lab/` |
 | **Shell tools** (#136) — the registry of non-instrument surfaces + the bar that exposes them | `src/app/tools.ts`, `src/app/ToolsBar.tsx`, `src/app/toolsStore.ts` |
-| **Instrument library** (#113/#114/#115) — favorites, tags, system tags, summaries | `src/app/library/` |
+| **Instrument library** (#113/#114/#115) — favorites, tags, system tags, summaries; the derived **categories** (theremin / air, #249) that group the Instruments view — air instruments are instruments, never shell tools | `src/app/library/` (`category.ts`) |
 | **Recording v2** (#88) — session, plan, naming, manifest, sinks, feature tap | `src/app/recording/` + `src/app/RecordButton.tsx` |
 | **Annotations** (#92) — thoremin glue for the tagging tool | `src/app/tagging/` |
 | **taglog** — the extraction-ready annotation package (no thoremin imports) | `src/taglog/` (see its own `README.md`) |

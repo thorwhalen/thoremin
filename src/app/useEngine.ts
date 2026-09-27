@@ -380,7 +380,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Bridge the `conductor` node's musical time to React (#187), for the Conductor
         // tool panel's live readout. Change-gated inside the reporter, like the others.
         const reportConductor = makeConductorReporter(engine);
-        // Bridge the `air-drum` node's status to React (#233), for its tool panel.
+        // Bridge the `air-drum` node's status to React (#233), for its readout in the
+        // Instruments view (#249).
         const reportAirDrum = makeAirDrumReporter(engine);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
