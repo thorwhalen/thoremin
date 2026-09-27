@@ -78,13 +78,13 @@ describe('the store claim set', () => {
 });
 
 describe('synth-merge hush', () => {
-  it('silences every stream but d (the conducted score)', async () => {
+  it('silences every instrument voice but keeps the score pool (the conducted score)', async () => {
     const [out] = await replayNode(synthMergeNode.make({}), {
-      a: [params(0, 1)],
-      b: [params(2)],
-      c: [params(6)],
-      d: [params(40)],
-      e: [params(50)],
+      voice1: [params(0, 1)],
+      voice2: [params(2)],
+      voice3: [params(6)],
+      score1: [params(40)],
+      voice4: [params(50)],
       hush: [true],
     });
     const byId = new Map((out.params as SynthParams).voices.map((v) => [v.id, v]));
@@ -144,7 +144,7 @@ describe('the default graph wires the hush (a switch nothing reads is #120 again
   });
 
   it('the conducted score is on the merge port the hush spares', () => {
-    expect(has('score', 'params', 'merge', 'd')).toBe(true);
+    expect(has('score', 'params', 'merge', 'score1')).toBe(true);
   });
 });
 

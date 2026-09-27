@@ -339,10 +339,10 @@
     </div>
     <div class="node">
       <h4><code>synth-merge</code> <span class="title">Synth Merge</span></h4>
-      <p>Union up to five synth-params voice streams into one (hand voices, emotion chord, pose chord, conducted score, air flute); master mute.</p>
+      <p>Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute.</p>
       <dl>
         <dt>roles</dt><dd>mapping</dd>
-        <dt>in</dt><dd>a:synth-params, b:synth-params, c:synth-params, d:synth-params, e:synth-params, mute:boolean, hush:boolean</dd>
+        <dt>in</dt><dd>voice1:synth-params, voice2:synth-params, voice3:synth-params, voice4:synth-params, voice5:synth-params, voice6:synth-params, voice7:synth-params, voice8:synth-params, score1:synth-params, score2:synth-params, mute:boolean, hush:boolean</dd>
         <dt>out</dt><dd>params:synth-params</dd>
         <dt>params</dt><dd>—</dd>
       </dl>

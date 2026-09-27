@@ -30,7 +30,7 @@ describe('air flute in the default graph', () => {
     expect(has('ui', 'airFluteFingerModel', 'airFlute', 'fingerModel')).toBe(true);
     expect(has('ui', 'airFluteMouthModel', 'airFlute', 'mouthModel')).toBe(true);
     expect(has('ui', 'octaveShift', 'airFlute', 'octaveShift')).toBe(true);
-    expect(has('airFlute', 'params', 'merge', 'e')).toBe(true);
+    expect(has('airFlute', 'params', 'merge', 'voice4')).toBe(true);
     const inbound = new Set(g.edges.filter((e) => e.to.node === 'airFlute').map((e) => e.to.port));
     expect([...inbound].sort()).toEqual(['config', 'face', 'faceFrame', 'fingerModel', 'hands', 'mouthModel', 'octaveShift']);
   });

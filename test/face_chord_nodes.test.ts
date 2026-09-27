@@ -365,7 +365,7 @@ describe('synth-merge node', () => {
     const node = synthMergeNode.make(synthMergeNode.params.parse({}));
     const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] };
     const b: SynthParams = { voices: [{ id: 2, present: true, freq: 550, gain: 0.2, sound: 'triangle' }] };
-    const out = await replayNode(node, { a: [a], b: [b] });
+    const out = await replayNode(node, { voice1: [a], voice2: [b] });
     const merged = out[0].params as SynthParams;
     expect(merged.voices.map((v) => v.id)).toEqual([0, 2]);
   });
@@ -373,7 +373,7 @@ describe('synth-merge node', () => {
   it('treats a missing input as no voices (hand voices pass through when chord idle)', async () => {
     const node = synthMergeNode.make(synthMergeNode.params.parse({}));
     const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] };
-    const out = await replayNode(node, { a: [a] });
+    const out = await replayNode(node, { voice1: [a] });
     expect((out[0].params as SynthParams).voices).toHaveLength(1);
   });
 
@@ -382,10 +382,10 @@ describe('synth-merge node', () => {
     const a: SynthParams = { voices: [{ id: 0, present: true, freq: 440, gain: 0.5, sound: 'sine' }] };
     const b: SynthParams = { voices: [{ id: 2, present: true, freq: 550, gain: 0.2, sound: 'triangle' }] };
     const c: SynthParams = { voices: [{ id: 6, present: true, freq: 660, gain: 0.2, sound: 'warmPad' }] };
-    const out = await replayNode(node, { a: [a], b: [b], c: [c] });
+    const out = await replayNode(node, { voice1: [a], voice2: [b], voice3: [c] });
     expect((out[0].params as SynthParams).voices.map((v) => v.id)).toEqual([0, 2, 6]);
     // Back-compat: a and b alone still merge, with c contributing nothing.
-    const out2 = await replayNode(node, { a: [a], b: [b] });
+    const out2 = await replayNode(node, { voice1: [a], voice2: [b] });
     expect((out2[0].params as SynthParams).voices.map((v) => v.id)).toEqual([0, 2]);
   });
 });
@@ -403,7 +403,7 @@ describe('chord-select node (#76)', () => {
     const out3 = await replayNode(node, { a: [[]], b: [[]] });
     expect(out3[0].chord).toEqual([]);
     // Missing inputs are treated as empty.
-    const out4 = await replayNode(node, { a: [undefined as unknown as number[]] });
+    const out4 = await replayNode(node, { voice1: [undefined as unknown as number[]] });
     expect(out4[0].chord).toEqual([]);
   });
 });
