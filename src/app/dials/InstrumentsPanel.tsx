@@ -36,7 +36,7 @@ import TagsEditor from '@/app/library/TagsEditor';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
 import { AIR_INSTRUMENTS, airInstrumentsOf, groupByCategory, type AirInstrumentId } from '@/app/library/category';
-import type { InstrumentSpec } from '@/instruments/spec';
+import { assembleSpec, type InstrumentSpec } from '@/instruments/spec';
 import { instrumentsCollection, type InstrumentSort } from '@/app/library/instrumentsCollection';
 import { queryInstruments, useInstrumentsCatalog } from '@/app/library/instrumentsCatalog';
 import { layerToSettings } from '@/settings/dials';
@@ -44,6 +44,16 @@ import { AIR_UI } from './panels/air';
 
 const cardCls =
   'shell-instruments-card absolute right-3 top-3 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
+
+/**
+ * The spec for an instrument the library could not derive: a saved instrument whose settings
+ * no longer parse (a sound or voicing since renamed, say) has no spec, and dropping it would
+ * make it vanish from the one place a player can pick, edit or re-save it. It is listed under
+ * its cached class (else the default one), with nothing else claimed about it.
+ */
+function undecidedSpec(name: string, cachedClass: string | undefined): InstrumentSpec {
+  return assembleSpec({ name, layer: {}, meta: cachedClass ? { class: cachedClass } : undefined });
+}
 
 const searchAffordance = instrumentsCollection.affordances.search;
 const SEARCH_PLACEHOLDER = (typeof searchAffordance === 'object' && searchAffordance.placeholder) || 'Filter…';
@@ -57,23 +67,25 @@ export default function InstrumentsPanel() {
   const [sort, setSort] = useState<InstrumentSort>('default');
   const { list, selected, ready, select, save, create, defaultName, setDefault } = useInstruments();
   const library = useLibrary(list);
-  // The collection's items: the library's specs, once derived, in the library's order.
-  // The query runs against the specs provider; a signature keys the effect, since
+  // The collection's items: the library's specs, once derived, in the library's order,
+  // built only while the list is what is showing (the editor re-renders on every slider
+  // move). The query runs against the specs provider; a signature keys the effect, since
   // `useLibrary` hands back fresh functions every render.
-  const specs = library.derivedReady
-    ? list.map((p) => library.specOf(p.name)).filter((x): x is InstrumentSpec => x !== undefined)
-    : [];
+  const specs =
+    library.derivedReady && view === 'list'
+      ? list.map((p) => library.specOf(p.name) ?? undecidedSpec(p.name, library.categoryOf(p.name)))
+      : [];
   const specsSig = JSON.stringify(specs);
   const [queried, setQueried] = useState(false);
   useEffect(() => {
-    if (!library.derivedReady) return;
+    if (!library.derivedReady || view !== 'list') return;
     let live = true;
     void queryInstruments(specs, query, sort).then(() => live && setQueried(true));
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- specsSig stands for specs
-  }, [specsSig, query, sort, library.derivedReady]);
+  }, [specsSig, query, sort, library.derivedReady, view]);
   const shown = useInstrumentsCatalog((s) => s.items);
   const { state } = useDialsSettings();
   const dirty = state.dirty.length > 0;
