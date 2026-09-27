@@ -29,9 +29,9 @@ describe('synth-merge', () => {
     const emo = params([voice(2), voice(3)]); // expression-chord
     const pose = params([voice(6, { gain: 0.3 })]); // pose-chord
     const [out] = await replayNode(synthMergeNode.make({}), {
-      a: [hands],
-      b: [emo],
-      c: [pose],
+      voice1: [hands],
+      voice2: [emo],
+      voice3: [pose],
     });
     const merged = (out.params as SynthParams).voices;
     expect(merged.map((v) => v.id)).toEqual([0, 1, 2, 3, 6]);
@@ -39,10 +39,10 @@ describe('synth-merge', () => {
     expect(merged.find((v) => v.id === 6)!.gain).toBeCloseTo(0.3);
   });
 
-  it('an absent stream contributes nothing (back-compatible a-only graphs)', async () => {
+  it('an absent stream contributes nothing (a one-voice graph)', async () => {
     const hands = params([voice(0)]);
-    const [out] = await replayNode(synthMergeNode.make({}), { a: [hands] });
-    // b, c, mute all absent → just the hand voice, unchanged.
+    const [out] = await replayNode(synthMergeNode.make({}), { voice1: [hands] });
+    // every other input and mute absent → just the hand voice, unchanged.
     expect((out.params as SynthParams).voices.map((v) => v.id)).toEqual([0]);
   });
 
@@ -53,9 +53,9 @@ describe('synth-merge', () => {
     const emo = params([voice(2, { gain: 0.4 }), voice(3, { gain: 0.4 })]);
     const pose = params([voice(6, { gain: 0.4 })]);
     const [out] = await replayNode(synthMergeNode.make({}), {
-      a: [hands],
-      b: [emo],
-      c: [pose],
+      voice1: [hands],
+      voice2: [emo],
+      voice3: [pose],
       mute: [true],
     });
     const merged = (out.params as SynthParams).voices;
@@ -71,8 +71,8 @@ describe('synth-merge', () => {
     const hands = params([voice(0, { gain: 0.5 })]);
     const emo = params([voice(2, { gain: 0.4 })]);
     const [out] = await replayNode(synthMergeNode.make({}), {
-      a: [hands],
-      b: [emo],
+      voice1: [hands],
+      voice2: [emo],
       mute: [false],
     });
     const merged = (out.params as SynthParams).voices;
@@ -139,8 +139,8 @@ describe('mute composes through the engine end-to-end (m key → chords silent, 
         edges: [
           { from: { node: 'keys', port: 'pressed' }, to: { node: 'kctrl', port: 'pressed' } },
           { from: { node: 'kctrl', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
-          { from: { node: 'emo', port: 'params' }, to: { node: 'merge', port: 'b' } },
-          { from: { node: 'pose', port: 'params' }, to: { node: 'merge', port: 'c' } },
+          { from: { node: 'emo', port: 'params' }, to: { node: 'merge', port: 'voice2' } },
+          { from: { node: 'pose', port: 'params' }, to: { node: 'merge', port: 'voice3' } },
         ],
       },
       createRegistry([pressedSource, chordSource, keyboardControlNode, synthMergeNode]),

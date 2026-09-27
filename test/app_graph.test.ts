@@ -229,7 +229,7 @@ describe('production app graph', () => {
     expect(has('conductor', 'enabled', 'score', 'enabled')).toBe(true);
     expect(edges.filter((e) => e.to.node === 'score' && e.to.port === 'beat')).toHaveLength(1);
     // The conducted score joins the other producers at the merge (mute + taps cover it).
-    expect(has('score', 'params', 'merge', 'd')).toBe(true);
+    expect(has('score', 'params', 'merge', 'score1')).toBe(true);
     // The loaded piece reaches the score live from the store (PR 3): a ScoreDoc that
     // could be loaded but never played is the #120 failure mode again.
     expect(has('ui', 'scoreDoc', 'score', 'doc')).toBe(true);

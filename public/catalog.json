@@ -2342,29 +2342,49 @@
   {
     "type": "synth-merge",
     "title": "Synth Merge",
-    "description": "Union up to five synth-params voice streams into one (hand voices, emotion chord, pose chord, conducted score, air flute); master mute.",
+    "description": "Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute.",
     "roles": [
       "mapping"
     ],
     "inputs": [
       {
-        "name": "a",
+        "name": "voice1",
         "kind": "synth-params"
       },
       {
-        "name": "b",
+        "name": "voice2",
         "kind": "synth-params"
       },
       {
-        "name": "c",
+        "name": "voice3",
         "kind": "synth-params"
       },
       {
-        "name": "d",
+        "name": "voice4",
         "kind": "synth-params"
       },
       {
-        "name": "e",
+        "name": "voice5",
+        "kind": "synth-params"
+      },
+      {
+        "name": "voice6",
+        "kind": "synth-params"
+      },
+      {
+        "name": "voice7",
+        "kind": "synth-params"
+      },
+      {
+        "name": "voice8",
+        "kind": "synth-params"
+      },
+      {
+        "name": "score1",
+        "kind": "synth-params"
+      },
+      {
+        "name": "score2",
         "kind": "synth-params"
       },
       {

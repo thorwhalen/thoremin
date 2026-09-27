@@ -1,33 +1,40 @@
 /**
- * The default Thoremin instrument graph — the wiring that makes hand gestures
- * play tonal audio with overlays, steerable live by keyboard + UI.
+ * The default Thoremin instrument graph — the wiring that makes hand gestures play
+ * tonal audio with overlays, steerable live by keyboard + UI.
  *
  *   webcam ─┬─▶ hand-features ─┬─▶ voice-mapping ─▶ synth-merge ─▶ webaudio-synth
- *           │                  │        ▲ ▲ ▲ ▲          ▲
- *           └────────▶ overlay ◀┘        │ │ │ │         │ (+ face chord; master mute)
- *                       (video+guides)   │ │ └── store-controls (ui): scale/sound and —
- *                                        │ │     since #90 — octave/magnetism/mute. Keyboard
- *                                        │ │     shortcuts now live app-side (keyboardShortcuts.ts
- *                                        │ │     → dial commands → the store), not in the graph.
+ *           │                  │        ▲                ▲
+ *           └────────▶ overlay ◀┘        │ store-controls (ui): scale/sound/octave/
+ *                       (video+guides)   │ magnetism/mute; keyboard shortcuts live app-side
  *   webcam-face ─┬─▶ face-features ──────┘ (timbre: smile→brightness, mouth→vibrato)
  *                └─▶ face-expression ─▶ expression-chord ─▶ synth-merge
- *                       (chord: expression → diatonic triad)
  *
- * The face branch is always wired but idle until the player picks a face mapping:
- * `webcam-face` only loads its model (and emits a present face) when `faceMapping`
- * is not `none`, so it costs nothing when off. The chord path (`expression-chord`)
- * emits silent voices unless the mode is `chord`, so the merge passes the hand
- * voices through unchanged otherwise.
+ * Since the instruments-as-graphs ADR (`docs/design/instruments-as-graphs-and-extensions.md`)
+ * this file no longer lists nodes and edges. The graph is COMPOSED from BRANCHES
+ * (`src/instruments/branches.ts`): the trunk every instrument shares (hands, the UI
+ * bridge, the merge, the synth, the overlay) plus one branch per capability (the field
+ * voices, the face source and its consumers, the body, the conductor, MIDI out, the
+ * generative model, the four air instruments). `defaultGraph()` composes every branch, so
+ * it builds the same 32-node graph it always did (`test/instruments/golden_graph.test.ts`
+ * pins that); an instrument that names fewer branches gets fewer nodes (PR 3 of the ADR).
  *
- * One output may fan OUT to several inputs (webcam→features & overlay); only
- * fan-IN to a single input port is disallowed.
+ * What stays here is the SLOTS table: the role-typed swap points a branch node may fill
+ * (`{ id: 'cam', slot: 'source' }`), their candidates, their contracts, and the URL
+ * selection (`?slot.source=synthetic-hands`). A slot chooses a node TYPE inside a branch;
+ * a branch chooses which nodes EXIST. They compose.
+ *
+ * One output may fan OUT to several inputs (webcam→features & overlay); only fan-IN to a
+ * single input port is disallowed, which is why every voice goes through `synth-merge`.
  */
 import type { GraphSpec, NodeRegistry, Role } from '@/dag';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
 import { BODY_SLOT_CONTRACT } from '@/nodes/sources/body_contract';
 import type { SlotContract } from '@/nodes/slot_contract';
+import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
+import { composeGraph, type Composed } from '@/instruments/compose';
+import { ALL_BRANCH_IDS, BRANCHES, TRUNK, trunk } from '@/instruments/branches';
 
 /**
  * The generative branch's STARTER steering (#141 / #188): what the gestures mean to
@@ -37,19 +44,11 @@ import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
  * one that holds the default agree exactly. Exported for the tests.
  */
 export const STARTER_STEER = DEFAULT_STEER_CONFIG;
-import { DEMO_SCALE_NOTES } from '@/nodes/music/score';
 
 /**
- * A Slot is a named, role-typed swap point the graph builder fills from config.
- * `default` is used when no/invalid selection is given; `candidates` is the set
- * of REAL interchangeable implementations today (the SSOT for "what can fill
- * this slot" — not `registry.listByRole`, which is advisory and broader).
- *
- * Governance (docs/design/component-model.md): a slot graduates to a user-facing
- * dropdown only at >=2 candidates. The `mapping` slot has one today, so this is a
- * developer-facing seam (graphs are data): selection is honored + validated, but
- * there is no UI. Adding the second hand-features→synth-params mapping is a
- * one-line `candidates` extension that activates real swapping.
+ * A slot is a named swap point in the graph: a role, a default node type, the candidate
+ * types a URL may choose, and the contract every candidate must satisfy (the ports the
+ * graph wires, so a swap never leaves an edge dangling). See `component-model.md`.
  */
 export interface SlotDef {
   role: Role;
@@ -65,39 +64,12 @@ export const SLOTS: Record<string, SlotDef> = {
     candidates: ['voice-mapping'],
     contract: MAPPING_SLOT_CONTRACT,
   },
-  /**
-   * Where the hand frames come from (#104 / Stream Applier M-C). The candidates
-   * are the **finished-frame emitters** only — a file or stream feeding a
-   * `<video>` is a host-side concern (`sourceSpec.ts`), not a node swap, because
-   * `webcam-hands` does the identical job whatever produced the pixels.
-   *
-   * Three candidates, so unlike `mapping` this slot has something real to swap
-   * to. It still gets no player-facing dropdown: a replay or a synthetic hand is
-   * a *verification* affordance, not an instrument a player chooses between.
-   *
-   * `?slot.source=synthetic-hands` runs the whole instrument with no camera and
-   * no MediaPipe — in the browser too, not only headlessly: the host reads this
-   * slot through {@link sourceNeedsVideo} BEFORE acquiring anything and skips
-   * `getUserMedia` entirely, so the run needs no hardware and no permission
-   * prompt. Getting that half wrong is how the feature would have shipped as its
-   * own opposite: the one URL meant for hardware-free verification, failing to
-   * boot on a machine with no camera.
-   */
   source: {
     role: 'source',
     default: 'webcam-hands',
     candidates: ['webcam-hands', 'synthetic-hands', 'replay-hands'],
     contract: SOURCE_SLOT_CONTRACT,
   },
-  /**
-   * Where the full-body pose frames come from (#186). A SECOND slot rather than a
-   * candidate of `source`: hands and body are different instruments a player may
-   * run together, so the body branch is always wired (like the face branch) and
-   * gated off until the `body.enabled` dial, the Lab or a trainer cue wants it —
-   * `webcam-body` loads nothing until then. `?slot.body=synthetic-body` runs the
-   * whole body path with no camera and no model, headlessly or in the browser.
-   * No player-facing dropdown, for the same reason as `source`.
-   */
   body: {
     role: 'source',
     default: 'webcam-body',
@@ -106,27 +78,11 @@ export const SLOTS: Record<string, SlotDef> = {
   },
 };
 
-/** Per-slot chosen node types (keys ⊆ SLOTS keys); all optional → defaults used. */
 export type SlotSelection = Partial<Record<keyof typeof SLOTS, string>>;
 
-/** Nothing selected — every slot uses its default. A module constant so passing
- *  "no selection" does not create a new object identity on every render. */
 export const NO_SLOTS: SlotSelection = Object.freeze({});
 
-/**
- * Parse a URL query string into a {@link SlotSelection}: `?slot.<slotName>=<nodeType>`,
- * e.g. `?slot.mapping=voice-mapping`. Unknown `slot.*` keys and blank values are
- * ignored; an invalid *node type* is not rejected here but by {@link resolveSlot},
- * which warns and falls back to the slot default.
- *
- * This is a **developer-facing** seam, deliberately, and the same shape as M-A's
- * `?source=video` (`src/app/sourceSpec.ts`): graphs are data, so selecting one
- * belongs in the URL. Per the component-model governance rule, a slot earns a
- * player-facing settings dropdown only once its role has >= 2 real
- * implementations — `mapping` has one today.
- *
- * @param search a `location.search` string (leading `?` optional).
- */
+/** `?slot.<name>=<nodeType>` for each slot the URL names. */
 export function parseSlotSelection(search: string): SlotSelection {
   const params = new URLSearchParams(search);
   const selection: SlotSelection = {};
@@ -138,37 +94,21 @@ export function parseSlotSelection(search: string): SlotSelection {
 }
 
 /**
- * Does the resolved source slot need the host to supply a `<video>` element?
- *
- * Only the default (`webcam-hands`) does: it runs MediaPipe over a video element,
- * which is exactly why raw-video origins stay a *host-side* concern rather than a
- * node swap. Every other candidate emits finished frames and reads no video at
- * all — so when one is selected the host should not acquire a camera, and the
- * instrument runs with no hardware. Readers of `ctx.resources.video` (the overlay
- * backdrop, the face branch) all guard on `readyState`, so the element simply
- * stays empty.
+ * Whether the resolved source needs the camera. The host reads this BEFORE acquiring
+ * anything: a slot alone would leave the camera-free URL still calling `getUserMedia`.
  */
 export function sourceNeedsVideo(selection?: SlotSelection, registry?: NodeRegistry): boolean {
   return resolveSlot('source', selection, registry) === SLOTS.source.default;
 }
 
-/**
- * A stable, order-independent string identity for a selection — so React effects
- * can depend on *what was selected* rather than on the object's identity (which
- * changes on every render and would tear the engine down each time).
- */
+/** A stable string for a selection, so React effects can depend on it by value. */
 export function slotSelectionKey(selection: SlotSelection = NO_SLOTS): string {
   return (Object.keys(SLOTS) as (keyof typeof SLOTS)[])
     .map((k) => `${k}=${selection[k] ?? ''}`)
     .join('&');
 }
 
-/**
- * Why a node type does NOT satisfy a slot, or `null` if it does. Checks, in order:
- * registered, carries the slot role, emits the slot's output port+kind, and
- * declares every required input port. (The engine's validateEdge only checks port
- * names, so this is the pre-flight that catches a bad swap before construction.)
- */
+/** Why `type` cannot fill `slot`, or null when it can. Checked against the contract. */
 function slotFillReason(type: string, slot: SlotDef, registry: NodeRegistry): string | null {
   if (!registry.has(type)) return 'is not a registered node type';
   const def = registry.get(type);
@@ -185,9 +125,9 @@ function slotFillReason(type: string, slot: SlotDef, registry: NodeRegistry): st
 }
 
 /**
- * Resolve a slot to a concrete node type. Returns the slot default unless a valid,
- * contract-satisfying selection is given; warns and falls back on a stale/invalid
- * one (or when no registry is available to validate against).
+ * The node type that fills `slotKey`: the selection's choice when it is a valid candidate
+ * (registered, carries the role, satisfies the contract), otherwise the default, with a
+ * warning. Without a registry nothing can be validated, so the default wins.
  */
 export function resolveSlot(
   slotKey: keyof typeof SLOTS,
@@ -210,299 +150,32 @@ export function resolveSlot(
   return chosen;
 }
 
+/** Every slot resolved for a selection: slot name → node type. */
+export function resolveSlots(selection?: SlotSelection, registry?: NodeRegistry): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(SLOTS) as (keyof typeof SLOTS)[]) out[key] = resolveSlot(key, selection, registry);
+  return out;
+}
+
+/** Where declared voices go: the trunk's merge node and its role pools. */
+export const MERGE_TARGET = { node: TRUNK.merge, pools: SYNTH_MERGE_POOLS } as const;
+
 /**
- * Build the default instrument graph. With no `selection` it is byte-identical to
- * before (all slots use their defaults). A `selection` (validated against
- * `registry`) swaps slot-bound node types — the edges reference only port names
- * the slot contract guarantees, so a contract-satisfying swap stays edge-stable.
+ * Compose the named branches (requirements included) for a slot selection. The general
+ * form of {@link defaultGraph}; PR 3 of the ADR feeds it the branch set an instrument's
+ * settings and the live feature demand imply.
  */
+export function composeInstrumentGraph(
+  branchIds: readonly string[],
+  selection?: SlotSelection,
+  registry?: NodeRegistry,
+): Composed {
+  // The trunk is implied: every instrument shares it, so no spec has to name it.
+  const ids = branchIds.includes(trunk.id) ? branchIds : [trunk.id, ...branchIds];
+  return composeGraph(ids, BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET });
+}
+
+/** The full graph: every branch. The selection swaps node types inside it (see SLOTS). */
 export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry): GraphSpec {
-  const mappingType = resolveSlot('mapping', selection, registry);
-  const sourceType = resolveSlot('source', selection, registry);
-  const bodyType = resolveSlot('body', selection, registry);
-  // The default source's params are MediaPipe's (model size, hand count) and mean
-  // nothing to a replay or synthetic source. Rather than invent a shared params
-  // contract for a slot whose candidates genuinely have nothing in common, a
-  // swapped-in source takes its own defaults — the URL seam cannot express params
-  // anyway, and a candidate that needs them is a graph edit, not a selection.
-  const sourceParams = sourceType === SLOTS.source.default ? { modelType: 'full', maxHands: 2 } : {};
-  return {
-    nodes: [
-      { id: 'cam', type: sourceType, params: sourceParams },
-      { id: 'feat', type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
-      // Face branch (idle until the player picks a face mapping in settings).
-      { id: 'camFace', type: 'webcam-face', params: {} },
-      // Body branch (#186): idle (empty frame, no model) until body tracking is wanted.
-      { id: 'camBody', type: bodyType, params: {} },
-      { id: 'faceFeat', type: 'face-features', params: { smoothing: 0.3 } },
-      // Chord path: classify the expression, then play its diatonic triad.
-      { id: 'faceExpr', type: 'face-expression', params: {} },
-      { id: 'exprChord', type: 'expression-chord', params: {} },
-      // Controls path (#76): deliberate head/face pose axes → a diatonic chord.
-      { id: 'faceCtrl', type: 'face-controls', params: {} },
-      { id: 'poseChord', type: 'pose-chord', params: {} },
-      // Feature Instrumentation Lab (#119): pure feature-vector taps off the
-      // existing face/hand sources; the overlay's featureLab element normalizes +
-      // draws them. Idle (empty vector) unless the Lab's meters are on — the nodes read
-      // the live lab config off the control store (resolveLabGate), so the catalog costs
-      // nothing for a player who never opens the Lab.
-      { id: 'faceVec', type: 'face-feature-vector', params: {} },
-      { id: 'handVec', type: 'hand-feature-vector', params: {} },
-      // Body features (#186): the third vector tap, off the gated body branch.
-      { id: 'bodyVec', type: 'body-feature-vector', params: {} },
-      // Body → sound (#186 PR E): routes body features to voice modulations per the
-      // bodyMap dial; neutral (no change) until a route is set.
-      { id: 'bodyRoute', type: 'body-route', params: {} },
-      // Gesture dispatch (#129): discrete pose classification (fist/open/pinch),
-      // tapped additively off the hand-features stream the mapping already reads.
-      // Nothing in the GRAPH consumes it — the app-level gesture dispatcher
-      // (src/app/gestureDispatch.ts, driven from the rAF loop in useEngine) reads
-      // its `poses` output each frame and turns held-pose transitions into command
-      // dispatches per the user's binding map. Pure per-tick classification, so it
-      // costs nothing meaningful when gesture bindings are disabled.
-      { id: 'gesture', type: 'gesture-classifier', params: {} },
-      // Conductor mode (#187, settling #180): the beating hand becomes musical time
-      // (src/ictus) and the `score` node performs a piece at that tempo and dynamics.
-      // Both idle until the `conductor.enabled` dial is on — the conductor emits a
-      // frozen beat and `enabled: false`, and the score emits silent voices — so the
-      // hand instrument is untouched for a player who never conducts. The score's
-      // content is the built-in demo scale until the score pipeline lands (PR 3).
-      { id: 'conductor', type: 'conductor', params: {} },
-      // The air drum (#233): each hand a stick, the hit predicted before the frame that
-      // shows it, sounded on the audio clock by `drum-out`. Both idle until the
-      // `airDrum.enabled` dial is on.
-      { id: 'airDrum', type: 'air-drum', params: {} },
-      { id: 'drumOut', type: 'drum-out', params: {} },
-      // The air bass (#249): the fretting hand's place along an imaginary neck picks the
-      // note, a pluck of the other hand sounds it on the audio clock (`pluck-out`). Both
-      // idle until the `airBass.enabled` dial is on.
-      { id: 'airBass', type: 'air-bass', params: {} },
-      { id: 'bassOut', type: 'pluck-out', params: { timbre: 'bass', mono: true } },
-      // The air guitar (#249): the fretting hand's shape against the player's enrolled
-      // chords, a predicted strum of the other hand, a chord voicing on six strings.
-      { id: 'airGuitar', type: 'air-guitar', params: {} },
-      { id: 'guitarOut', type: 'pluck-out', params: { timbre: 'guitar', mono: false } },
-      // The air flute (#249): enrolled finger lifts choose the note, the enrolled
-      // blowing mouth sounds it, one sustained voice into the synth merge.
-      { id: 'airFlute', type: 'air-flute', params: {} },
-      { id: 'score', type: 'score', params: { notes: DEMO_SCALE_NOTES, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
-      // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
-      // handler that dispatches dial commands; octave-shift / magnetism / mute now
-      // flow from the store via `ui` (store-controls), so no keyboard nodes here.
-      { id: 'ui', type: 'store-controls' },
-      { id: 'map', type: mappingType, params: { magnetism: 0.8, maxGain: 0.5 } },
-      // Union the hand voices with the face-chord voices before the synth.
-      { id: 'merge', type: 'synth-merge', params: {} },
-      // Pick whichever chord instrument is sounding, for the overlay pitch-guide highlight.
-      { id: 'chordSel', type: 'chord-select', params: {} },
-      { id: 'synth', type: 'webaudio-synth' },
-      // MIDI output (#13): taps the same merged voices as the synth to drive an
-      // external instrument/DAW. Off by default (its `enabled` input defaults false)
-      // and a no-op where Web MIDI is unsupported, so it costs nothing until turned on.
-      { id: 'midiOut', type: 'midi-out', params: {} },
-      // Generative layer (#141 / #188): the *indirect* end of the mapping spectrum — the
-      // same hand/face features steer weighted text prompts + config dials of a cloud
-      // generative engine (Lyria RealTime), which sums into the master bus out of band.
-      // An ADDITIVE parallel branch, not a slot swap (indirect-map deliberately fails the
-      // mapping contract). Off by default: `lyria` loads nothing until its `enabled`
-      // input is true, so the branch costs a few pure ticks and nothing else.
-      { id: 'imap', type: 'indirect-map', params: STARTER_STEER },
-      { id: 'gen', type: 'lyria', params: {} },
-      // Overlay elements default on (video/scaleGuide/landmarks/markers); the
-      // opt-in index-finger guide is off by default. See canvas_overlay.ts.
-      { id: 'overlay', type: 'canvas-overlay', params: {} },
-    ],
-    edges: [
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'feat', port: 'hands' } },
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'overlay', port: 'hands' } },
-      // Face timbre: webcam-face → face-features → voice-mapping's optional `face`
-      // input (smile adds brightness, open mouth adds vibrato). Absent face / chord
-      // mode → no effect.
-      { from: { node: 'camFace', port: 'face' }, to: { node: 'faceFeat', port: 'face' } },
-      { from: { node: 'faceFeat', port: 'features' }, to: { node: 'map', port: 'face' } },
-      // Face chord: webcam-face → face-expression → expression-chord (fed the live
-      // scale spec + face mode). Emits silent voices unless mode is 'chord'.
-      { from: { node: 'camFace', port: 'face' }, to: { node: 'faceExpr', port: 'face' } },
-      // Live per-emotion sensitivities steer the classifier's thresholds.
-      { from: { node: 'ui', port: 'expressionSensitivity' }, to: { node: 'faceExpr', port: 'sensitivity' } },
-      { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'exprChord', port: 'expression' } },
-      // #75: the chord node reads the decoupled CHORD-SOURCE spec (auto-derived from
-      // the melody, or a custom scale), NOT the melody scale — so a pentatonic melody
-      // still gets chords from a sensible (seven-note) source by default.
-      { from: { node: 'ui', port: 'chordSpec' }, to: { node: 'exprChord', port: 'spec' } },
-      // Live per-expression scale-degree map (which triad each expression plays).
-      { from: { node: 'ui', port: 'expressionDegrees' }, to: { node: 'exprChord', port: 'degrees' } },
-      { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'exprChord', port: 'faceMapping' } },
-      // Live chord settings (instrument / volume / voicing / rendering / tempo).
-      { from: { node: 'ui', port: 'chordConfig' }, to: { node: 'exprChord', port: 'chordConfig' } },
-      // Keep the face chord in the same register as the hand melody (octave shift).
-      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'exprChord', port: 'octaveShift' } },
-      // Controls path (#76): webcam-face → face-controls → pose-chord. The pose
-      // instrument plays a diatonic chord from head/face pose; it emits silent
-      // voices unless the mode is 'controls', so the merge is unaffected otherwise.
-      { from: { node: 'camFace', port: 'face' }, to: { node: 'faceCtrl', port: 'face' } },
-      // The axis tuning (#76) is a LIVE input, not a build-time param: the `faceControls`
-      // dial reaches the node here, so a gain / deadzone / neutral-zero edit takes effect
-      // on the next tick. Without this edge the dial would exist and do nothing — exactly
-      // the #137 failure mode (a shipped node with an unconnected enable input), which is
-      // why `app_graph.test.ts` asserts this edge structurally.
-      { from: { node: 'ui', port: 'faceControls' }, to: { node: 'faceCtrl', port: 'config' } },
-      { from: { node: 'faceCtrl', port: 'controls' }, to: { node: 'poseChord', port: 'controls' } },
-      // #75: pose chords also read the decoupled chord-source spec (unblocks pose mode
-      // on a non-seven-note melody, exactly like the emotion chord).
-      { from: { node: 'ui', port: 'chordSpec' }, to: { node: 'poseChord', port: 'spec' } },
-      { from: { node: 'ui', port: 'faceMapping' }, to: { node: 'poseChord', port: 'faceMapping' } },
-      // Reuse the same live chord settings (sound / volume / voicing / rendering / tempo).
-      { from: { node: 'ui', port: 'chordConfig' }, to: { node: 'poseChord', port: 'chordConfig' } },
-      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'poseChord', port: 'octaveShift' } },
-      { from: { node: 'feat', port: 'features' }, to: { node: 'map', port: 'features' } },
-      { from: { node: 'feat', port: 'features' }, to: { node: 'overlay', port: 'features' } },
-      { from: { node: 'ui', port: 'magnetism' }, to: { node: 'map', port: 'magnetism' } },
-      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'map', port: 'octaveShift' } },
-      { from: { node: 'ui', port: 'mute' }, to: { node: 'map', port: 'mute' } },
-      { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'map', port: 'scaleRight' } },
-      { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'map', port: 'scaleLeft' } },
-      { from: { node: 'ui', port: 'soundRight' }, to: { node: 'map', port: 'soundRight' } },
-      { from: { node: 'ui', port: 'soundLeft' }, to: { node: 'map', port: 'soundLeft' } },
-      // Merge the hand voices (map) with the emotion-chord AND pose-chord voices,
-      // then to the synth. Only one face chord source sounds at a time (they gate on
-      // mutually-exclusive modes), but wiring both keeps the graph mode-agnostic.
-      { from: { node: 'map', port: 'params' }, to: { node: 'merge', port: 'a' } },
-      { from: { node: 'exprChord', port: 'params' }, to: { node: 'merge', port: 'b' } },
-      { from: { node: 'poseChord', port: 'params' }, to: { node: 'merge', port: 'c' } },
-      // Master mute reaches the merge — the single convergence point of ALL sound
-      // producers — so muting silences the hands AND both face-chord instruments
-      // (#91). The `ui.mute → map.mute` edge above still silences the hand voices
-      // at the mapping stage; this is the catch-all that also covers the chords.
-      // `muteAll` is that mute OR a tool's hush claim (the Trainer). The struck
-      // instruments' schedulers read `muteStrikes`: the same, OR the conductor on.
-      // `hushVoices` (the conductor, or a claim) silences every merged voice but the
-      // conducted score (`d`). See `hushOf` in store-controls. The player's `muted` is
-      // only read, so lifting a hush never unmutes someone who muted on purpose.
-      { from: { node: 'ui', port: 'muteAll' }, to: { node: 'merge', port: 'mute' } },
-      { from: { node: 'ui', port: 'hushVoices' }, to: { node: 'merge', port: 'hush' } },
-      { from: { node: 'ui', port: 'muteStrikes' }, to: { node: 'drumOut', port: 'mute' } },
-      { from: { node: 'ui', port: 'muteStrikes' }, to: { node: 'bassOut', port: 'mute' } },
-      { from: { node: 'ui', port: 'muteStrikes' }, to: { node: 'guitarOut', port: 'mute' } },
-      { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
-      // MIDI output (#13): the merged voices also feed the midi-out node (additive
-      // tap off the synth bus). Its `enabled`/`port` inputs are driven live from the
-      // store (#137: the `midi.enabled`/`midi.port` dials), so the settings panel /
-      // palette / AI can turn MIDI on without a rebuild. Off by default.
-      { from: { node: 'merge', port: 'params' }, to: { node: 'midiOut', port: 'params' } },
-      { from: { node: 'ui', port: 'midiEnabled' }, to: { node: 'midiOut', port: 'enabled' } },
-      { from: { node: 'ui', port: 'midiPort' }, to: { node: 'midiOut', port: 'port' } },
-      // Generative layer (#141 / #188): additive taps off the SAME feature streams the
-      // mapping reads; the switch / transport / level / steering config all arrive
-      // live from the store. `gen.enabled` left unconnected would be #137 node-for-node
-      // (a capability in the bundle with no way to switch it on), which is why
-      // app_graph.test.ts asserts these edges structurally.
-      { from: { node: 'feat', port: 'features' }, to: { node: 'imap', port: 'features' } },
-      { from: { node: 'faceFeat', port: 'features' }, to: { node: 'imap', port: 'face' } },
-      { from: { node: 'ui', port: 'steerConfig' }, to: { node: 'imap', port: 'steerConfig' } },
-      { from: { node: 'imap', port: 'steer' }, to: { node: 'gen', port: 'steer' } },
-      { from: { node: 'ui', port: 'steerEnabled' }, to: { node: 'gen', port: 'enabled' } },
-      { from: { node: 'ui', port: 'steerPlaying' }, to: { node: 'gen', port: 'playing' } },
-      { from: { node: 'ui', port: 'steerVolume' }, to: { node: 'gen', port: 'volume' } },
-      // Feed the MERGED params (hand voices + both chord instruments) to the overlay:
-      // the hand voices stay at indices 0/1 (synth-merge concatenates them first), so
-      // the per-hand note labels/markers are unchanged, while the keyboard strip's
-      // "voiced-now" cue can light the sounding CHORD voices too (#89), not just hands.
-      { from: { node: 'merge', port: 'params' }, to: { node: 'overlay', port: 'params' } },
-      // And both hands' scales + octave shift, for the overlay pitch guides.
-      { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'overlay', port: 'scale' } },
-      { from: { node: 'ui', port: 'scaleLeft' }, to: { node: 'overlay', port: 'scaleLeft' } },
-      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'overlay', port: 'octaveShift' } },
-      // The chord-SOURCE scale (#75), so the overlay names/analyzes the sounding chord
-      // against the scale it was actually built from, not the melody scale.
-      { from: { node: 'ui', port: 'chordScale' }, to: { node: 'overlay', port: 'chordScale' } },
-      // Whichever chord instrument is sounding (emotion triad OR pose chord), so the
-      // overlay highlights the active chord's tones on the pitch guide in both modes.
-      { from: { node: 'exprChord', port: 'triad' }, to: { node: 'chordSel', port: 'a' } },
-      { from: { node: 'poseChord', port: 'chord' }, to: { node: 'chordSel', port: 'b' } },
-      { from: { node: 'chordSel', port: 'chord' }, to: { node: 'overlay', port: 'chord' } },
-      // The raw face frame (mesh) + classified expression, for the face overlays.
-      { from: { node: 'camFace', port: 'face' }, to: { node: 'overlay', port: 'faceFrame' } },
-      // The body skeleton + the body model's load state (#186). Every body candidate
-      // emits `status` (a synthetic/replay body is simply always loaded), so the swap
-      // stays edge-stable.
-      { from: { node: 'camBody', port: 'body' }, to: { node: 'overlay', port: 'bodyFrame' } },
-      { from: { node: 'camBody', port: 'status' }, to: { node: 'overlay', port: 'bodyStatus' } },
-      { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
-      // Live overlay element config from the UI store (toggle elements without rebuild).
-      { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'overlayConfig' } },
-      // Feature Lab (#119): the pure feature vectors tap the SAME face/hand frames
-      // the rest of the graph reads (additive fan-out), and feed the overlay's
-      // featureLab meters. Recorded by the existing feature-JSONL tap.
-      { from: { node: 'camFace', port: 'face' }, to: { node: 'faceVec', port: 'face' } },
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'handVec', port: 'hands' } },
-      { from: { node: 'faceVec', port: 'vector' }, to: { node: 'overlay', port: 'faceVector' } },
-      { from: { node: 'handVec', port: 'vector' }, to: { node: 'overlay', port: 'handVector' } },
-      { from: { node: 'camBody', port: 'body' }, to: { node: 'bodyVec', port: 'body' } },
-      { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'overlay', port: 'bodyVector' } },
-      { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'bodyRoute', port: 'vector' } },
-      { from: { node: 'ui', port: 'bodyMap' }, to: { node: 'bodyRoute', port: 'bodyMap' } },
-      { from: { node: 'bodyRoute', port: 'mods' }, to: { node: 'map', port: 'mods' } },
-      // Gesture dispatch (#129): the classifier taps the SAME hand-features stream
-      // the mapping/overlay read (additive fan-out — the original edges are
-      // untouched). Its `poses` output is read app-side by the gesture dispatcher.
-      { from: { node: 'feat', port: 'features' }, to: { node: 'gesture', port: 'features' } },
-      // Conductor mode (#187): the follower taps the SAME hand frames (additive fan-out);
-      // its dial reaches it as a LIVE `config` input — the #147 template, so turning
-      // conducting on is a dial write, never a rebuild — and `app_graph.test.ts` asserts
-      // this edge structurally (a node with an unconnected enable is how #120 shipped
-      // unreachable). The score reads ONE beat from ONE node: the conductor integrates
-      // the beat itself (blending the ictus with a speed fallback by confidence), so no
-      // second beat source fans into `score.beat`.
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'conductor', port: 'hands' } },
-      { from: { node: 'ui', port: 'conductor' }, to: { node: 'conductor', port: 'config' } },
-      { from: { node: 'conductor', port: 'beat' }, to: { node: 'score', port: 'beat' } },
-      { from: { node: 'conductor', port: 'velocityScale' }, to: { node: 'score', port: 'velocityScale' } },
-      { from: { node: 'conductor', port: 'enabled' }, to: { node: 'score', port: 'enabled' } },
-      // The loaded piece (#187 PR 3): a ScoreDoc from the store, or nothing (the demo scale).
-      { from: { node: 'ui', port: 'scoreDoc' }, to: { node: 'score', port: 'doc' } },
-      // The same piece feeds the conductor its meter and fermatas (PR 4), and the
-      // conductor's musical time + enable flag reach the overlay's beat HUD.
-      { from: { node: 'ui', port: 'scoreDoc' }, to: { node: 'conductor', port: 'doc' } },
-      { from: { node: 'conductor', port: 'time' }, to: { node: 'overlay', port: 'conductorTime' } },
-      { from: { node: 'conductor', port: 'enabled' }, to: { node: 'overlay', port: 'conductorEnabled' } },
-      // The conducted score joins the hand voices and both face chords at the merge, so
-      // the master mute and the synth/MIDI/overlay taps cover it for free.
-      { from: { node: 'score', port: 'params' }, to: { node: 'merge', port: 'd' } },
-      // The air drum (#233): the hands, the dial (live, the #147 template), the conductor's
-      // musical time for the timing magnet, and the hits to the audio scheduler.
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'airDrum', port: 'hands' } },
-      { from: { node: 'ui', port: 'airDrum' }, to: { node: 'airDrum', port: 'config' } },
-      { from: { node: 'conductor', port: 'time' }, to: { node: 'airDrum', port: 'time' } },
-      // The pads over the video (#245): the dial for where they are, the hits for the flash.
-      { from: { node: 'ui', port: 'airDrum' }, to: { node: 'overlay', port: 'airDrumConfig' } },
-      { from: { node: 'airDrum', port: 'hits' }, to: { node: 'overlay', port: 'drumHits' } },
-      { from: { node: 'airDrum', port: 'hits' }, to: { node: 'drumOut', port: 'hits' } },
-      // The air bass (#249): the hands, the dial (live), the neck's notes (the right
-      // voice's scale, the instrument's own), and its notes to the pluck scheduler.
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'airBass', port: 'hands' } },
-      { from: { node: 'ui', port: 'airBass' }, to: { node: 'airBass', port: 'config' } },
-      { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'airBass', port: 'scale' } },
-      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airBass', port: 'octaveShift' } },
-      { from: { node: 'airBass', port: 'notes' }, to: { node: 'bassOut', port: 'notes' } },
-      // The air guitar (#249): the hands, the dial (live), the enrolled model (live), the
-      // octave shift, and its strums to its own pluck scheduler.
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'airGuitar', port: 'hands' } },
-      { from: { node: 'ui', port: 'airGuitar' }, to: { node: 'airGuitar', port: 'config' } },
-      { from: { node: 'ui', port: 'airGuitarModel' }, to: { node: 'airGuitar', port: 'model' } },
-      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airGuitar', port: 'octaveShift' } },
-      { from: { node: 'airGuitar', port: 'notes' }, to: { node: 'guitarOut', port: 'notes' } },
-      // The air flute (#249): the hands, the face vector (its mouth groups are claimed
-      // while it is on), the dial and both classifiers (live), the octave shift; its voice
-      // joins the others at the merge.
-      { from: { node: 'cam', port: 'hands' }, to: { node: 'airFlute', port: 'hands' } },
-      { from: { node: 'faceVec', port: 'vector' }, to: { node: 'airFlute', port: 'face' } },
-      { from: { node: 'camFace', port: 'face' }, to: { node: 'airFlute', port: 'faceFrame' } },
-      { from: { node: 'ui', port: 'airFlute' }, to: { node: 'airFlute', port: 'config' } },
-      { from: { node: 'ui', port: 'airFluteFingerModel' }, to: { node: 'airFlute', port: 'fingerModel' } },
-      { from: { node: 'ui', port: 'airFluteMouthModel' }, to: { node: 'airFlute', port: 'mouthModel' } },
-      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airFlute', port: 'octaveShift' } },
-      { from: { node: 'airFlute', port: 'params' }, to: { node: 'merge', port: 'e' } },
-    ],
-  };
+  return composeInstrumentGraph(ALL_BRANCH_IDS, selection, registry).spec;
 }

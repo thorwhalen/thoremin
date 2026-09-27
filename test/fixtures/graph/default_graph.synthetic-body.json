@@ -1,0 +1,1312 @@
+{
+ "nodes": [
+  {
+   "id": "cam",
+   "type": "webcam-hands",
+   "params": {
+    "modelType": "full",
+    "maxHands": 2
+   }
+  },
+  {
+   "id": "feat",
+   "type": "hand-features",
+   "params": {
+    "mirrorX": true,
+    "mirrorHandedness": true
+   }
+  },
+  {
+   "id": "camFace",
+   "type": "webcam-face",
+   "params": {}
+  },
+  {
+   "id": "camBody",
+   "type": "synthetic-body",
+   "params": {}
+  },
+  {
+   "id": "faceFeat",
+   "type": "face-features",
+   "params": {
+    "smoothing": 0.3
+   }
+  },
+  {
+   "id": "faceExpr",
+   "type": "face-expression",
+   "params": {}
+  },
+  {
+   "id": "exprChord",
+   "type": "expression-chord",
+   "params": {}
+  },
+  {
+   "id": "faceCtrl",
+   "type": "face-controls",
+   "params": {}
+  },
+  {
+   "id": "poseChord",
+   "type": "pose-chord",
+   "params": {}
+  },
+  {
+   "id": "faceVec",
+   "type": "face-feature-vector",
+   "params": {}
+  },
+  {
+   "id": "handVec",
+   "type": "hand-feature-vector",
+   "params": {}
+  },
+  {
+   "id": "bodyVec",
+   "type": "body-feature-vector",
+   "params": {}
+  },
+  {
+   "id": "bodyRoute",
+   "type": "body-route",
+   "params": {}
+  },
+  {
+   "id": "gesture",
+   "type": "gesture-classifier",
+   "params": {}
+  },
+  {
+   "id": "conductor",
+   "type": "conductor",
+   "params": {}
+  },
+  {
+   "id": "airDrum",
+   "type": "air-drum",
+   "params": {}
+  },
+  {
+   "id": "drumOut",
+   "type": "drum-out",
+   "params": {}
+  },
+  {
+   "id": "airBass",
+   "type": "air-bass",
+   "params": {}
+  },
+  {
+   "id": "bassOut",
+   "type": "pluck-out",
+   "params": {
+    "timbre": "bass",
+    "mono": true
+   }
+  },
+  {
+   "id": "airGuitar",
+   "type": "air-guitar",
+   "params": {}
+  },
+  {
+   "id": "guitarOut",
+   "type": "pluck-out",
+   "params": {
+    "timbre": "guitar",
+    "mono": false
+   }
+  },
+  {
+   "id": "airFlute",
+   "type": "air-flute",
+   "params": {}
+  },
+  {
+   "id": "score",
+   "type": "score",
+   "params": {
+    "notes": [
+     {
+      "midi": 60,
+      "start": 0,
+      "duration": 0.9,
+      "velocity": 1
+     },
+     {
+      "midi": 62,
+      "start": 1,
+      "duration": 0.9,
+      "velocity": 1
+     },
+     {
+      "midi": 64,
+      "start": 2,
+      "duration": 0.9,
+      "velocity": 1
+     },
+     {
+      "midi": 65,
+      "start": 3,
+      "duration": 0.9,
+      "velocity": 1
+     },
+     {
+      "midi": 67,
+      "start": 4,
+      "duration": 0.9,
+      "velocity": 1
+     },
+     {
+      "midi": 69,
+      "start": 5,
+      "duration": 0.9,
+      "velocity": 1
+     },
+     {
+      "midi": 71,
+      "start": 6,
+      "duration": 0.9,
+      "velocity": 1
+     },
+     {
+      "midi": 72,
+      "start": 7,
+      "duration": 0.9,
+      "velocity": 1
+     }
+    ],
+    "loopBeats": 8,
+    "baseGain": 0.4,
+    "sound": "triangle"
+   }
+  },
+  {
+   "id": "ui",
+   "type": "store-controls"
+  },
+  {
+   "id": "map",
+   "type": "voice-mapping",
+   "params": {
+    "magnetism": 0.8,
+    "maxGain": 0.5
+   }
+  },
+  {
+   "id": "merge",
+   "type": "synth-merge",
+   "params": {}
+  },
+  {
+   "id": "chordSel",
+   "type": "chord-select",
+   "params": {}
+  },
+  {
+   "id": "synth",
+   "type": "webaudio-synth"
+  },
+  {
+   "id": "midiOut",
+   "type": "midi-out",
+   "params": {}
+  },
+  {
+   "id": "imap",
+   "type": "indirect-map",
+   "params": {
+    "strains": [
+     {
+      "text": "warm ambient pads",
+      "source": "hand",
+      "hand": "right",
+      "feature": "openness",
+      "inMin": 0,
+      "inMax": 1,
+      "weightMin": 0,
+      "weightMax": 2
+     },
+     {
+      "text": "bright plucked arpeggios",
+      "source": "hand",
+      "hand": "left",
+      "feature": "y",
+      "inMin": 1,
+      "inMax": 0,
+      "weightMin": 0,
+      "weightMax": 2
+     }
+    ],
+    "dials": [
+     {
+      "name": "brightness",
+      "source": "hand",
+      "hand": "right",
+      "feature": "y",
+      "inMin": 1,
+      "inMax": 0,
+      "outMin": 0.2,
+      "outMax": 0.9
+     }
+    ],
+    "smoothing": 0.6,
+    "throttleSec": 0.2
+   }
+  },
+  {
+   "id": "gen",
+   "type": "lyria",
+   "params": {}
+  },
+  {
+   "id": "overlay",
+   "type": "canvas-overlay",
+   "params": {}
+  }
+ ],
+ "edges": [
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "feat",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "camFace",
+    "port": "face"
+   },
+   "to": {
+    "node": "faceFeat",
+    "port": "face"
+   }
+  },
+  {
+   "from": {
+    "node": "faceFeat",
+    "port": "features"
+   },
+   "to": {
+    "node": "map",
+    "port": "face"
+   }
+  },
+  {
+   "from": {
+    "node": "camFace",
+    "port": "face"
+   },
+   "to": {
+    "node": "faceExpr",
+    "port": "face"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "expressionSensitivity"
+   },
+   "to": {
+    "node": "faceExpr",
+    "port": "sensitivity"
+   }
+  },
+  {
+   "from": {
+    "node": "faceExpr",
+    "port": "expression"
+   },
+   "to": {
+    "node": "exprChord",
+    "port": "expression"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "chordSpec"
+   },
+   "to": {
+    "node": "exprChord",
+    "port": "spec"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "expressionDegrees"
+   },
+   "to": {
+    "node": "exprChord",
+    "port": "degrees"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "faceMapping"
+   },
+   "to": {
+    "node": "exprChord",
+    "port": "faceMapping"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "chordConfig"
+   },
+   "to": {
+    "node": "exprChord",
+    "port": "chordConfig"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "octaveShift"
+   },
+   "to": {
+    "node": "exprChord",
+    "port": "octaveShift"
+   }
+  },
+  {
+   "from": {
+    "node": "camFace",
+    "port": "face"
+   },
+   "to": {
+    "node": "faceCtrl",
+    "port": "face"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "faceControls"
+   },
+   "to": {
+    "node": "faceCtrl",
+    "port": "config"
+   }
+  },
+  {
+   "from": {
+    "node": "faceCtrl",
+    "port": "controls"
+   },
+   "to": {
+    "node": "poseChord",
+    "port": "controls"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "chordSpec"
+   },
+   "to": {
+    "node": "poseChord",
+    "port": "spec"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "faceMapping"
+   },
+   "to": {
+    "node": "poseChord",
+    "port": "faceMapping"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "chordConfig"
+   },
+   "to": {
+    "node": "poseChord",
+    "port": "chordConfig"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "octaveShift"
+   },
+   "to": {
+    "node": "poseChord",
+    "port": "octaveShift"
+   }
+  },
+  {
+   "from": {
+    "node": "feat",
+    "port": "features"
+   },
+   "to": {
+    "node": "map",
+    "port": "features"
+   }
+  },
+  {
+   "from": {
+    "node": "feat",
+    "port": "features"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "features"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "magnetism"
+   },
+   "to": {
+    "node": "map",
+    "port": "magnetism"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "octaveShift"
+   },
+   "to": {
+    "node": "map",
+    "port": "octaveShift"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "mute"
+   },
+   "to": {
+    "node": "map",
+    "port": "mute"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "scaleRight"
+   },
+   "to": {
+    "node": "map",
+    "port": "scaleRight"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "scaleLeft"
+   },
+   "to": {
+    "node": "map",
+    "port": "scaleLeft"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "soundRight"
+   },
+   "to": {
+    "node": "map",
+    "port": "soundRight"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "soundLeft"
+   },
+   "to": {
+    "node": "map",
+    "port": "soundLeft"
+   }
+  },
+  {
+   "from": {
+    "node": "map",
+    "port": "params"
+   },
+   "to": {
+    "node": "merge",
+    "port": "a"
+   }
+  },
+  {
+   "from": {
+    "node": "exprChord",
+    "port": "params"
+   },
+   "to": {
+    "node": "merge",
+    "port": "b"
+   }
+  },
+  {
+   "from": {
+    "node": "poseChord",
+    "port": "params"
+   },
+   "to": {
+    "node": "merge",
+    "port": "c"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "muteAll"
+   },
+   "to": {
+    "node": "merge",
+    "port": "mute"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "hushVoices"
+   },
+   "to": {
+    "node": "merge",
+    "port": "hush"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "muteStrikes"
+   },
+   "to": {
+    "node": "drumOut",
+    "port": "mute"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "muteStrikes"
+   },
+   "to": {
+    "node": "bassOut",
+    "port": "mute"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "muteStrikes"
+   },
+   "to": {
+    "node": "guitarOut",
+    "port": "mute"
+   }
+  },
+  {
+   "from": {
+    "node": "merge",
+    "port": "params"
+   },
+   "to": {
+    "node": "synth",
+    "port": "params"
+   }
+  },
+  {
+   "from": {
+    "node": "merge",
+    "port": "params"
+   },
+   "to": {
+    "node": "midiOut",
+    "port": "params"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "midiEnabled"
+   },
+   "to": {
+    "node": "midiOut",
+    "port": "enabled"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "midiPort"
+   },
+   "to": {
+    "node": "midiOut",
+    "port": "port"
+   }
+  },
+  {
+   "from": {
+    "node": "feat",
+    "port": "features"
+   },
+   "to": {
+    "node": "imap",
+    "port": "features"
+   }
+  },
+  {
+   "from": {
+    "node": "faceFeat",
+    "port": "features"
+   },
+   "to": {
+    "node": "imap",
+    "port": "face"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "steerConfig"
+   },
+   "to": {
+    "node": "imap",
+    "port": "steerConfig"
+   }
+  },
+  {
+   "from": {
+    "node": "imap",
+    "port": "steer"
+   },
+   "to": {
+    "node": "gen",
+    "port": "steer"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "steerEnabled"
+   },
+   "to": {
+    "node": "gen",
+    "port": "enabled"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "steerPlaying"
+   },
+   "to": {
+    "node": "gen",
+    "port": "playing"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "steerVolume"
+   },
+   "to": {
+    "node": "gen",
+    "port": "volume"
+   }
+  },
+  {
+   "from": {
+    "node": "merge",
+    "port": "params"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "params"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "scaleRight"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "scale"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "scaleLeft"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "scaleLeft"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "octaveShift"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "octaveShift"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "chordScale"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "chordScale"
+   }
+  },
+  {
+   "from": {
+    "node": "exprChord",
+    "port": "triad"
+   },
+   "to": {
+    "node": "chordSel",
+    "port": "a"
+   }
+  },
+  {
+   "from": {
+    "node": "poseChord",
+    "port": "chord"
+   },
+   "to": {
+    "node": "chordSel",
+    "port": "b"
+   }
+  },
+  {
+   "from": {
+    "node": "chordSel",
+    "port": "chord"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "chord"
+   }
+  },
+  {
+   "from": {
+    "node": "camFace",
+    "port": "face"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "faceFrame"
+   }
+  },
+  {
+   "from": {
+    "node": "camBody",
+    "port": "body"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "bodyFrame"
+   }
+  },
+  {
+   "from": {
+    "node": "camBody",
+    "port": "status"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "bodyStatus"
+   }
+  },
+  {
+   "from": {
+    "node": "faceExpr",
+    "port": "expression"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "expression"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "overlay"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "overlayConfig"
+   }
+  },
+  {
+   "from": {
+    "node": "camFace",
+    "port": "face"
+   },
+   "to": {
+    "node": "faceVec",
+    "port": "face"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "handVec",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "faceVec",
+    "port": "vector"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "faceVector"
+   }
+  },
+  {
+   "from": {
+    "node": "handVec",
+    "port": "vector"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "handVector"
+   }
+  },
+  {
+   "from": {
+    "node": "camBody",
+    "port": "body"
+   },
+   "to": {
+    "node": "bodyVec",
+    "port": "body"
+   }
+  },
+  {
+   "from": {
+    "node": "bodyVec",
+    "port": "vector"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "bodyVector"
+   }
+  },
+  {
+   "from": {
+    "node": "bodyVec",
+    "port": "vector"
+   },
+   "to": {
+    "node": "bodyRoute",
+    "port": "vector"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "bodyMap"
+   },
+   "to": {
+    "node": "bodyRoute",
+    "port": "bodyMap"
+   }
+  },
+  {
+   "from": {
+    "node": "bodyRoute",
+    "port": "mods"
+   },
+   "to": {
+    "node": "map",
+    "port": "mods"
+   }
+  },
+  {
+   "from": {
+    "node": "feat",
+    "port": "features"
+   },
+   "to": {
+    "node": "gesture",
+    "port": "features"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "conductor",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "conductor"
+   },
+   "to": {
+    "node": "conductor",
+    "port": "config"
+   }
+  },
+  {
+   "from": {
+    "node": "conductor",
+    "port": "beat"
+   },
+   "to": {
+    "node": "score",
+    "port": "beat"
+   }
+  },
+  {
+   "from": {
+    "node": "conductor",
+    "port": "velocityScale"
+   },
+   "to": {
+    "node": "score",
+    "port": "velocityScale"
+   }
+  },
+  {
+   "from": {
+    "node": "conductor",
+    "port": "enabled"
+   },
+   "to": {
+    "node": "score",
+    "port": "enabled"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "scoreDoc"
+   },
+   "to": {
+    "node": "score",
+    "port": "doc"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "scoreDoc"
+   },
+   "to": {
+    "node": "conductor",
+    "port": "doc"
+   }
+  },
+  {
+   "from": {
+    "node": "conductor",
+    "port": "time"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "conductorTime"
+   }
+  },
+  {
+   "from": {
+    "node": "conductor",
+    "port": "enabled"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "conductorEnabled"
+   }
+  },
+  {
+   "from": {
+    "node": "score",
+    "port": "params"
+   },
+   "to": {
+    "node": "merge",
+    "port": "d"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "airDrum",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airDrum"
+   },
+   "to": {
+    "node": "airDrum",
+    "port": "config"
+   }
+  },
+  {
+   "from": {
+    "node": "conductor",
+    "port": "time"
+   },
+   "to": {
+    "node": "airDrum",
+    "port": "time"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airDrum"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "airDrumConfig"
+   }
+  },
+  {
+   "from": {
+    "node": "airDrum",
+    "port": "hits"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "drumHits"
+   }
+  },
+  {
+   "from": {
+    "node": "airDrum",
+    "port": "hits"
+   },
+   "to": {
+    "node": "drumOut",
+    "port": "hits"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "airBass",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airBass"
+   },
+   "to": {
+    "node": "airBass",
+    "port": "config"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "scaleRight"
+   },
+   "to": {
+    "node": "airBass",
+    "port": "scale"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "octaveShift"
+   },
+   "to": {
+    "node": "airBass",
+    "port": "octaveShift"
+   }
+  },
+  {
+   "from": {
+    "node": "airBass",
+    "port": "notes"
+   },
+   "to": {
+    "node": "bassOut",
+    "port": "notes"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "airGuitar",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airGuitar"
+   },
+   "to": {
+    "node": "airGuitar",
+    "port": "config"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airGuitarModel"
+   },
+   "to": {
+    "node": "airGuitar",
+    "port": "model"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "octaveShift"
+   },
+   "to": {
+    "node": "airGuitar",
+    "port": "octaveShift"
+   }
+  },
+  {
+   "from": {
+    "node": "airGuitar",
+    "port": "notes"
+   },
+   "to": {
+    "node": "guitarOut",
+    "port": "notes"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "airFlute",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "faceVec",
+    "port": "vector"
+   },
+   "to": {
+    "node": "airFlute",
+    "port": "face"
+   }
+  },
+  {
+   "from": {
+    "node": "camFace",
+    "port": "face"
+   },
+   "to": {
+    "node": "airFlute",
+    "port": "faceFrame"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airFlute"
+   },
+   "to": {
+    "node": "airFlute",
+    "port": "config"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airFluteFingerModel"
+   },
+   "to": {
+    "node": "airFlute",
+    "port": "fingerModel"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "airFluteMouthModel"
+   },
+   "to": {
+    "node": "airFlute",
+    "port": "mouthModel"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "octaveShift"
+   },
+   "to": {
+    "node": "airFlute",
+    "port": "octaveShift"
+   }
+  },
+  {
+   "from": {
+    "node": "airFlute",
+    "port": "params"
+   },
+   "to": {
+    "node": "merge",
+    "port": "e"
+   }
+  }
+ ]
+}

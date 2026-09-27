@@ -423,7 +423,7 @@ describe('midi-out node (contract logic, mock sink)', () => {
       edges: [
         { from: { node: 'src', port: 'hands' }, to: { node: 'feat', port: 'hands' } },
         { from: { node: 'feat', port: 'features' }, to: { node: 'map', port: 'features' } },
-        { from: { node: 'map', port: 'params' }, to: { node: 'merge', port: 'a' } },
+        { from: { node: 'map', port: 'params' }, to: { node: 'merge', port: 'voice1' } },
         { from: { node: 'merge', port: 'params' }, to: { node: 'midiOut', port: 'params' } },
       ],
     };
