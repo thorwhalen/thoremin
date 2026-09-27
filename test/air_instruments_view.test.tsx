@@ -45,14 +45,14 @@ async function airGroup(): Promise<HTMLElement> {
 }
 
 describe('the Air instruments category (#249)', () => {
-  it('lists the air drum under Air instruments, and the theremins in their own group', async () => {
+  it('lists the air drum under Air instruments, and the field instruments in their own group', async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
-    const theremin = screen.getByRole('group', { name: 'Theremin instruments' });
+    const theremin = screen.getByRole('group', { name: 'Field instruments' });
     expect(within(theremin).queryByText('Air Drum')).toBeNull();
     expect(within(theremin).getByText('Pentatonic')).toBeTruthy();
     expect(within(air).queryByText('Pentatonic')).toBeNull();
-    // Theremins first, then the air instruments.
+    // Field instruments first, then the air instruments.
     const groups = screen.getAllByRole('group').map((g) => g.getAttribute('data-category'));
     expect(groups).toEqual(['theremin', 'air']);
     // Its system tag says what it is at a glance.
@@ -71,7 +71,7 @@ describe('the Air instruments category (#249)', () => {
     const live = await within(air).findByTestId('air-drum-live');
     expect(live.textContent).toMatch(/Strike once to teach/);
 
-    const theremin = screen.getByRole('group', { name: 'Theremin instruments' });
+    const theremin = screen.getByRole('group', { name: 'Field instruments' });
     fireEvent.click(within(theremin).getByText('Pentatonic'));
     await waitFor(() => expect(airDrum().enabled).toBe(false));
     expect(handMap().maxGain).toBeGreaterThan(0);
@@ -81,7 +81,7 @@ describe('the Air instruments category (#249)', () => {
   it('shows the readout under a theremin whose drum is live, so a drum left on is never invisible', async () => {
     render(<InstrumentsPanel />);
     await airGroup();
-    const theremin = screen.getByRole('group', { name: 'Theremin instruments' });
+    const theremin = screen.getByRole('group', { name: 'Field instruments' });
     fireEvent.click(within(theremin).getByText('Pentatonic'));
     await waitFor(() => expect(airDrum().enabled).toBe(false));
     act(() => dialsStore.set('airDrum', { ...airDrum(), enabled: true }));

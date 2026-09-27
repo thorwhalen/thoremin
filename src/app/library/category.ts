@@ -48,9 +48,16 @@ export function airInstrumentsOf(s: Settings): AirInstrumentId[] {
   return AIR_INSTRUMENTS.filter((a) => a.on(s)).map((a) => a.id);
 }
 
-/** The groups of the Instruments view, in display order. */
+/**
+ * The groups of the Instruments view, in display order.
+ *
+ * The non-air group is shown as **Field instruments** (the maintainer's pick, 2026-09-27):
+ * the hand plays a note field laid across the screen (x is the scale-snapped pitch, y the
+ * volume, `voice_mapping.ts`), where an air instrument mimes a real instrument's action.
+ * The id stays `theremin`: ids belong to the instrument spec, and only the label is shown.
+ */
 export const INSTRUMENT_CATEGORIES = [
-  { id: 'theremin', label: 'Theremin instruments' },
+  { id: 'theremin', label: 'Field instruments' },
   { id: 'air', label: 'Air instruments' },
 ] as const;
 
@@ -71,7 +78,7 @@ export function categoryOf(s: Settings): InstrumentCategory {
  * Group names by category, preserving each group's incoming order (so the list's sort and
  * filter still apply inside a group). Every category appears, possibly empty; the view
  * decides what to show for an empty one. A name whose category is not known yet (its
- * derivation is still in flight) is listed with the theremins, the default.
+ * derivation is still in flight) is listed with the field instruments, the default.
  */
 export function groupByCategory<T>(
   items: readonly T[],

@@ -6,7 +6,7 @@
  *    parametrization tooltip; the header carries a name filter, a sort control, and a
  *    "manage tags" entry (Instrument library UX epic #116: #112 starring/sort/filter,
  *    #113 tags column, #114 system tags, #115 tooltip). The rows are grouped by the
- *    instrument's DERIVED category (`library/category.ts`, #249): theremin instruments,
+ *    instrument's DERIVED category (`library/category.ts`, #249): field instruments,
  *    then air instruments — one place to choose any instrument, each chosen by the same
  *    click. The chosen air drum carries its live readout under its row;
  *  - the EDITOR: the dials-rendered {@link DialsControlsPanel} for the selected
