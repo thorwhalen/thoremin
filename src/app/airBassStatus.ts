@@ -31,6 +31,7 @@ export const useAirBassStatus = create<AirBassStatusState>((set) => ({
 export function describeBassLive(live: AirBassLive): string {
   if (!live.enabled) return 'Off. Tick "Play the air bass" (the Air Bass instrument has it on).';
   if (!live.fretting) return 'Show both hands: one holds the neck, the other plucks.';
+  if (live.fretMidi === null) return 'No note on the neck: its highest and lowest notes are set to the same place.';
   if (!live.ready) return 'Pluck down once with your plucking hand to teach it your stroke.';
   if (live.notes === 0 || live.lastMidi === null) return 'Ready. Slide along the neck and pluck.';
   const ms = Math.round(Math.abs(live.lastLead) * 1000);

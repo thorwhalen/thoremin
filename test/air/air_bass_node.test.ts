@@ -34,12 +34,12 @@ describe('neckNote', () => {
 });
 
 /** Run the node over a take, one tick per frame at the frame's own time. */
-function play(frames: HandsFrame[], config: Record<string, unknown>) {
+function play(frames: HandsFrame[], config: Record<string, unknown>, octaveShift = 0) {
   const h = airBassNode.make(airBassNode.params.parse({}));
   const notes: NoteEvent[] = [];
   let status: AirBassStatus | undefined;
   for (const f of frames) {
-    const out = h.process({ hands: f, config, scale: SCALE }, { time: f.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as {
+    const out = h.process({ hands: f, config, scale: SCALE, octaveShift }, { time: f.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as {
       notes: NoteEvent[];
       status: AirBassStatus;
     };
@@ -95,5 +95,39 @@ describe('the air-bass node', () => {
     for (const n of notes) expect(n.midi).toBeLessThanOrEqual(31);
     expect(status.fretting).toBe(false);
     expect(status.fretMidi).not.toBeNull();
+  });
+
+  it('holds the note under a still neck hand through tracker jitter', () => {
+    // The neck hand held at the CENTRE of a note (4.5 palms: the middle of the ten-note
+    // neck lies between two notes, so aim at one), with 3 px of jitter on every point (MediaPipe at 480p jitters 1.5 to 2.5).
+    const centre = 7 - (5 / 9) * 4; // index 4 of 10 on a 2..7 neck
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const { notes } = play(bassTake({ duration: 8, neck: () => centre, jitterPx: 3, seed }), ON);
+      expect(notes.length).toBeGreaterThan(10);
+      // Once the smoothing has settled (a third of a second, 1/smoothing frames), every
+      // pluck lands on the held note. A pluck inside that first third can still read the
+      // neighbour: there is no settled reading to hold yet.
+      const settled = notes.filter((n) => n.t > 0.4);
+      expect(new Set(settled.map((n) => n.midi))).toEqual(new Set([SCALE[4]]));
+    }
+  });
+
+  it('shifts the neck by the global octave shift', () => {
+    const { notes } = play(bassTake({ duration: 3, neck: () => 7 }), ON, 1);
+    expect(notes.length).toBeGreaterThan(2);
+    for (const n of notes) expect(n.midi).toBe(SCALE[0] + 12);
+  });
+
+  it('plays nothing on a degenerate neck, and says so', () => {
+    const { notes, status } = play(bassTake({ duration: 3, neck: () => 4 }), { ...ON, neckNear: 4, neckFar: 4 });
+    expect(notes).toEqual([]);
+    expect(status.fretting).toBe(true);
+    expect(status.fretMidi).toBeNull();
+  });
+
+  it('reads the neck the same with its two ends given in either order', () => {
+    const a = play(bassTake({ duration: 3, neck: () => 6.5 }), { ...ON, neckNear: 2, neckFar: 7 });
+    const b = play(bassTake({ duration: 3, neck: () => 6.5 }), { ...ON, neckNear: 7, neckFar: 2 });
+    expect(b.notes.map((n) => n.midi)).toEqual(a.notes.map((n) => n.midi));
   });
 });

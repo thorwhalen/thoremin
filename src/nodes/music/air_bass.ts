@@ -27,6 +27,7 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@/ictus';
 import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '../domain';
+import { NoteEventsSchema, type NoteEvent } from './note_events';
 
 export const PLAYER_HANDS = ['right', 'left'] as const;
 export type PlayerHand = (typeof PLAYER_HANDS)[number];
@@ -44,6 +45,13 @@ const Params = z.object({
    *  HIGHEST note (close to the body) and at the LOWEST (out toward the headstock). */
   neckNear: z.number().min(0).max(20).default(2),
   neckFar: z.number().min(0).max(20).default(7),
+  /** How much the palm span and the neck's reference point are smoothed, per camera
+   *  frame (0..1, the weight of a new frame). Both are near-constants of the player's
+   *  body; measured raw, a pixel of tracker jitter moves the note a quarter step. */
+  smoothing: z.number().min(0.01).max(1).default(0.1),
+  /** How far past the edge of a note, in scale steps, the neck hand must move before
+   *  the note changes: a hand held still on a note stays on it. */
+  hysteresis: z.number().min(0).max(0.5).default(0.3),
   /** How far ahead of the pluck a note is committed, seconds (the air drum's lead). */
   minLead: z.number().min(0).max(0.2).default(0.05),
   /** The smallest pluck that counts, as a fraction of the frame height. */
@@ -62,20 +70,7 @@ export const AirBassDialSchema = Params;
 export type AirBassDialParams = Params;
 export const DEFAULT_AIR_BASS_DIAL: AirBassDialParams = AirBassDialSchema.parse({});
 
-/** One note to sound: a pitch at a time, on the engine clock. */
-export const NoteEventSchema = z.object({
-  /** When it should SOUND, engine seconds (in the future for a predicted pluck). */
-  t: z.number(),
-  midi: z.number(),
-  /** 0..1. */
-  velocity: z.number(),
-  /** Predicted ahead of the pluck (true) or sounded late on confirmation (false). */
-  predicted: z.boolean(),
-  /** `t` minus the decision's engine time, seconds (negative = late). */
-  lead: z.number(),
-});
-export type NoteEvent = z.infer<typeof NoteEventSchema>;
-export const NoteEventsSchema = z.array(NoteEventSchema);
+export { NoteEventSchema, NoteEventsSchema, type NoteEvent } from './note_events';
 
 /** What the Instruments view shows. */
 export interface AirBassStatus {
@@ -112,23 +107,74 @@ const dist = (a: Keypoint, b: Keypoint) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
- * The note along the neck: the fretting wrist's HORIZONTAL distance from the plucking
- * wrist in the fretting hand's palm spans (wrist to middle knuckle), mapped from
- * `neckFar` (the lowest note of `scale`) to `neckNear` (the highest) and quantised to the
- * scale. Null when the scale is empty or the hand degenerate.
+ * Where the fretting hand is along the neck, 0 (the lowest note, `far`) to 1 (the
+ * highest, `near`): its wrist's HORIZONTAL distance from the reference point (the
+ * plucking wrist), in palm spans. `near` and `far` may be given in either order. Null
+ * for a degenerate neck or span.
  *
  * Horizontal, because a pluck is a vertical stroke: measured as a straight-line distance,
  * the plucking hand's own stroke moves the note by a scale step between two plucks at the
  * same place on the neck. A tilted neck shortens the horizontal run a little, which the
  * `neckNear` / `neckFar` dials absorb.
  */
+export function neckPosition(fretX: number, refX: number, span: number, near: number, far: number): number | null {
+  const lo = Math.min(near, far);
+  const hi = Math.max(near, far);
+  if (!(span > 0) || hi - lo <= 0) return null;
+  const d = Math.abs(fretX - refX) / span;
+  return clamp01((hi - d) / (hi - lo));
+}
+
+/** The palm span: wrist to middle knuckle, in pixels. */
+export const palmSpan = (h: Hand): number => dist(h.keypoints[LM.wrist], h.keypoints[LM.middle_mcp]);
+
+/**
+ * The note along the neck for ONE frame, unsmoothed: {@link neckPosition} quantised to
+ * `scale` (low to high). The live node smooths the span and the reference and adds
+ * hysteresis on top ({@link createNeckReader}); this is the stateless mapping.
+ */
 export function neckNote(fret: Hand, pluck: Hand, scale: readonly number[], near: number, far: number): number | null {
   if (scale.length === 0) return null;
-  const span = dist(fret.keypoints[LM.wrist], fret.keypoints[LM.middle_mcp]);
-  if (!(span > 0) || far === near) return null;
-  const d = Math.abs(fret.keypoints[LM.wrist].x - pluck.keypoints[LM.wrist].x) / span;
-  const frac = clamp01((far - d) / (far - near));
-  return scale[Math.round(frac * (scale.length - 1))];
+  const pos = neckPosition(fret.keypoints[LM.wrist].x, pluck.keypoints[LM.wrist].x, palmSpan(fret), near, far);
+  return pos === null ? null : scale[Math.round(pos * (scale.length - 1))];
+}
+
+/** The live neck: the span and the reference point smoothed, the note held with hysteresis. */
+export interface NeckReader {
+  /** Update from one frame with both hands in view; returns the scale INDEX, or null. */
+  read(fret: Hand, pluck: Hand, steps: number, near: number, far: number): number | null;
+  reset(): void;
+}
+
+export function createNeckReader({ smoothing, hysteresis }: { smoothing: number; hysteresis: number }): NeckReader {
+  let span = NaN;
+  let refX = NaN;
+  let index: number | null = null;
+  // Frames read since the reset: the smoothed span and reference are still settling
+  // for about 1/smoothing frames, and hysteresis would lock in an unsettled first
+  // reading, so it only applies once they have settled.
+  let seen = 0;
+  const settle = Math.ceil(1 / smoothing);
+  const ema = (prev: number, next: number) => (Number.isFinite(prev) ? prev + smoothing * (next - prev) : next);
+  return {
+    read(fret, pluck, steps, near, far) {
+      span = ema(span, palmSpan(fret));
+      refX = ema(refX, pluck.keypoints[LM.wrist].x);
+      seen += 1;
+      if (steps <= 0) return (index = null);
+      const pos = neckPosition(fret.keypoints[LM.wrist].x, refX, span, near, far);
+      if (pos === null) return (index = null);
+      const at = pos * (steps - 1);
+      if (index === null || index >= steps || seen <= settle || Math.abs(at - index) > 0.5 + hysteresis) index = Math.round(at);
+      return index;
+    },
+    reset() {
+      span = NaN;
+      refX = NaN;
+      index = null;
+      seen = 0;
+    },
+  };
 }
 
 export const airBassNode = defineNode<Params>({
@@ -142,6 +188,8 @@ export const airBassNode = defineNode<Params>({
     { name: 'config', kind: 'air-bass-config' },
     // The notes the neck spans, low to high (the instrument's scale).
     { name: 'scale', kind: 'number[]' },
+    // The global octave shift (the arrow keys / palette), in octaves.
+    { name: 'octaveShift', kind: 'number' },
   ],
   outputs: [
     { name: 'notes', kind: 'note-events', schema: NoteEventsSchema },
@@ -157,6 +205,8 @@ export const airBassNode = defineNode<Params>({
     let lastT = -Infinity;
     let lastFrame: HandsFrame | undefined;
     let fretMidi: number | null = null;
+    let neck: NeckReader | null = null;
+    let neckKey = '';
     let status: AirBassStatus = { ...IDLE_AIR_BASS_STATUS };
 
     const resolveConfig = (raw: unknown): Params => {
@@ -184,6 +234,8 @@ export const airBassNode = defineNode<Params>({
       lastT = -Infinity;
       lastFrame = undefined;
       fretMidi = null;
+      neck = null;
+      neckKey = '';
       status = { ...IDLE_AIR_BASS_STATUS };
     };
 
@@ -200,7 +252,12 @@ export const airBassNode = defineNode<Params>({
           lastT = -Infinity;
           status = { ...IDLE_AIR_BASS_STATUS, enabled: true };
         }
-        const scale = Array.isArray(inputs.scale) ? (inputs.scale as number[]) : [];
+        if (!neck || neckKey !== `${c.smoothing}|${c.hysteresis}`) {
+          neck = createNeckReader(c);
+          neckKey = `${c.smoothing}|${c.hysteresis}`;
+        }
+        const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
+        const scale = (Array.isArray(inputs.scale) ? (inputs.scale as number[]) : []).map((m) => m + 12 * shift);
         const notes: NoteEvent[] = [];
         const frame = inputs.hands as HandsFrame | undefined;
         const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
@@ -213,7 +270,11 @@ export const airBassNode = defineNode<Params>({
           const fret = frame.hands.find((h) => h.handedness === labelFor(fretHand, c.mirrorHandedness));
           // The note follows the fretting hand while both are in view, and holds its last
           // value when the fretting hand drops out (a pluck still sounds the last note).
-          if (pluck && fret) fretMidi = neckNote(fret, pluck, scale, c.neckNear, c.neckFar) ?? fretMidi;
+          if (pluck && fret) {
+            const i = neck.read(fret, pluck, scale.length, c.neckNear, c.neckFar);
+            // A degenerate neck (the two ends at the same place) plays nothing, and says so.
+            fretMidi = i === null ? null : scale[i];
+          }
           status = { ...status, fretting: !!(pluck && fret), fretMidi };
           if (pluck && t >= lastT + MIN_SAMPLE_SPACING) {
             lastT = t;

@@ -14,6 +14,10 @@ import { describeBassLive, useAirBassStatus } from '../../airBassStatus';
 import { midiToName } from '@/music/theory';
 import { PLAYER_HANDS, PLUCK_POINTS, type AirBassDialParams } from '@/nodes/music/air_bass';
 
+/** The shortest neck the sliders allow, in palm spans: the highest note stays nearer the
+ *  body than the lowest (equal ends would leave no neck, and crossed ones reverse it). */
+const NECK_GAP = 1;
+
 const HAND_LABEL: Record<AirBassDialParams['pluckHand'], string> = {
   right: 'right hand plucks',
   left: 'left hand plucks',
@@ -63,7 +67,8 @@ export function AirBassControls() {
       <p className="text-[10px] leading-relaxed text-white/50">
         Hold an imaginary bass: one hand on the neck, the other over the strings. Slide the neck
         hand out for low notes and in toward your body for high ones; pluck down with the other
-        hand to sound the note. The notes are this instrument's scale (Sound section).
+        hand to sound the note. The notes are this instrument's scale (the right voice's scale, root
+        and range in the Sound section), and the arrow keys shift them by octaves.
       </p>
       <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" checked={enabled} onChange={(e) => dispatchDialSetIn('airBass.enabled', e.target.checked)} />
@@ -94,7 +99,7 @@ export function AirBassControls() {
         <input
           type="range"
           min={0}
-          max={10}
+          max={Math.max(0, neckFar - NECK_GAP)}
           step={0.5}
           value={neckNear}
           disabled={!enabled}
@@ -106,7 +111,7 @@ export function AirBassControls() {
         <span>Lowest note at ({neckFar.toFixed(1)} palms)</span>
         <input
           type="range"
-          min={1}
+          min={neckNear + NECK_GAP}
           max={15}
           step={0.5}
           value={neckFar}

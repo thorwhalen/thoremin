@@ -238,13 +238,14 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
   }),
 
   // Pluck a bass that is not there (#249): the neck hand's distance from the plucking
-  // hand picks the note from this scale (E minor pentatonic over two low octaves), a
+  // hand picks the note from this scale (E minor pentatonic over the two octaves from E2:
+  // a real bass's lowest octave, E1, is mostly below what a laptop speaker plays), a
   // pluck sounds it. The theremin voices and their on-screen note grid are off: the
   // grid is laid across the screen, the bass's neck is laid between the hands.
   seed('Air Bass', {
     ...DEFAULTS,
-    right: { ...DEFAULTS.right, root: 4, type: 'minorPentatonic', baseOctave: 1, octaves: 2 },
-    left: { ...DEFAULTS.left, root: 4, type: 'minorPentatonic', baseOctave: 1, octaves: 2 },
+    right: { ...DEFAULTS.right, root: 4, type: 'minorPentatonic', baseOctave: 2, octaves: 2 },
+    left: { ...DEFAULTS.left, root: 4, type: 'minorPentatonic', baseOctave: 2, octaves: 2 },
     handMap: handMap({ maxGain: 0 }),
     airBass: { ...DEFAULTS.airBass, enabled: true },
     overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),

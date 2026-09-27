@@ -23,4 +23,16 @@ describe('upgrading a browser seeded before the air instruments', () => {
     expect(await instruments.load('Pentatonic')).toEqual({ 'master.volume': 0.9 });
     expect(Number(localStorage.getItem('thoremin.instruments.seedVersion'))).toBeGreaterThan(3);
   });
+
+  it('a browser at version 4 (after the Air Drum shipped) gains the Air Bass', async () => {
+    localStorage.clear();
+    await ensureSeeded();
+    await instruments.remove('Air Bass');
+    localStorage.setItem('thoremin.instruments.seedVersion', '4');
+
+    await ensureSeeded();
+
+    const airBass = await instruments.load('Air Bass');
+    expect((airBass?.airBass as { enabled?: boolean } | undefined)?.enabled).toBe(true);
+  });
 });

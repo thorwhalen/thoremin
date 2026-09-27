@@ -12,29 +12,32 @@
  *
  * The sound sits behind a {@link PluckSink} facade (injectable through
  * `ctx.resources.createPluckSink`, so the scheduling logic is headlessly testable). The
- * WebAudio sink is a subtractive pluck from primitives, no samples: a sawtooth plus a
- * triangle an octave down, through a low-pass filter whose cutoff falls fast (the
- * bright attack of a string settling into its fundamental), under an exponential decay.
- * `mono` (the bass) damps the ringing note when the next one starts, as a bassist's
- * fretting hand does.
+ * WebAudio sink is a subtractive pluck from primitives, no samples (see
+ * {@link createWebAudioPluckSink}). `mono` (the bass) damps the ringing note when the
+ * next one starts, as a bassist's fretting hand does; otherwise a note damps only the
+ * previous note on its own `voice` (a guitar string).
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { realtimeOutputAllowed } from '@/dag';
-import { NoteEventsSchema, type NoteEvent } from '../music/air_bass';
+import { NoteEventsSchema, type NoteEvent } from '../music/note_events';
 import { engineToContextTime, type AudioClockLike } from './drum_out';
 
-/** The plucked timbres: each a filter brightness and a decay. */
+/** The plucked timbres: the attack's brightness and where it settles (multiples of the
+ *  fundamental), the decay, and the peak gain. The settled brightness is well above the
+ *  fundamental on purpose: a laptop speaker reproduces little below 150 Hz, and a low
+ *  note is heard through its harmonics. */
 export const PLUCK_TIMBRES = {
-  bass: { brightness: 6, decay: 1.4, gain: 0.9 },
-  guitar: { brightness: 12, decay: 2.2, gain: 0.5 },
-} as const satisfies Record<string, { brightness: number; decay: number; gain: number }>;
+  bass: { brightness: 8, settled: 5, decay: 1.4, gain: 0.8 },
+  guitar: { brightness: 14, settled: 4, decay: 2.2, gain: 0.35 },
+} as const satisfies Record<string, { brightness: number; settled: number; decay: number; gain: number }>;
 export type PluckTimbre = keyof typeof PLUCK_TIMBRES;
 
 /** The audio the node drives: one call per note, at a context time. */
 export interface PluckSink {
-  play(midi: number, velocity: number, whenContextSeconds: number): void;
+  /** `voice`: a new note on a voice damps the one ringing there (see {@link NoteEvent}). */
+  play(midi: number, velocity: number, whenContextSeconds: number, voice?: number): void;
   close(): void;
 }
 
@@ -42,57 +45,81 @@ export type PluckSinkFactory = (ac: AudioContext | undefined, destination: Audio
 
 export interface PluckSinkOptions {
   timbre: PluckTimbre;
+  /** One voice for every note: each note damps the previous one (a bass). */
   mono: boolean;
 }
 
-/** Seconds to damp a ringing note when a mono voice is re-plucked (no click). */
-const DAMP_S = 0.02;
-/** The cutoff's floor, as a multiple of the fundamental, after the attack settles. */
-const SETTLED_BRIGHTNESS = 1.5;
+/** Time constant of the damp when a voice is re-plucked, seconds (fast, but no click). */
+const DAMP_TAU_S = 0.008;
 /** How long the attack's brightness takes to settle, seconds. */
 const SETTLE_S = 0.25;
+/** Each oscillator's share of the mix, so the sum never exceeds the peak gain. */
+const OSC_MIX = 0.5;
+/** The voice key every note of a mono sink shares. */
+const MONO_VOICE = -1;
 
 const midiToFreq = (m: number) => 440 * 2 ** ((m - 69) / 12);
 
+/**
+ * A subtractive pluck from primitives: a sawtooth and a triangle at the note's pitch
+ * through a low-pass whose cutoff falls from bright to settled (a string's attack), under
+ * an exponential envelope, then a per-note DAMP gain. The damp is a separate node on
+ * purpose: cancelling the envelope's own ramp to damp a ringing note would snap it back
+ * to its value before the ramp (the peak) until the damp begins, a click and a burst on
+ * every re-pluck. The damp gain carries no automation until it is used, so damping it is
+ * a plain fall from 1.
+ */
 export function createWebAudioPluckSink(ac: AudioContext, destination: AudioNode, { timbre, mono }: PluckSinkOptions): PluckSink {
   const tone = PLUCK_TIMBRES[timbre];
-  let ringing: { gain: GainNode; stopAt: number } | null = null;
+  const nyquist = ac.sampleRate / 2;
+  const ringing = new Map<number, { damp: GainNode; stopAt: number }>();
   return {
-    play(midi, velocity, when) {
+    play(midi, velocity, when, voice) {
       const v = Math.max(0, Math.min(1, velocity));
       if (v <= 0) return;
-      const f = midiToFreq(midi);
-      if (mono && ringing && ringing.stopAt > when) {
-        ringing.gain.gain.cancelScheduledValues(when);
-        ringing.gain.gain.setTargetAtTime(0.0001, when, DAMP_S / 3);
+      const key = mono ? MONO_VOICE : voice;
+      if (key !== undefined) {
+        const prev = ringing.get(key);
+        if (prev && prev.stopAt > when) prev.damp.gain.setTargetAtTime(0, when, DAMP_TAU_S);
       }
-      const saw = ac.createOscillator();
-      saw.type = 'sawtooth';
-      saw.frequency.setValueAtTime(f, when);
-      const sub = ac.createOscillator();
-      sub.type = 'triangle';
-      sub.frequency.setValueAtTime(f / 2, when);
+      const f = midiToFreq(midi);
+      const cutoff = (m: number) => Math.min(nyquist * 0.9, f * m);
+      const oscs = (['sawtooth', 'triangle'] as const).map((type) => {
+        const o = ac.createOscillator();
+        o.type = type;
+        o.frequency.setValueAtTime(f, when);
+        return o;
+      });
+      const mix = ac.createGain();
+      mix.gain.value = OSC_MIX;
       const filter = ac.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(f * tone.brightness, when);
-      filter.frequency.exponentialRampToValueAtTime(f * SETTLED_BRIGHTNESS, when + SETTLE_S);
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0.0001, when);
-      g.gain.exponentialRampToValueAtTime(tone.gain * v, when + 0.005);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + tone.decay);
-      saw.connect(filter);
-      sub.connect(filter);
-      filter.connect(g);
-      g.connect(destination);
+      filter.frequency.setValueAtTime(cutoff(tone.brightness), when);
+      filter.frequency.exponentialRampToValueAtTime(cutoff(tone.settled), when + SETTLE_S);
+      const env = ac.createGain();
+      env.gain.setValueAtTime(0.0001, when);
+      env.gain.exponentialRampToValueAtTime(tone.gain * v, when + 0.005);
+      env.gain.exponentialRampToValueAtTime(0.0001, when + tone.decay);
+      const damp = ac.createGain();
+      for (const o of oscs) o.connect(mix);
+      mix.connect(filter);
+      filter.connect(env);
+      env.connect(damp);
+      damp.connect(destination);
       const stopAt = when + tone.decay + 0.05;
-      saw.start(when);
-      sub.start(when);
-      saw.stop(stopAt);
-      sub.stop(stopAt);
-      ringing = { gain: g, stopAt };
+      for (const o of oscs) {
+        o.start(when);
+        o.stop(stopAt);
+      }
+      // Free the graph when the note ends (a strum of six is six of these).
+      oscs[0].onended = () => {
+        damp.disconnect();
+        if (key !== undefined && ringing.get(key)?.damp === damp) ringing.delete(key);
+      };
+      if (key !== undefined) ringing.set(key, { damp, stopAt });
     },
     close() {
-      ringing = null;
+      ringing.clear();
     },
   };
 }
@@ -138,7 +165,7 @@ export const pluckOutNode = defineNode<Params>({
         for (const note of parsed.data as NoteEvent[]) {
           // Never in the past: a late note sounds at once.
           const when = Math.max(clock.currentTime + 0.001, engineToContextTime(clock, note.t, ctx.time));
-          sink.play(note.midi, note.velocity, when);
+          sink.play(note.midi, note.velocity, when, note.voice);
         }
         return {};
       },

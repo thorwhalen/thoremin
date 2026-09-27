@@ -24,16 +24,17 @@ describe('air bass in the default graph', () => {
     expect(has('ui', 'airBass', 'airBass', 'config')).toBe(true);
     expect(has('cam', 'hands', 'airBass', 'hands')).toBe(true);
     expect(has('ui', 'scaleRight', 'airBass', 'scale')).toBe(true);
+    expect(has('ui', 'octaveShift', 'airBass', 'octaveShift')).toBe(true);
     expect(has('airBass', 'notes', 'bassOut', 'notes')).toBe(true);
     const inbound = (id: string) => new Set(g.edges.filter((e) => e.to.node === id).map((e) => e.to.port));
-    expect([...inbound('airBass')].sort()).toEqual(['config', 'hands', 'scale']);
+    expect([...inbound('airBass')].sort()).toEqual(['config', 'hands', 'octaveShift', 'scale']);
     expect([...inbound('bassOut')]).toEqual(['notes']);
   });
 
   describe('headless over the production graph (a synthetic performance)', () => {
     const FPS = 30;
     const frames = bassTake({ duration: 6, neck: (t) => (t < 3 ? 6.5 : 2.2) });
-    const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 1, sound: 'sine' } as const;
+    const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sound: 'sine' } as const;
     const scale = generateScale(voice);
     const run = async (enabled: boolean) => {
       const registry = createAppRegistry();

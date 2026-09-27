@@ -401,9 +401,9 @@ Sounds the air drum hits on the audio clock at the time each was predicted for (
 Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (src/ictus/impact.ts). Off by default.
 
 - **roles:** feature, mapping
-- **in:** hands:hands-frame, config:air-bass-config, scale:number[]
+- **in:** hands:hands-frame, config:air-bass-config, scale:number[], octaveShift:number
 - **out:** notes:note-events, status:air-bass-status, enabled:boolean
-- **params:** enabled (boolean=false), pluckHand (enum(right | left)="right"), pluckPoint (enum(indexTip | wrist)="indexTip"), neckNear (number=2), neckFar (number=7), minLead (number=0.05), minStroke (number=0.02), minSpeed (number=0.4), volume (number=0.8), mirrorHandedness (boolean=true)
+- **params:** enabled (boolean=false), pluckHand (enum(right | left)="right"), pluckPoint (enum(indexTip | wrist)="indexTip"), neckNear (number=2), neckFar (number=7), smoothing (number=0.1), hysteresis (number=0.3), minLead (number=0.05), minStroke (number=0.02), minSpeed (number=0.4), volume (number=0.8), mirrorHandedness (boolean=true)
 
 #### `pluck-out` — Pluck out
 Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).

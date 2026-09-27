@@ -464,6 +464,7 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'cam', port: 'hands' }, to: { node: 'airBass', port: 'hands' } },
       { from: { node: 'ui', port: 'airBass' }, to: { node: 'airBass', port: 'config' } },
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'airBass', port: 'scale' } },
+      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airBass', port: 'octaveShift' } },
       { from: { node: 'airBass', port: 'notes' }, to: { node: 'bassOut', port: 'notes' } },
     ],
   };
