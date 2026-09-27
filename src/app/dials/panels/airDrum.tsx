@@ -15,6 +15,7 @@ import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { selectCls } from '../primitives';
 import { describeLive, useAirDrumStatus } from '../../airDrumStatus';
+import { DrumPadEditor } from './airDrumPads';
 import { AIR_DRUM_HANDS, AIR_DRUM_POINTS, DRUM_SOUNDS, type AirDrumDialParams } from '@/nodes/music/air_drum';
 
 const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {
@@ -32,6 +33,8 @@ const SOUND_LABEL: Record<AirDrumDialParams['rightSound'], string> = {
   snare: 'snare',
   hihat: 'hi-hat',
   tom: 'tom',
+  crash: 'crash',
+  ride: 'ride',
 };
 
 /** What the air drum is doing right now, from the engine loop's reporter. */
@@ -78,7 +81,7 @@ export function AirDrumControls() {
       <p className="text-[10px] leading-relaxed text-white/50">
         Strike down in front of the camera as if hitting a drum. The first strike of each hand
         teaches the instrument where that drum is; from then on the hit sounds at the strike,
-        predicted from the stroke before the camera has even seen it land. Bigger strokes are louder.
+        predicted from the stroke before the camera has even seen it land. Faster strokes are louder.
       </p>
       <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" checked={enabled} onChange={(e) => dispatchDialSetIn('airDrum.enabled', e.target.checked)} />
@@ -121,6 +124,7 @@ export function AirDrumControls() {
           </select>
         </label>
       ))}
+      <DrumPadEditor enabled={enabled} />
       <label className="flex items-center justify-between gap-2 text-xs" title="How far ahead of the strike a hit is committed, from the moment the app decides (the camera's delay is added on top): your audio output latency plus a margin. Too late and the hit sounds a frame after the strike.">
         <span>Lead ({Math.round(minLead * 1000)} ms)</span>
         <input

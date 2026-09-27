@@ -40,6 +40,8 @@ const RECORDED_METHODS = [
   'translate',
   'rotate',
   'fillRect',
+  'ellipse',
+  'rect',
 ] as const;
 
 export interface RecordingCanvas {

@@ -13,8 +13,10 @@
  * map is `currentTime + (t - ctx.time)`, which is right to within the tick.
  *
  * The audio itself sits behind a small {@link DrumSink} facade, like `midi-out`'s
- * sink: the browser implementation builds the four drum voices from oscillators and
- * noise (no samples to load), and a mock makes the scheduling logic — where a wrong
+ * sink: the browser implementation builds the drum voices from oscillators and noise
+ * (no samples to load), shaped per hit by {@link drumVoice} (#245): a harder hit is
+ * louder AND brighter, and a hit near a pad's rim is higher, shorter and edgier than one
+ * at its centre, as on a real drum head, and a mock makes the scheduling logic — where a wrong
  * clock map or a hit sounded twice would live — headlessly testable. A committed hit
  * is never moved (a scheduler never touches what it scheduled). Boundary B: at any
  * clock scale but real time this node sounds nothing.
@@ -25,10 +27,85 @@ import type { NodeContext } from '@/dag';
 import { realtimeOutputAllowed } from '@/dag';
 import { DRUM_SOUNDS, DrumHitsSchema, type DrumHit, type DrumSound } from '../music/air_drum';
 
+/** Per-hit shading of a voice beyond its loudness. */
+export interface DrumTouch {
+  /** Where on the pad: 0 = the centre, 1 = the rim. */
+  radial?: number;
+}
+
 /** The audio the node drives: one call per hit, at a context time. */
 export interface DrumSink {
-  play(sound: DrumSound, velocity: number, whenContextSeconds: number): void;
+  play(sound: DrumSound, velocity: number, whenContextSeconds: number, touch?: DrumTouch): void;
   close(): void;
+}
+
+/** A pitched body: a sine swept from `from` to `to` Hz over `drop` s, decaying over `decay` s. */
+export interface ToneVoice {
+  from: number;
+  to: number;
+  drop: number;
+  decay: number;
+  gain: number;
+}
+/** A filtered noise burst. */
+export interface NoiseVoice {
+  filter: 'bandpass' | 'highpass';
+  freq: number;
+  q: number;
+  decay: number;
+  gain: number;
+}
+export interface DrumVoice {
+  tones: ToneVoice[];
+  noises: NoiseVoice[];
+}
+
+/** The base (centre, full-velocity) voice of each drum. */
+const BASE: Record<DrumSound, DrumVoice> = {
+  kick: { tones: [{ from: 160, to: 45, drop: 0.06, decay: 0.28, gain: 0.9 }], noises: [] },
+  tom: { tones: [{ from: 220, to: 110, drop: 0.12, decay: 0.35, gain: 0.7 }], noises: [] },
+  snare: {
+    tones: [{ from: 190, to: 150, drop: 0.03, decay: 0.12, gain: 0.35 }],
+    noises: [{ filter: 'bandpass', freq: 1800, q: 0.8, decay: 0.16, gain: 0.8 }],
+  },
+  hihat: { tones: [], noises: [{ filter: 'highpass', freq: 6000, q: 1, decay: 0.06, gain: 0.5 }] },
+  crash: { tones: [], noises: [{ filter: 'highpass', freq: 4000, q: 0.7, decay: 1.2, gain: 0.45 }] },
+  ride: {
+    tones: [
+      { from: 2400, to: 2380, drop: 0.3, decay: 0.7, gain: 0.08 },
+      { from: 3370, to: 3350, drop: 0.3, decay: 0.5, gain: 0.05 },
+    ],
+    noises: [{ filter: 'highpass', freq: 7000, q: 0.8, decay: 0.45, gain: 0.25 }],
+  },
+};
+
+/** How much a hit's hardness brightens it: the tone sweeps start this much higher and the
+ *  noise filters open this much wider at full velocity than at none. */
+const BRIGHTNESS_SPAN = 0.4;
+/** How much the rim raises pitch and filter (fraction) and shortens decay (fraction). */
+const RIM_PITCH = 0.3;
+const RIM_DECAY = 0.35;
+
+/**
+ * The voice for one hit (#245): the drum's base voice, with loudness scaled by the
+ * velocity, brightness raised by it (a hard stroke excites the upper partials), and pitch,
+ * filter and decay moved by where on the pad it landed (a rim hit is higher, shorter and
+ * edgier; a centre hit is the drum's full body). Pure, so the sound's shape is testable
+ * without WebAudio.
+ */
+export function drumVoice(sound: DrumSound, velocity: number, touch: DrumTouch = {}): DrumVoice {
+  const v = Math.max(0, Math.min(1, velocity));
+  const r = Math.max(0, Math.min(1, touch.radial ?? 0));
+  const bright = 1 - BRIGHTNESS_SPAN / 2 + BRIGHTNESS_SPAN * v;
+  const pitch = 1 + RIM_PITCH * r;
+  const decay = 1 - RIM_DECAY * r;
+  const base = BASE[sound];
+  return {
+    // Both ends of a sweep move together, so a hard hit is brighter without a sustained
+    // partial (the ride's) gliding in pitch.
+    tones: base.tones.map((t) => ({ ...t, from: t.from * pitch * bright, to: t.to * pitch * bright, decay: t.decay * decay, gain: t.gain * v })),
+    noises: base.noises.map((n) => ({ ...n, freq: n.freq * pitch * bright, decay: n.decay * decay, gain: n.gain * v * (1 + 0.3 * r) })),
+  };
 }
 
 /** The slice of `AudioContext` the clock map reads. */
@@ -83,11 +160,13 @@ function noiseBuffer(ac: AudioContext): AudioBuffer {
   return buf;
 }
 
-/** The four drums, from primitives: a pitched sine that drops (kick, tom), a noise
- *  burst through a filter with a short tone (snare), filtered noise (hihat). */
+/** The drums, from primitives: a pitched sine that drops (kick, tom), a noise burst
+ *  through a filter with a short tone (snare), filtered noise (hi-hat, crash), and a
+ *  pair of inharmonic partials over noise (ride); each hit's voice from {@link drumVoice}. */
 export function createWebAudioDrumSink(ac: AudioContext, destination: AudioNode): DrumSink {
   let noise: AudioBuffer | null = null;
   const tone = (freqFrom: number, freqTo: number, drop: number, decay: number, gain: number, when: number) => {
+    if (gain <= 0) return;
     const osc = ac.createOscillator();
     const g = ac.createGain();
     osc.type = 'sine';
@@ -101,6 +180,7 @@ export function createWebAudioDrumSink(ac: AudioContext, destination: AudioNode)
     osc.stop(when + decay + 0.02);
   };
   const burst = (filterType: BiquadFilterType, freq: number, q: number, decay: number, gain: number, when: number) => {
+    if (gain <= 0) return;
     noise ??= noiseBuffer(ac);
     const src = ac.createBufferSource();
     src.buffer = noise;
@@ -118,24 +198,11 @@ export function createWebAudioDrumSink(ac: AudioContext, destination: AudioNode)
     src.stop(when + decay + 0.02);
   };
   return {
-    play(sound, velocity, when) {
-      const v = Math.max(0, Math.min(1, velocity));
-      if (v <= 0) return;
-      switch (sound) {
-        case 'kick':
-          tone(160, 45, 0.06, 0.28, 0.9 * v, when);
-          break;
-        case 'tom':
-          tone(220, 110, 0.12, 0.35, 0.7 * v, when);
-          break;
-        case 'snare':
-          tone(190, 150, 0.03, 0.12, 0.35 * v, when);
-          burst('bandpass', 1800, 0.8, 0.16, 0.8 * v, when);
-          break;
-        case 'hihat':
-          burst('highpass', 6000, 1, 0.06, 0.5 * v, when);
-          break;
-      }
+    play(sound, velocity, when, touch) {
+      if (!(velocity > 0)) return;
+      const voice = drumVoice(sound, velocity, touch);
+      for (const t of voice.tones) tone(t.from, t.to, t.drop, t.decay, t.gain, when);
+      for (const n of voice.noises) burst(n.filter, n.freq, n.q, n.decay, n.gain, when);
     },
     close() {
       noise = null;
@@ -182,7 +249,7 @@ export const drumOutNode = defineNode<Params>({
           if (!DRUM_SOUNDS.includes(hit.sound)) continue;
           // Never in the past: a ghost note (or a late prediction) sounds at once.
           const when = Math.max(clock.currentTime + 0.001, engineToContextTime(clock, hit.t, ctx.time));
-          sink.play(hit.sound, hit.velocity, when);
+          sink.play(hit.sound, hit.velocity, when, { radial: hit.radial ?? 0 });
         }
         return {};
       },
