@@ -315,6 +315,10 @@
         "kind": "feature-vector"
       },
       {
+        "name": "faceFrame",
+        "kind": "face-frame"
+      },
+      {
         "name": "config",
         "kind": "air-flute-config"
       },
@@ -378,6 +382,11 @@
         "name": "breathFrames",
         "type": "number",
         "default": 2
+      },
+      {
+        "name": "faceHold",
+        "type": "number",
+        "default": 0.3
       },
       {
         "name": "mirrorHandedness",

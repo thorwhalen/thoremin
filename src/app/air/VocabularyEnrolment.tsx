@@ -140,14 +140,17 @@ export function VocabularyEnrolment({ enabled, useVocabulary, readShape, canonic
                 )}
               </span>
               <span className="flex gap-1">
-                <button
-                  className="rounded bg-white/10 px-2 py-0.5 text-[10px] hover:bg-white/20 disabled:opacity-40"
-                  disabled={busy || !enabled}
-                  onClick={() => learn(e.label)}
-                  aria-label={`Re-learn ${e.label}`}
-                >
-                  Re-learn
-                </button>
+                {/* A fixed vocabulary re-learns from its own buttons below (one control per label). */}
+                {!fixedLabels && (
+                  <button
+                    className="rounded bg-white/10 px-2 py-0.5 text-[10px] hover:bg-white/20 disabled:opacity-40"
+                    disabled={busy || !enabled}
+                    onClick={() => learn(e.label)}
+                    aria-label={`Re-learn ${e.label}`}
+                  >
+                    Re-learn
+                  </button>
+                )}
                 <button
                   className="rounded bg-white/10 px-2 py-0.5 text-[10px] hover:bg-white/20 disabled:opacity-40"
                   disabled={busy}

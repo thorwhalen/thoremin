@@ -495,9 +495,9 @@
       <p>Play a flute in the air: large finger lifts of both hands, enrolled per player and named by their note, choose the note; the player's enrolled blowing mouth (or a held fingering alone) sounds it as a sustained voice. Off by default.</p>
       <dl>
         <dt>roles</dt><dd>feature, mapping</dd>
-        <dt>in</dt><dd>hands:hands-frame, face:feature-vector, config:air-flute-config, fingerModel:shape-model, mouthModel:shape-model, octaveShift:number</dd>
+        <dt>in</dt><dd>hands:hands-frame, face:feature-vector, faceFrame:face-frame, config:air-flute-config, fingerModel:shape-model, mouthModel:shape-model, octaveShift:number</dd>
         <dt>out</dt><dd>params:synth-params, shape:feature-vector, mouth:feature-vector, status:air-flute-status, enabled:boolean</dd>
-        <dt>params</dt><dd>enabled (boolean=false), breath (enum(mouth | always)="mouth"), volume (number=0.5), enterFrames (number=3), breathFrames (number=2), mirrorHandedness (boolean=true)</dd>
+        <dt>params</dt><dd>enabled (boolean=false), breath (enum(mouth | always)="mouth"), volume (number=0.5), enterFrames (number=3), breathFrames (number=2), faceHold (number=0.3), mirrorHandedness (boolean=true)</dd>
       </dl>
     </div>
     <div class="node">

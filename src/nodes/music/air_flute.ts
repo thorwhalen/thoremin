@@ -28,6 +28,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import type { NodeContext } from '@/dag';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@/enroll';
 import { chordShapeVector } from '@/features/hand_shape';
 import { parseNoteName } from '@/music/notes';
@@ -35,9 +36,10 @@ import { midiToFreq } from '@/music/theory';
 import type { HandsFrame, SynthParams, VoiceParams } from '../domain';
 import { labelFor, type PlayerHand } from './air_bass';
 
-/** The flute's synth voice id: far above the hand (0-1), chord (2-10) and score (11+)
- *  voices, so a long score never collides with it. */
-export const FLUTE_VOICE_ID = 1000;
+/** The flute's synth voice id. The hands are 0-1, the chords 2-10, and the score takes
+ *  11 + its note index, unbounded (a symphony movement has thousands of notes), so the
+ *  flute sits beyond any score's reach. */
+export const FLUTE_VOICE_ID = 1_000_000;
 /** The mouth vocabulary's two labels. */
 export const MOUTH_BLOW = 'blowing';
 export const MOUTH_REST = 'resting';
@@ -55,8 +57,11 @@ const Params = z.object({
   volume: z.number().min(0).max(1).default(0.5),
   /** Frames a new fingering must win in a row before the note changes. */
   enterFrames: z.number().int().min(1).max(30).default(3),
-  /** Frames the mouth must read the other way before the breath starts or stops. */
+  /** Face frames the mouth must read the other way before the breath starts or stops. */
   breathFrames: z.number().int().min(1).max(30).default(2),
+  /** Seconds a lost face is held before the breath stops: on a flute the hands sit by
+   *  the mouth, and a moment of lost face must not cut the note. */
+  faceHold: z.number().min(0).max(2).default(0.3),
   /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
   mirrorHandedness: z.boolean().default(true),
 });
@@ -96,18 +101,18 @@ export const IDLE_AIR_FLUTE_STATUS: AirFluteStatus = {
   sounding: false,
 };
 
-/** Both hands' shape vectors as one, prefixed by the player's hand (`l.` / `r.`). A hand
- *  out of view contributes no keys (no evidence), never zeros. Null with neither hand. */
+/** Both hands' shape vectors as one, prefixed by the player's hand (`l.` / `r.`), or
+ *  null unless BOTH hands are in view. A fingering is both hands: learned with one hand
+ *  missing, an entry would be compared on the other hand alone and never match a real
+ *  two-handed hold, and played with one hand missing, any fingering could win. */
 export function fingeringVector(frame: HandsFrame, mirrorHandedness: boolean): FeatureVector | null {
   const out: FeatureVector = {};
-  let any = false;
   for (const [hand, prefix] of [['left', 'l.'], ['right', 'r.']] as [PlayerHand, string][]) {
     const h = frame.hands.find((x) => x.handedness === labelFor(hand, mirrorHandedness));
-    if (!h) continue;
-    any = true;
+    if (!h) return null;
     for (const [k, v] of Object.entries(chordShapeVector(h, frame))) out[prefix + k] = v;
   }
-  return any ? out : null;
+  return out;
 }
 
 /** The mouth features of a face feature vector (null when there is no face). */
@@ -135,6 +140,10 @@ export const airFluteNode = defineNode<Params>({
     { name: 'hands', kind: 'hands-frame' },
     // The face feature vector (the mouth groups are claimed while the flute is on).
     { name: 'face', kind: 'feature-vector' },
+    // The face frame itself, only to tell a NEW face frame from a repeated one: the
+    // vector is recomputed every tick from the latest frame, so the breath's frame
+    // counts must be counted on frames, not ticks.
+    { name: 'faceFrame', kind: 'face-frame' },
     { name: 'config', kind: 'air-flute-config' },
     { name: 'fingerModel', kind: 'shape-model' },
     { name: 'mouthModel', kind: 'shape-model' },
@@ -157,6 +166,8 @@ export const airFluteNode = defineNode<Params>({
     let mouthFor: TrainedModel | null = null;
     let trackersKey = '';
     let lastFrame: HandsFrame | undefined;
+    let lastFace: unknown = undefined;
+    let lastFaceSeen = -Infinity;
     let shape: FeatureVector | null = null;
     let mouthVec: FeatureVector | null = null;
     let note: string | null = null;
@@ -187,6 +198,8 @@ export const airFluteNode = defineNode<Params>({
       fingersFor = mouthFor = null;
       trackersKey = '';
       lastFrame = undefined;
+      lastFace = undefined;
+      lastFaceSeen = -Infinity;
       shape = mouthVec = null;
       note = null;
       blowing = false;
@@ -194,11 +207,13 @@ export const airFluteNode = defineNode<Params>({
     };
 
     return {
-      process(inputs) {
+      process(inputs, ctx: NodeContext) {
         const c = resolveConfig(inputs.config);
         if (!c.enabled) {
           if (trackersKey) reset();
-          return { params: { voices: [] } satisfies SynthParams, shape: null, mouth: null, status, enabled: false };
+          // The silent voice, not an empty list: the synth fades only a voice it SEES
+          // absent, so a flute turned off mid-note would otherwise ring on forever.
+          return { params: { voices: [silentVoice(SOUND)] } satisfies SynthParams, shape: null, mouth: null, status, enabled: false };
         }
         const fingerModel = (inputs.fingerModel as TrainedModel | null | undefined) ?? null;
         const mouthModel = (inputs.mouthModel as TrainedModel | null | undefined) ?? null;
@@ -209,7 +224,9 @@ export const airFluteNode = defineNode<Params>({
             note = null;
           }
           if (mouthModel !== mouthFor || key !== trackersKey) {
-            mouth = mouthUsable(mouthModel) ? createCategoryTracker(mouthModel!, { enterFrames: c.breathFrames }) : null;
+            // The breath does NOT hold through a reject: a mouth unlike both enrolled states
+            // (talking, a smile) is not blowing.
+            mouth = mouthUsable(mouthModel) ? createCategoryTracker(mouthModel!, { enterFrames: c.breathFrames, exitFrames: c.breathFrames, holdOnReject: false }) : null;
             blowing = false;
           }
           fingersFor = fingerModel;
@@ -221,17 +238,36 @@ export const airFluteNode = defineNode<Params>({
         if (frame && frame !== lastFrame && !sameStamp) {
           shape = fingeringVector(frame, c.mirrorHandedness);
           if (shape && fingers) note = labelOf(fingerModel, fingers.push(shape).categoryId);
+          // No fingering in view: no note (a flute put down does not keep playing).
+          if (!shape) note = null;
         }
         lastFrame = frame;
-        // The face vector is re-emitted every tick; the tracker's frame counts are ticks
-        // here, which only makes the breath hysteresis a little shorter at 60 Hz.
-        mouthVec = mouthVector(inputs.face as FeatureVector | null | undefined);
-        if (mouthVec && mouth) blowing = labelOf(mouthModel, mouth.push(mouthVec).categoryId) === MOUTH_BLOW;
-        if (!mouthVec) blowing = false; // no face: no breath (the mouth mode stays silent)
+        // The mouth, once per NEW face frame (see the faceFrame input). The vector object
+        // is kept between frames, so enrolment takes each face frame once.
+        const faceFrame = inputs.faceFrame as { t?: number; present?: boolean } | undefined;
+        const newFace = faceFrame !== undefined ? faceFrame !== lastFace && !(faceFrame?.t !== undefined && faceFrame.t === (lastFace as { t?: number } | undefined)?.t) : true;
+        if (newFace) {
+          lastFace = faceFrame;
+          const v = faceFrame?.present === false ? null : mouthVector(inputs.face as FeatureVector | null | undefined);
+          if (v) {
+            mouthVec = v;
+            lastFaceSeen = ctx.time;
+            if (mouth) blowing = labelOf(mouthModel, mouth.push(v).categoryId) === MOUTH_BLOW;
+          } else {
+            mouthVec = null;
+          }
+        }
+        // A lost face is held for `faceHold`, then the breath stops and the mouth starts
+        // over (so a returning face is read afresh, not through a stale "blowing").
+        if (!mouthVec && ctx.time - lastFaceSeen > c.faceHold && (blowing || mouth)) {
+          blowing = false;
+          mouth?.reset();
+        }
 
-        const bothHands = !!shape && Object.keys(shape).some((k) => k.startsWith('l.')) && Object.keys(shape).some((k) => k.startsWith('r.'));
+        const bothHands = shape !== null;
         const parsed = note ? parseNoteName(note) : null;
-        const breathOn = c.breath === 'always' ? bothHands : blowing;
+        // Both hands are needed in either mode: the fingering IS both hands.
+        const breathOn = bothHands && (c.breath === 'always' || blowing);
         const sounding = parsed !== null && breathOn;
         const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
         const voice: VoiceParams = sounding
@@ -243,7 +279,7 @@ export const airFluteNode = defineNode<Params>({
           knownFingers: fingerModel?.categories.length ?? 0,
           mouthReady: mouthUsable(mouthModel),
           hands: bothHands,
-          face: mouthVec !== null,
+          face: mouthVec !== null || ctx.time - lastFaceSeen <= c.faceHold,
           note,
           playable: note === null || parsed !== null,
           sounding,

@@ -488,6 +488,7 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // joins the others at the merge.
       { from: { node: 'cam', port: 'hands' }, to: { node: 'airFlute', port: 'hands' } },
       { from: { node: 'faceVec', port: 'vector' }, to: { node: 'airFlute', port: 'face' } },
+      { from: { node: 'camFace', port: 'face' }, to: { node: 'airFlute', port: 'faceFrame' } },
       { from: { node: 'ui', port: 'airFlute' }, to: { node: 'airFlute', port: 'config' } },
       { from: { node: 'ui', port: 'airFluteFingerModel' }, to: { node: 'airFlute', port: 'fingerModel' } },
       { from: { node: 'ui', port: 'airFluteMouthModel' }, to: { node: 'airFlute', port: 'mouthModel' } },

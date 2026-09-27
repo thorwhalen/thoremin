@@ -417,9 +417,9 @@ Strum chords in the air: the fretting hand's shape is classified against the pla
 Play a flute in the air: large finger lifts of both hands, enrolled per player and named by their note, choose the note; the player's enrolled blowing mouth (or a held fingering alone) sounds it as a sustained voice. Off by default.
 
 - **roles:** feature, mapping
-- **in:** hands:hands-frame, face:feature-vector, config:air-flute-config, fingerModel:shape-model, mouthModel:shape-model, octaveShift:number
+- **in:** hands:hands-frame, face:feature-vector, faceFrame:face-frame, config:air-flute-config, fingerModel:shape-model, mouthModel:shape-model, octaveShift:number
 - **out:** params:synth-params, shape:feature-vector, mouth:feature-vector, status:air-flute-status, enabled:boolean
-- **params:** enabled (boolean=false), breath (enum(mouth | always)="mouth"), volume (number=0.5), enterFrames (number=3), breathFrames (number=2), mirrorHandedness (boolean=true)
+- **params:** enabled (boolean=false), breath (enum(mouth | always)="mouth"), volume (number=0.5), enterFrames (number=3), breathFrames (number=2), faceHold (number=0.3), mirrorHandedness (boolean=true)
 
 #### `pluck-out` — Pluck out
 Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).

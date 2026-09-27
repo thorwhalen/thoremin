@@ -25,13 +25,14 @@ describe('air flute in the default graph', () => {
     expect(g.nodes.some((n) => n.id === 'airFlute' && n.type === 'air-flute')).toBe(true);
     expect(has('cam', 'hands', 'airFlute', 'hands')).toBe(true);
     expect(has('faceVec', 'vector', 'airFlute', 'face')).toBe(true);
+    expect(has('camFace', 'face', 'airFlute', 'faceFrame')).toBe(true);
     expect(has('ui', 'airFlute', 'airFlute', 'config')).toBe(true);
     expect(has('ui', 'airFluteFingerModel', 'airFlute', 'fingerModel')).toBe(true);
     expect(has('ui', 'airFluteMouthModel', 'airFlute', 'mouthModel')).toBe(true);
     expect(has('ui', 'octaveShift', 'airFlute', 'octaveShift')).toBe(true);
     expect(has('airFlute', 'params', 'merge', 'e')).toBe(true);
     const inbound = new Set(g.edges.filter((e) => e.to.node === 'airFlute').map((e) => e.to.port));
-    expect([...inbound].sort()).toEqual(['config', 'face', 'fingerModel', 'hands', 'mouthModel', 'octaveShift']);
+    expect([...inbound].sort()).toEqual(['config', 'face', 'faceFrame', 'fingerModel', 'hands', 'mouthModel', 'octaveShift']);
   });
 
   it('headless: a held enrolled fingering reaches the synth merge as the flute voice', async () => {

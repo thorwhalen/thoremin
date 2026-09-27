@@ -93,7 +93,18 @@ export function jitterWeights(entries: readonly VocabularyEntry[], features: rea
  * with the entry's name. Null when fewer than one entry is usable (nothing to play).
  * Features that are non-finite in every sample are dropped.
  */
-export function trainVocabulary(vocab: Vocabulary): TrainedModel | null {
+export interface TrainVocabularyOptions {
+  /**
+   * Open-set instead of closed-set: a vector farther from every entry than this many
+   * times the enrolment's own reach (the trainer's 90th-percentile rule) is no entry at
+   * all. For a GATE (the flute's blowing/resting mouth), where "neither" must read as
+   * "not blowing"; generous, because a state re-made later wanders further than one
+   * back-to-back take (the guitar's lesson). Absent: closed-set.
+   */
+  rejectScale?: number;
+}
+
+export function trainVocabulary(vocab: Vocabulary, options: TrainVocabularyOptions = {}): TrainedModel | null {
   const usable = vocab.entries.filter((e) => e.samples.length >= MIN_SAMPLES_PER_ENTRY);
   if (usable.length === 0) return null;
   const features = vocab.features.filter((f) => usable.some((e) => e.samples.some((s) => finite(s[f]))));
@@ -115,7 +126,9 @@ export function trainVocabulary(vocab: Vocabulary): TrainedModel | null {
   // of later frames, and since the tracker HOLDS through a reject, its only effect was
   // to keep the old chord when the player changed shape (a quarter to a third of chord
   // changes missed). Every frame is therefore the NEAREST enrolled chord.
-  const model = trainModel(vectors, clusters, features, jitterWeights(usable, features), { defaultRejectRadius: Infinity });
+  const open = options.rejectScale !== undefined;
+  const model = trainModel(vectors, clusters, features, jitterWeights(usable, features), open ? {} : { defaultRejectRadius: Infinity });
+  if (open) model.rejectRadius *= options.rejectScale!;
   // trainModel numbers categories by cluster; carry each entry's name onto its category.
   model.categories.forEach((c, i) => (c.label = usable[i].label));
   return model;
