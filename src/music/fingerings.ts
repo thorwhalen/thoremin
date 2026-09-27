@@ -195,7 +195,7 @@ function fluteSecondOctave(): [string, string, string[], AltInput[]?][] {
  *  than the first two: charts differ on several notes, and this table is the commonly
  *  taught set; the prior's default range stops below it. */
 const FLUTE_THIRD_OCTAVE: [string, string, string[], AltInput[]?][] = [
-  ['D6', 'T-23|1--4', [EB]],
+  ['D6', 'T-23|---4', [EB]],
   ['D#6', 'T1234|-234', [GSHARP, EB]],
   ['E6', 'T12-|12-4', [EB]],
   ['F6', 'T1-3|1--4', [EB]],
@@ -227,28 +227,33 @@ const RECORDER_BAROQUE_FIRST: [string, string, string[]][] = [
   ['C5', 'T123|1234', []],
   ['C#5', 'T123|1234', ['R4 half-hole']],
   ['D5', 'T123|123-', []],
-  ['D#5', 'T123|-2-4', ['forked']],
+  ['D#5', 'T123|12-4', ['forked']],
   ['E5', 'T123|12--', []],
-  ['F5', 'T123|--3-', ['forked']],
-  ['F#5', 'T123|1---', ['R1 half-hole']],
+  ['F5', 'T123|1-34', ['forked']],
+  ['F#5', 'T123|-23-', ['forked']],
   ['G5', 'T123|----', []],
-  ['G#5', 'T12-|-2--', ['forked']],
+  ['G#5', 'T12-|12--', ['forked']],
   ['A5', 'T12-|----', []],
   ['A#5', 'T1-3|1---', ['forked']],
   ['B5', 'T1--|----', []],
 ];
 
-/** The German system's F is the plain one (R1 only); its F# is the fork. */
+/** The German system's F is the plain one (R1 only); its F# is a deeper fork. */
 const RECORDER_GERMAN_FIRST: [string, string, string[]][] = RECORDER_BAROQUE_FIRST.map(([n, s, k]) =>
-  n === 'F5' ? ['F5', 'T123|1---', []] : n === 'F#5' ? ['F#5', 'T123|-23-', ['forked']] : [n, s, k],
+  n === 'F5' ? ['F5', 'T123|1---', []] : n === 'F#5' ? ['F#5', 'T123|-234', ['forked']] : [n, s, k],
 );
 
-/** The second octave: the same fingers with the thumb pinched, up to B; C7 and above are
- *  their own (charts vary) and are left out. */
+/** The second octave: the same fingers with the thumb pinched up to A, then Bb and B on
+ *  their own forks; C7 and above are their own (charts vary) and are left out. */
 function recorderSecondOctave(first: readonly [string, string, string[]][]): [string, string, string[]][] {
+  const own: Record<string, [string, string[]]> = { 'A#6': ['T1-3|123-', ['forked']], 'B6': ['T1-3|12--', ['forked']] };
   return first
     .filter(([n]) => n !== 'C5' && n !== 'C#5')
-    .map(([n, s, k]) => [`${n.slice(0, -1)}${Number(n.at(-1)) + 1}`, s, [PINCH, ...k]]);
+    .map(([n, s, k]) => {
+      const up = `${n.slice(0, -1)}${Number(n.at(-1)) + 1}`;
+      const o = own[up];
+      return o ? [up, o[0], [PINCH, ...o[1]]] : [up, s, [PINCH, ...k]];
+    });
 }
 
 export const RECORDER_BAROQUE_CHART: FingeringChart = {
@@ -324,9 +329,9 @@ export const CLARINET_CHART: FingeringChart = {
 
 const OCT = 'octave key';
 const SAX_FIRST: [string, string, string[]][] = [
-  ['A#3', '-123|1234', ['low Bb key (R4)']],
-  ['B3', '-123|1234', ['low B key (R4)']],
-  ['C4', '-123|123-', []],
+  ['A#3', '-1234|1234', ['low Bb key (L4)', 'low C key (R4)']],
+  ['B3', '-1234|1234', ['low B key (L4)', 'low C key (R4)']],
+  ['C4', '-123|1234', ['low C key (R4)']],
   ['C#4', '-1234|123-', ['low C# key (L4)']],
   ['D4', '-123|123-', []],
   ['D#4', '-123|1234', ['Eb key (R4)']],
@@ -370,27 +375,27 @@ export const ALTO_SAX_CHART: FingeringChart = {
 // ---------------------------------------------------------------------------------------
 
 const HALF = 'L1 half-hole';
-const OBOE_FIRST: [string, string, string[]][] = [
-  ['A#3', '-123|123-', ['low Bb key']],
-  ['B3', '-123|123-', ['low B key']],
-  ['C4', '-123|-23-', []],
-  ['C#4', '-123|-23-', ['C# key']],
-  ['D4', '-123|-23-', []],
-  ['D#4', '-123|-23-', ['Eb key']],
-  ['E4', '-123|-2--', []],
-  ['F4', '-123|-2--', ['F key (forked or plain, by model)']],
-  ['F#4', '-123|----', []],
+const OBOE_FIRST: [string, string, string[], AltInput[]?][] = [
+  ['A#3', '-123|1234', ['low Bb key (R4)']],
+  ['B3', '-123|1234', ['low B key (R4)']],
+  ['C4', '-123|1234', ['low C key (R4)']],
+  ['C#4', '-123|1234', ['C# key (R4)']],
+  ['D4', '-123|123-', []],
+  ['D#4', '-123|1234', ['Eb key (R4)']],
+  ['E4', '-123|12--', []],
+  ['F4', '-123|1--4', ['F key (R4)'], [{ name: 'forked F', shape: '-123|1-34', keys: ['Eb key (R4)'] }]],
+  ['F#4', '-123|1---', []],
   ['G4', '-123|----', []],
   ['G#4', '-1234|----', ['G# key (L4)']],
   ['A4', '-12-|----', []],
   ['A#4', '-12-|1---', []],
   ['B4', '-1--|----', []],
-  ['C5', '----|1---', ['L1 lifted, R1 down']],
+  ['C5', '-1--|1---', []],
   ['C#5', '-123|123-', [HALF]],
   ['D5', '-123|123-', [HALF]],
   ['D#5', 'T123|123-', [HALF, 'octave key I', 'Eb key']],
   ['E5', 'T123|12--', [HALF, 'octave key I']],
-  ['F5', 'T123|12--', ['octave key I', 'F key']],
+  ['F5', 'T123|1--4', ['octave key I', 'F key (R4)']],
   ['F#5', 'T123|1---', ['octave key I']],
   ['G5', 'T123|----', ['octave key I']],
   ['G#5', 'T1234|----', ['octave key I', 'G# key']],
@@ -404,7 +409,7 @@ export const OBOE_CHART: FingeringChart = {
   id: 'oboe',
   name: 'Oboe (conservatoire system)',
   transposition: 0,
-  fingerings: OBOE_FIRST.map(([n, s, k]) => f(n, s, k)),
+  fingerings: OBOE_FIRST.map(([n, s, k, a]) => f(n, s, k, a)),
 };
 
 // ---------------------------------------------------------------------------------------

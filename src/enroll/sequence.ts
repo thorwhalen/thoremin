@@ -69,7 +69,12 @@ export const SequenceSpecSchema = z.object({
   holdMs: z.number().min(200).max(60000).default(2300),
   /** How many times the whole list is run through. More loops, more samples per label. */
   loops: z.number().int().min(1).max(100).default(1),
-});
+})
+  // A hold shorter than the settle would capture nothing, every time, silently.
+  .refine((s) => s.holdMs > s.settleMs && s.targets.every((t) => t.holdMs === undefined || t.holdMs > s.settleMs), {
+    message: 'every hold must be longer than the settle',
+    path: ['holdMs'],
+  });
 export type SequenceSpec = z.infer<typeof SequenceSpecSchema>;
 /** The loosest input the spec accepts (defaults not yet applied) — for authoring. */
 export type SequenceSpecInput = z.input<typeof SequenceSpecSchema>;
@@ -228,8 +233,8 @@ export function createSequenceRunner(options: SequenceRunnerOptions): SequenceRu
     phaseEnd = tMs + spec.countdownMs;
     const label = spec.targets[i].label;
     emit({ type: 'target-start', loop: lp, index: i, label, say: sayFor.next(label), t: tMs });
-    // A zero countdown goes straight to the hold.
-    if (spec.countdownMs <= 0) beginHold(tMs);
+    // A zero countdown goes straight to the hold, unless a listener moved us (a stop).
+    if (spec.countdownMs <= 0 && phase === 'countdown' && loop === lp && index === i) beginHold(tMs);
   };
 
   const beginHold = (tMs: number) => {
@@ -273,7 +278,9 @@ export function createSequenceRunner(options: SequenceRunnerOptions): SequenceRu
   };
 
   /** Move the clock: end phases whose time is up. Loops because a zero-length phase
-   *  can end in the same instant as the one after it. */
+   *  can end in the same instant as the one after it. After a long gap in the clock (a
+   *  tab in the background) up to eight overdue phases end as `empty` in one call, all
+   *  stamped with that call's time; a host that pauses should stop the runner instead. */
   const advance = (tMs: number) => {
     now = Math.max(now, tMs);
     for (let guard = 0; guard < 8; guard++) {
@@ -329,7 +336,11 @@ export function createSequenceRunner(options: SequenceRunnerOptions): SequenceRu
         return;
       }
       if ((phase === 'done' || phase === 'stopped') && lastEnded) {
-        beginCountdown(lastEnded.loop, lastEnded.index, tMs);
+        // Its earlier result is dropped now, not when the redo ends, so progress and
+        // the results list say what is true during the redo.
+        const { loop: lp, index: i } = lastEnded;
+        results = results.filter((r) => !(r.loop === lp && r.index === i));
+        beginCountdown(lp, i, tMs);
       }
     },
     stop(tMs) {

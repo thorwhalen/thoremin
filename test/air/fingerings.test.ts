@@ -10,6 +10,7 @@ import {
   CLARINET_CHART,
   FINGERING_CHARTS,
   FLUTE_CHART,
+  OBOE_CHART,
   RECORDER_BAROQUE_CHART,
   RECORDER_GERMAN_CHART,
   WHISTLE_D_CHART,
@@ -114,10 +115,29 @@ describe('the other winds', () => {
     expect(b.map((x) => x.note)).toEqual(g.map((x) => x.note));
     const differ = b.filter((x, i) => fingeringKey(x) !== fingeringKey(g[i])).map((x) => x.note);
     expect(differ).toEqual(['F5', 'F#5', 'F6', 'F#6']);
-    // The German F is the plain one: right index only.
+    // The German F is the plain one: right index only; the baroque F is the fork.
     expect(fingeringFor(RECORDER_GERMAN_CHART, 'F5')!.down).toEqual(['LT', 'L1', 'L2', 'L3', 'R1']);
-    // The second octave pinches the thumb.
+    expect(fingeringFor(RECORDER_BAROQUE_CHART, 'F5')!.down).toEqual(['LT', 'L1', 'L2', 'L3', 'R1', 'R3', 'R4']);
+    expect(fingeringFor(RECORDER_BAROQUE_CHART, 'F#5')!.down).toEqual(['LT', 'L1', 'L2', 'L3', 'R2', 'R3']);
+    // The second octave pinches the thumb; Bb and B are their own forks up there.
     expect(fingeringFor(RECORDER_BAROQUE_CHART, 'G6')!.keys[0]).toMatch(/pinched/);
+    expect(fingeringFor(RECORDER_BAROQUE_CHART, 'A#6')!.down).toEqual(['LT', 'L1', 'L3', 'R1', 'R2', 'R3']);
+  });
+
+  it('the sax reaches its low notes with the little fingers, and the oboe forks its F', () => {
+    expect(fingeringFor(ALTO_SAX_CHART, 'Bb3')!.down).toEqual(['LT', 'L1', 'L2', 'L3', 'L4', 'R1', 'R2', 'R3', 'R4'].filter((f) => f !== 'LT'));
+    expect(fingeringFor(ALTO_SAX_CHART, 'C4')!.down).toContain('R4');
+    expect(fingeringFor(ALTO_SAX_CHART, 'D5')!.down).toContain('LT');
+    expect(fingeringFor(OBOE_CHART, 'D4')!.down).toEqual(['L1', 'L2', 'L3', 'R1', 'R2', 'R3']);
+    expect(fingeringFor(OBOE_CHART, 'F#4')!.down).toEqual(['L1', 'L2', 'L3', 'R1']);
+    expect(fingeringFor(OBOE_CHART, 'F4')!.alternates[0].name).toBe('forked F');
+    expect(fingeringFor(OBOE_CHART, 'C5')!.down).toEqual(['L1', 'R1']);
+    // The second octave's fingers are the first's, plus the octave keys.
+    for (const n of ['E', 'F#', 'G', 'A', 'B']) {
+      const lo = fingeringFor(OBOE_CHART, `${n}4`)!.down.filter((f) => f !== 'LT');
+      const hi = fingeringFor(OBOE_CHART, `${n}5`)!.down.filter((f) => f !== 'LT');
+      expect(hi).toEqual(lo);
+    }
   });
 
   it('the whistle and the sax main line share the six-finger scale from D', () => {
