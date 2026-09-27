@@ -24,6 +24,7 @@ import { VocabularyEnrolment, type EnrolmentWords } from '../../air/VocabularyEn
 import { useGuitarVocabulary } from '../../air/vocabularyStore';
 import { SequenceTrainer, type SequenceTrainerWords } from '../../air/SequenceTrainer';
 import { GUITAR_STARTER_SEQUENCES } from '../../enroll/sequenceStore';
+import { TRAINING_ANCHORS } from '../../training/routes';
 import { useControls } from '../../store';
 import { checkTake } from '@/air/fingering_prior';
 import { parseChordName } from '@/music/guitar';
@@ -120,6 +121,7 @@ export function AirGuitarControls() {
         }}
         starters={GUITAR_STARTER_SEQUENCES}
         words={SEQUENCE_WORDS}
+        id={TRAINING_ANCHORS.guitarSequence}
       />
       <p className="text-[10px] leading-relaxed text-white/50">
         Hold one of your chord shapes with one hand and strum down with the other: the strum is

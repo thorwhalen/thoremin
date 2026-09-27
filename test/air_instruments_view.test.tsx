@@ -13,7 +13,7 @@
  * The air drum's retired tool panel is guarded against coming back: no shell tool may be
  * an instrument (`tools.ts`).
  */
-import { describe, it, expect, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
@@ -136,6 +136,16 @@ describe('the Air instruments category (#249)', () => {
     // #263: the sequence trainer and the fingering chart's dials live in the same section.
     expect(within(section).getByText('Learn a sequence of notes')).toBeTruthy();
     expect(within(section).getByTestId('flute-chart')).toBeTruthy();
+    // The training link at the top of the editor names the flute's trainer and scrolls to it.
+    const link = screen.getByTestId('training-link');
+    expect(link.getAttribute('data-route')).toBe('sequence:flute');
+    expect(link.textContent).toMatch(/Learn a sequence of notes/);
+    const target = document.getElementById('training-sequence-flute') as HTMLElement;
+    expect(target).toBeTruthy();
+    const scroll = vi.fn();
+    target.scrollIntoView = scroll;
+    fireEvent.click(link);
+    expect(scroll).toHaveBeenCalled();
     expect(within(section).getByText('Learn blowing')).toBeTruthy();
     expect(within(section).getByText('Learn resting')).toBeTruthy();
     // Fingers only: the breath enrolment goes away. (First let the editor's own
