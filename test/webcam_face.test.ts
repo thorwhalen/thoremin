@@ -153,27 +153,21 @@ describe('webcam-face node gating', () => {
     expect(createFromOptions).not.toHaveBeenCalled();
   });
 
-  it('offloads on disable, re-enables, and is idempotent on dispose — never throws', async () => {
+  it('dispose closes a LOADED model (the only release path now that the node exists only while wanted), idempotently', async () => {
+    // Independent of any one-shot mock a previous test left queued: a plain resolving load.
+    createFromOptions.mockReset();
+    createFromOptions.mockImplementation(async () => fakeLandmarker);
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    let faceEnabled = true;
     const live = ctx(true, fakeVideo());
-    // Re-point the controls getter at the mutable flag.
-    (live.resources as Record<string, unknown>).controls = () => ({ faceEnabled });
-
-    // Enable + video → loader kicks off (loading set synchronously); absent this tick.
-    expect(inst.process({}, live)).toMatchObject(ABSENT);
-    // Disable while still loading → offload() runs via the `loading` branch.
-    faceEnabled = false;
-    expect(inst.process({}, live)).toMatchObject(ABSENT);
-    // Re-enable → no throw, still absent.
-    faceEnabled = true;
-    expect(inst.process({}, live)).toMatchObject(ABSENT);
+    expect(inst.process({}, live)).toMatchObject(ABSENT); // the load kicks off
+    expect(await drainLoad(inst, live)).toBe('ready');
+    expect(fakeLandmarker.close).not.toHaveBeenCalled();
     expect(() => {
       inst.dispose?.();
       inst.dispose?.();
     }).not.toThrow();
+    expect(fakeLandmarker.close).toHaveBeenCalledTimes(1);
     expect(inst.process({}, live)).toMatchObject(ABSENT);
-    await flush(); // let the dangling mocked load settle (it self-closes)
   });
 });
 

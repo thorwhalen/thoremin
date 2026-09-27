@@ -121,15 +121,15 @@ const Params = z.object({
   drumPads: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
+  /** The air flute's breath cue (#249 / the instruments-as-graphs ADR): drawn only when the
+   *  flute's branch asks for it, so a flute that borrows the face for its breath never
+   *  brings the expression bars along. */
+  mouthCue: z.object({ show: z.boolean().default(true), position: CuePositionEnum.default('left') }).prefault({}),
   /**
    * Face-expression bar graph (HUD cue): a bar + firing tick per emotion; the winner
    * is highlighted. Optional vertical x-axis labels (the expression name and/or the
    * chord each maps to) replace the old top label.
    */
-  /** The air flute's breath cue (#249 / the instruments-as-graphs ADR): drawn only when the
-   *  flute's branch asks for it, so a flute that borrows the face for its breath never
-   *  brings the expression bars along. */
-  mouthCue: z.object({ show: z.boolean().default(true), position: CuePositionEnum.default('left') }).prefault({}),
   faceExpression: z
     .object({
       show: z.boolean().default(true),

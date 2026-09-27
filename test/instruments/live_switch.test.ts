@@ -68,7 +68,11 @@ describe('an instrument switch keeps the trunk and never stops the tick', () => 
     const to = graphOf('Glass Bells', registry);
     expect(from.elements).toContain('mouthCue');
     expect(from.elements).not.toContain('faceExpression');
+    expect(from.elements).not.toContain('faceLandmarks'); // a face borrowed for a breath draws no mesh
     expect(to.elements).toContain('faceExpression');
+    expect(to.elements).toContain('faceLandmarks');
+    // The set reaches the overlay through the UI bridge, on a port.
+    expect(from.spec.edges).toContainEqual({ from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } });
 
     const engine = new Engine(from.spec, registry);
     await engine.init();

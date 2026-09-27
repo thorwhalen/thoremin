@@ -10,7 +10,13 @@ import { createAppRegistry } from '@/nodes/browser';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { FACE_GROUP_IDS, BODY_GROUP_IDS, defaultFeatureLab } from '@/features/labConfig';
-import { branchIdsFor, branchSetKey, type DerivationContext } from '@/instruments/derive';
+import { branchIdsFor, branchSetKey, type DerivationContext, type DerivationSettings } from '@/instruments/derive';
+import type { ControlState } from '@/app/store';
+
+// The hot store is read by the derivation inside a zustand selector (useEngine); this pins,
+// at typecheck time, that a dial rename cannot turn into a runtime `undefined` there.
+const _controlStateDerives: DerivationSettings = null as unknown as ControlState;
+void _controlStateDerives;
 import { composeInstrumentGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
 

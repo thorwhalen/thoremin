@@ -44,6 +44,8 @@ const sorted = (xs: string[]): string[] => [...xs].sort();
 const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   // PR 3: the air flute's status feeds its breath cue on the overlay.
   { from: { node: 'airFlute', port: 'status' }, to: { node: 'overlay', port: 'airFluteStatus' } },
+  // PR 3: the composed element set reaches the overlay through the UI bridge.
+  { from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } },
 ];
 
 describe('composed graph == the hand-listed graph (golden)', () => {

@@ -103,29 +103,6 @@ interface TasksVisionModule {
   };
 }
 
-/** Reads the face-mapping mode off the live controls snapshot. `faceMapping`
- * supersedes the legacy boolean `faceEnabled` (kept for back-compat / tests). */
-
-/**
- * Should the face model be loaded and run?
- *
- * Three independent consumers can want the face, and any one is sufficient:
- *  - the MAPPING wants it — the face drives sound (`faceMapping !== 'none'`), falling
- *    back to the legacy `faceEnabled` flag when the newer field is absent (older
- *    callers / tests);
- *  - the LAB wants it — the Feature Instrumentation Lab is measuring face groups
- *    ({@link labWantsFace}). Before #136 only the mapping could turn the model on, so
- *    you could not look at a face meter without also handing the face control of the
- *    sound: a measuring instrument that cannot observe without altering;
- *  - a feature DEMAND wants it (#163, {@link demandWantsFace}) — the trainer has
- *    claimed face groups for a running cue. Trainer v1 asked the vector node for
- *    features without asking this gate for the model, and with the Lab closed and the
- *    mapping off (both defaults) it sampled an absent face.
- *
- * Exported so the app shell can tell the player the face camera is running for any of
- * these reasons (the FaceChip), and so the rule is directly testable.
- */
-
 export const webcamFaceNode = defineNode<Params>({
   type: 'webcam-face',
   roles: ['source'],

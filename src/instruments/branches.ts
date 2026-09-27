@@ -78,6 +78,9 @@ export const trunk = defineBranch({
     to(ui('octaveShift'), overlay('octaveShift')),
     to(ui('chordScale'), overlay('chordScale')),
     to(ui('overlay'), overlay('overlayConfig')),
+    // The composed element set (the ADR, §3.2 rule 4): the host writes it to the hot store,
+    // `store-controls` emits it, the overlay draws only these. Data on a port, not a param.
+    to(ui('graphElements'), overlay('elements')),
   ],
   overlay: ['video', 'landmarks', 'featureLab', 'featureCorrelation', 'tagHud', 'trainerHud'],
 });
@@ -116,7 +119,9 @@ export const faceSource = defineBranch({
     to({ node: 'faceVec', port: 'vector' }, overlay('faceVector')),
     to({ node: 'chordSel', port: 'chord' }, overlay('chord')),
   ],
-  overlay: ['faceLandmarks'],
+  // No elements of its own: a face borrowed for a breath or a Lab meter draws nothing. The
+  // mesh belongs to the branches where the face PLAYS (timbre, chord, controls).
+  overlay: [],
   demands: [...FACE_GROUP_IDS],
 });
 
@@ -125,6 +130,7 @@ export const faceTimbre = defineBranch({
   description: 'Smile to brightness, mouth to vibrato: the smoothed face features colour the hand voices.',
   requires: ['face-source', 'field-voices'],
   edges: [to({ node: 'faceFeat', port: 'features' }, { node: 'map', port: 'face' })],
+  overlay: ['faceLandmarks'],
 });
 
 export const faceChord = defineBranch({
@@ -148,7 +154,7 @@ export const faceChord = defineBranch({
     to({ node: 'faceExpr', port: 'expression' }, overlay('expression')),
   ],
   voices: [{ from: { node: 'exprChord', port: 'params' }, role: 'instrument' }],
-  overlay: ['faceExpression', 'chordGuide', 'chordName'],
+  overlay: ['faceLandmarks', 'faceExpression', 'chordGuide', 'chordName'],
 });
 
 export const faceControls = defineBranch({
@@ -170,7 +176,7 @@ export const faceControls = defineBranch({
     to({ node: 'poseChord', port: 'chord' }, { node: 'chordSel', port: 'b' }),
   ],
   voices: [{ from: { node: 'poseChord', port: 'params' }, role: 'instrument' }],
-  overlay: ['chordGuide', 'chordName'],
+  overlay: ['faceLandmarks', 'chordGuide', 'chordName'],
 });
 
 export const bodySource = defineBranch({

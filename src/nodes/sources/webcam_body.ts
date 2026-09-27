@@ -16,7 +16,7 @@
  *    `want(enabled)` each tick; the loader (a dynamic `import()` of tasks-vision +
  *    `PoseLandmarker.createFromOptions`, GPU then CPU) runs at most once per
  *    request and never blocks the engine.
- * 2. **Gated.** `enabled` is {@link bodyActive}: the `body.enabled` dial, the Lab
+ * 2. **Present only while wanted.** The node is in the graph while the `body.enabled` dial, the Lab
  *    measuring a body group, or a trainer cue claiming one — the face rule. With
  *    no camera frames the gate reports `unavailable` / `no-camera` instead of
  *    downloading a model that could never detect anything, and retries by itself
@@ -155,12 +155,6 @@ type BodyControlsGetter = () => {
   featureLab?: FeatureLabConfig;
 };
 
-/**
- * Should the body model be loaded and run? Any one of three consumers suffices —
- * the `body.enabled` dial, the Lab measuring a body group, a trainer cue claiming
- * one — exactly the rule `faceActive` states for the face, for the same reason:
- * a measuring instrument must be able to observe without turning the sound on.
- */
 
 /** The status reason when the node is wanted but the host has no camera frames. */
 export const NO_CAMERA_REASON = 'no-camera';
@@ -236,24 +230,21 @@ export const webcamBodyNode = defineNode<Params>({
         video = (ctx.resources.video as HTMLVideoElement | undefined) ?? video;
         const getControls = ctx.resources.controls as BodyControlsGetter | undefined;
         const controls = getControls?.();
-        // No per-tick gate (the instruments-as-graphs ADR, §3.5): present only while the
-        // body dial, a body-group demand or the Lab wants the body (`branchIdsFor`).
-        const enabled = true;
-
-        if (enabled) {
-          const model: BodyModel = controls?.body?.model ?? p.model;
-          const st = resource.status();
-          // Keyed request: a model change supersedes whatever is held or loading
-          // (a late arrival is discarded on settle) and clears a failure latch.
-          if (model !== requestedModel) {
-            requestedModel = model;
-            resource.release();
-          } else if (st.phase === 'unavailable' && st.reason === NO_CAMERA_REASON && hasFrames(video)) {
-            // The camera arrived after the gate said no: retry now, not on toggle.
-            resource.release();
-          }
+        // No per-tick gate (the instruments-as-graphs ADR, §3.5): this node is in the graph
+        // only while the body dial, a body-group demand or the Lab wants the body
+        // (`branchIdsFor`), so while it exists it always wants its model.
+        const model: BodyModel = controls?.body?.model ?? p.model;
+        const st = resource.status();
+        // Keyed request: a model change supersedes whatever is held or loading
+        // (a late arrival is discarded on settle) and clears a failure latch.
+        if (model !== requestedModel) {
+          requestedModel = model;
+          resource.release();
+        } else if (st.phase === 'unavailable' && st.reason === NO_CAMERA_REASON && hasFrames(video)) {
+          // The camera arrived after the gate said no: retry now, not on toggle.
+          resource.release();
         }
-        resource.want(enabled);
+        resource.want(true);
 
         const held = resource.current();
         if (held) {
