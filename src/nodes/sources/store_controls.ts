@@ -117,26 +117,30 @@ const Params = z.object({});
 
 /**
  * The instrument HUSH: what goes quiet while a tool needs the room, derived here once so
- * the graph reads two booleans and the rule is testable without a store.
+ * the graph reads booleans and the rule is testable without a store.
  *
  * - `muteAll` silences EVERYTHING the instrument makes — every voice at `synth-merge`
- *   (the conducted score included) and the struck instruments' schedulers (air drum,
- *   bass, guitar) — while the player has muted (their M) or any tool holds a claim (the
- *   Trainer: its click and spoken cues must be heard, and a conducted score left on from
- *   an earlier session is as loud as a theremin).
+ *   (the conducted score included) — while the player has muted (their M) or any tool
+ *   holds a claim (the Trainer: its click and spoken cues must be heard, and a conducted
+ *   score left on from an earlier session is as loud as a theremin).
  * - `hushVoices` silences the continuous voices at `synth-merge` (the hands, both face
  *   chords, the air flute) but NOT the conducted score, while the conductor is on: then
- *   the score is the music, and a theremin under it is what the player could not hear
- *   past. The struck instruments are spared: they are built to play ALONG a conducted
- *   piece (the air drum's timing magnet reads the conductor's time), and they sound only
- *   on a deliberate strike, never merely because a hand is in view.
+ *   the score is the music, and the active instrument under it is what the player could
+ *   not hear past.
+ * - `muteStrikes` silences the struck instruments' schedulers (air drum, bass, guitar)
+ *   in every one of those cases: an air instrument is the active instrument as much as a
+ *   field voice is, and conducting motions strike it. (The cost: no drumming ALONG a
+ *   conducted piece, though the air drum's timing magnet reads the conductor's time. If
+ *   that is wanted, it is an explicit opt-in on the conductor, not a default.)
  *
  * The player's `muted` itself is only read, never written, so a player who muted on
  * purpose stays muted when a hush lifts.
  */
-export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'muted'>): { hushVoices: boolean; muteAll: boolean; claimed: boolean } {
+export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'muted'>): { hushVoices: boolean; muteAll: boolean; muteStrikes: boolean; claimed: boolean } {
   const claimed = (c.hushedBy?.length ?? 0) > 0;
-  return { hushVoices: claimed || c.conductor?.enabled === true, muteAll: claimed || c.muted === true, claimed };
+  const conducting = c.conductor?.enabled === true;
+  const muteAll = claimed || c.muted === true;
+  return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || conducting, claimed };
 }
 
 export const storeControlsNode = defineNode<Record<string, never>>({
@@ -158,6 +162,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // The instrument hush (see `hushOf`): the continuous voices, and the struck ones.
     { name: 'hushVoices', kind: 'boolean' },
     { name: 'muteAll', kind: 'boolean' },
+    { name: 'muteStrikes', kind: 'boolean' },
     { name: 'overlay', kind: 'overlay-config' },
     // The right voice's melody scale spec (kept for reference/back-compat).
     { name: 'rightSpec', kind: 'scale-spec' },
@@ -239,6 +244,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           mute: c.muted ?? false,
           hushVoices: hush.hushVoices,
           muteAll: hush.muteAll,
+          muteStrikes: hush.muteStrikes,
           midiEnabled: c.midi?.enabled ?? false,
           midiPort: c.midi?.port ?? '',
           steerEnabled: c.steer?.enabled ?? false,

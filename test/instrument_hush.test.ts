@@ -27,22 +27,22 @@ afterEach(() => {
 
 describe('hushOf: when the instrument goes quiet', () => {
   it('nobody claims and no conductor: nothing is hushed', () => {
-    expect(hushOf({})).toEqual({ hushVoices: false, muteAll: false, claimed: false });
-    expect(hushOf({ hushedBy: [], conductor: { enabled: false } as never })).toEqual({ hushVoices: false, muteAll: false, claimed: false });
+    expect(hushOf({})).toEqual({ hushVoices: false, muteAll: false, muteStrikes: false, claimed: false });
+    expect(hushOf({ hushedBy: [], conductor: { enabled: false } as never })).toEqual({ hushVoices: false, muteAll: false, muteStrikes: false, claimed: false });
   });
 
   it('a tool claim (the Trainer) silences everything: voices, the score, the struck instruments', () => {
-    expect(hushOf({ hushedBy: ['trainer'] })).toEqual({ hushVoices: true, muteAll: true, claimed: true });
+    expect(hushOf({ hushedBy: ['trainer'] })).toEqual({ hushVoices: true, muteAll: true, muteStrikes: true, claimed: true });
     // Even with the conductor left on from earlier: its score must not play over the click.
     expect(hushOf({ hushedBy: ['trainer'], conductor: { enabled: true } as never }).muteAll).toBe(true);
   });
 
-  it('the conductor hushes the voices only: the struck instruments play along a conducted piece', () => {
-    expect(hushOf({ conductor: { enabled: true } as never })).toEqual({ hushVoices: true, muteAll: false, claimed: false });
+  it('the conductor hushes the active instrument, field or air, but keeps the score (muteAll stays off)', () => {
+    expect(hushOf({ conductor: { enabled: true } as never })).toEqual({ hushVoices: true, muteAll: false, muteStrikes: true, claimed: false });
   });
 
-  it('the player\'s M silences the struck instruments too (muteAll), not only the voices', () => {
-    expect(hushOf({ muted: true })).toEqual({ hushVoices: false, muteAll: true, claimed: false });
+  it('the player\'s M silences the struck instruments too (muteStrikes), not only the voices', () => {
+    expect(hushOf({ muted: true })).toEqual({ hushVoices: false, muteAll: true, muteStrikes: true, claimed: false });
   });
 });
 
@@ -69,9 +69,9 @@ describe('the store claim set', () => {
   it('store-controls emits the hush from the live store each tick', () => {
     const h = storeControlsNode.make(storeControlsNode.params.parse({}));
     const tick = () => h.process({}, { tick: 0, time: 0, dt: 1 / 30, resources: { controls: () => useControls.getState() } }) as Record<string, unknown>;
-    expect(tick()).toMatchObject({ hushVoices: false, muteAll: false, mute: false });
+    expect(tick()).toMatchObject({ hushVoices: false, muteAll: false, muteStrikes: false, mute: false });
     useControls.getState().setHush('trainer', true);
-    expect(tick()).toMatchObject({ hushVoices: true, muteAll: true, mute: false });
+    expect(tick()).toMatchObject({ hushVoices: true, muteAll: true, muteStrikes: true, mute: false });
     // The generative layer is not a merged voice: its level drops with the claim.
     expect(tick().steerVolume).toBe(0);
   });
@@ -140,7 +140,7 @@ describe('the default graph wires the hush (a switch nothing reads is #120 again
   it('the merge\'s two switches, and the all-mute at every struck scheduler', () => {
     expect(has('ui', 'hushVoices', 'merge', 'hush')).toBe(true);
     expect(has('ui', 'muteAll', 'merge', 'mute')).toBe(true);
-    for (const out of ['drumOut', 'bassOut', 'guitarOut']) expect(has('ui', 'muteAll', out, 'mute')).toBe(true);
+    for (const out of ['drumOut', 'bassOut', 'guitarOut']) expect(has('ui', 'muteStrikes', out, 'mute')).toBe(true);
   });
 
   it('the conducted score is on the merge port the hush spares', () => {
