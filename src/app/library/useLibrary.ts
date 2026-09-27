@@ -16,7 +16,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProfileMeta } from '@zodal/dials-ui';
-import { parseTagLabels, type Tag, type InstrumentMetaMap } from './model';
+import { parseTagLabels, EMPTY_INSTRUMENT_META, type Tag, type InstrumentMeta, type InstrumentMetaMap } from './model';
+import { assembleSpec, classCacheIsStale, type InstrumentSpec, type TrainingLink } from '@/instruments/spec';
+import { ALL_BRANCH_IDS } from '@/instruments/branches';
+import { normaliseClassId } from '@/instruments/classes';
 import type { InstrumentSummary } from './summarize';
 import type { SystemTag } from './systemTags';
 import type { InstrumentCategory } from './category';
@@ -34,6 +37,8 @@ import {
 } from './store';
 import { deriveForNames, type InstrumentDerived } from './derive';
 import { useToasts } from '@/app/toasts';
+
+const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 
 export interface LibraryApi {
   /** False until tags + metadata have loaded. */
@@ -59,6 +64,21 @@ export interface LibraryApi {
   /** True once the CURRENT instrument list has been derived (so the view can group it
    *  without an instrument first flashing in the wrong group). */
   derivedReady: boolean;
+  /**
+   * The instrument spec (the instruments-as-graphs ADR, PR 4): one record joined from the
+   * profile store's Layer, this library's metadata and the derivation. Undefined until the
+   * instrument has been derived (its Layer is loaded then). The UX stream's collection and
+   * gallery are built on this shape; the trainer stream reads `training`.
+   */
+  specOf: (name: string) => InstrumentSpec | undefined;
+  /** The explicit branch set the instrument declares, or undefined (derived from its dials). */
+  branchesOf: (name: string) => readonly string[] | undefined;
+  /** Declare (or clear, with null) the instrument's explicit branch set. */
+  setBranches: (name: string, branches: readonly string[] | null) => void;
+  trainingOf: (name: string) => TrainingLink | undefined;
+  setTraining: (name: string, training: TrainingLink | null) => void;
+  imageOf: (name: string) => string | undefined;
+  setImage: (name: string, image: string | null) => void;
   /** Rename a tag's label (id + associations preserved). */
   renameTag: (id: string, label: string) => Promise<void>;
   /** Change a tag's emoji. */
@@ -164,8 +184,70 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
 
   const systemTagsOf = useCallback((name: string) => derived[name]?.systemTags ?? [], [derived]);
   const summaryOf = useCallback((name: string) => derived[name]?.summary, [derived]);
-  const categoryOf = useCallback((name: string) => derived[name]?.category, [derived]);
+  // The derivation is authoritative; before it has run, the record's class CACHE answers
+  // (a cold load can group the list, and the list still waits for `derivedReady`).
+  const categoryOf = useCallback(
+    (name: string) => derived[name]?.category ?? (metaMap[name]?.class ? normaliseClassId(metaMap[name].class!) : undefined),
+    [derived, metaMap],
+  );
   const derivedReady = derivedNames !== null && list.every((p) => derivedNames.has(p.name));
+
+  // The metadata record's `class` is a CACHE of the derived class (never a vote against it):
+  // once the derivation has run, any missing or stale cache is rewritten, so the next cold
+  // load can group the list before deriving. One write per change, never per render.
+  useEffect(() => {
+    if (!ready || !derivedReady) return; // never write over a metadata blob not yet loaded
+    let next: InstrumentMetaMap | null = null;
+    for (const p of list) {
+      const d = derived[p.name];
+      if (!d) continue;
+      const meta = metaRef.current[p.name] ?? EMPTY_INSTRUMENT_META;
+      if (!classCacheIsStale(meta.class, d.category)) continue;
+      next = next ?? { ...metaRef.current };
+      next[p.name] = { ...meta, class: d.category };
+    }
+    if (next) persistMeta(next);
+  }, [derivedReady, derived, list, persistMeta]);
+
+  const patchMeta = useCallback(
+    (name: string, patch: Partial<InstrumentMeta>) => {
+      const current = metaRef.current[name] ?? EMPTY_INSTRUMENT_META;
+      const merged: Record<string, unknown> = { ...current, ...patch };
+      // An explicit `undefined` in the patch clears the field.
+      for (const [k, v] of Object.entries(patch)) if (v === undefined) delete merged[k];
+      persistMeta({ ...metaRef.current, [name]: merged as InstrumentMeta });
+    },
+    [persistMeta],
+  );
+  const specOf = useCallback(
+    (name: string): InstrumentSpec | undefined => {
+      const d = derived[name];
+      if (!d) return undefined;
+      return assembleSpec({
+        name,
+        layer: d.layer as Record<string, unknown>,
+        meta: metaMap[name],
+        derived: { class: d.category, branches: d.branches },
+      });
+    },
+    [derived, metaMap],
+  );
+  const branchesOf = useCallback((name: string) => metaMap[name]?.branches, [metaMap]);
+  const setBranches = useCallback(
+    (name: string, branches: readonly string[] | null) => {
+      // Only ids the branch table knows are written; a typo cannot reach the composer.
+      const known = branches ? branches.filter((id) => KNOWN_BRANCH_IDS.has(id)) : null;
+      patchMeta(name, { branches: known ? [...known] : undefined });
+    },
+    [patchMeta],
+  );
+  const trainingOf = useCallback((name: string) => metaMap[name]?.training, [metaMap]);
+  const setTraining = useCallback(
+    (name: string, training: TrainingLink | null) => patchMeta(name, { training: training ?? undefined }),
+    [patchMeta],
+  );
+  const imageOf = useCallback((name: string) => metaMap[name]?.image, [metaMap]);
+  const setImage = useCallback((name: string, image: string | null) => patchMeta(name, { image: image ?? undefined }), [patchMeta]);
 
   const renameTag = useCallback(
     async (id: string, label: string) => {
@@ -213,6 +295,13 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
     summaryOf,
     categoryOf,
     derivedReady,
+    specOf,
+    branchesOf,
+    setBranches,
+    trainingOf,
+    setTraining,
+    imageOf,
+    setImage,
     renameTag,
     setTagEmoji,
     deleteTag,

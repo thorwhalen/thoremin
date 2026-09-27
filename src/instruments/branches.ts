@@ -32,6 +32,9 @@ import { DEMO_SCALE_NOTES } from '@/nodes/music/score';
 import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@/features/labConfig';
 import { defineBranch, type GraphBranch } from './branch';
 
+/** The trunk branch's id: implied by every spec, never listed as a feature. */
+export const TRUNK_ID = 'trunk';
+
 /** Node ids the trunk owns; branches wire to these by name. */
 export const TRUNK = {
   cam: 'cam',

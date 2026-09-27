@@ -51,6 +51,23 @@ export type Tag = z.infer<typeof TagSchema>;
 export const InstrumentMetaSchema = z.object({
   starred: z.boolean().default(false),
   tagIds: z.array(z.string()).default([]),
+  /**
+   * The instrument spec's extra fields (the instruments-as-graphs ADR, PR 4), all optional
+   * so a record written before them parses unchanged:
+   *  - `class`: a CACHE of the derived class, for the list to group by before the derivation
+   *    has run. Never a vote against the derivation ("an air instrument wins").
+   *  - `branches`: an EXPLICIT branch set. When present the graph composes exactly these
+   *    (plus what a live tool demands); when absent the set is derived from the settings.
+   *  - `training`: where "train this instrument" goes; the trainer stream resolves the route.
+   */
+  class: z.string().optional(),
+  branches: z.array(z.string()).optional(),
+  training: z.object({ route: z.string().min(1) }).optional(),
+  /** A picture of the instrument for the gallery view (discussion #272): a REFERENCE (a URL,
+   *  an app-relative path or a store key), never bytes. */
+  image: z.string().optional(),
+  /** A glyph for the card, chosen by the player (the seeds carry none). */
+  emoji: z.string().optional(),
 });
 export type InstrumentMeta = z.infer<typeof InstrumentMetaSchema>;
 

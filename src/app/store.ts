@@ -274,6 +274,7 @@ export interface ControlState {
   setScoreDoc: (doc: ScoreDoc | null) => void;
   /** Replace the composed graph's overlay element set (transient, see {@link graphElements}). */
   setGraphElements: (elements: string[] | null) => void;
+
   /** Replace the air guitar's chord classifier (transient, see {@link airGuitarModel}). */
   setAirGuitarModel: (model: TrainedModel | null) => void;
   /** Replace the air flute's classifiers (transient). */
@@ -682,6 +683,7 @@ export const useControls = create<ControlState>()(
       setSteerPlaying: (v) => set({ steerPlaying: v }),
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
       setGraphElements: (elements) => set({ graphElements: elements }),
+
       setAirGuitarModel: (model) => set({ airGuitarModel: model }),
       setAirFluteFingerModel: (model) => set({ airFluteFingerModel: model }),
       setAirFluteMouthModel: (model) => set({ airFluteMouthModel: model }),

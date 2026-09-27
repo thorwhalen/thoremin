@@ -24,6 +24,9 @@
  */
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
+import { ALL_BRANCH_IDS } from './branches';
+
+const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 
 /**
  * The slice of the settings the derivation reads. Structural, so tests need no full
@@ -70,6 +73,12 @@ export interface DerivationContext {
   demanded?: DemandedGroups;
   /** The Feature Lab's config: shown groups imply their source while the Lab is open. */
   featureLab?: FeatureLabConfig;
+  /**
+   * The instrument spec's EXPLICIT branch set, when it declares one (PR 4). It replaces the
+   * settings-derived set; what a live tool demands (the face or body source for a claim or
+   * a Lab meter) is still unioned in, because a tool's need is not the instrument's to veto.
+   */
+  explicit?: readonly string[] | null;
 }
 
 const NO_DEMAND: DemandedGroups = new Set();
@@ -91,6 +100,16 @@ export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContex
   const add = (id: string, on: boolean): void => {
     if (on && !ids.includes(id)) ids.push(id);
   };
+
+  if (ctx.explicit) {
+    // Unknown ids (a stale saved record, a branch an extension no longer ships) are dropped
+    // rather than thrown: the derivation runs inside the host's selector and must not take
+    // the app down. `composeGraph` would refuse them; here they simply compose nothing.
+    for (const id of ctx.explicit) add(id, KNOWN_BRANCH_IDS.has(id));
+    add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
+    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded));
+    return ids;
+  }
 
   // The hand voices default ON: a settings object with no hand map yet (mid-migration) is a
   // field instrument until told otherwise, which is also what the seeds' defaults say.

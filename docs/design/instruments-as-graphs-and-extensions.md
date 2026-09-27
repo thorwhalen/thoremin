@@ -93,6 +93,8 @@ const InstrumentSpec = z.object({
 });
 ```
 
+> **As built (PR 4, #280):** the persisted spec is a *join*, not a third store: the `settings` Layer stays in the dials profile store, and `class` (a cache of the derivation), `branches`, `training`, `image`, `emoji` and the tags live in the library's metadata record; `assembleSpec` produces the record above plus `starred` and a derived `features` facet (the branch closure minus the trunk) for the Instruments view. An explicit `branches` list is persisted and assembled, and `branchIdsFor` honours it when given, but the engine host does not read it yet: honouring it at runtime needs a writer, and the writer must be a dial or a command (restored on undo and reload), so it lands with the first UI that sets branches. See `instrument-library.md`, Decision 7.
+
 **`composeGraph(branchIds, registry): { spec: GraphSpec; elements: string[] }`** is a pure union with four rules:
 
 1. **Shared nodes must be the same node.** A node id appearing in two branches must have the same type and the same validated params (the identity `applyGraph` already uses); a conflicting duplicate is rejected with both branch ids in the error.
