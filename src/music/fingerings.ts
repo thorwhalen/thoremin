@@ -217,9 +217,9 @@ export const FLUTE_CHART: FingeringChart = {
 
 // ---------------------------------------------------------------------------------------
 // Soprano recorder, baroque (English) and German fingering. Hole 0 is the thumb; the
-// second octave "pinches" the thumb hole (half-open), which to a hand is still a thumb
-// down. Half-holes are a finger down with the hole named. The two systems differ only
-// at F (and the forks derived from it: F# and, on some charts, Eb and Bb).
+// second octave mostly "pinches" the thumb hole (half-open), which to a hand is still a
+// thumb down. Half-holes are a finger down with the hole named. The two systems differ at
+// F, F# and G# (the German system plain where the baroque forks).
 // ---------------------------------------------------------------------------------------
 
 const PINCH = 'thumb pinched (half-open)';
@@ -227,47 +227,55 @@ const RECORDER_BAROQUE_FIRST: [string, string, string[]][] = [
   ['C5', 'T123|1234', []],
   ['C#5', 'T123|1234', ['R4 half-hole']],
   ['D5', 'T123|123-', []],
-  ['D#5', 'T123|12-4', ['forked']],
+  ['D#5', 'T123|123-', ['R3 half-hole', 'forked']],
   ['E5', 'T123|12--', []],
   ['F5', 'T123|1-34', ['forked']],
   ['F#5', 'T123|-23-', ['forked']],
   ['G5', 'T123|----', []],
-  ['G#5', 'T12-|12--', ['forked']],
+  ['G#5', 'T12-|123-', ['R3 half-hole', 'forked']],
   ['A5', 'T12-|----', []],
   ['A#5', 'T1-3|1---', ['forked']],
   ['B5', 'T1--|----', []],
 ];
 
-/** The German system's F is the plain one (R1 only); its F# is a deeper fork. */
+/** The German system's F is the plain one (R1 only); its F# is a deeper fork, and its G#
+ *  a plain one. */
 const RECORDER_GERMAN_FIRST: [string, string, string[]][] = RECORDER_BAROQUE_FIRST.map(([n, s, k]) =>
-  n === 'F5' ? ['F5', 'T123|1---', []] : n === 'F#5' ? ['F#5', 'T123|-234', ['forked']] : [n, s, k],
+  n === 'F5' ? ['F5', 'T123|1---', []] : n === 'F#5' ? ['F#5', 'T123|-234', ['forked']] : n === 'G#5' ? ['G#5', 'T12-|12--', ['forked']] : [n, s, k],
 );
 
-/** The second octave: the same fingers with the thumb pinched up to A, then Bb and B on
- *  their own forks; C7 and above are their own (charts vary) and are left out. */
-function recorderSecondOctave(first: readonly [string, string, string[]][]): [string, string, string[]][] {
-  const own: Record<string, [string, string[]]> = { 'A#6': ['T1-3|123-', ['forked']], 'B6': ['T1-3|12--', ['forked']] };
-  return first
-    .filter(([n]) => n !== 'C5' && n !== 'C#5')
-    .map(([n, s, k]) => {
-      const up = `${n.slice(0, -1)}${Number(n.at(-1)) + 1}`;
-      const o = own[up];
-      return o ? [up, o[0], [PINCH, ...o[1]]] : [up, s, [PINCH, ...k]];
-    });
+/** The second octave, per the Woodwind Fingering Guide: D and Eb with the thumb OPEN, the
+ *  rest with it pinched, and only E, G and A on the first octave's fingers; F, F#, G#,
+ *  Bb and B are forks of their own, F and F# differing between the systems. C7 and above
+ *  are left out (charts vary). */
+function recorderSecondOctave(system: 'baroque' | 'german'): [string, string, string[]][] {
+  const baroque = system === 'baroque';
+  return [
+    ['D6', '--2-|----', ['thumb open']],
+    ['D#6', '--23|123-', ['thumb open', 'forked']],
+    ['E6', 'T123|12--', [PINCH]],
+    baroque ? ['F6', 'T123|1-3-', [PINCH, 'forked']] : ['F6', 'T123|1---', [PINCH]],
+    baroque ? ['F#6', 'T123|-2--', [PINCH, 'forked']] : ['F#6', 'T123|-2-4', [PINCH, 'forked']],
+    ['G6', 'T123|----', [PINCH]],
+    ['G#6', 'T12-|1---', [PINCH, 'forked']],
+    ['A6', 'T12-|----', [PINCH]],
+    ['A#6', 'T12-|123-', [PINCH, 'forked']],
+    ['B6', 'T12-|12--', [PINCH, 'forked']],
+  ];
 }
 
 export const RECORDER_BAROQUE_CHART: FingeringChart = {
   id: 'recorder-baroque',
   name: 'Soprano recorder (baroque fingering)',
   transposition: 0,
-  fingerings: [...RECORDER_BAROQUE_FIRST, ...recorderSecondOctave(RECORDER_BAROQUE_FIRST)].map(([n, s, k]) => f(n, s, k)),
+  fingerings: [...RECORDER_BAROQUE_FIRST, ...recorderSecondOctave('baroque')].map(([n, s, k]) => f(n, s, k)),
 };
 
 export const RECORDER_GERMAN_CHART: FingeringChart = {
   id: 'recorder-german',
   name: 'Soprano recorder (German fingering)',
   transposition: 0,
-  fingerings: [...RECORDER_GERMAN_FIRST, ...recorderSecondOctave(RECORDER_GERMAN_FIRST)].map(([n, s, k]) => f(n, s, k)),
+  fingerings: [...RECORDER_GERMAN_FIRST, ...recorderSecondOctave('german')].map(([n, s, k]) => f(n, s, k)),
 };
 
 // ---------------------------------------------------------------------------------------
@@ -370,8 +378,8 @@ export const ALTO_SAX_CHART: FingeringChart = {
 
 // ---------------------------------------------------------------------------------------
 // Oboe (conservatoire system), written. No thumb hole: the left thumb works the first
-// octave key (down from Eb5); the second octave key is under the left index. Five notes
-// half-hole the left index (a finger down with 'half-hole' named).
+// octave key (down from E5); the second octave key is under the left index. Three notes
+// (C#5, D5, Eb5) half-hole the left index (a finger down with 'half-hole' named).
 // ---------------------------------------------------------------------------------------
 
 const HALF = 'L1 half-hole';
@@ -383,7 +391,7 @@ const OBOE_FIRST: [string, string, string[], AltInput[]?][] = [
   ['D4', '-123|123-', []],
   ['D#4', '-123|1234', ['Eb key (R4)']],
   ['E4', '-123|12--', []],
-  ['F4', '-123|1--4', ['F key (R4)'], [{ name: 'forked F', shape: '-123|1-34', keys: ['Eb key (R4)'] }]],
+  ['F4', '-123|12-4', ['F key (R4)'], [{ name: 'forked F', shape: '-123|1-34', keys: ['Eb key (R4)'] }]],
   ['F#4', '-123|1---', []],
   ['G4', '-123|----', []],
   ['G#4', '-1234|----', ['G# key (L4)']],
@@ -393,9 +401,9 @@ const OBOE_FIRST: [string, string, string[], AltInput[]?][] = [
   ['C5', '-1--|1---', []],
   ['C#5', '-123|123-', [HALF]],
   ['D5', '-123|123-', [HALF]],
-  ['D#5', 'T123|123-', [HALF, 'octave key I', 'Eb key']],
-  ['E5', 'T123|12--', [HALF, 'octave key I']],
-  ['F5', 'T123|1--4', ['octave key I', 'F key (R4)']],
+  ['D#5', '-123|1234', [HALF, 'Eb key (R4)']],
+  ['E5', 'T123|12--', ['octave key I']],
+  ['F5', 'T123|12-4', ['octave key I', 'F key (R4)']],
   ['F#5', 'T123|1---', ['octave key I']],
   ['G5', 'T123|----', ['octave key I']],
   ['G#5', 'T1234|----', ['octave key I', 'G# key']],

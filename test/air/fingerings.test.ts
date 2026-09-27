@@ -109,19 +109,20 @@ describe('the other winds', () => {
     expect(CLARINET_CHART.transposition).toBe(-2);
   });
 
-  it('the two recorder systems differ only at F and F#', () => {
+  it('the two recorder systems differ only at F, F# and G#', () => {
     const b = chartNotes(RECORDER_BAROQUE_CHART);
     const g = chartNotes(RECORDER_GERMAN_CHART);
     expect(b.map((x) => x.note)).toEqual(g.map((x) => x.note));
     const differ = b.filter((x, i) => fingeringKey(x) !== fingeringKey(g[i])).map((x) => x.note);
-    expect(differ).toEqual(['F5', 'F#5', 'F6', 'F#6']);
+    expect(differ).toEqual(['F5', 'F#5', 'G#5', 'F6', 'F#6']);
     // The German F is the plain one: right index only; the baroque F is the fork.
     expect(fingeringFor(RECORDER_GERMAN_CHART, 'F5')!.down).toEqual(['LT', 'L1', 'L2', 'L3', 'R1']);
     expect(fingeringFor(RECORDER_BAROQUE_CHART, 'F5')!.down).toEqual(['LT', 'L1', 'L2', 'L3', 'R1', 'R3', 'R4']);
     expect(fingeringFor(RECORDER_BAROQUE_CHART, 'F#5')!.down).toEqual(['LT', 'L1', 'L2', 'L3', 'R2', 'R3']);
-    // The second octave pinches the thumb; Bb and B are their own forks up there.
+    // The second octave pinches the thumb, except D and Eb which open it; Bb and B are forks.
     expect(fingeringFor(RECORDER_BAROQUE_CHART, 'G6')!.keys[0]).toMatch(/pinched/);
-    expect(fingeringFor(RECORDER_BAROQUE_CHART, 'A#6')!.down).toEqual(['LT', 'L1', 'L3', 'R1', 'R2', 'R3']);
+    expect(fingeringFor(RECORDER_BAROQUE_CHART, 'D6')!.down).toEqual(['L2']);
+    expect(fingeringFor(RECORDER_BAROQUE_CHART, 'A#6')!.down).toEqual(['LT', 'L1', 'L2', 'R1', 'R2', 'R3']);
   });
 
   it('the sax reaches its low notes with the little fingers, and the oboe forks its F', () => {
