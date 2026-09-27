@@ -23,13 +23,18 @@ export interface AirInstrument {
   /** Shown as the system tag's tooltip and in the parametrization tooltip. */
   label: string;
   emoji: string;
+  /** Whether it plays the instrument's scale (the Sound section's scale, root and range),
+   *  so the list keeps describing the scale even with the theremin voices silent. */
+  usesScale: boolean;
   /** True when these settings play this air instrument. */
   on: (s: Settings) => boolean;
 }
 
 /** The air instruments, in display order. SSOT for everything air-specific in the library. */
 export const AIR_INSTRUMENTS = [
-  { id: 'drum', label: 'Air drum', emoji: '🥁', on: (s: Settings) => s.airDrum.enabled },
+  { id: 'drum', label: 'Air drum', emoji: '🥁', usesScale: false, on: (s: Settings) => s.airDrum.enabled },
+  // 🎸 for the bass; 🤘 is kept for the air guitar (the air guitarist's own sign).
+  { id: 'bass', label: 'Air bass', emoji: '🎸', usesScale: true, on: (s: Settings) => s.airBass.enabled },
 ] as const satisfies readonly AirInstrument[];
 
 export type AirInstrumentId = (typeof AIR_INSTRUMENTS)[number]['id'];

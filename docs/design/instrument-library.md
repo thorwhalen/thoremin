@@ -137,7 +137,9 @@ The maintainer's rule: *the air instruments are instruments like the others, of 
 - **No wrong group on load.** The list is grouped only once every name it shows has been derived (`useLibrary().derivedReady`), so the Air Drum never flashes under the theremins.
 - **No instrument is a tool.** `tools.ts` is for things you use *on* the instrument; `test/air_instruments_view.test.tsx` is the reachability walk (cold load → Air instruments → Air Drum → one click plays it) and guards that no tool shadows an air instrument.
 
-Adding an air instrument (guitar, bass, flute) is one `AIR_INSTRUMENTS` entry, one `AIR_UI` entry and a seed.
+- **An air instrument may play the scale.** The air bass's neck is quantised to the instrument's own scale (the Sound section), so its entry says `usesScale: true` and the list keeps its scale tag and the tooltip's Scale and Range rows even with the theremin voices silent. The drum says `false`.
+
+Adding an air instrument (guitar, bass, flute) is one `AIR_INSTRUMENTS` entry, one `AIR_UI` entry and a seed. The air bass (PR 2 of #249) is the worked example: `src/nodes/music/air_bass.ts` (the neck and the pluck), `src/nodes/output/pluck_out.ts` (plucked notes on the audio clock), `src/app/dials/panels/airBass.tsx`, `src/app/airBassStatus.ts`, and the `airBass` dial.
 
 ## Sparse layers, resolved
 

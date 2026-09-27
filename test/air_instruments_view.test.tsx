@@ -21,10 +21,11 @@ import { TOOLS } from '@/app/tools';
 import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@/app/airDrumStatus';
 import { AirDrumReadout } from '@/app/dials/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
-import type { AirDrumSettings } from '@/settings/schema';
+import type { AirDrumSettings, AirBassSettings } from '@/settings/schema';
 import type { HandMap } from '@/nodes/mapping/hand_map';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;
+const airBass = () => dialsStore.getState().effective.airBass as AirBassSettings;
 const handMap = () => dialsStore.getState().effective.handMap as HandMap;
 
 beforeAll(() => {
@@ -83,6 +84,24 @@ describe('the Air instruments category (#249)', () => {
     await waitFor(() => expect(airDrum().enabled).toBe(false));
     act(() => dialsStore.set('airDrum', { ...airDrum(), enabled: true }));
     expect(await within(theremin).findByTestId('air-drum-live')).toBeTruthy();
+  });
+
+  it('plays the air bass the same way, and the air drum stops', async () => {
+    render(<InstrumentsPanel />);
+    const air = await airGroup();
+    fireEvent.click(within(air).getByText('Air Drum'));
+    await waitFor(() => expect(airDrum().enabled).toBe(true));
+    fireEvent.click(within(air).getByText('Air Bass'));
+    await waitFor(() => expect(airBass().enabled).toBe(true));
+    expect(airDrum().enabled).toBe(false);
+    expect(handMap().maxGain).toBe(0);
+    expect(within(air).getByTitle('Air bass')).toBeTruthy();
+    const live = await within(air).findByTestId('air-bass-live');
+    expect(live.textContent).toMatch(/Off|both hands|Pluck|Ready/);
+    fireEvent.click(within(air).getByLabelText('Edit Air Bass'));
+    const sections = document.querySelectorAll('details[data-section]');
+    expect(sections[0]?.getAttribute('data-section')).toBe('Air bass');
+    expect(screen.getByLabelText('Plucking hand')).toBeTruthy();
   });
 
   it("opens the air drum's settings on its own section, first", async () => {

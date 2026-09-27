@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
+import { airInstrumentsOf } from '@/app/library/category';
 import { layerToSettings } from '@/settings/dials';
 import { systemTagsForSettings } from '@/app/library/systemTags';
 import { SYSTEM_TAG_PREFIX } from '@/app/library/model';
@@ -32,7 +33,7 @@ describe('deriveSystemTags (seed fixtures)', () => {
     for (const seed of SEED_INSTRUMENTS) {
       const settings = layerToSettings(seed.layer);
       const tags = systemTagsForSettings(settings);
-      const lead = settings.airDrum.enabled ? `${SYSTEM_TAG_PREFIX}air:` : `${SYSTEM_TAG_PREFIX}scale:`;
+      const lead = airInstrumentsOf(settings).length > 0 ? `${SYSTEM_TAG_PREFIX}air:` : `${SYSTEM_TAG_PREFIX}scale:`;
       expect(tags[0]?.id.startsWith(lead), seed.name).toBe(true);
     }
   });

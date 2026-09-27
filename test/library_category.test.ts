@@ -19,10 +19,11 @@ const settingsOf = (name: string) => {
 };
 
 describe('instrument categories', () => {
-  it('ships the Air Drum as the one air instrument; every other seed is a theremin', () => {
+  it('ships one instrument per air instrument, each playing only its own; every other seed is a theremin', () => {
     const air = SEED_INSTRUMENTS.filter((s) => categoryOf(settingsFromLayer(s.layer)) === 'air').map((s) => s.name);
-    expect(air).toEqual(['Air Drum']);
+    expect(air).toEqual(['Air Drum', 'Air Bass']);
     expect(airInstrumentsOf(settingsOf('Air Drum'))).toEqual(['drum']);
+    expect(airInstrumentsOf(settingsOf('Air Bass'))).toEqual(['bass']);
   });
 
   it('is derived: a theremin with its air drum on is an air instrument', () => {
@@ -72,5 +73,26 @@ describe('an air-only instrument describes the air instrument, not the silent vo
     const ids = deriveSystemTags(summarizeInstrument({ ...s, airDrum: { ...s.airDrum, enabled: true } })).map((t) => t.id);
     expect(ids[0]).toBe('sys:air:drum');
     expect(ids.some((id) => id.startsWith('sys:scale:'))).toBe(true);
+  });
+});
+
+describe('an air instrument that plays the scale keeps describing it', () => {
+  const sum = summarizeInstrument(settingsOf('Air Bass'));
+
+  it('shows the scale and range, not the silent voices', () => {
+    expect(sum.air).toEqual(['bass']);
+    expect(sum.handVoices).toBe(false);
+    expect(sum.scaleHeard).toBe(true);
+    const labels = summaryLines(sum).map((l) => l.label);
+    expect(labels.slice(0, 3)).toEqual(['Air', 'Scale', 'Range']);
+    expect(labels).toContain('Hand voices');
+    expect(labels).not.toContain('Voices');
+  });
+
+  it('tags the bass and its scale, with no note-source tag', () => {
+    const ids = deriveSystemTags(sum).map((t) => t.id);
+    expect(ids[0]).toBe('sys:air:bass');
+    expect(ids).toContain('sys:scale:pentatonicMinor');
+    expect(ids.some((id) => id.startsWith('sys:note:'))).toBe(false);
   });
 });

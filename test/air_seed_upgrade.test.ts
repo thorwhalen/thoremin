@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The Air Drum reaches returning players (#249): SEED_VERSION 4 adds it by name to a
- * browser seeded at version 3, without touching the player's own edits.
+ * The air instruments reach returning players (#249): a SEED_VERSION bump adds them by
+ * name to a browser seeded at version 3, without touching the player's own edits.
  */
 import { describe, it, expect } from 'vitest';
 import { ensureSeeded, instruments } from '@/app/dials/instruments';
@@ -19,7 +19,20 @@ describe('upgrading a browser seeded before the air instruments', () => {
 
     const airDrum = await instruments.load('Air Drum');
     expect((airDrum?.airDrum as { enabled?: boolean } | undefined)?.enabled).toBe(true);
+    expect(await instruments.has('Air Bass')).toBe(true);
     expect(await instruments.load('Pentatonic')).toEqual({ 'master.volume': 0.9 });
-    expect(localStorage.getItem('thoremin.instruments.seedVersion')).toBe('4');
+    expect(Number(localStorage.getItem('thoremin.instruments.seedVersion'))).toBeGreaterThan(3);
+  });
+
+  it('a browser at version 4 (after the Air Drum shipped) gains the Air Bass', async () => {
+    localStorage.clear();
+    await ensureSeeded();
+    await instruments.remove('Air Bass');
+    localStorage.setItem('thoremin.instruments.seedVersion', '4');
+
+    await ensureSeeded();
+
+    const airBass = await instruments.load('Air Bass');
+    expect((airBass?.airBass as { enabled?: boolean } | undefined)?.enabled).toBe(true);
   });
 });

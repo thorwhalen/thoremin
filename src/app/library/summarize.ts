@@ -61,6 +61,9 @@ export interface InstrumentSummary {
   /** Whether the hands play the theremin voices at all. An air instrument that silences
    *  them (hand-map max gain 0) has no scale, voices or range worth describing. */
   handVoices: boolean;
+  /** Whether anything the player hears plays the scale: the theremin voices, or an air
+   *  instrument that uses it (the air bass's neck). */
+  scaleHeard: boolean;
   /** Master tweaks (the caller decides which to show — see {@link summaryLines}). */
   masterVolume: number;
   magnetism: number;
@@ -139,6 +142,7 @@ export function summarizeInstrument(s: Settings): InstrumentSummary {
     fingerFx: activeFingerFx(s.handMap),
     air: airInstrumentsOf(s),
     handVoices: s.handMap.maxGain > 0,
+    scaleHeard: s.handMap.maxGain > 0 || AIR_INSTRUMENTS.some((a) => a.usesScale && a.on(s)),
     masterVolume: s.masterVolume,
     magnetism: s.magnetism,
     octaveShift: s.octaveShift,
@@ -188,23 +192,24 @@ export function summaryLines(sum: InstrumentSummary): SummaryLine[] {
     const label = (id: AirInstrumentId) => AIR_INSTRUMENTS.find((a) => a.id === id)?.label ?? id;
     lines.push({ label: 'Air', value: sum.air.map(label).join(', ') });
   }
+  if (sum.scaleHeard) {
+    lines.push({ label: 'Scale', value: sum.scaleLabel });
+    lines.push({
+      label: 'Range',
+      value: `octave ${sum.baseOctave}, ${sum.octaves} oct${sum.octaves === 1 ? '' : 's'}`,
+    });
+  }
   if (!sum.handVoices) {
-    // An air-only instrument: the theremin voices are silent, so their scale, sounds and
-    // range describe nothing the player hears.
+    // An air-only instrument: the theremin voices are silent, so their sounds, note source
+    // and finger routing describe nothing the player hears.
     lines.push({ label: 'Hand voices', value: 'off' });
   } else {
-    lines.push({ label: 'Scale', value: sum.scaleLabel });
-
     // Each hand always keeps its OWN sound (syncHands only syncs scale/root/octaves), so
     // the voices line is driven by whether the two SOUNDS differ — not by syncHands. The
     // sync state is a separate range annotation, never a claim that the timbres match.
     const both =
       sum.rightSound === sum.leftSound ? sum.rightSound : `${sum.rightSound} / ${sum.leftSound}`;
     lines.push({ label: 'Voices', value: sum.syncHands ? `${both} (synced range)` : both });
-    lines.push({
-      label: 'Range',
-      value: `octave ${sum.baseOctave}, ${sum.octaves} oct${sum.octaves === 1 ? '' : 's'}`,
-    });
 
     lines.push({ label: 'Notes', value: `${sum.noteSource}-controlled` });
     if (sum.fingerFx.length > 0) {

@@ -49,7 +49,7 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, type AirDrumSettings } from '@/settings/schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, type AirDrumSettings, AirBassSettingsSchema, DEFAULT_AIR_BASS, type AirBassSettings } from '@/settings/schema';
 import type { ScoreDoc } from '@/score/schema';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
@@ -66,6 +66,8 @@ const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structure
 const defaultConductor = (): ConductorSettings => ({ ...DEFAULT_CONDUCTOR });
 /** A fresh copy of the shipped air-drum dial (#233): off. */
 const defaultAirDrum = (): AirDrumSettings => ({ ...DEFAULT_AIR_DRUM });
+/** A fresh copy of the shipped air-bass dial (#249): off. */
+const defaultAirBass = (): AirBassSettings => ({ ...DEFAULT_AIR_BASS });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -187,6 +189,8 @@ export interface ControlState {
   /** The air drum dial (#233): on/off, hands, point, sounds, lead, magnetism. A preset
    *  field, fed live to the `air-drum` node's `config` port through store-controls. */
   airDrum: AirDrumSettings;
+  /** The air bass dial (#249), fed live to the `air-bass` node's `config` port. */
+  airBass: AirBassSettings;
   /**
    * The loaded score (#187 PR 3): the `ScoreDoc` the `score` node plays, handed to the
    * graph through `store-controls` as the live `scoreDoc` port. TRANSIENT, like
@@ -503,6 +507,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       airDrum = current.airDrum;
     }
   }
+  // Heal the air bass dial (#249) the same way.
+  let airBass = current.airBass;
+  if (p.airBass) {
+    try {
+      airBass = AirBassSettingsSchema.parse({ ...current.airBass, ...p.airBass });
+    } catch {
+      airBass = current.airBass;
+    }
+  }
   let gestures = current.gestures;
   if (p.gestures) {
     try {
@@ -513,7 +526,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, airBass, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -554,6 +567,7 @@ export const useControls = create<ControlState>()(
       faceControls: defaultFaceControls(),
       conductor: defaultConductor(),
       airDrum: defaultAirDrum(),
+      airBass: defaultAirBass(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       trainerHud: TrainerHudParamsSchema.parse({}),
@@ -654,7 +668,8 @@ export const useControls = create<ControlState>()(
       // bump is the version marker for the schema growth.
       // v14 (#233): `airDrum` added to the preset fields (the air-drum node's params, off
       // by default); heals in mergeControls, so no data transform is needed.
-      version: 14,
+      // v15 (#249): `airBass` added the same way (off by default, healed in mergeControls).
+      version: 15,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

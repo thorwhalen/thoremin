@@ -76,12 +76,13 @@ export function deriveSystemTags(sum: InstrumentSummary): SystemTag[] {
     }
   }
 
-  // Scale and note source describe the theremin voices; with them silent they describe
-  // nothing the player hears.
-  if (sum.handVoices) {
+  // The scale is described when something plays it (the voices, or the air bass's neck);
+  // the note source only when the theremin voices sound.
+  if (sum.scaleHeard) {
     const scale = SCALE_QUALITY_TAGS[sum.scaleQuality];
     tags.push({ id: `${SYSTEM_TAG_PREFIX}scale:${sum.scaleQuality}`, ...scale });
-
+  }
+  if (sum.handVoices) {
     const note = NOTE_SOURCE_TAGS[sum.noteSource];
     tags.push({ id: `${SYSTEM_TAG_PREFIX}note:${sum.noteSource}`, ...note });
   }
