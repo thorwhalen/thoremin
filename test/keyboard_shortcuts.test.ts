@@ -71,6 +71,7 @@ describe('keyboard shortcuts (#90)', () => {
       'ArrowUp',
       'm',
       'p',
+      't',
     ]);
   });
 });

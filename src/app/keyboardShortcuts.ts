@@ -17,6 +17,7 @@ import { tinykeys } from 'tinykeys';
 import { isEditableTarget } from '@/nodes/sources/keyboard';
 import { history, registry } from './commands/registry';
 import { useControls } from './store';
+import { useTools } from './toolsStore';
 
 const OCTAVE_MIN = -2;
 const OCTAVE_MAX = 2;
@@ -74,6 +75,11 @@ export function toggleGenerativePlaying(): void {
   s.toggleSteerPlaying();
 }
 
+/** Open or close the Tools launcher — shell UI state, not a param, so not a command. */
+export function toggleToolsLauncher(): void {
+  useTools.getState().toggleLauncher();
+}
+
 /** A keymap: a tinykeys key-binding string → a zero-arg action. */
 export type Keymap = Record<string, () => void>;
 
@@ -85,6 +91,8 @@ export const DEFAULT_KEYMAP: Keymap = {
   ArrowLeft: () => adjustMagnetism(-MAGNETISM_STEP),
   m: toggleMute,
   p: toggleGenerativePlaying,
+  // The Tools launcher (Round 4, #271): every shell tool, one key from anywhere.
+  t: toggleToolsLauncher,
   // `$mod` is Cmd on macOS, Ctrl elsewhere. Both redo spellings are bound: Shift-Cmd-Z is
   // the macOS convention, Ctrl-Y the Windows one, and a player should not have to know
   // which platform the binding table was written on.

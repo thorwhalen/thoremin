@@ -1,12 +1,16 @@
 /**
- * ToolsBar — the bottom-left strip of shell affordances, one button per {@link TOOLS}
- * entry (#136).
+ * ToolsBar — the bottom-left strip of shell affordances (#136; Round 4, #271): the Tools
+ * launcher button, then one button per PINNED tool, then any tool that is running.
  *
  * This is the answer to "how does a player find the Feature Lab / the command palette",
  * and the reason both were invisible: nothing in the shell ever mentioned them. Every
  * button carries a visible TEXT label, not just an icon — the AI assistant's unlabelled
  * robot icon and the palette's hotkey-only affordance are exactly the two things a first
- * time player never discovers.
+ * time player never discovers. The launcher lists EVERY tool, labelled and described, so
+ * a tool without a pin is still one click from anywhere; the pins (the player's choice,
+ * `toolPins.ts`, over each tool's `defaultPinned`) decide which also get a button here,
+ * so the bar no longer grows with every tool. On a phone-width screen only the launcher
+ * (and a running tool) shows: the bottom strip is shared with the take cluster.
  *
  * It reads {@link useTools} for which tool is open and toggles it. Each tool's actual
  * surface mounts itself in App and renders when it is the open one.
@@ -24,24 +28,19 @@
  * first. The bar writes its live height to the `--tools-bar-h` CSS variable, which the
  * `.shell-tool-panel` and `.shell-instruments-card` rules in `index.css` read.
  */
-import { useLayoutEffect, useRef } from 'react';
-import { FlaskConical, Command, BookOpen, Hand, Music2, GraduationCap, X, type LucideIcon } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { LayoutGrid, X } from 'lucide-react';
 import { TOOLS, type Tool } from './tools';
+import { TOOL_ICONS } from './toolIcons';
+import { isPinned } from './toolsCollection';
+import { useToolPins } from './toolPins';
+import { searchTools } from './toolsCatalog';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
 import VersionBadge from './VersionBadge';
 
-/** The icon per tool id. Kept here (not in `tools.ts`) so the registry stays React-free
- *  and importable from plain Node tests. A tool with no icon still renders — label-only
- *  is fine, an icon-only button is not. */
-const ICONS: Record<string, LucideIcon> = {
-  lab: FlaskConical,
-  commands: Command,
-  gestures: Hand,
-  conductor: Music2,
-  trainer: GraduationCap,
-  manual: BookOpen,
-};
+/** The launcher's hotkey (bound in `keyboardShortcuts.ts`), shown on its button. */
+export const LAUNCHER_HOTKEY = 'T';
 
 const btnCls =
   'pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] uppercase tracking-widest backdrop-blur transition';
@@ -50,8 +49,11 @@ function ToolButton({
   tool,
   running = false,
   onStop,
+  className = '',
 }: {
   tool: Tool;
+  /** Extra classes on the outermost element (the bar hides pins on a narrow screen). */
+  className?: string;
   /** The tool is DOING something right now, whether or not its panel is open. */
   running?: boolean;
   /** Stop it. Required (by {@link ToolsBar}) whenever `running` can be true. */
@@ -59,7 +61,7 @@ function ToolButton({
 }) {
   const open = useTools((s) => s.open);
   const toggleTool = useTools((s) => s.toggleTool);
-  const Icon = ICONS[tool.id];
+  const Icon = TOOL_ICONS[tool.id];
   const isOpen = open === tool.id;
 
   const content = (
@@ -90,7 +92,7 @@ function ToolButton({
         href={tool.href}
         title={tool.description}
         data-tool={tool.id}
-        className={`${btnCls} border-white/10 bg-black/40 text-white/60 hover:text-white`}
+        className={`${btnCls} border-white/10 bg-black/40 text-white/60 hover:text-white ${className}`}
       >
         {content}
       </a>
@@ -108,7 +110,7 @@ function ToolButton({
         isOpen || running
           ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200'
           : 'border-white/10 bg-black/40 text-white/60 hover:text-white'
-      }`}
+      } ${running && onStop ? '' : className}`}
     >
       {content}
     </button>
@@ -119,7 +121,7 @@ function ToolButton({
   // A sibling rather than a nested button (nesting is invalid HTML), grouped tight so
   // the two read as one control: the tool, and the way to stop it.
   return (
-    <span className="flex items-center gap-px">
+    <span className={`flex items-center gap-px ${className}`}>
       {toggle}
       <button
         type="button"
@@ -166,17 +168,54 @@ export default function ToolsBar() {
   const metersOn = useControls((s) => s.featureLab.show);
   const setFeatureLab = useControls((s) => s.setFeatureLab);
   const isRunning = (t: Tool) => t.runsDetached === true && t.id === 'lab' && metersOn;
+  const choices = useToolPins((s) => s.choices);
+  const launcherOpen = useTools((s) => s.launcherOpen);
+  const toggleLauncher = useTools((s) => s.toggleLauncher);
   const barRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => publishHeight(barRef.current), []);
+  useEffect(() => {
+    void useToolPins.getState().hydrate();
+    // Prime the launcher's list, so its first open shows every tool at once.
+    void searchTools('');
+  }, []);
+
+  // Pinned tools, plus any tool that is running whether pinned or not: a running tool's
+  // way out must never depend on a pin (see `Tool.runsDetached`).
+  const shown = TOOLS.filter((t) => isPinned(t, choices) || isRunning(t));
 
   return (
-    <div ref={barRef} data-tools-bar className="absolute bottom-3 left-3 z-40 flex max-w-[min(28rem,calc(100vw-1.5rem))] flex-wrap items-center gap-1.5">
-      {TOOLS.map((t) => (
+    <div
+      ref={barRef}
+      data-tools-bar
+      className="absolute bottom-3 left-3 z-40 flex max-w-[max(6rem,calc(100vw-20rem))] flex-wrap items-center gap-1.5"
+    >
+      <button
+        type="button"
+        onClick={toggleLauncher}
+        data-tools-launcher
+        aria-expanded={launcherOpen}
+        aria-haspopup="dialog"
+        title="Every tool, with what it does. Pin one to keep it in this bar."
+        className={`${btnCls} ${
+          launcherOpen
+            ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200'
+            : 'border-white/10 bg-black/40 text-white/70 hover:text-white'
+        }`}
+      >
+        <LayoutGrid className="h-3 w-3 shrink-0" aria-hidden />
+        <span>Tools</span>
+        <kbd className="ml-0.5 rounded bg-white/10 px-1 py-px font-mono text-[9px] tracking-normal text-white/50">
+          {LAUNCHER_HOTKEY}
+        </kbd>
+      </button>
+      {shown.map((t) => (
         <ToolButton
           key={t.id}
           tool={t}
           running={isRunning(t)}
           onStop={t.id === 'lab' ? () => setFeatureLab({ show: false }) : undefined}
+          // Narrow screens keep only the launcher and running tools in the strip.
+          className={isRunning(t) ? '' : 'max-sm:hidden'}
         />
       ))}
       {/* The deployed-commit badge rides the same meta strip (it used to be absolutely

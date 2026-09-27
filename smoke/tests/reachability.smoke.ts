@@ -6,8 +6,9 @@
  * bundle. Two sweeps, both data-driven from the shell's own registries so a new
  * entry is covered the day it is added:
  *
- *   - every tool in `src/app/tools.ts` opens from the tools bar — a panel shows its
- *     close button, the palette shows its input, a link resolves;
+ *   - every tool in `src/app/tools.ts` opens from the shell — a pinned tool from its bar
+ *     button, any other from the Tools launcher (Round 4, #271) — and a panel shows its
+ *     close button, the palette its input, the assistant its chat, a link resolves;
  *   - every settings section of the instrument editor expands to real controls,
  *     reached the way a player reaches it: instruments list → Edit → section.
  *
@@ -20,26 +21,39 @@ import { TOOLS } from '../../src/app/tools';
 const SYNTHETIC = '?slot.source=synthetic-hands';
 
 /** What "open" looks like for each tool kind. Panels expose a close button named
- *  after the tool (the pattern every panel follows); the palette is a cmdk input. */
+ *  after the tool (the pattern every panel follows); the palette is a cmdk input; the
+ *  assistant (an overlay with no input until a key is set) shows its chat's close. */
 const OPEN_PROOF: Record<string, (page: Page, label: string) => Promise<void>> = {
   panel: async (page, label) => {
     await expect(page.getByRole('button', { name: new RegExp(`close the ${label}`, 'i') })).toBeVisible();
   },
-  overlay: async (page) => {
+  overlay: async (page, label) => {
+    if (label === 'Assistant') {
+      await expect(page.getByRole('button', { name: 'Close assistant' })).toBeVisible();
+      return;
+    }
     await expect(page.locator('[cmdk-input], input[placeholder*="command" i], input[placeholder*="dial" i]').first()).toBeVisible();
   },
   link: async () => {},
 };
 
-test.describe('every tool in src/app/tools.ts opens from the tools bar', () => {
+/** The element that opens `tool` from a cold load: its bar button if it ships pinned,
+ *  otherwise its row in the Tools launcher (opened first). Two clicks at most. */
+async function entryPoint(page: Page, tool: (typeof TOOLS)[number]) {
+  if (tool.defaultPinned) return page.locator(`[data-tools-bar] [data-tool="${tool.id}"]`);
+  await page.locator('[data-tools-launcher]').click();
+  return page.locator(`[data-launcher-tool="${tool.id}"]`).locator('a, button').first();
+}
+
+test.describe('every tool in src/app/tools.ts opens from the shell', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(SYNTHETIC);
     await expect(page.getByRole('button', { name: /tap to play/i })).toBeVisible({ timeout: 60_000 });
   });
 
   for (const tool of TOOLS) {
-    test(`${tool.id} (${tool.kind}): one click from a cold load`, async ({ page }) => {
-      const button = page.locator(`[data-tool="${tool.id}"]`);
+    test(`${tool.id} (${tool.kind}): ${tool.defaultPinned ? 'one click' : 'two clicks'} from a cold load`, async ({ page }) => {
+      const button = await entryPoint(page, tool);
       await expect(button).toBeVisible();
       await expect(button).toContainText(tool.label);
       if (tool.kind === 'link') {

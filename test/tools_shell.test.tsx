@@ -13,8 +13,9 @@
  * work that has no DOM. See the `test` block in vite.config.ts.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
+import ToolsLauncher from '@/app/ToolsLauncher';
 import LabPanel from '@/app/LabPanel';
 import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
@@ -22,6 +23,8 @@ import { TOOLS, TOOL_IDS } from '@/app/tools';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
+import { useToolPins } from '@/app/toolPins';
+import { isPinned } from '@/app/toolsCollection';
 import { useControls } from '@/app/store';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
@@ -29,8 +32,27 @@ import { defaultFeatureLab } from '@/features/labConfig';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
 
+/** The bar and its launcher, as the shell mounts them. */
+const Shell = () => (
+  <>
+    <ToolsBar />
+    <ToolsLauncher />
+  </>
+);
+
+/** Open a tool the way a player reaches an unpinned one: Tools, then its row. */
+async function openFromLauncher(label: string) {
+  fireEvent.click(screen.getByText('Tools'));
+  const row = await screen.findByText(label, { selector: '[role=dialog] span' });
+  act(() => {
+    fireEvent.click(row.closest('button, a')!);
+  });
+}
+
 beforeEach(() => {
-  useTools.setState({ open: null });
+  useTools.setState({ open: null, launcherOpen: false });
+  // Every test starts from the shipped pins.
+  useToolPins.setState({ choices: {} });
   useControls.getState().setFeatureLab(defaultFeatureLab());
   useControls.setState({ gestures: defaultGesturePrefs() });
   useTrainer.getState().reset();
@@ -41,16 +63,28 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('the tools bar is the shell entry point for every tool', () => {
-  it('renders one button per registered tool, each with a VISIBLE text label', () => {
-    render(<ToolsBar />);
+describe('the tools bar and its launcher are the shell entry point for every tool', () => {
+  it('the launcher lists EVERY registered tool, with a VISIBLE label and what it does', async () => {
+    render(<Shell />);
+    fireEvent.click(screen.getByText('Tools'));
+    const sheet = await screen.findByRole('dialog', { name: 'Tools' });
     for (const tool of TOOLS) {
       // getByText, not getByLabelText: an icon with only an aria-label is how the
       // command palette stayed invisible. If a player cannot read it, it is not an
       // entry point.
-      expect(screen.getByText(tool.label)).toBeTruthy();
+      expect(sheet.querySelector(`[data-launcher-tool="${tool.id}"]`)?.textContent).toContain(tool.label);
+      expect(sheet.textContent).toContain(tool.description);
     }
-    expect(document.querySelectorAll('[data-tool]')).toHaveLength(TOOLS.length);
+    expect(sheet.querySelectorAll('[data-launcher-tool]')).toHaveLength(TOOLS.length);
+  });
+
+  it('the bar shows exactly the pinned tools, each with a visible label', () => {
+    render(<ToolsBar />);
+    const bar = document.querySelector('[data-tools-bar]')!;
+    const pinned = TOOLS.filter((t) => isPinned(t, {}));
+    expect(pinned.length).toBeGreaterThan(0);
+    for (const t of pinned) expect(bar.querySelector(`[data-tool="${t.id}"]`)?.textContent).toContain(t.label);
+    expect(bar.querySelectorAll('[data-tool]')).toHaveLength(pinned.length);
   });
 
   it('shows the command palette hotkey, so ⌘K is discoverable without reading the source', () => {
@@ -58,19 +92,57 @@ describe('the tools bar is the shell entry point for every tool', () => {
     expect(screen.getByText('⌘K')).toBeTruthy();
   });
 
-  it('clicking a panel tool opens it (the button is wired, not decorative)', () => {
+  it('clicking a pinned tool opens it (the button is wired, not decorative)', () => {
     render(<ToolsBar />);
-    fireEvent.click(screen.getByText('Feature Lab'));
-    expect(useTools.getState().open).toBe('lab');
-    fireEvent.click(screen.getByText('Feature Lab'));
+    fireEvent.click(screen.getByText('Conductor'));
+    expect(useTools.getState().open).toBe('conductor');
+    fireEvent.click(screen.getByText('Conductor'));
     expect(useTools.getState().open).toBe(null); // and it toggles back closed
+  });
+
+  it('a tool picked in the launcher opens, and the launcher closes', async () => {
+    render(<Shell />);
+    await openFromLauncher('Gestures');
+    expect(useTools.getState().open).toBe('gestures');
+    expect(useTools.getState().launcherOpen).toBe(false);
+    expect(screen.queryByRole('dialog', { name: 'Tools' })).toBeNull();
   });
 
   it('at most one tool is open at a time', () => {
     render(<ToolsBar />);
-    fireEvent.click(screen.getByText('Feature Lab'));
+    fireEvent.click(screen.getByText('Conductor'));
     fireEvent.click(screen.getByText('Commands'));
     expect(useTools.getState().open).toBe('commands');
+  });
+
+  it('pinning a tool in the launcher gives it a button in the bar; unpinning takes it away', async () => {
+    render(<Shell />);
+    const bar = () => document.querySelector('[data-tools-bar]')!;
+    expect(bar().querySelector('[data-tool="gestures"]')).toBeNull();
+    fireEvent.click(screen.getByText('Tools'));
+    fireEvent.click(await screen.findByLabelText('Pin Gestures to the bar'));
+    expect(bar().querySelector('[data-tool="gestures"]')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Unpin Gestures from the bar'));
+    expect(bar().querySelector('[data-tool="gestures"]')).toBeNull();
+  });
+
+  it('the launcher search narrows the list by what a tool is FOR, not only its name', async () => {
+    render(<Shell />);
+    fireEvent.click(screen.getByText('Tools'));
+    await screen.findByRole('dialog', { name: 'Tools' });
+    fireEvent.change(screen.getByLabelText('Find a tool'), { target: { value: 'meters' } });
+    await waitFor(() =>
+      expect(document.querySelectorAll('[data-launcher-tool]')).toHaveLength(1),
+    );
+    expect(document.querySelector('[data-launcher-tool="lab"]')).toBeTruthy();
+  });
+
+  it('Escape closes the launcher', async () => {
+    render(<Shell />);
+    fireEvent.click(screen.getByText('Tools'));
+    await screen.findByRole('dialog', { name: 'Tools' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Tools' })).toBeNull();
   });
 });
 
@@ -125,15 +197,15 @@ describe('the Feature Lab is reachable and explains itself', () => {
     expect(screen.getByLabelText(/Max features/i)).toBeTruthy();
   });
 
-  it('the whole chain works: shell button -> open state -> panel renders', () => {
+  it('the whole chain works: launcher -> open state -> panel renders', async () => {
     render(
       <>
-        <ToolsBar />
+        <Shell />
         <LabPanel />
       </>,
     );
     expect(screen.queryByText(/Start measuring/i)).toBeNull();
-    fireEvent.click(screen.getByText('Feature Lab'));
+    await openFromLauncher('Feature Lab');
     expect(screen.getByText(/Start measuring/i)).toBeTruthy();
   });
 });
@@ -144,15 +216,15 @@ describe('the Gestures panel is reachable and edits the binding map (#129)', () 
     expect(container.firstChild).toBeNull();
   });
 
-  it('the whole chain works: shell button -> open state -> a row per known gesture with a command picker', () => {
+  it('the whole chain works: launcher -> open state -> a row per known gesture with a command picker', async () => {
     render(
       <>
-        <ToolsBar />
+        <Shell />
         <GesturesPanel />
       </>,
     );
     expect(screen.queryByLabelText('Enable gesture commands')).toBeNull();
-    fireEvent.click(screen.getByText('Gestures'));
+    await openFromLauncher('Gestures');
     expect(useTools.getState().open).toBe('gestures');
     // Every gesture the classifier can emit gets a labelled row and a picker.
     for (const g of GESTURE_IDS) expect(screen.getByText(GESTURE_LABELS[g])).toBeTruthy();
@@ -711,18 +783,17 @@ describe('a tool that keeps running after its panel closes', () => {
     });
   }
 
-  it('the reported bug, end to end: start the meters, close the panel, still get out', () => {
+  it('the reported bug, end to end: start the meters, close the panel, still get out', async () => {
     render(
       <>
-        <ToolsBar />
+        <Shell />
         <LabPanel />
       </>,
     );
 
-    // Open the Lab and press its own call to action.
-    act(() => {
-      fireEvent.click(screen.getByText('Feature Lab').closest('button')!);
-    });
+    // Open the Lab (unpinned by default: from the launcher) and press its own call to
+    // action. Its way out below must not depend on it being pinned.
+    await openFromLauncher('Feature Lab');
     act(() => {
       fireEvent.click(screen.getByText('Start measuring'));
     });

@@ -1,8 +1,9 @@
 /**
  * The app shell mounts a surface for every registered tool (#136).
  *
- * `ToolsBar` renders a button per {@link TOOLS} entry — which means it can render a
- * button for a tool whose panel nobody mounted, i.e. a button that does nothing. This is
+ * The Tools launcher lists every {@link TOOLS} entry (and the bar a button per pinned one)
+ * — which means it can offer a tool whose panel nobody mounted, i.e. a button that does
+ * nothing. This is
  * the guard against that, and against the shell quietly dropping the tools bar itself.
  *
  * It is a SOURCE check rather than a render: mounting App boots the webcam and the ML
@@ -24,11 +25,13 @@ const SURFACES: Record<string, string> = {
   gestures: 'GesturesPanel',
   trainer: 'TrainerPanel',
   conductor: 'ConductorPanel',
+  assistant: 'AssistantOverlay',
 };
 
 describe('app shell', () => {
-  it('renders the ToolsBar (the only place a player learns these tools exist)', () => {
+  it('renders the ToolsBar and the Tools launcher (the only place a player learns these tools exist)', () => {
     expect(app).toMatch(/<ToolsBar\s*\/>/);
+    expect(app).toMatch(/<ToolsLauncher\s*\/>/);
   });
 
   it('mounts a surface component for every non-link tool', () => {

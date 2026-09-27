@@ -13,41 +13,63 @@
  *
  *   **A feature only findable by someone who read the PR is not shipped.**
  *
- * So: add a tool here, and `ToolsBar` grows a labelled button for it automatically. A test
- * asserts the shell mounts a surface for every entry — registering a tool without giving
- * it a home fails the build, and building a tool without registering it means no button,
- * which is the failure mode we are pricing in.
+ * So: add a tool here, and the Tools launcher lists it, labelled and described, one click
+ * from anywhere; pinned (by default or by the player), it also has its own button in the
+ * bar (Round 4, Discussion #271: the bar stopped growing with every tool). A test asserts
+ * the shell mounts a surface for every entry — registering a tool without giving it a home
+ * fails the build.
+ *
+ * The tools are a COLLECTION: {@link ToolSchema} is the SSOT of what a tool is, and
+ * `toolsCollection.ts` declares the collection's affordances (search, grouping) over it;
+ * the launcher and the bar are renderings of that.
  *
  * Not every surface is a tool. An INSTRUMENT is chosen from the Instruments view, never
  * from here: the air drum was a tool panel for one release and moved out (#249) because
  * "one place to choose instruments from" is the maintainer's rule, not a preference.
  *
- * Kept React-free (plain data, no icons) so it is importable in plain Node tests; the
- * icon for each id is chosen in {@link ToolsBar}.
+ * Kept React-free (data plus its schema, no icons) so it is importable in plain Node tests
+ * and by the browser smoke; the icon for each id is chosen in {@link ToolsBar}.
  */
+import { z } from 'zod';
 
-/** How a tool opens. */
-export type ToolKind =
-  /** A panel in the shell, toggled by the tools bar (and tracked in {@link useTools}). */
-  | 'panel'
-  /** An overlay with its own hotkey; the bar button opens it too. */
-  | 'overlay'
-  /** A plain link out of the app (the generated manual). */
-  | 'link';
+/** How a tool opens. `panel`: a panel in the shell, tracked in `useTools`. `overlay`: an
+ *  overlay (with its own hotkey when it has one); the launcher opens it too. `link`: a
+ *  plain link out of the app (the generated manual). */
+export const ToolKindSchema = z.enum(['panel', 'overlay', 'link']);
+export type ToolKind = z.infer<typeof ToolKindSchema>;
 
-export interface Tool {
+/**
+ * The launcher's sections, in display order. A *mode* takes the instrument over for a
+ * session of its own (both hush it); a *tool* is used on the instrument between takes;
+ * *help* is reference.
+ */
+export const TOOL_GROUPS = [
+  { id: 'mode', label: 'Modes', hint: 'take over the instrument' },
+  { id: 'tool', label: 'Tools', hint: 'use on the instrument' },
+  { id: 'help', label: 'Help', hint: '' },
+] as const;
+export const ToolGroupSchema = z.enum(['mode', 'tool', 'help']);
+export type ToolGroup = z.infer<typeof ToolGroupSchema>;
+
+export const ToolSchema = z.object({
   /** Stable id — the key `useTools.open` holds, and the `data-tool` test hook. */
-  id: string;
-  /** The button label. Shown, not just an aria-label: an unlabelled icon is how the
-   *  command palette stayed invisible for a whole release. */
-  label: string;
-  /** One line, shown as the button's tooltip and as the panel's intro strapline. */
-  description: string;
-  kind: ToolKind;
+  id: z.string().min(1),
+  /** The label. Always shown as text, never an icon alone: an unlabelled icon is how the
+   *  command palette (and the assistant's robot) stayed invisible for a whole release. */
+  label: z.string().min(1),
+  /** One line: the launcher row's second line, the button's tooltip and the panel's
+   *  intro strapline. */
+  description: z.string().min(1),
+  kind: ToolKindSchema,
+  /** Which launcher section it is listed in. */
+  group: ToolGroupSchema,
+  /** Whether it has its own button in the bar until the player says otherwise. The
+   *  player's choice (`toolPins.ts`) overrides it; this is only the out-of-the-box bar. */
+  defaultPinned: z.boolean(),
   /** Displayed on the button and in the keyboard cheat-sheet, e.g. `⌘K`. */
-  hotkey?: string;
+  hotkey: z.string().optional(),
   /** For `kind: 'link'` — the href. */
-  href?: string;
+  href: z.string().optional(),
   /**
    * True when the tool keeps **doing something visible after its panel is closed**.
    * The Feature Lab is the only one: its meters go on drawing over the video, which
@@ -64,41 +86,32 @@ export interface Tool {
    * with nothing on screen to explain them.
    *
    * So a tool that runs detached owes the bar a **stop** control, live whenever it is
-   * running — reachable with its panel shut, and with no memory of how it was
-   * started. `tools_shell.test.tsx` enforces that rather than trusting this comment.
+   * running — pinned or not, reachable with its panel shut, and with no memory of how it
+   * was started. `tools_shell.test.tsx` enforces that rather than trusting this comment.
    */
-  runsDetached?: boolean;
-}
+  runsDetached: z.boolean().optional(),
+});
+export type Tool = z.infer<typeof ToolSchema>;
 
-export const TOOLS: readonly Tool[] = [
-  {
-    id: 'lab',
-    label: 'Feature Lab',
-    description:
-      'Measure the raw face and hand features the instrument plays from — live, normalized meters.',
-    kind: 'panel',
-    runsDetached: true,
-  },
-  {
-    id: 'commands',
-    label: 'Commands',
-    description: 'Search every dial by name and set it — the same command path the AI assistant uses.',
-    kind: 'overlay',
-    hotkey: '⌘K',
-  },
-  {
-    id: 'gestures',
-    label: 'Gestures',
-    description:
-      'Bind hand poses (fist, open palm, pinch) to commands for hands-free control — hold a pose to fire it.',
-    kind: 'panel',
-  },
+/**
+ * The shipped tools, in launcher order within each group. The default pins (Round 4,
+ * #271) are the two modes and the command palette:
+ *  - Conductor and Trainer each take over a whole session, and are what a player comes
+ *    to the app to try, so they get a button;
+ *  - Commands reaches every setting by name, and its pill teaches the ⌘K hotkey;
+ *  - Feature Lab and Gestures are setup and diagnosis, used rarely (the Lab still shows
+ *    itself in the bar whenever it is running); the Assistant needs a key before it can
+ *    do anything, and a player who sets one up can pin it; the Manual is reference.
+ */
+export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
   {
     id: 'conductor',
     label: 'Conductor',
     description:
       'Conduct a score with your hand: beat time in front of the camera and the piece follows your tempo and dynamics.',
     kind: 'panel',
+    group: 'mode',
+    defaultPinned: true,
   },
   {
     id: 'trainer',
@@ -106,15 +119,55 @@ export const TOOLS: readonly Tool[] = [
     description:
       'Teach the instrument the faces you can actually make — a one-minute guided take, then pick how many categories.',
     kind: 'panel',
+    group: 'mode',
+    defaultPinned: true,
+  },
+  {
+    id: 'commands',
+    label: 'Commands',
+    description: 'Search every dial by name and set it — the same command path the AI assistant uses.',
+    kind: 'overlay',
+    group: 'tool',
+    defaultPinned: true,
+    hotkey: '⌘K',
+  },
+  {
+    id: 'assistant',
+    label: 'Assistant',
+    description: 'Chat with an AI that operates the instrument for you (bring your own API key).',
+    kind: 'overlay',
+    group: 'tool',
+    defaultPinned: false,
+  },
+  {
+    id: 'lab',
+    label: 'Feature Lab',
+    description:
+      'Measure the raw face and hand features the instrument plays from — live, normalized meters.',
+    kind: 'panel',
+    group: 'tool',
+    defaultPinned: false,
+    runsDetached: true,
+  },
+  {
+    id: 'gestures',
+    label: 'Gestures',
+    description:
+      'Bind hand poses (fist, open palm, pinch) to commands for hands-free control — hold a pose to fire it.',
+    kind: 'panel',
+    group: 'tool',
+    defaultPinned: false,
   },
   {
     id: 'manual',
     label: 'Manual',
     description: 'The generated capabilities manual: every node, dial, sound and overlay element.',
     kind: 'link',
+    group: 'help',
+    defaultPinned: false,
     href: 'manual.html',
   },
-] as const;
+]);
 
 export const TOOL_IDS: readonly string[] = TOOLS.map((t) => t.id);
 
