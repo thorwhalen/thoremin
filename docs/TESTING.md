@@ -53,7 +53,7 @@ while main auto-deployed to production.
 | `npm test` | **yes** | same |
 | `npm run build` | **yes** | same |
 | `npm run catalog` | **no** — still yours to run | run it locally after adding/renaming a node or changing a port/param, and commit the result |
-| `npm run smoke` | **yes**, as its own job | `.github/workflows/smoke.yml` — the browser smoke harness (#209): builds the bundle, serves it with `vite preview`, boots it headless in Chromium with `?slot.source=synthetic-hands`, and asserts the engine ticks, the audio graph comes up, the overlay draws, no page error fires, and every tool in `src/app/tools.ts` and every settings section is reachable from a cold load. Deliberately **not** part of `npm test`: it installs a browser and takes longer than the whole vitest suite. |
+| `npm run smoke` | **yes**, as its own job, **gated** (see below) | `.github/workflows/smoke.yml` — the browser smoke harness (#209): builds the bundle, serves it with `vite preview`, boots it headless in Chromium with `?slot.source=synthetic-hands`, and asserts the engine ticks, the audio graph comes up, the overlay draws, no page error fires, and every tool in `src/app/tools.ts` and every settings section is reachable from a cold load. Deliberately **not** part of `npm test`: it installs a browser and takes longer than the whole vitest suite. |
 | `npm run lint` | **no**, deliberately | `tsc --noEmit` over the *whole* tree, including the React layer the repo ships no `@types/react` for. It is red (19 errors as of 2026-08-17) and has been for a long time. Adding a known-red check would train everyone to ignore the X, which is worse than not having it. `npm run typecheck` (strict, `tsconfig.dag.json`) plus `npm run build` (which is what actually verifies the React layer) is the honest pair. |
 
 The CI job is *advisory to the deploy*, not a precondition for it: `deploy.yml` still
@@ -111,6 +111,14 @@ The app cooperates through one read-only probe, `window.thoremin` (`src/app/debu
 **Measuring latency (#227).** `?probe=latency` (`src/app/latencyProbe.ts`, core in `src/latency/`) attaches an engine tap that times every stage from camera capture to loudspeaker on the live instrument, shows it in a panel and on `window.thoreminLatency`, and runs the microphone strike test (glass-to-air onset latency). `node smoke/latency/measure.mjs --headed --video clip.y4m` drives it in Chromium and adds offline audio measurements; the results and the procedure for a person with a webcam are in [`docs/research/latency-budget-and-browser-realtime.md`](research/latency-budget-and-browser-realtime.md).
 
 Whether the smoke job should gate the deploy, and whether #201's React-layer type ratchet should live beside it, are the maintainer's decisions; the harness is where such a check would go.
+
+**Cost gating.** `ci.yml` (this section's typecheck/test/build gate) runs on every pull
+request and push — it's cheap (~$0.012/run if this repo were private) and its signal is
+always worth having. `smoke.yml` pays a fixed Chromium-install tax on top, so it runs
+automatically only on a push to `main` (the commit about to deploy) or a manual
+`workflow_dispatch`; on an ordinary pull request it is opt-in via the `ci-full` label or
+`[ci-full]` in the PR title. See [`docs/CI_COST.md`](CI_COST.md) for the measured
+numbers and the reasoning.
 
 ## On-disk fixture layout
 

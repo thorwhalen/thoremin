@@ -14,12 +14,27 @@
 #
 # The harness is a self-contained sub-project (`smoke/`): its Playwright dependency
 # never enters the app's package.json or node_modules. Locally: `npm run smoke`.
+#
+# COST GATING (docs/CI_COST.md). Of the two CI workflows, this is the expensive
+# one: it installs a Chromium binary every run on top of the app install, vs.
+# ci.yml's plain `npm ci`. So it does not run on every PR push by default —
+# only on the signals that actually need a browser verdict: a push to main
+# (the commit about to deploy), a manual workflow_dispatch, or an explicit
+# opt-in on the PR (the `ci-full` label, or `[ci-full]` in the PR title). The
+# condition lives directly on the `smoke` job's `if:` — a job GitHub Actions
+# skips before starting a runner bills nothing, so there is no separate
+# "decide" job to pay for. `labeled`/`unlabeled`/`edited` are in the trigger
+# list so adding/removing the label or editing the title takes effect without
+# needing a new push. The always-on `ci.yml` gate still runs on every push
+# regardless.
 name: Browser smoke
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
   push:
     branches: [main]
+  workflow_dispatch: {}
 
 concurrency:
   group: smoke-${{ github.ref }}
@@ -31,6 +46,10 @@ permissions:
 jobs:
   smoke:
     name: built bundle, headless Chromium
+    if: >
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full') ||
+      contains(github.event.pull_request.title, '[ci-full]')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
