@@ -22,9 +22,9 @@
  * absent `mute` is treated as false (passthrough), so pre-mute graphs are unchanged.
  *
  * A second, narrower switch, `hush`, silences every stream EXCEPT `d` (the conducted
- * score): the instrument goes quiet while a tool needs the room — the Trainer, or the
- * conductor, whose score IS the music then — without silencing the piece being
- * conducted. See `hushOf` in `store-controls` for when it is raised.
+ * score): the instrument goes quiet while the conductor is on — its score IS the music
+ * then — without silencing the piece being conducted. (A tool that needs the whole room,
+ * the Trainer, raises `mute` instead.) See `hushOf` in `store-controls`.
  */
 import { defineNode } from '@/dag';
 import type { SynthParams } from '../domain';

@@ -2229,7 +2229,7 @@
         "kind": "boolean"
       },
       {
-        "name": "hushStrikes",
+        "name": "muteAll",
         "kind": "boolean"
       },
       {

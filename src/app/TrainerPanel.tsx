@@ -62,7 +62,8 @@ import { toolById } from './tools';
 import { STARTER_ROUTINES, routineRecordsPerformance, starterRoutineById } from './enroll/realVsAirCues';
 import { clickPlayer } from './enroll/click';
 
-const TOOL_ID = 'trainer';
+/** The tool id, and the id of the Trainer's hush claim (see `useControls.setHush`). */
+export const TOOL_ID = 'trainer';
 /** ~30 Hz: fast enough that the sampler's dwell logic sees a smooth signal, slow enough
  *  that the panel is not doing frame-rate work. */
 const SAMPLE_INTERVAL_MS = 33;
@@ -351,7 +352,7 @@ export default function TrainerPanel() {
         data-tool={TOOL_ID}
         data-compact
         data-banner
-        className="fixed left-1/2 top-12 z-[60] flex w-[42rem] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col gap-1.5 rounded-2xl border border-emerald-400/40 bg-black/80 px-4 py-3 shadow-2xl backdrop-blur"
+        className="fixed left-1/2 top-12 z-[60] flex w-[min(42rem,calc(100vw-1.5rem))] lg:w-[min(42rem,calc(100vw-27rem))] -translate-x-1/2 flex-col gap-1.5 rounded-2xl border border-emerald-400/40 bg-black/80 px-4 py-3 shadow-2xl backdrop-blur"
         aria-live="polite"
       >
         <div className="flex items-center gap-2">
@@ -398,7 +399,7 @@ export default function TrainerPanel() {
             Stop
           </button>
         </div>
-        {/* The written channel is ALWAYS here too, in case the HUD is hidden. */}
+        {/* The written channel: always here, whatever the voice toggle says. */}
         <p className="text-lg font-medium leading-snug text-white" data-say>
           {status === 'between' ? lastEndSay ?? '' : activeCue.instruction}
         </p>

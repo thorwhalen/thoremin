@@ -32,7 +32,7 @@ import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import ToolsBar from './ToolsBar';
 import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
-import TrainerPanel from './TrainerPanel';
+import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
 import ScoreLoader from './ScoreLoader';
 import ConductorPanel from './ConductorPanel';
 import VersionBadge from './VersionBadge';
@@ -95,7 +95,7 @@ function MutedBadge() {
  * MutedBadge because nothing is wrong and nothing needs doing — it lifts by itself. */
 function HushBadge() {
   const muted = useControls((s) => s.muted);
-  const training = useControls((s) => s.hushedBy.includes('trainer'));
+  const training = useControls((s) => s.hushedBy.includes(TRAINER_TOOL_ID));
   const conducting = useControls((s) => s.conductor.enabled);
   if (muted || !(training || conducting)) return null;
   const why = training ? 'while the Trainer is open' : 'while conducting';

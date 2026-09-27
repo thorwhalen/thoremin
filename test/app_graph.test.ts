@@ -251,7 +251,9 @@ describe('production app graph', () => {
     // face-chord instruments (which merge in after voice-mapping) are muted along
     // with the hand voices — the fix for #91. Since #90 the mute is a store flag
     // sourced from `ui` (store-controls), not the retired `keyboard-control` node.
-    expect(has('ui', 'mute', 'merge', 'mute')).toBe(true);
+    // Round 4: the merge reads `muteAll` = the player's mute OR a tool's hush claim
+    // (`hushOf`, whose tests pin that `muted` alone raises it), so M still reaches it.
+    expect(has('ui', 'muteAll', 'merge', 'mute')).toBe(true);
     // The original hand-stage mute edge is still present (belt-and-suspenders).
     expect(has('ui', 'mute', 'map', 'mute')).toBe(true);
   });

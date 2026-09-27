@@ -388,6 +388,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     render(<TrainerPanel />);
     // Off by default since the running banner became the on-screen instruction.
     expect(useControls.getInitialState().trainerHud.show).toBe(false);
+    // (Set explicitly: other tests leave the shared store's pref on.)
     useControls.getState().setTrainerHud({ show: false });
     const box = screen.getByLabelText(/instructions into the video/i) as HTMLInputElement;
     expect(box.checked).toBe(false);

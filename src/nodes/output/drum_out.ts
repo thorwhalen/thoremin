@@ -220,8 +220,8 @@ export const drumOutNode = defineNode<Params>({
   description: 'Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).',
   inputs: [
     { name: 'hits', kind: 'drum-hits' },
-    // The instrument hush (`hushOf` in store-controls): true → drop every event, so
-    // nothing new sounds while a tool (the Trainer) holds the room. Absent → false.
+    // The player's mute or a tool's hush (`muteAll`, see `hushOf` in store-controls):
+    // true → drop every event, so nothing new sounds. Absent → false.
     { name: 'mute', kind: 'boolean', default: false },
   ],
   outputs: [],

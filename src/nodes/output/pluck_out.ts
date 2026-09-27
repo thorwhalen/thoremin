@@ -139,8 +139,8 @@ export const pluckOutNode = defineNode<Params>({
   description: 'Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).',
   inputs: [
     { name: 'notes', kind: 'note-events' },
-    // The instrument hush (`hushOf` in store-controls): true → drop every event, so
-    // nothing new sounds while a tool (the Trainer) holds the room. Absent → false.
+    // The player's mute or a tool's hush (`muteAll`, see `hushOf` in store-controls):
+    // true → drop every event, so nothing new sounds. Absent → false.
     { name: 'mute', kind: 'boolean', default: false },
   ],
   outputs: [],
