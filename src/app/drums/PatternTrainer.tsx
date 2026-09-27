@@ -24,6 +24,7 @@ import { clickPlayer } from '../enroll/click';
 import { hitsSince } from './hitsTap';
 import { loadPatternModel, removePatternModel, savePatternModel } from './patternModels';
 import { refreshPatternPlay } from './patternPlaySync';
+import { TRAINING_ANCHORS } from '../training/routes';
 import { useControls } from '../store';
 import { PatternStrip } from './PatternStrip';
 
@@ -166,7 +167,7 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
   const model = phase.kind === 'done' ? phase.model : saved;
   const shade = model ? (i: number) => (playbackOffset(model, i) > 0 ? 'rgb(251,146,60)' : playbackOffset(model, i) < 0 ? 'rgb(96,165,250)' : undefined) : undefined;
   return (
-    <div className="space-y-2 rounded-lg border border-white/10 p-2" data-testid="pattern-trainer" data-phase={phase.kind}>
+    <div id={TRAINING_ANCHORS.drumPatterns} className="space-y-2 rounded-lg border border-white/10 p-2" data-testid="pattern-trainer" data-phase={phase.kind}>
       <div className="text-[11px] font-bold uppercase tracking-widest text-white/60">Learn a drum pattern</div>
       <p className="text-[10px] leading-relaxed text-white/50">
         Pick a pattern, press Start: one bar of clicks counts you in at its tempo, then play it through {passes} times. The strip's cursor shows where you are.

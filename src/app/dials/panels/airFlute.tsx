@@ -33,6 +33,7 @@ import { VocabularyEnrolment, type EnrolmentWords } from '../../air/VocabularyEn
 import { SequenceTrainer, type SequenceTrainerWords } from '../../air/SequenceTrainer';
 import { FingeringGuide } from '../../air/FingeringGuide';
 import { FLUTE_STARTER_SEQUENCES } from '../../enroll/sequenceStore';
+import { TRAINING_ANCHORS } from '../../training/routes';
 import { useControls } from '../../store';
 import { checkTake, expectedFingering, priorOptionsFrom, type FingeringPriorSettings } from '@/air/fingering_prior';
 import { FINGERING_CHARTS } from '@/music/fingerings';
@@ -214,6 +215,7 @@ export function AirFluteControls() {
         guide={(label, dim) => fluteGuide(prior, label, dim)}
         starters={FLUTE_STARTER_SEQUENCES}
         words={SEQUENCE_WORDS}
+        id={TRAINING_ANCHORS.fluteSequence}
       />
       <FluteChartControls prior={prior} enabled={enabled} />
       <label className="flex items-center justify-between gap-2 text-xs">

@@ -58,6 +58,8 @@ export interface SequenceTrainerProps {
   guide?: (label: string, dim: boolean) => ReactNode;
   starters: readonly NamedSequence[];
   words: SequenceTrainerWords;
+  /** The DOM id a training route scrolls to (`src/app/training/routes.ts`). */
+  id?: string;
 }
 
 type Outcome = { label: string; result: TargetResult; learned: boolean };
@@ -72,7 +74,7 @@ function describe(r: TargetResult): string {
 
 const learnable = (r: TargetResult) => r.outcome === 'held' && r.samples.length >= MIN_SAMPLES_PER_ENTRY && r.verdict?.kind !== 'mismatch';
 
-export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, makeCheck, guide, starters, words }: SequenceTrainerProps) {
+export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, makeCheck, guide, starters, words, id }: SequenceTrainerProps) {
   const enrol = useVocabulary((s) => s.enrol);
   const saveError = useVocabulary((s) => s.error);
   const hushId = useRef(`${SEQUENCE_HUSH_ID}-${++instances}`).current;
@@ -187,7 +189,7 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
   const total = spec ? sequenceLength(spec) : 0;
 
   return (
-    <div className="space-y-2 rounded-lg border border-white/10 p-2" data-testid="sequence-trainer" data-phase={view?.phase ?? 'idle'}>
+    <div id={id} className="space-y-2 rounded-lg border border-white/10 p-2" data-testid="sequence-trainer" data-phase={view?.phase ?? 'idle'}>
       <div className="text-[11px] font-bold uppercase tracking-widest text-white/60">{words.title}</div>
       {!running && (
         <>
