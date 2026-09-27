@@ -25,19 +25,24 @@
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
 
-/** The slice of the settings the derivation reads. Structural, so tests need no full Settings. */
+/**
+ * The slice of the settings the derivation reads. Structural, so tests need no full
+ * Settings, and every field optional at the type level: the hot store is read inside a
+ * zustand selector on EVERY store change, including mid-migration of an older persisted
+ * state, and a missing sub-object must derive "off", never throw and take the app down.
+ */
 export interface DerivationSettings {
-  handMap: { maxGain: number };
-  faceMapping: string;
-  body: { enabled: boolean };
-  bodyMap: { routes: Record<string, { target: string; feature: string }> };
-  conductor: { enabled: boolean };
-  midi: { enabled: boolean };
-  steer: { enabled: boolean };
-  airDrum: { enabled: boolean };
-  airBass: { enabled: boolean };
-  airGuitar: { enabled: boolean };
-  airFlute: { enabled: boolean };
+  handMap?: { maxGain?: number };
+  faceMapping?: string;
+  body?: { enabled?: boolean };
+  bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
+  conductor?: { enabled?: boolean };
+  midi?: { enabled?: boolean };
+  steer?: { enabled?: boolean };
+  airDrum?: { enabled?: boolean };
+  airBass?: { enabled?: boolean };
+  airGuitar?: { enabled?: boolean };
+  airFlute?: { enabled?: boolean };
 }
 
 export interface DerivationContext {
@@ -51,8 +56,10 @@ const NO_DEMAND: DemandedGroups = new Set();
 
 /** Whether any body route is live (a target other than `none`, with a feature). */
 export function bodyMapRoutesAnything(bodyMap: DerivationSettings['bodyMap']): boolean {
-  return Object.values(bodyMap.routes).some((r) => r && r.target !== 'none' && r.feature !== '');
+  return Object.values(bodyMap?.routes ?? {}).some((r) => !!r && r.target !== undefined && r.target !== 'none' && !!r.feature);
 }
+
+const on = (x: { enabled?: boolean } | undefined): boolean => x?.enabled === true;
 
 /**
  * The branch ids `settings` and `ctx` imply, in no particular order (the composer orders).
@@ -65,10 +72,12 @@ export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContex
     if (on && !ids.includes(id)) ids.push(id);
   };
 
-  const fieldVoices = settings.handMap.maxGain > 0;
+  // The hand voices default ON: a settings object with no hand map yet (mid-migration) is a
+  // field instrument until told otherwise, which is also what the seeds' defaults say.
+  const fieldVoices = (settings.handMap?.maxGain ?? 1) > 0;
   add('field-voices', fieldVoices);
 
-  const faceMapping = settings.faceMapping;
+  const faceMapping = settings.faceMapping ?? 'none';
   const faceWanted = faceMapping !== 'none' || labWantsFace(ctx.featureLab) || demandWantsFace(demanded);
   add('face-source', faceWanted);
   // The timbre branch colours the hand voices; without them it has nothing to colour.
@@ -76,18 +85,18 @@ export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContex
   add('face-chord', faceMapping === 'chord');
   add('face-controls', faceMapping === 'controls');
 
-  const bodyWanted = settings.body.enabled || labWantsBody(ctx.featureLab) || demandWantsBody(demanded);
+  const bodyWanted = on(settings.body) || labWantsBody(ctx.featureLab) || demandWantsBody(demanded);
   add('body-source', bodyWanted);
   // The router modulates the hand voices: it needs the body AND the voices.
   add('body-route', bodyWanted && fieldVoices && bodyMapRoutesAnything(settings.bodyMap));
 
-  add('conductor', settings.conductor.enabled);
-  add('midi-out', settings.midi.enabled);
-  add('generative', settings.steer.enabled);
-  add('air-drum', settings.airDrum.enabled);
-  add('air-bass', settings.airBass.enabled);
-  add('air-guitar', settings.airGuitar.enabled);
-  add('air-flute', settings.airFlute.enabled);
+  add('conductor', on(settings.conductor));
+  add('midi-out', on(settings.midi));
+  add('generative', on(settings.steer));
+  add('air-drum', on(settings.airDrum));
+  add('air-bass', on(settings.airBass));
+  add('air-guitar', on(settings.airGuitar));
+  add('air-flute', on(settings.airFlute));
   return ids;
 }
 

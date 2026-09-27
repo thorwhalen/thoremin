@@ -81,6 +81,12 @@ describe('branchIdsFor: the dials imply the branches', () => {
     expect(branchIdsFor(all).sort()).toEqual(['conductor', 'field-voices', 'generative', 'midi-out']);
   });
 
+  it('a partial settings object (mid-migration of an older persisted state) derives without throwing', () => {
+    expect(branchIdsFor({})).toEqual(['field-voices']);
+    expect(branchIdsFor({ faceMapping: 'chord' } as never).sort()).toEqual(['face-chord', 'face-source', 'field-voices']);
+    expect(branchIdsFor({ bodyMap: { routes: { a: undefined } }, body: { enabled: true } }).sort()).toEqual(['body-source', 'field-voices']);
+  });
+
   it('branchSetKey is order-insensitive', () => {
     expect(branchSetKey(['b', 'a'])).toBe(branchSetKey(['a', 'b']));
     expect(branchSetKey(['a'])).not.toBe(branchSetKey(['a', 'b']));
