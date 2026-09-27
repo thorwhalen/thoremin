@@ -18,20 +18,24 @@ export interface OutputReader {
 
 const latest = new Map<string, FeatureVector | null>();
 
-/** Per-tick sink: copy one node's `shape` output into its holder (no React). */
-export function makeShapeTap(engine: OutputReader, nodeId: string): () => void {
+const keyOf = (nodeId: string, port: string) => `${nodeId}.${port}`;
+
+/** Per-tick sink: copy one node's shape output (`shape` by default; the flute also has
+ *  `mouth`) into its holder (no React). */
+export function makeShapeTap(engine: OutputReader, nodeId: string, port = 'shape'): () => void {
+  const key = keyOf(nodeId, port);
   return () => {
-    const v = engine.getOutput(nodeId, 'shape') as FeatureVector | null | undefined;
-    latest.set(nodeId, v ?? null);
+    const v = engine.getOutput(nodeId, port) as FeatureVector | null | undefined;
+    latest.set(key, v ?? null);
   };
 }
 
-/** The node's latest live shape (null: no hand, or the instrument is off). */
-export const readShape = (nodeId: string): FeatureVector | null => latest.get(nodeId) ?? null;
+/** The node's latest live shape (null: nothing in view, or the instrument is off). */
+export const readShape = (nodeId: string, port = 'shape'): FeatureVector | null => latest.get(keyOf(nodeId, port)) ?? null;
 
 /** Set a holder directly (tests); `setShape(id, null)` clears one. */
-export function setShape(nodeId: string, v: FeatureVector | null): void {
-  latest.set(nodeId, v);
+export function setShape(nodeId: string, v: FeatureVector | null, port = 'shape'): void {
+  latest.set(keyOf(nodeId, port), v);
 }
 
 /** Clear every holder (the engine teardown). */

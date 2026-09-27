@@ -55,11 +55,16 @@ export interface VocabularyEnrolmentProps {
   /** The canonical name for what the player typed, or null when it is not a valid name. */
   canonical: (typed: string) => string | null;
   words: EnrolmentWords;
+  /**
+   * A FIXED vocabulary (the flute's two mouth states): one Learn button per label and no
+   * name field. Absent = the player names each entry (chords, notes).
+   */
+  fixedLabels?: readonly string[];
 }
 
 type Phase = { kind: 'idle' } | { kind: 'countdown'; label: string; left: number } | { kind: 'capture'; label: string; got: number };
 
-export function VocabularyEnrolment({ enabled, useVocabulary, readShape, canonical, words }: VocabularyEnrolmentProps) {
+export function VocabularyEnrolment({ enabled, useVocabulary, readShape, canonical, words, fixedLabels }: VocabularyEnrolmentProps) {
   const { vocab, enrol, remove, error: saveError } = useVocabulary();
   const [name, setName] = useState('');
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
@@ -156,26 +161,44 @@ export function VocabularyEnrolment({ enabled, useVocabulary, readShape, canonic
           ))}
         </ul>
       )}
-      <div className="flex gap-1">
-        <input
-          className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs outline-none placeholder:text-white/30 focus:bg-white/20"
-          placeholder={words.placeholder}
-          aria-label={words.inputLabel}
-          value={name}
-          disabled={busy}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && valid && enabled && !busy) learn(valid);
-          }}
-        />
-        <button
-          className="rounded bg-emerald-500 px-2 py-1 text-xs font-semibold text-black transition hover:bg-emerald-400 disabled:bg-white/10 disabled:text-white/40"
-          disabled={!valid || !enabled || busy}
-          onClick={() => valid && learn(valid)}
-        >
-          Learn
-        </button>
-      </div>
+      {fixedLabels ? (
+        <div className="flex flex-wrap gap-1">
+          {fixedLabels.map((label) => {
+            const learned = vocab.entries.some((e) => e.label === label);
+            return (
+              <button
+                key={label}
+                className="rounded bg-emerald-500 px-2 py-1 text-xs font-semibold text-black transition hover:bg-emerald-400 disabled:bg-white/10 disabled:text-white/40"
+                disabled={!enabled || busy}
+                onClick={() => learn(label)}
+              >
+                {learned ? `Re-learn ${label}` : `Learn ${label}`}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex gap-1">
+          <input
+            className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs outline-none placeholder:text-white/30 focus:bg-white/20"
+            placeholder={words.placeholder}
+            aria-label={words.inputLabel}
+            value={name}
+            disabled={busy}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && valid && enabled && !busy) learn(valid);
+            }}
+          />
+          <button
+            className="rounded bg-emerald-500 px-2 py-1 text-xs font-semibold text-black transition hover:bg-emerald-400 disabled:bg-white/10 disabled:text-white/40"
+            disabled={!valid || !enabled || busy}
+            onClick={() => valid && learn(valid)}
+          >
+            Learn
+          </button>
+        </div>
+      )}
       {name.trim() && !valid && <p className="text-[10px] text-amber-300">{words.invalidHint}</p>}
       {!enabled && <p className="text-[10px] text-white/50">{words.offHint}</p>}
       {phase.kind === 'countdown' && (

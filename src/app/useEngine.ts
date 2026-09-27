@@ -45,6 +45,7 @@ import { useAirDrumStatus, makeAirDrumReporter } from './airDrumStatus';
 import { useAirBassStatus, makeAirBassReporter } from './airBassStatus';
 import { useAirGuitarStatus, makeAirGuitarReporter, AIR_GUITAR_NODE_ID } from './airGuitarStatus';
 import { makeShapeTap, clearShapes } from './air/shapeTap';
+import { useAirFluteStatus, makeAirFluteReporter, AIR_FLUTE_NODE_ID } from './airFluteStatus';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -391,6 +392,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // And the `air-guitar` node's (#249): its status, and its live shape for enrolment.
         const reportAirGuitar = makeAirGuitarReporter(engine);
         const tapAirShape = makeShapeTap(engine, AIR_GUITAR_NODE_ID);
+        // And the `air-flute` node's (#249): its status, its fingers and its mouth.
+        const reportAirFlute = makeAirFluteReporter(engine);
+        const tapFluteFingers = makeShapeTap(engine, AIR_FLUTE_NODE_ID, 'shape');
+        const tapFluteMouth = makeShapeTap(engine, AIR_FLUTE_NODE_ID, 'mouth');
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -432,7 +437,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportAirDrum), toMs(reportAirBass), toMs(reportAirGuitar), toMs(tapAirShape)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportAirDrum), toMs(reportAirBass), toMs(reportAirGuitar), toMs(tapAirShape), toMs(reportAirFlute), toMs(tapFluteFingers), toMs(tapFluteMouth)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -471,6 +476,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useAirBassStatus.getState().reset();
       useAirGuitarStatus.getState().reset();
       clearShapes();
+      useAirFluteStatus.getState().reset();
       uninstallDebug();
       uninstallLatency();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.

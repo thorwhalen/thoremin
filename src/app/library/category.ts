@@ -37,6 +37,8 @@ export const AIR_INSTRUMENTS = [
   { id: 'bass', label: 'Air bass', emoji: '🎸', usesScale: true, on: (s: Settings) => s.airBass.enabled },
   // The guitar plays the chords the player enrolled, not the scale.
   { id: 'guitar', label: 'Air guitar', emoji: '🤘', usesScale: false, on: (s: Settings) => s.airGuitar.enabled },
+  // The flute plays the notes the player named when enrolling fingerings, not the scale.
+  { id: 'flute', label: 'Air flute', emoji: '🪈', usesScale: false, on: (s: Settings) => s.airFlute.enabled },
 ] as const satisfies readonly AirInstrument[];
 
 export type AirInstrumentId = (typeof AIR_INSTRUMENTS)[number]['id'];

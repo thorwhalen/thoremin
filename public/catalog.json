@@ -298,6 +298,95 @@
     ]
   },
   {
+    "type": "air-flute",
+    "title": "Air flute",
+    "description": "Play a flute in the air: large finger lifts of both hands, enrolled per player and named by their note, choose the note; the player's enrolled blowing mouth (or a held fingering alone) sounds it as a sustained voice. Off by default.",
+    "roles": [
+      "feature",
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "face",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "config",
+        "kind": "air-flute-config"
+      },
+      {
+        "name": "fingerModel",
+        "kind": "shape-model"
+      },
+      {
+        "name": "mouthModel",
+        "kind": "shape-model"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "shape",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "mouth",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "status",
+        "kind": "air-flute-status"
+      },
+      {
+        "name": "enabled",
+        "kind": "boolean"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "breath",
+        "type": "enum(mouth | always)",
+        "default": "mouth"
+      },
+      {
+        "name": "volume",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "enterFrames",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "breathFrames",
+        "type": "number",
+        "default": 2
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      }
+    ]
+  },
+  {
     "type": "air-guitar",
     "title": "Air guitar",
     "description": "Strum chords in the air: the fretting hand's shape is classified against the player's own enrolled chords, and a strum of the other hand, predicted before the frame that shows it, sounds that chord's guitar voicing. Off by default.",
@@ -2197,6 +2286,18 @@
         "kind": "shape-model"
       },
       {
+        "name": "airFlute",
+        "kind": "air-flute-config"
+      },
+      {
+        "name": "airFluteFingerModel",
+        "kind": "shape-model"
+      },
+      {
+        "name": "airFluteMouthModel",
+        "kind": "shape-model"
+      },
+      {
         "name": "bodyMap",
         "kind": "body-map"
       },
@@ -2210,7 +2311,7 @@
   {
     "type": "synth-merge",
     "title": "Synth Merge",
-    "description": "Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord); master mute.",
+    "description": "Union up to five synth-params voice streams into one (hand voices, emotion chord, pose chord, conducted score, air flute); master mute.",
     "roles": [
       "mapping"
     ],
@@ -2229,6 +2330,10 @@
       },
       {
         "name": "d",
+        "kind": "synth-params"
+      },
+      {
+        "name": "e",
         "kind": "synth-params"
       },
       {

@@ -21,6 +21,7 @@ import { conductorNode } from './features/conductor';
 import { airDrumNode } from './music/air_drum';
 import { airBassNode } from './music/air_bass';
 import { airGuitarNode } from './music/air_guitar';
+import { airFluteNode } from './music/air_flute';
 import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
@@ -87,6 +88,8 @@ export { airBassNode, AirBassDialSchema, NoteEventsSchema, IDLE_AIR_BASS_STATUS,
 export type { AirBassDialParams, AirBassStatus, NoteEvent } from './music/air_bass';
 export { airGuitarNode, AirGuitarDialSchema, IDLE_AIR_GUITAR_STATUS, strumNotes } from './music/air_guitar';
 export type { AirGuitarDialParams, AirGuitarStatus } from './music/air_guitar';
+export { airFluteNode, AirFluteDialSchema, IDLE_AIR_FLUTE_STATUS, FLUTE_VOICE_ID } from './music/air_flute';
+export type { AirFluteDialParams, AirFluteStatus } from './music/air_flute';
 export {
   MusicalTimeSchema,
   CONDUCTOR_HANDS,
@@ -138,6 +141,7 @@ export const CORE_NODES = [
   airDrumNode,
   airBassNode,
   airGuitarNode,
+  airFluteNode,
   faceExpressionNode,
   gestureClassifierNode,
   faceFeatureVectorNode,

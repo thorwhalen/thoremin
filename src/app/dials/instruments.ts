@@ -260,6 +260,16 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     airGuitar: { ...DEFAULTS.airGuitar, enabled: true },
     overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
   }),
+
+  // Play a flute in the air (#249): enrolled finger lifts of both hands choose the note,
+  // the enrolled blowing mouth sounds it (the enrolment steps are in its settings). The
+  // theremin voices and their note grid are off.
+  seed('Air Flute', {
+    ...DEFAULTS,
+    handMap: handMap({ maxGain: 0 }),
+    airFlute: { ...DEFAULTS.airFlute, enabled: true },
+    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
+  }),
 ];
 
 function instrumentStorage(): ProfileStorage {
@@ -275,7 +285,7 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 6;
+const SEED_VERSION = 7;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {

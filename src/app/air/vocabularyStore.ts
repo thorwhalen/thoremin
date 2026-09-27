@@ -23,6 +23,8 @@ import type { DataProvider } from '@zodal/store';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type Vocabulary } from '@/air/vocabulary';
 import { chordShapeFeatureIds } from '@/features/hand_shape';
+import { ALL_FEATURES } from '@/features/catalog';
+import { MOUTH_GROUPS } from '@/nodes/music/air_flute';
 import type { FeatureVector, TrainedModel } from '@/enroll';
 import { useControls } from '@/app/store';
 
@@ -119,8 +121,22 @@ export const useGuitarVocabulary = createVocabularyState({
   publish: (model) => useControls.getState().setAirGuitarModel(model),
 });
 
+/** The air flute's fingerings: both hands' shapes, prefixed by the player's hand. */
+export const useFluteFingerVocabulary = createVocabularyState({
+  name: 'flute-fingers',
+  features: ['l.', 'r.'].flatMap((p) => chordShapeFeatureIds().map((id) => p + id)),
+  publish: (model) => useControls.getState().setAirFluteFingerModel(model),
+});
+
+/** The air flute's two mouth states (blowing, resting), over the face's mouth features. */
+export const useFluteMouthVocabulary = createVocabularyState({
+  name: 'flute-mouth',
+  features: ALL_FEATURES.filter((f) => (MOUTH_GROUPS as readonly string[]).includes(f.group)).map((f) => f.id),
+  publish: (model) => useControls.getState().setAirFluteMouthModel(model),
+});
+
 /** Every air instrument's vocabulary, for the app to load once at start. */
-export const AIR_VOCABULARIES = [useGuitarVocabulary] as const;
+export const AIR_VOCABULARIES = [useGuitarVocabulary, useFluteFingerVocabulary, useFluteMouthVocabulary] as const;
 
 /** Load every air vocabulary (App start), so each classifier is live before anyone opens
  *  its instrument's settings. */

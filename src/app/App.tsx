@@ -18,6 +18,7 @@ import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { startBodyRouteDemand } from './bodyRouteDemand';
 import { loadAirVocabularies } from './air/vocabularyStore';
+import { startAirFluteDemand } from './airFluteDemand';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import { demandWantsFace, labWantsFace } from '@/features/labConfig';
@@ -108,6 +109,8 @@ export default function App({
   // #186: the body routes claim the feature groups they read, so a configured route
   // is fed even with the Lab closed (the groups are computed only on demand).
   useEffect(() => startBodyRouteDemand(), []);
+  // #249: the air flute's breath is the mouth; it claims the mouth features while on.
+  useEffect(() => startAirFluteDemand(), []);
   // #249: the air instruments play what this player enrolled; read every vocabulary once,
   // so each classifier is live before anyone opens its instrument's settings.
   useEffect(() => {

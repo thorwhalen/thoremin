@@ -282,6 +282,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // chords, a predicted strum of the other hand, a chord voicing on six strings.
       { id: 'airGuitar', type: 'air-guitar', params: {} },
       { id: 'guitarOut', type: 'pluck-out', params: { timbre: 'guitar', mono: false } },
+      // The air flute (#249): enrolled finger lifts choose the note, the enrolled
+      // blowing mouth sounds it, one sustained voice into the synth merge.
+      { id: 'airFlute', type: 'air-flute', params: {} },
       { id: 'score', type: 'score', params: { notes: DEMO_SCALE_NOTES, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
       // handler that dispatches dial commands; octave-shift / magnetism / mute now
@@ -480,6 +483,16 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'ui', port: 'airGuitarModel' }, to: { node: 'airGuitar', port: 'model' } },
       { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airGuitar', port: 'octaveShift' } },
       { from: { node: 'airGuitar', port: 'notes' }, to: { node: 'guitarOut', port: 'notes' } },
+      // The air flute (#249): the hands, the face vector (its mouth groups are claimed
+      // while it is on), the dial and both classifiers (live), the octave shift; its voice
+      // joins the others at the merge.
+      { from: { node: 'cam', port: 'hands' }, to: { node: 'airFlute', port: 'hands' } },
+      { from: { node: 'faceVec', port: 'vector' }, to: { node: 'airFlute', port: 'face' } },
+      { from: { node: 'ui', port: 'airFlute' }, to: { node: 'airFlute', port: 'config' } },
+      { from: { node: 'ui', port: 'airFluteFingerModel' }, to: { node: 'airFlute', port: 'fingerModel' } },
+      { from: { node: 'ui', port: 'airFluteMouthModel' }, to: { node: 'airFlute', port: 'mouthModel' } },
+      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airFlute', port: 'octaveShift' } },
+      { from: { node: 'airFlute', port: 'params' }, to: { node: 'merge', port: 'e' } },
     ],
   };
 }
