@@ -151,13 +151,13 @@ export const STARTER_ROUTINES: readonly StarterRoutine[] = [
     id: `${STARTER_ROUTINE_PREFIX}real-vs-air-taps`,
     name: 'Real vs air: taps',
     cueIds: ['rva-clap', 'rva-taps-real', 'rva-taps-air', 'rva-alternating-real', 'rva-alternating-air', 'rva-dynamics-real', 'rva-dynamics-air', 'rva-clap-again'],
-    needs: 'a table and wired headphones; about two and a half minutes',
+    needs: "a table, headphones (Bluetooth is fine) and the computer's own microphone; about two and a half minutes",
   },
   {
     id: `${STARTER_ROUTINE_PREFIX}real-vs-air-guitar`,
     name: 'Real vs air: guitar',
     cueIds: ['rva-clap', 'rva-strums-real', 'rva-strums-air', 'rva-clap-again'],
-    needs: 'a guitar and wired headphones; about a minute',
+    needs: "a guitar, headphones (Bluetooth is fine) and the computer's own microphone; about a minute",
   },
 ];
 

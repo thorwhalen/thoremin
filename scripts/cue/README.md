@@ -10,11 +10,18 @@ That extracts the take to `~/.local/share/thoremin/takes/cue/<name>/`, pairs it,
 
 ## Recording a take (the one page for the player)
 
-**You need:** Chrome (it records the microphone as Opus; Safari's AAC adds its own encoder delay), a table, **wired headphones**, about three minutes. Headphones, because the microphone must hear only your taps: a click from the speakers is recorded on top of the tap it prompted. Wired, because Bluetooth delays the click by a fifth of a second.
+**You need:** Chrome (it records the microphone as Opus; Safari's AAC adds its own encoder delay), a table, **headphones**, and about three minutes. Headphones, because the microphone must hear only your taps: a click from the speakers is recorded on top of the tap it prompted, and it cannot be removed afterwards by its time, because the taps land on the clicks by design.
 
-**Set up:** sit at the table with the camera seeing both hands and the table top in front of you, hands about half a metre from the camera, in good light.
+**Bluetooth headphones are fine.** They deliver every click 150 to 300 ms late, but steadily. That delay becomes part of your lag behind the click, which the table half measures and the air half inherits, so the labels come out right; the pairing warns if the delay did not hold steady. What matters is the **microphone**: use the computer's own, not the headphones'. A Bluetooth headset's microphone switches it to the phone-call profile (8 to 16 kHz, heavy processing, more latency, and call-quality sound in your ears), which blurs the onsets. The recorder switches away from a headset's microphone by itself when the computer's is available, and the pairing warns if a take was recorded through one anyway (by its name, its rate, or claps with no high frequencies).
 
-**Run:** open thoremin, then **Trainer** in the tools bar, choose the routine **Real vs air: taps**, press **Start**, and allow the camera and the microphone. Each phrase starts with three seconds to read the instruction on screen, then four low count-in clicks, then sixteen higher clicks to play on (the first of every four is higher still). Play on the sixteen, not on the count-in.
+**Set up, before pressing Start:**
+
+1. Connect the headphones.
+2. In **System Settings → Sound → Input**, choose the computer's own microphone (**MacBook Air Microphone** or **MacBook Pro Microphone**). macOS often switches the input to the headset when it connects.
+3. In Chrome, open `chrome://settings/content/microphone` and choose the same microphone in the menu at the top: Chrome's own choice overrides the system's.
+4. Sit at the table with the camera seeing both hands and the table top in front of you, hands about half a metre from the camera, in good light.
+
+**Run:** open thoremin, then **Trainer** in the tools bar, choose the routine **Real vs air: taps**, press **Start**, and allow the camera and the microphone (if Chrome asks which microphone, pick the computer's). Play to what you **hear**, not to the counter on screen (with Bluetooth, the counter runs ahead of the sound). Each phrase starts with three seconds to read the instruction on screen, then four low count-in clicks, then sixteen higher clicks to play on (the first of every four is higher still). Play on the sixteen, not on the count-in.
 
 1. **Clap** once on each click (eight claps), where the camera can see your hands.
 2. **Taps, on the table:** the fingers of one hand, on each click.
@@ -25,7 +32,7 @@ That extracts the take to `~/.local/share/thoremin/takes/cue/<name>/`, pairs it,
 7. **Soft and hard, in the air:** the same pattern, as if striking.
 8. **Clap again**, eight claps, to finish.
 
-It stops by itself after about two and a half minutes and saves `real-vs-air-<date>.zip` to Downloads (or to the folder the Record button is set to). Then run the command above.
+It stops by itself after about two and a half minutes and saves `real-vs-air-<date>.zip` to Downloads (or to the folder the Record button is set to). Then run the command above. (For an agent to run it, move the zip where it can read: on the maintainer's Mac, `$PP/_tmp/thoremin-cue/`.)
 
 With a guitar, the routine **Real vs air: guitar** does the same for strums: a chord on each click, changing every four, then the same chords on air guitar.
 
@@ -41,7 +48,7 @@ Times are on one of three clocks, and the field names say which. The **engine cl
 
 | Field | Meaning |
 |---|---|
-| `beats[i].real.onset` | Mic clock: the microphone onset matched to beat `i`'s click (nearest within half a beat), or null if nothing was heard. |
+| `beats[i].real.onset` | Mic clock: the microphone onset matched to beat `i`'s click, or null if nothing was heard. Matched around the player's lag read off the whole phrase (`gridLag`: where the onsets fall in the beat), not to the nearest click, because a Bluetooth delay plus the player's own lag can put a tap nearer the next click than its own. |
 | `beats[i].real.onsetRow` | The same instant on the row clock. |
 | `beats[i].real.lagMs` | Onset minus click: the player's lag plus the microphone's offset. `real.clickLagMs` is the phrase's median. |
 | `beats[i].real.levelDb` | Peak level over 30 ms from the onset, dBFS: the label for how hard. |
@@ -51,7 +58,7 @@ Times are on one of three clocks, and the field names say which. The **engine cl
 | `beats[i].air.levelDb`, `.chroma` | Inherited from the real beat of the same index (the phrase asked for the same thing). |
 | `micToRows` | `offsetMs` (median of clap heard − clap seen, at the first usable slate, `atS`) and `driftMsPerS` (from the last). Null without a usable slate, and then so are the `*Row` fields. See "The slates". |
 | `slates` | Each slate's claps (click, heard on the mic clock, seen on the row clock), its `offsetMs` and `madMs`. |
-| `warnings` | Missing halves, which real beats were unheard, sound on the air beats (click bleed, or a touched surface), a missing slate, a low sample rate. |
+| `warnings` | Missing halves, which real beats were unheard, a phrase left unlabelled because two beat numberings fit equally (fast tempos with taps missing at an end), a lag that scattered or stepped (a Bluetooth delay that moved), sound on the air beats (click bleed, or a touched surface), a missing slate, a low sample rate. |
 
 Beside it: `<phrase>.real.features.jsonl`, `<phrase>.air.features.jsonl` and one `<slate cue>.features.jsonl` per slate, the take's own feature rows for each half, untouched, so anything computed later joins back on `t`; and `mic.wav`, to listen against the labels.
 

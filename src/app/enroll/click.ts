@@ -15,9 +15,13 @@
  * played. Pitches: the count-in lower than the beats, each bar's first click higher, so
  * a player hears where the phrase starts without counting.
  *
- * The player hears it best in wired headphones: then the microphone records only the
- * taps (a click from a speaker would be recorded on top of the tap it prompted), and a
- * wired path adds no Bluetooth delay between the click and the ear.
+ * The player hears it in headphones, so the microphone records only the taps (a click
+ * from a speaker would be recorded on top of the tap it prompted, and cannot be masked
+ * out by its time, because the taps land on the clicks by design). Bluetooth
+ * headphones are fine: they deliver every click 150 to 300 ms late, but steadily, and a
+ * steady delay is part of the lag the real half measures and the air half inherits
+ * (`scripts/cue/lib_pair_take.ts`, `gridLag`). The times written into the take stay the
+ * scheduled ones: nothing here can know the headphones' delay, and nothing needs to.
  */
 import type { Click } from '@/enroll';
 

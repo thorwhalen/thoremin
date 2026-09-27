@@ -64,6 +64,7 @@ import { resolveIntervals } from '@/taglog/affordances/resolve';
 import { CueSchema, clickPlan, type Cue } from '@/enroll';
 import { cueWindows, edgeEventsFromRows, findStem, sealOpenEnded, type CueWindow } from '../lib_trainer_take';
 import { dataRoot } from '../air/lib_air_paths';
+import { isHeadsetMic } from '@/app/recording/mic';
 
 export const PAIRS_VERSION = 1;
 
@@ -332,6 +333,148 @@ export function matchToClicks(clicks: readonly number[], events: readonly number
   return out;
 }
 
+/**
+ * The player's lag behind a regular click grid (seconds), from where the events fall in
+ * the beat: a circular mean of their phases, read in (-1/4, 3/4] of a beat. Null when the
+ * phases do not agree (fewer than 3 events, or a resultant under 0.5).
+ *
+ * Why it exists: the lag can be most of a beat. The click reaches the player's ears
+ * through whatever they wear, and Bluetooth headphones add 150 to 300 ms, steadily; add
+ * the player's own lag and a tap can land nearer the NEXT click than its own. Matching
+ * each click to the nearest onset would then pair every tap with the wrong beat. So the
+ * lag is estimated first, from the grid alone, and the matching is done around it.
+ */
+export function gridLag(clicks: readonly number[], events: readonly number[], beatS: number): number | null {
+  if (clicks.length === 0 || events.length < 3 || !(beatS > 0)) return null;
+  const first = clicks[0];
+  const last = clicks[clicks.length - 1];
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  for (const e of events) {
+    if (e < first - beatS / 4 || e > last + (3 * beatS) / 4) continue;
+    const phase = (2 * Math.PI * (e - first)) / beatS;
+    x += Math.cos(phase);
+    y += Math.sin(phase);
+    n++;
+  }
+  if (n < 3 || Math.hypot(x, y) / n < 0.5) return null;
+  let lag = (Math.atan2(y, x) / (2 * Math.PI)) * beatS; // (-beat/2, beat/2]
+  if (lag <= -beatS / 4) lag += beatS;
+  return lag;
+}
+
+export interface GridMatch {
+  /** Per click, its event or null. */
+  matched: (number | null)[];
+  /** The lag the matching settled on (seconds), or null with nothing to go on. */
+  lagS: number | null;
+  /** Two beat numberings matched equally well and nothing broke the tie: `matched` is
+   *  all null rather than possibly a beat off everywhere. */
+  ambiguous?: boolean;
+}
+
+/**
+ * The largest lag behind a click that is a lag and not the next beat, seconds: a
+ * Bluetooth delay (up to ~300 ms) + the player (~50) + the microphone's start offset
+ * (tens of ms), with room. Beyond it, a tap is taken to answer a LATER click.
+ */
+export const MAX_PLAUSIBLE_LAG_S = 0.6;
+
+/**
+ * Match events to clicks around the player's lag, in three steps:
+ *
+ * 1. The lag's position within the beat, from the grid ({@link gridLag}).
+ * 2. WHICH beat. The phase alone cannot tell a 600 ms lag at 80 bpm from a tap 150 ms
+ *    early. The candidates are the phase plus 0, 1, ... beats up to
+ *    {@link MAX_PLAUSIBLE_LAG_S}; the one that matches the most events wins. A tie (only
+ *    possible at fast tempos, where a beat is shorter than the plausible lag, and only
+ *    with taps missing at an end) goes to the candidate nearest `priorLagS` (the lag the
+ *    player showed in the other phrases); with no prior it is AMBIGUOUS and nothing is
+ *    matched: a phrase with no labels is recoverable, one labelled a beat off is not.
+ *    (The first event after the count-in is not a tie-breaker: a first tap too soft to
+ *    hear makes it point one beat late.)
+ * 3. Each click takes the EARLIEST event within a quarter beat of `click + lag` (a tap's
+ *    bounce follows it and must not replace it); then the lag is re-read as the median
+ *    of those matches (the phase estimate is pulled by bounces) and matched once more.
+ *
+ * Events must be sorted.
+ */
+export function matchOnGrid(
+  clicks: readonly number[],
+  events: readonly number[],
+  beatS: number,
+  { priorLagS }: { priorLagS?: number | null } = {},
+): GridMatch {
+  const phase = gridLag(clicks, events, beatS);
+  if (phase === null || clicks.length === 0) {
+    return { matched: matchToClicks(clicks, events, beatS / 2), lagS: null };
+  }
+  const pick = (l: number) =>
+    clicks.map((c) => events.find((e) => e >= c + l - beatS / 4 && e <= c + l + beatS / 4) ?? null);
+  const count = (m: (number | null)[]) => m.filter((x) => x !== null).length;
+  const kMax = Math.max(0, Math.floor((MAX_PLAUSIBLE_LAG_S - phase) / beatS));
+  const counts = Array.from({ length: kMax + 1 }, (_, k) => count(pick(phase + k * beatS)));
+  const top = Math.max(...counts);
+  const tied = counts.flatMap((n, k) => (n === top ? [k] : []));
+  let k = tied[0];
+  if (tied.length > 1) {
+    if (priorLagS === null || priorLagS === undefined) return { matched: clicks.map(() => null), lagS: null, ambiguous: true };
+    k = tied.reduce((a, b) => (Math.abs(phase + b * beatS - priorLagS) < Math.abs(phase + a * beatS - priorLagS) ? b : a));
+  }
+  let lag = phase + k * beatS;
+  let matched = pick(lag);
+  const lags = matched.flatMap((e, i) => (e === null ? [] : [e - clicks[i]]));
+  if (lags.length > 0) {
+    lag = median(lags);
+    matched = pick(lag);
+  }
+  return { matched, lagS: lag };
+}
+
+/** Per-beat lags (ms) that are not steady: a scatter, or a step between the halves of a
+ *  phrase, as when a Bluetooth link resizes its buffer mid-take. A reason, or null. */
+export function unsteadyLag(lagsMs: readonly (number | null)[]): string | null {
+  const xs = lagsMs.filter((x): x is number => x !== null);
+  if (xs.length < 6) return null;
+  const mid = median(xs);
+  const mad = median(xs.map((x) => Math.abs(x - mid)));
+  const half = Math.floor(lagsMs.length / 2);
+  const a = lagsMs.slice(0, half).filter((x): x is number => x !== null);
+  const b = lagsMs.slice(half).filter((x): x is number => x !== null);
+  const step = a.length >= 3 && b.length >= 3 ? median(b) - median(a) : 0;
+  if (Math.abs(step) > MAX_LAG_STEP_MS) return `the lag stepped by ${Math.round(step)} ms between the first and second half (did the headphones' delay change?)`;
+  if (mad > MAX_LAG_MAD_MS) return `the per-beat lag scatters by ${Math.round(mad)} ms (MAD)`;
+  return null;
+}
+
+/** A tapping player's scatter around a metronome is ~20-30 ms SD (MAD ~15-20); beyond
+ *  these, the air half's inherited lag is not one number. */
+const MAX_LAG_MAD_MS = 35;
+// Two medians of eight beats each differ by ~16 ms SD from tapping scatter alone; 35 is
+// past two of those, and a 40 ms Bluetooth step (half the air beats off by 40) is caught.
+const MAX_LAG_STEP_MS = 35;
+
+/**
+ * Whether the recording has content above 8 kHz where it matters: over the first 20 ms
+ * of each onset, the energy at 10-15 kHz against 1-4 kHz. A tap, a clap or a pluck is
+ * broadband; the same sounds through a 16 kHz call-profile input, resampled up, have
+ * nothing there. True when there are no onsets to judge by.
+ */
+export function hasHighBand(audio: Wav, onsets: readonly number[]): boolean {
+  if (onsets.length === 0 || audio.sampleRate < 32000) return true;
+  const len = Math.round(0.02 * audio.sampleRate);
+  let hi = 0;
+  let lo = 0;
+  for (const t of onsets.slice(0, 40)) {
+    const start = Math.round(t * audio.sampleRate);
+    for (const f of [10000, 12000, 14000]) hi += toneAmplitude(audio.pcm, audio.sampleRate, start, len, f) ** 2;
+    for (const f of [1000, 2000, 3000, 4000]) lo += toneAmplitude(audio.pcm, audio.sampleRate, start, len, f) ** 2;
+  }
+  // -40 dB: far below any broadband attack, far above a resampler's leakage.
+  return lo === 0 || hi / lo > 1e-4;
+}
+
 // ---- The take --------------------------------------------------------------------
 
 export interface TakeClick {
@@ -361,6 +504,10 @@ export interface Take {
   micWav: string | null;
   /** The native microphone file (WebM), if any: the fallback when the WAV is missing. */
   micNative: string | null;
+  /** The microphone's device name as the browser reported it, if recorded. */
+  micDevice: string | null;
+  /** The rate the microphone itself delivered, Hz, if recorded. */
+  micInputRate: number | null;
   featuresPath: string;
 }
 
@@ -385,7 +532,7 @@ export function readTake(dir: string): Take {
   if (!existsSync(manifestPath)) throw new Error(`${manifestPath} is missing`);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
     t0: number;
-    streams: { file: string; kind: string }[];
+    streams: { file: string; kind: string; device?: string; inputSampleRate?: number }[];
     meta?: { trainer?: { cues?: unknown[] } };
   };
   const rawCues = manifest.meta?.trainer?.cues;
@@ -425,7 +572,9 @@ export function readTake(dir: string): Take {
   // A WAV converted by hand after the fact is not in the manifest: look for it by name too.
   const byName = join(dir, `${stem}.mic.wav`);
   const micWav = micFile(true) ?? (existsSync(byName) ? byName : null);
-  return { dir, stem, t0: manifest.t0, cues, windows, clicks, outcomes, micWav, micNative: micFile(false), featuresPath };
+  const micDevice = manifest.streams.find((s) => s.kind === 'microphone' && typeof s.device === 'string')?.device ?? null;
+  const micInputRate = manifest.streams.find((s) => s.kind === 'microphone' && typeof s.inputSampleRate === 'number')?.inputSampleRate ?? null;
+  return { dir, stem, t0: manifest.t0, cues, windows, clicks, outcomes, micWav, micNative: micFile(false), micDevice, micInputRate, featuresPath };
 }
 
 /** The feature rows of the take (every edge the trainer recorded). */
@@ -549,6 +698,15 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
   const warnings: string[] = [];
   const rel = (tAbs: number) => tAbs - take.t0;
   const onsetsAbs = audio ? detect(audio.pcm, audio.sampleRate, onset).map((s) => take.t0 + s) : [];
+  // A Bluetooth headset's own microphone runs the phone-call profile: 8 to 16 kHz, heavy
+  // processing, and extra latency. The routine wants the computer's built-in microphone.
+  if (take.micDevice && isHeadsetMic(take.micDevice)) {
+    warnings.push(`The microphone was "${take.micDevice}", a headset's: its call-quality profile blurs onsets. Record with the computer's built-in microphone.`);
+  }
+  const lowRateInput = take.micInputRate !== null && take.micInputRate < 32000;
+  if (lowRateInput) {
+    warnings.push(`The microphone delivered ${take.micInputRate} Hz (a call-quality input): onsets are blurred, strums may go unheard. Record with the computer's built-in microphone.`);
+  }
   if (audio && audio.sampleRate < 44100) {
     warnings.push(`The microphone WAV is ${audio.sampleRate} Hz: onsets are tuned at 44.1/48 kHz (a strum's attack lives in its upper partials), so some strums may go unheard.`);
   }
@@ -582,7 +740,7 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     const w = windowOf(slateCue.id)!;
     const beatMs = beatMsOf(slateCue);
     const clicks = beatClicks(w);
-    const matched = matchToClicks(clicks, onsetsAbs.filter((t) => inWindow(t, w)), beatMs / 2000);
+    const { matched } = matchOnGrid(clicks, onsetsAbs.filter((t) => inWindow(t, w)), beatMs / 1000);
     const visualNear = (tAbs: number): number | null => {
       const near = handRows
         .filter((r) => inWindow(r.t, w) && Math.abs(r.t - tAbs) <= beatMs / 2000)
@@ -620,6 +778,13 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     }
     slates.push({ cue: slateCue.id, t: heard.length ? median(heard) : null, offsetMs, madMs, claps });
   }
+  // The WAV is resampled on decode, so a 16 kHz input hides behind a 48 kHz file. A clap
+  // is broadband (unlike a guitar, whose spectrum may fall off before 10 kHz), so the
+  // slates' claps show it: through a call-quality input they have nothing above 8 kHz.
+  const clapOnsets = slates.flatMap((x) => x.claps.flatMap((c) => (c.onset === null ? [] : [c.onset])));
+  if (!lowRateInput && audio && audio.sampleRate >= 32000 && !hasHighBand(audio, clapOnsets)) {
+    warnings.push("The claps have nothing above ~8 kHz: the microphone was probably a headset's call-quality input. Record with the computer's built-in microphone.");
+  }
   const measured = slates.filter((x): x is SlateResult & { t: number; offsetMs: number } => x.t !== null && x.offsetMs !== null);
   let micToRows: MicToRows | null = null;
   if (measured.length >= 1) {
@@ -637,6 +802,20 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
   /** A take-relative mic-clock time on the feature rows' clock, or null. */
   const toRow = (tRel: number | null): number | null =>
     tRel === null || !micToRows ? null : Math.round((tRel - (micToRows.offsetMs + micToRows.driftMsPerS * (tRel - micToRows.atS)) / 1000) * 1e6) / 1e6;
+
+  // The player's lag over the whole routine, from the phrases whose beat numbering is not
+  // in doubt: the tie-breaker for any phrase whose numbering is (see matchOnGrid).
+  const realMatchPrior = (() => {
+    const lags: number[] = [];
+    for (const c of take.cues) {
+      if (c.pairing?.surface !== 'real') continue;
+      const w = windowOf(c.id);
+      if (!w) continue;
+      const g = matchOnGrid(beatClicks(w), onsetsAbs.filter((t) => inWindow(t, w)), beatMsOf(c) / 1000);
+      if (!g.ambiguous && g.lagS !== null) lags.push(g.lagS);
+    }
+    return lags.length ? median(lags) : null;
+  })();
 
   // The phrases, by their pairing.
   const phraseIds: string[] = [];
@@ -658,7 +837,15 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     let lagMs: number | null = null;
     if (realCue && rw) {
       const clicks = beatClicks(rw);
-      const matched = matchToClicks(clicks, onsetsAbs.filter((t) => inWindow(t, rw)), beatMs / 2000);
+      const { matched, lagS, ambiguous } = matchOnGrid(clicks, onsetsAbs.filter((t) => inWindow(t, rw)), beatMs / 1000, { priorLagS: realMatchPrior });
+      if (ambiguous) {
+        warnings.push(`Phrase "${phrase}": taps are missing at an end and two beat numberings fit equally well, with no other phrase to decide; its beats are left unlabelled rather than risk every one being a beat off.`);
+      }
+      if (lagS !== null && lagS > beatMs / 2000) {
+        warnings.push(
+          `Phrase "${phrase}": the taps land ${Math.round(lagS * 1000)} ms after their clicks, over half a beat; the beat numbering assumes the first tap after the count-in was beat 1.`,
+        );
+      }
       clicks.forEach((c, i) => {
         const on = matched[i];
         realBeats.push({
@@ -679,6 +866,8 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
         const unheard = realBeats.map((b, i) => (b.onset === null ? i + 1 : 0)).filter((i) => i > 0);
         warnings.push(`Phrase "${phrase}": ${matchedCount}/${clicks.length} real beats heard (unheard: ${unheard.join(', ')}); check the microphone level, or that the phrase was played on the clicks.`);
       }
+      const unsteady = unsteadyLag(realBeats.map((b) => b.lagMs));
+      if (unsteady) warnings.push(`Phrase "${phrase}": ${unsteady}; the air half inherits one median lag.`);
       real = { ...half(realCue, rw), clickLagMs: lagMs, matched: matchedCount };
     }
 
@@ -700,7 +889,9 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
       // The microphone should hear nothing in the air. Sound ON the beats means the
       // click leaked into the microphone (a speaker, not headphones) or the player
       // touched the surface; either way the real labels near it are suspect too.
-      const onBeat = matchToClicks(clicks, onsetsAbs.filter((t) => inWindow(t, aw)), beatMs / 4000).filter((x) => x !== null).length;
+      // "On the beat" is where the real half's taps landed: the click plus the lag.
+      const shift = (lagMs ?? 0) / 1000;
+      const onBeat = matchToClicks(clicks.map((c) => c + shift), onsetsAbs.filter((t) => inWindow(t, aw)), beatMs / 4000).filter((x) => x !== null).length;
       if (clicks.length > 0 && onBeat >= clicks.length / 2) {
         warnings.push(`Phrase "${phrase}": the microphone heard ${onBeat}/${clicks.length} air beats. Click bleed (use headphones) or a touched surface.`);
       }
@@ -718,6 +909,12 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     });
   }
   if (phrases.length === 0) warnings.push('No paired cues in this routine: nothing to pair.');
+  // The same headphones, the same player: the phrases' lags should agree. A spread says
+  // the delay moved between phrases, and each air half inherits its own phrase's.
+  const phraseLags = phrases.map((p) => p.real?.clickLagMs).filter((x): x is number => x !== null && x !== undefined);
+  if (phraseLags.length >= 2 && Math.max(...phraseLags) - Math.min(...phraseLags) > MAX_LAG_STEP_MS) {
+    warnings.push(`The phrases' lags differ by ${Math.round(Math.max(...phraseLags) - Math.min(...phraseLags))} ms (${phraseLags.join(', ')}): the click delay moved between phrases.`);
+  }
 
   return {
     version: PAIRS_VERSION,
