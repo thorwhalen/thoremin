@@ -8,7 +8,7 @@
  */
 import { z } from 'zod';
 import type { SoundId } from '@/music/sounds';
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 
 export interface Keypoint {
   x: number;
@@ -652,7 +652,7 @@ export const BODY_MODELS = ['lite', 'full'] as const;
 export type BodyModel = (typeof BODY_MODELS)[number];
 
 /** The body model's lifecycle on the `status` port: the shared lazy-loading
- *  vocabulary (#188, `src/lazy/status.ts`) — `active` while a body is detected. */
+ *  vocabulary (#188, `packages/lazy/src/status.ts`) — `active` while a body is detected. */
 export type BodyStatus = LoadStatus;
 export const ABSENT_BODY_STATUS: BodyStatus = { phase: 'off', message: 'Body tracking off' };
 

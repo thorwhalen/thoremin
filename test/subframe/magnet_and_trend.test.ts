@@ -1,5 +1,5 @@
 /**
- * The timing magnet (src/ictus/magnet.ts) and the trend prior (src/ictus/trend_prior.ts).
+ * The timing magnet (packages/ictus/src/magnet.ts) and the trend prior (packages/ictus/src/trend_prior.ts).
  *
  * Magnet: the pull toward the prior's nearest expected beat scales with magnetism,
  * fades with distance through the attentional window, is off when the prior is not
@@ -9,7 +9,7 @@
  * when the beats stop, and honours the RhythmPrior contract (`beatAt`, `predict`).
  */
 import { describe, it, expect } from 'vitest';
-import { beatAt, createAdaptiveOscillator, createTrendPrior, magnetise, nearestExpectedBeat, type Anchor, type MusicalTime } from '@/ictus';
+import { beatAt, createAdaptiveOscillator, createTrendPrior, magnetise, nearestExpectedBeat, type Anchor, type MusicalTime } from '@thoremin/ictus';
 
 const anchor = (t: number, confidence = 1): Anchor => ({ t, confidence, strength: 1, sharpness: NaN, lateral: 0 });
 

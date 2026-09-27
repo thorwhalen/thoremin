@@ -4,7 +4,7 @@
  * to a chosen set of edges. Attached to the running engine via `engine.addTap`
  * only while a take is in progress, then detached.
  *
- * Unlike `StreamRecorder` (`src/dag/recorder.ts`), which retains every value
+ * Unlike `StreamRecorder` (`packages/dag/src/recorder.ts`), which retains every value
  * OBJECT in memory for the whole run, this serializes each value to a string
  * immediately — so the value objects are freed as they arrive (the #49
  * unbounded-accumulation caveat). `drain()` hands back the buffered lines and
@@ -15,7 +15,7 @@
  * `createWritable({keepExistingData:true})`) could flush it on a timer for
  * hours-long, all-edge captures. Pure (no DOM/filesystem), unit-testable.
  */
-import type { NodeContext, Tap } from '@/dag';
+import type { NodeContext, Tap } from '@thoremin/dag';
 
 export class FeatureJsonlTap implements Tap {
   /** Only record these `"<node>.<port>"` keys; empty/undefined = all edges. */

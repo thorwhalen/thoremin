@@ -1,0 +1,19 @@
+{
+  "name": "@thoremin/ictus",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's ictus package (TypeScript source, consumed by the app through the workspace).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./detector": "./src/detector.ts",
+    "./dynamics": "./src/dynamics.ts",
+    "./impact": "./src/impact.ts",
+    "./magnet": "./src/magnet.ts",
+    "./metrics": "./src/metrics.ts",
+    "./oscillator": "./src/oscillator.ts",
+    "./trend_prior": "./src/trend_prior.ts",
+    "./types": "./src/types.ts"
+  },
+  "dependencies": {}
+}

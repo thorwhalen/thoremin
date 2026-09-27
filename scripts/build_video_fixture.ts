@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { replayNode, serializeRecords, parseRecords, type StreamRecord } from '@/dag';
+import { replayNode, serializeRecords, parseRecords, type StreamRecord } from '@thoremin/dag';
 import { handFeaturesNode, voiceMappingNode, type HandsFrame } from '@/nodes';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

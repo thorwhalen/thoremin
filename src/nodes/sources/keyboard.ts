@@ -8,8 +8,8 @@
  * press is missed even if it happens between frames.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 
 const Params = z.object({
   /** Call preventDefault on these keys (e.g. arrows that scroll the page). */

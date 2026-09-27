@@ -13,7 +13,7 @@
  *
  * This is a types-only module (no runtime), safe to import anywhere.
  */
-import type { LoadResult } from '@/lazy';
+import type { LoadResult } from '@thoremin/lazy';
 
 /** A weighted text prompt ("strain") steering the generator. */
 export interface WeightedPrompt {

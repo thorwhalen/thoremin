@@ -3,7 +3,7 @@
  * on self-made frames.
  */
 import { describe, expect, it } from 'vitest';
-import type { StreamRecord } from '@/dag';
+import type { StreamRecord } from '@thoremin/dag';
 import type { FaceFrame } from '@/nodes/domain';
 import { bundleStreams, joinLabelledFrames, pitchClassLabeller, pitchClassOf, type FrameBundle } from '../../scripts/air/lib_chord_shape_dataset';
 import { chordShapeFeatureIds } from '../../scripts/air/lib_chord_shape_features';

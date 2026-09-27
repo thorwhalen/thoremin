@@ -19,7 +19,7 @@ This page catalogs the engine's building blocks — every node, its ports and it
 - **Gesture → harmony** — `hand-features → pick('right.x') → progression → chord → webaudio-synth`  
   Hand position walks an in-key chord progression.
 - **Conductor** — `webcam-hands → conductor → score → synth-merge → webaudio-synth`  
-  The beating hand becomes musical time (src/ictus): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece's tempo + dynamics, directed live. Behind the Conductor dial.
+  The beating hand becomes musical time (packages/ictus/src): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece's tempo + dynamics, directed live. Behind the Conductor dial.
 - **Indirect / AI (gesture or expression)** — `hand-features / face-features → indirect-map → lyria`  
   Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
@@ -347,7 +347,7 @@ Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pi
 _Direct a fixed piece with gesture (tempo + dynamics)._
 
 #### `conductor` — Conductor
-The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.
+The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:conductor-config, doc:score-doc
@@ -382,7 +382,7 @@ Control signal → tempo (bpm) + dynamics (velocityScale), with optional humaniz
 _Strike, pluck or blow at nothing — hits and plucks predicted before the frame that shows them (#233, #249)._
 
 #### `air-drum` — Air drum
-Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.
+Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:air-drum-config, time:musical-time, pattern:drum-pattern
@@ -398,7 +398,7 @@ Sounds the air drum hits on the audio clock at the time each was predicted for (
 - **params:** —
 
 #### `air-bass` — Air bass
-Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (src/ictus/impact.ts). Off by default.
+Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:air-bass-config, scale:number[], octaveShift:number

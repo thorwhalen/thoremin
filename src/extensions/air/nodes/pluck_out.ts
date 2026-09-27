@@ -18,9 +18,9 @@
  * previous note on its own `voice` (a guitar string).
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { realtimeOutputAllowed } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { realtimeOutputAllowed } from '@thoremin/dag';
 import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
 import { engineToContextTime, type AudioClockLike } from '@/extensions/air/nodes/drum_out';
 

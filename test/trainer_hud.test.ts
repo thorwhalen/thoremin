@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { canvasOverlayNode, OVERLAY_ELEMENTS } from '@/nodes/output/canvas_overlay';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { trainerHudResource } from '@/app/enroll/hud';

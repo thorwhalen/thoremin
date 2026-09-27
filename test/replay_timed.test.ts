@@ -15,7 +15,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { Applier, Engine, RealtimeClock, runHeadless, type GraphSpec, type StreamRecord } from '@/dag';
+import { Applier, Engine, RealtimeClock, runHeadless, type GraphSpec, type StreamRecord } from '@thoremin/dag';
 import { createCoreRegistry, replaySourceTimedNode } from '@/nodes';
 import { loadRecords, loadStream } from './helpers/fixtures';
 

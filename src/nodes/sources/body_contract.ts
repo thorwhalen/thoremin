@@ -11,7 +11,7 @@
  * and this slot lets the same URL seam (`?slot.body=synthetic-body`) run the
  * whole body path with no camera and no model.
  */
-import type { PortSpec } from '@/dag';
+import type { PortSpec } from '@thoremin/dag';
 import { BodyFrameSchema } from '../domain';
 import type { SlotContract } from '../slot_contract';
 

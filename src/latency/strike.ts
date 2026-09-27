@@ -6,7 +6,7 @@
  * cannot know a strike happened before it has seen the hand stop, so this trigger
  * fires one frame after the frame that contains the impact, on average, and the
  * strike test's number therefore includes that confirmation frame, as any purely
- * reactive onset must. The impact predictor (`src/ictus/impact.ts`) exists to beat
+ * reactive onset must. The impact predictor (`packages/ictus/src/impact.ts`) exists to beat
  * exactly this number; this module is the baseline it is measured against.
  *
  * Coordinates are normalised image y (0 top, 1 bottom), so a downward strike is

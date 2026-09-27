@@ -14,7 +14,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fMeasure } from '@/ictus/metrics';
+import { fMeasure } from '@thoremin/ictus/metrics';
 import { airDir, dataRoot } from '../air/lib_air_paths';
 import { readLandmarks } from '../air/lib_chord_shape_dataset';
 import { assignStrokes, median, strokesOf, timingErrors } from '../air/lib_drum_strokes';

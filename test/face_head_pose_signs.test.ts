@@ -28,7 +28,7 @@
  *   the load here.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { matrixToHeadPose, type FaceControls, type FaceFrame } from '@/nodes/domain';
 import { faceControlsNode } from '@/nodes/features/face_controls';
 import { loadStream } from './helpers/fixtures';

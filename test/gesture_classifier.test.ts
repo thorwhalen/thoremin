@@ -4,7 +4,7 @@
  * clip should produce fist↔open transitions; the pinch clip should detect pinch).
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import { gestureClassifierNode, ABSENT_HAND, type HandFeatures, type GestureEvent, type Pose } from '@/nodes';
 

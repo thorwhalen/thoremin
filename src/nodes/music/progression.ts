@@ -9,7 +9,7 @@
  */
 import { z } from 'zod';
 import { Key } from 'tonal';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { clamp01 } from '@/features/math';
 
 const Params = z

@@ -20,7 +20,7 @@ import { storeControlsNode, type ControlSnapshot } from '@/nodes/sources/store_c
 import { faceFeatureVectorNode } from '@/nodes/features/face_feature_vector';
 import { normalizeLayer } from '@/app/dials/instruments';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 
 describe('the Feature Lab is not part of the instrument', () => {
   it('is not a dial — the overlay dial carries no featureLab', () => {

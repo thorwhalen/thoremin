@@ -49,7 +49,7 @@
  * so under accelerated play it is not time-invariant (documented on `StateReader`).
  */
 import { z } from 'zod';
-import { defineNode, STATE_READER_KEY, type NodeContext, type NodeDef, type Role, type StateReader } from '@/dag';
+import { defineNode, STATE_READER_KEY, type NodeContext, type NodeDef, type Role, type StateReader } from '@thoremin/dag';
 
 /** The two output ports every state generator declares. */
 export const STATE_GENERATOR_OUTPUTS = { value: 'value', snapshot: 'snapshot' } as const;

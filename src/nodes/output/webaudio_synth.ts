@@ -14,9 +14,9 @@
  * the Node test registry.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { realtimeOutputAllowed } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { realtimeOutputAllowed } from '@thoremin/dag';
 import { getSound } from '@/music/sounds';
 import type { SynthParams, VoiceParams } from '../domain';
 

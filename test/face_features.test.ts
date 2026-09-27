@@ -4,7 +4,7 @@
  * `video_face_expressions` fixture (decoded once via MediaPipe FaceLandmarker).
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import { faceFeaturesNode, type FaceFeatures, type FaceFrame } from '@/nodes';
 const span = (xs: number[]) => Math.max(...xs) - Math.min(...xs);

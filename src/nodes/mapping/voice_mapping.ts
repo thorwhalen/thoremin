@@ -12,7 +12,7 @@
  * Pure and deterministic — testable from a recorded `hand-features` stream.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import {
   generateScale,
   magneticPitch,

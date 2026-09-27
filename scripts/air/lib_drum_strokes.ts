@@ -2,7 +2,7 @@
  * Strokes from a drummer's wrists or hands, and which drum each stroke went to. The parts of the
  * drum problem that are NOT sub-frame timing: predicting the hit before the frame that
  * shows it, the `ictus` prior and the commit-and-correct rule are the sub-frame
- * stream's, in `src/ictus/`. This module finds strokes at frame resolution and says
+ * stream's, in `packages/ictus/src/`. This module finds strokes at frame resolution and says
  * where they landed; §7.3 of the research doc says where the two meet.
  *
  * The tracked point (#246): the pose wrist ({@link wristTracks}), or a point on the hand
@@ -13,7 +13,7 @@
  * which only a point on the hand sees.
  *
  * The stroke detector IS the ictus detector (`createIctusDetector` in
- * `src/ictus/detector.ts`), one per wrist, fed the wrist's image position: a stroke is a
+ * `packages/ictus/src/detector.ts`), one per wrist, fed the wrist's image position: a stroke is a
  * turning point of image-y (down positive), refined by parabola below the frame
  * period, gated by an online noise estimate (each sample's residual against the median
  * of its neighbours, in the trainer's noise-unit convention) and a recent-amplitude
@@ -36,9 +36,9 @@
  * stick tip: the same snare hit by the left and the right hand lands the two wrists in
  * two different places.
  */
-import type { StreamRecord } from '@/dag';
-import { createIctusDetector, type DetectorOptions } from '@/ictus/detector';
-import type { Anchor } from '@/ictus/types';
+import type { StreamRecord } from '@thoremin/dag';
+import { createIctusDetector, type DetectorOptions } from '@thoremin/ictus/detector';
+import type { Anchor } from '@thoremin/ictus/types';
 import type { BodyFrame, HandsFrame } from '@/nodes/domain';
 import { BLM, LM } from '@/nodes/domain';
 import { anchorPoint, type DrumAnchorPoint } from '@/nodes/music/drum_anchor';

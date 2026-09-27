@@ -9,8 +9,8 @@
  * synth-merge bus in the real app registry.
  */
 import { describe, it, expect } from 'vitest';
-import { Engine } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { Engine } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { createAppRegistry, midiOutNode } from '@/nodes/browser';
 import type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus } from '@/nodes/browser';
 import type { SynthParams, VoiceParams } from '@/nodes';

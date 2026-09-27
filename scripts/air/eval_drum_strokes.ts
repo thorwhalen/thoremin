@@ -3,7 +3,7 @@
  * and describe the strokes of the air sources and any local clip that has no audio
  * hits. Writes `results/air/drums/strokes.results.json` (local) and a markdown table.
  *
- * Scoring is the beat-tracking F-measure from `src/ictus/metrics.ts` (an onset and a
+ * Scoring is the beat-tracking F-measure from `packages/ictus/src/metrics.ts` (an onset and a
  * stroke match within a window), at two windows: one frame period (the honest
  * frame-level number) and 70 ms (the MIR convention), each raw AND after removing the
  * median signed lag between strokes and onsets. The wrist's reversal trails the sound
@@ -24,7 +24,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fMeasure, medianInterval } from '@/ictus/metrics';
+import { fMeasure, medianInterval } from '@thoremin/ictus/metrics';
 import { airDir } from './lib_air_paths';
 import { readLandmarks } from './lib_chord_shape_dataset';
 import { DRUM_ANCHOR_POINTS, DEFAULT_STICK_LENGTH, type DrumAnchorPoint } from '@/nodes/music/drum_anchor';

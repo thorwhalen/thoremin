@@ -2,7 +2,7 @@
   {
     "type": "air-bass",
     "title": "Air bass",
-    "description": "Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (src/ictus/impact.ts). Off by default.",
+    "description": "Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.",
     "roles": [
       "feature",
       "mapping"
@@ -105,7 +105,7 @@
   {
     "type": "air-drum",
     "title": "Air drum",
-    "description": "Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.",
+    "description": "Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.",
     "roles": [
       "feature",
       "mapping"
@@ -878,7 +878,7 @@
   {
     "type": "conductor",
     "title": "Conductor",
-    "description": "The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.",
+    "description": "The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.",
     "roles": [
       "feature",
       "mapping"

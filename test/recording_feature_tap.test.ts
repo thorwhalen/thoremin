@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { FeatureJsonlTap } from '@/app/recording/featureTap';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 
 const ctx = (tick: number, time: number): NodeContext => ({ tick, time, dt: 1 / 60, resources: {} });
 

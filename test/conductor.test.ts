@@ -5,7 +5,7 @@
  * A rising control speeds up the piece and raises its dynamics.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode, runHeadless, type GraphSpec } from '@/dag';
+import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { transportNode, scoreNode, performanceNode, createCoreRegistry } from '@/nodes';
 import { freqToMidi } from '@/music/theory';
 import type { SynthParams } from '@/nodes';

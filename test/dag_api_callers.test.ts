@@ -1,5 +1,5 @@
 /**
- * The React layer's calls into `src/dag/` still typecheck against the current API.
+ * The React layer's calls into `packages/dag/src/` still typecheck against the current API.
  *
  * This exists because a real regression got through. #192 removed the `resources` option
  * from `ApplierOptions` — the Applier takes them from the engine now — and left
@@ -12,7 +12,7 @@
  *    React-layer errors, and `docs/TESTING.md` says gating on it would train everyone to
  *    ignore the X — which is correct, and is exactly why one more error hid in it.
  *
- * So the gap is structural: **any `src/dag` API change can break a React-layer caller
+ * So the gap is structural: **any `packages/dag/src` API change can break a React-layer caller
  * with every gate green.** Closing it in general means either adopting `@types/react` or
  * fixing 21 errors, which is a decision for the maintainer (filed separately). This
  * guards the specific seam that broke, in the idiom the repo already uses for exactly
@@ -69,7 +69,7 @@ function newExpressionKeys(file: string, ctor: string): Set<string> {
 }
 
 describe('useEngine constructs an Applier with options that actually exist', () => {
-  const declared = interfaceKeys('src/dag/applier.ts', 'ApplierOptions');
+  const declared = interfaceKeys('packages/dag/src/applier.ts', 'ApplierOptions');
   const passed = newExpressionKeys('src/app/useEngine.ts', 'Applier');
 
   it('finds both sides (the guard is not vacuous)', () => {

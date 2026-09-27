@@ -18,10 +18,10 @@ import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { registerRecordingController, recordingController, type RecordingController } from '@/app/recording/controller';
 import { planRecording } from '@/app/recording/plan';
-import { getCodec } from '@/taglog/affordances/codec';
-import { resolveIntervals } from '@/taglog/affordances/resolve';
-import { AnchorRecordSchema, ANNOTATIONS_SCHEMA_ID, TagEventSchema } from '@/taglog/affordances/schema';
-import { toAudacityLabels } from '@/taglog/adapters';
+import { getCodec } from '@thoremin/taglog/affordances/codec';
+import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
+import { AnchorRecordSchema, ANNOTATIONS_SCHEMA_ID, TagEventSchema } from '@thoremin/taglog/affordances/schema';
+import { toAudacityLabels } from '@thoremin/taglog/adapters';
 import { appFeatureDemand } from '@/app/featureDemand';
 
 const v = (o: Record<string, number>): FeatureVector => o;

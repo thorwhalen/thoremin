@@ -24,7 +24,7 @@ import {
   titleFromFilename,
   type ScoreDoc,
 } from '@/score';
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 
 const PUBLIC = join(__dirname, '..', 'public');
 const readPublic = async (path: string) => new Uint8Array(readFileSync(join(PUBLIC, path)));

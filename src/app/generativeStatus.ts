@@ -11,7 +11,7 @@
  * an unchanged phase.
  */
 import { create } from 'zustand';
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 
 /** The status before the engine has reported anything (or after teardown). */
 export const ABSENT_GENERATIVE_STATUS: LoadStatus = { phase: 'off', message: 'Generative layer off' };

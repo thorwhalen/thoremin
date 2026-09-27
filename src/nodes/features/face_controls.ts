@@ -34,7 +34,7 @@
  * makes that check a ten-second flip instead of a build cycle.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { clamp01 } from '@/features/math';
 import { ABSENT_FACE_CONTROLS, type FaceControls, type FaceFrame } from '../domain';
 

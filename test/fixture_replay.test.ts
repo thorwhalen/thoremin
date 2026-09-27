@@ -11,7 +11,7 @@
  * If you change a node and these fail intentionally, re-record the fixtures.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import { voiceMappingNode, type HandFeatures, type SynthParams } from '@/nodes';
 import { freqToMidi, midiToName } from '@/music/theory';

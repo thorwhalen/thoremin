@@ -5,7 +5,7 @@
  * a separate case exercises the EMA easing.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { faceControlsNode } from '@/nodes';
 import {
   FaceControlsDialSchema,

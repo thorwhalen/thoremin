@@ -9,7 +9,7 @@
  * of the trainer HUD pref whose default flipped with the banner.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { synthMergeNode } from '@/nodes';
 import { drumOutNode, type DrumSink } from '@/extensions/air/nodes/drum_out';
 import { pluckOutNode } from '@/extensions/air/nodes/pluck_out';

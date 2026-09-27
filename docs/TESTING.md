@@ -5,7 +5,7 @@ synth-params → audio`. Re-running from video is slow (camera + ML inference)
 and non-deterministic. So we **tap every edge, persist what flows on it, and
 test downstream stages by replaying the recording** — fast, deterministic, no
 camera/GPU/audio. The mechanism (`StreamRecorder` tap, NDJSON, `replayNode`,
-`runHeadless`) lives in `src/dag/` and works in plain Node.
+`runHeadless`) lives in `packages/dag/src/` and works in plain Node.
 
 ## The four tiers (fastest/most-frequent first)
 
@@ -74,7 +74,7 @@ The suite grew from ~33 files to 108 across the 2026-06 → 2026-09 tracks. Roug
 | **Feature Lab** (#119) | `feature_catalog`, `feature_formula`, `feature_normalizer`, `feature_vector_nodes`, `feature_lab_overlay`, `lab_views` | The catalog, the no-eval formula compiler (incl. its rejection cases), the online normalizer. |
 | **Library** (#113–#115) | `library_model`, `library_store`, `library_summarize`, `library_systemtags`, `library_derive`, `library_emoji` | Tag identity invariants, both persistence shapes, the derived views. |
 | **Recording** (#88) | `recording`, `recording_plan`, `recording_naming`, `recording_manifest`, `recording_schema`, `recording_caps`, `recording_feature_tap` | The pure half of the recorder (see below). |
-| **Annotations** (#92) | `taglog_affordances`, `taglog_adapters`, `taglog_provider`, `taglog_presentation`, `tagging_store`, `tagging_export`, `tag_hud_overlay` | The extraction-ready `src/taglog/` core + the thoremin glue + the exporters. |
+| **Annotations** (#92) | `taglog_affordances`, `taglog_adapters`, `taglog_provider`, `taglog_presentation`, `tagging_store`, `tagging_export`, `tag_hud_overlay` | The extraction-ready `packages/taglog/src/` core + the thoremin glue + the exporters. |
 | **Assistant** (#87 P3) | `assistant_session`, `assistant_tools` | Tool exposure and the session/confirmation flow, against a mock model. |
 | **Output** | `midi_out`, `overlay_elements`, `render_audio` | The MIDI sink, the overlay elements, the offline synth DSP. |
 | **Fixtures** | `fixture_replay`, `video_fixtures`, `video_body_fixtures`, `hand_pipeline` | The record/replay regression gates. |
@@ -146,7 +146,7 @@ stream by its logical key and never see the envelope.
 
 ## Fixtures from a conducting video (#187)
 
-`test/fixtures/conducting_{44,34,24}/` are 11 to 14.5 s excerpts of a conductor beating 4/4, 3/4 and 2/4 patterns at a **stated** 70 bpm, as hand-landmark streams (`src.hands.ndjson.gz`) plus a `meta.json` carrying the ground truth a clip cannot supply on its own: the stated tempo and pattern, and the window in which she is actually beating. The raw video lives in the app-data dir (`~/.local/share/thoremin/videos/conducting/`, fetched with `yb`; its README records sources and excerpt times) and never in the repo. `scripts/video_to_landmarks.py` decodes an excerpt; `scripts/build_conducting_fixture.ts` compacts the stream (coordinates to a tenth of a pixel, keypoint names dropped) and writes the fixture. The reference beat grid is built from the stated tempo alone (`fitGrid` in `src/ictus/metrics.ts` fits only its phase), so a detector firing at the wrong rate cannot pass, and the assertions are the MIR beat-tracking metrics (`test/ictus_detector.test.ts`). One thing these clips taught, worth knowing before tightening a threshold: a human conductor keeps the bar at 70 bpm but gives the downbeat stroke ~1.05 s and the inner beats ~0.7 s, so beat-level metrics against a metronomic grid top out around 0.8 until the meter recogniser lands.
+`test/fixtures/conducting_{44,34,24}/` are 11 to 14.5 s excerpts of a conductor beating 4/4, 3/4 and 2/4 patterns at a **stated** 70 bpm, as hand-landmark streams (`src.hands.ndjson.gz`) plus a `meta.json` carrying the ground truth a clip cannot supply on its own: the stated tempo and pattern, and the window in which she is actually beating. The raw video lives in the app-data dir (`~/.local/share/thoremin/videos/conducting/`, fetched with `yb`; its README records sources and excerpt times) and never in the repo. `scripts/video_to_landmarks.py` decodes an excerpt; `scripts/build_conducting_fixture.ts` compacts the stream (coordinates to a tenth of a pixel, keypoint names dropped) and writes the fixture. The reference beat grid is built from the stated tempo alone (`fitGrid` in `packages/ictus/src/metrics.ts` fits only its phase), so a detector firing at the wrong rate cannot pass, and the assertions are the MIR beat-tracking metrics (`test/ictus_detector.test.ts`). One thing these clips taught, worth knowing before tightening a threshold: a human conductor keeps the bar at 70 bpm but gives the downbeat stroke ~1.05 s and the inner beats ~0.7 s, so beat-level metrics against a metronomic grid top out around 0.8 until the meter recogniser lands.
 
 ## The shipped scores as test inputs (#187 PR 3)
 
@@ -280,7 +280,7 @@ fixtures use. See [design/recording-v2.md](design/recording-v2.md).
 ## Replaying in tests
 
 ```ts
-import { valuesFromNDJSON, replayNode } from '@/dag';
+import { valuesFromNDJSON, replayNode } from '@thoremin/dag';
 const features = valuesFromNDJSON(readFileSync('test/fixtures/sweep_right/feat.features.ndjson','utf8'));
 const out = await replayNode(voiceMappingNode.make(params), { features });
 ```

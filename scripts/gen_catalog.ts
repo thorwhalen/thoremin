@@ -63,7 +63,7 @@ Two things worth knowing:
 const EXAMPLES: Array<{ title: string; chain: string; note: string }> = [
   { title: 'Theremin (direct)', chain: 'webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)', note: 'Hand x → scale-snapped pitch, y → volume. Two hands = two voices.' },
   { title: 'Gesture → harmony', chain: "hand-features → pick('right.x') → progression → chord → webaudio-synth", note: 'Hand position walks an in-key chord progression.' },
-  { title: 'Conductor', chain: 'webcam-hands → conductor → score → synth-merge → webaudio-synth', note: 'The beating hand becomes musical time (src/ictus): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece\'s tempo + dynamics, directed live. Behind the Conductor dial.' },
+  { title: 'Conductor', chain: 'webcam-hands → conductor → score → synth-merge → webaudio-synth', note: 'The beating hand becomes musical time (packages/ictus/src): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece\'s tempo + dynamics, directed live. Behind the Conductor dial.' },
   { title: 'Indirect / AI (gesture or expression)', chain: 'hand-features / face-features → indirect-map → lyria', note: 'Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.' },
   { title: 'Discrete triggers', chain: 'hand-features → gesture-classifier → (events)', note: 'Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.' },
 ];

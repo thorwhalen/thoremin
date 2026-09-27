@@ -26,9 +26,9 @@
  * per-channel (MPE) voicing and continuous pitch-bend, a deliberate follow-up.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { realtimeOutputAllowed } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { realtimeOutputAllowed } from '@thoremin/dag';
 import { freqToMidi } from '@/music/theory';
 import type { SynthParams, VoiceParams } from '../domain';
 

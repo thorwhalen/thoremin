@@ -1,7 +1,7 @@
 /**
  * `conductor` node — the conductor's beating hand becomes musical time (#187).
  *
- * Wraps `src/ictus` (the pure core: ictus detector → adaptive oscillator →
+ * Wraps `packages/ictus/src` (the pure core: ictus detector → adaptive oscillator →
  * `MusicalTime`) as a DAG node over the hands frame the rest of the graph already
  * reads, and emits what the score player needs: a continuous `beat`, the `bpm` it is
  * advancing at, and a `velocityScale` from the size of the strokes — the two ports
@@ -48,9 +48,9 @@
  * recorded conducting fixtures drive it headlessly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@/ictus';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
 import { LM, frameTime, type Hand, type HandsFrame } from '../domain';
 import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@/score/schema';
 
@@ -158,7 +158,7 @@ export const conductorNode = defineNode<Params>({
   roles: ['feature', 'mapping'],
   title: 'Conductor',
   description:
-    'The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.',
+    'The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.',
   inputs: [
     { name: 'hands', kind: 'hands-frame' },
     { name: 'config', kind: 'conductor-config' },

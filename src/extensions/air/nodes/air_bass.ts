@@ -15,7 +15,7 @@
  * The plucking hand is the rhythm half, and it is the drum problem (§7.3): a pluck is a
  * short stroke whose moment of contact the camera never sees, so it is predicted before
  * the frame that shows it by the same impact predictor the air drum uses
- * (`src/ictus/impact.ts`). The note is latched when the pluck is predicted, so sliding
+ * (`packages/ictus/src/impact.ts`). The note is latched when the pluck is predicted, so sliding
  * the fretting hand after a pluck does not bend a note that has already sounded.
  *
  * Output: note events on the engine clock (`notes`), sounded by `pluck-out` on the
@@ -23,9 +23,9 @@
  * and Node-safe (no DOM, no clock), so synthetic hands drive it headlessly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { createImpactPredictor, type ImpactPredictor } from '@/ictus';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
 import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '@/nodes/domain';
 import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
 
@@ -182,7 +182,7 @@ export const airBassNode = defineNode<Params>({
   roles: ['feature', 'mapping'],
   title: 'Air bass',
   description:
-    'Play a bass in the air: the fretting hand\'s distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (src/ictus/impact.ts). Off by default.',
+    'Play a bass in the air: the fretting hand\'s distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.',
   inputs: [
     { name: 'hands', kind: 'hands-frame' },
     { name: 'config', kind: 'air-bass-config' },

@@ -1,0 +1,28 @@
+{
+  "name": "@thoremin/taglog",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's taglog package (TypeScript source, consumed by the app through the workspace).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./affordances": "./src/affordances/index.ts",
+    "./affordances/codec": "./src/affordances/codec.ts",
+    "./affordances/leadIn": "./src/affordances/leadIn.ts",
+    "./affordances/resolve": "./src/affordances/resolve.ts",
+    "./affordances/schema": "./src/affordances/schema.ts",
+    "./affordances/time": "./src/affordances/time.ts",
+    "./affordances/toggle": "./src/affordances/toggle.ts",
+    "./presentation": "./src/presentation/index.ts",
+    "./presentation/overlay": "./src/presentation/overlay.ts",
+    "./provider": "./src/provider/index.ts",
+    "./provider/defsStore": "./src/provider/defsStore.ts",
+    "./provider/sink": "./src/provider/sink.ts"
+  },
+  "dependencies": {
+    "@zodal/store": "^0.1.2",
+    "@zodal/store-localstorage": "^0.1.0",
+    "zod": "^4.4.3"
+  }
+}

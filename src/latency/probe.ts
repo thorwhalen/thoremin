@@ -34,7 +34,7 @@
  *
  * Pure apart from the injected clock and audio reader; unit-tested in Node.
  */
-import type { NodeContext, Tap } from '@/dag';
+import type { NodeContext, Tap } from '@thoremin/dag';
 import type { FrameTiming, HandsFrame } from '@/nodes/domain';
 import { RingSamples, type Summary } from './stats';
 

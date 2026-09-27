@@ -23,7 +23,7 @@
  * and a data-dependent caller order (an instrument's set plus a live demand's) would
  * otherwise move them. Pure and Node-safe: no engine, no DOM.
  */
-import type { EdgeSpec, GraphSpec, NodeSpec } from '@/dag';
+import type { EdgeSpec, GraphSpec, NodeSpec } from '@thoremin/dag';
 import type { GraphBranch, VoiceRole } from './branch';
 
 export interface MergeTarget {

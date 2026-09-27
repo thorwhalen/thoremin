@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { makeConductorReporter, conductorLiveKey, type ConductorLive } from '@/app/conductorStatus';
-import type { MusicalTime } from '@/ictus';
+import type { MusicalTime } from '@thoremin/ictus';
 
 function time(over: Partial<MusicalTime>): MusicalTime {
   return { t: 0, beat: 0, phase: 0, tempo: 0, period: Infinity, confidence: 0, nextBeatAt: Infinity, beatsPerBar: 4, beatInBar: 0, state: 'ready', anchors: 0, ...over };

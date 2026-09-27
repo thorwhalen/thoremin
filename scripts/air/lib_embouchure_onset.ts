@@ -17,7 +17,7 @@
  *
  * 2. **The detector** ({@link createEmbouchureDetector}): a *causal* reading, the thing
  *    that could run in the app. One scalar mouth signal in, `Anchor`s out (the
- *    `src/ictus` contract, so a mouth onset can be fed to a `RhythmPrior` exactly as a
+ *    `packages/ictus/src` contract, so a mouth onset can be fed to a `RhythmPrior` exactly as a
  *    drum stroke is). Two modes: `level` fires when the signal departs from its resting
  *    baseline by a threshold in NOISE UNITS (multiples of the signal's own frame-to-frame
  *    jitter, from `src/enroll/noise.ts`, the trainer's convention), which is the
@@ -50,10 +50,10 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import type { StreamRecord } from '@/dag';
+import type { StreamRecord } from '@thoremin/dag';
 import { createNoiseEstimator, type NoiseEstimator } from '@/enroll/noise';
 import type { FeatureVector } from '@/features/catalog';
-import type { Anchor } from '@/ictus/types';
+import type { Anchor } from '@thoremin/ictus/types';
 import { EMBOUCHURE_BLENDSHAPES } from './lib_wind_string_features';
 
 // ---- The stream ----------------------------------------------------------------------

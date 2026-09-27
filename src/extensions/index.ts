@@ -1,7 +1,7 @@
 /**
- * The extensions this build ships, as data (seam 4 of the instruments-as-graphs ADR: an
- * in-tree array of manifests; the replacement already pointed at is a build-time
- * `extensions.json` naming registry packages, PR 6). Every registry the app used to
+ * The extensions this build ships, as data (seam 4 of the instruments-as-graphs ADR):
+ * `extensions.json` names them and `vite.extensions.ts` injects them at build time as a
+ * virtual module; after the repository split the same file names registry packages. Every registry the app used to
  * hand-list is a fold over this array: `createAppRegistry`, `ALL_BRANCHES`,
  * `SettingsSchema`, the dials form, `store-controls`' ports, `branchIdsFor` (all bound in
  * `src/app/graph.ts` and the other fold points, never in the pure `src/instruments`).
@@ -9,9 +9,17 @@
  * Pure: the React halves are listed in `src/app/extensions`.
  */
 import type { Extension } from '@/instruments/extension';
-import { AIR_EXTENSION } from './air';
+import listed from 'virtual:thoremin/extensions';
 
-export const EXTENSIONS: readonly Extension[] = [AIR_EXTENSION];
+/** The extensions `extensions.json` names, in its order (injected at build time). */
+export const EXTENSIONS: readonly Extension[] = listed.map((e, i) => {
+  // The virtual module's type is a declaration, not a check: a listed module with no default
+  // export arrives here as `undefined`, and only the production build would say so.
+  if (typeof e?.id !== 'string' || !Array.isArray(e.branches) || !Array.isArray(e.dials)) {
+    throw new Error(`extensions.json: entry ${i} does not default-export an Extension (id, branches, dials)`);
+  }
+  return e;
+});
 
 /** Every extension's dial slices, in extension order (what the settings schema spreads). */
 export const EXTENSION_DIAL_SLICES = EXTENSIONS.flatMap((e) => e.dials);

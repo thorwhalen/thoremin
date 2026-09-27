@@ -9,7 +9,7 @@
  * The body is the most expensive model the graph can host, so it must cost
  * nothing until wanted. Rather than hand-roll a fourth copy of the load / release
  * / late-arrival / failure-latch machine (`webcam-face` and `midi-out` each have
- * one), this node is the first adopter of the catalogued pattern in `src/lazy`
+ * one), this node is the first adopter of the catalogued pattern in `packages/lazy/src`
  * (#188, `docs/design/lazy-loading.md`):
  *
  * 1. **Off by default, lazy.** Nothing loads at `init()`. `process()` calls
@@ -34,10 +34,10 @@
  */
 import { z } from 'zod';
 import { createFramePump, stampToTiming } from './frame_pump';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import type { FeatureLabConfig } from '@/features/labConfig';
-import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@/lazy';
+import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@thoremin/lazy';
 import {
   BODY_MODELS,
   EMPTY_BODY_FRAME,

@@ -7,7 +7,7 @@
  * `OnlineNormalizer` lifecycle, the formula compilation cache and the per-frame
  * feature sweep, which made a 1500-line god-file out of a canvas painter and made the
  * statistics untestable without a canvas. This module owns all of that behind one
- * opaque handle — the same split the tagging track made with `@/taglog/presentation`:
+ * opaque handle — the same split the tagging track made with `@thoremin/taglog/presentation`:
  * WHAT to show is a pure(-ish) computation here; HOW to paint it stays in the overlay.
  *
  * Node-safe (no DOM/canvas), so the lab statistics unit-test headlessly.

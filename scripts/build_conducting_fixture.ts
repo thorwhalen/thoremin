@@ -19,7 +19,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { parseRecords, serializeRecords, type StreamRecord } from '@/dag';
+import { parseRecords, serializeRecords, type StreamRecord } from '@thoremin/dag';
 import type { HandsFrame, Keypoint } from '@/nodes';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

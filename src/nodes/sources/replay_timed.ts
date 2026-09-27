@@ -54,7 +54,7 @@
  * default (1 µs) absorbs that rounding and is far below any frame period.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 
 /** One recorded sample. `StreamRecord`-compatible: its `tick` is accepted and ignored. */
 const TimedRecord = z.object({

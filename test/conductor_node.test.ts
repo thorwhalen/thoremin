@@ -1,5 +1,5 @@
 /**
- * The `conductor` node (#187 PR 2) — src/ictus wrapped as a DAG node — on the recorded
+ * The `conductor` node (#187 PR 2) — packages/ictus/src wrapped as a DAG node — on the recorded
  * conducting fixtures and inside the real default graph.
  *
  * Node level (replayNode on `test/fixtures/conducting_44`): the beat is monotone and
@@ -16,7 +16,7 @@
  * same run produces no score voice at all.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode, runHeadless } from '@/dag';
+import { replayNode, runHeadless } from '@thoremin/dag';
 import { conductorNode, DEFAULT_CONDUCTOR_DIAL, SCORE_VOICE_ID_BASE, type HandsFrame, type SynthParams } from '@/nodes';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';

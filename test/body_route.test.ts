@@ -4,7 +4,7 @@
  * whole path headless — a synthetic body's arm raise driving brightness.
  */
 import { describe, it, expect } from 'vitest';
-import { Engine, runHeadless } from '@/dag';
+import { Engine, runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { createCoreRegistry, voiceMappingNode, type SynthParams } from '@/nodes';
 import { bodyRouteMods, DEFAULT_BODY_MAP, NEUTRAL_MODS, BodyMapSchema, HOLD_GRACE_S, type BodyMap } from '@/nodes/mapping/body_map';

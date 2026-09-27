@@ -20,7 +20,7 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { replayNode, serializeRecords, parseRecords, type StreamRecord } from '@/dag';
+import { replayNode, serializeRecords, parseRecords, type StreamRecord } from '@thoremin/dag';
 import { bodyFeatureVectorNode, type BodyFrame } from '@/nodes';
 import { roundVector } from '../test/helpers/fixtures';
 

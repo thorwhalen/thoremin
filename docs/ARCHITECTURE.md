@@ -6,7 +6,7 @@
 
 ## The big idea: everything is a dataflow graph
 
-Thoremin is built around a small, typed **dataflow DAG** (`src/dag/`). Sensor
+Thoremin is built around a small, typed **dataflow DAG** (`packages/dag/src/`). Sensor
 inputs flow through feature extraction, mapping, music logic, and synthesis
 nodes to audiovisual outputs. Components are small, parameterizable, and wired
 by edges — so you compose new instruments by re-wiring, not rewriting.
@@ -45,7 +45,7 @@ sensors   normalized   feature→     tonal           sound            audio +
 | **Synthesis / Generation** | Make sound | `webaudio-synth` (declarative timbre presets from `src/music/sounds.ts`). The `lyria` node + `GenerativeEngine` facade exist and are unit-tested, but the only *running* generative surface is the AI-DJ plugin in the **frozen** legacy app — retired to `?engine=legacy` (#128); a DAG-native, gesture-steered generative layer is the new-feature issue #141. |
 | **Output** | Audio + video + visual guides + MIDI | Web Audio out; `canvas-overlay` (video, landmarks, markers, pitch guides, chord cues, feature-lab meters, annotation HUD); `midi-out` (WEBMIDI.js, shipped #13, off by default). |
 
-## The DAG runtime (`src/dag/`)
+## The DAG runtime (`packages/dag/src/`)
 
 Framework-agnostic (no React/DOM/audio) so it runs in plain Node for fast tests.
 
@@ -129,7 +129,7 @@ narrates it. Each of these has its own SSOT design doc in `docs/design/`:
 | **Instrument library** (`src/app/library/`, #113–#115) | Favorites, stable-id tags, read-only `sys:*` tags derived from parametrization, and `summarizeInstrument`. See [design/instrument-library.md](design/instrument-library.md). |
 | **Feature Lab** (`src/features/`, `src/app/lab/`, #119) | A data-driven catalog of ~200 face/hand scalar features, a no-eval formula compiler for user-defined derived features, and an online normalizer that makes heterogeneous features comparable on one grid of meters. See [design/feature-lab.md](design/feature-lab.md). |
 | **Recording v2** (`src/app/recording/`, #88) | Session-based multi-stream capture into one folder + `manifest.json`. See [design/recording-v2.md](design/recording-v2.md). |
-| **Annotations** (`src/taglog/`, `src/app/tagging/`, #92) | Live tag toggles → a time-aligned `<take>.annotations.jsonl` + exporters. `src/taglog/` is written to lift out as a standalone package. |
+| **Annotations** (`packages/taglog/src/`, `src/app/tagging/`, #92) | Live tag toggles → a time-aligned `<take>.annotations.jsonl` + exporters. `packages/taglog/src/` is written to lift out as a standalone package. |
 | **AI assistant** (`src/plugins/assistant/`, #87 Phase 3) | A chat that operates the instrument by dispatching commands. Client-side, multi-provider, bring-your-own-key; destructive commands pass a human confirmation gate. |
 
 ## The legacy app (`src/App.tsx` — frozen)

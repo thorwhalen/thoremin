@@ -8,7 +8,7 @@
  * player who flips the dial and presses play reaches the engine.
  */
 import { describe, it, expect } from 'vitest';
-import { Engine, StreamRecorder } from '@/dag';
+import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import type { ControlSnapshot } from '@/nodes/sources/store_controls';
 import type { GenerativeConfig, GenerativeEngine, GenerativeEngineFactory, GenerativeStatus, WeightedPrompt } from '@/nodes';

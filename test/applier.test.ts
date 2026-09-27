@@ -6,7 +6,7 @@
  * when a run stops. Everything here is plain Node — no DOM, no camera, no audio.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { Applier, BatchClock, RealtimeClock, Engine, createRegistry, defineNode, STATE_READER_KEY, type Clock, type Source, type StateReader, type GraphSpec } from '@/dag';
+import { Applier, BatchClock, RealtimeClock, Engine, createRegistry, defineNode, STATE_READER_KEY, type Clock, type Source, type StateReader, type GraphSpec } from '@thoremin/dag';
 import { z } from 'zod';
 
 /** A node that copies a named resource onto its output port, so a test can see what the

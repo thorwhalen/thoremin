@@ -3,7 +3,7 @@
  *   synthetic-hands → hand-features → pick(right.x) → progression → chord
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode, runHeadless, type GraphSpec } from '@/dag';
+import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { pickNode, createCoreRegistry, ABSENT_HAND, type HandFeatures, type SynthParams } from '@/nodes';
 
 function feat(rightX: number, present = true): HandFeatures {

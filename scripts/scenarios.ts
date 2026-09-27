@@ -3,7 +3,7 @@
  * recorder (`record_stream.ts`) and the disk-replay tests so node params can
  * never drift between what was recorded and what a test replays.
  */
-import type { GraphSpec } from '@/dag';
+import type { GraphSpec } from '@thoremin/dag';
 
 export const FEAT_PARAMS = { mirrorX: false, mirrorHandedness: false };
 

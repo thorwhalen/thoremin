@@ -5,7 +5,7 @@
  * in the browser; here we check the control value the synth consumes.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { voiceMappingNode, ABSENT_HAND, type HandFeatures, type SynthParams } from '@/nodes';
 
 function feats(openness: number, pinch = 0, x = 0.5): HandFeatures {

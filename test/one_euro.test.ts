@@ -4,7 +4,7 @@
  * deterministic given the tick timing.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { oneEuroNode } from '@/nodes';
 
 const variance = (xs: number[]) => {

@@ -26,7 +26,7 @@
  * One output may fan OUT to several inputs (webcam→features & overlay); only fan-IN to a
  * single input port is disallowed, which is why every voice goes through `synth-merge`.
  */
-import type { GraphSpec, NodeRegistry, Role } from '@/dag';
+import type { GraphSpec, NodeRegistry, Role } from '@thoremin/dag';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
 import { BODY_SLOT_CONTRACT } from '@/nodes/sources/body_contract';

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import { BatchClock, RealtimeClock, Engine, defineNode, createRegistry, type Tap } from '../src/dag';
+import { BatchClock, RealtimeClock, Engine, defineNode, createRegistry, type Tap } from '@thoremin/dag';
 
 // A controllable stand-in for requestAnimationFrame: stores the next frame
 // callback so a test can drive frames one at a time.

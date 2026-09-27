@@ -20,7 +20,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import { Engine, createRegistry, defineNode, runHeadless, type GraphSpec } from '../src/dag';
+import { Engine, createRegistry, defineNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';

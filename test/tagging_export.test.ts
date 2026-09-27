@@ -29,8 +29,8 @@ import {
   summarizeTake,
   takeDuration,
 } from '@/app/tagging/export';
-import { ADAPTERS, getAdapter } from '@/taglog/adapters';
-import { emptyTagState, DEFAULT_TAGGING_CONFIG, TagDefSchema } from '@/taglog/affordances';
+import { ADAPTERS, getAdapter } from '@thoremin/taglog/adapters';
+import { emptyTagState, DEFAULT_TAGGING_CONFIG, TagDefSchema } from '@thoremin/taglog/affordances';
 
 const A = TagDefSchema.parse({ id: 'a', label: 'Verse', kind: 'interval' });
 const P = TagDefSchema.parse({ id: 'p', label: 'Hit', kind: 'point' });
@@ -335,7 +335,7 @@ describe('the format picker: metadata derived from the registry, order + default
   });
 
   it('orders the picker in the APP, not by the library registry’s key order', () => {
-    // `Object.keys(ADAPTERS)` is declaration order inside src/taglog — a library built to
+    // `Object.keys(ADAPTERS)` is declaration order inside packages/taglog/src — a library built to
     // be lifted out, with no knowledge of this UI. Deriving the order from it would let a
     // harmless reshuffle there silently reorder thoremin's picker (and, since the default
     // used to be "the first one", change the file a user gets). The order is thoremin's.

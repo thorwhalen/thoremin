@@ -32,7 +32,7 @@
 import { GoogleGenAI, type LiveMusicSession, type LiveMusicServerMessage } from '@google/genai';
 import { getStoredKey } from '@/keys/providerKeys';
 import { LYRIA_KEY_PROVIDER } from './lyria';
-import type { LoadResult } from '@/lazy';
+import type { LoadResult } from '@thoremin/lazy';
 import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from './generative';
 
 function decodeBase64(base64: string): Uint8Array {

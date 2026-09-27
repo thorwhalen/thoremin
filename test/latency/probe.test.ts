@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { LatencyProbe, type AudioLike } from '@/latency/probe';
 
 /**

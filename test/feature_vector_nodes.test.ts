@@ -10,8 +10,8 @@
  * design — exactly the present-gating being verified.
  */
 import { describe, it, expect } from 'vitest';
-import type { NodeContext } from '@/dag';
-import { replayNode } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';

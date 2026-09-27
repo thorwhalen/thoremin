@@ -32,7 +32,7 @@
  * from the top) releases everything that was sounding.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { midiToFreq } from '@/music/theory';
 import { SoundSchema } from '@/music/sounds';
 import { MAX_POSE_VOICES, POSE_VOICE_ID_BASE } from './pose_chord';

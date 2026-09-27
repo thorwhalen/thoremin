@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 import { Chord, Note } from 'tonal';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { midiToFreq } from '@/music/theory';
 import { SoundSchema } from '@/music/sounds';
 import type { SynthParams, VoiceParams } from '../domain';

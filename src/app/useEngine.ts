@@ -6,7 +6,7 @@
  * real work; this hook just supplies host resources and timing.
  *
  * Two seams the hook deliberately does NOT own:
- *  - **Pacing, outputs and teardown** are an `Applier` (`src/dag/applier.ts`): a
+ *  - **Pacing, outputs and teardown** are an `Applier` (`packages/dag/src/applier.ts`): a
  *    `RealtimeClock`, the React bridges as sinks, `disposed` as the stop condition.
  *    The hook used to hand-roll its own rAF recursion, which left the shipped
  *    `RealtimeClock` exercised only by unit tests while players ran other code.
@@ -15,14 +15,14 @@
  *    so the camera is not re-acquired and the ML models are not reloaded.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Applier, Engine, RealtimeClock } from '@/dag';
+import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
 import { branchIdsFor } from '@/app/graph';
 import { branchSetKey } from '@/instruments/derive';
 import type { Composed } from '@/instruments/compose';
 import { useDemandedGroups } from './useDemandedGroups';
-import type { NodeRegistry } from '@/dag';
+import type { NodeRegistry } from '@thoremin/dag';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';

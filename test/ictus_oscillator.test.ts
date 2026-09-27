@@ -1,12 +1,12 @@
 /**
- * The adaptive oscillator (src/ictus/oscillator.ts) on synthetic anchor trains: lock,
+ * The adaptive oscillator (packages/ictus/src/oscillator.ts) on synthetic anchor trains: lock,
  * tracking under a tempo ramp, robustness to a dropped and a doubled anchor, the hold
  * state and the preparatory restart, and the attentional gate (a stray anchor far from
  * the beat moves the state less than one near it). No detector involved: these pin the
  * prior alone, so a detector regression cannot hide an oscillator one.
  */
 import { describe, it, expect } from 'vitest';
-import { createAdaptiveOscillator, kappaFromResultant, beatAt, wrapPhase, type Anchor } from '@/ictus';
+import { createAdaptiveOscillator, kappaFromResultant, beatAt, wrapPhase, type Anchor } from '@thoremin/ictus';
 
 const anchor = (t: number, confidence = 1): Anchor => ({ t, confidence, strength: 1, sharpness: 1, lateral: 0 });
 

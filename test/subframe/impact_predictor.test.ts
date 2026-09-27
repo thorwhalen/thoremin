@@ -1,5 +1,5 @@
 /**
- * The impact predictor (src/ictus/impact.ts): the fits it is built on, and the
+ * The impact predictor (packages/ictus/src/impact.ts): the fits it is built on, and the
  * predictor replayed over the committed synthetic fixtures made by the `an.impacts`
  * harness (`test/fixtures/subframe_*`: a stick on a table and in the air at 30 fps, a
  * ball in the air at 60 fps; 180-degree shutter, humanised timing, an accelerando;
@@ -17,7 +17,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createImpactPredictor, crossingTau, fitLine, fitQuadratic, intersectionTau, type ImpactConfirmation, type ImpactPrediction, type Sample } from '@/ictus';
+import { createImpactPredictor, crossingTau, fitLine, fitQuadratic, intersectionTau, type ImpactConfirmation, type ImpactPrediction, type Sample } from '@thoremin/ictus';
 import { FIXTURES } from '../helpers/fixtures';
 
 // ---- the fits ------------------------------------------------------------------

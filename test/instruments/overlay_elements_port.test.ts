@@ -8,7 +8,7 @@
  * assertion is about what the overlay DID, not about a returned value it has none of.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { Engine } from '@/dag';
+import { Engine } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { useControls } from '@/app/store';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';

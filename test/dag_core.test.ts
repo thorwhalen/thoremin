@@ -15,7 +15,7 @@ import {
   serializeRecords,
   parseRecords,
   type GraphSpec,
-} from '@/dag';
+} from '@thoremin/dag';
 
 // A source that emits an incrementing counter (stateful).
 const counter = defineNode<{ start: number; step: number }>({

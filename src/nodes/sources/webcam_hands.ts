@@ -17,10 +17,10 @@
  * `<video>` element is injected via `ctx.resources.video`.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 import { createFramePump, stampToTiming } from './frame_pump';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '../domain';
 

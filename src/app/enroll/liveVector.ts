@@ -19,7 +19,7 @@
  * the trainer modality-general without knowing which modality is present. A missing
  * source simply contributes no keys.
  */
-import type { NodeContext, Tap } from '@/dag';
+import type { NodeContext, Tap } from '@thoremin/dag';
 import type { FeatureVector } from '@/enroll';
 
 /** The edge keys the tap listens to — the catalog's three vector-producing nodes. */

@@ -4,7 +4,7 @@
  * would have written for it, through the two seams (`featurize`, `labelOf`).
  */
 import { describe, expect, it } from 'vitest';
-import type { StreamRecord } from '@/dag';
+import type { StreamRecord } from '@thoremin/dag';
 import {
   PROBE_LABEL,
   joinLabelledFrames,

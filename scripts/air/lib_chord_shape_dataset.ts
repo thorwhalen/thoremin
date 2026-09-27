@@ -21,7 +21,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { parseRecords, type StreamRecord } from '@/dag';
+import { parseRecords, type StreamRecord } from '@thoremin/dag';
 import type { FeatureVector } from '@/features/catalog';
 import type { BodyFrame, FaceFrame, HandsFrame } from '@/nodes/domain';
 import type { Sample } from './lib_chord_shape_model';

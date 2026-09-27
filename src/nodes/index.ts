@@ -6,7 +6,7 @@
  * synth, keyboard, canvas overlay, Lyria) are registered separately by the app
  * shell so these stay testable in Vitest's `node` environment.
  */
-import { createRegistry, type NodeRegistry } from '@/dag';
+import { createRegistry, type NodeRegistry } from '@thoremin/dag';
 
 import { syntheticHandsNode } from './sources/synthetic_hands';
 import { replaySourceNode } from './sources/replay';

@@ -7,7 +7,7 @@
  * overlayConfig drives show/groups.
  */
 import { describe, it, expect } from 'vitest';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { canvasOverlayNode } from '@/nodes/output/canvas_overlay';
 import { makeRecordingCanvas } from './helpers/canvas';
 

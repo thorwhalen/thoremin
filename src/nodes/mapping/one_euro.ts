@@ -9,8 +9,8 @@
  * Pure + deterministic (uses ctx.dt as the timestep), so it replays exactly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 
 const Params = z.object({
   /** Cutoff (Hz) at rest. Lower = smoother (more lag) when the signal is still. */

@@ -11,7 +11,7 @@
  * does the browser capture + wiring, so it is intentionally kept thin and is
  * covered by the app's build (not the Node strict typecheck), like `useEngine`.
  */
-import type { Engine } from '@/dag';
+import type { Engine } from '@thoremin/dag';
 import { recordingFormat, convertAudioFormats, type ConvertedFormat } from './formats';
 import { recordingStem, prefillName } from './naming';
 import { planRecording, audioFormatIds, type RecordingPlan, type PlannedFile } from './plan';

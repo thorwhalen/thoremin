@@ -6,7 +6,7 @@
  * empty frame, never `undefined`, when it has nothing to replay).
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame, type BodyStatus } from '../domain';
 import { BODY_SLOT_OUTPUT } from './body_contract';
 

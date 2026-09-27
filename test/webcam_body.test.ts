@@ -2,7 +2,7 @@
  * `webcam-body` (#186), headlessly: the pure result → frame converter, the gate
  * that decides whether the (expensive) pose model is wanted, and the lazy-load
  * lifecycle through the injected loader seam (`ctx.resources.createBodyLandmarker`,
- * the `src/lazy` pattern): off by default, `no-camera` until the video has frames
+ * the `packages/lazy/src` pattern): off by default, `no-camera` until the video has frames
  * (then a self-retry), loads the dial's model on enable, swaps model on change —
  * also after a FAILED load — and releases on disable.
  */
@@ -11,7 +11,7 @@ import { branchIdsFor } from '@/app/graph';
 import { type DerivationContext } from '@/instruments/derive';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@/nodes/domain';
 import { defaultFeatureLab } from '@/features/labConfig';
 import {

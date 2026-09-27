@@ -7,7 +7,7 @@
  * mock pluck sink that must be asked to play the enrolled chords' voicings.
  */
 import { describe, it, expect } from 'vitest';
-import { runHeadless } from '@/dag';
+import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { DEFAULT_AIR_GUITAR } from '@/settings/schema';

@@ -4,13 +4,13 @@
  * Renders a {@link LoadStatus} the way the MIDI section (#137) renders its own phase:
  * a status dot (coloured and pulsing per phase), the node's message, and — new here —
  * a progress bar while `loading` when the loader reports progress (a model or wasm
- * download). The phase vocabulary is `src/lazy/status.ts`; a node that still speaks its
+ * download). The phase vocabulary is `packages/lazy/src/status.ts`; a node that still speaks its
  * own words (`midi-out`, `webcam-face`) is adapted by its panel, not by this component.
  *
  * `enabled` is the node's enable control: when it is off the readout says so, whatever
  * stale status a torn-down engine last reported.
  */
-import type { LoadPhase, LoadStatus } from '@/lazy';
+import type { LoadPhase, LoadStatus } from '@thoremin/lazy';
 
 /** Status-dot colour + whether it pulses, per phase. Same palette as the MIDI panel. */
 const PHASE_DOT: Record<LoadPhase, string> = {

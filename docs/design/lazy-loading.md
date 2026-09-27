@@ -1,6 +1,6 @@
 # Lazy loading as a catalogued pattern
 
-> Status: design record (2026-09-09), issue [#188](https://github.com/thorwhalen/thoremin/issues/188). The maintainer's rule, verbatim: *"We don't want to load everything at once, but only what is needed when it's needed."* This page is the pattern that rule became, and the module that implements it (`src/lazy/`). The wider context (where generative AI fits inside an instrument) is [`generative-instruments.md`](generative-instruments.md) §5.
+> Status: design record (2026-09-09), issue [#188](https://github.com/thorwhalen/thoremin/issues/188). The maintainer's rule, verbatim: *"We don't want to load everything at once, but only what is needed when it's needed."* This page is the pattern that rule became, and the module that implements it (`packages/lazy/src/`). The wider context (where generative AI fits inside an instrument) is [`generative-instruments.md`](generative-instruments.md) §5.
 
 ## The rule
 
@@ -29,7 +29,7 @@ A heavy node never imports its implementation statically. It declares a factory 
 
 ### 2. Status port
 
-Every heavy node emits a `status` output of type `LoadStatus` (`src/lazy/status.ts`):
+Every heavy node emits a `status` output of type `LoadStatus` (`packages/lazy/src/status.ts`):
 
 | phase | meaning |
 |---|---|
@@ -49,10 +49,10 @@ Node-specific detail goes in `reason` (a cause for `unavailable` / `error`, or a
 - Where the capability cannot exist on this host (`unavailable` with `unsupported`), the panel renders the reason instead of a dead toggle (the MIDI section's precedent). `reason` and the phase are exposed as data attributes so a panel test can pin that.
 - A multi-megabyte download is labelled as such *before* the player triggers it (the rule `formats.ts` states for an ffmpeg.wasm format, and `component-model.md`'s recording section). The readout shows progress; the enable control says the size.
 
-## The module: `src/lazy/`
+## The module: `packages/lazy/src/`
 
 ```ts
-import { lazyResource, withActive } from '@/lazy';
+import { lazyResource, withActive } from '@thoremin/lazy';
 
 const engine = lazyResource<GenerativeEngine>({
   load: (ctx) => (injectedFactory ?? defaultFactory)(opts, ctx),  // the seam
@@ -77,7 +77,7 @@ Five rules, each a test in `test/lazy_resource.test.ts`:
 4. **Re-enable retries.** `release()` clears the failure, so disable → enable is the player's "try again".
 5. **Never throw.** A rejecting (or synchronously throwing) loader becomes an `error` status; an `unload` that throws is logged, never propagated.
 
-Pure and Node-safe: no DAG import, no DOM, no vendor library. `src/dag/` is untouched; a node composes the resource inside `make()`.
+Pure and Node-safe: no DAG import, no DOM, no vendor library. `packages/dag/src/` is untouched; a node composes the resource inside `make()`.
 
 Three idioms the existing sites need, stated so they are not re-derived:
 

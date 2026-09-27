@@ -26,10 +26,10 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createAdaptiveOscillator, createIctusDetector, type Anchor, type Sample } from '@/ictus';
-import { createImpactPredictor } from '@/ictus/impact';
-import { magnetise } from '@/ictus/magnet';
-import { createTrendPrior } from '@/ictus/trend_prior';
+import { createAdaptiveOscillator, createIctusDetector, type Anchor, type Sample } from '@thoremin/ictus';
+import { createImpactPredictor } from '@thoremin/ictus/impact';
+import { magnetise } from '@thoremin/ictus/magnet';
+import { createTrendPrior } from '@thoremin/ictus/trend_prior';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);

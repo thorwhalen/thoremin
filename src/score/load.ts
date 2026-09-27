@@ -12,7 +12,7 @@
  *
  * Pure and Node-safe: no DOM, no fetch — `fetchDemo` takes the fetch function.
  */
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 import type { DemoScore } from './library';
 import type { ScoreDoc } from './schema';
 

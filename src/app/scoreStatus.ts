@@ -5,7 +5,7 @@
  * share it without threading props, the same shape as `generativeStatus.ts`.
  */
 import { useSyncExternalStore } from 'react';
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 
 let status: LoadStatus = { phase: 'off', message: 'No score loaded' };
 const listeners = new Set<() => void>();

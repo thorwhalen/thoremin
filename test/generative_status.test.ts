@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { makeGenerativeReporter, useGenerativeStatus, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from '@/app/generativeStatus';
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 
 describe('makeGenerativeReporter', () => {
   it('reports on change only, keyed by phase / reason / message / progress', () => {

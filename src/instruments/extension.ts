@@ -20,7 +20,7 @@
  * with `src/air`. The manifest is what makes the move a `git mv`.
  */
 import type { z } from 'zod';
-import type { NodeDef } from '@/dag';
+import type { NodeDef } from '@thoremin/dag';
 import type { GraphBranch } from './branch';
 import type { DerivationSettings } from './derive';
 

@@ -38,7 +38,7 @@
  * reads a clock, the DAG, React or audio.
  */
 import { z } from 'zod';
-import { fitGrid } from '@/ictus/metrics';
+import { fitGrid } from '@thoremin/ictus/metrics';
 import { PAD_IDS, DRUM_SOUNDS, type DrumSound, type PadId } from '@/nodes/music/drum_pads';
 import { DRUM_NAMES, type DrumName } from '@/music/gm_drums';
 import type { DrumPattern, PatternEvent } from '@/music/drum_patterns';

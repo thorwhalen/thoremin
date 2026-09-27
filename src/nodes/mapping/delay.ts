@@ -21,7 +21,7 @@
  * about the node rather than an error.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 
 export const delayParams = z.object({
   /** How many ticks back to emit. 1 = the previous tick. */

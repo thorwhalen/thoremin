@@ -30,7 +30,7 @@
  * Pure + deterministic. An absent/empty input contributes no voices; an absent `mute`
  * or `hush` is treated as false (passthrough).
  */
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import type { SynthParams } from '../domain';
 
 const EMPTY: SynthParams = { voices: [] };

@@ -9,8 +9,8 @@
  * without rendering pixels.
  */
 import { describe, it, expect } from 'vitest';
-import { Engine } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { Engine } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { canvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes/output/canvas_overlay';

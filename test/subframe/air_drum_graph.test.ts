@@ -11,7 +11,7 @@
  * wiring rather than on a bespoke spec.
  */
 import { describe, it, expect } from 'vitest';
-import { runHeadless } from '@/dag';
+import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';

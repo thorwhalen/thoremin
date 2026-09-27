@@ -17,8 +17,8 @@
  * pause long enough to put the prior on hold starts the pattern over: the player comes
  * back on the one. Pure: no clock, no DAG, no audio.
  */
-import { createTrendPrior, type RhythmPrior } from '@/ictus';
-import { beatAt as priorBeatAt } from '@/ictus/types';
+import { createTrendPrior, type RhythmPrior } from '@thoremin/ictus';
+import { beatAt as priorBeatAt } from '@thoremin/ictus/types';
 import type { DrumSound, PadId } from '@/nodes/music/drum_pads';
 import type { DrumPattern } from '@/music/drum_patterns';
 import type { DrumName } from '@/music/gm_drums';
