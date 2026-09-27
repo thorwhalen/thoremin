@@ -168,6 +168,17 @@ A record is kept in the blob while it says anything a default record does not (`
 
 Why a join rather than a new collection: the metadata record already IS the "attribute map" of Decision 4, and the four new fields are attributes; a new collection would have replaced the profile store's contract that every instrument test exercises directly, for no gain in behaviour. No migration was needed: the record's Zod defaults heal an old record, and the class cache is written by the library once both the record and the derivation are loaded, then rewritten whenever the derivation disagrees. The pure model tests (`test/instruments/spec.test.ts`) pin the rules; nothing exports or imports instruments yet, and when something does it serialises this record and applies `normaliseClassId` on the way in.
 
+## Decision 8: the view is a rendering of a zodal collection (Round 4, Discussion #272)
+
+The maintainer's rule: *zodal objects specify the affordances of the collection abstractly, and its rendering is a separate thing.* So the Instruments view no longer filters and sorts by hand.
+
+- **The declaration** is `src/app/library/instrumentsCollection.ts`: `defineCollection(InstrumentSpecSchema, …)` declares the search (the name today), the sort orders (`INSTRUMENT_SORTS`: library order, starred first, by name), the grouping by `class` (collapsible, open by default), the field affordances (the settings Layer is never listed, searched or sorted; `image` is a small reference, so metadata), and the operations (play, edit, star, make default; save the current sound as a new instrument).
+- **The data** reaches a view through a `DataProvider` over the library's assembled specs (`createSpecsSource`). It is read-only: writes stay with the library and the profile store, which own them (Decision 7).
+- **The query state** is `@zodal/ui`'s generated zustand slice (`instrumentsCatalog.ts`). A view hands over the specs, the search text and the sort, and reads `items`.
+- **The rendering** is `InstrumentsPanel`'s list. It is a temporary in-repo stand-in for zodal's collection-view renderer ([i2mint/zodal#14](https://github.com/i2mint/zodal/issues/14)), as the remembered view choices will be for [i2mint/zodal#15](https://github.com/i2mint/zodal/issues/15); both are tracked in [#283](https://github.com/thorwhalen/thoremin/issues/283). Facet counts come from `@zodal/groups-core`'s `facetPanel` (no stand-in needed).
+
+What follows on this seam, each an addition rather than a rewrite: one line per instrument, the class colour and collapsible classes (option A); a search over tags, class and features with facet chips (option B, which widens `INSTRUMENT_SEARCH_FIELDS` and adds filters); and a gallery view (a second rendering of the same collection, `views: ['list', 'grid']`, with the last choice remembered).
+
 ## Sparse layers, resolved
 
 A saved instrument is a **sparse** dials `Layer` and may carry the dials `UNSET`

@@ -11,6 +11,9 @@
  * player's choice, persisted through the pins' `DataProvider`.
  *
  * Opening a tool closes the launcher; Escape closes it; the search box has focus on open.
+ *
+ * The row and section rendering is a temporary in-repo stand-in for zodal's collection-view
+ * renderer (i2mint/zodal#14; migration tracked in thorwhalen/thoremin#283).
  */
 import { useEffect, useState } from 'react';
 import { Pin, PinOff, Search, X } from 'lucide-react';
