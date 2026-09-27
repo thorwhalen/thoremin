@@ -62,6 +62,18 @@ npx vite-node scripts/air/eval_drum_anchors.ts    # which point to track, on the
 
 Results per instrument are in the research doc §6.3 (guitar) and §7 (bass, flute, drums).
 
+## The embouchure onset (flute, #248)
+
+Does the mouth signal a note before the sound does? Three more steps on the flute sources, all local:
+
+```bash
+python3 scripts/air/extract_mouth.py flute            # blendshapes + lip/reference landmarks, streamed (.mouth.ndjson.gz)
+python3 scripts/air/label_note_onsets.py flute        # each note's onset refined to 2.9 ms from the pitch-band power (--self-test)
+npx vite-node scripts/air/eval_embouchure_onset.ts    # profile + causal detector, per source / player / pooled -> results/air/flute/embouchure_onset.*
+```
+
+The face stream `video_to_face.py` writes carries blendshapes only; `extract_mouth.py` runs the same landmarker and adds the lip contours and a few reference points (eyes, nose, chin), written one frame per line so a 36,000-frame lesson does not have to fit in memory. `label_note_onsets.py` starts from `label_pitch.py`'s segments (23 ms hops, late by a few hops) and reads, for each note, the power in a quarter-tone band around *its* fundamental at a 2.9 ms hop; the onset is the 50 % crossing between the silence's floor and the note's plateau, which sits on a step onset under the symmetric analysis window (the self-test lands inside a 10 ms attack). Onsets are tagged with the silence before them (`rest`, a phrase from nothing; `breath`; `short`, inside a phrase) or as a note `change` under one breath, because the mouth's job differs by case. `lib_embouchure_onset.ts` then reads each mouth signal (twenty embouchure blendshapes; the inner-lip aperture, lip width, lip height, jaw drop and lip protrusion from the mesh, normalised by the inter-ocular distance) two ways: the oracle *profile* (around each known onset: did it move, and when did it cross 10 / 50 / 90 % of its rest-to-play change) and the causal *detector* (departure from a resting baseline, or speed of change, in noise units; emits `src/ictus` `Anchor`s; scored one-to-one inside an asymmetric window for hit / miss / false-alarm rates and the lead distribution). The numbers and the recommendation are in the research doc §7.2.
+
 ## Modules
 
 | file | role |
@@ -75,9 +87,10 @@ Results per instrument are in the research doc §6.3 (guitar) and §7 (bass, flu
 | `lib_wind_string_features.ts` | flute (both hands + embouchure) and bass (shape + neck position) featurizers on a frame bundle |
 | `lib_drum_strokes.ts` | wrist tracks from the pose stream, hand-point tracks (a hands stream joined to the pose by tick), frame-level stroke detection in noise units, k-means drum assignment |
 | `lib_synthetic_grip.ts` | a synthetic hand gripping an `an.impacts` stick (wrist stroke plus a chosen arm share, seeded landmark noise) |
-| `label_pitch.py`, `label_onsets.py` | audio → note segments (pyin); audio → hit onsets; both with `--self-test` |
+| `label_pitch.py`, `label_onsets.py`, `label_note_onsets.py` | audio → note segments (pyin); audio → hit onsets; note segments → onsets at 2.9 ms from the pitch band; all with `--self-test` |
 | `label_chords.py` | audio → chord segments; `--self-test` recovers a synthetic progression |
-| `fetch.py`, `extract.py` | download; run `video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py` per source |
+| `fetch.py`, `extract.py`, `extract_mouth.py` | download; run `video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py` per source; the streamed mouth stream (blendshapes + lip landmarks) |
+| `lib_embouchure_onset.ts`, `eval_embouchure_onset.ts` | mouth signals (blendshapes + lip geometry), the oracle onset profile, the causal embouchure detector (ictus anchors), one-to-one matching and lead statistics; the flute CLI that scores them |
 | `build_chord_shape_dataset.ts`, `train_chord_shape.ts`, `enrol_chord_shape.ts` | the guitar CLIs: join, held-out training, enrolment budget |
 | `build_pitch_dataset.ts`, `train_air_model.ts`, `eval_drum_strokes.ts`, `eval_drum_anchors.ts` | flute/bass join, the generic held-out trainer, the drum stroke evaluation on footage, the tracked-point comparison on synthetic strokes |
 
