@@ -34,13 +34,15 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createImpactPredictor, magnetise, type ImpactPredictor, type MusicalTime } from '@/ictus';
-import { LM, frameTime, type Hand, type HandsFrame } from '../domain';
+import { frameTime, type Hand, type HandsFrame } from '../domain';
+import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, anchorPoint } from './drum_anchor';
 
 export const DRUM_SOUNDS = ['kick', 'snare', 'hihat', 'tom'] as const;
 export type DrumSound = (typeof DRUM_SOUNDS)[number];
 export const AIR_DRUM_HANDS = ['both', 'right', 'left'] as const;
 export type AirDrumHand = (typeof AIR_DRUM_HANDS)[number];
-export const AIR_DRUM_POINTS = ['wrist', 'indexTip'] as const;
+/** The tracked point (#246): the SSOT is `drum_anchor.ts`, shared with the offline scorer. */
+export const AIR_DRUM_POINTS = DRUM_ANCHOR_POINTS;
 export type AirDrumPoint = (typeof AIR_DRUM_POINTS)[number];
 export type PlayerHand = 'right' | 'left';
 
@@ -49,8 +51,13 @@ const Params = z.object({
   enabled: z.boolean().default(false),
   /** Which of the player's hands drum. */
   hand: z.enum(AIR_DRUM_HANDS).default('both'),
-  /** The tracked point: the wrist (steady) or the index fingertip (a stick tip). */
+  /** The tracked point: the wrist, the index fingertip, or the tip of a (real or virtual)
+   *  stick extended from the grip (`drum_anchor.ts`), which sees a wrist or finger stroke
+   *  the wrist itself barely makes. */
   point: z.enum(AIR_DRUM_POINTS).default('wrist'),
+  /** How far the stick reaches past the thumb-index fulcrum, in grip lengths (heel of the
+   *  hand to the fulcrum). Only for `point: 'stickTip'`. */
+  stickLength: z.number().min(0.5).max(8).default(DEFAULT_STICK_LENGTH),
   /** The drum each hand plays. */
   rightSound: z.enum(DRUM_SOUNDS).default('kick'),
   leftSound: z.enum(DRUM_SOUNDS).default('snare'),
@@ -195,7 +202,7 @@ export const airDrumNode = defineNode<Params>({
     /** The config fields that shape a stick: a change rebuilds both sticks (a switched
      *  tracked point or hand must not read as a stroke, and the floor belongs to the
      *  old point), so every dial leaf takes effect live. */
-    const stickKey = (c: Params) => `${c.point}|${c.hand}|${c.mirrorHandedness}|${c.minStroke}|${c.minSpeed}`;
+    const stickKey = (c: Params) => `${c.point}|${c.stickLength}|${c.hand}|${c.mirrorHandedness}|${c.minStroke}|${c.minSpeed}`;
     let sticksKey = '';
 
     const reset = () => {
@@ -233,11 +240,12 @@ export const airDrumNode = defineNode<Params>({
             const stick = sticks[which];
             const hand = frame.hands.find((h) => h.handedness === labelFor(which, c.mirrorHandedness));
             if (!hand || t < stick.lastT + MIN_SAMPLE_SPACING) continue;
+            const anchor = anchorPoint(hand.keypoints, c.point, { stickLength: c.stickLength });
+            if (!anchor) continue;
             stick.lastT = t;
             stick.predictor.setMinLead(c.minLead + age);
-            const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
             const sound = which === 'right' ? c.rightSound : c.leftSound;
-            for (const e of stick.predictor.push({ t, x: kp.x / frame.height, y: kp.y / frame.height })) {
+            for (const e of stick.predictor.push({ t, x: anchor.x / frame.height, y: anchor.y / frame.height })) {
               if (e.kind === 'predict') {
                 let at = e.t;
                 let pull = 0;

@@ -48,8 +48,13 @@
       },
       {
         "name": "point",
-        "type": "enum(wrist | indexTip)",
+        "type": "enum(wrist | indexTip | stickTip)",
         "default": "wrist"
+      },
+      {
+        "name": "stickLength",
+        "type": "number",
+        "default": 3
       },
       {
         "name": "rightSound",

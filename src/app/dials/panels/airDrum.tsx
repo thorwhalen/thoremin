@@ -24,7 +24,8 @@ const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {
 };
 const POINT_LABEL: Record<AirDrumDialParams['point'], string> = {
   wrist: 'wrist (steady)',
-  indexTip: 'index fingertip (like a stick)',
+  indexTip: 'index fingertip',
+  stickTip: 'stick tip (a stick extended from the grip)',
 };
 const SOUND_LABEL: Record<AirDrumDialParams['rightSound'], string> = {
   kick: 'kick',

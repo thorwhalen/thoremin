@@ -1,9 +1,16 @@
 /**
- * Strokes from a drummer's wrists, and which drum each stroke went to. The parts of the
+ * Strokes from a drummer's wrists or hands, and which drum each stroke went to. The parts of the
  * drum problem that are NOT sub-frame timing: predicting the hit before the frame that
  * shows it, the `ictus` prior and the commit-and-correct rule are the sub-frame
  * stream's, in `src/ictus/`. This module finds strokes at frame resolution and says
  * where they landed; §7.3 of the research doc says where the two meet.
+ *
+ * The tracked point (#246): the pose wrist ({@link wristTracks}), or a point on the hand
+ * ({@link handTracks}: the hand's wrist landmark, the index fingertip, or the estimated
+ * stick tip, all from `src/nodes/music/drum_anchor.ts`, the definition the live
+ * `air-drum` node uses), joined to the pose for identity and normalisation. The wrist
+ * sees an arm stroke; a finger or wrist stroke turns the hand without moving the wrist,
+ * which only a point on the hand sees.
  *
  * The stroke detector IS the ictus detector (`createIctusDetector` in
  * `src/ictus/detector.ts`), one per wrist, fed the wrist's image position: a stroke is a
@@ -32,13 +39,16 @@
 import type { StreamRecord } from '@/dag';
 import { createIctusDetector, type DetectorOptions } from '@/ictus/detector';
 import type { Anchor } from '@/ictus/types';
-import type { BodyFrame } from '@/nodes/domain';
-import { BLM } from '@/nodes/domain';
+import type { BodyFrame, HandsFrame } from '@/nodes/domain';
+import { BLM, LM } from '@/nodes/domain';
+import { anchorPoint, type DrumAnchorPoint } from '@/nodes/music/drum_anchor';
 
+/** The player's side: which arm a track (a wrist, or a point on that arm's hand) belongs to. */
 export type Wrist = 'left' | 'right';
 
-/** A detected stroke: the ictus detector's anchor, plus whose wrist and where it landed. */
+/** A detected stroke: the ictus detector's anchor, plus whose arm and where it landed. */
 export interface Stroke extends Anchor {
+  /** Which arm struck (named for the pose wrist, which is also how a hand is identified). */
   wrist: Wrist;
   /** Landing point, shoulder-normalised (x to the right, y down, origin the shoulder midpoint). */
   x: number;
@@ -47,6 +57,7 @@ export interface Stroke extends Anchor {
   drum?: number;
 }
 
+/** One sample of a tracked point: the pose wrist, or a point on that arm's hand (#246). */
 export interface WristSample {
   t: number;
   x: number;
@@ -83,6 +94,78 @@ export function wristTracks(records: readonly StreamRecord[], minVisibility = MI
         ny: width > 0 ? (p.y - cy) / width : NaN,
         visible,
       });
+    }
+  }
+  return out;
+}
+
+/** The pose frame's shoulder normalisation: midpoint and width, or null when the
+ *  shoulders are not both visible. */
+function shoulderFrame(f: BodyFrame, minVisibility: number): { cx: number; cy: number; width: number } | null {
+  if (!f.present || f.landmarks.length < 33) return null;
+  const ls = f.landmarks[BLM.left_shoulder];
+  const rs = f.landmarks[BLM.right_shoulder];
+  if ((f.visibility[BLM.left_shoulder] ?? 0) < minVisibility || (f.visibility[BLM.right_shoulder] ?? 0) < minVisibility) return null;
+  const width = Math.hypot(ls.x - rs.x, ls.y - rs.y);
+  return width > 0 ? { cx: (ls.x + rs.x) / 2, cy: (ls.y + rs.y) / 2, width } : null;
+}
+
+export interface HandTrackOptions {
+  /** The point on the hand (`src/nodes/music/drum_anchor.ts`). */
+  point: DrumAnchorPoint;
+  /** Stick length past the fulcrum, grip lengths, for `stickTip`. */
+  stickLength?: number;
+  minVisibility?: number;
+  /** A hand is that arm's only if its wrist landmark is within this many shoulder widths
+   *  of the pose wrist. Default 0.5. */
+  maxWristDistance?: number;
+}
+
+/**
+ * Per-arm samples of a point on the HAND (#246), from a hands stream and the pose stream
+ * of the same video joined by tick. The pose does two things the hands stream cannot: it
+ * says whose hand a detection is (the nearest pose wrist, which is reliable where
+ * MediaPipe's handedness label on a third-person video is not), and it supplies the
+ * shoulder normalisation, so a landing point means the same thing for every anchor and
+ * the drum assignment is comparable with the wrists'. A frame without a visible pair of
+ * shoulders or without a hand near the arm's wrist is an invisible sample (the detector
+ * skips it, and restarts after a long enough gap).
+ */
+export function handTracks(handRecords: readonly StreamRecord[], poseRecords: readonly StreamRecord[], o: HandTrackOptions): Record<Wrist, WristSample[]> {
+  const minVisibility = o.minVisibility ?? MIN_VISIBILITY;
+  const maxD = o.maxWristDistance ?? 0.5;
+  const poseByTick = new Map<number, BodyFrame>();
+  for (const r of poseRecords) poseByTick.set(r.tick, r.value as BodyFrame);
+  const out: Record<Wrist, WristSample[]> = { left: [], right: [] };
+  for (const r of handRecords) {
+    const hf = r.value as HandsFrame;
+    const pose = poseByTick.get(r.tick);
+    const sh = pose ? shoulderFrame(pose, minVisibility) : null;
+    const hands = (hf.hands ?? []).filter((h) => h.keypoints.length >= 21);
+    // Each arm takes the nearest hand to its pose wrist; two arms never share a hand.
+    const taken = new Set<number>();
+    const pick: Partial<Record<Wrist, number>> = {};
+    if (sh && pose) {
+      const pairs: { w: Wrist; i: number; d: number }[] = [];
+      for (const w of ['left', 'right'] as const) {
+        const pw = pose.landmarks[w === 'left' ? BLM.left_wrist : BLM.right_wrist];
+        hands.forEach((h, i) => pairs.push({ w, i, d: Math.hypot(h.keypoints[LM.wrist].x - pw.x, h.keypoints[LM.wrist].y - pw.y) / sh.width }));
+      }
+      pairs.sort((a, b) => a.d - b.d);
+      for (const pr of pairs) {
+        if (pr.d > maxD || pick[pr.w] !== undefined || taken.has(pr.i)) continue;
+        pick[pr.w] = pr.i;
+        taken.add(pr.i);
+      }
+    }
+    for (const w of ['left', 'right'] as const) {
+      const i = pick[w];
+      const p = i === undefined ? undefined : anchorPoint(hands[i].keypoints, o.point, { stickLength: o.stickLength });
+      if (!sh || !p) {
+        out[w].push({ t: r.t, x: NaN, y: NaN, nx: NaN, ny: NaN, visible: false });
+        continue;
+      }
+      out[w].push({ t: r.t, x: p.x, y: p.y, nx: (p.x - sh.cx) / sh.width, ny: (p.y - sh.cy) / sh.width, visible: true });
     }
   }
   return out;
@@ -266,10 +349,14 @@ export function assignStrokes(strokes: Stroke[], o: AssignOptions = {}): Cluster
   return [...assignWristStrokes(strokes, 'left', o), ...assignWristStrokes(strokes, 'right', o)];
 }
 
+/** Strokes on both arms' tracks, merged in time order. */
+export function strokesOfTracks(tracks: Record<Wrist, readonly WristSample[]>, o: StrokeOptions = {}): Stroke[] {
+  return [...detectStrokes(tracks.left, 'left', o), ...detectStrokes(tracks.right, 'right', o)].sort((a, b) => a.t - b.t);
+}
+
 /** Strokes on both wrists of a pose stream, merged in time order. */
 export function strokesOf(records: readonly StreamRecord[], o: StrokeOptions = {}): Stroke[] {
-  const tracks = wristTracks(records);
-  return [...detectStrokes(tracks.left, 'left', o), ...detectStrokes(tracks.right, 'right', o)].sort((a, b) => a.t - b.t);
+  return strokesOfTracks(wristTracks(records), o);
 }
 
 /**
