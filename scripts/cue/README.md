@@ -10,19 +10,20 @@ That extracts the take to `~/.local/share/thoremin/takes/cue/<name>/`, pairs it,
 
 ## Recording a take (the one page for the player)
 
-**You need:** Chrome, a table, **wired headphones**, about three minutes. Headphones, because the microphone must hear only your taps: a click from the speakers is recorded on top of the tap it prompted. Wired, because Bluetooth delays the click by a fifth of a second.
+**You need:** Chrome (it records the microphone as Opus; Safari's AAC adds its own encoder delay), a table, **wired headphones**, about three minutes. Headphones, because the microphone must hear only your taps: a click from the speakers is recorded on top of the tap it prompted. Wired, because Bluetooth delays the click by a fifth of a second.
 
 **Set up:** sit at the table with the camera seeing both hands and the table top in front of you, hands about half a metre from the camera, in good light.
 
 **Run:** open thoremin, then **Trainer** in the tools bar, choose the routine **Real vs air: taps**, press **Start**, and allow the camera and the microphone. Each phrase starts with three seconds to read the instruction on screen, then four low count-in clicks, then sixteen higher clicks to play on (the first of every four is higher still). Play on the sixteen, not on the count-in.
 
-1. **Clap** once on each click (four claps), where the camera can see your hands.
+1. **Clap** once on each click (eight claps), where the camera can see your hands.
 2. **Taps, on the table:** the fingers of one hand, on each click.
 3. **Taps, in the air:** the same, just above the table, without touching it.
 4. **Alternating, on the table:** left, right, left, right.
 5. **Alternating, in the air.**
 6. **Soft and hard, on the table:** four soft, four hard, four soft, four hard.
 7. **Soft and hard, in the air:** the same pattern, as if striking.
+8. **Clap again**, eight claps, to finish.
 
 It stops by itself after about two and a half minutes and saves `real-vs-air-<date>.zip` to Downloads (or to the folder the Record button is set to). Then run the command above.
 
@@ -36,26 +37,33 @@ A normal recording folder (`docs/design/recording-v2.md`): the clean camera, `fe
 
 `pairs.json` has one entry per phrase, each with a `real` half, an `air` half and 16 `beats`. All times are seconds into the take (`t - t0`).
 
+Times are on one of three clocks, and the field names say which. The **engine clock** (`performance.now()`) is the clicks'. The **mic clock** is `t0` plus the time into the microphone file: it runs tens of milliseconds late (the recorder starts after `t0`, plus input latency) and drifts. The **row clock** is the feature rows' `t`. The claps at the start and end measure the mic-to-row mapping (`micToRows`: offset and drift), and the `*Row` fields apply it: those are the labels to train on the rows with. The mic-clock fields are kept beside them, raw.
+
 | Field | Meaning |
 |---|---|
-| `beats[i].real.onset` | The microphone onset matched to beat `i`'s click (nearest within half a beat), or null if nothing was heard. |
-| `beats[i].real.lagMs` | Onset minus click. `real.clickLagMs` is the phrase's median. |
+| `beats[i].real.onset` | Mic clock: the microphone onset matched to beat `i`'s click (nearest within half a beat), or null if nothing was heard. |
+| `beats[i].real.onsetRow` | The same instant on the row clock. |
+| `beats[i].real.lagMs` | Onset minus click: the player's lag plus the microphone's offset. `real.clickLagMs` is the phrase's median. |
 | `beats[i].real.levelDb` | Peak level over 30 ms from the onset, dBFS: the label for how hard. |
 | `beats[i].real.chroma` | 12 pitch classes (C = 0) over 200 ms after the attack, max 1: the label for which notes (a strum's chord). |
-| `beats[i].air.intended` | The air click plus the real half's median lag: when the player meant to strike, assuming they land as late on air as on the table. |
+| `beats[i].air.intended` | Mic clock: the air click plus the real half's median lag, i.e. where the strike would have sounded, assuming the player lands as late in the air as on the table. |
+| `beats[i].air.intendedRow` | The same on the row clock: the air half's training label. |
 | `beats[i].air.levelDb`, `.chroma` | Inherited from the real beat of the same index (the phrase asked for the same thing). |
-| `avOffsetMs` | Median of (clap sound − visible clap), from the slate: positive means the microphone runs late against the camera. Reported, never applied. |
-| `warnings` | Missing halves, unheard real beats, and sound on the air beats (click bleed, or a touched surface). |
+| `micToRows` | `offsetMs` (median of clap heard − clap seen, at the first slate, `atS`) and `driftMsPerS` (from the last slate). Precision is about a camera frame per clap, narrowed by the eight-clap median. Null without a usable slate, and then so are the `*Row` fields. |
+| `slates` | Each slate's claps: click, heard (mic clock), seen (row clock: the row with the smallest `hand.pair.distance`). |
+| `warnings` | Missing halves, which real beats were unheard, sound on the air beats (click bleed, or a touched surface), a missing slate, a low sample rate. |
 
-Beside it: `<phrase>.real.features.jsonl`, `<phrase>.air.features.jsonl` and `slate.features.jsonl`, the take's own feature rows for each half, untouched, so anything computed later joins back on `t`; and `mic.wav`, to listen against the labels.
+Beside it: `<phrase>.real.features.jsonl`, `<phrase>.air.features.jsonl` and one `<slate cue>.features.jsonl` per slate, the take's own feature rows for each half, untouched, so anything computed later joins back on `t`; and `mic.wav`, to listen against the labels.
 
-## Why the onset detector is not the latency probe's
+## The onset detector
 
-`src/latency/onsets.ts` finds a slap with hysteresis: the envelope must fall back before another strike counts. A strummed chord rings through the next click, so that detector hears the first strum only. `detectOnsets` here looks for rises against the envelope's recent **maximum**: a chord's partials beat, so its envelope dips and recovers every few tens of milliseconds, and each recovery is a rise against the dip but never against the last peak, while a new strum or tap clears it.
+`src/latency/onsets.ts` finds a slap with hysteresis: the envelope must fall back before another strike counts. A strummed chord rings through the next click, so that detector hears the first strum only. `detectOnsets` here works on the signal's first difference, which weighs each partial by its frequency: a string's ringing is its low partials and a pluck's or tap's attack is its high ones, which die within tens of milliseconds, so a strum over a chord still ringing from the last one is a large rise in the difference and hardly any in the level. It looks for rises of 6 dB against the difference envelope's recent **maximum** (a chord's partials beat, so the envelope dips and recovers; each recovery is a rise against the dip, never against the last peak) and 8 dB above the room's floor.
+
+Measured on synthetic audio (`test/cue/pair_take.test.ts`, `test/helpers/strum.ts`): all 16 strums of one chord re-strummed at 70 bpm with a 1.5 s ring and an 8 ms strum spread (a level detector found 0 of 16); taps 16 dB over a -50 dBFS room; no onset in a minute of room noise. On 60 s of real drum audio against librosa's onset labels: recall 0.97, precision 0.88, onsets 15 ms earlier than librosa's (librosa marks the peak of onset strength, this marks the attack's first sample). Tuned for 44.1 and 48 kHz; the pipeline warns below. Any other detector plugs in through `pairTake(..., { detect })`.
 
 ## Files
 
 - `lib_pair_take.ts`: the library (WAV reader, onsets, level, chroma, click matching, take reader, pairing, writers). Pure on import.
 - `pair_take.ts`: the CLI (`npm run pair`).
 - The routine itself: `src/app/enroll/realVsAirCues.ts` (cues and starter routines), `src/app/enroll/click.ts` (the metronome), the `microphone` stream in `src/app/recording/`.
-- Tests: `test/cue/` (a synthetic take through the real trainer store, recorder plan and WAV encoder, then this pipeline, from the zip).
+- Tests: `test/cue/` (a synthetic take through the real trainer store, recorder plan and WAV encoder, with a microphone that starts late and drifts, then this pipeline, from a Finder-style zip). The browser capture itself (`SessionRecorder` opening the microphone, the WAV decode) is build-checked only, like the rest of the recorder's capture paths; the first real take is its live check.

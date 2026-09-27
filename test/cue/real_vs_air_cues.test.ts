@@ -146,9 +146,9 @@ describe('the microphone stream', () => {
   });
 
   it('the manifest carries the routine, so a take explains its own annotations', () => {
-    const meta = trainerTakeMeta('Real vs air: taps', REAL_VS_AIR_CUES.slice(0, 2));
+    const meta = trainerTakeMeta('Real vs air: taps', REAL_VS_AIR_CUES);
     const m = buildManifest({ startedAt: 'x', t0: 1, stem: 's', streams: [], meta });
-    expect((m.meta as typeof meta).trainer.cues[1].pairing).toEqual({ phrase: 'taps', surface: 'real' });
+    expect((m.meta as typeof meta).trainer.cues.find((c) => c.id === 'rva-taps-real')!.pairing).toEqual({ phrase: 'taps', surface: 'real' });
     expect(buildManifest({ startedAt: 'x', t0: 1, stem: 's', streams: [] })).not.toHaveProperty('meta');
   });
 });

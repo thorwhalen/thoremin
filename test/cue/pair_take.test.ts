@@ -9,15 +9,19 @@
  * the zip a `downloads` take arrives as) into pairs under a temporary data root.
  *
  * The simulated player taps 25 ms after each click on the table, plays nothing audible in
- * the air, claps the slate 10 ms after its clicks, and taps soft/hard in fours for the
- * dynamics phrase. The camera sees the hands meet at each clap one frame before the
- * sound. Every number asserted below is derived from those choices.
+ * the air, claps both slates 10 ms after their clicks, and taps soft/hard in fours for
+ * the dynamics phrase. The camera sees the hands meet at each clap on the last frame at
+ * or before the sound. The simulated MICROPHONE is what makes the clocks matter: its file
+ * starts 40 ms late and its clock runs 100 ppm fast, so every mic-clock time is off by
+ * 40 ms and growing, and the row-clock fields must take that back out. Every number
+ * asserted below is derived from those choices.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zipSync } from 'fflate';
+import { strum } from '../helpers/strum';
 import type { Click, FeatureVector } from '@/enroll';
 import { useTrainer, useTrainerStores } from '@/app/enroll/store';
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
@@ -42,10 +46,16 @@ import {
   type PairResult,
 } from '../../scripts/cue/lib_pair_take';
 
-const SR = 16000;
+const SR = 44100;
 const TAP_LAG_S = 0.025;
 const CLAP_LAG_S = 0.01;
 const FRAME_MS = 33;
+/** The simulated microphone: its file starts this late against t0... */
+const MIC_OFFSET_S = 0.04;
+/** ...and its clock gains this much per second (100 ppm). */
+const MIC_DRIFT = 1e-4;
+/** Where a TRUE take-relative time lands in the microphone file. */
+const micTime = (trueRel: number) => trueRel + MIC_OFFSET_S + MIC_DRIFT * trueRel;
 
 /** A decaying noise burst (a tap or a clap) into `pcm` at `tSec`. */
 function burst(pcm: Float32Array, tSec: number, amp: number, seed: number): void {
@@ -87,7 +97,7 @@ function fakeRecorder(t0: number) {
 }
 
 /** Run the taps routine through the real store; returns the take folder it would write. */
-async function recordSyntheticTake(root: string, opts: { bleed?: boolean } = {}): Promise<{ dir: string; played: Click[] }> {
+async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAmp?: number } = {}): Promise<{ dir: string; played: Click[]; t0: number }> {
   const T0_MS = 100_000;
   const rec = fakeRecorder(T0_MS / 1000 - 0.05);
   const unregister = registerRecordingController(rec.controller);
@@ -105,7 +115,8 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean } = {})
 
     // The camera: a frame every 33 ms with the hand features the routine attends to.
     // `hand.pair.distance` dips to its minimum on the frame just before each clap sounds.
-    const clapClicks = () => played.filter((c) => c.kind === 'beat' && useTrainer.getState().routine[useTrainer.getState().index]?.id === 'rva-clap');
+    const onSlate = () => useTrainer.getState().routine[useTrainer.getState().index]?.tags.includes('slate') ?? false;
+    const clapClicks = () => played.filter((c) => c.kind === 'beat');
     const rows: string[] = [];
     let tick = 0;
     let t = T0_MS;
@@ -113,8 +124,10 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean } = {})
     while (useTrainer.getState().status !== 'done' && t < T0_MS + 400_000) {
       t += FRAME_MS;
       const s = useTrainer.getState();
-      const onClap = s.routine[s.index]?.id === 'rva-clap';
-      if (onClap) for (const c of clapClicks()) if (!clapTimes.includes(c.t)) clapTimes.push(c.t);
+      void s;
+      const onClap = onSlate();
+      // (Only the clicks of the slate being played: those planned within the last 20 s.)
+      if (onClap) for (const c of clapClicks()) if (Math.abs(c.t - t) < 20_000 && !clapTimes.includes(c.t)) clapTimes.push(c.t);
       // The hands close toward each clap and part after it: the minimum distance is the
       // last frame at or before the sound (the camera cannot see between frames).
       const nearest = clapTimes.reduce((m, c) => {
@@ -166,11 +179,11 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean } = {})
     for (const [id, beats] of beatsByCue) {
       for (const c of beats) {
         const at = c.t / 1000 - r.t0;
-        if (id === 'rva-clap') burst(pcm, at + CLAP_LAG_S, 0.6, c.index + 11);
+        if (id.startsWith('rva-clap')) burst(pcm, micTime(at + CLAP_LAG_S), 0.6, c.index + 11);
         else if (id.endsWith('-real')) {
           const hard = id === 'rva-dynamics-real' ? Math.floor(c.index / 4) % 2 === 1 : true;
-          burst(pcm, at + TAP_LAG_S, hard ? 0.5 : 0.08, c.index + 101);
-        } else if (opts.bleed && id.endsWith('-air')) burst(pcm, at + 0.002, 0.2, c.index + 301);
+          burst(pcm, micTime(at + TAP_LAG_S), hard ? 0.5 : (opts.softAmp ?? 0.08), c.index + 101);
+        } else if (opts.bleed && id.endsWith('-air')) burst(pcm, micTime(at + 0.002), 0.2, c.index + 301);
       }
     }
     expect(routine.map((c) => c.id)).toEqual(STARTER_ROUTINES[0].cueIds);
@@ -193,7 +206,7 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean } = {})
     }
     const manifestFile = plan.files.find((f) => f.kind === 'manifest')!;
     writeFileSync(join(dir, manifestFile.name), serializeManifest(buildManifest({ startedAt: 'x', t0: r.t0, stem, instrument: r.opts.instrument, streams, meta: r.opts.meta })));
-    return { dir, played };
+    return { dir, played, t0: r.t0 };
   } finally {
     unregister();
     setClickPlayer(null);
@@ -222,11 +235,11 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
     expect(take.micWav).toMatch(/\.mic\.wav$/);
     // Every click the player heard is in the take, at the time it was scheduled.
     expect(take.clicks.map((c) => c.t)).toEqual(played.map((c) => c.t / 1000));
-    expect(take.windows).toHaveLength(7);
+    expect(take.windows).toHaveLength(STARTER_ROUTINES[0].cueIds.length);
     for (const id of STARTER_ROUTINES[0].cueIds) expect(take.outcomes[id]).toBe('enough');
   });
 
-  it('pairs every phrase beat for beat, with the player lag, levels and the slate offset', async () => {
+  it('pairs every phrase beat for beat, and the row-clock labels undo the microphone clock', async () => {
     const { dir } = await recordSyntheticTake(root);
     const take = readTake(dir);
     const audio = parseWav(new Uint8Array(readFileSync(take.micWav!)));
@@ -234,35 +247,72 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
     const result: PairResult = pairTake(take, audio, readFeatureRows(take.featuresPath));
     expect(result.warnings).toEqual([]);
     expect(result.phrases.map((p) => p.phrase)).toEqual(['taps', 'alternating', 'dynamics']);
+
+    // Both slates heard and seen; the mapping recovers the microphone's offset (to within
+    // the camera frame the seen clap is quantised to) and its drift.
+    expect(result.slates.map((x) => x.cue)).toEqual(['rva-clap', 'rva-clap-again']);
+    for (const sl of result.slates) expect(sl.claps.every((c) => c.onset !== null && c.visual !== null)).toBe(true);
+    const m = result.micToRows!;
+    expect(m.offsetMs).toBeGreaterThan(MIC_OFFSET_S * 1000 - 2);
+    expect(m.offsetMs).toBeLessThan(MIC_OFFSET_S * 1000 + FRAME_MS);
+    expect(Math.abs(m.driftMsPerS - MIC_DRIFT * 1000)).toBeLessThan(0.15);
+
+    const errs = { mic: [] as number[], row: [] as number[] };
     for (const p of result.phrases) {
       expect(p.bpm).toBe(80);
       expect(p.beats).toHaveLength(16);
       expect(p.real!.matched).toBe(16);
-      expect(p.real!.clickLagMs!).toBeGreaterThan(TAP_LAG_S * 1000 - 1.5);
-      expect(p.real!.clickLagMs!).toBeLessThan(TAP_LAG_S * 1000 + 1.5);
       expect(p.air!.onsets).toBe(0);
       for (const b of p.beats) {
-        // The air half's label: its own click plus the lag measured on the real half.
+        // The mic-clock label is the click plus the phrase's median mic-clock lag...
         expect(b.air!.intended!).toBeCloseTo(b.air!.click + p.real!.clickLagMs! / 1000, 6);
         expect(b.air!.levelDb).toBe(b.real!.levelDb);
+        // ...and against the TRUTH (the player strikes 25 ms after the click, on every
+        // surface) the mic clock is off by the microphone, the row clock is not.
+        const truth = b.air!.click + TAP_LAG_S;
+        errs.mic.push(Math.abs(b.air!.intended! - truth) * 1000);
+        errs.row.push(Math.abs(b.air!.intendedRow! - truth) * 1000);
+        expect(Math.abs(b.real!.onsetRow! - (b.real!.click + TAP_LAG_S)) * 1000).toBeLessThan(FRAME_MS);
       }
     }
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(mean(errs.mic)).toBeGreaterThan(MIC_OFFSET_S * 1000);
+    expect(mean(errs.row)).toBeLessThan(FRAME_MS / 2);
+
     // Soft and hard: the loud fours are loud, and the air half inherits which is which.
     const dyn = result.phrases.find((p) => p.phrase === 'dynamics')!;
     const soft = dyn.beats.filter((b) => Math.floor(b.index / 4) % 2 === 0).map((b) => b.air!.levelDb!);
     const hard = dyn.beats.filter((b) => Math.floor(b.index / 4) % 2 === 1).map((b) => b.air!.levelDb!);
     expect(Math.min(...hard) - Math.max(...soft)).toBeGreaterThan(12);
-    // The slate: four claps heard and seen; the sound follows the visible contact.
-    expect(result.slate!.claps).toHaveLength(4);
-    expect(result.slate!.claps.every((c) => c.onset !== null && c.visual !== null)).toBe(true);
-    expect(result.avOffsetMs!).toBeGreaterThanOrEqual(0);
-    expect(result.avOffsetMs!).toBeLessThan(FRAME_MS);
+  });
+
+  it('names the unheard beats when soft taps are lost in the room', async () => {
+    // Soft taps at the noise floor: the pairing cannot hear them and must say which.
+    const { dir } = await recordSyntheticTake(root, { softAmp: 0.0008 });
+    const take = readTake(dir);
+    const result = pairTake(take, parseWav(new Uint8Array(readFileSync(take.micWav!))), readFeatureRows(take.featuresPath));
+    const w = result.warnings.find((x) => x.startsWith('Phrase "dynamics"'));
+    expect(w).toMatch(/8\/16 real beats heard \(unheard: 1, 2, 3, 4, 9, 10, 11, 12\)/);
+  });
+
+  it('a take whose microphone is only WebM says how to convert it', async () => {
+    const { dir } = await recordSyntheticTake(root);
+    const wav = readdirSync(dir).find((n) => n.endsWith('.mic.wav'))!;
+    unlinkSync(join(dir, wav));
+    const take = readTake(dir);
+    expect(take.micWav).toBeNull();
+    const result = pairTake(take, null, []);
+    expect(result.warnings.join(' ')).toMatch(/only in .*\.mic\.webm.*ffmpeg/);
   });
 
   it('runs from the zip a downloads take arrives as, and writes only under the data root', async () => {
     const { dir } = await recordSyntheticTake(root);
+    // As a Finder re-zip makes it: the folder inside, plus AppleDouble resource forks.
     const files: Record<string, Uint8Array> = {};
-    for (const n of readdirSync(dir)) files[`${n}`] = new Uint8Array(readFileSync(join(dir, n)));
+    for (const n of readdirSync(dir)) {
+      files[`take/${n}`] = new Uint8Array(readFileSync(join(dir, n)));
+      files[`__MACOSX/take/._${n}`] = new Uint8Array([0]);
+    }
     const zip = join(root, 'take.zip');
     writeFileSync(zip, zipSync(files));
     const dataRoot = join(root, 'data');
@@ -270,8 +320,11 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
     expect(outDir).toBe(join(dataRoot, 'datasets', 'cue', result.stem));
     expect(existsSync(join(dataRoot, 'takes', 'cue', 'take'))).toBe(true);
     expect(written).toEqual(
-      expect.arrayContaining(['pairs.json', 'slate.features.jsonl', 'taps.real.features.jsonl', 'taps.air.features.jsonl', 'dynamics.air.features.jsonl', 'mic.wav']),
+      expect.arrayContaining(['pairs.json', 'rva-clap.features.jsonl', 'rva-clap-again.features.jsonl', 'taps.real.features.jsonl', 'taps.air.features.jsonl', 'dynamics.air.features.jsonl', 'mic.wav']),
     );
+    // And never into a repository: this test file's own work tree is refused.
+    expect(() => runPairTake(zip, { env: { THOREMIN_DATA_DIR: dataRoot }, outDir: join(process.cwd(), 'pairs-out') })).toThrow(/git work tree/);
+    expect(existsSync(join(process.cwd(), 'pairs-out'))).toBe(false);
     const pairs = JSON.parse(readFileSync(join(outDir, 'pairs.json'), 'utf8')) as PairResult;
     expect(pairs.phrases).toHaveLength(3);
     // A half's slice is exactly its frames: ~20 s of 30 fps, every row untouched.
@@ -289,26 +342,30 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
 });
 
 describe('scripts/cue: the audio labels', () => {
-  it('finds sharp onsets to the millisecond, and a new strum over a ringing one', () => {
+  it('finds sharp onsets to the millisecond', () => {
     const pcm = new Float32Array(SR * 2);
     const times = [0.2, 0.5, 0.9, 1.3];
     times.forEach((t, i) => burst(pcm, t, 0.4, i + 1));
     const got = detectOnsets(pcm, SR);
     expect(got).toHaveLength(4);
     got.forEach((t, i) => expect(Math.abs(t - times[i])).toBeLessThan(0.002));
+  });
 
-    // A chord that rings (slow decay) re-strummed while still sounding at a third of its
-    // level: the hysteresis detector would miss the second; a rise detector does not.
-    const ring = new Float32Array(SR);
-    for (const [t0, amp] of [[0.1, 0.3], [0.5, 0.3]] as const) {
-      for (let i = Math.round(t0 * SR); i < ring.length; i++) {
-        const dt = i / SR - t0;
-        ring[i] += amp * Math.exp(-dt / 0.4) * (Math.sin(2 * Math.PI * 196 * dt) + Math.sin(2 * Math.PI * 247 * dt));
-      }
+  it('hears every strum of a chord re-strummed while it still rings (the guitar routine)', () => {
+    // Six strings, 8 ms strum spread, ringing with a 1.5 s time constant, 16 strums of
+    // the SAME chord at 70 bpm: the level barely rises on each (measured: a level-rise
+    // detector found 0 of 16); the attack's high partials still do.
+    // At a browser's rate: the difference emphasis needs the attack's upper partials,
+    // and at 16 kHz it misses one or two (the pipeline warns below 44.1 kHz).
+    const rate = 48000;
+    const times = Array.from({ length: 16 }, (_, i) => 0.5 + (i * 60) / 70);
+    for (const [tauS, spreadMs] of [[0.6, 3], [1.5, 8]] as const) {
+      const got = detectOnsets(strum({ sampleRate: rate, times, tauS, spreadMs, durationS: 15 }), rate);
+      const m = matchToClicks(times, got, 0.03);
+      expect(m.filter((x) => x !== null), `tau ${tauS} spread ${spreadMs}`).toHaveLength(16);
+      expect(got).toHaveLength(16);
+      m.forEach((x, i) => expect(Math.abs(x! - times[i])).toBeLessThan(spreadMs / 1000 + 0.002));
     }
-    const strums = detectOnsets(ring, SR);
-    expect(strums).toHaveLength(2);
-    expect(Math.abs(strums[1] - 0.5)).toBeLessThan(0.003);
   });
 
   it('reads a chord as its pitch classes', () => {

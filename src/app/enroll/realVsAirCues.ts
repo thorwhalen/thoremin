@@ -16,9 +16,10 @@
  *
  * ## Why these phrases
  *
- * - **Clap** first, and unpaired: a clap is a sound and a visible contact at the same
- *   instant, which is what the offline script uses to estimate the offset between the
- *   microphone and the camera (a slate, as in film).
+ * - **Clap** first and last, unpaired: a clap is a sound and a visible contact at the
+ *   same instant, which is what the offline script uses to map the microphone's clock
+ *   onto the camera's (a slate, as in film). Two slates, because the microphone's clock
+ *   also DRIFTS against the page's over a routine; the second measures by how much.
  * - **Taps** with one hand, then **alternating** hands: the air drum's stroke, alone and
  *   in the pattern a drummer actually plays. The onset is the label.
  * - **Soft and hard**: the same taps at two levels, because the air drum should play
@@ -69,7 +70,14 @@ export const REAL_VS_AIR_CUES: readonly Cue[] = [
     'Clap',
     'Clap your hands once on each click, where the camera can see them.',
     'A clap is heard and seen at the same instant, which lines the microphone up with the camera.',
-    { beats: 4, tags: ['slate'] },
+    { beats: 8, tags: ['slate'] },
+  ),
+  phraseCue(
+    'rva-clap-again',
+    'Clap again',
+    'To finish, clap once on each click again, where the camera can see them.',
+    'A second clap measures how far the microphone and the camera drifted apart during the routine.',
+    { beats: 8, tags: ['slate'] },
   ),
   phraseCue(
     'rva-taps-real',
@@ -142,13 +150,13 @@ export const STARTER_ROUTINES: readonly StarterRoutine[] = [
   {
     id: `${STARTER_ROUTINE_PREFIX}real-vs-air-taps`,
     name: 'Real vs air: taps',
-    cueIds: ['rva-clap', 'rva-taps-real', 'rva-taps-air', 'rva-alternating-real', 'rva-alternating-air', 'rva-dynamics-real', 'rva-dynamics-air'],
+    cueIds: ['rva-clap', 'rva-taps-real', 'rva-taps-air', 'rva-alternating-real', 'rva-alternating-air', 'rva-dynamics-real', 'rva-dynamics-air', 'rva-clap-again'],
     needs: 'a table and wired headphones; about two and a half minutes',
   },
   {
     id: `${STARTER_ROUTINE_PREFIX}real-vs-air-guitar`,
     name: 'Real vs air: guitar',
-    cueIds: ['rva-clap', 'rva-strums-real', 'rva-strums-air'],
+    cueIds: ['rva-clap', 'rva-strums-real', 'rva-strums-air', 'rva-clap-again'],
     needs: 'a guitar and wired headphones; about a minute',
   },
 ];

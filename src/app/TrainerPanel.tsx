@@ -96,25 +96,22 @@ function suggestedLabel(c: Category, cueNames: Map<string, string>): string {
 const OUTCOME_GLYPH = { enough: '✓', cannot: '✗', skipped: '–' } as const;
 
 /** The routine to run, in plain sight (the full picker is collapsed below it): the face
- *  default, the shipped starter routines (#247), and the player's saved ones. */
-function RoutineChooser({ disabled }: { disabled: boolean }) {
+ *  default, the shipped starter routines (#247), and the player's saved ones. Its value
+ *  is the STORE's `routineId`, so it says what is loaded after a run, a reload or an edit
+ *  in the picker, not what this control last saw. */
+function RoutineChooser() {
+  const routineId = useTrainer((s) => s.routineId);
   const routineName = useTrainer((s) => s.routineName);
   const savedRoutines = useTrainer((s) => s.savedRoutines);
-  const [chosen, setChosen] = useState('');
-  const starter = starterRoutineById(chosen);
+  const starter = starterRoutineById(routineId);
   return (
     <div className="space-y-1">
       <label className="flex items-center gap-2 text-[11px] text-white/70">
         <span className="shrink-0">Routine</span>
         <select
           aria-label="Choose a routine"
-          value={chosen}
-          disabled={disabled}
-          onChange={(e) => {
-            const id = e.target.value;
-            setChosen(id);
-            void useTrainer.getState().useRoutine(id === '' ? null : id);
-          }}
+          value={routineId}
+          onChange={(e) => void useTrainer.getState().useRoutine(e.target.value === '' ? null : e.target.value)}
           className="min-w-0 flex-1 rounded bg-white/5 px-1 py-0.5 text-[11px] text-white/85"
         >
           <option value="">Your faces (default)</option>
@@ -128,9 +125,14 @@ function RoutineChooser({ disabled }: { disabled: boolean }) {
               {r.name}
             </option>
           ))}
+          {routineId === 'custom' && (
+            <option value="custom" disabled>
+              {routineName} (edited)
+            </option>
+          )}
         </select>
       </label>
-      {starter && starter.name === routineName && (
+      {starter && (
         <p className="text-[10px] text-white/45" data-routine-needs>
           You need {starter.needs}.
         </p>
@@ -405,7 +407,7 @@ export default function TrainerPanel() {
 
       <div className="space-y-4 overflow-auto p-4">
         {tool && <p className="text-[10px] uppercase tracking-widest text-emerald-500/70">{tool.description}</p>}
-        {!running && <RoutineChooser disabled={running} />}
+        {!running && <RoutineChooser />}
         {status === 'idle' && pairRoutine && (
           <p className="text-[11px] leading-relaxed text-white/60" data-pair-intro>
             Each phrase is played twice to a click: once for real, on the table or the instrument, then

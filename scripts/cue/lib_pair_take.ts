@@ -19,19 +19,32 @@
  *   lag, measured on the real half of the same phrase (a player who lands 30 ms after
  *   the click on the table is assumed to intend the same in the air), and it inherits
  *   the real half's level and chroma beat for beat;
+ * - every time label is given twice, on the microphone's clock and on the feature rows'
+ *   (below: which is which, and why the second is the one to train on);
  * - the feature rows of each half are sliced out beside the pairs, rows untouched, so
  *   anything computed later joins back on `t`.
  *
- * ## Two clocks, one of which is estimated, never silently applied
+ * ## Three clocks, and which one each field is on
  *
- * The microphone file starts at the recorder's `t0`, give or take the time the browser
- * took to start its recorder and the input latency. The clap at the start of the routine
- * is a slate: its sound and the visible contact of the two hands (the minimum of
- * `hand.pair.distance`) are the same instant, so their median difference estimates the
- * microphone's offset from the camera. It is REPORTED (`avOffsetMs`) and not applied,
- * because every label the real half produces is on the microphone's clock and every
- * label of the air half is on the click's; a consumer comparing the two to the camera
- * decides whether to shift, and says so.
+ * - The **engine clock** (`performance.now()`): the clicks, the cue intervals.
+ * - The **mic clock**: `t0` plus the time into the microphone file. It is NOT the
+ *   engine clock: the file starts when the browser's recorder did, some tens of ms after
+ *   `t0`, plus the input latency and codec priming, and the microphone's own hardware
+ *   clock drifts against `performance.now()` (tens of ppm, several ms over a routine).
+ *   `onset`, `lagMs` and the air `intended` (a click plus a lag measured on this clock)
+ *   are mic-clock values: `lagMs` is the player's lag PLUS the microphone's offset.
+ * - The **row clock**: the feature rows' `t`, the engine tick at which each camera frame
+ *   was processed, so it trails the capture by the camera pipeline's lag.
+ *
+ * What a model trained on the rows needs is the label on the ROW clock, and the slates
+ * measure exactly that mapping: a clap is heard (mic clock) and seen (the row with the
+ * smallest `hand.pair.distance`, row clock) at the same physical instant, so the median
+ * difference is the mic-to-row offset, camera lag included, microphone start offset
+ * included. The routine claps at its start and again at its end; two slates give the
+ * drift too (`micToRows`). The `*Row` fields (`onsetRow`, `intendedRow`) apply it; the
+ * mic-clock fields are kept beside them, raw, so a consumer can see what was corrected.
+ * Precision is a camera frame (the seen clap is a row), which the median over the claps
+ * and the linear fit over the routine narrow but do not remove.
  *
  * ## Why not the latency probe's onset detector
  *
@@ -45,7 +58,7 @@
  * goes under the app-data directory (`~/.local/share/thoremin/`), never the repository.
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { unzipSync } from 'fflate';
 import { resolveIntervals } from '@/taglog/affordances/resolve';
 import { CueSchema, clickPlan, type Cue } from '@/enroll';
@@ -116,23 +129,38 @@ export interface OnsetOptions {
    *  of it, so the median is not the floor)... */
   noiseFactor?: number;
   floorPercentile?: number;
-  /** ...and `rise` × its own minimum over the previous `lookbackMs`. */
+  /** ...and `rise` × its own maximum over the previous `lookbackMs`. */
   rise?: number;
   lookbackMs?: number;
   /** No second onset sooner than this after one. */
   refractoryMs?: number;
+  /**
+   * Detect on the first difference of the signal (`x[n] - x[n-1]`), not the signal. The
+   * difference weighs a partial by its frequency: a string's ringing is its low partials,
+   * a pluck's (or a tap's) attack is its high ones, and the high ones die within tens of
+   * milliseconds. So a strum over a chord still ringing from the last one is a large rise
+   * in the difference and hardly any in the level. Default true.
+   */
+  emphasis?: boolean;
 }
 
 export const ONSET_DEFAULTS: Required<OnsetOptions> = {
   hopMs: 1,
   windowMs: 5,
-  noiseFactor: 6,
+  // 8 dB over the floor. Measured (a -50 dBFS noise room): taps peaking at -34 dBFS are
+  // all found at 2.5 and none at 4, and a minute of noise alone gives no onset at either,
+  // because the rise test below is what rejects noise. Not lower: at SNRs under ~10 dB a
+  // tap is indistinguishable from the room, and the pairing warns about unheard beats.
+  noiseFactor: 2.5,
   floorPercentile: 0.05,
-  // 6 dB over the last 30 ms: a tap on a silent table rises by tens of dB, and a new
-  // strum over a ringing chord still roughly doubles the level.
+  // 6 dB over the last 30 ms. On the difference signal a tap rises by tens of dB, and a
+  // strum over a chord still ringing from the last one about doubles (the ringing is low
+  // partials; the difference barely sees them). 1.8 found no more strums and lost half
+  // the hits on dense real drum audio to early triggers inside the refractory window.
   rise: 2,
   lookbackMs: 30,
   refractoryMs: 80,
+  emphasis: true,
 };
 
 export function median(xs: readonly number[]): number {
@@ -143,7 +171,8 @@ export function median(xs: readonly number[]): number {
 }
 
 /**
- * Onset times (seconds from the buffer start): moments the RMS envelope rises above the
+ * Onset times (seconds from the buffer start), on the first difference of the signal by
+ * default (see {@link OnsetOptions.emphasis}): moments its RMS envelope rises above the
  * noise floor AND above `rise` times its own MAXIMUM over the previous `lookbackMs`.
  * Against the recent maximum, not the minimum, because a chord's partials beat against
  * each other: its envelope dips and recovers every few tens of ms, and each recovery is
@@ -151,8 +180,13 @@ export function median(xs: readonly number[]): number {
  * last peak. Each onset is placed at the attack's first sample: the first to exceed both
  * a quarter of the attack's peak and 1.5 times the loudest sample before it.
  */
-export function detectOnsets(pcm: Float32Array, sampleRate: number, options: OnsetOptions = {}): number[] {
+export function detectOnsets(signal: Float32Array, sampleRate: number, options: OnsetOptions = {}): number[] {
   const o = { ...ONSET_DEFAULTS, ...options };
+  let pcm = signal;
+  if (o.emphasis) {
+    pcm = new Float32Array(signal.length);
+    for (let i = 1; i < signal.length; i++) pcm[i] = signal[i] - signal[i - 1];
+  }
   const hop = Math.max(1, Math.round((o.hopMs / 1000) * sampleRate));
   const win = Math.max(hop, Math.round((o.windowMs / 1000) * sampleRate));
   const env: number[] = [];
@@ -298,6 +332,8 @@ export interface Take {
   outcomes: Record<string, string>;
   /** The microphone WAV's path, if the take has one. */
   micWav: string | null;
+  /** The native microphone file (WebM), if any: the fallback when the WAV is missing. */
+  micNative: string | null;
   featuresPath: string;
 }
 
@@ -355,9 +391,14 @@ export function readTake(dir: string): Take {
     if (w) outcomes[w.cue] = e.tag.slice('verdict:'.length);
   }
 
-  const micEntry = manifest.streams.find((s) => s.kind === 'microphone' && s.file.endsWith('.wav'));
-  const micWav = micEntry && existsSync(join(dir, micEntry.file)) ? join(dir, micEntry.file) : null;
-  return { dir, stem, t0: manifest.t0, cues, windows, clicks, outcomes, micWav, featuresPath };
+  const micFile = (wav: boolean) => {
+    const e = manifest.streams.find((s) => s.kind === 'microphone' && s.file.endsWith('.wav') === wav);
+    return e && existsSync(join(dir, e.file)) ? join(dir, e.file) : null;
+  };
+  // A WAV converted by hand after the fact is not in the manifest: look for it by name too.
+  const byName = join(dir, `${stem}.mic.wav`);
+  const micWav = micFile(true) ?? (existsSync(byName) ? byName : null);
+  return { dir, stem, t0: manifest.t0, cues, windows, clicks, outcomes, micWav, micNative: micFile(false), featuresPath };
 }
 
 /** The feature rows of the take (every edge the trainer recorded). */
@@ -368,9 +409,14 @@ export function readFeatureRows(path: string): FeatureRow[] {
 // ---- Pairing ------------------------------------------------------------------
 
 export interface RealBeat {
-  /** Take-relative seconds (`t - t0`), like every time below. */
+  /** Take-relative seconds (`t - t0`), like every time below. `click` is on the engine
+   *  clock (when it was scheduled to sound). */
   click: number;
+  /** MIC clock: `t0` plus the time into the microphone file. */
   onset: number | null;
+  /** The same instant on the FEATURE ROWS' clock (`onset` minus the slate offset): the
+   *  time to compare with a row's `t - t0`. Null without a slate estimate. */
+  onsetRow: number | null;
   lagMs: number | null;
   levelDb: number | null;
   chroma: number[] | null;
@@ -378,8 +424,11 @@ export interface RealBeat {
 
 export interface AirBeat {
   click: number;
-  /** The click plus the player's own lag on the real half of this phrase. */
+  /** MIC clock: the click plus the player's own lag on the real half of this phrase,
+   *  i.e. where the strike would have sounded. */
   intended: number | null;
+  /** The same on the feature rows' clock, like `RealBeat.onsetRow`. */
+  intendedRow: number | null;
   /** Inherited from the real half's beat of the same index. */
   levelDb: number | null;
   chroma: number[] | null;
@@ -405,7 +454,25 @@ export interface PhrasePair {
 
 export interface SlateResult {
   cue: string;
+  /** Mic-clock time of the slate (median of its heard claps), take-relative seconds. */
+  t: number | null;
+  /** Median (clap heard − clap seen), ms, or null with fewer than two claps both heard
+   *  and seen. Seen = the feature row with the smallest `hand.pair.distance`. */
+  offsetMs: number | null;
   claps: { index: number; click: number; onset: number | null; visual: number | null }[];
+}
+
+/**
+ * How the microphone's clock maps onto the feature rows' (see "Two clocks" above): the
+ * offset at the first slate and its drift per second, from the last slate. `rowTime(t)`
+ * in `pairTake` is `t - (offsetMs + driftMsPerS * (t - atS)) / 1000`.
+ */
+export interface MicToRows {
+  offsetMs: number;
+  /** Take-relative seconds the offset was measured at. */
+  atS: number;
+  /** ms per second of take; 0 with one slate. 1 ms/s would be 1000 ppm. */
+  driftMsPerS: number;
 }
 
 export interface PairResult {
@@ -414,9 +481,10 @@ export interface PairResult {
   t0: number;
   micWav: string | null;
   sampleRate: number | null;
-  /** Median (clap sound − visible clap), ms; positive = the microphone runs late. Not applied. */
-  avOffsetMs: number | null;
-  slate: SlateResult | null;
+  /** The mic-to-row mapping the `*Row` fields used, or null (then they are null). */
+  micToRows: MicToRows | null;
+  /** Every slate cue in the routine, in order (one at the start, one at the end). */
+  slates: SlateResult[];
   phrases: PhrasePair[];
   warnings: string[];
 }
@@ -425,15 +493,33 @@ export interface PairResult {
 const CLAP_FEATURE = 'hand.pair.distance';
 const HAND_VECTOR_EDGE = 'handVec.vector';
 
+/** The strategies `pairTake` uses, replaceable without touching it. */
+export interface PairOptions {
+  /** The onset detector (seconds from the start of `pcm`). Default {@link detectOnsets}. */
+  detect?: (pcm: Float32Array, sampleRate: number, options?: OnsetOptions) => number[];
+  /** Options passed to it. */
+  onset?: OnsetOptions;
+}
+
 /**
  * Pair a read take (pure: every input is passed in). `audio` is the microphone, null
  * when the take has none (then only the air halves' click grid survives, and it says so).
  */
-export function pairTake(take: Take, audio: Wav | null, features: readonly FeatureRow[]): PairResult {
+export function pairTake(take: Take, audio: Wav | null, features: readonly FeatureRow[], options: PairOptions = {}): PairResult {
+  const { detect = detectOnsets, onset } = options;
   const warnings: string[] = [];
   const rel = (tAbs: number) => tAbs - take.t0;
-  const onsetsAbs = audio ? detectOnsets(audio.pcm, audio.sampleRate).map((s) => take.t0 + s) : [];
-  if (!audio) warnings.push('The take has no microphone WAV: real halves have no labels (was the microphone allowed?).');
+  const onsetsAbs = audio ? detect(audio.pcm, audio.sampleRate, onset).map((s) => take.t0 + s) : [];
+  if (audio && audio.sampleRate < 44100) {
+    warnings.push(`The microphone WAV is ${audio.sampleRate} Hz: onsets are tuned at 44.1/48 kHz (a strum's attack lives in its upper partials), so some strums may go unheard.`);
+  }
+  if (!audio) {
+    warnings.push(
+      take.micNative
+        ? `The take's microphone is only in ${basename(take.micNative)} (the browser could not decode it to WAV). Convert it, e.g. \`ffmpeg -i ${basename(take.micNative)} -ac 1 ${take.stem}.mic.wav\` in the take folder, then run this again.`
+        : 'The take has no microphone file: real halves have no labels (was the microphone allowed?).',
+    );
+  }
 
   const windowOf = (cueId: string) => take.windows.find((w) => w.cue === cueId) ?? null;
   const inWindow = (tAbs: number, w: CueWindow) => tAbs >= w.startAbs && tAbs <= w.endAbs;
@@ -448,38 +534,49 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     onsets: onsetsAbs.filter((t) => inWindow(t, w)).length,
   });
 
-  // The slate: claps against clicks, and, where the camera saw both hands, the visible
-  // contact (the minimum inter-hand distance near each clap).
-  let slate: SlateResult | null = null;
-  let avOffsetMs: number | null = null;
-  const slateCue = take.cues.find((c) => c.tags.includes('slate') && windowOf(c.id));
-  if (slateCue) {
+  // The slates: claps against clicks, and, where the camera saw both hands, the visible
+  // contact (the minimum inter-hand distance near each clap). Two slates (the routine
+  // opens and closes with one) give the drift of the microphone's clock as well.
+  const handRows = features.filter((r) => r.key === HAND_VECTOR_EDGE);
+  const slates: SlateResult[] = [];
+  for (const slateCue of take.cues.filter((c) => c.tags.includes('slate') && windowOf(c.id))) {
     const w = windowOf(slateCue.id)!;
     const beatMs = beatMsOf(slateCue);
     const clicks = beatClicks(w);
     const matched = matchToClicks(clicks, onsetsAbs.filter((t) => inWindow(t, w)), beatMs / 2000);
-    const handRows = features.filter((r) => r.key === HAND_VECTOR_EDGE && inWindow(r.t, w));
     const visualNear = (tAbs: number): number | null => {
       let best: { t: number; d: number } | null = null;
       for (const r of handRows) {
-        if (Math.abs(r.t - tAbs) > beatMs / 2000) continue;
+        if (!inWindow(r.t, w) || Math.abs(r.t - tAbs) > beatMs / 2000) continue;
         const d = (r.value as Record<string, unknown> | null)?.[CLAP_FEATURE];
         if (typeof d === 'number' && Number.isFinite(d) && (!best || d < best.d)) best = { t: r.t, d };
       }
       return best ? best.t : null;
     };
-    slate = {
-      cue: slateCue.id,
-      claps: clicks.map((c, i) => {
-        const onset = matched[i];
-        const visual = onset === null ? null : visualNear(onset);
-        return { index: i, click: rel(c), onset: onset === null ? null : rel(onset), visual: visual === null ? null : rel(visual) };
-      }),
-    };
-    const diffs = slate.claps.filter((c) => c.onset !== null && c.visual !== null).map((c) => (c.onset! - c.visual!) * 1000);
-    if (diffs.length >= 2) avOffsetMs = Math.round(median(diffs) * 10) / 10;
-    else warnings.push(`The slate gave ${diffs.length} clap(s) both heard and seen; the microphone-to-camera offset is not estimated (needs 2).`);
+    const claps = clicks.map((c, i) => {
+      const onset = matched[i];
+      const visual = onset === null ? null : visualNear(onset);
+      return { index: i, click: rel(c), onset: onset === null ? null : rel(onset), visual: visual === null ? null : rel(visual) };
+    });
+    const both = claps.filter((c) => c.onset !== null && c.visual !== null);
+    const heard = claps.filter((c) => c.onset !== null).map((c) => c.onset!);
+    const offsetMs = both.length >= 2 ? Math.round(median(both.map((c) => (c.onset! - c.visual!) * 1000)) * 10) / 10 : null;
+    if (offsetMs === null) warnings.push(`Slate "${slateCue.id}": ${both.length} clap(s) both heard and seen, so no clock offset from it (needs 2).`);
+    slates.push({ cue: slateCue.id, t: heard.length ? median(heard) : null, offsetMs, claps });
   }
+  const measured = slates.filter((x): x is SlateResult & { t: number; offsetMs: number } => x.t !== null && x.offsetMs !== null);
+  let micToRows: MicToRows | null = null;
+  if (measured.length >= 1) {
+    const a = measured[0];
+    const b = measured[measured.length - 1];
+    const driftMsPerS = b !== a && b.t > a.t ? Math.round(((b.offsetMs - a.offsetMs) / (b.t - a.t)) * 1000) / 1000 : 0;
+    micToRows = { offsetMs: a.offsetMs, atS: a.t, driftMsPerS };
+  } else if (audio) {
+    warnings.push('No slate offset: the *Row fields are null, and mic-clock times carry the microphone start offset (tens of ms).');
+  }
+  /** A take-relative mic-clock time on the feature rows' clock, or null. */
+  const toRow = (tRel: number | null): number | null =>
+    tRel === null || !micToRows ? null : Math.round((tRel - (micToRows.offsetMs + micToRows.driftMsPerS * (tRel - micToRows.atS)) / 1000) * 1e6) / 1e6;
 
   // The phrases, by their pairing.
   const phraseIds: string[] = [];
@@ -507,6 +604,7 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
         realBeats.push({
           click: rel(c),
           onset: on === null ? null : rel(on),
+          onsetRow: toRow(on === null ? null : rel(on)),
           lagMs: on === null ? null : Math.round((on - c) * 10000) / 10,
           levelDb: on === null || !audio ? null : Math.round(levelDb(audio.pcm, audio.sampleRate, atAudio(on)) * 10) / 10,
           chroma: on === null || !audio ? null : chroma(audio.pcm, audio.sampleRate, atAudio(on)),
@@ -515,8 +613,11 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
       const lags = realBeats.map((b) => b.lagMs).filter((x): x is number => x !== null);
       lagMs = lags.length > 0 ? Math.round(median(lags) * 10) / 10 : null;
       const matchedCount = lags.length;
-      if (audio && matchedCount < clicks.length / 2) {
-        warnings.push(`Phrase "${phrase}": only ${matchedCount}/${clicks.length} real beats were heard; check the microphone level, or that the phrase was played on the clicks.`);
+      if (audio && matchedCount < clicks.length) {
+        // Name the beats: in the soft-and-hard phrase, unheard beats in fours are the
+        // soft ones, which is a microphone-level problem and not a timing one.
+        const unheard = realBeats.map((b, i) => (b.onset === null ? i + 1 : 0)).filter((i) => i > 0);
+        warnings.push(`Phrase "${phrase}": ${matchedCount}/${clicks.length} real beats heard (unheard: ${unheard.join(', ')}); check the microphone level, or that the phrase was played on the clicks.`);
       }
       real = { ...half(realCue, rw), clickLagMs: lagMs, matched: matchedCount };
     }
@@ -527,9 +628,11 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
       const clicks = beatClicks(aw);
       clicks.forEach((c, i) => {
         const r = realBeats[i];
+        const intended = lagMs === null ? null : Math.round((rel(c) + lagMs / 1000) * 1e6) / 1e6;
         airBeats.push({
           click: rel(c),
-          intended: lagMs === null ? null : Math.round((rel(c) + lagMs / 1000) * 1e6) / 1e6,
+          intended,
+          intendedRow: toRow(intended),
           levelDb: r?.levelDb ?? null,
           chroma: r?.chroma ?? null,
         });
@@ -562,8 +665,8 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     t0: take.t0,
     micWav: take.micWav ? basename(take.micWav) : null,
     sampleRate: audio?.sampleRate ?? null,
-    avOffsetMs,
-    slate,
+    micToRows,
+    slates,
     phrases,
     warnings,
   };
@@ -590,7 +693,9 @@ export function resolveTakeInput(input: string, takesRoot: string): string {
   rmSync(dest, { recursive: true, force: true });
   mkdirSync(dest, { recursive: true });
   for (const [name, bytes] of Object.entries(files)) {
-    if (name.endsWith('/')) continue;
+    // Directories, and the resource forks a Finder re-zip adds (`__MACOSX/`, `._name`),
+    // which would otherwise read as a second take.
+    if (name.endsWith('/') || name.startsWith('__MACOSX/') || basename(name).startsWith('._')) continue;
     // Flatten: a take zip is one folder of files; never write outside `dest`.
     writeFileSync(join(dest, basename(name)), bytes);
   }
@@ -612,7 +717,7 @@ export function writePairs(result: PairResult, take: Take, features: readonly Fe
     const rows = features.filter((r) => r.t >= w.startAbs && r.t <= w.endAbs);
     put(name, rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
   };
-  if (result.slate) slice('slate.features.jsonl', result.slate.cue);
+  for (const sl of result.slates) slice(`${sl.cue}.features.jsonl`, sl.cue);
   for (const p of result.phrases) {
     if (p.real) slice(`${p.phrase}.real.features.jsonl`, p.real.cue);
     if (p.air) slice(`${p.phrase}.air.features.jsonl`, p.air.cue);
@@ -628,7 +733,8 @@ export function writePairs(result: PairResult, take: Take, features: readonly Fe
 /** One line per phrase: what a person reads after running the CLI. */
 export function summarize(result: PairResult): string[] {
   const lines = [`take ${result.stem}`];
-  lines.push(`  mic-to-camera offset: ${result.avOffsetMs === null ? 'not estimated' : `${result.avOffsetMs} ms (not applied)`}`);
+  const m = result.micToRows;
+  lines.push(`  mic to feature rows: ${m ? `${m.offsetMs} ms, drift ${m.driftMsPerS} ms/s (the *Row fields apply it)` : 'not estimated (no *Row fields)'}`);
   for (const p of result.phrases) {
     const r = p.real ? `real ${p.real.matched}/${p.beats.filter((b) => b.real).length} beats heard, lag ${p.real.clickLagMs ?? '?'} ms` : 'no real half';
     const a = p.air ? `air ${p.beats.filter((b) => b.air).length} beats, ${p.air.onBeat} heard` : 'no air half';
@@ -638,14 +744,35 @@ export function summarize(result: PairResult): string[] {
   return lines;
 }
 
+/**
+ * Refuse an output directory inside a git work tree. The pairs carry the player's
+ * microphone (`mic.wav`) and hand motion, and thoremin is a public repository: an
+ * `--out .` from the repo root must fail here, not at code review.
+ */
+export function refuseInsideGitWorkTree(dir: string): void {
+  let d = resolve(dir);
+  for (;;) {
+    if (existsSync(join(d, '.git'))) {
+      throw new Error(`${dir} is inside the git work tree at ${d}. A take's pairs hold the player's microphone and motion; write them under the app-data dir (the default) or anywhere outside a repository.`);
+    }
+    const up = dirname(d);
+    if (up === d) return;
+    d = up;
+  }
+}
+
 /** The whole job: resolve the input, read, pair, write. */
-export function runPairTake(input: string, opts: { env?: NodeJS.ProcessEnv; outDir?: string } = {}): { outDir: string; result: PairResult; written: string[] } {
+export function runPairTake(
+  input: string,
+  opts: { env?: NodeJS.ProcessEnv; outDir?: string } & PairOptions = {},
+): { outDir: string; result: PairResult; written: string[] } {
   const dirs = cueDirs(opts.env);
+  if (opts.outDir) refuseInsideGitWorkTree(opts.outDir);
   const takeDir = resolveTakeInput(input, dirs.takes);
   const take = readTake(takeDir);
   const audio = take.micWav ? parseWav(new Uint8Array(readFileSync(take.micWav))) : null;
   const features = readFeatureRows(take.featuresPath);
-  const result = pairTake(take, audio, features);
+  const result = pairTake(take, audio, features, { detect: opts.detect, onset: opts.onset });
   const outDir = opts.outDir ?? join(dirs.datasets, take.stem);
   const written = writePairs(result, take, features, outDir);
   return { outDir, result, written };

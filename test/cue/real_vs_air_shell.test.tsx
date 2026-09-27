@@ -102,6 +102,24 @@ describe('the real-vs-air routine from a cold load (#247)', () => {
     expect(document.querySelector('[data-beat]')?.textContent).toBe('count-in 1/4');
   });
 
+  it('the chooser shows the loaded routine, also after a run (its value comes from the store)', async () => {
+    await openAndChoose();
+    const chooser = () => screen.getByLabelText('Choose a routine') as HTMLSelectElement;
+    expect(chooser().value).toBe(TAPS.id);
+    await act(async () => {
+      fireEvent.click(screen.getByText('Start'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Stop'));
+    });
+    // Unmounted while running, remounted after: still the taps routine, not the default.
+    expect(chooser().value).toBe(TAPS.id);
+    await act(async () => {
+      fireEvent.change(chooser(), { target: { value: '' } });
+    });
+    expect(useTrainer.getState().routineName).toBe('Default');
+  });
+
   it('does not start unrecorded: a refused recording leaves the routine idle and says why', async () => {
     recordingOk = false;
     await openAndChoose();

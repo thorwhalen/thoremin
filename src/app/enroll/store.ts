@@ -157,6 +157,9 @@ interface TrainerState {
   beat: { kind: Click['kind']; index: number; of: number } | null;
   /** A one-line reason the last Start did nothing, or null. */
   notice: string | null;
+  /** Which routine is loaded, for the chooser: '' = the default, a saved or `starter:`
+   *  id, or 'custom' for one edited in the picker and not saved. */
+  routineId: string;
 
   /** Read the cue + routine stores (idempotent; the panel calls it on open). */
   load(): Promise<void>;
@@ -360,6 +363,8 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         void endTake(set);
         break;
       case 'stopped':
+        // Clicks that sounded since the last poll are in the take too.
+        flushClicks(e.t);
         endClicks();
         set({ beat: null });
         appFeatureDemand.release(DEMAND_OWNER);
@@ -393,6 +398,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     recording: false,
     beat: null,
     notice: null,
+    routineId: '',
     loaded: false,
     ...IDLE,
     outcomes: STARTER_CUES.map(() => null),
@@ -421,7 +427,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       set(
         running || chosen
           ? { cues, unusable, savedRoutines, loaded: true }
-          : { cues, unusable, savedRoutines, routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null), loaded: true },
+          : { cues, unusable, savedRoutines, routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null), routineId: '', loaded: true },
       );
     },
 
@@ -433,7 +439,8 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       const { routines } = getStores();
       await routines.save(name, { cueIds: [...new Set(ids)] });
       const savedRoutines = (await routines.list()).map(({ id, name: n }) => ({ id, name: n }));
-      set({ savedRoutines });
+      const saved = savedRoutines.find((r) => r.name === name);
+      set({ savedRoutines, ...(saved && get().routineId === 'custom' ? { routineId: saved.id } : {}) });
     },
 
     async useRoutine(id) {
@@ -443,6 +450,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       const r = await loadRoutine(id, get().cues, routines);
       // A later choice (or a Start) overtook this one while the store answered.
       if (choice !== routineChoice || get().status === 'running' || get().status === 'between') return;
+      set({ routineId: id ?? '', notice: null });
       set({ routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null) });
     },
 
@@ -460,7 +468,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       // The same resolution the routine collection uses: unknown ids reported, a
       // repeated id runs once.
       const { cues: routine, missing } = resolveRoutine(cueIds, get().cues);
-      set({ routine, routineName: name, missing, outcomes: routine.map(() => null) });
+      set({ routine, routineName: name, missing, outcomes: routine.map(() => null), routineId: 'custom', notice: null });
     },
 
     start(tMs) {

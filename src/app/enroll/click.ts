@@ -55,7 +55,10 @@ export function createWebAudioClickPlayer(): ClickPlayer {
     if (ts && typeof ts.contextTime === 'number' && typeof ts.performanceTime === 'number' && ts.performanceTime > 0) {
       return ts.contextTime + (tMs - ts.performanceTime) / 1000;
     }
-    return c.currentTime + (tMs - performance.now()) / 1000;
+    // Without the pairing, `currentTime` is what the context is RENDERING now, which
+    // reaches the ear `outputLatency` later: schedule that much earlier.
+    const outLatency = (c as AudioContext & { outputLatency?: number }).outputLatency ?? c.baseLatency ?? 0;
+    return c.currentTime + (tMs - performance.now()) / 1000 - outLatency;
   };
 
   return {
