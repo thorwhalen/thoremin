@@ -239,6 +239,13 @@ export interface ControlState {
    * and what headless tests without a host see).
    */
   graphElements: string[] | null;
+  /**
+   * The selected instrument's EXPLICIT branch set (transient, never persisted here: it lives
+   * in the library's metadata record): written by `selectInstrument`, read by the engine
+   * host's derivation. `null` means "derive from the dials", which every instrument saved
+   * before the spec existed does.
+   */
+  explicitBranches: string[] | null;
   /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
    *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
@@ -274,6 +281,8 @@ export interface ControlState {
   setScoreDoc: (doc: ScoreDoc | null) => void;
   /** Replace the composed graph's overlay element set (transient, see {@link graphElements}). */
   setGraphElements: (elements: string[] | null) => void;
+  /** Replace the selected instrument's explicit branch set (transient, see {@link explicitBranches}). */
+  setExplicitBranches: (branches: string[] | null) => void;
   /** Replace the air guitar's chord classifier (transient, see {@link airGuitarModel}). */
   setAirGuitarModel: (model: TrainedModel | null) => void;
   /** Replace the air flute's classifiers (transient). */
@@ -642,6 +651,7 @@ export const useControls = create<ControlState>()(
       steerPlaying: false,
       scoreDoc: null,
       graphElements: null,
+      explicitBranches: null,
       faceControls: defaultFaceControls(),
       conductor: defaultConductor(),
       airDrum: defaultAirDrum(),
@@ -682,6 +692,7 @@ export const useControls = create<ControlState>()(
       setSteerPlaying: (v) => set({ steerPlaying: v }),
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
       setGraphElements: (elements) => set({ graphElements: elements }),
+      setExplicitBranches: (branches) => set({ explicitBranches: branches }),
       setAirGuitarModel: (model) => set({ airGuitarModel: model }),
       setAirFluteFingerModel: (model) => set({ airFluteFingerModel: model }),
       setAirFluteMouthModel: (model) => set({ airFluteMouthModel: model }),

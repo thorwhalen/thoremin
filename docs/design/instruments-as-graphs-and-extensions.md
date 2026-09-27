@@ -93,7 +93,9 @@ const InstrumentSpec = z.object({
 });
 ```
 
-**`composeGraph(branchIds, registry): { spec: GraphSpec; elements: string[] }`** is a pure union with four rules:
+**> **As built (PR 4, #280):** the persisted spec is a *join*, not a third store: the `settings` Layer stays in the dials profile store, and `class` (a cache of the derivation), `branches`, `training`, `image` and the tags live in the library's metadata record; `assembleSpec` produces the record above, plus a derived `features` facet (the branch ids) for the Instruments view. See `instrument-library.md`, Decision 7.
+
+`composeGraph(branchIds, registry): { spec: GraphSpec; elements: string[] }`** is a pure union with four rules:
 
 1. **Shared nodes must be the same node.** A node id appearing in two branches must have the same type and the same validated params (the identity `applyGraph` already uses); a conflicting duplicate is rejected with both branch ids in the error.
 2. **An edge belongs to the branch that declares it, and may reach outside it.** *[review, finding 4]* Today's wiring crosses every line the branches draw: `faceFeat → imap.face`, `faceVec`/`camFace → airFlute`, `conductor.time → airDrum.time`, `poseChord.chord → chordSel.b`, `bodyRoute → map.mods`, `faceFeat → map.face`. A "pure union" of independently declared pieces would leave such an edge dangling and the engine would refuse to compile. So: an edge whose far endpoint is in a branch that is absent is **dropped if the declaring branch marked it `optional`**, and is **a composition error otherwise** (which forces the declaring branch to say `requires`). The generative branch's face input, the drum's conductor clock, the body router's hook into the hand voices are optional; the face-timbre branch *requires* `field-voices` (it has no meaning without the voices it colours), and the two face-chord branches require `face-source`. `chordSel` lives in `face-source`, since it only ever picks between face-derived chords.

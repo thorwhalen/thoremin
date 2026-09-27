@@ -110,15 +110,18 @@ function reportApplyFailure(engine: Engine, live: Engine | null, err: unknown): 
  * overlay reads it through `store-controls` on the same tick the new graph commits, and
  * never as a param (a param change would rebuild the overlay node on every switch).
  */
+/** The branch set the live state implies: the selected instrument's explicit set when it
+ *  declares one (PR 4), else the dials; plus what a tool demands. */
+function liveBranchIds(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): string[] {
+  return branchIdsFor(controls, { demanded, featureLab: controls.featureLab, explicit: controls.explicitBranches });
+}
+
 function currentBranchKey(): string {
-  const controls = useControls.getState();
-  return branchSetKey(branchIdsFor(controls, { demanded: featureDemandResource(), featureLab: controls.featureLab }));
+  return branchSetKey(liveBranchIds(useControls.getState()));
 }
 
 function liveGraph(selection: SlotSelection, registry: NodeRegistry): Composed {
-  const controls = useControls.getState();
-  const ids = branchIdsFor(controls, { demanded: featureDemandResource(), featureLab: controls.featureLab });
-  return composeInstrumentGraph(ids, selection, registry);
+  return composeInstrumentGraph(liveBranchIds(useControls.getState()), selection, registry);
 }
 
 /**
@@ -192,7 +195,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // instrument switch, on a dial that adds or drops a capability, and on a tool's claim.
   // Unrelated dial edits leave it alone, so the re-apply effect below never fires for them.
   const demanded = useDemandedGroups();
-  const branchKey = useControls((s) => branchSetKey(branchIdsFor(s, { demanded, featureLab: s.featureLab })));
+  const branchKey = useControls((s) => branchSetKey(liveBranchIds(s, demanded)));
 
   useEffect(() => {
     let disposed = false;

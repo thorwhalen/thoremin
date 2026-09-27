@@ -145,6 +145,24 @@ Adding an air instrument (guitar, bass, flute) is one `AIR_INSTRUMENTS` entry, o
 - **An air instrument may need an enrolment step, and it lives in the instrument's own section.** The air guitar (PR 3) plays only the chords the player has shown it (a chord is not a hand shape across players, `docs/research/air-instruments.md` §6.4). Its section opens on "Your chords": type a name, press Learn, hold the shape for two seconds. The samples are a zodal collection (`src/app/air/vocabularyStore.ts`, one record per air instrument, per browser: it describes the player's hands, not an instrument profile); the classifier is derived from them (`src/air/vocabulary.ts`) and reaches the DAG through the hot store's transient `airGuitarModel`, like the conductor's score. The samples come from the node's own `shape` output, so enrolment and play see the same numbers.
 - **The flute has two enrolment steps in the same component.** The air flute (PR 4) enrols its fingerings by note name (both hands) and, unless its Breath is "fingers only", two FIXED mouth states, blowing and resting (`VocabularyEnrolment`'s `fixedLabels`). Three vocabularies now live in the one collection (`guitar`, `flute-fingers`, `flute-mouth`), each a `createVocabularyState` call; `loadAirVocabularies()` reads them all at app start. The flute's sustained voice joins the others at the synth merge (its fifth input), so the synth, MIDI out and the overlay get it too.
 
+## Decision 7: the instrument spec is a join, and the derivation stays authoritative (the instruments-as-graphs ADR, PR 4)
+
+The ADR's `InstrumentSpec` (`src/instruments/spec.ts`) is what the library lists, what the UX stream's collection and gallery are built on, and what the trainer reads its per-instrument link from. It is **one Zod schema describing one record**, but it is **not a third store**: an instrument stays persisted where it already was, in two places keyed by the same name.
+
+| Field | Lives in | Why there |
+|---|---|---|
+| `settings` (the Layer) | the dials profile store (`src/app/dials/instruments.ts`) | what the instrument sounds like; unchanged, every saved instrument keeps working |
+| `tags`, `starred` | this library's metadata record | as before (Decisions 1 and 4) |
+| `class` | the metadata record, as a **cache** | so a cold load can group the list before the derivation has run; rewritten whenever the derivation disagrees; **never a vote against it** ("an air instrument wins", Decision 6) |
+| `branches` | the metadata record, **optional** | an explicit branch set; absent means "derive from the dials" (`branchIdsFor`), which is what every instrument saved before PR 4 does |
+| `training` | the metadata record, optional | where "train this instrument" goes; the trainer stream resolves the route |
+| `image` | the metadata record, optional | a REFERENCE for the gallery (a URL, an app-relative path, a store key), never bytes |
+| `features` | derived | the facet the view filters on besides class and tags: the instrument's branch ids |
+
+`assembleSpec(parts)` joins the three sources and is the only place that knows the rule for each field; `useLibrary().specOf(name)` exposes the result once the instrument has been derived, next to `branchesOf` / `setBranches`, `trainingOf` / `setTraining`, `imageOf` / `setImage`. An explicit `branches` list rides into the hot store as `explicitBranches` when the instrument is selected (`selectInstrument`), and the engine host composes exactly those plus whatever a live tool demands (a Trainer claim on a face group still brings the face source in: a tool's need is not the instrument's to veto).
+
+Why a join rather than a new collection: the metadata record already IS the "attribute map" of Decision 4, and the four new fields are attributes; a new collection would have replaced the profile store's contract that every instrument test exercises directly, for no gain in behaviour. No migration was needed: the record's Zod defaults heal an old record, and the class cache is back-filled on the first derived read. The pure model tests (`test/instruments/spec.test.ts`) pin the rules; nothing exports or imports instruments yet, and when something does it serialises this record and applies `normaliseClassId` on the way in.
+
 ## Sparse layers, resolved
 
 A saved instrument is a **sparse** dials `Layer` and may carry the dials `UNSET`
