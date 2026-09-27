@@ -9,7 +9,7 @@
  * All signal processing happens in the DAG engine via {@link useThoreminEngine};
  * this component is purely presentational + lifecycle.
  */
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Play, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
@@ -32,6 +32,7 @@ import CommandPaletteOverlay from './CommandPaletteOverlay';
 import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import ToolsBar from './ToolsBar';
 import ToolsLauncher from './ToolsLauncher';
+import { publishHeight, TAKE_CLUSTER_HEIGHT_VAR } from './shellLayout';
 import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
@@ -119,6 +120,10 @@ export default function App({
 }) {
   const { videoRef, canvasRef, status, error, audioOn, startAudio, recording } =
     useThoreminEngine(source, slots);
+  // The take cluster publishes its height, so the Instruments panel ends above it however
+  // many rows it wraps to (it wraps to two on a small phone).
+  const takeClusterRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => publishHeight(takeClusterRef.current, TAKE_CLUSTER_HEIGHT_VAR), []);
 
   // #90: install the keyboard shortcuts (octave / magnetism / mute) — an app-level
   // tinykeys keymap dispatching dial commands, replacing the retired in-DAG switch.
@@ -207,7 +212,11 @@ export default function App({
           the Instruments panel, the surface the player just asked for on top. Its width
           stops short of the Tools button (9rem from the left), wrapping to a second row
           on a narrow phone rather than covering the only bar entry there. */}
-      <div className="absolute bottom-3 right-3 z-50 flex max-w-[calc(100vw-9rem)] flex-wrap items-end justify-end gap-2">
+      <div
+        ref={takeClusterRef}
+        data-take-cluster
+        className="absolute bottom-3 right-3 z-50 flex max-w-[calc(100vw-9rem)] flex-wrap items-end justify-end gap-2"
+      >
         {status === 'ready' && <AnnotationsButton />}
         {audioOn && <RecordButton recording={recording} />}
       </div>

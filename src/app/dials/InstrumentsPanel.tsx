@@ -59,8 +59,24 @@ function undecidedSpec(name: string, cachedClass: string | undefined): Instrumen
 const searchAffordance = instrumentsCollection.affordances.search;
 const SEARCH_PLACEHOLDER = (typeof searchAffordance === 'object' && searchAffordance.placeholder) || 'Filter…';
 
+/** The width below which the shell is laid out for a phone (Tailwind's `sm`, the same
+ *  breakpoint at which the tools bar keeps only its launcher). */
+export const PHONE_MAX_WIDTH_PX = 639;
+
+/**
+ * Whether the Instruments panel starts open. On a desktop, yes: choosing an instrument is
+ * the first thing to do, and the panel takes a column the video can spare. On a phone, no:
+ * the panel is the full width of the screen, so open on load it covered the video (the
+ * instrument itself), the header, and sat under the "Tap to play" button (Round 4, a
+ * live-site render at 390x844). There it is one tap away, on its icon.
+ */
+function startsOpen(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+  return !window.matchMedia(`(max-width: ${PHONE_MAX_WIDTH_PX}px)`).matches;
+}
+
 export default function InstrumentsPanel() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(startsOpen);
   const [view, setView] = useState<'list' | 'editor' | 'tags'>('list');
   const [confirming, setConfirming] = useState(false);
   const [newName, setNewName] = useState('');
