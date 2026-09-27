@@ -25,8 +25,6 @@ import {
   createMemoryProfileStorage,
 } from '@zodal/dials-ui';
 import type { ProfileStorage } from '@zodal/dials-ui';
-import { readInstrumentMeta } from '@/app/library/store';
-import { useControls } from '@/app/store';
 import type { Layer } from '@zodal/dials-core';
 import { defaultSteerConfig } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
@@ -450,10 +448,6 @@ export async function selectInstrument(name: string): Promise<Layer | null> {
   const raw = await instruments.load(name);
   if (!raw) return null;
   const layer = normalizeLayer(raw);
-  // The spec's explicit branch set (PR 4 of the instruments-as-graphs ADR) rides the
-  // library's metadata record; most instruments have none and derive from their dials.
-  const meta = (await readInstrumentMeta())[name];
-  useControls.getState().setExplicitBranches(meta?.branches ? [...meta.branches] : null);
   dialsStore.setLayer(layer);
   dialsStore.markSaved();
   return layer;

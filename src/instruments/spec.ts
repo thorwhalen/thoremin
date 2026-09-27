@@ -25,7 +25,9 @@
  * Pure: Zod and the class registry only. No store, no React.
  */
 import { z } from 'zod';
-import { INSTRUMENT_CLASSES, normaliseClassId, DEFAULT_CLASS, type InstrumentClassId } from '@/app/library/category';
+import { INSTRUMENT_CLASSES, normaliseClassId, DEFAULT_CLASS, type InstrumentClassId } from './classes';
+import { branchClosureIds } from './compose';
+import { BRANCHES, TRUNK_ID } from './branches';
 
 /** Where "train this instrument" goes: a route the trainer stream resolves (its shape is
  *  the trainer's; the spec only carries it). */
@@ -49,8 +51,12 @@ export const InstrumentSpecSchema = z.object({
   name: z.string().min(1),
   class: ClassIdSchema,
   tags: z.array(z.string()).default([]),
+  starred: z.boolean().default(false),
   emoji: z.string().optional(),
-  /** Explicit branch ids, when the instrument declares them; absent → derived from settings. */
+  /**
+   * Explicit branch ids, when the instrument declares them; absent → derived from settings.
+   * An EMPTY list is explicit too (a trunk-only, silent instrument), not "derive".
+   */
   branches: z.array(z.string()).optional(),
   /** The dials Layer (sparse, dotted keys), exactly what the profile store persists. */
   settings: z.record(z.string(), z.unknown()),
@@ -60,8 +66,8 @@ export const InstrumentSpecSchema = z.object({
   image: z.string().optional(),
   /**
    * The facet the Instruments view filters on besides class and tags: the capabilities the
-   * instrument uses, which are exactly its branch ids (`face-chord`, `air-drum`, ...) minus
-   * the trunk. Derived, never edited: it equals `branches` when those are known.
+   * instrument uses, which are the branch ids it composes (`face-chord`, `air-drum`, ...)
+   * with their requirements, minus the trunk. Derived, never edited.
    */
   features: z.array(z.string()).default([]),
 });
@@ -74,15 +80,17 @@ export interface SpecParts {
   /** The profile store's Layer for this name. */
   layer: Record<string, unknown>;
   /** The library's metadata record, if any. */
-  meta?: { tagIds?: string[]; class?: string; branches?: string[]; training?: TrainingLink; emoji?: string; image?: string };
+  meta?: { starred?: boolean; tagIds?: string[]; class?: string; branches?: string[]; training?: TrainingLink; emoji?: string; image?: string };
   /** What the settings derive to, when the derivation has run: the class and the branch set. */
   derived?: { class: InstrumentClassId; branches: string[] };
 }
 
 /**
- * Assemble the spec for one instrument. The derived class wins over a cached one; the
- * branches are the explicit list when there is one, else the derived set, else absent
- * (the caller derives at composition time).
+ * Assemble the spec for one instrument. The derived class wins over a cached one (a cached
+ * id nothing recognises falls to the default class; `useLibrary.specOf` always passes the
+ * derivation, so that fallback is only reachable for a hand-built record); the branches are
+ * the explicit list when there is one, else the derived set, else absent (the caller derives
+ * at composition time); `features` is the closure of the branches minus the trunk.
  */
 export function assembleSpec(parts: SpecParts): InstrumentSpec {
   const cached = parts.meta?.class ? normaliseClassId(parts.meta.class) : undefined;
@@ -92,6 +100,7 @@ export function assembleSpec(parts: SpecParts): InstrumentSpec {
     name: parts.name,
     class: cls,
     tags: parts.meta?.tagIds ?? [],
+    starred: parts.meta?.starred ?? false,
     settings: parts.layer,
   };
   if (parts.meta?.emoji) spec.emoji = parts.meta.emoji;
@@ -99,7 +108,7 @@ export function assembleSpec(parts: SpecParts): InstrumentSpec {
   if (parts.meta?.branches) spec.branches = [...parts.meta.branches];
   else if (parts.derived) spec.branches = [...parts.derived.branches];
   if (parts.meta?.training) spec.training = { ...parts.meta.training };
-  spec.features = spec.branches ? [...spec.branches] : [];
+  spec.features = spec.branches ? branchClosureIds(spec.branches, BRANCHES).filter((id) => id !== TRUNK_ID) : [];
   return InstrumentSpecSchema.parse(spec);
 }
 

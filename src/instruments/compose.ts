@@ -107,6 +107,17 @@ function structurallyEqual(a: unknown, b: unknown): boolean {
 
 const portKey = (p: { node: string; port: string }): string => `${p.node}.${p.port}`;
 
+/**
+ * The branch ids `ids` compose to, requirements included, in library order; unknown ids are
+ * dropped (this is the facet and validation helper, and a stale id in a saved record must not
+ * throw). `composeGraph` itself still refuses an unknown id.
+ */
+export function branchClosureIds(ids: readonly string[], library: Library | readonly GraphBranch[]): string[] {
+  const lib = asLibrary(library);
+  const known = ids.filter((id) => id in lib);
+  return resolveClosure(known, lib).map((b) => b.id);
+}
+
 export function composeGraph(
   branchIds: readonly string[],
   library: Library | readonly GraphBranch[],

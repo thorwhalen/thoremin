@@ -23,16 +23,22 @@ describe('assembleSpec', () => {
     expect(assembleSpec({ name: 'X', layer }).class).toBe('field');
   });
 
-  it('branches are the explicit list when written, else the derived set, else absent; features mirror them', () => {
+  it('branches are the explicit list when written, else the derived set, else absent; features are the closure minus the trunk', () => {
     const derived = { class: 'field' as const, branches: ['field-voices', 'face-chord'] };
     const explicit = assembleSpec({ name: 'X', layer, meta: { branches: ['field-voices', 'conductor'] }, derived });
     expect(explicit.branches).toEqual(['field-voices', 'conductor']);
     expect(explicit.features).toEqual(['field-voices', 'conductor']);
     const derivedOnly = assembleSpec({ name: 'X', layer, derived });
     expect(derivedOnly.branches).toEqual(['field-voices', 'face-chord']);
+    // `face-chord` requires `face-source`: the facet says so, in library order, trunk excluded.
+    expect(derivedOnly.features).toEqual(['field-voices', 'face-source', 'face-chord']);
     const neither = assembleSpec({ name: 'X', layer });
     expect(neither.branches).toBeUndefined();
     expect(neither.features).toEqual([]);
+    // An unknown id in a saved record is dropped from the facet, never thrown.
+    expect(assembleSpec({ name: 'X', layer, meta: { branches: ['nope', 'trunk', 'air-drum'] } }).features).toEqual(['air-drum']);
+    // An EMPTY explicit list is explicit (a silent instrument), not "derive".
+    expect(assembleSpec({ name: 'X', layer, meta: { branches: [] }, derived }).branches).toEqual([]);
   });
 
   it('tags, emoji, image and training pass through; id is the name; the settings are the Layer', () => {
@@ -45,6 +51,7 @@ describe('assembleSpec', () => {
       id: 'Glass Bells',
       name: 'Glass Bells',
       tags: ['t1'],
+      starred: false,
       emoji: '🔔',
       image: 'gallery/glass-bells.png',
       training: { route: 'trainer/sequence?instrument=Glass%20Bells' },
@@ -73,6 +80,9 @@ describe('an explicit branch set still unions what a tool demands', () => {
   });
   it('a face-group demand adds the face source to an explicit set that lacks it', () => {
     expect(branchIdsFor(s, { explicit: ['field-voices'], demanded: new Set(['face.geom.mouth']) }).sort()).toEqual(['face-source', 'field-voices']);
+  });
+  it('an unknown id in the explicit set is dropped, never thrown (the derivation runs inside the host selector)', () => {
+    expect(branchIdsFor(s, { explicit: ['field-voices', 'nope'] })).toEqual(['field-voices']);
   });
   it('null means "derive"', () => {
     expect(branchIdsFor(s, { explicit: null }).sort()).toEqual(['face-chord', 'face-source', 'field-voices']);

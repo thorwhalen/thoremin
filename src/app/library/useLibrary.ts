@@ -18,6 +18,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProfileMeta } from '@zodal/dials-ui';
 import { parseTagLabels, EMPTY_INSTRUMENT_META, type Tag, type InstrumentMeta, type InstrumentMetaMap } from './model';
 import { assembleSpec, classCacheIsStale, type InstrumentSpec, type TrainingLink } from '@/instruments/spec';
+import { ALL_BRANCH_IDS } from '@/instruments/branches';
+import { normaliseClassId } from '@/instruments/classes';
+
+const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 import type { InstrumentSummary } from './summarize';
 import type { SystemTag } from './systemTags';
 import type { InstrumentCategory } from './category';
@@ -180,14 +184,19 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
 
   const systemTagsOf = useCallback((name: string) => derived[name]?.systemTags ?? [], [derived]);
   const summaryOf = useCallback((name: string) => derived[name]?.summary, [derived]);
-  const categoryOf = useCallback((name: string) => derived[name]?.category, [derived]);
+  // The derivation is authoritative; before it has run, the record's class CACHE answers
+  // (a cold load can group the list, and the list still waits for `derivedReady`).
+  const categoryOf = useCallback(
+    (name: string) => derived[name]?.category ?? (metaMap[name]?.class ? normaliseClassId(metaMap[name].class!) : undefined),
+    [derived, metaMap],
+  );
   const derivedReady = derivedNames !== null && list.every((p) => derivedNames.has(p.name));
 
   // The metadata record's `class` is a CACHE of the derived class (never a vote against it):
   // once the derivation has run, any missing or stale cache is rewritten, so the next cold
   // load can group the list before deriving. One write per change, never per render.
   useEffect(() => {
-    if (!derivedReady) return;
+    if (!ready || !derivedReady) return; // never write over a metadata blob not yet loaded
     let next: InstrumentMetaMap | null = null;
     for (const p of list) {
       const d = derived[p.name];
@@ -225,7 +234,11 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
   );
   const branchesOf = useCallback((name: string) => metaMap[name]?.branches, [metaMap]);
   const setBranches = useCallback(
-    (name: string, branches: readonly string[] | null) => patchMeta(name, { branches: branches ? [...branches] : undefined }),
+    (name: string, branches: readonly string[] | null) => {
+      // Only ids the branch table knows are written; a typo cannot reach the composer.
+      const known = branches ? branches.filter((id) => KNOWN_BRANCH_IDS.has(id)) : null;
+      patchMeta(name, { branches: known ? [...known] : undefined });
+    },
     [patchMeta],
   );
   const trainingOf = useCallback((name: string) => metaMap[name]?.training, [metaMap]);

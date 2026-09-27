@@ -220,11 +220,27 @@ export function instrumentsUsingTag(map: InstrumentMetaMap, tagId: string): stri
     .map(([name]) => name);
 }
 
-/** Drop records that carry no information (not starred, no tags), keeping the blob small. */
+/** Whether a record says anything a default record does not: starred, tagged, or any of
+ *  the spec fields (class cache, explicit branches, training route, image, emoji). */
+export function metaHasInformation(meta: InstrumentMeta): boolean {
+  return (
+    meta.starred ||
+    meta.tagIds.length > 0 ||
+    meta.class !== undefined ||
+    meta.branches !== undefined ||
+    meta.training !== undefined ||
+    meta.image !== undefined ||
+    meta.emoji !== undefined
+  );
+}
+
+/** Drop records that carry no information, keeping the blob small. Every field counts: the
+ *  first version of this pruned on stars and tags alone, and starring one instrument wiped
+ *  the explicit branches, training links and images of every other. */
 function pruneEmpty(map: InstrumentMetaMap): InstrumentMetaMap {
   const out: InstrumentMetaMap = {};
   for (const [name, meta] of Object.entries(map)) {
-    if (meta.starred || meta.tagIds.length > 0) out[name] = meta;
+    if (metaHasInformation(meta)) out[name] = meta;
   }
   return out;
 }

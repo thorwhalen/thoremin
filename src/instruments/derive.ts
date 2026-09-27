@@ -24,6 +24,9 @@
  */
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
+import { ALL_BRANCH_IDS } from './branches';
+
+const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 
 /**
  * The slice of the settings the derivation reads. Structural, so tests need no full
@@ -99,7 +102,10 @@ export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContex
   };
 
   if (ctx.explicit) {
-    for (const id of ctx.explicit) add(id, true);
+    // Unknown ids (a stale saved record, a branch an extension no longer ships) are dropped
+    // rather than thrown: the derivation runs inside the host's selector and must not take
+    // the app down. `composeGraph` would refuse them; here they simply compose nothing.
+    for (const id of ctx.explicit) add(id, KNOWN_BRANCH_IDS.has(id));
     add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
     add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded));
     return ids;

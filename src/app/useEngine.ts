@@ -104,22 +104,25 @@ function reportApplyFailure(engine: Engine, live: Engine | null, err: unknown): 
 }
 
 /**
- * The graph the LIVE instrument needs right now (the instruments-as-graphs ADR, PR 3):
- * the branches its dials and the live feature demand imply, composed for the slot
- * selection. Writes the composed overlay element set to the hot store FIRST, so the
- * overlay reads it through `store-controls` on the same tick the new graph commits, and
- * never as a param (a param change would rebuild the overlay node on every switch).
+ * The branch set the live state implies: the dials plus what a tool demands (the
+ * instruments-as-graphs ADR, PR 3). A spec's EXPLICIT branch set (PR 4) is persisted and
+ * assembled but not read here yet: honouring it at runtime needs a writer, and that writer
+ * must be a dial or a command (a command changes sound only by writing a dial), restored on
+ * undo and on reload. The PR that adds the writer wires `ctx.explicit` here.
  */
-/** The branch set the live state implies: the selected instrument's explicit set when it
- *  declares one (PR 4), else the dials; plus what a tool demands. */
 function liveBranchIds(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): string[] {
-  return branchIdsFor(controls, { demanded, featureLab: controls.featureLab, explicit: controls.explicitBranches });
+  return branchIdsFor(controls, { demanded, featureLab: controls.featureLab });
 }
 
 function currentBranchKey(): string {
   return branchSetKey(liveBranchIds(useControls.getState()));
 }
 
+/**
+ * The graph the LIVE instrument needs right now, composed for the slot selection. The
+ * caller writes the composed overlay element set to the hot store when the graph commits
+ * (`applyLive`), so the overlay reads it through `store-controls` and never as a param.
+ */
 function liveGraph(selection: SlotSelection, registry: NodeRegistry): Composed {
   return composeInstrumentGraph(liveBranchIds(useControls.getState()), selection, registry);
 }

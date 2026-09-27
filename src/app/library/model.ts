@@ -66,6 +66,8 @@ export const InstrumentMetaSchema = z.object({
   /** A picture of the instrument for the gallery view (discussion #272): a REFERENCE (a URL,
    *  an app-relative path or a store key), never bytes. */
   image: z.string().optional(),
+  /** A glyph for the card, chosen by the player (the seeds carry none). */
+  emoji: z.string().optional(),
 });
 export type InstrumentMeta = z.infer<typeof InstrumentMetaSchema>;
 
