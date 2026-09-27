@@ -228,11 +228,13 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
   // --- Air instruments (#249): played by miming, listed in their own category -------
   // Strike the air, hear a drum at the strike (#233). The theremin voices are silenced
   // (hand-map max gain 0) so the hands only drum; raise it in the Hand section to play
-  // a melody over the beat.
+  // a melody over the beat. The note grid and the note names on the hands go with them:
+  // they would label notes nobody hears.
   seed('Air Drum', {
     ...DEFAULTS,
     handMap: handMap({ maxGain: 0 }),
     airDrum: { ...DEFAULTS.airDrum, enabled: true },
+    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
   }),
 ];
 
@@ -270,8 +272,11 @@ const writeSeedVersion = (): void => {
 /**
  * Ensure the shipped instruments are present. First run seeds them all; a later run
  * whose stored SEED_VERSION is behind ADDS any shipped instrument whose name isn't
- * already saved (so an existing user gains the new demos without losing their own or
- * having edits/deletions of same-named ones clobbered). Idempotent once up to date.
+ * already saved (so an existing user gains the new demos without losing their own, and
+ * an edited same-named instrument is never overwritten). A shipped instrument the user
+ * DELETED is re-added on the next bump, since nothing records deletions; that is moot
+ * while the UI has no delete, and needs a tombstone list before one ships. Idempotent
+ * once up to date.
  */
 export async function ensureSeeded(): Promise<void> {
   const list = await instruments.list();

@@ -30,8 +30,9 @@ import InstrumentTags from '@/app/library/InstrumentTags';
 import TagsEditor from '@/app/library/TagsEditor';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
-import { groupByCategory } from '@/app/library/category';
-import { AirDrumReadout } from './panels/airDrum';
+import { AIR_INSTRUMENTS, airInstrumentsOf, groupByCategory, type AirInstrumentId } from '@/app/library/category';
+import { layerToSettings } from '@/settings/dials';
+import { AIR_UI } from './panels/air';
 
 const cardCls =
   'absolute right-3 top-3 flex max-h-[calc(100dvh-1.5rem)] w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
@@ -69,6 +70,14 @@ export default function InstrumentsPanel() {
   );
   const { state } = useDialsSettings();
   const dirty = state.dirty.length > 0;
+  // The air instruments playing right now (the live dials, not a saved instrument): the
+  // chosen row shows their readouts, so a drum left on is never invisible (#249).
+  const liveAir = useMemo(
+    () => airInstrumentsOf(layerToSettings(state.effective as Record<string, unknown>)),
+    [state.effective],
+  );
+  // The air instruments whose sections lead the editor — decided when it opens.
+  const [editorLead, setEditorLead] = useState<readonly AirInstrumentId[]>([]);
 
   const close = () => {
     setOpen(false);
@@ -84,6 +93,7 @@ export default function InstrumentsPanel() {
   };
 
   const openEditor = (name: string) => {
+    setEditorLead(library.summaryOf(name)?.air ?? []);
     select(name);
     setConfirming(false);
     setView('editor');
@@ -203,7 +213,7 @@ export default function InstrumentsPanel() {
             </div>
           )}
           <div className="border-t border-white/10 pt-3">
-            <DialsControlsPanel airDrumFirst={selected != null && (library.summaryOf(selected)?.air.includes('drum') ?? false)} />
+            <DialsControlsPanel leadAir={editorLead} />
           </div>
         </div>
       </div>
@@ -219,9 +229,10 @@ export default function InstrumentsPanel() {
     const isSel = p.name === selected;
     const isDefault = p.name === defaultName;
     const isStar = library.starred(p.name);
-    // The chosen air drum shows what it is doing right under its name — the first thing a
-    // player needs after choosing it is "strike once to teach each hand".
-    const drumLive = isSel && (library.summaryOf(p.name)?.air.includes('drum') ?? false);
+    // The chosen row shows what its air instruments are doing right under its name: the
+    // first thing a player needs after choosing the Air Drum is "strike once to teach
+    // each hand".
+    const readouts = isSel ? liveAir : [];
     return (
       <li
         key={p.name}
@@ -269,11 +280,14 @@ export default function InstrumentsPanel() {
           systemTags={library.systemTagsOf(p.name)}
           customTags={library.customTagsOf(p.name)}
         />
-        {drumLive && (
-          <div className="px-2 pb-2">
-            <AirDrumReadout />
-          </div>
-        )}
+        {readouts.map((id) => {
+          const Readout = AIR_UI[id].Readout;
+          return (
+            <div key={id} className="px-2 pb-2">
+              <Readout />
+            </div>
+          );
+        })}
       </li>
     );
   };
@@ -303,7 +317,7 @@ export default function InstrumentsPanel() {
         </span>
       </div>
       <div className="overflow-auto p-2" aria-busy={!ready}>
-        {!ready ? (
+        {!ready || !library.derivedReady ? (
           <p className="px-2 py-3 text-[11px] text-white/40">Loading instruments…</p>
         ) : (
           <>
@@ -341,7 +355,8 @@ export default function InstrumentsPanel() {
                     {g.items.map(renderRow)}
                     {g.items.length === 0 && (
                       <li className="px-2 py-2 text-[10px] leading-relaxed text-white/40">
-                        None saved. Tick “Drum in the air” in any instrument’s settings and save it.
+                        None saved. Turn on {AIR_INSTRUMENTS.map((a) => a.label.toLowerCase()).join(' or ')} in any
+                        instrument’s settings and save it.
                       </li>
                     )}
                   </ul>

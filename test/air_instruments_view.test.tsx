@@ -18,7 +18,8 @@ import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testi
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { TOOLS } from '@/app/tools';
-import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE } from '@/app/airDrumStatus';
+import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@/app/airDrumStatus';
+import { AirDrumReadout } from '@/app/dials/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
 import type { AirDrumSettings } from '@/settings/schema';
 import type { HandMap } from '@/nodes/mapping/hand_map';
@@ -74,6 +75,16 @@ describe('the Air instruments category (#249)', () => {
     expect(within(air).queryByTestId('air-drum-live')).toBeNull();
   });
 
+  it('shows the readout under a theremin whose drum is live, so a drum left on is never invisible', async () => {
+    render(<InstrumentsPanel />);
+    await airGroup();
+    const theremin = screen.getByRole('group', { name: 'Theremin instruments' });
+    fireEvent.click(within(theremin).getByText('Pentatonic'));
+    await waitFor(() => expect(airDrum().enabled).toBe(false));
+    act(() => dialsStore.set('airDrum', { ...airDrum(), enabled: true }));
+    expect(await within(theremin).findByTestId('air-drum-live')).toBeTruthy();
+  });
+
   it("opens the air drum's settings on its own section, first", async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
@@ -92,5 +103,28 @@ describe('the Air instruments category (#249)', () => {
       for (const w of toolWords) expect(w).not.toContain(a.label.toLowerCase());
     }
     expect(TOOLS.find((t) => t.id === 'airDrum')).toBeUndefined();
+  });
+});
+
+describe('the air drum readout (moved from the retired tool panel)', () => {
+  it('says what the drum is doing, from the status store', () => {
+    useAirDrumStatus.getState().reset();
+    render(<AirDrumReadout />);
+    expect(screen.getByTestId('air-drum-live').getAttribute('data-state')).toBe('off');
+    act(() => useAirDrumStatus.getState().report({ ...ABSENT_AIR_DRUM_LIVE, enabled: true, ready: { right: false, left: false } }));
+    expect(screen.getByText(/Strike once to teach/)).toBeTruthy();
+    act(() =>
+      useAirDrumStatus.getState().report({ enabled: true, hits: 4, predicted: 3, lastHand: 'right', lastLead: 0.048, lastPull: 0, ready: { right: true, left: false } }),
+    );
+    expect(screen.getByText('Right: predicted 48 ms before the strike.')).toBeTruthy();
+    expect(screen.getByText('4 · 75%')).toBeTruthy();
+    expect(screen.getByTestId('air-drum-live').getAttribute('data-state')).toBe('playing');
+    act(() => useAirDrumStatus.getState().report({ enabled: true, hits: 5, predicted: 3, lastHand: 'left', lastLead: -0.033, lastPull: 0, ready: { right: true, left: true } }));
+    expect(screen.getByText(/Left: sounded 33 ms after/)).toBeTruthy();
+  });
+
+  it('describeLive covers every state', () => {
+    expect(describeLive(ABSENT_AIR_DRUM_LIVE)).toMatch(/Off/);
+    expect(describeLive({ ...ABSENT_AIR_DRUM_LIVE, enabled: true, ready: { right: true, left: false } })).toMatch(/Ready/);
   });
 });

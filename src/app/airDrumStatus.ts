@@ -37,7 +37,7 @@ export interface OutputReader {
 
 /** What to tell the player, per state. */
 export function describeLive(live: AirDrumLive): string {
-  if (!live.enabled) return 'Off. Choose the Air Drum instrument, or tick "Drum in the air", then strike down with a hand.';
+  if (!live.enabled) return 'Off. Tick "Drum in the air" (the Air Drum instrument has it on), then strike down with a hand.';
   if (!live.ready.right && !live.ready.left) return 'Strike once to teach each hand where its drum is.';
   if (live.hits === 0) return 'Ready. Strike.';
   const ms = Math.round(Math.abs(live.lastLead) * 1000);

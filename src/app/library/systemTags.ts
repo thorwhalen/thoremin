@@ -91,11 +91,12 @@ export function deriveSystemTags(sum: InstrumentSummary): SystemTag[] {
     tags.push({ id: `${SYSTEM_TAG_PREFIX}face:${sum.faceMode}`, ...face });
   }
 
-  if (!sum.syncHands) {
+  // Split voices and finger FX shape the theremin voices too: moot when they are silent.
+  if (sum.handVoices && !sum.syncHands) {
     tags.push({ id: `${SYSTEM_TAG_PREFIX}voices:split`, ...SPLIT_VOICES_TAG });
   }
 
-  if (sum.fingerFx.length > 0) {
+  if (sum.handVoices && sum.fingerFx.length > 0) {
     tags.push({ id: `${SYSTEM_TAG_PREFIX}fingerfx`, ...FINGER_FX_TAG });
   }
 

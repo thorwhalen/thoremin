@@ -220,10 +220,11 @@ export function summaryLines(sum: InstrumentSummary): SummaryLine[] {
   if (sum.masterVolume !== MASTER_DEFAULTS.masterVolume) {
     lines.push({ label: 'Volume', value: `${Math.round(sum.masterVolume * 100)}%` });
   }
-  if (sum.magnetism !== MASTER_DEFAULTS.magnetism) {
+  // Magnetism and octave shift act on the theremin voices only.
+  if (sum.handVoices && sum.magnetism !== MASTER_DEFAULTS.magnetism) {
     lines.push({ label: 'Magnetism', value: `${Math.round(sum.magnetism * 100)}%` });
   }
-  if (sum.octaveShift !== MASTER_DEFAULTS.octaveShift) {
+  if (sum.handVoices && sum.octaveShift !== MASTER_DEFAULTS.octaveShift) {
     lines.push({ label: 'Octave shift', value: sum.octaveShift > 0 ? `+${sum.octaveShift}` : `${sum.octaveShift}` });
   }
   return lines;

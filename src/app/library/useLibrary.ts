@@ -56,6 +56,9 @@ export interface LibraryApi {
   summaryOf: (name: string) => InstrumentSummary | undefined;
   /** The derived category — its group in the Instruments view (undefined until derived). */
   categoryOf: (name: string) => InstrumentCategory | undefined;
+  /** True once the CURRENT instrument list has been derived (so the view can group it
+   *  without an instrument first flashing in the wrong group). */
+  derivedReady: boolean;
   /** Rename a tag's label (id + associations preserved). */
   renameTag: (id: string, label: string) => Promise<void>;
   /** Change a tag's emoji. */
@@ -70,6 +73,11 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
   const [tags, setTags] = useState<Tag[]>([]);
   const [metaMap, setMetaMap] = useState<InstrumentMetaMap>({});
   const [derived, setDerived] = useState<Record<string, InstrumentDerived>>({});
+  // The names the current `derived` map was computed for. The view groups the list only
+  // once every name it shows has been through a derivation (a failed one included), so no
+  // instrument flashes in the wrong group on load; a refresh that keeps the same names
+  // (a save) keeps showing the previous categories while it re-derives.
+  const [derivedNames, setDerivedNames] = useState<ReadonlySet<string> | null>(null);
   const [ready, setReady] = useState(false);
 
   const metaRef = useRef<InstrumentMetaMap>(metaMap);
@@ -96,7 +104,9 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
   useEffect(() => {
     let cancelled = false;
     void deriveForNames(list.map((p) => p.name)).then((d) => {
-      if (!cancelled) setDerived(d);
+      if (cancelled) return;
+      setDerived(d);
+      setDerivedNames(new Set(list.map((p) => p.name)));
     });
     return () => {
       cancelled = true;
@@ -155,6 +165,7 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
   const systemTagsOf = useCallback((name: string) => derived[name]?.systemTags ?? [], [derived]);
   const summaryOf = useCallback((name: string) => derived[name]?.summary, [derived]);
   const categoryOf = useCallback((name: string) => derived[name]?.category, [derived]);
+  const derivedReady = derivedNames !== null && list.every((p) => derivedNames.has(p.name));
 
   const renameTag = useCallback(
     async (id: string, label: string) => {
@@ -201,6 +212,7 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
     systemTagsOf,
     summaryOf,
     categoryOf,
+    derivedReady,
     renameTag,
     setTagEmoji,
     deleteTag,

@@ -131,11 +131,13 @@ The maintainer's rule: *the air instruments are instruments like the others, of 
 
 - **The category is derived, like a system tag.** `category.ts` holds `AIR_INSTRUMENTS` (id, label, emoji, and the predicate that reads the instrument's dial). An instrument that plays any of them is in the `air` group, otherwise `theremin`. Nothing is persisted, so a player who ticks "Drum in the air" on their own theremin and saves it finds it with the air instruments, and a stale category is impossible.
 - **An air instrument wins.** A theremin with a drum added is listed with the air instruments: the drum is the less discoverable part, and it is what the player would look for.
-- **Air instruments tag and describe themselves.** Each gets a system tag (🥁 for the drum), first in the row. An air instrument that silences the theremin voices (hand-map max gain 0, as the Air Drum seed does) drops the scale and note-source tags and the tooltip's scale / voices / range rows, which would describe nothing the player hears.
-- **The air instrument's settings are its section of the editor.** The editor opens the air drum's section first and open when the instrument being edited is an air drum (decided from its *saved* category, so ticking the box does not make the section jump). The live readout the retired panel carried (floors learned, hits, the last hit's lead) lives in that section and under the chosen row. The pad editor (#245) builds on this section.
+- **Air instruments tag and describe themselves.** Each gets a system tag (🥁 for the drum), first in the row. An air instrument that silences the theremin voices (hand-map max gain 0, as the Air Drum seed does) drops the tags and tooltip rows that describe those voices (scale, note source, split voices, finger FX, range, magnetism, octave shift). The Air Drum seed also hides the note grid and the note names on the hands.
+- **The air instrument's settings are its section of the editor.** The editor opens an air instrument's section first and open when the instrument being edited is that air instrument. This is decided once, when the editor opens, from the saved category, so ticking the box or saving never makes the section jump. The live readout the retired panel carried (floors learned, hits, the last hit's lead) lives in that section. It also shows under the chosen row whenever that air instrument is live, including a drum left on over a theremin. The pad editor (#245) builds on the drum's section.
+- **Pure and React halves.** `category.ts` (React-free) says which air instruments exist; `src/app/dials/panels/air.tsx` (`AIR_UI`) gives each one its editor section and readout. The `satisfies Record<AirInstrumentId, …>` makes a new category entry fail to typecheck until it has UI, so neither `InstrumentsPanel` nor `DialsControlsPanel` names an air instrument.
+- **No wrong group on load.** The list is grouped only once every name it shows has been derived (`useLibrary().derivedReady`), so the Air Drum never flashes under the theremins.
 - **No instrument is a tool.** `tools.ts` is for things you use *on* the instrument; `test/air_instruments_view.test.tsx` is the reachability walk (cold load → Air instruments → Air Drum → one click plays it) and guards that no tool shadows an air instrument.
 
-Adding an air instrument (guitar, bass, flute) is one `AIR_INSTRUMENTS` entry plus its seed.
+Adding an air instrument (guitar, bass, flute) is one `AIR_INSTRUMENTS` entry, one `AIR_UI` entry and a seed.
 
 ## Sparse layers, resolved
 
@@ -150,7 +152,7 @@ goes through it.
 `test/library_model.test.ts` (the id/prefix invariants), `library_store.test.ts` (both
 persistence shapes, against an in-memory provider), `library_summarize.test.ts`,
 `library_systemtags.test.ts`, `library_derive.test.ts` (sparse + UNSET resolution),
-`library_emoji.test.ts`, `library_category.test.ts` (categories, air summaries and tags), `air_instruments_view.test.tsx` (the reachability walk).
+`library_emoji.test.ts`, `library_category.test.ts` (categories, air summaries and tags), `air_instruments_view.test.tsx` (the reachability walk and the readout), `air_seed_upgrade.test.ts` (a version-3 browser gains the Air Drum).
 
 ## Flagged for sign-off
 
