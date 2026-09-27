@@ -163,7 +163,10 @@ describe('core reaches the extensions only through the lists, from the fold poin
         if (!spec.startsWith('@/')) continue; // a package, or a relative import (checked below)
         if (spec.startsWith(`@/extensions/${ext}/`)) {
           // Itself. A pure file stays on the pure side of its own extension too.
-          const ownPure = /^@\/extensions\/[^/]+\/(nodes|lib)\//.test(spec) || /^@\/extensions\/[^/]+\/[^/]+$/.test(spec);
+          // A root module counts as pure only if it is a `.ts` file (`ui.tsx` is the React half).
+          const ownPure =
+            /^@\/extensions\/[^/]+\/(nodes|lib)\//.test(spec) ||
+            (/^@\/extensions\/[^/]+\/[^/]+$/.test(spec) && existsSync(`src/${spec.slice(2)}.ts`));
           if (!pure || ownPure) continue;
           offenders.push(`${file} (pure) imports its own app side: ${spec}`);
           continue;
