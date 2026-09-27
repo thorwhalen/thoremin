@@ -266,7 +266,7 @@ So, when you add a user-facing capability:
 | **Trainer take → fixture** — the cue interval is the ground truth a clip cannot supply; refuses landmark geometry | `scripts/lib_trainer_take.ts` (logic) + `scripts/trainer_take_to_fixture.ts` (CLI), `docs/TESTING.md` |
 | **Real-vs-air takes** (#247) — paired, labelled takes: `performance` cues with a `clicked` sufficiency (`pairing: {phrase, surface}`), two starter routines, the trainer's own click, the recorder's raw `microphone` stream, the cue specs in the manifest's `meta`; offline, onsets/level/chroma per beat, the air half labelled by the click plus the player's real-half lag (`npm run pair`, output under the app-data dir only) | `src/app/enroll/realVsAirCues.ts`, `src/app/enroll/click.ts`, `scripts/cue/` (see its `README.md`), `test/cue/` |
 | Conceptual model | `docs/design/component-model.md` |
-| **Instruments as declared graphs + extensions** (ADR, proposed 2026-09-27: branches/trunk, `InstrumentSpec`, the `Extension` manifest, the package cut, the PR sequence; class id `field` = "Field instruments") | `docs/design/instruments-as-graphs-and-extensions.md` |
+| **Instruments as declared graphs + extensions** (ADR, accepted 2026-09-27 after an independent review: trunk + branches composed by four rules, `InstrumentSpec`, the `Extension` manifest with a generated `store-controls` port list, the package cut, the seven-PR sequence; class id `field` = "Field instruments", #274) | `docs/design/instruments-as-graphs-and-extensions.md` |
 
 ## Roadmap & tracking
 
