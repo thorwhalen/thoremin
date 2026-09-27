@@ -22,6 +22,7 @@ import argparse
 import json
 import subprocess
 import tempfile
+import wave
 from pathlib import Path
 
 import cv2
@@ -62,8 +63,11 @@ def main():
     W, H = int(W0 * k), int(H0 * k)
     disp = lambda x, y: (int((W0 - x) * k), int(y * k))  # the mirrored display
     frames, overlay, events = take['frames'], take.get('overlay', []), take['events']
-    tail = 1.5
-    n = len(frames) + int(tail * fps)
+    # As long as the audio: render_take_audio.mjs pads the take by its --tail, and the
+    # picture holds its last frame until the sound has rung out.
+    with wave.open(a.wav) as w:
+        audio_s = w.getnframes() / w.getframerate()
+    n = max(len(frames), int(round(audio_s * fps)))
 
     tmp = Path(tempfile.mkdtemp())
     silent = tmp / 'v.mp4'
