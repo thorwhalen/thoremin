@@ -2233,6 +2233,10 @@
         "kind": "boolean"
       },
       {
+        "name": "muteStrikes",
+        "kind": "boolean"
+      },
+      {
         "name": "overlay",
         "kind": "overlay-config"
       },
