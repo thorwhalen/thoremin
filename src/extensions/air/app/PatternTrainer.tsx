@@ -20,13 +20,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DRUM_PATTERNS, patternById, type DrumPattern } from '@/music/drum_patterns';
 import { fitPattern, playbackOffset, type PatternModel } from '@/drums/pattern_fit';
 import type { Click } from '@/enroll';
-import { clickPlayer } from '../enroll/click';
-import { hitsSince } from './hitsTap';
-import { loadPatternModel, removePatternModel, savePatternModel } from './patternModels';
-import { refreshPatternPlay } from './patternPlaySync';
-import { TRAINING_ANCHORS } from '../training/routes';
-import { useControls } from '../store';
-import { PatternStrip } from './PatternStrip';
+import { clickPlayer } from '@/app/enroll/click';
+import { hitsSince } from '@/extensions/air/app/hitsTap';
+import { loadPatternModel, removePatternModel, savePatternModel } from '@/extensions/air/app/patternModels';
+import { refreshPatternPlay } from '@/extensions/air/app/patternPlaySync';
+import { TRAINING_ANCHORS } from '@/app/training/routes';
+import { useControls } from '@/app/store';
+import { PatternStrip } from '@/extensions/air/app/PatternStrip';
 
 /** Bars of count-in before the pattern starts. */
 const COUNT_IN_BARS = 1;

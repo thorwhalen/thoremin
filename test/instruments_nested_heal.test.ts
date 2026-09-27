@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { normalizeLayer } from '@/app/dials/instruments';
-import { DEFAULT_FINGERING_PRIOR } from '@/air/fingering_prior';
+import { DEFAULT_FINGERING_PRIOR } from '@/extensions/air/lib/fingering_prior';
 import { DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE } from '@/settings/schema';
 
 describe('normalizeLayer and a nested additive key', () => {

@@ -9,14 +9,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { createInMemoryProvider } from '@zodal/store';
-import { PatternTrainer, takeClicks } from '@/app/drums/PatternTrainer';
-import { clearHits, hitsSince, makeHitsTap, pushHits } from '@/app/drums/hitsTap';
-import { loadPatternModel, usePatternModelStore, type PatternModelRecord } from '@/app/drums/patternModels';
+import { PatternTrainer, takeClicks } from '@/extensions/air/app/PatternTrainer';
+import { clearHits, hitsSince, makeHitsTap, pushHits } from '@/extensions/air/app/hitsTap';
+import { loadPatternModel, usePatternModelStore, type PatternModelRecord } from '@/extensions/air/app/patternModels';
 import { setClickPlayer } from '@/app/enroll/click';
 import { patternById } from '@/music/drum_patterns';
 import { useControls } from '@/app/store';
 import type { Click } from '@/enroll';
-import type { DrumHit } from '@/nodes/music/air_drum';
+import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 
 const ROCK = patternById('rock')!;
 let clock = 10_000;

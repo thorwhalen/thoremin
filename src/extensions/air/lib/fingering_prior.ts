@@ -65,7 +65,7 @@ import { trainModel, weightedDistance, type FeatureVector, type TrainedModel } f
 import type { TargetVerdict } from '@/enroll';
 import { FINGERING_CHARTS, chartById, chartNotes, fingeringKey, type FingerId, type Fingering, type FingeringChart } from '@/music/fingerings';
 import { parseNoteName } from '@/music/notes';
-import { MIN_SAMPLES_PER_ENTRY, jitterWeights, type Vocabulary, type VocabularyEntry } from './vocabulary';
+import { MIN_SAMPLES_PER_ENTRY, jitterWeights, type Vocabulary, type VocabularyEntry } from '@/extensions/air/lib/vocabulary';
 
 /** The per-finger flexion features a chart can have an opinion on, by their id suffix in
  *  the hand catalog. The curl is the sum of the three joint angles. */

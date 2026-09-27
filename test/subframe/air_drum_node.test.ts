@@ -20,7 +20,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@/dag';
-import { airDrumNode, type DrumHit, type HandsFrame, type AirDrumStatus } from '@/nodes';
+import { type HandsFrame } from '@/nodes';
+import { airDrumNode, type DrumHit, type AirDrumStatus } from '@/extensions/air/nodes/air_drum';
 import type { MusicalTime } from '@/ictus';
 import { FIXTURES } from '../helpers/fixtures';
 

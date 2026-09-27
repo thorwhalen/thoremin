@@ -1,8 +1,7 @@
 /**
  * The air instruments' branches (the drum, the bass, the guitar, the flute): one branch each,
  * attached to the trunk by the hand source and the UI bridge. Moved out of the core branch
- * table in PR 5a of the instruments-as-graphs ADR; the node files they name still live at
- * their pre-extension paths until 5b moves them.
+ * table in PR 5a of the instruments-as-graphs ADR; the node files they name live under `./nodes/` (5b).
  */
 import { defineBranch } from '@/instruments/branch';
 import { TRUNK } from '@/instruments/branches';

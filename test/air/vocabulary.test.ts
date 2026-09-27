@@ -6,8 +6,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { classify } from '@/enroll';
-import { VocabularySchema, emptyVocabulary, jitterWeights, trainVocabulary, withEntry, withoutEntry, MIN_SAMPLES_PER_ENTRY } from '@/air/vocabulary';
-import { chordShapeFeatureIds } from '@/features/hand_shape';
+import { VocabularySchema, emptyVocabulary, jitterWeights, trainVocabulary, withEntry, withoutEntry, MIN_SAMPLES_PER_ENTRY } from '@/extensions/air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { enrolSamples } from './synthetic_guitar';
 
 const NAMES: Record<string, string> = { G: 'G', C: 'C', D: 'D', E: 'Em' };

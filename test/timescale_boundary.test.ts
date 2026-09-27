@@ -142,8 +142,8 @@ describe('every node that makes real-time output honours the boundary', () => {
     const files: Record<string, string> = {
       'webaudio-synth': 'src/nodes/output/webaudio_synth.ts',
       'midi-out': 'src/nodes/output/midi_out.ts',
-      'drum-out': 'src/nodes/output/drum_out.ts',
-      'pluck-out': 'src/nodes/output/pluck_out.ts',
+      'drum-out': 'src/extensions/air/nodes/drum_out.ts',
+      'pluck-out': 'src/extensions/air/nodes/pluck_out.ts',
       lyria: 'src/nodes/output/lyria.ts',
     };
     const missingFile = synthNodes.map((d) => d.type).filter((t) => !(t in files));

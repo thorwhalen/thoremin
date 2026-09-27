@@ -6,7 +6,7 @@
  * envelope is never touched after it is scheduled.
  */
 import { describe, it, expect } from 'vitest';
-import { createWebAudioPluckSink } from '@/nodes/output/pluck_out';
+import { createWebAudioPluckSink } from '@/extensions/air/nodes/pluck_out';
 
 type Call = [string, ...number[]];
 

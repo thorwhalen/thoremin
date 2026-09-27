@@ -4,7 +4,7 @@
  * chord hand's per-frame shape vector, for enrolment, goes through `air/shapeTap.ts`.)
  */
 import { create } from 'zustand';
-import { IDLE_AIR_GUITAR_STATUS, type AirGuitarStatus } from '@/nodes/music/air_guitar';
+import { IDLE_AIR_GUITAR_STATUS, type AirGuitarStatus } from '@/extensions/air/nodes/air_guitar';
 
 export type AirGuitarLive = AirGuitarStatus;
 export const ABSENT_AIR_GUITAR_LIVE: AirGuitarLive = IDLE_AIR_GUITAR_STATUS;

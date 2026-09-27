@@ -11,9 +11,9 @@ import { runHeadless } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { DEFAULT_AIR_FLUTE } from '@/settings/schema';
-import { FLUTE_VOICE_ID } from '@/nodes/music/air_flute';
+import { FLUTE_VOICE_ID } from '@/extensions/air/nodes/air_flute';
 import type { SynthParams } from '@/nodes/domain';
-import { emptyVocabulary, trainVocabulary, withEntry } from '@/air/vocabulary';
+import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
 import { midiToFreq } from '@/music/theory';
 import { fingeringSamples, fluteTake } from './synthetic_flute';
 

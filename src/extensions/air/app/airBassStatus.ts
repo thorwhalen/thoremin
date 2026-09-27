@@ -6,7 +6,7 @@
  * only displays it.
  */
 import { create } from 'zustand';
-import { IDLE_AIR_BASS_STATUS, type AirBassStatus } from '@/nodes/music/air_bass';
+import { IDLE_AIR_BASS_STATUS, type AirBassStatus } from '@/extensions/air/nodes/air_bass';
 import { midiToName } from '@/music/theory';
 
 export type AirBassLive = AirBassStatus;

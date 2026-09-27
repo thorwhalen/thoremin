@@ -43,9 +43,9 @@ import type { NodeContext } from '@/dag';
 import { createImpactPredictor, fitLine, fitQuadratic, magnetise, type ImpactPredictor, type MusicalTime } from '@/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '@/drums/pattern_play';
 import { DRUM_SOUND } from '@/music/gm_drums';
-import { frameTime, type Hand, type HandsFrame } from '../domain';
-import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, stickReach } from './drum_anchor';
-import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type PadId } from './drum_pads';
+import { frameTime, type Hand, type HandsFrame } from '@/nodes/domain';
+import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, stickReach } from '@/nodes/music/drum_anchor';
+import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type PadId } from '@/nodes/music/drum_pads';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };

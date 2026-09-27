@@ -11,7 +11,19 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const CORE_DIRS = ['src/dag', 'src/nodes', 'src/lazy', 'src/keys', 'src/music', 'src/settings'];
+/** The nodes and libraries of every extension are Node-safe core too (they moved out of
+ *  `src/nodes` and `src/music` in PR 5b of the instruments-as-graphs ADR; the rule moved with them). */
+const EXTENSION_PURE_DIRS = readdirSync('src/extensions', { withFileTypes: true })
+  .filter((d) => d.isDirectory())
+  .flatMap((d) => ['nodes', 'lib'].map((sub) => join('src/extensions', d.name, sub)))
+  .filter((dir) => {
+    try {
+      return statSync(dir).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+const CORE_DIRS = ['src/dag', 'src/nodes', 'src/lazy', 'src/keys', 'src/music', 'src/settings', ...EXTENSION_PURE_DIRS];
 const FORBIDDEN = /from\s+['"](@\/(app|plugins)(\/|['"])|\.\.\/(\.\.\/)*(app|plugins)\/)/;
 
 function tsFiles(dir: string): string[] {

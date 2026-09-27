@@ -6,13 +6,13 @@
  * a chord. The live `shape` output is what enrolment captures.
  */
 import { describe, it, expect } from 'vitest';
-import { airGuitarNode, type AirGuitarStatus } from '@/nodes/music/air_guitar';
-import type { NoteEvent } from '@/nodes/music/note_events';
+import { airGuitarNode, type AirGuitarStatus } from '@/extensions/air/nodes/air_guitar';
+import type { NoteEvent } from '@/extensions/air/nodes/note_events';
 import type { HandsFrame } from '@/nodes/domain';
 import type { TrainedModel } from '@/enroll';
-import { emptyVocabulary, trainVocabulary, withEntry } from '@/air/vocabulary';
-import { chordShapeFeatureIds } from '@/features/hand_shape';
-import { guitarVoicing, parseChordName } from '@/music/guitar';
+import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
+import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';
 import { enrolSamples, guitarTake } from './synthetic_guitar';
 
 function modelOf(names: Record<string, string>): TrainedModel {

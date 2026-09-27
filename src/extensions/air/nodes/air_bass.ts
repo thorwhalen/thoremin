@@ -26,8 +26,8 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@/ictus';
-import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '../domain';
-import { NoteEventsSchema, type NoteEvent } from './note_events';
+import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '@/nodes/domain';
+import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
 
 export const PLAYER_HANDS = ['right', 'left'] as const;
 export type PlayerHand = (typeof PLAYER_HANDS)[number];
@@ -70,7 +70,7 @@ export const AirBassDialSchema = Params;
 export type AirBassDialParams = Params;
 export const DEFAULT_AIR_BASS_DIAL: AirBassDialParams = AirBassDialSchema.parse({});
 
-export { NoteEventSchema, NoteEventsSchema, type NoteEvent } from './note_events';
+export { NoteEventSchema, NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
 
 /** What the Instruments view shows. */
 export interface AirBassStatus {

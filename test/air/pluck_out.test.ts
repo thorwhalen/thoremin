@@ -5,8 +5,8 @@
  * outside real time (boundary B).
  */
 import { describe, it, expect } from 'vitest';
-import { pluckOutNode, type PluckSinkOptions } from '@/nodes/output/pluck_out';
-import type { NoteEvent } from '@/nodes/music/air_bass';
+import { pluckOutNode, type PluckSinkOptions } from '@/extensions/air/nodes/pluck_out';
+import type { NoteEvent } from '@/extensions/air/nodes/air_bass';
 import { TIME_SCALE_KEY } from '@/dag';
 
 const note = (t: number, midi = 40): NoteEvent => ({ t, midi, velocity: 0.8, predicted: true, lead: 0.05 });

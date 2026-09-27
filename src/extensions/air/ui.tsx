@@ -3,22 +3,22 @@
  * sections, the status hooks that mirror each air node into its readout store (and the
  * live shape taps the enrolment UI reads, the drum's hits tap), and the mount-time effects (the
  * flute's breath demand, the vocabulary loads, the fingering-prior sync, the drum-pattern sync). The panel and store modules
- * still live at their pre-extension paths until 5b moves them.
+ * live under `./panels/` and `./app/` (5b).
  */
 import type { ExtensionUi, StatusHook } from '@/app/extensions/types';
-import { AirDrumControls, AirDrumReadout } from '@/app/dials/panels/airDrum';
-import { AirBassControls, AirBassReadout } from '@/app/dials/panels/airBass';
-import { AirGuitarControls, AirGuitarReadout } from '@/app/dials/panels/airGuitar';
-import { AirFluteControls, AirFluteReadout } from '@/app/dials/panels/airFlute';
-import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from '@/app/airDrumStatus';
-import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from '@/app/airBassStatus';
-import { useAirGuitarStatus, makeAirGuitarReporter, ABSENT_AIR_GUITAR_LIVE, AIR_GUITAR_NODE_ID } from '@/app/airGuitarStatus';
-import { useAirFluteStatus, makeAirFluteReporter, ABSENT_AIR_FLUTE_LIVE, AIR_FLUTE_NODE_ID } from '@/app/airFluteStatus';
-import { makeShapeTap, clearShapes, setShape } from '@/app/air/shapeTap';
-import { loadAirVocabularies, startFlutePriorSync } from '@/app/air/vocabularyStore';
-import { startAirFluteDemand } from '@/app/airFluteDemand';
-import { makeHitsTap, clearHits } from '@/app/drums/hitsTap';
-import { startPatternPlaySync } from '@/app/drums/patternPlaySync';
+import { AirDrumControls, AirDrumReadout } from '@/extensions/air/panels/airDrum';
+import { AirBassControls, AirBassReadout } from '@/extensions/air/panels/airBass';
+import { AirGuitarControls, AirGuitarReadout } from '@/extensions/air/panels/airGuitar';
+import { AirFluteControls, AirFluteReadout } from '@/extensions/air/panels/airFlute';
+import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from '@/extensions/air/app/airDrumStatus';
+import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from '@/extensions/air/app/airBassStatus';
+import { useAirGuitarStatus, makeAirGuitarReporter, ABSENT_AIR_GUITAR_LIVE, AIR_GUITAR_NODE_ID } from '@/extensions/air/app/airGuitarStatus';
+import { useAirFluteStatus, makeAirFluteReporter, ABSENT_AIR_FLUTE_LIVE, AIR_FLUTE_NODE_ID } from '@/extensions/air/app/airFluteStatus';
+import { makeShapeTap, clearShapes, setShape } from '@/extensions/air/app/shapeTap';
+import { loadAirVocabularies, startFlutePriorSync } from '@/extensions/air/app/vocabularyStore';
+import { startAirFluteDemand } from '@/extensions/air/app/airFluteDemand';
+import { makeHitsTap, clearHits } from '@/extensions/air/app/hitsTap';
+import { startPatternPlaySync } from '@/extensions/air/app/patternPlaySync';
 
 /** A live shape tap as a status hook: the enrolment UI reads the latest shape; absent when the node leaves. */
 function shapeHook(nodeId: string, port: 'shape' | 'mouth' = 'shape'): StatusHook {

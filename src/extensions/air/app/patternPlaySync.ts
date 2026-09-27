@@ -12,8 +12,8 @@
 import { patternById } from '@/music/drum_patterns';
 import type { PatternPlay } from '@/drums/pattern_play';
 import type { PatternModel } from '@/drums/pattern_fit';
-import { useControls } from '../store';
-import { loadPatternModel } from './patternModels';
+import { useControls } from '@/app/store';
+import { loadPatternModel } from '@/extensions/air/app/patternModels';
 
 type DrumState = { airDrum?: { pattern?: string } };
 

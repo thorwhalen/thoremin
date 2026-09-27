@@ -123,7 +123,13 @@ describe('command-dispatch import firewall (#87)', () => {
   });
 
   it('the DAG / node / tick layer never imports the command registry', () => {
-    for (const dir of ['src/dag', 'src/nodes']) {
+    // The extensions' nodes are the real-time path too (they left `src/nodes` in PR 5b).
+    const extensionNodeDirs = existsSync('src/extensions')
+      ? readdirSync('src/extensions', { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => join('src/extensions', d.name, 'nodes'))
+      : [];
+    for (const dir of ['src/dag', 'src/nodes', ...extensionNodeDirs]) {
       for (const f of tsFiles(dir)) {
         for (const spec of importSpecifiers(readFileSync(f, 'utf8'))) {
           expect(/(^|\/)commands(\/|$)/.test(spec), `${f} imports "${spec}" — the real-time path must not route through dispatch`).toBe(false);

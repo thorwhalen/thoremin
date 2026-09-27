@@ -18,18 +18,18 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { StoreApi, UseBoundStore } from 'zustand';
-import { MIN_SAMPLES_PER_ENTRY } from '@/air/vocabulary';
+import { MIN_SAMPLES_PER_ENTRY } from '@/extensions/air/lib/vocabulary';
 import { createSequenceRunner, sequenceDurationMs, sequenceOf, sequenceLength, type FeatureVector, type SequenceRunner, type SequenceState, type TargetCheck, type TargetResult } from '@/enroll';
-import { emitGuidance, emitGuidanceStop } from '../enroll/guidance';
-import { useControls } from '../store';
+import { emitGuidance, emitGuidanceStop } from '@/app/enroll/guidance';
+import { useControls } from '@/app/store';
 
 /** The hush claim's owner id prefix: while a sequence runs, the instrument is quiet (the
  *  same claim the Trainer and the Conductor make, #264), so the countdown is not played
  *  over. One id per mounted trainer, so the guitar's cannot release the flute's. */
 export const SEQUENCE_HUSH_ID = 'sequence-trainer';
 let instances = 0;
-import { listSequences, parseTargets, removeSequence, saveSequence, type NamedSequence } from '../enroll/sequenceStore';
-import type { VocabularyState } from './vocabularyStore';
+import { listSequences, parseTargets, removeSequence, saveSequence, type NamedSequence } from '@/app/enroll/sequenceStore';
+import type { VocabularyState } from '@/extensions/air/app/vocabularyStore';
 
 /** How often the live shape is polled and the runner's clock advanced, ms. */
 const POLL_MS = 30;

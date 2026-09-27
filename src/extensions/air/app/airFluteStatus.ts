@@ -5,7 +5,7 @@
  * per-frame vectors, for enrolment, go through `air/shapeTap.ts`.)
  */
 import { create } from 'zustand';
-import { IDLE_AIR_FLUTE_STATUS, type AirFluteStatus } from '@/nodes/music/air_flute';
+import { IDLE_AIR_FLUTE_STATUS, type AirFluteStatus } from '@/extensions/air/nodes/air_flute';
 
 export type AirFluteLive = AirFluteStatus;
 export const ABSENT_AIR_FLUTE_LIVE: AirFluteLive = IDLE_AIR_FLUTE_STATUS;

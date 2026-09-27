@@ -5,7 +5,7 @@
  * publishes null on stop.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { resolvePatternPlay, startPatternPlaySync } from '@/app/drums/patternPlaySync';
+import { resolvePatternPlay, startPatternPlaySync } from '@/extensions/air/app/patternPlaySync';
 import type { PatternModel } from '@/drums/pattern_fit';
 import type { PatternPlay } from '@/drums/pattern_play';
 

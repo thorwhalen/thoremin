@@ -9,14 +9,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { createInMemoryProvider } from '@zodal/store';
-import { ChordEnrolment } from '@/app/dials/panels/airGuitar';
-import { ENROL_CAPTURE_S, ENROL_COUNTDOWN_S, ENROL_SETTLE_MS } from '@/app/air/VocabularyEnrolment';
-import { setShape } from '@/app/air/shapeTap';
-import { AIR_GUITAR_NODE_ID } from '@/app/airGuitarStatus';
-import { useGuitarVocabulary, useVocabularyStore, GUITAR_VOCABULARY, createVocabularyStore, type VocabularyRecord } from '@/app/air/vocabularyStore';
+import { ChordEnrolment } from '@/extensions/air/panels/airGuitar';
+import { ENROL_CAPTURE_S, ENROL_COUNTDOWN_S, ENROL_SETTLE_MS } from '@/extensions/air/app/VocabularyEnrolment';
+import { setShape } from '@/extensions/air/app/shapeTap';
+import { AIR_GUITAR_NODE_ID } from '@/extensions/air/app/airGuitarStatus';
+import { useGuitarVocabulary, useVocabularyStore, GUITAR_VOCABULARY, createVocabularyStore, type VocabularyRecord } from '@/extensions/air/app/vocabularyStore';
 import { useControls } from '@/app/store';
-import { emptyVocabulary } from '@/air/vocabulary';
-import { chordShapeFeatureIds } from '@/features/hand_shape';
+import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { enrolSamples } from './air/synthetic_guitar';
 
 let provider: ReturnType<typeof createInMemoryProvider<VocabularyRecord>>;
@@ -84,8 +84,8 @@ describe('learning a chord', () => {
   });
 
   it('says so when two learned chords look alike', async () => {
-    const { useGuitarVocabulary: v } = await import('@/app/air/vocabularyStore');
-    const { withEntry } = await import('@/air/vocabulary');
+    const { useGuitarVocabulary: v } = await import('@/extensions/air/app/vocabularyStore');
+    const { withEntry } = await import('@/extensions/air/lib/vocabulary');
     let vocab = emptyVocabulary(chordShapeFeatureIds());
     vocab = withEntry(vocab, 'G', enrolSamples('G', 30, 1));
     vocab = withEntry(vocab, 'G7', enrolSamples('G', 30, 2)); // the same shape, another name

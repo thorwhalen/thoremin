@@ -5,7 +5,7 @@
  * sounds with the dial off or before a fretting hand has been seen.
  */
 import { describe, it, expect } from 'vitest';
-import { airBassNode, neckNote, type NoteEvent, type AirBassStatus } from '@/nodes/music/air_bass';
+import { airBassNode, neckNote, type NoteEvent, type AirBassStatus } from '@/extensions/air/nodes/air_bass';
 import { makeHandKeypoints, type Hand, type HandsFrame } from '@/nodes/domain';
 import { bassTake } from './synthetic_bass';
 

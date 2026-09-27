@@ -15,21 +15,21 @@
  * (the single write path). The vocabulary is not a dial: it is the player's hands, kept
  * per browser.
  */
-import { dispatchDialSetIn } from '../../dispatchDial';
-import { useDialsSettings } from '../useDialsSettings';
-import { selectCls } from '../primitives';
-import { AIR_GUITAR_NODE_ID, describeGuitarLive, useAirGuitarStatus } from '../../airGuitarStatus';
-import { readShape } from '../../air/shapeTap';
-import { VocabularyEnrolment, type EnrolmentWords } from '../../air/VocabularyEnrolment';
-import { useGuitarVocabulary } from '../../air/vocabularyStore';
-import { SequenceTrainer, type SequenceTrainerWords } from '../../air/SequenceTrainer';
-import { GUITAR_STARTER_SEQUENCES } from '../../enroll/sequenceStore';
-import { TRAINING_ANCHORS } from '../../training/routes';
-import { useControls } from '../../store';
-import { checkTake } from '@/air/fingering_prior';
-import { parseChordName } from '@/music/guitar';
-import { PLAYER_HANDS } from '@/nodes/music/air_bass';
-import { STRUM_POINTS, type AirGuitarDialParams } from '@/nodes/music/air_guitar';
+import { dispatchDialSetIn } from '@/app/dispatchDial';
+import { useDialsSettings } from '@/app/dials/useDialsSettings';
+import { selectCls } from '@/app/dials/primitives';
+import { AIR_GUITAR_NODE_ID, describeGuitarLive, useAirGuitarStatus } from '@/extensions/air/app/airGuitarStatus';
+import { readShape } from '@/extensions/air/app/shapeTap';
+import { VocabularyEnrolment, type EnrolmentWords } from '@/extensions/air/app/VocabularyEnrolment';
+import { useGuitarVocabulary } from '@/extensions/air/app/vocabularyStore';
+import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app/SequenceTrainer';
+import { GUITAR_STARTER_SEQUENCES } from '@/app/enroll/sequenceStore';
+import { TRAINING_ANCHORS } from '@/app/training/routes';
+import { useControls } from '@/app/store';
+import { checkTake } from '@/extensions/air/lib/fingering_prior';
+import { parseChordName } from '@/extensions/air/lib/guitar';
+import { PLAYER_HANDS } from '@/extensions/air/nodes/air_bass';
+import { STRUM_POINTS, type AirGuitarDialParams } from '@/extensions/air/nodes/air_guitar';
 
 const HAND_LABEL: Record<AirGuitarDialParams['strumHand'], string> = {
   right: 'right hand strums',

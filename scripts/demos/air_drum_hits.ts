@@ -28,7 +28,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { NodeContext } from '@/dag';
 import { createTrendPrior, type Anchor } from '@/ictus';
-import { airDrumNode, type DrumHit, type HandsFrame } from '@/nodes';
+import { type HandsFrame } from '@/nodes';
+import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);

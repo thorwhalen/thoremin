@@ -14,11 +14,11 @@
  * Pure: Zod and the node schemas only.
  */
 import { z } from 'zod';
-import { AirDrumDialSchema } from '@/nodes/music/air_drum';
-import { AirBassDialSchema } from '@/nodes/music/air_bass';
-import { AirGuitarDialSchema } from '@/nodes/music/air_guitar';
-import { AirFluteDialSchema } from '@/nodes/music/air_flute';
-import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from '@/air/fingering_prior';
+import { AirDrumDialSchema } from '@/extensions/air/nodes/air_drum';
+import { AirBassDialSchema } from '@/extensions/air/nodes/air_bass';
+import { AirGuitarDialSchema } from '@/extensions/air/nodes/air_guitar';
+import { AirFluteDialSchema } from '@/extensions/air/nodes/air_flute';
+import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from '@/extensions/air/lib/fingering_prior';
 import type { DialSlice } from '@/instruments/extension';
 
 /** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269: the id

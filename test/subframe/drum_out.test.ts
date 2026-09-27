@@ -5,8 +5,8 @@
  * without an audio context, a malformed hit skipped.
  */
 import { describe, it, expect } from 'vitest';
-import { drumOutNode, engineToContextTime, type DrumSink } from '@/nodes/browser';
-import type { DrumHit } from '@/nodes';
+import { drumOutNode, engineToContextTime, type DrumSink } from '@/extensions/air/nodes/drum_out';
+import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 
 describe('engineToContextTime', () => {
   it('uses the output timestamp pair when the context has one (the exact map)', () => {

@@ -23,22 +23,22 @@
  * leaves of the `airFlute` dial through `dispatchDialSetIn` (the single write path).
  */
 import { useState } from 'react';
-import { dispatchDialSetIn } from '../../dispatchDial';
-import { useDialsSettings } from '../useDialsSettings';
-import { selectCls } from '../primitives';
-import { AIR_FLUTE_NODE_ID, describeFluteLive, useAirFluteStatus } from '../../airFluteStatus';
-import { readShape } from '../../air/shapeTap';
-import { useFluteFingerVocabulary, useFluteMouthVocabulary } from '../../air/vocabularyStore';
-import { VocabularyEnrolment, type EnrolmentWords } from '../../air/VocabularyEnrolment';
-import { SequenceTrainer, type SequenceTrainerWords } from '../../air/SequenceTrainer';
-import { FingeringGuide } from '../../air/FingeringGuide';
-import { FLUTE_STARTER_SEQUENCES } from '../../enroll/sequenceStore';
-import { TRAINING_ANCHORS } from '../../training/routes';
-import { useControls } from '../../store';
-import { checkTake, expectedFingering, priorOptionsFrom, type FingeringPriorSettings } from '@/air/fingering_prior';
+import { dispatchDialSetIn } from '@/app/dispatchDial';
+import { useDialsSettings } from '@/app/dials/useDialsSettings';
+import { selectCls } from '@/app/dials/primitives';
+import { AIR_FLUTE_NODE_ID, describeFluteLive, useAirFluteStatus } from '@/extensions/air/app/airFluteStatus';
+import { readShape } from '@/extensions/air/app/shapeTap';
+import { useFluteFingerVocabulary, useFluteMouthVocabulary } from '@/extensions/air/app/vocabularyStore';
+import { VocabularyEnrolment, type EnrolmentWords } from '@/extensions/air/app/VocabularyEnrolment';
+import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app/SequenceTrainer';
+import { FingeringGuide } from '@/extensions/air/app/FingeringGuide';
+import { FLUTE_STARTER_SEQUENCES } from '@/app/enroll/sequenceStore';
+import { TRAINING_ANCHORS } from '@/app/training/routes';
+import { useControls } from '@/app/store';
+import { checkTake, expectedFingering, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
 import { FINGERING_CHARTS } from '@/music/fingerings';
 import { parseNoteName } from '@/music/notes';
-import { BREATH_MODES, MOUTH_BLOW, MOUTH_REST, type AirFluteDialParams } from '@/nodes/music/air_flute';
+import { BREATH_MODES, MOUTH_BLOW, MOUTH_REST, type AirFluteDialParams } from '@/extensions/air/nodes/air_flute';
 
 const BREATH_LABEL: Record<AirFluteDialParams['breath'], string> = {
   mouth: 'your blowing mouth',

@@ -21,8 +21,8 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { realtimeOutputAllowed } from '@/dag';
-import { NoteEventsSchema, type NoteEvent } from '../music/note_events';
-import { engineToContextTime, type AudioClockLike } from './drum_out';
+import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
+import { engineToContextTime, type AudioClockLike } from '@/extensions/air/nodes/drum_out';
 
 /** The plucked timbres: the attack's brightness and where it settles (multiples of the
  *  fundamental), the decay, and the peak gain. The settled brightness is well above the

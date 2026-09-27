@@ -17,6 +17,13 @@ import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { useControls } from '@/app/store';
 import { deriveBranchIds } from '@/instruments/derive';
+import type { BreathStatus } from '@/nodes/output/canvas_overlay';
+import { IDLE_AIR_FLUTE_STATUS } from '@/extensions/air/nodes/air_flute';
+
+// The overlay reads the flute's status through a structural slice (it names no extension);
+// this pins, at typecheck time, that the flute's status still has those fields.
+const _breath: BreathStatus = IDLE_AIR_FLUTE_STATUS;
+void _breath;
 
 describe('the extension list', () => {
   it('ships the air extension, whose four instruments are four branches and four dial slices', () => {

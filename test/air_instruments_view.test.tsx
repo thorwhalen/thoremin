@@ -18,8 +18,8 @@ import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testi
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { TOOLS } from '@/app/tools';
-import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@/app/airDrumStatus';
-import { AirDrumReadout } from '@/app/dials/panels/airDrum';
+import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@/extensions/air/app/airDrumStatus';
+import { AirDrumReadout } from '@/extensions/air/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
 import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/settings/schema';
 import type { HandMap } from '@/nodes/mapping/hand_map';
