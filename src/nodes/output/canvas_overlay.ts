@@ -51,6 +51,8 @@ import {
 import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@/taglog/presentation';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
+import { PAD_IDS, anyPadOn, type PadId, type Pads } from '../music/drum_pads';
+import { gripFulcrum, stickTip } from '../music/drum_anchor';
 import {
   BODY_BONES,
   BODY_LANDMARK_COUNT,
@@ -109,6 +111,10 @@ const Params = z.object({
    *  beat and flashes on it, the beat-in-bar count, the tempo, and the follower's state
    *  (waiting / holding). Draws only while conducting is on. */
   conductorHud: z.object({ show: z.boolean().default(true) }).prefault({}),
+  /** The air drum over the video (#245): its pads, each shape where it is struck, in its
+   *  colour, flashing when it is hit; and, when it tracks the stick tip, the virtual
+   *  sticks themselves, so a player sees what strikes the pads. Only while the drum is on. */
+  drumPads: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
   /**
@@ -265,6 +271,13 @@ export interface OverlayView {
     /** The conductor's musical time (#187) and whether conducting is on, for the HUD. */
     conductorTime?: MusicalTime;
     conductorEnabled?: boolean;
+    /** The air drum's pads (#245), when the drum is on; and how recently each was hit,
+     *  0..1 (1 = just now), for the flash. */
+    drumPads?: Pads | null;
+    /** The virtual sticks' length (grip lengths) when the air drum is on and tracks the
+     *  stick tip; null otherwise. */
+    drumStickLength?: number | null;
+    padFlash?: Partial<Record<PadId, number>>;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */
     handMap?: HandMap;
@@ -1198,6 +1211,90 @@ const keyboardStripElement: OverlayElement = {
   },
 };
 
+// ---- Air drum pads (#245) ---------------------------------------------------
+
+/** How long a struck pad flashes, seconds. */
+const PAD_FLASH_SECONDS = 0.25;
+
+/** The pads to draw: the air drum's, while it is on with at least one pad. */
+function drumPadsOf(raw: unknown): Pads | null {
+  const c = raw as { enabled?: boolean; pads?: Pads } | undefined;
+  return c?.enabled && c.pads && anyPadOn(c.pads) ? c.pads : null;
+}
+
+/** The virtual sticks' length while the air drum is on and tracks the stick tip. */
+function drumStickLengthOf(raw: unknown): number | null {
+  const c = raw as { enabled?: boolean; point?: string; stickLength?: number } | undefined;
+  return c?.enabled && c.point === 'stickTip' && typeof c.stickLength === 'number' ? c.stickLength : null;
+}
+
+/** The colour of the virtual sticks. */
+const DRUM_STICK_COLOR = '#f5deb3';
+
+/**
+ * The air drum's pads over the video: each in its colour where the player strikes it
+ * (pad coordinates are fractions of the DISPLAYED, mirrored frame, which is this
+ * canvas), labelled with its drum, brightening when it is hit.
+ */
+const drumPads: OverlayElement = {
+  name: 'drumPads',
+  category: 'guide',
+  draw(g, { W, H, inputs, params }) {
+    if (!params.drumPads.show) return;
+    g.save();
+    // The virtual sticks: the point the air drum tracks, drawn from the grip's fulcrum to
+    // the estimated tip (mirrored like every in-scene element), so the pads are aimed
+    // with what actually strikes them.
+    const stickLength = inputs.drumStickLength;
+    const frame = inputs.hands;
+    if (stickLength != null && frame && frame.width > 0) {
+      g.globalAlpha = 0.9;
+      g.strokeStyle = DRUM_STICK_COLOR;
+      g.lineWidth = 4;
+      for (const hand of frame.hands) {
+        if (hand.keypoints.length < 21) continue;
+        const f = gripFulcrum(hand.keypoints);
+        const tip = stickTip(hand.keypoints, stickLength);
+        g.beginPath();
+        g.moveTo(mirrorX(f.x, frame.width, W), (f.y / frame.height) * H);
+        g.lineTo(mirrorX(tip.x, frame.width, W), (tip.y / frame.height) * H);
+        g.stroke();
+      }
+    }
+    const pads = inputs.drumPads;
+    if (!pads) {
+      g.restore();
+      return;
+    }
+    for (const id of PAD_IDS) {
+      const p = pads[id];
+      if (!p.on) continue;
+      const flash = inputs.padFlash?.[id] ?? 0;
+      const cx = p.x * W;
+      const cy = p.y * H;
+      const rw = (p.w * W) / 2;
+      const rh = (p.h * H) / 2;
+      g.beginPath();
+      if (p.shape === 'circle') g.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
+      else g.rect(cx - rw, cy - rh, 2 * rw, 2 * rh);
+      g.globalAlpha = 0.15 + 0.45 * flash;
+      g.fillStyle = p.color;
+      g.fill();
+      g.globalAlpha = 0.8;
+      g.lineWidth = 2 + 3 * flash;
+      g.strokeStyle = p.color;
+      g.stroke();
+      g.globalAlpha = 0.85;
+      g.fillStyle = '#ffffff';
+      g.font = '12px monospace';
+      g.textAlign = 'center';
+      g.fillText(p.sound, cx, cy + 4);
+    }
+    g.textAlign = 'left';
+    g.restore();
+  },
+};
+
 // ---- Feature Instrumentation Lab (#119) ------------------------------------
 
 const LAB_COL_W = 168; // px per newspaper column
@@ -1704,6 +1801,7 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   landmarkDots,
   // The conductor's beat HUD (#187): an in-scene output element above the markers.
   conductorHud,
+  drumPads,
   controlMarkers,
   fingerLinesElement,
   timbreLevels,
@@ -1811,6 +1909,9 @@ export const canvasOverlayNode = defineNode<Params>({
     // The conductor (#187): its musical time + enable flag, for the beat HUD.
     { name: 'conductorTime', kind: 'musical-time' },
     { name: 'conductorEnabled', kind: 'boolean', default: false },
+    // The air drum (#245): its config (for the pads) and its hits (for the flash).
+    { name: 'airDrumConfig', kind: 'air-drum-config' },
+    { name: 'drumHits', kind: 'drum-hits' },
     { name: 'expression', kind: 'face-expression' },
     { name: 'octaveShift', kind: 'number', default: 0 },
     { name: 'overlayConfig', kind: 'overlay-config' },
@@ -1827,6 +1928,21 @@ export const canvasOverlayNode = defineNode<Params>({
     // drawing concern: one opaque handle owns the normalizer + the derived formulas
     // (see @/features/labMeters), so this node stays a pure RENDERER.
     const computeLabMeters = createLabMeterComputer();
+    // When each pad was last struck (engine seconds): the one piece of drawing state
+    // the pads need, so a hit flashes for a moment after the tick that carried it.
+    const lastHit: Partial<Record<PadId, number>> = {};
+    const padFlash = (raw: unknown, now: number): Partial<Record<PadId, number>> => {
+      if (Array.isArray(raw)) for (const h of raw as { pad?: PadId | null; t?: number }[]) if (h?.pad) lastHit[h.pad] = Math.max(now, h.t ?? now);
+      const out: Partial<Record<PadId, number>> = {};
+      for (const id of PAD_IDS) {
+        const t = lastHit[id];
+        if (t === undefined) continue;
+        // Flash from the moment the hit SOUNDS (a predicted hit is scheduled ahead).
+        const age = now - t;
+        if (age >= -PAD_FLASH_SECONDS && age < PAD_FLASH_SECONDS) out[id] = age <= 0 ? 1 : 1 - age / PAD_FLASH_SECONDS;
+      }
+      return out;
+    };
 
     return {
       process(inputs, ctx: NodeContext) {
@@ -1884,6 +2000,9 @@ export const canvasOverlayNode = defineNode<Params>({
             bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
             conductorTime: inputs.conductorTime as MusicalTime | undefined,
             conductorEnabled: inputs.conductorEnabled === true,
+            drumPads: drumPadsOf(inputs.airDrumConfig),
+            drumStickLength: drumStickLengthOf(inputs.airDrumConfig),
+            padFlash: padFlash(inputs.drumHits, ctx.time),
             expression: inputs.expression as ExpressionScores | undefined,
             handMap: controls?.handMap,
             faceDegrees: controls?.faceExpr?.degrees,

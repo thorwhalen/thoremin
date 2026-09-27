@@ -26,6 +26,7 @@ import {
   type SynthParams,
 } from '@/nodes/domain';
 import { makeRecordingCanvas, type RecordingCanvas } from './helpers/canvas';
+import { DEFAULT_PADS_SET } from '@/nodes/music/drum_pads';
 
 function fullInputs() {
   const frame: HandsFrame = {
@@ -249,6 +250,35 @@ describe('canvas-overlay composable elements', () => {
     // Off: nothing at all.
     expect(drawWith(onlyElement('conductorHud'), { conductorTime: running, conductorEnabled: false }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
     expect(drawWith(onlyElement('conductorHud'), { conductorEnabled: true }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+  });
+
+  it('drumPads (Guide, #245): each pad on, in its colour, where it is struck; brighter when just hit; nothing when the drum is off', () => {
+    const pads = { ...DEFAULT_PADS_SET, p1: { ...DEFAULT_PADS_SET.p1, on: true }, p6: { ...DEFAULT_PADS_SET.p6, on: true } };
+    const config = { enabled: true, pads };
+    const rc = drawWith(onlyElement('drumPads'), { airDrumConfig: config });
+    const ellipses = rc.calls.filter((c) => c.m === 'ellipse');
+    const rects = rc.calls.filter((c) => c.m === 'rect');
+    expect(ellipses).toHaveLength(1); // p1 is round
+    expect(rects).toHaveLength(1); // p6 is square
+    // Placed in the displayed frame's fractions (1280 x 720 recording canvas).
+    expect(ellipses[0].args[0]).toBeCloseTo(pads.p1.x * 1280, 6);
+    expect(ellipses[0].args[1]).toBeCloseTo(pads.p1.y * 720, 6);
+    expect(rc.texts()).toEqual(expect.arrayContaining(['snare', 'kick']));
+    const fillAlpha = (r: typeof rc) => r.calls.find((c) => c.m === 'fill' && c.fill === pads.p1.color)!.alpha;
+    // A hit on p1 sounding now brightens it.
+    const hit = drawWith(onlyElement('drumPads'), { airDrumConfig: config, drumHits: [{ t: 0, velocity: 1, hand: 'right', sound: 'snare', predicted: true, lead: 0, pull: 0, pad: 'p1', radial: 0 }] });
+    expect(fillAlpha(hit)).toBeGreaterThan(fillAlpha(rc));
+    // Off: the drum off, no pad on, or the element toggled off.
+    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { ...config, enabled: false } }).count('ellipse')).toBe(0);
+    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: true, pads: DEFAULT_PADS_SET } }).count('ellipse')).toBe(0);
+    expect(drawWith({ ...onlyElement('drumPads'), drumPads: { show: false } }, { airDrumConfig: config }).count('ellipse')).toBe(0);
+  });
+
+  it('drumPads: draws a virtual stick per hand while the air drum tracks the stick tip, and none for another point', () => {
+    const rc = drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: true, point: 'stickTip', stickLength: 3, pads: DEFAULT_PADS_SET } });
+    expect(rc.count('lineTo')).toBe(2); // two hands in the frame
+    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: true, point: 'wrist', stickLength: 3, pads: DEFAULT_PADS_SET } }).count('lineTo')).toBe(0);
+    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: false, point: 'stickTip', stickLength: 3, pads: DEFAULT_PADS_SET } }).count('lineTo')).toBe(0);
   });
 
   it('bodySkeleton (Input, #186): bones + a dot per visible landmark, mirrored; nothing when absent', () => {

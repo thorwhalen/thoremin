@@ -1,0 +1,105 @@
+// @vitest-environment jsdom
+/**
+ * The drum-pad editor (#245), the reachability walk of its "Done when": from a cold
+ * load, open the air drum, lay out three pads, give one its own drum and colour, move one
+ * by dragging it, save the layout, and get it back after changing the kit.
+ *
+ * On the real Instruments view: the Air Drum's gear opens its settings with the air
+ * drum's section first, and the pad editor is in that section. Every edit is checked on
+ * the `airDrum` dial (what the node reads each tick), so this also proves the editor
+ * writes through the command path the node listens to. The saved layout is checked in
+ * its zodal collection (`padLayouts.ts`).
+ *
+ * Clicks from a cold load to a playable three-pad kit: Edit Air Drum (1), Add pad x3
+ * (4). Saving it: type a name, Save layout (5).
+ */
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
+import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
+import { dialsStore } from '@/app/dials/settingsStore';
+import { PAD_IDS, type Pads } from '@/nodes/music/drum_pads';
+import { createPadLayoutStore, padLayoutWrites } from '@/app/drums/padLayouts';
+import { leafByPath } from '@/app/commands/paths';
+import type { AirDrumSettings } from '@/settings/schema';
+
+const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;
+const padsOn = () => PAD_IDS.filter((id) => (airDrum().pads as Pads)[id].on);
+
+beforeAll(() => {
+  localStorage.clear(); // a cold load
+  // jsdom has no PointerEvent: a MouseEvent carries the coordinates the editor reads.
+  if (!('PointerEvent' in window)) (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = class extends MouseEvent {} as typeof MouseEvent;
+});
+afterEach(() => cleanup());
+
+describe('the pad editor, from a cold load (#245)', () => {
+  it('lays out three pads, edits one, drags one, saves the layout and loads it back', async () => {
+    render(<InstrumentsPanel />);
+    const air = await waitFor(() => screen.getByRole('group', { name: 'Air instruments' }));
+    fireEvent.click(within(air).getByLabelText('Edit Air Drum'));
+    await waitFor(() => expect(airDrum().enabled).toBe(true));
+    const editor = await screen.findByTestId('drum-pad-editor');
+    const ed = within(editor);
+
+    // Three pads.
+    expect(padsOn()).toHaveLength(0);
+    for (let n = 1; n <= 3; n++) {
+      fireEvent.click(ed.getByRole('button', { name: 'Add pad' }));
+      await waitFor(() => expect(padsOn()).toHaveLength(n));
+    }
+    expect(new Set(padsOn().map((id) => (airDrum().pads as Pads)[id].sound)).size).toBe(3); // three different drums
+
+    // Choose a pad, give it its own drum and colour.
+    fireEvent.click(ed.getByLabelText(/^Pad p1:/));
+    fireEvent.change(ed.getByLabelText('Pad drum'), { target: { value: 'crash' } });
+    await waitFor(() => expect((airDrum().pads as Pads).p1.sound).toBe('crash'));
+    fireEvent.change(ed.getByLabelText('Pad colour'), { target: { value: '#00ff00' } });
+    await waitFor(() => expect((airDrum().pads as Pads).p1.color).toBe('#00ff00'));
+
+    // Drag it right by a quarter of the stage (the stage is laid out 160 x 90 here).
+    const stage = ed.getByLabelText('Pad stage');
+    stage.getBoundingClientRect = () => ({ left: 0, top: 0, width: 160, height: 90, right: 160, bottom: 90, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const before = (airDrum().pads as Pads).p1;
+    const shape = editor.querySelector('[data-pad="p1"] ellipse, [data-pad="p1"] rect')!;
+    fireEvent.pointerDown(shape, { clientX: 80, clientY: 60, pointerId: 1 });
+    fireEvent.pointerMove(stage, { clientX: 120, clientY: 60, pointerId: 1 });
+    fireEvent.pointerUp(stage, { clientX: 120, clientY: 60, pointerId: 1 });
+    await waitFor(() => expect((airDrum().pads as Pads).p1.x).toBeCloseTo(before.x + 0.25, 2));
+    expect((airDrum().pads as Pads).p1.y).toBeCloseTo(before.y, 2);
+
+    // Resize it by its corner handle.
+    const handle = editor.querySelector('[data-handle="p1"]')!;
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 80, pointerId: 2 });
+    fireEvent.pointerMove(stage, { clientX: 108, clientY: 80, pointerId: 2 });
+    fireEvent.pointerUp(stage, { clientX: 108, clientY: 80, pointerId: 2 });
+    await waitFor(() => expect((airDrum().pads as Pads).p1.w).toBeCloseTo(before.w + 0.1, 2));
+
+    // Save the layout.
+    fireEvent.change(ed.getByLabelText('Layout name'), { target: { value: 'My kit' } });
+    fireEvent.click(ed.getByRole('button', { name: 'Save layout' }));
+    await waitFor(() => expect(ed.getByRole('list', { name: 'Saved pad layouts' })).toBeTruthy());
+    const saved = await createPadLayoutStore().load('my-kit');
+    expect(saved?.pads.p1.sound).toBe('crash');
+
+    // Change the kit, then load the layout back: exactly the saved pads.
+    fireEvent.click(ed.getByRole('button', { name: 'Starter kit' }));
+    await waitFor(() => expect(padsOn()).toHaveLength(5));
+    fireEvent.click(ed.getByRole('button', { name: 'Load layout My kit' }));
+    await waitFor(() => expect(padsOn()).toHaveLength(3));
+    expect((airDrum().pads as Pads).p1.sound).toBe('crash');
+    expect((airDrum().pads as Pads).p1.color).toBe('#00ff00');
+
+    // Remove a pad.
+    fireEvent.click(ed.getByLabelText(/^Pad p2:/));
+    fireEvent.click(ed.getByRole('button', { name: 'Remove pad' }));
+    await waitFor(() => expect(padsOn()).toHaveLength(2));
+  });
+});
+
+describe('pad layouts (the zodal collection)', () => {
+  it('loads a layout with writes that are every addressable leaf of every slot', () => {
+    const writes = padLayoutWrites(airDrum().pads as Pads);
+    expect(writes).toHaveLength(PAD_IDS.length * 8);
+    for (const [path] of writes) expect(leafByPath[path], path).toBeDefined();
+  });
+});

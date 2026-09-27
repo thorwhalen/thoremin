@@ -462,6 +462,9 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'cam', port: 'hands' }, to: { node: 'airDrum', port: 'hands' } },
       { from: { node: 'ui', port: 'airDrum' }, to: { node: 'airDrum', port: 'config' } },
       { from: { node: 'conductor', port: 'time' }, to: { node: 'airDrum', port: 'time' } },
+      // The pads over the video (#245): the dial for where they are, the hits for the flash.
+      { from: { node: 'ui', port: 'airDrum' }, to: { node: 'overlay', port: 'airDrumConfig' } },
+      { from: { node: 'airDrum', port: 'hits' }, to: { node: 'overlay', port: 'drumHits' } },
       { from: { node: 'airDrum', port: 'hits' }, to: { node: 'drumOut', port: 'hits' } },
       // The air bass (#249): the hands, the dial (live), the neck's notes (the right
       // voice's scale, the instrument's own), and its notes to the pluck scheduler.
