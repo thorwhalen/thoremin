@@ -159,12 +159,48 @@ test.describe('the Tools launcher', () => {
   });
 });
 
-test.describe('390x844 (a phone)', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+/** Every visible control inside `root` lies within the viewport (nothing cut off). */
+async function expectOnScreen(page: Page, root: Locator, name: string) {
+  const vw = page.viewportSize()!.width;
+  const controls = root.locator('button, input, select');
+  for (let i = 0; i < (await controls.count()); i++) {
+    const b = await controls.nth(i).boundingBox();
+    if (!b) continue;
+    expect(b.x, `${name}: control ${i} starts on screen`).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width, `${name}: control ${i} ends on screen`).toBeLessThanOrEqual(vw);
+  }
+}
 
-  test('cold load, playing: the launcher and the take cluster are pressable', async ({ page }) => {
-    await coldLoadPlaying(page);
-    // On a phone-width screen the bar is the launcher alone; the pins are one tap in.
-    await expectShellPressable(page, { pins: false });
+for (const phone of [
+  { width: 390, height: 844 },
+  { width: 360, height: 740 },
+]) {
+  test.describe(`${phone.width}x${phone.height} (a phone)`, () => {
+    test.use({ viewport: phone });
+
+    test('cold load, playing: the launcher and the take cluster are pressable', async ({ page }) => {
+      await coldLoadPlaying(page);
+      // On a phone-width screen the bar is the launcher alone; the pins are one tap in.
+      await expectShellPressable(page, { pins: false });
+    });
+
+    test('the Annotations sheet opens fully on screen', async ({ page }) => {
+      await coldLoadPlaying(page);
+      await page.getByRole('button', { name: 'Annotation mode' }).click();
+      const sheet = page.locator('[data-annotations-sheet]');
+      await expect(sheet).toBeVisible();
+      const box = (await sheet.boundingBox())!;
+      expect(box.x, 'the sheet starts on screen').toBeGreaterThanOrEqual(0);
+      await expectOnScreen(page, sheet, 'annotations sheet');
+    });
+
+    test('during a take, the take cluster does not cover the Tools button', async ({ page }) => {
+      await coldLoadPlaying(page);
+      await page.getByRole('button', { name: 'Record' }).click();
+      await page.getByRole('button', { name: /rec now/i }).click();
+      await expect(page.getByRole('button', { name: /stop recording|saving recording/i })).toBeVisible();
+      await expectPressable(page, page.locator('[data-tools-launcher]'), 'the Tools launcher');
+      await expectPressable(page, page.getByRole('button', { name: /stop recording/i }), 'stop recording');
+    });
   });
-});
+}

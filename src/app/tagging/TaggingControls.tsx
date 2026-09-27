@@ -46,15 +46,22 @@ export default function TaggingControls() {
   );
 }
 
-/** The Annotations pill and its setup sheet (which opens above it), for the take cluster. */
+/** The Annotations pill and its setup sheet, for the take cluster. The sheet is placed
+ *  against the CLUSTER (its nearest positioned ancestor): above it and flush with the
+ *  screen's right inset, so on a phone it cannot run off the left edge the way it did
+ *  when it hung off this pill, which sits left of Record. */
 export function AnnotationsButton() {
   const [open, setOpen] = useState(false);
   const mode = useTagging((s) => s.mode);
   const tagCount = useTagging((s) => s.defs.length);
 
   return (
-    <div className="relative flex flex-col items-end gap-2">
-      {open && <TaggingSheet onClose={() => setOpen(false)} />}
+    <div className="flex flex-col items-end">
+      {open && (
+        <div className="absolute bottom-full right-0 mb-2 max-w-[calc(100vw-1.5rem)]">
+          <TaggingSheet onClose={() => setOpen(false)} />
+        </div>
+      )}
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Annotation mode"

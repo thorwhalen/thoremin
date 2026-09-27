@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
-import { TOOLS, TOOL_GROUPS, ToolSchema } from '@/app/tools';
+import { TOOLS, TOOL_GROUPS, ToolGroupSchema, ToolSchema } from '@/app/tools';
 import {
   createToolsProvider,
   isPinned,
@@ -24,6 +24,10 @@ describe('the tools registry', () => {
     expect(new Set(TOOLS.map((t) => t.id)).size).toBe(TOOLS.length);
     const groups = new Set<string>(TOOL_GROUPS.map((g) => g.id));
     for (const t of TOOLS) expect(groups.has(t.group), t.id).toBe(true);
+  });
+
+  it('every launcher section in the schema has a heading, and no heading lacks a section', () => {
+    expect(TOOL_GROUPS.map((g) => g.id).sort()).toEqual([...ToolGroupSchema.options].sort());
   });
 
   it('a link tool has an href; no other kind needs one', () => {
@@ -65,6 +69,14 @@ describe("the player's pins", () => {
     const lab = TOOLS.find((t) => t.id === 'lab')!;
     expect(isPinned(lab, {})).toBe(lab.defaultPinned);
     expect(isPinned(lab, { lab: !lab.defaultPinned })).toBe(!lab.defaultPinned);
+  });
+
+  it('a provider with upsert is written through it', async () => {
+    const base = createInMemoryProvider<ToolPin>([], { idField: 'id' });
+    const calls: ToolPin[] = [];
+    const withUpsert = { ...base, upsert: async (p: ToolPin) => (calls.push(p), p) };
+    await savePin(withUpsert, { id: 'lab', pinned: true });
+    expect(calls).toEqual([{ id: 'lab', pinned: true }]);
   });
 
   it('save creates the record the first time and updates it after', async () => {

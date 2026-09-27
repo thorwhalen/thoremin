@@ -24,7 +24,12 @@ import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
 import { useToolPins } from '@/app/toolPins';
-import { isPinned } from '@/app/toolsCollection';
+import { isPinned, TOOL_PINS_STORAGE_KEY } from '@/app/toolsCollection';
+import { dialsStore } from '@/app/dials/settingsStore';
+import type { ConductorSettings } from '@/settings/schema';
+
+const conductorDial = () => dialsStore.getState().effective.conductor as ConductorSettings;
+const setConducting = (enabled: boolean) => dialsStore.set('conductor', { ...conductorDial(), enabled });
 import { useControls } from '@/app/store';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
@@ -50,9 +55,11 @@ async function openFromLauncher(label: string) {
 }
 
 beforeEach(() => {
-  useTools.setState({ open: null, launcherOpen: false });
-  // Every test starts from the shipped pins.
+  useTools.setState({ open: null, independentOpen: {}, launcherOpen: false });
+  // Every test starts from the shipped pins, with nothing stored.
+  localStorage.removeItem(TOOL_PINS_STORAGE_KEY);
   useToolPins.setState({ choices: {} });
+  setConducting(false);
   useControls.getState().setFeatureLab(defaultFeatureLab());
   useControls.setState({ gestures: defaultGesturePrefs() });
   useTrainer.getState().reset();
@@ -135,6 +142,18 @@ describe('the tools bar and its launcher are the shell entry point for every too
       expect(document.querySelectorAll('[data-launcher-tool]')).toHaveLength(1),
     );
     expect(document.querySelector('[data-launcher-tool="lab"]')).toBeTruthy();
+  });
+
+  it('the assistant is independent: a panel opening does not close it, and it does not close the panel', () => {
+    useTools.getState().openTool('trainer');
+    useTools.getState().openTool('assistant');
+    expect(useTools.getState().open).toBe('trainer');
+    expect(useTools.getState().independentOpen.assistant).toBe(true);
+    useTools.getState().openTool('lab');
+    expect(useTools.getState().independentOpen.assistant).toBe(true);
+    useTools.getState().closeIndependent('assistant');
+    expect(useTools.getState().independentOpen.assistant).toBe(false);
+    expect(useTools.getState().open).toBe('lab');
   });
 
   it('Escape closes the launcher', async () => {
@@ -740,6 +759,10 @@ const DETACHED: Record<string, { start: () => void; running: () => boolean }> = 
     start: () => useControls.getState().setFeatureLab({ show: true }),
     running: () => useControls.getState().featureLab.show,
   },
+  conductor: {
+    start: () => setConducting(true),
+    running: () => conductorDial().enabled === true,
+  },
 };
 
 const detachedTools = TOOLS.filter((t) => t.runsDetached);
@@ -755,7 +778,7 @@ describe('a tool that keeps running after its panel closes', () => {
   });
 
   for (const tool of detachedTools) {
-    it(`${tool.id}: the bar offers a STOP control while it runs, with the panel closed`, () => {
+    it(`${tool.id}: the bar offers a STOP control while it runs, with the panel closed`, async () => {
       act(() => DETACHED[tool.id].start());
       useTools.setState({ open: null }); // the panel is shut — the reported situation
       render(<ToolsBar />);
@@ -764,7 +787,8 @@ describe('a tool that keeps running after its panel closes', () => {
       act(() => {
         fireEvent.click(stop);
       });
-      expect(DETACHED[tool.id].running()).toBe(false);
+      // A dial-backed tool stops through the (async) command write path.
+      await waitFor(() => expect(DETACHED[tool.id].running()).toBe(false));
     });
 
     it(`${tool.id}: reads as RUNNING in the bar even with its panel closed`, () => {

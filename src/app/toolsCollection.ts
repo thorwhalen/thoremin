@@ -37,7 +37,7 @@ export const toolsCollection = defineCollection(ToolSchema, {
     create: false,
     update: false,
     delete: false,
-    search: { placeholder: 'Find a tool…', minChars: 1 },
+    search: { placeholder: 'Find a tool…' },
     groupBy: { defaultField: 'group', collapsible: false, defaultState: 'expanded' },
     defaultView: 'list',
     views: ['list'],
@@ -93,15 +93,20 @@ export function createToolPinsProvider(): DataProvider<ToolPin> {
     : createLocalStorageProvider<ToolPin>({ storageKey: TOOL_PINS_STORAGE_KEY, idField: 'id' });
 }
 
-/** Write one pin choice: update the tool's record, or create it the first time. (The
- *  `DataProvider` contract's `upsert` is optional, and the localStorage adapter has none.) */
+/** Write one pin choice: the provider's `upsert` when it has one (it is optional in the
+ *  `DataProvider` contract); otherwise update the tool's record if it exists, else create
+ *  it. Other failures (storage full, say) propagate rather than becoming a doomed create. */
 export async function savePin(provider: DataProvider<ToolPin>, pin: ToolPin): Promise<void> {
   const record = ToolPinSchema.parse(pin);
-  try {
-    await provider.update(record.id, record);
-  } catch {
-    await provider.create(record);
+  if (provider.upsert) {
+    await provider.upsert(record);
+    return;
   }
+  const exists = await provider.getOne(record.id).then(
+    () => true,
+    () => false,
+  );
+  await (exists ? provider.update(record.id, record) : provider.create(record));
 }
 
 /** Every stored pin choice, by tool id. Records that fail the schema are skipped. */

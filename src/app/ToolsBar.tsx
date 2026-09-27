@@ -37,6 +37,9 @@ import { useToolPins } from './toolPins';
 import { searchTools } from './toolsCatalog';
 import { useTools } from './toolsStore';
 import { useControls } from './store';
+import { useDialsSettings } from './dials/useDialsSettings';
+import { dispatchDialSetIn } from './dispatchDial';
+import type { ConductorSettings } from '@/settings/schema';
 import VersionBadge from './VersionBadge';
 
 /** The launcher's hotkey (bound in `keyboardShortcuts.ts`), shown on its button. */
@@ -49,9 +52,12 @@ function ToolButton({
   tool,
   running = false,
   onStop,
+  stopHint,
   className = '',
 }: {
   tool: Tool;
+  /** The stop button's tooltip: what stopping this tool does. */
+  stopHint?: string;
   /** Extra classes on the outermost element (the bar hides pins on a narrow screen). */
   className?: string;
   /** The tool is DOING something right now, whether or not its panel is open. */
@@ -59,10 +65,9 @@ function ToolButton({
   /** Stop it. Required (by {@link ToolsBar}) whenever `running` can be true. */
   onStop?: () => void;
 }) {
-  const open = useTools((s) => s.open);
+  const isOpen = useTools((s) => s.open === tool.id || s.independentOpen[tool.id] === true);
   const toggleTool = useTools((s) => s.toggleTool);
   const Icon = TOOL_ICONS[tool.id];
-  const isOpen = open === tool.id;
 
   const content = (
     <>
@@ -127,7 +132,7 @@ function ToolButton({
         type="button"
         onClick={onStop}
         data-stop-tool={tool.id}
-        title={`Stop ${tool.label} — turn the meters off`}
+        title={`Stop ${tool.label}${stopHint ? ` — ${stopHint}` : ''}`}
         aria-label={`Stop ${tool.label}`}
         className={`${btnCls} border-emerald-400/40 bg-emerald-500/20 px-2 text-emerald-200 hover:bg-emerald-500/30 hover:text-white`}
       >
@@ -160,14 +165,30 @@ function publishHeight(bar: HTMLElement | null): (() => void) | undefined {
   };
 }
 
-export default function ToolsBar() {
-  // The one detached-running signal there is today. Read here rather than inside
-  // ToolButton so the button stays presentational and `tools.ts` stays React-free:
-  // the registry declares THAT a tool can run detached, the shell knows what that
-  // means for each one.
+/** Per {@link Tool.runsDetached} tool: whether it is running now, and how to stop it.
+ *  Read here rather than inside ToolButton so the button stays presentational and
+ *  `tools.ts` stays React-free: the registry declares THAT a tool can run detached, the
+ *  shell knows what that means for each one. A detached tool with no entry here gets no
+ *  stop control, which `tools_shell.test.tsx` refuses. */
+function useDetached(): Record<string, { running: boolean; stop: () => void; hint: string }> {
   const metersOn = useControls((s) => s.featureLab.show);
   const setFeatureLab = useControls((s) => s.setFeatureLab);
-  const isRunning = (t: Tool) => t.runsDetached === true && t.id === 'lab' && metersOn;
+  const { state } = useDialsSettings();
+  const conducting = ((state.effective.conductor ?? {}) as Partial<ConductorSettings>).enabled === true;
+  return {
+    lab: { running: metersOn, stop: () => setFeatureLab({ show: false }), hint: 'turn the meters off' },
+    // Through the single write path: `conductor.enabled` is a dial.
+    conductor: {
+      running: conducting,
+      stop: () => void dispatchDialSetIn('conductor.enabled', false),
+      hint: 'stop conducting (the instrument sounds again)',
+    },
+  };
+}
+
+export default function ToolsBar() {
+  const detached = useDetached();
+  const isRunning = (t: Tool) => t.runsDetached === true && detached[t.id]?.running === true;
   const choices = useToolPins((s) => s.choices);
   const launcherOpen = useTools((s) => s.launcherOpen);
   const toggleLauncher = useTools((s) => s.toggleLauncher);
@@ -187,7 +208,7 @@ export default function ToolsBar() {
     <div
       ref={barRef}
       data-tools-bar
-      className="absolute bottom-3 left-3 z-40 flex max-w-[max(6rem,calc(100vw-20rem))] flex-wrap items-center gap-1.5"
+      className="absolute bottom-3 left-3 z-40 flex max-w-[max(7rem,calc(100vw-20rem))] flex-wrap items-center gap-1.5"
     >
       <button
         type="button"
@@ -204,7 +225,8 @@ export default function ToolsBar() {
       >
         <LayoutGrid className="h-3 w-3 shrink-0" aria-hidden />
         <span>Tools</span>
-        <kbd className="ml-0.5 rounded bg-white/10 px-1 py-px font-mono text-[9px] tracking-normal text-white/50">
+        {/* No key hint where there is no keyboard to speak of. */}
+        <kbd className="ml-0.5 rounded bg-white/10 px-1 py-px font-mono text-[9px] tracking-normal text-white/50 max-sm:hidden">
           {LAUNCHER_HOTKEY}
         </kbd>
       </button>
@@ -213,7 +235,8 @@ export default function ToolsBar() {
           key={t.id}
           tool={t}
           running={isRunning(t)}
-          onStop={t.id === 'lab' ? () => setFeatureLab({ show: false }) : undefined}
+          onStop={detached[t.id]?.stop}
+          stopHint={detached[t.id]?.hint}
           // Narrow screens keep only the launcher and running tools in the strip.
           className={isRunning(t) ? '' : 'max-sm:hidden'}
         />

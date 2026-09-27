@@ -8,7 +8,9 @@
  *
  * It is a registered shell TOOL (`assistant` in `src/app/tools.ts`), opened from the Tools
  * launcher or its pinned button like any other, and its open state is the shared
- * `useTools` one. It used to be a floating, unlabelled robot in the bottom-right corner:
+ * `useTools` one — as an INDEPENDENT tool (`Tool.independent`): opening a panel does not
+ * close the chat (which would abort a reply in flight), and opening the chat does not
+ * close the panel. It used to be a floating, unlabelled robot in the bottom-right corner:
  * the one control in the shell a first-time player could not name, and it sat on the
  * Instruments panel's last rows (Round 4, #266/#271).
  */
@@ -22,13 +24,9 @@ const AssistantChat = lazy(() => import('./AssistantChat'));
 export const TOOL_ID = 'assistant';
 
 export default function AssistantOverlay() {
-  const open = useTools((s) => s.open) === TOOL_ID;
+  const open = useTools((s) => s.independentOpen[TOOL_ID] === true);
   if (!open) return null;
-  // Only close if the assistant is still the open tool: `close()` would also dismiss a
-  // different tool opened since.
-  const onClose = () => {
-    if (useTools.getState().open === TOOL_ID) useTools.getState().close();
-  };
+  const onClose = () => useTools.getState().closeIndependent(TOOL_ID);
   return (
     <Suspense
       fallback={

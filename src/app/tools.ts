@@ -43,13 +43,14 @@ export type ToolKind = z.infer<typeof ToolKindSchema>;
  * session of its own (both hush it); a *tool* is used on the instrument between takes;
  * *help* is reference.
  */
+export const ToolGroupSchema = z.enum(['mode', 'tool', 'help']);
+export type ToolGroup = z.infer<typeof ToolGroupSchema>;
+/** One entry per {@link ToolGroupSchema} value (a test pins that none is missing). */
 export const TOOL_GROUPS = [
   { id: 'mode', label: 'Modes', hint: 'take over the instrument' },
   { id: 'tool', label: 'Tools', hint: 'use on the instrument' },
   { id: 'help', label: 'Help', hint: '' },
-] as const;
-export const ToolGroupSchema = z.enum(['mode', 'tool', 'help']);
-export type ToolGroup = z.infer<typeof ToolGroupSchema>;
+] as const satisfies readonly { id: ToolGroup; label: string; hint: string }[];
 
 export const ToolSchema = z.object({
   /** Stable id — the key `useTools.open` holds, and the `data-tool` test hook. */
@@ -71,6 +72,14 @@ export const ToolSchema = z.object({
   /** For `kind: 'link'` — the href. */
   href: z.string().optional(),
   /**
+   * True for a tool with its own place on screen that does not REPLACE the open panel,
+   * and is not closed by opening one: the assistant's chat (bottom-right). Opening
+   * another tool must not unmount it, since that would abort a reply in flight; and it
+   * must not close the Trainer, which stops a running routine on close. Every other tool
+   * shares the one open-panel slot (`useTools.open`).
+   */
+  independent: z.boolean().optional(),
+  /**
    * True when the tool keeps **doing something visible after its panel is closed**.
    * The Feature Lab is the only one: its meters go on drawing over the video, which
    * is deliberate — you want to watch them while you play, with the panel out of the
@@ -88,6 +97,10 @@ export const ToolSchema = z.object({
    * So a tool that runs detached owes the bar a **stop** control, live whenever it is
    * running — pinned or not, reachable with its panel shut, and with no memory of how it
    * was started. `tools_shell.test.tsx` enforces that rather than trusting this comment.
+   *
+   * The Conductor is the second: conducting goes on after its panel closes (and hushes
+   * the instrument while it does), so once the Conductor could be unpinned, or hidden on
+   * a phone, it needed the same way out.
    */
   runsDetached: z.boolean().optional(),
 });
@@ -112,6 +125,7 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     kind: 'panel',
     group: 'mode',
     defaultPinned: true,
+    runsDetached: true,
   },
   {
     id: 'trainer',
@@ -138,6 +152,7 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     kind: 'overlay',
     group: 'tool',
     defaultPinned: false,
+    independent: true,
   },
   {
     id: 'lab',

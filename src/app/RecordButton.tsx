@@ -89,7 +89,7 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
     });
 
   return (
-    <div className="w-72 rounded-2xl border border-white/10 bg-black/90 p-3 text-white/90 shadow-2xl backdrop-blur">
+    <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-white/10 bg-black/90 p-3 text-white/90 shadow-2xl backdrop-blur">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">
           Recording
@@ -254,7 +254,9 @@ function Hud({ recording }: { recording: RecordingControls }) {
       {!saving && (
         <>
           <span className="tabular-nums">{fmtElapsed(recording.elapsedMs)}</span>
-          <span className="font-normal normal-case tracking-normal text-white/70">
+          {/* The stream list is what makes the HUD wide; on a phone it would push the
+              take cluster over the Tools button. */}
+          <span className="font-normal normal-case tracking-normal text-white/70 max-sm:hidden">
             {recording.activeStreams.join(' · ')}
           </span>
         </>

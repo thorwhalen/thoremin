@@ -200,8 +200,10 @@ export default function App({
           an annotation tapped during a recording is written into the take) and the
           multi-stream recorder (#88; a button that morphs into a settings sheet then a
           compact HUD, once audio is running). z-50: a sheet either opens grows up over
-          the Instruments panel, the surface the player just asked for on top. */}
-      <div className="absolute bottom-3 right-3 z-50 flex items-end gap-2">
+          the Instruments panel, the surface the player just asked for on top. Its width
+          stops short of the Tools button (9rem from the left), wrapping to a second row
+          on a narrow phone rather than covering the only bar entry there. */}
+      <div className="absolute bottom-3 right-3 z-50 flex max-w-[calc(100vw-9rem)] flex-wrap items-end justify-end gap-2">
         {status === 'ready' && <AnnotationsButton />}
         {audioOn && <RecordButton recording={recording} />}
       </div>
