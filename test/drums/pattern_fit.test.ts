@@ -145,13 +145,67 @@ describe('the pattern fit', () => {
       { t: kickAt(0) + 0.02, sound: 'hihat' }, // the hi-hat on one, same instant
       { t: kickAt(1) - 0.02, sound: 'kick' },
       { t: kickAt(1) - 0.01, sound: 'kick' }, // a flam: the second kick has no event
+      { t: kickAt(1) + 0.005, sound: 'hihat' }, // the hi-hat on one of pass 1
     ];
-    const a = assignHits(hits, ROCK, period, 0);
+    const a = assignHits(hits, ROCK, { line: { period, phase: 0 } });
     expect(a.map((x) => [x.hit, ROCK.events[x.event].drum, x.pass])).toEqual([
       [0, 'kick', 0],
       [1, 'hihat', 0],
       [3, 'kick', 1],
+      [4, 'hihat', 1],
     ]);
+  });
+});
+
+describe('the pattern fit, adversarially', () => {
+  it('lands the beat, not the off-beat, whatever the seed: no feel to tip the tie', () => {
+    // Hi-hats on every eighth tie the beat grid between beat and off-beat; only a scan
+    // over every subdivision resolves it (the first version failed 40 seeds of 60).
+    for (const pattern of [ROCK, patternById('half-time')!]) {
+      for (let seed = 1; seed <= 20; seed++) {
+        const { hits } = take(pattern, { ...PLAYER, feel: {}, driftPerPass: 0 }, 4, 1 + seed * 0.37, seed);
+        const model = fitPattern(hits, pattern)!;
+        expect(model, `${pattern.id} seed ${seed}`).not.toBeNull();
+        expect(model.recall, `${pattern.id} seed ${seed}`).toBe(1);
+        expect(model.precision, `${pattern.id} seed ${seed}`).toBe(1);
+      }
+    }
+  });
+
+  it('holds a long drifting take together with the per-pass lines', () => {
+    const { hits, meanBpm } = take(ROCK, PLAYER, 8, 2, 9);
+    const model = fitPattern(hits, ROCK, { statedBpm: 96 })!;
+    expect(model).not.toBeNull();
+    expect(model.passes).toBe(8);
+    expect(model.recall).toBeGreaterThan(0.98);
+    expect(model.precision).toBeGreaterThan(0.98);
+    expect(Math.abs(model.bpm - meanBpm)).toBeLessThan(1.5);
+  });
+
+  it('refuses a take of something else rather than fitting it to some grid', () => {
+    // A player at 60 percent of the stated tempo is outside the scan; random hits are noise.
+    const slow = take(ROCK, { ...PLAYER, bpm: 57.6, driftPerPass: 0 }, 4, 1, 5).hits;
+    expect(fitPattern(slow, ROCK, { statedBpm: 96 })).toBeNull();
+    const r = rng(77);
+    const random: HitSample[] = Array.from({ length: 48 }, () => ({ t: 1 + r() * 10, sound: (['kick', 'snare', 'hihat'] as const)[Math.floor(r() * 3)] }));
+    expect(fitPattern(random, ROCK, { statedBpm: 96 })).toBeNull();
+    // Another pattern's take is not this pattern's: four on the floor against the rock beat.
+    const other = take(patternById('four-floor')!, { ...PLAYER, feel: {}, driftPerPass: 0, bpm: 96 }, 4, 1, 6).hits;
+    const cross = fitPattern(other, ROCK, { statedBpm: 96 });
+    expect(cross === null || cross.recall < 0.7 || cross.precision < 0.85).toBe(true);
+  });
+
+  it('learns the pad a drum is played on when it is not the pad whose sound it is', () => {
+    // The hi-hat played on a snare-sounding pad: those hits sound "snare", and the
+    // snare events near them are taken by the real snare, so they may take the hi-hat's.
+    const p: Player = { ...PLAYER, feel: {}, driftPerPass: 0, pads: { ...PLAYER.pads, hihat: { pad: 'p8', x: 0.2, y: 0.78 } } };
+    const { hits } = take(ROCK, p, 4, 1, 8);
+    const relabelled = hits.map((h) => (h.pad === 'p8' ? { ...h, sound: 'snare' as const } : h));
+    const model = fitPattern(relabelled, ROCK, { statedBpm: 96 })!;
+    expect(model).not.toBeNull();
+    expect(model.recall).toBe(1);
+    expect(model.positions.hihat.pad).toBe('p8');
+    expect(model.positions.snare.pad).toBe('p1');
   });
 });
 
@@ -181,8 +235,9 @@ describe('the starters', () => {
     const fill = patternById('fill')!;
     expect(fill.steps).toBe(32);
     expect(fill.lengthBeats).toBe(8);
-    expect(fill.events.at(-1)).toMatchObject({ drum: 'crash', beat: 7.75 });
-    expect(fill.events.find((e) => e.accent)).toMatchObject({ drum: 'snare', beat: 7.5 });
+    // The crash on the one after the fill: step 0 of the loop, with the kick.
+    expect(fill.events.filter((e) => e.beat === 0).map((e) => e.drum)).toEqual(['kick', 'hihat', 'crash']);
+    expect(fill.events.at(-1)).toMatchObject({ drum: 'snare', beat: 7.5, accent: true });
     expect(new Set(DRUM_PATTERNS.map((p) => p.id)).size).toBe(DRUM_PATTERNS.length);
   });
 

@@ -175,13 +175,13 @@ export const DRUM_PATTERNS: readonly DrumPattern[] = [
   {
     id: 'fill',
     name: 'Snare fill',
-    description: 'A bar of the rock beat, then a bar of eighths on the snare ending on a crash.',
+    description: 'A bar of the rock beat, then a bar of eighths on the snare; the crash lands on the one that follows (the loop\'s first step, with the kick).',
     bpm: 90,
     rows: {
       kick: 'x... .... x... .... | .... .... .... ....',
       snare: '.... x... .... x... | x.x. x.x. x.x. x.X.',
       hihat: 'x.x. x.x. x.x. x.x. | .... .... .... ....',
-      crash: '.... .... .... .... | .... .... .... ...x',
+      crash: 'x... .... .... .... | .... .... .... ....',
     },
   },
 ].map(compilePattern);
