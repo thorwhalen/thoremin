@@ -77,8 +77,22 @@ export const GraphBranchSchema = z.object({
 export type GraphBranch = z.infer<typeof GraphBranchSchema>;
 export type GraphBranchInput = z.input<typeof GraphBranchSchema>;
 
-/** Parse and freeze a branch definition. Throws on a malformed one at module load, which is
- *  where a typo in a branch table should fail. */
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
+  }
+  return value;
+}
+
+/**
+ * Parse and deep-freeze a branch definition. Throws on a malformed one at module load, which
+ * is where a typo in a branch table should fail. Frozen because every composition shares the
+ * same params objects: a caller mutating one graph's params must not change the next
+ * graph, and `Engine.applyGraph` decides what to keep by comparing them.
+ */
 export function defineBranch(input: GraphBranchInput): GraphBranch {
-  return GraphBranchSchema.parse(input);
+  // Cloned first so that freezing never reaches an object the caller shares with the
+  // settings defaults (`DEFAULT_STEER_CONFIG`, `DEMO_SCALE_NOTES` are passed as params).
+  return deepFreeze(GraphBranchSchema.parse(structuredClone(input)));
 }

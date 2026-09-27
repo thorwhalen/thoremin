@@ -42,7 +42,7 @@ describe('synth-merge', () => {
   it('an absent stream contributes nothing (a one-voice graph)', async () => {
     const hands = params([voice(0)]);
     const [out] = await replayNode(synthMergeNode.make({}), { voice1: [hands] });
-    // b, c, mute all absent → just the hand voice, unchanged.
+    // every other input and mute absent → just the hand voice, unchanged.
     expect((out.params as SynthParams).voices.map((v) => v.id)).toEqual([0]);
   });
 

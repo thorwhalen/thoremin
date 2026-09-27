@@ -34,7 +34,7 @@ import type { SlotContract } from '@/nodes/slot_contract';
 import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { composeGraph, type Composed } from '@/instruments/compose';
-import { ALL_BRANCH_IDS, BRANCHES, TRUNK } from '@/instruments/branches';
+import { ALL_BRANCH_IDS, BRANCHES, TRUNK, trunk } from '@/instruments/branches';
 
 /**
  * The generative branch's STARTER steering (#141 / #188): what the gestures mean to
@@ -170,7 +170,9 @@ export function composeInstrumentGraph(
   selection?: SlotSelection,
   registry?: NodeRegistry,
 ): Composed {
-  return composeGraph(branchIds, BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET });
+  // The trunk is implied: every instrument shares it, so no spec has to name it.
+  const ids = branchIds.includes(trunk.id) ? branchIds : [trunk.id, ...branchIds];
+  return composeGraph(ids, BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET });
 }
 
 /** The full graph: every branch. The selection swaps node types inside it (see SLOTS). */

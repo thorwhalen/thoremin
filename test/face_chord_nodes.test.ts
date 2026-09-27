@@ -403,7 +403,7 @@ describe('chord-select node (#76)', () => {
     const out3 = await replayNode(node, { a: [[]], b: [[]] });
     expect(out3[0].chord).toEqual([]);
     // Missing inputs are treated as empty.
-    const out4 = await replayNode(node, { voice1: [undefined as unknown as number[]] });
+    const out4 = await replayNode(node, { a: [undefined as unknown as number[]] });
     expect(out4[0].chord).toEqual([]);
   });
 });

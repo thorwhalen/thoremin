@@ -4,10 +4,11 @@
  * selection, node for node and edge for edge.
  *
  * The fixtures under `test/fixtures/graph/` were dumped from the hand-listed builder at
- * main `e45b8ee` (32 nodes, 104 edges). One normalisation is deliberate: the merge's
- * inputs were letters (`a`..`e`) and are now role pools (`voice1..8`, `score1..2`), so an
- * edge into the merge is compared by the ROLE of its input, not its name. Everything else
- * must match exactly.
+ * main `e45b8ee` (32 nodes, 104 edges). One translation is deliberate: the merge's inputs
+ * were letters (`a`..`e`) and are now role pools (`voice1..8`, `score1..2`); each letter maps
+ * to exactly one pool input, and the comparison is exact after that mapping. (The overlay
+ * reads the hand voices by position in the merged stream, so which input a producer lands
+ * on is behaviour, not a detail.)
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,21 +27,14 @@ const CASES: Record<string, SlotSelection> = {
   'synthetic-body': { body: 'synthetic-body' },
 };
 
-/** The letters the hand-listed graph used, by the role the ADR gives them. */
-const LEGACY_MERGE_ROLE: Record<string, 'instrument' | 'score'> = { a: 'instrument', b: 'instrument', c: 'instrument', d: 'score', e: 'instrument' };
-
-function roleOfMergePort(port: string): 'instrument' | 'score' | undefined {
-  if (LEGACY_MERGE_ROLE[port]) return LEGACY_MERGE_ROLE[port];
-  if ((SYNTH_MERGE_POOLS.instrument as readonly string[]).includes(port)) return 'instrument';
-  if ((SYNTH_MERGE_POOLS.score as readonly string[]).includes(port)) return 'score';
-  return undefined;
-}
+/** The letter each producer used in the hand-listed graph, and the pool input it now has. */
+const LEGACY_MERGE_PORT: Record<string, string> = { a: 'voice1', b: 'voice2', c: 'voice3', d: 'score1', e: 'voice4' };
 
 const nodeKey = (n: NodeSpec): string => JSON.stringify([n.id, n.type, n.params ?? {}]);
 
 function edgeKey(e: EdgeSpec): string {
-  const to = e.to.node === 'merge' && roleOfMergePort(e.to.port) ? `merge.<${roleOfMergePort(e.to.port)}>` : `${e.to.node}.${e.to.port}`;
-  return `${e.from.node}.${e.from.port} -> ${to}${e.delayed ? ' (delayed)' : ''}`;
+  const port = e.to.node === 'merge' ? (LEGACY_MERGE_PORT[e.to.port] ?? e.to.port) : e.to.port;
+  return `${e.from.node}.${e.from.port} -> ${e.to.node}.${port}${e.delayed ? ' (delayed)' : ''}`;
 }
 
 const sorted = (xs: string[]): string[] => [...xs].sort();

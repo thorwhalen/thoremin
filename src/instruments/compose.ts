@@ -16,8 +16,12 @@
  *    `overlay` lists; the host delivers it to the overlay through a port, never a param
  *    (a param change would rebuild the overlay node on every switch).
  *
- * Deterministic: the same branch ids in the same order give the same spec, node for node
- * and edge for edge. Pure and Node-safe: no engine, no DOM.
+ * Deterministic and ORDER-INDEPENDENT: the composition order is the library's order (the
+ * branch table), whatever order the caller names branches in, so the same SET of branch ids
+ * always gives the same spec, node for node, edge for edge and merge input for merge input.
+ * That matters because the overlay reads the hand voices by position in the merged stream
+ * and a data-dependent caller order (an instrument's set plus a live demand's) would
+ * otherwise move them. Pure and Node-safe: no engine, no DOM.
  */
 import type { EdgeSpec, GraphSpec, NodeSpec } from '@/dag';
 import type { GraphBranch, VoiceRole } from './branch';
@@ -63,7 +67,7 @@ function asLibrary(lib: Library | readonly GraphBranch[]): Library {
   return out;
 }
 
-/** Requirements first, then the branch; each id once; order otherwise as given. */
+/** The transitive closure over `requires`, each id once, in the LIBRARY's order. */
 function resolveClosure(ids: readonly string[], lib: Library): GraphBranch[] {
   const seen = new Set<string>();
   const out: GraphBranch[] = [];
@@ -80,7 +84,8 @@ function resolveClosure(ids: readonly string[], lib: Library): GraphBranch[] {
     out.push(b);
   };
   for (const id of ids) visit(id, []);
-  return out;
+  const position = new Map(Object.keys(lib).map((id, i) => [id, i] as const));
+  return out.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
 }
 
 function structurallyEqual(a: unknown, b: unknown): boolean {
@@ -136,14 +141,18 @@ export function composeGraph(
 
   // Rule 2: owned edges; drop optional edges to absent nodes; refuse fan-in.
   const edges: EdgeSpec[] = [];
-  const takenInputs = new Map<string, string>(); // "node.port" → declaring branch
+  const takenInputs = new Map<string, { owner: string; from: string }>(); // "node.port" → who feeds it
   const addEdge = (e: EdgeSpec, owner: string): void => {
     const key = portKey(e.to);
     const prior = takenInputs.get(key);
     if (prior) {
-      throw new ComposeError(`input "${key}" is fed twice (branches "${prior}" and "${owner}"); the engine rejects fan-in`);
+      // The same edge declared by two branches is one edge (rule 1's tolerance, for edges).
+      if (prior.from === portKey(e.from)) return;
+      throw new ComposeError(
+        `input "${key}" is fed twice (branches "${prior.owner}" and "${owner}"); the engine rejects fan-in`,
+      );
     }
-    takenInputs.set(key, owner);
+    takenInputs.set(key, { owner, from: portKey(e.from) });
     edges.push(e);
   };
   for (const b of branches) {
@@ -164,8 +173,14 @@ export function composeGraph(
 
   // Rule 3: voices, allocated by role.
   const used: Record<VoiceRole, number> = { instrument: 0, score: 0 };
+  const declaredVoices = new Map<string, string>(); // "node.port" → declaring branch
   for (const b of branches) {
     for (const v of b.voices) {
+      const prior = declaredVoices.get(portKey(v.from));
+      if (prior) {
+        throw new ComposeError(`voice ${portKey(v.from)} is declared by branches "${prior}" and "${b.id}"; a voice has one owner`);
+      }
+      declaredVoices.set(portKey(v.from), b.id);
       if (!opts.merge) throw new ComposeError(`branch "${b.id}" declares a voice but no merge target was given`);
       if (!nodes.has(opts.merge.node)) {
         throw new ComposeError(`merge node "${opts.merge.node}" is not in the composed graph (the trunk must declare it)`);

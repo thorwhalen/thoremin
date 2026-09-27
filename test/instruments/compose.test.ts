@@ -77,11 +77,22 @@ describe('composeGraph rules', () => {
     expect(() => composeGraph(['trunk', 'p', 'q'], [trunk, p, q])).toThrow(/"p" and "q"/);
   });
 
-  it('2: requirements are resolved transitively, once, before the branch that needs them', () => {
+  it('2: the same edge declared by two branches is one edge', () => {
+    const p = defineBranch({
+      id: 'p',
+      nodes: [{ id: 'y', type: 'one-euro', params: {} }],
+      edges: [{ from: { node: 'src', port: 'hands' }, to: { node: 'y', port: 'value' } }],
+    });
+    const q = defineBranch({ id: 'q', edges: [{ from: { node: 'src', port: 'hands' }, to: { node: 'y', port: 'value' } }] });
+    expect(composeGraph(['trunk', 'p', 'q'], [trunk, p, q]).spec.edges).toHaveLength(1);
+  });
+
+  it('2: requirements are resolved transitively and once; the composition order is the library order', () => {
     const a = defineBranch({ id: 'a', requires: ['b'] });
     const b = defineBranch({ id: 'b', requires: ['c'] });
     const c = defineBranch({ id: 'c' });
-    expect(composeGraph(['a', 'c'], [a, b, c]).branches).toEqual(['c', 'b', 'a']);
+    expect(composeGraph(['a', 'c'], [a, b, c]).branches).toEqual(['a', 'b', 'c']);
+    expect(composeGraph(['c', 'a'], [a, b, c]).branches).toEqual(['a', 'b', 'c']);
     expect(() => composeGraph(['a'], [a, b])).toThrow(/unknown branch "c".*required via a → b/);
     const loop = defineBranch({ id: 'loop', requires: ['loop'] });
     expect(() => composeGraph(['loop'], [loop])).toThrow(/cycle/);
@@ -100,6 +111,27 @@ describe('composeGraph rules', () => {
     expect(into).toEqual({ i1N: 'v1', s1N: 's1', i2N: 'v2' });
     expect(() => composeGraph(['trunk', 'i1', 'i2', 'i3'], [trunk, i1, i2, i3], { merge: MERGE })).toThrow(/pool "instrument" is full/);
     expect(() => composeGraph(['trunk', 'i1'], [trunk, i1])).toThrow(/no merge target/);
+    const again = mk('again', 'instrument');
+    const dup = defineBranch({ id: 'dup', voices: [{ from: { node: 'againN', port: 'value' }, role: 'instrument' }] });
+    expect(() => composeGraph(['trunk', 'again', 'dup'], [trunk, again, dup], { merge: MERGE })).toThrow(/one owner/);
+  });
+
+  it('3: allocation is order-independent: the hand voices land on voice1 whatever order the caller names', () => {
+    const byOrder = (ids: string[]) =>
+      Object.fromEntries(composeInstrumentGraph(ids).spec.edges.filter((e) => e.to.node === 'merge' && e.from.node !== 'ui').map((e) => [e.from.node, e.to.port]));
+    expect(byOrder(['trunk', 'air-flute', 'field-voices'])).toEqual({ map: 'voice1', airFlute: 'voice2' });
+    expect(byOrder(['air-flute', 'face-timbre'])).toEqual({ map: 'voice1', airFlute: 'voice2' });
+    expect(byOrder(['conductor', 'field-voices'])).toEqual({ map: 'voice1', score: 'score1' });
+  });
+
+  it('a branch table is frozen: mutating one composition cannot leak into the next', () => {
+    const feat = composeInstrumentGraph(ALL_BRANCH_IDS).spec.nodes.find((n) => n.id === 'feat')!;
+    expect(Object.isFrozen(feat.params)).toBe(true);
+    expect(() => {
+      (feat.params as { mirrorX: boolean }).mirrorX = false;
+    }).toThrow();
+    const again = composeInstrumentGraph(ALL_BRANCH_IDS).spec.nodes.find((n) => n.id === 'feat')!;
+    expect((again.params as { mirrorX: boolean }).mirrorX).toBe(true);
   });
 
   it('4: the element set is the deduplicated union, in first-seen order', () => {

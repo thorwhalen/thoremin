@@ -16,6 +16,9 @@
  *    (smoothed features, the chord selector), so a consumer's edges into them never dangle.
  *  - A branch that only WIRES existing nodes together is legal and useful: `face-timbre` is
  *    one edge (the smoothed face features into the hand voices' `face` input).
+ *  - `demands` is on the branch a live feature claim IMPLIES (the face and body sources),
+ *    not on the branch that raises the claim: the flute asks for mouth features, and what
+ *    that implies is the face source.
  *  - Cross-branch edges are declared by the consumer and marked `optional` where the far
  *    node is a nicety (the generative branch's face input, the drum's conductor clock, the
  *    body router's hook into the hand voices, the flute's breath inputs), and `requires`
@@ -26,7 +29,7 @@
  */
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { DEMO_SCALE_NOTES } from '@/nodes/music/score';
-import { MOUTH_GROUPS } from '@/nodes/music/air_flute';
+import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@/features/labConfig';
 import { defineBranch, type GraphBranch } from './branch';
 
 /** Node ids the trunk owns; branches wire to these by name. */
@@ -114,6 +117,7 @@ export const faceSource = defineBranch({
     to({ node: 'chordSel', port: 'chord' }, overlay('chord')),
   ],
   overlay: ['faceLandmarks'],
+  demands: [...FACE_GROUP_IDS],
 });
 
 export const faceTimbre = defineBranch({
@@ -183,17 +187,18 @@ export const bodySource = defineBranch({
     to({ node: 'bodyVec', port: 'vector' }, overlay('bodyVector')),
   ],
   overlay: ['bodySkeleton'],
+  demands: [...BODY_GROUP_IDS],
 });
 
 export const bodyRoute = defineBranch({
   id: 'body-route',
   description: 'Body features routed onto the hand voices as modulations.',
-  requires: ['body-source'],
+  requires: ['body-source', 'field-voices'],
   nodes: [{ id: 'bodyRoute', type: 'body-route', params: {} }],
   edges: [
     to({ node: 'bodyVec', port: 'vector' }, { node: 'bodyRoute', port: 'vector' }),
     to(ui('bodyMap'), { node: 'bodyRoute', port: 'bodyMap' }),
-    to({ node: 'bodyRoute', port: 'mods' }, { node: 'map', port: 'mods' }, true),
+    to({ node: 'bodyRoute', port: 'mods' }, { node: 'map', port: 'mods' }),
   ],
 });
 
@@ -315,7 +320,6 @@ export const airFlute = defineBranch({
     to(ui('octaveShift'), { node: 'airFlute', port: 'octaveShift' }),
   ],
   voices: [{ from: { node: 'airFlute', port: 'params' }, role: 'instrument' }],
-  demands: [...MOUTH_GROUPS],
 });
 
 /** Every branch, in composition order. Voice allocation follows this order. */
