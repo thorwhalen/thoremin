@@ -49,14 +49,15 @@ The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`)
 
 ## The other instruments
 
-Same five steps, different label source and tracker. `label_pitch.py` (pyin, range per instrument) labels flute and bass; `label_onsets.py` labels drum hits; `extract.py --streams hands face` for flute, `hands` for bass, `pose` for drums (`--file` adds a local clip such as a self-recorded take). Then:
+Same five steps, different label source and tracker. `label_pitch.py` (pyin, range per instrument) labels flute and bass; `label_onsets.py` labels drum hits; `extract.py --streams hands face` for flute, `hands` for bass, `pose hands` for drums (the pose says whose hand it is and normalises by the shoulders; the hands give the point the air drum tracks; `--file` adds a local clip such as a self-recorded take). Then:
 
 ```bash
 npx vite-node scripts/air/build_pitch_dataset.ts flute      # both hands + embouchure blendshapes -> pitch class
 npx vite-node scripts/air/build_pitch_dataset.ts bass       # fretting hand shape + neck position -> pitch class
 npx vite-node scripts/air/train_air_model.ts flute pitch_class
 npx vite-node scripts/air/train_air_model.ts bass pitch_class
-npx vite-node scripts/air/eval_drum_strokes.ts --file <stem of a local clip>   # strokes vs audio onsets, drums by clustering
+npx vite-node scripts/air/eval_drum_strokes.ts --file <stem of a local clip>   # strokes vs audio onsets per tracked point, drums by clustering
+npx vite-node scripts/air/eval_drum_anchors.ts    # which point to track, on the an.impacts stick clips (exact truth)
 ```
 
 Results per instrument are in the research doc §6.3 (guitar) and §7 (bass, flute, drums).
@@ -72,12 +73,13 @@ Results per instrument are in the research doc §6.3 (guitar) and §7 (bass, flu
 | `lib_chord_shape_model.ts` | softmax regression (Adam, L2, class-balanced), the trainer's nearest-centroid baseline, metrics, leave-one-group-out, gap-aware vote smoothing, the enrolment split |
 | `lib_air_train.ts` | the held-out harness every instrument's CLI runs (three numbers + probe report + markdown) |
 | `lib_wind_string_features.ts` | flute (both hands + embouchure) and bass (shape + neck position) featurizers on a frame bundle |
-| `lib_drum_strokes.ts` | wrist tracks from the pose stream, frame-level stroke detection in noise units, k-means drum assignment |
+| `lib_drum_strokes.ts` | wrist tracks from the pose stream, hand-point tracks (a hands stream joined to the pose by tick), frame-level stroke detection in noise units, k-means drum assignment |
+| `lib_synthetic_grip.ts` | a synthetic hand gripping an `an.impacts` stick (wrist stroke plus a chosen arm share, seeded landmark noise) |
 | `label_pitch.py`, `label_onsets.py` | audio → note segments (pyin); audio → hit onsets; both with `--self-test` |
 | `label_chords.py` | audio → chord segments; `--self-test` recovers a synthetic progression |
 | `fetch.py`, `extract.py` | download; run `video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py` per source |
 | `build_chord_shape_dataset.ts`, `train_chord_shape.ts`, `enrol_chord_shape.ts` | the guitar CLIs: join, held-out training, enrolment budget |
-| `build_pitch_dataset.ts`, `train_air_model.ts`, `eval_drum_strokes.ts` | flute/bass join, the generic held-out trainer, the drum stroke evaluation |
+| `build_pitch_dataset.ts`, `train_air_model.ts`, `eval_drum_strokes.ts`, `eval_drum_anchors.ts` | flute/bass join, the generic held-out trainer, the drum stroke evaluation on footage, the tracked-point comparison on synthetic strokes |
 
 ## Adding a source
 

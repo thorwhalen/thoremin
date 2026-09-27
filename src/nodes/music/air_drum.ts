@@ -34,23 +34,37 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createImpactPredictor, magnetise, type ImpactPredictor, type MusicalTime } from '@/ictus';
-import { LM, frameTime, type Hand, type HandsFrame } from '../domain';
+import { frameTime, type Hand, type HandsFrame } from '../domain';
+import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, stickReach } from './drum_anchor';
 
 export const DRUM_SOUNDS = ['kick', 'snare', 'hihat', 'tom'] as const;
 export type DrumSound = (typeof DRUM_SOUNDS)[number];
 export const AIR_DRUM_HANDS = ['both', 'right', 'left'] as const;
 export type AirDrumHand = (typeof AIR_DRUM_HANDS)[number];
-export const AIR_DRUM_POINTS = ['wrist', 'indexTip'] as const;
+/** The tracked point (#246): the SSOT is `drum_anchor.ts`, shared with the offline scorer. */
+export const AIR_DRUM_POINTS = DRUM_ANCHOR_POINTS;
 export type AirDrumPoint = (typeof AIR_DRUM_POINTS)[number];
 export type PlayerHand = 'right' | 'left';
 
+/** The dial defaults the stick tip's reach gates are calibrated at. */
+const DEFAULT_MIN_STROKE = 0.03;
+const DEFAULT_MIN_SPEED = 0.5;
+
 const Params = z.object({
-  /** Off by default: a player who never opens the Air drum panel hears nothing new. */
+  /** Off by default: a player who never turns the air drum on (Instruments view, Air
+   *  instruments) hears nothing new. */
   enabled: z.boolean().default(false),
   /** Which of the player's hands drum. */
   hand: z.enum(AIR_DRUM_HANDS).default('both'),
-  /** The tracked point: the wrist (steady) or the index fingertip (a stick tip). */
-  point: z.enum(AIR_DRUM_POINTS).default('wrist'),
+  /** The tracked point: the wrist, the index fingertip, or the tip of a (real or virtual)
+   *  stick extended from the grip (`drum_anchor.ts`), which sees a wrist or finger stroke
+   *  the wrist itself barely makes. The stick tip is the default because it scored best
+   *  on real drum footage and on the synthetic strokes (#246,
+   *  `docs/research/air-instruments.md` §7.3). */
+  point: z.enum(AIR_DRUM_POINTS).default('stickTip'),
+  /** How far the stick reaches past the thumb-index fulcrum, in grip lengths (heel of the
+   *  hand to the fulcrum). Only for `point: 'stickTip'`. */
+  stickLength: z.number().min(0.5).max(8).default(DEFAULT_STICK_LENGTH),
   /** The drum each hand plays. */
   rightSound: z.enum(DRUM_SOUNDS).default('kick'),
   leftSound: z.enum(DRUM_SOUNDS).default('snare'),
@@ -69,12 +83,14 @@ const Params = z.object({
   /** Hit loudness, 0..1 (a stroke's own dynamic scales it). */
   volume: z.number().min(0).max(1).default(0.8),
   /** The smallest stroke that counts, as a fraction of the frame height: a still hand's
-   *  jitter and the small bounce of hands coming into frame do not drum. */
-  minStroke: z.number().min(0.005).max(0.2).default(0.03),
+   *  jitter and the small bounce of hands coming into frame do not drum. Measured at the
+   *  wrist or fingertip; the stick tip's gate is in reaches and this dial scales it
+   *  in proportion (`drum_anchor.ts`). */
+  minStroke: z.number().min(0.005).max(0.2).default(DEFAULT_MIN_STROKE),
   /** The slowest approach that is a stroke, in frame heights per second: a slow
    *  drift down and up (a melodic hand sweeping) spans a stroke's depth but never at a
-   *  stroke's speed (a real stroke peaks well above 1). */
-  minSpeed: z.number().min(0).max(5).default(0.5),
+   *  stroke's speed (a real stroke peaks well above 1). Scaled like `minStroke`. */
+  minSpeed: z.number().min(0).max(5).default(DEFAULT_MIN_SPEED),
 });
 type Params = z.infer<typeof Params>;
 
@@ -144,10 +160,26 @@ function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 interface Stick {
-  predictor: ImpactPredictor;
+  /** Null until the first sample for a point gated in reaches (its gates need the hand's
+   *  size). */
+  predictor: ImpactPredictor | null;
   lastT: number;
+  /** The frame-height size of one reach the predictor's gates were set for (1 for a point
+   *  gated in frame heights), and the smoothed current one. */
+  gateScale: number;
+  grip: number;
+  lastGripT: number;
 }
 
+/** The reach is smoothed over this long (seconds): a stroke's own foreshortening
+ *  passes, a player stepping back registers. */
+const GRIP_SMOOTHING = 1;
+/** A frame's reach is trusted within this factor of the smoothed one (a landmark
+ *  glitch is not the player moving). */
+const GRIP_GLITCH = 1.25;
+/** When the smoothed reach has drifted this factor from the one the gates were set for,
+ *  the predictor is rebuilt for the new size (its learned floor with it: one ghost note). */
+const GRIP_REGATE = 1.5;
 export const airDrumNode = defineNode<Params>({
   type: 'air-drum',
   roles: ['feature', 'mapping'],
@@ -177,10 +209,14 @@ export const airDrumNode = defineNode<Params>({
       if (raw === lastConfigRef) return cfg;
       lastConfigRef = raw;
       if (raw && typeof raw === 'object') {
-        const parsed = Params.partial().safeParse(raw);
+        // The override is merged over the build-time params and the WHOLE is validated:
+        // `Params.partial()` would fill every field the override leaves out with its
+        // schema default, silently resetting the node's own params (and an explicitly
+        // undefined key is no override).
+        const overrides = Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([, v]) => v !== undefined));
+        const parsed = Params.safeParse({ ...p, ...overrides });
         if (parsed.success) {
-          const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
-          cfg = { ...p, ...overrides } as Params;
+          cfg = parsed.data;
           return cfg;
         }
       }
@@ -188,14 +224,40 @@ export const airDrumNode = defineNode<Params>({
       return cfg;
     };
 
+    /** A predictor whose gates are in frame heights; `scale` is the frame-height size of
+     *  one reach for a stick tip (its gates are in reaches, `drum_anchor.ts`), 1 otherwise. */
+    const makePredictor = (c: Params, scale: number): ImpactPredictor => {
+      const grips = gatesInGrips(c.point);
+      const minAmplitude = grips ? STICK_MIN_STROKE_REACH * (c.minStroke / DEFAULT_MIN_STROKE) * scale : c.minStroke;
+      const minApproachSpeed = grips ? STICK_MIN_SPEED_REACH * (c.minSpeed / DEFAULT_MIN_SPEED) * scale : c.minSpeed;
+      return createImpactPredictor({ minLead: c.minLead, minAmplitude, minApproachSpeed });
+    };
     const makeStick = (c: Params): Stick => ({
-      predictor: createImpactPredictor({ minLead: c.minLead, minAmplitude: c.minStroke, minApproachSpeed: c.minSpeed }),
+      predictor: gatesInGrips(c.point) ? null : makePredictor(c, 1),
       lastT: -Infinity,
+      gateScale: 1,
+      grip: NaN,
+      lastGripT: -Infinity,
     });
+    /** Keep a grip-gated stick's predictor set for the hand's current size. */
+    const regate = (stick: Stick, c: Params, gripFh: number, t: number) => {
+      if (!(gripFh > 0)) return;
+      if (!Number.isFinite(stick.grip)) stick.grip = gripFh;
+      else {
+        const clamped = Math.min(stick.grip * GRIP_GLITCH, Math.max(stick.grip / GRIP_GLITCH, gripFh));
+        const a = 1 - Math.exp(-Math.max(0, t - stick.lastGripT) / GRIP_SMOOTHING);
+        stick.grip = Math.exp((1 - a) * Math.log(stick.grip) + a * Math.log(clamped));
+      }
+      stick.lastGripT = t;
+      if (!stick.predictor || Math.abs(Math.log(stick.grip / stick.gateScale)) > Math.log(GRIP_REGATE)) {
+        stick.predictor = makePredictor(c, stick.grip);
+        stick.gateScale = stick.grip;
+      }
+    };
     /** The config fields that shape a stick: a change rebuilds both sticks (a switched
      *  tracked point or hand must not read as a stroke, and the floor belongs to the
      *  old point), so every dial leaf takes effect live. */
-    const stickKey = (c: Params) => `${c.point}|${c.hand}|${c.mirrorHandedness}|${c.minStroke}|${c.minSpeed}`;
+    const stickKey = (c: Params) => `${c.point}|${c.stickLength}|${c.hand}|${c.mirrorHandedness}|${c.minStroke}|${c.minSpeed}`;
     let sticksKey = '';
 
     const reset = () => {
@@ -233,11 +295,15 @@ export const airDrumNode = defineNode<Params>({
             const stick = sticks[which];
             const hand = frame.hands.find((h) => h.handedness === labelFor(which, c.mirrorHandedness));
             if (!hand || t < stick.lastT + MIN_SAMPLE_SPACING) continue;
+            const anchor = anchorPoint(hand.keypoints, c.point, { stickLength: c.stickLength });
+            if (!anchor) continue;
             stick.lastT = t;
-            stick.predictor.setMinLead(c.minLead + age);
-            const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
+            if (gatesInGrips(c.point)) regate(stick, c, stickReach(hand.keypoints, c.stickLength) / frame.height, t);
+            const predictor = stick.predictor;
+            if (!predictor) continue;
+            predictor.setMinLead(c.minLead + age);
             const sound = which === 'right' ? c.rightSound : c.leftSound;
-            for (const e of stick.predictor.push({ t, x: kp.x / frame.height, y: kp.y / frame.height })) {
+            for (const e of predictor.push({ t, x: anchor.x / frame.height, y: anchor.y / frame.height })) {
               if (e.kind === 'predict') {
                 let at = e.t;
                 let pull = 0;
@@ -258,7 +324,7 @@ export const airDrumNode = defineNode<Params>({
                 hits.push({ t: ctx.time, velocity: clamp01(e.strength) * c.volume * GHOST_VELOCITY, hand: which, sound, predicted: false, lead: e.t - ctx.time, pull: 0 });
               }
             }
-            if (!status.ready[which] && Number.isFinite(stick.predictor.level())) status = { ...status, ready: { ...status.ready, [which]: true } };
+            if (!status.ready[which] && Number.isFinite(predictor.level())) status = { ...status, ready: { ...status.ready, [which]: true } };
           }
         }
         if (hits.length) {

@@ -24,7 +24,8 @@ const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {
 };
 const POINT_LABEL: Record<AirDrumDialParams['point'], string> = {
   wrist: 'wrist (steady)',
-  indexTip: 'index fingertip (like a stick)',
+  indexTip: 'index fingertip',
+  stickTip: 'stick tip (a stick extended from the grip)',
 };
 const SOUND_LABEL: Record<AirDrumDialParams['rightSound'], string> = {
   kick: 'kick',
@@ -66,7 +67,7 @@ export function AirDrumControls() {
   const c = (state.effective.airDrum ?? {}) as Partial<AirDrumDialParams>;
   const enabled = c.enabled === true;
   const hand = c.hand ?? 'both';
-  const point = c.point ?? 'wrist';
+  const point = c.point ?? 'stickTip';
   const rightSound = c.rightSound ?? 'kick';
   const leftSound = c.leftSound ?? 'snare';
   const minLead = c.minLead ?? 0.05;
