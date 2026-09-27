@@ -5,11 +5,13 @@
  * (tsconfig) still resolve from inside them: a package file importing `@/app/store` would
  * build, typecheck and pass every other test, and the package would stop being one. A
  * package imports only its own files (relative, never leaving its directory) and the
- * packages its own `package.json` declares.
+ * packages its own `package.json` declares. Every file of the package is read, not only
+ * `src/`, so a file beside it cannot be the way out.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, normalize, dirname } from 'node:path';
+import ts from 'typescript';
 
 const PACKAGES_ROOT = 'packages';
 
@@ -18,23 +20,17 @@ function tsFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...tsFiles(p));
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules') out.push(...tsFiles(p));
+    }
     else if (/\.tsx?$/.test(entry.name)) out.push(p);
   }
   return out;
 }
 
+/** Read by the TypeScript scanner, so a `/*` inside a string cannot hide an import. */
 function importSpecifiers(src: string): string[] {
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  const specs: string[] = [];
-  const from = /(?:\bimport\b|\bexport\b)[^'"]*?\bfrom\s*['"]([^'"]+)['"]/g;
-  const dyn = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-  const bare = /^\s*import\s+['"]([^'"]+)['"]/gm;
-  for (const re of [from, dyn, bare]) {
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(code))) specs.push(m[1]);
-  }
-  return specs;
+  return ts.preProcessFile(src, true, true).importedFiles.map((f) => f.fileName);
 }
 
 /** `@scope/name/sub` -> `@scope/name`; `name/sub` -> `name`. */
@@ -60,7 +56,7 @@ describe('a workspace package imports only itself and its declared dependencies'
 
     it(`${manifest.name}`, () => {
       const offenders: string[] = [];
-      for (const file of tsFiles(join(root, 'src'))) {
+      for (const file of tsFiles(root)) {
         for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
           if (spec.startsWith('.')) {
             const target = normalize(join(dirname(file), spec));
@@ -84,6 +80,7 @@ describe('a workspace package imports only itself and its declared dependencies'
 
   it('the guard sees what it must refuse', () => {
     expect(importSpecifiers(`import { a } from '@/app/store';\nexport * from "../x";\n// import z from 'ignored';`)).toEqual(['@/app/store', '../x']);
+    expect(importSpecifiers(`const glob = 'src/*';\nimport { b } from '@/app/store'; // */\nconst c = import('./lazy');`)).toEqual(['@/app/store', './lazy']);
     expect(packageOf('@thoremin/dag/engine')).toBe('@thoremin/dag');
     expect(packageOf('zod/v4')).toBe('zod');
   });
