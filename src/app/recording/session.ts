@@ -154,6 +154,8 @@ export class SessionRecorder {
   private micRec: Rec | null = null;
   /** The microphone track's reported input latency (s), for the manifest. */
   private micLatency: number | undefined;
+  /** The microphone's device name, for the manifest. */
+  private micDevice: string | undefined;
   private alphaCanvas: HTMLCanvasElement | null = null;
   private tap: FeatureJsonlTap | null = null;
   private detachTap: (() => void) | null = null;
@@ -259,6 +261,7 @@ export class SessionRecorder {
       this.ownedStreams.push(micStream);
       const latency = (micStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number } | undefined)?.latency;
       this.micLatency = typeof latency === 'number' && Number.isFinite(latency) ? latency : undefined;
+      this.micDevice = micStream.getAudioTracks()[0]?.label || undefined;
     }
 
     this.startedAt = new Date().toISOString();
@@ -404,7 +407,10 @@ export class SessionRecorder {
           if (alphaBlob) await putFile(file, alphaBlob);
           break;
         case 'microphone': {
-          const latency = this.micLatency === undefined ? {} : { latency: this.micLatency };
+          const latency = {
+            ...(this.micLatency === undefined ? {} : { latency: this.micLatency }),
+            ...(this.micDevice === undefined ? {} : { device: this.micDevice }),
+          };
           if (file.ext === 'wav') {
             if (micWav) await putFile(file, micWav.blob, { sampleRate: micWav.sampleRate, ...latency });
           } else if (micBlob) {

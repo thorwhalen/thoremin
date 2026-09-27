@@ -37,6 +37,8 @@ import { createInMemoryProvider } from '@zodal/store';
 import {
   chroma,
   detectOnsets,
+  gridLag,
+  matchOnGrid,
   matchToClicks,
   pairTake,
   parseWav,
@@ -97,7 +99,10 @@ function fakeRecorder(t0: number) {
 }
 
 /** Run the taps routine through the real store; returns the take folder it would write. */
-async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAmp?: number; hideSecondSlate?: boolean } = {}): Promise<{ dir: string; played: Click[]; t0: number }> {
+async function recordSyntheticTake(
+  root: string,
+  opts: { bleed?: boolean; softAmp?: number; hideSecondSlate?: boolean; clickDelayS?: number; micDevice?: string } = {},
+): Promise<{ dir: string; played: Click[]; t0: number }> {
   const T0_MS = 100_000;
   const rec = fakeRecorder(T0_MS / 1000 - 0.05);
   const unregister = registerRecordingController(rec.controller);
@@ -117,6 +122,9 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAm
     // `hand.pair.distance` dips to its minimum on the frame just before each clap sounds.
     const onSlate = () => useTrainer.getState().routine[useTrainer.getState().index]?.tags.includes('slate') ?? false;
     const clapClicks = () => played.filter((c) => c.kind === 'beat');
+    // Bluetooth headphones: the player hears each click this late, and plays to what
+    // they hear. The take logs when the click was SCHEDULED; nothing in it knows the delay.
+    const heard = opts.clickDelayS ?? 0;
     const rows: string[] = [];
     let tick = 0;
     let t = T0_MS;
@@ -129,7 +137,7 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAm
       if (onClap) for (const c of clapClicks()) if (Math.abs(c.t - t) < 20_000 && !clapTimes.includes(c.t)) clapTimes.push(c.t);
       // The hands close toward each clap and part after it at the same speed: the
       // distance is a V with its point at the sound, sampled once per frame.
-      const nearest = clapTimes.reduce((m, c) => Math.min(m, Math.abs(t - (c + CLAP_LAG_S * 1000))), Infinity);
+      const nearest = clapTimes.reduce((m, c) => Math.min(m, Math.abs(t - (c + (heard + CLAP_LAG_S) * 1000))), Infinity);
       const vector: FeatureVector = {
         'hand.right.index.tip.y': 0.5 + 0.1 * Math.sin(t / 200),
         'hand.pair.distance': onClap && !(opts.hideSecondSlate && s.index > 0) ? 0.2 + nearest / 100 : NaN,
@@ -175,10 +183,10 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAm
     for (const [id, beats] of beatsByCue) {
       for (const c of beats) {
         const at = c.t / 1000 - r.t0;
-        if (id.startsWith('rva-clap')) burst(pcm, micTime(at + CLAP_LAG_S), 0.6, c.index + 11);
+        if (id.startsWith('rva-clap')) burst(pcm, micTime(at + heard + CLAP_LAG_S), 0.6, c.index + 11);
         else if (id.endsWith('-real')) {
           const hard = id === 'rva-dynamics-real' ? Math.floor(c.index / 4) % 2 === 1 : true;
-          burst(pcm, micTime(at + TAP_LAG_S), hard ? 0.5 : (opts.softAmp ?? 0.08), c.index + 101);
+          burst(pcm, micTime(at + heard + TAP_LAG_S), hard ? 0.5 : (opts.softAmp ?? 0.08), c.index + 101);
         } else if (opts.bleed && id.endsWith('-air')) burst(pcm, micTime(at + 0.002), 0.2, c.index + 301);
       }
     }
@@ -198,7 +206,13 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAm
       else if (f.kind === 'microphone' && f.ext === 'wav') writeFileSync(path, wav);
       else if (f.kind === 'manifest') continue;
       else writeFileSync(path, ''); // the camera and the native mic: not read by the pipeline
-      streams.push({ file: f.name, kind: f.kind as Exclude<typeof f.kind, 'manifest'>, mime: f.mime, ...(f.kind === 'microphone' && f.ext === 'wav' ? { sampleRate: SR } : {}) });
+      streams.push({
+        file: f.name,
+        kind: f.kind as Exclude<typeof f.kind, 'manifest'>,
+        mime: f.mime,
+        ...(f.kind === 'microphone' && f.ext === 'wav' ? { sampleRate: SR } : {}),
+        ...(f.kind === 'microphone' && opts.micDevice ? { device: opts.micDevice } : {}),
+      });
     }
     const manifestFile = plan.files.find((f) => f.kind === 'manifest')!;
     writeFileSync(join(dir, manifestFile.name), serializeManifest(buildManifest({ startedAt: 'x', t0: r.t0, stem, instrument: r.opts.instrument, streams, meta: r.opts.meta })));
@@ -296,6 +310,41 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
     expect(Math.max(...taps)).toBeLessThan(6);
   });
 
+  // Bluetooth headphones (#247 follow-up): the click is heard 150-300 ms after it is
+  // logged, steadily. The real half measures that delay as part of the player's lag, and
+  // the air half inherits it, so its label is still where the strike would have sounded.
+  // At 400 ms (plus the 25 ms player lag) every tap is nearer the NEXT click than its own:
+  // nearest-click matching would label each with the wrong beat; the grid lag does not.
+  for (const delay of [0.2, 0.4]) {
+    it(`a click heard ${delay * 1000} ms late (Bluetooth) still pairs every beat with its own tap`, async () => {
+      const { dir } = await recordSyntheticTake(root, { clickDelayS: delay, micDevice: 'MacBook Pro Microphone' });
+      const take = readTake(dir);
+      const result = pairTake(take, parseWav(new Uint8Array(readFileSync(take.micWav!))), readFeatureRows(take.featuresPath));
+      expect(result.warnings).toEqual([]);
+      for (const sl of result.slates) expect(sl.claps.every((c) => c.onset !== null && c.visual !== null)).toBe(true);
+      for (const p of result.phrases) {
+        expect(p.real!.matched).toBe(16);
+        // The mic-clock lag is the delay + the player + the microphone's start offset.
+        expect(p.real!.clickLagMs!).toBeGreaterThan((delay + TAP_LAG_S + MIC_OFFSET_S) * 1000 - 2);
+        expect(p.real!.clickLagMs!).toBeLessThan((delay + TAP_LAG_S + MIC_OFFSET_S) * 1000 + 20);
+        p.beats.forEach((b, i) => {
+          expect(b.index).toBe(i);
+          // Each real onset is its OWN beat's tap, and each air label is its own beat's.
+          expect(Math.abs(b.real!.onsetRow! - (b.real!.click + delay + TAP_LAG_S)) * 1000).toBeLessThan(5);
+          expect(Math.abs(b.air!.intendedRow! - (b.air!.click + delay + TAP_LAG_S)) * 1000).toBeLessThan(6);
+        });
+      }
+    });
+  }
+
+  it("warns when the microphone was a headset's (the call-quality profile)", async () => {
+    const { dir } = await recordSyntheticTake(root, { clickDelayS: 0.2, micDevice: 'AirPods Pro (Hands-Free)' });
+    const take = readTake(dir);
+    expect(take.micDevice).toBe('AirPods Pro (Hands-Free)');
+    const result = pairTake(take, parseWav(new Uint8Array(readFileSync(take.micWav!))), []);
+    expect(result.warnings.some((w) => w.includes("a headset's"))).toBe(true);
+  });
+
   it('names the unheard beats when soft taps are lost in the room', async () => {
     // Soft taps at the noise floor: the pairing cannot hear them and must say which.
     const { dir } = await recordSyntheticTake(root, { softAmp: 0.0008 });
@@ -391,6 +440,18 @@ describe('scripts/cue: the audio labels', () => {
     const top = c.map((v, i) => [v, i] as const).sort((a, b) => b[0] - a[0]).slice(0, 3).map(([, i]) => i).sort((a, b) => a - b);
     expect(top).toEqual([0, 4, 7]);
     expect(Math.max(...c.filter((_, i) => ![0, 4, 7].includes(i)))).toBeLessThan(0.3);
+  });
+
+  it('reads the player lag off the grid: early, late, or most of a beat late', () => {
+    const clicks = Array.from({ length: 16 }, (_, i) => 10 + i * 0.75);
+    for (const lag of [-0.03, 0.025, 0.2, 0.425, 0.55]) {
+      const taps = clicks.map((c, i) => c + lag + (i % 3) * 0.004);
+      expect(gridLag(clicks, taps, 0.75)!).toBeCloseTo(lag + 0.004, 2);
+      const m = matchOnGrid(clicks, taps, 0.75);
+      m.forEach((x, i) => expect(x).toBe(taps[i]));
+    }
+    // Nothing regular: no lag claimed.
+    expect(gridLag(clicks, [10.0, 10.2, 10.45, 10.6], 0.75)).toBeNull(); // phases spread round the beat
   });
 
   it('matches clicks to onsets one to one, nearest first', () => {

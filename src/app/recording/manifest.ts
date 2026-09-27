@@ -34,6 +34,10 @@ export interface RecordingStreamEntry {
   /** The input latency the browser reported for a microphone track, in seconds, when it
    *  reported one. A hint for alignment, not a measurement. */
   latency?: number;
+  /** A microphone's device name as the browser reports it ("MacBook Pro Microphone",
+   *  "AirPods Pro"), so a reader can tell the built-in microphone from a headset's. The
+   *  take stays on the player's machine; it names hardware, not a person. */
+  device?: string;
 }
 
 export interface RecordingManifest {

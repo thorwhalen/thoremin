@@ -415,8 +415,10 @@ export default function TrainerPanel() {
           <p className="text-[11px] leading-relaxed text-white/60" data-pair-intro>
             Each phrase is played twice to a click: once for real, on the table or the instrument, then
             the same in the air. The take is always recorded, with the microphone, and the microphone
-            must hear only you, so wear <strong className="text-white/80">wired headphones</strong> for
-            the click. Afterwards, <code className="text-white/70">scripts/cue/pair_take.ts</code> turns
+            must hear only you, so wear <strong className="text-white/80">headphones</strong> for the
+            click (Bluetooth is fine: its delay is measured and taken out) and record with the
+            computer&apos;s <strong className="text-white/80">own microphone</strong>, not the
+            headphones&apos;. Play to what you hear, not to the counter on screen. Afterwards, <code className="text-white/70">scripts/cue/pair_take.ts</code> turns
             the take into labelled pairs.
           </p>
         )}

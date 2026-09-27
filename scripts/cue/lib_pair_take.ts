@@ -332,6 +332,44 @@ export function matchToClicks(clicks: readonly number[], events: readonly number
   return out;
 }
 
+/**
+ * The player's lag behind a regular click grid (seconds), from where the events fall in
+ * the beat: a circular mean of their phases, read in (-1/4, 3/4] of a beat. Null when the
+ * phases do not agree (fewer than 3 events, or a resultant under 0.5).
+ *
+ * Why it exists: the lag can be most of a beat. The click reaches the player's ears
+ * through whatever they wear, and Bluetooth headphones add 150 to 300 ms, steadily; add
+ * the player's own lag and a tap can land nearer the NEXT click than its own. Matching
+ * each click to the nearest onset would then pair every tap with the wrong beat. So the
+ * lag is estimated first, from the grid alone, and the matching is done around it.
+ */
+export function gridLag(clicks: readonly number[], events: readonly number[], beatS: number): number | null {
+  if (clicks.length === 0 || events.length < 3 || !(beatS > 0)) return null;
+  const first = clicks[0];
+  const last = clicks[clicks.length - 1];
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  for (const e of events) {
+    if (e < first - beatS / 4 || e > last + (3 * beatS) / 4) continue;
+    const phase = (2 * Math.PI * (e - first)) / beatS;
+    x += Math.cos(phase);
+    y += Math.sin(phase);
+    n++;
+  }
+  if (n < 3 || Math.hypot(x, y) / n < 0.5) return null;
+  let lag = (Math.atan2(y, x) / (2 * Math.PI)) * beatS; // (-beat/2, beat/2]
+  if (lag <= -beatS / 4) lag += beatS;
+  return lag;
+}
+
+/** Match events to clicks around the player's grid lag ({@link gridLag}): each click
+ *  takes the nearest event within half a beat of `click + lag`. */
+export function matchOnGrid(clicks: readonly number[], events: readonly number[], beatS: number): (number | null)[] {
+  const lag = gridLag(clicks, events, beatS) ?? 0;
+  return matchToClicks(clicks.map((c) => c + lag), events, beatS / 2);
+}
+
 // ---- The take --------------------------------------------------------------------
 
 export interface TakeClick {
@@ -361,6 +399,8 @@ export interface Take {
   micWav: string | null;
   /** The native microphone file (WebM), if any: the fallback when the WAV is missing. */
   micNative: string | null;
+  /** The microphone's device name as the browser reported it, if recorded. */
+  micDevice: string | null;
   featuresPath: string;
 }
 
@@ -385,7 +425,7 @@ export function readTake(dir: string): Take {
   if (!existsSync(manifestPath)) throw new Error(`${manifestPath} is missing`);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
     t0: number;
-    streams: { file: string; kind: string }[];
+    streams: { file: string; kind: string; device?: string }[];
     meta?: { trainer?: { cues?: unknown[] } };
   };
   const rawCues = manifest.meta?.trainer?.cues;
@@ -425,7 +465,8 @@ export function readTake(dir: string): Take {
   // A WAV converted by hand after the fact is not in the manifest: look for it by name too.
   const byName = join(dir, `${stem}.mic.wav`);
   const micWav = micFile(true) ?? (existsSync(byName) ? byName : null);
-  return { dir, stem, t0: manifest.t0, cues, windows, clicks, outcomes, micWav, micNative: micFile(false), featuresPath };
+  const micDevice = manifest.streams.find((s) => s.kind === 'microphone' && typeof s.device === 'string')?.device ?? null;
+  return { dir, stem, t0: manifest.t0, cues, windows, clicks, outcomes, micWav, micNative: micFile(false), micDevice, featuresPath };
 }
 
 /** The feature rows of the take (every edge the trainer recorded). */
@@ -528,6 +569,9 @@ export const MAX_SLATE_MAD_MS = 20;
  *  slate, not a clock: fall back to the offset alone. */
 export const MAX_DRIFT_MS_PER_S = 0.3;
 
+/** Device names that are a headset's microphone, not the computer's. */
+const HEADSET_MIC = /airpods|headset|hands-?free|bluetooth|buds|\bbeats\b/i;
+
 /** The feature id whose minimum marks a visible clap. */
 const CLAP_FEATURE = 'hand.pair.distance';
 const HAND_VECTOR_EDGE = 'handVec.vector';
@@ -549,6 +593,11 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
   const warnings: string[] = [];
   const rel = (tAbs: number) => tAbs - take.t0;
   const onsetsAbs = audio ? detect(audio.pcm, audio.sampleRate, onset).map((s) => take.t0 + s) : [];
+  // A Bluetooth headset's own microphone runs the phone-call profile: 8 to 16 kHz, heavy
+  // processing, and extra latency. The routine wants the computer's built-in microphone.
+  if (take.micDevice && HEADSET_MIC.test(take.micDevice)) {
+    warnings.push(`The microphone was "${take.micDevice}", a headset's: its call-quality profile blurs onsets. Record with the computer's built-in microphone.`);
+  }
   if (audio && audio.sampleRate < 44100) {
     warnings.push(`The microphone WAV is ${audio.sampleRate} Hz: onsets are tuned at 44.1/48 kHz (a strum's attack lives in its upper partials), so some strums may go unheard.`);
   }
@@ -582,7 +631,7 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     const w = windowOf(slateCue.id)!;
     const beatMs = beatMsOf(slateCue);
     const clicks = beatClicks(w);
-    const matched = matchToClicks(clicks, onsetsAbs.filter((t) => inWindow(t, w)), beatMs / 2000);
+    const matched = matchOnGrid(clicks, onsetsAbs.filter((t) => inWindow(t, w)), beatMs / 1000);
     const visualNear = (tAbs: number): number | null => {
       const near = handRows
         .filter((r) => inWindow(r.t, w) && Math.abs(r.t - tAbs) <= beatMs / 2000)
@@ -658,7 +707,7 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     let lagMs: number | null = null;
     if (realCue && rw) {
       const clicks = beatClicks(rw);
-      const matched = matchToClicks(clicks, onsetsAbs.filter((t) => inWindow(t, rw)), beatMs / 2000);
+      const matched = matchOnGrid(clicks, onsetsAbs.filter((t) => inWindow(t, rw)), beatMs / 1000);
       clicks.forEach((c, i) => {
         const on = matched[i];
         realBeats.push({
