@@ -19,11 +19,19 @@
  * the same factor in the image (a collinear projection preserves ratios), so the tip
  * comes in toward the hand exactly as the real tip would. A player with no stick gets the
  * same lever: a virtual stick that turns a small wrist flick into a stroke-sized
- * movement, which is what makes a finger-and-wrist stroke detectable at all. The lever
- * amplifies landmark jitter by the same factor; the drum's amplitude and speed gates are
- * in frame heights, so a longer virtual stick needs no retuning of those, only an honest
- * tracker. The timing of a pure rotation does not depend on `length` at all (any lever
- * turns where the rotation turns); the length only sets how far the tip travels.
+ * movement, which is what makes a finger-and-wrist stroke detectable at all. The timing
+ * of a pure rotation does not depend on `length` at all (any lever turns where the
+ * rotation turns); the length only sets how far the tip travels.
+ *
+ * The lever amplifies EVERYTHING the hand does, not only strokes: a pinch or an opening
+ * hand tilts the grip line, and landmark jitter shakes it, each by up to `1 + length`
+ * times. The air drum's stroke gates (smallest stroke, slowest approach) are meant for
+ * the hand, so they are scaled by {@link leverGain}: on the real hand recordings that
+ * drum nothing with the wrist, the unscaled stick tip drummed on pinches and on an
+ * opening hand; scaled, it drums on none of them and still on every conducting beat
+ * (`test/subframe/drum_anchor.test.ts`). The price is that an ARM stroke, which moves
+ * the tip no more than the wrist, must be `leverGain` times as large and fast as the
+ * wrist gates ask; an air drummer's arm strokes are.
  *
  * Pure: keypoints in, a point out, in the keypoints' own units.
  */
@@ -64,6 +72,13 @@ export function stickTip(kp: readonly Keypoint[], length: number = DEFAULT_STICK
   const f = gripFulcrum(kp);
   const h = gripHeel(kp);
   return { x: f.x + length * (f.x - h.x), y: f.y + length * (f.y - h.y) };
+}
+
+/** How many times the point can amplify a rotation of the hand relative to the wrist:
+ *  the factor the stroke gates are scaled by. The index fingertip is left at 1 (the
+ *  behaviour it shipped with in #233). */
+export function leverGain(point: DrumAnchorPoint, stickLength: number = DEFAULT_STICK_LENGTH): number {
+  return point === 'stickTip' ? 1 + stickLength : 1;
 }
 
 /** The tracked point of a 21-landmark hand, or `undefined` when a landmark it needs is

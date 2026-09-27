@@ -35,7 +35,7 @@ import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createImpactPredictor, magnetise, type ImpactPredictor, type MusicalTime } from '@/ictus';
 import { frameTime, type Hand, type HandsFrame } from '../domain';
-import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, anchorPoint } from './drum_anchor';
+import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, anchorPoint, leverGain } from './drum_anchor';
 
 export const DRUM_SOUNDS = ['kick', 'snare', 'hihat', 'tom'] as const;
 export type DrumSound = (typeof DRUM_SOUNDS)[number];
@@ -79,11 +79,12 @@ const Params = z.object({
   /** Hit loudness, 0..1 (a stroke's own dynamic scales it). */
   volume: z.number().min(0).max(1).default(0.8),
   /** The smallest stroke that counts, as a fraction of the frame height: a still hand's
-   *  jitter and the small bounce of hands coming into frame do not drum. */
+   *  jitter and the small bounce of hands coming into frame do not drum. Measured at the
+   *  hand: the stick tip's gate is this times its lever gain (`drum_anchor.ts`). */
   minStroke: z.number().min(0.005).max(0.2).default(0.03),
   /** The slowest approach that is a stroke, in frame heights per second: a slow
    *  drift down and up (a melodic hand sweeping) spans a stroke's depth but never at a
-   *  stroke's speed (a real stroke peaks well above 1). */
+   *  stroke's speed (a real stroke peaks well above 1). Scaled like `minStroke`. */
   minSpeed: z.number().min(0).max(5).default(0.5),
 });
 type Params = z.infer<typeof Params>;
@@ -187,10 +188,12 @@ export const airDrumNode = defineNode<Params>({
       if (raw === lastConfigRef) return cfg;
       lastConfigRef = raw;
       if (raw && typeof raw === 'object') {
-        const parsed = Params.partial().safeParse(raw);
+        // The override is merged over the build-time params and the WHOLE is validated:
+        // `Params.partial()` would fill every field the override leaves out with its
+        // schema default, silently resetting the node's own params.
+        const parsed = Params.safeParse({ ...p, ...(raw as Record<string, unknown>) });
         if (parsed.success) {
-          const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
-          cfg = { ...p, ...overrides } as Params;
+          cfg = parsed.data;
           return cfg;
         }
       }
@@ -198,10 +201,15 @@ export const airDrumNode = defineNode<Params>({
       return cfg;
     };
 
-    const makeStick = (c: Params): Stick => ({
-      predictor: createImpactPredictor({ minLead: c.minLead, minAmplitude: c.minStroke, minApproachSpeed: c.minSpeed }),
-      lastT: -Infinity,
-    });
+    // The gates are the HAND's: a point that levers the hand's rotation (the stick tip)
+    // has them scaled by its gain, or a pinch would drum (`drum_anchor.ts`).
+    const makeStick = (c: Params): Stick => {
+      const gain = leverGain(c.point, c.stickLength);
+      return {
+        predictor: createImpactPredictor({ minLead: c.minLead, minAmplitude: c.minStroke * gain, minApproachSpeed: c.minSpeed * gain }),
+        lastT: -Infinity,
+      };
+    };
     /** The config fields that shape a stick: a change rebuilds both sticks (a switched
      *  tracked point or hand must not read as a stroke, and the floor belongs to the
      *  old point), so every dial leaf takes effect live. */

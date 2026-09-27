@@ -28,7 +28,7 @@ import { fMeasure, medianInterval } from '@/ictus/metrics';
 import { airDir } from './lib_air_paths';
 import { readLandmarks } from './lib_chord_shape_dataset';
 import { DRUM_ANCHOR_POINTS, DEFAULT_STICK_LENGTH, type DrumAnchorPoint } from '@/nodes/music/drum_anchor';
-import { assignStrokes, handTracks, median, strokesOfTracks, timingErrors, wristTracks, type Cluster, type Stroke, type Wrist, type WristSample } from './lib_drum_strokes';
+import { assignStrokes, handTracks, maskTracks, median, strokesOfTracks, timingErrors, wristTracks, type Cluster, type Stroke, type Wrist, type WristSample } from './lib_drum_strokes';
 import { parseSourcesFor } from './lib_sources';
 
 function arg(name: string, fallback: string): string {
@@ -37,9 +37,11 @@ function arg(name: string, fallback: string): string {
 }
 const minNoise = Number(arg('min-noise', '12'));
 const stickLength = Number(arg('stick-length', String(DEFAULT_STICK_LENGTH)));
-/** `poseWrist` is the pose model's wrist; the rest are points on the hand. */
-type TrackedPoint = 'poseWrist' | DrumAnchorPoint;
-const ALL_POINTS: TrackedPoint[] = ['poseWrist', ...DRUM_ANCHOR_POINTS];
+/** `poseWrist` is the pose model's wrist; `poseWristSame` the same, kept only on the
+ *  samples where the hand points are tracked on that arm (the like-for-like baseline;
+ *  every hand point shares one coverage); the rest are points on the hand. */
+type TrackedPoint = 'poseWrist' | 'poseWristSame' | DrumAnchorPoint;
+const ALL_POINTS: TrackedPoint[] = ['poseWrist', 'poseWristSame', ...DRUM_ANCHOR_POINTS];
 const points = arg('points', ALL_POINTS.join(',')).split(',') as TrackedPoint[];
 for (const p of points) if (!ALL_POINTS.includes(p)) throw new Error(`unknown point ${p}; one of ${ALL_POINTS.join(', ')}`);
 const extraFiles = (() => {
@@ -59,8 +61,8 @@ interface Row {
   player: string;
   air: boolean;
   frames: number;
-  /** Frames where this point was tracked on at least one arm. */
-  bodyFrames: number;
+  /** Fraction of the frames where this point was tracked, per arm. */
+  coverage: Record<Wrist, number>;
   fps: number;
   strokes: number;
   left: number;
@@ -71,6 +73,9 @@ interface Row {
   lag?: number;
   fFrame?: number;
   f70?: number;
+  /** Precision and recall at 70 ms, raw. */
+  p70?: number;
+  r70?: number;
   fFrameLagged?: number;
   f70Lagged?: number;
   drums: Cluster[];
@@ -96,9 +101,10 @@ for (const job of jobs) {
   for (const point of points) {
     let tracks: Record<Wrist, WristSample[]>;
     if (point === 'poseWrist') tracks = wristTracks(records);
-    else if (handRecords) tracks = handTracks(handRecords, records, { point, stickLength });
-    else continue;
-    const tracked = tracks.left.filter((s, i) => s.visible || tracks.right[i]?.visible).length;
+    else if (!handRecords) continue;
+    else if (point === 'poseWristSame') tracks = maskTracks(wristTracks(records), handTracks(handRecords, records, { point: 'wrist', stickLength }));
+    else tracks = handTracks(handRecords, records, { point, stickLength });
+    const coverage = (w: Wrist) => tracks[w].filter((s) => s.visible).length / Math.max(1, records.length);
     const strokes: Stroke[] = strokesOfTracks(tracks, { minAmplitudeNoiseUnits: minNoise });
     const drums = assignStrokes(strokes);
     const row: Row = {
@@ -107,7 +113,7 @@ for (const job of jobs) {
       player: job.player,
       air: job.air,
       frames: records.length,
-      bodyFrames: tracked,
+      coverage: { left: coverage('left'), right: coverage('right') },
       fps,
       strokes: strokes.length,
       left: strokes.filter((s) => s.wrist === 'left').length,
@@ -120,6 +126,10 @@ for (const job of jobs) {
       row.onsets = onsets.length;
       row.fFrame = fMeasure(onsets, est, 1 / fps);
       row.f70 = fMeasure(onsets, est, 0.07);
+      // F = 2m / (strokes + onsets), so the match count, precision and recall follow.
+      const m = (row.f70 * (est.length + onsets.length)) / 2;
+      row.p70 = est.length ? m / est.length : 0;
+      row.r70 = m / onsets.length;
       const lag = median(timingErrors(onsets, est, 0.1));
       if (Number.isFinite(lag)) {
         row.lag = lag;
@@ -137,13 +147,13 @@ mkdirSync(resDir, { recursive: true });
 writeFileSync(join(resDir, 'strokes.results.json'), JSON.stringify({ minNoise, stickLength, rows }, null, 1));
 
 const pct = (x?: number) => (x === undefined ? '' : `${(100 * x).toFixed(1)}%`);
-console.log('| source (player) | point | frames | tracked | fps | strokes L/R | median gap s | onsets | lag ms | F, 1 frame raw / lag-corrected | F, 70 ms raw / lag-corrected | drums L+R (clusters) |');
-console.log('|---|---|---|---|---|---|---|---|---|---|---|---|');
+console.log('| source (player) | point | frames | tracked L/R | fps | strokes L/R | median gap s | onsets | lag ms | F, 1 frame raw / lag-corrected | F, 70 ms raw / lag-corrected | P / R at 70 ms raw | drums L+R (clusters) |');
+console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|');
 for (const r of rows) {
   const clusters = r.drums.map((c) => `${c.wrist[0].toUpperCase()}(${c.x.toFixed(2)}, ${c.y.toFixed(2)}) x${c.count}`).join('; ');
   const nL = r.drums.filter((d) => d.wrist === 'left').length;
   const nR = r.drums.length - nL;
   console.log(
-    `| ${r.id} (${r.player})${r.air ? ' air' : ''} | ${r.point} | ${r.frames} | ${((100 * r.bodyFrames) / Math.max(1, r.frames)).toFixed(0)}% | ${r.fps.toFixed(1)} | ${r.left}/${r.right} | ${Number.isFinite(r.medianGap) ? r.medianGap.toFixed(3) : ''} | ${r.onsets ?? ''} | ${r.lag === undefined ? '' : (1000 * r.lag).toFixed(0)} | ${pct(r.fFrame)} / ${pct(r.fFrameLagged)} | ${pct(r.f70)} / ${pct(r.f70Lagged)} | ${nL}+${nR}: ${clusters} |`,
+    `| ${r.id} (${r.player})${r.air ? ' air' : ''} | ${r.point} | ${r.frames} | ${(100 * r.coverage.left).toFixed(0)}% / ${(100 * r.coverage.right).toFixed(0)}% | ${r.fps.toFixed(1)} | ${r.left}/${r.right} | ${Number.isFinite(r.medianGap) ? r.medianGap.toFixed(3) : ''} | ${r.onsets ?? ''} | ${r.lag === undefined ? '' : (1000 * r.lag).toFixed(0)} | ${pct(r.fFrame)} / ${pct(r.fFrameLagged)} | ${pct(r.f70)} / ${pct(r.f70Lagged)} | ${pct(r.p70)} / ${pct(r.r70)} | ${nL}+${nR}: ${clusters} |`,
   );
 }

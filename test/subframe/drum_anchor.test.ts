@@ -19,9 +19,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@/dag';
 import { airDrumNode, type DrumHit } from '@/nodes';
-import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, stickTip } from '@/nodes/music/drum_anchor';
+import type { HandsFrame } from '@/nodes/domain';
+import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, leverGain, stickTip } from '@/nodes/music/drum_anchor';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip, type StickPose } from '../../scripts/air/lib_synthetic_grip';
-import { FIXTURES } from '../helpers/fixtures';
+import { FIXTURES, loadRecords } from '../helpers/fixtures';
 
 interface Truth {
   spec: { fps: number };
@@ -134,5 +135,39 @@ describe('the stickLength leaf', () => {
     const next = (hs: typeof steady) => hs.find((h) => h.tick >= switchTick)!;
     expect(next(steady).predicted).toBe(true);
     expect(next(switched).predicted).toBe(false);
+  });
+});
+
+describe('the default point on real recorded hands (the lever-scaled gates)', () => {
+  const replay = async (scenario: string, params: Record<string, unknown>) => {
+    const recs = loadRecords(scenario, 'src.hands');
+    const fps = (recs.length - 1) / (recs[recs.length - 1].t - recs[0].t);
+    let hits = 0;
+    // Both mirror conventions: a third-person recording labels the hands either way.
+    for (const mirrorHandedness of [true, false]) {
+      const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, mirrorHandedness, ...params }));
+      const outs = await replayNode(h, { hands: recs.map((r) => r.value as HandsFrame) }, { dt: 1 / fps });
+      hits += outs.flatMap((o) => o.hits as DrumHit[]).length;
+    }
+    return hits;
+  };
+
+  it.each(['video_hand_open_close', 'video_hand_pinch', 'video_hand_sweep', 'two_hands', 'sweep_right'])('drums nothing on %s', async (scenario) => {
+    expect(await replay(scenario, {})).toBe(0);
+  });
+
+  it('would drum on a pinch with the gates left at the hand scale (why they are scaled)', async () => {
+    const g = leverGain('stickTip');
+    expect(g).toBeGreaterThan(1);
+    // Dividing the dials by the gain undoes the scaling: the stick tip then meets the
+    // wrist's gates, and the pinch drums.
+    expect(await replay('video_hand_pinch', { minStroke: 0.03 / g, minSpeed: 0.5 / g })).toBeGreaterThan(0);
+  });
+
+  it.each(['conducting_44', 'conducting_34'])('still drums on the beats of %s, at least as often as the wrist', async (scenario) => {
+    const stick = await replay(scenario, {});
+    const wrist = await replay(scenario, { point: 'wrist' });
+    expect(wrist).toBeGreaterThan(0);
+    expect(stick).toBeGreaterThanOrEqual(0.8 * wrist);
   });
 });

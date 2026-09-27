@@ -128,18 +128,24 @@ export interface HandTrackOptions {
  * MediaPipe's handedness label on a third-person video is not), and it supplies the
  * shoulder normalisation, so a landing point means the same thing for every anchor and
  * the drum assignment is comparable with the wrists'. A frame without a visible pair of
- * shoulders or without a hand near the arm's wrist is an invisible sample (the detector
- * skips it, and restarts after a long enough gap).
+ * shoulders, whose pose record disagrees in time by more than half a frame, whose arm's
+ * pose wrist is not visible, or without a hand near that wrist is an invisible sample
+ * (the detector skips it, and restarts after a long enough gap).
  */
 export function handTracks(handRecords: readonly StreamRecord[], poseRecords: readonly StreamRecord[], o: HandTrackOptions): Record<Wrist, WristSample[]> {
   const minVisibility = o.minVisibility ?? MIN_VISIBILITY;
   const maxD = o.maxWristDistance ?? 0.5;
-  const poseByTick = new Map<number, BodyFrame>();
-  for (const r of poseRecords) poseByTick.set(r.tick, r.value as BodyFrame);
+  const poseByTick = new Map<number, StreamRecord>();
+  for (const r of poseRecords) poseByTick.set(r.tick, r);
+  // Half the median frame period: a pose record paired by tick must also agree in time
+  // (the two streams are decoded from the same file, so they do; an excerpt cut
+  // differently would not, and must not be joined).
+  const halfFrame = handRecords.length > 1 ? (0.5 * (handRecords[handRecords.length - 1].t - handRecords[0].t)) / (handRecords.length - 1) : Infinity;
   const out: Record<Wrist, WristSample[]> = { left: [], right: [] };
   for (const r of handRecords) {
     const hf = r.value as HandsFrame;
-    const pose = poseByTick.get(r.tick);
+    const pr = poseByTick.get(r.tick);
+    const pose = pr && Math.abs(pr.t - r.t) <= halfFrame ? (pr.value as BodyFrame) : undefined;
     const sh = pose ? shoulderFrame(pose, minVisibility) : null;
     const hands = (hf.hands ?? []).filter((h) => h.keypoints.length >= 21);
     // Each arm takes the nearest hand to its pose wrist; two arms never share a hand.
@@ -148,7 +154,10 @@ export function handTracks(handRecords: readonly StreamRecord[], poseRecords: re
     if (sh && pose) {
       const pairs: { w: Wrist; i: number; d: number }[] = [];
       for (const w of ['left', 'right'] as const) {
-        const pw = pose.landmarks[w === 'left' ? BLM.left_wrist : BLM.right_wrist];
+        const wi = w === 'left' ? BLM.left_wrist : BLM.right_wrist;
+        // An arm whose pose wrist is not visible cannot say which hand is its own.
+        if ((pose.visibility[wi] ?? 0) < minVisibility) continue;
+        const pw = pose.landmarks[wi];
         hands.forEach((h, i) => pairs.push({ w, i, d: Math.hypot(h.keypoints[LM.wrist].x - pw.x, h.keypoints[LM.wrist].y - pw.y) / sh.width }));
       }
       pairs.sort((a, b) => a.d - b.d);
@@ -347,6 +356,20 @@ function centreOf(g: readonly { x: number; y: number }[]): { x: number; y: numbe
 /** Both wrists' clusters, left then right. */
 export function assignStrokes(strokes: Stroke[], o: AssignOptions = {}): Cluster[] {
   return [...assignWristStrokes(strokes, 'left', o), ...assignWristStrokes(strokes, 'right', o)];
+}
+
+/**
+ * The pose wrist restricted to the samples where another track (a point on the hand) is
+ * visible on the same arm at the same time: the like-for-like baseline, so a comparison
+ * between the wrist and a hand point is not also a comparison between two coverages.
+ */
+export function maskTracks(base: Record<Wrist, WristSample[]>, by: Record<Wrist, readonly WristSample[]>): Record<Wrist, WristSample[]> {
+  const out: Record<Wrist, WristSample[]> = { left: [], right: [] };
+  for (const w of ['left', 'right'] as const) {
+    const seen = new Set(by[w].filter((s) => s.visible).map((s) => s.t.toFixed(3)));
+    out[w] = base[w].map((s) => (s.visible && seen.has(s.t.toFixed(3)) ? s : { ...s, visible: false }));
+  }
+  return out;
 }
 
 /** Strokes on both arms' tracks, merged in time order. */
