@@ -33,8 +33,10 @@ export interface AirInstrument {
 /** The air instruments, in display order. SSOT for everything air-specific in the library. */
 export const AIR_INSTRUMENTS = [
   { id: 'drum', label: 'Air drum', emoji: '🥁', usesScale: false, on: (s: Settings) => s.airDrum.enabled },
-  // 🎸 for the bass; 🤘 is kept for the air guitar (the air guitarist's own sign).
+  // 🎸 for the bass; 🤘 for the air guitar (the air guitarist's own sign).
   { id: 'bass', label: 'Air bass', emoji: '🎸', usesScale: true, on: (s: Settings) => s.airBass.enabled },
+  // The guitar plays the chords the player enrolled, not the scale.
+  { id: 'guitar', label: 'Air guitar', emoji: '🤘', usesScale: false, on: (s: Settings) => s.airGuitar.enabled },
 ] as const satisfies readonly AirInstrument[];
 
 export type AirInstrumentId = (typeof AIR_INSTRUMENTS)[number]['id'];

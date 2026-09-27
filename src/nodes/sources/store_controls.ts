@@ -16,7 +16,8 @@ import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/d
 import type { BodyMap } from '@/nodes/mapping/body_map';
 import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
-import type { ConductorSettings, AirDrumSettings, AirBassSettings } from '@/settings/schema';
+import type { ConductorSettings, AirDrumSettings, AirBassSettings, AirGuitarSettings } from '@/settings/schema';
+import type { TrainedModel } from '@/enroll';
 import type { ScoreDoc } from '@/score/schema';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
@@ -96,6 +97,10 @@ export interface ControlSnapshot {
   airDrum?: AirDrumSettings;
   /** The air bass dial (#249): fed to the `air-bass` node's `config` input live. */
   airBass?: AirBassSettings;
+  /** The air guitar dial (#249): fed to the `air-guitar` node's `config` input live. */
+  airGuitar?: AirGuitarSettings;
+  /** The air guitar's chord classifier (#249), derived from the enrolled vocabulary. */
+  airGuitarModel?: TrainedModel | null;
   /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
@@ -153,6 +158,8 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'conductor', kind: 'conductor-config' },
     { name: 'airDrum', kind: 'air-drum-config' },
     { name: 'airBass', kind: 'air-bass-config' },
+    { name: 'airGuitar', kind: 'air-guitar-config' },
+    { name: 'airGuitarModel', kind: 'shape-model' },
     // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
@@ -212,6 +219,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         if (c.conductor) out.conductor = c.conductor;
         if (c.airDrum) out.airDrum = c.airDrum;
         if (c.airBass) out.airBass = c.airBass;
+        if (c.airGuitar) out.airGuitar = c.airGuitar;
+        // Always emitted, null included: clearing the enrolled chords must reach the node.
+        out.airGuitarModel = c.airGuitarModel ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
         if (c.faceChord) {
           out.chordConfig = {

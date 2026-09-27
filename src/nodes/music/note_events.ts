@@ -13,7 +13,8 @@ export const NoteEventSchema = z.object({
   /** When it should SOUND, engine seconds (in the future for a predicted pluck). */
   t: z.number(),
   midi: z.number(),
-  /** 0..1. */
+  /** 0..1. Zero on a `voice` is a DAMP: it silences what that voice is ringing and
+   *  sounds nothing (a strum mutes the strings its chord does not play). */
   velocity: z.number(),
   /** Predicted ahead of the pluck (true) or sounded late on confirmation (false). */
   predicted: z.boolean(),

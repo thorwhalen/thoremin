@@ -24,43 +24,14 @@
  * the catalog falls back to image coordinates and the yaw/pitch invariance degrades to
  * in-plane invariance; real footage decoded by `video_to_landmarks.py` carries them.
  */
-import { buildHandCtx, HAND_SIDE_FEATURES, type FeatureVector } from '@/features/catalog';
+import { chordShapeVector, type FeatureSelection } from '@/features/hand_shape';
+import type { FeatureVector } from '@/features/catalog';
 import type { Hand, HandsFrame } from '@/nodes/domain';
 import type { FrettingHandPick } from './lib_sources';
 
-const SHAPE_INVARIANCES = ['scale', 'position', 'yaw', 'pitch', 'roll'] as const;
-const ORIENTATION_GROUP = 'hand.palm.orientation';
-
-export interface FeatureSelection {
-  /** Include the palm-orientation group (camera-locked, chirality-signed). Default false. */
-  withOrientation?: boolean;
-}
-
-/** The ordered feature ids the chord model uses, chosen by declared invariance. */
-export function chordShapeFeatureIds(sel: FeatureSelection = {}): string[] {
-  return HAND_SIDE_FEATURES.filter((f) => {
-    const inv = f.invariantTo;
-    const shape = inv !== undefined && SHAPE_INVARIANCES.every((axis) => inv.includes(axis));
-    return shape || (sel.withOrientation === true && f.group === ORIENTATION_GROUP);
-  }).map((f) => f.id);
-}
-
-/**
- * Featurize one hand. Every selected id is present; a feature the catalog cannot
- * compute this frame is `NaN` (the model's standardizer imputes it), never dropped, so
- * vectors stay fixed-dimensional.
- */
-export function chordShapeVector(hand: Hand, frame: HandsFrame, sel: FeatureSelection = {}): FeatureVector {
-  const ids = new Set(chordShapeFeatureIds(sel));
-  const ctx = buildHandCtx(hand, frame, { mirrorX: false, side: 'left' });
-  const out: FeatureVector = {};
-  for (const f of HAND_SIDE_FEATURES) {
-    if (!ids.has(f.id)) continue;
-    const v = f.compute(ctx);
-    out[f.id] = Number.isFinite(v) ? v : NaN;
-  }
-  return out;
-}
+// The featurizer itself lives in `src/features/hand_shape.ts` since the air guitar (#249)
+// runs it live; re-exported so the pipeline's imports keep working.
+export { chordShapeFeatureIds, chordShapeVector, type FeatureSelection } from '@/features/hand_shape';
 
 /** Mean image-x of a hand's keypoints (for the positional pick). */
 function meanX(hand: Hand): number {

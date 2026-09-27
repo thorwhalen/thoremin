@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (44)
+## Nodes (45)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, airBass:air-bass-config, bodyMap:body-map, scoreDoc:score-doc
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airGuitarModel:shape-model, bodyMap:body-map, scoreDoc:score-doc
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -404,6 +404,14 @@ Play a bass in the air: the fretting hand's distance along an imaginary neck pic
 - **in:** hands:hands-frame, config:air-bass-config, scale:number[], octaveShift:number
 - **out:** notes:note-events, status:air-bass-status, enabled:boolean
 - **params:** enabled (boolean=false), pluckHand (enum(right | left)="right"), pluckPoint (enum(indexTip | wrist)="indexTip"), neckNear (number=2), neckFar (number=7), smoothing (number=0.1), hysteresis (number=0.3), minLead (number=0.05), minStroke (number=0.02), minSpeed (number=0.4), volume (number=0.8), mirrorHandedness (boolean=true)
+
+#### `air-guitar` — Air guitar
+Strum chords in the air: the fretting hand's shape is classified against the player's own enrolled chords, and a strum of the other hand, predicted before the frame that shows it, sounds that chord's guitar voicing. Off by default.
+
+- **roles:** feature, mapping
+- **in:** hands:hands-frame, config:air-guitar-config, model:shape-model, octaveShift:number
+- **out:** notes:note-events, shape:feature-vector, status:air-guitar-status, enabled:boolean
+- **params:** enabled (boolean=false), strumHand (enum(right | left)="right"), strumPoint (enum(wrist | indexTip)="wrist"), strumSpread (number=0.012), minLead (number=0.05), minStroke (number=0.03), minSpeed (number=0.5), volume (number=0.7), enterFrames (number=3), mirrorHandedness (boolean=true)
 
 #### `pluck-out` — Pluck out
 Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).

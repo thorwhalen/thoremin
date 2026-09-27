@@ -76,12 +76,13 @@ export function createWebAudioPluckSink(ac: AudioContext, destination: AudioNode
   return {
     play(midi, velocity, when, voice) {
       const v = Math.max(0, Math.min(1, velocity));
-      if (v <= 0) return;
       const key = mono ? MONO_VOICE : voice;
       if (key !== undefined) {
         const prev = ringing.get(key);
         if (prev && prev.stopAt > when) prev.damp.gain.setTargetAtTime(0, when, DAMP_TAU_S);
       }
+      // A zero-velocity note is only a damp (a muted string): nothing new sounds.
+      if (v <= 0) return;
       const f = midiToFreq(midi);
       const cutoff = (m: number) => Math.min(nyquist * 0.9, f * m);
       const oscs = (['sawtooth', 'triangle'] as const).map((type) => {
