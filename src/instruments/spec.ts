@@ -22,14 +22,17 @@
  *    them from its settings (`branchIdsFor`), which is what every instrument saved before
  *    PR 4 does, unchanged.
  *
- * Pure in the package sense: Zod, the class registry and this package's branch table (for the
- * `features` closure). No store, no React, nothing from `src/app`. When the branch table
- * comes from extensions (PR 5) the table is passed in rather than imported.
+ * Pure in the package sense: Zod, the class registry and the branch table (core plus the
+ * extensions', for the `features` closure). No store, no React, nothing from `src/app`.
  */
 import { z } from 'zod';
 import { INSTRUMENT_CLASSES, normaliseClassId, DEFAULT_CLASS, type InstrumentClassId } from './classes';
 import { branchClosureIds } from './compose';
 import { BRANCHES, TRUNK_ID } from './branches';
+import { EXTENSION_BRANCHES } from '@/extensions';
+
+/** The full branch table (core + extensions): what the `features` facet closes over. */
+const FULL_BRANCH_TABLE = [...BRANCHES, ...EXTENSION_BRANCHES];
 
 /** Where "train this instrument" goes: a route the trainer stream resolves (its shape is
  *  the trainer's; the spec only carries it). */
@@ -110,7 +113,7 @@ export function assembleSpec(parts: SpecParts): InstrumentSpec {
   if (parts.meta?.branches) spec.branches = [...parts.meta.branches];
   else if (parts.derived) spec.branches = [...parts.derived.branches];
   if (parts.meta?.training) spec.training = { ...parts.meta.training };
-  spec.features = spec.branches ? branchClosureIds(spec.branches, BRANCHES).filter((id) => id !== TRUNK_ID) : [];
+  spec.features = spec.branches ? branchClosureIds(spec.branches, FULL_BRANCH_TABLE).filter((id) => id !== TRUNK_ID) : [];
   return InstrumentSpecSchema.parse(spec);
 }
 

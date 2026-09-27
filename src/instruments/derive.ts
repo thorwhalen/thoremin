@@ -25,8 +25,9 @@
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
 import { ALL_BRANCH_IDS } from './branches';
+import { EXTENSIONS, EXTENSION_BRANCHES } from '@/extensions';
 
-const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
+const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set([...ALL_BRANCH_IDS, ...EXTENSION_BRANCHES.map((b) => b.id)]);
 
 /**
  * The slice of the settings the derivation reads. Structural, so tests need no full
@@ -42,10 +43,8 @@ export interface DerivationSettings {
   conductor?: { enabled?: boolean };
   midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
-  airDrum?: { enabled?: boolean };
-  airBass?: { enabled?: boolean };
-  airGuitar?: { enabled?: boolean };
-  airFlute?: { enabled?: boolean };
+  /** Extension dial slices (`airDrum`, …): read by each extension's own `derive`. */
+  [extensionKey: string]: unknown;
 }
 
 /**
@@ -62,10 +61,6 @@ export interface StrictDerivationSettings {
   conductor: { enabled: boolean };
   midi: { enabled: boolean };
   steer: { enabled: boolean };
-  airDrum: { enabled: boolean };
-  airBass: { enabled: boolean };
-  airGuitar: { enabled: boolean };
-  airFlute: { enabled: boolean };
 }
 
 export interface DerivationContext {
@@ -132,10 +127,8 @@ export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContex
   add('conductor', on(settings.conductor));
   add('midi-out', on(settings.midi));
   add('generative', on(settings.steer));
-  add('air-drum', on(settings.airDrum));
-  add('air-bass', on(settings.airBass));
-  add('air-guitar', on(settings.airGuitar));
-  add('air-flute', on(settings.airFlute));
+  // The extensions' branches: each manifest says which of its branches its dials imply.
+  for (const ext of EXTENSIONS) for (const id of ext.derive(settings)) add(id, true);
   return ids;
 }
 
