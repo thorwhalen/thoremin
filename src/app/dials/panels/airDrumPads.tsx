@@ -106,7 +106,41 @@ export function DrumPadEditor({ enabled }: { enabled: boolean }) {
   const aspect = frameAspect > 0 ? frameAspect : DEFAULT_ASPECT;
   const STAGE_W = STAGE_H * aspect;
   const crop = visibleCrop(aspect);
-  const [colorDraft, setColorDraft] = useState<string | null>(null);
+  // A colour being picked belongs to the pad it was picked for, whatever is selected by
+  // the time the picker lets go.
+  const [colorDraft, setColorDraft] = useState<{ id: PadId; color: string } | null>(null);
+  const draftRef = useRef(colorDraft);
+  draftRef.current = colorDraft;
+  const colorInput = useRef<HTMLInputElement>(null);
+  /** The last colour written, so the `change` React also sees after it is not a new draft. */
+  const committed = useRef<string | null>(null);
+  const commitColor = () => {
+    const d = draftRef.current;
+    if (!d) return;
+    draftRef.current = null;
+    committed.current = d.color;
+    setColorDraft(null);
+    if (d.color !== (pads[d.id]?.color ?? '')) dispatchDialSetIn(`airDrum.pads.${d.id}.color`, d.color);
+  };
+  const commitColorRef = useRef(commitColor);
+  commitColorRef.current = commitColor;
+  // The native `change` fires once, when the picker closes (React's onChange is the
+  // `input` stream while it is open); a draft still pending when the editor closes is
+  // written too.
+  useEffect(() => {
+    const el = colorInput.current;
+    const onChange = () => commitColorRef.current();
+    el?.addEventListener('change', onChange);
+    return () => el?.removeEventListener('change', onChange);
+  });
+  useEffect(() => () => commitColorRef.current(), []);
+  // The crop outline depends on the window's shape: follow a resize.
+  const [, setViewport] = useState(0);
+  useEffect(() => {
+    const onResize = () => setViewport((n) => n + 1);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const on = PAD_IDS.filter((id) => pads[id].on);
   const [selected, setSelected] = useState<PadId | null>(null);
   const sel = selected && pads[selected].on ? selected : (on[0] ?? null);
@@ -288,14 +322,18 @@ export function DrumPadEditor({ enabled }: { enabled: boolean }) {
             {/* A colour picker fires on every hue it passes through: the colour follows
                 locally and is written once, when the picker lets go. */}
             <input
+              ref={colorInput}
               type="color"
-              value={colorDraft ?? selPad.color}
+              value={colorDraft && colorDraft.id === sel ? colorDraft.color : selPad.color}
               disabled={!enabled}
-              onChange={(e) => setColorDraft(e.target.value)}
-              onBlur={() => {
-                if (colorDraft && colorDraft !== selPad.color) dispatchDialSetIn(`airDrum.pads.${sel}.color`, colorDraft);
-                setColorDraft(null);
+              onInput={(e) => {
+                committed.current = null;
+                setColorDraft({ id: sel, color: (e.target as HTMLInputElement).value });
               }}
+              onChange={(e) => {
+                if (e.target.value !== committed.current) setColorDraft({ id: sel, color: e.target.value });
+              }}
+              onBlur={commitColor}
             />
           </label>
         </div>

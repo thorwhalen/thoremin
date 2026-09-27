@@ -55,11 +55,28 @@ describe('the pad editor, from a cold load (#245)', () => {
     fireEvent.click(ed.getByLabelText(/^Pad p1:/));
     fireEvent.change(ed.getByLabelText('Pad drum'), { target: { value: 'crash' } });
     await waitFor(() => expect((airDrum().pads as Pads).p1.sound).toBe('crash'));
-    // The colour follows the picker locally and is written once, when it lets go.
+    // The colour follows the picker locally (its `input` stream) and is written once,
+    // when the picker closes (its `change`).
     const colour = ed.getByLabelText('Pad colour');
-    fireEvent.change(colour, { target: { value: '#00ff00' } });
+    fireEvent.input(colour, { target: { value: '#00aa00' } });
+    fireEvent.input(colour, { target: { value: '#00ff00' } });
     expect((airDrum().pads as Pads).p1.color).not.toBe('#00ff00');
+    fireEvent.change(colour, { target: { value: '#00ff00' } });
+    await waitFor(() => expect((airDrum().pads as Pads).p1.color).toBe('#00ff00'));
+
+    // A colour picked for one pad stays that pad's, even when another pad is chosen
+    // before the picker loses focus (the reviewed bug: it painted the other pad).
+    const p2Before = (airDrum().pads as Pads).p2.color;
+    fireEvent.input(colour, { target: { value: '#0000ff' } });
+    fireEvent.pointerDown(editor.querySelector('[data-pad="p2"] ellipse, [data-pad="p2"] rect')!, { clientX: 0, clientY: 0, pointerId: 9 });
+    fireEvent.pointerUp(ed.getByLabelText('Pad stage'), { clientX: 0, clientY: 0, pointerId: 9 });
     fireEvent.blur(colour);
+    await waitFor(() => expect((airDrum().pads as Pads).p1.color).toBe('#0000ff'));
+    expect((airDrum().pads as Pads).p2.color).toBe(p2Before);
+    // Back to green for the rest of the walk.
+    fireEvent.click(ed.getByLabelText(/^Pad p1:/));
+    fireEvent.input(ed.getByLabelText('Pad colour'), { target: { value: '#00ff00' } });
+    fireEvent.change(ed.getByLabelText('Pad colour'), { target: { value: '#00ff00' } });
     await waitFor(() => expect((airDrum().pads as Pads).p1.color).toBe('#00ff00'));
 
     // The keyboard moves the chosen pad too.
