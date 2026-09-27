@@ -215,9 +215,11 @@ export default function InstrumentsPanel() {
           )}
           <div className="border-t border-white/10 pt-3">
             {/* #263/#269: where this instrument's training lives, from its spec. */}
-            <div className="mb-2">
-              <TrainingLink spec={library.specOf(selected)} />
-            </div>
+            {selected && (
+              <div className="mb-2">
+                <TrainingLink spec={library.specOf(selected)} />
+              </div>
+            )}
             <DialsControlsPanel leadAir={editorLead} />
           </div>
         </div>
