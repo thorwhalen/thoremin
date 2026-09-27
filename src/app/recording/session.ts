@@ -22,6 +22,7 @@ import { FeatureJsonlTap } from './featureTap';
 import { saveBlob } from './save';
 import { hasAnyStream, type RecordingSession } from './schema';
 import type { TagStreamSource } from './tagStream';
+import { chooseMicrophone } from './mic';
 
 /** Chunk media into ~2s slices so long takes stay constant-memory (#88 §1). */
 const TIMESLICE_MS = 2000;
@@ -80,8 +81,24 @@ export const RAW_MIC_CONSTRAINTS: MediaTrackConstraints = {
   autoGainControl: false,
 };
 
-function openRawMicrophone(): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia({ audio: RAW_MIC_CONSTRAINTS, video: false });
+/**
+ * The default input, raw; and if that turns out to be a headset's while the computer's
+ * own microphone is available, that one instead (`./mic`: the headset's call profile
+ * blurs exactly the onsets a take is for). Labels exist only after permission, hence
+ * open, look, maybe reopen.
+ */
+async function openRawMicrophone(): Promise<MediaStream> {
+  const first = await navigator.mediaDevices.getUserMedia({ audio: RAW_MIC_CONSTRAINTS, video: false });
+  try {
+    const label = first.getAudioTracks()[0]?.label ?? '';
+    const better = chooseMicrophone(await navigator.mediaDevices.enumerateDevices(), label);
+    if (!better) return first;
+    const second = await navigator.mediaDevices.getUserMedia({ audio: { ...RAW_MIC_CONSTRAINTS, deviceId: { exact: better.deviceId } }, video: false });
+    for (const t of first.getTracks()) t.stop();
+    return second;
+  } catch {
+    return first; // keep what opened; the pairing warns if it was a headset
+  }
 }
 
 interface Rec {
@@ -156,6 +173,8 @@ export class SessionRecorder {
   private micLatency: number | undefined;
   /** The microphone's device name, for the manifest. */
   private micDevice: string | undefined;
+  /** The rate the microphone delivers (before the WAV decode resamples it), Hz. */
+  private micRate: number | undefined;
   private alphaCanvas: HTMLCanvasElement | null = null;
   private tap: FeatureJsonlTap | null = null;
   private detachTap: (() => void) | null = null;
@@ -262,6 +281,8 @@ export class SessionRecorder {
       const latency = (micStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number } | undefined)?.latency;
       this.micLatency = typeof latency === 'number' && Number.isFinite(latency) ? latency : undefined;
       this.micDevice = micStream.getAudioTracks()[0]?.label || undefined;
+      const rate = micStream.getAudioTracks()[0]?.getSettings().sampleRate;
+      this.micRate = typeof rate === 'number' && rate > 0 ? rate : undefined;
     }
 
     this.startedAt = new Date().toISOString();
@@ -410,6 +431,7 @@ export class SessionRecorder {
           const latency = {
             ...(this.micLatency === undefined ? {} : { latency: this.micLatency }),
             ...(this.micDevice === undefined ? {} : { device: this.micDevice }),
+            ...(this.micRate === undefined ? {} : { inputSampleRate: this.micRate }),
           };
           if (file.ext === 'wav') {
             if (micWav) await putFile(file, micWav.blob, { sampleRate: micWav.sampleRate, ...latency });

@@ -12,15 +12,16 @@ That extracts the take to `~/.local/share/thoremin/takes/cue/<name>/`, pairs it,
 
 **You need:** Chrome (it records the microphone as Opus; Safari's AAC adds its own encoder delay), a table, **headphones**, and about three minutes. Headphones, because the microphone must hear only your taps: a click from the speakers is recorded on top of the tap it prompted, and it cannot be removed afterwards by its time, because the taps land on the clicks by design.
 
-**Bluetooth headphones are fine.** They deliver every click 150 to 300 ms late, but steadily. That delay becomes part of your lag behind the click, which the table half measures and the air half inherits, so the labels come out right. What matters is the **microphone**: use the computer's own, not the headphones'. A Bluetooth headset's microphone switches it to the phone-call profile (8 to 16 kHz, heavy processing, more latency), which blurs the onsets. The pairing warns if the take was recorded through a headset.
+**Bluetooth headphones are fine.** They deliver every click 150 to 300 ms late, but steadily. That delay becomes part of your lag behind the click, which the table half measures and the air half inherits, so the labels come out right; the pairing warns if the delay did not hold steady. What matters is the **microphone**: use the computer's own, not the headphones'. A Bluetooth headset's microphone switches it to the phone-call profile (8 to 16 kHz, heavy processing, more latency, and call-quality sound in your ears), which blurs the onsets. The recorder switches away from a headset's microphone by itself when the computer's is available, and the pairing warns if a take was recorded through one anyway (by its name, its rate, or claps with no high frequencies).
 
-**Set up:**
+**Set up, before pressing Start:**
 
 1. Connect the headphones.
-2. In **System Settings → Sound → Input**, choose **MacBook Pro Microphone** (the computer's own). macOS often switches the input to the headset when it connects.
-3. Sit at the table with the camera seeing both hands and the table top in front of you, hands about half a metre from the camera, in good light.
+2. In **System Settings → Sound → Input**, choose the computer's own microphone (**MacBook Air Microphone** or **MacBook Pro Microphone**). macOS often switches the input to the headset when it connects.
+3. In Chrome, open `chrome://settings/content/microphone` and choose the same microphone in the menu at the top: Chrome's own choice overrides the system's.
+4. Sit at the table with the camera seeing both hands and the table top in front of you, hands about half a metre from the camera, in good light.
 
-**Run:** open thoremin, then **Trainer** in the tools bar, choose the routine **Real vs air: taps**, press **Start**, and allow the camera and the microphone. If Chrome asks which microphone, pick **MacBook Pro Microphone**; if it did not ask, check it with the camera icon at the right of the address bar. Play to what you **hear**, not to the counter on screen (with Bluetooth, the counter runs ahead of the sound). Each phrase starts with three seconds to read the instruction on screen, then four low count-in clicks, then sixteen higher clicks to play on (the first of every four is higher still). Play on the sixteen, not on the count-in.
+**Run:** open thoremin, then **Trainer** in the tools bar, choose the routine **Real vs air: taps**, press **Start**, and allow the camera and the microphone (if Chrome asks which microphone, pick the computer's). Play to what you **hear**, not to the counter on screen (with Bluetooth, the counter runs ahead of the sound). Each phrase starts with three seconds to read the instruction on screen, then four low count-in clicks, then sixteen higher clicks to play on (the first of every four is higher still). Play on the sixteen, not on the count-in.
 
 1. **Clap** once on each click (eight claps), where the camera can see your hands.
 2. **Taps, on the table:** the fingers of one hand, on each click.

@@ -320,7 +320,9 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
       const { dir } = await recordSyntheticTake(root, { clickDelayS: delay, micDevice: 'MacBook Pro Microphone' });
       const take = readTake(dir);
       const result = pairTake(take, parseWav(new Uint8Array(readFileSync(take.micWav!))), readFeatureRows(take.featuresPath));
-      expect(result.warnings).toEqual([]);
+      // Past half a beat, the pairing says what the numbering rests on; nothing else.
+      for (const w of result.warnings) expect(w).toMatch(/over half a beat/);
+      expect(result.warnings.length > 0).toBe(delay + TAP_LAG_S + MIC_OFFSET_S > 0.375);
       for (const sl of result.slates) expect(sl.claps.every((c) => c.onset !== null && c.visual !== null)).toBe(true);
       for (const p of result.phrases) {
         expect(p.real!.matched).toBe(16);
@@ -447,9 +449,21 @@ describe('scripts/cue: the audio labels', () => {
     for (const lag of [-0.03, 0.025, 0.2, 0.425, 0.55]) {
       const taps = clicks.map((c, i) => c + lag + (i % 3) * 0.004);
       expect(gridLag(clicks, taps, 0.75)!).toBeCloseTo(lag + 0.004, 2);
-      const m = matchOnGrid(clicks, taps, 0.75);
-      m.forEach((x, i) => expect(x).toBe(taps[i]));
+      const { matched } = matchOnGrid(clicks, taps, 0.75);
+      matched.forEach((x, i) => expect(x).toBe(taps[i]));
     }
+    // Beyond 3/4 of a beat the phase reads early (580 ms at 80 bpm reads -170 ms); the
+    // beat count settles it, with the first tap missing and with the last one missing.
+    const late = clicks.map((c) => c + 0.58);
+    expect(matchOnGrid(clicks, late.slice(1), 0.75).matched.slice(1)).toEqual(late.slice(1));
+    expect(matchOnGrid(clicks, late.slice(0, -1), 0.75).matched.slice(0, -1)).toEqual(late.slice(0, -1));
+    // A bounce 80 ms after every tap never replaces its tap.
+    const taps = clicks.map((c) => c + 0.3);
+    const withBounces = [...taps, ...taps.map((t) => t + 0.08)].sort((a, b) => a - b);
+    expect(matchOnGrid(clicks, withBounces, 0.75).matched).toEqual(taps);
+    // First four taps unheard (soft): numbering must not slide by four beats.
+    const softStart = taps.map((t, i) => (i < 4 ? null : t));
+    expect(matchOnGrid(clicks, taps.slice(4), 0.75).matched).toEqual(softStart);
     // Nothing regular: no lag claimed.
     expect(gridLag(clicks, [10.0, 10.2, 10.45, 10.6], 0.75)).toBeNull(); // phases spread round the beat
   });
