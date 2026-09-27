@@ -20,6 +20,7 @@ import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
+import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
 import { useTrainer } from '@/app/enroll/store';
@@ -469,14 +470,15 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     const picker = document.querySelector('[data-routine-picker]');
     expect(picker).toBeTruthy();
     const rows = () => document.querySelectorAll('[data-picker-cue]');
-    expect(rows()).toHaveLength(STARTER_CUES.length);
+    // Every shipped cue (the face set and the real-vs-air cues, #247) is offered.
+    expect(rows()).toHaveLength(ALL_STARTER_CUES.length);
     // Free-text filter narrows it...
     fireEvent.change(screen.getByLabelText('Filter cues'), { target: { value: 'tilt' } });
     expect(rows()).toHaveLength(2);
     fireEvent.change(screen.getByLabelText('Filter cues'), { target: { value: '' } });
     // ...and a tag chip is all-of.
     fireEvent.click(screen.getByRole('button', { name: 'setup' }));
-    expect(rows().length).toBeLessThan(STARTER_CUES.length);
+    expect(rows().length).toBeLessThan(ALL_STARTER_CUES.length);
     fireEvent.click(screen.getByRole('button', { name: 'setup' }));
     // With a filter on, a reorder moves past the VISIBLE neighbour only, and changes
     // what the player sees (not a hidden row behind it).

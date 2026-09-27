@@ -35,6 +35,11 @@ import {
   type RoutineSpec,
 } from '@/enroll';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
+import { REAL_VS_AIR_CUES, starterRoutineById } from './realVsAirCues';
+
+/** Every cue that ships in code: the face starter set, then the real-versus-air cues
+ *  (#247). The merge below keeps this order. */
+export const ALL_STARTER_CUES: readonly Cue[] = [...STARTER_CUES, ...REAL_VS_AIR_CUES];
 
 /** localStorage keys (the browser default target). */
 export const CUES_STORAGE_KEY = 'thoremin-cues';
@@ -103,7 +108,7 @@ export async function listCues(
   const stored = await loadStoredCues(store);
   const usable = stored.filter((c) => cueFeatures(c, registry.allIds, registry.groupOf).length > 0);
   const unusable = stored.filter((c) => !usable.includes(c)).map((c) => c.id);
-  return { cues: mergeCues(STARTER_CUES, usable), unusable };
+  return { cues: mergeCues(ALL_STARTER_CUES, usable), unusable };
 }
 
 /** The routine to run: the named one if it exists, else the default, resolved. */
@@ -112,6 +117,9 @@ export async function loadRoutine(
   cues: readonly Cue[],
   routines: RoutineStore,
 ): Promise<{ cues: Cue[]; missing: string[]; name: string }> {
+  // A starter routine (#247) lives in code, like a starter cue: never a stored row.
+  const starter = routineId ? starterRoutineById(routineId) : undefined;
+  if (starter) return { ...resolveRoutine(starter.cueIds, cues), name: starter.name };
   if (routineId) {
     const rec = await routines.load(routineId);
     if (rec) return { ...resolveRoutine(rec.routine.cueIds, cues), name: rec.name };

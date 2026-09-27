@@ -68,7 +68,7 @@ export function audioFormatIds(session: RecordingSession): string[] {
 /** Number of selected MEDIA streams (audio counts once regardless of formats). */
 function mediaStreamCount(session: RecordingSession): number {
   const s = session.streams;
-  return [s.audio, s.overlayVideo, s.pureVideo, s.overlayAlpha].filter(Boolean).length;
+  return [s.audio, s.overlayVideo, s.pureVideo, s.overlayAlpha, s.microphone].filter(Boolean).length;
 }
 
 /**
@@ -79,7 +79,8 @@ function mediaStreamCount(session: RecordingSession): number {
  */
 function singleFileEligible(session: RecordingSession): boolean {
   const s = session.streams;
-  if (!session.singleFileWhenAlone || s.features) return false;
+  // The microphone is always two files (native + WAV), so it always needs a folder.
+  if (!session.singleFileWhenAlone || s.features || s.microphone) return false;
   if (mediaStreamCount(session) !== 1) return false;
   if (s.audio) return audioFormatIds(session).length === 1;
   return true;
@@ -138,6 +139,15 @@ export function planRecording(input: PlanInput): RecordingPlan {
   if (s.overlayAlpha)
     files.push({ name: fileName(stem, { role: 'alpha', ext: 'webm' }), kind: 'overlayAlpha', role: 'alpha', ext: 'webm', mime: alphaMime, fps });
   if (s.audio) files.push(...audioFiles(session, stem, audioMime));
+  // The microphone (#247) is ALWAYS native + WAV, whatever formats the player picked
+  // for the synth audio: the WAV is what an offline labeller reads without a decoder,
+  // and the native file is the fallback if decoding fails in this browser. Its role
+  // (`mic`) keeps it apart from the synth audio's `.webm` / `.wav`.
+  if (s.microphone) {
+    const nativeExt = extForMime(audioMime);
+    files.push({ name: fileName(stem, { role: 'mic', ext: nativeExt }), kind: 'microphone', role: 'mic', ext: nativeExt, mime: audioMime });
+    files.push({ name: fileName(stem, { role: 'mic', ext: 'wav' }), kind: 'microphone', role: 'mic', ext: 'wav', mime: 'audio/wav' });
+  }
   if (s.features)
     files.push({ name: fileName(stem, { role: 'features', ext: 'jsonl' }), kind: 'features', role: 'features', ext: 'jsonl' });
   // The live-annotation stream (#92) drops in like features.jsonl: same folder, same

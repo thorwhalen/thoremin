@@ -179,6 +179,12 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
           onChange={(v) => setStream('features', v)}
           hint="Every DAG edge value per tick → a .features.jsonl, aligned to the take's clock."
         />
+        <Check
+          label="Microphone (the room)"
+          checked={s.microphone}
+          onChange={(v) => setStream('microphone', v)}
+          hint="What the room heard (a real instrument, a tapped table), raw: no echo cancellation or noise suppression. Saved as .mic.webm and .mic.wav."
+        />
       </div>
 
       <div className="mb-2 flex items-center justify-between">

@@ -623,6 +623,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           instrument: opts.instrument ?? recInstrumentRef.current,
           // If annotation mode is on, annotations.jsonl rides in the folder on the shared t0 (#92).
           tagSource: opts.tagSource ?? tagStreamSource,
+          meta: opts.meta,
         },
         session,
       );

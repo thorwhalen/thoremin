@@ -34,6 +34,14 @@ export const RecordingStreamsSchema = z.object({
   overlayAlpha: z.boolean().default(false),
   /** DAG feature stream → JSONL. */
   features: z.boolean().default(false),
+  /**
+   * The room, through the microphone (#247) — what a real instrument or a tapped table
+   * sounded like, as opposed to `audio`, which is what thoremin played. Opened RAW (no
+   * echo cancellation, noise suppression or gain control), because those treat a
+   * transient as noise to remove, and a transient's onset is the label a take is for.
+   * Saved as native WebM and as WAV (`{stem}.mic.webm` / `{stem}.mic.wav`).
+   */
+  microphone: z.boolean().default(false),
   /** Which DAG edges (`"<node>.<port>"`) to log; empty = all. */
   featureEdges: z.array(z.string()).default([]),
 });
@@ -89,6 +97,7 @@ export function hasAnyStream(streams: RecordingStreams): boolean {
     streams.overlayVideo ||
     streams.pureVideo ||
     streams.overlayAlpha ||
-    streams.features
+    streams.features ||
+    streams.microphone
   );
 }

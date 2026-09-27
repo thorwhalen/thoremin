@@ -36,7 +36,7 @@
  * different WORDING of the same ask is not a new ask.
  */
 import type { Cue } from './cue';
-import { samplingFor } from './cue';
+import { clickPlan, samplingFor } from './cue';
 import type { Session } from './session';
 import { defaultSufficiency, type SufficiencyEvaluator, type Verdict } from './sufficiency';
 import type { FeatureVector } from './types';
@@ -120,9 +120,14 @@ export interface Runner {
   subscribe(listener: (event: RunnerEvent) => void): () => void;
 }
 
-/** Progress as a 0..1 fraction of the cue's own minimum — what the meter shows. */
-export function cueCoverage(cue: Cue, samples: number): number {
+/** Progress as a 0..1 fraction of the cue's own minimum — what the meter shows. A
+ *  clicked cue's minimum is its duration, so its meter is time (`elapsedMs`). */
+export function cueCoverage(cue: Cue, samples: number, elapsedMs = 0): number {
   const s = cue.sufficiency;
+  if (s.kind === 'clicked') {
+    const end = clickPlan(cue)?.endMs ?? 0;
+    return end <= 0 ? 1 : Math.max(0, Math.min(1, elapsedMs / end));
+  }
   const min = s.kind === 'frames' ? s.minFrames : s.minPoints;
   return min <= 0 ? 1 : Math.max(0, Math.min(1, samples / min));
 }
@@ -205,7 +210,10 @@ export function createRunner(options: RunnerOptions): Runner {
     if (!cue || status !== 'running') return;
     // Manual mode: the player decides when a cue is done. The runner never ends a cue
     // on its own and stays silent (no nudges); the meter still fills from the samples.
-    if (o.manualAdvance) return;
+    // A CLICKED cue is the exception: it is over when its click is, which is a fact about
+    // time and not a judgement about the player, so waiting for Done would only leave
+    // the player playing to silence.
+    if (o.manualAdvance && cue.sufficiency.kind !== 'clicked') return;
     if (tMs - lastEvaluatedAt < o.evaluateEveryMs) return;
     lastEvaluatedAt = tMs;
     const samples = samplesOf(cue);
@@ -308,7 +316,7 @@ export function createRunner(options: RunnerOptions): Runner {
         index: status === 'between' ? index + 1 : index,
         cue,
         samples,
-        coverage: cue ? cueCoverage(cue, samples) : 0,
+        coverage: cue ? cueCoverage(cue, samples, status === 'running' ? lastEvaluatedAt - startedAt : 0) : 0,
         elapsedMs: status === 'running' ? lastEvaluatedAt - startedAt : 0,
         verdict,
         say: status === 'running' ? said : null,

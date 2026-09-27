@@ -61,6 +61,27 @@ export interface SessionRecorderDeps {
   /** Live-annotation source (#92): when active, writes a `.annotations.jsonl` stream into the
    *  folder on the shared `t0`. Absent = no tagging. */
   tagSource?: TagStreamSource;
+  /** Provenance written into the manifest's `meta` (the trainer's routine, #247). */
+  meta?: Record<string, unknown>;
+  /** Open the microphone (#247). Injectable for tests; defaults to `getUserMedia` with
+   *  {@link RAW_MIC_CONSTRAINTS}. */
+  openMicrophone?: () => Promise<MediaStream>;
+}
+
+/**
+ * The microphone, raw. Echo cancellation, noise suppression and automatic gain control
+ * all exist to make SPEECH intelligible, and each of them treats a sharp transient as
+ * something to remove or level: exactly the tap or pluck onset the microphone stream is
+ * recorded for (#247).
+ */
+export const RAW_MIC_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+};
+
+function openRawMicrophone(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({ audio: RAW_MIC_CONSTRAINTS, video: false });
 }
 
 interface Rec {
@@ -117,6 +138,7 @@ export function activeStreamLabels(session: RecordingSession): string[] {
   if (s.pureVideo) out.push('camera');
   if (s.overlayAlpha) out.push('alpha');
   if (s.features) out.push('features');
+  if (s.microphone) out.push('mic');
   return out;
 }
 
@@ -129,6 +151,9 @@ export class SessionRecorder {
   private overlayRec: Rec | null = null;
   private pureRec: Rec | null = null;
   private alphaRec: Rec | null = null;
+  private micRec: Rec | null = null;
+  /** The microphone track's reported input latency (s), for the manifest. */
+  private micLatency: number | undefined;
   private alphaCanvas: HTMLCanvasElement | null = null;
   private tap: FeatureJsonlTap | null = null;
   private detachTap: (() => void) | null = null;
@@ -224,6 +249,18 @@ export class SessionRecorder {
     }
     const audioTracks = this.audioDest ? this.audioDest.stream.getAudioTracks() : [];
 
+    // The microphone is opened BEFORE t0: the permission prompt can take seconds, and
+    // the recorder must start on the shared clock, not whenever the player clicks Allow.
+    // A refusal throws, which fails the take's start (and the host says so) rather than
+    // recording a "real versus air" take with no real.
+    let micStream: MediaStream | null = null;
+    if (s.microphone) {
+      micStream = await (this.deps.openMicrophone ?? openRawMicrophone)();
+      this.ownedStreams.push(micStream);
+      const latency = (micStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number } | undefined)?.latency;
+      this.micLatency = typeof latency === 'number' && Number.isFinite(latency) ? latency : undefined;
+    }
+
     this.startedAt = new Date().toISOString();
     this.startPerf = performance.now();
     // t0 is the alignment origin every stream's JSONL `t` is relative to (the
@@ -263,6 +300,9 @@ export class SessionRecorder {
       this.ownedStreams.push(alphaStream);
       this.alphaRec = startRec(alphaStream, this.alphaMime);
     }
+    if (micStream) {
+      this.micRec = startRec(micStream, this.audioMime);
+    }
     if (s.features) {
       this.tap = new FeatureJsonlTap(this.session.streams.featureEdges);
       this.detachTap = engine.addTap(this.tap);
@@ -271,7 +311,7 @@ export class SessionRecorder {
     // If every selected stream turned out to be uncapturable here (e.g. an
     // alpha-only session reopened on a non-Chromium browser, or pure-video with no
     // reachable camera), fail fast instead of "saving" an empty folder.
-    if (!this.audioRec && !this.overlayRec && !this.pureRec && !this.alphaRec && !this.tap) {
+    if (!this.audioRec && !this.overlayRec && !this.pureRec && !this.alphaRec && !this.micRec && !this.tap) {
       throw new Error('None of the selected streams can be captured in this browser');
     }
 
@@ -308,11 +348,12 @@ export class SessionRecorder {
     this.detachTap = null;
     const annotationsJsonl = this.annotationsActive ? (this.deps.tagSource?.endTake(endEngineT) ?? '') : '';
 
-    const [audioBlob, overlayBlob, pureBlob, alphaBlob] = await Promise.all([
+    const [audioBlob, overlayBlob, pureBlob, alphaBlob, micBlob] = await Promise.all([
       this.audioRec ? stopRec(this.audioRec) : Promise.resolve(null),
       this.overlayRec ? stopRec(this.overlayRec) : Promise.resolve(null),
       this.pureRec ? stopRec(this.pureRec) : Promise.resolve(null),
       this.alphaRec ? stopRec(this.alphaRec) : Promise.resolve(null),
+      this.micRec ? stopRec(this.micRec) : Promise.resolve(null),
     ]);
 
     // Release the master-bus tap, the transparent overlay canvas, and every
@@ -332,14 +373,16 @@ export class SessionRecorder {
     // its id is reported, rather than saving the un-encoded audio under that extension.
     const audioOutputs = audioBlob ? await this.convertAudio(audioBlob) : [];
     const failedFormats = audioOutputs.filter((o) => !o.blob).map((o) => o.id);
+    const micWav = micBlob ? await this.micToWav(micBlob) : null;
+    if (micBlob && !micWav) failedFormats.push('mic.wav');
 
     // Map plan files → captured bytes and write them.
     const written: RecordingStreamEntry[] = [];
     let audioIdx = 0;
-    const putFile = async (file: PlannedFile, data: Blob | string) => {
+    const putFile = async (file: PlannedFile, data: Blob | string, extra: Partial<RecordingStreamEntry> = {}) => {
       await this.writeFile(file.name, data);
       if (file.kind !== 'manifest')
-        written.push({ file: file.name, kind: file.kind, mime: file.mime, fps: file.fps });
+        written.push({ file: file.name, kind: file.kind, mime: file.mime, fps: file.fps, ...extra });
     };
 
     for (const file of this.plan.files) {
@@ -360,6 +403,15 @@ export class SessionRecorder {
         case 'overlayAlpha':
           if (alphaBlob) await putFile(file, alphaBlob);
           break;
+        case 'microphone': {
+          const latency = this.micLatency === undefined ? {} : { latency: this.micLatency };
+          if (file.ext === 'wav') {
+            if (micWav) await putFile(file, micWav.blob, { sampleRate: micWav.sampleRate, ...latency });
+          } else if (micBlob) {
+            await putFile(file, micBlob, latency);
+          }
+          break;
+        }
         case 'features':
           await putFile(file, this.tap?.drain() ?? '');
           break;
@@ -374,6 +426,7 @@ export class SessionRecorder {
             stem: this.stem,
             instrument: this.deps.instrument,
             streams: written,
+            meta: this.deps.meta,
           });
           await this.writeFile(file.name, serializeManifest(manifest));
           break;
@@ -442,6 +495,25 @@ export class SessionRecorder {
     return converted;
   }
 
+  /**
+   * The microphone take as 16-bit WAV (#247), or null if this browser cannot decode its
+   * own recording. Decoded on an `OfflineAudioContext` when the host has no running
+   * `AudioContext` (a trainer take must not require the player to start the synth's
+   * audio first); either resamples to its own rate, which the manifest records.
+   */
+  private async micToWav(native: Blob): Promise<{ blob: Blob; sampleRate: number } | null> {
+    try {
+      const bytes = await native.arrayBuffer();
+      const ctx: BaseAudioContext = this.deps.audioContext ?? new OfflineAudioContext(1, 1, 48000);
+      const audio = await ctx.decodeAudioData(bytes);
+      const { encodeWav } = await import('./wav');
+      return { blob: encodeWav(audio), sampleRate: audio.sampleRate };
+    } catch (e) {
+      console.error('[thoremin] could not convert the microphone take to WAV', e);
+      return null;
+    }
+  }
+
   /** Stop the tracks of every capture stream we created (canvas/alpha/element
    * capture). The shared live camera stream is deliberately excluded. */
   private stopOwnedStreams(): void {
@@ -473,7 +545,7 @@ export class SessionRecorder {
       }
       this.annotationsActive = false;
     }
-    for (const rec of [this.audioRec, this.overlayRec, this.pureRec, this.alphaRec]) {
+    for (const rec of [this.audioRec, this.overlayRec, this.pureRec, this.alphaRec, this.micRec]) {
       try {
         if (rec && rec.recorder.state !== 'inactive') rec.recorder.stop();
       } catch {

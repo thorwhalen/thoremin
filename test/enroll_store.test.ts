@@ -13,7 +13,8 @@ import { CueSpecSchema, categoryKey, type CueRecord, type FeatureVector, type Ro
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { useTrainer, useTrainerStores } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from '@/app/enroll/starterCues';
+import { DEFAULT_ROUTINE_CUE_IDS } from '@/app/enroll/starterCues';
+import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { appFeatureDemand } from '@/app/featureDemand';
 
 const stores = () => ({
@@ -38,7 +39,7 @@ describe('load(): stored cues and routines reach the store', () => {
     await useTrainer.getState().load();
     const s = useTrainer.getState();
     expect(s.loaded).toBe(true);
-    expect(s.cues.map((c) => c.id)).toEqual(STARTER_CUES.map((c) => c.id));
+    expect(s.cues.map((c) => c.id)).toEqual(ALL_STARTER_CUES.map((c) => c.id));
     expect(s.routine.map((c) => c.id)).toEqual([...DEFAULT_ROUTINE_CUE_IDS]);
     expect(s.routineName).toBe('Default');
     expect(s.missing).toEqual([]);

@@ -37,12 +37,17 @@ export const TRAINER_TAGS = {
   verdict: (outcome: string) => `verdict:${outcome}`,
   /** A point per spoken nudge. */
   guidance: 'guidance',
+  /** A point per click of a clicked cue (#247): `click:count` while counting in,
+   *  `click:beat` for each beat the player plays on. Stamped with the time the click was
+   *  SCHEDULED to sound (the plan), on the same engine clock as everything else. */
+  click: (kind: 'count' | 'beat') => `click:${kind}`,
 } as const;
 
 const CUE_COLOR: Record<Cue['produces'], string> = {
   baseline: '#94a3b8',
   nuisance: '#f59e0b',
   vocabulary: '#34d399',
+  performance: '#c084fc',
 };
 
 /** The tag set a routine's take is annotated with. */
@@ -62,6 +67,12 @@ export function trainerTagDefs(cues: readonly Cue[]): TagDef[] {
     defs.push({ id: TRAINER_TAGS.verdict(outcome), label: outcome, number: null, kind: 'point', leadIn: 0, group: null, color: outcome === 'enough' ? '#34d399' : outcome === 'cannot' ? '#f87171' : '#a1a1aa', order: order++ });
   }
   defs.push({ id: TRAINER_TAGS.guidance, label: 'guidance', number: null, kind: 'point', leadIn: 0, group: null, color: '#67e8f9', order: order++ });
+  // Click tags only when the routine clicks, so a face take's tag set is unchanged.
+  if (cues.some((c) => c.sufficiency.kind === 'clicked')) {
+    for (const kind of ['count', 'beat'] as const) {
+      defs.push({ id: TRAINER_TAGS.click(kind), label: `click ${kind}`, number: null, kind: 'point', leadIn: 0, group: null, color: kind === 'beat' ? '#e879f9' : '#a78bfa', order: order++ });
+    }
+  }
   return defs;
 }
 
@@ -70,6 +81,8 @@ export interface TrainerTagSource extends TagStreamSource {
   onEvent(e: RunnerEvent): void;
   /** True between `beginTake` and `endTake`. */
   inTake(): boolean;
+  /** Write one click (#247) as a point at `tMs` (engine clock, ms). */
+  click(kind: 'count' | 'beat', tMs: number): void;
 }
 
 export interface TrainerTagSourceOptions {
@@ -150,5 +163,9 @@ export function createTrainerTagSource(options: TrainerTagSourceOptions): Traine
       }
     },
     inTake: () => sink !== null,
+    click(kind, tMs) {
+      if (!sink) return;
+      apply(TRAINER_TAGS.click(kind), Math.max(t0, tMs / 1000));
+    },
   };
 }
