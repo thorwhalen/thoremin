@@ -89,6 +89,24 @@ function MutedBadge() {
   );
 }
 
+/** Why the instrument is quiet without the player having muted it: a tool holds the
+ * room (the Trainer), or the conductor is on (its score is the music; see `hushOf` in
+ * store-controls). Shown only when not muted, so the two cues never stack; quieter than
+ * MutedBadge because nothing is wrong and nothing needs doing — it lifts by itself. */
+function HushBadge() {
+  const muted = useControls((s) => s.muted);
+  const training = useControls((s) => s.hushedBy.includes('trainer'));
+  const conducting = useControls((s) => s.conductor.enabled);
+  if (muted || !(training || conducting)) return null;
+  const why = training ? 'while the Trainer is open' : 'while conducting';
+  return (
+    <div data-hush-badge className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white/70 backdrop-blur">
+      <VolumeX className="h-3 w-3" />
+      Instrument quiet {why}
+    </div>
+  );
+}
+
 export default function App({
   source = DEFAULT_SOURCE,
   slots = NO_SLOTS,
@@ -144,6 +162,7 @@ export default function App({
 
       {/* Top-center: unmissable "muted" cue (audio silenced by the m key). */}
       <MutedBadge />
+      <HushBadge />
 
       {/* Bottom-left: the tools bar — one labelled button per registered shell tool
           (Feature Lab, command palette, manual). This is the app's answer to "what else

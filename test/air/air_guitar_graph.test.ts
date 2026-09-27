@@ -32,7 +32,7 @@ describe('air guitar in the default graph', () => {
     expect(has('airGuitar', 'notes', 'guitarOut', 'notes')).toBe(true);
     const inbound = (id: string) => new Set(g.edges.filter((e) => e.to.node === id).map((e) => e.to.port));
     expect([...inbound('airGuitar')].sort()).toEqual(['config', 'hands', 'model', 'octaveShift']);
-    expect([...inbound('guitarOut')]).toEqual(['notes']);
+    expect([...inbound('guitarOut')].sort()).toEqual(['mute', 'notes']);
   });
 
   it('headless: with the dial on and chords enrolled, the strums play the chords\' voicings', async () => {

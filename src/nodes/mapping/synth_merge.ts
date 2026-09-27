@@ -20,6 +20,11 @@
  * port `c` is fully back-compatible (graphs wiring only `a`/`b` are unchanged) and
  * an idle chord source simply passes the other streams through unchanged; an
  * absent `mute` is treated as false (passthrough), so pre-mute graphs are unchanged.
+ *
+ * A second, narrower switch, `hush`, silences every stream EXCEPT `d` (the conducted
+ * score): the instrument goes quiet while a tool needs the room — the Trainer, or the
+ * conductor, whose score IS the music then — without silencing the piece being
+ * conducted. See `hushOf` in `store-controls` for when it is raised.
  */
 import { defineNode } from '@/dag';
 import type { SynthParams } from '../domain';
@@ -48,6 +53,8 @@ export const synthMergeNode = defineNode({
     // Master mute: true → silence every merged voice at this single convergence
     // point (all producers pass through here). Absent → false (passthrough).
     { name: 'mute', kind: 'boolean', default: false },
+    // Instrument hush: true → silence a, b, c and e, keep d (the conducted score).
+    { name: 'hush', kind: 'boolean', default: false },
   ],
   outputs: [{ name: 'params', kind: 'synth-params' }],
   process(inputs) {
@@ -56,7 +63,11 @@ export const synthMergeNode = defineNode({
     const c = asParams(inputs.c);
     const d = asParams(inputs.d);
     const e = asParams(inputs.e);
-    const voices = [...a.voices, ...b.voices, ...c.voices, ...d.voices, ...e.voices];
+    const silence = (p: SynthParams): SynthParams['voices'] => p.voices.map((v) => ({ ...v, gain: 0, present: false }));
+    const hushed = inputs.hush === true;
+    const voices = hushed
+      ? [...silence(a), ...silence(b), ...silence(c), ...d.voices, ...silence(e)]
+      : [...a.voices, ...b.voices, ...c.voices, ...d.voices, ...e.voices];
     // Master mute: zero every voice (and mark it absent) so hands + both chord
     // instruments go quiet together. The synth's per-voice release ramp makes
     // this a smooth, click-free fade rather than an abrupt cut.

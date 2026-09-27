@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airGuitarModel:shape-model, airFlute:air-flute-config, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, bodyMap:body-map, scoreDoc:score-doc
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, hushStrikes:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airGuitarModel:shape-model, airFlute:air-flute-config, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, bodyMap:body-map, scoreDoc:score-doc
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -288,7 +288,7 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 Union up to five synth-params voice streams into one (hand voices, emotion chord, pose chord, conducted score, air flute); master mute.
 
 - **roles:** mapping
-- **in:** a:synth-params, b:synth-params, c:synth-params, d:synth-params, e:synth-params, mute:boolean
+- **in:** a:synth-params, b:synth-params, c:synth-params, d:synth-params, e:synth-params, mute:boolean, hush:boolean
 - **out:** params:synth-params
 - **params:** —
 
@@ -393,7 +393,7 @@ Strike the air with a hand and hear a drum at the strike: each hand is a stick w
 Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).
 
 - **roles:** synth
-- **in:** hits:drum-hits
+- **in:** hits:drum-hits, mute:boolean
 - **out:** —
 - **params:** —
 
@@ -425,7 +425,7 @@ Play a flute in the air: large finger lifts of both hands, enrolled per player a
 Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).
 
 - **roles:** synth
-- **in:** notes:note-events
+- **in:** notes:note-events, mute:boolean
 - **out:** —
 - **params:** timbre (enum(bass | guitar)="bass"), mono (boolean=true)
 

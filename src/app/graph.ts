@@ -375,6 +375,14 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // (#91). The `ui.mute → map.mute` edge above still silences the hand voices
       // at the mapping stage; this is the catch-all that also covers the chords.
       { from: { node: 'ui', port: 'mute' }, to: { node: 'merge', port: 'mute' } },
+      // The instrument hush (`hushOf` in store-controls): the Trainer, or the conductor,
+      // needs the room. The merge silences every voice but the conducted score (`d`);
+      // the struck instruments' schedulers drop their events. The player's `mute` above
+      // is untouched, so lifting the hush never unmutes someone who muted on purpose.
+      { from: { node: 'ui', port: 'hushVoices' }, to: { node: 'merge', port: 'hush' } },
+      { from: { node: 'ui', port: 'hushStrikes' }, to: { node: 'drumOut', port: 'mute' } },
+      { from: { node: 'ui', port: 'hushStrikes' }, to: { node: 'bassOut', port: 'mute' } },
+      { from: { node: 'ui', port: 'hushStrikes' }, to: { node: 'guitarOut', port: 'mute' } },
       { from: { node: 'merge', port: 'params' }, to: { node: 'synth', port: 'params' } },
       // MIDI output (#13): the merged voices also feed the midi-out node (additive
       // tap off the synth bus). Its `enabled`/`port` inputs are driven live from the

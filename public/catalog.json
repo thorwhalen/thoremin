@@ -1029,6 +1029,11 @@
       {
         "name": "hits",
         "kind": "drum-hits"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
       }
     ],
     "outputs": [],
@@ -1856,6 +1861,11 @@
       {
         "name": "notes",
         "kind": "note-events"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
       }
     ],
     "outputs": [],
@@ -2215,6 +2225,14 @@
         "kind": "boolean"
       },
       {
+        "name": "hushVoices",
+        "kind": "boolean"
+      },
+      {
+        "name": "hushStrikes",
+        "kind": "boolean"
+      },
+      {
         "name": "overlay",
         "kind": "overlay-config"
       },
@@ -2347,6 +2365,11 @@
       },
       {
         "name": "mute",
+        "kind": "boolean",
+        "default": false
+      },
+      {
+        "name": "hush",
         "kind": "boolean",
         "default": false
       }

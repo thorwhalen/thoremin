@@ -45,6 +45,9 @@ export interface ControlSnapshot {
   /** Master mute, read by voice-mapping + synth-merge (#90 — the `m` key toggles
    *  `store.muted`, which flows here instead of through `keyboard-control`). */
   muted?: boolean;
+  /** Tool surfaces holding the instrument quiet (the store's `hushedBy`); see
+   *  {@link hushOf}. Absent → nobody. */
+  hushedBy?: readonly string[];
   /** Live overlay element config (the INSTRUMENT's overlay — no Feature Lab). Composed
    *  with {@link featureLab} into canvas-overlay's `overlayConfig`. */
   overlay?: OverlayDialParams;
@@ -112,6 +115,27 @@ export interface ControlSnapshot {
 
 const Params = z.object({});
 
+/**
+ * The instrument HUSH: what goes quiet while a tool needs the room, derived here once so
+ * the graph reads two booleans and the rule is testable without a store.
+ *
+ * - `hushVoices` silences the continuous voices at `synth-merge` (the hands, both face
+ *   chords, the air flute) but NOT the conducted score: while the conductor is on, the
+ *   score is the music, and a theremin sounding under it is what the player could not
+ *   hear past. Also while any tool holds a claim (the Trainer: its click and spoken cues).
+ * - `hushStrikes` silences the struck instruments (air drum, bass, guitar) only while a
+ *   tool holds a claim. The conductor does NOT hush them: they are built to play ALONG a
+ *   conducted piece (the air drum's timing magnet reads the conductor's time), and they
+ *   sound only on a deliberate strike, never merely because a hand is in view.
+ *
+ * Distinct from the master `mute` (the player's switch): nothing here touches it, so a
+ * player who muted on purpose stays muted when the hush lifts.
+ */
+export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor'>): { hushVoices: boolean; hushStrikes: boolean } {
+  const claimed = (c.hushedBy?.length ?? 0) > 0;
+  return { hushVoices: claimed || c.conductor?.enabled === true, hushStrikes: claimed };
+}
+
 export const storeControlsNode = defineNode<Record<string, never>>({
   type: 'store-controls',
   roles: ['source', 'control'],
@@ -128,6 +152,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'octaveShift', kind: 'number' },
     { name: 'magnetism', kind: 'number' },
     { name: 'mute', kind: 'boolean' },
+    // The instrument hush (see `hushOf`): the continuous voices, and the struck ones.
+    { name: 'hushVoices', kind: 'boolean' },
+    { name: 'hushStrikes', kind: 'boolean' },
     { name: 'overlay', kind: 'overlay-config' },
     // The right voice's melody scale spec (kept for reference/back-compat).
     { name: 'rightSpec', kind: 'scale-spec' },
@@ -206,6 +233,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           octaveShift: c.octaveShift ?? 0,
           magnetism: c.magnetism ?? 0.8,
           mute: c.muted ?? false,
+          ...hushOf(c),
           midiEnabled: c.midi?.enabled ?? false,
           midiPort: c.midi?.port ?? '',
           steerEnabled: c.steer?.enabled ?? false,
