@@ -11,9 +11,12 @@
  * The panel renders whatever routine the store loaded — a list of cues, which are
  * data, editable through the {@link RoutinePicker} — and, while the runner runs, shows
  * what the runner SAYS: the cue's instruction, large; the latest guidance ("a bit
- * further, if you can"), beneath it; and a short transcript. The same strings are
- * painted ON THE VIDEO by the overlay's `trainerHud` element (the player is looking at
- * the camera, not at this panel); the panel is the full record, the HUD is the glance. The runner steps when it has ENOUGH, not when time passes: the coverage
+ * further, if you can"), beneath it; and a short transcript. While a routine runs
+ * the panel becomes a banner centred near the top of the screen and stacked ABOVE every
+ * other panel (the player is looking at the camera, and a bottom-left strip was hidden
+ * under whatever else was open); the full panel is the record, the banner the glance.
+ * The overlay's `trainerHud` element can paint the same strings into the video too, as
+ * an opt-in (for screen recordings of the composited canvas). The runner steps when it has ENOUGH, not when time passes: the coverage
  * meter is the cue's own minimum, and a cue the player cannot produce ends in
  * `cannot` and moves on rather than trapping them.
  *
@@ -37,7 +40,10 @@
  *
  * ## What this panel deliberately cannot do
  *
- * It does not change what you hear. Training produces a model and nothing else;
+ * It does not change what the instrument IS. While the panel is open the instrument is
+ * hushed (a `trainer` claim on the store's `hushedBy`) so the click and the spoken cues
+ * are audible, and it sounds again on close; the player's own mute is never touched.
+ * Training produces a model and nothing else;
  * binding a category to a dial or a command is a later, separate decision and will go
  * through the #127 write path. A bad training run cannot break the instrument.
  */
@@ -56,7 +62,8 @@ import { toolById } from './tools';
 import { STARTER_ROUTINES, routineRecordsPerformance, starterRoutineById } from './enroll/realVsAirCues';
 import { clickPlayer } from './enroll/click';
 
-const TOOL_ID = 'trainer';
+/** The tool id, and the id of the Trainer's hush claim (see `useControls.setHush`). */
+export const TOOL_ID = 'trainer';
 /** ~30 Hz: fast enough that the sampler's dwell logic sees a smooth signal, slow enough
  *  that the panel is not doing frame-rate work. */
 const SAMPLE_INTERVAL_MS = 33;
@@ -268,6 +275,15 @@ export default function TrainerPanel() {
     }
   }, [open]);
 
+  // Hush the instrument while the panel is open: a theremin sounding under the click and
+  // the spoken cues drowned both. A claim, not the player's mute, so closing the panel
+  // restores exactly what was there (a player who had muted stays muted).
+  useEffect(() => {
+    if (!open) return;
+    useControls.getState().setHush(TOOL_ID, true);
+    return () => useControls.getState().setHush(TOOL_ID, false);
+  }, [open]);
+
   // Poll the live vector into the runner while it runs. The interval is recreated only
   // when `running` flips, so it is not restarted every render.
   const runningRef = useRef(running);
@@ -325,15 +341,18 @@ export default function TrainerPanel() {
   const cueNames = new Map(routine.map((c) => [c.id, c.name]));
   const latestEnd = [...transcript].reverse().find((l) => l.kind === 'end' && l.outcome === 'cannot');
 
-  // While a routine runs the panel collapses to a slim strip: the instruction is on
-  // the video (the HUD), and a full-height panel would sit over it. Skip / Stop and
-  // the meter stay within reach; the full panel returns when the routine ends.
+  // While a routine runs the panel becomes a banner: centred horizontally, near the top
+  // (clear of the bottom-left tools and the right-hand settings), and stacked above
+  // every panel (z-60 over their z-40/z-50), so no open window can hide the instruction.
+  // The instruction WRAPS — it is the one line the player must read in full. Skip /
+  // Stop and the meter stay within reach; the full panel returns when the routine ends.
   if (running && activeCue) {
     return (
       <div
         data-tool={TOOL_ID}
         data-compact
-        className="absolute bottom-14 left-3 z-40 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col gap-1 rounded-2xl border border-emerald-400/30 bg-black/70 px-3 py-2 backdrop-blur"
+        data-banner
+        className="fixed left-1/2 top-12 z-[60] flex w-[min(42rem,calc(100vw-1.5rem))] lg:w-[min(42rem,calc(100vw-27rem))] -translate-x-1/2 flex-col gap-1.5 rounded-2xl border border-emerald-400/40 bg-black/80 px-4 py-3 shadow-2xl backdrop-blur"
         aria-live="polite"
       >
         <div className="flex items-center gap-2">
@@ -380,11 +399,11 @@ export default function TrainerPanel() {
             Stop
           </button>
         </div>
-        {/* The written channel is ALWAYS here too, in case the HUD is hidden. */}
-        <p className="truncate text-[11px] text-white" data-say title={activeCue.instruction}>
+        {/* The written channel: always here, whatever the voice toggle says. */}
+        <p className="text-lg font-medium leading-snug text-white" data-say>
           {status === 'between' ? lastEndSay ?? '' : activeCue.instruction}
         </p>
-        {guidance && <p className="truncate text-[10px] italic text-emerald-200/80" data-guidance>{guidance}</p>}
+        {guidance && <p className="text-sm italic text-emerald-200/90" data-guidance>{guidance}</p>}
         <Coverage value={coverage} />
       </div>
     );
@@ -485,7 +504,7 @@ export default function TrainerPanel() {
             whether the take is recorded. */}
         <label className="flex items-center gap-2 text-[10px] text-white/60">
           <input type="checkbox" checked={hudShow} onChange={(e) => setTrainerHud({ show: e.target.checked })} />
-          Show the instructions on the video while it runs
+          Also paint the instructions into the video (for screen recordings)
         </label>
         {pairRoutine ? (
           <p className="text-[10px] text-white/45">Always recorded: camera, microphone, features, clicks and annotations.</p>

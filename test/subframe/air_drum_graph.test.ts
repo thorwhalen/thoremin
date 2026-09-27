@@ -33,7 +33,7 @@ describe('air drum in the default graph', () => {
     // Every input of the two nodes is fed.
     const inbound = (id: string) => new Set(edges.filter((e) => e.to.node === id).map((e) => e.to.port));
     expect([...inbound('airDrum')].sort()).toEqual(['config', 'hands', 'time']);
-    expect([...inbound('drumOut')]).toEqual(['hits']);
+    expect([...inbound('drumOut')].sort()).toEqual(['hits', 'mute']);
   });
 
   describe('headless over the production graph (replayed hands)', () => {

@@ -119,6 +119,18 @@ export interface ControlState {
    */
   muted: boolean;
   /**
+   * Who is holding the instrument QUIET right now: tool surfaces that need the room
+   * (the Trainer, whose click and spoken cues the theremin drowned out). Each entry
+   * is a claimer id; the instrument is hushed while any claim is held and sounds
+   * again the moment the last one is released, so "restore after" needs no memory of
+   * what was playing. Distinct from {@link muted}: that is the PLAYER's switch (and
+   * its badge says "press M"); a hush is the app's, and releasing it must never
+   * unmute a player who had muted on purpose. The conductor does not claim here — its
+   * hush is derived from `conductor.enabled` in `store-controls`, so it cannot leak.
+   * Transient, like `muted`: never persisted.
+   */
+  hushedBy: readonly string[];
+  /**
    * What the player's facial expression maps to: `none` (off, default), `timbre`
    * (smile→brightness, open mouth→vibrato), or `chord` (expression selects a
    * diatonic triad). Any non-`none` mode lazy-loads the `webcam-face` model — as does
@@ -247,6 +259,8 @@ export interface ControlState {
   setMuted(v: boolean): void;
   /** Toggle the master mute — the `m` key (app-level keyboard handler, #90) calls this. */
   toggleMuted(): void;
+  /** Take (`on`) or release a hush claim (see {@link hushedBy}). Idempotent per claimer. */
+  setHush(claimer: string, on: boolean): void;
   /** Replace the loaded score (transient, see {@link scoreDoc}). */
   setScoreDoc: (doc: ScoreDoc | null) => void;
   /** Replace the air guitar's chord classifier (transient, see {@link airGuitarModel}). */
@@ -366,6 +380,14 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
       const { featureLab: _lifted, ...rest } = ov;
       s.overlay = rest;
     }
+  }
+  if (version < 18) {
+    // The Trainer's running banner moved above every panel (it is now the on-screen
+    // instruction), so painting the same words into the video is opt-in. A returning
+    // player's persisted `show: true` is the OLD default, not a choice (nothing ever
+    // asked), so it follows the new default once; re-ticking it in the panel sticks.
+    const hud = s.trainerHud as Record<string, unknown> | undefined;
+    if (hud && hud.show === true) s.trainerHud = { ...hud, show: false };
   }
   return s as unknown as ControlState;
 }
@@ -592,6 +614,7 @@ export const useControls = create<ControlState>()(
       octaveShift: 0,
       magnetism: 0.8,
       muted: false,
+      hushedBy: [],
       faceMapping: 'none',
       faceChord: { ...DEFAULT_FACE_CHORD },
       faceExpr: {
@@ -638,6 +661,12 @@ export const useControls = create<ControlState>()(
       setMasterVolume: (v) => set({ masterVolume: v }),
       setMuted: (v) => set({ muted: v }),
       toggleMuted: () => set((s) => ({ muted: !s.muted })),
+      setHush: (claimer, on) =>
+        set((s) => {
+          const held = s.hushedBy.includes(claimer);
+          if (on === held) return s;
+          return { hushedBy: on ? [...s.hushedBy, claimer] : s.hushedBy.filter((c) => c !== claimer) };
+        }),
       setSteerPlaying: (v) => set({ steerPlaying: v }),
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
       setAirGuitarModel: (model) => set({ airGuitarModel: model }),
@@ -722,7 +751,9 @@ export const useControls = create<ControlState>()(
       // v15 (#249): `airBass` added the same way (off by default, healed in mergeControls).
       // v16 (#249): `airGuitar` added the same way.
       // v17 (#249): `airFlute` added the same way.
-      version: 17,
+      // v18: the trainer HUD pref's default flipped to off (the Trainer's banner is the
+      // on-screen instruction now); migrateControls carries a returning player across.
+      version: 18,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

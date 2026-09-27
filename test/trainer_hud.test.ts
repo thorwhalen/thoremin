@@ -195,7 +195,7 @@ describe('the HUD pref is per-device, not an instrument parameter (the #136 less
     const { trainerHud: _omit, ...withoutPref } = base;
     void _omit;
     const out2 = h.process({}, { tick: 0, time: 0, dt: 1 / 30, resources: { controls: () => withoutPref } }) as { overlay?: { trainerHud?: { show: boolean } } };
-    expect(out2.overlay?.trainerHud?.show).toBe(true);
+    expect(out2.overlay?.trainerHud?.show).toBe(false);
   });
 
   it('mergeControls heals a missing or corrupt pref to the default', async () => {

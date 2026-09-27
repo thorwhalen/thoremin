@@ -263,6 +263,32 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     expect(document.querySelectorAll('[data-cue]')).toHaveLength(STARTER_CUES.length);
   });
 
+  it('while running, the instruction is a banner above every panel, and it wraps rather than truncates', () => {
+    useTools.setState({ open: 'trainer' });
+    render(<TrainerPanel />);
+    fireEvent.click(screen.getByText('Start'));
+    const banner = document.querySelector('[data-banner]') as HTMLElement;
+    expect(banner).toBeTruthy();
+    // Centred near the top, stacked over the panels (z-40) AND the settings/modals (z-50).
+    const cls = banner.className.split(/\s+/);
+    expect(cls).toEqual(expect.arrayContaining(['fixed', 'left-1/2', '-translate-x-1/2', 'z-[60]']));
+    expect(cls.some((c) => /^bottom-/.test(c))).toBe(false);
+    // The one line the player must read in full is never clipped.
+    expect(document.querySelector('[data-say]')!.className).not.toMatch(/\btruncate\b/);
+    fireEvent.click(screen.getByText('Stop'));
+  });
+
+  it('hushes the instrument while open and lifts it on close, never touching the player\'s mute', () => {
+    useControls.setState({ hushedBy: [], muted: false });
+    useTools.setState({ open: 'trainer' });
+    const { rerender } = render(<TrainerPanel />);
+    expect(useControls.getState().hushedBy).toContain('trainer');
+    act(() => useTools.setState({ open: null }));
+    rerender(<TrainerPanel />);
+    expect(useControls.getState().hushedBy).not.toContain('trainer');
+    expect(useControls.getState().muted).toBe(false);
+  });
+
   it('Skip moves on, and the skipped cue is marked as such (visible once the full panel is back)', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
@@ -360,12 +386,16 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   it('the HUD pref is a per-device checkbox in the panel, not an instrument dial', () => {
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
-    const box = screen.getByLabelText(/instructions on the video/i) as HTMLInputElement;
-    expect(box.checked).toBe(true);
-    fireEvent.click(box);
-    expect(useControls.getState().trainerHud.show).toBe(false);
+    // Off by default since the running banner became the on-screen instruction.
+    expect(useControls.getInitialState().trainerHud.show).toBe(false);
+    // (Set explicitly: other tests leave the shared store's pref on.)
+    useControls.getState().setTrainerHud({ show: false });
+    const box = screen.getByLabelText(/instructions into the video/i) as HTMLInputElement;
+    expect(box.checked).toBe(false);
     fireEvent.click(box);
     expect(useControls.getState().trainerHud.show).toBe(true);
+    fireEvent.click(box);
+    expect(useControls.getState().trainerHud.show).toBe(false);
   });
 
   it('recording the take is ON by default (the maintainer\'s call) and the box shows it', () => {

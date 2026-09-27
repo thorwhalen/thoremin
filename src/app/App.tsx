@@ -32,7 +32,7 @@ import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import ToolsBar from './ToolsBar';
 import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
-import TrainerPanel from './TrainerPanel';
+import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
 import ScoreLoader from './ScoreLoader';
 import ConductorPanel from './ConductorPanel';
 import VersionBadge from './VersionBadge';
@@ -85,6 +85,24 @@ function MutedBadge() {
     <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-red-500/90 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-lg backdrop-blur">
       <VolumeX className="h-3.5 w-3.5" />
       Muted — press M to unmute
+    </div>
+  );
+}
+
+/** Why the instrument is quiet without the player having muted it: a tool holds the
+ * room (the Trainer), or the conductor is on (its score is the music; see `hushOf` in
+ * store-controls). Shown only when not muted, so the two cues never stack; quieter than
+ * MutedBadge because nothing is wrong and nothing needs doing — it lifts by itself. */
+function HushBadge() {
+  const muted = useControls((s) => s.muted);
+  const training = useControls((s) => s.hushedBy.includes(TRAINER_TOOL_ID));
+  const conducting = useControls((s) => s.conductor.enabled);
+  if (muted || !(training || conducting)) return null;
+  const why = training ? 'while the Trainer is open' : 'while conducting';
+  return (
+    <div data-hush-badge className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white/70 backdrop-blur">
+      <VolumeX className="h-3 w-3" />
+      Instrument quiet {why}
     </div>
   );
 }
@@ -144,6 +162,7 @@ export default function App({
 
       {/* Top-center: unmissable "muted" cue (audio silenced by the m key). */}
       <MutedBadge />
+      <HushBadge />
 
       {/* Bottom-left: the tools bar — one labelled button per registered shell tool
           (Feature Lab, command palette, manual). This is the app's answer to "what else

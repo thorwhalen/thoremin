@@ -137,7 +137,12 @@ export const pluckOutNode = defineNode<Params>({
   roles: ['synth'],
   title: 'Pluck out',
   description: 'Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).',
-  inputs: [{ name: 'notes', kind: 'note-events' }],
+  inputs: [
+    { name: 'notes', kind: 'note-events' },
+    // The player's mute or a tool's hush (`muteAll`, see `hushOf` in store-controls):
+    // true → drop every event, so nothing new sounds. Absent → false.
+    { name: 'mute', kind: 'boolean', default: false },
+  ],
   outputs: [],
   params: Params,
   make(p) {
@@ -145,6 +150,7 @@ export const pluckOutNode = defineNode<Params>({
     let sinkAc: AudioContext | null = null;
     return {
       process(inputs, ctx: NodeContext) {
+        if (inputs.mute === true) return {};
         const raw = inputs.notes;
         if (!Array.isArray(raw) || raw.length === 0) return {};
         if (!realtimeOutputAllowed(ctx)) return {};

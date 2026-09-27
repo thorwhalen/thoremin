@@ -28,7 +28,7 @@ describe('air bass in the default graph', () => {
     expect(has('airBass', 'notes', 'bassOut', 'notes')).toBe(true);
     const inbound = (id: string) => new Set(g.edges.filter((e) => e.to.node === id).map((e) => e.to.port));
     expect([...inbound('airBass')].sort()).toEqual(['config', 'hands', 'octaveShift', 'scale']);
-    expect([...inbound('bassOut')]).toEqual(['notes']);
+    expect([...inbound('bassOut')].sort()).toEqual(['mute', 'notes']);
   });
 
   describe('headless over the production graph (a synthetic performance)', () => {

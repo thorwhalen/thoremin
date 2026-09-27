@@ -218,7 +218,12 @@ export const drumOutNode = defineNode<Params>({
   roles: ['synth'],
   title: 'Drum out',
   description: 'Sounds the air drum hits on the audio clock at the time each was predicted for (WebAudio drums from primitives, no samples).',
-  inputs: [{ name: 'hits', kind: 'drum-hits' }],
+  inputs: [
+    { name: 'hits', kind: 'drum-hits' },
+    // The player's mute or a tool's hush (`muteAll`, see `hushOf` in store-controls):
+    // true → drop every event, so nothing new sounds. Absent → false.
+    { name: 'mute', kind: 'boolean', default: false },
+  ],
   outputs: [],
   params: Params,
   make() {
@@ -226,6 +231,7 @@ export const drumOutNode = defineNode<Params>({
     let sinkAc: AudioContext | null = null;
     return {
       process(inputs, ctx: NodeContext) {
+        if (inputs.mute === true) return {};
         const raw = inputs.hits;
         if (!Array.isArray(raw) || raw.length === 0) return {};
         if (!realtimeOutputAllowed(ctx)) return {};

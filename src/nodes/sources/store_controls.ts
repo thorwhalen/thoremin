@@ -45,6 +45,9 @@ export interface ControlSnapshot {
   /** Master mute, read by voice-mapping + synth-merge (#90 — the `m` key toggles
    *  `store.muted`, which flows here instead of through `keyboard-control`). */
   muted?: boolean;
+  /** Tool surfaces holding the instrument quiet (the store's `hushedBy`); see
+   *  {@link hushOf}. Absent → nobody. */
+  hushedBy?: readonly string[];
   /** Live overlay element config (the INSTRUMENT's overlay — no Feature Lab). Composed
    *  with {@link featureLab} into canvas-overlay's `overlayConfig`. */
   overlay?: OverlayDialParams;
@@ -112,6 +115,30 @@ export interface ControlSnapshot {
 
 const Params = z.object({});
 
+/**
+ * The instrument HUSH: what goes quiet while a tool needs the room, derived here once so
+ * the graph reads two booleans and the rule is testable without a store.
+ *
+ * - `muteAll` silences EVERYTHING the instrument makes — every voice at `synth-merge`
+ *   (the conducted score included) and the struck instruments' schedulers (air drum,
+ *   bass, guitar) — while the player has muted (their M) or any tool holds a claim (the
+ *   Trainer: its click and spoken cues must be heard, and a conducted score left on from
+ *   an earlier session is as loud as a theremin).
+ * - `hushVoices` silences the continuous voices at `synth-merge` (the hands, both face
+ *   chords, the air flute) but NOT the conducted score, while the conductor is on: then
+ *   the score is the music, and a theremin under it is what the player could not hear
+ *   past. The struck instruments are spared: they are built to play ALONG a conducted
+ *   piece (the air drum's timing magnet reads the conductor's time), and they sound only
+ *   on a deliberate strike, never merely because a hand is in view.
+ *
+ * The player's `muted` itself is only read, never written, so a player who muted on
+ * purpose stays muted when a hush lifts.
+ */
+export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'muted'>): { hushVoices: boolean; muteAll: boolean; claimed: boolean } {
+  const claimed = (c.hushedBy?.length ?? 0) > 0;
+  return { hushVoices: claimed || c.conductor?.enabled === true, muteAll: claimed || c.muted === true, claimed };
+}
+
 export const storeControlsNode = defineNode<Record<string, never>>({
   type: 'store-controls',
   roles: ['source', 'control'],
@@ -128,6 +155,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'octaveShift', kind: 'number' },
     { name: 'magnetism', kind: 'number' },
     { name: 'mute', kind: 'boolean' },
+    // The instrument hush (see `hushOf`): the continuous voices, and the struck ones.
+    { name: 'hushVoices', kind: 'boolean' },
+    { name: 'muteAll', kind: 'boolean' },
     { name: 'overlay', kind: 'overlay-config' },
     // The right voice's melody scale spec (kept for reference/back-compat).
     { name: 'rightSpec', kind: 'scale-spec' },
@@ -198,6 +228,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           octaves: c.right.octaves,
           baseOctave: c.right.baseOctave,
         };
+        const hush = hushOf(c);
         const out: Record<string, unknown> = {
           scaleRight: generateScale(c.right),
           scaleLeft: generateScale(c.left),
@@ -206,11 +237,15 @@ export const storeControlsNode = defineNode<Record<string, never>>({
           octaveShift: c.octaveShift ?? 0,
           magnetism: c.magnetism ?? 0.8,
           mute: c.muted ?? false,
+          hushVoices: hush.hushVoices,
+          muteAll: hush.muteAll,
           midiEnabled: c.midi?.enabled ?? false,
           midiPort: c.midi?.port ?? '',
           steerEnabled: c.steer?.enabled ?? false,
           steerPlaying: c.steerPlaying ?? false,
-          steerVolume: c.steer?.volume ?? 0.7,
+          // A tool claim (the Trainer) quiets the generative layer too; it is not a voice
+          // at the merge, so the merge's mute cannot reach it.
+          steerVolume: hush.claimed ? 0 : c.steer?.volume ?? 0.7,
           rightSpec,
           chordSpec,
           chordScale: generateScale(chordSpec),

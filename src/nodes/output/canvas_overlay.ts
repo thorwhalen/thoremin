@@ -81,7 +81,10 @@ export type CuePosition = z.infer<typeof CuePositionEnum>;
  *  pref in exactly this shape and `store-controls` can compose it in. */
 export const TrainerHudParamsSchema = z
   .object({
-    show: z.boolean().default(true),
+    /** Off by default since the Trainer's own banner moved above every panel (the
+     *  on-screen instruction lives there now); on, the same words are also painted INTO
+     *  the video, which a screen recording of the composited canvas then carries. */
+    show: z.boolean().default(false),
     /** Which edge the banner anchors to. */
     position: z.enum(['bottom', 'top']).default('bottom'),
   })
