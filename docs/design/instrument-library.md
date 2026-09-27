@@ -166,7 +166,7 @@ The ADR's `InstrumentSpec` (`src/instruments/spec.ts`) is what the library lists
 
 A record is kept in the blob while it says anything a default record does not (`metaHasInformation`): the first cut pruned on stars and tags alone, and starring one instrument wiped every other's branches, training link and image.
 
-Why a join rather than a new collection: the metadata record already IS the "attribute map" of Decision 4, and the four new fields are attributes; a new collection would have replaced the profile store's contract that every instrument test exercises directly, for no gain in behaviour. No migration was needed: the record's Zod defaults heal an old record, and the class cache is back-filled on the first derived read. The pure model tests (`test/instruments/spec.test.ts`) pin the rules; nothing exports or imports instruments yet, and when something does it serialises this record and applies `normaliseClassId` on the way in.
+Why a join rather than a new collection: the metadata record already IS the "attribute map" of Decision 4, and the four new fields are attributes; a new collection would have replaced the profile store's contract that every instrument test exercises directly, for no gain in behaviour. No migration was needed: the record's Zod defaults heal an old record, and the class cache is written by the library once both the record and the derivation are loaded, then rewritten whenever the derivation disagrees. The pure model tests (`test/instruments/spec.test.ts`) pin the rules; nothing exports or imports instruments yet, and when something does it serialises this record and applies `normaliseClassId` on the way in.
 
 ## Sparse layers, resolved
 

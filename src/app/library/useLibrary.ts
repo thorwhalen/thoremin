@@ -20,8 +20,6 @@ import { parseTagLabels, EMPTY_INSTRUMENT_META, type Tag, type InstrumentMeta, t
 import { assembleSpec, classCacheIsStale, type InstrumentSpec, type TrainingLink } from '@/instruments/spec';
 import { ALL_BRANCH_IDS } from '@/instruments/branches';
 import { normaliseClassId } from '@/instruments/classes';
-
-const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 import type { InstrumentSummary } from './summarize';
 import type { SystemTag } from './systemTags';
 import type { InstrumentCategory } from './category';
@@ -39,6 +37,8 @@ import {
 } from './store';
 import { deriveForNames, type InstrumentDerived } from './derive';
 import { useToasts } from '@/app/toasts';
+
+const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 
 export interface LibraryApi {
   /** False until tags + metadata have loaded. */
