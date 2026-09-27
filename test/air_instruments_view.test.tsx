@@ -54,7 +54,7 @@ describe('the Air instruments category (#249)', () => {
     expect(within(air).queryByText('Pentatonic')).toBeNull();
     // Field instruments first, then the air instruments.
     const groups = screen.getAllByRole('group').map((g) => g.getAttribute('data-category'));
-    expect(groups).toEqual(['theremin', 'air']);
+    expect(groups).toEqual(['field', 'air']);
     // Its system tag says what it is at a glance.
     expect(within(air).getByTitle('Air drum')).toBeTruthy();
   });

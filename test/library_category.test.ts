@@ -8,7 +8,14 @@
 import { describe, it, expect } from 'vitest';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import { AIR_INSTRUMENTS, INSTRUMENT_CATEGORIES, airInstrumentsOf, categoryOf, groupByCategory } from '@/app/library/category';
+import {
+  AIR_INSTRUMENTS,
+  INSTRUMENT_CLASSES,
+  airInstrumentsOf,
+  categoryOf,
+  groupByCategory,
+  normaliseClassId,
+} from '@/app/library/category';
 import { summarizeInstrument, summaryLines } from '@/app/library/summarize';
 import { deriveSystemTags } from '@/app/library/systemTags';
 
@@ -28,15 +35,15 @@ describe('instrument categories', () => {
 
   it('is derived: a theremin with its air drum on is an air instrument', () => {
     const s = settingsOf('Pentatonic');
-    expect(categoryOf(s)).toBe('theremin');
+    expect(categoryOf(s)).toBe('field');
     expect(categoryOf({ ...s, airDrum: { ...s.airDrum, enabled: true } })).toBe('air');
   });
 
   it('groups in category order, keeping the incoming order inside a group, unknown as theremin', () => {
-    const cats: Record<string, 'air' | 'theremin' | undefined> = { b: 'air', a: 'theremin', c: undefined, d: 'air' };
+    const cats: Record<string, 'air' | 'field' | undefined> = { b: 'air', a: 'field', c: undefined, d: 'air' };
     const groups = groupByCategory(['d', 'a', 'b', 'c'], (n) => cats[n]);
-    expect(groups.map((g) => g.id)).toEqual(INSTRUMENT_CATEGORIES.map((c) => c.id));
-    expect(groups.find((g) => g.id === 'theremin')?.items).toEqual(['a', 'c']);
+    expect(groups.map((g) => g.id)).toEqual(INSTRUMENT_CLASSES.map((c) => c.id));
+    expect(groups.find((g) => g.id === 'field')?.items).toEqual(['a', 'c']);
     expect(groups.find((g) => g.id === 'air')?.items).toEqual(['d', 'b']);
   });
 
@@ -94,5 +101,25 @@ describe('an air instrument that plays the scale keeps describing it', () => {
     expect(ids[0]).toBe('sys:air:bass');
     expect(ids).toContain('sys:scale:pentatonicMinor');
     expect(ids.some((id) => id.startsWith('sys:note:'))).toBe(false);
+  });
+});
+
+describe('instrument classes (the ADR\'s PR 2)', () => {
+  it('has unique ids, each with a label, an emoji and a colour', () => {
+    const ids = INSTRUMENT_CLASSES.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of INSTRUMENT_CLASSES) {
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(c.emoji.length).toBeGreaterThan(0);
+      expect(c.colour).toMatch(/^hsl\(/);
+    }
+    expect(ids).toEqual(['field', 'air']);
+  });
+
+  it('normalises the former id `theremin` to `field` and rejects unknown ids', () => {
+    expect(normaliseClassId('theremin')).toBe('field');
+    expect(normaliseClassId('field')).toBe('field');
+    expect(normaliseClassId('air')).toBe('air');
+    expect(normaliseClassId('brass')).toBeUndefined();
   });
 });
