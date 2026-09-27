@@ -17,7 +17,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
+import { composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
+import { branchIdsFor, branchSetKey } from '@/instruments/derive';
+import { useDemandedGroups } from './useDemandedGroups';
+import type { NodeRegistry, GraphSpec } from '@/dag';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
@@ -96,7 +99,22 @@ export type RecordingPhase = 'idle' | 'settings' | 'recording' | 'saving';
  */
 function reportApplyFailure(engine: Engine, live: Engine | null, err: unknown): void {
   if (live !== engine) return;
-  console.error('[thoremin] could not apply the slot selection', err);
+  console.error('[thoremin] could not apply the instrument graph', err);
+}
+
+/**
+ * The graph the LIVE instrument needs right now (the instruments-as-graphs ADR, PR 3):
+ * the branches its dials and the live feature demand imply, composed for the slot
+ * selection. Writes the composed overlay element set to the hot store FIRST, so the
+ * overlay reads it through `store-controls` on the same tick the new graph commits, and
+ * never as a param (a param change would rebuild the overlay node on every switch).
+ */
+function liveGraph(selection: SlotSelection, registry: NodeRegistry): GraphSpec {
+  const controls = useControls.getState();
+  const ids = branchIdsFor(controls, { demanded: featureDemandResource(), featureLab: controls.featureLab });
+  const composed = composeInstrumentGraph(ids, selection, registry);
+  controls.setGraphElements(composed.elements);
+  return composed.spec;
 }
 
 export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: SlotSelection = NO_SLOTS) {
@@ -135,6 +153,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
   const slotsKey = slotSelectionKey(slots);
+  // The branch SET the current dials and demand imply, as a key: it changes on an
+  // instrument switch, on a dial that adds or drops a capability, and on a tool's claim.
+  // Unrelated dial edits leave it alone, so the re-apply effect below never fires for them.
+  const demanded = useDemandedGroups();
+  const branchKey = useControls((s) => branchSetKey(branchIdsFor(s, { demanded, featureLab: s.featureLab })));
 
   useEffect(() => {
     let disposed = false;
@@ -267,7 +290,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // back (with a warning) on anything that would not satisfy the slot
         // contract, so a stale URL can never produce an unbuildable graph.
         let builtKey = slotSelectionKey(slotsRef.current);
-        const engine = new Engine(defaultGraph(slotsRef.current, registry), registry, { resources });
+        const engine = new Engine(liveGraph(slotsRef.current, registry), registry, { resources });
 
         // Trainer mode (#160) needs to see the same feature vector the Lab meters read.
         // Attached once, for the engine's whole life: it is one object spread per tick
@@ -305,7 +328,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         if (slotSelectionKey(slotsRef.current) !== builtKey) {
           builtKey = slotSelectionKey(slotsRef.current);
           void engine
-            .applyGraph(defaultGraph(slotsRef.current, registry), registry)
+            .applyGraph(liveGraph(slotsRef.current, registry), registry)
             .catch((err) => reportApplyFailure(engine, engineRef.current, err));
         }
 
@@ -519,9 +542,24 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const registry = registryRef.current;
     if (!engine || !registry) return;
     void engine
-      .applyGraph(defaultGraph(slotsRef.current, registry), registry)
+      .applyGraph(liveGraph(slotsRef.current, registry), registry)
       .catch((err) => reportApplyFailure(engine, engineRef.current, err));
   }, [slotsKey]);
+
+  // Re-wire the LIVE engine when the branch set changes (an instrument switch, a dial that
+  // turns a capability on or off, a tool's feature demand). Same mechanism as the slot
+  // swap: `applyGraph` keeps every node whose id, type and params are unchanged, so the
+  // trunk (camera, hand model, synth, overlay) plays on and only the branch nodes come and
+  // go. On mount this finds no engine yet and no-ops; the build effect composes the same
+  // set itself. `applyGraph` serialises overlapping calls, so a burst of changes is safe.
+  useEffect(() => {
+    const engine = engineRef.current;
+    const registry = registryRef.current;
+    if (!engine || !registry) return;
+    void engine
+      .applyGraph(liveGraph(slotsRef.current, registry), registry)
+      .catch((err) => reportApplyFailure(engine, engineRef.current, err));
+  }, [branchKey]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.
   // This is the host-level catch-all mute (belt-and-suspenders with the in-graph

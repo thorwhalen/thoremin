@@ -27,9 +27,7 @@ import { createFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
-import { matrixToHeadPose, type FaceFrame, type FaceMapping, type FaceStatus } from '../domain';
-import type { DemandedGroups } from '@/features/demand';
-import { demandWantsFace, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
+import { matrixToHeadPose, type FaceFrame, type FaceStatus } from '../domain';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm
@@ -107,11 +105,6 @@ interface TasksVisionModule {
 
 /** Reads the face-mapping mode off the live controls snapshot. `faceMapping`
  * supersedes the legacy boolean `faceEnabled` (kept for back-compat / tests). */
-type FaceControlsGetter = () => {
-  faceEnabled?: boolean;
-  faceMapping?: FaceMapping;
-  featureLab?: FeatureLabConfig;
-};
 
 /**
  * Should the face model be loaded and run?
@@ -132,16 +125,6 @@ type FaceControlsGetter = () => {
  * Exported so the app shell can tell the player the face camera is running for any of
  * these reasons (the FaceChip), and so the rule is directly testable.
  */
-export function faceActive(
-  controls: ReturnType<FaceControlsGetter> | undefined,
-  demanded: DemandedGroups = null,
-): boolean {
-  if (demandWantsFace(demanded)) return true;
-  if (!controls) return false;
-  if (labWantsFace(controls.featureLab)) return true;
-  if (controls.faceMapping !== undefined) return controls.faceMapping !== 'none';
-  return controls.faceEnabled === true;
-}
 
 export const webcamFaceNode = defineNode<Params>({
   type: 'webcam-face',
@@ -264,19 +247,15 @@ export const webcamFaceNode = defineNode<Params>({
       },
       process(_inputs, ctx: NodeContext) {
         video = (ctx.resources.video as HTMLVideoElement | undefined) ?? video;
-        const getControls = ctx.resources.controls as FaceControlsGetter | undefined;
-        const getDemand = ctx.resources.featureDemand as (() => DemandedGroups) | undefined;
-        const enabled = faceActive(getControls?.(), getDemand?.() ?? null);
-        if (!enabled) {
-          // Release the model if one is loaded/loading; also clear a prior
-          // failure latch so a deliberate re-enable retries the load.
-          if (landmarker || loading || failedGen === loadGen) offload();
-          return { face: ABSENT_FRAME, status: statusOf(false) };
-        }
-        // Only spin up the model once we actually have a camera feed (so we
-        // never download a face model with no <video> — e.g. headless).
+        // No per-tick gate (the instruments-as-graphs ADR, §3.5): this node is in the
+        // graph only while an instrument's face mapping, a face-group demand or the Lab
+        // wants the face (`branchIdsFor`), and it is removed, and disposed, when none
+        // does. Only spin up the model once we actually have a camera feed (so we never
+        // download a face model with no <video> — e.g. headless).
         if (video) ensureLoaded();
-        return { face: latest, status: statusOf(true) };
+        // Idle until a video exists (headless, or before the camera is granted): with no
+        // frames there is nothing to load, and nothing to report as loading.
+        return { face: latest, status: statusOf(Boolean(video)) };
       },
       dispose() {
         disposed = true;

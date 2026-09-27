@@ -126,14 +126,19 @@ describe('the payoff: the whole body path runs with no camera', () => {
     expect(Math.abs(hipMid.y)).toBeLessThan(1e-9);
   });
 
-  it('the live webcam-body node is a well-defined no-op with no camera and no dial', () => {
-    // The default graph, no resources at all: the body node must emit the EMPTY frame
-    // (never `undefined`) and an idle status, and must not try to load anything.
+  it('the live webcam-body node is a well-defined no-op with no camera', () => {
+    // The full graph, no resources at all: the body node must emit the EMPTY frame (never
+    // `undefined`) and must not load anything. Since the instruments-as-graphs ADR (PR 3)
+    // the node has no per-tick gate (it exists only while a branch wants it), so with no
+    // camera its status is the gate's honest answer, `unavailable` / `no-camera`, and
+    // nothing is imported.
     const reg = appRegistry();
     const engine = new Engine(defaultGraph({ source: 'synthetic-hands' }, reg), reg, { validatePorts: true });
     expect(() => engine.tick()).not.toThrow();
     expect(engine.getOutput('camBody', 'body')).toEqual(EMPTY_BODY_FRAME);
-    expect((engine.getOutput('camBody', 'status') as { phase: string }).phase).toBe('off');
+    const status = engine.getOutput('camBody', 'status') as { phase: string; reason?: string };
+    expect(status.phase).toBe('unavailable');
+    expect(status.reason).toBe('no-camera');
   });
 
   it('a replay body with nothing to replay emits the empty frame, never nothing', () => {

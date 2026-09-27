@@ -107,6 +107,12 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
     position: true,
   },
   {
+    name: 'mouthCue',
+    label: 'Breath (air flute)',
+    toggles: [],
+    position: true,
+  },
+  {
     name: 'faceExpression',
     label: 'Face expression',
     toggles: [

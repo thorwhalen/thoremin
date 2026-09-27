@@ -112,14 +112,18 @@ describe('the slot selection reaches the graph', () => {
     // `defaultGraph()` with no arguments is the bug this guards: it silently
     // ignores every selection and validates nothing.
     expect(c).not.toMatch(/defaultGraph\(\s*\)/);
-    expect(c).toMatch(/new Engine\(\s*defaultGraph\(slotsRef\.current,\s*registry\)/);
+    expect(c).not.toMatch(/liveGraph\(\s*\)/);
+    expect(c).toMatch(/new Engine\(\s*liveGraph\(slotsRef\.current,\s*registry\)/);
   });
 
   it('re-wires the LIVE engine on a selection change instead of rebuilding it', () => {
     // Rebuilding would re-acquire the camera and reload both MediaPipe models to
     // change one node; applyGraph keeps every unchanged node (#51).
     const c = code(useEngine);
-    expect(c).toMatch(/\.applyGraph\(defaultGraph\(slotsRef\.current,\s*registry\)/);
+    expect(c).toMatch(/\.applyGraph\(liveGraph\(slotsRef\.current,\s*registry\)/);
+    // ...and on a change of the branch SET (an instrument switch, a dial that adds a
+    // capability, a tool's feature demand): the instruments-as-graphs ADR, PR 3.
+    expect(c).toMatch(/\}, \[\s*branchKey\s*\]\)/);
     // ...and it is actually TRIGGERED by a selection change. An applyGraph call
     // sitting in an effect that never re-runs is the #137 shape exactly: present,
     // correct, and never reached.

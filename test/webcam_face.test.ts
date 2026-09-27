@@ -193,27 +193,25 @@ const drainLoad = async (inst: ReturnType<typeof webcamFaceNode.make>, ctxArg: N
 };
 
 describe('webcam-face mapping-mode gating (#64)', () => {
-  it('enters the load path for timbre and chord, idle for none', async () => {
-    for (const mode of ['timbre', 'chord']) {
+  it('enters the load path as soon as a video is present (the node exists only while a mode or a demand wants it)', async () => {
+    // The per-tick gate moved to the branch derivation (the instruments-as-graphs ADR,
+    // PR 3): `faceMapping = none` is no longer this node's business; with no face branch
+    // composed the node is not in the graph at all.
+    for (const mode of ['timbre', 'chord', 'none']) {
       const inst = webcamFaceNode.make({ delegate: 'GPU' });
-      // `loading` (set synchronously in ensureLoaded) proves the enabled path ran.
+      // `loading` (set synchronously in ensureLoaded) proves the load path ran.
       const out = inst.process({}, ctxMode(mode, fakeVideo())) as { status: { phase: string } };
       expect(out.status.phase).toBe('loading');
       await drainLoad(inst, ctxMode(mode, fakeVideo())); // complete the load here, don't leak it
       inst.dispose?.();
     }
-    createFromOptions.mockClear();
-    const off = webcamFaceNode.make({ delegate: 'GPU' });
-    const out = off.process({}, ctxMode('none', fakeVideo())) as { status: { phase: string } };
-    expect(out.status.phase).toBe('idle');
-    expect(createFromOptions).not.toHaveBeenCalled();
   });
 });
 
 describe('webcam-face status port (#65)', () => {
-  it('reports idle when off and loading once a mode + video are present', async () => {
+  it('reports idle with no video and loading once a video is present', async () => {
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    expect((inst.process({}, ctxMode('none', fakeVideo())) as { status: unknown }).status).toEqual({
+    expect((inst.process({}, ctxMode('chord')) as { status: unknown }).status).toEqual({
       phase: 'idle',
       faceDetected: false,
     });

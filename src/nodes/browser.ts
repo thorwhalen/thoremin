@@ -19,7 +19,7 @@ import { pluckOutNode } from './output/pluck_out';
 
 export { webcamHandsNode } from './sources/webcam_hands';
 export { webcamFaceNode } from './sources/webcam_face';
-export { webcamBodyNode, bodyActive, resultToBodyFrame } from './sources/webcam_body';
+export { webcamBodyNode, resultToBodyFrame } from './sources/webcam_body';
 export { keyboardSourceNode } from './sources/keyboard';
 export { storeControlsNode } from './sources/store_controls';
 export { webAudioSynthNode } from './output/webaudio_synth';

@@ -132,7 +132,7 @@ export const faceChord = defineBranch({
   description: 'Expression to a diatonic chord: the expression classifier and the expression chord.',
   requires: ['face-source'],
   nodes: [
-    { id: 'faceExpr', type: 'face-expression', params: {} },
+    { id: 'faceExpr', slot: 'expression', params: {} },
     { id: 'exprChord', type: 'expression-chord', params: {} },
   ],
   edges: [
@@ -311,6 +311,7 @@ export const airFlute = defineBranch({
   description: 'The air flute: enrolled fingerings choose the note, an enrolled breath gates it (face inputs optional).',
   nodes: [{ id: 'airFlute', type: 'air-flute', params: {} }],
   edges: [
+    to({ node: 'airFlute', port: 'status' }, overlay('airFluteStatus')),
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'airFlute', port: 'hands' }),
     to({ node: 'faceVec', port: 'vector' }, { node: 'airFlute', port: 'face' }, true),
     to({ node: 'camFace', port: 'face' }, { node: 'airFlute', port: 'faceFrame' }, true),
@@ -320,6 +321,7 @@ export const airFlute = defineBranch({
     to(ui('octaveShift'), { node: 'airFlute', port: 'octaveShift' }),
   ],
   voices: [{ from: { node: 'airFlute', port: 'params' }, role: 'instrument' }],
+  overlay: ['mouthCue'],
 });
 
 /** Every branch, in composition order. Voice allocation follows this order. */
