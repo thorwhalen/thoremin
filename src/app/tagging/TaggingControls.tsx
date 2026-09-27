@@ -1,11 +1,16 @@
 /**
- * AnnotationControls (#92) — the single entry point mounted by `App` for live annotations.
- * It renders the launcher pill (bottom-center) that opens the {@link TaggingSheet}
- * setup surface, plus the always-on subscribers: the {@link TagButtonStack} (shown
- * while annotation mode is on) and the centered {@link Countdown}.
+ * AnnotationControls (#92) — what `App` mounts for live annotations, in two parts:
  *
- * Keeping these together behind one component keeps `App` changes minimal. Purely
- * presentational; the tagging store is the single source of truth.
+ *  - {@link AnnotationsButton}: the launcher pill that opens the {@link TaggingSheet}
+ *    setup surface. It sits in the bottom-right TAKE CLUSTER beside Record (Round 4,
+ *    #271): annotations are marks written into a take, so the two controls a player
+ *    reaches for during one sit together. It is laid out by its container, not
+ *    positioned on the screen;
+ *  - the default export, the always-on subscribers positioned on the screen: the
+ *    {@link TagButtonStack} (shown while annotation mode is on) and the centered
+ *    {@link Countdown}.
+ *
+ * Purely presentational; the tagging store is the single source of truth.
  *
  * VOCABULARY — three nearby nouns, kept deliberately distinct:
  *
@@ -31,32 +36,46 @@ import TagButtonStack from './TagButtonStack';
 import Countdown from './Countdown';
 import TaggingSheet from './TaggingSheet';
 
+/** The screen-positioned subscribers: the in-take button stack and the lead-in countdown. */
 export default function TaggingControls() {
+  return (
+    <>
+      <TagButtonStack />
+      <Countdown />
+    </>
+  );
+}
+
+/** The Annotations pill and its setup sheet, for the take cluster. The sheet is placed
+ *  against the CLUSTER (its nearest positioned ancestor): above it and flush with the
+ *  screen's right inset, so on a phone it cannot run off the left edge the way it did
+ *  when it hung off this pill, which sits left of Record. */
+export function AnnotationsButton() {
   const [open, setOpen] = useState(false);
   const mode = useTagging((s) => s.mode);
   const tagCount = useTagging((s) => s.defs.length);
 
   return (
-    <>
-      <TagButtonStack />
-      <Countdown />
-      <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-2">
-        {open && <TaggingSheet onClose={() => setOpen(false)} />}
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-label="Annotation mode"
-          aria-expanded={open}
-          className={`flex items-center gap-2 rounded-full px-4 py-2 text-[10px] font-bold uppercase tracking-widest backdrop-blur transition ${
-            mode ? 'bg-emerald-500 text-black' : 'bg-black/50 text-white/80 hover:text-white'
-          }`}
-        >
-          <Highlighter className="h-3.5 w-3.5" />
-          Annotations
-          {mode && tagCount > 0 && (
-            <span className="rounded-full bg-black/30 px-1.5 text-[9px] tabular-nums">{tagCount}</span>
-          )}
-        </button>
-      </div>
-    </>
+    <div className="flex flex-col items-end">
+      {open && (
+        <div className="absolute bottom-full right-0 mb-2 max-w-[calc(100vw-1.5rem)]">
+          <TaggingSheet onClose={() => setOpen(false)} />
+        </div>
+      )}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Annotation mode"
+        aria-expanded={open}
+        className={`flex items-center gap-2 rounded-full px-4 py-2 text-[10px] font-bold uppercase tracking-widest backdrop-blur transition ${
+          mode ? 'bg-emerald-500 text-black' : 'bg-black/50 text-white/80 hover:text-white'
+        }`}
+      >
+        <Highlighter className="h-3.5 w-3.5" />
+        Annotations
+        {mode && tagCount > 0 && (
+          <span className="rounded-full bg-black/30 px-1.5 text-[9px] tabular-nums">{tagCount}</span>
+        )}
+      </button>
+    </div>
   );
 }

@@ -140,7 +140,7 @@ export default function TaggingSheet({ onClose }: { onClose: () => void }) {
   const recording = useTagging((s) => s.take !== null);
 
   return (
-    <div className="max-h-[80vh] w-80 overflow-y-auto rounded-2xl bg-black/70 p-3 text-white/90 shadow-2xl backdrop-blur">
+    <div data-annotations-sheet className="max-h-[80vh] w-80 max-w-full overflow-y-auto rounded-2xl border border-white/10 bg-black/90 p-3 text-white/90 shadow-2xl backdrop-blur">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Annotation mode</span>
         <button

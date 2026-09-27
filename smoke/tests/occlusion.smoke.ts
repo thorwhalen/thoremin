@@ -26,6 +26,8 @@ const SYNTHETIC = '?slot.source=synthetic-hands';
 
 /** A tool's button in the bar. Scoped to the bar: a panel may carry `data-tool` too. */
 const barButton = (page: Page, id: string) => page.locator(`[data-tools-bar] [data-tool="${id}"]`);
+/** The tools the bar shows on a cold load (the shipped pins). */
+const PINNED = TOOLS.filter((t) => t.defaultPinned);
 
 /** The desktop viewports the shell is laid out for (the smallest common laptop, a large one). */
 const DESKTOP = [
@@ -60,12 +62,24 @@ async function expectPressable(page: Page, el: Locator, name: string) {
   expect(await occluder(el), `${name} is not covered by another surface`).toBeNull();
 }
 
-/** The shell's always-there controls: the tools bar, plus the three launchers beside it. */
-async function expectShellPressable(page: Page, { withRecord = true } = {}) {
-  for (const tool of TOOLS) await expectPressable(page, barButton(page, tool.id), `tool ${tool.id}`);
-  await expectPressable(page, page.getByRole('button', { name: 'Open assistant' }), 'assistant');
+/** The bar: the Tools launcher button and every pinned tool. */
+async function expectBarPressable(page: Page, { pins = true } = {}) {
+  await expectPressable(page, page.locator('[data-tools-launcher]'), 'the Tools launcher');
+  if (pins) for (const t of PINNED) await expectPressable(page, barButton(page, t.id), `tool ${t.id}`);
+}
+
+/** The shell's always-there controls: the bar, and the take cluster (Annotations, Record). */
+async function expectShellPressable(page: Page, { withRecord = true, pins = true } = {}) {
+  await expectBarPressable(page, { pins });
   await expectPressable(page, page.getByRole('button', { name: 'Annotation mode' }), 'annotations');
   if (withRecord) await expectPressable(page, page.getByRole('button', { name: 'Record' }), 'record');
+}
+
+/** Open a tool: its bar button if pinned, else through the launcher. */
+async function openTool(page: Page, tool: (typeof TOOLS)[number]) {
+  if (tool.defaultPinned) return barButton(page, tool.id).click();
+  await page.locator('[data-tools-launcher]').click();
+  await page.locator(`[data-launcher-tool="${tool.id}"]`).locator('button').first().click();
 }
 
 async function coldLoadPlaying(page: Page) {
@@ -120,10 +134,73 @@ for (const vp of DESKTOP) {
     for (const tool of TOOLS.filter((t) => t.kind === 'panel')) {
       test(`with the ${tool.label} panel open, the tools bar is still pressable`, async ({ page }) => {
         await coldLoadPlaying(page);
-        await barButton(page, tool.id).click();
+        await openTool(page, tool);
         await expect(page.getByRole('button', { name: new RegExp(`close the ${tool.label}`, 'i') })).toBeVisible();
-        for (const t of TOOLS) await expectPressable(page, barButton(page, t.id), `tool ${t.id}`);
+        await expectBarPressable(page);
       });
     }
+  });
+}
+
+test.describe('the Tools launcher', () => {
+  test.use({ viewport: DESKTOP[0] });
+
+  test('opens over an open tool panel, and every row and pin in it is pressable', async ({ page }) => {
+    await coldLoadPlaying(page);
+    await barButton(page, 'conductor').click();
+    await page.locator('[data-tools-launcher]').click();
+    const rows = page.locator('[data-launcher-tool]');
+    await expect(rows).toHaveCount(TOOLS.length);
+    for (let i = 0; i < TOOLS.length; i++) {
+      for (const el of [rows.nth(i).locator('a, button').first(), rows.nth(i).locator('button[aria-pressed]')]) {
+        expect(await occluder(el), `launcher row ${i}`).toBeNull();
+      }
+    }
+  });
+});
+
+/** Every visible control inside `root` lies within the viewport (nothing cut off). */
+async function expectOnScreen(page: Page, root: Locator, name: string) {
+  const vw = page.viewportSize()!.width;
+  const controls = root.locator('button, input, select');
+  for (let i = 0; i < (await controls.count()); i++) {
+    const b = await controls.nth(i).boundingBox();
+    if (!b) continue;
+    expect(b.x, `${name}: control ${i} starts on screen`).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width, `${name}: control ${i} ends on screen`).toBeLessThanOrEqual(vw);
+  }
+}
+
+for (const phone of [
+  { width: 390, height: 844 },
+  { width: 360, height: 740 },
+]) {
+  test.describe(`${phone.width}x${phone.height} (a phone)`, () => {
+    test.use({ viewport: phone });
+
+    test('cold load, playing: the launcher and the take cluster are pressable', async ({ page }) => {
+      await coldLoadPlaying(page);
+      // On a phone-width screen the bar is the launcher alone; the pins are one tap in.
+      await expectShellPressable(page, { pins: false });
+    });
+
+    test('the Annotations sheet opens fully on screen', async ({ page }) => {
+      await coldLoadPlaying(page);
+      await page.getByRole('button', { name: 'Annotation mode' }).click();
+      const sheet = page.locator('[data-annotations-sheet]');
+      await expect(sheet).toBeVisible();
+      const box = (await sheet.boundingBox())!;
+      expect(box.x, 'the sheet starts on screen').toBeGreaterThanOrEqual(0);
+      await expectOnScreen(page, sheet, 'annotations sheet');
+    });
+
+    test('during a take, the take cluster does not cover the Tools button', async ({ page }) => {
+      await coldLoadPlaying(page);
+      await page.getByRole('button', { name: 'Record' }).click();
+      await page.getByRole('button', { name: /rec now/i }).click();
+      await expect(page.getByRole('button', { name: /stop recording|saving recording/i })).toBeVisible();
+      await expectPressable(page, page.locator('[data-tools-launcher]'), 'the Tools launcher');
+      await expectPressable(page, page.getByRole('button', { name: /stop recording/i }), 'stop recording');
+    });
   });
 }

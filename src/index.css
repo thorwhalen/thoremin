@@ -90,12 +90,13 @@
    --tools-bar-h      the tools bar's live height. ToolsBar measures itself and writes it
                       (the bar wraps to more rows on a narrow screen, so no constant is
                       right); 2rem is one row, for the first paint.
-   --shell-corner-br  the bottom-right stack the Instruments panel must end above: the
-                      assistant launcher (AssistantOverlay: bottom-16 + h-11 = 6.75rem)
-                      over the Record button, plus a 0.5rem gap. */
+   --shell-corner-br  the bottom-right take cluster the Instruments panel must end above
+                      (App: Annotations + Record, one row of pills at bottom-3, 2.25rem),
+                      plus a 0.5rem gap. Only the resting row: a sheet the player opens
+                      from it stacks over the panel (z-50) instead of shrinking it. */
 :root {
   --tools-bar-h: 2rem;
-  --shell-corner-br: 7.25rem;
+  --shell-corner-br: 3.5rem;
 }
 /* A tool's panel (Feature Lab, Gestures, Conductor, Trainer) sits above the tools bar,
    however many rows the bar has wrapped to. 0.75rem is the bar's own bottom inset. */

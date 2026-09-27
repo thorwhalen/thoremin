@@ -89,7 +89,7 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
     });
 
   return (
-    <div className="w-72 rounded-2xl bg-black/70 p-3 text-white/90 shadow-2xl backdrop-blur">
+    <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-white/10 bg-black/90 p-3 text-white/90 shadow-2xl backdrop-blur">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">
           Recording
@@ -254,7 +254,9 @@ function Hud({ recording }: { recording: RecordingControls }) {
       {!saving && (
         <>
           <span className="tabular-nums">{fmtElapsed(recording.elapsedMs)}</span>
-          <span className="font-normal normal-case tracking-normal text-white/70">
+          {/* The stream list is what makes the HUD wide; on a phone it would push the
+              take cluster over the Tools button. */}
+          <span className="font-normal normal-case tracking-normal text-white/70 max-sm:hidden">
             {recording.activeStreams.join(' · ')}
           </span>
         </>
@@ -264,11 +266,11 @@ function Hud({ recording }: { recording: RecordingControls }) {
 }
 
 export default function RecordButton({ recording }: { recording: RecordingControls }) {
-  // z-50: the settings sheet grows up out of this corner, over the Instruments panel and
-  // the assistant launcher. It is the surface the player just asked for, so it goes on
-  // top; unstacked, it opened BENEATH the panel, a blur of controls nobody could press.
+  // Laid out by the take cluster in App (bottom-right, z-50, beside Annotations): the
+  // settings sheet grows up out of the corner over the Instruments panel, the surface the
+  // player just asked for on top. Unstacked, it once opened BENEATH the panel.
   return (
-    <div className="absolute bottom-3 right-3 z-50 flex flex-col items-end">
+    <div className="relative flex flex-col items-end">
       {recording.phase === 'idle' && (
         <button
           onClick={() => recording.open()}

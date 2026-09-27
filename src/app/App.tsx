@@ -26,11 +26,12 @@ import { demandWantsFace, labWantsFace } from '@/features/labConfig';
 import { useDemandedGroups } from './useDemandedGroups';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import RecordButton from './RecordButton';
-import TaggingControls from './tagging/TaggingControls';
+import TaggingControls, { AnnotationsButton } from './tagging/TaggingControls';
 import Toaster from './Toaster';
 import CommandPaletteOverlay from './CommandPaletteOverlay';
 import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import ToolsBar from './ToolsBar';
+import ToolsLauncher from './ToolsLauncher';
 import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
@@ -171,10 +172,12 @@ export default function App({
       <MutedBadge />
       <HushBadge />
 
-      {/* Bottom-left: the tools bar — one labelled button per registered shell tool
-          (Feature Lab, command palette, manual). This is the app's answer to "what else
-          is here": a tool with no entry point here is a tool nobody will ever find (#136). */}
+      {/* Bottom-left: the tools bar — the Tools launcher (every registered shell tool,
+          labelled and described) and a button per pinned tool (Round 4, #271). This is
+          the app's answer to "what else is here": a tool with no entry point here is a
+          tool nobody will ever find (#136). */}
       <ToolsBar />
+      <ToolsLauncher />
 
       {/* The Feature Lab's surface (#119/#136) — renders when its tool is the open one. */}
       <LabPanel />
@@ -189,19 +192,25 @@ export default function App({
       {/* The conductor's score (#187 PR 3): loads the selected piece when conducting is on. */}
       <ScoreLoader />
 
-      {/* Bottom-right: the multi-stream recorder (#88) — a button that morphs into
-          a settings sheet (out-of-instrument config) then a compact HUD. Available
-          once audio is running. */}
-      {audioOn && <RecordButton recording={recording} />}
-
-      {/* Live annotations (#92): the launcher + setup sheet, the in-take button stack
-          (left edge), and the centered lead-in countdown. Available once the engine
-          is ready; tapping an annotation during a recording writes a time-aligned
-          annotations.jsonl into the take folder. */}
+      {/* Live annotations (#92): the in-take button stack (left edge) and the centered
+          lead-in countdown. Their launcher pill is in the take cluster below. */}
       {status === 'ready' && <TaggingControls />}
 
       {/* Top-right: the instruments surface (the list + the per-instrument editor). */}
       <InstrumentsPanel />
+
+      {/* Bottom-right: the TAKE CLUSTER (Round 4, #271) — the two controls a player uses
+          during a take, together. Annotations (#92; available once the engine is ready;
+          an annotation tapped during a recording is written into the take) and the
+          multi-stream recorder (#88; a button that morphs into a settings sheet then a
+          compact HUD, once audio is running). z-50: a sheet either opens grows up over
+          the Instruments panel, the surface the player just asked for on top. Its width
+          stops short of the Tools button (9rem from the left), wrapping to a second row
+          on a narrow phone rather than covering the only bar entry there. */}
+      <div className="absolute bottom-3 right-3 z-50 flex max-w-[calc(100vw-9rem)] flex-wrap items-end justify-end gap-2">
+        {status === 'ready' && <AnnotationsButton />}
+        {audioOn && <RecordButton recording={recording} />}
+      </div>
 
       {/* Center: prominent call-to-action until audio is running (the browser
           requires a user gesture to start audio). */}
@@ -250,7 +259,8 @@ export default function App({
       <CommandPaletteOverlay />
 
       {/* AI assistant — chat that parametrizes the instrument via the same command
-          registry, behind a BYO-key multi-provider client-side backend (#87 Phase 3). */}
+          registry, behind a BYO-key multi-provider client-side backend (#87 Phase 3).
+          A registered tool: it renders when opened from the Tools launcher or its pin. */}
       <AssistantOverlay />
     </div>
   );
