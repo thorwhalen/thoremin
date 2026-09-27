@@ -7,9 +7,9 @@
  * The injected getter returns a {@link ControlSnapshot}; if absent the node
  * emits nothing (safe in tests / before the host wires it up).
  */
-import type { PatternPlay } from '@/drums/pattern_play';
 import { z } from 'zod';
 import { defineNode } from '@/dag';
+import type { Extension } from '@/instruments/extension';
 import type { NodeContext } from '@/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { SoundId } from '@/music/sounds';
@@ -109,8 +109,6 @@ export interface ControlSnapshot {
   airFlute?: AirFluteSettings;
   airFluteFingerModel?: TrainedModel | null;
   airFluteMouthModel?: TrainedModel | null;
-  /** #269: the drum pattern in play (pattern + model), or null. */
-  airDrumPattern?: PatternPlay | null;
   /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
@@ -147,7 +145,14 @@ export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'mute
   return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || conducting, claimed };
 }
 
-export const storeControlsNode = defineNode<Record<string, never>>({
+/**
+ * Build the UI-bridge node for a set of extensions: the hand-written trunk ports plus one
+ * whole-object port per extension dial slice and one per declared transient field (the
+ * instruments-as-graphs ADR, §3.5 and seam 6). `NodeDef.outputs` is static, so the ports
+ * are decided here, once, when the registry is built (`createAppRegistry`).
+ */
+export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
+  return defineNode<Record<string, never>>({
   type: 'store-controls',
   roles: ['source', 'control'],
   title: 'UI Controls',
@@ -199,20 +204,14 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
     { name: 'conductor', kind: 'conductor-config' },
-    { name: 'airDrum', kind: 'air-drum-config' },
-    { name: 'airBass', kind: 'air-bass-config' },
-    { name: 'airGuitar', kind: 'air-guitar-config' },
-    { name: 'airGuitarModel', kind: 'shape-model' },
-    { name: 'airFlute', kind: 'air-flute-config' },
-    { name: 'airFluteFingerModel', kind: 'shape-model' },
-    { name: 'airFluteMouthModel', kind: 'shape-model' },
-    { name: 'airDrumPattern', kind: 'drum-pattern' },
     // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
     // The composed graph's overlay element set (the instruments-as-graphs ADR, §3.2 rule
     // 4): data on a port, never an overlay param, so a switch keeps the overlay instance.
     { name: 'graphElements', kind: 'string[]' },
+    ...extensions.flatMap((e) => e.dials.map((slice) => ({ name: slice.key, kind: slice.kind }))),
+    ...extensions.flatMap((e) => (e.transient ?? []).map((t) => ({ name: t.field, kind: t.kind }))),
   ],
   params: Params,
   make() {
@@ -273,15 +272,14 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         // Same rule as faceControls: absent → the node keeps its build-time starter strains.
         if (c.steer?.config) out.steerConfig = c.steer.config;
         if (c.conductor) out.conductor = c.conductor;
-        if (c.airDrum) out.airDrum = c.airDrum;
-        if (c.airBass) out.airBass = c.airBass;
-        if (c.airGuitar) out.airGuitar = c.airGuitar;
-        // Always emitted, null included: clearing the enrolled chords must reach the node.
-        out.airGuitarModel = c.airGuitarModel ?? null;
-        if (c.airFlute) out.airFlute = c.airFlute;
-        out.airFluteFingerModel = c.airFluteFingerModel ?? null;
-        out.airFluteMouthModel = c.airFluteMouthModel ?? null;
-        out.airDrumPattern = c.airDrumPattern ?? null;
+        // The extensions' whole-object dials (absent → the node keeps its build-time params)
+        // and their transient fields (always emitted, null included: clearing an enrolment
+        // must reach the node). Both lists are GENERATED from the manifests (seam 6).
+        const snapshot = c as unknown as Record<string, unknown>;
+        for (const slice of extensions.flatMap((e) => e.dials)) {
+          if (snapshot[slice.key]) out[slice.key] = snapshot[slice.key];
+        }
+        for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {
@@ -315,3 +313,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     };
   },
 });
+}
+
+/** The core-only bridge (no extension ports): what a graph with no extensions, or a test, wires. */
+export const storeControlsNode = makeStoreControlsNode();

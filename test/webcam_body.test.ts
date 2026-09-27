@@ -7,7 +7,8 @@
  * also after a FAILED load — and releases on disable.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { branchIdsFor, type DerivationContext } from '@/instruments/derive';
+import { branchIdsFor } from '@/app/graph';
+import { type DerivationContext } from '@/instruments/derive';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import type { NodeContext } from '@/dag';

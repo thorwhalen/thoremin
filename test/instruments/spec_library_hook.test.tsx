@@ -61,6 +61,9 @@ describe('useLibrary: the spec surface', () => {
     expect(spec.image).toBe('gallery/pentatonic.png');
     const meta = await readInstrumentMeta();
     expect(meta.Pentatonic).toMatchObject({ branches: ['field-voices', 'conductor'], training: { route: 'trainer/sequence' }, image: 'gallery/pentatonic.png' });
+    // An EXTENSION's branch id is a known id too (the set is the build's, not the core's).
+    act(() => result.current.setBranches('Air Drum', ['air-drum', 'not-a-branch']));
+    await waitFor(() => expect(result.current.branchesOf('Air Drum')).toEqual(['air-drum']));
     // Clearing goes back to "derive".
     act(() => result.current.setBranches('Pentatonic', null));
     await waitFor(() => expect(result.current.branchesOf('Pentatonic')).toBeUndefined());
