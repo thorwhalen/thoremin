@@ -10,13 +10,21 @@ import type { SystemTag } from './systemTags';
 export default function InstrumentTags({
   systemTags,
   customTags,
+  inline = false,
 }: {
   systemTags: SystemTag[];
   customTags: Tag[];
+  /** On the row's own line (right-aligned before its buttons) rather than a line below. */
+  inline?: boolean;
 }) {
   if (systemTags.length === 0 && customTags.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1 pl-6 pr-2 pb-1.5">
+    <div
+      className={
+        // Inline, the tags give way before the name does: they clip, the name keeps its room.
+        inline ? 'flex min-w-0 shrink items-center gap-0.5 overflow-hidden' : 'flex flex-wrap items-center gap-1 pl-6 pr-2 pb-1.5'
+      }
+    >
       {systemTags.map((t) => (
         <span
           key={t.id}

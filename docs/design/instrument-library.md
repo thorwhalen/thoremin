@@ -177,7 +177,11 @@ The maintainer's rule: *zodal objects specify the affordances of the collection 
 - **The query state** is `@zodal/ui`'s generated zustand slice (`instrumentsCatalog.ts`). A view hands over the specs, the search text and the sort, and reads `items`.
 - **The rendering** is `InstrumentsPanel`'s list. It is a temporary in-repo stand-in for zodal's collection-view renderer ([i2mint/zodal#14](https://github.com/i2mint/zodal/issues/14)), as the remembered view choices will be for [i2mint/zodal#15](https://github.com/i2mint/zodal/issues/15); both are tracked in [#283](https://github.com/thorwhalen/thoremin/issues/283). Facet counts come from `@zodal/groups-core`'s `facetPanel` (no stand-in needed).
 
-What follows on this seam, each an addition rather than a rewrite: one line per instrument, the class colour and collapsible classes (option A); a search over tags, class and features with facet chips (option B, which widens `INSTRUMENT_SEARCH_FIELDS` and adds filters); and a gallery view (a second rendering of the same collection, `views: ['list', 'grid']`, with the last choice remembered).
+What follows on this seam, each an addition rather than a rewrite:
+
+- **Option A (shipped).** One line per instrument: the name, its tags inline, the star and the gear, with a stripe down the row in its class's colour (`INSTRUMENT_CLASSES[].colour`, the class registry's SSOT) and a swatch on the class heading. Each class heading collapses its class (the collection declares `groupBy.collapsible`, open by default). A collapsed class keeps its count and names the instrument being played when it is in there, so the list never hides what you hear. The collapsed classes are remembered per browser: a Zod-schema'd record through a `DataProvider` (`instrumentsViewPrefs.ts`), the stand-in for [i2mint/zodal#15](https://github.com/i2mint/zodal/issues/15). The help paragraph under the list is gone; each row's tooltip says what the instrument does. All 17 shipped instruments fit at 1440x900 with no scrolling.
+- **Option B.** A search over tags, class and features, with facet chips. It widens `INSTRUMENT_SEARCH_FIELDS`, adds filters, and takes its counts from `@zodal/groups-core`'s `facetPanel`.
+- **The gallery.** A second rendering of the same collection (`views: ['list', 'grid']`), with the last choice remembered in the same view-prefs record.
 
 ## Sparse layers, resolved
 
