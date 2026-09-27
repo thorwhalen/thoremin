@@ -133,6 +133,9 @@ describe('the Air instruments category (#249)', () => {
     const section = document.querySelector('details[data-section]') as HTMLElement;
     expect(section.getAttribute('data-section')).toBe('Air flute');
     expect(within(section).getByLabelText('Note to learn')).toBeTruthy();
+    // #263: the sequence trainer and the fingering chart's dials live in the same section.
+    expect(within(section).getByText('Learn a sequence of notes')).toBeTruthy();
+    expect(within(section).getByTestId('flute-chart')).toBeTruthy();
     expect(within(section).getByText('Learn blowing')).toBeTruthy();
     expect(within(section).getByText('Learn resting')).toBeTruthy();
     // Fingers only: the breath enrolment goes away. (First let the editor's own

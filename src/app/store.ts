@@ -753,7 +753,10 @@ export const useControls = create<ControlState>()(
       // v17 (#249): `airFlute` added the same way.
       // v18: the trainer HUD pref's default flipped to off (the Trainer's banner is the
       // on-screen instruction now); migrateControls carries a returning player across.
-      version: 18,
+      // v19 (#263): `airFlute.prior` added (the fingering-chart prior: on, the flute
+      // chart, strength 10, C4..C#6). ADDITIVE with a default, healed by mergeControls'
+      // schema parse, so no data transform is needed; the bump marks the schema growth.
+      version: 19,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

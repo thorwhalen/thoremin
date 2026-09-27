@@ -27,6 +27,7 @@ import { AirDrumDialSchema } from '@/nodes/music/air_drum';
 import { AirBassDialSchema } from '@/nodes/music/air_bass';
 import { AirGuitarDialSchema } from '@/nodes/music/air_guitar';
 import { AirFluteDialSchema } from '@/nodes/music/air_flute';
+import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from '@/air/fingering_prior';
 
 /** The piece id that means "the built-in demo scale" (no document loaded). */
 export const BUILTIN_PIECE = 'builtin';
@@ -57,9 +58,13 @@ export const DEFAULT_AIR_BASS: AirBassSettings = AirBassSettingsSchema.parse({})
 export const AirGuitarSettingsSchema = AirGuitarDialSchema;
 export type AirGuitarSettings = z.infer<typeof AirGuitarSettingsSchema>;
 export const DEFAULT_AIR_GUITAR: AirGuitarSettings = AirGuitarSettingsSchema.parse({});
-/** The air flute (#249): the `air-flute` node's params ARE the dial. Its enrolled
- *  fingerings and mouth states are zodal collections, like the guitar's chords. */
-export const AirFluteSettingsSchema = AirFluteDialSchema;
+/** The air flute (#249): the `air-flute` node's params ARE the dial, plus the fingering
+ *  prior (#263), which the node never sees (the vocabulary store fuses it into the
+ *  finger model the node is handed; the node's partial parse strips the extra key). Its
+ *  enrolled fingerings and mouth states are zodal collections, like the guitar's chords. */
+export const AirFluteSettingsSchema = AirFluteDialSchema.extend({
+  prior: FingeringPriorSettingsSchema.default(DEFAULT_FINGERING_PRIOR),
+});
 export type AirFluteSettings = z.infer<typeof AirFluteSettingsSchema>;
 export const DEFAULT_AIR_FLUTE: AirFluteSettings = AirFluteSettingsSchema.parse({});
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';

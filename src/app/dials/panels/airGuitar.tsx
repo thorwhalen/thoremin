@@ -22,6 +22,10 @@ import { AIR_GUITAR_NODE_ID, describeGuitarLive, useAirGuitarStatus } from '../.
 import { readShape } from '../../air/shapeTap';
 import { VocabularyEnrolment, type EnrolmentWords } from '../../air/VocabularyEnrolment';
 import { useGuitarVocabulary } from '../../air/vocabularyStore';
+import { SequenceTrainer, type SequenceTrainerWords } from '../../air/SequenceTrainer';
+import { GUITAR_STARTER_SEQUENCES } from '../../enroll/sequenceStore';
+import { useControls } from '../../store';
+import { checkTake } from '@/air/fingering_prior';
 import { parseChordName } from '@/music/guitar';
 import { PLAYER_HANDS } from '@/nodes/music/air_bass';
 import { STRUM_POINTS, type AirGuitarDialParams } from '@/nodes/music/air_guitar';
@@ -69,6 +73,13 @@ const CHORD_WORDS: EnrolmentWords = {
   noShapeError: 'No chord hand was seen. Keep it in front of the camera, and check the air guitar is on.',
 };
 
+const SEQUENCE_WORDS: SequenceTrainerWords = {
+  title: 'Learn a sequence of chords',
+  noun: 'chord',
+  placeholder: 'Or type chords: G C D Em (x2 repeats one)',
+  offHint: 'Turn the air guitar on to run a sequence (it watches your chord hand).',
+};
+
 /** Name a chord, hold its shape, and the guitar learns it. */
 export function ChordEnrolment({ enabled }: { enabled: boolean }) {
   return (
@@ -97,6 +108,19 @@ export function AirGuitarControls() {
         Play the air guitar
       </label>
       <ChordEnrolment enabled={enabled} />
+      <SequenceTrainer
+        enabled={enabled}
+        useVocabulary={useGuitarVocabulary}
+        readShape={() => readShape(AIR_GUITAR_NODE_ID)}
+        canonical={(typed) => parseChordName(typed)?.name ?? null}
+        makeCheck={() => {
+          // Against what is enrolled so far: a G held when C was asked, once both are known.
+          const model = useControls.getState().airGuitarModel;
+          return model ? (label, samples) => checkTake(model, label, samples) : undefined;
+        }}
+        starters={GUITAR_STARTER_SEQUENCES}
+        words={SEQUENCE_WORDS}
+      />
       <p className="text-[10px] leading-relaxed text-white/50">
         Hold one of your chord shapes with one hand and strum down with the other: the strum is
         heard at the moment it lands, predicted before the camera sees it.
