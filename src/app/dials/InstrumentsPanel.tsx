@@ -26,7 +26,7 @@
  * {@link useLibrary}; the single default pointer via {@link useInstruments}.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Music2, Settings, X, ArrowLeft, Star, Search, Tags, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Music2, Settings, X, ArrowLeft, Star, Search, Tags, Check, ChevronDown, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import DialsControlsPanel from './DialsControlsPanel';
 import { useInstruments } from './useInstruments';
 import { useDialsSettings } from './useDialsSettings';
@@ -37,11 +37,12 @@ import { TrainingLink } from '@/app/training/TrainingLink';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
 import { AIR_INSTRUMENTS, airInstrumentsOf, groupByCategory, type AirInstrumentId } from '@/app/library/category';
-import { assembleSpec } from '@/app/graph';
-import { type InstrumentSpec } from '@/instruments/spec';
+import { assembleSpec, type InstrumentSpec } from '@/instruments/spec';
 import { instrumentsCollection, type InstrumentSort } from '@/app/library/instrumentsCollection';
 import { queryInstruments, useInstrumentsCatalog } from '@/app/library/instrumentsCatalog';
 import { useInstrumentsView } from '@/app/library/instrumentsViewPrefs';
+import { listingOf, whyMatched, type Listing } from '@/app/library/instrumentsListing';
+import { chipValue, facetView, type FacetFamilyId, type FacetSelection } from '@/app/library/instrumentsFacets';
 import { INSTRUMENT_CLASSES } from '@/instruments/classes';
 
 /** A class's colour (the class registry's SSOT), for the row stripe and the heading swatch. */
@@ -98,18 +99,62 @@ export default function InstrumentsPanel() {
     library.derivedReady && view === 'list'
       ? list.map((p) => library.specOf(p.name) ?? undecidedSpec(p.name, library.categoryOf(p.name)))
       : [];
-  const specsSig = JSON.stringify(specs);
+  // Each spec with what the library knows about it: its search text, its facets and the
+  // reasons a query can match it (option B of #272; `instrumentsListing.ts`).
+  const listings: Listing[] = specs.map((spec) =>
+    listingOf(spec, {
+      customTags: library.customTagsOf(spec.name),
+      systemTags: library.systemTagsOf(spec.name),
+      summary: (() => {
+        const sum = library.summaryOf(spec.name);
+        return sum ? summaryLines(sum) : [];
+      })(),
+    }),
+  );
+  const listingById = new Map(listings.map((l) => [l.item.id, l]));
+  const specsSig = JSON.stringify(listings.map((l) => l.item));
   const [queried, setQueried] = useState(false);
   useEffect(() => {
     if (!library.derivedReady || view !== 'list') return;
     let live = true;
-    void queryInstruments(specs, query, sort).then(() => live && setQueried(true));
+    void queryInstruments(
+      listings.map((l) => l.item),
+      query,
+      sort,
+    ).then(() => live && setQueried(true));
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- specsSig stands for specs
   }, [specsSig, query, sort, library.derivedReady, view]);
-  const shown = useInstrumentsCatalog((s) => s.items);
+  const matched = useInstrumentsCatalog((s) => s.items);
+  // The facets narrow what the search kept; their counts come from @zodal/groups-core
+  // (`instrumentsFacets.ts`). The selection is per visit: a filter remembered across visits
+  // would hide instruments from a player who has forgotten setting it.
+  const [facetSel, setFacetSel] = useState<FacetSelection>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Keyed on what it reads: the panel re-renders on every dial write while the list shows.
+  const matchedSig = matched.map((m) => m.id).join('\n');
+  const facets = useMemo(
+    () =>
+      facetView(
+        listings.map((l) => l.facet),
+        matched.map((m) => m.id),
+        facetSel,
+        { order: { class: INSTRUMENT_CLASSES.map((c) => c.id) } },
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the sigs stand for listings and matched
+    [specsSig, matchedSig, facetSel],
+  );
+  const shown = matched.filter((m) => facets.allowed.has(m.id));
+  const activeFilters = Object.values(facetSel).reduce((n, set) => n + (set?.size ?? 0), 0);
+  const toggleFacet = (family: FacetFamilyId, value: string) =>
+    setFacetSel((cur) => {
+      const next = new Set(cur[family] ?? []);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return { ...cur, [family]: next };
+    });
   const collapsed = useInstrumentsView((s) => s.collapsed);
   const toggleCollapsed = useInstrumentsView((s) => s.toggleCollapsed);
   useEffect(() => {
@@ -277,7 +322,7 @@ export default function InstrumentsPanel() {
   // One place to choose any instrument (#249): the list is grouped by the instrument's
   // derived category (theremin / air), and every row is chosen the same way.
   const groups = groupByCategory(shown, (p) => p.class);
-  const searching = query.trim().length > 0;
+  const searching = query.trim().length > 0 || activeFilters > 0;
   const isGroupCollapsed = (id: string, size: number) => !searching && size > 0 && collapsed.includes(id);
 
   // One line per instrument (option A of #272): a stripe in its class's colour, the name,
@@ -318,7 +363,13 @@ export default function InstrumentsPanel() {
             title={tooltipFor(p.name)}
             onClick={() => select(p.name)}
           >
-            <span className="truncate">{p.name}</span>
+            {/* The name keeps its room; a match reason beside it clips first. */}
+            <span className="max-w-[75%] shrink-0 truncate">{p.name}</span>
+            {(() => {
+              // A match that is not in the name says why (a tag, a summary line).
+              const why = whyMatched(p.name, listingById.get(p.id)?.reasons ?? [], query);
+              return why ? <span className="min-w-0 truncate text-[9.5px] text-white/40">{why}</span> : null;
+            })()}
             {isDefault && (
               <span className="shrink-0 text-[9px] uppercase tracking-widest text-amber-300/70">(default)</span>
             )}
@@ -401,10 +452,84 @@ export default function InstrumentsPanel() {
                   <option value="star">Sort: starred</option>
                   <option value="name">Sort: name</option>
                 </select>
+                <button
+                  type="button"
+                  // While a filter is on, the chips stay (what is filtered is always visible),
+                  // so the toggle has nothing to hide: it says how to close them instead.
+                  onClick={() => activeFilters === 0 && setFiltersOpen((o) => !o)}
+                  aria-expanded={filtersOpen || activeFilters > 0}
+                  aria-controls={filtersOpen || activeFilters > 0 ? 'instrument-filters' : undefined}
+                  title={
+                    activeFilters > 0
+                      ? 'Clear the filters to close them'
+                      : 'Filter by class, starred, tags and what an instrument uses'
+                  }
+                  className={`flex items-center gap-1 rounded-lg px-1.5 py-1.5 text-[11px] transition ${
+                    activeFilters > 0
+                      ? 'bg-emerald-500/20 text-emerald-200'
+                      : filtersOpen
+                        ? 'bg-white/15 text-white/85'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  <SlidersHorizontal className="h-3 w-3" aria-hidden />
+                  <span>Filters{activeFilters > 0 ? ` ${activeFilters}` : ''}</span>
+                </button>
               </div>
             )}
+            {/* The chips stay open while any is on: what is filtered is always visible. */}
+            {(filtersOpen || activeFilters > 0) && (
+              <div id="instrument-filters" className="mb-1.5 space-y-1 px-1" data-instrument-filters>
+                {facets.families.map((f) => (
+                  <div key={f.id} role="group" aria-label={`Filter by ${f.label.toLowerCase()}`} className="flex flex-wrap items-center gap-1">
+                    <span className="w-12 shrink-0 text-[9px] uppercase tracking-widest text-white/35">{f.label}</span>
+                    {f.chips.map((c) => (
+                      <button
+                        key={String(c.group)}
+                        type="button"
+                        aria-pressed={c.selected}
+                        onClick={() => toggleFacet(f.id, chipValue(c))}
+                        title={c.hint ?? c.label}
+                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
+                          c.selected
+                            ? 'border-emerald-400/45 bg-emerald-500/20 text-emerald-200'
+                            : 'border-white/10 text-white/60 hover:text-white'
+                        }`}
+                      >
+                        {f.id === 'class' && (
+                          <span className="h-1.5 w-1.5 rounded-sm" style={{ background: classColour(chipValue(c)) }} aria-hidden />
+                        )}
+                        <span>{c.label}</span>
+                        <span className="text-white/35">{c.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+                {activeFilters > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacetSel({});
+                      setFiltersOpen(true);
+                    }}
+                    className="text-[10px] text-white/45 underline-offset-2 hover:text-white/80 hover:underline"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+            {(() => {
+              // The filters never hide what you hear without saying so (option A's promise).
+              const hidden = activeFilters > 0 && selected && !shown.some((m) => m.name === selected);
+              return hidden ? (
+                <p className="px-2 pb-1 text-[10px] text-emerald-300/80">
+                  playing: {selected} <span className="text-white/40">(not in these filters)</span>
+                </p>
+              ) : null;
+            })()}
             {groups.map((g) =>
-              g.items.length === 0 && (query.trim() || g.id !== 'air') ? null : (
+              g.items.length === 0 && (searching || g.id !== 'air') ? null : (
                 <section key={g.id} role="group" aria-label={g.label} data-category={g.id} className="mb-1.5">
                   {(() => {
                     // A collapsed class still says what it holds, names the instrument being
@@ -455,7 +580,10 @@ export default function InstrumentsPanel() {
               ),
             )}
             {shown.length === 0 && (
-              <p className="px-2 py-3 text-[11px] text-white/40">No instruments match “{query}”.</p>
+              <p className="px-2 py-3 text-[11px] text-white/40">
+                {query.trim() ? `No instruments match “${query.trim()}”` : 'No instruments'}
+                {activeFilters > 0 ? ' with these filters' : ''}.
+              </p>
             )}
           </>
         )}

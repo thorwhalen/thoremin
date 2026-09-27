@@ -24,17 +24,9 @@
  */
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
-/**
- * What the derivation needs to know about the build it runs in: which branch ids exist,
- * and each extension's own derivation. A PARAMETER, never an import: this package stays
- * free of the app's extension list (the host binds it once, `branchIdsFor` in
- * `src/app/graph.ts`), and a caller that forgets the extensions fails to typecheck rather
- * than silently deriving a graph without them.
- */
-export interface DerivationTable {
-  knownBranchIds: ReadonlySet<string>;
-  extensions: readonly { id: string; derive: (settings: DerivationSettings) => readonly string[] }[];
-}
+import { ALL_BRANCH_IDS } from './branches';
+
+const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 
 /**
  * The slice of the settings the derivation reads. Structural, so tests need no full
@@ -50,8 +42,10 @@ export interface DerivationSettings {
   conductor?: { enabled?: boolean };
   midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
-  /** Extension dial slices (`airDrum`, …): read by each extension's own `derive`. */
-  [extensionKey: string]: unknown;
+  airDrum?: { enabled?: boolean };
+  airBass?: { enabled?: boolean };
+  airGuitar?: { enabled?: boolean };
+  airFlute?: { enabled?: boolean };
 }
 
 /**
@@ -68,6 +62,10 @@ export interface StrictDerivationSettings {
   conductor: { enabled: boolean };
   midi: { enabled: boolean };
   steer: { enabled: boolean };
+  airDrum: { enabled: boolean };
+  airBass: { enabled: boolean };
+  airGuitar: { enabled: boolean };
+  airFlute: { enabled: boolean };
 }
 
 export interface DerivationContext {
@@ -96,7 +94,7 @@ const on = (x: { enabled?: boolean } | undefined): boolean => x?.enabled === tru
  * The branch ids `settings` and `ctx` imply, in no particular order (the composer orders).
  * The trunk is implied by the composer and not listed here.
  */
-export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationContext, table: DerivationTable): string[] {
+export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContext = {}): string[] {
   const demanded = ctx.demanded ?? NO_DEMAND;
   const ids: string[] = [];
   const add = (id: string, on: boolean): void => {
@@ -107,7 +105,7 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // Unknown ids (a stale saved record, a branch an extension no longer ships) are dropped
     // rather than thrown: the derivation runs inside the host's selector and must not take
     // the app down. `composeGraph` would refuse them; here they simply compose nothing.
-    for (const id of ctx.explicit) add(id, table.knownBranchIds.has(id));
+    for (const id of ctx.explicit) add(id, KNOWN_BRANCH_IDS.has(id));
     add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
     add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded));
     return ids;
@@ -134,10 +132,10 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   add('conductor', on(settings.conductor));
   add('midi-out', on(settings.midi));
   add('generative', on(settings.steer));
-  // The extensions' branches: each manifest says which of its branches its dials imply.
-  // An id the table does not know (a typo in a manifest) is dropped, like an unknown
-  // explicit id: the derivation must not take the app down.
-  for (const ext of table.extensions) for (const id of ext.derive(settings)) add(id, table.knownBranchIds.has(id));
+  add('air-drum', on(settings.airDrum));
+  add('air-bass', on(settings.airBass));
+  add('air-guitar', on(settings.airGuitar));
+  add('air-flute', on(settings.airFlute));
   return ids;
 }
 

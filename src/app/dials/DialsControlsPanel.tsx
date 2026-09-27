@@ -37,8 +37,8 @@ import { MidiControls } from './panels/midi';
 import { BodyControls } from './panels/body';
 import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
-import { EXTENSION_PANELS } from '@/app/extensions';
-import type { AirInstrumentId } from '@/app/library/category';
+import { AIR_UI } from './panels/air';
+import { AIR_INSTRUMENTS, type AirInstrumentId } from '@/app/library/category';
 
 /**
  * @param leadAir - the air instruments the instrument being edited plays (#249): their
@@ -51,14 +51,15 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
   const { state, set } = useDialsSettings();
   const v = state.effective;
   const syncHands = v['master.syncHands'] as boolean;
-  // One section per instrument the extensions ship (the air instruments today): the ones
-  // this instrument plays first and open, the others after the core sections and closed.
   const airSections = (lead: boolean) =>
-    EXTENSION_PANELS.filter((p) => (leadAir as readonly string[]).includes(p.instrumentId) === lead).map((p) => (
-      <TopSection key={p.instrumentId} label={p.section} defaultOpen={lead}>
-        <p.Controls />
-      </TopSection>
-    ));
+    AIR_INSTRUMENTS.filter((a) => leadAir.includes(a.id) === lead).map((a) => {
+      const ui = AIR_UI[a.id];
+      return (
+        <TopSection key={a.id} label={ui.section} defaultOpen={lead}>
+          <ui.Controls />
+        </TopSection>
+      );
+    });
 
   return (
     <div className="space-y-1">
