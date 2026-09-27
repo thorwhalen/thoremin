@@ -46,7 +46,7 @@ const PLAYER: Player = {
   // and snare@3), the first two off-beat hi-hats (events 2 and 5) pushed early.
   feel: { 3: 0.05, 9: 0.05, 2: -0.03, 5: -0.03 },
   jitter: 0.012,
-  pads: { kick: { pad: 'p6', x: 0.5, y: 0.82 }, snare: { pad: 'p1', x: 0.52, y: 0.7 }, hihat: { pad: 'p2', x: 0.27, y: 0.58 } },
+  pads: { kick: { pad: 'p6', x: 0.5, y: 0.82 }, snare: { pad: 'p1', x: 0.52, y: 0.7 }, hihat: { pad: 'p2', x: 0.27, y: 0.58 }, crash: { pad: 'p4', x: 0.14, y: 0.3 }, openHihat: { pad: 'p2', x: 0.27, y: 0.58 } },
   wobble: 0.01,
 };
 
@@ -161,26 +161,39 @@ describe('the pattern fit, adversarially', () => {
   it('lands the beat, not the off-beat, whatever the seed: no feel to tip the tie', () => {
     // Hi-hats on every eighth tie the beat grid between beat and off-beat; only a scan
     // over every subdivision resolves it (the first version failed 40 seeds of 60).
-    for (const pattern of [ROCK, patternById('half-time')!]) {
+    // And the pads must be the player's, not swapped: a grid a beat off puts the kicks on
+    // the snare's events, and an assignment that lets the identities relabel the drums
+    // would score that phase perfectly with the kick's pad as the snare's.
+    for (const pattern of [ROCK, patternById('half-time')!, patternById('fill')!]) {
       for (let seed = 1; seed <= 20; seed++) {
         const { hits } = take(pattern, { ...PLAYER, feel: {}, driftPerPass: 0 }, 4, 1 + seed * 0.37, seed);
         const model = fitPattern(hits, pattern)!;
         expect(model, `${pattern.id} seed ${seed}`).not.toBeNull();
         expect(model.recall, `${pattern.id} seed ${seed}`).toBe(1);
         expect(model.precision, `${pattern.id} seed ${seed}`).toBe(1);
+        expect(model.positions.kick.pad, `${pattern.id} seed ${seed}`).toBe('p6');
+        expect(model.positions.snare.pad, `${pattern.id} seed ${seed}`).toBe('p1');
       }
     }
-  });
+  }, 30000);
 
-  it('holds a long drifting take together with the per-pass lines', () => {
-    const { hits, meanBpm } = take(ROCK, PLAYER, 8, 2, 9);
-    const model = fitPattern(hits, ROCK, { statedBpm: 96 })!;
-    expect(model).not.toBeNull();
-    expect(model.passes).toBe(8);
-    expect(model.recall).toBeGreaterThan(0.98);
-    expect(model.precision).toBeGreaterThan(0.98);
-    expect(Math.abs(model.bpm - meanBpm)).toBeLessThan(1.5);
-  });
+  it('holds a long drifting take together with the per-pass lines, whatever the seed or pattern', () => {
+    for (const pattern of [ROCK, patternById('half-time')!, patternById('four-floor')!, patternById('fill')!]) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const { hits, meanBpm } = take(pattern, PLAYER, 8, 2 + seed * 0.21, seed);
+        const model = fitPattern(hits, pattern, { statedBpm: pattern.bpm })!;
+        const tag = `${pattern.id} seed ${seed}`;
+        expect(model, tag).not.toBeNull();
+        expect(model.passes, tag).toBe(8);
+        expect(model.recall, tag).toBeGreaterThan(0.97);
+        expect(model.precision, tag).toBeGreaterThan(0.97);
+        // The tempo slides 10.5 bpm over the take; the mean is within 2 of what was played.
+        expect(Math.abs(model.bpm - meanBpm), tag).toBeLessThan(2);
+        expect(model.positions.kick.pad, tag).toBe('p6');
+        expect(model.positions.snare.pad, tag).toBe('p1');
+      }
+    }
+  }, 30000);
 
   it('refuses a take of something else rather than fitting it to some grid', () => {
     // A player at 60 percent of the stated tempo is outside the scan; random hits are noise.

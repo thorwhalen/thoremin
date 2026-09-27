@@ -11,14 +11,17 @@
  *   a least-squares line, time against beat, is refit over the matched hits. Then, since
  *   a player's tempo drifts and one line over a long take cannot hold both ends inside
  *   the matching window, each pass gets a line of its own over its hits and the
- *   assignment is redone against those local lines. The stated tempo is only where the
- *   search starts: the fit says what they played.
- * - **Assignment.** Every hit goes to the nearest event within half a subdivision. When
- *   an event of the hit's OWN sound is that near, the hit may only take one of those (a
- *   flam's second kick, with the kick's slot taken, is an extra, not the hi-hat under
- *   it); when none is, the hit may take any event, which is how a drum played on a pad
- *   of another sound is learned as that drum's pad. One hit per event per pass; the
- *   rest are extras, and events no hit reached are misses.
+ *   assignment is redone against those local lines; the walk starts from the pass the
+ *   curve matched best and goes out both ways. The stated tempo is only where the
+ *   search starts: the fit says what they played, and the tempo reported is the mean
+ *   local period over the matched hits.
+ * - **Assignment.** Every hit goes to the nearest event within half a subdivision, in
+ *   two rounds (see `assignHits`): strictly by sound first, then against the drums'
+ *   identities on this kit (the sound and pad of the hits that were each drum), which
+ *   is how a drum played on a pad of another sound is learned as that drum's pad, and
+ *   why a flam's second kick, its kick slot taken, is an extra. The fits that choose the
+ *   tempo and the phase are scored with the strict round only. One hit per event per
+ *   pass; the rest are extras, and events no hit reached are misses.
  * - **Feel.** Per event, the mean and spread of its hits' offsets from the local grid, in
  *   fractions of a beat: the player's own timing on that pattern (the snare a little
  *   late, the off-beats pushed), measured the way playback applies it. An event whose
@@ -72,7 +75,8 @@ export type DrumPosition = z.infer<typeof DrumPositionSchema>;
 export const PatternModelSchema = z.object({
   v: z.literal(1).default(1),
   patternId: z.string().min(1),
-  /** The player's tempo over the take, beats per minute (the line over the whole take). */
+  /** The player's tempo over the take, beats per minute: the mean local period over the
+   *  matched hits. */
   bpm: z.number().positive(),
   /** The tempo the count-in stated. */
   statedBpm: z.number().positive(),
@@ -103,7 +107,7 @@ export interface FitOptions {
   minPrecision?: number;
   /** When the take was made (for the model's stamp). */
   takenAt?: number;
-  /** Rounds of match-and-refit on the take's line, then on the per-pass lines. */
+  /** Rounds of match-and-refit on the take's line (as many again with a tempo trend). */
   rounds?: number;
   /** The coarse scan: `tempoSteps` either side of the stated tempo, `tempoStep` apart (a
    *  fraction). The defaults cover 70 to 130 percent of the count-in, at 2.5 percent. */
@@ -186,7 +190,7 @@ const dominant = <T extends string>(xs: readonly (T | null | undefined)[]): T | 
  * hits of one sound at one instant go to their own drums; a drum nothing identified
  * takes any sound. A flam's second kick, its kick slot taken, is an extra.
  */
-export function assignHits(hits: readonly HitSample[], pattern: DrumPattern, grid: Grid, options: Pick<FitOptions, 'windowSteps'> = {}): Assignment[] {
+export function assignHits(hits: readonly HitSample[], pattern: DrumPattern, grid: Grid, options: Pick<FitOptions, 'windowSteps'> & { identities?: boolean } = {}): Assignment[] {
   const windowBeats = (options.windowSteps ?? FIT_DEFAULTS.windowSteps) / pattern.stepsPerBeat / 2;
   if (pattern.events.length === 0 || hits.length === 0) return [];
   type Candidate = { hit: number; event: number; pass: number; offset: number; same: boolean };
@@ -223,13 +227,19 @@ export function assignHits(hits: readonly HitSample[], pattern: DrumPattern, gri
     }
     return out;
   };
-  // Round one, strict, and the identities it yields. Each drum's evidence is the hits that
+  // Round one, strict. With `identities: false` that is the answer: the fits that
+  // choose the tempo and the phase must be scored strictly, because the identity round
+  // below can make a WRONG phase score perfectly by relabelling the drums (a grid a beat
+  // off puts the kicks on the snare's events, and "the snare is the kick sound on the
+  // kick's pad" explains every hit, pads swapped).
+  const first = greedy((c) => c.same, () => 0);
+  if (options.identities === false) return first.sort((a, b) => a.hit - b.hit);
+  // The identities round one yields. Each drum's evidence is the hits that
   // were it, or, for a drum no hit of its sound reached, the unassigned hits on its
   // events. Drums are identified in order of evidence, and a pad already claimed by a
   // better-evidenced drum does not count for a later one: the snare's evidence in the
   // rock beat is only the beats it shares with the hi-hat, so a hi-hat played on a
   // snare-sounding pad would otherwise claim the snare's pad too.
-  const first = greedy((c) => c.same, () => 0);
   const assignedHits = new Set(first.map((a) => a.hit));
   const evidence = new Map<DrumName, HitSample[]>();
   for (const drum of DRUM_NAMES) {
@@ -270,6 +280,8 @@ export function assignHits(hits: readonly HitSample[], pattern: DrumPattern, gri
 
 /** Distinct beats a curve with a trend needs: under it, the trend is noise. */
 const TREND_MIN_BEATS = 12;
+/** A refit or a walk must keep this share of the matched hits to be accepted. */
+const REFIT_KEEP = 0.9;
 
 /**
  * Least squares of t against beat over assignments: a line, or with enough distinct
@@ -321,7 +333,7 @@ function refit(hits: readonly HitSample[], pattern: DrumPattern, assignments: re
  * take cannot do once the ends are more than a window off it (the coarse fit explains
  * the middle and never matches the ends, so nothing pulls it back).
  */
-function walkPasses(hits: readonly HitSample[], pattern: DrumPattern, take: Line, windowSteps: number): Map<number, Line> {
+function walkPasses(hits: readonly HitSample[], pattern: DrumPattern, take: Line, seedAssignments: readonly Assignment[], windowSteps: number): Map<number, Line> {
   const windowBeats = windowSteps / pattern.stepsPerBeat / 2;
   const L = pattern.lengthBeats;
   const times = hits.map((h) => h.t);
@@ -329,17 +341,20 @@ function walkPasses(hits: readonly HitSample[], pattern: DrumPattern, take: Line
   const end = Math.max(...times);
   const firstPass = Math.max(0, Math.floor(beatAt(take, start) / L));
   const lastPass = Math.max(firstPass, Math.ceil(beatAt(take, end) / L));
+  // Start where the take's curve is surest: the pass with the most matched hits, and
+  // walk out from it both ways, so the passes the curve missed are reached from a
+  // neighbour that fits rather than from the curve that missed them.
+  const perPass = new Map<number, number>();
+  for (const a of seedAssignments) perPass.set(a.pass, (perPass.get(a.pass) ?? 0) + 1);
+  let seedPass = firstPass;
+  let most = -1;
+  for (const [p, n] of perPass) if (n > most || (n === most && p < seedPass)) [seedPass, most] = [p, n];
   const out = new Map<number, Line>();
   const used = new Set<number>();
-  let prev: Line | null = null;
-  for (let p = firstPass; p <= lastPass; p++) {
+  const fitPass = (p: number, predicted: Line): Line => {
     const b0 = p * L;
-    const predicted: Line = prev
-      ? { period: prev.period, phase: timeAt(prev, b0) - b0 * prev.period }
-      : { period: periodAt(take, b0), phase: timeAt(take, b0) - b0 * periodAt(take, b0) };
     const mine: Assignment[] = [];
     const takenEvents = new Set<number>();
-    // Nearest free hit of the event's sound, per event, closest pairs first.
     const pairs: { hit: number; event: number; offset: number }[] = [];
     for (const e of pattern.events) {
       const t = timeAt(predicted, b0 + e.beat);
@@ -356,9 +371,31 @@ function walkPasses(hits: readonly HitSample[], pattern: DrumPattern, take: Line
       takenEvents.add(pr.event);
       mine.push({ hit: pr.hit, event: pr.event, pass: p, offset: pr.offset });
     }
-    const line = refit(hits, pattern, mine) ?? predicted;
+    return refit(hits, pattern, mine) ?? predicted;
+  };
+  const fromTake = (p: number): Line => {
+    const b0 = p * L;
+    return { period: periodAt(take, b0), phase: timeAt(take, b0) - b0 * periodAt(take, b0) };
+  };
+  // Forward from the seed: each pass predicted from the one before it, continuous at
+  // its first beat, the same period.
+  let prev: Line | null = null;
+  for (let p = seedPass; p <= lastPass; p++) {
+    const b0 = p * L;
+    const predicted: Line = prev ? { period: prev.period, phase: timeAt(prev, b0) - b0 * prev.period } : fromTake(p);
+    const line = fitPass(p, predicted);
     out.set(p, line);
     prev = line;
+  }
+  // Backward from the seed: each pass predicted from the one after it, continuous at
+  // that pass's first beat.
+  let next: Line | null = out.get(seedPass) ?? null;
+  for (let p = seedPass - 1; p >= firstPass; p--) {
+    const b1 = (p + 1) * L;
+    const predicted: Line = next ? { period: next.period, phase: timeAt(next, b1) - b1 * next.period } : fromTake(p);
+    const line = fitPass(p, predicted);
+    out.set(p, line);
+    next = line;
   }
   return out;
 }
@@ -404,7 +441,7 @@ export function fitPatternFull(hits: readonly HitSample[], pattern: DrumPattern,
       let candidate = firstBeat + (k * p) / pattern.stepsPerBeat;
       while (candidate > start) candidate -= pattern.lengthBeats * p;
       const g: Grid = { line: { period: p, phase: candidate } };
-      const a = assignHits(hits, pattern, g, o);
+      const a = assignHits(hits, pattern, g, { ...o, identities: false });
       const score = a.length - (a.length ? mean(a.map((x) => Math.abs(x.offset))) : 0);
       if (score > bestScore) {
         bestScore = score;
@@ -415,23 +452,27 @@ export function fitPatternFull(hits: readonly HitSample[], pattern: DrumPattern,
   }
   // 2. Refit the take's curve (a line, then with a trend once enough beats have
   //    matched), then the per-pass lines, re-assigning against each.
+  //    A refit that trades a hit or two at the ends for a better line is accepted (the
+  //    first version stopped at the first traded hit and never reached the trend).
   for (let round = 0; round < o.rounds * 2; round++) {
     const better = refit(hits, pattern, assignments, round >= o.rounds);
     if (!better) break;
-    const next = assignHits(hits, pattern, { line: better }, o);
-    if (next.length < assignments.length) break;
+    const next = assignHits(hits, pattern, { line: better }, { ...o, identities: false });
+    if (next.length < REFIT_KEEP * assignments.length) break;
     grid = { line: better };
     assignments = next;
   }
   {
-    const local = walkPasses(hits, pattern, grid.line, o.windowSteps);
+    const local = walkPasses(hits, pattern, grid.line, assignments, o.windowSteps);
     const g: Grid = { line: grid.line, local };
-    const next = assignHits(hits, pattern, g, o);
-    if (next.length >= assignments.length) {
+    const next = assignHits(hits, pattern, g, { ...o, identities: false });
+    if (next.length >= REFIT_KEEP * assignments.length) {
       grid = g;
       assignments = next;
     }
   }
+  // The final assignment, with the drums' identities on this kit.
+  assignments = assignHits(hits, pattern, grid, o);
   if (assignments.length < o.minMatched) return null;
 
   // 3. Feel per event, over the passes, against the local grid.
