@@ -43,16 +43,16 @@
  * included. The routine claps at its start and again at its end; two slates give the
  * drift too (`micToRows`). The `*Row` fields (`onsetRow`, `intendedRow`) apply it; the
  * mic-clock fields are kept beside them, raw, so a consumer can see what was corrected.
- * Precision is a camera frame (the seen clap is a row), which the median over the claps
- * and the linear fit over the routine narrow but do not remove.
+ * The seen clap is interpolated between rows (a parabola through the smallest
+ * `hand.pair.distance` and its neighbours), so it is not quantised to a frame; a slate
+ * is used only when enough claps agree, and a drift no clock could have is refused (see
+ * `MIN_SLATE_CLAPS`, `MAX_SLATE_MAD_MS`, `MAX_DRIFT_MS_PER_S`).
  *
- * ## Why not the latency probe's onset detector
+ * ## Onsets
  *
- * `src/latency/onsets.ts` detects a slap with hysteresis: the envelope must fall back
- * below half its threshold before another strike counts. A strummed chord rings through
- * the next click, so that detector sees the first strum and nothing after. This one
- * detects RISES (energy against its own recent minimum), which a new strum over a
- * ringing one still is, and a tap on a silent table trivially is.
+ * A union of two rise detectors, on the level and on the first difference: the level
+ * misses a strum over a chord still ringing, the difference misses a low knock on wood.
+ * `scripts/cue/README.md` has the measurements; {@link OnsetOptions.emphasis} the why.
  *
  * Nothing written here is ever committed: a take is the player's body and room, and it
  * goes under the app-data directory (`~/.local/share/thoremin/`), never the repository.
@@ -135,32 +135,47 @@ export interface OnsetOptions {
   /** No second onset sooner than this after one. */
   refractoryMs?: number;
   /**
-   * Detect on the first difference of the signal (`x[n] - x[n-1]`), not the signal. The
-   * difference weighs a partial by its frequency: a string's ringing is its low partials,
-   * a pluck's (or a tap's) attack is its high ones, and the high ones die within tens of
-   * milliseconds. So a strum over a chord still ringing from the last one is a large rise
-   * in the difference and hardly any in the level. Default true.
+   * Which signal(s) to detect on: `'level'` (the signal), `'difference'` (its first
+   * difference, `x[n] - x[n-1]`), or `'both'` (the union, the default). Neither alone is
+   * enough, and each fails where the other works:
+   *
+   * - The difference weighs a partial by its frequency. A string's ringing is its low
+   *   partials and a pluck's attack its high ones, so a strum over a chord still ringing
+   *   from the last one is a large rise in the difference and hardly any in the level
+   *   (measured: level 0/16 strums at a 1.5 s ring, difference 16/16).
+   * - But a knock on wood with a fingertip is mostly 100 to 500 Hz, which the difference
+   *   attenuates below the room's noise (measured: difference 0/16 knocks at 90-800 Hz
+   *   even at -20 dBFS in a -50 dBFS room, level 16/16).
+   *
+   * The union takes the earliest onset of each cluster within `refractoryMs`.
    */
-  emphasis?: boolean;
+  emphasis?: 'both' | 'level' | 'difference';
+  /** The difference path's own window and rise (see {@link DIFFERENCE_DEFAULTS}). */
+  differenceWindowMs?: number;
+  differenceRise?: number;
 }
 
 export const ONSET_DEFAULTS: Required<OnsetOptions> = {
   hopMs: 1,
   windowMs: 5,
   // 8 dB over the floor. Measured (a -50 dBFS noise room): taps peaking at -34 dBFS are
-  // all found at 2.5 and none at 4, and a minute of noise alone gives no onset at either,
+  // found at 2.5 and not at 4, and a minute of noise alone gives no onset at either,
   // because the rise test below is what rejects noise. Not lower: at SNRs under ~10 dB a
-  // tap is indistinguishable from the room, and the pairing warns about unheard beats.
+  // tap is indistinguishable from the room, and the pairing names unheard beats.
   noiseFactor: 2.5,
   floorPercentile: 0.05,
-  // 6 dB over the last 30 ms. On the difference signal a tap rises by tens of dB, and a
-  // strum over a chord still ringing from the last one about doubles (the ringing is low
-  // partials; the difference barely sees them). 1.8 found no more strums and lost half
-  // the hits on dense real drum audio to early triggers inside the refractory window.
+  // 6 dB over the last 30 ms. 1.8 found no more taps and lost half the hits on dense
+  // real drum audio to early triggers inside the refractory window.
   rise: 2,
   lookbackMs: 30,
   refractoryMs: 80,
-  emphasis: true,
+  emphasis: 'both',
+  // A strum spread over 30 to 50 ms (an ordinary downstrum) is six small attacks, not
+  // one: a 10 ms window sums them and a 1.6 rise accepts the sum. Measured: 16/16 at
+  // 8/30/50 ms spreads and 0.6/1.5 s rings (5 ms and 2: 10-11/16 at 30-50 ms), and
+  // still no onset in a minute of noise.
+  differenceWindowMs: 10,
+  differenceRise: 1.6,
 };
 
 export function median(xs: readonly number[]): number {
@@ -171,22 +186,34 @@ export function median(xs: readonly number[]): number {
 }
 
 /**
- * Onset times (seconds from the buffer start), on the first difference of the signal by
- * default (see {@link OnsetOptions.emphasis}): moments its RMS envelope rises above the
- * noise floor AND above `rise` times its own MAXIMUM over the previous `lookbackMs`.
- * Against the recent maximum, not the minimum, because a chord's partials beat against
- * each other: its envelope dips and recovers every few tens of ms, and each recovery is
- * a rise against the dip but never against the last peak. A new strum or tap clears the
- * last peak. Each onset is placed at the attack's first sample: the first to exceed both
- * a quarter of the attack's peak and 1.5 times the loudest sample before it.
+ * Onset times (seconds from the buffer start), on the signal and on its first
+ * difference (see {@link OnsetOptions.emphasis}), merged.
  */
 export function detectOnsets(signal: Float32Array, sampleRate: number, options: OnsetOptions = {}): number[] {
   const o = { ...ONSET_DEFAULTS, ...options };
-  let pcm = signal;
-  if (o.emphasis) {
-    pcm = new Float32Array(signal.length);
-    for (let i = 1; i < signal.length; i++) pcm[i] = signal[i] - signal[i - 1];
+  const found: number[] = [];
+  if (o.emphasis !== 'difference') found.push(...riseOnsets(signal, sampleRate, o));
+  if (o.emphasis !== 'level') {
+    const diff = new Float32Array(signal.length);
+    for (let i = 1; i < signal.length; i++) diff[i] = signal[i] - signal[i - 1];
+    found.push(...riseOnsets(diff, sampleRate, { ...o, windowMs: o.differenceWindowMs, rise: o.differenceRise }));
   }
+  found.sort((a, b) => a - b);
+  const out: number[] = [];
+  for (const t of found) if (out.length === 0 || t - out[out.length - 1] >= o.refractoryMs / 1000) out.push(t);
+  return out;
+}
+
+/**
+ * One detection path: moments the RMS envelope of `pcm` rises above the noise floor AND
+ * above `rise` times its own MAXIMUM over the previous `lookbackMs`. Against the recent
+ * maximum, not the minimum, because a chord's partials beat against each other: its
+ * envelope dips and recovers every few tens of ms, and each recovery is a rise against
+ * the dip but never against the last peak. A new strum or tap clears the last peak. Each
+ * onset is placed at the attack's first sample: the first to exceed both a quarter of
+ * the attack's peak and 1.5 times the loudest sample before it.
+ */
+function riseOnsets(pcm: Float32Array, sampleRate: number, o: Required<OnsetOptions>): number[] {
   const hop = Math.max(1, Math.round((o.hopMs / 1000) * sampleRate));
   const win = Math.max(hop, Math.round((o.windowMs / 1000) * sampleRate));
   const env: number[] = [];
@@ -456,9 +483,13 @@ export interface SlateResult {
   cue: string;
   /** Mic-clock time of the slate (median of its heard claps), take-relative seconds. */
   t: number | null;
-  /** Median (clap heard − clap seen), ms, or null with fewer than two claps both heard
-   *  and seen. Seen = the feature row with the smallest `hand.pair.distance`. */
+  /** Median (clap heard − clap seen), ms, or null with fewer than
+   *  {@link MIN_SLATE_CLAPS} claps both heard and seen. Seen = the minimum of
+   *  `hand.pair.distance`, interpolated between rows (a parabola through the smallest
+   *  row and its neighbours), so it is not quantised to a camera frame. */
   offsetMs: number | null;
+  /** Median absolute deviation of the per-clap differences, ms: how far to trust it. */
+  madMs: number | null;
   claps: { index: number; click: number; onset: number | null; visual: number | null }[];
 }
 
@@ -488,6 +519,14 @@ export interface PairResult {
   phrases: PhrasePair[];
   warnings: string[];
 }
+
+/** A slate needs this many claps both heard and seen to give an offset. */
+export const MIN_SLATE_CLAPS = 5;
+/** A slate whose per-clap differences scatter more than this (MAD, ms) is not used. */
+export const MAX_SLATE_MAD_MS = 20;
+/** Drift beyond this (ms per s = 300 ppm; real audio clocks are within ~100) is a bad
+ *  slate, not a clock: fall back to the offset alone. */
+export const MAX_DRIFT_MS_PER_S = 0.3;
 
 /** The feature id whose minimum marks a visible clap. */
 const CLAP_FEATURE = 'hand.pair.distance';
@@ -545,31 +584,52 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     const clicks = beatClicks(w);
     const matched = matchToClicks(clicks, onsetsAbs.filter((t) => inWindow(t, w)), beatMs / 2000);
     const visualNear = (tAbs: number): number | null => {
-      let best: { t: number; d: number } | null = null;
-      for (const r of handRows) {
-        if (!inWindow(r.t, w) || Math.abs(r.t - tAbs) > beatMs / 2000) continue;
-        const d = (r.value as Record<string, unknown> | null)?.[CLAP_FEATURE];
-        if (typeof d === 'number' && Number.isFinite(d) && (!best || d < best.d)) best = { t: r.t, d };
-      }
-      return best ? best.t : null;
+      const near = handRows
+        .filter((r) => inWindow(r.t, w) && Math.abs(r.t - tAbs) <= beatMs / 2000)
+        .map((r) => ({ t: r.t, d: (r.value as Record<string, unknown> | null)?.[CLAP_FEATURE] }))
+        .filter((x): x is { t: number; d: number } => typeof x.d === 'number' && Number.isFinite(x.d))
+        .sort((a, b) => a.t - b.t);
+      if (near.length === 0) return null;
+      let k = 0;
+      for (let i = 1; i < near.length; i++) if (near[i].d < near[k].d) k = i;
+      // The contact falls between frames; the smallest row is up to a frame off it. A
+      // parabola through it and its two neighbours puts the minimum between them.
+      const [a, b, c] = [near[k - 1], near[k], near[k + 1]];
+      if (!a || !c) return b.t;
+      const h = (c.t - a.t) / 2;
+      const curv = a.d - 2 * b.d + c.d;
+      if (!(curv > 0) || Math.abs(b.t - a.t - h) > h * 0.25) return b.t; // flat, or uneven rows
+      return b.t + Math.max(-h, Math.min(h, (h * (a.d - c.d)) / (2 * curv)));
     };
     const claps = clicks.map((c, i) => {
       const onset = matched[i];
       const visual = onset === null ? null : visualNear(onset);
       return { index: i, click: rel(c), onset: onset === null ? null : rel(onset), visual: visual === null ? null : rel(visual) };
     });
-    const both = claps.filter((c) => c.onset !== null && c.visual !== null);
+    const diffs = claps.filter((c) => c.onset !== null && c.visual !== null).map((c) => (c.onset! - c.visual!) * 1000);
     const heard = claps.filter((c) => c.onset !== null).map((c) => c.onset!);
-    const offsetMs = both.length >= 2 ? Math.round(median(both.map((c) => (c.onset! - c.visual!) * 1000)) * 10) / 10 : null;
-    if (offsetMs === null) warnings.push(`Slate "${slateCue.id}": ${both.length} clap(s) both heard and seen, so no clock offset from it (needs 2).`);
-    slates.push({ cue: slateCue.id, t: heard.length ? median(heard) : null, offsetMs, claps });
+    const mid = diffs.length ? median(diffs) : NaN;
+    const madMs = diffs.length ? Math.round(median(diffs.map((d) => Math.abs(d - mid))) * 10) / 10 : null;
+    let offsetMs: number | null = null;
+    if (diffs.length < MIN_SLATE_CLAPS) {
+      warnings.push(`Slate "${slateCue.id}": ${diffs.length} clap(s) both heard and seen, so no clock offset from it (needs ${MIN_SLATE_CLAPS}; were both hands in view?).`);
+    } else if (madMs! > MAX_SLATE_MAD_MS) {
+      warnings.push(`Slate "${slateCue.id}": its claps disagree by ${madMs} ms (MAD), so it is not used.`);
+    } else {
+      offsetMs = Math.round(mid * 10) / 10;
+    }
+    slates.push({ cue: slateCue.id, t: heard.length ? median(heard) : null, offsetMs, madMs, claps });
   }
   const measured = slates.filter((x): x is SlateResult & { t: number; offsetMs: number } => x.t !== null && x.offsetMs !== null);
   let micToRows: MicToRows | null = null;
   if (measured.length >= 1) {
     const a = measured[0];
     const b = measured[measured.length - 1];
-    const driftMsPerS = b !== a && b.t > a.t ? Math.round(((b.offsetMs - a.offsetMs) / (b.t - a.t)) * 1000) / 1000 : 0;
+    let driftMsPerS = b !== a && b.t > a.t ? Math.round(((b.offsetMs - a.offsetMs) / (b.t - a.t)) * 1000) / 1000 : 0;
+    if (Math.abs(driftMsPerS) > MAX_DRIFT_MS_PER_S) {
+      warnings.push(`The slates disagree by ${Math.round(b.offsetMs - a.offsetMs)} ms (${driftMsPerS} ms/s, more than any audio clock drifts): using the first slate's offset alone.`);
+      driftMsPerS = 0;
+    }
     micToRows = { offsetMs: a.offsetMs, atS: a.t, driftMsPerS };
   } else if (audio) {
     warnings.push('No slate offset: the *Row fields are null, and mic-clock times carry the microphone start offset (tens of ms).');
@@ -767,7 +827,10 @@ export function runPairTake(
   opts: { env?: NodeJS.ProcessEnv; outDir?: string } & PairOptions = {},
 ): { outDir: string; result: PairResult; written: string[] } {
   const dirs = cueDirs(opts.env);
-  if (opts.outDir) refuseInsideGitWorkTree(opts.outDir);
+  // Both the extracted take and the pairs: a THOREMIN_DATA_DIR pointed into a checkout
+  // is the same leak as an --out into one.
+  refuseInsideGitWorkTree(dirs.takes);
+  refuseInsideGitWorkTree(opts.outDir ?? dirs.datasets);
   const takeDir = resolveTakeInput(input, dirs.takes);
   const take = readTake(takeDir);
   const audio = take.micWav ? parseWav(new Uint8Array(readFileSync(take.micWav))) : null;

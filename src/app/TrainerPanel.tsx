@@ -125,9 +125,12 @@ function RoutineChooser() {
               {r.name}
             </option>
           ))}
-          {routineId === 'custom' && (
-            <option value="custom" disabled>
-              {routineName} (edited)
+          {/* A routine none of the options above names (edited in the picker, or a saved
+              one whose list has not loaded yet): show its name, never the default's. */}
+          {routineId !== '' && !starterRoutineById(routineId) && !savedRoutines.some((r) => r.id === routineId) && (
+            <option value={routineId} disabled>
+              {routineName}
+              {routineId === 'custom' ? ' (edited)' : ''}
             </option>
           )}
         </select>

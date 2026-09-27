@@ -49,17 +49,24 @@ Times are on one of three clocks, and the field names say which. The **engine cl
 | `beats[i].air.intended` | Mic clock: the air click plus the real half's median lag, i.e. where the strike would have sounded, assuming the player lands as late in the air as on the table. |
 | `beats[i].air.intendedRow` | The same on the row clock: the air half's training label. |
 | `beats[i].air.levelDb`, `.chroma` | Inherited from the real beat of the same index (the phrase asked for the same thing). |
-| `micToRows` | `offsetMs` (median of clap heard − clap seen, at the first slate, `atS`) and `driftMsPerS` (from the last slate). Precision is about a camera frame per clap, narrowed by the eight-clap median. Null without a usable slate, and then so are the `*Row` fields. |
-| `slates` | Each slate's claps: click, heard (mic clock), seen (row clock: the row with the smallest `hand.pair.distance`). |
+| `micToRows` | `offsetMs` (median of clap heard − clap seen, at the first usable slate, `atS`) and `driftMsPerS` (from the last). Null without a usable slate, and then so are the `*Row` fields. See "The slates". |
+| `slates` | Each slate's claps (click, heard on the mic clock, seen on the row clock), its `offsetMs` and `madMs`. |
 | `warnings` | Missing halves, which real beats were unheard, sound on the air beats (click bleed, or a touched surface), a missing slate, a low sample rate. |
 
 Beside it: `<phrase>.real.features.jsonl`, `<phrase>.air.features.jsonl` and one `<slate cue>.features.jsonl` per slate, the take's own feature rows for each half, untouched, so anything computed later joins back on `t`; and `mic.wav`, to listen against the labels.
 
 ## The onset detector
 
-`src/latency/onsets.ts` finds a slap with hysteresis: the envelope must fall back before another strike counts. A strummed chord rings through the next click, so that detector hears the first strum only. `detectOnsets` here works on the signal's first difference, which weighs each partial by its frequency: a string's ringing is its low partials and a pluck's or tap's attack is its high ones, which die within tens of milliseconds, so a strum over a chord still ringing from the last one is a large rise in the difference and hardly any in the level. It looks for rises of 6 dB against the difference envelope's recent **maximum** (a chord's partials beat, so the envelope dips and recovers; each recovery is a rise against the dip, never against the last peak) and 8 dB above the room's floor.
+`src/latency/onsets.ts` finds a slap with hysteresis: the envelope must fall back before another strike counts. A strummed chord rings through the next click, so that detector hears the first strum only. `detectOnsets` here looks for rises against the envelope's recent **maximum** (a chord's partials beat, so the envelope dips and recovers; each recovery is a rise against the dip, never against the last peak), on two signals, and takes the union:
 
-Measured on synthetic audio (`test/cue/pair_take.test.ts`, `test/helpers/strum.ts`): all 16 strums of one chord re-strummed at 70 bpm with a 1.5 s ring and an 8 ms strum spread (a level detector found 0 of 16); taps 16 dB over a -50 dBFS room; no onset in a minute of room noise. On 60 s of real drum audio against librosa's onset labels: recall 0.97, precision 0.88, onsets 15 ms earlier than librosa's (librosa marks the peak of onset strength, this marks the attack's first sample). Tuned for 44.1 and 48 kHz; the pipeline warns below. Any other detector plugs in through `pairTake(..., { detect })`.
+- the **level**: a knock on wood with a fingertip is mostly 100 to 500 Hz and rises plainly in the level;
+- the **first difference**, which weighs each partial by its frequency: a string's ringing is its low partials and a pluck's attack its high ones, so a strum over a chord still ringing from the last one is a large rise in the difference and hardly any in the level. Its window is 10 ms, so a downstrum spread over 30 to 50 ms counts as one attack.
+
+Neither alone is enough (the level misses re-strums; the difference misses low knocks). Measured on synthetic audio (`test/cue/pair_take.test.ts`, `test/helpers/strum.ts`): all 16 strums of one chord at 70 bpm for rings of 0.6 and 1.5 s and strum spreads of 0 to 50 ms; all 16 tonal knocks at 90 to 800 Hz; taps 16 dB over a -50 dBFS room (not at 6 dB: the pairing then names the unheard beats); no onset in a minute of room noise. On 60 s of real drum audio against librosa's onset labels: recall 1.00, precision 0.70 (dense music has onsets librosa merges; here matching takes the onset nearest each click), onsets 17 ms earlier than librosa's (librosa marks the peak of onset strength, this marks the attack's first sample). Tuned for 44.1 and 48 kHz; the pipeline warns below. Any other detector plugs in through `pairTake(..., { detect })`.
+
+## The slates
+
+A slate gives an offset only with at least 5 claps both heard and seen and a per-clap spread (MAD) under 20 ms; "seen" is the minimum of `hand.pair.distance`, interpolated between camera frames. With both slates usable, the drift is their slope, unless it exceeds 0.3 ms/s (no audio clock drifts that much, so a slate is wrong): then the first slate's offset is used alone, with a warning. With one usable slate there is no drift correction (at 100 ppm that is about 14 ms by the end of the routine).
 
 ## Files
 

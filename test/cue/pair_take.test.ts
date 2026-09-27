@@ -97,7 +97,7 @@ function fakeRecorder(t0: number) {
 }
 
 /** Run the taps routine through the real store; returns the take folder it would write. */
-async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAmp?: number } = {}): Promise<{ dir: string; played: Click[]; t0: number }> {
+async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAmp?: number; hideSecondSlate?: boolean } = {}): Promise<{ dir: string; played: Click[]; t0: number }> {
   const T0_MS = 100_000;
   const rec = fakeRecorder(T0_MS / 1000 - 0.05);
   const unregister = registerRecordingController(rec.controller);
@@ -124,19 +124,15 @@ async function recordSyntheticTake(root: string, opts: { bleed?: boolean; softAm
     while (useTrainer.getState().status !== 'done' && t < T0_MS + 400_000) {
       t += FRAME_MS;
       const s = useTrainer.getState();
-      void s;
       const onClap = onSlate();
       // (Only the clicks of the slate being played: those planned within the last 20 s.)
       if (onClap) for (const c of clapClicks()) if (Math.abs(c.t - t) < 20_000 && !clapTimes.includes(c.t)) clapTimes.push(c.t);
-      // The hands close toward each clap and part after it: the minimum distance is the
-      // last frame at or before the sound (the camera cannot see between frames).
-      const nearest = clapTimes.reduce((m, c) => {
-        const sound = c + CLAP_LAG_S * 1000;
-        return Math.min(m, t <= sound ? sound - t : 1000 + (t - sound));
-      }, Infinity);
+      // The hands close toward each clap and part after it at the same speed: the
+      // distance is a V with its point at the sound, sampled once per frame.
+      const nearest = clapTimes.reduce((m, c) => Math.min(m, Math.abs(t - (c + CLAP_LAG_S * 1000))), Infinity);
       const vector: FeatureVector = {
         'hand.right.index.tip.y': 0.5 + 0.1 * Math.sin(t / 200),
-        'hand.pair.distance': onClap ? 0.2 + nearest / 100 : 3,
+        'hand.pair.distance': onClap && !(opts.hideSecondSlate && s.index > 0) ? 0.2 + nearest / 100 : NaN,
       };
       rows.push(JSON.stringify({ tick: tick++, t: t / 1000, key: 'handVec.vector', value: vector }));
       rec.setLast(t);
@@ -252,10 +248,12 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
     // the camera frame the seen clap is quantised to) and its drift.
     expect(result.slates.map((x) => x.cue)).toEqual(['rva-clap', 'rva-clap-again']);
     for (const sl of result.slates) expect(sl.claps.every((c) => c.onset !== null && c.visual !== null)).toBe(true);
+    // The seen clap is interpolated between frames, so the offset is not a frame off.
     const m = result.micToRows!;
-    expect(m.offsetMs).toBeGreaterThan(MIC_OFFSET_S * 1000 - 2);
-    expect(m.offsetMs).toBeLessThan(MIC_OFFSET_S * 1000 + FRAME_MS);
-    expect(Math.abs(m.driftMsPerS - MIC_DRIFT * 1000)).toBeLessThan(0.15);
+    const trueOffsetMs = (MIC_OFFSET_S + MIC_DRIFT * m.atS) * 1000;
+    expect(Math.abs(m.offsetMs - trueOffsetMs)).toBeLessThan(3);
+    expect(Math.abs(m.driftMsPerS - MIC_DRIFT * 1000)).toBeLessThan(0.05);
+    for (const sl of result.slates) expect(sl.madMs!).toBeLessThan(5);
 
     const errs = { mic: [] as number[], row: [] as number[] };
     for (const p of result.phrases) {
@@ -272,18 +270,30 @@ describe('scripts/cue: a synthetic real-vs-air take, end to end (#247)', { timeo
         const truth = b.air!.click + TAP_LAG_S;
         errs.mic.push(Math.abs(b.air!.intended! - truth) * 1000);
         errs.row.push(Math.abs(b.air!.intendedRow! - truth) * 1000);
-        expect(Math.abs(b.real!.onsetRow! - (b.real!.click + TAP_LAG_S)) * 1000).toBeLessThan(FRAME_MS);
+        expect(Math.abs(b.real!.onsetRow! - (b.real!.click + TAP_LAG_S)) * 1000).toBeLessThan(5);
       }
     }
     const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
     expect(mean(errs.mic)).toBeGreaterThan(MIC_OFFSET_S * 1000);
-    expect(mean(errs.row)).toBeLessThan(FRAME_MS / 2);
+    expect(mean(errs.row)).toBeLessThan(3);
 
     // Soft and hard: the loud fours are loud, and the air half inherits which is which.
     const dyn = result.phrases.find((p) => p.phrase === 'dynamics')!;
     const soft = dyn.beats.filter((b) => Math.floor(b.index / 4) % 2 === 0).map((b) => b.air!.levelDb!);
     const hard = dyn.beats.filter((b) => Math.floor(b.index / 4) % 2 === 1).map((b) => b.air!.levelDb!);
     expect(Math.min(...hard) - Math.max(...soft)).toBeGreaterThan(12);
+  });
+
+  it('a slate the camera did not see is not used, and says so: the offset stands, no drift', async () => {
+    const { dir } = await recordSyntheticTake(root, { hideSecondSlate: true });
+    const take = readTake(dir);
+    const result = pairTake(take, parseWav(new Uint8Array(readFileSync(take.micWav!))), readFeatureRows(take.featuresPath));
+    expect(result.slates[1].offsetMs).toBeNull();
+    expect(result.warnings.some((w) => w.startsWith('Slate "rva-clap-again"'))).toBe(true);
+    expect(result.micToRows!.driftMsPerS).toBe(0);
+    // Still within a few ms early on, and at worst the uncorrected drift (~14 ms) late.
+    const taps = result.phrases[0].beats.map((b) => Math.abs(b.air!.intendedRow! - (b.air!.click + TAP_LAG_S)) * 1000);
+    expect(Math.max(...taps)).toBeLessThan(6);
   });
 
   it('names the unheard beats when soft taps are lost in the room', async () => {

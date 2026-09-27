@@ -437,10 +437,9 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       // must not lag a slow provider, and Start must never run the pre-save one.
       get().setRoutine(ids, name.trim() || 'Custom');
       const { routines } = getStores();
-      await routines.save(name, { cueIds: [...new Set(ids)] });
+      const saved = await routines.save(name, { cueIds: [...new Set(ids)] });
       const savedRoutines = (await routines.list()).map(({ id, name: n }) => ({ id, name: n }));
-      const saved = savedRoutines.find((r) => r.name === name);
-      set({ savedRoutines, ...(saved && get().routineId === 'custom' ? { routineId: saved.id } : {}) });
+      set({ savedRoutines, ...(get().routineId === 'custom' ? { routineId: saved.id } : {}) });
     },
 
     async useRoutine(id) {
