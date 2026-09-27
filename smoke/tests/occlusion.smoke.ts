@@ -32,6 +32,7 @@ const PINNED = TOOLS.filter((t) => t.defaultPinned);
 /** The desktop viewports the shell is laid out for (the smallest common laptop, a large one). */
 const DESKTOP = [
   { width: 1280, height: 720 },
+  { width: 1280, height: 900 },
   { width: 1440, height: 900 },
 ];
 
@@ -117,6 +118,31 @@ for (const vp of DESKTOP) {
         expect(await occluder(edits.nth(i)), `${name} is not covered`).toBeNull();
       }
     });
+
+    for (const view of ['List view', 'Gallery view']) {
+      test(`before playing, ${view.toLowerCase()}: Tap to play sits clear of the Instruments panel`, async ({ page }) => {
+        await page.goto(SYNTHETIC);
+        const play = page.getByRole('button', { name: /tap to play/i });
+        await expect(play).toBeVisible({ timeout: 60_000 });
+        await page.getByRole('button', { name: view }).click();
+        await expectPressable(page, play, 'tap to play');
+        const edits = page.getByRole('button', { name: /^Edit / });
+        const list = page.getByRole('group', { name: /instruments/i }).first().locator('xpath=..');
+        const box = (await list.boundingBox())!;
+        for (let i = 0; i < (await edits.count()); i++) {
+          const b = await edits.nth(i).boundingBox();
+          if (!b || b.y < box.y || b.y + b.height > box.y + box.height) continue;
+          expect(await occluder(edits.nth(i)), `${view}: item ${i} is not covered`).toBeNull();
+        }
+        // The cards themselves (the play area of each), not only their gear.
+        const cards = page.locator('li[data-instrument] > button');
+        for (let i = 0; i < (await cards.count()); i++) {
+          const b = await cards.nth(i).boundingBox();
+          if (!b || b.y < box.y || b.y + b.height > box.y + box.height) continue;
+          expect(await occluder(cards.nth(i)), `${view}: card ${i} is not covered`).toBeNull();
+        }
+      });
+    }
 
     test('the gallery view: every visible card and every shell control is pressable', async ({ page }) => {
       await coldLoadPlaying(page);

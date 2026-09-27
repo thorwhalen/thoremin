@@ -215,9 +215,14 @@ export default function App({
       </div>
 
       {/* Center: prominent call-to-action until audio is running (the browser
-          requires a user gesture to start audio). */}
+          requires a user gesture to start audio). Centred in the space the Instruments
+          panel leaves (its live width, `--instruments-w`): centred on the screen, it sat on
+          the gallery's cards at 1280px. At least 16rem is kept for it on a narrow screen. */}
       {status === 'ready' && !audioOn && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center"
+          style={{ right: 'min(calc(var(--instruments-w, 0px) + 1.5rem), calc(100vw - 16rem))' }}
+        >
           <button
             onClick={startAudio}
             className="pointer-events-auto flex items-center gap-3 rounded-full bg-emerald-500 px-8 py-4 text-sm font-bold uppercase tracking-widest text-black shadow-2xl transition hover:brightness-110"

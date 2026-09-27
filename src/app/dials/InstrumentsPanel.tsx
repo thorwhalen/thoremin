@@ -25,7 +25,7 @@
  * explicit, confirmed Save. Library metadata (favorites, tags, associations) persists via
  * {@link useLibrary}; the single default pointer via {@link useInstruments}.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Music2,
   Settings,
@@ -42,6 +42,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import InstrumentPicture from '@/app/library/InstrumentPicture';
+import { INSTRUMENTS_WIDTH_VAR, publishSize } from '@/app/shellLayout';
 import DialsControlsPanel from './DialsControlsPanel';
 import { useInstruments } from './useInstruments';
 import { useDialsSettings } from './useDialsSettings';
@@ -200,6 +201,10 @@ function startsOpen(): boolean {
 
 export default function InstrumentsPanel() {
   const [open, setOpen] = useState(startsOpen);
+  // The panel's live width, for the surfaces that must keep clear of it ("Tap to play"). A
+  // stable ref callback returning its cleanup (React 19): one observer per mounted element,
+  // not one per render.
+  const measure = useCallback((el: HTMLElement | null) => publishSize(el, INSTRUMENTS_WIDTH_VAR, 'width'), []);
   const [view, setView] = useState<'list' | 'editor' | 'tags'>('list');
   const [confirming, setConfirming] = useState(false);
   const [newName, setNewName] = useState('');
@@ -326,6 +331,7 @@ export default function InstrumentsPanel() {
   if (!open) {
     return (
       <button
+        ref={measure}
         onClick={() => setOpen(true)}
         aria-label="Open instruments"
         className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/50 p-2.5 text-white/80 backdrop-blur transition hover:text-white"
@@ -337,7 +343,7 @@ export default function InstrumentsPanel() {
 
   if (view === 'tags') {
     return (
-      <div className={cardCls}>
+      <div ref={measure} className={cardCls}>
         <TagManager api={library} onBack={() => setView('list')} onClose={close} />
       </div>
     );
@@ -346,7 +352,7 @@ export default function InstrumentsPanel() {
   if (view === 'editor') {
     const isDefault = selected != null && selected === defaultName;
     return (
-      <div className={cardCls}>
+      <div ref={measure} className={cardCls}>
         <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
           <button
             onClick={() => {
@@ -592,7 +598,7 @@ export default function InstrumentsPanel() {
   const gallery = viewMode === 'grid';
 
   return (
-    <div className={gallery ? galleryCardCls : cardCls}>
+    <div ref={measure} className={gallery ? galleryCardCls : cardCls}>
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
         <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/70">
           <Music2 className="h-3.5 w-3.5" /> Instruments
