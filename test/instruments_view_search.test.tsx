@@ -8,7 +8,7 @@
 import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
-import { assembleSpec } from '@/instruments/spec';
+import { assembleSpec } from '@/app/graph';
 import { branchLabel, listingOf, whyMatched } from '@/app/library/instrumentsListing';
 
 beforeAll(() => localStorage.clear());
