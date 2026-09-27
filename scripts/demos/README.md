@@ -12,6 +12,10 @@ Each script turns something that has landed into a short video, GIF or data file
 | `air_pitch_timeline.ts` | one leave-one-player-out fold of the bass or flute pitch model, per frame, in the chord-timeline shape |
 | `drum_strokes_timeline.ts` | a drums source's wrist strokes, their drum assignment and (for real footage) the audio onsets, as `eval_drum_strokes.ts` computes them |
 | `render_drum_demo.py` | the footage with the pose arms and a ring per stroke; real footage in stereo (recording left, a click per stroke right), air footage with a synthetic kit per assigned drum |
+| `instrument_take.ts` | a scripted performance on the air drum (pads: centre/rim, soft/hard), air bass or air guitar, played through the production graph headless; the node's events and the frames to draw |
+| `offline_audio/` + `render_take_audio.mjs` | those events played through the shipped WebAudio sinks (`drum-out`, `pluck-out`) in an `OfflineAudioContext`, under the Vite dev server, to a WAV |
+| `render_take_video.py` | the take drawn on a mirrored stage (pads, stick, hands, neck, chord) with each sound labelled, muxed with its WAV |
+| `tour_air.mjs` | the built bundle's Air instruments group and the pad editor (place, move, resize, recolour), recorded with step marks and crop boxes |
 | `tour_live.mjs` | a scripted tour of the built bundle with `synthetic-hands`, recording the page's own Web Audio output alongside the screen (Playwright from `smoke/node_modules`) |
 
 ```bash
@@ -25,4 +29,9 @@ npx vite-node scripts/demos/chord_shape_timeline.ts --video 2pXS8k1zx8U   # -> $
 python3 scripts/demos/render_chord_demo.py --timeline $OUT/guitar/2pXS8k1zx8U.timeline.json --video V.mp4 --landmarks L.ndjson --start 110 --out $OUT/guitar/guitar.mp4
 npm run build && npx vite preview --port 4391 --strictPort &   # then:
 node scripts/demos/tour_live.mjs --url http://localhost:4391/thoremin/ --out $OUT/tour
+node scripts/demos/tour_air.mjs            # same server; -> $OUT/round3/tour
+npx vite-node scripts/demos/instrument_take.ts --instrument drums   # or bass, guitar
+npx vite --port 4392 --strictPort &   # the offline-audio harness
+node scripts/demos/render_take_audio.mjs $OUT/round3/drums.take.json $OUT/round3/drums.wav
+python3 scripts/demos/render_take_video.py --take $OUT/round3/drums.take.json --wav $OUT/round3/drums.wav --out $OUT/round3/drums.mp4
 ```
