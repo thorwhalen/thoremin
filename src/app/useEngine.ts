@@ -6,7 +6,7 @@
  * real work; this hook just supplies host resources and timing.
  *
  * Two seams the hook deliberately does NOT own:
- *  - **Pacing, outputs and teardown** are an `Applier` (`src/dag/applier.ts`): a
+ *  - **Pacing, outputs and teardown** are an `Applier` (`packages/dag/src/applier.ts`): a
  *    `RealtimeClock`, the React bridges as sinks, `disposed` as the stop condition.
  *    The hook used to hand-roll its own rAF recursion, which left the shipped
  *    `RealtimeClock` exercised only by unit tests while players ran other code.

@@ -1,7 +1,7 @@
 /**
  * `air-drum` node (#233) — strike the air, hear a drum AT the strike.
  *
- * The consumer of the sub-frame impact predictor (`src/ictus/impact.ts`,
+ * The consumer of the sub-frame impact predictor (`packages/ictus/src/impact.ts`,
  * `docs/research/subframe-impact-prediction.md`): the first instrument that sounds
  * an onset *before* the frame that shows it. Each of the player's hands is a stick:
  * the tracked point (by default a stick tip estimated from the grip, #246) is fed to its own predictor
@@ -25,7 +25,7 @@
  * `drum-out` node schedules on the audio clock (the two-clock discipline: this node
  * never touches audio). The `time` input is the conductor's `MusicalTime`; with a
  * running follower and a non-zero `magnetism` a predicted hit is pulled toward the
- * nearest expected beat (`src/ictus/magnet.ts`): the actuality ↔ intent dial of the
+ * nearest expected beat (`packages/ictus/src/magnet.ts`): the actuality ↔ intent dial of the
  * research map, in the player's hands.
  *
  * The dial. {@link AirDrumDialSchema} IS this node's params (the conductor pattern):
@@ -341,7 +341,7 @@ export const airDrumNode = defineNode<Params>({
   roles: ['feature', 'mapping'],
   title: 'Air drum',
   description:
-    'Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.',
+    'Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.',
   inputs: [
     { name: 'hands', kind: 'hands-frame' },
     { name: 'config', kind: 'air-drum-config' },

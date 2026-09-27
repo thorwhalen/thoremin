@@ -8,7 +8,7 @@
  * losslessly re-resolvable, aligned to the manifest), but it is not something you can
  * drag into Audacity — and if you never found the folder, it may as well not exist.
  *
- * `src/taglog/adapters/` already knew how to render Audacity label tracks, WebVTT cues,
+ * `packages/taglog/src/adapters/` already knew how to render Audacity label tracks, WebVTT cues,
  * CSV, Praat TextGrids, and OTIO; nothing had ever called it. This module is the wiring.
  *
  * THE ONE SUBTLETY — the clock. Edge events are stamped on the ABSOLUTE engine clock
@@ -73,7 +73,7 @@ const FORMAT_COPY: Record<string, { label: string; note: string; timeNote?: stri
 /**
  * The picker's ORDER — declared here, in the app, not inherited from `Object.keys(ADAPTERS)`.
  *
- * `src/taglog/` is a library built to be lifted out into a standalone package: it has no
+ * `packages/taglog/src/` is a library built to be lifted out into a standalone package: it has no
  * knowledge of this UI, and the declaration order of its registry is an implementation
  * detail. Deriving the order (and therefore the DEFAULT, which is just "the first one")
  * from that key order would let a harmless reshuffle inside taglog silently change which

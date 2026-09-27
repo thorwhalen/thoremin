@@ -6,9 +6,14 @@
  * virtual modules, one per half of a manifest: `virtual:thoremin/extensions` (the pure
  * `Extension`s) and `virtual:thoremin/extensions-ui` (their React halves). The app's two list
  * modules (`src/extensions/index.ts`, `src/app/extensions/index.ts`) import those, so which
- * extensions exist is DATA the deploy chooses, not code the app hand-lists. Today the
- * modules are in-tree (`@/extensions/air`); after the repository split (PR 7) the same file
- * names registry packages, and nothing else changes.
+ * extensions exist is DATA a build reads, not code the app hand-lists. Today the modules are
+ * in-tree (`@/extensions/air`); after the repository split (PR 7) the same file names
+ * registry packages.
+ *
+ * What this does NOT do yet: leaving `air` out of the manifest removes its nodes, branches,
+ * ports and panels from the running app, but not its code from the bundle, because
+ * `src/settings/schema.ts` still imports the air dial shape directly (the one named
+ * exception in `test/extensions_boundary.test.ts`).
  *
  * Set `THOREMIN_EXTENSIONS` to build from another manifest file.
  */
@@ -27,6 +32,9 @@ export interface ExtensionEntry {
   ui: string;
 }
 
+/** An alias (`@/x`) or a package (`x`, `@scope/x`), with an optional subpath. */
+const SPECIFIER = /^(@\/|@[a-z0-9][\w.-]*\/|[a-z0-9])[\w./-]*$/i;
+
 export function readExtensionEntries(file: string): ExtensionEntry[] {
   const parsed = JSON.parse(readFileSync(file, 'utf8')) as { extensions?: unknown };
   if (!Array.isArray(parsed.extensions)) throw new Error(`${file}: "extensions" must be an array`);
@@ -35,6 +43,12 @@ export function readExtensionEntries(file: string): ExtensionEntry[] {
     const entry = e as Partial<ExtensionEntry>;
     for (const key of ['id', 'module', 'ui'] as const) {
       if (typeof entry[key] !== 'string' || !entry[key]) throw new Error(`${file}: extensions[${i}].${key} must be a non-empty string`);
+    }
+    for (const key of ['module', 'ui'] as const) {
+      // A virtual module has no directory, so a relative path cannot resolve from it.
+      if (!SPECIFIER.test(entry[key] as string)) {
+        throw new Error(`${file}: extensions[${i}].${key} ("${entry[key]}") must be a module specifier: an alias ("@/extensions/x") or a package ("@scope/x"), not a relative or absolute path`);
+      }
     }
     if (seen.has(entry.id as string)) throw new Error(`${file}: duplicate extension id "${entry.id}"`);
     seen.add(entry.id as string);

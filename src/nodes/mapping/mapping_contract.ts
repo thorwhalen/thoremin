@@ -4,7 +4,7 @@
  * `synth-params`) must declare. This is the load-bearing prerequisite for
  * node-swap slots (see docs/design/component-model.md, "Two corrections" #1):
  *
- * `validateEdge` (src/dag/engine.ts) accepts an edge only if the target node
+ * `validateEdge` (packages/dag/src/engine.ts) accepts an edge only if the target node
  * DECLARES an input port of that name. The default graph wires nine edges into
  * the mapping slot (features + face + the keyboard/UI control surface). So a node
  * can only be swapped into that slot without orphaning those edges if it declares

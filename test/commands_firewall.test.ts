@@ -113,6 +113,8 @@ describe('command-dispatch import firewall (#87)', () => {
       '@/hooks/useAudioEngine',
       '@/nodes/output/webaudio_synth',
       '@/dag',
+      '@thoremin/dag',
+      '@thoremin/dag/engine',
     ]) {
       expect(isAllowedFromCommands(spec), `"${spec}" must be firewalled from commands`).toBe(false);
     }
@@ -157,7 +159,7 @@ describe('command-dispatch import firewall (#87)', () => {
       '@/app/store', '@/app/store.ts', '../store', './store',
       '@/app/useEngine', '@/app/recorder', '@/hooks/useAudioEngine',
       '../../app/useEngine', '../../app/recorder', '../../hooks/useAudioEngine', // relative reach-outs
-      '@/dag', '@/nodes/output/webaudio_synth',
+      '@/dag', '@thoremin/dag', '@thoremin/dag/engine', '@/nodes/output/webaudio_synth',
     ]) {
       expect(isForbiddenFromAssistant(spec), `"${spec}" must be firewalled from the assistant`).toBe(true);
     }

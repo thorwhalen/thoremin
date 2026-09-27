@@ -411,7 +411,7 @@
 <section><h3>Conductor mode</h3><p class="blurb">Direct a fixed piece with gesture (tempo + dynamics).</p><div class="grid">
     <div class="node">
       <h4><code>conductor</code> <span class="title">Conductor</span></h4>
-      <p>The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.</p>
+      <p>The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.</p>
       <dl>
         <dt>roles</dt><dd>feature, mapping</dd>
         <dt>in</dt><dd>hands:hands-frame, config:conductor-config, doc:score-doc</dd>
@@ -452,7 +452,7 @@
 <section><h3>Air instruments</h3><p class="blurb">Strike, pluck or blow at nothing — hits and plucks predicted before the frame that shows them (#233, #249).</p><div class="grid">
     <div class="node">
       <h4><code>air-drum</code> <span class="title">Air drum</span></h4>
-      <p>Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.</p>
+      <p>Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.</p>
       <dl>
         <dt>roles</dt><dd>feature, mapping</dd>
         <dt>in</dt><dd>hands:hands-frame, config:air-drum-config, time:musical-time, pattern:drum-pattern</dd>
@@ -472,7 +472,7 @@
     </div>
     <div class="node">
       <h4><code>air-bass</code> <span class="title">Air bass</span></h4>
-      <p>Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (src/ictus/impact.ts). Off by default.</p>
+      <p>Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.</p>
       <dl>
         <dt>roles</dt><dd>feature, mapping</dd>
         <dt>in</dt><dd>hands:hands-frame, config:air-bass-config, scale:number[], octaveShift:number</dd>

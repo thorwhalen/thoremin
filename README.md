@@ -34,7 +34,7 @@ See [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) for how to use all of it.
 
 ## The DAG engine (this *is* the product)
 
-The app is a small, framework-agnostic **dataflow DAG** (`src/dag/`) — a
+The app is a small, framework-agnostic **dataflow DAG** (`packages/dag/src/`) — a
 TypeScript mirror of the Python [`meshed`](https://github.com/i2mint/meshed)
 library. Components are small, typed, parameterizable **nodes** wired by edges,
 and **every edge can be recorded and replayed**, which is the backbone of the
@@ -71,14 +71,14 @@ clip.
 
 ## Repo layout
 
-- `src/dag/` — the engine, registry, recorder/replay, clock.
+- `packages/dag/src/` — the engine, registry, recorder/replay, clock.
 - `src/nodes/` — the node library (pure nodes are Node-safe & tested; browser
   nodes touch DOM/audio only at runtime).
 - `src/app/` — the deployed instrument: graph wiring, engine bridge, hot control
   store, command registry, dials + instruments, library, recording, annotations,
   Feature Lab.
 - `src/features/` — the feature catalog, safe formula compiler, online normalizer.
-- `src/taglog/` — the extraction-ready annotation package (no thoremin imports).
+- `packages/taglog/src/` — the extraction-ready annotation package (no thoremin imports).
 - `src/music/` — theory, voicing, and `sounds.ts` (the timbre presets).
 - `src/App.tsx`, `src/components/`, `src/plugins/ai-dj/` — the **frozen** legacy app.
 - `scripts/` + `test/` + `test/fixtures/` — fixture recording & replay tests.

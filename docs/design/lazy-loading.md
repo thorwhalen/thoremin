@@ -52,7 +52,7 @@ Node-specific detail goes in `reason` (a cause for `unavailable` / `error`, or a
 ## The module: `packages/lazy/src/`
 
 ```ts
-import { lazyResource, withActive } from '@/lazy';
+import { lazyResource, withActive } from '@thoremin/lazy';
 
 const engine = lazyResource<GenerativeEngine>({
   load: (ctx) => (injectedFactory ?? defaultFactory)(opts, ctx),  // the seam

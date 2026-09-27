@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "description": "thoremin's ictus package (TypeScript source, consumed by the app through the workspace).",
-  "license": "UNLICENSED",
   "exports": {
     ".": "./src/index.ts",
     "./detector": "./src/detector.ts",

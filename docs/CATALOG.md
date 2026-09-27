@@ -347,7 +347,7 @@ Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pi
 _Direct a fixed piece with gesture (tempo + dynamics)._
 
 #### `conductor` — Conductor
-The beating hand becomes musical time: ictus detection + an adaptive oscillator (src/ictus) → beat, bpm, dynamics for the score. Off by default.
+The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:conductor-config, doc:score-doc
@@ -382,7 +382,7 @@ Control signal → tempo (bpm) + dynamics (velocityScale), with optional humaniz
 _Strike, pluck or blow at nothing — hits and plucks predicted before the frame that shows them (#233, #249)._
 
 #### `air-drum` — Air drum
-Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.
+Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:air-drum-config, time:musical-time, pattern:drum-pattern
@@ -398,7 +398,7 @@ Sounds the air drum hits on the audio clock at the time each was predicted for (
 - **params:** —
 
 #### `air-bass` — Air bass
-Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (src/ictus/impact.ts). Off by default.
+Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (packages/ictus/src/impact.ts). Off by default.
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:air-bass-config, scale:number[], octaveShift:number

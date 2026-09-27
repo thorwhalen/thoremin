@@ -25,7 +25,7 @@
  * taken by the overlay element above, so it would have moved the collision rather than
  * removed it. Hence "annotation" — free, and it says exactly what the feature does.
  *
- * Code under `src/taglog/` and this folder keeps the generic `tag` vocabulary of the
+ * Code under `packages/taglog/src/` and this folder keeps the generic `tag` vocabulary of the
  * extraction-ready library; every user-facing string, and every artifact written to
  * disk, says "annotation".
  */

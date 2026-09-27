@@ -12,7 +12,9 @@
  * One named exception, on purpose: `src/settings/schema.ts` imports the air dial slice's
  * SHAPE directly, because the `Settings` TYPE must know the air keys statically (a hundred
  * importers read `settings.airDrum`); a generic fold would type them as `unknown`. It goes
- * when the settings type is generated from the manifests (PR 6).
+ * when the settings type is generated from the manifests, which PR 6 deferred to the `sdk`
+ * cut that precedes the repository split (PR 7). Until then a build from a manifest that
+ * omits `air` still bundles the air code through this one import.
  *
  * Rule 2, on since 5b (the physical move): an extension imports only `SDK_SURFACE` (the
  * core modules listed below, which IS the SDK contract as data), packages, and itself.
@@ -120,6 +122,8 @@ const allows = (list: readonly string[], spec: string): boolean =>
   list.some((allowed) => spec === allowed || spec.startsWith(`${allowed}/`));
 
 const LIST_MODULES = /^@\/(extensions|app\/extensions)$/;
+/** The list side's type-only files: the manifest types and the virtual module's declaration. */
+const LIST_TYPE_FILES = new Set(['src/app/extensions/types.ts', 'src/app/extensions/virtual.d.ts']);
 const NAMED_EXCEPTIONS: Record<string, RegExp> = {
   'src/settings/schema.ts': /^@\/extensions\/air\/dials$/,
 };
@@ -129,8 +133,8 @@ describe('core reaches the extensions only through the lists, from the fold poin
     const offenders: string[] = [];
     {
       for (const file of tsFiles(CORE_ROOT)) {
-        // The list side's own type files (the manifest types, the virtual module's declaration).
-        if (isExtensionFile(file) || (file.startsWith('src/app/extensions/') && file !== 'src/app/extensions/index.ts')) continue;
+        // The list side's own type files, exempt BY NAME: any other file beside them is core.
+        if (isExtensionFile(file) || LIST_TYPE_FILES.has(file)) continue;
         for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
           // Alias or relative, a directory or the list module itself (`../extensions`).
           const reachesExtensions = /^@\/extensions(\/|$)/.test(spec) || /^@\/app\/extensions(\/|$)/.test(spec) || /(^|\/)extensions(\/|$)/.test(spec);
@@ -150,6 +154,15 @@ describe('core reaches the extensions only through the lists, from the fold poin
       const specs = importSpecifiers(readFileSync(file, 'utf8'));
       expect(specs.filter((s) => /extensions/.test(s)), file).toEqual([]);
     }
+  });
+
+  it('the list side type files import no extension, and re-export nothing from one', () => {
+    for (const file of LIST_TYPE_FILES) {
+      const src = readFileSync(file, 'utf8');
+      expect(importSpecifiers(src).filter((s) => /^@\/extensions(\/|$)/.test(s) || /^\.{1,2}\/(.*\/)?extensions\//.test(s)), file).toEqual([]);
+    }
+    // The list module takes TYPES from `./types`; a value re-export would be a second list.
+    expect(readFileSync('src/app/extensions/index.ts', 'utf8')).not.toMatch(/export\s*(\*|\{[^}]*\})\s*from/);
   });
 
   it('the list modules import only manifests (no component or store reaches in through them)', () => {

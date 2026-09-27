@@ -14,7 +14,7 @@
  *   row, and a moment of doubt HOLDS the last chord rather than dropping it.
  * - **The strumming hand says WHEN, and it is the drum problem** (§7.3): a strum's moment
  *   is predicted before the frame that shows it by the air drum's impact predictor
- *   (`src/ictus/impact.ts`). The chord is latched at the prediction.
+ *   (`packages/ictus/src/impact.ts`). The chord is latched at the prediction.
  *
  * A strum sounds the chord's name as a guitarist would voice it (`src/music/guitar.ts`:
  * the open-chord rule on six strings), low string first, each string a few milliseconds

@@ -2,7 +2,7 @@
 
 Infer musical time (beat, phase, tempo, dynamics, articulation) from low-rate gesture. Pure TypeScript, causal, no framework, no clock, no DOM. In conducting, the *ictus* is the exact instant of the beat, the turning point where the gesture reverses; this module infers it from things that only imply it.
 
-This directory is a package-in-waiting (thoremin #178 proposes extracting it as `ictus`): nothing in it imports from outside the directory, and its tests import only from `@/ictus`. thoremin's `conductor` node and the body epic's audio pacer (#186) are its first consumers.
+This directory is a package-in-waiting (thoremin #178 proposes extracting it as `ictus`): nothing in it imports from outside the directory, and its tests import only from `@thoremin/ictus`. thoremin's `conductor` node and the body epic's audio pacer (#186) are its first consumers.
 
 ## The shape
 
@@ -20,7 +20,7 @@ samples (t, x, y)  ──▶ [ImpactPredictor] ──▶ predict (early) / confi
 ## Use
 
 ```ts
-import { createIctus } from '@/ictus';
+import { createIctus } from '@thoremin/ictus';
 
 const ictus = createIctus({ detector: { mirrorX: true }, oscillator: { beatsPerBar: 4 } });
 // each frame, with the wrist (or index tip) of the beating hand:
