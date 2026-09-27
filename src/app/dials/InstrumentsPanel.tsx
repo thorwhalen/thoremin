@@ -8,7 +8,13 @@
  *    #113 tags column, #114 system tags, #115 tooltip). The rows are grouped by the
  *    instrument's DERIVED category (`library/category.ts`, #249): field instruments,
  *    then air instruments — one place to choose any instrument, each chosen by the same
- *    click. The chosen air drum carries its live readout under its row;
+ *    click. The chosen air drum carries its live readout under its row. The list is a
+ *    RENDERING of the instruments collection (`library/instrumentsCollection.ts`, Round 4
+ *    #272): the collection declares the search, the sorts, the grouping and the
+ *    operations over the instrument spec, and the specs provider answers the query
+ *    (`library/instrumentsCatalog.ts`); this component draws what comes back. The
+ *    drawing itself is a temporary in-repo stand-in for zodal's collection-view renderer
+ *    (i2mint/zodal#14; migration tracked in thorwhalen/thoremin#283);
  *  - the EDITOR: the dials-rendered {@link DialsControlsPanel} for the selected
  *    instrument, preceded by its Tags section and a "Set as default" toggle (default is
  *    now a per-instrument setting, decoupled from the star — #112), with a back arrow, an
@@ -19,8 +25,7 @@
  * explicit, confirmed Save. Library metadata (favorites, tags, associations) persists via
  * {@link useLibrary}; the single default pointer via {@link useInstruments}.
  */
-import { useMemo, useState } from 'react';
-import type { ProfileMeta } from '@zodal/dials-ui';
+import { useEffect, useMemo, useState } from 'react';
 import { Music2, Settings, X, ArrowLeft, Star, Search, Tags, Check } from 'lucide-react';
 import DialsControlsPanel from './DialsControlsPanel';
 import { useInstruments } from './useInstruments';
@@ -31,29 +36,17 @@ import TagsEditor from '@/app/library/TagsEditor';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
 import { AIR_INSTRUMENTS, airInstrumentsOf, groupByCategory, type AirInstrumentId } from '@/app/library/category';
+import type { InstrumentSpec } from '@/instruments/spec';
+import { instrumentsCollection, type InstrumentSort } from '@/app/library/instrumentsCollection';
+import { queryInstruments, useInstrumentsCatalog } from '@/app/library/instrumentsCatalog';
 import { layerToSettings } from '@/settings/dials';
 import { AIR_UI } from './panels/air';
 
 const cardCls =
   'shell-instruments-card absolute right-3 top-3 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
 
-type SortMode = 'default' | 'star' | 'name';
-
-/** Filter (by name substring) then sort the instrument list for display. Sort is stable,
- *  so 'star' keeps the underlying order within the starred / unstarred groups. */
-function orderInstruments(
-  list: ProfileMeta[],
-  query: string,
-  sort: SortMode,
-  isStarred: (name: string) => boolean,
-): ProfileMeta[] {
-  const q = query.trim().toLowerCase();
-  const filtered = q ? list.filter((p) => p.name.toLowerCase().includes(q)) : list;
-  const arr = [...filtered];
-  if (sort === 'name') arr.sort((a, b) => a.name.localeCompare(b.name));
-  else if (sort === 'star') arr.sort((a, b) => Number(isStarred(b.name)) - Number(isStarred(a.name)));
-  return arr;
-}
+const searchAffordance = instrumentsCollection.affordances.search;
+const SEARCH_PLACEHOLDER = (typeof searchAffordance === 'object' && searchAffordance.placeholder) || 'Filter…';
 
 export default function InstrumentsPanel() {
   const [open, setOpen] = useState(true);
@@ -61,13 +54,27 @@ export default function InstrumentsPanel() {
   const [confirming, setConfirming] = useState(false);
   const [newName, setNewName] = useState('');
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<SortMode>('default');
+  const [sort, setSort] = useState<InstrumentSort>('default');
   const { list, selected, ready, select, save, create, defaultName, setDefault } = useInstruments();
   const library = useLibrary(list);
-  const shown = useMemo(
-    () => orderInstruments(list, query, sort, library.starred),
-    [list, query, sort, library.starred],
-  );
+  // The collection's items: the library's specs, once derived, in the library's order.
+  // The query runs against the specs provider; a signature keys the effect, since
+  // `useLibrary` hands back fresh functions every render.
+  const specs = library.derivedReady
+    ? list.map((p) => library.specOf(p.name)).filter((x): x is InstrumentSpec => x !== undefined)
+    : [];
+  const specsSig = JSON.stringify(specs);
+  const [queried, setQueried] = useState(false);
+  useEffect(() => {
+    if (!library.derivedReady) return;
+    let live = true;
+    void queryInstruments(specs, query, sort).then(() => live && setQueried(true));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- specsSig stands for specs
+  }, [specsSig, query, sort, library.derivedReady]);
+  const shown = useInstrumentsCatalog((s) => s.items);
   const { state } = useDialsSettings();
   const dirty = state.dirty.length > 0;
   // The air instruments playing right now (the live dials, not a saved instrument): the
@@ -223,9 +230,9 @@ export default function InstrumentsPanel() {
   // --- LIST view ---------------------------------------------------------------------
   // One place to choose any instrument (#249): the list is grouped by the instrument's
   // derived category (theremin / air), and every row is chosen the same way.
-  const groups = groupByCategory(shown, (p) => library.categoryOf(p.name));
+  const groups = groupByCategory(shown, (p) => p.class);
 
-  const renderRow = (p: ProfileMeta) => {
+  const renderRow = (p: InstrumentSpec) => {
     const isSel = p.name === selected;
     const isDefault = p.name === defaultName;
     const isStar = library.starred(p.name);
@@ -317,7 +324,7 @@ export default function InstrumentsPanel() {
         </span>
       </div>
       <div className="overflow-auto p-2" aria-busy={!ready}>
-        {!ready || !library.derivedReady ? (
+        {!ready || !library.derivedReady || !queried ? (
           <p className="px-2 py-3 text-[11px] text-white/40">Loading instruments…</p>
         ) : (
           <>
@@ -327,7 +334,7 @@ export default function InstrumentsPanel() {
                   <Search className="h-3 w-3 shrink-0 text-white/30" aria-hidden />
                   <input
                     className="w-full bg-transparent py-1.5 text-xs text-white/80 outline-none placeholder:text-white/30"
-                    placeholder="Filter instruments…"
+                    placeholder={SEARCH_PLACEHOLDER}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     aria-label="Filter instruments"
@@ -335,7 +342,7 @@ export default function InstrumentsPanel() {
                 </div>
                 <select
                   value={sort}
-                  onChange={(e) => setSort(e.target.value as SortMode)}
+                  onChange={(e) => setSort(e.target.value as InstrumentSort)}
                   aria-label="Sort instruments"
                   className="rounded-lg bg-white/5 px-1.5 py-1.5 text-[11px] text-white/70 outline-none transition hover:bg-white/10"
                 >
