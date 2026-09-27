@@ -25,6 +25,7 @@ import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutE
 import { chordShapeFeatureIds } from '@/features/hand_shape';
 import { ALL_FEATURES } from '@/features/catalog';
 import { MOUTH_GROUPS } from '@/nodes/music/air_flute';
+import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '@/air/fingering_prior';
 
 /** The mouth gate's reject, in multiples of the enrolment's own reach (see
  *  `TrainVocabularyOptions.rejectScale`). */
@@ -71,6 +72,9 @@ export interface VocabularyState {
   enrol(label: string, samples: readonly FeatureVector[]): Promise<void>;
   /** Forget the entry named `label`. */
   remove(label: string): Promise<void>;
+  /** Derive and publish the classifier again from the same samples: for when what the
+   *  derivation depends on besides the samples (the flute's prior dial) has changed. */
+  republish(): void;
 }
 
 export interface VocabularySpec {
@@ -82,6 +86,10 @@ export interface VocabularySpec {
   publish: (model: TrainedModel | null) => void;
   /** How the classifier is trained (closed-set by default). */
   train?: TrainVocabularyOptions;
+  /** The derivation itself, when it is more than `trainVocabulary` (the flute fuses the
+   *  fingering prior in, #263). Receives the vocabulary; the default is `trainVocabulary`
+   *  with `train`. */
+  derive?: (vocab: Vocabulary) => TrainedModel | null;
 }
 
 /**
@@ -89,11 +97,12 @@ export interface VocabularySpec {
  * entries, and on every change persist the samples and publish the classifier derived
  * from them. The guitar is one call below; the flute is another.
  */
-export function createVocabularyState({ name, features, publish, train = {} }: VocabularySpec) {
+export function createVocabularyState({ name, features, publish, train = {}, derive }: VocabularySpec) {
+  const model = (vocab: Vocabulary): TrainedModel | null => (derive ? derive(vocab) : trainVocabulary(vocab, train));
   return create<VocabularyState>()((set, get) => {
     const commit = async (vocab: Vocabulary): Promise<void> => {
       set({ vocab });
-      publish(trainVocabulary(vocab, train));
+      publish(model(vocab));
       try {
         await getStore().save(name, vocab);
         set({ error: null });
@@ -109,10 +118,11 @@ export function createVocabularyState({ name, features, publish, train = {} }: V
         const rec = await getStore().load(name);
         const vocab = rec?.vocabulary ?? emptyVocabulary(features);
         set({ vocab, loaded: true });
-        publish(trainVocabulary(vocab, train));
+        publish(model(vocab));
       },
       enrol: (label, samples) => commit(withEntry(get().vocab, label, samples)),
       remove: (label) => commit(withoutEntry(get().vocab, label)),
+      republish: () => publish(model(get().vocab)),
     };
   });
 }
@@ -127,12 +137,42 @@ export const useGuitarVocabulary = createVocabularyState({
   publish: (model) => useControls.getState().setAirGuitarModel(model),
 });
 
+/** The flute's finger features: both hands' shapes, prefixed by the player's hand. */
+export const FLUTE_FINGER_FEATURES: readonly string[] = ['l.', 'r.'].flatMap((p) => chordShapeFeatureIds().map((id) => p + id));
+
+/** The flute's finger model: the enrolment fused with the fingering prior the `airFlute.prior`
+ *  dial names (#263), or the enrolment alone when the prior is off. */
+export function deriveFluteFingerModel(vocab: Vocabulary, prior: Partial<FingeringPriorSettings> | undefined): TrainedModel | null {
+  const options = priorOptionsFrom(prior);
+  return options ? fuseWithPrior(vocab, options) : trainVocabulary(vocab);
+}
+
 /** The air flute's fingerings: both hands' shapes, prefixed by the player's hand. */
 export const useFluteFingerVocabulary = createVocabularyState({
   name: 'flute-fingers',
-  features: ['l.', 'r.'].flatMap((p) => chordShapeFeatureIds().map((id) => p + id)),
+  features: FLUTE_FINGER_FEATURES,
   publish: (model) => useControls.getState().setAirFluteFingerModel(model),
+  derive: (vocab) => deriveFluteFingerModel(vocab, useControls.getState().airFlute?.prior),
 });
+
+/**
+ * Keep the flute's finger model in step with the prior dial: when `airFlute.prior`
+ * changes (a settings edit, a loaded instrument), derive the model again from the same
+ * samples. Returns the unsubscribe. The comparison is by value, so a re-render of an
+ * unchanged dial does not retrain.
+ */
+export function startFlutePriorSync(
+  store: { getState(): { airFlute?: { prior?: Partial<FingeringPriorSettings> } }; subscribe(l: (s: { airFlute?: { prior?: Partial<FingeringPriorSettings> } }) => void): () => void } = useControls,
+  vocabulary: { getState(): Pick<VocabularyState, 'republish'> } = useFluteFingerVocabulary,
+): () => void {
+  let last = JSON.stringify(store.getState().airFlute?.prior ?? null);
+  return store.subscribe((s) => {
+    const key = JSON.stringify(s.airFlute?.prior ?? null);
+    if (key === last) return;
+    last = key;
+    vocabulary.getState().republish();
+  });
+}
 
 /** The air flute's two mouth states (blowing, resting), over the face's mouth features. */
 export const useFluteMouthVocabulary = createVocabularyState({

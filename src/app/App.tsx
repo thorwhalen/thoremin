@@ -17,7 +17,7 @@ import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { startBodyRouteDemand } from './bodyRouteDemand';
-import { loadAirVocabularies } from './air/vocabularyStore';
+import { loadAirVocabularies, startFlutePriorSync } from './air/vocabularyStore';
 import { startAirFluteDemand } from './airFluteDemand';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
@@ -134,6 +134,9 @@ export default function App({
   useEffect(() => {
     void loadAirVocabularies();
   }, []);
+  // #263: the flute's finger model is the enrolment fused with the fingering prior the
+  // dial names; when the dial changes, the model is derived again from the same samples.
+  useEffect(() => startFlutePriorSync(), []);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">
