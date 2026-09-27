@@ -24,10 +24,17 @@
  */
 import type { DemandedGroups } from '@/features/demand';
 import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '@/features/labConfig';
-import { ALL_BRANCH_IDS } from './branches';
-import { EXTENSIONS, EXTENSION_BRANCHES } from '@/extensions';
-
-const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set([...ALL_BRANCH_IDS, ...EXTENSION_BRANCHES.map((b) => b.id)]);
+/**
+ * What the derivation needs to know about the build it runs in: which branch ids exist,
+ * and each extension's own derivation. A PARAMETER, never an import: this package stays
+ * free of the app's extension list (the host binds it once, `branchIdsFor` in
+ * `src/app/graph.ts`), and a caller that forgets the extensions fails to typecheck rather
+ * than silently deriving a graph without them.
+ */
+export interface DerivationTable {
+  knownBranchIds: ReadonlySet<string>;
+  extensions: readonly { id: string; derive: (settings: DerivationSettings) => readonly string[] }[];
+}
 
 /**
  * The slice of the settings the derivation reads. Structural, so tests need no full
@@ -89,7 +96,7 @@ const on = (x: { enabled?: boolean } | undefined): boolean => x?.enabled === tru
  * The branch ids `settings` and `ctx` imply, in no particular order (the composer orders).
  * The trunk is implied by the composer and not listed here.
  */
-export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContext = {}): string[] {
+export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationContext, table: DerivationTable): string[] {
   const demanded = ctx.demanded ?? NO_DEMAND;
   const ids: string[] = [];
   const add = (id: string, on: boolean): void => {
@@ -100,7 +107,7 @@ export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContex
     // Unknown ids (a stale saved record, a branch an extension no longer ships) are dropped
     // rather than thrown: the derivation runs inside the host's selector and must not take
     // the app down. `composeGraph` would refuse them; here they simply compose nothing.
-    for (const id of ctx.explicit) add(id, KNOWN_BRANCH_IDS.has(id));
+    for (const id of ctx.explicit) add(id, table.knownBranchIds.has(id));
     add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
     add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded));
     return ids;
@@ -128,7 +135,9 @@ export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContex
   add('midi-out', on(settings.midi));
   add('generative', on(settings.steer));
   // The extensions' branches: each manifest says which of its branches its dials imply.
-  for (const ext of EXTENSIONS) for (const id of ext.derive(settings)) add(id, true);
+  // An id the table does not know (a typo in a manifest) is dropped, like an unknown
+  // explicit id: the derivation must not take the app down.
+  for (const ext of table.extensions) for (const id of ext.derive(settings)) add(id, table.knownBranchIds.has(id));
   return ids;
 }
 

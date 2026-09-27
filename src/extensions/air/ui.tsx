@@ -1,8 +1,8 @@
 /**
  * The air extension's React half (PR 5a of the instruments-as-graphs ADR): the four editor
  * sections, the status hooks that mirror each air node into its readout store (and the
- * live shape taps the enrolment UI reads), and the mount-time effects (the flute's breath
- * demand, the vocabulary loads, the fingering-prior sync). The panel and store modules
+ * live shape taps the enrolment UI reads, the drum's hits tap), and the mount-time effects (the
+ * flute's breath demand, the vocabulary loads, the fingering-prior sync, the drum-pattern sync). The panel and store modules
  * still live at their pre-extension paths until 5b moves them.
  */
 import type { ExtensionUi, StatusHook } from '@/app/extensions/types';
@@ -58,7 +58,7 @@ export const AIR_UI: ExtensionUi = {
       reset: () => useAirGuitarStatus.getState().reset(),
     },
     // #269: every hit the air drum decides, for a pattern take to read.
-    { nodeId: AIR_DRUM_NODE_ID, make: (engine) => makeHitsTap(engine, AIR_DRUM_NODE_ID), onRemoved: () => clearHits(), reset: () => clearHits() },
+    { nodeId: AIR_DRUM_NODE_ID, make: (engine) => makeHitsTap(engine, AIR_DRUM_NODE_ID), onRemoved: () => {}, reset: () => clearHits() },
     shapeHook(AIR_GUITAR_NODE_ID),
     {
       nodeId: AIR_FLUTE_NODE_ID,

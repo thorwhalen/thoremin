@@ -36,11 +36,30 @@ import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { composeGraph, type Composed } from '@/instruments/compose';
 import { BRANCHES, TRUNK, trunk } from '@/instruments/branches';
-import { EXTENSION_BRANCHES } from '@/extensions';
+import { EXTENSIONS, EXTENSION_BRANCHES } from '@/extensions';
+import { deriveBranchIds, type DerivationContext, type DerivationSettings, type DerivationTable } from '@/instruments/derive';
+import { assembleSpecWith, type InstrumentSpec, type SpecParts } from '@/instruments/spec';
 
 /** The full branch table this build composes from: the core branches, then every extension's. */
 export const ALL_BRANCHES = [...BRANCHES, ...EXTENSION_BRANCHES];
 export const ALL_BRANCH_IDS: readonly string[] = ALL_BRANCHES.map((b) => b.id);
+
+/** What the derivation knows in THIS build: every branch id, and each extension's derivation. */
+export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_BRANCH_IDS), extensions: EXTENSIONS };
+
+/**
+ * The branch ids the settings and the live demand imply, in this build (core plus every
+ * extension). The pure derivation is `deriveBranchIds` in `src/instruments/derive.ts`; this
+ * is the one place it is bound to the extension list.
+ */
+export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContext = {}): string[] {
+  return deriveBranchIds(settings, ctx, DERIVATION_TABLE);
+}
+
+/** The instrument spec assembled against this build's full branch table. */
+export function assembleSpec(parts: SpecParts): InstrumentSpec {
+  return assembleSpecWith(parts, ALL_BRANCHES);
+}
 
 /**
  * The generative branch's STARTER steering (#141 / #188): what the gestures mean to

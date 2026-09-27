@@ -1,8 +1,10 @@
 /**
  * The air extension (PR 5a of the instruments-as-graphs ADR): the drum, the bass, the guitar
  * and the flute as ONE manifest. The app folds over `EXTENSIONS` for its node registry, its
- * branch table, its settings schema, its `store-controls` ports and its derivation; nothing
- * about the air instruments is hand-listed in core any more.
+ * branch table, its dials form, its `store-controls` ports and its derivation. Still named in
+ * core, on purpose or until 5b: the settings schema's typed spread of the air shape, the hot
+ * store's fields, `AIR_INSTRUMENTS` (the library's class derivation), the seeds, the readout
+ * table `panels/air.tsx`, and the catalog script's category row.
  *
  * The node files still live at their pre-extension paths (`src/nodes/music/air_*`,
  * `src/nodes/output/{drum,pluck}_out`): 5b moves them once the trainer stream is done with

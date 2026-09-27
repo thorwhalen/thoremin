@@ -10,7 +10,8 @@ import { createAppRegistry } from '@/nodes/browser';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { FACE_GROUP_IDS, BODY_GROUP_IDS, defaultFeatureLab } from '@/features/labConfig';
-import { branchIdsFor, branchSetKey, type DerivationContext, type StrictDerivationSettings } from '@/instruments/derive';
+import { branchIdsFor } from '@/app/graph';
+import { branchSetKey, type DerivationContext, type StrictDerivationSettings } from '@/instruments/derive';
 import type { ControlState } from '@/app/store';
 
 // The hot store is read by the derivation inside a zustand selector (useEngine); this pins,

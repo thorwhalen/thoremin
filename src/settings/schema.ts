@@ -55,7 +55,6 @@ export const ConductorSettingsSchema = ConductorDialSchema.extend({
 });
 export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
 export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});
-/** The air drum settings (#233): the node's own params, lifted 1:1 (the conductor pattern). */
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -305,8 +304,8 @@ export const SettingsSchema = z.object({
   // The conductor (#187): the node's params lifted 1:1 as a structured dial, like
   // `faceControls`. `.default(...)` keeps pre-conductor presets valid (off).
   conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
-  // The air drum (#233): the node's params lifted 1:1. `.default(...)` keeps older presets valid (off).
-  // The extensions' whole-object dials (today: the air instruments'), spread in.
+  // The extensions' whole-object dials (today: the air instruments'), spread in; each
+  // carries its own `.default(...)`, which keeps older presets valid (off).
   ...AIR_SETTINGS_SHAPE,
 });
 export type Settings = z.infer<typeof SettingsSchema>;

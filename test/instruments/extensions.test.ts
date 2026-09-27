@@ -10,11 +10,13 @@ import { makeStoreControlsNode } from '@/nodes/sources/store_controls';
 import { EXTENSIONS, EXTENSION_DIAL_SLICES, EXTENSION_BRANCHES } from '@/extensions';
 import { AIR_EXTENSION } from '@/extensions/air';
 import { composeInstrumentGraph, ALL_BRANCH_IDS } from '@/app/graph';
-import { branchIdsFor } from '@/instruments/derive';
+import { branchIdsFor } from '@/app/graph';
 import { SettingsSchema } from '@/settings/schema';
 import { thoreminDials } from '@/settings/dials';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
+import { useControls } from '@/app/store';
+import { deriveBranchIds } from '@/instruments/derive';
 
 describe('the extension list', () => {
   it('ships the air extension, whose four instruments are four branches and four dial slices', () => {
@@ -52,9 +54,34 @@ describe('the registry folds over the extensions', () => {
     const parsed = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Pentatonic')!.layer);
     expect(parsed.airDrum.enabled).toBe(false);
     expect(parsed.airFlute).toBeDefined();
-    const fieldKeys = Object.keys((thoreminDials as unknown as { schema: { shape: Record<string, unknown> } }).schema?.shape ?? {});
-    // The dials form has a field per slice (the per-dial commands and the palette follow).
-    if (fieldKeys.length) expect(fieldKeys).toEqual(expect.arrayContaining(['airDrum', 'airBass', 'airGuitar', 'airFlute']));
+    void thoreminDials;
+  });
+
+  it('every dial slice of every extension is a key of the settings schema AND of the hot store', () => {
+    // The schema spreads the air shape by hand (so the Settings TYPE knows the keys) while the
+    // dials form and store-controls fold over the slices: this pins that the two agree, so a
+    // second extension cannot get a port and a form field whose value the schema then strips.
+    const schemaKeys = Object.keys(SettingsSchema.shape);
+    const storeKeys = Object.keys(useControls.getState());
+    for (const slice of EXTENSION_DIAL_SLICES) {
+      expect(schemaKeys, `SettingsSchema lacks "${slice.key}"`).toContain(slice.key);
+      expect(storeKeys, `the hot store lacks "${slice.key}"`).toContain(slice.key);
+    }
+    for (const t of EXTENSIONS.flatMap((e) => e.transient ?? [])) {
+      expect(storeKeys, `the hot store lacks the transient field "${t.field}"`).toContain(t.field);
+    }
+  });
+
+  it('no extension port reuses a trunk port name', () => {
+    const trunk = makeStoreControlsNode([]).outputs.map((p) => p.name);
+    const generated = [...EXTENSION_DIAL_SLICES.map((s) => s.key), ...EXTENSIONS.flatMap((e) => (e.transient ?? []).map((t) => t.field))];
+    expect(generated.filter((name) => trunk.includes(name))).toEqual([]);
+    expect(new Set(generated).size).toBe(generated.length);
+  });
+
+  it('an id an extension derives but does not declare is dropped, never composed', () => {
+    const table = { knownBranchIds: new Set(['field-voices']), extensions: [{ id: 'bad', derive: () => ['nope', 'field-voices'] }] };
+    expect(deriveBranchIds({ handMap: { maxGain: 0 } }, {}, table)).toEqual(['field-voices']);
   });
 
   it('the derivation asks each extension which of its branches the dials imply', () => {

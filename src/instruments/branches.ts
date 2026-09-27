@@ -1,7 +1,8 @@
 /**
  * The branch table: today's instrument graph, cut along the lines every instrument shares
  * and the lines each capability draws (`docs/design/instruments-as-graphs-and-extensions.md`
- * §3.4). `composeGraph(ALL_BRANCH_IDS, BRANCHES)` reproduces the graph `defaultGraph()` has
+ * §3.4). Composing the full table (these core branches plus the extensions', `ALL_BRANCHES` in
+ * `src/app/graph.ts`) reproduces the graph `defaultGraph()` has
  * always built (pinned by `test/instruments/golden_graph.test.ts`); an instrument that
  * composes fewer branches simply has fewer nodes.
  *
@@ -264,7 +265,7 @@ export const generative = defineBranch({
 
 /**
  * The CORE branches, in composition order. Extensions append theirs (`src/extensions`); the
- * full table an app composes from is `allBranches(extensions)` in `src/app/graph.ts`.
+ * full table an app composes from is `ALL_BRANCHES` in `src/app/graph.ts`.
  * Voice allocation follows this order.
  */
 export const BRANCHES: readonly GraphBranch[] = [
