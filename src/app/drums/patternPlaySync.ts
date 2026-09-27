@@ -60,9 +60,13 @@ export function startPatternPlaySync(deps: PatternPlaySyncDeps = {}): () => void
   };
 }
 
-/** After a take trains a pattern, the mode picks the new model up: call this. */
+/** After a take (which switches the mode off for its duration) or a new model, put the
+ *  mode back to what the dial says. A result for a dial value the dial has since left
+ *  is dropped. */
 export function refreshPatternPlay(deps: Pick<PatternPlaySyncDeps, 'publish' | 'load'> = {}): void {
   const id = useControls.getState().airDrum?.pattern ?? '';
   const publish = deps.publish ?? ((play) => useControls.getState().setAirDrumPattern(play));
-  void resolvePatternPlay(id, deps.load).then(publish);
+  void resolvePatternPlay(id, deps.load).then((play) => {
+    if ((useControls.getState().airDrum?.pattern ?? '') === id) publish(play);
+  });
 }

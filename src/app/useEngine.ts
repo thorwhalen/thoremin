@@ -543,7 +543,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useAirBassStatus.getState().reset();
       useAirGuitarStatus.getState().reset();
       clearShapes();
-        clearHits();
+      clearHits();
       useAirFluteStatus.getState().reset();
       uninstallDebug();
       uninstallLatency();

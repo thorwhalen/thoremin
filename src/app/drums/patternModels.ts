@@ -8,6 +8,7 @@
  * trainer writes it. Default target localStorage; tests pass an in-memory provider.
  */
 import { z } from 'zod';
+import { create } from 'zustand';
 import type { DataProvider } from '@zodal/store';
 import { PatternModelSchema, type PatternModel } from '@/drums/pattern_fit';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
@@ -44,13 +45,21 @@ export async function loadPatternModel(patternId: string): Promise<PatternModel 
   return rec?.model ?? null;
 }
 
+/** Bumped on every save or removal, so a list of trained patterns can re-read. */
+export const usePatternModelsVersion = create<{ version: number; bump(): void }>((set) => ({
+  version: 0,
+  bump: () => set((s) => ({ version: s.version + 1 })),
+}));
+
 /** Save (replace) the model for its pattern. */
 export async function savePatternModel(model: PatternModel): Promise<void> {
   await getStore().save(model.patternId, model);
+  usePatternModelsVersion.getState().bump();
 }
 
-export function removePatternModel(patternId: string): Promise<void> {
-  return getStore().remove(patternId);
+export async function removePatternModel(patternId: string): Promise<void> {
+  await getStore().remove(patternId);
+  usePatternModelsVersion.getState().bump();
 }
 
 /** The ids of every pattern with a model. */

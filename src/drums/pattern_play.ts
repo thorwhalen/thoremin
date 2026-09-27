@@ -13,8 +13,9 @@
  * is theirs, the placement is the pattern's.
  *
  * `start(t)` puts beat 0 of pass 0 at `t` (the count-in's end) and seeds the prior with
- * the count-in's beats, so the first hits already have a grid to land on. Pure: no
- * clock, no DAG, no audio.
+ * the count-in's beats, so the first hits already have a grid to land on. A hit after a
+ * pause long enough to put the prior on hold starts the pattern over: the player comes
+ * back on the one. Pure: no clock, no DAG, no audio.
  */
 import { createTrendPrior, type RhythmPrior } from '@/ictus';
 import { beatAt as priorBeatAt } from '@/ictus/types';
@@ -114,7 +115,16 @@ export function createPatternFollower(options: PatternFollowerOptions): PatternF
       const unsnapped: Snap = { event: null, drum: null, at: t, grid: null, feel: 0, pull: 0 };
       if (beat0 === null) return unsnapped;
       prior.advance(t);
-      const st = prior.state();
+      let st = prior.state();
+      // A pause longer than the prior's patience puts it on HOLD: its beat is frozen where
+      // the pause began and its next anchor would be numbered from there, not from where
+      // the player comes back, and every hit after that would be a fixed number of beats
+      // off (the snare on two sounding as a kick, for the rest of the piece). So a hit
+      // that ends a hold is taken as the one: the pattern starts over here.
+      if (st.state === 'hold') {
+        seed(t);
+        st = prior.state();
+      }
       const b = priorBeatAt(st, t) - beat0;
       if (!Number.isFinite(b) || b < -windowBeats) return unsnapped;
       const pass = Math.max(0, Math.floor(b / pattern.lengthBeats));

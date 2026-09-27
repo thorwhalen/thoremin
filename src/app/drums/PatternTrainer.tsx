@@ -24,6 +24,7 @@ import { clickPlayer } from '../enroll/click';
 import { hitsSince } from './hitsTap';
 import { loadPatternModel, removePatternModel, savePatternModel } from './patternModels';
 import { refreshPatternPlay } from './patternPlaySync';
+import { useControls } from '../store';
 import { PatternStrip } from './PatternStrip';
 
 /** Bars of count-in before the pattern starts. */
@@ -76,6 +77,9 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     return () => {
       stopTimer();
       clickPlayer().stop();
+      // Unmounted mid-take: the take is not fitted (there is nobody to show it to), but
+      // the pattern mode must come back.
+      refreshPatternPlay();
     };
   }, []);
 
@@ -95,24 +99,30 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     stopTimer();
     setCursor(null);
     setPhase({ kind: 'fitting' });
-    const hits = hitsSince(patternStartMs / 1000 - 0.25).map((h) => ({ t: h.t, sound: h.sound, pad: h.pad, x: h.x, y: h.y }));
+    // The RAW strike time: `t` is when the hit sounded, which a magnet or a pattern in
+    // play may have moved; `pull` is by how much. (The pattern mode is also off for the
+    // take, see `start`, so the sound is the pad's own.)
+    const hits = hitsSince(patternStartMs / 1000 - 0.25).map((h) => ({ t: h.t - h.pull, sound: h.sound, pad: h.pad, x: h.x, y: h.y }));
     const model = fitPattern(hits, p, { statedBpm: p.bpm, takenAt: Date.now() });
     if (model) {
       try {
         await savePatternModel(model);
         setError(null);
-        // The pattern mode, if it is playing this pattern, picks the new model up.
-        refreshPatternPlay();
       } catch (e) {
         setError(`Could not save (${e instanceof Error ? e.message : 'storage failed'}).`);
       }
     }
+    // The pattern mode comes back (with the new model, if it plays this pattern).
+    refreshPatternPlay();
     setPhase({ kind: 'done', model });
   };
 
   const start = () => {
     if (!pattern || !enabled) return;
     setError(null);
+    // No pattern in play during a take: the take must be the player's strokes, not the
+    // mode's snapped output (fitting that would only reproduce the old model).
+    useControls.getState().setAirDrumPattern(null);
     const player = clickPlayer();
     player.unlock?.();
     const startMs = now() + 200;
@@ -142,6 +152,7 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     stopTimer();
     setCursor(null);
     setPhase({ kind: 'idle' });
+    refreshPatternPlay();
   };
 
   const forget = async () => {

@@ -102,6 +102,25 @@ describe('the pattern follower', () => {
     expect(Math.abs(follower.beat(5 + 2 * period)! - 2)).toBeLessThan(0.15);
   });
 
+  it('after a pause of more than a bar, the next hit is the one and the pattern starts over', () => {
+    const follower = createPatternFollower({ pattern: ROCK, model });
+    const period = 60 / 96;
+    // Six beats of the pattern, then silence for three seconds, then back on the one.
+    follower.start(10);
+    const live = take(96, 0, 2, 10, 5).filter((h) => h.t < 10 + 6 * period);
+    for (const h of live) follower.snap(h.t, { sound: h.sound, pad: h.pad });
+    const resume = 10 + 6 * period + 3;
+    const one = follower.snap(resume + 0.01, { sound: 'kick', pad: 'p6' });
+    expect(one.drum).toBe('kick');
+    expect(follower.beat(resume)).toBeCloseTo(0, 1);
+    // The snare on two after the resume is the snare, not a kick three beats off.
+    const two = follower.snap(resume + 1 * period + 0.02, { sound: 'snare', pad: 'p1' });
+    expect(two.drum).toBe('snare');
+    expect(two.feel).toBeGreaterThan(0);
+    const three = follower.snap(resume + 2 * period, { sound: 'kick', pad: 'p6' });
+    expect(three.drum).toBe('kick');
+  });
+
   it('half magnetism moves a hit halfway to the grid', () => {
     const follower = createPatternFollower({ pattern: ROCK, model, magnetism: 0.5 });
     follower.start(5);
