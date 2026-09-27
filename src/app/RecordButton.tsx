@@ -264,8 +264,11 @@ function Hud({ recording }: { recording: RecordingControls }) {
 }
 
 export default function RecordButton({ recording }: { recording: RecordingControls }) {
+  // z-50: the settings sheet grows up out of this corner, over the Instruments panel and
+  // the assistant launcher. It is the surface the player just asked for, so it goes on
+  // top; unstacked, it opened BENEATH the panel, a blur of controls nobody could press.
   return (
-    <div className="absolute bottom-3 right-3 flex flex-col items-end">
+    <div className="absolute bottom-3 right-3 z-50 flex flex-col items-end">
       {recording.phase === 'idle' && (
         <button
           onClick={() => recording.open()}
