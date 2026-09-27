@@ -59,16 +59,18 @@ export const PadSchema = z.object({
 export type Pad = z.infer<typeof PadSchema>;
 
 /** Where each slot sits when switched on: a small kit around where hands fall in a
- *  webcam frame, snare in the middle, cymbals high, kick and floor tom low. */
+ *  webcam frame, snare in the middle, cymbals high, kick and floor tom low; every pad
+ *  inside the band a 4:3 camera keeps on a 16:9 screen (y from 0.125 to 0.875), which
+ *  crops a camera's frame to fill the window. */
 export const DEFAULT_PADS: Record<PadId, Pad> = {
   p1: { on: false, shape: 'circle', x: 0.5, y: 0.72, w: 0.18, h: 0.24, color: '#e11d48', sound: 'snare' },
   p2: { on: false, shape: 'circle', x: 0.26, y: 0.6, w: 0.16, h: 0.2, color: '#eab308', sound: 'hihat' },
   p3: { on: false, shape: 'circle', x: 0.74, y: 0.6, w: 0.16, h: 0.22, color: '#3b82f6', sound: 'tom' },
   p4: { on: false, shape: 'circle', x: 0.14, y: 0.3, w: 0.18, h: 0.22, color: '#14b8a6', sound: 'crash' },
   p5: { on: false, shape: 'circle', x: 0.86, y: 0.3, w: 0.18, h: 0.22, color: '#a855f7', sound: 'ride' },
-  p6: { on: false, shape: 'rect', x: 0.5, y: 0.93, w: 0.3, h: 0.12, color: '#f97316', sound: 'kick' },
-  p7: { on: false, shape: 'circle', x: 0.8, y: 0.88, w: 0.16, h: 0.2, color: '#22c55e', sound: 'tom' },
-  p8: { on: false, shape: 'rect', x: 0.2, y: 0.88, w: 0.16, h: 0.14, color: '#64748b', sound: 'snare' },
+  p6: { on: false, shape: 'rect', x: 0.5, y: 0.8, w: 0.3, h: 0.12, color: '#f97316', sound: 'kick' },
+  p7: { on: false, shape: 'circle', x: 0.8, y: 0.76, w: 0.16, h: 0.2, color: '#22c55e', sound: 'tom' },
+  p8: { on: false, shape: 'rect', x: 0.2, y: 0.78, w: 0.16, h: 0.14, color: '#64748b', sound: 'snare' },
 };
 
 /** The starter kit: the first five slots (snare, hi-hat, tom, crash, ride). */

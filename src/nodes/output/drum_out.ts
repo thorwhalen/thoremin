@@ -101,7 +101,9 @@ export function drumVoice(sound: DrumSound, velocity: number, touch: DrumTouch =
   const decay = 1 - RIM_DECAY * r;
   const base = BASE[sound];
   return {
-    tones: base.tones.map((t) => ({ ...t, from: t.from * pitch * bright, to: t.to * pitch, decay: t.decay * decay, gain: t.gain * v })),
+    // Both ends of a sweep move together, so a hard hit is brighter without a sustained
+    // partial (the ride's) gliding in pitch.
+    tones: base.tones.map((t) => ({ ...t, from: t.from * pitch * bright, to: t.to * pitch * bright, decay: t.decay * decay, gain: t.gain * v })),
     noises: base.noises.map((n) => ({ ...n, freq: n.freq * pitch * bright, decay: n.decay * decay, gain: n.gain * v * (1 + 0.3 * r) })),
   };
 }

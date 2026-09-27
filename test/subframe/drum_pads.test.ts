@@ -35,6 +35,29 @@ function load(name: string) {
   return { truth, poses };
 }
 
+/** Spearman rank correlation (ties broken by order: fine for a lower bound). */
+function spearman(a: number[], b: number[]): number {
+  const rank = (xs: number[]) => {
+    const r = new Array<number>(xs.length);
+    xs.map((x, i) => [x, i] as const)
+      .sort((p, q) => p[0] - q[0])
+      .forEach(([, i], k) => (r[i] = k));
+    return r;
+  };
+  const ra = rank(a);
+  const rb = rank(b);
+  const m = (a.length - 1) / 2;
+  let sab = 0;
+  let saa = 0;
+  let sbb = 0;
+  for (let i = 0; i < a.length; i++) {
+    sab += (ra[i] - m) * (rb[i] - m);
+    saa += (ra[i] - m) ** 2;
+    sbb += (rb[i] - m) ** 2;
+  }
+  return sab / Math.sqrt(saa * sbb);
+}
+
 const pad = (over: Partial<Pad>): Pad => ({ on: true, shape: 'circle', x: 0.5, y: 0.5, w: 0.2, h: 0.2, color: '#ff0000', sound: 'snare', ...over });
 const only = (entries: Partial<Record<(typeof PAD_IDS)[number], Pad>>): Pads => {
   const off = Object.fromEntries(PAD_IDS.map((id) => [id, { ...DEFAULT_PADS_SET[id], on: false }])) as Pads;
@@ -84,20 +107,25 @@ describe('where and how hard', () => {
     expect(seg[seg.length - 1].t).toBeCloseTo(12 / 30, 9);
   });
 
-  it('extrapolates the landing point and the arriving speed to the predicted impact', () => {
+  it('extrapolates the landing point to the predicted impact, and reads the fall speed so far', () => {
     const tImpact = 0.45;
     const land = landingAt(samples, tImpact, 0.005);
     expect(land.x).toBeCloseTo(fall(tImpact).x, 3);
     expect(land.y).toBeCloseTo(fall(tImpact).y, 3);
-    expect(land.speed).toBeCloseTo(6 * (tImpact - 0.2), 2); // dy/dt at the impact, not at the decision
+    // The mean speed of the fall SO FAR (not a derivative extrapolated to the impact,
+    // which is where it is fastest): between the departure's speed and the latest's.
+    expect(land.speed).toBeGreaterThan(0);
+    expect(land.speed).toBeLessThan(6 * (12 / 30 - 0.2) + 1e-9);
   });
 
-  it('maps the speed ratio (over the slowest stroke) to a velocity with a floor', () => {
-    expect(velocityOf(0, 3)).toBe(SOFTEST_HIT);
-    expect(velocityOf(3, 3)).toBe(1);
-    expect(velocityOf(30, 3)).toBe(1);
-    // A ratio of 2 is halfway from the slowest stroke (1) to the full-velocity one (3).
-    expect(velocityOf(2, 3)).toBeCloseTo(SOFTEST_HIT + (1 - SOFTEST_HIT) / 2, 9);
+  it('maps the accent and the speed ratio (over the slowest stroke) to a velocity with a floor', () => {
+    expect(velocityOf(1, 3, 0)).toBe(SOFTEST_HIT); // the slowest stroke, the smallest accent
+    expect(velocityOf(3, 3, 1)).toBe(1);
+    expect(velocityOf(30, 3, 1)).toBe(1);
+    // Half accent, half speed: a ratio of 2 is halfway to the full-speed one (3).
+    expect(velocityOf(2, 3, 0.5)).toBeCloseTo(SOFTEST_HIT + (1 - SOFTEST_HIT) * 0.5, 9);
+    // The absolute speed matters: the same accent, slower, is softer.
+    expect(velocityOf(1.2, 3, 1)).toBeLessThan(velocityOf(2.8, 3, 1));
   });
 });
 
@@ -185,9 +213,29 @@ describe.each(['subframe_stick_air_30', 'subframe_stick_surface_30'])('the air d
     const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
     expect(mean(byAmp(1))).toBeGreaterThan(mean(byAmp(0.8)));
     expect(mean(byAmp(0.8))).toBeGreaterThan(mean(byAmp(0.6)));
-    // And the speed is the clip's own: the accent peaks near its truth, in frame heights / s.
-    const accent = hits.find((_, k) => k > 0 && truth.events[k].amplitude === 1)!;
-    expect(accent.speed! * truth.clip.height).toBeGreaterThan(0.5 * 2111);
+    // And the fall speeds follow the accents too.
+    const meanSpeed = (a: number) => mean(hits.slice(1).filter((_, k) => truth.events[k + 1].amplitude === a).map((h) => h.speed!));
+    expect(meanSpeed(1)).toBeGreaterThan(meanSpeed(0.6));
+  });
+
+  it('keeps the accents in order under realistic landmark jitter (0.02 grip lengths)', async () => {
+    // Rank correlation between each predicted hit's velocity and its true accent, over
+    // ten noise seeds: the reviewed failure mode was a fitted derivative that made
+    // velocity mostly jitter (0.4 to 0.5 here).
+    const amp: number[] = [];
+    const vel: number[] = [];
+    const { poses } = load(name);
+    for (let seed = 1; seed <= 10; seed++) {
+      const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, point: 'stickTip', stickLength: TRUE_STICK_LENGTH, minLead: 0.03, volume: 1 }));
+      const outs = await replayNode(h, { hands: gripFrames(poses, { noise: 0.02, seed }) }, { dt: 1 / fps });
+      for (const hit of outs.flatMap((o) => o.hits as DrumHit[])) {
+        if (!hit.predicted) continue;
+        amp.push(truth.events.reduce((b, e) => (Math.abs(e.t_impact - hit.t) < Math.abs(b.t_impact - hit.t) ? e : b)).amplitude);
+        vel.push(hit.velocity);
+      }
+    }
+    expect(amp.length).toBeGreaterThan(50);
+    expect(spearman(amp, vel)).toBeGreaterThan(0.6);
   });
 });
 

@@ -15,8 +15,9 @@
  * Pads (#245). The player can put shapes on the screen, each a drum (`drum_pads.ts`):
  * a hit's landing point (fitted from the stroke's fall to the predicted impact) picks
  * the pad under it, where in the pad it landed (centre to rim) travels with the hit so
- * the sound can change with it, and how hard (the stroke's peak speed over the slowest
- * stroke this point counts) sets the velocity, which the drum voice reads for loudness
+ * the sound can change with it, and how hard (half the stroke's size against the
+ * player's recent strokes, half its speed over the slowest stroke this point counts)
+ * sets the velocity, which the drum voice reads for loudness
  * and brightness. With no pad on, each hand plays its own drum, as before.
  *
  * What comes out is a list of {@link DrumHit}s on the `hits` port — each with the
@@ -80,9 +81,10 @@ const Params = z.object({
   pads: PadsSchema.default(DEFAULT_PADS_SET),
   /** A hit that lands on no pad: the hand's own sound, the nearest pad, or nothing. */
   offPad: z.enum(OFF_PAD_MODES).default('hand'),
-  /** How hard a hit is: the stroke's peak speed as a multiple of the slowest stroke this
-   *  point counts (its `minSpeed` gate). A stroke this many times that fast or faster
-   *  sounds at full `volume`, slower ones softer and duller. A ratio, so it means the same
+  /** How fast a full-speed stroke is: the stroke's mean speed as a multiple of the
+   *  slowest stroke this point counts (its `minSpeed` gate). Speed is half of how hard a
+   *  hit sounds (`velocityOf`; the other half is its size against the player's recent
+   *  strokes); a harder hit is louder and brighter. A ratio, so it means the same
    *  for every tracked point and at any distance from the camera. */
   hardHit: z.number().min(1.1).max(20).default(4),
   /** How far ahead of the strike a hit should be committed, seconds, counted from the
@@ -121,7 +123,7 @@ export interface DrumHit {
   /** When it should SOUND, engine seconds (in the future for a predicted hit; the
    *  confirming sample's time for a ghost note). */
   t: number;
-  /** 0..1: how hard the stroke was (its peak speed against `hardSpeed`) times the volume
+  /** 0..1: how hard the stroke was (`velocityOf`) times the volume
    *  dial. The sink reads it for loudness AND tone (a harder hit is brighter). */
   velocity: number;
   hand: PlayerHand;
@@ -133,8 +135,10 @@ export interface DrumHit {
   /** The landing point in the displayed frame's fractions (`drum_pads.ts`'s space). */
   x?: number;
   y?: number;
-  /** The stroke's peak downward speed, frame heights per second. */
+  /** The stroke's mean downward speed over its fall, frame heights per second. */
   speed?: number;
+  /** The stroke's size relative to the player's recent strokes, 0..1 (the predictor's). */
+  strength?: number;
   /** Predicted ahead of the impact (true) or sounded late on confirmation (false). */
   predicted: boolean;
   /** `t` minus the engine time at which it was decided, seconds: the lead a scheduler
@@ -157,6 +161,7 @@ export const DrumHitSchema = z.object({
   x: z.number().optional(),
   y: z.number().optional(),
   speed: z.number().optional(),
+  strength: z.number().optional(),
 });
 export const DrumHitsSchema = z.array(DrumHitSchema);
 
@@ -170,6 +175,9 @@ export interface AirDrumStatus {
   lastHand: PlayerHand | null;
   /** The pad the last hit struck, or null. */
   lastPad: PadId | null;
+  /** The camera frame's width over its height (0 before a frame): the pad editor draws
+   *  its stage in the same shape. */
+  frameAspect: number;
   /** The last hit's lead in seconds (negative = a late ghost note). */
   lastLead: number;
   lastPull: number;
@@ -177,7 +185,7 @@ export interface AirDrumStatus {
   ready: { right: boolean; left: boolean };
 }
 
-export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, lastLead: 0, lastPull: 0, ready: { right: false, left: false } };
+export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, frameAspect: 0, lastLead: 0, lastPull: 0, ready: { right: false, left: false } };
 
 /** Ghost-note velocity for a stroke sounded on confirmation instead of prediction. */
 const GHOST_VELOCITY = 0.6;
@@ -235,22 +243,19 @@ export interface Landing {
   /** Where the stroke lands, display fractions. */
   x: number;
   y: number;
-  /** How hard: the fall's peak downward speed, frame heights per second. */
+  /** How fast: the fall's mean downward speed so far, frame heights per second. */
   speed: number;
 }
 
 /**
- * Where and how hard a stroke lands at `t` (#245), from a quadratic through its falling
- * segment ({@link fallingSegment}) evaluated at `t` (never more than
+ * Where a stroke lands at `t`, and how fast it came down (#245): a quadratic through its
+ * falling segment ({@link fallingSegment}) evaluated at `t` (never more than
  * {@link MAX_EXTRAPOLATION} past the last sample), never below the learned `floor` (the
  * impact predictor's plane, where a surface stroke meets it by definition), with x on a
- * line (the sideways drift; a quadratic overshoots on the stick's arc). A prediction is committed while the
- * stick is still falling and usually still speeding up, so the speed is the fit's
- * derivative at the later of the two ends: the stroke's speed as it arrives, not as it
- * was when the decision was made. An air stroke's impact is its turning point, where
- * the speed is zero by definition, so the PEAK over the fall (the derivative is linear,
- * its maximum is at an end) is what the player put into it. With fewer than three
- * falling samples, the last sample and a two-sample difference stand in.
+ * line (the sideways drift; a quadratic overshoots on the stick's arc). The speed is the
+ * fall's mean speed so far, departure to the latest sample, not a fitted derivative
+ * extrapolated to the impact: that one is mostly landmark jitter. With a single falling
+ * sample, the last sample and no speed.
  */
 export function landingAt(samples: readonly TrackSample[], t: number, eps: number, floor = Infinity): Landing {
   const seg = fallingSegment(samples, t, eps);
@@ -260,13 +265,11 @@ export function landingAt(samples: readonly TrackSample[], t: number, eps: numbe
   const ts = seg.map((s) => s.t);
   const fy = seg.length >= 3 ? fitQuadratic(ts, seg.map((s) => s.y), last.t) : null;
   const fx = seg.length >= 2 ? fitLine(ts, seg.map((s) => s.x), last.t) : null;
-  let speed = 0;
-  if (fy) {
-    const t0 = seg[0].t - last.t;
-    speed = Math.max(0, fy.b + 2 * fy.c * t0, fy.b + 2 * fy.c * tau);
-  } else if (seg.length === 2) {
-    speed = Math.max(0, (seg[1].y - seg[0].y) / (seg[1].t - seg[0].t));
-  }
+  // How fast the fall came down so far: its mean speed, departure to the latest sample.
+  // Not a fitted derivative: differentiating three noisy samples and extrapolating them
+  // ahead makes the speed mostly jitter (an adversarial review measured it).
+  const span = seg.length >= 2 ? last.t - seg[0].t : 0;
+  const speed = span > 0 ? Math.max(0, (last.y - seg[0].y) / span) : 0;
   return {
     x: fx ? fx.a + fx.b * tau : last.x,
     y: Math.min(fy ? fy.a + fy.b * tau + fy.c * tau * tau : last.y, Math.max(floor, last.y)),
@@ -274,14 +277,26 @@ export function landingAt(samples: readonly TrackSample[], t: number, eps: numbe
   };
 }
 
-/** How hard, as a velocity before the volume dial: `ratio` is the stroke's speed over
- *  the slowest stroke's, `hardHit` the ratio that sounds at full velocity. */
-export function velocityOf(ratio: number, hardHit: number): number {
-  return SOFTEST_HIT + (1 - SOFTEST_HIT) * clamp01((ratio - 1) / (hardHit - 1));
+/** How fast, 0..1: `ratio` is the stroke's speed over the slowest stroke's, `hardHit`
+ *  the ratio that counts as a full-speed stroke. */
+export function speedTerm(ratio: number, hardHit: number): number {
+  return clamp01((ratio - 1) / (hardHit - 1));
 }
-/** The speed floor a hardness ratio is taken against, frame heights per second (a
- *  `minSpeed` dial at 0 must not make every stroke infinitely hard). */
-const MIN_HARDNESS_SPEED = 0.05;
+
+/** How much of "how hard" is the stroke's size against the player's recent strokes (the
+ *  accent), the rest its absolute speed. The accent ranks strokes robustly under
+ *  landmark jitter (rank correlation with the true accent 0.78 to 0.85 on the synthetic
+ *  stick clips at 0 to 0.05 grip lengths of noise, against 0.62 to 0.80 for the speed
+ *  alone), but it is relative: a player who only ever plays softly would sound loud on
+ *  it alone. Half and half keeps 0.75 to 0.84 and lets absolute speed set the level. */
+export const ACCENT_WEIGHT = 0.5;
+
+/** How hard, as a velocity before the volume dial, from the stroke's relative size
+ *  (`strength`, 0..1) and its speed ratio over the slowest stroke. */
+export function velocityOf(ratio: number, hardHit: number, strength: number = 1 - ACCENT_WEIGHT): number {
+  const h = ACCENT_WEIGHT * clamp01(strength) + (1 - ACCENT_WEIGHT) * speedTerm(ratio, hardHit);
+  return SOFTEST_HIT + (1 - SOFTEST_HIT) * clamp01(h);
+}
 
 /**
  * A point's stroke gates in frame heights (the predictor's units): the dials themselves
@@ -420,6 +435,8 @@ export const airDrumNode = defineNode<Params>({
         lastFrame = frame;
         const time = inputs.time as MusicalTime | undefined;
         if (frame && fresh && frame.height > 0) {
+          const aspect = frame.width / frame.height;
+          if (Math.abs(aspect - status.frameAspect) > 1e-3) status = { ...status, frameAspect: aspect };
           const t = frameTime(frame, ctx);
           // The frame's age: the sample was captured `age` seconds before this decision
           // (the camera, inference and the tick), so the lead the predictor must leave
@@ -442,11 +459,13 @@ export const airDrumNode = defineNode<Params>({
             predictor.setMinLead(c.minLead + age);
             const handSound = which === 'right' ? c.rightSound : c.leftSound;
             const gates = gatesFor(c, stick.gateScale);
+            // A `minSpeed` dial near 0 must not make every stroke infinitely hard: the
+            // speed ratio is taken against at least the default dial's gate.
+            const hardnessFloor = gatesFor({ ...c, minSpeed: DEFAULT_MIN_SPEED }, stick.gateScale).minApproachSpeed;
             /** What a stroke landing at `at` plays, and how hard (#245): the pad under the
              *  landing point (or the hand's own sound), the centre-to-rim position, and the
-             *  stroke's peak speed, as a multiple of the slowest stroke this point counts,
-             *  as the velocity before the volume dial. */
-            const strike = (landing: Landing) => {
+             *  stroke's hardness (`velocityOf`) as the velocity before the volume dial. */
+            const strike = (landing: Landing, strength: number) => {
               const speed = landing.speed;
               const padHit = anyPadOn(c.pads) ? hitPad(c.pads, landing, c.offPad) : null;
               const silent = !padHit && anyPadOn(c.pads) && c.offPad === 'silent';
@@ -458,12 +477,12 @@ export const airDrumNode = defineNode<Params>({
                 x: landing.x,
                 y: landing.y,
                 speed,
-                hardness: velocityOf(speed / Math.max(gates.minApproachSpeed, MIN_HARDNESS_SPEED), c.hardHit),
+                hardness: velocityOf(speed / Math.max(gates.minApproachSpeed, hardnessFloor), c.hardHit, strength),
               };
             };
             for (const e of predictor.push({ t, x: anchor.x / frame.height, y: anchor.y / frame.height })) {
               if (e.kind === 'predict') {
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, predictor.level()));
+                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, predictor.level()), e.strength);
                 if (s.silent) continue;
                 let at = e.t;
                 let pull = 0;
@@ -488,6 +507,7 @@ export const airDrumNode = defineNode<Params>({
                   x: s.x,
                   y: s.y,
                   speed: s.speed,
+                  strength: clamp01(e.strength),
                   predicted: lead >= 0,
                   lead,
                   pull,
@@ -495,7 +515,7 @@ export const airDrumNode = defineNode<Params>({
               } else if (e.predicted === null) {
                 // Unpredicted: a ghost note, now; its lead is how late that is. It landed
                 // where the deepest sample was.
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER));
+                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER), e.strength);
                 if (s.silent) continue;
                 hits.push({
                   t: ctx.time,
@@ -507,6 +527,7 @@ export const airDrumNode = defineNode<Params>({
                   x: s.x,
                   y: s.y,
                   speed: s.speed,
+                  strength: clamp01(e.strength),
                   predicted: false,
                   lead: e.t - ctx.time,
                   pull: 0,

@@ -1939,7 +1939,7 @@ export const canvasOverlayNode = defineNode<Params>({
         if (t === undefined) continue;
         // Flash from the moment the hit SOUNDS (a predicted hit is scheduled ahead).
         const age = now - t;
-        if (age >= -PAD_FLASH_SECONDS && age < PAD_FLASH_SECONDS) out[id] = age <= 0 ? 1 : 1 - age / PAD_FLASH_SECONDS;
+        if (age >= 0 && age < PAD_FLASH_SECONDS) out[id] = 1 - age / PAD_FLASH_SECONDS;
       }
       return out;
     };

@@ -14,7 +14,9 @@
  * (4). Saving it: type a name, Save layout (5).
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { useAirDrumStatus } from '@/app/airDrumStatus';
+import { visibleCrop } from '@/app/dials/panels/airDrumPads';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { PAD_IDS, type Pads } from '@/nodes/music/drum_pads';
@@ -53,8 +55,26 @@ describe('the pad editor, from a cold load (#245)', () => {
     fireEvent.click(ed.getByLabelText(/^Pad p1:/));
     fireEvent.change(ed.getByLabelText('Pad drum'), { target: { value: 'crash' } });
     await waitFor(() => expect((airDrum().pads as Pads).p1.sound).toBe('crash'));
-    fireEvent.change(ed.getByLabelText('Pad colour'), { target: { value: '#00ff00' } });
+    // The colour follows the picker locally and is written once, when it lets go.
+    const colour = ed.getByLabelText('Pad colour');
+    fireEvent.change(colour, { target: { value: '#00ff00' } });
+    expect((airDrum().pads as Pads).p1.color).not.toBe('#00ff00');
+    fireEvent.blur(colour);
     await waitFor(() => expect((airDrum().pads as Pads).p1.color).toBe('#00ff00'));
+
+    // The keyboard moves the chosen pad too.
+    const x0 = (airDrum().pads as Pads).p1.x;
+    fireEvent.keyDown(ed.getByLabelText(/^Pad p1:/), { key: 'ArrowLeft' });
+    await waitFor(() => expect((airDrum().pads as Pads).p1.x).toBeCloseTo(x0 - 0.02, 3));
+    fireEvent.keyDown(ed.getByLabelText(/^Pad p1:/), { key: 'ArrowRight' });
+    await waitFor(() => expect((airDrum().pads as Pads).p1.x).toBeCloseTo(x0, 3));
+
+    // The stage is the camera's shape once a frame has arrived, and outlines what the
+    // window shows (jsdom's window is 4:3, the default camera shape 16:9: it crops the sides).
+    expect(ed.getByTestId('visible-crop')).toBeTruthy();
+    act(() => useAirDrumStatus.getState().report({ ...useAirDrumStatus.getState().live, frameAspect: 4 / 3 }));
+    expect(ed.getByLabelText('Pad stage').getAttribute('viewBox')).toBe('0 0 120 90');
+    act(() => useAirDrumStatus.getState().report({ ...useAirDrumStatus.getState().live, frameAspect: 0 }));
 
     // Drag it right by a quarter of the stage (the stage is laid out 160 x 90 here).
     const stage = ed.getByLabelText('Pad stage');
@@ -101,5 +121,15 @@ describe('pad layouts (the zodal collection)', () => {
     const writes = padLayoutWrites(airDrum().pads as Pads);
     expect(writes).toHaveLength(PAD_IDS.length * 8);
     for (const [path] of writes) expect(leafByPath[path], path).toBeDefined();
+  });
+});
+
+describe('the visible crop (the video fills the window by cropping)', () => {
+  it('keeps the full width in a wider window and the full height in a narrower one', () => {
+    expect(visibleCrop(4 / 3, { w: 1600, h: 900 })).toEqual({ x: 0, y: 0.125, w: 1, h: 0.75 });
+    const tall = visibleCrop(16 / 9, { w: 900, h: 1600 })!;
+    expect(tall.h).toBe(1);
+    expect(tall.w).toBeCloseTo((9 / 16) / (16 / 9), 9);
+    expect(visibleCrop(16 / 9, { w: 1600, h: 900 })).toBeNull();
   });
 });

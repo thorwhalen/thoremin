@@ -3,8 +3,10 @@
  * few shapes on the screen, each a drum, and save the layout.
  *
  * The stage is a small picture of the camera frame AS THE PLAYER SEES IT (mirrored, like
- * the overlay), so a pad dragged to the left here is struck by the hand on the left of
- * the video. Drag a pad to move it; drag its corner handle to resize it; click it to
+ * the overlay, in the camera's own shape once a frame has arrived), so a pad dragged to
+ * the left here is struck by the hand on the left of the video. The video fills the
+ * window by cropping (`object-cover`), so the stage outlines the part of the frame the
+ * screen actually shows: a pad outside it can be struck but not seen. Drag a pad to move it; drag its corner handle to resize it; click it to
  * choose its drum, shape and colour below. The drag itself is local React state (the
  * picture follows the pointer every frame); the RELEASE is one atomic `dial.patch` of the
  * pad's leaves (`airDrum.pads.<slot>.x` …), so every edit goes through the command write
@@ -22,9 +24,12 @@ import { DEFAULT_PADS_SET, DRUM_SOUNDS, MIN_PAD_SIZE, OFF_PAD_MODES, PAD_IDS, PA
 import { createPadLayoutStore, padLayoutWrites, type PadLayoutStore } from '../../drums/padLayouts';
 import type { NamedSummary } from '@/settings/namedCollection';
 
-/** The stage's picture of the frame, in its own units (16:9, the usual webcam shape). */
-const STAGE_W = 160;
+/** The stage's height in its own units; its width follows the camera's shape. */
 const STAGE_H = 90;
+/** The shape assumed before a camera frame has arrived (the usual webcam). */
+const DEFAULT_ASPECT = 16 / 9;
+/** One arrow-key press moves the chosen pad this far (frame fraction). */
+const KEY_STEP = 0.02;
 /** The resize handle's size, stage units. */
 const HANDLE = 5;
 
@@ -38,6 +43,24 @@ const OFF_PAD_LABEL: Record<OffPadMode, string> = {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const round3 = (v: number) => Math.round(v * 1000) / 1000;
+
+/**
+ * The part of a frame of shape `aspect` that a window shows when the video fills it by
+ * cropping (`object-cover`, the app shell's canvas), as frame fractions; null when all of
+ * it shows (or there is no window to measure).
+ */
+export function visibleCrop(aspect: number, viewport = typeof window !== 'undefined' ? { w: window.innerWidth, h: window.innerHeight } : null): { x: number; y: number; w: number; h: number } | null {
+  if (!viewport || viewport.w <= 0 || viewport.h <= 0) return null;
+  const view = viewport.w / viewport.h;
+  if (Math.abs(view - aspect) < 1e-3) return null;
+  // A wider window keeps the full width and crops top and bottom; a narrower one the reverse.
+  if (view > aspect) {
+    const h = aspect / view;
+    return { x: 0, y: (1 - h) / 2, w: 1, h };
+  }
+  const w = view / aspect;
+  return { x: (1 - w) / 2, y: 0, w, h: 1 };
+}
 
 let layoutStore: PadLayoutStore | null = null;
 /** The layout collection (created on first use: localStorage is the browser default). */
@@ -79,6 +102,11 @@ export function DrumPadEditor({ enabled }: { enabled: boolean }) {
   const offPad = c.offPad ?? 'hand';
   const hardHit = c.hardHit ?? 4;
   const lastPad = useAirDrumStatus((s) => s.live.lastPad);
+  const frameAspect = useAirDrumStatus((s) => s.live.frameAspect);
+  const aspect = frameAspect > 0 ? frameAspect : DEFAULT_ASPECT;
+  const STAGE_W = STAGE_H * aspect;
+  const crop = visibleCrop(aspect);
+  const [colorDraft, setColorDraft] = useState<string | null>(null);
   const on = PAD_IDS.filter((id) => pads[id].on);
   const [selected, setSelected] = useState<PadId | null>(null);
   const sel = selected && pads[selected].on ? selected : (on[0] ?? null);
@@ -153,6 +181,21 @@ export function DrumPadEditor({ enabled }: { enabled: boolean }) {
         onPointerUp={end}
         onPointerLeave={end}
       >
+        {crop && (
+          <rect
+            data-testid="visible-crop"
+            x={crop.x * STAGE_W}
+            y={crop.y * STAGE_H}
+            width={crop.w * STAGE_W}
+            height={crop.h * STAGE_H}
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity={0.5}
+            strokeDasharray="2 2"
+            strokeWidth={0.6}
+            pointerEvents="none"
+          />
+        )}
         {PAD_IDS.filter((id) => pads[id].on).map((id) => {
           const p = shown(id);
           const cx = p.x * STAGE_W;
@@ -168,7 +211,22 @@ export function DrumPadEditor({ enabled }: { enabled: boolean }) {
             style: { cursor: enabled ? 'move' : 'default' },
           };
           return (
-            <g key={id} data-pad={id} aria-label={`Pad ${id}: ${SOUND_LABEL[p.sound]}`} role="button" onClick={() => setSelected(id)}>
+            <g
+              key={id}
+              data-pad={id}
+              aria-label={`Pad ${id}: ${SOUND_LABEL[p.sound]}`}
+              role="button"
+              tabIndex={enabled ? 0 : -1}
+              onClick={() => setSelected(id)}
+              onFocus={() => setSelected(id)}
+              onKeyDown={(e) => {
+                const step: Record<string, [number, number]> = { ArrowLeft: [-KEY_STEP, 0], ArrowRight: [KEY_STEP, 0], ArrowUp: [0, -KEY_STEP], ArrowDown: [0, KEY_STEP] };
+                const d = step[e.key];
+                if (!d || !enabled) return;
+                e.preventDefault();
+                commitGeometry(id, { ...pads[id], x: clamp(pads[id].x + d[0], 0, 1), y: clamp(pads[id].y + d[1], 0, 1) });
+              }}
+            >
               {p.shape === 'circle' ? <ellipse cx={cx} cy={cy} rx={rw} ry={rh} {...common} /> : <rect x={cx - rw} y={cy - rh} width={2 * rw} height={2 * rh} {...common} />}
               <text x={cx} y={cy + 2} fontSize={5} textAnchor="middle" fill="#ffffff" pointerEvents="none">
                 {SOUND_LABEL[p.sound]}
@@ -227,7 +285,18 @@ export function DrumPadEditor({ enabled }: { enabled: boolean }) {
           </label>
           <label className="flex items-center justify-between gap-2 text-xs">
             Pad colour
-            <input type="color" value={selPad.color} disabled={!enabled} onChange={(e) => dispatchDialSetIn(`airDrum.pads.${sel}.color`, e.target.value)} />
+            {/* A colour picker fires on every hue it passes through: the colour follows
+                locally and is written once, when the picker lets go. */}
+            <input
+              type="color"
+              value={colorDraft ?? selPad.color}
+              disabled={!enabled}
+              onChange={(e) => setColorDraft(e.target.value)}
+              onBlur={() => {
+                if (colorDraft && colorDraft !== selPad.color) dispatchDialSetIn(`airDrum.pads.${sel}.color`, colorDraft);
+                setColorDraft(null);
+              }}
+            />
           </label>
         </div>
       )}
@@ -249,9 +318,9 @@ export function DrumPadEditor({ enabled }: { enabled: boolean }) {
         <input
           type="range"
           aria-label="Full volume at"
-          min={1.5}
-          max={10}
-          step={0.5}
+          min={1.1}
+          max={20}
+          step={0.1}
           value={hardHit}
           disabled={!enabled}
           className="w-[40%]"
