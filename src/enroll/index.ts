@@ -132,6 +132,30 @@ export {
 } from './runner';
 export { createSession, type Session, type SessionOptions } from './session';
 export {
+  SEQUENCE_PHRASES,
+  SequenceRecordSchema,
+  SequenceSpecSchema,
+  SequenceTargetSchema,
+  createSequenceRunner,
+  sayFor,
+  sequenceDurationMs,
+  sequenceLength,
+  sequenceOf,
+  type SequenceEvent,
+  type SequencePhase,
+  type SequenceRecord,
+  type SequenceRunner,
+  type SequenceRunnerOptions,
+  type SequenceSpec,
+  type SequenceSpecInput,
+  type SequenceState,
+  type SequenceTarget,
+  type TargetCheck,
+  type TargetOutcome,
+  type TargetResult,
+  type TargetVerdict,
+} from './sequence';
+export {
   MIN_POINTS_FOR_PROJECTION,
   fitProjection,
   safeEpochs,
