@@ -118,6 +118,21 @@ for (const vp of DESKTOP) {
       }
     });
 
+    test('the gallery view: every visible card and every shell control is pressable', async ({ page }) => {
+      await coldLoadPlaying(page);
+      await page.getByRole('button', { name: 'Gallery view' }).click();
+      await expect(page.locator('li[data-instrument] .aspect-\\[16\\/10\\]').first()).toBeVisible();
+      await expectShellPressable(page);
+      const list = page.getByRole('group', { name: /instruments/i }).first().locator('xpath=..');
+      const box = (await list.boundingBox())!;
+      const edits = page.getByRole('button', { name: /^Edit / });
+      for (let i = 0; i < (await edits.count()); i++) {
+        const b = await edits.nth(i).boundingBox();
+        if (!b || b.y < box.y || b.y + b.height > box.y + box.height) continue;
+        expect(await occluder(edits.nth(i)), `card ${i} is not covered`).toBeNull();
+      }
+    });
+
     test('the recording settings sheet opens on top of the Instruments panel', async ({ page }) => {
       await coldLoadPlaying(page);
       await page.getByRole('button', { name: 'Record' }).click();
@@ -227,3 +242,27 @@ for (const phone of [
     });
   });
 }
+
+test.describe('820x1180 (a tablet)', () => {
+  test.use({ viewport: { width: 820, height: 1180 } });
+
+  for (const tool of TOOLS.filter((t) => t.kind === 'panel')) {
+    test(`the gallery beside the open ${tool.label} panel: no card is covered`, async ({ page }) => {
+      await coldLoadPlaying(page);
+      // The list starts open above phone widths; open it only if it is closed.
+      const openIt = page.getByRole('button', { name: 'Open instruments' });
+      if (await openIt.isVisible()) await openIt.click();
+      await page.getByRole('button', { name: 'Gallery view' }).click();
+      await openTool(page, tool);
+      await expect(page.getByRole('button', { name: new RegExp(`close the ${tool.label}`, 'i') })).toBeVisible();
+      const list = page.getByRole('group', { name: /instruments/i }).first().locator('xpath=..');
+      const box = (await list.boundingBox())!;
+      const edits = page.getByRole('button', { name: /^Edit / });
+      for (let i = 0; i < (await edits.count()); i++) {
+        const b = await edits.nth(i).boundingBox();
+        if (!b || b.y < box.y || b.y + b.height > box.y + box.height) continue;
+        expect(await occluder(edits.nth(i)), `card ${i} is not covered`).toBeNull();
+      }
+    });
+  }
+});

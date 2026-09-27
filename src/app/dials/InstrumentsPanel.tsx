@@ -26,7 +26,22 @@
  * {@link useLibrary}; the single default pointer via {@link useInstruments}.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Music2, Settings, X, ArrowLeft, Star, Search, Tags, Check, ChevronDown, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import {
+  Music2,
+  Settings,
+  X,
+  ArrowLeft,
+  Star,
+  Search,
+  Tags,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+  List,
+  LayoutGrid,
+} from 'lucide-react';
+import InstrumentPicture from '@/app/library/InstrumentPicture';
 import DialsControlsPanel from './DialsControlsPanel';
 import { useInstruments } from './useInstruments';
 import { useDialsSettings } from './useDialsSettings';
@@ -50,8 +65,108 @@ const classColour = (id: string): string => INSTRUMENT_CLASSES.find((c) => c.id 
 import { layerToSettings } from '@/settings/dials';
 import { AIR_UI } from './panels/air';
 
-const cardCls =
-  'shell-instruments-card absolute right-3 top-3 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
+const cardFrame =
+  'shell-instruments-card absolute right-3 top-3 flex max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
+const cardCls = `${cardFrame} w-96`;
+/**
+ * The gallery needs room for pictures: up to 40rem, but never so wide that it runs under the
+ * left-hand tool panels (24rem + their inset) on a tablet, and never narrower than the list.
+ * Columns follow the width (`auto-fill`), not the screen.
+ */
+const galleryCardCls = `${cardFrame} w-[max(24rem,min(40rem,calc(100vw-27rem)))]`;
+
+/** The longest picture reference the field accepts. A reference is a URL or a path; a
+ *  multi-megabyte pasted `data:` URL would be bytes, which the metadata record must never
+ *  hold (Decision 7): it would fill localStorage and silently stop the library saving. */
+const MAX_PICTURE_REF = 2048;
+
+/** Why a picture reference is refused, or undefined when it is fine. */
+export function pictureRefProblem(ref: string): string | undefined {
+  if (/^(data|blob):/i.test(ref)) return 'Use a URL or a path, not an embedded picture.';
+  if (/^javascript:/i.test(ref)) return 'That is not a picture address.';
+  if (ref.length > MAX_PICTURE_REF) return `Too long (${ref.length} characters; ${MAX_PICTURE_REF} at most).`;
+  return undefined;
+}
+
+/** The glyph a picture-less card shows: the instrument's own emoji, else the emoji of the
+ *  air instrument it plays (from its branches); undefined leaves the tile its initials. */
+const tileEmoji = (spec: { emoji?: string; features: readonly string[] }): string | undefined =>
+  spec.emoji ?? AIR_INSTRUMENTS.find((a) => spec.features.includes(`air-${a.id}`))?.emoji;
+
+/**
+ * The picture field in an instrument's editor: a reference (a URL, or a path under the
+ * app's `public/`), previewed, written to the library's metadata (`setImage`), never bytes.
+ */
+function PictureField({
+  name,
+  image,
+  emoji,
+  colour,
+  onSet,
+}: {
+  name: string;
+  image?: string;
+  emoji?: string;
+  colour: string;
+  onSet: (image: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(image ?? '');
+  useEffect(() => setDraft(image ?? ''), [image, name]);
+  const trimmed = draft.trim();
+  const problem = trimmed ? pictureRefProblem(trimmed) : undefined;
+  const unchanged = (trimmed || undefined) === image;
+  const commit = () => {
+    if (problem || unchanged) return;
+    onSet(trimmed ? trimmed : null);
+  };
+  return (
+    <div className="flex items-center gap-2" data-picture-field>
+      <div className="h-12 w-16 shrink-0 overflow-hidden rounded-md border border-white/10">
+        <InstrumentPicture image={image} name={name} emoji={emoji} colour={colour} />
+      </div>
+      <div className="min-w-0 flex-1 space-y-1">
+        <label className="block text-[10px] uppercase tracking-widest text-white/45" htmlFor="instrument-picture">
+          Picture (for the gallery)
+        </label>
+        <div className="flex gap-1">
+          <input
+            id="instrument-picture"
+            className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs outline-none placeholder:text-white/30 focus:bg-white/20"
+            placeholder="https://… or instruments/my-picture.webp"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit();
+            }}
+          />
+          <button
+            type="button"
+            onClick={commit}
+            disabled={unchanged || problem !== undefined}
+            className="rounded bg-white/10 px-2 py-1 text-xs text-white/80 transition hover:bg-white/20 disabled:opacity-40"
+          >
+            Set
+          </button>
+          {image && (
+            <button
+              type="button"
+              onClick={() => onSet(null)}
+              aria-label="Clear the picture"
+              className="rounded px-2 py-1 text-xs text-white/50 transition hover:bg-white/10 hover:text-white"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {problem && (
+          <p role="alert" className="text-[10px] text-rose-300/90">
+            {problem}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * The spec for an instrument the library could not derive: a saved instrument whose settings
@@ -156,6 +271,8 @@ export default function InstrumentsPanel() {
       return { ...cur, [family]: next };
     });
   const collapsed = useInstrumentsView((s) => s.collapsed);
+  const viewMode = useInstrumentsView((s) => s.view);
+  const setViewMode = useInstrumentsView((s) => s.setView);
   const toggleCollapsed = useInstrumentsView((s) => s.toggleCollapsed);
   useEffect(() => {
     void useInstrumentsView.getState().hydrate(INSTRUMENT_CLASSES.map((c) => c.id));
@@ -302,6 +419,19 @@ export default function InstrumentsPanel() {
                 {isDefault ? 'Default instrument (opens on load)' : 'Set as default (opens on load)'}
               </button>
               <TagsEditor instrument={selected} api={library} />
+              {(() => {
+                const spec = library.specOf(selected);
+                const cls = spec?.class ?? library.categoryOf(selected) ?? 'field';
+                return (
+                  <PictureField
+                    name={selected}
+                    image={library.imageOf(selected)}
+                    emoji={spec ? tileEmoji(spec) : undefined}
+                    colour={classColour(cls)}
+                    onSet={(img) => library.setImage(selected, img)}
+                  />
+                );
+              })()}
             </div>
           )}
           <div className="border-t border-white/10 pt-3">
@@ -401,8 +531,67 @@ export default function InstrumentsPanel() {
     );
   };
 
+  // One card per instrument in the gallery: its picture (or its emoji on its class's colour),
+  // its name, the star and the gear. A click on the picture or the name plays it, like a
+  // click on a row.
+  const renderCard = (p: InstrumentSpec) => {
+    const isSel = p.name === selected;
+    const isStar = library.starred(p.name);
+    const colour = classColour(p.class);
+    return (
+      <li
+        key={p.name}
+        data-instrument={p.name}
+        className={`overflow-hidden rounded-lg border ${isSel ? 'border-emerald-400/60' : 'border-white/10 hover:border-white/25'}`}
+        style={{ borderTopColor: colour, borderTopWidth: 3 }}
+      >
+        <button type="button" className="block w-full text-left" title={tooltipFor(p.name)} onClick={() => select(p.name)}>
+          <div className="aspect-[16/10] w-full">
+            <InstrumentPicture image={p.image} name={p.name} emoji={tileEmoji(p)} colour={colour} />
+          </div>
+          <div className={`flex items-center gap-1.5 px-2 pt-1 text-xs ${isSel ? 'text-emerald-300' : 'text-white/85'}`}>
+            <span className="min-w-0 truncate">{p.name}</span>
+            {p.name === defaultName && (
+              <span className="shrink-0 text-[9px] uppercase tracking-widest text-amber-300/70">(default)</span>
+            )}
+            {isSel && dirty && (
+              <span className="shrink-0 text-[9px] uppercase tracking-widest text-amber-300/80">edited</span>
+            )}
+          </div>
+          {(() => {
+            const why = whyMatched(p.name, listingById.get(p.id)?.reasons ?? [], query);
+            return why ? <div className="truncate px-2 text-[9.5px] text-white/40">{why}</div> : null;
+          })()}
+        </button>
+        <div className="flex items-center gap-0.5 px-1 pb-1">
+          <div className="min-w-0 flex-1 pl-1">
+            <InstrumentTags inline systemTags={library.systemTagsOf(p.name)} customTags={library.customTagsOf(p.name)} />
+          </div>
+          <button
+            className={`rounded p-1 transition hover:bg-white/10 ${isStar ? 'text-amber-300' : 'text-white/25 hover:text-white/70'}`}
+            title={isStar ? 'Unfavorite' : 'Favorite'}
+            aria-label={isStar ? `Unfavorite ${p.name}` : `Favorite ${p.name}`}
+            aria-pressed={isStar}
+            onClick={() => library.toggleStar(p.name)}
+          >
+            <Star className={`h-3.5 w-3.5 ${isStar ? 'fill-current' : ''}`} />
+          </button>
+          <button
+            className="rounded p-1 text-white/40 transition hover:bg-white/10 hover:text-white"
+            title={`Edit ${p.name}`}
+            aria-label={`Edit ${p.name}`}
+            onClick={() => openEditor(p.name)}
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </li>
+    );
+  };
+  const gallery = viewMode === 'grid';
+
   return (
-    <div className={cardCls}>
+    <div className={gallery ? galleryCardCls : cardCls}>
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
         <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/70">
           <Music2 className="h-3.5 w-3.5" /> Instruments
@@ -475,6 +664,27 @@ export default function InstrumentsPanel() {
                   <SlidersHorizontal className="h-3 w-3" aria-hidden />
                   <span>Filters{activeFilters > 0 ? ` ${activeFilters}` : ''}</span>
                 </button>
+                {/* The two views the collection declares; the last choice is remembered. */}
+                <span className="flex overflow-hidden rounded-lg bg-white/5">
+                  {(
+                    [
+                      ['list', List, 'List view'],
+                      ['grid', LayoutGrid, 'Gallery view'],
+                    ] as const
+                  ).map(([mode, Icon, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setViewMode(mode)}
+                      aria-pressed={viewMode === mode}
+                      aria-label={label}
+                      title={label}
+                      className={`p-1.5 transition ${viewMode === mode ? 'bg-white/15 text-white' : 'text-white/45 hover:text-white'}`}
+                    >
+                      <Icon className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  ))}
+                </span>
               </div>
             )}
             {/* The chips stay open while any is on: what is filtered is always visible. */}
@@ -567,15 +777,21 @@ export default function InstrumentsPanel() {
                       </>
                     );
                   })()}
-                  <ul id={`instruments-${g.id}`} className="space-y-px" hidden={isGroupCollapsed(g.id, g.items.length)}>
-                    {g.items.map(renderRow)}
+                  <ul
+                    id={`instruments-${g.id}`}
+                    className={gallery ? 'grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1.5' : 'space-y-px'}
+                    hidden={isGroupCollapsed(g.id, g.items.length)}
+                  >
+                    {g.items.map(gallery ? renderCard : renderRow)}
                     {g.items.length === 0 && (
-                      <li className="px-2 py-2 text-[10px] leading-relaxed text-white/40">
+                      <li className="col-span-full px-2 py-2 text-[10px] leading-relaxed text-white/40">
                         None saved. Turn on {AIR_INSTRUMENTS.map((a) => a.label.toLowerCase()).join(' or ')} in any
                         instrument’s settings and save it.
                       </li>
                     )}
                   </ul>
+                  {/* In the gallery, the chosen card's live readouts sit under its class's cards. */}
+                  {gallery && !isGroupCollapsed(g.id, g.items.length) && g.items.some((p) => p.name === selected) && renderReadouts(liveAir)}
                 </section>
               ),
             )}
