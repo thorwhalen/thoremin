@@ -1098,6 +1098,16 @@
   {
    "from": {
     "node": "ui",
+    "port": "airDrumPattern"
+   },
+   "to": {
+    "node": "airDrum",
+    "port": "pattern"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
     "port": "airDrum"
    },
    "to": {

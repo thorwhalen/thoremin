@@ -13,6 +13,7 @@
  * a separate async persistence layer (src/settings) — load a preset by calling
  * `applySettings`, snapshot the current state with `toSettings`.
  */
+import type { PatternPlay } from '@/drums/pattern_play';
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { ScaleTypeId } from '@/music/theory';
@@ -223,6 +224,8 @@ export interface ControlState {
    *  vocabularies like {@link airGuitarModel}. TRANSIENT. */
   airFluteFingerModel: TrainedModel | null;
   airFluteMouthModel: TrainedModel | null;
+  /** #269: the trained drum pattern the air drum plays in its pattern mode (transient, never persisted). */
+  airDrumPattern: PatternPlay | null;
   /**
    * The loaded score (#187 PR 3): the `ScoreDoc` the `score` node plays, handed to the
    * graph through `store-controls` as the live `scoreDoc` port. TRANSIENT, like
@@ -280,6 +283,7 @@ export interface ControlState {
   /** Replace the air flute's classifiers (transient). */
   setAirFluteFingerModel: (model: TrainedModel | null) => void;
   setAirFluteMouthModel: (model: TrainedModel | null) => void;
+  setAirDrumPattern: (play: PatternPlay | null) => void;
   /** Set / toggle the generative transport (transient, see {@link steerPlaying}). */
   setSteerPlaying(v: boolean): void;
   toggleSteerPlaying(): void;
@@ -603,7 +607,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, airBass, airGuitar, airFlute, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, airGuitarModel: current.airGuitarModel, airFluteFingerModel: current.airFluteFingerModel, airFluteMouthModel: current.airFluteMouthModel };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, airBass, airGuitar, airFlute, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, airGuitarModel: current.airGuitarModel, airFluteFingerModel: current.airFluteFingerModel, airFluteMouthModel: current.airFluteMouthModel, airDrumPattern: current.airDrumPattern };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -652,6 +656,7 @@ export const useControls = create<ControlState>()(
       airFlute: defaultAirFlute(),
       airFluteFingerModel: null,
       airFluteMouthModel: null,
+      airDrumPattern: null,
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       trainerHud: TrainerHudParamsSchema.parse({}),
@@ -687,6 +692,7 @@ export const useControls = create<ControlState>()(
       setAirGuitarModel: (model) => set({ airGuitarModel: model }),
       setAirFluteFingerModel: (model) => set({ airFluteFingerModel: model }),
       setAirFluteMouthModel: (model) => set({ airFluteMouthModel: model }),
+      setAirDrumPattern: (play) => set({ airDrumPattern: play }),
       toggleSteerPlaying: () => set((s) => ({ steerPlaying: !s.steerPlaying })),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),
@@ -771,7 +777,9 @@ export const useControls = create<ControlState>()(
       // v19 (#263): `airFlute.prior` added (the fingering-chart prior: on, the flute
       // chart, strength 10, C4..C#6). ADDITIVE with a default, healed by mergeControls'
       // schema parse, so no data transform is needed; the bump marks the schema growth.
-      version: 19,
+      // v20 (#269): `airDrum.pattern` added (the trained pattern in play, '' for none).
+      // ADDITIVE with a default, healed by mergeControls' schema parse; the bump marks it.
+      version: 20,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

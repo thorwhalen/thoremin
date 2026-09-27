@@ -46,7 +46,13 @@ export const ConductorSettingsSchema = ConductorDialSchema.extend({
 export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
 export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});
 /** The air drum settings (#233): the node's own params, lifted 1:1 (the conductor pattern). */
-export const AirDrumSettingsSchema = AirDrumDialSchema;
+/** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269:
+ *  the id of a trained pattern, '' for none), which the node never sees as a param (the
+ *  app resolves it to the pattern and its model and hands those to the node's `pattern`
+ *  port; the node's partial parse strips the extra key). */
+export const AirDrumSettingsSchema = AirDrumDialSchema.extend({
+  pattern: z.string().default(''),
+});
 export type AirDrumSettings = z.infer<typeof AirDrumSettingsSchema>;
 export const DEFAULT_AIR_DRUM: AirDrumSettings = AirDrumSettingsSchema.parse({});
 /** The air bass (#249): the `air-bass` node's params ARE the dial (the air drum pattern). */

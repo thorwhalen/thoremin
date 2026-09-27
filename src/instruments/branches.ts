@@ -273,6 +273,8 @@ export const airDrum = defineBranch({
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'airDrum', port: 'hands' }),
     to(ui('airDrum'), { node: 'airDrum', port: 'config' }),
     to({ node: 'conductor', port: 'time' }, { node: 'airDrum', port: 'time' }, true),
+    // #269: the trained pattern in play (pattern + model), or null: the pattern mode.
+    to(ui('airDrumPattern'), { node: 'airDrum', port: 'pattern' }),
     to(ui('airDrum'), overlay('airDrumConfig')),
     to({ node: 'airDrum', port: 'hits' }, overlay('drumHits')),
     to({ node: 'airDrum', port: 'hits' }, { node: 'drumOut', port: 'hits' }),
