@@ -26,7 +26,7 @@
  * {@link useLibrary}; the single default pointer via {@link useInstruments}.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Music2, Settings, X, ArrowLeft, Star, Search, Tags, Check } from 'lucide-react';
+import { Music2, Settings, X, ArrowLeft, Star, Search, Tags, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import DialsControlsPanel from './DialsControlsPanel';
 import { useInstruments } from './useInstruments';
 import { useDialsSettings } from './useDialsSettings';
@@ -40,6 +40,11 @@ import { AIR_INSTRUMENTS, airInstrumentsOf, groupByCategory, type AirInstrumentI
 import { assembleSpec, type InstrumentSpec } from '@/instruments/spec';
 import { instrumentsCollection, type InstrumentSort } from '@/app/library/instrumentsCollection';
 import { queryInstruments, useInstrumentsCatalog } from '@/app/library/instrumentsCatalog';
+import { useInstrumentsView } from '@/app/library/instrumentsViewPrefs';
+import { INSTRUMENT_CLASSES } from '@/instruments/classes';
+
+/** A class's colour (the class registry's SSOT), for the row stripe and the heading swatch. */
+const classColour = (id: string): string => INSTRUMENT_CLASSES.find((c) => c.id === id)?.colour ?? 'rgba(255,255,255,0.3)';
 import { layerToSettings } from '@/settings/dials';
 import { AIR_UI } from './panels/air';
 
@@ -104,6 +109,11 @@ export default function InstrumentsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- specsSig stands for specs
   }, [specsSig, query, sort, library.derivedReady, view]);
   const shown = useInstrumentsCatalog((s) => s.items);
+  const collapsed = useInstrumentsView((s) => s.collapsed);
+  const toggleCollapsed = useInstrumentsView((s) => s.toggleCollapsed);
+  useEffect(() => {
+    void useInstrumentsView.getState().hydrate(INSTRUMENT_CLASSES.map((c) => c.id));
+  }, []);
   const { state } = useDialsSettings();
   const dirty = state.dirty.length > 0;
   // The air instruments playing right now (the live dials, not a saved instrument): the
@@ -266,42 +276,58 @@ export default function InstrumentsPanel() {
   // One place to choose any instrument (#249): the list is grouped by the instrument's
   // derived category (theremin / air), and every row is chosen the same way.
   const groups = groupByCategory(shown, (p) => p.class);
+  const searching = query.trim().length > 0;
+  const isGroupCollapsed = (id: string, size: number) => !searching && size > 0 && collapsed.includes(id);
+
+  // One line per instrument (option A of #272): a stripe in its class's colour, the name,
+  // its tags, the star and the gear. The chosen row shows its air instruments' live
+  // readouts under that line: the first thing a player needs after choosing the Air Drum
+  // is "strike once to teach each hand".
+  /** The live readouts of the air instruments playing now (under the chosen row, or under
+   *  its class heading when that class is collapsed: never hidden with the row). */
+  const renderReadouts = (ids: readonly AirInstrumentId[]) =>
+    ids.map((id) => {
+      const Readout = AIR_UI[id].Readout;
+      return (
+        <div key={id} className="px-2 pb-2">
+          <Readout />
+        </div>
+      );
+    });
 
   const renderRow = (p: InstrumentSpec) => {
     const isSel = p.name === selected;
     const isDefault = p.name === defaultName;
     const isStar = library.starred(p.name);
-    // The chosen row shows what its air instruments are doing right under its name: the
-    // first thing a player needs after choosing the Air Drum is "strike once to teach
-    // each hand".
-    const readouts = isSel ? liveAir : [];
+    // Under the row, unless its class is collapsed: then under the class heading instead.
+    const readouts = isSel && !isGroupCollapsed(p.class, 1) ? liveAir : [];
+    const colour = classColour(p.class);
     return (
       <li
         key={p.name}
-        className={`rounded-lg ${isSel ? 'bg-white/10' : 'hover:bg-white/5'}`}
+        data-instrument={p.name}
+        className={`rounded-md border-l-[3px] ${isSel ? 'bg-white/10' : 'hover:bg-white/5'}`}
+        style={{ borderLeftColor: isSel ? colour : `color-mix(in srgb, ${colour} 55%, transparent)` }}
       >
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 pr-0.5">
           <button
-            className={`flex flex-1 items-center gap-2 truncate px-2 py-2 text-left text-xs transition ${
+            className={`flex min-w-[7rem] flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs transition ${
               isSel ? 'text-emerald-300' : 'text-white/80 hover:text-white'
             }`}
             title={tooltipFor(p.name)}
             onClick={() => select(p.name)}
           >
-            <span
-              className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isSel ? 'bg-emerald-400' : 'bg-white/20'}`}
-              aria-hidden
-            />
             <span className="truncate">{p.name}</span>
             {isDefault && (
               <span className="shrink-0 text-[9px] uppercase tracking-widest text-amber-300/70">(default)</span>
             )}
             {isSel && dirty && (
-              <span className="ml-1 shrink-0 text-[9px] uppercase tracking-widest text-amber-300/80">edited</span>
+              <span className="shrink-0 text-[9px] uppercase tracking-widest text-amber-300/80">edited</span>
             )}
           </button>
+          <InstrumentTags inline systemTags={library.systemTagsOf(p.name)} customTags={library.customTagsOf(p.name)} />
           <button
-            className={`rounded p-1.5 transition hover:bg-white/10 ${isStar ? 'text-amber-300' : 'text-white/25 hover:text-white/70'}`}
+            className={`rounded p-1 transition hover:bg-white/10 ${isStar ? 'text-amber-300' : 'text-white/25 hover:text-white/70'}`}
             title={isStar ? 'Unfavorite' : 'Favorite'}
             aria-label={isStar ? `Unfavorite ${p.name}` : `Favorite ${p.name}`}
             aria-pressed={isStar}
@@ -310,7 +336,7 @@ export default function InstrumentsPanel() {
             <Star className={`h-3.5 w-3.5 ${isStar ? 'fill-current' : ''}`} />
           </button>
           <button
-            className="rounded p-2 text-white/40 transition hover:bg-white/10 hover:text-white"
+            className="rounded p-1 text-white/40 transition hover:bg-white/10 hover:text-white"
             title={`Edit ${p.name}`}
             aria-label={`Edit ${p.name}`}
             onClick={() => openEditor(p.name)}
@@ -318,18 +344,7 @@ export default function InstrumentsPanel() {
             <Settings className="h-3.5 w-3.5" />
           </button>
         </div>
-        <InstrumentTags
-          systemTags={library.systemTagsOf(p.name)}
-          customTags={library.customTagsOf(p.name)}
-        />
-        {readouts.map((id) => {
-          const Readout = AIR_UI[id].Readout;
-          return (
-            <div key={id} className="px-2 pb-2">
-              <Readout />
-            </div>
-          );
-        })}
+        {renderReadouts(readouts)}
       </li>
     );
   };
@@ -389,11 +404,44 @@ export default function InstrumentsPanel() {
             )}
             {groups.map((g) =>
               g.items.length === 0 && (query.trim() || g.id !== 'air') ? null : (
-                <section key={g.id} role="group" aria-label={g.label} data-category={g.id} className="mb-2">
-                  <h3 className="px-2 pb-1 pt-1.5 text-[9px] font-bold uppercase tracking-widest text-white/40">
-                    {g.label}
-                  </h3>
-                  <ul className="space-y-0.5">
+                <section key={g.id} role="group" aria-label={g.label} data-category={g.id} className="mb-1.5">
+                  {(() => {
+                    // A collapsed class still says what it holds, names the instrument being
+                    // played when it is in there, and keeps its live readouts showing: the
+                    // list never hides what you hear. A search opens every class (a match
+                    // inside a collapsed one would otherwise show as a bare count), and an
+                    // empty class never hides the guidance on how to fill it.
+                    const isCollapsed = isGroupCollapsed(g.id, g.items.length);
+                    const playing = isCollapsed ? g.items.find((p) => p.name === selected) : undefined;
+                    const Chevron = isCollapsed ? ChevronRight : ChevronDown;
+                    return (
+                      <>
+                        <h3>
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapsed(g.id)}
+                            aria-expanded={!isCollapsed}
+                            aria-controls={`instruments-${g.id}`}
+                            data-collapse-class={g.id}
+                            title={isCollapsed ? `Show the ${g.label.toLowerCase()}` : `Hide the ${g.label.toLowerCase()}`}
+                            className="flex w-full items-center gap-1.5 rounded px-1 pb-1 pt-1.5 text-[9px] font-bold uppercase tracking-widest text-white/45 transition hover:text-white/70"
+                          >
+                            <Chevron className="h-3 w-3 shrink-0" aria-hidden />
+                            <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: classColour(g.id) }} aria-hidden />
+                            <span>{g.label}</span>
+                            <span className="font-normal text-white/30">{g.items.length}</span>
+                            {playing && (
+                              <span className="ml-auto truncate font-normal normal-case tracking-normal text-emerald-300/80">
+                                playing: {playing.name}
+                              </span>
+                            )}
+                          </button>
+                        </h3>
+                        {playing && renderReadouts(liveAir)}
+                      </>
+                    );
+                  })()}
+                  <ul id={`instruments-${g.id}`} className="space-y-px" hidden={isGroupCollapsed(g.id, g.items.length)}>
                     {g.items.map(renderRow)}
                     {g.items.length === 0 && (
                       <li className="px-2 py-2 text-[10px] leading-relaxed text-white/40">
@@ -410,10 +458,8 @@ export default function InstrumentsPanel() {
             )}
           </>
         )}
-        <p className="px-2 pb-2 pt-3 text-[10px] leading-relaxed text-white/40">
-          Click a name to play it. ★ favorites an instrument; the gear opens its editor (tags,
-          default, and settings — kept until you Save).
-        </p>
+        {/* The "click a name to play it" paragraph is gone (#272): each row's tooltip says
+            what the instrument does, and the star and gear carry their own labels. */}
         <div className="mt-1 flex gap-1 border-t border-white/10 px-2 pt-2">
           <input
             className="flex-1 rounded bg-white/10 px-2 py-1 text-xs outline-none placeholder:text-white/30 focus:bg-white/20"
