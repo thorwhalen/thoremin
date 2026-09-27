@@ -104,6 +104,22 @@ export const SufficiencySchema = z.discriminatedUnion('kind', [
    * exist (each at least `minSeparation` noise-sigma from every other accepted one).
    * A near-duplicate earns "try a different one"; a long silence earns "hold it".
    */
+  /**
+   * A clicked phrase (#247): the host plays a click, and the cue is over when the phrase
+   * has been played through — `leadInMs` of silence to read (or hear) the instruction,
+   * `countIn` clicks to find the tempo, then `beats` clicks to play on. Enough is a
+   * matter of time, not of samples: the ground truth of a clicked phrase is its SOUND,
+   * which the recorder captures whether or not the camera saw every frame. See
+   * {@link clickPlan} for the exact schedule.
+   */
+  z.object({
+    kind: z.literal('clicked'),
+    bpm: z.number().min(30).max(240).default(80),
+    beats: z.number().int().min(1).max(256).default(16),
+    countIn: z.number().int().min(0).max(16).default(4),
+    leadInMs: z.number().min(0).max(20000).default(3000),
+    patienceMs: z.number().min(1000).default(120000),
+  }),
   z.object({
     kind: z.literal('variety'),
     minPoints: z.number().int().min(1).default(6),
@@ -128,6 +144,12 @@ export const CueProductSchema = z.enum([
   'nuisance',
   /** Vocabulary: held poses become the still-points the categories are carved from. */
   'vocabulary',
+  /**
+   * A timed phrase played to a click (#247): every frame is recorded, nothing is
+   * learned from it here. The category learner ignores these frames; the offline
+   * pairing script (`scripts/cue/`) joins them to the take's microphone audio.
+   */
+  'performance',
 ]);
 export type CueProduct = z.infer<typeof CueProductSchema>;
 
@@ -140,6 +162,19 @@ export const CueCollectsSchema = z.object({
   /** For a nuisance cue: the confound axes it demonstrates. */
   axes: z.array(InvarianceSchema).default([]),
 });
+
+/**
+ * Which half of a real-versus-air pair a cue is (#247). Two cues with the same `phrase`
+ * ask for the same thing, once on a real surface or instrument (`real`: its sound is
+ * the ground truth) and once in the air (`air`: the click is the only reference). The
+ * offline pairing script matches the halves by `phrase`.
+ */
+export const PAIRING_SURFACES = ['real', 'air'] as const;
+export const CuePairingSchema = z.object({
+  phrase: z.string().min(1),
+  surface: z.enum(PAIRING_SURFACES),
+});
+export type CuePairing = z.infer<typeof CuePairingSchema>;
 
 /** The payload of a cue — everything but its identity. What the collection stores. */
 export const CueSpecSchema = z
@@ -155,6 +190,8 @@ export const CueSpecSchema = z
     variations: z.array(z.string().min(1)).default([]),
     /** Free-form labels for the picker's filter (`pose`, `expression`, `setup`, …). */
     tags: z.array(z.string()).default([]),
+    /** For a performance cue: which half of which real-versus-air pair it is. */
+    pairing: CuePairingSchema.optional(),
   })
   .superRefine((c, ctx) => {
     if (c.produces === 'nuisance' && c.collects.axes.length === 0) {
@@ -164,8 +201,16 @@ export const CueSpecSchema = z
     if (continuous && c.sufficiency.kind !== 'frames') {
       ctx.addIssue({ code: 'custom', path: ['sufficiency'], message: `a ${c.produces} cue samples every frame; its sufficiency must be 'frames'` });
     }
-    if (!continuous && c.sufficiency.kind === 'frames') {
-      ctx.addIssue({ code: 'custom', path: ['sufficiency'], message: 'a vocabulary cue samples still-points; its sufficiency cannot be frame-counting' });
+    if (c.produces === 'vocabulary' && (c.sufficiency.kind === 'frames' || c.sufficiency.kind === 'clicked')) {
+      ctx.addIssue({ code: 'custom', path: ['sufficiency'], message: 'a vocabulary cue samples still-points; its sufficiency cannot be frame-counting or clicked' });
+    }
+    // A performance cue and a clicked sufficiency come together: the phrase is timed by
+    // its click, and a click on any other cue would be a metronome nobody plays to.
+    if ((c.produces === 'performance') !== (c.sufficiency.kind === 'clicked')) {
+      ctx.addIssue({ code: 'custom', path: ['sufficiency'], message: "a performance cue, and only a performance cue, has a 'clicked' sufficiency" });
+    }
+    if (c.pairing && c.produces !== 'performance') {
+      ctx.addIssue({ code: 'custom', path: ['pairing'], message: 'only a performance cue can be half of a real-versus-air pair' });
     }
   });
 export type CueSpec = z.infer<typeof CueSpecSchema>;
@@ -270,4 +315,36 @@ export function resolveRoutine(
     else missing.push(id);
   }
   return { cues: found, missing };
+}
+
+/** One click of a clicked cue's schedule: a count-in click or a beat to play on. */
+export interface Click {
+  /** When it sounds, in ms on the caller's clock (the cue's start plus the offset). */
+  t: number;
+  kind: 'count' | 'beat';
+  /** 0-based within its kind: count-in clicks count 0..countIn-1, beats 0..beats-1. */
+  index: number;
+  /** The first click of a bar (every fourth), which the host may accent. */
+  accent: boolean;
+}
+
+/** Beats per bar, for the accent only (the schema has no metre: a phrase is a count). */
+const BEATS_PER_BAR = 4;
+
+/**
+ * The click schedule of a clicked cue that started at `startMs`: `countIn` count clicks
+ * then `beats` beat clicks, one every `60000 / bpm` ms, the first after `leadInMs`. The
+ * cue is over one beat after the last click (`endMs`), so the last beat has a full beat
+ * to land in. Pure: the host plays these times and writes the same times into the take,
+ * so what was heard and what was recorded cannot disagree. Null for any other cue.
+ */
+export function clickPlan(cue: Pick<Cue, 'sufficiency'>, startMs = 0): { clicks: Click[]; beatMs: number; endMs: number } | null {
+  const s = cue.sufficiency;
+  if (s.kind !== 'clicked') return null;
+  const beatMs = 60000 / s.bpm;
+  const first = startMs + s.leadInMs;
+  const clicks: Click[] = [];
+  for (let i = 0; i < s.countIn; i++) clicks.push({ t: first + i * beatMs, kind: 'count', index: i, accent: i % BEATS_PER_BAR === 0 });
+  for (let i = 0; i < s.beats; i++) clicks.push({ t: first + (s.countIn + i) * beatMs, kind: 'beat', index: i, accent: i % BEATS_PER_BAR === 0 });
+  return { clicks, beatMs, endMs: first + (s.countIn + s.beats) * beatMs };
 }

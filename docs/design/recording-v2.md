@@ -8,7 +8,7 @@
 ## The idea in one line
 
 A recording is a **session** (a transient config that lives OUTSIDE the
-instrument), capturing any subset of **five streams** into **one folder** with a
+instrument), capturing any subset of **six streams** into **one folder** with a
 `manifest.json` that is the alignment SSOT — so a take is a self-describing,
 downstream-friendly artifact.
 
@@ -34,7 +34,7 @@ saving     →  the HUD, disabled, while the take converts + writes
 All state lives in `useThoreminEngine().recording`; `RecordButton` is purely
 presentational.
 
-## The five streams (one `MediaRecorder` per media stream)
+## The six streams (one `MediaRecorder` per media stream)
 
 | Stream | Source | Notes |
 |---|---|---|
@@ -43,6 +43,7 @@ presentational.
 | **pure webcam** | the raw camera `MediaStream` (else `video.captureStream()`) | overlay-free; per-stream "include audio" (default off) |
 | **overlay-only (alpha)** | a transparent offscreen canvas the overlay node redraws to with the backdrop suppressed | **Chromium-only**, experimental (alpha WebM); feature-gated |
 | **features → JSONL** | a live `FeatureJsonlTap` attached via `engine.addTap` | `{tick,t,key,value}` per edge; serialize-on-receipt (constant memory) |
+| **microphone** (#247) | `getUserMedia` audio, **raw** (`RAW_MIC_CONSTRAINTS`: no echo cancellation, noise suppression or AGC, which treat a transient as noise) | what the ROOM heard, as opposed to `audio` (what thoremin played). Opened before `t0` (the permission prompt must not shift the clock); always saved twice, native `{stem}.mic.webm` and `{stem}.mic.wav` (decoded on an `OfflineAudioContext` if the synth has no context), whatever formats the synth audio uses. The manifest entry carries the WAV's `sampleRate` and the track's reported `latency` when the browser gives one. The real-vs-air trainer routines turn it on; the Record sheet offers it too |
 
 All streams share one **t0** — the DAG clock (`ctx.time`, which the engine drives
 from `performance.now()/1000`) at record start. Media recorders use `start(2000)`
@@ -105,6 +106,10 @@ is never lost.
 ```
 
 Every stream's timestamps (`t` in the feature/annotation JSONL) are relative to `t0`.
+
+An optional `meta` object carries provenance a consumer needs to read the take. The
+trainer writes `meta.trainer = { routine, cues }` (the full cue specs), so an annotation
+like `cue:rva-taps-real` explains itself without a copy of the cue set (#247).
 
 ## The live-annotation `.annotations.jsonl`
 

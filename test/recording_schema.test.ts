@@ -124,8 +124,15 @@ describe('hasAnyStream', () => {
         pureVideoAudio: false,
         overlayAlpha: false,
         features: false,
+        microphone: false,
         featureEdges: [],
       }),
     ).toBe(false);
+  });
+
+  it('counts the microphone as a stream on its own (#247)', () => {
+    const none = { ...DEFAULT_RECORDING_SESSION.streams, audio: false };
+    expect(hasAnyStream(none)).toBe(false);
+    expect(hasAnyStream({ ...none, microphone: true })).toBe(true);
   });
 });

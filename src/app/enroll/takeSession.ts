@@ -29,9 +29,21 @@
 import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '../recording/schema';
 import { prefillName } from '../recording/naming';
 import { FEATURE_VECTOR_EDGES } from './liveVector';
+import type { Cue } from '@/enroll';
 
 /** The instrument label a training take is filed under. */
 export const TRAINER_TAKE_INSTRUMENT = 'trainer';
+/** ...and a real-versus-air take (#247), so it is recognisable in a Downloads folder. */
+export const REAL_VS_AIR_TAKE_INSTRUMENT = 'real-vs-air';
+
+export interface TrainerTakeOptions {
+  /**
+   * Record the microphone too (#247): a real-versus-air routine's ground truth is the
+   * sound of the real half. Off for every other routine: a face take has no use for the
+   * room, and recording it would be recording the player's voice for nothing.
+   */
+  microphone?: boolean;
+}
 
 /**
  * The recording session a training take uses. The STREAMS are fixed (the clean camera
@@ -44,10 +56,14 @@ export const TRAINER_TAKE_INSTRUMENT = 'trainer';
  * (the fixture converter, a headless re-train) depends on it; where it *goes* belongs to
  * the player.
  */
-export function trainerTakeSession(base: RecordingSession = DEFAULT_RECORDING_SESSION, now: Date = new Date()): RecordingSession {
+export function trainerTakeSession(
+  base: RecordingSession = DEFAULT_RECORDING_SESSION,
+  now: Date = new Date(),
+  { microphone = false }: TrainerTakeOptions = {},
+): RecordingSession {
   return {
     ...base,
-    name: prefillName({ instrument: TRAINER_TAKE_INSTRUMENT, date: now }),
+    name: prefillName({ instrument: microphone ? REAL_VS_AIR_TAKE_INSTRUMENT : TRAINER_TAKE_INSTRUMENT, date: now }),
     singleFileWhenAlone: false,
     streams: {
       ...base.streams,
@@ -57,6 +73,18 @@ export function trainerTakeSession(base: RecordingSession = DEFAULT_RECORDING_SE
       pureVideo: true,
       features: true,
       featureEdges: [...FEATURE_VECTOR_EDGES],
+      microphone,
     },
   };
+}
+
+/**
+ * What a trainer take writes into its manifest's `meta`: the routine's name and the
+ * FULL cue specs, in order. An annotation says `cue:rva-taps-real`; this is what says
+ * that cue was the real half of the `taps` phrase at 80 bpm. With it a take explains
+ * itself, so the offline pairing script needs no copy of the cue set (and still reads a
+ * take made with a custom cue, or with a cue whose wording has since changed).
+ */
+export function trainerTakeMeta(routineName: string, cues: readonly Cue[]): { trainer: { routine: string; cues: Cue[] } } {
+  return { trainer: { routine: routineName, cues: cues.map((c) => structuredClone(c)) } };
 }

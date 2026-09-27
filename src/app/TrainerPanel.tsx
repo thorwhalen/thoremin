@@ -53,6 +53,8 @@ import { useTools } from './toolsStore';
 import { useControls } from './store';
 import { useTrainerPrefs } from './enroll/prefs';
 import { toolById } from './tools';
+import { STARTER_ROUTINES, routineRecordsPerformance, starterRoutineById } from './enroll/realVsAirCues';
+import { clickPlayer } from './enroll/click';
 
 const TOOL_ID = 'trainer';
 /** ~30 Hz: fast enough that the sampler's dwell logic sees a smooth signal, slow enough
@@ -92,6 +94,61 @@ function suggestedLabel(c: Category, cueNames: Map<string, string>): string {
 }
 
 const OUTCOME_GLYPH = { enough: '✓', cannot: '✗', skipped: '–' } as const;
+
+/** The routine to run, in plain sight (the full picker is collapsed below it): the face
+ *  default, the shipped starter routines (#247), and the player's saved ones. */
+function RoutineChooser({ disabled }: { disabled: boolean }) {
+  const routineName = useTrainer((s) => s.routineName);
+  const savedRoutines = useTrainer((s) => s.savedRoutines);
+  const [chosen, setChosen] = useState('');
+  const starter = starterRoutineById(chosen);
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-2 text-[11px] text-white/70">
+        <span className="shrink-0">Routine</span>
+        <select
+          aria-label="Choose a routine"
+          value={chosen}
+          disabled={disabled}
+          onChange={(e) => {
+            const id = e.target.value;
+            setChosen(id);
+            void useTrainer.getState().useRoutine(id === '' ? null : id);
+          }}
+          className="min-w-0 flex-1 rounded bg-white/5 px-1 py-0.5 text-[11px] text-white/85"
+        >
+          <option value="">Your faces (default)</option>
+          {STARTER_ROUTINES.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+          {savedRoutines.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {starter && starter.name === routineName && (
+        <p className="text-[10px] text-white/45" data-routine-needs>
+          You need {starter.needs}.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The counter a clicked cue shows instead of a frame count: where in the phrase you are. */
+function BeatCounter() {
+  const beat = useTrainer((s) => s.beat);
+  if (!beat) return <span className="text-[10px] tabular-nums text-white/40">get ready</span>;
+  return (
+    <span className="text-[10px] tabular-nums text-fuchsia-200/80" data-beat>
+      {beat.kind === 'count' ? 'count-in' : 'beat'} {beat.index + 1}/{beat.of}
+    </span>
+  );
+}
 
 /** The voice toggle: a user gesture (which is also what unlocks audio playback). */
 function VoiceToggle({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }) {
@@ -187,10 +244,15 @@ export default function TrainerPanel() {
   const manualAdvance = useTrainerPrefs((s) => s.manualAdvance);
   const setManualAdvance = useTrainerPrefs((s) => s.setManualAdvance);
   const recording = useTrainer((s) => s.recording);
+  const notice = useTrainer((s) => s.notice);
   const voiceOn = useVoice((s) => s.enabled);
   const setVoice = useVoice((s) => s.setEnabled);
 
   const running = status === 'running' || status === 'between';
+  // A real-versus-air routine (#247): always recorded with the microphone, played to a
+  // click, and nothing to build afterwards — the take goes to the offline pairing script.
+  const pairRoutine = routineRecordsPerformance(routine);
+  const hasVocabulary = routine.some((c) => c.produces === 'vocabulary');
 
   // Read the cue + routine stores once the panel is first opened; register the spoken
   // channel (it fetches its clip manifest lazily and says nothing until it has one).
@@ -272,7 +334,7 @@ export default function TrainerPanel() {
         <div className="flex items-center gap-2">
           <GraduationCap className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
           {recording && (
-            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-red-400" title="This take is being recorded (camera, features, annotations)">
+            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-red-400" title={pairRoutine ? 'This take is being recorded (camera, microphone, features, clicks, annotations)' : 'This take is being recorded (camera, features, annotations)'}>
               <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden /> rec
             </span>
           )}
@@ -283,9 +345,13 @@ export default function TrainerPanel() {
             {activeCue.name}
             {status === 'between' && <span className="text-white/40"> · next</span>}
           </span>
-          <span className="text-[10px] tabular-nums text-white/40">
-            {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
-          </span>
+          {activeCue.sufficiency.kind === 'clicked' ? (
+            <BeatCounter />
+          ) : (
+            <span className="text-[10px] tabular-nums text-white/40">
+              {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
+            </span>
+          )}
           <VoiceToggle on={voiceOn} setOn={setVoice} />
           {status === 'running' && (
             <button
@@ -339,7 +405,17 @@ export default function TrainerPanel() {
 
       <div className="space-y-4 overflow-auto p-4">
         {tool && <p className="text-[10px] uppercase tracking-widest text-emerald-500/70">{tool.description}</p>}
-        {status === 'idle' && (
+        {!running && <RoutineChooser disabled={running} />}
+        {status === 'idle' && pairRoutine && (
+          <p className="text-[11px] leading-relaxed text-white/60" data-pair-intro>
+            Each phrase is played twice to a click: once for real, on the table or the instrument, then
+            the same in the air. The take is always recorded, with the microphone, and the microphone
+            must hear only you, so wear <strong className="text-white/80">wired headphones</strong> for
+            the click. Afterwards, <code className="text-white/70">scripts/cue/pair_take.ts</code> turns
+            the take into labelled pairs.
+          </p>
+        )}
+        {status === 'idle' && !pairRoutine && (
           <p className="text-[11px] leading-relaxed text-white/60">
             Teach the instrument the positions <em>you</em> can actually hit, instead of trying to hit the
             ones it came with. It asks for one thing at a time and moves on when it has enough. About a
@@ -386,8 +462,13 @@ export default function TrainerPanel() {
           {!running && <RoutinePicker />}
         </div>
 
+        {notice && <p className="text-[10px] text-amber-300/80" data-notice>{notice}</p>}
         <button
-          onClick={() => void useTrainer.getState().startTake(nowMs)}
+          onClick={() => {
+            // Inside the gesture: let the click's own audio context start (#247).
+            if (pairRoutine) clickPlayer().unlock?.();
+            void useTrainer.getState().startTake(nowMs);
+          }}
           disabled={routine.length === 0}
           className="w-full rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/90 transition hover:bg-white/20 disabled:opacity-30"
         >
@@ -399,17 +480,23 @@ export default function TrainerPanel() {
           <input type="checkbox" checked={hudShow} onChange={(e) => setTrainerHud({ show: e.target.checked })} />
           Show the instructions on the video while it runs
         </label>
-        <label className="flex items-center gap-2 text-[10px] text-white/60" title="Saves the clean camera video, the feature vectors and the cue/verdict annotations as a recording (like the Record button does).">
-          <input type="checkbox" checked={recordTake} onChange={(e) => setRecordTake(e.target.checked)} />
-          Record the take (camera + features + annotations)
-        </label>
+        {pairRoutine ? (
+          <p className="text-[10px] text-white/45">Always recorded: camera, microphone, features, clicks and annotations.</p>
+        ) : (
+          <label className="flex items-center gap-2 text-[10px] text-white/60" title="Saves the clean camera video, the feature vectors and the cue/verdict annotations as a recording (like the Record button does).">
+            <input type="checkbox" checked={recordTake} onChange={(e) => setRecordTake(e.target.checked)} />
+            Record the take (camera + features + annotations)
+          </label>
+        )}
         <label className="flex items-center gap-2 text-[10px] text-white/60" title="Instead of the trainer deciding when you've done each cue, you press Done (or Enter) to move on.">
           <input type="checkbox" checked={manualAdvance} onChange={(e) => setManualAdvance(e.target.checked)} />
           I'll say when I'm done (press Done or Enter to advance)
         </label>
 
         {status === 'done' && (
-          <p className="text-[11px] text-emerald-200/80">That is everything. Now find your categories.</p>
+          <p className="text-[11px] text-emerald-200/80">
+            {hasVocabulary ? 'That is everything. Now find your categories.' : 'That is everything. The take is being saved with your other recordings.'}
+          </p>
         )}
         {latestEnd && status !== 'idle' && (
           <p className="text-[10px] text-white/40">{latestEnd.why}</p>
@@ -429,6 +516,7 @@ export default function TrainerPanel() {
           </details>
         )}
 
+        {hasVocabulary && (
         <button
           onClick={() => useTrainer.getState().build()}
           disabled={!canBuild}
@@ -436,6 +524,7 @@ export default function TrainerPanel() {
         >
           {built ? 'Rebuild from this take' : 'Find my categories'}
         </button>
+        )}
 
         {built && <ProjectionSection />}
         {built && model && (

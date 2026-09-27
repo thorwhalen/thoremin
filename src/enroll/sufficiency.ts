@@ -28,7 +28,7 @@
  * times this feature's own jitter, RMS over the cue's features", the same for a
  * blendshape and for an angle.
  */
-import type { Cue } from './cue';
+import { clickPlan, type Cue } from './cue';
 import { noiseDistance } from './sampler';
 import type { FeatureVector, StillPoint } from './types';
 
@@ -175,6 +175,17 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
       const last = excursions[excursions.length - 1];
       if (input.points.length > 0 && Number.isFinite(last) && last < s.minExcursion) {
         return { verdict: 'need-variation', key: 'further', say: nextVariation(cue, input.askedVariations, DEFAULT_NUDGES.further) };
+      }
+      return { verdict: 'need-more' };
+    }
+
+    case 'clicked': {
+      // Over when the phrase has played through; the plan is the one the host clicks.
+      // Never a nudge (the click is the only thing to say), and `cannot` only when the
+      // camera never saw the player at all — the take is still recorded either way.
+      const plan = clickPlan(cue);
+      if (plan && input.elapsedMs >= plan.endMs) {
+        return input.frames === 0 ? { verdict: 'cannot', why: CANNOT_REASONS.unseen } : { verdict: 'enough' };
       }
       return { verdict: 'need-more' };
     }

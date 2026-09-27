@@ -54,6 +54,7 @@ import {
   loadRoutine,
   loadStoredCues,
   mergeCues,
+  ALL_STARTER_CUES,
 } from '@/app/enroll/cueStore';
 import { FEATURE_BY_ID, FEATURE_GROUPS } from '@/features/catalog';
 
@@ -363,7 +364,8 @@ describe('cue and routine stores — the two zodal collections, over an in-memor
 
   it('listCues over an empty store is exactly the starter set — starters are code, not seed rows', async () => {
     const { cues, unusable } = await listCues(cueStore());
-    expect(cues).toEqual([...STARTER_CUES]);
+    // Every cue that ships in code: the face set, then the real-vs-air cues (#247).
+    expect(cues).toEqual([...ALL_STARTER_CUES]);
     expect(unusable).toEqual([]);
   });
 
@@ -372,7 +374,7 @@ describe('cue and routine stores — the two zodal collections, over an in-memor
     const reworded = parsedSpec({ instruction: 'Look over your left shoulder, and hold it.' });
     await s.save('Look left', reworded, 1000);
     const { cues } = await listCues(s);
-    expect(cues.map((c) => c.id)).toEqual([...DEFAULT_ROUTINE_CUE_IDS]);
+    expect(cues.map((c) => c.id)).toEqual(ALL_STARTER_CUES.map((c) => c.id));
     expect(cues[DEFAULT_ROUTINE_CUE_IDS.indexOf('look-left')].instruction).toBe(reworded.instruction);
   });
 

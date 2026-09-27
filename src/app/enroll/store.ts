@@ -58,7 +58,11 @@ import { createCueStore, createRoutineStore, listCues, loadRoutine, type CueStor
 import { createTrainerTagSource, type TrainerTagSource } from './annotations';
 import { recordingController } from '../recording/controller';
 import { useTrainerPrefs } from './prefs';
-import { TRAINER_TAKE_INSTRUMENT, trainerTakeSession } from './takeSession';
+import { REAL_VS_AIR_TAKE_INSTRUMENT, TRAINER_TAKE_INSTRUMENT, trainerTakeMeta, trainerTakeSession } from './takeSession';
+import { clickPlan, type Click } from '@/enroll';
+import { clickPlayer } from './click';
+import { routineRecordsPerformance } from './realVsAirCues';
+import { ALL_STARTER_CUES } from './cueStore';
 import { parseSession, RECORDING_SESSION_KEY } from '../recording/schema';
 import { emitGuidance, emitGuidanceStop } from './guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
@@ -148,6 +152,11 @@ interface TrainerState {
   savedRoutines: { id: string; name: string }[];
   /** True while this routine's take is being RECORDED (#163 §6). */
   recording: boolean;
+  /** The click the player is on during a clicked cue (#247), for the panel's counter:
+   *  the last click that has sounded, and how many of its kind the phrase has. */
+  beat: { kind: Click['kind']; index: number; of: number } | null;
+  /** A one-line reason the last Start did nothing, or null. */
+  notice: string | null;
 
   /** Read the cue + routine stores (idempotent; the panel calls it on open). */
   load(): Promise<void>;
@@ -241,6 +250,12 @@ function playerRecordingBase() {
   }
 }
 
+/** Bumped by every routine choice (`setRoutine`, `useRoutine`). An async read that
+ *  began before a choice must not overwrite it when it lands: opening the panel starts
+ *  `load()`, and a player who picks a routine straight away would otherwise see it
+ *  silently replaced by the default a moment later. */
+let routineChoice = 0;
+
 /** True during the controller-start await window, so a second Start (the button is
  *  still rendered while `status` is 'idle' during that await) cannot re-enter. */
 let takeStarting = false;
@@ -253,6 +268,32 @@ function reconcileRecording(get: () => { recording: boolean }, set: (s: { record
     tagSource = null;
     set({ recording: false });
   }
+}
+
+/**
+ * The clicks of the running clicked cue that have not been written yet (#247). Written
+ * as they come due — the store's poll passes the time — rather than all at cue start,
+ * so the annotation stream stays in time order with the cue's own end.
+ */
+let pendingClicks: Click[] = [];
+/** Per-kind totals of the running clicked cue, for the counter. */
+let clickTotals: Record<Click['kind'], number> = { count: 0, beat: 0 };
+
+/** Write every pending click at or before `tMs` into the take; return the last one. */
+function flushClicks(tMs: number): Click | null {
+  let last: Click | null = null;
+  while (pendingClicks.length > 0 && pendingClicks[0].t <= tMs) {
+    const c = pendingClicks.shift()!;
+    tagSource?.click(c.kind, c.t);
+    last = c;
+  }
+  return last;
+}
+
+/** End the running click: drop what has not sounded, silence the player. */
+function endClicks(): void {
+  pendingClicks = [];
+  clickPlayer().stop();
 }
 
 /** Stop a running take (if any) and forget its annotation source. */
@@ -288,13 +329,27 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       queueMicrotask(() => emitGuidance(line));
     };
     switch (e.type) {
-      case 'cue-start':
+      case 'cue-start': {
         push({ t: e.t, kind: 'instruction', say: e.say });
+        const plan = clickPlan(e.cue, e.t);
+        endClicks();
+        if (plan) {
+          pendingClicks = [...plan.clicks];
+          clickTotals = { count: 0, beat: 0 };
+          for (const c of plan.clicks) clickTotals[c.kind] += 1;
+          clickPlayer().play(plan.clicks);
+        }
+        set({ beat: null });
         break;
+      }
       case 'guidance':
         push({ t: e.t, kind: 'guidance', say: e.say });
         break;
       case 'cue-end':
+        // Every click that sounded before the end is in the take; the rest never sounded.
+        flushClicks(e.t);
+        endClicks();
+        set({ beat: null });
         // A skip says nothing; only an outcome with a phrase is a line of transcript.
         if (e.say) push({ t: e.t, kind: 'end', say: e.say, outcome: e.outcome, why: e.why });
         set({ outcomes: runner?.state().outcomes ?? [], lastEndSay: e.say ?? null });
@@ -305,6 +360,8 @@ export const useTrainer = create<TrainerState>()((set, get) => {
         void endTake(set);
         break;
       case 'stopped':
+        endClicks();
+        set({ beat: null });
         appFeatureDemand.release(DEMAND_OWNER);
         void endTake(set);
         // After any say already queued in a microtask (a tick then a stop in one turn).
@@ -313,11 +370,17 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     }
   };
 
+  /** Write the clicks that have come due and move the panel's counter. */
+  const advanceClicks = (tMs: number) => {
+    const last = flushClicks(tMs);
+    if (last) set({ beat: { kind: last.kind, index: last.index, of: clickTotals[last.kind] } });
+  };
+
   /** The runner's events, to the take's annotation stream (when one is running). */
   const onEventForTake = (e: RunnerEvent) => tagSource?.onEvent(e);
 
   return {
-    cues: [...STARTER_CUES],
+    cues: [...ALL_STARTER_CUES],
     routine: [...STARTER_CUES],
     routineName: 'Default',
     missing: [],
@@ -328,6 +391,8 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     selection: [],
     labelGroups: [],
     recording: false,
+    beat: null,
+    notice: null,
     loaded: false,
     ...IDLE,
     outcomes: STARTER_CUES.map(() => null),
@@ -342,6 +407,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
 
     async load() {
       if (get().loaded) return;
+      const choice = routineChoice;
       const { cues: cueStore, routines } = getStores();
       const { cues, unusable } = await listCues(cueStore);
       const r = await loadRoutine(null, cues, routines);
@@ -350,8 +416,10 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       // store's — they must not diverge mid-run. Swap the routine only when idle.
       const running = get().status === 'running' || get().status === 'between';
       const savedRoutines = (await routines.list()).map(({ id, name }) => ({ id, name }));
+      // ...and the same when the player chose a routine while the stores were answering.
+      const chosen = routineChoice !== choice;
       set(
-        running
+        running || chosen
           ? { cues, unusable, savedRoutines, loaded: true }
           : { cues, unusable, savedRoutines, routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null), loaded: true },
       );
@@ -370,8 +438,11 @@ export const useTrainer = create<TrainerState>()((set, get) => {
 
     async useRoutine(id) {
       if (get().status === 'running' || get().status === 'between') return;
+      const choice = ++routineChoice;
       const { routines } = getStores();
       const r = await loadRoutine(id, get().cues, routines);
+      // A later choice (or a Start) overtook this one while the store answered.
+      if (choice !== routineChoice || get().status === 'running' || get().status === 'between') return;
       set({ routine: r.cues, routineName: r.name, missing: r.missing, outcomes: r.cues.map(() => null) });
     },
 
@@ -385,6 +456,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
     setRoutine(cueIds, name = 'Custom') {
       // Not while a runner is driving the current routine (same reason as in load()).
       if (get().status === 'running' || get().status === 'between') return;
+      routineChoice++;
       // The same resolution the routine collection uses: unknown ids reported, a
       // repeated id runs once.
       const { cues: routine, missing } = resolveRoutine(cueIds, get().cues);
@@ -421,16 +493,26 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       // 'idle') — a second call would orphan the recorder and lose the annotations.
       if (takeStarting || recording || status === 'running' || status === 'between') return;
       takeStarting = true;
+      set({ notice: null });
       try {
-        if (useTrainerPrefs.getState().recordTake) {
-          const routine = get().routine;
+        const routine = get().routine;
+        // A real-versus-air routine (#247) is ALWAYS recorded, with the microphone: the
+        // take is its whole product, and running it unrecorded would be two minutes of
+        // tapping that leave nothing behind. The pref governs every other routine.
+        const pairTake = routineRecordsPerformance(routine);
+        if (useTrainerPrefs.getState().recordTake || pairTake) {
           tagSource = createTrainerTagSource({ active: () => true, cues: () => routine });
-          const ok = await recordingController().start(trainerTakeSession(playerRecordingBase()), {
+          const ok = await recordingController().start(trainerTakeSession(playerRecordingBase(), new Date(), { microphone: pairTake }), {
             tagSource,
-            instrument: TRAINER_TAKE_INSTRUMENT,
+            instrument: pairTake ? REAL_VS_AIR_TAKE_INSTRUMENT : TRAINER_TAKE_INSTRUMENT,
+            meta: trainerTakeMeta(get().routineName, routine),
           });
           set({ recording: ok });
           if (!ok) tagSource = null;
+          if (!ok && pairTake) {
+            set({ notice: 'This routine only makes sense recorded, and the recording did not start (camera and microphone must both be allowed).' });
+            return;
+          }
         }
         get().start(now());
       } finally {
@@ -440,6 +522,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
 
     sample(vector, tMs) {
       if (!runner) return;
+      advanceClicks(tMs);
       runner.push(vector, tMs);
       reconcileRecording(get, set);
       set(fromRunner());
@@ -447,6 +530,7 @@ export const useTrainer = create<TrainerState>()((set, get) => {
 
     tick(tMs) {
       if (!runner) return;
+      advanceClicks(tMs);
       runner.tick(tMs);
       reconcileRecording(get, set);
       set(fromRunner());
@@ -550,10 +634,13 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       unsubscribe = null;
       runner = null;
       session = createSession();
+      endClicks();
       appFeatureDemand.release(DEMAND_OWNER);
       void endTake(set);
       set({
         ...IDLE,
+        beat: null,
+        notice: null,
         outcomes: get().routine.map(() => null),
         transcript: [],
         lastEndSay: null,

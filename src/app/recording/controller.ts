@@ -21,6 +21,8 @@ export interface StartTakeOptions {
   tagSource?: TagStreamSource;
   /** For the manifest / file names. */
   instrument?: string;
+  /** Provenance for the manifest's `meta` (the trainer's routine and cue specs). */
+  meta?: Record<string, unknown>;
   /** The Record-BUTTON flow drives the settings sheet on cancel; a controller-started
    *  take (the trainer) must not. Default false. Only the button's own start sets it. */
   fromSheet?: boolean;

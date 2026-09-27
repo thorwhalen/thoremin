@@ -17,7 +17,9 @@ export type RecordingStreamKind =
   | 'pureVideo'
   | 'overlayAlpha'
   | 'features'
-  | 'annotations';
+  | 'annotations'
+  /** The room through the microphone (#247); see `RecordingStreams.microphone`. */
+  | 'microphone';
 
 /** One stream's entry in the manifest. `file` is the name within the folder. */
 export interface RecordingStreamEntry {
@@ -27,6 +29,11 @@ export interface RecordingStreamEntry {
   mime?: string;
   /** Frames-per-second for canvas/video streams. */
   fps?: number;
+  /** Sample rate of a decoded audio file (the WAV), Hz. */
+  sampleRate?: number;
+  /** The input latency the browser reported for a microphone track, in seconds, when it
+   *  reported one. A hint for alignment, not a measurement. */
+  latency?: number;
 }
 
 export interface RecordingManifest {
@@ -43,6 +50,9 @@ export interface RecordingManifest {
   /** The recording stem (= folder name = file base name). */
   stem: string;
   streams: RecordingStreamEntry[];
+  /** Free-form provenance a consumer needs to read the take (the trainer writes the
+   *  routine's cue specs here, so a take explains its own annotations). */
+  meta?: Record<string, unknown>;
 }
 
 /** Build a manifest from the take's clock + the list of streams actually
@@ -54,6 +64,7 @@ export function buildManifest(input: {
   stem: string;
   instrument?: string;
   streams: RecordingStreamEntry[];
+  meta?: Record<string, unknown>;
 }): RecordingManifest {
   return {
     version: RECORDING_MANIFEST_VERSION,
@@ -62,6 +73,7 @@ export function buildManifest(input: {
     instrument: input.instrument,
     stem: input.stem,
     streams: input.streams,
+    ...(input.meta ? { meta: input.meta } : {}),
   };
 }
 
