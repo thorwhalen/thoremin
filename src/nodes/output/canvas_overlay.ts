@@ -250,7 +250,6 @@ const BODY_COLOR = '#7dd3fc';
 const CONDUCTOR_COLOR = '#34d399';
 const CHORD_COLOR = '#f5d142'; // warm gold
 
-/** Everything an overlay element needs to draw a frame. */
 /**
  * What the breath cue reads from a wind instrument's status (the air flute's today). A
  * structural slice, so the overlay names no extension: any status with these fields draws.
@@ -263,6 +262,7 @@ export interface BreathStatus {
   sounding: boolean;
 }
 
+/** Everything an overlay element needs to draw a frame. */
 export interface OverlayView {
   W: number;
   H: number;

@@ -60,15 +60,16 @@ const FOLD_POINTS = new Set([
   'src/app/extensions/index.ts', // the React-side list itself
 ]);
 /**
- * THE SDK SURFACE, AS DATA: every core module an extension may import. This list is the
+ * THE SDK SURFACE, AS DATA, in two halves: every core module an extension may import. This list is the
  * contract PR 6 cuts the `sdk` packages from (the pure half, then the app half); a new entry
  * is a decision to widen the contract, made here in review, never in passing. It was
  * computed from what the air extension actually imports, not designed in the abstract,
  * and deliberately has no barrel module: a barrel re-exporting all of this closes a module
  * cycle through the settings schema and drags JSX into the strict typecheck.
  */
-const SDK_SURFACE = [
-  // pure: the engine, the contracts, the manifest types
+/** The PURE half: what an extension's nodes, libraries and pure manifest files may import.
+ *  An entry allows the module and every path below it (`@/dag` allows `@/dag/engine`). */
+const SDK_PURE = [
   '@/dag',
   '@/nodes/domain',
   '@/instruments/branch',
@@ -78,7 +79,6 @@ const SDK_SURFACE = [
   '@/features/catalog',
   '@/ictus',
   '@/enroll',
-  // pure: music theory and the two drum/wind libraries core also uses
   '@/music/theory',
   '@/music/notes',
   '@/music/fingerings', // also read by the trainer's starter sequences
@@ -88,20 +88,33 @@ const SDK_SURFACE = [
   '@/drums/pattern_play',
   '@/nodes/music/drum_pads', // also drawn by the overlay
   '@/nodes/music/drum_anchor', // also drawn by the overlay
+];
+
+/** The APP half: what an extension's React side (`app/`, `panels/`, `ui.tsx`) may import on
+ *  top of the pure half. Never a node, a library or a pure manifest file: the real-time path
+ *  must not reach the app shell, the hot store or the command dispatch. */
+const SDK_APP = [
   '@/settings/namedCollection',
-  // app side: the write path, the settings hook, the panel primitives, the two singletons
   '@/app/extensions/types',
-  '@/app/dispatchDial',
+  '@/app/dispatchDial', // the write path
   '@/app/dials/useDialsSettings',
   '@/app/dials/primitives',
   '@/app/store',
   '@/app/featureDemand',
-  // app side: the trainer's hooks the air instruments' training panels use
+  // the trainer's hooks the air instruments' training panels use
   '@/app/training/routes',
   '@/app/enroll/sequenceStore',
   '@/app/enroll/guidance',
   '@/app/enroll/click',
 ];
+
+const SDK_SURFACE = [...SDK_PURE, ...SDK_APP];
+
+/** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
+const isPureExtensionFile = (file: string): boolean =>
+  /^src\/extensions\/[^/]+\/(nodes|lib)\//.test(file) || /^src\/extensions\/[^/]+\/[^/]+\.ts$/.test(file);
+const allows = (list: readonly string[], spec: string): boolean =>
+  list.some((allowed) => spec === allowed || spec.startsWith(`${allowed}/`));
 
 const LIST_MODULES = /^@\/(extensions|app\/extensions)$/;
 const NAMED_EXCEPTIONS: Record<string, RegExp> = {
@@ -143,17 +156,33 @@ describe('core reaches the extensions only through the lists, from the fold poin
   it('an extension imports only the SDK surface, packages and itself (rule 2, on since 5b)', () => {
     const offenders: string[] = [];
     for (const file of tsFiles('src/extensions')) {
-      const ext = file.split('/')[2]; // src/extensions/<ext>/...
-      if (!ext || ext.endsWith('.ts')) continue; // the list module at the root
+      if (file === 'src/extensions/index.ts') continue; // the list module, covered below
+      const ext = file.split('/')[2];
+      const pure = isPureExtensionFile(file);
       for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
-        if (!spec.startsWith('@/') && !spec.startsWith('.')) continue; // a package
-        if (spec.startsWith('.')) continue; // relative: the mover left none that leave the extension (checked below)
-        if (spec.startsWith(`@/extensions/${ext}/`)) continue; // itself
-        if (SDK_SURFACE.some((allowed) => spec === allowed || spec.startsWith(`${allowed}/`))) continue;
-        offenders.push(`${file} imports ${spec}`);
+        if (!spec.startsWith('@/')) continue; // a package, or a relative import (checked below)
+        if (spec.startsWith(`@/extensions/${ext}/`)) {
+          // Itself. A pure file stays on the pure side of its own extension too.
+          const ownPure = /^@\/extensions\/[^/]+\/(nodes|lib)\//.test(spec) || /^@\/extensions\/[^/]+\/[^/]+$/.test(spec);
+          if (!pure || ownPure) continue;
+          offenders.push(`${file} (pure) imports its own app side: ${spec}`);
+          continue;
+        }
+        if (allows(pure ? SDK_PURE : SDK_SURFACE, spec)) continue;
+        offenders.push(`${file}${pure ? ' (pure)' : ''} imports ${spec}`);
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it('every entry of the SDK surface is used (the contract lists nothing speculative)', () => {
+    const used = new Set<string>();
+    for (const file of tsFiles('src/extensions')) {
+      for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
+        for (const allowed of SDK_SURFACE) if (spec === allowed || spec.startsWith(`${allowed}/`)) used.add(allowed);
+      }
+    }
+    expect(SDK_SURFACE.filter((s) => !used.has(s))).toEqual([]);
   });
 
   it('no relative import leaves an extension', () => {
