@@ -36,6 +36,7 @@ import { isPinned } from './toolsCollection';
 import { useToolPins } from './toolPins';
 import { searchTools } from './toolsCatalog';
 import { useTools } from './toolsStore';
+import { publishHeight, TOOLS_BAR_HEIGHT_VAR } from './shellLayout';
 import { useControls } from './store';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { dispatchDialSetIn } from './dispatchDial';
@@ -142,29 +143,6 @@ function ToolButton({
   );
 }
 
-/** The CSS variable the panels position themselves by (see `index.css`). */
-export const TOOLS_BAR_HEIGHT_VAR = '--tools-bar-h';
-
-/** Keep {@link TOOLS_BAR_HEIGHT_VAR} equal to the bar's rendered height while it is
- *  mounted; on unmount, fall back to the stylesheet's one-row default. Without a
- *  `ResizeObserver` (jsdom) it measures once. */
-function publishHeight(bar: HTMLElement | null): (() => void) | undefined {
-  if (!bar) return undefined;
-  const root = document.documentElement.style;
-  const write = () => {
-    const h = bar.getBoundingClientRect().height;
-    if (h > 0) root.setProperty(TOOLS_BAR_HEIGHT_VAR, `${h}px`);
-  };
-  write();
-  if (typeof ResizeObserver === 'undefined') return () => root.removeProperty(TOOLS_BAR_HEIGHT_VAR);
-  const ro = new ResizeObserver(write);
-  ro.observe(bar);
-  return () => {
-    ro.disconnect();
-    root.removeProperty(TOOLS_BAR_HEIGHT_VAR);
-  };
-}
-
 /** Per {@link Tool.runsDetached} tool: whether it is running now, and how to stop it.
  *  Read here rather than inside ToolButton so the button stays presentational and
  *  `tools.ts` stays React-free: the registry declares THAT a tool can run detached, the
@@ -193,7 +171,7 @@ export default function ToolsBar() {
   const launcherOpen = useTools((s) => s.launcherOpen);
   const toggleLauncher = useTools((s) => s.toggleLauncher);
   const barRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => publishHeight(barRef.current), []);
+  useLayoutEffect(() => publishHeight(barRef.current, TOOLS_BAR_HEIGHT_VAR), []);
   useEffect(() => {
     void useToolPins.getState().hydrate();
     // Prime the launcher's list, so its first open shows every tool at once.

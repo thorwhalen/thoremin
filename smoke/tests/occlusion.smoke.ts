@@ -178,6 +178,29 @@ for (const phone of [
   test.describe(`${phone.width}x${phone.height} (a phone)`, () => {
     test.use({ viewport: phone });
 
+    test('cold load, before playing: Tap to play and the Instruments icon are pressable, the video uncovered', async ({ page }) => {
+      await page.goto(SYNTHETIC);
+      const play = page.getByRole('button', { name: /tap to play/i });
+      await expect(play).toBeVisible({ timeout: 60_000 });
+      await expectPressable(page, play, 'tap to play');
+      // The list starts closed on a phone: open on load it covered the whole screen.
+      await expectPressable(page, page.getByRole('button', { name: 'Open instruments' }), 'the Instruments icon');
+    });
+
+    test('the Instruments list, opened, shows its rows pressable', async ({ page }) => {
+      await coldLoadPlaying(page);
+      await page.getByRole('button', { name: 'Open instruments' }).click();
+      const list = page.getByRole('group', { name: /instruments/i }).first().locator('xpath=..');
+      const box = (await list.boundingBox())!;
+      const edits = page.getByRole('button', { name: /^Edit / });
+      await expect(edits.first()).toBeVisible();
+      for (let i = 0; i < (await edits.count()); i++) {
+        const b = await edits.nth(i).boundingBox();
+        if (!b || b.y < box.y || b.y + b.height > box.y + box.height) continue;
+        expect(await occluder(edits.nth(i)), `row ${i} is not covered`).toBeNull();
+      }
+    });
+
     test('cold load, playing: the launcher and the take cluster are pressable', async ({ page }) => {
       await coldLoadPlaying(page);
       // On a phone-width screen the bar is the launcher alone; the pins are one tap in.
