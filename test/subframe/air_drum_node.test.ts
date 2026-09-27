@@ -10,6 +10,11 @@
  * sound; the status says the right hand's floor is learned and counts the hits; a
  * running conductor with magnetism pulls the hits toward its grid; the config input
  * overrides the params live.
+ *
+ * Every hand here is ONE point (all 21 keypoints on it) standing in for the wrist, so
+ * these tests pin `point: 'wrist'`: a single point has no grip for a stick tip to lever
+ * (#246 made the stick tip the default; its geometry, its lever-scaled gates and its
+ * behaviour on real recorded hands are `drum_anchor.test.ts`).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -48,7 +53,7 @@ describe.each(['subframe_stick_air_30', 'subframe_ball_air_60'])('air-drum node 
   const air = loadFrames(name);
   const fps = air.truth.spec.fps;
   it('predicts every stroke after the first, within 25 ms of the turn, ahead of it', async () => {
-    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.03 }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
     const outs = await replayNode(h, { hands: air.frames }, { dt: 1 / fps });
     const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
     expect(hits).toHaveLength(air.truth.events.length);
@@ -64,7 +69,7 @@ const FPS = truth.spec.fps;
 const nearest = (t: number) => truth.events.reduce((b, e) => (Math.abs(e.t_impact - t) < Math.abs(b.t_impact - t) ? e : b));
 
 async function run(params: Record<string, unknown>, extra: Record<string, unknown[]> = {}) {
-  const h = airDrumNode.make(airDrumNode.params.parse(params));
+  const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', ...params }));
   const outs = await replayNode(h, { hands: frames, ...extra }, { dt: 1 / FPS });
   const hits: (DrumHit & { tick: number })[] = [];
   outs.forEach((o, i) => {
@@ -152,7 +157,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
     const age = 0.06;
     const origin = performance.timeOrigin;
     const stamped = frames.map((f, i) => ({ ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: origin, lag: age }));
-    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.03 }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
     const outs = await replayNode(h, { hands: stamped }, { dt: 1 / FPS, resources: { timeScale: 1 } });
     const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
     const predicted = hits.filter((x) => x.predicted);
@@ -176,7 +181,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
       const stamped = { ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: origin, lag: age };
       doubled.push(stamped, stamped);
     });
-    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.05 }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.05 }));
     const outs = await replayNode(h, { hands: doubled }, { dt: 1 / (2 * FPS), resources: { timeScale: 1 } });
     const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
     expect(hits.length).toBe(truth.events.length);
@@ -200,7 +205,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
   });
 
   it('a changed lead takes effect live, without toggling the dial', async () => {
-    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead: 0.03 }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
     const config = frames.map((_, i) => ({ enabled: true, minLead: i < 90 ? 0.03 : 0.1 }));
     const outs = await replayNode(h, { hands: frames, config }, { dt: 1 / FPS });
     const late = outs.slice(90).flatMap((o) => o.hits as DrumHit[]).filter((x) => x.predicted);
@@ -214,7 +219,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
       height: 720,
       hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, (_, k) => ({ x: 600, y: k === 8 ? 300 : 400 })) }],
     }));
-    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true }));
     const config = still.map((_, i) => ({ enabled: true, point: Math.floor(i / 20) % 2 ? 'indexTip' : 'wrist' }));
     const outs = await replayNode(h, { hands: still, config }, { dt: 1 / FPS });
     expect(outs.flatMap((o) => o.hits as DrumHit[])).toHaveLength(0);
@@ -228,7 +233,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
       const dip = phase < 1 ? 0.5 * (1 - Math.cos(2 * Math.PI * phase)) : 0;
       soft.push({ width: 1280, height: 720, hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 0.08 * 720 * dip })) }] });
     }
-    const h3 = airDrumNode.make(airDrumNode.params.parse({ enabled: true }));
+    const h3 = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true }));
     const outs3 = await replayNode(h3, { hands: soft }, { dt: 1 / FPS });
     expect(outs3.flatMap((o) => o.hits as DrumHit[]).length).toBeGreaterThanOrEqual(8);
     // A melodic hand sweeping slowly up and down by a tenth of the frame: not a stroke.
@@ -237,13 +242,13 @@ describe('air-drum node on the synthetic surface fixture', () => {
       height: 720,
       hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 36 * Math.sin((2 * Math.PI * 0.3 * i) / FPS) + 1.5 * Math.sin(i * 7.1) })) }],
     }));
-    const h2 = airDrumNode.make(airDrumNode.params.parse({ enabled: true }));
+    const h2 = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true }));
     const outs2 = await replayNode(h2, { hands: sway }, { dt: 1 / FPS });
     expect(outs2.flatMap((o) => o.hits as DrumHit[])).toHaveLength(0);
   });
 
   it('the config input overrides the params live: enabling mid-stream starts drumming', async () => {
-    const h = airDrumNode.make(airDrumNode.params.parse({ enabled: false }));
+    const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: false }));
     const config = frames.map((_, i) => (i < 60 ? { enabled: false } : { enabled: true }));
     const outs = await replayNode(h, { hands: frames, config }, { dt: 1 / FPS });
     const before = outs.slice(0, 60).flatMap((o) => o.hits as DrumHit[]);

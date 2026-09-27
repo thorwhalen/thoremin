@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import type { StreamRecord } from '@/dag';
 import { BLM, BODY_LANDMARK_COUNT, type BodyFrame } from '@/nodes/domain';
 import { fMeasure } from '@/ictus/metrics';
-import { assignStrokes, kmeans, median, strokesOf, timingErrors, wristTracks } from '../../scripts/air/lib_drum_strokes';
+import type { HandsFrame } from '@/nodes/domain';
+import { LM } from '@/nodes/domain';
+import { assignStrokes, handTracks, kmeans, median, strokesOf, strokesOfTracks, timingErrors, wristTracks } from '../../scripts/air/lib_drum_strokes';
 import { rng } from './synthetic_hand';
 
 interface Hit {
@@ -172,6 +174,67 @@ describe('assignStrokes', () => {
     const hits: Hit[] = Array.from({ length: 24 }, (_, k) => ({ t: 0.4 + 0.3 * k, wrist: 'right' as const, target: k % 2 ? SNARE : near }));
     const drums = assignStrokes(strokesOf(drummer(hits, 8, 30)));
     expect(drums.length).toBe(2);
+  });
+});
+
+/**
+ * A hands stream for the pose stream `poses`: one 21-point hand on each pose wrist, the
+ * RIGHT hand's index fingertip dipping by `depth` pixels at each of `taps` (a finger
+ * stroke: the wrist never moves). MediaPipe's labels are deliberately wrong (both
+ * 'Right'), and a third hand far from either wrist is in every frame.
+ */
+function fingerTaps(poses: StreamRecord[], taps: number[], depth = 30): StreamRecord[] {
+  return poses.map((r) => {
+    const f = r.value as BodyFrame;
+    const handAt = (w: { x: number; y: number }, dip: number) => {
+      const keypoints = Array.from({ length: 21 }, (_, j) => ({ x: w.x + 2 * j, y: w.y + j }));
+      keypoints[LM.index_tip] = { x: w.x + 20, y: w.y + 40 + dip };
+      return { handedness: 'Right' as const, keypoints };
+    };
+    let dip = 0;
+    for (const t of taps) {
+      const dt = r.t - t;
+      if (Math.abs(dt) < 0.09) dip = depth * 0.5 * (1 + Math.cos((Math.PI * dt) / 0.09));
+    }
+    const hands = [
+      handAt(f.landmarks[BLM.left_wrist], 0),
+      handAt(f.landmarks[BLM.right_wrist], dip),
+      handAt({ x: 5, y: 5 }, 0), // a spectator's hand in the corner
+    ];
+    const frame: HandsFrame = { width: f.width, height: f.height, hands };
+    return { tick: r.tick, t: r.t, value: frame };
+  });
+}
+
+describe('handTracks (#246: a point on the hand, not the wrist)', () => {
+  const taps = Array.from({ length: 12 }, (_, k) => 0.5 + 0.31 * k + 0.004 * k);
+  const poses = drummer([], 5, 30, { jitter: 0.3 });
+  const hands = fingerTaps(poses, taps);
+
+  it('sees the finger strokes a still wrist cannot', () => {
+    expect(strokesOf(poses).length).toBe(0);
+    const strokes = strokesOfTracks(handTracks(hands, poses, { point: 'indexTip' }));
+    expect(strokes.every((s) => s.wrist === 'right')).toBe(true);
+    expect(fMeasure(taps, strokes.map((s) => s.t), 1 / 30)).toBeGreaterThan(0.95);
+  });
+
+  it('assigns each hand to the nearest pose wrist, whatever its label, and ignores a far hand', () => {
+    const tr = handTracks(hands, poses, { point: 'wrist' });
+    const w0 = (poses[0].value as BodyFrame).landmarks;
+    expect(tr.left[0].x).toBeCloseTo(w0[BLM.left_wrist].x, 6);
+    expect(tr.right[0].x).toBeCloseTo(w0[BLM.right_wrist].x, 6);
+    // Shoulder-normalised exactly as the pose wrist is.
+    const pw = wristTracks(poses);
+    expect(tr.left[0].nx).toBeCloseTo(pw.left[0].nx, 6);
+    expect(tr.right[0].ny).toBeCloseTo(pw.right[0].ny, 6);
+  });
+
+  it('marks a frame invisible without shoulders or without a hand near the wrist', () => {
+    const noShoulders = poses.map((r) => ({ ...r, value: { ...(r.value as BodyFrame), visibility: (r.value as BodyFrame).visibility.map(() => 0.1) } }));
+    expect(handTracks(hands, noShoulders, { point: 'indexTip' }).right.every((s) => !s.visible)).toBe(true);
+    const onlyFar = hands.map((r) => ({ ...r, value: { ...(r.value as HandsFrame), hands: (r.value as HandsFrame).hands.slice(2) } }));
+    const tr = handTracks(onlyFar, poses, { point: 'indexTip' });
+    expect(tr.left.every((s) => !s.visible) && tr.right.every((s) => !s.visible)).toBe(true);
   });
 });
 

@@ -65,7 +65,7 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(c).toMatch(/\* 1000/);
     // Each bridge goes through the converter rather than being passed raw.
     // (`...latencySinks` is the #227 probe's tick-end stamp: empty unless ?probe=latency.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportAirDrum\)\s*\]/);
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportAirDrum\),\s*toMs\(reportAirBass\)\s*\]/);
   });
 
   it('publishes the read-only debug handle when the engine is ready, and removes it on teardown (#209)', () => {

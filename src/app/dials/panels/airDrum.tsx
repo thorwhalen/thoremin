@@ -3,13 +3,18 @@
  * the strike. Off by default; the toggle, the hand and point choosers, the two drum
  * sounds and the two sliders all write leaves of the structured `airDrum` dial through
  * `dispatchDialSetIn` (the single write path). The sliders dispatch on every notch
- * (a few steps each), the accepted trade for staying on the write path. What the
- * instrument is doing right now (floors learned, hits, the last hit's lead) is the
- * Air drum tool panel's readout, not this section's.
+ * (a few steps each), the accepted trade for staying on the write path.
+ *
+ * Since #249 the air drum is an INSTRUMENT, not a tool: it is chosen from the Air
+ * instruments category of the Instruments view, and this section (in that view's
+ * editor) is its one home. So it carries the live readout the retired tool panel had —
+ * floors learned, hits, the last hit's lead — as {@link AirDrumReadout}, which the
+ * instrument's row in the list shows too.
  */
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { selectCls } from '../primitives';
+import { describeLive, useAirDrumStatus } from '../../airDrumStatus';
 import { AIR_DRUM_HANDS, AIR_DRUM_POINTS, DRUM_SOUNDS, type AirDrumDialParams } from '@/nodes/music/air_drum';
 
 const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {
@@ -19,7 +24,8 @@ const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {
 };
 const POINT_LABEL: Record<AirDrumDialParams['point'], string> = {
   wrist: 'wrist (steady)',
-  indexTip: 'index fingertip (like a stick)',
+  indexTip: 'index fingertip',
+  stickTip: 'stick tip (a stick extended from the grip)',
 };
 const SOUND_LABEL: Record<AirDrumDialParams['rightSound'], string> = {
   kick: 'kick',
@@ -28,18 +34,52 @@ const SOUND_LABEL: Record<AirDrumDialParams['rightSound'], string> = {
   tom: 'tom',
 };
 
+/** What the air drum is doing right now, from the engine loop's reporter. */
+export function AirDrumReadout() {
+  const live = useAirDrumStatus((s) => s.live);
+  const share = live.hits > 0 ? Math.round((100 * live.predicted) / live.hits) : 0;
+  return (
+    <div
+      className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2 text-xs"
+      data-testid="air-drum-live"
+      data-state={live.enabled ? (live.hits > 0 ? 'playing' : 'ready') : 'off'}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-white/80">{describeLive(live)}</span>
+        {live.enabled && live.hits > 0 && (
+          <span className="shrink-0 font-mono text-emerald-300" title="hits, and the share predicted ahead of the strike">
+            {live.hits} · {share}%
+          </span>
+        )}
+      </div>
+      {live.enabled && (
+        <div className="flex gap-3 text-[10px] text-white/50">
+          <span>Right drum: {live.ready.right ? 'learned' : 'strike once'}</span>
+          <span>Left drum: {live.ready.left ? 'learned' : 'strike once'}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AirDrumControls() {
   const { state } = useDialsSettings();
   const c = (state.effective.airDrum ?? {}) as Partial<AirDrumDialParams>;
   const enabled = c.enabled === true;
   const hand = c.hand ?? 'both';
-  const point = c.point ?? 'wrist';
+  const point = c.point ?? 'stickTip';
   const rightSound = c.rightSound ?? 'kick';
   const leftSound = c.leftSound ?? 'snare';
   const minLead = c.minLead ?? 0.05;
   const magnetism = c.magnetism ?? 0;
   return (
     <div className="space-y-2">
+      <AirDrumReadout />
+      <p className="text-[10px] leading-relaxed text-white/50">
+        Strike down in front of the camera as if hitting a drum. The first strike of each hand
+        teaches the instrument where that drum is; from then on the hit sounds at the strike,
+        predicted from the stroke before the camera has even seen it land. Bigger strokes are louder.
+      </p>
       <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" checked={enabled} onChange={(e) => dispatchDialSetIn('airDrum.enabled', e.target.checked)} />
         Drum in the air

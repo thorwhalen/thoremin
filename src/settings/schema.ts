@@ -24,6 +24,7 @@ export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, S
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
 import { ConductorDialSchema } from '@/nodes/features/conductor';
 import { AirDrumDialSchema } from '@/nodes/music/air_drum';
+import { AirBassDialSchema } from '@/nodes/music/air_bass';
 
 /** The piece id that means "the built-in demo scale" (no document loaded). */
 export const BUILTIN_PIECE = 'builtin';
@@ -45,6 +46,10 @@ export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.pars
 export const AirDrumSettingsSchema = AirDrumDialSchema;
 export type AirDrumSettings = z.infer<typeof AirDrumSettingsSchema>;
 export const DEFAULT_AIR_DRUM: AirDrumSettings = AirDrumSettingsSchema.parse({});
+/** The air bass (#249): the `air-bass` node's params ARE the dial (the air drum pattern). */
+export const AirBassSettingsSchema = AirBassDialSchema;
+export type AirBassSettings = z.infer<typeof AirBassSettingsSchema>;
+export const DEFAULT_AIR_BASS: AirBassSettings = AirBassSettingsSchema.parse({});
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -296,6 +301,7 @@ export const SettingsSchema = z.object({
   conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
   // The air drum (#233): the node's params lifted 1:1. `.default(...)` keeps older presets valid (off).
   airDrum: AirDrumSettingsSchema.default(DEFAULT_AIR_DRUM),
+  airBass: AirBassSettingsSchema.default(DEFAULT_AIR_BASS),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

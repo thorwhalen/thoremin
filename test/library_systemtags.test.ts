@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
+import { airInstrumentsOf } from '@/app/library/category';
 import { layerToSettings } from '@/settings/dials';
 import { systemTagsForSettings } from '@/app/library/systemTags';
 import { SYSTEM_TAG_PREFIX } from '@/app/library/model';
@@ -28,10 +29,12 @@ describe('deriveSystemTags (seed fixtures)', () => {
     }
   });
 
-  it('scale quality always leads the list', () => {
+  it('scale quality leads a theremin; an air instrument leads with its air tag (#249)', () => {
     for (const seed of SEED_INSTRUMENTS) {
-      const tags = systemTagsForSettings(layerToSettings(seed.layer));
-      expect(tags[0]?.id.startsWith(`${SYSTEM_TAG_PREFIX}scale:`)).toBe(true);
+      const settings = layerToSettings(seed.layer);
+      const tags = systemTagsForSettings(settings);
+      const lead = airInstrumentsOf(settings).length > 0 ? `${SYSTEM_TAG_PREFIX}air:` : `${SYSTEM_TAG_PREFIX}scale:`;
+      expect(tags[0]?.id.startsWith(lead), seed.name).toBe(true);
     }
   });
 

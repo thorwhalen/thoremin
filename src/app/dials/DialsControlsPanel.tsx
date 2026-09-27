@@ -37,15 +37,33 @@ import { MidiControls } from './panels/midi';
 import { BodyControls } from './panels/body';
 import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
-import { AirDrumControls } from './panels/airDrum';
+import { AIR_UI } from './panels/air';
+import { AIR_INSTRUMENTS, type AirInstrumentId } from '@/app/library/category';
 
-export default function DialsControlsPanel() {
+/**
+ * @param leadAir - the air instruments the instrument being edited plays (#249): their
+ *   sections come first and open, since that is what the player chose it for. Every
+ *   other air instrument is an add-on, collapsed in its usual place. The host decides
+ *   ONCE, when the editor opens, from the instrument's saved category, so ticking "Drum
+ *   in the air" (or saving it) never makes a section jump out from under the pointer.
+ */
+export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonly AirInstrumentId[] } = {}) {
   const { state, set } = useDialsSettings();
   const v = state.effective;
   const syncHands = v['master.syncHands'] as boolean;
+  const airSections = (lead: boolean) =>
+    AIR_INSTRUMENTS.filter((a) => leadAir.includes(a.id) === lead).map((a) => {
+      const ui = AIR_UI[a.id];
+      return (
+        <TopSection key={a.id} label={ui.section} defaultOpen={lead}>
+          <ui.Controls />
+        </TopSection>
+      );
+    });
 
   return (
     <div className="space-y-1">
+      {airSections(true)}
       {/* Sound — the live-performance knobs, open by default. */}
       <TopSection label="Sound" defaultOpen>
         <label className="flex items-center justify-between gap-2 text-xs">
@@ -80,10 +98,8 @@ export default function DialsControlsPanel() {
       <TopSection label="Conductor">
         <ConductorControls />
       </TopSection>
-      {/* The air drum (#233): strike the air, hear a drum at the strike. Off by default. */}
-      <TopSection label="Air drum">
-        <AirDrumControls />
-      </TopSection>
+      {/* The air instruments (#233 drum, #249) not leading this instrument: add-ons, off by default. */}
+      {airSections(false)}
 
       <TopSection label="Overlay">
         <OverlayControls />

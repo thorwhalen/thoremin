@@ -20,6 +20,7 @@ import {
   SPLIT_VOICES_TAG,
   FINGER_FX_TAG,
 } from '@/app/library/systemTags';
+import { AIR_INSTRUMENTS } from '@/app/library/category';
 
 const SYSTEM_GLYPHS = new Set<string>([
   ...Object.values(SCALE_QUALITY_TAGS).map((t) => t.emoji),
@@ -27,6 +28,7 @@ const SYSTEM_GLYPHS = new Set<string>([
   ...Object.values(NOTE_SOURCE_TAGS).map((t) => t.emoji),
   SPLIT_VOICES_TAG.emoji,
   FINGER_FX_TAG.emoji,
+  ...AIR_INSTRUMENTS.map((a) => a.emoji),
 ]);
 
 describe('emoji pool', () => {

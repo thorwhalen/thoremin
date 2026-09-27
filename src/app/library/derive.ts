@@ -16,6 +16,7 @@ import { thoreminDials, layerToSettings } from '@/settings/dials';
 import type { Settings } from '@/settings/schema';
 import { summarizeInstrument, type InstrumentSummary } from './summarize';
 import { deriveSystemTags, type SystemTag } from './systemTags';
+import { categoryOfAir, type InstrumentCategory } from './category';
 
 /** The flat dials defaults (every key set), the base a sparse profile layer merges over. */
 const DEFAULTS_LAYER = thoreminDials.defaults as Record<string, unknown>;
@@ -36,6 +37,8 @@ export function settingsFromLayer(layer: Layer): Settings {
 export interface InstrumentDerived {
   summary: InstrumentSummary;
   systemTags: SystemTag[];
+  /** Which group of the Instruments view it is listed in (#249). */
+  category: InstrumentCategory;
 }
 
 /** Derive the summary + system tags for one saved instrument, or null if it is gone or
@@ -45,7 +48,7 @@ export async function deriveForName(name: string): Promise<InstrumentDerived | n
     const layer = await instruments.load(name);
     if (!layer) return null;
     const summary = summarizeInstrument(settingsFromLayer(layer));
-    return { summary, systemTags: deriveSystemTags(summary) };
+    return { summary, systemTags: deriveSystemTags(summary), category: categoryOfAir(summary.air) };
   } catch {
     return null;
   }

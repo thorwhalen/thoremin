@@ -83,7 +83,8 @@ function seed(name: string, s: Settings): SeedInstrument {
  *  - FINGER→effect routing (per-finger closeness → brightness / vibrato / pan / bend /
  *    octave / gate), continuous and discrete-trigger;
  *  - different sound in the left vs right hand;
- *  - face-chord arpeggio and pulse renderings.
+ *  - face-chord arpeggio and pulse renderings;
+ *  - the air instruments (#249), which the Instruments view lists in their own category.
  * Face-chord instruments use a 7-note scale (today's requirement; see issue #75).
  * See discussion #80 for the research behind the finger→effect defaults.
  */
@@ -223,6 +224,32 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
       fingerBars: { show: true, position: 'right' },
     }),
   }),
+
+  // --- Air instruments (#249): played by miming, listed in their own category -------
+  // Strike the air, hear a drum at the strike (#233). The theremin voices are silenced
+  // (hand-map max gain 0) so the hands only drum; raise it in the Hand section to play
+  // a melody over the beat. The note grid and the note names on the hands go with them:
+  // they would label notes nobody hears.
+  seed('Air Drum', {
+    ...DEFAULTS,
+    handMap: handMap({ maxGain: 0 }),
+    airDrum: { ...DEFAULTS.airDrum, enabled: true },
+    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
+  }),
+
+  // Pluck a bass that is not there (#249): the neck hand's distance from the plucking
+  // hand picks the note from this scale (E minor pentatonic over the two octaves from E2:
+  // a real bass's lowest octave, E1, is mostly below what a laptop speaker plays), a
+  // pluck sounds it. The theremin voices and their on-screen note grid are off: the
+  // grid is laid across the screen, the bass's neck is laid between the hands.
+  seed('Air Bass', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, root: 4, type: 'minorPentatonic', baseOctave: 2, octaves: 2 },
+    left: { ...DEFAULTS.left, root: 4, type: 'minorPentatonic', baseOctave: 2, octaves: 2 },
+    handMap: handMap({ maxGain: 0 }),
+    airBass: { ...DEFAULTS.airBass, enabled: true },
+    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
+  }),
 ];
 
 function instrumentStorage(): ProfileStorage {
@@ -238,7 +265,7 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 3;
+const SEED_VERSION = 5;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {
@@ -259,8 +286,11 @@ const writeSeedVersion = (): void => {
 /**
  * Ensure the shipped instruments are present. First run seeds them all; a later run
  * whose stored SEED_VERSION is behind ADDS any shipped instrument whose name isn't
- * already saved (so an existing user gains the new demos without losing their own or
- * having edits/deletions of same-named ones clobbered). Idempotent once up to date.
+ * already saved (so an existing user gains the new demos without losing their own, and
+ * an edited same-named instrument is never overwritten). A shipped instrument the user
+ * DELETED is re-added on the next bump, since nothing records deletions; that is moot
+ * while the UI has no delete, and needs a tombstone list before one ships. Idempotent
+ * once up to date.
  */
 export async function ensureSeeded(): Promise<void> {
   const list = await instruments.list();
