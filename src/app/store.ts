@@ -49,7 +49,8 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, type AirDrumSettings, AirBassSettingsSchema, DEFAULT_AIR_BASS, type AirBassSettings } from '@/settings/schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, type AirDrumSettings, AirBassSettingsSchema, DEFAULT_AIR_BASS, type AirBassSettings, AirGuitarSettingsSchema, DEFAULT_AIR_GUITAR, type AirGuitarSettings } from '@/settings/schema';
+import type { TrainedModel } from '@/enroll';
 import type { ScoreDoc } from '@/score/schema';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
@@ -68,6 +69,8 @@ const defaultConductor = (): ConductorSettings => ({ ...DEFAULT_CONDUCTOR });
 const defaultAirDrum = (): AirDrumSettings => ({ ...DEFAULT_AIR_DRUM });
 /** A fresh copy of the shipped air-bass dial (#249): off. */
 const defaultAirBass = (): AirBassSettings => ({ ...DEFAULT_AIR_BASS });
+/** A fresh copy of the shipped air-guitar dial (#249): off. */
+const defaultAirGuitar = (): AirGuitarSettings => ({ ...DEFAULT_AIR_GUITAR });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -191,6 +194,15 @@ export interface ControlState {
   airDrum: AirDrumSettings;
   /** The air bass dial (#249), fed live to the `air-bass` node's `config` port. */
   airBass: AirBassSettings;
+  /** The air guitar dial (#249), fed live to the `air-guitar` node's `config` port. */
+  airGuitar: AirGuitarSettings;
+  /**
+   * The air guitar's chord classifier (#249), trained from the player's enrolled chords
+   * (`src/app/air/vocabularyStore.ts` is the SSOT; this is derived) and fed to the
+   * `air-guitar` node's `model` port. TRANSIENT, like {@link scoreDoc}: re-derived from
+   * the stored vocabulary on load, never persisted here.
+   */
+  airGuitarModel: TrainedModel | null;
   /**
    * The loaded score (#187 PR 3): the `ScoreDoc` the `score` node plays, handed to the
    * graph through `store-controls` as the live `scoreDoc` port. TRANSIENT, like
@@ -229,6 +241,8 @@ export interface ControlState {
   toggleMuted(): void;
   /** Replace the loaded score (transient, see {@link scoreDoc}). */
   setScoreDoc: (doc: ScoreDoc | null) => void;
+  /** Replace the air guitar's chord classifier (transient, see {@link airGuitarModel}). */
+  setAirGuitarModel: (model: TrainedModel | null) => void;
   /** Set / toggle the generative transport (transient, see {@link steerPlaying}). */
   setSteerPlaying(v: boolean): void;
   toggleSteerPlaying(): void;
@@ -516,6 +530,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       airBass = current.airBass;
     }
   }
+  // Heal the air guitar dial (#249) the same way.
+  let airGuitar = current.airGuitar;
+  if (p.airGuitar) {
+    try {
+      airGuitar = AirGuitarSettingsSchema.parse({ ...current.airGuitar, ...p.airGuitar });
+    } catch {
+      airGuitar = current.airGuitar;
+    }
+  }
   let gestures = current.gestures;
   if (p.gestures) {
     try {
@@ -526,7 +549,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, airBass, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, airBass, airGuitar, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, airGuitarModel: current.airGuitarModel };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -568,6 +591,8 @@ export const useControls = create<ControlState>()(
       conductor: defaultConductor(),
       airDrum: defaultAirDrum(),
       airBass: defaultAirBass(),
+      airGuitar: defaultAirGuitar(),
+      airGuitarModel: null,
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       trainerHud: TrainerHudParamsSchema.parse({}),
@@ -592,6 +617,7 @@ export const useControls = create<ControlState>()(
       toggleMuted: () => set((s) => ({ muted: !s.muted })),
       setSteerPlaying: (v) => set({ steerPlaying: v }),
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
+      setAirGuitarModel: (model) => set({ airGuitarModel: model }),
       toggleSteerPlaying: () => set((s) => ({ steerPlaying: !s.steerPlaying })),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),
@@ -669,7 +695,8 @@ export const useControls = create<ControlState>()(
       // v14 (#233): `airDrum` added to the preset fields (the air-drum node's params, off
       // by default); heals in mergeControls, so no data transform is needed.
       // v15 (#249): `airBass` added the same way (off by default, healed in mergeControls).
-      version: 15,
+      // v16 (#249): `airGuitar` added the same way.
+      version: 16,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

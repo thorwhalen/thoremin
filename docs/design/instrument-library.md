@@ -141,6 +141,8 @@ The maintainer's rule: *the air instruments are instruments like the others, of 
 
 Adding an air instrument (guitar, bass, flute) is one `AIR_INSTRUMENTS` entry, one `AIR_UI` entry and a seed. The air bass (PR 2 of #249) is the worked example: `src/nodes/music/air_bass.ts` (the neck and the pluck), `src/nodes/output/pluck_out.ts` (plucked notes on the audio clock), `src/app/dials/panels/airBass.tsx`, `src/app/airBassStatus.ts`, and the `airBass` dial.
 
+- **An air instrument may need an enrolment step, and it lives in the instrument's own section.** The air guitar (PR 3) plays only the chords the player has shown it (a chord is not a hand shape across players, `docs/research/air-instruments.md` §6.4). Its section opens on "Your chords": type a name, press Learn, hold the shape for two seconds. The samples are a zodal collection (`src/app/air/vocabularyStore.ts`, one record per air instrument, per browser: it describes the player's hands, not an instrument profile); the classifier is derived from them (`src/air/vocabulary.ts`) and reaches the DAG through the hot store's transient `airGuitarModel`, like the conductor's score. The samples come from the node's own `shape` output, so enrolment and play see the same numbers.
+
 ## Sparse layers, resolved
 
 A saved instrument is a **sparse** dials `Layer` and may carry the dials `UNSET`

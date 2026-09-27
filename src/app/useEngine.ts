@@ -43,6 +43,7 @@ import { latencyProbeRequested } from '@/latency/param';
 import { useConductorStatus, makeConductorReporter } from './conductorStatus';
 import { useAirDrumStatus, makeAirDrumReporter } from './airDrumStatus';
 import { useAirBassStatus, makeAirBassReporter } from './airBassStatus';
+import { useAirGuitarStatus, makeAirGuitarReporter, makeAirShapeTap, setAirShape } from './airGuitarStatus';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -386,6 +387,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         const reportAirDrum = makeAirDrumReporter(engine);
         // And the `air-bass` node's (#249).
         const reportAirBass = makeAirBassReporter(engine);
+        // And the `air-guitar` node's (#249): its status, and its live shape for enrolment.
+        const reportAirGuitar = makeAirGuitarReporter(engine);
+        const tapAirShape = makeAirShapeTap(engine);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -427,7 +431,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportAirDrum), toMs(reportAirBass)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportAirDrum), toMs(reportAirBass), toMs(reportAirGuitar), toMs(tapAirShape)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -464,6 +468,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useConductorStatus.getState().reset();
       useAirDrumStatus.getState().reset();
       useAirBassStatus.getState().reset();
+      useAirGuitarStatus.getState().reset();
+      setAirShape(null);
       uninstallDebug();
       uninstallLatency();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.

@@ -24,15 +24,18 @@ describe('upgrading a browser seeded before the air instruments', () => {
     expect(Number(localStorage.getItem('thoremin.instruments.seedVersion'))).toBeGreaterThan(3);
   });
 
-  it('a browser at version 4 (after the Air Drum shipped) gains the Air Bass', async () => {
+  it('a browser at version 4 (after the Air Drum shipped) gains the Air Bass and the Air Guitar', async () => {
     localStorage.clear();
     await ensureSeeded();
     await instruments.remove('Air Bass');
+    await instruments.remove('Air Guitar');
     localStorage.setItem('thoremin.instruments.seedVersion', '4');
 
     await ensureSeeded();
 
     const airBass = await instruments.load('Air Bass');
     expect((airBass?.airBass as { enabled?: boolean } | undefined)?.enabled).toBe(true);
+    const airGuitar = await instruments.load('Air Guitar');
+    expect((airGuitar?.airGuitar as { enabled?: boolean } | undefined)?.enabled).toBe(true);
   });
 });

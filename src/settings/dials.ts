@@ -21,7 +21,7 @@ import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, AirBassSettingsSchema, DEFAULT_AIR_BASS } from './schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, AirBassSettingsSchema, DEFAULT_AIR_BASS, AirGuitarSettingsSchema, DEFAULT_AIR_GUITAR } from './schema';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
@@ -169,6 +169,12 @@ export const thoreminDials = defineDials(
       title: 'Air bass',
       description: 'Play a bass in the air: on/off, which hand plucks, the neck length (where the lowest and highest notes are), how far ahead a note is committed, volume',
     }),
+    // The air guitar (#249) — a whole-object dial like `airBass`. Off by default.
+    airGuitar: AirGuitarSettingsSchema.default(DEFAULT_AIR_GUITAR).meta({
+      facets: ['Air guitar'],
+      title: 'Air guitar',
+      description: 'Strum enrolled chords in the air: on/off, which hand strums and its point, the strum spread, how far ahead a strum is committed, volume',
+    }),
   }),
   // No cross-field constraints: since #75 the chord/head-pose modes no longer require
   // a seven-note melody scale — the chord SOURCE (auto-derived or custom) is what a
@@ -229,6 +235,7 @@ export function settingsToLayer(s: Settings): Layer {
     conductor: s.conductor,
     airDrum: s.airDrum,
     airBass: s.airBass,
+    airGuitar: s.airGuitar,
   });
 }
 
@@ -268,5 +275,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     conductor: v.conductor,
     airDrum: v.airDrum,
     airBass: v.airBass,
+    airGuitar: v.airGuitar,
   });
 }

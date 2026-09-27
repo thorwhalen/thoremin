@@ -250,6 +250,16 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     airBass: { ...DEFAULTS.airBass, enabled: true },
     overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
   }),
+
+  // Strum chords in the air (#249): the chord hand's shape against the chords this player
+  // taught it (the enrolment step, in its settings), a predicted strum of the other hand.
+  // The theremin voices and their note grid are off.
+  seed('Air Guitar', {
+    ...DEFAULTS,
+    handMap: handMap({ maxGain: 0 }),
+    airGuitar: { ...DEFAULTS.airGuitar, enabled: true },
+    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
+  }),
 ];
 
 function instrumentStorage(): ProfileStorage {
@@ -265,7 +275,7 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 5;
+const SEED_VERSION = 6;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {

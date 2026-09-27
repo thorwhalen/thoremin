@@ -278,6 +278,10 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // idle until the `airBass.enabled` dial is on.
       { id: 'airBass', type: 'air-bass', params: {} },
       { id: 'bassOut', type: 'pluck-out', params: { timbre: 'bass', mono: true } },
+      // The air guitar (#249): the fretting hand's shape against the player's enrolled
+      // chords, a predicted strum of the other hand, a chord voicing on six strings.
+      { id: 'airGuitar', type: 'air-guitar', params: {} },
+      { id: 'guitarOut', type: 'pluck-out', params: { timbre: 'guitar', mono: false } },
       { id: 'score', type: 'score', params: { notes: DEMO_SCALE_NOTES, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
       // handler that dispatches dial commands; octave-shift / magnetism / mute now
@@ -466,6 +470,13 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'airBass', port: 'scale' } },
       { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airBass', port: 'octaveShift' } },
       { from: { node: 'airBass', port: 'notes' }, to: { node: 'bassOut', port: 'notes' } },
+      // The air guitar (#249): the hands, the dial (live), the enrolled model (live), the
+      // octave shift, and its strums to its own pluck scheduler.
+      { from: { node: 'cam', port: 'hands' }, to: { node: 'airGuitar', port: 'hands' } },
+      { from: { node: 'ui', port: 'airGuitar' }, to: { node: 'airGuitar', port: 'config' } },
+      { from: { node: 'ui', port: 'airGuitarModel' }, to: { node: 'airGuitar', port: 'model' } },
+      { from: { node: 'ui', port: 'octaveShift' }, to: { node: 'airGuitar', port: 'octaveShift' } },
+      { from: { node: 'airGuitar', port: 'notes' }, to: { node: 'guitarOut', port: 'notes' } },
     ],
   };
 }

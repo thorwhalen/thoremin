@@ -202,6 +202,103 @@
     ]
   },
   {
+    "type": "air-guitar",
+    "title": "Air guitar",
+    "description": "Strum chords in the air: the fretting hand's shape is classified against the player's own enrolled chords, and a strum of the other hand, predicted before the frame that shows it, sounds that chord's guitar voicing. Off by default.",
+    "roles": [
+      "feature",
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "air-guitar-config"
+      },
+      {
+        "name": "model",
+        "kind": "shape-model"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "notes",
+        "kind": "note-events"
+      },
+      {
+        "name": "shape",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "status",
+        "kind": "air-guitar-status"
+      },
+      {
+        "name": "enabled",
+        "kind": "boolean"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "strumHand",
+        "type": "enum(right | left)",
+        "default": "right"
+      },
+      {
+        "name": "strumPoint",
+        "type": "enum(wrist | indexTip)",
+        "default": "wrist"
+      },
+      {
+        "name": "strumSpread",
+        "type": "number",
+        "default": 0.012
+      },
+      {
+        "name": "minLead",
+        "type": "number",
+        "default": 0.05
+      },
+      {
+        "name": "minStroke",
+        "type": "number",
+        "default": 0.03
+      },
+      {
+        "name": "minSpeed",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "volume",
+        "type": "number",
+        "default": 0.7
+      },
+      {
+        "name": "enterFrames",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      }
+    ]
+  },
+  {
     "type": "body-feature-vector",
     "title": "Body Feature Vector",
     "description": "Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).",
@@ -1981,6 +2078,14 @@
       {
         "name": "airBass",
         "kind": "air-bass-config"
+      },
+      {
+        "name": "airGuitar",
+        "kind": "air-guitar-config"
+      },
+      {
+        "name": "airGuitarModel",
+        "kind": "shape-model"
       },
       {
         "name": "bodyMap",
