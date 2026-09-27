@@ -17,8 +17,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProfileMeta } from '@zodal/dials-ui';
 import { parseTagLabels, EMPTY_INSTRUMENT_META, type Tag, type InstrumentMeta, type InstrumentMetaMap } from './model';
-import { assembleSpec, classCacheIsStale, type InstrumentSpec, type TrainingLink } from '@/instruments/spec';
-import { ALL_BRANCH_IDS } from '@/instruments/branches';
+import { assembleSpec } from '@/app/graph';
+import { classCacheIsStale, type InstrumentSpec, type TrainingLink } from '@/instruments/spec';
+import { ALL_BRANCH_IDS } from '@/app/graph';
 import { normaliseClassId } from '@/instruments/classes';
 import type { InstrumentSummary } from './summarize';
 import type { SystemTag } from './systemTags';

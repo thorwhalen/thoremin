@@ -7,8 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import { Engine } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { composeGraph, ComposeError, defineBranch, BRANCHES, ALL_BRANCH_IDS } from '@/instruments';
-import { composeInstrumentGraph } from '@/app/graph';
+import { composeGraph, ComposeError, defineBranch } from '@/instruments';
+import { composeInstrumentGraph, ALL_BRANCHES, ALL_BRANCH_IDS } from '@/app/graph';
 
 const MERGE = { node: 'merge', pools: { instrument: ['v1', 'v2'], score: ['s1'] } } as const;
 
@@ -158,7 +158,7 @@ function lcg(seed: number): () => number {
 
 describe('every branch subset of the real table compiles against the real registry', () => {
   const registry = createAppRegistry();
-  const optional = BRANCHES.map((b) => b.id).filter((id) => id !== 'trunk');
+  const optional = ALL_BRANCHES.map((b) => b.id).filter((id) => id !== 'trunk');
   const compiles = (ids: readonly string[]): void => {
     const { spec } = composeInstrumentGraph(['trunk', ...ids], undefined, registry);
     // The constructor compiles: resolves every type, validates every edge endpoint and

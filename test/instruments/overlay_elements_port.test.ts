@@ -13,7 +13,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { useControls } from '@/app/store';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import { branchIdsFor } from '@/instruments/derive';
+import { branchIdsFor } from '@/app/graph';
 import { composeInstrumentGraph } from '@/app/graph';
 
 function recordingCanvas(): { canvas: unknown; calls: string[] } {

@@ -5,8 +5,9 @@
  * a tool's demand; the metadata record heals old records and validates new fields.
  */
 import { describe, expect, it } from 'vitest';
-import { assembleSpec, classCacheIsStale, InstrumentSpecSchema } from '@/instruments/spec';
-import { branchIdsFor } from '@/instruments/derive';
+import { assembleSpec } from '@/app/graph';
+import { classCacheIsStale, InstrumentSpecSchema } from '@/instruments/spec';
+import { branchIdsFor } from '@/app/graph';
 import { InstrumentMetaSchema } from '@/app/library/model';
 import { healInstrumentMetaMap } from '@/app/library/store';
 import { deriveForName } from '@/app/library/derive';
