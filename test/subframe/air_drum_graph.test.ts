@@ -32,7 +32,7 @@ describe('air drum in the default graph', () => {
     expect(has('airDrum', 'hits', 'drumOut', 'hits')).toBe(true);
     // Every input of the two nodes is fed.
     const inbound = (id: string) => new Set(edges.filter((e) => e.to.node === id).map((e) => e.to.port));
-    expect([...inbound('airDrum')].sort()).toEqual(['config', 'hands', 'time']);
+    expect([...inbound('airDrum')].sort()).toEqual(['config', 'hands', 'pattern', 'time']);
     expect([...inbound('drumOut')].sort()).toEqual(['hits', 'mute']);
   });
 

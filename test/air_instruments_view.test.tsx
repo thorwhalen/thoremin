@@ -153,6 +153,8 @@ describe('the Air instruments category (#249)', () => {
     await waitFor(() => expect(airDrum().enabled).toBe(true));
     const sections = document.querySelectorAll('details[data-section]');
     expect(sections[0]?.getAttribute('data-section')).toBe('Air drum');
+    // #269: the pattern trainer lives in the air drum's section.
+    expect(within(sections[0] as HTMLElement).getByTestId('pattern-trainer')).toBeTruthy();
     expect((sections[0] as HTMLDetailsElement).open).toBe(true);
     expect(screen.getByLabelText('Drumming hands')).toBeTruthy();
     expect(screen.getByTestId('air-drum-live')).toBeTruthy();

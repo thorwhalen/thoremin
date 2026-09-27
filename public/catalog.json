@@ -122,6 +122,10 @@
       {
         "name": "time",
         "kind": "musical-time"
+      },
+      {
+        "name": "pattern",
+        "kind": "drum-pattern"
       }
     ],
     "outputs": [
@@ -2340,6 +2344,10 @@
       {
         "name": "airFluteMouthModel",
         "kind": "shape-model"
+      },
+      {
+        "name": "airDrumPattern",
+        "kind": "drum-pattern"
       },
       {
         "name": "bodyMap",

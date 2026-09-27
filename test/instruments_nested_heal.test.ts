@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeLayer } from '@/app/dials/instruments';
 import { DEFAULT_FINGERING_PRIOR } from '@/air/fingering_prior';
-import { DEFAULT_AIR_FLUTE } from '@/settings/schema';
+import { DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE } from '@/settings/schema';
 
 describe('normalizeLayer and a nested additive key', () => {
   it('fills airFlute.prior into a layer saved before it existed, and matches the working layer', () => {
@@ -23,5 +23,14 @@ describe('normalizeLayer and a nested additive key', () => {
     expect(healed.airFlute).toEqual(working.airFlute);
     // A layer that already has it is left with the same airFlute.
     expect(normalizeLayer(healed).airFlute).toEqual(healed.airFlute);
+  });
+
+  it('fills airDrum.pattern the same way (#269)', () => {
+    const { pattern: _dropped, ...oldDrum } = DEFAULT_AIR_DRUM as Record<string, unknown> & { pattern: unknown };
+    void _dropped;
+    const saved = JSON.parse(JSON.stringify({ airDrum: oldDrum }));
+    const healed = normalizeLayer(saved);
+    expect((healed.airDrum as { pattern: unknown }).pattern).toBe('');
+    expect(healed.airDrum).toEqual(normalizeLayer(JSON.parse(JSON.stringify({ airDrum: DEFAULT_AIR_DRUM }))).airDrum);
   });
 });

@@ -18,6 +18,7 @@ import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { startBodyRouteDemand } from './bodyRouteDemand';
 import { loadAirVocabularies, startFlutePriorSync } from './air/vocabularyStore';
+import { startPatternPlaySync } from './drums/patternPlaySync';
 import { startAirFluteDemand } from './airFluteDemand';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
@@ -137,6 +138,9 @@ export default function App({
   // #263: the flute's finger model is the enrolment fused with the fingering prior the
   // dial names; when the dial changes, the model is derived again from the same samples.
   useEffect(() => startFlutePriorSync(), []);
+  // #269: the air drum plays the trained pattern the dial names; the dial's id is
+  // resolved to the pattern and its model here, off the tick.
+  useEffect(() => startPatternPlaySync(), []);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">

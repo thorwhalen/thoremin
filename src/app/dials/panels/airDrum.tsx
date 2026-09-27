@@ -16,6 +16,10 @@ import { useDialsSettings } from '../useDialsSettings';
 import { selectCls } from '../primitives';
 import { describeLive, useAirDrumStatus } from '../../airDrumStatus';
 import { DrumPadEditor } from './airDrumPads';
+import { useEffect, useState } from 'react';
+import { PatternTrainer } from '../../drums/PatternTrainer';
+import { trainedPatternIds } from '../../drums/patternModels';
+import { DRUM_PATTERNS } from '@/music/drum_patterns';
 import { AIR_DRUM_HANDS, AIR_DRUM_POINTS, DRUM_SOUNDS, type AirDrumDialParams } from '@/nodes/music/air_drum';
 
 const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {
@@ -65,10 +69,47 @@ export function AirDrumReadout() {
   );
 }
 
+/**
+ * The pattern mode (#269): play a trained pattern, and what you play is snapped to its
+ * grid at your tempo with your feel kept. Only patterns with a model are offered; the
+ * dial keeps the id, the app resolves it to the pattern and model for the node.
+ */
+function PatternModeSelect({ value, enabled }: { value: string; enabled: boolean }) {
+  const [trained, setTrained] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    void trainedPatternIds()
+      .then((ids) => live && setTrained(ids))
+      .catch(() => live && setTrained([]));
+    return () => {
+      live = false;
+    };
+  }, [value]);
+  const options = DRUM_PATTERNS.filter((p) => trained.includes(p.id) || p.id === value);
+  return (
+    <label
+      className="flex items-center justify-between gap-2 text-xs"
+      title="With a pattern in play, each hit is snapped to the pattern's grid at your running tempo, with the feel you trained; the drum is the pad you struck."
+    >
+      <span>Play pattern</span>
+      <select className={selectCls} value={value} disabled={!enabled} aria-label="Play pattern" onChange={(e) => dispatchDialSetIn('airDrum.pattern', e.target.value)}>
+        <option value="">off (play freely)</option>
+        {options.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+            {trained.includes(p.id) ? '' : ' (not trained yet)'}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function AirDrumControls() {
   const { state } = useDialsSettings();
-  const c = (state.effective.airDrum ?? {}) as Partial<AirDrumDialParams>;
+  const c = (state.effective.airDrum ?? {}) as Partial<AirDrumDialParams> & { pattern?: string };
   const enabled = c.enabled === true;
+  const pattern = c.pattern ?? '';
   const hand = c.hand ?? 'both';
   const point = c.point ?? 'stickTip';
   const rightSound = c.rightSound ?? 'kick';
@@ -83,6 +124,7 @@ export function AirDrumControls() {
         teaches the instrument where that drum is; from then on the hit sounds at the strike,
         predicted from the stroke before the camera has even seen it land. Faster strokes are louder.
       </p>
+      <PatternTrainer enabled={enabled} />
       <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" checked={enabled} onChange={(e) => dispatchDialSetIn('airDrum.enabled', e.target.checked)} />
         Drum in the air
@@ -151,6 +193,7 @@ export function AirDrumControls() {
           onChange={(e) => dispatchDialSetIn('airDrum.magnetism', Number(e.target.value))}
         />
       </label>
+      <PatternModeSelect value={pattern} enabled={enabled} />
     </div>
   );
 }

@@ -41,6 +41,8 @@ import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
 import { createImpactPredictor, fitLine, fitQuadratic, magnetise, type ImpactPredictor, type MusicalTime } from '@/ictus';
+import { createPatternFollower, type PatternFollower, type PatternPlay } from '@/drums/pattern_play';
+import { DRUM_SOUND } from '@/music/gm_drums';
 import { frameTime, type Hand, type HandsFrame } from '../domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, stickReach } from './drum_anchor';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type PadId } from './drum_pads';
@@ -345,6 +347,10 @@ export const airDrumNode = defineNode<Params>({
     { name: 'config', kind: 'air-drum-config' },
     // The conductor's musical time, for the timing magnet. Optional.
     { name: 'time', kind: 'musical-time' },
+    // #269: a trained pattern in play. With one, each predicted hit is snapped to the
+    // pattern's grid at the player's running tempo with their feel, on the drum whose pad
+    // they struck; the magnet is not used.
+    { name: 'pattern', kind: 'drum-pattern' },
   ],
   outputs: [
     { name: 'hits', kind: 'drum-hits', schema: DrumHitsSchema },
@@ -358,6 +364,9 @@ export const airDrumNode = defineNode<Params>({
     let sticks: Record<PlayerHand, Stick> | null = null;
     let lastFrame: HandsFrame | undefined;
     let status: AirDrumStatus = { ...IDLE_STATUS, ready: { right: false, left: false } };
+    /** #269: the pattern in play and its follower. */
+    let playFor: PatternPlay | null = null;
+    let follower: PatternFollower | null = null;
 
     const resolveConfig = (raw: unknown): Params => {
       if (raw === lastConfigRef) return cfg;
@@ -434,6 +443,12 @@ export const airDrumNode = defineNode<Params>({
         const fresh = frame !== lastFrame && !sameStamp;
         lastFrame = frame;
         const time = inputs.time as MusicalTime | undefined;
+        const play = (inputs.pattern as PatternPlay | null | undefined) ?? null;
+        if (play !== playFor) {
+          playFor = play;
+          follower = play ? createPatternFollower({ pattern: play.pattern, model: play.model }) : null;
+          if (follower && play?.startAt !== undefined) follower.start(play.startAt);
+        }
         if (frame && fresh && frame.height > 0) {
           const aspect = frame.width / frame.height;
           if (Math.abs(aspect - status.frameAspect) > 1e-3) status = { ...status, frameAspect: aspect };
@@ -486,7 +501,17 @@ export const airDrumNode = defineNode<Params>({
                 if (s.silent) continue;
                 let at = e.t;
                 let pull = 0;
-                if (time && c.magnetism > 0) {
+                let sound = s.sound;
+                if (follower) {
+                  // Pattern mode: the first hit is the one when no count-in said where it falls.
+                  if (follower.beat(e.t) === null) follower.start(e.t);
+                  const snap = follower.snap(e.t, { sound: s.sound, pad: s.pad });
+                  if (snap.event !== null) {
+                    at = Math.max(ctx.time, snap.at);
+                    pull = at - e.t;
+                    if (snap.drum) sound = DRUM_SOUND[snap.drum];
+                  }
+                } else if (time && c.magnetism > 0) {
                   const m = magnetise(e.t, time, c.magnetism);
                   // Never behind the decision: a pull toward a beat already past is
                   // truncated to "now", and reported as what it really moved.
@@ -501,7 +526,7 @@ export const airDrumNode = defineNode<Params>({
                   t: Math.max(at, ctx.time),
                   velocity: s.hardness * c.volume,
                   hand: which,
-                  sound: s.sound,
+                  sound,
                   pad: s.pad,
                   radial: s.radial,
                   x: s.x,

@@ -7,6 +7,7 @@
  * The injected getter returns a {@link ControlSnapshot}; if absent the node
  * emits nothing (safe in tests / before the host wires it up).
  */
+import type { PatternPlay } from '@/drums/pattern_play';
 import { z } from 'zod';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
@@ -108,6 +109,8 @@ export interface ControlSnapshot {
   airFlute?: AirFluteSettings;
   airFluteFingerModel?: TrainedModel | null;
   airFluteMouthModel?: TrainedModel | null;
+  /** #269: the drum pattern in play (pattern + model), or null. */
+  airDrumPattern?: PatternPlay | null;
   /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
@@ -203,6 +206,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'airFlute', kind: 'air-flute-config' },
     { name: 'airFluteFingerModel', kind: 'shape-model' },
     { name: 'airFluteMouthModel', kind: 'shape-model' },
+    { name: 'airDrumPattern', kind: 'drum-pattern' },
     // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
@@ -277,6 +281,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         if (c.airFlute) out.airFlute = c.airFlute;
         out.airFluteFingerModel = c.airFluteFingerModel ?? null;
         out.airFluteMouthModel = c.airFluteMouthModel ?? null;
+        out.airDrumPattern = c.airDrumPattern ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {

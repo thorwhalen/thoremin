@@ -4,7 +4,8 @@
  * selection, node for node and edge for edge.
  *
  * The fixtures under `test/fixtures/graph/` were dumped from the hand-listed builder at
- * main `e45b8ee` (32 nodes, 104 edges). One translation is deliberate: the merge's inputs
+ * main `e45b8ee` (32 nodes, 104 edges), plus one edge added since: the air drum's
+ * `pattern` port fed from the store (#269, 105 edges). One translation is deliberate: the merge's inputs
  * were letters (`a`..`e`) and are now role pools (`voice1..8`, `score1..2`); each letter maps
  * to exactly one pool input, and the comparison is exact after that mapping. (The overlay
  * reads the hand voices by position in the merged stream, so which input a producer lands
