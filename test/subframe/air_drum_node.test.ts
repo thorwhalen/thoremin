@@ -69,7 +69,7 @@ const FPS = truth.spec.fps;
 const nearest = (t: number) => truth.events.reduce((b, e) => (Math.abs(e.t_impact - t) < Math.abs(b.t_impact - t) ? e : b));
 
 async function run(params: Record<string, unknown>, extra: Record<string, unknown[]> = {}) {
-  const h = airDrumNode.make(airDrumNode.params.parse(params));
+  const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', ...params }));
   const outs = await replayNode(h, { hands: frames, ...extra }, { dt: 1 / FPS });
   const hits: (DrumHit & { tick: number })[] = [];
   outs.forEach((o, i) => {

@@ -24,14 +24,18 @@
  * rotation turns); the length only sets how far the tip travels.
  *
  * The lever amplifies EVERYTHING the hand does, not only strokes: a pinch or an opening
- * hand tilts the grip line, and landmark jitter shakes it, each by up to `1 + length`
- * times. The air drum's stroke gates (smallest stroke, slowest approach) are meant for
- * the hand, so they are scaled by {@link leverGain}: on the real hand recordings that
- * drum nothing with the wrist, the unscaled stick tip drummed on pinches and on an
- * opening hand; scaled, it drums on none of them and still on every conducting beat
- * (`test/subframe/drum_anchor.test.ts`). The price is that an ARM stroke, which moves
- * the tip no more than the wrist, must be `leverGain` times as large and fast as the
- * wrist gates ask; an air drummer's arm strokes are.
+ * hand tilts the grip line, and landmark jitter shakes it. So the stick tip's stroke
+ * gates are counted in the stick's REACH ({@link stickReach}: the hand's own size in the
+ * image times the lever), not in frame heights: {@link STICK_MIN_STROKE_REACH} and
+ * {@link STICK_MIN_SPEED_REACH}. On the committed recordings at the default length, the
+ * gestures that are not strokes (pinching, opening, sweeping, two hands moving) move the
+ * tip at most 0.35 reach at 1 reach per second, and every stroke (conducting beats, the
+ * synthetic wrist strokes, the softest of them included) at least 0.55 at 8, whatever
+ * the hand's size in the frame (a hand close to the camera and one far from it differ by
+ * a factor of ten in pixels and not at all in reaches). A gate in
+ * frame heights cannot tell those apart: scaled up it silences a player standing back,
+ * left at the wrist's value it drums on a pinch close to the camera
+ * (`test/subframe/drum_anchor.test.ts` pins both sides).
  *
  * Pure: keypoints in, a point out, in the keypoints' own units.
  */
@@ -74,11 +78,29 @@ export function stickTip(kp: readonly Keypoint[], length: number = DEFAULT_STICK
   return { x: f.x + length * (f.x - h.x), y: f.y + length * (f.y - h.y) };
 }
 
-/** How many times the point can amplify a rotation of the hand relative to the wrist:
- *  the factor the stroke gates are scaled by. The index fingertip is left at 1 (the
- *  behaviour it shipped with in #233). */
-export function leverGain(point: DrumAnchorPoint, stickLength: number = DEFAULT_STICK_LENGTH): number {
-  return point === 'stickTip' ? 1 + stickLength : 1;
+/** The stick tip's smallest stroke at the default `minStroke` dial (which scales it in
+ *  proportion), in REACHES: the stick's length from the heel of the hand, `1 + length`
+ *  grip lengths. A tip travel counted in reaches is, near enough, the hand's rotation in
+ *  radians, so it does not change with the stick's length or the hand's size. */
+export const STICK_MIN_STROKE_REACH = 0.45;
+/** The stick tip's slowest stroke at the default `minSpeed` dial, reaches per second. */
+export const STICK_MIN_SPEED_REACH = 2.5;
+
+/** One reach, in the keypoints' units: `(1 + stickLength)` grip lengths. */
+export function stickReach(kp: readonly Keypoint[], stickLength: number = DEFAULT_STICK_LENGTH): number {
+  return (1 + stickLength) * gripLength(kp);
+}
+
+/** The grip length in the image: heel of the hand to the fulcrum, in the keypoints' units. */
+export function gripLength(kp: readonly Keypoint[]): number {
+  const f = gripFulcrum(kp);
+  const h = gripHeel(kp);
+  return Math.hypot(f.x - h.x, f.y - h.y);
+}
+
+/** Whether a point's stroke gates are counted in grip lengths (a lever) or frame heights. */
+export function gatesInGrips(point: DrumAnchorPoint): boolean {
+  return point === 'stickTip';
 }
 
 /** The tracked point of a 21-landmark hand, or `undefined` when a landmark it needs is

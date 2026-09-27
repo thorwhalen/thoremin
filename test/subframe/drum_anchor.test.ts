@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { replayNode } from '@/dag';
 import { airDrumNode, type DrumHit } from '@/nodes';
 import type { HandsFrame } from '@/nodes/domain';
-import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, leverGain, stickTip } from '@/nodes/music/drum_anchor';
+import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, gripLength, stickReach, stickTip } from '@/nodes/music/drum_anchor';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip, type StickPose } from '../../scripts/air/lib_synthetic_grip';
 import { FIXTURES, loadRecords } from '../helpers/fixtures';
 
@@ -138,36 +138,60 @@ describe('the stickLength leaf', () => {
   });
 });
 
-describe('the default point on real recorded hands (the lever-scaled gates)', () => {
-  const replay = async (scenario: string, params: Record<string, unknown>) => {
-    const recs = loadRecords(scenario, 'src.hands');
-    const fps = (recs.length - 1) / (recs[recs.length - 1].t - recs[0].t);
+/** A hands stream shrunk by `k` about the frame's centre: the same player standing further back. */
+const shrink = (frames: HandsFrame[], k: number): HandsFrame[] =>
+  frames.map((f) => ({
+    ...f,
+    hands: f.hands.map((h) => ({ ...h, keypoints: h.keypoints.map((p) => ({ ...p, x: f.width / 2 + k * (p.x - f.width / 2), y: f.height / 2 + k * (p.y - f.height / 2) })) })),
+  }));
+
+describe('the default point on real and scaled hands (gates in reaches)', () => {
+  const replay = async (frames: HandsFrame[], fps: number, params: Record<string, unknown>) => {
     let hits = 0;
     // Both mirror conventions: a third-person recording labels the hands either way.
     for (const mirrorHandedness of [true, false]) {
       const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, mirrorHandedness, ...params }));
-      const outs = await replayNode(h, { hands: recs.map((r) => r.value as HandsFrame) }, { dt: 1 / fps });
+      const outs = await replayNode(h, { hands: frames }, { dt: 1 / fps });
       hits += outs.flatMap((o) => o.hits as DrumHit[]).length;
     }
     return hits;
   };
+  const recorded = (scenario: string) => {
+    const recs = loadRecords(scenario, 'src.hands');
+    return { frames: recs.map((r) => r.value as HandsFrame), fps: (recs.length - 1) / (recs[recs.length - 1].t - recs[0].t) };
+  };
 
-  it.each(['video_hand_open_close', 'video_hand_pinch', 'video_hand_sweep', 'two_hands', 'sweep_right'])('drums nothing on %s', async (scenario) => {
-    expect(await replay(scenario, {})).toBe(0);
+  it.each(['video_hand_open_close', 'video_hand_pinch', 'video_hand_sweep', 'two_hands', 'sweep_right'])('drums nothing on %s, close to the camera or far from it', async (scenario) => {
+    const { frames, fps } = recorded(scenario);
+    for (const k of [1, 0.5, 0.3]) expect(await replay(shrink(frames, k), fps, {}), `scale ${k}`).toBe(0);
   });
 
-  it('would drum on a pinch with the gates left at the hand scale (why they are scaled)', async () => {
-    const g = leverGain('stickTip');
-    expect(g).toBeGreaterThan(1);
-    // Dividing the dials by the gain undoes the scaling: the stick tip then meets the
-    // wrist's gates, and the pinch drums.
-    expect(await replay('video_hand_pinch', { minStroke: 0.03 / g, minSpeed: 0.5 / g })).toBeGreaterThan(0);
+  it.each(['subframe_stick_air_30', 'subframe_stick_surface_30'])('sounds every pure wrist stroke of %s, close or far', async (name) => {
+    const { truth, poses } = load(name);
+    for (const k of [1, 0.5, 0.3]) {
+      for (const stickLength of [2, 3, 4]) {
+        const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, stickLength }));
+        const outs = await replayNode(h, { hands: shrink(gripFrames(poses), k) }, { dt: 1 / truth.spec.fps });
+        expect(outs.flatMap((o) => o.hits as DrumHit[]), `scale ${k}, length ${stickLength}`).toHaveLength(truth.events.length);
+      }
+    }
   });
 
-  it.each(['conducting_44', 'conducting_34'])('still drums on the beats of %s, at least as often as the wrist', async (scenario) => {
-    const stick = await replay(scenario, {});
-    const wrist = await replay(scenario, { point: 'wrist' });
-    expect(wrist).toBeGreaterThan(0);
-    expect(stick).toBeGreaterThanOrEqual(0.8 * wrist);
+  it.each(['conducting_44', 'conducting_34'])('drums on the beats of %s about as often as the wrist, close or far', async (scenario) => {
+    const { frames, fps } = recorded(scenario);
+    for (const k of [1, 0.6, 0.4]) {
+      const s = shrink(frames, k);
+      const stick = await replay(s, fps, {});
+      const wrist = await replay(s, fps, { point: 'wrist' });
+      expect(wrist, `scale ${k}`).toBeGreaterThan(0);
+      expect(stick, `scale ${k}`).toBeGreaterThanOrEqual(0.8 * wrist);
+    }
+  });
+
+  it('measures the reach in the image, so the gates follow the hand size and the stick', () => {
+    const kp = gripFrames(load('subframe_stick_air_30').poses)[0].hands[0].keypoints;
+    const small = kp.map((p) => ({ x: p.x / 2, y: p.y / 2 }));
+    expect(gripLength(small)).toBeCloseTo(gripLength(kp) / 2, 9);
+    expect(stickReach(kp, 3)).toBeCloseTo(4 * gripLength(kp), 9);
   });
 });
