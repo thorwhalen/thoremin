@@ -31,6 +31,7 @@ src/app/library/                 metadata ABOUT them — this layer
   model.ts       Zod SSOT: Tag, InstrumentMeta (favorite + tag ids)
   store.ts       persistence (two shapes, see below)
   summarize.ts   Settings -> InstrumentSummary   (pure)
+  category.ts    the air instruments + the list's groups (pure, #249)
   systemTags.ts  InstrumentSummary -> SystemTag[] (pure)
   derive.ts      the bridge: a saved sparse Layer -> the two above
   emoji.ts       curated pool + keyword search + auto-assign
@@ -124,6 +125,18 @@ If broad "search any emoji" is ever wanted, swapping the search corpus for a laz
 `emojilib` import is a drop-in change behind `searchEmoji()`; the curated pool stays the
 auto-assign source.
 
+## Decision 6: one place to choose any instrument; categories are derived (#249)
+
+The maintainer's rule: *the air instruments are instruments like the others, of a different category, and there is one place to choose instruments from.* The air drum shipped first as a shell **tool** (#233, a tools-bar panel with a Start button); #249 retired that panel. It is now the shipped **Air Drum** instrument, listed in the Instruments view under an **Air instruments** group and chosen by the same click as any theremin.
+
+- **The category is derived, like a system tag.** `category.ts` holds `AIR_INSTRUMENTS` (id, label, emoji, and the predicate that reads the instrument's dial). An instrument that plays any of them is in the `air` group, otherwise `theremin`. Nothing is persisted, so a player who ticks "Drum in the air" on their own theremin and saves it finds it with the air instruments, and a stale category is impossible.
+- **An air instrument wins.** A theremin with a drum added is listed with the air instruments: the drum is the less discoverable part, and it is what the player would look for.
+- **Air instruments tag and describe themselves.** Each gets a system tag (🥁 for the drum), first in the row. An air instrument that silences the theremin voices (hand-map max gain 0, as the Air Drum seed does) drops the scale and note-source tags and the tooltip's scale / voices / range rows, which would describe nothing the player hears.
+- **The air instrument's settings are its section of the editor.** The editor opens the air drum's section first and open when the instrument being edited is an air drum (decided from its *saved* category, so ticking the box does not make the section jump). The live readout the retired panel carried (floors learned, hits, the last hit's lead) lives in that section and under the chosen row. The pad editor (#245) builds on this section.
+- **No instrument is a tool.** `tools.ts` is for things you use *on* the instrument; `test/air_instruments_view.test.tsx` is the reachability walk (cold load → Air instruments → Air Drum → one click plays it) and guards that no tool shadows an air instrument.
+
+Adding an air instrument (guitar, bass, flute) is one `AIR_INSTRUMENTS` entry plus its seed.
+
 ## Sparse layers, resolved
 
 A saved instrument is a **sparse** dials `Layer` and may carry the dials `UNSET`
@@ -137,7 +150,7 @@ goes through it.
 `test/library_model.test.ts` (the id/prefix invariants), `library_store.test.ts` (both
 persistence shapes, against an in-memory provider), `library_summarize.test.ts`,
 `library_systemtags.test.ts`, `library_derive.test.ts` (sparse + UNSET resolution),
-`library_emoji.test.ts`.
+`library_emoji.test.ts`, `library_category.test.ts` (categories, air summaries and tags), `air_instruments_view.test.tsx` (the reachability walk).
 
 ## Flagged for sign-off
 

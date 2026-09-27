@@ -83,7 +83,8 @@ function seed(name: string, s: Settings): SeedInstrument {
  *  - FINGER→effect routing (per-finger closeness → brightness / vibrato / pan / bend /
  *    octave / gate), continuous and discrete-trigger;
  *  - different sound in the left vs right hand;
- *  - face-chord arpeggio and pulse renderings.
+ *  - face-chord arpeggio and pulse renderings;
+ *  - the air instruments (#249), which the Instruments view lists in their own category.
  * Face-chord instruments use a 7-note scale (today's requirement; see issue #75).
  * See discussion #80 for the research behind the finger→effect defaults.
  */
@@ -223,6 +224,16 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
       fingerBars: { show: true, position: 'right' },
     }),
   }),
+
+  // --- Air instruments (#249): played by miming, listed in their own category -------
+  // Strike the air, hear a drum at the strike (#233). The theremin voices are silenced
+  // (hand-map max gain 0) so the hands only drum; raise it in the Hand section to play
+  // a melody over the beat.
+  seed('Air Drum', {
+    ...DEFAULTS,
+    handMap: handMap({ maxGain: 0 }),
+    airDrum: { ...DEFAULTS.airDrum, enabled: true },
+  }),
 ];
 
 function instrumentStorage(): ProfileStorage {
@@ -238,7 +249,7 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {

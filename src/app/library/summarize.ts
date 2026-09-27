@@ -15,6 +15,7 @@ import { SOUNDS, type SoundId } from '@/music/sounds';
 import type { Settings } from '@/settings/schema';
 import type { PositionSource, FingerTarget } from '@/nodes/mapping/hand_map';
 import type { FingerName } from '@/nodes/domain';
+import { AIR_INSTRUMENTS, airInstrumentsOf, type AirInstrumentId } from './category';
 
 /** The coarse scale quality used for the scale-quality system tag + the tooltip. */
 export type ScaleQuality =
@@ -55,6 +56,11 @@ export interface InstrumentSummary {
   faceMode: FaceMode;
   /** Active finger->effect routings (empty when no finger is routed). */
   fingerFx: FingerFx[];
+  /** The air instruments it plays (#249), in display order; empty for a theremin. */
+  air: AirInstrumentId[];
+  /** Whether the hands play the theremin voices at all. An air instrument that silences
+   *  them (hand-map max gain 0) has no scale, voices or range worth describing. */
+  handVoices: boolean;
   /** Master tweaks (the caller decides which to show — see {@link summaryLines}). */
   masterVolume: number;
   magnetism: number;
@@ -131,6 +137,8 @@ export function summarizeInstrument(s: Settings): InstrumentSummary {
     noteSource: s.handMap.positionSource,
     faceMode: faceModeOf(s.faceMapping),
     fingerFx: activeFingerFx(s.handMap),
+    air: airInstrumentsOf(s),
+    handVoices: s.handMap.maxGain > 0,
     masterVolume: s.masterVolume,
     magnetism: s.magnetism,
     octaveShift: s.octaveShift,
@@ -176,27 +184,38 @@ const MASTER_DEFAULTS = { masterVolume: 0.4, magnetism: 0.8, octaveShift: 0 } as
  */
 export function summaryLines(sum: InstrumentSummary): SummaryLine[] {
   const lines: SummaryLine[] = [];
-  lines.push({ label: 'Scale', value: sum.scaleLabel });
-
-  // Each hand always keeps its OWN sound (syncHands only syncs scale/root/octaves), so
-  // the voices line is driven by whether the two SOUNDS differ — not by syncHands. The
-  // sync state is a separate range annotation, never a claim that the timbres match.
-  const both =
-    sum.rightSound === sum.leftSound ? sum.rightSound : `${sum.rightSound} / ${sum.leftSound}`;
-  lines.push({ label: 'Voices', value: sum.syncHands ? `${both} (synced range)` : both });
-  lines.push({
-    label: 'Range',
-    value: `octave ${sum.baseOctave}, ${sum.octaves} oct${sum.octaves === 1 ? '' : 's'}`,
-  });
-
-  lines.push({ label: 'Notes', value: `${sum.noteSource}-controlled` });
-  if (sum.faceMode !== 'none') lines.push({ label: 'Face', value: faceModeLabel(sum.faceMode) });
-  if (sum.fingerFx.length > 0) {
-    lines.push({
-      label: 'Finger FX',
-      value: sum.fingerFx.map((f) => `${f.finger}→${fingerTargetLabel(f.target)}`).join(', '),
-    });
+  if (sum.air.length > 0) {
+    const label = (id: AirInstrumentId) => AIR_INSTRUMENTS.find((a) => a.id === id)?.label ?? id;
+    lines.push({ label: 'Air', value: sum.air.map(label).join(', ') });
   }
+  if (!sum.handVoices) {
+    // An air-only instrument: the theremin voices are silent, so their scale, sounds and
+    // range describe nothing the player hears.
+    lines.push({ label: 'Hand voices', value: 'off' });
+  } else {
+    lines.push({ label: 'Scale', value: sum.scaleLabel });
+
+    // Each hand always keeps its OWN sound (syncHands only syncs scale/root/octaves), so
+    // the voices line is driven by whether the two SOUNDS differ — not by syncHands. The
+    // sync state is a separate range annotation, never a claim that the timbres match.
+    const both =
+      sum.rightSound === sum.leftSound ? sum.rightSound : `${sum.rightSound} / ${sum.leftSound}`;
+    lines.push({ label: 'Voices', value: sum.syncHands ? `${both} (synced range)` : both });
+    lines.push({
+      label: 'Range',
+      value: `octave ${sum.baseOctave}, ${sum.octaves} oct${sum.octaves === 1 ? '' : 's'}`,
+    });
+
+    lines.push({ label: 'Notes', value: `${sum.noteSource}-controlled` });
+    if (sum.fingerFx.length > 0) {
+      lines.push({
+        label: 'Finger FX',
+        value: sum.fingerFx.map((f) => `${f.finger}→${fingerTargetLabel(f.target)}`).join(', '),
+      });
+    }
+  }
+  // The face plays on its own (a face chord has its own voice), hand voices or not.
+  if (sum.faceMode !== 'none') lines.push({ label: 'Face', value: faceModeLabel(sum.faceMode) });
 
   if (sum.masterVolume !== MASTER_DEFAULTS.masterVolume) {
     lines.push({ label: 'Volume', value: `${Math.round(sum.masterVolume * 100)}%` });

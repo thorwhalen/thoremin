@@ -1,8 +1,9 @@
 /**
  * airDrumStatus — a tiny store the engine loop writes the live air-drum state into
- * (#233), so the Air drum tool panel can show what the instrument is doing: whether
- * each hand's floor has been learned, how many hits, whether the last one was
- * predicted ahead of the strike and by how much. Ephemeral per-frame runtime state,
+ * (#233), so the Instruments view can show what the air drum is doing (#249: its
+ * row in the Air instruments category, and its settings section): whether each hand's
+ * floor has been learned, how many hits, whether the last one was predicted ahead of
+ * the strike and by how much. Ephemeral per-frame runtime state,
  * exactly like `conductorStatus`: the DAG produces it; React only displays it.
  *
  * {@link makeAirDrumReporter} is the per-frame sink the host loop registers beside
@@ -32,6 +33,16 @@ export const useAirDrumStatus = create<AirDrumStatusState>((set) => ({
 
 export interface OutputReader {
   getOutput(nodeId: string, port: string): unknown;
+}
+
+/** What to tell the player, per state. */
+export function describeLive(live: AirDrumLive): string {
+  if (!live.enabled) return 'Off. Choose the Air Drum instrument, or tick "Drum in the air", then strike down with a hand.';
+  if (!live.ready.right && !live.ready.left) return 'Strike once to teach each hand where its drum is.';
+  if (live.hits === 0) return 'Ready. Strike.';
+  const ms = Math.round(Math.abs(live.lastLead) * 1000);
+  const hand = live.lastHand === 'left' ? 'Left' : 'Right';
+  return live.lastLead >= 0 ? `${hand}: predicted ${ms} ms before the strike.` : `${hand}: sounded ${ms} ms after the strike (too fast to predict).`;
 }
 
 /** Quantise what the panel shows (the lead to the millisecond). */

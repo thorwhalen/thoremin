@@ -5,7 +5,10 @@
  *    derived system tags + custom tags, a favorite star, and (on hover) a compact
  *    parametrization tooltip; the header carries a name filter, a sort control, and a
  *    "manage tags" entry (Instrument library UX epic #116: #112 starring/sort/filter,
- *    #113 tags column, #114 system tags, #115 tooltip);
+ *    #113 tags column, #114 system tags, #115 tooltip). The rows are grouped by the
+ *    instrument's DERIVED category (`library/category.ts`, #249): theremin instruments,
+ *    then air instruments — one place to choose any instrument, each chosen by the same
+ *    click. The chosen air drum carries its live readout under its row;
  *  - the EDITOR: the dials-rendered {@link DialsControlsPanel} for the selected
  *    instrument, preceded by its Tags section and a "Set as default" toggle (default is
  *    now a per-instrument setting, decoupled from the star — #112), with a back arrow, an
@@ -27,6 +30,8 @@ import InstrumentTags from '@/app/library/InstrumentTags';
 import TagsEditor from '@/app/library/TagsEditor';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
+import { groupByCategory } from '@/app/library/category';
+import { AirDrumReadout } from './panels/airDrum';
 
 const cardCls =
   'absolute right-3 top-3 flex max-h-[calc(100dvh-1.5rem)] w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
@@ -198,7 +203,7 @@ export default function InstrumentsPanel() {
             </div>
           )}
           <div className="border-t border-white/10 pt-3">
-            <DialsControlsPanel />
+            <DialsControlsPanel airDrumFirst={selected != null && (library.summaryOf(selected)?.air.includes('drum') ?? false)} />
           </div>
         </div>
       </div>
@@ -206,6 +211,73 @@ export default function InstrumentsPanel() {
   }
 
   // --- LIST view ---------------------------------------------------------------------
+  // One place to choose any instrument (#249): the list is grouped by the instrument's
+  // derived category (theremin / air), and every row is chosen the same way.
+  const groups = groupByCategory(shown, (p) => library.categoryOf(p.name));
+
+  const renderRow = (p: ProfileMeta) => {
+    const isSel = p.name === selected;
+    const isDefault = p.name === defaultName;
+    const isStar = library.starred(p.name);
+    // The chosen air drum shows what it is doing right under its name — the first thing a
+    // player needs after choosing it is "strike once to teach each hand".
+    const drumLive = isSel && (library.summaryOf(p.name)?.air.includes('drum') ?? false);
+    return (
+      <li
+        key={p.name}
+        className={`rounded-lg ${isSel ? 'bg-white/10' : 'hover:bg-white/5'}`}
+      >
+        <div className="flex items-center gap-1">
+          <button
+            className={`flex flex-1 items-center gap-2 truncate px-2 py-2 text-left text-xs transition ${
+              isSel ? 'text-emerald-300' : 'text-white/80 hover:text-white'
+            }`}
+            title={tooltipFor(p.name)}
+            onClick={() => select(p.name)}
+          >
+            <span
+              className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isSel ? 'bg-emerald-400' : 'bg-white/20'}`}
+              aria-hidden
+            />
+            <span className="truncate">{p.name}</span>
+            {isDefault && (
+              <span className="shrink-0 text-[9px] uppercase tracking-widest text-amber-300/70">(default)</span>
+            )}
+            {isSel && dirty && (
+              <span className="ml-1 shrink-0 text-[9px] uppercase tracking-widest text-amber-300/80">edited</span>
+            )}
+          </button>
+          <button
+            className={`rounded p-1.5 transition hover:bg-white/10 ${isStar ? 'text-amber-300' : 'text-white/25 hover:text-white/70'}`}
+            title={isStar ? 'Unfavorite' : 'Favorite'}
+            aria-label={isStar ? `Unfavorite ${p.name}` : `Favorite ${p.name}`}
+            aria-pressed={isStar}
+            onClick={() => library.toggleStar(p.name)}
+          >
+            <Star className={`h-3.5 w-3.5 ${isStar ? 'fill-current' : ''}`} />
+          </button>
+          <button
+            className="rounded p-2 text-white/40 transition hover:bg-white/10 hover:text-white"
+            title={`Edit ${p.name}`}
+            aria-label={`Edit ${p.name}`}
+            onClick={() => openEditor(p.name)}
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <InstrumentTags
+          systemTags={library.systemTagsOf(p.name)}
+          customTags={library.customTagsOf(p.name)}
+        />
+        {drumLive && (
+          <div className="px-2 pb-2">
+            <AirDrumReadout />
+          </div>
+        )}
+      </li>
+    );
+  };
+
   return (
     <div className={cardCls}>
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
@@ -259,65 +331,26 @@ export default function InstrumentsPanel() {
                 </select>
               </div>
             )}
-            <ul className="space-y-0.5">
-              {shown.map((p) => {
-                const isSel = p.name === selected;
-                const isDefault = p.name === defaultName;
-                const isStar = library.starred(p.name);
-                return (
-                  <li
-                    key={p.name}
-                    className={`rounded-lg ${isSel ? 'bg-white/10' : 'hover:bg-white/5'}`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <button
-                        className={`flex flex-1 items-center gap-2 truncate px-2 py-2 text-left text-xs transition ${
-                          isSel ? 'text-emerald-300' : 'text-white/80 hover:text-white'
-                        }`}
-                        title={tooltipFor(p.name)}
-                        onClick={() => select(p.name)}
-                      >
-                        <span
-                          className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isSel ? 'bg-emerald-400' : 'bg-white/20'}`}
-                          aria-hidden
-                        />
-                        <span className="truncate">{p.name}</span>
-                        {isDefault && (
-                          <span className="shrink-0 text-[9px] uppercase tracking-widest text-amber-300/70">(default)</span>
-                        )}
-                        {isSel && dirty && (
-                          <span className="ml-1 shrink-0 text-[9px] uppercase tracking-widest text-amber-300/80">edited</span>
-                        )}
-                      </button>
-                      <button
-                        className={`rounded p-1.5 transition hover:bg-white/10 ${isStar ? 'text-amber-300' : 'text-white/25 hover:text-white/70'}`}
-                        title={isStar ? 'Unfavorite' : 'Favorite'}
-                        aria-label={isStar ? `Unfavorite ${p.name}` : `Favorite ${p.name}`}
-                        aria-pressed={isStar}
-                        onClick={() => library.toggleStar(p.name)}
-                      >
-                        <Star className={`h-3.5 w-3.5 ${isStar ? 'fill-current' : ''}`} />
-                      </button>
-                      <button
-                        className="rounded p-2 text-white/40 transition hover:bg-white/10 hover:text-white"
-                        title={`Edit ${p.name}`}
-                        aria-label={`Edit ${p.name}`}
-                        onClick={() => openEditor(p.name)}
-                      >
-                        <Settings className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <InstrumentTags
-                      systemTags={library.systemTagsOf(p.name)}
-                      customTags={library.customTagsOf(p.name)}
-                    />
-                  </li>
-                );
-              })}
-              {shown.length === 0 && (
-                <li className="px-2 py-3 text-[11px] text-white/40">No instruments match “{query}”.</li>
-              )}
-            </ul>
+            {groups.map((g) =>
+              g.items.length === 0 && (query.trim() || g.id !== 'air') ? null : (
+                <section key={g.id} role="group" aria-label={g.label} data-category={g.id} className="mb-2">
+                  <h3 className="px-2 pb-1 pt-1.5 text-[9px] font-bold uppercase tracking-widest text-white/40">
+                    {g.label}
+                  </h3>
+                  <ul className="space-y-0.5">
+                    {g.items.map(renderRow)}
+                    {g.items.length === 0 && (
+                      <li className="px-2 py-2 text-[10px] leading-relaxed text-white/40">
+                        None saved. Tick “Drum in the air” in any instrument’s settings and save it.
+                      </li>
+                    )}
+                  </ul>
+                </section>
+              ),
+            )}
+            {shown.length === 0 && (
+              <p className="px-2 py-3 text-[11px] text-white/40">No instruments match “{query}”.</p>
+            )}
           </>
         )}
         <p className="px-2 pb-2 pt-3 text-[10px] leading-relaxed text-white/40">

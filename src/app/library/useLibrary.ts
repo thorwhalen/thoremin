@@ -19,6 +19,7 @@ import type { ProfileMeta } from '@zodal/dials-ui';
 import { parseTagLabels, type Tag, type InstrumentMetaMap } from './model';
 import type { InstrumentSummary } from './summarize';
 import type { SystemTag } from './systemTags';
+import type { InstrumentCategory } from './category';
 import {
   listTags,
   resolveOrCreateTag,
@@ -53,6 +54,8 @@ export interface LibraryApi {
   systemTagsOf: (name: string) => SystemTag[];
   /** The derived compact summary for an instrument (undefined until derived). */
   summaryOf: (name: string) => InstrumentSummary | undefined;
+  /** The derived category — its group in the Instruments view (undefined until derived). */
+  categoryOf: (name: string) => InstrumentCategory | undefined;
   /** Rename a tag's label (id + associations preserved). */
   renameTag: (id: string, label: string) => Promise<void>;
   /** Change a tag's emoji. */
@@ -151,6 +154,7 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
 
   const systemTagsOf = useCallback((name: string) => derived[name]?.systemTags ?? [], [derived]);
   const summaryOf = useCallback((name: string) => derived[name]?.summary, [derived]);
+  const categoryOf = useCallback((name: string) => derived[name]?.category, [derived]);
 
   const renameTag = useCallback(
     async (id: string, label: string) => {
@@ -196,6 +200,7 @@ export function useLibrary(list: ProfileMeta[]): LibraryApi {
     removeTag,
     systemTagsOf,
     summaryOf,
+    categoryOf,
     renameTag,
     setTagEmoji,
     deleteTag,

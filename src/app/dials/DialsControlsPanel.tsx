@@ -39,13 +39,26 @@ import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
 import { AirDrumControls } from './panels/airDrum';
 
-export default function DialsControlsPanel() {
+/**
+ * @param airDrumFirst - the instrument being edited is an air drum (#249): its section
+ *   comes first and open, since that is what the player chose it for. Anywhere else the
+ *   air drum is an add-on, collapsed in its usual place. The host decides from the
+ *   instrument's SAVED category, not the live dial, so ticking "Drum in the air" does not
+ *   make the section jump out from under the pointer.
+ */
+export default function DialsControlsPanel({ airDrumFirst = false }: { airDrumFirst?: boolean } = {}) {
   const { state, set } = useDialsSettings();
   const v = state.effective;
   const syncHands = v['master.syncHands'] as boolean;
+  const airDrumSection = (
+    <TopSection label="Air drum" defaultOpen={airDrumFirst}>
+      <AirDrumControls />
+    </TopSection>
+  );
 
   return (
     <div className="space-y-1">
+      {airDrumFirst && airDrumSection}
       {/* Sound — the live-performance knobs, open by default. */}
       <TopSection label="Sound" defaultOpen>
         <label className="flex items-center justify-between gap-2 text-xs">
@@ -81,9 +94,7 @@ export default function DialsControlsPanel() {
         <ConductorControls />
       </TopSection>
       {/* The air drum (#233): strike the air, hear a drum at the strike. Off by default. */}
-      <TopSection label="Air drum">
-        <AirDrumControls />
-      </TopSection>
+      {!airDrumFirst && airDrumSection}
 
       <TopSection label="Overlay">
         <OverlayControls />
