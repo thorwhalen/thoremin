@@ -49,7 +49,7 @@
       {
         "name": "point",
         "type": "enum(wrist | indexTip | stickTip)",
-        "default": "wrist"
+        "default": "stickTip"
       },
       {
         "name": "stickLength",

@@ -67,7 +67,7 @@ export function AirDrumControls() {
   const c = (state.effective.airDrum ?? {}) as Partial<AirDrumDialParams>;
   const enabled = c.enabled === true;
   const hand = c.hand ?? 'both';
-  const point = c.point ?? 'wrist';
+  const point = c.point ?? 'stickTip';
   const rightSound = c.rightSound ?? 'kick';
   const leftSound = c.leftSound ?? 'snare';
   const minLead = c.minLead ?? 0.05;

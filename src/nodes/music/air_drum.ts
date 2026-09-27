@@ -47,14 +47,17 @@ export type AirDrumPoint = (typeof AIR_DRUM_POINTS)[number];
 export type PlayerHand = 'right' | 'left';
 
 const Params = z.object({
-  /** Off by default: a player who never opens the Air drum panel hears nothing new. */
+  /** Off by default: a player who never turns the air drum on (Instruments view, Air
+   *  instruments) hears nothing new. */
   enabled: z.boolean().default(false),
   /** Which of the player's hands drum. */
   hand: z.enum(AIR_DRUM_HANDS).default('both'),
   /** The tracked point: the wrist, the index fingertip, or the tip of a (real or virtual)
    *  stick extended from the grip (`drum_anchor.ts`), which sees a wrist or finger stroke
-   *  the wrist itself barely makes. */
-  point: z.enum(AIR_DRUM_POINTS).default('wrist'),
+   *  the wrist itself barely makes. The stick tip is the default because it scored best
+   *  on real drum footage and on the synthetic strokes (#246,
+   *  `docs/research/air-instruments.md` §7.3). */
+  point: z.enum(AIR_DRUM_POINTS).default('stickTip'),
   /** How far the stick reaches past the thumb-index fulcrum, in grip lengths (heel of the
    *  hand to the fulcrum). Only for `point: 'stickTip'`. */
   stickLength: z.number().min(0.5).max(8).default(DEFAULT_STICK_LENGTH),
