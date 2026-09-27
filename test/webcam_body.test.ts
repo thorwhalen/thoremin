@@ -7,12 +7,14 @@
  * also after a FAILED load — and releases on disable.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { branchIdsFor, type DerivationContext } from '@/instruments/derive';
+import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
+import { settingsFromLayer } from '@/app/library/derive';
 import type { NodeContext } from '@/dag';
 import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@/nodes/domain';
 import { defaultFeatureLab } from '@/features/labConfig';
 import {
   resultToBodyFrame,
-  bodyActive,
   webcamBodyNode,
   NO_CAMERA_REASON,
   type BodyLandmarkerFactory,
@@ -49,21 +51,21 @@ describe('resultToBodyFrame', () => {
   });
 });
 
-describe('bodyActive (the gate)', () => {
-  it('is off with no controls, and off by default', () => {
-    expect(bodyActive(undefined)).toBe(false);
-    expect(bodyActive({ body: { enabled: false } })).toBe(false);
-    expect(bodyActive({})).toBe(false);
+describe('the body source is composed only when wanted (the gate moved to the branch derivation)', () => {
+  const base = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer) };
+  const has = (s: typeof base, ctx?: DerivationContext) => branchIdsFor(s, ctx).includes('body-source');
+  it('is off by default', () => {
+    expect(has(base)).toBe(false);
   });
   it('the dial turns it on', () => {
-    expect(bodyActive({ body: { enabled: true } })).toBe(true);
+    expect(has({ ...base, body: { ...base.body, enabled: true } })).toBe(true);
   });
   it('a non-body demand never turns it on', () => {
-    expect(bodyActive({ body: { enabled: false } }, new Set(['face.geom']))).toBe(false);
+    expect(has(base, { demanded: new Set(['face.geom']) })).toBe(false);
   });
   it('the Lab measuring a non-body group does not turn it on', () => {
     const lab = { ...defaultFeatureLab(), show: true, groups: ['hand.position.raw'] };
-    expect(bodyActive({ body: { enabled: false }, featureLab: lab })).toBe(false);
+    expect(has(base, { featureLab: lab })).toBe(false);
   });
 });
 
@@ -100,15 +102,12 @@ describe('webcam-body lifecycle (injected loader)', () => {
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
 
-  it('loads nothing until enabled; loads the dial’s model on enable; swaps on change; releases on disable', async () => {
+  it('loads the dial’s model on its first tick (it exists only while wanted); swaps on change; releases on dispose', async () => {
     const h = webcamBodyNode.make(webcamBodyNode.params.parse({}));
-    await h.init?.(ctxWith({ body: { enabled: false, model: 'lite' } }));
-    let out = h.process({}, ctxWith({ body: { enabled: false, model: 'lite' } }));
-    expect(out.body).toEqual(EMPTY_BODY_FRAME);
-    expect(phase(out).phase).toBe('off');
+    await h.init?.(ctxWith({ body: { enabled: true, model: 'lite' } }));
     expect(created).toHaveLength(0);
-
-    out = h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }));
+    let out = h.process({}, ctxWith({ body: { enabled: true, model: 'lite' } }));
+    expect(out.body).toEqual(EMPTY_BODY_FRAME);
     expect(phase(out).phase).toBe('loading');
     await flush();
     expect(created).toEqual(['lite']);
@@ -122,11 +121,9 @@ describe('webcam-body lifecycle (injected loader)', () => {
     expect(closed).toEqual(['lite']);
     expect(created).toEqual(['lite', 'full']);
 
-    // Disable: released, off, nothing new created.
-    out = h.process({}, ctxWith({ body: { enabled: false, model: 'full' } }));
-    expect(closed).toEqual(['lite', 'full']);
-    expect(phase(out).phase).toBe('off');
+    // Dispose (the branch left the graph): released, nothing new created.
     h.dispose?.();
+    expect(closed).toEqual(['lite', 'full']);
     expect(created).toHaveLength(2);
   });
 

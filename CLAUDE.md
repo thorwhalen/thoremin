@@ -50,13 +50,12 @@ Discussion #3. Key rules from it:
   verification affordance, not an instrument a player picks between.)
 - **Three slots exist**: `mapping` (one candidate), `source` (#104 —
   `webcam-hands` / `synthetic-hands` / `replay-hands`) and `body` (#186 —
-  `webcam-body` / `synthetic-body` / `replay-body`; a second camera branch, always
-  wired and gated off until the `body.enabled` dial, the Lab or a trainer cue wants
-  it, because hands and body are different instruments a player may run together).
+  `webcam-body` / `synthetic-body` / `replay-body`; a second camera branch, composed into the graph only while the `body.enabled` dial, the Lab or a trainer cue
+  wants it (the instruments-as-graphs ADR, PR 3), because hands and body are different instruments a player may run together).
   Select with `?slot.<name>=<nodeType>`. `?slot.source=synthetic-hands` runs the
   whole instrument with no camera and no MediaPipe — the fastest way to exercise
   the graph without hardware; `?slot.body=synthetic-body` does the same for the
-  body path.
+  body path, once something wants the body (the dial, the Lab or a trainer cue).
 - **`PortSpec.schema`** makes a port contract checkable (`kind` is only a label).
   The engine checks it in `tick()`'s output path under
   `EngineOptions.validatePorts` — off by default, **on** in `runHeadless`. It

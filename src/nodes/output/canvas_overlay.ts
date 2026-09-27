@@ -26,6 +26,7 @@ import { z } from 'zod';
 import type { MusicalTime } from '@/ictus';
 import { defineNode } from '@/dag';
 import type { NodeContext } from '@/dag';
+import type { AirFluteStatus } from '../music/air_flute';
 import {
   chordName,
   classifyChord,
@@ -120,6 +121,10 @@ const Params = z.object({
   drumPads: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
+  /** The air flute's breath cue (#249 / the instruments-as-graphs ADR): drawn only when the
+   *  flute's branch asks for it, so a flute that borrows the face for its breath never
+   *  brings the expression bars along. */
+  mouthCue: z.object({ show: z.boolean().default(true), position: CuePositionEnum.default('left') }).prefault({}),
   /**
    * Face-expression bar graph (HUD cue): a bar + firing tick per emotion; the winner
    * is highlighted. Optional vertical x-axis labels (the expression name and/or the
@@ -294,10 +299,18 @@ export interface OverlayView {
     /** Trainer guidance (#163): null unless a routine is running. Read in `process`
      *  from `ctx.resources.trainerHud`. */
     trainerHud?: TrainerHudSnapshot | null;
+    /** The air flute's live status (#249), for its breath cue. */
+    airFluteStatus?: AirFluteStatus;
   };
   params: Params;
   /** Computed top-left origin per cue element name (set by the layout pass). */
   layout: Record<string, { x: number; y: number }>;
+  /**
+   * The elements the composed graph's branches asked for (the ADR, §3.2 rule 4), or
+   * undefined for "every element" (no host, or a pre-composition frame). Each element's
+   * own `show` dial still applies: this is an intersection, never an override.
+   */
+  elements?: readonly OverlayElement[];
 }
 
 export type OverlayCategory = 'input' | 'output' | 'guide' | 'backdrop';
@@ -881,6 +894,36 @@ function triadForDegree(scale: number[] | undefined, degree: number): number[] {
   };
   return [at(degree), at(degree + 2), at(degree + 4)].filter((n): n is number => typeof n === 'number');
 }
+
+/**
+ * The air flute's breath: one bar, filled while the mouth is blowing (the voice sounding),
+ * dim while resting, with a hint until the mouth is enrolled. This is what the flute needs
+ * from the face; the mesh and the expression bars are not (§2.2 of the ADR).
+ */
+const mouthCue: OverlayElement = {
+  name: 'mouthCue',
+  category: 'output',
+  cue: true,
+  positionOf: (view) => view.params.mouthCue.position,
+  measure(view) {
+    const st = view.inputs.airFluteStatus;
+    if (!view.params.mouthCue.show || !st?.enabled || st.breath !== 'mouth') return null;
+    return measureBarGraph([{ labels: ['breath'] }], { title: 'flute' });
+  },
+  draw(g, view) {
+    const st = view.inputs.airFluteStatus;
+    const origin = view.layout['mouthCue'];
+    if (!st?.enabled || st.breath !== 'mouth' || !origin) return;
+    const bar: BarSpec = {
+      value: st.sounding ? 1 : st.face ? 0.15 : 0,
+      color: FACE_COLOR,
+      highlight: st.sounding,
+      fired: st.sounding,
+      labels: [st.mouthReady ? 'breath' : 'enrol mouth'],
+    };
+    drawBarGraph(g, origin.x, origin.y, [bar], { title: 'flute' });
+  },
+};
 
 const faceExpressionCue: OverlayElement = {
   name: 'faceExpression',
@@ -1816,6 +1859,7 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   // HUD cues last (on top). chordName sits before the others so `fingerBars`
   // stays the topmost cue; cues on different edges don't overlap regardless.
   chordNameCue,
+  mouthCue,
   faceExpressionCue,
   // The burned-in tag HUD sits above the cues (its own top corner); fingerBars stays
   // the array's last element so the z-order invariant + concurrent additions hold.
@@ -1835,7 +1879,7 @@ const CUE_BOTTOM_INSET = 68; // and for the tools bar / the object-cover crop ba
 /** Compute each active cue's top-left origin, auto-stacking cues that share an edge. */
 function layoutCues(view: OverlayView): Record<string, { x: number; y: number }> {
   const layout: Record<string, { x: number; y: number }> = {};
-  const active = OVERLAY_ELEMENTS.filter((e) => e.cue).map((e) => ({
+  const active = (view.elements ?? OVERLAY_ELEMENTS).filter((e) => e.cue).map((e) => ({
     e,
     pos: e.positionOf!(view),
     size: e.measure!(view),
@@ -1918,6 +1962,11 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'expression', kind: 'face-expression' },
     { name: 'octaveShift', kind: 'number', default: 0 },
     { name: 'overlayConfig', kind: 'overlay-config' },
+    // The air flute's status, for its breath cue (#249).
+    { name: 'airFluteStatus', kind: 'air-flute-status' },
+    // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
+    // the current instrument. Absent → every element (headless tests, pre-composition).
+    { name: 'elements', kind: 'string[]' },
     // Raw feature vectors for the Feature Lab (#119). Additive: the vector nodes
     // tap the existing camFace/cam edges; the lab element normalizes + draws them.
     { name: 'faceVector', kind: 'feature-vector' },
@@ -2012,8 +2061,14 @@ export const canvasOverlayNode = defineNode<Params>({
             faceMapping: controls?.faceMapping,
             tagOverlay,
             trainerHud: trainerHudSnapshot,
+            airFluteStatus: inputs.airFluteStatus as AirFluteStatus | undefined,
           },
         };
+        if (Array.isArray(inputs.elements)) {
+          const wanted = new Set(inputs.elements as string[]);
+          view.elements = OVERLAY_ELEMENTS.filter((e) => wanted.has(e.name));
+        }
+        const elements = view.elements ?? OVERLAY_ELEMENTS;
 
         // Compute the Feature Lab meters once per tick (the normalizer observes here);
         // the featureLab element and the alpha pass both draw from this.
@@ -2026,7 +2081,7 @@ export const canvasOverlayNode = defineNode<Params>({
         );
 
         view.layout = layoutCues(view);
-        for (const element of OVERLAY_ELEMENTS) element.draw(g, view);
+        for (const element of elements) element.draw(g, view);
 
         // Overlay-only (alpha) pass (#88): when a transparent overlay canvas is
         // injected via resources (only while the overlay-alpha stream is being
@@ -2046,7 +2101,7 @@ export const canvasOverlayNode = defineNode<Params>({
               H: alphaCanvas.height,
               params: { ...view.params, video: { ...view.params.video, show: false } },
             };
-            for (const element of OVERLAY_ELEMENTS) element.draw(ga, alphaView);
+            for (const element of elements) element.draw(ga, alphaView);
           }
         }
 

@@ -181,32 +181,31 @@ describe('the live-vector tap stamps samples in MILLISECONDS (the sampler\'s uni
 });
 
 describe('the face MODEL gate honours a demand (the second half of the v1 bug)', () => {
-  it('faceActive: mapping off + Lab hidden + no demand → off; a face-group demand → on', async () => {
-    const { faceActive } = await import('@/nodes/sources/webcam_face');
+  // The gate moved from the node to the branch derivation (the instruments-as-graphs
+  // ADR, PR 3): a face-group demand composes the face source; without it the node does not
+  // exist, so there is no model to keep idle.
+  it('branchIdsFor: mapping off + Lab hidden + no demand → no face source; a face-group demand → the face source', async () => {
+    const { branchIdsFor } = await import('@/instruments/derive');
+    const { SEED_INSTRUMENTS } = await import('@/app/dials/instruments');
+    const { settingsFromLayer } = await import('@/app/library/derive');
     const { defaultFeatureLab } = await import('@/features/labConfig');
-    const controls = { faceMapping: 'none' as const, featureLab: defaultFeatureLab() };
-    expect(faceActive(controls)).toBe(false);
-    expect(faceActive(controls, null)).toBe(false);
-    // A hand-only demand must NOT load the face model.
-    expect(faceActive(controls, new Set(['hand.finger.flexion']))).toBe(false);
-    expect(faceActive(controls, new Set(['face.head']))).toBe(true);
-    // The demand is sufficient on its own, even with no controls snapshot at all.
-    expect(faceActive(undefined, new Set(['face.geom.mouth']))).toBe(true);
+    const s = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer), faceMapping: 'none' as const };
+    const has = (demanded?: Set<string>) =>
+      branchIdsFor(s, { demanded, featureLab: defaultFeatureLab() }).includes('face-source');
+    expect(has()).toBe(false);
+    // A hand-only demand must NOT bring the face model in.
+    expect(has(new Set(['hand.finger.flexion']))).toBe(false);
+    expect(has(new Set(['face.head']))).toBe(true);
+    expect(has(new Set(['face.geom.mouth']))).toBe(true);
   });
 
-  it('the webcam-face node reads the demand off ctx.resources and reports the model active', async () => {
+  it('the webcam-face node loads its model as soon as it exists with a video (no per-tick gate left)', async () => {
     const { webcamFaceNode } = await import('@/nodes/sources/webcam_face');
-    const { defaultFeatureLab } = await import('@/features/labConfig');
     const h = webcamFaceNode.make(webcamFaceNode.params.parse({}));
-    const controls = () => ({ faceMapping: 'none' as const, featureLab: defaultFeatureLab() });
-    // No <video> resource, so the model is never loaded headlessly — but the STATUS says
-    // whether the node considers itself enabled, which is the gate under test.
-    const off = h.process({}, ctx({ controls })) as { status: { phase: string } };
-    const on = h.process({}, ctx({ controls, featureDemand: () => new Set(['face.head']) })) as { status: { phase: string } };
-    // 'idle' = the gate said no; anything else ('loading' here, with no landmarker yet)
-    // = the gate said yes and the node is on its way to a model.
-    expect(off.status.phase).toBe('idle');
+    const video = { readyState: 2, videoWidth: 640, videoHeight: 480, currentTime: 0 } as unknown as HTMLVideoElement;
+    const on = h.process({}, ctx({ video })) as { status: { phase: string } };
     expect(on.status.phase).toBe('loading');
+    h.dispose?.();
   });
 
   it('the registry notifies subscribers on claim / release / reset (for the FaceChip)', () => {
@@ -236,13 +235,13 @@ describe('the production wiring (source guard — useEngine is outside the stric
     // handed a hand-built getter in tests) — which is exactly how v1 shipped blind.
     expect(engine).toMatch(/resources\.featureDemand\s*=\s*featureDemandResource/);
     // And the three readers use the SAME resource key (uncorrelated string literals).
-    for (const file of [
-      'src/nodes/features/face_feature_vector.ts',
-      'src/nodes/features/hand_feature_vector.ts',
-      'src/nodes/sources/webcam_face.ts',
-    ]) {
+    for (const file of ['src/nodes/features/face_feature_vector.ts', 'src/nodes/features/hand_feature_vector.ts']) {
       expect(read(file), `${file} does not read ctx.resources.featureDemand`).toMatch(/ctx\.resources\.featureDemand/);
     }
+    // The face MODEL is gated by composition now: the host derives the branch set from the
+    // same demand (the ADR, PR 3), so a claim adds the face source instead of waking it.
+    expect(engine).toMatch(/branchIdsFor\([^)]*featureDemandResource\(\)/);
+    expect(read('src/instruments/derive.ts')).toMatch(/demandWantsFace\(/);
   });
 });
 

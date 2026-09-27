@@ -137,14 +137,16 @@ describe('blendshapesToFaceFrame', () => {
 });
 
 describe('webcam-face node gating', () => {
-  it('emits the absent frame when face control is off and never loads the model', () => {
+  it('with a video it loads whatever the controls say: there is no gate any more (the branch derivation decides presence)', async () => {
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    // No controls getter (headless / pre-wired) and explicitly disabled, both
-    // with a video present — the loader must not be reached either way.
-    expect(inst.process({}, ctx(undefined, fakeVideo()))).toMatchObject(ABSENT);
-    expect(inst.process({}, ctx(false, fakeVideo()))).toMatchObject(ABSENT);
-    expect(createFromOptions).not.toHaveBeenCalled();
-    expect(forVisionTasks).not.toHaveBeenCalled();
+    // No controls getter (headless / pre-wired): the node still loads, because if it is in
+    // the graph, something wanted it. The instance is drained and disposed here so the
+    // load never leaks into the next test.
+    const live = ctx(undefined, fakeVideo());
+    expect(inst.process({}, live)).toMatchObject(ABSENT);
+    expect(await drainLoad(inst, live)).toBe('ready');
+    inst.dispose?.();
+    expect(fakeLandmarker.close).toHaveBeenCalledTimes(1);
   });
 
   it('does not load the model when enabled but no camera <video> is present', () => {
@@ -153,27 +155,21 @@ describe('webcam-face node gating', () => {
     expect(createFromOptions).not.toHaveBeenCalled();
   });
 
-  it('offloads on disable, re-enables, and is idempotent on dispose — never throws', async () => {
+  it('dispose closes a LOADED model (the only release path now that the node exists only while wanted), idempotently', async () => {
+    // Independent of any one-shot mock a previous test left queued: a plain resolving load.
+    createFromOptions.mockReset();
+    createFromOptions.mockImplementation(async () => fakeLandmarker);
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    let faceEnabled = true;
     const live = ctx(true, fakeVideo());
-    // Re-point the controls getter at the mutable flag.
-    (live.resources as Record<string, unknown>).controls = () => ({ faceEnabled });
-
-    // Enable + video → loader kicks off (loading set synchronously); absent this tick.
-    expect(inst.process({}, live)).toMatchObject(ABSENT);
-    // Disable while still loading → offload() runs via the `loading` branch.
-    faceEnabled = false;
-    expect(inst.process({}, live)).toMatchObject(ABSENT);
-    // Re-enable → no throw, still absent.
-    faceEnabled = true;
-    expect(inst.process({}, live)).toMatchObject(ABSENT);
+    expect(inst.process({}, live)).toMatchObject(ABSENT); // the load kicks off
+    expect(await drainLoad(inst, live)).toBe('ready');
+    expect(fakeLandmarker.close).not.toHaveBeenCalled();
     expect(() => {
       inst.dispose?.();
       inst.dispose?.();
     }).not.toThrow();
+    expect(fakeLandmarker.close).toHaveBeenCalledTimes(1);
     expect(inst.process({}, live)).toMatchObject(ABSENT);
-    await flush(); // let the dangling mocked load settle (it self-closes)
   });
 });
 
@@ -193,27 +189,25 @@ const drainLoad = async (inst: ReturnType<typeof webcamFaceNode.make>, ctxArg: N
 };
 
 describe('webcam-face mapping-mode gating (#64)', () => {
-  it('enters the load path for timbre and chord, idle for none', async () => {
-    for (const mode of ['timbre', 'chord']) {
+  it('enters the load path as soon as a video is present (the node exists only while a mode or a demand wants it)', async () => {
+    // The per-tick gate moved to the branch derivation (the instruments-as-graphs ADR,
+    // PR 3): `faceMapping = none` is no longer this node's business; with no face branch
+    // composed the node is not in the graph at all.
+    for (const mode of ['timbre', 'chord', 'none']) {
       const inst = webcamFaceNode.make({ delegate: 'GPU' });
-      // `loading` (set synchronously in ensureLoaded) proves the enabled path ran.
+      // `loading` (set synchronously in ensureLoaded) proves the load path ran.
       const out = inst.process({}, ctxMode(mode, fakeVideo())) as { status: { phase: string } };
       expect(out.status.phase).toBe('loading');
       await drainLoad(inst, ctxMode(mode, fakeVideo())); // complete the load here, don't leak it
       inst.dispose?.();
     }
-    createFromOptions.mockClear();
-    const off = webcamFaceNode.make({ delegate: 'GPU' });
-    const out = off.process({}, ctxMode('none', fakeVideo())) as { status: { phase: string } };
-    expect(out.status.phase).toBe('idle');
-    expect(createFromOptions).not.toHaveBeenCalled();
   });
 });
 
 describe('webcam-face status port (#65)', () => {
-  it('reports idle when off and loading once a mode + video are present', async () => {
+  it('reports idle with no video and loading once a video is present', async () => {
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    expect((inst.process({}, ctxMode('none', fakeVideo())) as { status: unknown }).status).toEqual({
+    expect((inst.process({}, ctxMode('chord')) as { status: unknown }).status).toEqual({
       phase: 'idle',
       faceDetected: false,
     });

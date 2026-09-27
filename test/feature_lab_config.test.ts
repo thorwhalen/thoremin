@@ -13,7 +13,9 @@ import { thoreminDials, settingsToLayer } from '@/settings/dials';
 import { SettingsSchema } from '@/settings/schema';
 import { OverlayDialSchema, OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, labWantsFace, FACE_GROUP_IDS } from '@/features/labConfig';
-import { faceActive } from '@/nodes/sources/webcam_face';
+import { branchIdsFor } from '@/instruments/derive';
+import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
+import { settingsFromLayer } from '@/app/library/derive';
 import { storeControlsNode, type ControlSnapshot } from '@/nodes/sources/store_controls';
 import { faceFeatureVectorNode } from '@/nodes/features/face_feature_vector';
 import { normalizeLayer } from '@/app/dials/instruments';
@@ -109,18 +111,20 @@ describe('the Lab can observe the face without altering the sound', () => {
     expect(labWantsFace(undefined)).toBe(false);
   });
 
-  it('the face model loads for the Lab even with faceMapping = none', () => {
-    // THE point of #136's face fix: before it, a face meter was unobservable unless you
-    // also put your face in charge of the audio.
+  // The gate moved from the node to the branch derivation (the instruments-as-graphs
+  // ADR, PR 3): the face source is COMPOSED when the Lab shows a face group, and does not
+  // exist otherwise. THE point of #136's face fix is intact: a face meter is observable
+  // without putting the face in charge of the audio.
+  it('the face source is composed for the Lab even with faceMapping = none', () => {
+    const base = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer), faceMapping: 'none' as const };
     const featureLab = { ...defaultFeatureLab(), show: true, groups: [FACE_GROUP_IDS[0]] };
-    expect(faceActive({ faceMapping: 'none', featureLab })).toBe(true);
-    expect(faceActive({ faceMapping: 'none' })).toBe(false);
+    expect(branchIdsFor(base, { featureLab })).toContain('face-source');
+    expect(branchIdsFor(base)).not.toContain('face-source');
   });
 
-  it('still loads for a face MAPPING with the Lab closed (the old rule is intact)', () => {
-    expect(faceActive({ faceMapping: 'timbre' })).toBe(true);
-    expect(faceActive({ faceEnabled: true })).toBe(true);
-    expect(faceActive(undefined)).toBe(false);
+  it('and for a face MAPPING with the Lab closed (the old rule is intact)', () => {
+    const base = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer), faceMapping: 'timbre' as const };
+    expect(branchIdsFor(base)).toContain('face-source');
   });
 });
 

@@ -230,6 +230,15 @@ export interface ControlState {
    * `conductor.piece` dial remembers WHICH piece, and the app reloads it on demand).
    */
   scoreDoc: ScoreDoc | null;
+  /**
+   * The overlay elements the CURRENT graph's branches asked for (transient, never
+   * persisted): written by the engine host just before it applies a composed graph,
+   * emitted by `store-controls` on its `graphElements` port, read by `canvas-overlay`,
+   * which draws only these (and only those whose own `show` dial is on). `null` until the
+   * first composition, which the overlay reads as "draw everything" (the pre-ADR behaviour,
+   * and what headless tests without a host see).
+   */
+  graphElements: string[] | null;
   /** Per-DEVICE expression calibration: a per-emotion firing-sensitivity override
    *  produced by the calibration wizard, applied OVER `faceExpr.sensitivity` for every
    *  instrument (so calibration is global). Persisted to localStorage, NOT part of a
@@ -263,6 +272,8 @@ export interface ControlState {
   setHush(claimer: string, on: boolean): void;
   /** Replace the loaded score (transient, see {@link scoreDoc}). */
   setScoreDoc: (doc: ScoreDoc | null) => void;
+  /** Replace the composed graph's overlay element set (transient, see {@link graphElements}). */
+  setGraphElements: (elements: string[] | null) => void;
   /** Replace the air guitar's chord classifier (transient, see {@link airGuitarModel}). */
   setAirGuitarModel: (model: TrainedModel | null) => void;
   /** Replace the air flute's classifiers (transient). */
@@ -630,6 +641,7 @@ export const useControls = create<ControlState>()(
       steer: defaultSteer(),
       steerPlaying: false,
       scoreDoc: null,
+      graphElements: null,
       faceControls: defaultFaceControls(),
       conductor: defaultConductor(),
       airDrum: defaultAirDrum(),
@@ -669,6 +681,7 @@ export const useControls = create<ControlState>()(
         }),
       setSteerPlaying: (v) => set({ steerPlaying: v }),
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
+      setGraphElements: (elements) => set({ graphElements: elements }),
       setAirGuitarModel: (model) => set({ airGuitarModel: model }),
       setAirFluteFingerModel: (model) => set({ airFluteFingerModel: model }),
       setAirFluteMouthModel: (model) => set({ airFluteMouthModel: model }),

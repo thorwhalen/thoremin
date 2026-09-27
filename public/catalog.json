@@ -679,6 +679,14 @@
         "kind": "overlay-config"
       },
       {
+        "name": "airFluteStatus",
+        "kind": "air-flute-status"
+      },
+      {
+        "name": "elements",
+        "kind": "string[]"
+      },
+      {
         "name": "faceVector",
         "kind": "feature-vector"
       },
@@ -750,6 +758,11 @@
       },
       {
         "name": "timbreLevels",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "mouthCue",
         "type": "object",
         "default": {}
       },
@@ -2335,6 +2348,10 @@
       {
         "name": "scoreDoc",
         "kind": "score-doc"
+      },
+      {
+        "name": "graphElements",
+        "kind": "string[]"
       }
     ],
     "params": []

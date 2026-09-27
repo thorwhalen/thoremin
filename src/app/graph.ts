@@ -30,6 +30,7 @@ import type { GraphSpec, NodeRegistry, Role } from '@/dag';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
 import { BODY_SLOT_CONTRACT } from '@/nodes/sources/body_contract';
+import { EXPRESSION_SLOT_CONTRACT } from '@/nodes/features/expression_contract';
 import type { SlotContract } from '@/nodes/slot_contract';
 import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
@@ -75,6 +76,15 @@ export const SLOTS: Record<string, SlotDef> = {
     default: 'webcam-body',
     candidates: ['webcam-body', 'synthetic-body', 'replay-body'],
     contract: BODY_SLOT_CONTRACT,
+  },
+  // The face's expression classifier (the ADR's seam 7). One candidate today; the
+  // pointable second is the Trainer's learned classifier (`src/enroll/classify.ts`) once
+  // an adapter emits the `face-expression` kind. Declared so the seam exists; no UI.
+  expression: {
+    role: 'feature',
+    default: 'face-expression',
+    candidates: ['face-expression'],
+    contract: EXPRESSION_SLOT_CONTRACT,
   },
 };
 

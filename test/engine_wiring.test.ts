@@ -112,14 +112,27 @@ describe('the slot selection reaches the graph', () => {
     // `defaultGraph()` with no arguments is the bug this guards: it silently
     // ignores every selection and validates nothing.
     expect(c).not.toMatch(/defaultGraph\(\s*\)/);
-    expect(c).toMatch(/new Engine\(\s*defaultGraph\(slotsRef\.current,\s*registry\)/);
+    expect(c).not.toMatch(/liveGraph\(\s*\)/);
+    expect(c).toMatch(/const live = liveGraph\(slotsRef\.current,\s*registry\)/);
+    expect(c).toMatch(/new Engine\(\s*live\.spec,\s*registry/);
   });
 
   it('re-wires the LIVE engine on a selection change instead of rebuilding it', () => {
     // Rebuilding would re-acquire the camera and reload both MediaPipe models to
     // change one node; applyGraph keeps every unchanged node (#51).
     const c = code(useEngine);
-    expect(c).toMatch(/\.applyGraph\(defaultGraph\(slotsRef\.current,\s*registry\)/);
+    // One helper does the re-wire: it composes the live graph for the CURRENT slots and
+    // applies it; both effects call it, and so does the post-init reconcile.
+    expect(c).toMatch(/function applyLive\([^)]*\)[^{]*\{\s*const next = liveGraph\(selection,\s*registry\);\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
+    expect(c).toMatch(/applyLive\(engine, slotsRef\.current, registry, engineRef\.current\);\s*\}, \[\s*slotsKey\s*\]\)/);
+    // ...and on a change of the branch SET (an instrument switch, a dial that adds a
+    // capability, a tool's feature demand): the instruments-as-graphs ADR, PR 3.
+    expect(c).toMatch(/applyLive\(engine, slotsRef\.current, registry, engineRef\.current\);\s*\}, \[\s*branchKey\s*\]\)/);
+    // A change during the model load (no engine yet) is reconciled once after init, for
+    // the branch set as for the slots.
+    expect(c).toMatch(/currentBranchKey\(\) !== builtBranchKey/);
+    // The element set is written when the apply COMMITS, never at plan time.
+    expect(c).toMatch(/\.then\(\(change\) => \{[^}]*setGraphElements\(next\.elements\)/);
     // ...and it is actually TRIGGERED by a selection change. An applyGraph call
     // sitting in an effect that never re-runs is the #137 shape exactly: present,
     // correct, and never reached.

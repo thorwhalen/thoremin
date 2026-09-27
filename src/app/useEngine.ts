@@ -17,7 +17,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
+import { composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
+import { branchIdsFor, branchSetKey } from '@/instruments/derive';
+import type { Composed } from '@/instruments/compose';
+import { useDemandedGroups } from './useDemandedGroups';
+import type { NodeRegistry } from '@/dag';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
@@ -37,15 +41,15 @@ import { prefillName } from './recording/naming';
 import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus } from './faceStatus';
 import { useMidiStatus } from './midiStatus';
-import { useGenerativeStatus, makeGenerativeReporter } from './generativeStatus';
+import { useGenerativeStatus, makeGenerativeReporter, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
-import { useConductorStatus, makeConductorReporter } from './conductorStatus';
-import { useAirDrumStatus, makeAirDrumReporter } from './airDrumStatus';
-import { useAirBassStatus, makeAirBassReporter } from './airBassStatus';
-import { useAirGuitarStatus, makeAirGuitarReporter, AIR_GUITAR_NODE_ID } from './airGuitarStatus';
+import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
+import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from './airDrumStatus';
+import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from './airBassStatus';
+import { useAirGuitarStatus, makeAirGuitarReporter, AIR_GUITAR_NODE_ID, ABSENT_AIR_GUITAR_LIVE } from './airGuitarStatus';
 import { makeShapeTap, clearShapes } from './air/shapeTap';
-import { useAirFluteStatus, makeAirFluteReporter, AIR_FLUTE_NODE_ID } from './airFluteStatus';
+import { useAirFluteStatus, makeAirFluteReporter, AIR_FLUTE_NODE_ID, ABSENT_AIR_FLUTE_LIVE } from './airFluteStatus';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -96,7 +100,56 @@ export type RecordingPhase = 'idle' | 'settings' | 'recording' | 'saving';
  */
 function reportApplyFailure(engine: Engine, live: Engine | null, err: unknown): void {
   if (live !== engine) return;
-  console.error('[thoremin] could not apply the slot selection', err);
+  console.error('[thoremin] could not apply the instrument graph', err);
+}
+
+/**
+ * The graph the LIVE instrument needs right now (the instruments-as-graphs ADR, PR 3):
+ * the branches its dials and the live feature demand imply, composed for the slot
+ * selection. Writes the composed overlay element set to the hot store FIRST, so the
+ * overlay reads it through `store-controls` on the same tick the new graph commits, and
+ * never as a param (a param change would rebuild the overlay node on every switch).
+ */
+function currentBranchKey(): string {
+  const controls = useControls.getState();
+  return branchSetKey(branchIdsFor(controls, { demanded: featureDemandResource(), featureLab: controls.featureLab }));
+}
+
+function liveGraph(selection: SlotSelection, registry: NodeRegistry): Composed {
+  const controls = useControls.getState();
+  const ids = branchIdsFor(controls, { demanded: featureDemandResource(), featureLab: controls.featureLab });
+  return composeInstrumentGraph(ids, selection, registry);
+}
+
+/**
+ * Re-wire a RUNNING engine onto the live graph. The overlay's element set is written when
+ * the apply COMMITS (never at plan time: during the seconds a face or body model prepares,
+ * the old graph is still playing and must keep its own elements; and a rejected apply must
+ * leave the store describing the graph that is actually running). Nodes the apply removed
+ * get their status stores reset, so a panel never shows a node that no longer exists.
+ */
+function applyLive(engine: Engine, selection: SlotSelection, registry: NodeRegistry, live: Engine | null): void {
+  const next = liveGraph(selection, registry);
+  void engine
+    .applyGraph(next.spec, registry)
+    .then((change) => {
+      if (live !== null && live !== engine) return;
+      useControls.getState().setGraphElements(next.elements);
+      resetStatusesOf(change.removed);
+    })
+    .catch((err) => reportApplyFailure(engine, live, err));
+}
+
+/** The status stores that mirror a branch node, by node id; reset when the node leaves. */
+function resetStatusesOf(removed: readonly string[]): void {
+  for (const id of removed) {
+    if (id === AIR_DRUM_NODE_ID) useAirDrumStatus.getState().report(ABSENT_AIR_DRUM_LIVE);
+    else if (id === AIR_BASS_NODE_ID) useAirBassStatus.getState().report(ABSENT_AIR_BASS_LIVE);
+    else if (id === AIR_GUITAR_NODE_ID) useAirGuitarStatus.getState().report(ABSENT_AIR_GUITAR_LIVE);
+    else if (id === AIR_FLUTE_NODE_ID) useAirFluteStatus.getState().report(ABSENT_AIR_FLUTE_LIVE);
+    else if (id === GENERATIVE_NODE_ID) useGenerativeStatus.getState().report(ABSENT_GENERATIVE_STATUS);
+    else if (id === CONDUCTOR_NODE_ID) useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE);
+  }
 }
 
 export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: SlotSelection = NO_SLOTS) {
@@ -135,6 +188,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
   const slotsKey = slotSelectionKey(slots);
+  // The branch SET the current dials and demand imply, as a key: it changes on an
+  // instrument switch, on a dial that adds or drops a capability, and on a tool's claim.
+  // Unrelated dial edits leave it alone, so the re-apply effect below never fires for them.
+  const demanded = useDemandedGroups();
+  const branchKey = useControls((s) => branchSetKey(branchIdsFor(s, { demanded, featureLab: s.featureLab })));
 
   useEffect(() => {
     let disposed = false;
@@ -267,7 +325,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // back (with a warning) on anything that would not satisfy the slot
         // contract, so a stale URL can never produce an unbuildable graph.
         let builtKey = slotSelectionKey(slotsRef.current);
-        const engine = new Engine(defaultGraph(slotsRef.current, registry), registry, { resources });
+        let builtBranchKey = currentBranchKey();
+        const live = liveGraph(slotsRef.current, registry);
+        // The first graph has no predecessor, so its element set is written at once.
+        useControls.getState().setGraphElements(live.elements);
+        const engine = new Engine(live.spec, registry, { resources });
 
         // Trainer mode (#160) needs to see the same feature vector the Lab meters read.
         // Attached once, for the engine's whole life: it is one object spread per tick
@@ -302,11 +364,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
 
         // The selection may have changed during the model load, while the
         // re-wire effect below had no engine to talk to yet. Reconcile once.
-        if (slotSelectionKey(slotsRef.current) !== builtKey) {
+        // The selection or the branch set may have changed during the model load (an
+        // instrument pick, the restored session, a Trainer claim), while the re-wire effects
+        // below had no engine to talk to yet. Reconcile once.
+        if (slotSelectionKey(slotsRef.current) !== builtKey || currentBranchKey() !== builtBranchKey) {
           builtKey = slotSelectionKey(slotsRef.current);
-          void engine
-            .applyGraph(defaultGraph(slotsRef.current, registry), registry)
-            .catch((err) => reportApplyFailure(engine, engineRef.current, err));
+          builtBranchKey = currentBranchKey();
+          applyLive(engine, slotsRef.current, registry, engineRef.current);
         }
 
         // Bridge the face model's status + classified expression from the DAG
@@ -518,10 +582,21 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const engine = engineRef.current;
     const registry = registryRef.current;
     if (!engine || !registry) return;
-    void engine
-      .applyGraph(defaultGraph(slotsRef.current, registry), registry)
-      .catch((err) => reportApplyFailure(engine, engineRef.current, err));
+    applyLive(engine, slotsRef.current, registry, engineRef.current);
   }, [slotsKey]);
+
+  // Re-wire the LIVE engine when the branch set changes (an instrument switch, a dial that
+  // turns a capability on or off, a tool's feature demand). Same mechanism as the slot
+  // swap: `applyGraph` keeps every node whose id, type and params are unchanged, so the
+  // trunk (camera, hand model, synth, overlay) plays on and only the branch nodes come and
+  // go. On mount this finds no engine yet and no-ops; the build effect composes the same
+  // set itself. `applyGraph` serialises overlapping calls, so a burst of changes is safe.
+  useEffect(() => {
+    const engine = engineRef.current;
+    const registry = registryRef.current;
+    if (!engine || !registry) return;
+    applyLive(engine, slotsRef.current, registry, engineRef.current);
+  }, [branchKey]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.
   // This is the host-level catch-all mute (belt-and-suspenders with the in-graph

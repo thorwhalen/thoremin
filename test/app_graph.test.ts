@@ -86,7 +86,8 @@ describe('production app graph', () => {
     expect(has('camBody', 'body', 'overlay', 'bodyFrame')).toBe(true);
     expect(has('camBody', 'status', 'overlay', 'bodyStatus')).toBe(true);
     // The body node is a slot candidate, so it declares NO inputs: its gate is the
-    // `body.enabled` dial read off the control store (see `bodyActive`), not a port.
+    // `body.enabled` dial: since the ADR's PR 3 it decides whether the body branch is
+    // composed at all (`branchIdsFor`), not a port.
     expect(edges.filter((e) => e.to.node === 'camBody')).toEqual([]);
   });
 

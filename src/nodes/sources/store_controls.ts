@@ -111,6 +111,7 @@ export interface ControlSnapshot {
   /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
+  graphElements?: string[] | null;
 }
 
 const Params = z.object({});
@@ -205,6 +206,9 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
+    // The composed graph's overlay element set (the instruments-as-graphs ADR, §3.2 rule
+    // 4): data on a port, never an overlay param, so a switch keeps the overlay instance.
+    { name: 'graphElements', kind: 'string[]' },
   ],
   params: Params,
   make() {
@@ -274,6 +278,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         out.airFluteFingerModel = c.airFluteFingerModel ?? null;
         out.airFluteMouthModel = c.airFluteMouthModel ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
+        if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {
           out.chordConfig = {
             sound: c.faceChord.sound,

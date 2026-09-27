@@ -39,6 +39,15 @@ function edgeKey(e: EdgeSpec): string {
 
 const sorted = (xs: string[]): string[] => [...xs].sort();
 
+/** Edges the branch table gained AFTER the snapshot, each named here so the golden stays
+ *  exact: the composed graph must equal the fixture plus exactly these. */
+const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
+  // PR 3: the air flute's status feeds its breath cue on the overlay.
+  { from: { node: 'airFlute', port: 'status' }, to: { node: 'overlay', port: 'airFluteStatus' } },
+  // PR 3: the composed element set reaches the overlay through the UI bridge.
+  { from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } },
+];
+
 describe('composed graph == the hand-listed graph (golden)', () => {
   const registry = createAppRegistry();
 
@@ -50,8 +59,9 @@ describe('composed graph == the hand-listed graph (golden)', () => {
       expect(composed.nodes).toHaveLength(golden.nodes.length);
       expect(sorted(composed.nodes.map(nodeKey))).toEqual(sorted(golden.nodes.map(nodeKey)));
 
-      expect(composed.edges).toHaveLength(golden.edges.length);
-      expect(sorted(composed.edges.map(edgeKey))).toEqual(sorted(golden.edges.map(edgeKey)));
+      const expected = [...golden.edges, ...ADDED_SINCE_SNAPSHOT];
+      expect(composed.edges).toHaveLength(expected.length);
+      expect(sorted(composed.edges.map(edgeKey))).toEqual(sorted(expected.map(edgeKey)));
     });
   }
 
