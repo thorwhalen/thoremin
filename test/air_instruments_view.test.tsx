@@ -21,12 +21,13 @@ import { TOOLS } from '@/app/tools';
 import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@/app/airDrumStatus';
 import { AirDrumReadout } from '@/app/dials/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
-import type { AirDrumSettings, AirBassSettings, AirGuitarSettings } from '@/settings/schema';
+import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/settings/schema';
 import type { HandMap } from '@/nodes/mapping/hand_map';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;
 const airBass = () => dialsStore.getState().effective.airBass as AirBassSettings;
 const airGuitar = () => dialsStore.getState().effective.airGuitar as AirGuitarSettings;
+const airFlute = () => dialsStore.getState().effective.airFlute as AirFluteSettings;
 const handMap = () => dialsStore.getState().effective.handMap as HandMap;
 
 beforeAll(() => {
@@ -116,8 +117,30 @@ describe('the Air instruments category (#249)', () => {
     fireEvent.click(within(air).getByLabelText('Edit Air Guitar'));
     const sections = document.querySelectorAll('details[data-section]');
     expect(sections[0]?.getAttribute('data-section')).toBe('Air guitar');
-    expect(screen.getByTestId('shape-enrolment')).toBeTruthy();
-    expect(screen.getByLabelText('Chord to learn')).toBeTruthy();
+    const section = sections[0] as HTMLElement;
+    expect(within(section).getByTestId('shape-enrolment')).toBeTruthy();
+    expect(within(section).getByLabelText('Chord to learn')).toBeTruthy();
+  });
+
+  it('plays the air flute the same way; its settings carry both enrolment steps', async () => {
+    render(<InstrumentsPanel />);
+    const air = await airGroup();
+    fireEvent.click(within(air).getByText('Air Flute'));
+    await waitFor(() => expect(airFlute().enabled).toBe(true));
+    expect(within(air).getByTitle('Air flute')).toBeTruthy();
+    expect(await within(air).findByTestId('air-flute-live')).toBeTruthy();
+    fireEvent.click(within(air).getByLabelText('Edit Air Flute'));
+    const section = document.querySelector('details[data-section]') as HTMLElement;
+    expect(section.getAttribute('data-section')).toBe('Air flute');
+    expect(within(section).getByLabelText('Note to learn')).toBeTruthy();
+    expect(within(section).getByText('Learn blowing')).toBeTruthy();
+    expect(within(section).getByText('Learn resting')).toBeTruthy();
+    // Fingers only: the breath enrolment goes away. (First let the editor's own
+    // re-load of the instrument land, or it would restore the saved breath.)
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    fireEvent.change(within(section).getByLabelText('Breath'), { target: { value: 'always' } });
+    await waitFor(() => expect(airFlute().breath).toBe('always'));
+    await waitFor(() => expect(within(section).queryByText('Learn blowing')).toBeNull());
   });
 
   it("opens the air drum's settings on its own section, first", async () => {

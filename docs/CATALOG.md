@@ -73,7 +73,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (45)
+## Nodes (46)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airGuitarModel:shape-model, bodyMap:body-map, scoreDoc:score-doc
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airGuitarModel:shape-model, airFlute:air-flute-config, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, bodyMap:body-map, scoreDoc:score-doc
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -285,10 +285,10 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 - **params:** minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)
 
 #### `synth-merge` — Synth Merge
-Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord); master mute.
+Union up to five synth-params voice streams into one (hand voices, emotion chord, pose chord, conducted score, air flute); master mute.
 
 - **roles:** mapping
-- **in:** a:synth-params, b:synth-params, c:synth-params, d:synth-params, mute:boolean
+- **in:** a:synth-params, b:synth-params, c:synth-params, d:synth-params, e:synth-params, mute:boolean
 - **out:** params:synth-params
 - **params:** —
 
@@ -412,6 +412,14 @@ Strum chords in the air: the fretting hand's shape is classified against the pla
 - **in:** hands:hands-frame, config:air-guitar-config, model:shape-model, octaveShift:number
 - **out:** notes:note-events, shape:feature-vector, status:air-guitar-status, enabled:boolean
 - **params:** enabled (boolean=false), strumHand (enum(right | left)="right"), strumPoint (enum(wrist | indexTip)="wrist"), strumSpread (number=0.012), minLead (number=0.05), minStroke (number=0.03), minSpeed (number=0.5), volume (number=0.7), enterFrames (number=3), mirrorHandedness (boolean=true)
+
+#### `air-flute` — Air flute
+Play a flute in the air: large finger lifts of both hands, enrolled per player and named by their note, choose the note; the player's enrolled blowing mouth (or a held fingering alone) sounds it as a sustained voice. Off by default.
+
+- **roles:** feature, mapping
+- **in:** hands:hands-frame, face:feature-vector, faceFrame:face-frame, config:air-flute-config, fingerModel:shape-model, mouthModel:shape-model, octaveShift:number
+- **out:** params:synth-params, shape:feature-vector, mouth:feature-vector, status:air-flute-status, enabled:boolean
+- **params:** enabled (boolean=false), breath (enum(mouth | always)="mouth"), volume (number=0.5), enterFrames (number=3), breathFrames (number=2), faceHold (number=0.3), mirrorHandedness (boolean=true)
 
 #### `pluck-out` — Pluck out
 Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).

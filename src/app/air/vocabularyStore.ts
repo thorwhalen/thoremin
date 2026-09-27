@@ -21,8 +21,14 @@ import { z } from 'zod';
 import { create } from 'zustand';
 import type { DataProvider } from '@zodal/store';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
-import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type Vocabulary } from '@/air/vocabulary';
+import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type TrainVocabularyOptions, type Vocabulary } from '@/air/vocabulary';
 import { chordShapeFeatureIds } from '@/features/hand_shape';
+import { ALL_FEATURES } from '@/features/catalog';
+import { MOUTH_GROUPS } from '@/nodes/music/air_flute';
+
+/** The mouth gate's reject, in multiples of the enrolment's own reach (see
+ *  `TrainVocabularyOptions.rejectScale`). */
+export const MOUTH_REJECT_SCALE = 3;
 import type { FeatureVector, TrainedModel } from '@/enroll';
 import { useControls } from '@/app/store';
 
@@ -74,6 +80,8 @@ export interface VocabularySpec {
   features: readonly string[];
   /** Hand the derived classifier to the instrument (the hot store's transient slot). */
   publish: (model: TrainedModel | null) => void;
+  /** How the classifier is trained (closed-set by default). */
+  train?: TrainVocabularyOptions;
 }
 
 /**
@@ -81,11 +89,11 @@ export interface VocabularySpec {
  * entries, and on every change persist the samples and publish the classifier derived
  * from them. The guitar is one call below; the flute is another.
  */
-export function createVocabularyState({ name, features, publish }: VocabularySpec) {
+export function createVocabularyState({ name, features, publish, train = {} }: VocabularySpec) {
   return create<VocabularyState>()((set, get) => {
     const commit = async (vocab: Vocabulary): Promise<void> => {
       set({ vocab });
-      publish(trainVocabulary(vocab));
+      publish(trainVocabulary(vocab, train));
       try {
         await getStore().save(name, vocab);
         set({ error: null });
@@ -101,7 +109,7 @@ export function createVocabularyState({ name, features, publish }: VocabularySpe
         const rec = await getStore().load(name);
         const vocab = rec?.vocabulary ?? emptyVocabulary(features);
         set({ vocab, loaded: true });
-        publish(trainVocabulary(vocab));
+        publish(trainVocabulary(vocab, train));
       },
       enrol: (label, samples) => commit(withEntry(get().vocab, label, samples)),
       remove: (label) => commit(withoutEntry(get().vocab, label)),
@@ -119,8 +127,24 @@ export const useGuitarVocabulary = createVocabularyState({
   publish: (model) => useControls.getState().setAirGuitarModel(model),
 });
 
+/** The air flute's fingerings: both hands' shapes, prefixed by the player's hand. */
+export const useFluteFingerVocabulary = createVocabularyState({
+  name: 'flute-fingers',
+  features: ['l.', 'r.'].flatMap((p) => chordShapeFeatureIds().map((id) => p + id)),
+  publish: (model) => useControls.getState().setAirFluteFingerModel(model),
+});
+
+/** The air flute's two mouth states (blowing, resting), over the face's mouth features. */
+export const useFluteMouthVocabulary = createVocabularyState({
+  name: 'flute-mouth',
+  features: ALL_FEATURES.filter((f) => (MOUTH_GROUPS as readonly string[]).includes(f.group)).map((f) => f.id),
+  publish: (model) => useControls.getState().setAirFluteMouthModel(model),
+  // A gate, so open-set: a mouth like neither state (talking, a smile) is not blowing.
+  train: { rejectScale: MOUTH_REJECT_SCALE },
+});
+
 /** Every air instrument's vocabulary, for the app to load once at start. */
-export const AIR_VOCABULARIES = [useGuitarVocabulary] as const;
+export const AIR_VOCABULARIES = [useGuitarVocabulary, useFluteFingerVocabulary, useFluteMouthVocabulary] as const;
 
 /** Load every air vocabulary (App start), so each classifier is live before anyone opens
  *  its instrument's settings. */

@@ -35,7 +35,7 @@ export const synthMergeNode = defineNode({
   type: 'synth-merge',
   roles: ['mapping'],
   title: 'Synth Merge',
-  description: 'Union up to three synth-params voice streams into one (hand voices + emotion chord + pose chord); master mute.',
+  description: 'Union up to five synth-params voice streams into one (hand voices, emotion chord, pose chord, conducted score, air flute); master mute.',
   inputs: [
     { name: 'a', kind: 'synth-params' },
     { name: 'b', kind: 'synth-params' },
@@ -43,6 +43,8 @@ export const synthMergeNode = defineNode({
     { name: 'c', kind: 'synth-params' },
     // Optional fourth stream (#187: the conducted score); absent → contributes nothing.
     { name: 'd', kind: 'synth-params' },
+    // Optional fifth stream (#249: the air flute's sustained voice).
+    { name: 'e', kind: 'synth-params' },
     // Master mute: true → silence every merged voice at this single convergence
     // point (all producers pass through here). Absent → false (passthrough).
     { name: 'mute', kind: 'boolean', default: false },
@@ -53,7 +55,8 @@ export const synthMergeNode = defineNode({
     const b = asParams(inputs.b);
     const c = asParams(inputs.c);
     const d = asParams(inputs.d);
-    const voices = [...a.voices, ...b.voices, ...c.voices, ...d.voices];
+    const e = asParams(inputs.e);
+    const voices = [...a.voices, ...b.voices, ...c.voices, ...d.voices, ...e.voices];
     // Master mute: zero every voice (and mark it absent) so hands + both chord
     // instruments go quiet together. The synth's per-voice release ramp makes
     // this a smooth, click-free fade rather than an abrupt cut.

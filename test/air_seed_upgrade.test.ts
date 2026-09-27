@@ -29,6 +29,7 @@ describe('upgrading a browser seeded before the air instruments', () => {
     await ensureSeeded();
     await instruments.remove('Air Bass');
     await instruments.remove('Air Guitar');
+    await instruments.remove('Air Flute');
     localStorage.setItem('thoremin.instruments.seedVersion', '4');
 
     await ensureSeeded();
@@ -37,5 +38,7 @@ describe('upgrading a browser seeded before the air instruments', () => {
     expect((airBass?.airBass as { enabled?: boolean } | undefined)?.enabled).toBe(true);
     const airGuitar = await instruments.load('Air Guitar');
     expect((airGuitar?.airGuitar as { enabled?: boolean } | undefined)?.enabled).toBe(true);
+    const airFlute = await instruments.load('Air Flute');
+    expect((airFlute?.airFlute as { enabled?: boolean } | undefined)?.enabled).toBe(true);
   });
 });

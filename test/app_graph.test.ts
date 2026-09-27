@@ -6,6 +6,7 @@
  * here, so the app registry is Node-importable.
  */
 import { describe, it, expect } from 'vitest';
+import { FLUTE_VOICE_ID } from '@/nodes/music/air_flute';
 import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
 import { Engine, StreamRecorder } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
@@ -70,10 +71,10 @@ describe('production app graph', () => {
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
     // source, its vector tap and the body-route (#186 PR E) + the #141/#188 generative
     // pair (indirect-map + lyria) + the #187 conductor and score + the #249 air bass and
-    // its pluck scheduler + the air guitar and its pluck scheduler.
+    // its pluck scheduler + the air guitar and its pluck scheduler + the air flute.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    expect(order).toHaveLength(31);
+    expect(order).toHaveLength(32);
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
@@ -276,11 +277,12 @@ describe('production app graph', () => {
     // emotion-chord voices (2..5) + the 5 stable pose-chord voices (6..10) — all
     // distinct ids, all silent while both face chord sources are idle (#76). The score
     // (#187) emits voices only while its notes sound (ids from 11), and conducting is
-    // off here, so it contributes none.
+    // off here, so it contributes none. The air flute (#249) always carries its one
+    // voice, absent while it is off (so a flute switched off mid-note fades).
     const merged = recorder.values('merge.params') as SynthParams[];
     const ids = merged[0].voices.map((v) => v.id);
-    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    expect(new Set(ids).size).toBe(11); // no id collision across hands + both chords
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, FLUTE_VOICE_ID]);
+    expect(new Set(ids).size).toBe(12); // no id collision across hands + both chords + flute
     expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });
 });

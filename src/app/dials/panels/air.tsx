@@ -14,6 +14,7 @@ import type { AirInstrumentId } from '@/app/library/category';
 import { AirDrumControls, AirDrumReadout } from './airDrum';
 import { AirBassControls, AirBassReadout } from './airBass';
 import { AirGuitarControls, AirGuitarReadout } from './airGuitar';
+import { AirFluteControls, AirFluteReadout } from './airFlute';
 
 export interface AirInstrumentUi {
   /** The editor section's title (also its `data-section` hook). */
@@ -28,4 +29,5 @@ export const AIR_UI = {
   drum: { section: 'Air drum', Controls: AirDrumControls, Readout: AirDrumReadout },
   bass: { section: 'Air bass', Controls: AirBassControls, Readout: AirBassReadout },
   guitar: { section: 'Air guitar', Controls: AirGuitarControls, Readout: AirGuitarReadout },
+  flute: { section: 'Air flute', Controls: AirFluteControls, Readout: AirFluteReadout },
 } as const satisfies Record<AirInstrumentId, AirInstrumentUi>;
