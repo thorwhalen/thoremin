@@ -15,7 +15,10 @@ describe('choosing the microphone', () => {
     for (const l of ['AirPods Pro', 'Powerbeats Pro', 'Bose QC45', 'Jabra Evolve2', 'WH-1000XM4', 'Galaxy Buds2', 'Hands-Free AG Audio', 'Plantronics BT600']) {
       expect(isHeadsetMic(l), l).toBe(true);
     }
-    for (const l of ['MacBook Air Microphone', 'MacBook Pro Microphone', 'Built-in Microphone', 'Blue Yeti', 'Scarlett 2i2 USB']) expect(isHeadsetMic(l), l).toBe(false);
+    // A studio microphone is not a headset, whoever made it.
+    for (const l of ['MacBook Air Microphone', 'MacBook Pro Microphone', 'Built-in Microphone', 'Blue Yeti', 'Scarlett 2i2 USB', 'Sennheiser MK 4', 'Shure MV7', 'RODE NT-USB']) {
+      expect(isHeadsetMic(l), l).toBe(false);
+    }
   });
 
   it("switches off a headset's microphone to the computer's, and never to a pseudo-device", () => {
@@ -60,6 +63,8 @@ describe("noticing a call-quality recording", () => {
     expect(unsteadyLag(steady)).toBeNull();
     const stepped = steady.map((x, i) => (i < 8 ? x : x + 130));
     expect(unsteadyLag(stepped)).toMatch(/stepped by 1[23]\d ms/);
+    // A 40 ms step: half the air beats would inherit a lag 40 ms off.
+    expect(unsteadyLag(steady.map((x, i) => (i < 8 ? x : x + 40)))).toMatch(/stepped by (3[5-9]|4\d) ms/);
     const scattered = steady.map((x, i) => x + (i % 2 ? 90 : -90));
     expect(unsteadyLag(scattered)).toMatch(/scatters/);
   });

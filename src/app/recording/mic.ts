@@ -15,11 +15,11 @@
  * after the first open, not before.
  */
 
-/** Device names that are a headset's microphone rather than the computer's. Deliberately
- *  broad: a false positive only means the computer's microphone is preferred, which is
- *  the point. */
+/** Device names that are a headset's microphone rather than the computer's. Headset
+ *  brands and words only: a maker of studio microphones too (Sennheiser, Sony, Shure,
+ *  Rode) is left out, or a USB studio microphone would be swapped for the laptop's. */
 export const HEADSET_MIC_PATTERN =
-  /airpods|beats|headset|headphone|hands-?free|bluetooth|buds|bose|jabra|sony|sennheiser|\bwh-|\bwf-|plantronics|poly\b|shokz|aftershokz|skullcandy/i;
+  /airpods|beats|headset|headphone|hands-?free|bluetooth|buds|bose|jabra|\bwh-|\bwf-|plantronics|poly\b|shokz|skullcandy/i;
 
 export const isHeadsetMic = (label: string): boolean => HEADSET_MIC_PATTERN.test(label);
 

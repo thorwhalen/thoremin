@@ -369,6 +369,9 @@ export interface GridMatch {
   matched: (number | null)[];
   /** The lag the matching settled on (seconds), or null with nothing to go on. */
   lagS: number | null;
+  /** Two beat numberings matched equally well and nothing broke the tie: `matched` is
+   *  all null rather than possibly a beat off everywhere. */
+  ambiguous?: boolean;
 }
 
 /**
@@ -384,17 +387,25 @@ export const MAX_PLAUSIBLE_LAG_S = 0.6;
  * 1. The lag's position within the beat, from the grid ({@link gridLag}).
  * 2. WHICH beat. The phase alone cannot tell a 600 ms lag at 80 bpm from a tap 150 ms
  *    early. The candidates are the phase plus 0, 1, ... beats up to
- *    {@link MAX_PLAUSIBLE_LAG_S}; the one that matches the most events wins, and a tie
- *    goes to the one the first event after the count-in points at (nobody plays during
- *    the count-in), else to the smallest. Counting matches, not trusting the first event
- *    alone, is what survives a first tap too soft to hear.
+ *    {@link MAX_PLAUSIBLE_LAG_S}; the one that matches the most events wins. A tie (only
+ *    possible at fast tempos, where a beat is shorter than the plausible lag, and only
+ *    with taps missing at an end) goes to the candidate nearest `priorLagS` (the lag the
+ *    player showed in the other phrases); with no prior it is AMBIGUOUS and nothing is
+ *    matched: a phrase with no labels is recoverable, one labelled a beat off is not.
+ *    (The first event after the count-in is not a tie-breaker: a first tap too soft to
+ *    hear makes it point one beat late.)
  * 3. Each click takes the EARLIEST event within a quarter beat of `click + lag` (a tap's
  *    bounce follows it and must not replace it); then the lag is re-read as the median
  *    of those matches (the phase estimate is pulled by bounces) and matched once more.
  *
  * Events must be sorted.
  */
-export function matchOnGrid(clicks: readonly number[], events: readonly number[], beatS: number): GridMatch {
+export function matchOnGrid(
+  clicks: readonly number[],
+  events: readonly number[],
+  beatS: number,
+  { priorLagS }: { priorLagS?: number | null } = {},
+): GridMatch {
   const phase = gridLag(clicks, events, beatS);
   if (phase === null || clicks.length === 0) {
     return { matched: matchToClicks(clicks, events, beatS / 2), lagS: null };
@@ -403,14 +414,15 @@ export function matchOnGrid(clicks: readonly number[], events: readonly number[]
     clicks.map((c) => events.find((e) => e >= c + l - beatS / 4 && e <= c + l + beatS / 4) ?? null);
   const count = (m: (number | null)[]) => m.filter((x) => x !== null).length;
   const kMax = Math.max(0, Math.floor((MAX_PLAUSIBLE_LAG_S - phase) / beatS));
-  const first = events.find((e) => e >= clicks[0] - beatS / 4);
-  const kFirst = first === undefined ? 0 : Math.min(kMax, Math.max(0, Math.round((first - clicks[0] - phase) / beatS)));
-  let best = { k: 0, n: -1 };
-  for (let k = 0; k <= kMax; k++) {
-    const n = count(pick(phase + k * beatS));
-    if (n > best.n || (n === best.n && k === kFirst)) best = { k, n };
+  const counts = Array.from({ length: kMax + 1 }, (_, k) => count(pick(phase + k * beatS)));
+  const top = Math.max(...counts);
+  const tied = counts.flatMap((n, k) => (n === top ? [k] : []));
+  let k = tied[0];
+  if (tied.length > 1) {
+    if (priorLagS === null || priorLagS === undefined) return { matched: clicks.map(() => null), lagS: null, ambiguous: true };
+    k = tied.reduce((a, b) => (Math.abs(phase + b * beatS - priorLagS) < Math.abs(phase + a * beatS - priorLagS) ? b : a));
   }
-  let lag = phase + best.k * beatS;
+  let lag = phase + k * beatS;
   let matched = pick(lag);
   const lags = matched.flatMap((e, i) => (e === null ? [] : [e - clicks[i]]));
   if (lags.length > 0) {
@@ -439,7 +451,9 @@ export function unsteadyLag(lagsMs: readonly (number | null)[]): string | null {
 /** A tapping player's scatter around a metronome is ~20-30 ms SD (MAD ~15-20); beyond
  *  these, the air half's inherited lag is not one number. */
 const MAX_LAG_MAD_MS = 35;
-const MAX_LAG_STEP_MS = 50;
+// Two medians of eight beats each differ by ~16 ms SD from tapping scatter alone; 35 is
+// past two of those, and a 40 ms Bluetooth step (half the air beats off by 40) is caught.
+const MAX_LAG_STEP_MS = 35;
 
 /**
  * Whether the recording has content above 8 kHz where it matters: over the first 20 ms
@@ -789,6 +803,20 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
   const toRow = (tRel: number | null): number | null =>
     tRel === null || !micToRows ? null : Math.round((tRel - (micToRows.offsetMs + micToRows.driftMsPerS * (tRel - micToRows.atS)) / 1000) * 1e6) / 1e6;
 
+  // The player's lag over the whole routine, from the phrases whose beat numbering is not
+  // in doubt: the tie-breaker for any phrase whose numbering is (see matchOnGrid).
+  const realMatchPrior = (() => {
+    const lags: number[] = [];
+    for (const c of take.cues) {
+      if (c.pairing?.surface !== 'real') continue;
+      const w = windowOf(c.id);
+      if (!w) continue;
+      const g = matchOnGrid(beatClicks(w), onsetsAbs.filter((t) => inWindow(t, w)), beatMsOf(c) / 1000);
+      if (!g.ambiguous && g.lagS !== null) lags.push(g.lagS);
+    }
+    return lags.length ? median(lags) : null;
+  })();
+
   // The phrases, by their pairing.
   const phraseIds: string[] = [];
   for (const c of take.cues) if (c.pairing && !phraseIds.includes(c.pairing.phrase)) phraseIds.push(c.pairing.phrase);
@@ -809,7 +837,10 @@ export function pairTake(take: Take, audio: Wav | null, features: readonly Featu
     let lagMs: number | null = null;
     if (realCue && rw) {
       const clicks = beatClicks(rw);
-      const { matched, lagS } = matchOnGrid(clicks, onsetsAbs.filter((t) => inWindow(t, rw)), beatMs / 1000);
+      const { matched, lagS, ambiguous } = matchOnGrid(clicks, onsetsAbs.filter((t) => inWindow(t, rw)), beatMs / 1000, { priorLagS: realMatchPrior });
+      if (ambiguous) {
+        warnings.push(`Phrase "${phrase}": taps are missing at an end and two beat numberings fit equally well, with no other phrase to decide; its beats are left unlabelled rather than risk every one being a beat off.`);
+      }
       if (lagS !== null && lagS > beatMs / 2000) {
         warnings.push(
           `Phrase "${phrase}": the taps land ${Math.round(lagS * 1000)} ms after their clicks, over half a beat; the beat numbering assumes the first tap after the count-in was beat 1.`,

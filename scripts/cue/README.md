@@ -58,7 +58,7 @@ Times are on one of three clocks, and the field names say which. The **engine cl
 | `beats[i].air.levelDb`, `.chroma` | Inherited from the real beat of the same index (the phrase asked for the same thing). |
 | `micToRows` | `offsetMs` (median of clap heard − clap seen, at the first usable slate, `atS`) and `driftMsPerS` (from the last). Null without a usable slate, and then so are the `*Row` fields. See "The slates". |
 | `slates` | Each slate's claps (click, heard on the mic clock, seen on the row clock), its `offsetMs` and `madMs`. |
-| `warnings` | Missing halves, which real beats were unheard, sound on the air beats (click bleed, or a touched surface), a missing slate, a low sample rate. |
+| `warnings` | Missing halves, which real beats were unheard, a phrase left unlabelled because two beat numberings fit equally (fast tempos with taps missing at an end), a lag that scattered or stepped (a Bluetooth delay that moved), sound on the air beats (click bleed, or a touched surface), a missing slate, a low sample rate. |
 
 Beside it: `<phrase>.real.features.jsonl`, `<phrase>.air.features.jsonl` and one `<slate cue>.features.jsonl` per slate, the take's own feature rows for each half, untouched, so anything computed later joins back on `t`; and `mic.wav`, to listen against the labels.
 

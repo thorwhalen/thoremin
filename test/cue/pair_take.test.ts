@@ -452,11 +452,15 @@ describe('scripts/cue: the audio labels', () => {
       const { matched } = matchOnGrid(clicks, taps, 0.75);
       matched.forEach((x, i) => expect(x).toBe(taps[i]));
     }
-    // Beyond 3/4 of a beat the phase reads early (580 ms at 80 bpm reads -170 ms); the
-    // beat count settles it, with the first tap missing and with the last one missing.
+    // Beyond 3/4 of a beat the phase reads early (580 ms at 80 bpm reads -170 ms), and
+    // the match count settles which beat: all heard, or the first tap unheard (the true
+    // numbering then still matches one more). With the LAST tap unheard the two numberings
+    // truly tie: without a prior the phrase is left unlabelled, with one it is right.
     const late = clicks.map((c) => c + 0.58);
-    expect(matchOnGrid(clicks, late.slice(1), 0.75).matched.slice(1)).toEqual(late.slice(1));
-    expect(matchOnGrid(clicks, late.slice(0, -1), 0.75).matched.slice(0, -1)).toEqual(late.slice(0, -1));
+    expect(matchOnGrid(clicks, late, 0.75).matched).toEqual(late);
+    expect(matchOnGrid(clicks, late.slice(1), 0.75).matched).toEqual([null, ...late.slice(1)]);
+    expect(matchOnGrid(clicks, late.slice(0, -1), 0.75).ambiguous).toBe(true);
+    expect(matchOnGrid(clicks, late.slice(0, -1), 0.75, { priorLagS: 0.57 }).matched).toEqual([...late.slice(0, -1), null]);
     // A bounce 80 ms after every tap never replaces its tap.
     const taps = clicks.map((c) => c + 0.3);
     const withBounces = [...taps, ...taps.map((t) => t + 0.08)].sort((a, b) => a - b);
@@ -464,6 +468,17 @@ describe('scripts/cue: the audio labels', () => {
     // First four taps unheard (soft): numbering must not slide by four beats.
     const softStart = taps.map((t, i) => (i < 4 ? null : t));
     expect(matchOnGrid(clicks, taps.slice(4), 0.75).matched).toEqual(softStart);
+    // Fast tempo (160 bpm, beat 375 ms), player 30 ms early, first tap unheard: lag -30
+    // and lag +345 both match 15 of 16. Without a prior the phrase is left unlabelled;
+    // with the player's lag from other phrases it is numbered right.
+    const fast = Array.from({ length: 16 }, (_, i) => 10 + i * 0.375);
+    const early = fast.map((c) => c - 0.03);
+    const tie = matchOnGrid(fast, early.slice(1), 0.375);
+    expect(tie.ambiguous).toBe(true);
+    expect(tie.matched.every((x) => x === null)).toBe(true);
+    const resolved = matchOnGrid(fast, early.slice(1), 0.375, { priorLagS: -0.02 });
+    expect(resolved.ambiguous).toBeUndefined();
+    expect(resolved.matched).toEqual([null, ...early.slice(1)]);
     // Nothing regular: no lag claimed.
     expect(gridLag(clicks, [10.0, 10.2, 10.45, 10.6], 0.75)).toBeNull(); // phases spread round the beat
   });
