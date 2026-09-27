@@ -69,10 +69,11 @@ describe('production app graph', () => {
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
     // source, its vector tap and the body-route (#186 PR E) + the #141/#188 generative
-    // pair (indirect-map + lyria) + the #187 conductor and score.
+    // pair (indirect-map + lyria) + the #187 conductor and score + the #249 air bass and
+    // its pluck scheduler.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    expect(order).toHaveLength(27);
+    expect(order).toHaveLength(29);
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {

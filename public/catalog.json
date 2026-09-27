@@ -1,5 +1,94 @@
 [
   {
+    "type": "air-bass",
+    "title": "Air bass",
+    "description": "Play a bass in the air: the fretting hand's distance along an imaginary neck picks the note (quantised to the scale), and a pluck of the other hand sounds it, predicted before the frame that shows it (src/ictus/impact.ts). Off by default.",
+    "roles": [
+      "feature",
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "air-bass-config"
+      },
+      {
+        "name": "scale",
+        "kind": "number[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "notes",
+        "kind": "note-events"
+      },
+      {
+        "name": "status",
+        "kind": "air-bass-status"
+      },
+      {
+        "name": "enabled",
+        "kind": "boolean"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "pluckHand",
+        "type": "enum(right | left)",
+        "default": "right"
+      },
+      {
+        "name": "pluckPoint",
+        "type": "enum(indexTip | wrist)",
+        "default": "indexTip"
+      },
+      {
+        "name": "neckNear",
+        "type": "number",
+        "default": 2
+      },
+      {
+        "name": "neckFar",
+        "type": "number",
+        "default": 7
+      },
+      {
+        "name": "minLead",
+        "type": "number",
+        "default": 0.05
+      },
+      {
+        "name": "minStroke",
+        "type": "number",
+        "default": 0.02
+      },
+      {
+        "name": "minSpeed",
+        "type": "number",
+        "default": 0.4
+      },
+      {
+        "name": "volume",
+        "type": "number",
+        "default": 0.8
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      }
+    ]
+  },
+  {
     "type": "air-drum",
     "title": "Air drum",
     "description": "Strike the air with a hand and hear a drum at the strike: each hand is a stick whose hit is predicted before the frame that shows it (src/ictus/impact.ts). Off by default.",
@@ -1434,6 +1523,33 @@
     ]
   },
   {
+    "type": "pluck-out",
+    "title": "Pluck out",
+    "description": "Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "notes",
+        "kind": "note-events"
+      }
+    ],
+    "outputs": [],
+    "params": [
+      {
+        "name": "timbre",
+        "type": "enum(bass | guitar)",
+        "default": "bass"
+      },
+      {
+        "name": "mono",
+        "type": "boolean",
+        "default": true
+      }
+    ]
+  },
+  {
     "type": "pose-chord",
     "title": "Pose Chord",
     "description": "Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pitch→octave, jaw-open→gate, smile→timbre, brow→7th). Active only in face \"controls\" mode.",
@@ -1842,6 +1958,10 @@
       {
         "name": "airDrum",
         "kind": "air-drum-config"
+      },
+      {
+        "name": "airBass",
+        "kind": "air-bass-config"
       },
       {
         "name": "bodyMap",

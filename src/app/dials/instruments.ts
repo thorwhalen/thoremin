@@ -236,6 +236,19 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     airDrum: { ...DEFAULTS.airDrum, enabled: true },
     overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
   }),
+
+  // Pluck a bass that is not there (#249): the neck hand's distance from the plucking
+  // hand picks the note from this scale (E minor pentatonic over two low octaves), a
+  // pluck sounds it. The theremin voices and their on-screen note grid are off: the
+  // grid is laid across the screen, the bass's neck is laid between the hands.
+  seed('Air Bass', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, root: 4, type: 'minorPentatonic', baseOctave: 1, octaves: 2 },
+    left: { ...DEFAULTS.left, root: 4, type: 'minorPentatonic', baseOctave: 1, octaves: 2 },
+    handMap: handMap({ maxGain: 0 }),
+    airBass: { ...DEFAULTS.airBass, enabled: true },
+    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
+  }),
 ];
 
 function instrumentStorage(): ProfileStorage {
@@ -251,7 +264,7 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 4;
+const SEED_VERSION = 5;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {

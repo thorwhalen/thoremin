@@ -273,6 +273,11 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       // `airDrum.enabled` dial is on.
       { id: 'airDrum', type: 'air-drum', params: {} },
       { id: 'drumOut', type: 'drum-out', params: {} },
+      // The air bass (#249): the fretting hand's place along an imaginary neck picks the
+      // note, a pluck of the other hand sounds it on the audio clock (`pluck-out`). Both
+      // idle until the `airBass.enabled` dial is on.
+      { id: 'airBass', type: 'air-bass', params: {} },
+      { id: 'bassOut', type: 'pluck-out', params: { timbre: 'bass', mono: true } },
       { id: 'score', type: 'score', params: { notes: DEMO_SCALE_NOTES, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
       // #90: keyboard shortcuts moved OUT of the DAG to an app-level tinykeys
       // handler that dispatches dial commands; octave-shift / magnetism / mute now
@@ -454,6 +459,12 @@ export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry)
       { from: { node: 'ui', port: 'airDrum' }, to: { node: 'airDrum', port: 'config' } },
       { from: { node: 'conductor', port: 'time' }, to: { node: 'airDrum', port: 'time' } },
       { from: { node: 'airDrum', port: 'hits' }, to: { node: 'drumOut', port: 'hits' } },
+      // The air bass (#249): the hands, the dial (live), the neck's notes (the right
+      // voice's scale, the instrument's own), and its notes to the pluck scheduler.
+      { from: { node: 'cam', port: 'hands' }, to: { node: 'airBass', port: 'hands' } },
+      { from: { node: 'ui', port: 'airBass' }, to: { node: 'airBass', port: 'config' } },
+      { from: { node: 'ui', port: 'scaleRight' }, to: { node: 'airBass', port: 'scale' } },
+      { from: { node: 'airBass', port: 'notes' }, to: { node: 'bassOut', port: 'notes' } },
     ],
   };
 }

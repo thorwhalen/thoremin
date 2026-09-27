@@ -16,7 +16,7 @@ import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/d
 import type { BodyMap } from '@/nodes/mapping/body_map';
 import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
-import type { ConductorSettings, AirDrumSettings } from '@/settings/schema';
+import type { ConductorSettings, AirDrumSettings, AirBassSettings } from '@/settings/schema';
 import type { ScoreDoc } from '@/score/schema';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
@@ -94,6 +94,8 @@ export interface ControlSnapshot {
   conductor?: ConductorSettings;
   /** The air drum dial (#233): fed to the `air-drum` node's `config` input live. */
   airDrum?: AirDrumSettings;
+  /** The air bass dial (#249): fed to the `air-bass` node's `config` input live. */
+  airBass?: AirBassSettings;
   /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
@@ -150,6 +152,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
     { name: 'faceControls', kind: 'face-controls-config' },
     { name: 'conductor', kind: 'conductor-config' },
     { name: 'airDrum', kind: 'air-drum-config' },
+    { name: 'airBass', kind: 'air-bass-config' },
     // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
@@ -208,6 +211,7 @@ export const storeControlsNode = defineNode<Record<string, never>>({
         if (c.steer?.config) out.steerConfig = c.steer.config;
         if (c.conductor) out.conductor = c.conductor;
         if (c.airDrum) out.airDrum = c.airDrum;
+        if (c.airBass) out.airBass = c.airBass;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
         if (c.faceChord) {
           out.chordConfig = {
