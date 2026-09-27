@@ -17,7 +17,9 @@ import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { startBodyRouteDemand } from './bodyRouteDemand';
-import { EXTENSION_MOUNT_EFFECTS } from './extensions';
+import { loadAirVocabularies, startFlutePriorSync } from './air/vocabularyStore';
+import { startPatternPlaySync } from './drums/patternPlaySync';
+import { startAirFluteDemand } from './airFluteDemand';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import { demandWantsFace, labWantsFace } from '@/features/labConfig';
@@ -132,14 +134,19 @@ export default function App({
   // #186: the body routes claim the feature groups they read, so a configured route
   // is fed even with the Lab closed (the groups are computed only on demand).
   useEffect(() => startBodyRouteDemand(), []);
-  // The extensions' mount effects (the air instruments': the flute's breath demand, the
-  // vocabulary loads, the fingering-prior sync, the drum-pattern sync), each with its cleanup.
+  // #249: the air flute's breath is the mouth; it claims the mouth features while on.
+  useEffect(() => startAirFluteDemand(), []);
+  // #249: the air instruments play what this player enrolled; read every vocabulary once,
+  // so each classifier is live before anyone opens its instrument's settings.
   useEffect(() => {
-    const cleanups = EXTENSION_MOUNT_EFFECTS.map((effect) => effect());
-    return () => {
-      for (const c of cleanups) if (typeof c === 'function') c();
-    };
+    void loadAirVocabularies();
   }, []);
+  // #263: the flute's finger model is the enrolment fused with the fingering prior the
+  // dial names; when the dial changes, the model is derived again from the same samples.
+  useEffect(() => startFlutePriorSync(), []);
+  // #269: the air drum plays the trained pattern the dial names; the dial's id is
+  // resolved to the pattern and its model here, off the tick.
+  useEffect(() => startPatternPlaySync(), []);
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black font-mono text-white">

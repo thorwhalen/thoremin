@@ -12,7 +12,7 @@ import { Engine } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import { branchIdsFor } from '@/app/graph';
+import { branchIdsFor } from '@/instruments/derive';
 import { TRUNK } from '@/instruments/branches';
 import { composeInstrumentGraph } from '@/app/graph';
 

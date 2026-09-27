@@ -21,22 +21,7 @@ import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR } from './schema';
-import { EXTENSION_DIAL_SLICES } from '@/extensions';
-
-/** One dials-form field per extension dial slice, with the slice's metadata. */
-function extensionDialFields(): Record<string, z.ZodTypeAny> {
-  const out: Record<string, z.ZodTypeAny> = {};
-  for (const slice of EXTENSION_DIAL_SLICES) out[slice.key] = (slice.schema as z.ZodTypeAny).meta(slice.meta);
-  return out;
-}
-
-/** The extension slices of a settings-like object, verbatim (every slice is whole-object). */
-function extensionSlicesOf(o: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const slice of EXTENSION_DIAL_SLICES) out[slice.key] = o[slice.key];
-  return out;
-}
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, AirBassSettingsSchema, DEFAULT_AIR_BASS, AirGuitarSettingsSchema, DEFAULT_AIR_GUITAR, AirFluteSettingsSchema, DEFAULT_AIR_FLUTE } from './schema';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
@@ -170,10 +155,32 @@ export const thoreminDials = defineDials(
       title: 'Conductor',
       description: 'Conduct the score with your hand: on/off, which hand and point to follow, how tightly the score follows the beat',
     }),
-    // The extensions' whole-object dials (the air instruments'), one field per slice:
-    // `paths.ts` derives `airDrum.enabled`, `airDrum.rightSound`, … from each node's own
-    // schema, and the per-dial commands, the palette and the AI tool surface follow.
-    ...extensionDialFields(),
+    // The air drum (#233) — a whole-object dial like `conductor`: `paths.ts` derives
+    // `airDrum.enabled`, `airDrum.rightSound`, `airDrum.minLead`, … from the node's own
+    // schema. Off by default.
+    airDrum: AirDrumSettingsSchema.default(DEFAULT_AIR_DRUM).meta({
+      facets: ['Air drum'],
+      title: 'Air drum',
+      description: 'Strike the air and hear a drum at the strike: on/off, which hands and point, the sounds, how far ahead a hit is committed, timing magnetism',
+    }),
+    // The air bass (#249) — a whole-object dial like `airDrum`. Off by default.
+    airBass: AirBassSettingsSchema.default(DEFAULT_AIR_BASS).meta({
+      facets: ['Air bass'],
+      title: 'Air bass',
+      description: 'Play a bass in the air: on/off, which hand plucks, the neck length (where the lowest and highest notes are), how far ahead a note is committed, volume',
+    }),
+    // The air guitar (#249) — a whole-object dial like `airBass`. Off by default.
+    airGuitar: AirGuitarSettingsSchema.default(DEFAULT_AIR_GUITAR).meta({
+      facets: ['Air guitar'],
+      title: 'Air guitar',
+      description: 'Strum enrolled chords in the air: on/off, which hand strums and its point, the strum spread, how far ahead a strum is committed, volume',
+    }),
+    // The air flute (#249) — a whole-object dial like `airGuitar`. Off by default.
+    airFlute: AirFluteSettingsSchema.default(DEFAULT_AIR_FLUTE).meta({
+      facets: ['Air flute'],
+      title: 'Air flute',
+      description: 'Play enrolled fingerings in the air: on/off, what sounds the note (the enrolled blowing mouth, or a held fingering alone), volume',
+    }),
   }),
   // No cross-field constraints: since #75 the chord/head-pose modes no longer require
   // a seven-note melody scale — the chord SOURCE (auto-derived or custom) is what a
@@ -232,7 +239,10 @@ export function settingsToLayer(s: Settings): Layer {
     bodyMap: s.bodyMap,
     faceControls: s.faceControls,
     conductor: s.conductor,
-    ...extensionSlicesOf(s),
+    airDrum: s.airDrum,
+    airBass: s.airBass,
+    airGuitar: s.airGuitar,
+    airFlute: s.airFlute,
   });
 }
 
@@ -270,6 +280,9 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     bodyMap: v.bodyMap,
     faceControls: v.faceControls,
     conductor: v.conductor,
-    ...extensionSlicesOf(v),
+    airDrum: v.airDrum,
+    airBass: v.airBass,
+    airGuitar: v.airGuitar,
+    airFlute: v.airFlute,
   });
 }

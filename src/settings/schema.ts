@@ -23,21 +23,11 @@ import { SteerConfigSchema, type SteerConfig } from '@/nodes/mapping/indirect_ma
 export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map';
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
 import { ConductorDialSchema } from '@/nodes/features/conductor';
-// The air instruments' dials are the air EXTENSION's (PR 5a of the instruments-as-graphs
-// ADR): core no longer names an air node. The names stay exported from here for the many
-// importers; the shape is spread into `SettingsSchema` below.
-import { AIR_SETTINGS_SHAPE } from '@/extensions/air/dials';
-export {
-  AirDrumSettingsSchema,
-  DEFAULT_AIR_DRUM,
-  AirBassSettingsSchema,
-  DEFAULT_AIR_BASS,
-  AirGuitarSettingsSchema,
-  DEFAULT_AIR_GUITAR,
-  AirFluteSettingsSchema,
-  DEFAULT_AIR_FLUTE,
-} from '@/extensions/air/dials';
-export type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/extensions/air/dials';
+import { AirDrumDialSchema } from '@/nodes/music/air_drum';
+import { AirBassDialSchema } from '@/nodes/music/air_bass';
+import { AirGuitarDialSchema } from '@/nodes/music/air_guitar';
+import { AirFluteDialSchema } from '@/nodes/music/air_flute';
+import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from '@/air/fingering_prior';
 
 /** The piece id that means "the built-in demo scale" (no document loaded). */
 export const BUILTIN_PIECE = 'builtin';
@@ -55,6 +45,34 @@ export const ConductorSettingsSchema = ConductorDialSchema.extend({
 });
 export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
 export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});
+/** The air drum settings (#233): the node's own params, lifted 1:1 (the conductor pattern). */
+/** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269:
+ *  the id of a trained pattern, '' for none), which the node never sees as a param (the
+ *  app resolves it to the pattern and its model and hands those to the node's `pattern`
+ *  port; the node's partial parse strips the extra key). */
+export const AirDrumSettingsSchema = AirDrumDialSchema.extend({
+  pattern: z.string().default(''),
+});
+export type AirDrumSettings = z.infer<typeof AirDrumSettingsSchema>;
+export const DEFAULT_AIR_DRUM: AirDrumSettings = AirDrumSettingsSchema.parse({});
+/** The air bass (#249): the `air-bass` node's params ARE the dial (the air drum pattern). */
+export const AirBassSettingsSchema = AirBassDialSchema;
+export type AirBassSettings = z.infer<typeof AirBassSettingsSchema>;
+export const DEFAULT_AIR_BASS: AirBassSettings = AirBassSettingsSchema.parse({});
+/** The air guitar (#249): the `air-guitar` node's params ARE the dial. Its enrolled chords
+ *  are not a dial: they are a zodal collection (`src/app/air/vocabularyStore.ts`). */
+export const AirGuitarSettingsSchema = AirGuitarDialSchema;
+export type AirGuitarSettings = z.infer<typeof AirGuitarSettingsSchema>;
+export const DEFAULT_AIR_GUITAR: AirGuitarSettings = AirGuitarSettingsSchema.parse({});
+/** The air flute (#249): the `air-flute` node's params ARE the dial, plus the fingering
+ *  prior (#263), which the node never sees (the vocabulary store fuses it into the
+ *  finger model the node is handed; the node's partial parse strips the extra key). Its
+ *  enrolled fingerings and mouth states are zodal collections, like the guitar's chords. */
+export const AirFluteSettingsSchema = AirFluteDialSchema.extend({
+  prior: FingeringPriorSettingsSchema.default(DEFAULT_FINGERING_PRIOR),
+});
+export type AirFluteSettings = z.infer<typeof AirFluteSettingsSchema>;
+export const DEFAULT_AIR_FLUTE: AirFluteSettings = AirFluteSettingsSchema.parse({});
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import {
   EFFECTS,
@@ -304,9 +322,11 @@ export const SettingsSchema = z.object({
   // The conductor (#187): the node's params lifted 1:1 as a structured dial, like
   // `faceControls`. `.default(...)` keeps pre-conductor presets valid (off).
   conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
-  // The extensions' whole-object dials (today: the air instruments'), spread in; each
-  // carries its own `.default(...)`, which keeps older presets valid (off).
-  ...AIR_SETTINGS_SHAPE,
+  // The air drum (#233): the node's params lifted 1:1. `.default(...)` keeps older presets valid (off).
+  airDrum: AirDrumSettingsSchema.default(DEFAULT_AIR_DRUM),
+  airBass: AirBassSettingsSchema.default(DEFAULT_AIR_BASS),
+  airGuitar: AirGuitarSettingsSchema.default(DEFAULT_AIR_GUITAR),
+  airFlute: AirFluteSettingsSchema.default(DEFAULT_AIR_FLUTE),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

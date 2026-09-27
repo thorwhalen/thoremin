@@ -39,6 +39,7 @@
     "@zodal/core": "^0.1.2",
     "@zodal/dials-core": "^0.1.0",
     "@zodal/dials-ui": "^0.1.0",
+    "@zodal/groups-core": "^0.1.0",
     "@zodal/store": "^0.1.2",
     "@zodal/store-localstorage": "^0.1.0",
     "@zodal/ui": "^0.1.2",

@@ -18,8 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
-import { branchIdsFor } from '@/app/graph';
-import { branchSetKey } from '@/instruments/derive';
+import { branchIdsFor, branchSetKey } from '@/instruments/derive';
 import type { Composed } from '@/instruments/compose';
 import { useDemandedGroups } from './useDemandedGroups';
 import type { NodeRegistry } from '@/dag';
@@ -46,7 +45,12 @@ import { useGenerativeStatus, makeGenerativeReporter, ABSENT_GENERATIVE_STATUS, 
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
 import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
-import { EXTENSION_STATUS_HOOKS } from './extensions';
+import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from './airDrumStatus';
+import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from './airBassStatus';
+import { useAirGuitarStatus, makeAirGuitarReporter, AIR_GUITAR_NODE_ID, ABSENT_AIR_GUITAR_LIVE } from './airGuitarStatus';
+import { makeShapeTap, clearShapes } from './air/shapeTap';
+import { useAirFluteStatus, makeAirFluteReporter, AIR_FLUTE_NODE_ID, ABSENT_AIR_FLUTE_LIVE } from './airFluteStatus';
+import { makeHitsTap, clearHits } from './drums/hitsTap';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -146,8 +150,11 @@ function applyLive(engine: Engine, selection: SlotSelection, registry: NodeRegis
 /** The status stores that mirror a branch node, by node id; reset when the node leaves. */
 function resetStatusesOf(removed: readonly string[]): void {
   for (const id of removed) {
-    for (const hook of EXTENSION_STATUS_HOOKS) if (hook.nodeId === id) hook.onRemoved();
-    if (id === GENERATIVE_NODE_ID) useGenerativeStatus.getState().report(ABSENT_GENERATIVE_STATUS);
+    if (id === AIR_DRUM_NODE_ID) useAirDrumStatus.getState().report(ABSENT_AIR_DRUM_LIVE);
+    else if (id === AIR_BASS_NODE_ID) useAirBassStatus.getState().report(ABSENT_AIR_BASS_LIVE);
+    else if (id === AIR_GUITAR_NODE_ID) useAirGuitarStatus.getState().report(ABSENT_AIR_GUITAR_LIVE);
+    else if (id === AIR_FLUTE_NODE_ID) useAirFluteStatus.getState().report(ABSENT_AIR_FLUTE_LIVE);
+    else if (id === GENERATIVE_NODE_ID) useGenerativeStatus.getState().report(ABSENT_GENERATIVE_STATUS);
     else if (id === CONDUCTOR_NODE_ID) useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE);
   }
 }
@@ -448,9 +455,20 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Bridge the `conductor` node's musical time to React (#187), for the Conductor
         // tool panel's live readout. Change-gated inside the reporter, like the others.
         const reportConductor = makeConductorReporter(engine);
-        // The extensions' status hooks (the air instruments' readouts and live shapes):
-        // built once per engine, run as sinks below, reset on removal and teardown.
-        const extensionSinks = EXTENSION_STATUS_HOOKS.map((hook) => hook.make(engine));
+        // Bridge the `air-drum` node's status to React (#233), for its readout in the
+        // Instruments view (#249).
+        const reportAirDrum = makeAirDrumReporter(engine);
+        // And the `air-bass` node's (#249).
+        const reportAirBass = makeAirBassReporter(engine);
+        // And the `air-guitar` node's (#249): its status, and its live shape for enrolment.
+        const reportAirGuitar = makeAirGuitarReporter(engine);
+        const tapAirShape = makeShapeTap(engine, AIR_GUITAR_NODE_ID);
+        // And the `air-flute` node's (#249): its status, its fingers and its mouth.
+        const reportAirFlute = makeAirFluteReporter(engine);
+        const tapFluteFingers = makeShapeTap(engine, AIR_FLUTE_NODE_ID, 'shape');
+        const tapFluteMouth = makeShapeTap(engine, AIR_FLUTE_NODE_ID, 'mouth');
+        // #269: every hit the air drum decides, for a pattern take to read.
+        const tapDrumHits = makeHitsTap(engine, AIR_DRUM_NODE_ID);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -492,7 +510,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), ...extensionSinks.map(toMs)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportAirDrum), toMs(reportAirBass), toMs(reportAirGuitar), toMs(tapAirShape), toMs(reportAirFlute), toMs(tapFluteFingers), toMs(tapFluteMouth), toMs(tapDrumHits)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -527,7 +545,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useGestureStatus.getState().reset();
       useGenerativeStatus.getState().reset();
       useConductorStatus.getState().reset();
-      for (const hook of EXTENSION_STATUS_HOOKS) hook.reset();
+      useAirDrumStatus.getState().reset();
+      useAirBassStatus.getState().reset();
+      useAirGuitarStatus.getState().reset();
+      clearShapes();
+      clearHits();
+      useAirFluteStatus.getState().reset();
       uninstallDebug();
       uninstallLatency();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.

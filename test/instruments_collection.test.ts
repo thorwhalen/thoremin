@@ -4,21 +4,26 @@
  * view's queries (search, sort) so no view filters by hand.
  */
 import { describe, it, expect } from 'vitest';
-import { assembleSpec } from '@/app/graph';
-import { type InstrumentSpec } from '@/instruments/spec';
+import { assembleSpec } from '@/instruments/spec';
 import {
   createSpecsSource,
   instrumentsCollection,
   INSTRUMENT_SORTS,
+  type InstrumentListItem,
 } from '@/app/library/instrumentsCollection';
 
-const spec = (name: string, over: Partial<{ starred: boolean; air: boolean }> = {}): InstrumentSpec =>
-  assembleSpec({
+const spec = (
+  name: string,
+  over: Partial<{ starred: boolean; air: boolean; searchText: string }> = {},
+): InstrumentListItem => ({
+  ...assembleSpec({
     name,
     layer: {},
     meta: { starred: over.starred ?? false },
     derived: { class: over.air ? 'air' : 'field', branches: [] },
-  });
+  }),
+  searchText: over.searchText ?? '',
+});
 
 describe('the instruments collection declares the view', () => {
   it('groups by class, collapsibly, open by default', () => {
@@ -29,8 +34,9 @@ describe('the instruments collection declares the view', () => {
     expect(instrumentsCollection.getGroupableFields().map((f) => f.key)).toContain('class');
   });
 
-  it('searches the name, and never the settings Layer', () => {
-    expect(instrumentsCollection.getSearchableFields()).toEqual(['name']);
+  it('searches the name and the derived search text, and never the settings Layer', () => {
+    expect(instrumentsCollection.getSearchableFields().sort()).toEqual(['name', 'searchText']);
+    expect(instrumentsCollection.getVisibleFields()).not.toContain('searchText');
     expect(instrumentsCollection.getVisibleFields()).not.toContain('settings');
   });
 
@@ -46,7 +52,11 @@ describe('the instruments collection declares the view', () => {
 
 describe('the specs provider answers the queries', () => {
   const src = createSpecsSource();
-  src.set([spec('Pentatonic'), spec('Air Drum', { air: true, starred: true }), spec('Wrist Theremin')]);
+  src.set([
+    spec('Pentatonic'),
+    spec('Air Drum', { air: true, starred: true }),
+    spec('Wrist Theremin', { searchText: 'note source: wrist' }),
+  ]);
 
   it('lists in the library order when unsorted', async () => {
     const { data } = await src.provider.getList({});
@@ -55,6 +65,11 @@ describe('the specs provider answers the queries', () => {
 
   it('searches by name, case-insensitively', async () => {
     const { data } = await src.provider.getList({ search: 'WRIST' });
+    expect(data.map((s) => s.name)).toEqual(['Wrist Theremin']);
+  });
+
+  it('finds an instrument by what it is, not only its name (option B)', async () => {
+    const { data } = await src.provider.getList({ search: 'note source' });
     expect(data.map((s) => s.name)).toEqual(['Wrist Theremin']);
   });
 

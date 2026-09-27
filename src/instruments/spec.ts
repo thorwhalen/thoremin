@@ -22,15 +22,14 @@
  *    them from its settings (`branchIdsFor`), which is what every instrument saved before
  *    PR 4 does, unchanged.
  *
- * Pure: Zod and the class registry. The branch table the `features` facet closes over is a
- * PARAMETER (`assembleSpecWith`); the host binds the full table (core plus extensions) once,
- * as `assembleSpec` in `src/app/graph.ts`. No store, no React, nothing from `src/app`.
+ * Pure in the package sense: Zod, the class registry and this package's branch table (for the
+ * `features` closure). No store, no React, nothing from `src/app`. When the branch table
+ * comes from extensions (PR 5) the table is passed in rather than imported.
  */
 import { z } from 'zod';
 import { INSTRUMENT_CLASSES, normaliseClassId, DEFAULT_CLASS, type InstrumentClassId } from './classes';
 import { branchClosureIds } from './compose';
-import { TRUNK_ID } from './branches';
-import type { GraphBranch } from './branch';
+import { BRANCHES, TRUNK_ID } from './branches';
 
 /** Where "train this instrument" goes: a route the trainer stream resolves (its shape is
  *  the trainer's; the spec only carries it). */
@@ -95,7 +94,7 @@ export interface SpecParts {
  * the explicit list when there is one, else the derived set, else absent (the caller derives
  * at composition time); `features` is the closure of the branches minus the trunk.
  */
-export function assembleSpecWith(parts: SpecParts, branchTable: readonly GraphBranch[]): InstrumentSpec {
+export function assembleSpec(parts: SpecParts): InstrumentSpec {
   const cached = parts.meta?.class ? normaliseClassId(parts.meta.class) : undefined;
   const cls: InstrumentClassId = parts.derived?.class ?? cached ?? DEFAULT_CLASS;
   const spec: InstrumentSpecInput = {
@@ -111,7 +110,7 @@ export function assembleSpecWith(parts: SpecParts, branchTable: readonly GraphBr
   if (parts.meta?.branches) spec.branches = [...parts.meta.branches];
   else if (parts.derived) spec.branches = [...parts.derived.branches];
   if (parts.meta?.training) spec.training = { ...parts.meta.training };
-  spec.features = spec.branches ? branchClosureIds(spec.branches, branchTable).filter((id) => id !== TRUNK_ID) : [];
+  spec.features = spec.branches ? branchClosureIds(spec.branches, BRANCHES).filter((id) => id !== TRUNK_ID) : [];
   return InstrumentSpecSchema.parse(spec);
 }
 

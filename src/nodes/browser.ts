@@ -10,19 +10,18 @@ import { webcamHandsNode } from './sources/webcam_hands';
 import { webcamFaceNode } from './sources/webcam_face';
 import { webcamBodyNode } from './sources/webcam_body';
 import { keyboardSourceNode } from './sources/keyboard';
-import { makeStoreControlsNode } from './sources/store_controls';
-import type { Extension } from '@/instruments/extension';
-import { EXTENSIONS } from '@/extensions';
-import type { NodeDef } from '@/dag';
+import { storeControlsNode } from './sources/store_controls';
 import { webAudioSynthNode } from './output/webaudio_synth';
 import { canvasOverlayNode } from './output/canvas_overlay';
 import { midiOutNode } from './output/midi_out';
+import { drumOutNode } from './output/drum_out';
+import { pluckOutNode } from './output/pluck_out';
 
 export { webcamHandsNode } from './sources/webcam_hands';
 export { webcamFaceNode } from './sources/webcam_face';
 export { webcamBodyNode, resultToBodyFrame } from './sources/webcam_body';
 export { keyboardSourceNode } from './sources/keyboard';
-export { storeControlsNode, makeStoreControlsNode } from './sources/store_controls';
+export { storeControlsNode } from './sources/store_controls';
 export { webAudioSynthNode } from './output/webaudio_synth';
 export { canvasOverlayNode } from './output/canvas_overlay';
 // The `midi-out` node's contract logic is Node-safe, but it is registered here
@@ -50,21 +49,15 @@ export const BROWSER_NODES = [
   webcamFaceNode,
   webcamBodyNode,
   keyboardSourceNode,
+  storeControlsNode,
   webAudioSynthNode,
   canvasOverlayNode,
   midiOutNode,
+  drumOutNode,
+  pluckOutNode,
 ];
 
-/**
- * Registry with every node available in the browser app: the core library, the browser
- * sources and sinks, every extension's nodes, and a `store-controls` whose ports are
- * GENERATED from the extensions' dial slices and transient fields (the ADR's seam 6).
- */
-export function createAppRegistry(extensions: readonly Extension[] = EXTENSIONS): NodeRegistry {
-  return createRegistry([
-    ...CORE_NODES,
-    ...BROWSER_NODES,
-    makeStoreControlsNode(extensions),
-    ...extensions.flatMap((e) => e.nodes as NodeDef<unknown>[]),
-  ]);
+/** Registry with every node available in the browser app. */
+export function createAppRegistry(): NodeRegistry {
+  return createRegistry([...CORE_NODES, ...BROWSER_NODES]);
 }

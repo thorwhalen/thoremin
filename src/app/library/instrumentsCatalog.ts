@@ -6,20 +6,25 @@
  */
 import { create } from 'zustand';
 import { createZustandStoreSlice, type ZustandCollectionState } from '@zodal/ui';
-import type { InstrumentSpec } from '@/instruments/spec';
-import { createSpecsSource, instrumentsCollection, INSTRUMENT_SORTS, type InstrumentSort } from './instrumentsCollection';
+import {
+  createSpecsSource,
+  instrumentsCollection,
+  INSTRUMENT_SORTS,
+  type InstrumentListItem,
+  type InstrumentSort,
+} from './instrumentsCollection';
 
 const source = createSpecsSource();
 
-export const useInstrumentsCatalog = create<ZustandCollectionState<InstrumentSpec>>()(
-  createZustandStoreSlice<InstrumentSpec>(instrumentsCollection, source.provider),
+export const useInstrumentsCatalog = create<ZustandCollectionState<InstrumentListItem>>()(
+  createZustandStoreSlice<InstrumentListItem>(instrumentsCollection, source.provider),
 );
 
 /** Re-run the view's query: these specs, this search text, this sort. Unpaginated (the
  *  collection declares no pagination: a list that silently dropped an instrument would
  *  be the #136 failure again). */
 export async function queryInstruments(
-  specs: readonly InstrumentSpec[],
+  specs: readonly InstrumentListItem[],
   query: string,
   sort: InstrumentSort,
 ): Promise<void> {

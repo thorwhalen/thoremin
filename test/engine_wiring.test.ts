@@ -65,10 +65,7 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(c).toMatch(/\* 1000/);
     // Each bridge goes through the converter rather than being passed raw.
     // (`...latencySinks` is the #227 probe's tick-end stamp: empty unless ?probe=latency.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*\.\.\.extensionSinks\.map\(toMs\)\s*\]/);
-    // The extensions' sinks (the air instruments' readouts and shape taps, PR 5a) are built
-    // from the manifests and converted the same way, in one place.
-    expect(c).toMatch(/const extensionSinks = EXTENSION_STATUS_HOOKS\.map\(\(hook\) => hook\.make\(engine\)\)/);
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportAirDrum\),\s*toMs\(reportAirBass\),\s*toMs\(reportAirGuitar\),\s*toMs\(tapAirShape\),\s*toMs\(reportAirFlute\),\s*toMs\(tapFluteFingers\),\s*toMs\(tapFluteMouth\),\s*toMs\(tapDrumHits\)\s*\]/);
   });
 
   it('publishes the read-only debug handle when the engine is ready, and removes it on teardown (#209)', () => {

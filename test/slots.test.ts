@@ -10,7 +10,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Engine, createRegistry, defineNode, type NodeRegistry } from '@/dag';
-import { createAppRegistry } from '@/nodes/browser';
+import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
+import { CORE_NODES } from '@/nodes';
 import { voiceMappingNode } from '@/nodes/mapping/voice_mapping';
 import {
   SLOTS,
@@ -133,7 +134,7 @@ describe('defaultGraph slot binding', () => {
   });
 
   it('EDGE-STABILITY: a contract-satisfying node swaps in without orphaning edges', () => {
-    const reg = createRegistry([...createAppRegistry().list()]);
+    const reg = createRegistry([...CORE_NODES, ...BROWSER_NODES]);
     // A second mapping impl that declares exactly the shared contract.
     reg.register(
       defineNode({

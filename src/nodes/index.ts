@@ -18,6 +18,10 @@ import { handFeaturesNode } from './features/hand_features';
 import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
 import { conductorNode } from './features/conductor';
+import { airDrumNode } from './music/air_drum';
+import { airBassNode } from './music/air_bass';
+import { airGuitarNode } from './music/air_guitar';
+import { airFluteNode } from './music/air_flute';
 import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
@@ -134,6 +138,10 @@ export const CORE_NODES = [
   faceFeaturesNode,
   faceControlsNode,
   conductorNode,
+  airDrumNode,
+  airBassNode,
+  airGuitarNode,
+  airFluteNode,
   faceExpressionNode,
   gestureClassifierNode,
   faceFeatureVectorNode,

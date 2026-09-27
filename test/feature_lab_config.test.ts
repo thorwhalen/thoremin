@@ -13,7 +13,7 @@ import { thoreminDials, settingsToLayer } from '@/settings/dials';
 import { SettingsSchema } from '@/settings/schema';
 import { OverlayDialSchema, OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, labWantsFace, FACE_GROUP_IDS } from '@/features/labConfig';
-import { branchIdsFor } from '@/app/graph';
+import { branchIdsFor } from '@/instruments/derive';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { storeControlsNode, type ControlSnapshot } from '@/nodes/sources/store_controls';

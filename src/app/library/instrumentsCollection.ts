@@ -23,13 +23,24 @@
  */
 import { defineCollection, type SortingState } from '@zodal/core';
 import { createInMemoryProvider, type DataProvider, type GetListParams } from '@zodal/store';
-import { InstrumentSpecSchema, type InstrumentSpec } from '@/instruments/spec';
+import { z } from 'zod';
+import { InstrumentSpecSchema } from '@/instruments/spec';
 
-/** The fields a text search reads. The name only, today: searching tags, class and what
- *  an instrument uses (option B of #272) widens this list, not the view. */
-export const INSTRUMENT_SEARCH_FIELDS = ['name'] as const;
+/**
+ * A listed instrument: its spec, plus the words a search should find it by that are not
+ * in the spec itself (option B of #272): its class's name, its tags' labels, what it uses,
+ * and the summary its tooltip shows ("note source: wrist"). Derived by the view from the
+ * library, never stored.
+ */
+export const InstrumentListItemSchema = InstrumentSpecSchema.extend({
+  searchText: z.string().default(''),
+});
+export type InstrumentListItem = z.infer<typeof InstrumentListItemSchema>;
 
-export const instrumentsCollection = defineCollection(InstrumentSpecSchema, {
+/** The fields a text search reads. */
+export const INSTRUMENT_SEARCH_FIELDS = ['name', 'searchText'] as const;
+
+export const instrumentsCollection = defineCollection(InstrumentListItemSchema, {
   idField: 'id',
   labelField: 'name',
   affordances: {
@@ -59,6 +70,8 @@ export const instrumentsCollection = defineCollection(InstrumentSpecSchema, {
     // small, so metadata. The bytes, when a player can upload one, are content, and go
     // through a bifurcated provider then.
     image: { storageRole: 'metadata', searchable: false, sortable: false, filterable: false },
+    // Searched, never shown: the view shows WHY a row matched instead (a tag, a summary line).
+    searchText: { searchable: true, visible: false, sortable: false, filterable: false },
     // What the instrument sounds like: the dials Layer. Never listed, searched or sorted.
     settings: { hidden: true, visible: false, searchable: false, sortable: false, filterable: false },
   },
@@ -85,19 +98,19 @@ export type InstrumentSort = keyof typeof INSTRUMENT_SORTS;
  *  ones), and the handle to hand them over. The provider answers the view's queries; it is
  *  read-only here (writes go through the library and the profile store, which own them). */
 export interface SpecsSource {
-  provider: DataProvider<InstrumentSpec>;
-  set(specs: readonly InstrumentSpec[]): void;
+  provider: DataProvider<InstrumentListItem>;
+  set(specs: readonly InstrumentListItem[]): void;
 }
 
 export function createSpecsSource(): SpecsSource {
-  let specs: InstrumentSpec[] = [];
+  let specs: InstrumentListItem[] = [];
   const query = (params: GetListParams) =>
-    createInMemoryProvider<InstrumentSpec>(specs, {
+    createInMemoryProvider<InstrumentListItem>(specs, {
       idField: 'id',
       searchFields: [...INSTRUMENT_SEARCH_FIELDS],
     }).getList(params);
   const readOnly = () => Promise.reject(new Error('instruments are written through the library'));
-  const provider: DataProvider<InstrumentSpec> = {
+  const provider: DataProvider<InstrumentListItem> = {
     getList: query,
     getOne: async (id) => {
       const s = specs.find((x) => x.id === id);
