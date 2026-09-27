@@ -220,7 +220,7 @@ export interface SynthParams {
  * Any non-`none` mode lazy-loads the `webcam-face` model — but the mapping is no longer
  * the ONLY thing that can want the model: the Feature Lab requests it too when it is
  * measuring face groups, so a player can observe their face features without the face
- * driving the sound (see `faceActive` in webcam_face.ts, #136).
+ * driving the sound (the face source is composed when the Lab shows a face group: `branchIdsFor`, #136).
  */
 export const FACE_MAPPINGS = ['none', 'timbre', 'chord', 'controls'] as const;
 export type FaceMapping = (typeof FACE_MAPPINGS)[number];

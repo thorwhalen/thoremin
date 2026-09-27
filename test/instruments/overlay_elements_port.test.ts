@@ -85,6 +85,7 @@ describe('the element set reaches the overlay through the UI bridge', () => {
     const guideOnly = count(['scaleGuide']);
     const guideAndMarkers = count(['scaleGuide', 'markers', 'landmarks']);
     expect(guideOnly).toBeGreaterThan(0);
-    expect(guideAndMarkers).toBeGreaterThanOrEqual(guideOnly);
+    // The synthetic hands are present from the first tick, so the markers draw: strictly more.
+    expect(guideAndMarkers).toBeGreaterThan(guideOnly);
   });
 });

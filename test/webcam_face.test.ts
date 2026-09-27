@@ -137,14 +137,16 @@ describe('blendshapesToFaceFrame', () => {
 });
 
 describe('webcam-face node gating', () => {
-  it('emits the absent frame when face control is off and never loads the model', () => {
+  it('with a video it loads whatever the controls say: there is no gate any more (the branch derivation decides presence)', async () => {
     const inst = webcamFaceNode.make({ delegate: 'GPU' });
-    // No controls getter (headless / pre-wired) and explicitly disabled, both
-    // with a video present — the loader must not be reached either way.
-    expect(inst.process({}, ctx(undefined, fakeVideo()))).toMatchObject(ABSENT);
-    expect(inst.process({}, ctx(false, fakeVideo()))).toMatchObject(ABSENT);
-    expect(createFromOptions).not.toHaveBeenCalled();
-    expect(forVisionTasks).not.toHaveBeenCalled();
+    // No controls getter (headless / pre-wired): the node still loads, because if it is in
+    // the graph, something wanted it. The instance is drained and disposed here so the
+    // load never leaks into the next test.
+    const live = ctx(undefined, fakeVideo());
+    expect(inst.process({}, live)).toMatchObject(ABSENT);
+    expect(await drainLoad(inst, live)).toBe('ready');
+    inst.dispose?.();
+    expect(fakeLandmarker.close).toHaveBeenCalledTimes(1);
   });
 
   it('does not load the model when enabled but no camera <video> is present', () => {

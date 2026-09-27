@@ -45,6 +45,26 @@ export interface DerivationSettings {
   airFlute?: { enabled?: boolean };
 }
 
+/**
+ * The same slice with every field REQUIRED: what the hot store must actually provide. Not
+ * used at runtime (the derivation reads the optional shape so a partial state cannot
+ * throw); it exists so a test can pin, at typecheck time, that a dial rename in the store
+ * is caught rather than silently deriving "off".
+ */
+export interface StrictDerivationSettings {
+  handMap: { maxGain: number };
+  faceMapping: string;
+  body: { enabled: boolean };
+  bodyMap: { routes: Record<string, { target: string; feature: string }> };
+  conductor: { enabled: boolean };
+  midi: { enabled: boolean };
+  steer: { enabled: boolean };
+  airDrum: { enabled: boolean };
+  airBass: { enabled: boolean };
+  airGuitar: { enabled: boolean };
+  airFlute: { enabled: boolean };
+}
+
 export interface DerivationContext {
   /** The union of live feature-group claims (`appFeatureDemand.groups()`). */
   demanded?: DemandedGroups;

@@ -63,7 +63,7 @@ function LabIntro({ onStart }: { onStart: () => void }) {
 }
 
 /** A one-line status for the face half of the Lab: the meters need the face model, which
- *  the Lab itself now requests (see `faceActive`) — so the honest thing to report is the
+ *  the Lab itself now requests (the face source is composed for it: `branchIdsFor`) — so the honest thing to report is the
  *  LOAD, not a "turn on face mapping" instruction the player no longer needs to follow. */
 function FaceModelNote() {
   const featureLab = useControls((s) => s.featureLab);
