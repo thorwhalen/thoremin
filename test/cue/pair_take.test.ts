@@ -361,7 +361,9 @@ describe('scripts/cue: the audio labels', () => {
     got.forEach((t, i) => expect(Math.abs(t - times[i])).toBeLessThan(0.002));
   });
 
-  it('hears every strum of a chord re-strummed while it still rings (the guitar routine)', () => {
+  // Synthesising 15 s of a six-string, ten-partial strum at 48 kHz twice takes a few
+  // seconds on a CI runner (8 s measured), past the 5 s default.
+  it('hears every strum of a chord re-strummed while it still rings (the guitar routine)', { timeout: 60_000 }, () => {
     // Six strings, 8 ms strum spread, ringing with a 1.5 s time constant, 16 strums of
     // the SAME chord at 70 bpm: the level barely rises on each (measured: a level-rise
     // detector found 0 of 16); the attack's high partials still do.
