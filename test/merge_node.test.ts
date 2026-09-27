@@ -13,7 +13,7 @@ import {
   MERGE_INPUTS,
   MERGE_OUTPUT,
   type GraphSpec,
-} from '@/dag';
+} from '@thoremin/dag';
 import { replaySourceNode } from '@/nodes';
 
 /** Primary wins, secondary is the fallback — the composition case the design names. */

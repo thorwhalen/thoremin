@@ -8,9 +8,9 @@
  * emits nothing (safe in tests / before the host wires it up).
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import type { Extension } from '@/instruments/extension';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
 import type { SoundId } from '@/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';

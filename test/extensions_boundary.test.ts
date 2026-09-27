@@ -70,14 +70,12 @@ const FOLD_POINTS = new Set([
 /** The PURE half: what an extension's nodes, libraries and pure manifest files may import.
  *  An entry allows the module and every path below it (`@/dag` allows `@/dag/engine`). */
 const SDK_PURE = [
-  '@/dag',
   '@/nodes/domain',
   '@/instruments/branch',
   '@/instruments/branches', // the trunk's node ids, to wire to
   '@/instruments/extension',
   '@/features/demand',
   '@/features/catalog',
-  '@/ictus',
   '@/enroll',
   '@/music/theory',
   '@/music/notes',
@@ -110,6 +108,11 @@ const SDK_APP = [
 
 const SDK_SURFACE = [...SDK_PURE, ...SDK_APP];
 
+/** The PACKAGES a pure extension file may import: thoremin's own pure workspace packages
+ *  (cut from the surface in PR 6) and the schema library. Its React side may import any
+ *  package the app depends on. */
+const PURE_PACKAGES = ['@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', 'zod'];
+
 /** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
 const isPureExtensionFile = (file: string): boolean =>
   /^src\/extensions\/[^/]+\/(nodes|lib)\//.test(file) || /^src\/extensions\/[^/]+\/[^/]+\.ts$/.test(file);
@@ -126,14 +129,15 @@ describe('core reaches the extensions only through the lists, from the fold poin
     const offenders: string[] = [];
     {
       for (const file of tsFiles(CORE_ROOT)) {
-        if (isExtensionFile(file) || file.startsWith('src/app/extensions/types')) continue;
+        // The list side's own type files (the manifest types, the virtual module's declaration).
+        if (isExtensionFile(file) || (file.startsWith('src/app/extensions/') && file !== 'src/app/extensions/index.ts')) continue;
         for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
           // Alias or relative, a directory or the list module itself (`../extensions`).
           const reachesExtensions = /^@\/extensions(\/|$)/.test(spec) || /^@\/app\/extensions(\/|$)/.test(spec) || /(^|\/)extensions(\/|$)/.test(spec);
           if (!reachesExtensions) continue;
           if (NAMED_EXCEPTIONS[file]?.test(spec)) continue;
           const isList = LIST_MODULES.test(spec) || (file.startsWith('src/app/') && /^\.\/extensions$/.test(spec));
-          if (FOLD_POINTS.has(file) && (isList || (file === 'src/app/extensions/index.ts' && /^@\/extensions\/[^/]+\/ui$/.test(spec)))) continue;
+          if (FOLD_POINTS.has(file) && (isList || (file === 'src/app/extensions/index.ts' && spec === './types'))) continue;
           offenders.push(`${file} imports ${spec}`);
         }
       }
@@ -149,8 +153,11 @@ describe('core reaches the extensions only through the lists, from the fold poin
   });
 
   it('the list modules import only manifests (no component or store reaches in through them)', () => {
+    // Since PR 6 the lists come from `extensions.json` through two virtual modules.
     const pure = importSpecifiers(readFileSync('src/extensions/index.ts', 'utf8'));
-    expect(pure.every((s) => /^@\/instruments\//.test(s) || /^\.\/[a-z]+$/.test(s))).toBe(true);
+    expect(pure.sort()).toEqual(['@/instruments/extension', 'virtual:thoremin/extensions']);
+    const ui = importSpecifiers(readFileSync('src/app/extensions/index.ts', 'utf8'));
+    expect(ui.sort()).toEqual(['./types', 'virtual:thoremin/extensions-ui']);
   });
 
   it('an extension imports only the SDK surface, packages and itself (rule 2, on since 5b)', () => {
@@ -160,7 +167,12 @@ describe('core reaches the extensions only through the lists, from the fold poin
       const ext = file.split('/')[2];
       const pure = isPureExtensionFile(file);
       for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
-        if (!spec.startsWith('@/')) continue; // a package, or a relative import (checked below)
+        if (spec.startsWith('.')) continue; // relative: checked below
+        if (!spec.startsWith('@/')) {
+          // A package. The React side may import any; a pure file only the pure ones.
+          if (pure && !allows(PURE_PACKAGES, spec)) offenders.push(`${file} (pure) imports the package ${spec}`);
+          continue;
+        }
         if (spec.startsWith(`@/extensions/${ext}/`)) {
           // Itself. A pure file stays on the pure side of its own extension too.
           // A root module counts as pure only if it is a `.ts` file (`ui.tsx` is the React half).

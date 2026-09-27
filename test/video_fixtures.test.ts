@@ -11,7 +11,7 @@
  * stream, committed gzipped). See docs/TESTING.md.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import {
   voiceMappingNode,

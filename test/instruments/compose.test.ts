@@ -5,7 +5,7 @@
  * so "compiles" is the check that no cross-branch edge dangles).
  */
 import { describe, expect, it } from 'vitest';
-import { Engine } from '@/dag';
+import { Engine } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeGraph, ComposeError, defineBranch } from '@/instruments';
 import { composeInstrumentGraph, ALL_BRANCHES, ALL_BRANCH_IDS } from '@/app/graph';

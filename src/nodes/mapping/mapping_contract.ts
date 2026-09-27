@@ -18,7 +18,7 @@
  * Today `voice-mapping` is the sole implementation; the contract makes the next
  * hand-features→synth-params mapping a clean, edge-stable drop-in.
  */
-import type { PortSpec, Role } from '@/dag';
+import type { PortSpec, Role } from '@thoremin/dag';
 import type { SlotContract } from '../slot_contract';
 
 /**

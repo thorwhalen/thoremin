@@ -60,7 +60,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { unzipSync } from 'fflate';
-import { resolveIntervals } from '@/taglog/affordances/resolve';
+import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
 import { CueSchema, clickPlan, type Cue } from '@/enroll';
 import { cueWindows, edgeEventsFromRows, findStem, sealOpenEnded, type CueWindow } from '../lib_trainer_take';
 import { dataRoot } from '../air/lib_air_paths';

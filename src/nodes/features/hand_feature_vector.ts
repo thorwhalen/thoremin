@@ -41,8 +41,8 @@
  * hidden) emits an empty vector; headless is always active from params.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import type { Hand, HandsFrame } from '../domain';
 import {
   buildHandCtx,

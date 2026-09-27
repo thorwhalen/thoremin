@@ -11,7 +11,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { parseRecords, type StreamRecord } from '@/dag';
+import { parseRecords, type StreamRecord } from '@thoremin/dag';
 
 /** The committed-fixtures root (`test/fixtures`). */
 export const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');

@@ -18,7 +18,7 @@
  * modality the project wants to keep general alongside video.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 
 const Params = z.object({
   magnetismStep: z.number().default(0.1),

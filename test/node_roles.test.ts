@@ -5,7 +5,7 @@
  * never gate engine execution, so these are pure, headless checks.
  */
 import { describe, it, expect } from 'vitest';
-import type { Role } from '@/dag';
+import type { Role } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { buildCatalog } from '@/catalog';
 

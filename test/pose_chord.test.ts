@@ -5,7 +5,7 @@
  * sound each tick, so a single tick reflects the mapping.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { poseChordNode, yawToDegree, POSE_VOICE_ID_BASE, MAX_POSE_VOICES } from '@/nodes';
 import { ABSENT_FACE_CONTROLS, type FaceControls, type VoiceParams } from '@/nodes/domain';
 import { diatonicChord, diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';

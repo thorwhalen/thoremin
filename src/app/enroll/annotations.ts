@@ -17,8 +17,8 @@
  * taglog design).
  */
 import type { Cue, RunnerEvent } from '@/enroll';
-import { TagEventSink } from '@/taglog/provider/sink';
-import { applyToggle, closeAll } from '@/taglog/affordances/toggle';
+import { TagEventSink } from '@thoremin/taglog/provider/sink';
+import { applyToggle, closeAll } from '@thoremin/taglog/affordances/toggle';
 import {
   ANNOTATIONS_SCHEMA_ID,
   DEFAULT_TAGGING_CONFIG,
@@ -26,7 +26,7 @@ import {
   type TagDef,
   type TagState,
   type TaggingConfig,
-} from '@/taglog/affordances/schema';
+} from '@thoremin/taglog/affordances/schema';
 import type { TagStreamSource, TagTakeMeta } from '../recording/tagStream';
 
 /** Tag ids the trainer writes, so a consumer can find them without guessing. */

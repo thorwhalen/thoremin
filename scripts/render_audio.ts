@@ -6,7 +6,7 @@
  * Usage: vite-node scripts/render_audio.ts <map.params.ndjson> <out.wav> [fps]
  */
 import { readFileSync } from 'node:fs';
-import { parseRecords } from '@/dag';
+import { parseRecords } from '@thoremin/dag';
 import type { SynthParams } from '@/nodes';
 import { render, writeWav, rms, SR } from './lib_audio';
 

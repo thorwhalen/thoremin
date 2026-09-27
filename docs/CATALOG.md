@@ -19,7 +19,7 @@ This page catalogs the engine's building blocks — every node, its ports and it
 - **Gesture → harmony** — `hand-features → pick('right.x') → progression → chord → webaudio-synth`  
   Hand position walks an in-key chord progression.
 - **Conductor** — `webcam-hands → conductor → score → synth-merge → webaudio-synth`  
-  The beating hand becomes musical time (src/ictus): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece's tempo + dynamics, directed live. Behind the Conductor dial.
+  The beating hand becomes musical time (packages/ictus/src): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece's tempo + dynamics, directed live. Behind the Conductor dial.
 - **Indirect / AI (gesture or expression)** — `hand-features / face-features → indirect-map → lyria`  
   Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  

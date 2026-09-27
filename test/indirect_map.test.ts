@@ -6,7 +6,7 @@
  * input rather than only a build-time param.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import { indirectMapNode, ABSENT_HAND, ABSENT_FACE, type GenerativeSteer, type HandFeatures, type FaceFeatures } from '@/nodes';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';

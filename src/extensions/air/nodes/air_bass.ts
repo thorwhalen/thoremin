@@ -23,9 +23,9 @@
  * and Node-safe (no DOM, no clock), so synthetic hands drive it headlessly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { createImpactPredictor, type ImpactPredictor } from '@/ictus';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
 import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '@/nodes/domain';
 import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
 

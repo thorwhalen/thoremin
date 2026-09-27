@@ -24,8 +24,8 @@
  */
 import { z } from 'zod';
 import { createFramePump, stampToTiming } from './frame_pump';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import { matrixToHeadPose, type FaceFrame, type FaceStatus } from '../domain';
 

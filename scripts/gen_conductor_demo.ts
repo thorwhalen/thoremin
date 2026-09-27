@@ -8,7 +8,7 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { runHeadless, serializeRecords, type GraphSpec, type StreamRecord } from '@/dag';
+import { runHeadless, serializeRecords, type GraphSpec, type StreamRecord } from '@thoremin/dag';
 import { createCoreRegistry } from '@/nodes';
 
 async function main(): Promise<void> {

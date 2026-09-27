@@ -7,8 +7,8 @@
  * Pure + Node-safe (just reads node metadata + introspects Zod schemas), so it
  * is unit-testable headlessly.
  */
-import type { NodeRegistry } from '@/dag';
-import type { NodeDef, PortSpec, Role } from '@/dag';
+import type { NodeRegistry } from '@thoremin/dag';
+import type { NodeDef, PortSpec, Role } from '@thoremin/dag';
 
 export interface PortInfo {
   name: string;

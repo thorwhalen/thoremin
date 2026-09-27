@@ -13,8 +13,8 @@ import {
   formatTimecode,
   getAdapter,
   ADAPTERS,
-} from '@/taglog/adapters';
-import { TagDefSchema, type ResolvedInterval, type TagDef } from '@/taglog/affordances';
+} from '@thoremin/taglog/adapters';
+import { TagDefSchema, type ResolvedInterval, type TagDef } from '@thoremin/taglog/affordances';
 
 const defs: TagDef[] = [
   TagDefSchema.parse({ id: 'pluck', label: 'Pluck', kind: 'interval' }),

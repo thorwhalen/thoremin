@@ -16,15 +16,15 @@ if (typeof (globalThis as { localStorage?: unknown }).localStorage === 'undefine
 }
 
 import { describe, it, expect } from 'vitest';
-import { TagEventSink } from '@/taglog/provider/sink';
+import { TagEventSink } from '@thoremin/taglog/provider/sink';
 import {
   createTagSetProvider,
   loadLastUsed,
   saveTagSet,
   parseTagSet,
   TagSetDocSchema,
-} from '@/taglog/provider/defsStore';
-import type { AnchorRecord, EdgeEvent } from '@/taglog/affordances';
+} from '@thoremin/taglog/provider/defsStore';
+import type { AnchorRecord, EdgeEvent } from '@thoremin/taglog/affordances';
 
 describe('TagEventSink', () => {
   const anchor: AnchorRecord = {

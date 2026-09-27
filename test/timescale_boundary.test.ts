@@ -21,7 +21,7 @@ import {
   realtimeOutputAllowed,
   TIME_SCALE_KEY,
   type NodeContext,
-} from '@/dag';
+} from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';

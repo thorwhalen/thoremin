@@ -18,7 +18,7 @@
  * unconnected port changes nothing about how this node behaves today.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { rangeMap } from '@/music/theory';
 import { ABSENT_FACE, ABSENT_HAND, type FaceFeatures, type HandFeatures, type SingleHandFeatures } from '../domain';
 import type { GenerativeSteer, WeightedPrompt } from '../output/generative';

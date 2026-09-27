@@ -24,7 +24,7 @@ import {
   type GraphSpec,
   type NodeContext,
   type StateReader,
-} from '@/dag';
+} from '@thoremin/dag';
 import { CORE_NODES, STATE_GENERATOR_OUTPUTS, stateGeneratorSource, tickRng } from '@/nodes';
 
 /** Sums every value it is fed — the "current DAG state" the generator reads back. */

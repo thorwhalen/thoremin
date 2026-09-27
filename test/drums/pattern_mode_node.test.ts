@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
 import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
 import { compilePattern } from '@/music/drum_patterns';

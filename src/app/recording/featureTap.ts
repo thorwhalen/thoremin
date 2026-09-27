@@ -15,7 +15,7 @@
  * `createWritable({keepExistingData:true})`) could flush it on a timer for
  * hours-long, all-edge captures. Pure (no DOM/filesystem), unit-testable.
  */
-import type { NodeContext, Tap } from '@/dag';
+import type { NodeContext, Tap } from '@thoremin/dag';
 
 export class FeatureJsonlTap implements Tap {
   /** Only record these `"<node>.<port>"` keys; empty/undefined = all edges. */

@@ -4,7 +4,7 @@
  * overlay). Importing this module pulls in TF.js / MediaPipe, so it must only
  * be imported by the app shell, never by Node tests.
  */
-import { createRegistry, type NodeRegistry } from '@/dag';
+import { createRegistry, type NodeRegistry } from '@thoremin/dag';
 import { CORE_NODES } from './index';
 import { webcamHandsNode } from './sources/webcam_hands';
 import { webcamFaceNode } from './sources/webcam_face';
@@ -13,7 +13,7 @@ import { keyboardSourceNode } from './sources/keyboard';
 import { makeStoreControlsNode } from './sources/store_controls';
 import type { Extension } from '@/instruments/extension';
 import { EXTENSIONS } from '@/extensions';
-import type { NodeDef } from '@/dag';
+import type { NodeDef } from '@thoremin/dag';
 import { webAudioSynthNode } from './output/webaudio_synth';
 import { canvasOverlayNode } from './output/canvas_overlay';
 import { midiOutNode } from './output/midi_out';

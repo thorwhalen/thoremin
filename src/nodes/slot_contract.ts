@@ -12,7 +12,7 @@
  * shape: `src/app/graph.ts`'s `slotFillReason` checks all of them identically,
  * and adding a slot is adding data, not a code path.
  */
-import type { PortSpec, Role } from '@/dag';
+import type { PortSpec, Role } from '@thoremin/dag';
 
 export interface SlotContract {
   /** The advisory role a candidate must carry. */

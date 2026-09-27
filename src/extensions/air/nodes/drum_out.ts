@@ -22,9 +22,9 @@
  * clock scale but real time this node sounds nothing.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { realtimeOutputAllowed } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { realtimeOutputAllowed } from '@thoremin/dag';
 import { DRUM_SOUNDS, DrumHitsSchema, type DrumHit, type DrumSound } from '@/extensions/air/nodes/air_drum';
 
 /** Per-hit shading of a voice beyond its loudness. */

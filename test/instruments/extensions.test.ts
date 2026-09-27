@@ -4,7 +4,7 @@
  * no air dial; with it, every one of them is there, from one object.
  */
 import { describe, expect, it } from 'vitest';
-import { Engine } from '@/dag';
+import { Engine } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { makeStoreControlsNode } from '@/nodes/sources/store_controls';
 import { EXTENSIONS, EXTENSION_DIAL_SLICES, EXTENSION_BRANCHES } from '@/extensions';

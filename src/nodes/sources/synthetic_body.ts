@@ -9,7 +9,7 @@
  * injected clock (the determinism rule `test/body_slot.test.ts` enforces).
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { BODY_LANDMARK_COUNT, makeBodyKeypoints, type BodyFrame, type BodyStatus } from '../domain';
 import { BODY_SLOT_OUTPUT } from './body_contract';
 

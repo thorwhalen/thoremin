@@ -28,7 +28,7 @@
 
 ## The idea in one line
 
-The DAG (`src/dag/`) is *the computation*. **Applying** the DAG to a stream is a
+The DAG (`packages/dag/src/`) is *the computation*. **Applying** the DAG to a stream is a
 separate concern with pluggable choices: **where the data comes from** (the
 *source*), **when the engine advances** (the *clock*), and **what we do with the
 outputs** (*taps* for recording, *sinks* for view/hear). One open-closed
@@ -65,7 +65,7 @@ origins (file / persisted / generated / live).
 
 ## Design invariants (constraints every abstraction honors)
 
-These come from the existing engine (`src/dag/engine.ts`) and are load-bearing:
+These come from the existing engine (`packages/dag/src/engine.ts`) and are load-bearing:
 
 1. **`process()` is synchronous; only `init()` is async.** All I/O (video decode,
    file read, MediaPipe, fetch) happens in the background and is *latched* into a
@@ -164,7 +164,7 @@ interface Clock {
   recorded/generated sources and obeys boundary B for audio; a **non-positive
   speed** would collapse to a frozen clock (`dt = 0`), so `RealtimeClock` **throws a
   `RangeError`** on a non-finite or non-positive speed rather than shipping one
-  (`src/dag/clock.ts`; landed with M-D).
+  (`packages/dag/src/clock.ts`; landed with M-D).
 
 ### Applier — applies an Engine to a SourceSet under a Clock
 
@@ -182,7 +182,7 @@ class Applier {
 }
 ```
 
-Lives at `src/dag/applier.ts` (**in-repo**; revisit extraction to a reusable substrate
+Lives at `packages/dag/src/applier.ts` (**in-repo**; revisit extraction to a reusable substrate
 once it stabilizes and a second consumer appears). **Built**, with two departures from
 the sketch above, both deliberate: it takes a **live `Engine`** rather than a
 spec+registry (the lifecycle section below licenses this — and it is what keeps
@@ -236,7 +236,7 @@ boundaries allow.
   swapped — a per-source `mirror` flag is deferred to the host-side **`Source`** contract, which
   M-C did **not** ship — it moved to M-D along with the async-iterable interface.
 - **M-B — Clock + speed multiplier (R5 control-rate core). ✅ shipped.**
-  `src/dag/clock.ts` (`Clock` / `BatchClock` / `RealtimeClock`); refit the
+  `packages/dag/src/clock.ts` (`Clock` / `BatchClock` / `RealtimeClock`); refit the
   **`runHeadless`** loop → `BatchClock(ticks)` (preserve the no-arg `tick()`
   call). No engine change. M-B shipped the abstraction + the fully-tested
   `BatchClock` path and a headless `RealtimeClock`; the live rAF adoption was
@@ -313,7 +313,7 @@ boundaries allow.
     node (see below). The Applier can therefore change its source/graph without
     reconstructing the engine and reloading the ML models.
 - **M-E — Composition + timestamp-aware replay (R2). ✅ all three landed.**
-  - ✅ **`defineMergeNode({type, kind, combine})`** (`src/dag/merge.ts`). The engine
+  - ✅ **`defineMergeNode({type, kind, combine})`** (`packages/dag/src/merge.ts`). The engine
     rejects fan-in to one input port, so composition has to be an explicit typed node.
     Kind-preserving, two inputs (`a`/`b`), one output (`merged`), pure. `combine` is
     called on ticks where **one** side is absent — deciding what an absent side means is
@@ -358,7 +358,7 @@ boundaries allow.
   - ✅ **Boundary (B) is now a mechanism, not a policy.** `Clock` declares `timeScale`
     (engine seconds per wall second; **absent** = no wall-clock relation at all, which
     `BatchClock` reports rather than lying with `1`), the `Applier` publishes it onto the
-    engine's resources, and `realtimeOutputAllowed` (`src/dag/timescale.ts`) is consulted
+    engine's resources, and `realtimeOutputAllowed` (`packages/dag/src/timescale.ts`) is consulted
     by every node with `roles: ['synth']` — `webaudio-synth` (tears its voices down, so
     the result is silence rather than a chord frozen at its last value), `midi-out`
     (forced through the existing disabled path, which already panics all-notes-off) and

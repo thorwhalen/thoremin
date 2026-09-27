@@ -11,9 +11,9 @@
  */
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, Plus, Trash2, X } from 'lucide-react';
-import type { ExclusivityMode, TagDef, TagKind } from '@/taglog/affordances';
-import { CODECS } from '@/taglog/affordances';
-import type { TimeChoice } from '@/taglog/adapters';
+import type { ExclusivityMode, TagDef, TagKind } from '@thoremin/taglog/affordances';
+import { CODECS } from '@thoremin/taglog/affordances';
+import type { TimeChoice } from '@thoremin/taglog/adapters';
 import { useTagging } from './store';
 import { DEFAULT_EXPORT_FORMAT, EXPORT_FORMATS, TIME_CHOICES, downloadTake, summarizeTake } from './export';
 

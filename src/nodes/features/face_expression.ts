@@ -20,7 +20,7 @@
  * store); absent, the shipped {@link DEFAULT_EXPRESSION_SENSITIVITY} is used.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import type { FaceFrame } from '../domain';
 import {
   EMOTIONS,

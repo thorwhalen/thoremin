@@ -9,7 +9,7 @@
  * a pinch also lowers openness.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { ABSENT_HAND, type HandFeatures, type SingleHandFeatures } from '../domain';
 
 export type Pose = 'pinch' | 'fist' | 'open' | 'neutral' | 'absent';

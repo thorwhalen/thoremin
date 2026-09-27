@@ -4,7 +4,7 @@
  * is this pure function and is unit-tested here.
  */
 import { describe, it, expect } from 'vitest';
-import { computeTagOverlay, type TagOverlaySnapshot } from '@/taglog/presentation';
+import { computeTagOverlay, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 
 const snap: TagOverlaySnapshot = {
   t0: 100,

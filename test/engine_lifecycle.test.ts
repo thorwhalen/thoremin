@@ -30,7 +30,7 @@ import {
   type GraphSpec,
   type NodeRegistry,
   type Tap,
-} from '../src/dag';
+} from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { MAPPING_SLOT_INPUTS, MAPPING_SLOT_OUTPUT } from '@/nodes/mapping/mapping_contract';

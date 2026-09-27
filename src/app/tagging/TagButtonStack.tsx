@@ -11,7 +11,7 @@
  * the tagging store, part of the build-checked React layer.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { TagDef } from '@/taglog/affordances';
+import type { TagDef } from '@thoremin/taglog/affordances';
 import { useTagging } from './store';
 
 /** One tag button. A point button flashes briefly when IT fires (via the store, so a

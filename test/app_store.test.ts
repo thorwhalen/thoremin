@@ -14,7 +14,7 @@ import { DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 
 beforeEach(() => {
   // The store is a module singleton; reset to its initial state per test.

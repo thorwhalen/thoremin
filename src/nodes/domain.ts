@@ -8,7 +8,7 @@
  */
 import { z } from 'zod';
 import type { SoundId } from '@/music/sounds';
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 
 export interface Keypoint {
   x: number;

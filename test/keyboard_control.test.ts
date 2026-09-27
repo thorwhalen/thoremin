@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { keyboardControlNode } from '@/nodes';
 import { isEditableTarget } from '@/nodes/sources/keyboard';
 

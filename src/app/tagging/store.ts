@@ -28,16 +28,16 @@ import {
   type TaggingConfig,
   type TagState,
   type TagSrc,
-} from '@/taglog/affordances';
-import { TagEventSink } from '@/taglog/provider/sink';
+} from '@thoremin/taglog/affordances';
+import { TagEventSink } from '@thoremin/taglog/provider/sink';
 import {
   createTagSetProvider,
   loadLastUsed,
   saveTagSet,
   TagSetDocSchema,
   type TagSetDoc,
-} from '@/taglog/provider/defsStore';
-import type { TagOverlaySnapshot } from '@/taglog/presentation';
+} from '@thoremin/taglog/provider/defsStore';
+import type { TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 
 /** The active take's runtime context (present only while recording). */
 interface TakeContext {

@@ -10,7 +10,7 @@
  * `enabled` is the node's enable control: when it is off the readout says so, whatever
  * stale status a torn-down engine last reported.
  */
-import type { LoadPhase, LoadStatus } from '@/lazy';
+import type { LoadPhase, LoadStatus } from '@thoremin/lazy';
 
 /** Status-dot colour + whether it pulses, per phase. Same palette as the MIDI panel. */
 const PHASE_DOT: Record<LoadPhase, string> = {

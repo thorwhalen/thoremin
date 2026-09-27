@@ -16,7 +16,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { bodyFeatureVectorNode, type BodyFrame } from '@/nodes';
 import { BODY_GROUP_IDS } from '@/features/labConfig';
 import type { FeatureVector } from '@/features/catalog';

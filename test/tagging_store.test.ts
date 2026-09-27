@@ -17,7 +17,7 @@ if (typeof (globalThis as { localStorage?: unknown }).localStorage === 'undefine
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTagging, renumber, defaultTagSet } from '@/app/tagging/store';
-import { emptyTagState, DEFAULT_TAGGING_CONFIG, TagDefSchema } from '@/taglog/affordances';
+import { emptyTagState, DEFAULT_TAGGING_CONFIG, TagDefSchema } from '@thoremin/taglog/affordances';
 
 const A = TagDefSchema.parse({ id: 'a', label: 'A', kind: 'interval', group: 'g' });
 const B = TagDefSchema.parse({ id: 'b', label: 'B', kind: 'interval', group: 'g' });

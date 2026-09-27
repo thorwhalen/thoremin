@@ -81,7 +81,7 @@ describe('drum-out node', () => {
     h.process({ hits: [hit(100.05)] }, { tick: 2, time: 100.02, dt: 0.016, resources: { timeScale: 1 } });
     expect(m.played).toHaveLength(0);
     // Absent scale = a batch run = not real time either? No: absence means yes (see
-    // src/dag/timescale.ts), so a host that never declares a scale still sounds.
+    // packages/dag/src/timescale.ts), so a host that never declares a scale still sounds.
     h.process({ hits: [hit(100.05)] }, { tick: 3, time: 100.03, dt: 0.016, resources: base });
     expect(m.played).toHaveLength(1);
   });

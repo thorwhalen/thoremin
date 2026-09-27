@@ -47,8 +47,8 @@
 import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { resolveIntervals } from '@/taglog/affordances/resolve';
-import type { EdgeEvent, ResolvedInterval, TagKind, TagStatus } from '@/taglog/affordances/schema';
+import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
+import type { EdgeEvent, ResolvedInterval, TagKind, TagStatus } from '@thoremin/taglog/affordances/schema';
 import { FACE_OMIT } from '@/app/enroll/starterCues';
 import { ALL_FEATURES } from '@/features/catalog';
 

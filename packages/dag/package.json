@@ -1,0 +1,23 @@
+{
+  "name": "@thoremin/dag",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's dag package (TypeScript source, consumed by the app through the workspace).",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts",
+    "./applier": "./src/applier.ts",
+    "./clock": "./src/clock.ts",
+    "./engine": "./src/engine.ts",
+    "./merge": "./src/merge.ts",
+    "./node": "./src/node.ts",
+    "./recorder": "./src/recorder.ts",
+    "./registry": "./src/registry.ts",
+    "./timescale": "./src/timescale.ts",
+    "./types": "./src/types.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

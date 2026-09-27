@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { replayNode, Engine, createRegistry, defineNode } from '@/dag';
+import { replayNode, Engine, createRegistry, defineNode } from '@thoremin/dag';
 import { synthMergeNode, keyboardControlNode } from '@/nodes';
 import type { SynthParams, VoiceParams } from '@/nodes/domain';
 

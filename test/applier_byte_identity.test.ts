@@ -22,7 +22,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { runHeadless, type GraphSpec } from '@/dag';
+import { runHeadless, type GraphSpec } from '@thoremin/dag';
 import { createCoreRegistry } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
 

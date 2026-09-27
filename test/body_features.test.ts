@@ -7,8 +7,8 @@
  * from `synthetic-body` through the vector node with every value finite.
  */
 import { describe, it, expect } from 'vitest';
-import type { NodeContext } from '@/dag';
-import { runHeadless } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { runHeadless } from '@thoremin/dag';
 import { createCoreRegistry, bodyFeatureVectorNode } from '@/nodes';
 import { BLM, makeBodyKeypoints, type BodyFrame } from '@/nodes/domain';
 import { ALL_FEATURES, BODY_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS, buildBodyCtx, type FeatureVector } from '@/features/catalog';

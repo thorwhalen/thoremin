@@ -20,7 +20,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { runHeadless, type GraphSpec } from '@/dag';
+import { runHeadless, type GraphSpec } from '@thoremin/dag';
 import { createCoreRegistry } from '@/nodes';
 import { SCENARIOS, type Scenario } from './scenarios';
 

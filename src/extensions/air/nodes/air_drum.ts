@@ -38,9 +38,9 @@
  * (`test/fixtures/subframe_*`) drive it headlessly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { createImpactPredictor, fitLine, fitQuadratic, magnetise, type ImpactPredictor, type MusicalTime } from '@/ictus';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { createImpactPredictor, fitLine, fitQuadratic, magnetise, type ImpactPredictor, type MusicalTime } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '@/drums/pattern_play';
 import { DRUM_SOUND } from '@/music/gm_drums';
 import { frameTime, type Hand, type HandsFrame } from '@/nodes/domain';

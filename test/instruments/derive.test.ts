@@ -5,7 +5,7 @@
  * with no host resources.
  */
 import { describe, expect, it } from 'vitest';
-import { Engine, StreamRecorder } from '@/dag';
+import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';

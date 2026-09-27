@@ -39,7 +39,7 @@ import { LatencyProbe, STAGES, type AudioLike, type LatencySnapshot, type ProbeF
 import { formatSummary, summarize, type Summary } from '@/latency/stats';
 import { pairStrikes, strikeOnsets, toneOnsets, TONE_DEFAULTS, type StrikePair } from '@/latency/onsets';
 import { createStrikeTrigger } from '@/latency/strike';
-import type { Tap } from '@/dag';
+import type { Tap } from '@thoremin/dag';
 
 export const LATENCY_HANDLE_KEY = 'thoreminLatency';
 

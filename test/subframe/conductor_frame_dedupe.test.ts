@@ -22,9 +22,9 @@
  * invented time.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { conductorNode, type HandsFrame } from '@/nodes';
-import { wrapPhase } from '@/ictus';
+import { wrapPhase } from '@thoremin/ictus';
 import { loadStream } from '../helpers/fixtures';
 
 const FPS = 30;

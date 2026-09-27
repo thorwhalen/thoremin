@@ -4,9 +4,9 @@
  * known, off-frame times, including a continuous groove where the wrist never rests.
  */
 import { describe, expect, it } from 'vitest';
-import type { StreamRecord } from '@/dag';
+import type { StreamRecord } from '@thoremin/dag';
 import { BLM, BODY_LANDMARK_COUNT, type BodyFrame } from '@/nodes/domain';
-import { fMeasure } from '@/ictus/metrics';
+import { fMeasure } from '@thoremin/ictus/metrics';
 import type { HandsFrame } from '@/nodes/domain';
 import { LM } from '@/nodes/domain';
 import { assignStrokes, handTracks, kmeans, median, strokesOf, strokesOfTracks, timingErrors, wristTracks } from '../../scripts/air/lib_drum_strokes';

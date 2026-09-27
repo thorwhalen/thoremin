@@ -9,7 +9,7 @@
  * is a one-line `candidates` addition.
  */
 import { describe, it, expect } from 'vitest';
-import { Engine, createRegistry, defineNode, type NodeRegistry } from '@/dag';
+import { Engine, createRegistry, defineNode, type NodeRegistry } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { voiceMappingNode } from '@/nodes/mapping/voice_mapping';
 import {

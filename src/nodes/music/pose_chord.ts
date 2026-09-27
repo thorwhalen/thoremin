@@ -29,9 +29,9 @@
  * timing, so it replays exactly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { clamp01 } from '@/features/math';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { diatonicChord, midiToFreq, SCALE_TYPES, type ScaleSpec } from '@/music/theory';
 import { SoundSchema } from '@/music/sounds';
 import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';

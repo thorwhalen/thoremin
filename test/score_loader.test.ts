@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DataProvider } from '@zodal/store';
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 import { createScoreStore, DEMO_SCORES, loadScore, type ScoreRecord } from '@/score';
 import { resolvePiece } from '@/app/resolvePiece';
 import { BUILTIN_PIECE, DEFAULT_PIECE } from '@/settings/schema';

@@ -14,7 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { EdgeSpec, GraphSpec, NodeSpec } from '@/dag';
+import type { EdgeSpec, GraphSpec, NodeSpec } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { defaultGraph, type SlotSelection } from '@/app/graph';

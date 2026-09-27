@@ -1,0 +1,14 @@
+{
+  "name": "@thoremin/lazy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's lazy package (TypeScript source, consumed by the app through the workspace).",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts",
+    "./resource": "./src/resource.ts",
+    "./status": "./src/status.ts"
+  },
+  "dependencies": {}
+}

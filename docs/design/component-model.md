@@ -139,7 +139,7 @@ reloads the MediaPipe hand and face models and rebuilds the audio graph. Paying
 several seconds of black screen and silence to change one mapping node is not a
 config flip; it is a restart.
 
-**`Engine.applyGraph(spec, registry?)`** (`src/dag/engine.ts`) reconciles a
+**`Engine.applyGraph(spec, registry?)`** (`packages/dag/src/engine.ts`) reconciles a
 running engine onto a new `GraphSpec` in place and returns a `GraphChange`
 (`added` / `removed` / `replaced` / `kept` / `rewired`).
 

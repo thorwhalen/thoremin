@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { Engine, createRegistry, defineNode, runHeadless, type GraphSpec } from '@/dag';
+import { Engine, createRegistry, defineNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { delayNode, replaySourceNode, createCoreRegistry } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
 import { z } from 'zod';

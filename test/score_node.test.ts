@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { replayNode } from '@/dag';
+import { replayNode } from '@thoremin/dag';
 import { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES, type SynthParams } from '@/nodes';
 import { DEMO_SCORES, fetchDemo, flattenNotes, type ScoreDoc } from '@/score';
 

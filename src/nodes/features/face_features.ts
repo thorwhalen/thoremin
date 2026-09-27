@@ -10,7 +10,7 @@
  * mapping layer. The browser `webcam-face` node produces the input.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { clamp01 } from '@/features/math';
 import { ABSENT_FACE, type FaceFeatures, type FaceFrame } from '../domain';
 

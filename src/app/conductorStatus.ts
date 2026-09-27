@@ -13,7 +13,7 @@
  * merely crept.
  */
 import { create } from 'zustand';
-import type { MusicalTime } from '@/ictus';
+import type { MusicalTime } from '@thoremin/ictus';
 
 export interface ConductorLive {
   enabled: boolean;

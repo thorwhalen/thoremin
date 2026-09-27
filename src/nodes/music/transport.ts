@@ -6,8 +6,8 @@
  * tick timing, so it replays exactly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 
 const Params = z.object({
   startBeat: z.number().default(0),

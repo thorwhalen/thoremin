@@ -24,8 +24,8 @@ import {
   stripRawPositions,
 } from '../scripts/lib_trainer_take';
 import { FACE_OMIT } from '@/app/enroll/starterCues';
-import { resolveIntervals } from '@/taglog/affordances/resolve';
-import { valuesFromNDJSON } from '@/dag';
+import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
+import { valuesFromNDJSON } from '@thoremin/dag';
 
 const STEM = 'trainer-2026-08-23T12-00-00';
 const T0 = 1000;

@@ -8,7 +8,7 @@
  * control shape (`featureLab.show === false`).
  */
 import { describe, it, expect } from 'vitest';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { createFeatureDemand } from '@/features/demand';
 import { resolveLabGate } from '@/features/labConfig';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';

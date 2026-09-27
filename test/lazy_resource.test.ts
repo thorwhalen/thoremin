@@ -5,7 +5,7 @@
  * status vocabulary and `withActive`.
  */
 import { describe, it, expect } from 'vitest';
-import { lazyResource, withActive, type LoadResult, type LoadContext } from '@/lazy';
+import { lazyResource, withActive, type LoadResult, type LoadContext } from '@thoremin/lazy';
 
 /** A loader whose resolution the test controls. */
 function deferredLoader<T>() {

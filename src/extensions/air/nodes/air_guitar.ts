@@ -26,9 +26,9 @@
  * Off by default; pure and Node-safe.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { createImpactPredictor, type ImpactPredictor } from '@/ictus';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@/enroll';
 import { chordShapeVector } from '@/extensions/air/lib/hand_shape';
 import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';

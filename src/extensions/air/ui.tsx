@@ -83,3 +83,5 @@ export const AIR_UI: ExtensionUi = {
     () => startPatternPlaySync(),
   ],
 };
+
+export default AIR_UI;

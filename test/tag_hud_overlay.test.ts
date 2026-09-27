@@ -5,9 +5,9 @@
  * silent no-op otherwise (the common case, so it must cost nothing).
  */
 import { describe, it, expect } from 'vitest';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { canvasOverlayNode, OVERLAY_ELEMENTS } from '@/nodes/output/canvas_overlay';
-import type { TagOverlaySnapshot } from '@/taglog/presentation';
+import type { TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 
 interface Call {
   m: string;

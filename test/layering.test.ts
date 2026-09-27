@@ -1,6 +1,6 @@
 /**
  * Layering guard (#188): the engine and node library never depend on the app shell
- * or a React plugin. `src/dag`, `src/nodes`, `src/lazy` and `src/keys` are the
+ * or a React plugin. `packages/dag/src`, `src/nodes`, `packages/lazy/src` and `src/keys` are the
  * Node-safe core the headless runs, the fixtures and the scripts import; one import
  * of `@/app/*` or `@/plugins/*` from there would drag React-side modules into every
  * headless test and invert the dependency direction the design docs state. The
@@ -23,7 +23,7 @@ const EXTENSION_PURE_DIRS = readdirSync('src/extensions', { withFileTypes: true 
       return false;
     }
   });
-const CORE_DIRS = ['src/dag', 'src/nodes', 'src/lazy', 'src/keys', 'src/music', 'src/settings', ...EXTENSION_PURE_DIRS];
+const CORE_DIRS = ['packages/dag/src', 'src/nodes', 'packages/lazy/src', 'src/keys', 'src/music', 'src/settings', ...EXTENSION_PURE_DIRS];
 const FORBIDDEN = /from\s+['"](@\/(app|plugins)(\/|['"])|\.\.\/(\.\.\/)*(app|plugins)\/)/;
 
 function tsFiles(dir: string): string[] {

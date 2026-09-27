@@ -13,7 +13,7 @@
  * (the `scores` collection). The parsers are loaded lazily by `loadScore`, so a player
  * who never enables conducting never downloads one.
  */
-import type { LoadStatus } from '@/lazy';
+import type { LoadStatus } from '@thoremin/lazy';
 import { BUILTIN_PIECE } from '@/settings/schema';
 import { demoById, fetchDemo, type ScoreDoc, type ScoreStore } from '@/score';
 

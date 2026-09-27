@@ -9,7 +9,7 @@
  * the hand is to the camera.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { clamp01 } from '@/features/math';
 import {
   ABSENT_HAND,

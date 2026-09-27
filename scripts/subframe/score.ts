@@ -48,10 +48,10 @@
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { createAdaptiveOscillator, createIctusDetector, type Anchor, type RhythmPrior, type Sample } from '@/ictus';
-import { createImpactPredictor, type ImpactEvent, type ImpactPredictorOptions } from '@/ictus/impact';
-import { magnetise } from '@/ictus/magnet';
-import { createTrendPrior } from '@/ictus/trend_prior';
+import { createAdaptiveOscillator, createIctusDetector, type Anchor, type RhythmPrior, type Sample } from '@thoremin/ictus';
+import { createImpactPredictor, type ImpactEvent, type ImpactPredictorOptions } from '@thoremin/ictus/impact';
+import { magnetise } from '@thoremin/ictus/magnet';
+import { createTrendPrior } from '@thoremin/ictus/trend_prior';
 
 // ---- CLI ----------------------------------------------------------------------
 

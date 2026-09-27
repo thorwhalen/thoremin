@@ -21,8 +21,8 @@
  * it deterministic for tests.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import type { FaceFrame } from '../domain';
 import { buildFaceCtx, FACE_FEATURES, type FeatureVector } from '@/features/catalog';
 import type { DemandedGroups } from '@/features/demand';

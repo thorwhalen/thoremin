@@ -28,8 +28,8 @@
  * timing — so it replays exactly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
 import { SoundSchema } from '@/music/sounds';
 import {

@@ -25,9 +25,9 @@
  * surfaced ({@link TIME_CHOICES}) and threaded to the adapters rather than silently
  * defaulted.
  */
-import { resolveIntervals } from '@/taglog/affordances';
-import type { EdgeEvent, ResolvedInterval } from '@/taglog/affordances';
-import { ADAPTERS, getAdapter, type TimeChoice } from '@/taglog/adapters';
+import { resolveIntervals } from '@thoremin/taglog/affordances';
+import type { EdgeEvent, ResolvedInterval } from '@thoremin/taglog/affordances';
+import { ADAPTERS, getAdapter, type TimeChoice } from '@thoremin/taglog/adapters';
 import { downloadBlob } from '@/app/recorder';
 import type { LastTake } from './store';
 

@@ -48,9 +48,9 @@
  * recorded conducting fixtures drive it headlessly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@/ictus';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
 import { LM, frameTime, type Hand, type HandsFrame } from '../domain';
 import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@/score/schema';
 

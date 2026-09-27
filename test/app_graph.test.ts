@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { FLUTE_VOICE_ID } from '@/extensions/air/nodes/air_flute';
 import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
-import { Engine, StreamRecorder } from '@/dag';
+import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';

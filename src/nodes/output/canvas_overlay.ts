@@ -23,9 +23,9 @@
  * Canvas + video are injected via `ctx.resources`. Pure drawing; no port output.
  */
 import { z } from 'zod';
-import type { MusicalTime } from '@/ictus';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import type { MusicalTime } from '@thoremin/ictus';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import {
   chordName,
   classifyChord,
@@ -48,7 +48,7 @@ import {
   FEATURE_GROUPS,
   type FeatureVector,
 } from '@/features/catalog';
-import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@/taglog/presentation';
+import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import { PAD_IDS, anyPadOn, type PadId, type Pads } from '../music/drum_pads';

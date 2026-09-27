@@ -4,9 +4,10 @@
  * status hooks, `App` over their mount effects.
  */
 import type { ExtensionUi } from './types';
-import { AIR_UI } from '@/extensions/air/ui';
+import listed from 'virtual:thoremin/extensions-ui';
 
-export const EXTENSION_UIS: readonly ExtensionUi[] = [AIR_UI];
+/** The React halves of the extensions `extensions.json` names, in its order. */
+export const EXTENSION_UIS: readonly ExtensionUi[] = listed;
 
 export const EXTENSION_PANELS = EXTENSION_UIS.flatMap((u) => u.panels);
 export const EXTENSION_STATUS_HOOKS = EXTENSION_UIS.flatMap((u) => u.statusHooks);

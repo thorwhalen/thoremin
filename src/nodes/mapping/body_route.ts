@@ -11,7 +11,7 @@
  * feature id in a route works the same.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { BodyMapSchema, DEFAULT_BODY_MAP, NEUTRAL_MODS, VoiceModsSchema, bodyRouteMods, type BodyMap, type BodyRouteState } from './body_map';
 
 const Params = z.object({

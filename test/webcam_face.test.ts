@@ -11,7 +11,7 @@
  *   4. the GPU→CPU delegate fallback when GPU creation fails.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { NodeContext } from '@/dag';
+import type { NodeContext } from '@thoremin/dag';
 
 /** Drain pending microtasks (the mocked async load chain resolves on them). */
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));

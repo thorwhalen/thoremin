@@ -6,7 +6,7 @@
  * downstream graph deterministically, with no camera.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 
 const Params = z.object({
   /** The recorded values, in tick order. */

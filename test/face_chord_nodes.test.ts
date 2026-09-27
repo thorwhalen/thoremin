@@ -6,8 +6,8 @@
  * All pure + headless via replayNode.
  */
 import { describe, it, expect } from 'vitest';
-import { replayNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { replayNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { faceExpressionNode, expressionChordNode, synthMergeNode, chordSelectNode, voiceMappingNode } from '@/nodes';
 import { MAX_CHORD_VOICES, ABSENT_HAND, ABSENT_FACE } from '@/nodes';
 import type { ExpressionScores } from '@/music/expression';

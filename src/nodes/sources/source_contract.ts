@@ -29,7 +29,7 @@
  * that emits a malformed frame, or nothing at all, at the source instead of as a
  * wrong note three nodes downstream.
  */
-import type { PortSpec, Role } from '@/dag';
+import type { PortSpec, Role } from '@thoremin/dag';
 import type { SlotContract } from '../slot_contract';
 import { HandsFrameSchema } from '../domain';
 

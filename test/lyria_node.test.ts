@@ -10,8 +10,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { Engine, StreamRecorder } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { Engine, StreamRecorder } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { createCoreRegistry, lyriaNode } from '@/nodes';
 import type {
   GenerativeConfig,

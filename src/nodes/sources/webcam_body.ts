@@ -34,10 +34,10 @@
  */
 import { z } from 'zod';
 import { createFramePump, stampToTiming } from './frame_pump';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import type { FeatureLabConfig } from '@/features/labConfig';
-import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@/lazy';
+import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@thoremin/lazy';
 import {
   BODY_MODELS,
   EMPTY_BODY_FRAME,

@@ -1,9 +1,9 @@
 /**
- * The beat-tracking metrics port (src/ictus/metrics.ts): the mir_eval conventions on
+ * The beat-tracking metrics port (packages/ictus/src/metrics.ts): the mir_eval conventions on
  * hand-computable cases, and `fitGrid` recovering the phase of a stated-tempo grid.
  */
 import { describe, it, expect } from 'vitest';
-import { fMeasure, cemgil, continuity, fitGrid, medianInterval } from '@/ictus';
+import { fMeasure, cemgil, continuity, fitGrid, medianInterval } from '@thoremin/ictus';
 
 const grid = (n: number, period: number, offset = 0) => Array.from({ length: n }, (_, i) => offset + i * period);
 

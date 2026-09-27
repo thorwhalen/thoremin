@@ -6,7 +6,7 @@
  * to drive harmony from a gesture. Pure + deterministic.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 
 const Params = z.object({
   /** Dotted path into the input object, e.g. "right.x" or "smile". */

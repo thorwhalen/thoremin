@@ -8,7 +8,7 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { replayNode, serializeRecords, type StreamRecord } from '@/dag';
+import { replayNode, serializeRecords, type StreamRecord } from '@thoremin/dag';
 import { progressionNode, chordNode, type SynthParams } from '@/nodes';
 
 async function main(): Promise<void> {

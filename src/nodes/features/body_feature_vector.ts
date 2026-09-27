@@ -25,8 +25,8 @@
  * history; headless is always active from params.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import type { BodyFrame } from '../domain';
 import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type FeatureVector } from '@/features/catalog';
 import type { DemandedGroups } from '@/features/demand';

@@ -9,8 +9,8 @@
  * runs replay exactly.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
 import { clamp01, rangeMap } from '@/music/theory';
 
 const Params = z.object({

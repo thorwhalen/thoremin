@@ -32,10 +32,10 @@
  * honest instead of showing a dead toggle.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
-import type { NodeContext } from '@/dag';
-import { realtimeOutputAllowed } from '@/dag';
-import { lazyResource, withActive, type LoadStatus } from '@/lazy';
+import { defineNode } from '@thoremin/dag';
+import type { NodeContext } from '@thoremin/dag';
+import { realtimeOutputAllowed } from '@thoremin/dag';
+import { lazyResource, withActive, type LoadStatus } from '@thoremin/lazy';
 import { getStoredKey } from '@/keys/providerKeys';
 import type { GenerativeEngine, GenerativeEngineFactory, GenerativeSteer } from './generative';
 

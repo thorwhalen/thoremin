@@ -1,5 +1,5 @@
 /**
- * The ictus detector (src/ictus/detector.ts) and the whole facade, on a synthetic stroke
+ * The ictus detector (packages/ictus/src/detector.ts) and the whole facade, on a synthetic stroke
  * and on the recorded conducting-pattern fixtures.
  *
  * Synthetic: a smooth up-down stroke whose bottom (the ictus) lands BETWEEN 30 Hz
@@ -14,7 +14,7 @@
  * interval; the oscillator's locked tempo on the same stream is asserted too.
  */
 import { describe, it, expect } from 'vitest';
-import { createIctus, createIctusDetector, fMeasure, fitGrid, medianInterval, type Sample } from '@/ictus';
+import { createIctus, createIctusDetector, fMeasure, fitGrid, medianInterval, type Sample } from '@thoremin/ictus';
 import type { HandsFrame } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
 

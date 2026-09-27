@@ -7,7 +7,7 @@
  *    DAG engine, the node library, or the audio synth. A command changes sound only
  *    by writing a DIAL (via `src/app/dials/`), so the real-time path can never
  *    accidentally acquire dispatch overhead.
- *  - Nothing under `src/dag/` or `src/nodes/` may import the command registry, so a
+ *  - Nothing under `packages/dag/src/` or `src/nodes/` may import the command registry, so a
  *    per-tick / audio event can never be routed through dispatch.
  *  - The AI assistant (`src/plugins/assistant/`, #87 Phase 3) is a registry CONSUMER —
  *    it may import React / the AI SDK / the registry / the dials read-side freely, but
@@ -129,7 +129,7 @@ describe('command-dispatch import firewall (#87)', () => {
           .filter((d) => d.isDirectory())
           .map((d) => join('src/extensions', d.name, 'nodes'))
       : [];
-    for (const dir of ['src/dag', 'src/nodes', ...extensionNodeDirs]) {
+    for (const dir of ['packages/dag/src', 'src/nodes', ...extensionNodeDirs]) {
       for (const f of tsFiles(dir)) {
         for (const spec of importSpecifiers(readFileSync(f, 'utf8'))) {
           expect(/(^|\/)commands(\/|$)/.test(spec), `${f} imports "${spec}" — the real-time path must not route through dispatch`).toBe(false);

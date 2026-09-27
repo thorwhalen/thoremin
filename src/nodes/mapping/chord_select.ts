@@ -10,7 +10,7 @@
  * yields the active chord's un-voiced tones (and `[]` when neither sounds).
  * Pure + deterministic.
  */
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 
 const asTones = (v: unknown): number[] => (Array.isArray(v) ? (v as number[]) : []);
 

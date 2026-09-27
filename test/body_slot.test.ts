@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { Engine, createRegistry, defineNode } from '@/dag';
+import { Engine, createRegistry, defineNode } from '@thoremin/dag';
 import { SLOTS, defaultGraph, parseSlotSelection, resolveSlot, sourceNeedsVideo } from '@/app/graph';
 import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
 import { CORE_NODES } from '@/nodes';

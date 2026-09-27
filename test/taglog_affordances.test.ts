@@ -21,7 +21,7 @@ import {
   type TaggingConfig,
   type EdgeEvent,
   type TagState,
-} from '@/taglog/affordances';
+} from '@thoremin/taglog/affordances';
 
 /** A tag def from a partial (schema fills defaults). */
 function def(over: Partial<TagDef> & { id: string }): TagDef {

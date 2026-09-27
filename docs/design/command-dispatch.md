@@ -37,7 +37,7 @@ there was nothing to strangle, only a seam to formalize.
 The load-bearing rule:
 
 > A command **never** touches the hot store, the DAG, the nodes, or the audio layer.
-> It changes sound **only** by writing a dial. Conversely, nothing in `src/dag/` or
+> It changes sound **only** by writing a dial. Conversely, nothing in `packages/dag/src/` or
 > `src/nodes/` may import the registry.
 
 This keeps human-frequency edits (a click, a keypress, an AI turn) on the dispatch path

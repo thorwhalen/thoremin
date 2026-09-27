@@ -7,7 +7,7 @@
  * node and confirm identical synth params (no source/feature recomputation).
  */
 import { describe, it, expect } from 'vitest';
-import { runHeadless, replayNode, type GraphSpec } from '@/dag';
+import { runHeadless, replayNode, type GraphSpec } from '@thoremin/dag';
 import {
   createCoreRegistry,
   handFeaturesNode,

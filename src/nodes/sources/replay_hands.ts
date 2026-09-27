@@ -25,7 +25,7 @@
  * on the last frame and never show the other two.
  */
 import { z } from 'zod';
-import { defineNode } from '@/dag';
+import { defineNode } from '@thoremin/dag';
 import { HandsFrameSchema, type HandsFrame } from '../domain';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 
