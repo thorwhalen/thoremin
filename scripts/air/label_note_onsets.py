@@ -57,6 +57,10 @@ PLATEAU_SECONDS = 0.25  # the note's own level is read over this much after the 
 FLOOR_SECONDS = 0.20  # the pre-onset floor over this much before the search window's start
 MIN_NOTE_SECONDS = 0.12  # shorter labelled notes are skipped: no plateau to measure
 MIN_RISE_DB = 6.0  # a "note" whose band energy rises less than this over its floor is not one
+MIN_WINDOW_HOPS = 4  # fewer hops than this in the floor or plateau window and the level cannot be read
+PLATEAU_PERCENTILE = 75  # the note's level is read above its own wobble
+FLOOR_PERCENTILE = 50
+EPS = 1e-12
 
 
 def data_root() -> Path:
@@ -133,22 +137,22 @@ def refine_onset(y: np.ndarray, *, sr: int, t_pitch: float, f0: float, hop: int 
     i_of = lambda t: int(round((t - w0) / hop_s))  # noqa: E731
     floor_lo, floor_hi = i_of(w0), i_of(t_pitch - SEARCH_BEFORE)
     plat_lo, plat_hi = i_of(t_pitch), i_of(min(w1, t_pitch + PLATEAU_SECONDS))
-    if floor_hi - floor_lo < 4 or plat_hi - plat_lo < 4:
+    if floor_hi - floor_lo < MIN_WINDOW_HOPS or plat_hi - plat_lo < MIN_WINDOW_HOPS:
         return None
-    b_floor = float(np.percentile(band[floor_lo:floor_hi], 50))
-    b_plat = float(np.percentile(band[plat_lo:plat_hi], 75))
-    if b_plat <= 0 or 10 * np.log10((b_plat + 1e-12) / (b_floor + 1e-12)) < MIN_RISE_DB:
+    b_floor = float(np.percentile(band[floor_lo:floor_hi], FLOOR_PERCENTILE))
+    b_plat = float(np.percentile(band[plat_lo:plat_hi], PLATEAU_PERCENTILE))
+    if b_plat <= 0 or 10 * np.log10((b_plat + EPS) / (b_floor + EPS)) < MIN_RISE_DB:
         return None
     r = rise_times(band, hop_seconds=hop_s, t0=w0, floor=b_floor, plateau=b_plat, search_from=floor_hi, plateau_from=plat_lo)
     if r["rise50"] is None:
         return None
-    r_floor = float(np.percentile(rms[floor_lo:floor_hi], 50))
-    r_plat = float(np.percentile(rms[plat_lo:plat_hi], 75))
+    r_floor = float(np.percentile(rms[floor_lo:floor_hi], FLOOR_PERCENTILE))
+    r_plat = float(np.percentile(rms[plat_lo:plat_hi], PLATEAU_PERCENTILE))
     m = None
-    if r_plat > 0 and 10 * np.log10((r_plat + 1e-12) / (r_floor + 1e-12)) >= MIN_RISE_DB:
+    if r_plat > 0 and 10 * np.log10((r_plat + EPS) / (r_floor + EPS)) >= MIN_RISE_DB:
         m = rise_times(rms, hop_seconds=hop_s, t0=w0, floor=r_floor, plateau=r_plat, search_from=floor_hi, plateau_from=plat_lo)["rise50"]
     rounded = {k: (round(v, 4) if v is not None else None) for k, v in r.items()}
-    return {**rounded, "rms50": round(m, 4) if m is not None else None, "riseDb": round(float(10 * np.log10((b_plat + 1e-12) / (b_floor + 1e-12))), 1)}
+    return {**rounded, "rms50": round(m, 4) if m is not None else None, "riseDb": round(float(10 * np.log10((b_plat + EPS) / (b_floor + EPS))), 1)}
 
 
 def label_onsets(y: np.ndarray, *, sr: int, segments: list[dict], hop: int = HOP) -> list[dict]:

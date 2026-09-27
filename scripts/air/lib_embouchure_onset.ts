@@ -38,6 +38,13 @@
  * geometry is the mesh itself, and the two are reported side by side so a lag in the
  * blendshape head is not mistaken for the mouth's own timing.
  *
+ * Two noise units appear here and are close but not identical: the profile's sigma is
+ * the MAD-scaled frame-to-frame jitter of the whole series ({@link jitterSigma}, an
+ * offline number), the detector's is `src/enroll/noise.ts`'s clipped running estimate
+ * (a mean absolute difference, about 1.13 sigma for Gaussian noise, floored at 1 % of
+ * the running range), because the detector must be causal. A threshold of "4 sigma"
+ * in one table is therefore within a fifth of the other's.
+ *
  * Pure: no DAG, no React, no file I/O except {@link readMouthFrames}. Tests run it on
  * synthetic streams (`test/air/embouchure_onset.test.ts`); the footage is local only.
  */
@@ -255,6 +262,10 @@ export interface ProfiledOnset {
 export interface OnsetProfile {
   /** The audio onset this is about. */
   t: number;
+  /** Whether the signal could be read at all: enough frames in both the resting and
+   *  the playing window. When false, nothing below is known; a consumer must leave
+   *  the onset out of every fraction rather than count it as "did not move". */
+  measured: boolean;
   /** Rest → play change in noise units (signed: + = the signal rose). */
   changeNoiseUnits: number;
   moved: boolean;
@@ -271,6 +282,8 @@ export interface OnsetProfile {
 }
 
 const PROFILE_DEFAULTS = { restSeconds: 0.3, playFrom: 0.05, playTo: 0.3, minChangeNoiseUnits: 3 };
+/** Fewer frames than this in a window and the level cannot be read. */
+const MIN_WINDOW_FRAMES = 3;
 
 function crossing(t: readonly number[], x: readonly number[], i0: number, i1: number, level: number, rising: boolean): number {
   // First crossing of `level` in (i0, i1], linearly interpolated.
@@ -309,9 +322,9 @@ export function onsetProfile(t: readonly number[], x: readonly number[], onsets:
     const i0 = lowerBound(t, from);
     const rest = x.slice(i0, lowerBound(t, from + restLen));
     const play = x.slice(lowerBound(t, on + opt.playFrom), lowerBound(t, on + opt.playTo));
-    const none = { t: on, changeNoiseUnits: NaN, moved: false, lead10: NaN, lead50: NaN, lead90: NaN, leadPeak: NaN };
-    if (rest.length < 3 || play.length < 3 || !(sigma > 0)) {
-      out.push(none);
+    const none = { t: on, measured: true, changeNoiseUnits: NaN, moved: false, lead10: NaN, lead50: NaN, lead90: NaN, leadPeak: NaN };
+    if (rest.length < MIN_WINDOW_FRAMES || play.length < MIN_WINDOW_FRAMES || !(sigma > 0)) {
+      out.push({ ...none, measured: false });
       continue;
     }
     const r = median(rest);
@@ -343,7 +356,7 @@ export function onsetProfile(t: readonly number[], x: readonly number[], onsets:
     const c10 = crossing(t, x, j, i1, level(0.1), rising);
     const c50 = crossing(t, x, j, i1, level(0.5), rising);
     const c90 = crossing(t, x, j, i1, level(0.9), rising);
-    out.push({ t: on, changeNoiseUnits: change, moved: true, lead10: on - c10, lead50: on - c50, lead90: on - c90, leadPeak });
+    out.push({ t: on, measured: true, changeNoiseUnits: change, moved: true, lead10: on - c10, lead50: on - c50, lead90: on - c90, leadPeak });
   }
   return out;
 }
@@ -372,6 +385,13 @@ export interface EmbouchureDetectorOptions {
   /** Until the noise estimate is warm, no anchor fires. */
   fireWhileCold?: boolean;
 }
+
+/** The recent-maximum excursion (what `strength` is relative to) decays with this
+ *  time constant, seconds, so a player who starts moving less is re-normalised. */
+const ENVELOPE_TAU = 30;
+/** Confidence at the threshold itself; it reaches 1 at twice the threshold. */
+const CONFIDENCE_AT_THRESHOLD = 0.5;
+const MIN_DT = 1e-6;
 
 const DETECTOR_DEFAULTS: Required<EmbouchureDetectorOptions> = {
   mode: 'level',
@@ -448,15 +468,17 @@ export function createEmbouchureDetector(options: EmbouchureDetectorOptions = {}
           // Interpolate the crossing between the previous sample and this one.
           const f = e === lastE ? 1 : Math.min(1, Math.max(0, (thr - lastE) / (e - lastE)));
           const at = lastT + f * (t - lastT);
-          const dt = Math.max(1e-6, t - lastT);
-          envelope = Math.max(envelope * 0.999, e);
+          const dt = Math.max(MIN_DT, t - lastT);
+          if (Number.isFinite(lastAnchorT)) envelope *= Math.exp(-(at - lastAnchorT) / ENVELOPE_TAU);
           anchor = {
             t: at,
-            confidence: Math.min(1, (e - thr) / thr + 0.5),
+            confidence: Math.min(1, (e - thr) / thr + CONFIDENCE_AT_THRESHOLD),
+            // Against the largest recent excursion: above 1 when this one is the largest.
             strength: envelope > 0 ? e / envelope : 1,
             sharpness: (e - lastE) / dt,
             lateral: 0,
           };
+          envelope = Math.max(envelope, e);
           lastAnchorT = at;
         }
       } else if (e < thr * o.releaseFraction) {

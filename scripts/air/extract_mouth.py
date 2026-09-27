@@ -105,6 +105,7 @@ def main() -> None:
     ap.add_argument("instrument")
     ap.add_argument("--only", nargs="*", default=None)
     ap.add_argument("--file", nargs="*", default=None, help="local clips (stem is the id)")
+    ap.add_argument("--force", action="store_true", help="redo a source whose output (or a stale .part of a crashed run) exists")
     args = ap.parse_args()
     root = data_root()
     vid_dir = root / "videos" / "air" / args.instrument
@@ -122,12 +123,17 @@ def main() -> None:
         jobs.append((p.stem, p))
     for vid, video in jobs:
         out = out_dir / f"{vid}.mouth.ndjson.gz"
+        part = out.with_suffix(out.suffix + ".part")
+        if args.force:
+            out.unlink(missing_ok=True)
+            part.unlink(missing_ok=True)
         if out.exists():
             print(f"skip {vid} (present)")
             continue
-        if out.with_suffix(out.suffix + ".part").exists():
-            # Another run is on it (several may run in parallel, one source list each).
-            print(f"skip {vid} (in progress)")
+        if part.exists():
+            # Another run is on it (several may run in parallel, one source list each);
+            # a crashed run's leftover needs --force.
+            print(f"skip {vid} (in progress; --force to redo)")
             continue
         if not video.exists():
             print(f"skip {vid} (no video)")

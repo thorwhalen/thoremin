@@ -162,6 +162,20 @@ describe('onsetProfile (the oracle reading)', () => {
     for (const p of prof) expect(p.leadPeak).toBeLessThan(LEAD);
   });
 
+  it('reports an onset whose windows have no frames as unmeasured, never as "did not move"', () => {
+    // A span that starts before the stream exists, and one whose playing window falls
+    // in a gap with no face: both are unknowns, not zeros.
+    const before = onsetProfile(t, x, [{ t: 0.05, from: -3 }]);
+    expect(before[0].measured).toBe(false);
+    expect(before[0].moved).toBe(false);
+    const gapT = t.filter((v) => v < 10 || v > 11);
+    const gapX = x.filter((_, i) => t[i] < 10 || t[i] > 11);
+    const inGap = onsetProfile(gapT, gapX, [{ t: 10.5, from: 9 }]);
+    expect(inGap[0].measured).toBe(false);
+    const fine = onsetProfile(t, x, [{ t: phraseOnsets[1], from: phraseOnsets[1] - 3 }]);
+    expect(fine[0].measured).toBe(true);
+  });
+
   it('reads an inner note as "did not move": the embouchure is held', () => {
     const prof = onsetProfile(t, x, innerOnsets.map((on) => ({ t: on, from: on - 0.5 })));
     expect(prof.every((p) => !p.moved)).toBe(true);
