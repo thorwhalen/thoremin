@@ -14,7 +14,7 @@ describe('parseChordName', () => {
     expect(parseChordName('G')).toMatchObject({ root: 7, quality: '', name: 'G' });
     expect(parseChordName(' em ')).toMatchObject({ root: 4, quality: 'm', name: 'Em' });
     expect(parseChordName('F#m7')).toMatchObject({ root: 6, quality: 'm7', name: 'F#m7' });
-    expect(parseChordName('Bb')).toMatchObject({ root: 10, quality: '', name: 'A#' });
+    expect(parseChordName('Bb')).toMatchObject({ root: 10, quality: '', name: 'Bb' });
     expect(parseChordName('Dsus')).toMatchObject({ root: 2, quality: 'sus4' });
     expect(parseChordName('Cmaj7')?.intervals).toEqual([0, 4, 7, 11]);
     expect(parseChordName('Amin')?.quality).toBe('m');
@@ -38,6 +38,7 @@ describe('guitarVoicing', () => {
   it('keeps every chord tone but the fifth: a seventh takes a doubled string or the fifth', () => {
     expect(voicing('C7')).toEqual([null, 48, 52, 58, 60, 64]); // x32310
     expect(voicing('G7')).toEqual([43, 47, 50, 55, 59, 65]); // 320001
+    expect(voicing('Aadd9')).toEqual([null, 45, 52, 59, 61, 64]); // x02420
     for (const name of ['C7', 'Am7', 'Dmaj7', 'E6', 'Fadd9']) {
       const chord = parseChordName(name)!;
       const got = new Set(guitarVoicing(chord).filter((n): n is number => n !== null).map((n) => n % 12));
@@ -51,6 +52,11 @@ describe('guitarVoicing', () => {
       for (const q of ['', 'm', '7', 'm7', 'maj7', 'sus2', 'sus4', '5', 'dim', 'aug', '6', 'm6', 'add9']) {
         const chord = parseChordName(root + q)!;
         const notes = guitarVoicing(chord);
+        // The third, when the chord has one, is never lost (the reviewed add9 bug).
+        const third = chord.intervals.find((i) => i === 3 || i === 4);
+        if (third !== undefined) expect(notes.some((n) => n !== null && n % 12 === (chord.root + third) % 12), `${root + q} third`).toBe(true);
+        // Nothing reaches past four frets above its open string.
+        notes.forEach((n, s) => n !== null && expect(n - [40, 45, 50, 55, 59, 64][s], root + q).toBeLessThanOrEqual(4));
         const bass = notes.find((n) => n !== null);
         expect(bass, root + q).toBeDefined();
         expect(bass! % 12, root + q).toBe(chord.root);
@@ -61,15 +67,21 @@ describe('guitarVoicing', () => {
 });
 
 describe('strumNotes', () => {
+  it('damps the strings the chord does not play, at the strum\'s start', () => {
+    const damps = strumNotes('D', 10, 0.8, 0.01, { predicted: true, lead: 0.05 }).filter((n) => n.velocity === 0);
+    expect(damps.map((n) => n.voice)).toEqual([0, 1]);
+    for (const n of damps) expect(n.t).toBe(10);
+  });
+
   it('is the voicing low string first, spread in time, one voice per string', () => {
-    const notes = strumNotes('C', 10, 0.8, 0.01, { predicted: true, lead: 0.05 });
+    const notes = strumNotes('C', 10, 0.8, 0.01, { predicted: true, lead: 0.05 }).filter((n) => n.velocity > 0);
     expect(notes.map((n) => n.midi)).toEqual([48, 52, 55, 60, 64]);
     expect(notes.map((n) => n.voice)).toEqual([1, 2, 3, 4, 5]);
     notes.forEach((n, i) => expect(n.t).toBeCloseTo(10 + i * 0.01, 9));
   });
 
   it('shifts by octaves, and plays nothing for a name that is not a chord', () => {
-    expect(strumNotes('Em', 0, 1, 0, { predicted: true, lead: 0 }, -1)[0].midi).toBe(28);
+    expect(strumNotes('Em', 0, 1, 0, { predicted: true, lead: 0 }, -1).filter((n) => n.velocity > 0)[0].midi).toBe(28);
     expect(strumNotes('my shape', 0, 1, 0, { predicted: true, lead: 0 })).toEqual([]);
   });
 });

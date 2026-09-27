@@ -116,7 +116,7 @@ describe('the Air instruments category (#249)', () => {
     fireEvent.click(within(air).getByLabelText('Edit Air Guitar'));
     const sections = document.querySelectorAll('details[data-section]');
     expect(sections[0]?.getAttribute('data-section')).toBe('Air guitar');
-    expect(screen.getByTestId('chord-enrolment')).toBeTruthy();
+    expect(screen.getByTestId('shape-enrolment')).toBeTruthy();
     expect(screen.getByLabelText('Chord to learn')).toBeTruthy();
   });
 

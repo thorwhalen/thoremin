@@ -107,15 +107,20 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
  * The notes of one strum of `chordName` at time `t`: the chord's guitar voicing, low
- * string first, `spread` seconds apart, each on its string's voice. Empty for a name that
- * is not a chord.
+ * string first, `spread` seconds apart, each on its string's voice. A string the chord
+ * does not play gets a zero-velocity note at the strum's start: a damp, so a G's low
+ * strings do not ring on under the D that follows it. Empty for a name that is not a chord.
  */
 export function strumNotes(chordName: string, t: number, velocity: number, spread: number, extra: Pick<NoteEvent, 'predicted' | 'lead'>, octaveShift = 0): NoteEvent[] {
   const chord = parseChordName(chordName);
   if (!chord) return [];
   const notes: NoteEvent[] = [];
   let k = 0;
-  guitarVoicing(chord).forEach((midi, string) => {
+  const voicing = guitarVoicing(chord);
+  voicing.forEach((midi, string) => {
+    if (midi === null) notes.push({ t, midi: 0, velocity: 0, voice: string, ...extra });
+  });
+  voicing.forEach((midi, string) => {
     if (midi === null) return;
     notes.push({ t: t + k * spread, midi: midi + 12 * octaveShift, velocity, voice: string, ...extra });
     k += 1;

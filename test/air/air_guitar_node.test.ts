@@ -32,7 +32,7 @@ function play(frames: HandsFrame[], config: Record<string, unknown>, model: Trai
       status: AirGuitarStatus;
       shape: unknown;
     };
-    notes.push(...out.notes);
+    notes.push(...out.notes.filter((n) => n.velocity > 0)); // the sounding ones (damps are velocity 0)
     status = out.status;
     shape = out.shape;
   }
@@ -74,6 +74,20 @@ describe('the air-guitar node', () => {
     expect(status.predicted / status.strums).toBeGreaterThanOrEqual(0.5);
     expect(status.chord).toBe('C');
     expect(status.known).toBe(3);
+  });
+
+  it('follows chord changes when the shapes are re-made a little differently from the enrolment', () => {
+    // Played with a systematic offset of up to 0.08 rad per joint that the enrolment never
+    // saw (the footage's per-player offset). Closed-set: every frame is the nearest chord,
+    // so the change is followed; a reject radius set from the enrolment kept the old chord.
+    const frames = guitarTake({ duration: 6, chordAt: (t) => (t < 2 ? 'G' : t < 4 ? 'C' : 'D'), drift: 0.08, seed: 11 });
+    const s = strums(play(frames, ON, model).notes);
+    const at = (lo: number, hi: number) => s.filter((x) => x[0].t > lo && x[0].t < hi);
+    for (const x of at(0.6, 1.9)) expect(x.map((n) => n.midi)).toEqual(voiced('G'));
+    for (const x of at(2.4, 3.9)) expect(x.map((n) => n.midi)).toEqual(voiced('C'));
+    for (const x of at(4.4, 6)) expect(x.map((n) => n.midi)).toEqual(voiced('D'));
+    expect(at(2.4, 3.9).length).toBeGreaterThan(0);
+    expect(at(4.4, 6).length).toBeGreaterThan(0);
   });
 
   it('emits the chord hand\'s live shape for enrolment', () => {

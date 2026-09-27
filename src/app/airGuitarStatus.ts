@@ -1,16 +1,10 @@
 /**
- * airGuitarStatus — the live air-guitar state the engine loop reports (#249), and the
- * fretting hand's live shape vector for enrolment.
- *
- * Two bridges on two frequencies, the split `src/app/enroll/liveVector.ts` explains: the
- * STATUS (the held chord, strums, the last strum's lead) changes at human rate and goes
- * to a zustand store, change-gated; the SHAPE vector changes every frame and nobody needs
- * it re-rendered, so it lands in a module holder that the enrolment UI polls while it is
- * capturing.
+ * airGuitarStatus — the live air-guitar state the engine loop reports (#249): the held
+ * chord, strums, the last strum's lead. Human-rate, change-gated, a zustand store. (The
+ * chord hand's per-frame shape vector, for enrolment, goes through `air/shapeTap.ts`.)
  */
 import { create } from 'zustand';
 import { IDLE_AIR_GUITAR_STATUS, type AirGuitarStatus } from '@/nodes/music/air_guitar';
-import type { FeatureVector } from '@/enroll';
 
 export type AirGuitarLive = AirGuitarStatus;
 export const ABSENT_AIR_GUITAR_LIVE: AirGuitarLive = IDLE_AIR_GUITAR_STATUS;
@@ -34,8 +28,9 @@ export const useAirGuitarStatus = create<AirGuitarStatusState>((set) => ({
 export function describeGuitarLive(live: AirGuitarLive): string {
   if (!live.enabled) return 'Off. Tick "Play the air guitar" (the Air Guitar instrument has it on).';
   if (live.known === 0) return 'Teach it your chords first: open the gear, name a chord, hold its shape.';
-  if (!live.fretting) return 'Show your chord hand: it holds the shapes you taught.';
-  if (live.chord === null) return 'Make one of your chord shapes.';
+  if (live.chord === null) return live.fretting ? 'Make one of your chord shapes.' : 'Show your chord hand: it holds the shapes you taught.';
+  // The tracker HOLDS the last chord with the chord hand out of view, and a strum plays it.
+  if (!live.fretting) return `Holding ${live.chord} (chord hand out of view). Strum to play it.`;
   if (!live.playable) return `"${live.chord}" is not a chord name it can play. Rename it (G, Em, C7, ...).`;
   if (!live.ready) return `${live.chord}. Strum down once to teach it your stroke.`;
   if (live.strums === 0 || live.lastChord === null) return `${live.chord}. Strum.`;
@@ -66,23 +61,4 @@ export function makeAirGuitarReporter(
     lastKey = key;
     store.report(status);
   };
-}
-
-/** The fretting hand's latest shape (null: no hand, or the guitar is off). */
-let latestShape: FeatureVector | null = null;
-
-/** Per-tick sink: copy the node's `shape` output into the holder (no React). */
-export function makeAirShapeTap(engine: OutputReader, nodeId: string = AIR_GUITAR_NODE_ID): () => void {
-  return () => {
-    const v = engine.getOutput(nodeId, 'shape') as FeatureVector | null | undefined;
-    latestShape = v ?? null;
-  };
-}
-
-/** The fretting hand's live shape, polled by the enrolment UI. */
-export const readAirShape = (): FeatureVector | null => latestShape;
-
-/** Set the holder directly (tests, and the engine teardown). */
-export function setAirShape(v: FeatureVector | null): void {
-  latestShape = v;
 }

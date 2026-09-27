@@ -44,8 +44,17 @@ export function chordShapeFeatureIds(sel: FeatureSelection = {}): string[] {
  * this frame is `NaN` (a model imputes or skips it), never dropped, so vectors stay
  * fixed-dimensional.
  */
+/** The selected ids as a set, built once per selection (this runs every camera frame). */
+const idSets = new Map<boolean, ReadonlySet<string>>();
+const idSetFor = (sel: FeatureSelection): ReadonlySet<string> => {
+  const key = sel.withOrientation === true;
+  let ids = idSets.get(key);
+  if (!ids) idSets.set(key, (ids = new Set(chordShapeFeatureIds(sel))));
+  return ids;
+};
+
 export function chordShapeVector(hand: Hand, frame: HandsFrame, sel: FeatureSelection = {}): FeatureVector {
-  const ids = new Set(chordShapeFeatureIds(sel));
+  const ids = idSetFor(sel);
   const ctx = buildHandCtx(hand, frame, { mirrorX: false, side: 'left' });
   const out: FeatureVector = {};
   for (const f of HAND_SIDE_FEATURES) {

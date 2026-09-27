@@ -43,7 +43,8 @@ import { latencyProbeRequested } from '@/latency/param';
 import { useConductorStatus, makeConductorReporter } from './conductorStatus';
 import { useAirDrumStatus, makeAirDrumReporter } from './airDrumStatus';
 import { useAirBassStatus, makeAirBassReporter } from './airBassStatus';
-import { useAirGuitarStatus, makeAirGuitarReporter, makeAirShapeTap, setAirShape } from './airGuitarStatus';
+import { useAirGuitarStatus, makeAirGuitarReporter, AIR_GUITAR_NODE_ID } from './airGuitarStatus';
+import { makeShapeTap, clearShapes } from './air/shapeTap';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import type { FaceStatus } from '@/nodes';
@@ -389,7 +390,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         const reportAirBass = makeAirBassReporter(engine);
         // And the `air-guitar` node's (#249): its status, and its live shape for enrolment.
         const reportAirGuitar = makeAirGuitarReporter(engine);
-        const tapAirShape = makeAirShapeTap(engine);
+        const tapAirShape = makeShapeTap(engine, AIR_GUITAR_NODE_ID);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -469,7 +470,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useAirDrumStatus.getState().reset();
       useAirBassStatus.getState().reset();
       useAirGuitarStatus.getState().reset();
-      setAirShape(null);
+      clearShapes();
       uninstallDebug();
       uninstallLatency();
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.

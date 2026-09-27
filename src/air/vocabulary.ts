@@ -17,7 +17,7 @@
  * load, and there is no model format to migrate.
  *
  * Training is the trainer's core (`src/enroll/classify.ts`: one category per enrolled
- * entry, a reject radius that accepts the player's own samples), with distances measured
+ * entry, CLOSED-SET: every frame is its nearest entry, as the research measured), with distances measured
  * in the player's OWN hold jitter: each feature is weighted by the inverse of its pooled
  * within-shape spread, the trainer's noise-unit idea (`src/enroll/noise.ts`) with the
  * enrolment itself as the demonstration of noise. A feature that wobbles while a shape
@@ -25,7 +25,7 @@
  * shapes decides.
  */
 import { z } from 'zod';
-import { trainModel, type FeatureVector, type TrainedModel } from '@/enroll';
+import { trainModel, weightedDistance, type FeatureVector, type TrainedModel } from '@/enroll';
 
 /** One enrolled shape: the player's name for it and the vectors captured while held. */
 export const VocabularyEntrySchema = z.object({
@@ -45,6 +45,12 @@ export const emptyVocabulary = (features: readonly string[]): Vocabulary => ({ f
 
 /** The fewest samples an entry needs before it takes part in the model. */
 export const MIN_SAMPLES_PER_ENTRY = 5;
+/** The most samples kept per entry (evenly thinned beyond it): a two-second hold at 30 fps
+ *  is about 60, and localStorage is shared, so a vocabulary stays small. */
+export const MAX_SAMPLES_PER_ENTRY = 40;
+/** Decimal places a stored feature keeps: far below any hand's jitter, and a stored chord
+ *  is a fraction of the size at full double precision. */
+const STORED_DECIMALS = 4;
 /** A floor on a feature's spread, as a fraction of its range across all samples, so one
  *  perfectly still feature cannot dominate every distance. */
 const SPREAD_FLOOR_FRACTION = 0.05;
@@ -102,7 +108,14 @@ export function trainVocabulary(vocab: Vocabulary): TrainedModel | null {
     }
     clusters.push(idx);
   }
-  const model = trainModel(vectors, clusters, features, jitterWeights(usable, features));
+  // CLOSED-SET, as the research measured it (`scripts/air/lib_chord_shape_model.ts`: the
+  // 90-98% is with no reject). trainModel's default reject radius (the 90th percentile of
+  // the enrolment's own distances) is set from one back-to-back take, which underrates
+  // how much a shape varies when it is re-made later: on real footage it rejected 29-56%
+  // of later frames, and since the tracker HOLDS through a reject, its only effect was
+  // to keep the old chord when the player changed shape (a quarter to a third of chord
+  // changes missed). Every frame is therefore the NEAREST enrolled chord.
+  const model = trainModel(vectors, clusters, features, jitterWeights(usable, features), { defaultRejectRadius: Infinity });
   // trainModel numbers categories by cluster; carry each entry's name onto its category.
   model.categories.forEach((c, i) => (c.label = usable[i].label));
   return model;
@@ -113,16 +126,45 @@ export function trainVocabulary(vocab: Vocabulary): TrainedModel | null {
  *  would turn a NaN into a null that no longer parses as a number). */
 function finiteOnly(v: FeatureVector): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const [k, x] of Object.entries(v)) if (finite(x)) out[k] = x;
+  const scale = 10 ** STORED_DECIMALS;
+  for (const [k, x] of Object.entries(v)) if (finite(x)) out[k] = Math.round(x * scale) / scale;
   return out;
+}
+
+/** At most `max` samples, evenly spaced through the take (the whole hold is kept in
+ *  proportion, not just its start). */
+function thin<T>(xs: readonly T[], max: number): T[] {
+  if (xs.length <= max) return [...xs];
+  return Array.from({ length: max }, (_, i) => xs[Math.floor((i * xs.length) / max)]);
 }
 
 /** Replace (or add) the entry named `label`, keeping entry order; names match exactly. */
 export function withEntry(vocab: Vocabulary, label: string, samples: readonly FeatureVector[]): Vocabulary {
-  const entry = { label: label.trim(), samples: samples.map(finiteOnly) };
+  const entry = { label: label.trim(), samples: thin(samples, MAX_SAMPLES_PER_ENTRY).map(finiteOnly) };
   const i = vocab.entries.findIndex((e) => e.label === entry.label);
   const entries = i < 0 ? [...vocab.entries, entry] : vocab.entries.map((e, j) => (j === i ? entry : e));
   return { ...vocab, entries };
+}
+
+/**
+ * How distinct each enrolled entry is: the distance from its centroid to the NEAREST other
+ * entry's centroid, in units of its own spread (its radius). Below about 2 the two shapes
+ * are close enough to flip between each other in play, which the enrolment UI says.
+ */
+export function separation(model: TrainedModel): { label: string; nearest: string; ratio: number }[] {
+  return model.categories.map((c) => {
+    let best = Infinity;
+    let nearest = '';
+    for (const o of model.categories) {
+      if (o === c) continue;
+      const d = weightedDistance(c.centroid, o.centroid, model.features, model.weights);
+      if (d < best) {
+        best = d;
+        nearest = o.label;
+      }
+    }
+    return { label: c.label, nearest, ratio: best / Math.max(c.radius, 1e-9) };
+  });
 }
 
 /** Remove the entry named `label`. */

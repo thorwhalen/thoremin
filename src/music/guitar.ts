@@ -11,9 +11,8 @@
  *    within {@link MAX_FRET} frets of the open string. The bass is the lowest string
  *    whose note is the ROOT, and the strings below it are muted. That rule rebuilds the
  *    open chords a beginner learns: C is x32010, G is 320003, D is xx0232, Em is 022000,
- *    Am is x02210. For a chord with no root in reach on the four lowest strings (F: E
- *    string, first fret), it falls back to a higher reach, so every parseable name
- *    sounds.
+ *    Am is x02210. Every pitch class is within four frets of the E, A or D string, so
+ *    every parseable name has a bass and sounds.
  *
  * Pure: no audio, no DOM.
  */
@@ -23,8 +22,6 @@ import { NOTES } from './theory';
 export const STANDARD_TUNING = [40, 45, 50, 55, 59, 64] as const;
 /** How far up the neck an open-chord voicing reaches on each string. */
 export const MAX_FRET = 4;
-/** The reach used when no string has the root within {@link MAX_FRET}. */
-const FALLBACK_FRET = 7;
 
 /** Chord qualities: the intervals above the root, by the suffix that names them. */
 export const CHORD_QUALITIES = {
@@ -86,7 +83,9 @@ export function parseChordName(raw: string): ChordSpec | null {
     suffix in CHORD_QUALITIES ? (suffix as ChordQuality) : QUALITY_ALIASES[suffix];
   if (quality === undefined) return null;
   const root = (((LETTER_PC[letter] + accidental) % 12) + 12) % 12;
-  return { root, quality, intervals: CHORD_QUALITIES[quality], name: `${NOTES[root]}${quality}` };
+  // The name keeps the accidental the player typed ("Bb" stays "Bb", not "A#").
+  const spelled = m[2] ? `${letter}${m[2]}` : NOTES[root];
+  return { root, quality, intervals: CHORD_QUALITIES[quality], name: `${spelled}${quality}` };
 }
 
 /** One string of a voicing: its index (0 = low E) and the note, or null when muted. */
@@ -97,41 +96,57 @@ function lowestToneOn(open: number, pcs: ReadonlySet<number>, maxFret: number): 
   return null;
 }
 
-const PERFECT_FIFTH = 7;
+/**
+ * How much a chord tone matters, by its interval above the root (lower = kept first):
+ * the third says major or minor, the sixth or seventh says the chord's colour, a second
+ * or fourth is the sus or add tone, and the fifth is the one a guitarist drops.
+ */
+function tonePriority(interval: number): number {
+  if (interval === 3 || interval === 4) return 1;
+  if (interval === 9 || interval === 10 || interval === 11) return 2;
+  if (interval === 1 || interval === 2 || interval === 5 || interval === 6 || interval === 8) return 3;
+  return 4; // the fifth (7)
+}
 
 /**
  * The notes of a chord on six strings (low to high; null = muted), by the open-chord
- * rule described at the top of this module, then completed: a chord tone the lowest-note
- * rule left out (a 7th, a 6th) takes over a string, from the top down, that doubles
- * another note or plays the fifth (the tone a guitarist drops first). That turns C into
- * C7 as x32310 and G into G7 as 320001, the shapes on the chart.
+ * rule described at the top of this module, then completed. A chord tone the lowest-note
+ * rule left out takes over a string, from the top down, trying in turn: a string that
+ * doubles another note, then one that plays a LESS important tone ({@link tonePriority}).
+ * Tones are placed most important first, so a displaced add tone can land elsewhere.
+ * That turns C into C7 as x32310, G into G7 as 320001, A into Aadd9 as x02420.
  */
 export function guitarVoicing(chord: Pick<ChordSpec, 'root' | 'intervals'>, tuning: readonly number[] = STANDARD_TUNING): VoicedString[] {
   const pcs = new Set(chord.intervals.map((i) => (chord.root + i) % 12));
-  const fifth = (chord.root + PERFECT_FIFTH) % 12;
-  for (const reach of [MAX_FRET, FALLBACK_FRET]) {
-    // The bass: the root, on the lowest of the four lowest strings that reaches it.
-    const bass = tuning.findIndex((open, i) => i < 4 && lowestToneOn(open, new Set([chord.root]), reach) !== null);
-    if (bass < 0) continue;
-    const notes: VoicedString[] = tuning.map((open, i) =>
-      i < bass ? null : i === bass ? lowestToneOn(open, new Set([chord.root]), reach) : lowestToneOn(open, pcs, reach),
-    );
-    for (const i of chord.intervals) {
-      const pc = (chord.root + i) % 12;
-      if (notes.some((n) => n !== null && n % 12 === pc)) continue;
-      const count = (q: number) => notes.filter((n) => n !== null && n % 12 === q).length;
+  const rootOnly = new Set([chord.root]);
+  const intervalOf = (n: number) => (((n % 12) - chord.root) % 12 + 12) % 12;
+  // The bass: the root on the lowest of the four lowest strings that reaches it (every
+  // pitch class is within MAX_FRET of the E, A or D string, so one always does).
+  const found = tuning.findIndex((open, i) => i < 4 && lowestToneOn(open, rootOnly, MAX_FRET) !== null);
+  const bass = found < 0 ? 0 : found;
+  const notes: VoicedString[] = tuning.map((open, i) =>
+    i < bass ? null : i === bass ? (lowestToneOn(open, rootOnly, MAX_FRET) ?? lowestToneOn(open, pcs, MAX_FRET)) : lowestToneOn(open, pcs, MAX_FRET),
+  );
+  const count = (pc: number) => notes.filter((n) => n !== null && n % 12 === pc).length;
+  // The fifth is never forced back in: it is the tone a voicing may drop (C7 is x32310).
+  const missing = chord.intervals.filter((i) => i !== 0 && i !== 7).sort((a, b) => tonePriority(a) - tonePriority(b));
+  for (const interval of missing) {
+    const pc = (chord.root + interval) % 12;
+    if (count(pc) > 0) continue;
+    const want = new Set([pc]);
+    const tryReplace = (ok: (n: number) => boolean): boolean => {
       for (let s = tuning.length - 1; s > bass; s--) {
         const n = notes[s];
-        if (n === null || !(count(n % 12) > 1 || (n % 12 === fifth && pc !== fifth))) continue;
-        const replacement = lowestToneOn(tuning[s], new Set([pc]), reach);
+        if (n === null || !ok(n)) continue;
+        const replacement = lowestToneOn(tuning[s], want, MAX_FRET);
         if (replacement === null) continue;
         notes[s] = replacement;
-        break;
+        return true;
       }
-    }
-    return notes;
+      return false;
+    };
+    if (tryReplace((n) => count(n % 12) > 1)) continue;
+    tryReplace((n) => tonePriority(intervalOf(n)) > tonePriority(interval) && count(n % 12) === 1);
   }
-  // Unreachable for a 12-tone root within FALLBACK_FRET on the low strings; kept total:
-  // every string sounds its lowest chord tone.
-  return tuning.map((open) => lowestToneOn(open, pcs, 11));
+  return notes;
 }

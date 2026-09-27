@@ -51,7 +51,7 @@ describe('air guitar in the default graph', () => {
       nominalDt: 1 / 30,
       resources: {
         controls: () => ({ right: voice, left: voice, airGuitar: { ...DEFAULT_AIR_GUITAR, enabled: true, mirrorHandedness: false }, airGuitarModel: model }),
-        createPluckSink: () => ({ play: (midi: number) => void played.push(midi), close: () => {} }),
+        createPluckSink: () => ({ play: (midi: number, velocity: number) => void (velocity > 0 && played.push(midi)), close: () => {} }),
       },
       recordOnly: ['airGuitar.notes'],
     });

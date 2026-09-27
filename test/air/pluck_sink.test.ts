@@ -79,6 +79,15 @@ describe('the WebAudio pluck sink', () => {
     expect(dampOf(gains, 2).calls).toEqual([]);
   });
 
+  it('a zero-velocity note on a voice only damps it (a muted string)', () => {
+    const { ac, gains } = fakeContext();
+    const sink = createWebAudioPluckSink(ac, {} as AudioNode, { timbre: 'guitar', mono: false });
+    sink.play(40, 0.8, 1.0, 0);
+    sink.play(0, 0, 1.5, 0);
+    expect(gains).toHaveLength(GAINS_PER_NOTE); // nothing new was built
+    expect(dampOf(gains, 0).calls[0]).toEqual(['target', 0, 1.5, expect.any(Number)]);
+  });
+
   it('never exceeds the timbre peak and keeps the filter below Nyquist', () => {
     const { ac, gains, filters } = fakeContext();
     const sink = createWebAudioPluckSink(ac, {} as AudioNode, { timbre: 'guitar', mono: false });

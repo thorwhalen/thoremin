@@ -17,7 +17,7 @@ import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { startBodyRouteDemand } from './bodyRouteDemand';
-import { useGuitarVocabulary } from './air/vocabularyStore';
+import { loadAirVocabularies } from './air/vocabularyStore';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import { demandWantsFace, labWantsFace } from '@/features/labConfig';
@@ -108,10 +108,10 @@ export default function App({
   // #186: the body routes claim the feature groups they read, so a configured route
   // is fed even with the Lab closed (the groups are computed only on demand).
   useEffect(() => startBodyRouteDemand(), []);
-  // #249: the air guitar plays the chords this player enrolled; read them once, so the
-  // classifier is live before anyone opens the instrument's settings.
+  // #249: the air instruments play what this player enrolled; read every vocabulary once,
+  // so each classifier is live before anyone opens its instrument's settings.
   useEffect(() => {
-    void useGuitarVocabulary.getState().load();
+    void loadAirVocabularies();
   }, []);
 
   return (
