@@ -83,7 +83,8 @@ describe('the sequence trainer', () => {
     expect(screen.getByTestId('sequence-trainer').getAttribute('data-phase')).toBe('lead-in');
     expect(screen.getByRole('status').textContent).toMatch(/Get ready… 3\. First: G/);
     // The instrument is hushed while the sequence runs (#264's claim), and released after.
-    expect(useControls.getState().hushedBy).toContain(SEQUENCE_HUSH_ID);
+    const hushed = () => useControls.getState().hushedBy.some((id) => id.startsWith(SEQUENCE_HUSH_ID));
+    expect(hushed()).toBe(true);
 
     run(3000);
     expect(screen.getByTestId('sequence-trainer').getAttribute('data-phase')).toBe('countdown');
@@ -105,7 +106,7 @@ describe('the sequence trainer', () => {
     run(2300, () => c[j++]);
 
     expect(screen.getByTestId('sequence-trainer').getAttribute('data-phase')).toBe('done');
-    expect(useControls.getState().hushedBy).not.toContain(SEQUENCE_HUSH_ID);
+    expect(hushed()).toBe(false);
     const rows = screen.getByTestId('sequence-outcomes').textContent;
     expect(rows).toMatch(/G.*learned/);
     expect(rows).toMatch(/C.*learned/);
@@ -172,6 +173,24 @@ describe('the sequence trainer', () => {
     const all = await listSequences(GUITAR_STARTER_SEQUENCES);
     expect(all.find((s) => s.name === 'minor pair')?.spec.targets.map((t) => t.label)).toEqual(['Em', 'Am']);
     expect((screen.getByLabelText('Sequence') as HTMLSelectElement).options.length).toBe(GUITAR_STARTER_SEQUENCES.length + 1);
+  });
+
+  it('unmounted mid-run, it ends the run as Stop would: what was held is enrolled, the hush released', async () => {
+    const { unmount } = render(trainer());
+    await settle();
+    fireEvent.change(screen.getByLabelText('Or type the chords'), { target: { value: 'G C' } });
+    fireEvent.click(screen.getByText('Start'));
+    run(6000);
+    const g = enrolSamples('G', 120, 4);
+    let i = 0;
+    run(2300, () => g[i++]);
+    run(1000); // into C's countdown
+    unmount();
+    expect(useControls.getState().hushedBy.some((id) => id.startsWith(SEQUENCE_HUSH_ID))).toBe(false);
+    await settle();
+    expect(useGuitarVocabulary.getState().vocab.entries.map((e) => e.label)).toEqual(['G']);
+    // Nothing keeps polling: no timer fires after unmount (would throw on a torn-down tree).
+    act(() => vi.advanceTimersByTime(5000));
   });
 
   it('Stop ends the run and keeps what was held so far', async () => {

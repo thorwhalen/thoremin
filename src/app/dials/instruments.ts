@@ -18,6 +18,7 @@
  * the dirty baseline to the selected instrument. {@link LAST_MODIFIED} is a reserved
  * name kept solely so any legacy autosave profile is filtered out of the visible list.
  */
+import { AirFluteSettingsSchema } from '@/settings/schema';
 import {
   createProfileStore,
   createLocalStorageProfileStorage,
@@ -417,6 +418,18 @@ export function normalizeLayer(layer: Layer): Layer {
   if (sc && typeof sc === 'object' && (sc.strains === undefined || sc.dials === undefined)) {
     if (out === layer) out = { ...layer };
     out.steerConfig = { ...defaultSteerConfig(), ...sc };
+  }
+  // A nested key a later release added INSIDE a whole-object dial (#263: `airFlute.prior`)
+  // is the same drift one level down: the working layer's `airFlute` always carries it,
+  // an instrument saved before it does not. Re-parse through the dial's own schema, as
+  // `overlay` is, so the default is filled the way the hot store fills it.
+  const af = out.airFlute as Record<string, unknown> | undefined;
+  if (af && typeof af === 'object' && af.prior === undefined) {
+    const parsed = AirFluteSettingsSchema.safeParse(af);
+    if (parsed.success) {
+      if (out === layer) out = { ...layer };
+      out.airFlute = parsed.data;
+    }
   }
   if (!out.overlay) return out;
   try {

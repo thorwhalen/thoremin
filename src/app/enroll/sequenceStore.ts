@@ -68,7 +68,8 @@ function majorScale(root: string, octaves = 1): string[] {
 export const FLUTE_STARTER_SEQUENCES: readonly NamedSequence[] = [
   starter('Flute: first notes (B, A, G)', ['B4', 'A4', 'G4', 'A4', 'B4']),
   starter('Flute: G major, one octave', majorScale('G4')),
-  starter('Flute: D major, one octave (second register)', majorScale('D5')),
+  // Up to C#6, the top of the default chart range: the third octave's D6 is out of it.
+  starter('Flute: D major, second register (D5 to C#6)', majorScale('D5').filter((n) => n !== 'D6')),
   starter('Flute: chromatic, first octave', chartNotes(FLUTE_CHART, ['D4', 'D5']).map((x) => x.note)),
   starter('Flute: G major, two loops', majorScale('G4'), { loops: 2 }),
 ];

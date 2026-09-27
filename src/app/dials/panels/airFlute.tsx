@@ -22,6 +22,7 @@
  * capturing from the `air-flute` node's own `shape` and `mouth` outputs. The dials write
  * leaves of the `airFlute` dial through `dispatchDialSetIn` (the single write path).
  */
+import { useState } from 'react';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { selectCls } from '../primitives';
@@ -98,6 +99,34 @@ export function fluteGuide(prior: Partial<FingeringPriorSettings> | undefined, l
   return <FingeringGuide label={label} down={shape.down} keys={shape.keys} alsoPlays={shape.notes.filter((n) => n !== canonical)} dim={dim} />;
 }
 
+/** A note-name field that dispatches on commit (blur / Enter), never mid-edit, and only a
+ *  valid note: a half-typed "C" must not reach the dial (the model would be re-derived
+ *  without the chart, and each keystroke would be an undo entry). The panels' precedent
+ *  for text fields (`body.tsx`, `steering.tsx`). */
+function CommitNote({ label, value, onCommit, disabled }: { label: string; value: string; onCommit: (v: string) => void; disabled: boolean }) {
+  const [text, setText] = useState<string | null>(null);
+  const commit = () => {
+    if (text === null) return;
+    const spec = parseNoteName(text);
+    if (spec && spec.name !== value) onCommit(spec.name);
+    setText(null);
+  };
+  const invalid = text !== null && text.trim() !== '' && parseNoteName(text) === null;
+  return (
+    <input
+      className={`w-14 rounded bg-white/10 px-1 py-0.5 text-center font-mono text-xs outline-none ${invalid ? 'ring-1 ring-amber-300' : ''}`}
+      aria-label={label}
+      value={text ?? value}
+      disabled={disabled}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
+
 /** The fingering chart's dials: on/off, which chart, its weight, the note range. */
 export function FluteChartControls({ prior, enabled }: { prior: Partial<FingeringPriorSettings> | undefined; enabled: boolean }) {
   const on = prior?.enabled ?? true;
@@ -141,21 +170,9 @@ export function FluteChartControls({ prior, enabled }: { prior: Partial<Fingerin
       <div className="flex items-center justify-between gap-2 text-xs">
         <span>Notes</span>
         <span className="flex items-center gap-1">
-          <input
-            className="w-14 rounded bg-white/10 px-1 py-0.5 text-center font-mono text-xs outline-none"
-            aria-label="Lowest note"
-            value={low}
-            disabled={!on}
-            onChange={(e) => dispatchDialSetIn('airFlute.prior.low', e.target.value)}
-          />
+          <CommitNote label="Lowest note" value={low} disabled={!on} onCommit={(v) => dispatchDialSetIn('airFlute.prior.low', v)} />
           to
-          <input
-            className="w-14 rounded bg-white/10 px-1 py-0.5 text-center font-mono text-xs outline-none"
-            aria-label="Highest note"
-            value={high}
-            disabled={!on}
-            onChange={(e) => dispatchDialSetIn('airFlute.prior.high', e.target.value)}
-          />
+          <CommitNote label="Highest note" value={high} disabled={!on} onCommit={(v) => dispatchDialSetIn('airFlute.prior.high', v)} />
         </span>
       </div>
       {on && !rangeOk && <p className="text-[10px] text-amber-300">That range has no notes on this chart; the chart is not used until it does.</p>}

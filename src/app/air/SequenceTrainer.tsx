@@ -19,13 +19,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { StoreApi, UseBoundStore } from 'zustand';
 import { MIN_SAMPLES_PER_ENTRY } from '@/air/vocabulary';
-import { createSequenceRunner, sequenceOf, sequenceLength, type FeatureVector, type SequenceRunner, type SequenceState, type TargetCheck, type TargetResult } from '@/enroll';
+import { createSequenceRunner, sequenceDurationMs, sequenceOf, sequenceLength, type FeatureVector, type SequenceRunner, type SequenceState, type TargetCheck, type TargetResult } from '@/enroll';
 import { emitGuidance, emitGuidanceStop } from '../enroll/guidance';
 import { useControls } from '../store';
 
-/** The hush claim's owner id: while a sequence runs, the instrument is quiet (the same
- *  claim the Trainer and the Conductor make, #264), so the countdown is not played over. */
+/** The hush claim's owner id prefix: while a sequence runs, the instrument is quiet (the
+ *  same claim the Trainer and the Conductor make, #264), so the countdown is not played
+ *  over. One id per mounted trainer, so the guitar's cannot release the flute's. */
 export const SEQUENCE_HUSH_ID = 'sequence-trainer';
+let instances = 0;
 import { listSequences, parseTargets, removeSequence, saveSequence, type NamedSequence } from '../enroll/sequenceStore';
 import type { VocabularyState } from './vocabularyStore';
 
@@ -71,7 +73,9 @@ function describe(r: TargetResult): string {
 const learnable = (r: TargetResult) => r.outcome === 'held' && r.samples.length >= MIN_SAMPLES_PER_ENTRY && r.verdict?.kind !== 'mismatch';
 
 export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, makeCheck, guide, starters, words }: SequenceTrainerProps) {
-  const { enrol } = useVocabulary();
+  const enrol = useVocabulary((s) => s.enrol);
+  const saveError = useVocabulary((s) => s.error);
+  const hushId = useRef(`${SEQUENCE_HUSH_ID}-${++instances}`).current;
   const [sequences, setSequences] = useState<NamedSequence[]>([...starters]);
   const [chosenId, setChosenId] = useState<string>(starters[0]?.id ?? '');
   const [custom, setCustom] = useState('');
@@ -90,9 +94,12 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
   const stopPolling = () => {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
-    useControls.getState().setHush(SEQUENCE_HUSH_ID, false);
+    useControls.getState().setHush(hushId, false);
   };
-  useEffect(() => stopPolling, []);
+  // Unmounted mid-run (the editor closed, the instrument switched): end the run as Stop
+  // would, so what was held is enrolled rather than lost, and nothing keeps polling.
+  const stopRef = useRef<() => void>(() => {});
+  useEffect(() => () => stopRef.current(), []);
 
   // The list to run: the typed one when there is text, else the chosen sequence.
   const typed = useMemo(() => parseTargets(custom), [custom]);
@@ -133,7 +140,7 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
       if (e.type === 'done') finish(r);
     });
     stopPolling();
-    useControls.getState().setHush(SEQUENCE_HUSH_ID, true);
+    useControls.getState().setHush(hushId, true);
     r.start(performance.now());
     setView(r.state());
     let last: FeatureVector | null = null;
@@ -150,12 +157,14 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
   const stop = () => {
     const r = runner.current;
     if (!r) return;
+    const s = r.state();
+    if (s.phase === 'done' || s.phase === 'stopped' || s.phase === 'idle') return;
     r.stop(performance.now());
     stopPolling();
     setView(r.state());
-    const results = r.state().results;
-    if (results.length > 0) finish(r);
+    if (r.state().results.length > 0) finish(r);
   };
+  stopRef.current = stop;
 
   const learnAnyway = (o: Outcome) => {
     void enrol(o.label, o.result.samples);
@@ -219,7 +228,7 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
             <p className="text-[10px] text-white/50" data-testid="sequence-preview">
               {spec.targets.map((t) => t.label).join(' ')}
               {spec.loops > 1 ? ` (x${spec.loops})` : ''} — {total} {words.noun}
-              {total === 1 ? '' : 's'}, about {Math.round(((spec.leadInMs + total * (spec.countdownMs + spec.holdMs)) / 1000) as number)} s
+              {total === 1 ? '' : 's'}, about {Math.round(sequenceDurationMs(spec) / 1000)} s
             </p>
           )}
           <div className="flex items-center gap-1">
@@ -317,6 +326,7 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
         </ul>
       )}
       {error && <p className="text-[10px] text-rose-300">{error}</p>}
+      {saveError && <p className="text-[10px] text-rose-300">{saveError}</p>}
     </div>
   );
 }
