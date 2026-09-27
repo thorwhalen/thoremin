@@ -185,7 +185,14 @@ What follows on this seam, each an addition rather than a rewrite:
   - each family's counts ignore its own selection (the N+1 rule), so an unpicked chip never reads 0.
 
   The chips stay open while any filter is on, so what is filtered is always visible. A selected chip stays (at 0) even when no instrument has that value any more, so it can always be undone. Chips keep a fixed order (classes in the registry's order, the rest by label), so none moves under the pointer as counts change. "Uses" leaves out what another facet already says (`field-voices` is the Field class, an air branch is its air instrument's tag). The search matches values, not the label words, so "class" or "tag" match nothing. The selection lasts one visit on purpose: a filter remembered across visits would hide instruments from a player who has forgotten setting it. If the filters hide the instrument being played, the list says so. ("All 17 fit" in option A is with the Filters closed.)
-- **The gallery.** A second rendering of the same collection (`views: ['list', 'grid']`), with the last choice remembered in the same view-prefs record.
+- **The gallery (shipped).** A second rendering of the same collection: the collection declares `views: ['list', 'grid']`, and a toggle in the panel header switches between them. The choice is remembered in the same view-prefs record as the collapsed classes, so the next visit opens on the view chosen last; the default is the collection's `defaultView`, the list.
+  - Each instrument gets a card: its picture, its name, its tags, the star and the gear. The class colour runs across the card's top edge, and the same groups, search and filters apply.
+  - The picture is the spec's `image`, a reference (a URL, or a path under the app's `public/`), set from a Picture field in the instrument's editor through `useLibrary().setImage`.
+  - It loads the frontend-UX way (`InstrumentPicture.tsx`): a shimmer the instant the source changes, a fade-in on load, a fresh element per source, and the tile on error.
+  - An instrument without a picture gets a tile in its class colour, with a glyph that tells it apart: its own emoji, else its air instrument's (🥁 🎸 🤘 🪈), else its initials. A gallery of identical glyphs would say nothing.
+  - The panel widens for the gallery, up to 40rem, but never so far that it runs under the left-hand tool panels on a tablet (`smoke/tests/occlusion.smoke.ts` checks 820x1180 with each panel open). The columns follow the width.
+  - The picture field refuses `data:`/`blob:` pictures and caps a reference at 2048 characters. A pasted multi-megabyte data URL would be bytes in the metadata record, and would fill localStorage until the library silently stopped saving.
+  - A card says what a row says: the "(default)" and "edited" markers, and why it matched a search.
 
 ## Sparse layers, resolved
 

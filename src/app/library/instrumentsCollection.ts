@@ -51,8 +51,10 @@ export const instrumentsCollection = defineCollection(InstrumentListItemSchema, 
     delete: false,
     search: { placeholder: 'Filter instruments…' },
     groupBy: { defaultField: 'class', collapsible: true, defaultState: 'expanded' },
+    // The list, and the gallery (`grid`: a card per instrument with its picture). The
+    // player's last choice is remembered (`instrumentsViewPrefs.ts`).
     defaultView: 'list',
-    views: ['list'],
+    views: ['list', 'grid'],
     pagination: false,
     selectable: 'single',
   },
