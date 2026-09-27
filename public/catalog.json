@@ -2318,6 +2318,18 @@
         "kind": "conductor-config"
       },
       {
+        "name": "bodyMap",
+        "kind": "body-map"
+      },
+      {
+        "name": "scoreDoc",
+        "kind": "score-doc"
+      },
+      {
+        "name": "graphElements",
+        "kind": "string[]"
+      },
+      {
         "name": "airDrum",
         "kind": "air-drum-config"
       },
@@ -2330,12 +2342,12 @@
         "kind": "air-guitar-config"
       },
       {
-        "name": "airGuitarModel",
-        "kind": "shape-model"
-      },
-      {
         "name": "airFlute",
         "kind": "air-flute-config"
+      },
+      {
+        "name": "airGuitarModel",
+        "kind": "shape-model"
       },
       {
         "name": "airFluteFingerModel",
@@ -2348,18 +2360,6 @@
       {
         "name": "airDrumPattern",
         "kind": "drum-pattern"
-      },
-      {
-        "name": "bodyMap",
-        "kind": "body-map"
-      },
-      {
-        "name": "scoreDoc",
-        "kind": "score-doc"
-      },
-      {
-        "name": "graphElements",
-        "kind": "string[]"
       }
     ],
     "params": []

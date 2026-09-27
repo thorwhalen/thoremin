@@ -4,7 +4,7 @@
  * view's queries (search, sort) so no view filters by hand.
  */
 import { describe, it, expect } from 'vitest';
-import { assembleSpec } from '@/instruments/spec';
+import { assembleSpec } from '@/app/graph';
 import {
   createSpecsSource,
   instrumentsCollection,

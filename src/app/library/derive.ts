@@ -17,7 +17,7 @@ import type { Settings } from '@/settings/schema';
 import { summarizeInstrument, type InstrumentSummary } from './summarize';
 import { deriveSystemTags, type SystemTag } from './systemTags';
 import { categoryOfAir, type InstrumentCategory } from './category';
-import { branchIdsFor } from '@/instruments/derive';
+import { branchIdsFor } from '@/app/graph';
 
 /** The flat dials defaults (every key set), the base a sparse profile layer merges over. */
 const DEFAULTS_LAYER = thoreminDials.defaults as Record<string, unknown>;

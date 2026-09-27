@@ -185,7 +185,7 @@ describe('the face MODEL gate honours a demand (the second half of the v1 bug)',
   // ADR, PR 3): a face-group demand composes the face source; without it the node does not
   // exist, so there is no model to keep idle.
   it('branchIdsFor: mapping off + Lab hidden + no demand → no face source; a face-group demand → the face source', async () => {
-    const { branchIdsFor } = await import('@/instruments/derive');
+    const { branchIdsFor } = await import('@/app/graph');
     const { SEED_INSTRUMENTS } = await import('@/app/dials/instruments');
     const { settingsFromLayer } = await import('@/app/library/derive');
     const { defaultFeatureLab } = await import('@/features/labConfig');

@@ -31,8 +31,7 @@ import {
   type NodeRegistry,
   type Tap,
 } from '../src/dag';
-import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
-import { CORE_NODES } from '@/nodes';
+import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { MAPPING_SLOT_INPUTS, MAPPING_SLOT_OUTPUT } from '@/nodes/mapping/mapping_contract';
 
@@ -864,7 +863,7 @@ describe('applyGraph on the real instrument graph', () => {
   });
 
   it('a mapping-slot swap replaces exactly one node and keeps the camera nodes', async () => {
-    const registry = createRegistry([...CORE_NODES, ...BROWSER_NODES, altMapping]);
+    const registry = createRegistry([...createAppRegistry().list(), altMapping]);
     // NB: no engine.init() — webcam-hands lazy-loads MediaPipe inside init(), which
     // is exactly the cost this whole mechanism exists to avoid paying on a swap.
     const engine = new Engine(defaultGraph(), registry);
@@ -886,7 +885,7 @@ describe('applyGraph on the real instrument graph', () => {
   });
 
   it('swapping back restores the default mapping, still keeping everything else', async () => {
-    const registry = createRegistry([...CORE_NODES, ...BROWSER_NODES, altMapping]);
+    const registry = createRegistry([...createAppRegistry().list(), altMapping]);
     const engine = new Engine(defaultGraph(), registry);
     await engine.applyGraph(defaultGraph({ mapping: 'alt-mapping' }, registry), registry);
     const change = await engine.applyGraph(defaultGraph(), registry);
