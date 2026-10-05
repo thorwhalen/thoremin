@@ -2,7 +2,7 @@
  * Saved lab-view store (#119) — named Feature Lab configs.
  *
  * One instance of the {@link createNamedCollectionStore} facade (see
- * `@/settings/namedCollection` for the CRUD contract, the swappable `DataProvider`
+ * `@thoremin/sdk-ui/namedCollection` for the CRUD contract, the swappable `DataProvider`
  * target and the sync/async hot-path split); this file supplies only what makes lab
  * views lab views: the schema, the storage key, the payload field, and the id fallback.
  *
@@ -10,8 +10,8 @@
  * instrument presets and of the live zustand control store — so it stays out of that
  * store's persist version, the reason #119 keeps saved views here.
  */
-import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
-import { slugId } from '@/util/ids';
+import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import { slugId } from '@thoremin/sdk/util/ids';
 import { LabViewSchema, type LabView, type LabViewConfig } from './schema';
 
 /** localStorage key holding the saved lab views (the browser default target). */

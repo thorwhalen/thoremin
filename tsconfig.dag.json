@@ -13,6 +13,7 @@
   "include": [
     "packages/dag/src",
     "packages/sdk/src",
+    "packages/sdk-ui/src",
     "src/instruments",
     "src/extensions",
     "packages/ictus/src",
@@ -27,7 +28,6 @@
     "src/enroll",
     "src/latency",
     "src/app/graph.ts",
-    "src/app/featureDemand.ts",
     "src/app/enroll",
     "src/app/lab",
     "test",
@@ -37,6 +37,8 @@
   "exclude": [
     "test/**/*.test.tsx",
     "src/app/enroll/**/*.tsx",
-    "src/extensions/**/*.tsx"
+    "src/extensions/**/*.tsx",
+    "packages/sdk-ui/src/**/*.tsx",
+    "packages/sdk-ui/src/types.ts"
   ]
 }

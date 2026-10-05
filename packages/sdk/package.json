@@ -34,7 +34,8 @@
     "./nodes/domain": "./src/nodes/domain.ts",
     "./nodes/music/drum_anchor": "./src/nodes/music/drum_anchor.ts",
     "./nodes/music/drum_pads": "./src/nodes/music/drum_pads.ts",
-    "./score/schema": "./src/score/schema.ts"
+    "./score/schema": "./src/score/schema.ts",
+    "./util/ids": "./src/util/ids.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

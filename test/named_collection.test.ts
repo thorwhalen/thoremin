@@ -1,5 +1,5 @@
 /**
- * The named-collection CRUD contract (`src/settings/namedCollection.ts`), exercised
+ * The named-collection CRUD contract (`packages/sdk-ui/src/namedCollection.ts`), exercised
  * ONCE over BOTH collections built on it — instrument presets and saved lab views.
  *
  * The two stores used to be copy-pasted, and so were their tests; the shared behaviour
@@ -15,7 +15,7 @@ import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { createPresetStore, presetId, PRESETS_STORAGE_KEY } from '@/settings/presets';
 import { createLabViewStore, labViewId, LAB_VIEWS_STORAGE_KEY } from '@/app/lab/labViews';
-import type { NamedCollectionStore, NamedRecord } from '@/settings/namedCollection';
+import type { NamedCollectionStore, NamedRecord } from '@thoremin/sdk-ui/namedCollection';
 import { SettingsSchema, type Preset } from '@/settings/schema';
 import { LabViewConfigSchema, type LabView } from '@/app/lab/schema';
 

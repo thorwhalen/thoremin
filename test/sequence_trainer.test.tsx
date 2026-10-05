@@ -15,7 +15,7 @@ import { SEQUENCE_HUSH_ID, SequenceTrainer } from '@/extensions/air/app/Sequence
 import { setShape, readShape } from '@/extensions/air/app/shapeTap';
 import { AIR_GUITAR_NODE_ID } from '@/extensions/air/app/airGuitarStatus';
 import { useGuitarVocabulary, useVocabularyStore, type VocabularyRecord } from '@/extensions/air/app/vocabularyStore';
-import { useSequenceStore, listSequences } from '@/app/enroll/sequenceStore';
+import { useSequenceStore, listSequences } from '@thoremin/sdk-ui/enroll/sequenceStore';
 import { GUITAR_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
 import { useControls } from '@/app/store';
 import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
@@ -23,6 +23,7 @@ import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { parseChordName } from '@/extensions/air/lib/guitar';
 import type { SequenceRecord, TargetCheck } from '@thoremin/sdk/enroll';
 import { enrolSamples } from './air/synthetic_guitar';
+import { AIR } from './helpers/extensions';
 
 const WORDS = { title: 'Learn a sequence of chords', noun: 'chord', placeholder: 'Or type chords', offHint: 'Turn the air guitar on' };
 
@@ -74,7 +75,7 @@ function run(ms: number, shapes?: () => Record<string, number>) {
   }
 }
 
-describe('the sequence trainer', () => {
+describe.runIf(AIR)('the sequence trainer', () => {
   it('walks a typed list: lead-in, next target named ahead, hold, then enrols every held target', async () => {
     render(trainer());
     await settle();

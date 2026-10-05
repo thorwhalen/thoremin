@@ -18,7 +18,7 @@
  * is unit-testable and strict-typechecked transitively via the library tests.
  */
 import { z } from 'zod';
-import { slugId } from '@/util/ids';
+import { slugId } from '@thoremin/sdk/util/ids';
 
 /** Prefix marking a read-only, derived system-tag id (issue #114). Custom tags never
  *  use it, so association reads can filter defensively against a stale persisted id. */

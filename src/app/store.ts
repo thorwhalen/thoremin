@@ -14,6 +14,7 @@
  * `applySettings`, snapshot the current state with `toSettings`.
  */
 import { create } from 'zustand';
+import { provideControls } from '@thoremin/sdk-ui/host';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
@@ -744,3 +745,20 @@ export const useControls = create<ControlState>()(
     },
   ),
 );
+
+// The extension SDK's controls seam (`@thoremin/sdk-ui/host`): an extension's React side reads
+// and writes the hot store through this, never by importing it. Installed when this module
+// loads, which every running app and every test that touches the store does first.
+const TRANSIENT_FIELDS = new Set(Object.keys(extensionTransientDefaults()));
+provideControls({
+  get: () => useControls.getState() as unknown as Readonly<Record<string, unknown>>,
+  setTransient: (field, value) => {
+    // The type-level check (`setTransient`'s keys) does not reach an extension typed against
+    // the SDK, so the field is checked here: a typo must not silently create a store key.
+    if (!TRANSIENT_FIELDS.has(field)) throw new Error(`setTransient: "${field}" is not a transient field any listed extension declares`);
+    useControls.setState({ [field]: value } as Partial<ControlState>);
+  },
+  setHush: (claimer, on) => useControls.getState().setHush(claimer, on),
+  subscribe: (listener) => useControls.subscribe(listener),
+});
+

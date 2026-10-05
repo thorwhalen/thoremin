@@ -3,7 +3,7 @@
  * (`src/extensions`). `DialsControlsPanel` folds over their panels, `useEngine` over their
  * status hooks, `App` over their mount effects.
  */
-import type { ExtensionUi } from './types';
+import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import listed from 'virtual:thoremin/extensions-ui';
 
 /** The React halves of the extensions `extensions.json` names, in its order. */

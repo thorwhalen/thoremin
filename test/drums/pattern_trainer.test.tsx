@@ -12,11 +12,12 @@ import { createInMemoryProvider } from '@zodal/store';
 import { PatternTrainer, takeClicks } from '@/extensions/air/app/PatternTrainer';
 import { clearHits, hitsSince, makeHitsTap, pushHits } from '@/extensions/air/app/hitsTap';
 import { loadPatternModel, usePatternModelStore, type PatternModelRecord } from '@/extensions/air/app/patternModels';
-import { setClickPlayer } from '@/app/enroll/click';
+import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { patternById } from '@/extensions/air/lib/drum_patterns';
 import { useControls } from '@/app/store';
 import type { Click } from '@thoremin/sdk/enroll';
 import type { DrumHit } from '@/extensions/air/nodes/air_drum';
+import { AIR } from '../helpers/extensions';
 
 const ROCK = patternById('rock')!;
 let clock = 10_000;
@@ -68,7 +69,7 @@ function perfectTake(startS: number, passes: number): DrumHit[] {
   return out;
 }
 
-describe('the click plan', () => {
+describe.runIf(AIR)('the click plan', () => {
   it('counts a bar in, then clicks the first pass only unless asked for all', () => {
     const one = takeClicks(ROCK, 4, 1, 1000);
     const beatMs = 60000 / ROCK.bpm;
@@ -83,7 +84,7 @@ describe('the click plan', () => {
   });
 });
 
-describe('the hit tap', () => {
+describe.runIf(AIR)('the hit tap', () => {
   it('appends each new hit list once and answers since a time, in order', () => {
     let out: DrumHit[] = [];
     const tap = makeHitsTap({ getOutput: () => out }, 'airDrum');
@@ -101,7 +102,7 @@ describe('the hit tap', () => {
   });
 });
 
-describe('the pattern trainer', () => {
+describe.runIf(AIR)('the pattern trainer', () => {
   it('runs a take: count-in, cursor from the pattern start, then fits the hits and saves the model', async () => {
     render(<PatternTrainer enabled now={now} />);
     await settle();

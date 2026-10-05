@@ -17,7 +17,7 @@ import { dispatchDialSet } from '../../dispatchDial';
 import { useGenerativeStatus } from '../../generativeStatus';
 import { useControls } from '../../store';
 import { useDialsSettings } from '../useDialsSettings';
-import { CollapsibleSection } from '../primitives';
+import { CollapsibleSection } from '@thoremin/sdk-ui/primitives';
 import { SteeringEditor } from './steering';
 
 /** Where the key lives: the assistant's Google provider — one key serves both. */

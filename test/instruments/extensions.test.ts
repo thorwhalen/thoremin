@@ -13,6 +13,8 @@ import { composeInstrumentGraph, ALL_BRANCH_IDS } from '@/app/graph';
 import { branchIdsFor } from '@/app/graph';
 import { SettingsSchema, type Settings, type ExtensionDials } from '@/settings/schema';
 import type { AirDrumSettings, AirFluteSettings } from '@/extensions/air/dials';
+import { airControls } from '@/extensions/air/app/controls';
+import type { TrainedModel } from '@thoremin/sdk/enroll';
 import { thoreminDials } from '@/settings/dials';
 import { SEED_INSTRUMENTS, settingsWithPatch } from '@/app/dials/instruments';
 import { TRAINING_ROUTES } from '@/app/training/routes';
@@ -140,3 +142,21 @@ describe('the extensions\' shipped instruments and training routes', () => {
     expect(new Set(routes).size).toBe(routes.length);
   });
 });
+
+describe('an extension reads the controls through the SDK, typed by its own manifest', () => {
+  it('types its dials and transient fields; a typo or a wrong value is a type error', () => {
+    expectTypeOf(airControls.get().airDrum).toEqualTypeOf<AirDrumSettings>();
+    expectTypeOf(airControls.get().airGuitarModel).toEqualTypeOf<TrainedModel | null>();
+    // Never called: these lines exist for the strict typecheck.
+    const _typos = () => {
+      // @ts-expect-error a typo'd transient field
+      airControls.setTransient('airGuitarModl', null);
+      // @ts-expect-error a wrong value for a declared field
+      airControls.setTransient('airGuitarModel', 42);
+      // @ts-expect-error a typo'd key
+      void airControls.get().airDrumm;
+    };
+    void _typos;
+  });
+});
+

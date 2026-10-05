@@ -15,7 +15,7 @@ import { useTrainer, useTrainerStores } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { STARTER_ROUTINES } from '@/app/enroll/realVsAirCues';
-import { setClickPlayer } from '@/app/enroll/click';
+import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { registerRecordingController, type RecordingController } from '@/app/recording/controller';
 import type { RecordingSession } from '@/app/recording/schema';
 import { createInMemoryProvider } from '@zodal/store';

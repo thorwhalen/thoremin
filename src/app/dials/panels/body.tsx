@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { dispatchDialSet, dispatchDialSetIn, dispatchDialPatch } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
-import { selectCls, Toggle } from '../primitives';
+import { selectCls, Toggle } from '@thoremin/sdk-ui/primitives';
 import { BODY_MODELS } from '@/settings/schema';
 import { BODY_ROUTE_SLOTS, BODY_ROUTE_TARGETS, type BodyMap, type BodyRouteSlot } from '@/nodes/mapping/body_map';
 import { ALL_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';

@@ -11,7 +11,17 @@
  * Sinks are called synchronously from the store's event handler, at human frequency
  * (a few times per cue). A sink must not throw and must not block.
  */
-import type { TranscriptLine } from './store';
+import type { CueOutcome } from '@thoremin/sdk/enroll';
+
+/** One line of what the runner said, for the panel's transcript. */
+export interface TranscriptLine {
+  t: number;
+  kind: 'instruction' | 'guidance' | 'end' | 'done';
+  say: string;
+  /** For `end`: the outcome, and the written detail when it was `cannot`. */
+  outcome?: CueOutcome;
+  why?: string;
+}
 
 export interface GuidanceSink {
   /** One utterance. Called in order, once each. */

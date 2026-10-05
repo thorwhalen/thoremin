@@ -28,7 +28,7 @@
  */
 import { useDialsSettings } from './useDialsSettings';
 import { dispatchDialSet } from '../dispatchDial';
-import { TopSection } from './primitives';
+import { TopSection } from '@thoremin/sdk-ui/primitives';
 import { VoiceControls } from './panels/voice';
 import { HandControls } from './panels/hand';
 import { FaceControls } from './panels/face';

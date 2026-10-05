@@ -9,7 +9,7 @@ import { VOICINGS, RENDERINGS, isTempoRendering, type VoicingId, type RenderingI
 import { dispatchDialSet, dispatchDialPatch } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { VOICING_LABELS, RENDERING_LABELS } from '../labels';
-import { selectCls } from '../primitives';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 
 /**
  * The chord-source scale picker (#75): WHERE the face/pose chords are drawn from,

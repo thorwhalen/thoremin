@@ -6,6 +6,7 @@
     "src/extensions/index.ts",
     "packages/dag/src",
     "packages/sdk/src",
+    "packages/sdk-ui/src",
     "src/instruments",
     "packages/ictus/src",
     "src/score",
@@ -19,7 +20,6 @@
     "src/enroll",
     "src/latency",
     "src/app/graph.ts",
-    "src/app/featureDemand.ts",
     "src/app/enroll",
     "src/app/lab",
     "src/app/store.ts",
@@ -31,6 +31,8 @@
     "src/app/training/routes.ts"
   ],
   "exclude": [
-    "src/app/enroll/**/*.tsx"
+    "src/app/enroll/**/*.tsx",
+    "packages/sdk-ui/src/**/*.tsx",
+    "packages/sdk-ui/src/types.ts"
   ]
 }

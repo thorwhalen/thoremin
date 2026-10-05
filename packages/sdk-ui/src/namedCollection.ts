@@ -20,7 +20,7 @@
  */
 import type { DataProvider } from '@zodal/store';
 import { createLocalStorageProvider } from '@zodal/store-localstorage';
-import { slugId } from '@/util/ids';
+import { slugId } from '@thoremin/sdk/util/ids';
 
 /** The metadata every record in a named collection carries. */
 export interface NamedRecord {

@@ -6,8 +6,8 @@
  * the sync/async hot-path split); this file supplies only what makes presets presets:
  * the schema, the storage key, the payload field, and the id fallback.
  */
-import { createNamedCollectionStore, type NamedCollectionStore } from './namedCollection';
-import { slugId } from '@/util/ids';
+import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import { slugId } from '@thoremin/sdk/util/ids';
 import { PresetSchema, type Preset, type Settings } from './schema';
 
 /** localStorage key under which presets are stored (the browser default target). */

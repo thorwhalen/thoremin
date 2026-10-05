@@ -20,15 +20,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { StoreApi, UseBoundStore } from 'zustand';
 import { MIN_SAMPLES_PER_ENTRY } from '@/extensions/air/lib/vocabulary';
 import { createSequenceRunner, sequenceDurationMs, sequenceOf, sequenceLength, type FeatureVector, type SequenceRunner, type SequenceState, type TargetCheck, type TargetResult } from '@thoremin/sdk/enroll';
-import { emitGuidance, emitGuidanceStop } from '@/app/enroll/guidance';
-import { useControls } from '@/app/store';
+import { emitGuidance, emitGuidanceStop } from '@thoremin/sdk-ui/enroll/guidance';
+import { airControls } from '@/extensions/air/app/controls';
 
 /** The hush claim's owner id prefix: while a sequence runs, the instrument is quiet (the
  *  same claim the Trainer and the Conductor make, #264), so the countdown is not played
  *  over. One id per mounted trainer, so the guitar's cannot release the flute's. */
 export const SEQUENCE_HUSH_ID = 'sequence-trainer';
 let instances = 0;
-import { listSequences, parseTargets, removeSequence, saveSequence, type NamedSequence } from '@/app/enroll/sequenceStore';
+import { listSequences, parseTargets, removeSequence, saveSequence, type NamedSequence } from '@thoremin/sdk-ui/enroll/sequenceStore';
 import type { VocabularyState } from '@/extensions/air/app/vocabularyStore';
 
 /** How often the live shape is polled and the runner's clock advanced, ms. */
@@ -96,7 +96,7 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
   const stopPolling = () => {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
-    useControls.getState().setHush(hushId, false);
+    airControls.setHush(hushId, false);
   };
   // Unmounted mid-run (the editor closed, the instrument switched): end the run as Stop
   // would, so what was held is enrolled rather than lost, and nothing keeps polling.
@@ -142,7 +142,7 @@ export function SequenceTrainer({ enabled, useVocabulary, readShape, canonical, 
       if (e.type === 'done') finish(r);
     });
     stopPolling();
-    useControls.getState().setHush(hushId, true);
+    airControls.setHush(hushId, true);
     r.start(performance.now());
     setView(r.state());
     let last: FeatureVector | null = null;

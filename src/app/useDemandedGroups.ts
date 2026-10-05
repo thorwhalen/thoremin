@@ -7,7 +7,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
-import { appFeatureDemand, featureDemandResource } from './featureDemand';
+import { appFeatureDemand, featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 
 export function useDemandedGroups(): DemandedGroups {
   return useSyncExternalStore(appFeatureDemand.subscribe, featureDemandResource, featureDemandResource);

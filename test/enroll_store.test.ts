@@ -15,7 +15,7 @@ import { useTrainer, useTrainerStores } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { DEFAULT_ROUTINE_CUE_IDS } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
-import { appFeatureDemand } from '@/app/featureDemand';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 
 const stores = () => ({
   cues: createCueStore(createInMemoryProvider<CueRecord>([], { searchFields: ['name'] })),
@@ -195,7 +195,7 @@ describe('runner lifecycle through the store', () => {
   });
 
   it('a guidance sink that reacts by stopping or skipping cannot corrupt the runner (sinks run after the event settles)', async () => {
-    const { addGuidanceSink, resetGuidanceSinks } = await import('@/app/enroll/guidance');
+    const { addGuidanceSink, resetGuidanceSinks } = await import('@thoremin/sdk-ui/enroll/guidance');
     resetGuidanceSinks();
     // A sink that skips on every instruction: each cue is skipped as soon as it starts.
     const off = addGuidanceSink({

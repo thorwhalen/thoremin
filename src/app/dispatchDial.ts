@@ -35,6 +35,7 @@
 import { isErr, type Result } from 'acture';
 import { registry } from './commands/registry';
 import { useToasts } from './toasts';
+import { provideDials } from '@thoremin/sdk-ui/host';
 
 /** Toast a rejected write — a refused value is the player's to see, not a silent no-op.
  *  Returns the result too, so a control that must revert its draft on refusal can. */
@@ -78,3 +79,8 @@ export function dispatchDialReset(key: string): void {
 export function dispatchDialPatch(writes: ReadonlyArray<readonly [string, unknown]>): void {
   toastOnFailure(registry.dispatch('dial.patch', { writes: writes.map(([key, value]) => ({ key, value })) }));
 }
+
+// The extension SDK's dials seam (`@thoremin/sdk-ui/dials`): an extension's panels dispatch
+// through these same functions, by the same names, without importing the app.
+provideDials({ set: dispatchDialSet, setIn: dispatchDialSetIn, patch: dispatchDialPatch });
+

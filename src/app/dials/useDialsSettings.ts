@@ -9,22 +9,11 @@
  */
 import { useMemo, useSyncExternalStore } from 'react';
 import { toFieldStates } from '@zodal/dials-ui';
-import type { SettingFieldState, SettingsForm, SettingsState } from '@zodal/dials-ui';
-import type { SettingKey } from '@zodal/dials-core';
 import { dialsStore, settingsForm, setDial, resetDial } from './settingsStore';
+import { provideDialsForm } from '@thoremin/sdk-ui/host';
 
-export interface DialsSettings {
-  /** Live store state ({@link SettingsState}): `effective` values, `dirty`, `validation`, … */
-  state: SettingsState;
-  /** The headless form (field configs + facet groups). */
-  form: SettingsForm;
-  /** Per-field value-dependent state (value / dirty / provenance). */
-  states: Record<SettingKey, SettingFieldState>;
-  /** Set one dial in the editable layer. */
-  set: (key: SettingKey, value: unknown) => void;
-  /** Reset one dial (the defaults re-win). */
-  reset: (key: SettingKey) => void;
-}
+export type { DialsSettings } from '@thoremin/sdk-ui/dials';
+import type { DialsSettings } from '@thoremin/sdk-ui/dials';
 
 /** Subscribe a React component to the live dials store. */
 export function useDialsSettings(): DialsSettings {
@@ -32,3 +21,7 @@ export function useDialsSettings(): DialsSettings {
   const states = useMemo(() => toFieldStates(settingsForm.fields, state, state.dirty), [state]);
   return { state, form: settingsForm, states, set: setDial, reset: resetDial };
 }
+
+// The extension SDK's dials-form seam (`@thoremin/sdk-ui/dials`' `useDialsSettings`).
+provideDialsForm({ useSettings: useDialsSettings });
+

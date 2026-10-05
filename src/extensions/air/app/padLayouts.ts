@@ -10,7 +10,7 @@
  * persist version.
  */
 import { z } from 'zod';
-import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
+import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import { PAD_IDS, PadsSchema, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 
 /** localStorage key holding the saved pad layouts (the browser default target). */

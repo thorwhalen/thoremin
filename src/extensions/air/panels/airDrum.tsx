@@ -11,9 +11,9 @@
  * floors learned, hits, the last hit's lead — as {@link AirDrumReadout}, which the
  * instrument's row in the list shows too.
  */
-import { dispatchDialSetIn } from '@/app/dispatchDial';
-import { useDialsSettings } from '@/app/dials/useDialsSettings';
-import { selectCls } from '@/app/dials/primitives';
+import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeLive, useAirDrumStatus } from '@/extensions/air/app/airDrumStatus';
 import { DrumPadEditor } from '@/extensions/air/panels/airDrumPads';
 import { useEffect, useState } from 'react';

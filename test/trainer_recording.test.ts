@@ -22,7 +22,7 @@ import { getCodec } from '@thoremin/taglog/affordances/codec';
 import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
 import { AnchorRecordSchema, ANNOTATIONS_SCHEMA_ID, TagEventSchema } from '@thoremin/taglog/affordances/schema';
 import { toAudacityLabels } from '@thoremin/taglog/adapters';
-import { appFeatureDemand } from '@/app/featureDemand';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 
 const v = (o: Record<string, number>): FeatureVector => o;
 const prng = (seed: number) => () => {

@@ -3,7 +3,7 @@
  * halves of the extensions this build ships.
  */
 declare module 'virtual:thoremin/extensions-ui' {
-  import type { ExtensionUi } from '@/app/extensions/types';
+  import type { ExtensionUi } from '@thoremin/sdk-ui/types';
   const uis: readonly ExtensionUi[];
   export default uis;
 }

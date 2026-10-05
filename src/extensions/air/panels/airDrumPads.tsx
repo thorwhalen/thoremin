@@ -16,13 +16,13 @@
  * the current pads into a named record, loading writes a record back as one patch.
  */
 import { useEffect, useRef, useState } from 'react';
-import { dispatchDialPatch, dispatchDialSetIn } from '@/app/dispatchDial';
-import { useDialsSettings } from '@/app/dials/useDialsSettings';
-import { selectCls } from '@/app/dials/primitives';
+import { dispatchDialPatch, dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { useAirDrumStatus } from '@/extensions/air/app/airDrumStatus';
 import { DEFAULT_PADS_SET, DRUM_SOUNDS, MIN_PAD_SIZE, OFF_PAD_MODES, PAD_IDS, PAD_SHAPES, STARTER_KIT, type OffPadMode, type Pad, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { createPadLayoutStore, padLayoutWrites, type PadLayoutStore } from '@/extensions/air/app/padLayouts';
-import type { NamedSummary } from '@/settings/namedCollection';
+import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 
 /** The stage's height in its own units; its width follows the camera's shape. */
 const STAGE_H = 90;

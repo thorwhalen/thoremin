@@ -7,7 +7,7 @@ import { SOUNDS, SOUND_IDS } from '@thoremin/sdk/music/sounds';
 import { dispatchDialPatch } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { voiceEditWrites, type VoiceField } from '../settingsStore';
-import { selectCls } from '../primitives';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 
 /**
  * One hand's voice (sound / root / scale / octaves / base octave), read from and

@@ -10,7 +10,7 @@
 import { dispatchDialSet } from '../../dispatchDial';
 import { useMidiStatus } from '../../midiStatus';
 import { useDialsSettings } from '../useDialsSettings';
-import { selectCls } from '../primitives';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { webMidiSupported, type MidiPhase } from '@/nodes/output/midi_out';
 
 /** Status-dot color + whether it pulses, per connection phase. */
