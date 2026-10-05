@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import { voiceMappingNode, type HandFeatures, type SynthParams } from '@/nodes';
-import { freqToMidi, midiToName } from '@/music/theory';
+import { freqToMidi, midiToName } from '@thoremin/sdk/music/theory';
 import { SCENARIOS } from '../scripts/scenarios';
 
 describe('fixture replay (sweep_right)', () => {

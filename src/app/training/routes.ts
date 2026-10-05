@@ -18,7 +18,7 @@
  * touches the DOM and the tools store.
  */
 import type { InstrumentSpec } from '@/instruments/spec';
-import type { TrainingRoute } from '@/instruments/extension';
+import type { TrainingRoute } from '@thoremin/sdk/instruments/extension';
 import { EXTENSION_TRAINING_BY_BRANCH, EXTENSION_TRAINING_ROUTES } from '@/extensions';
 
 export type { TrainingRoute };

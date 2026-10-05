@@ -6,7 +6,7 @@
  * (when the player meant it, which the prior's expected beat estimates) comes
  * *sounding good*, and the instrument's job is to make the trade between them a dial
  * rather than a fixed choice. This is the rhythmic twin of `magneticPitch` in
- * `src/music/theory.ts`: a DAW's quantise strength, applied live.
+ * `packages/sdk/src/music/theory.ts`: a DAW's quantise strength, applied live.
  *
  * `magnetise(t, state, magnetism)` moves an event time `t` toward the NEAREST beat
  * the prior expects (`grid`), by `magnetism` (0 = leave it, 1 = as far as the gate

@@ -21,7 +21,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import type { FaceFrame } from '../domain';
+import type { FaceFrame } from '@thoremin/sdk/nodes/domain';
 import {
   EMOTIONS,
   ABSENT_EXPRESSION,

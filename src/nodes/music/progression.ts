@@ -10,7 +10,7 @@
 import { z } from 'zod';
 import { Key } from 'tonal';
 import { defineNode } from '@thoremin/dag';
-import { clamp01 } from '@/features/math';
+import { clamp01 } from '@thoremin/sdk/features/math';
 
 const Params = z
   .object({

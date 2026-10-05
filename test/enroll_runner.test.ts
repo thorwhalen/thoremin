@@ -19,8 +19,8 @@ import {
   type FeatureVector,
   type RunnerEvent,
   type Session,
-} from '@/enroll';
-import { matrixToHeadPose } from '@/nodes/domain';
+} from '@thoremin/sdk/enroll';
+import { matrixToHeadPose } from '@thoremin/sdk/nodes/domain';
 import { loadStream } from './helpers/fixtures';
 
 const v = (o: Record<string, number>): FeatureVector => o;

@@ -6,7 +6,7 @@
  * registry's invariants.
  */
 import { describe, it, expect } from 'vitest';
-import { angleAt, angleBetween } from '@/features/math';
+import { angleAt, angleBetween } from '@thoremin/sdk/features/math';
 import {
   ALL_FEATURES,
   buildFaceCtx,
@@ -16,9 +16,9 @@ import {
   FEATURE_GROUP_IDS,
   groupInvarianceSummary,
   HAND_SIDE_FEATURES,
-} from '@/features/catalog';
-import { FL } from '@/features/landmarks';
-import { makeHandKeypoints, type HandsFrame } from '@/nodes/domain';
+} from '@thoremin/sdk/features/catalog';
+import { FL } from '@thoremin/sdk/features/landmarks';
+import { makeHandKeypoints, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 
 // ---- math: the mandatory acos clamp ---------------------------------------
 

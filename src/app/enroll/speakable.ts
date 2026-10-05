@@ -19,7 +19,7 @@
  * custom cue (a player's own localStorage) has no clip and is text-only until its
  * wording joins the starter set; the picker marks such cues when voice is on.
  */
-import { CANNOT_REASONS, DEFAULT_NUDGES, RUNNER_PHRASES, type Cue } from '@/enroll';
+import { CANNOT_REASONS, DEFAULT_NUDGES, RUNNER_PHRASES, type Cue } from '@thoremin/sdk/enroll';
 
 /** Every string the runner may say for `cues`, de-duplicated, in a stable order. */
 export function speakableStrings(cues: readonly Cue[]): string[] {

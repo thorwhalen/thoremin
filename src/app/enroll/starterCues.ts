@@ -10,7 +10,7 @@
  * under the same name.
  *
  * This file is face-specific ON PURPOSE and it is the ONLY place that is: every type
- * it uses is modality-neutral (`src/enroll` never mentions a face), and a hand routine
+ * it uses is modality-neutral (`packages/sdk/src/enroll` never mentions a face), and a hand routine
  * is another file of the same shape with other group ids.
  *
  * ## The wording rules (enforced in `test/enroll_cues.test.ts`)
@@ -33,8 +33,8 @@
  * the one the fixture proved swings the brow channel 0.43→0.89 on its own), and last
  * the free vocabulary — the part that is actually the player's.
  */
-import { FEATURE_GROUPS } from '@/features/catalog';
-import { CueSchema, type Cue, type CueSpecInput } from '@/enroll';
+import { FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
+import { CueSchema, type Cue, type CueSpecInput } from '@thoremin/sdk/enroll';
 
 /**
  * The face groups a training take records. Everything the catalog measures on a face

@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { thoreminDials, settingsToLayer } from '@/settings/dials';
 import { SettingsSchema } from '@/settings/schema';
 import { OverlayDialSchema, OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
-import { defaultFeatureLab, labWantsFace, FACE_GROUP_IDS } from '@/features/labConfig';
+import { defaultFeatureLab, labWantsFace, FACE_GROUP_IDS } from '@thoremin/sdk/features/labConfig';
 import { branchIdsFor } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';

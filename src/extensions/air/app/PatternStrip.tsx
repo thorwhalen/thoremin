@@ -8,9 +8,9 @@
  * clock or from a follower. Cells that a fitted model found late or early can be tinted
  * by the caller through `shade`. Pure SVG.
  */
-import type { DrumPattern } from '@/music/drum_patterns';
-import { patternDrums } from '@/drums/pattern_fit';
-import { DRUM_SOUND } from '@/music/gm_drums';
+import type { DrumPattern } from '@thoremin/sdk/music/drum_patterns';
+import { patternDrums } from '@thoremin/sdk/drums/pattern_fit';
+import { DRUM_SOUND } from '@thoremin/sdk/music/gm_drums';
 
 export interface PatternStripProps {
   pattern: DrumPattern;

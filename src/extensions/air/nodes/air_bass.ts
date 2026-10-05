@@ -26,7 +26,7 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
-import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '@/nodes/domain';
+import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
 import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
 
 export const PLAYER_HANDS = ['right', 'left'] as const;

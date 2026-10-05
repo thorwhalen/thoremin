@@ -14,7 +14,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { createAppRegistry, midiOutNode } from '@/nodes/browser';
 import type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus } from '@/nodes/browser';
 import type { SynthParams, VoiceParams } from '@/nodes';
-import { midiToFreq } from '@/music/theory';
+import { midiToFreq } from '@thoremin/sdk/music/theory';
 
 type Ev =
   | { kind: 'on'; channel: number; note: number; velocity: number }

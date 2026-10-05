@@ -13,13 +13,13 @@
  * a separate async persistence layer (src/settings) — load a preset by calling
  * `applySettings`, snapshot the current state with `toSettings`.
  */
-import type { PatternPlay } from '@/drums/pattern_play';
+import type { PatternPlay } from '@thoremin/sdk/drums/pattern_play';
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import type { ScaleTypeId } from '@/music/theory';
-import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
+import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
 import { OverlayDialSchema, TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
-import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
+import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@thoremin/sdk/features/labConfig';
 import { GesturePrefsSchema, defaultGesturePrefs, type GesturePrefs } from './gesturePrefs';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
 import {
@@ -51,8 +51,8 @@ import {
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, type ExtensionDials } from '@/settings/schema';
-import type { TrainedModel } from '@/enroll';
-import type { ScoreDoc } from '@/score/schema';
+import type { TrainedModel } from '@thoremin/sdk/enroll';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */

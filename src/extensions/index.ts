@@ -13,7 +13,7 @@
  *
  * Pure: the React halves are listed in `src/app/extensions`.
  */
-import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionsSettingsShape } from '@/instruments/extension';
+import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionsSettingsShape } from '@thoremin/sdk/instruments/extension';
 import listed from 'virtual:thoremin/extensions';
 
 type Listed = typeof listed;

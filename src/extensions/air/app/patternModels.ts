@@ -10,7 +10,7 @@
 import { z } from 'zod';
 import { create } from 'zustand';
 import type { DataProvider } from '@zodal/store';
-import { PatternModelSchema, type PatternModel } from '@/drums/pattern_fit';
+import { PatternModelSchema, type PatternModel } from '@thoremin/sdk/drums/pattern_fit';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 
 export const PATTERN_MODELS_STORAGE_KEY = 'thoremin-drum-pattern-models';

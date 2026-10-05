@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame, type BodyStatus } from '../domain';
+import { BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame, type BodyStatus } from '@thoremin/sdk/nodes/domain';
 import { BODY_SLOT_OUTPUT } from './body_contract';
 
 const Params = z.object({

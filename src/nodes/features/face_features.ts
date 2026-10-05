@@ -11,8 +11,8 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { clamp01 } from '@/features/math';
-import { ABSENT_FACE, type FaceFeatures, type FaceFrame } from '../domain';
+import { clamp01 } from '@thoremin/sdk/features/math';
+import { ABSENT_FACE, type FaceFeatures, type FaceFrame } from '@thoremin/sdk/nodes/domain';
 
 const Params = z.object({
   /** Global multiplier applied to each control before clamping (expressiveness). */

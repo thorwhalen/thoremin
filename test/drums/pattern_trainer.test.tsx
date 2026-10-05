@@ -13,9 +13,9 @@ import { PatternTrainer, takeClicks } from '@/extensions/air/app/PatternTrainer'
 import { clearHits, hitsSince, makeHitsTap, pushHits } from '@/extensions/air/app/hitsTap';
 import { loadPatternModel, usePatternModelStore, type PatternModelRecord } from '@/extensions/air/app/patternModels';
 import { setClickPlayer } from '@/app/enroll/click';
-import { patternById } from '@/music/drum_patterns';
+import { patternById } from '@thoremin/sdk/music/drum_patterns';
 import { useControls } from '@/app/store';
-import type { Click } from '@/enroll';
+import type { Click } from '@thoremin/sdk/enroll';
 import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 
 const ROCK = patternById('rock')!;

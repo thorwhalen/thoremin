@@ -5,7 +5,7 @@
  * annotations, and the recorder's microphone stream in the plan and the take session.
  */
 import { describe, it, expect } from 'vitest';
-import { CueSpecSchema, clickPlan, createRunner, createSession, cueCoverage, type Cue, type CueSpecInput, type RunnerEvent } from '@/enroll';
+import { CueSpecSchema, clickPlan, createRunner, createSession, cueCoverage, type Cue, type CueSpecInput, type RunnerEvent } from '@thoremin/sdk/enroll';
 import { REAL_VS_AIR_CUES, routineRecordsPerformance } from '@/app/enroll/realVsAirCues';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/app/enroll/annotations';

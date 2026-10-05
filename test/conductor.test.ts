@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { transportNode, scoreNode, performanceNode, createCoreRegistry } from '@/nodes';
-import { freqToMidi } from '@/music/theory';
+import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@/nodes';
 
 const SCALE_NOTES = [60, 62, 64, 65, 67, 69, 71, 72].map((midi, i) => ({

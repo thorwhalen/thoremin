@@ -17,9 +17,9 @@
  * tap's `t` is the same clock in seconds). Nothing here touches the tick loop.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DRUM_PATTERNS, patternById, type DrumPattern } from '@/music/drum_patterns';
-import { fitPattern, playbackOffset, type PatternModel } from '@/drums/pattern_fit';
-import type { Click } from '@/enroll';
+import { DRUM_PATTERNS, patternById, type DrumPattern } from '@thoremin/sdk/music/drum_patterns';
+import { fitPattern, playbackOffset, type PatternModel } from '@thoremin/sdk/drums/pattern_fit';
+import type { Click } from '@thoremin/sdk/enroll';
 import { clickPlayer } from '@/app/enroll/click';
 import { hitsSince } from '@/extensions/air/app/hitsTap';
 import { loadPatternModel, removePatternModel, savePatternModel } from '@/extensions/air/app/patternModels';

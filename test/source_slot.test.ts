@@ -27,7 +27,7 @@ import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
 import { CORE_NODES } from '@/nodes';
 import { SLOTS, resolveSlot, defaultGraph, parseSlotSelection } from '@/app/graph';
 import { SOURCE_SLOT_CONTRACT, SOURCE_SLOT_OUTPUT } from '@/nodes/sources/source_contract';
-import { HandsFrameSchema } from '@/nodes/domain';
+import { HandsFrameSchema } from '@thoremin/sdk/nodes/domain';
 import type { SynthParams, HandsFrame, HandFeatures } from '@/nodes';
 
 const appRegistry = () => createAppRegistry();

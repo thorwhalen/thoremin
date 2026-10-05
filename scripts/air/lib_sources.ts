@@ -41,7 +41,7 @@ const NOTE_NAME = /^[A-G][#b]?-?\d$/;
  * `handedness` uses MediaPipe's label AS EMITTED ON THIS VIDEO. MediaPipe assumes a
  * mirrored (selfie) image, so on unmirrored footage its "Left" is the physical RIGHT
  * hand (that is why `graph.ts` sets `mirrorHandedness: true` for the webcam; see
- * `resolveSide` in `src/features/catalog.ts`). For a right-handed player facing the
+ * `resolveSide` in `packages/sdk/src/features/catalog.ts`). For a right-handed player facing the
  * camera the fretting hand therefore arrives labelled "Right".
  */
 export const FrettingHandPick = z.discriminatedUnion('by', [

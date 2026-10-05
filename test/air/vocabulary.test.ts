@@ -5,7 +5,7 @@
  * derived from them is the same.
  */
 import { describe, it, expect } from 'vitest';
-import { classify } from '@/enroll';
+import { classify } from '@thoremin/sdk/enroll';
 import { VocabularySchema, emptyVocabulary, jitterWeights, trainVocabulary, withEntry, withoutEntry, MIN_SAMPLES_PER_ENTRY } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { enrolSamples } from './synthetic_guitar';

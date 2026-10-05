@@ -31,7 +31,7 @@
  */
 import type { PortSpec, Role } from '@thoremin/dag';
 import type { SlotContract } from '../slot_contract';
-import { HandsFrameSchema } from '../domain';
+import { HandsFrameSchema } from '@thoremin/sdk/nodes/domain';
 
 /**
  * The output port every source-slot node must emit. `schema` is what makes this

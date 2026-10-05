@@ -24,9 +24,9 @@ import {
   type HandFeatures,
   type HandsFrame,
   type SynthParams,
-} from '@/nodes/domain';
+} from '@thoremin/sdk/nodes/domain';
 import { makeRecordingCanvas, type RecordingCanvas } from './helpers/canvas';
-import { DEFAULT_PADS_SET } from '@/nodes/music/drum_pads';
+import { DEFAULT_PADS_SET } from '@thoremin/sdk/nodes/music/drum_pads';
 
 function fullInputs() {
   const frame: HandsFrame = {

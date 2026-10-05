@@ -26,7 +26,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { HandsFrameSchema, type HandsFrame } from '../domain';
+import { HandsFrameSchema, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 
 /**

@@ -27,7 +27,7 @@ import { createFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
-import { matrixToHeadPose, type FaceFrame, type FaceStatus } from '../domain';
+import { matrixToHeadPose, type FaceFrame, type FaceStatus } from '@thoremin/sdk/nodes/domain';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm

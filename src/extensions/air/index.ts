@@ -17,7 +17,7 @@
  *
  * Pure: no React (the editor sections and status hooks are `./ui.tsx`, the React half).
  */
-import { defineExtension } from '@/instruments/extension';
+import { defineExtension } from '@thoremin/sdk/instruments/extension';
 import type { NodeDef } from '@thoremin/dag';
 import { airDrumNode } from '@/extensions/air/nodes/air_drum';
 import { airBassNode } from '@/extensions/air/nodes/air_bass';

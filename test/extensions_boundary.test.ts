@@ -15,8 +15,9 @@
  * tuple of each listed manifest's type) and the schema folds the list like any fold point,
  * so a build from a manifest without `air` bundles no air code.
  *
- * Rule 2, on since 5b (the physical move): an extension imports only `SDK_SURFACE` (the
- * core modules listed below, which IS the SDK contract as data), packages, and itself.
+ * Rule 2, on since 5b (the physical move): an extension imports only the SDK (the
+ * `@thoremin/sdk` package, and the app modules listed below as the app half), other
+ * packages, and itself.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -64,34 +65,14 @@ const FOLD_POINTS = new Set([
   'src/app/extensions/index.ts', // the React-side list itself
 ]);
 /**
- * THE SDK SURFACE, AS DATA, in two halves: every core module an extension may import. This list is the
- * contract PR 6 cuts the `sdk` packages from (the pure half, then the app half); a new entry
- * is a decision to widen the contract, made here in review, never in passing. It was
- * computed from what the air extension actually imports, not designed in the abstract,
- * and deliberately has no barrel module: a barrel re-exporting all of this closes a module
- * cycle through the settings schema and drags JSX into the strict typecheck.
+ * THE SDK SURFACE, AS DATA, in two halves. The PURE half is a package since the follow-up to
+ * PR 6: `@thoremin/sdk` (`packages/sdk`), whose boundary `test/packages_purity.test.ts`
+ * enforces (it imports no `@/` module, so it cannot reach the settings or the app, and the
+ * settings can fold the extension list without a cycle). An extension's pure side imports only
+ * packages: {@link PURE_PACKAGES}. The APP half is still app modules, listed below; it is the
+ * list `@thoremin/sdk-ui` is cut from. A new entry is a decision to widen the contract, made
+ * here in review, never in passing.
  */
-/** The PURE half: what an extension's nodes, libraries and pure manifest files may import.
- *  An entry allows the module and every path below it (`@/dag` allows `@/dag/engine`). */
-const SDK_PURE = [
-  '@/nodes/domain',
-  '@/instruments/branch',
-  '@/instruments/branches', // the trunk's node ids, to wire to
-  '@/instruments/extension',
-  '@/features/demand',
-  '@/features/catalog',
-  '@/enroll',
-  '@/music/theory',
-  '@/music/notes',
-  '@/music/fingerings', // also read by the trainer's starter sequences
-  '@/music/drum_patterns', // also the hot store's pattern field
-  '@/music/gm_drums',
-  '@/drums/pattern_fit',
-  '@/drums/pattern_play',
-  '@/nodes/music/drum_pads', // also drawn by the overlay
-  '@/nodes/music/drum_anchor', // also drawn by the overlay
-];
-
 /** The APP half: what an extension's React side (`app/`, `panels/`, `ui.tsx`) may import on
  *  top of the pure half. Never a node, a library or a pure manifest file: the real-time path
  *  must not reach the app shell, the hot store or the command dispatch. */
@@ -109,12 +90,10 @@ const SDK_APP = [
   '@/app/enroll/click',
 ];
 
-const SDK_SURFACE = [...SDK_PURE, ...SDK_APP];
-
-/** The PACKAGES a pure extension file may import: thoremin's own pure workspace packages
- *  (cut from the surface in PR 6) and the schema library. Its React side may import any
- *  package the app depends on. */
-const PURE_PACKAGES = ['@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', 'zod'];
+/** The PACKAGES a pure extension file may import: the pure SDK, thoremin's other pure
+ *  workspace packages and the schema library. Its React side may import any package the app
+ *  depends on. */
+const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', 'zod'];
 
 /** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
 const isPureExtensionFile = (file: string): boolean =>
@@ -165,38 +144,9 @@ describe('core reaches the extensions only through the lists, from the fold poin
   it('the list modules import only manifests (no component or store reaches in through them)', () => {
     // Since PR 6 the lists come from `extensions.json` through two virtual modules.
     const pure = importSpecifiers(readFileSync('src/extensions/index.ts', 'utf8'));
-    expect(pure.sort()).toEqual(['@/instruments/extension', 'virtual:thoremin/extensions']);
+    expect(pure.sort()).toEqual(['@thoremin/sdk/instruments/extension', 'virtual:thoremin/extensions']);
     const ui = importSpecifiers(readFileSync('src/app/extensions/index.ts', 'utf8'));
     expect(ui.sort()).toEqual(['./types', 'virtual:thoremin/extensions-ui']);
-  });
-
-  it('the pure SDK never reaches the settings or the app, so the settings can fold the list without a cycle', () => {
-    // `SettingsSchema` folds the extension list, whose manifests import the pure SDK. Were any
-    // pure SDK module to import `@/settings/*` (as `src/instruments/branches.ts` once did for
-    // the default steering config), loading an extension first would read the schema before it
-    // is initialised: a TDZ error at start-up, in some entry orders only.
-    const resolve = (from: string, spec: string): string | null => {
-      const base = spec.startsWith('@/') ? `src/${spec.slice(2)}` : spec.startsWith('.') ? join(from, '..', spec) : null;
-      if (!base) return null; // a package: outside src/, checked by packages_purity
-      for (const cand of [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`]) if (existsSync(cand)) return cand;
-      return null;
-    };
-    const seen = new Set<string>();
-    const stack = SDK_PURE.map((m) => resolve('src/x.ts', m)).filter((f): f is string => !!f);
-    const offenders: string[] = [];
-    while (stack.length) {
-      const file = stack.pop()!;
-      if (seen.has(file)) continue;
-      seen.add(file);
-      for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
-        const target = resolve(file, spec);
-        if (!target) continue;
-        if (/^src\/(settings|app)\//.test(target)) offenders.push(`${file} imports ${spec}`);
-        else stack.push(target);
-      }
-    }
-    expect(seen.size).toBeGreaterThan(SDK_PURE.length);
-    expect(offenders).toEqual([]);
   });
 
   it('an extension imports only the SDK surface, packages and itself (rule 2, on since 5b)', () => {
@@ -224,7 +174,7 @@ describe('core reaches the extensions only through the lists, from the fold poin
           offenders.push(`${file} (pure) imports its own app side: ${spec}`);
           continue;
         }
-        if (allows(pure ? SDK_PURE : SDK_SURFACE, spec)) continue;
+        if (!pure && allows(SDK_APP, spec)) continue;
         offenders.push(`${file}${pure ? ' (pure)' : ''} imports ${spec}`);
       }
     }
@@ -235,10 +185,10 @@ describe('core reaches the extensions only through the lists, from the fold poin
     const used = new Set<string>();
     for (const file of tsFiles('src/extensions')) {
       for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
-        for (const allowed of SDK_SURFACE) if (spec === allowed || spec.startsWith(`${allowed}/`)) used.add(allowed);
+        for (const allowed of SDK_APP) if (spec === allowed || spec.startsWith(`${allowed}/`)) used.add(allowed);
       }
     }
-    expect(SDK_SURFACE.filter((s) => !used.has(s))).toEqual([]);
+    expect(SDK_APP.filter((s) => !used.has(s))).toEqual([]);
   });
 
   it('no relative import leaves an extension', () => {

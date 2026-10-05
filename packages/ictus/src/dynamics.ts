@@ -6,7 +6,7 @@
  * multi-subject study of it (Sarasúa & Guaus, research map §1.5) found that pooled
  * models fit individuals badly: what counts as "big" is the player's own range. So both
  * estimates here are relative to exponentially weighted statistics of the player's own
- * recent strokes, the same idea `src/features/ewMoments.ts` and `src/enroll/noise.ts`
+ * recent strokes, the same idea `src/features/ewMoments.ts` and `packages/sdk/src/enroll/noise.ts`
  * apply to features — nothing absolute, no calibration step.
  *
  * - `dynamics` (0..1): the stroke's amplitude over the recent envelope, as the detector

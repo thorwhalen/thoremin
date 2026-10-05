@@ -3,8 +3,8 @@
  * the face-driven chord, plus the chord-SOURCE scale picker (#75) it draws its chords
  * from. Shown by the face panel whenever a chord mapping (emotion or pose) is active.
  */
-import { NOTES, SCALE_TYPES, defaultChordSpecFor, melodyNotesOutsideChord, type ScaleTypeId } from '@/music/theory';
-import { SOUNDS, SOUND_IDS } from '@/music/sounds';
+import { NOTES, SCALE_TYPES, defaultChordSpecFor, melodyNotesOutsideChord, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { SOUNDS, SOUND_IDS } from '@thoremin/sdk/music/sounds';
 import { VOICINGS, RENDERINGS, isTempoRendering, type VoicingId, type RenderingId } from '@/music/voicing';
 import { dispatchDialSet, dispatchDialPatch } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';

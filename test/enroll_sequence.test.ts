@@ -19,7 +19,7 @@ import {
   type FeatureVector,
   type SequenceEvent,
   type TargetCheck,
-} from '@/enroll';
+} from '@thoremin/sdk/enroll';
 
 const v = (x: number): FeatureVector => ({ x });
 

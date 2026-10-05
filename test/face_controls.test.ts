@@ -12,7 +12,7 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
 } from '@/nodes/features/face_controls';
 import { structuredLeafPaths } from '@/app/commands/paths';
-import { ABSENT_FACE_CONTROLS, type FaceControls, type FaceFrame, type HeadPose } from '@/nodes/domain';
+import { ABSENT_FACE_CONTROLS, type FaceControls, type FaceFrame, type HeadPose } from '@thoremin/sdk/nodes/domain';
 
 const frame = (blendshapes: Record<string, number>, headPose?: HeadPose): FaceFrame => ({
   present: true,

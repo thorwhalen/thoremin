@@ -20,7 +20,7 @@
  * source simply contributes no keys.
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
-import type { FeatureVector } from '@/enroll';
+import type { FeatureVector } from '@thoremin/sdk/enroll';
 
 /** The edge keys the tap listens to — the catalog's three vector-producing nodes. */
 export const FEATURE_VECTOR_EDGES = ['faceVec.vector', 'handVec.vector', 'bodyVec.vector'] as const;

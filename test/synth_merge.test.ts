@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { replayNode, Engine, createRegistry, defineNode } from '@thoremin/dag';
 import { synthMergeNode, keyboardControlNode } from '@/nodes';
-import type { SynthParams, VoiceParams } from '@/nodes/domain';
+import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 const voice = (id: number, patch: Partial<VoiceParams> = {}): VoiceParams => ({
   id,

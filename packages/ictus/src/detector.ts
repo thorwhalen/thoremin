@@ -67,7 +67,7 @@ export interface DetectorOptions {
   minAmplitude?: number;
   /** A stroke must also exceed this many NOISE UNITS — multiples of the point's own
    *  frame-to-frame jitter, estimated online as the residual of each sample against the
-   *  median of its neighbours (the same convention as `src/enroll/noise.ts`). This is
+   *  median of its neighbours (the same convention as `packages/sdk/src/enroll/noise.ts`). This is
    *  what keeps a still hand's tremor, or the small bounce of hands being raised into
    *  position, from beating before the envelope exists, in any units. A real stroke is
    *  hundreds of jitter units even from a small conductor at 30 fps. */

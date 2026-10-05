@@ -36,8 +36,8 @@ import { FLUTE_STARTER_SEQUENCES } from '@/app/enroll/sequenceStore';
 import { TRAINING_ANCHORS } from '@/extensions/air/training';
 import { useControls } from '@/app/store';
 import { checkTake, expectedFingering, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
-import { FINGERING_CHARTS } from '@/music/fingerings';
-import { parseNoteName } from '@/music/notes';
+import { FINGERING_CHARTS } from '@thoremin/sdk/music/fingerings';
+import { parseNoteName } from '@thoremin/sdk/music/notes';
 import { BREATH_MODES, MOUTH_BLOW, MOUTH_REST, type AirFluteDialParams } from '@/extensions/air/nodes/air_flute';
 
 const BREATH_LABEL: Record<AirFluteDialParams['breath'], string> = {

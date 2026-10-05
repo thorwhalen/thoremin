@@ -4,7 +4,7 @@
  * synthetic blobs (where the right picture is known) and the real head-pose clip.
  */
 import { describe, it, expect } from 'vitest';
-import { createSession, weightedDistance, type Cue, type FeatureVector, type StillPoint } from '@/enroll';
+import { createSession, weightedDistance, type Cue, type FeatureVector, type StillPoint } from '@thoremin/sdk/enroll';
 import {
   fitProjection,
   MIN_POINTS_FOR_PROJECTION,
@@ -14,8 +14,8 @@ import {
   thinLayout,
   toMetricRow,
   type Point2,
-} from '@/enroll/projection';
-import { matrixToHeadPose } from '@/nodes/domain';
+} from '@thoremin/sdk/enroll/projection';
+import { matrixToHeadPose } from '@thoremin/sdk/nodes/domain';
 import { loadStream } from './helpers/fixtures';
 
 const v = (o: Record<string, number>): FeatureVector => o;

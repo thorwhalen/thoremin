@@ -19,9 +19,9 @@ import {
   midiToFreq,
   clamp01,
   type ScaleTypeId,
-} from '@/music/theory';
-import { SoundSchema, SOUND_IDS } from '@/music/sounds';
-import { ABSENT_HAND, type FaceFeatures, type HandFeatures, type SynthParams, type VoiceParams } from '../domain';
+} from '@thoremin/sdk/music/theory';
+import { SoundSchema, SOUND_IDS } from '@thoremin/sdk/music/sounds';
+import { ABSENT_HAND, type FaceFeatures, type HandFeatures, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { MAPPING_SLOT_INPUTS, MAPPING_SLOT_OUTPUT } from './mapping_contract';
 import { BEND_SEMITONES, DEFAULT_HAND_MAP, fingerEffects, type HandMap } from './hand_map';
 import { NEUTRAL_MODS, type VoiceMods } from './body_map';

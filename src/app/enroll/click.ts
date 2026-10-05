@@ -1,7 +1,7 @@
 /**
  * The trainer's click (#247) — the metronome a real-versus-air phrase is played to.
  *
- * WHEN the clicks sound is decided elsewhere, once: `clickPlan` (`src/enroll/cue.ts`)
+ * WHEN the clicks sound is decided elsewhere, once: `clickPlan` (`packages/sdk/src/enroll/cue.ts`)
  * turns a clicked cue and its start time into a list of times on the engine clock, the
  * trainer store writes those same times into the take's annotations, and this module
  * only makes them audible. So what the player heard and what the take says they heard
@@ -23,7 +23,7 @@
  * (`scripts/cue/lib_pair_take.ts`, `gridLag`). The times written into the take stay the
  * scheduled ones: nothing here can know the headphones' delay, and nothing needs to.
  */
-import type { Click } from '@/enroll';
+import type { Click } from '@thoremin/sdk/enroll';
 
 export interface ClickPlayer {
   /** Schedule these clicks (times in ms on the engine clock, `performance.now()`). */

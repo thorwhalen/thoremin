@@ -6,10 +6,10 @@
  * the drift, and a hit nowhere near an event sounds as struck.
  */
 import { describe, expect, it } from 'vitest';
-import { patternById } from '@/music/drum_patterns';
-import { fitPattern, type HitSample } from '@/drums/pattern_fit';
-import { createPatternFollower } from '@/drums/pattern_play';
-import type { PadId } from '@/nodes/music/drum_pads';
+import { patternById } from '@thoremin/sdk/music/drum_patterns';
+import { fitPattern, type HitSample } from '@thoremin/sdk/drums/pattern_fit';
+import { createPatternFollower } from '@thoremin/sdk/drums/pattern_play';
+import type { PadId } from '@thoremin/sdk/nodes/music/drum_pads';
 
 function rng(seed: number): () => number {
   let a = seed >>> 0;

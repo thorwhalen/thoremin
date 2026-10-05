@@ -6,7 +6,7 @@
  * to report the face model running for a trainer cue the same way it does for the Lab.
  */
 import { useSyncExternalStore } from 'react';
-import type { DemandedGroups } from '@/features/demand';
+import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { appFeatureDemand, featureDemandResource } from './featureDemand';
 
 export function useDemandedGroups(): DemandedGroups {

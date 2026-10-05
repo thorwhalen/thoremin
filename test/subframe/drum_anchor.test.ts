@@ -1,6 +1,6 @@
 /**
  * The air drum's tracked point (#246): the stick-tip estimate of
- * `src/nodes/music/drum_anchor.ts`, and the `air-drum` node replayed over a synthetic
+ * `packages/sdk/src/nodes/music/drum_anchor.ts`, and the `air-drum` node replayed over a synthetic
  * hand gripping the committed `an.impacts` stick fixtures (`scripts/air/lib_synthetic_grip.ts`).
  *
  * What is pinned: the estimate is exact on the synthetic grip; it commutes with any
@@ -19,8 +19,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
-import type { HandsFrame } from '@/nodes/domain';
-import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, gripLength, stickReach, stickTip } from '@/nodes/music/drum_anchor';
+import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, gripLength, stickReach, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip, type StickPose } from '../../scripts/air/lib_synthetic_grip';
 import { FIXTURES, loadRecords } from '../helpers/fixtures';
 

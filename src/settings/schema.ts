@@ -10,10 +10,10 @@
  * the overlay node's own params schema (canvas_overlay.ts) so it can never drift.
  */
 import { z } from 'zod';
-import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
-import { SOUND_IDS, type SoundId } from '@/music/sounds';
+import { SCALE_TYPES, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { SOUND_IDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
-import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@/nodes/domain';
+import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';

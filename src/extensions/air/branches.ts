@@ -3,8 +3,8 @@
  * attached to the trunk by the hand source and the UI bridge. Moved out of the core branch
  * table in PR 5a of the instruments-as-graphs ADR; the node files they name live under `./nodes/` (5b).
  */
-import { defineBranch } from '@/instruments/branch';
-import { TRUNK } from '@/instruments/branches';
+import { defineBranch } from '@thoremin/sdk/instruments/branch';
+import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 
 const ui = (port: string) => ({ node: TRUNK.ui, port });
 const overlay = (port: string) => ({ node: TRUNK.overlay, port });

@@ -10,7 +10,7 @@
  * captures (the hot-path / human-frequency split `src/app/enroll/liveVector.ts`
  * explains), not in a zustand store.
  */
-import type { FeatureVector } from '@/enroll';
+import type { FeatureVector } from '@thoremin/sdk/enroll';
 
 export interface OutputReader {
   getOutput(nodeId: string, port: string): unknown;

@@ -7,7 +7,7 @@
  *
  * The tracked point (#246): the pose wrist ({@link wristTracks}), or a point on the hand
  * ({@link handTracks}: the hand's wrist landmark, the index fingertip, or the estimated
- * stick tip, all from `src/nodes/music/drum_anchor.ts`, the definition the live
+ * stick tip, all from `packages/sdk/src/nodes/music/drum_anchor.ts`, the definition the live
  * `air-drum` node uses), joined to the pose for identity and normalisation. The wrist
  * sees an arm stroke; a finger or wrist stroke turns the hand without moving the wrist,
  * which only a point on the hand sees.
@@ -39,9 +39,9 @@
 import type { StreamRecord } from '@thoremin/dag';
 import { createIctusDetector, type DetectorOptions } from '@thoremin/ictus/detector';
 import type { Anchor } from '@thoremin/ictus/types';
-import type { BodyFrame, HandsFrame } from '@/nodes/domain';
-import { BLM, LM } from '@/nodes/domain';
-import { anchorPoint, type DrumAnchorPoint } from '@/nodes/music/drum_anchor';
+import type { BodyFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { BLM, LM } from '@thoremin/sdk/nodes/domain';
+import { anchorPoint, type DrumAnchorPoint } from '@thoremin/sdk/nodes/music/drum_anchor';
 
 /** The player's side: which arm a track (a wrist, or a point on that arm's hand) belongs to. */
 export type Wrist = 'left' | 'right';
@@ -111,7 +111,7 @@ function shoulderFrame(f: BodyFrame, minVisibility: number): { cx: number; cy: n
 }
 
 export interface HandTrackOptions {
-  /** The point on the hand (`src/nodes/music/drum_anchor.ts`). */
+  /** The point on the hand (`packages/sdk/src/nodes/music/drum_anchor.ts`). */
   point: DrumAnchorPoint;
   /** Stick length past the fulcrum, grip lengths, for `stickTip`. */
   stickLength?: number;

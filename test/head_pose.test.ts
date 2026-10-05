@@ -7,7 +7,7 @@
  * tuning is the `face-controls` node's job (per-axis gain), not this decode's.
  */
 import { describe, it, expect } from 'vitest';
-import { matrixToHeadPose, ZERO_HEAD_POSE } from '@/nodes/domain';
+import { matrixToHeadPose, ZERO_HEAD_POSE } from '@thoremin/sdk/nodes/domain';
 
 const DEG = Math.PI / 180;
 

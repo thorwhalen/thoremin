@@ -7,7 +7,7 @@
  *
  * Pure: data only. The trainers render the anchors as DOM ids, so a route can find them.
  */
-import type { ExtensionTraining } from '@/instruments/extension';
+import type { ExtensionTraining } from '@thoremin/sdk/instruments/extension';
 
 /** The DOM ids the air trainers render, so a route can find them. */
 export const TRAINING_ANCHORS = {

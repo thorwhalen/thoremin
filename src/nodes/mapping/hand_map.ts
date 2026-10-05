@@ -14,7 +14,7 @@
  * unit-tested directly; the {@link voiceMappingNode} applies its output, and the
  * settings layer builds a Zod schema over {@link EFFECTS} / {@link HandMap}.
  */
-import { FINGER_NAMES, type FingerCloseness, type FingerName } from '../domain';
+import { FINGER_NAMES, type FingerCloseness, type FingerName } from '@thoremin/sdk/nodes/domain';
 
 /** The sound aspects a finger can be routed to control. All are applied in the voice
  *  mapping (no synth changes): additive to brightness/vibrato/pan, folded into the

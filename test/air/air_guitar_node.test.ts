@@ -8,8 +8,8 @@
 import { describe, it, expect } from 'vitest';
 import { airGuitarNode, type AirGuitarStatus } from '@/extensions/air/nodes/air_guitar';
 import type { NoteEvent } from '@/extensions/air/nodes/note_events';
-import type { HandsFrame } from '@/nodes/domain';
-import type { TrainedModel } from '@/enroll';
+import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
+import type { TrainedModel } from '@thoremin/sdk/enroll';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';

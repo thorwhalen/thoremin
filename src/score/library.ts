@@ -16,7 +16,7 @@
  */
 import { createNamedCollectionStore, type NamedCollectionStore, type NamedRecord } from '@/settings/namedCollection';
 import { z } from 'zod';
-import { ScoreDocSchema, type ScoreDoc } from './schema';
+import { ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
 
 /** A demo piece: served from `public/scores/`, licence stated, parsed on first use. */
 export interface DemoScore {

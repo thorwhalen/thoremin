@@ -12,9 +12,9 @@ import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
 import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
-import { compilePattern } from '@/music/drum_patterns';
-import type { PatternModel } from '@/drums/pattern_fit';
-import type { PatternPlay } from '@/drums/pattern_play';
+import { compilePattern } from '@thoremin/sdk/music/drum_patterns';
+import type { PatternModel } from '@thoremin/sdk/drums/pattern_fit';
+import type { PatternPlay } from '@thoremin/sdk/drums/pattern_play';
 import { FIXTURES } from '../helpers/fixtures';
 
 interface Truth {

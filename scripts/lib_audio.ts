@@ -5,7 +5,7 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { getSound, type OscType } from '@/music/sounds';
+import { getSound, type OscType } from '@thoremin/sdk/music/sounds';
 import type { SynthParams, VoiceParams } from '@/nodes';
 
 export const SR = 44100;

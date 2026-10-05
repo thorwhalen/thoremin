@@ -20,7 +20,7 @@ import { startBodyRouteDemand } from './bodyRouteDemand';
 import { EXTENSION_MOUNT_EFFECTS } from './extensions';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
-import { demandWantsFace, labWantsFace } from '@/features/labConfig';
+import { demandWantsFace, labWantsFace } from '@thoremin/sdk/features/labConfig';
 import { useDemandedGroups } from './useDemandedGroups';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import RecordButton from './RecordButton';

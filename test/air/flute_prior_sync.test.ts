@@ -10,7 +10,7 @@ import { FLUTE_FINGER_FEATURES, deriveFluteFingerModel, startFlutePriorSync } fr
 import { FLUTE_STARTER_SEQUENCES, GUITAR_STARTER_SEQUENCES, mergeSequences, parseTargets } from '@/app/enroll/sequenceStore';
 import { AirFluteSettingsSchema } from '@/extensions/air/dials';
 import { structuredDialLeaves } from '@/app/commands/paths';
-import { FLUTE_CHART } from '@/music/fingerings';
+import { FLUTE_CHART } from '@thoremin/sdk/music/fingerings';
 import { priorClasses } from '@/extensions/air/lib/fingering_prior';
 import { AIR } from '../helpers/extensions';
 

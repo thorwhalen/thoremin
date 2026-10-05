@@ -12,7 +12,7 @@
  * whole body path with no camera and no model.
  */
 import type { PortSpec } from '@thoremin/dag';
-import { BodyFrameSchema } from '../domain';
+import { BodyFrameSchema } from '@thoremin/sdk/nodes/domain';
 import type { SlotContract } from '../slot_contract';
 
 export const BODY_SLOT_OUTPUT: PortSpec = {

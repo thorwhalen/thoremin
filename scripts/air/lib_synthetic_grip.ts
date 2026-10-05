@@ -1,7 +1,7 @@
 /**
  * A synthetic drummer's hand gripping a synthetic stick (#246): 21 MediaPipe-layout
  * landmarks posed rigidly on an `an.impacts` stick, so the air drum's anchor points (the
- * wrist, the index fingertip, the estimated stick tip of `src/nodes/music/drum_anchor.ts`)
+ * wrist, the index fingertip, the estimated stick tip of `packages/sdk/src/nodes/music/drum_anchor.ts`)
  * can be scored against the clip's ground-truth impacts.
  *
  * The geometry. An `an.impacts` stick rotates about a fixed `pivot` (its butt, "the
@@ -23,7 +23,7 @@
  *
  * Self-made data only (this file is the whole provenance), safe to commit.
  */
-import type { HandsFrame, Keypoint } from '@/nodes/domain';
+import type { HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
 
 /** The stick's reach past the fulcrum, in grip lengths, in this synthetic grip. */
 export const TRUE_STICK_LENGTH = 4;

@@ -3,7 +3,7 @@
  * the whole-hand knobs, and the per-finger→effect routing.
  */
 import { EFFECTS, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
-import { FINGER_NAMES } from '@/nodes/domain';
+import { FINGER_NAMES } from '@thoremin/sdk/nodes/domain';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { EFFECT_LABELS } from '../labels';

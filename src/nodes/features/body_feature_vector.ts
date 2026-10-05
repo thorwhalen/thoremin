@@ -8,7 +8,7 @@
  * Stateful only for the **history window** the kinematic and effort features
  * read: the last `windowSeconds` of samples (image point getters + image torso +
  * timing), kept per instance so a swap into a running graph starts clean. The
- * feature math itself is pure (`src/features/body_catalog.ts`). Only FINITE
+ * feature math itself is pure (`packages/sdk/src/features/body_catalog.ts`). Only FINITE
  * values are emitted; a degenerate feature (no torso, missing landmark, no
  * history yet) returns NaN and is dropped. The window is cleared on an absent
  * frame, so a dancer stepping out and back does not get a spurious teleport speed.
@@ -27,10 +27,10 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { BodyFrame } from '../domain';
-import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type FeatureVector } from '@/features/catalog';
-import type { DemandedGroups } from '@/features/demand';
-import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
+import type { BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type FeatureVector } from '@thoremin/sdk/features/catalog';
+import type { DemandedGroups } from '@thoremin/sdk/features/demand';
+import { resolveLabGate, type LabControlsSnapshot } from '@thoremin/sdk/features/labConfig';
 
 const Params = z.object({
   /** Mirror image-x so moving right increases x (selfie view), matching the hand features. */

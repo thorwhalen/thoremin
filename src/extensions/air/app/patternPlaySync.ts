@@ -9,9 +9,9 @@
  * feeds to the air drum. A pattern with no model yet publishes null: the mode is off
  * until the take that trains it. The `startFlutePriorSync` pattern.
  */
-import { patternById } from '@/music/drum_patterns';
-import type { PatternPlay } from '@/drums/pattern_play';
-import type { PatternModel } from '@/drums/pattern_fit';
+import { patternById } from '@thoremin/sdk/music/drum_patterns';
+import type { PatternPlay } from '@thoremin/sdk/drums/pattern_play';
+import type { PatternModel } from '@thoremin/sdk/drums/pattern_fit';
 import { useControls } from '@/app/store';
 import { loadPatternModel } from '@/extensions/air/app/patternModels';
 

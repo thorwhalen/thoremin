@@ -7,7 +7,7 @@
  * tom still plays on the kit we have, and a MIDI drum track imported later lands on the
  * same six. Pure.
  */
-import type { DrumSound } from '@/nodes/music/drum_pads';
+import type { DrumSound } from '../nodes/music/drum_pads';
 
 /** The names a pattern row can be written under. */
 export const DRUM_NAMES = ['kick', 'snare', 'hihat', 'openHihat', 'tom', 'floorTom', 'crash', 'ride'] as const;

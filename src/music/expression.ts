@@ -22,7 +22,7 @@
  * The prototype weights and the confusion matrix are exported data (open/closed):
  * swap them for a model-specific calibration without touching the algorithms.
  */
-import { clamp01 } from '@/features/math';
+import { clamp01 } from '@thoremin/sdk/features/math';
 
 /** The canonical expressions, in a stable index order: the scored {@link EMOTIONS}
  *  followed by `neutral` (the abstention fallback). `kiss` (lips funneled forward)

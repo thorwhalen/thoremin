@@ -14,7 +14,7 @@ import {
   TRIGGER_THRESHOLD,
   type FingerRoute,
 } from '@/nodes/mapping/hand_map';
-import type { FingerCloseness } from '@/nodes/domain';
+import type { FingerCloseness } from '@thoremin/sdk/nodes/domain';
 
 const closeness = (o: Partial<FingerCloseness> = {}): FingerCloseness => ({ index: 0, middle: 0, ring: 0, pinky: 0, ...o });
 const route = (over: Partial<FingerRoute>): FingerRoute => ({ target: 'none', sensitivity: 1, mode: 'continuous', invert: false, ...over });

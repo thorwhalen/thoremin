@@ -2,7 +2,7 @@
  * Saved sequences (#263) — the third trainer collection, next to cues and routines.
  *
  * A sequence is an ordered list of targets a player is walked through
- * (`src/enroll/sequence.ts` is the schema and the runner). Like cues, the shipped
+ * (`packages/sdk/src/enroll/sequence.ts` is the schema and the runner). Like cues, the shipped
  * STARTERS are merged with what is stored, by id, so a starter a player edits is saved
  * under its name and shadows the shipped one, and a starter whose list improves in code
  * is not shadowed by a stale seed row. Default target is localStorage through the same
@@ -15,8 +15,8 @@
  * sequence, so a player can reuse a scale on any instrument that names notes.
  */
 import type { DataProvider } from '@zodal/store';
-import { SequenceRecordSchema, sequenceOf, type SequenceRecord, type SequenceSpec } from '@/enroll';
-import { FLUTE_CHART, chartNotes } from '@/music/fingerings';
+import { SequenceRecordSchema, sequenceOf, type SequenceRecord, type SequenceSpec } from '@thoremin/sdk/enroll';
+import { FLUTE_CHART, chartNotes } from '@thoremin/sdk/music/fingerings';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 import { slugId } from '@/util/ids';
 

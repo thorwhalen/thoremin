@@ -29,8 +29,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
-import { freqToMidi } from '@/music/theory';
-import type { SynthParams, VoiceParams } from '../domain';
+import { freqToMidi } from '@thoremin/sdk/music/theory';
+import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 // ---- The sink facade the node drives (implemented by ./midi_engine or a mock) --
 

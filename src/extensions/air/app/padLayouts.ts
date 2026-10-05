@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
-import { PAD_IDS, PadsSchema, type Pads } from '@/nodes/music/drum_pads';
+import { PAD_IDS, PadsSchema, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 
 /** localStorage key holding the saved pad layouts (the browser default target). */
 export const PAD_LAYOUTS_STORAGE_KEY = 'thoremin-pad-layouts';

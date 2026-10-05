@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createLabMeterComputer, type LabMeterConfig } from '@/features/labMeters';
-import { DERIVED_GROUP } from '@/features/catalog';
+import { DERIVED_GROUP } from '@thoremin/sdk/features/catalog';
 
 const JAW = 'face.blendshape.jaw';
 const JAW_OPEN = 'face.blendshape.jaw.open';

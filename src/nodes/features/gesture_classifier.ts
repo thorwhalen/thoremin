@@ -10,7 +10,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { ABSENT_HAND, type HandFeatures, type SingleHandFeatures } from '../domain';
+import { ABSENT_HAND, type HandFeatures, type SingleHandFeatures } from '@thoremin/sdk/nodes/domain';
 
 export type Pose = 'pinch' | 'fist' | 'open' | 'neutral' | 'absent';
 export interface GestureEvent {

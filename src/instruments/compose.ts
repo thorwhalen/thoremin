@@ -24,7 +24,7 @@
  * otherwise move them. Pure and Node-safe: no engine, no DOM.
  */
 import type { EdgeSpec, GraphSpec, NodeSpec } from '@thoremin/dag';
-import type { GraphBranch, VoiceRole } from './branch';
+import type { GraphBranch, VoiceRole } from '@thoremin/sdk/instruments/branch';
 
 export interface MergeTarget {
   /** The merge node's id in the composed graph. */

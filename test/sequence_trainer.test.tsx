@@ -20,7 +20,7 @@ import { useControls } from '@/app/store';
 import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { parseChordName } from '@/extensions/air/lib/guitar';
-import type { SequenceRecord, TargetCheck } from '@/enroll';
+import type { SequenceRecord, TargetCheck } from '@thoremin/sdk/enroll';
 import { enrolSamples } from './air/synthetic_guitar';
 
 const WORDS = { title: 'Learn a sequence of chords', noun: 'chord', placeholder: 'Or type chords', offHint: 'Turn the air guitar on' };

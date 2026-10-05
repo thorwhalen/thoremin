@@ -52,14 +52,14 @@ import {
   type Session,
   type TrainedModel,
   type Verdict,
-} from '@/enroll';
+} from '@thoremin/sdk/enroll';
 import { appFeatureDemand } from '../featureDemand';
 import { createCueStore, createRoutineStore, listCues, loadRoutine, type CueStore, type RoutineStore } from './cueStore';
 import { createTrainerTagSource, type TrainerTagSource } from './annotations';
 import { recordingController } from '../recording/controller';
 import { useTrainerPrefs } from './prefs';
 import { REAL_VS_AIR_TAKE_INSTRUMENT, TRAINER_TAKE_INSTRUMENT, trainerTakeMeta, trainerTakeSession } from './takeSession';
-import { clickPlan, type Click } from '@/enroll';
+import { clickPlan, type Click } from '@thoremin/sdk/enroll';
 import { clickPlayer } from './click';
 import { routineRecordsPerformance } from './realVsAirCues';
 import { ALL_STARTER_CUES } from './cueStore';

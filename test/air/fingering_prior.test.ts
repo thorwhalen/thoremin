@@ -9,9 +9,9 @@
  * safe to commit.
  */
 import { describe, expect, it } from 'vitest';
-import { classify, type FeatureVector, type TrainedModel } from '@/enroll';
+import { classify, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { fingeringVector } from '@/extensions/air/nodes/air_flute';
-import { FLUTE_CHART, chartNotes, fingeringFor, type FingerId } from '@/music/fingerings';
+import { FLUTE_CHART, chartNotes, fingeringFor, type FingerId } from '@thoremin/sdk/music/fingerings';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { emptyVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
 import {
@@ -27,7 +27,7 @@ import {
   priorOptionsFrom,
 } from '@/extensions/air/lib/fingering_prior';
 import { noise, perturb, rng, syntheticHand, type HandShape } from './synthetic_hand';
-import type { HandsFrame } from '@/nodes/domain';
+import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 
 /** A player: how much each joint bends when a finger is down / up (thumb apart), the
  *  per-frame jitter, and a per-finger drift (a systematic offset from the shape shown). */

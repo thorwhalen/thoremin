@@ -14,10 +14,10 @@
 import { z } from 'zod';
 import { defineDials } from '@zodal/dials-core';
 import type { Layer } from '@zodal/dials-core';
-import { SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
-import { SOUND_IDS, type SoundId } from '@/music/sounds';
+import { SCALE_TYPES, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { SOUND_IDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
-import { FACE_MAPPINGS, type FaceMapping } from '@/nodes/domain';
+import { FACE_MAPPINGS, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';

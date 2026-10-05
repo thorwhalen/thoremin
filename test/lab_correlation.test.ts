@@ -23,7 +23,7 @@ import { makeEwPair } from '@/features/ewMoments';
 import { makeUnwrapper, unwrapStep, periodOf, TAU } from '@/features/circular';
 import { makeCorrelationMatrix, pairIndex, DEFAULT_CORRELATION_WINDOW } from '@/features/labCorrelation';
 import { compileFormula } from '@/features/formula';
-import type { FeatureVector } from '@/features/catalog';
+import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 
 describe('phase unwrapping — the angular pre-step (src/features/circular.ts)', () => {
   it('continues a wrapped angle instead of stepping by a period', () => {

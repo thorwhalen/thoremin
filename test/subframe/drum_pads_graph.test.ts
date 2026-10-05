@@ -16,7 +16,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import type { DrumHit } from '@/extensions/air/nodes/air_drum';
-import { DEFAULT_PADS_SET, type Pads } from '@/nodes/music/drum_pads';
+import { DEFAULT_PADS_SET, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { DEFAULT_AIR_DRUM } from '@/extensions/air/dials';
 import { loadStream } from '../helpers/fixtures';
 import { AIR } from '../helpers/extensions';

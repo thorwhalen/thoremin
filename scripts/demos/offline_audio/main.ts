@@ -10,7 +10,7 @@
  */
 import { createWebAudioDrumSink } from '@/extensions/air/nodes/drum_out';
 import { createWebAudioPluckSink } from '@/extensions/air/nodes/pluck_out';
-import type { DrumSound } from '@/nodes/music/drum_pads';
+import type { DrumSound } from '@thoremin/sdk/nodes/music/drum_pads';
 
 interface Take {
   instrument: 'drums' | 'bass' | 'guitar';

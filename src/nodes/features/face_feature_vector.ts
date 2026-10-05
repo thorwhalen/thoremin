@@ -23,10 +23,10 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { FaceFrame } from '../domain';
-import { buildFaceCtx, FACE_FEATURES, type FeatureVector } from '@/features/catalog';
-import type { DemandedGroups } from '@/features/demand';
-import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
+import type { FaceFrame } from '@thoremin/sdk/nodes/domain';
+import { buildFaceCtx, FACE_FEATURES, type FeatureVector } from '@thoremin/sdk/features/catalog';
+import type { DemandedGroups } from '@thoremin/sdk/features/demand';
+import { resolveLabGate, type LabControlsSnapshot } from '@thoremin/sdk/features/labConfig';
 
 const Params = z.object({
   /** Which feature groups to compute (default: all face groups). A live lab

@@ -20,7 +20,7 @@
  * row (there are no seed rows). Custom cues with new ids simply append.
  */
 import type { DataProvider } from '@zodal/store';
-import { ALL_FEATURES, FEATURE_BY_ID } from '@/features/catalog';
+import { ALL_FEATURES, FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 import {
   CueRecordSchema,
@@ -33,7 +33,7 @@ import {
   type CueSpec,
   type RoutineRecord,
   type RoutineSpec,
-} from '@/enroll';
+} from '@thoremin/sdk/enroll';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 import { REAL_VS_AIR_CUES, starterRoutineById } from './realVsAirCues';
 

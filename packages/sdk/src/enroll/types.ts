@@ -15,7 +15,7 @@
  * Nothing in `src/enroll/` imports MediaPipe, the DAG, the audio layer, or React. It is
  * a pure library over numbers; the host feeds it vectors and reads back categories.
  */
-import type { Invariance } from '@/features/types';
+import type { Invariance } from '../features/types';
 
 /** A named scalar feature vector — the trainer's only input shape. */
 export type FeatureVector = Record<string, number>;

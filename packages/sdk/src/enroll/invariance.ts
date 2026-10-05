@@ -42,8 +42,8 @@
  * invariance to a nuisance factor. So the host should SHOW the effect (a meter that
  * stays flat while the player moves closer) rather than claim a percentage.
  */
-import { ALL_FEATURES, FEATURE_BY_ID } from '@/features/catalog';
-import type { Invariance } from '@/features/types';
+import { ALL_FEATURES, FEATURE_BY_ID } from '../features/catalog';
+import type { Invariance } from '../features/types';
 import type { FeatureVector, FeatureWeights, NuisanceProfile } from './types';
 
 /** What a declared-invariance selection concluded, split three ways on purpose. */

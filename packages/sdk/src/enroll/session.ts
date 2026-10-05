@@ -32,7 +32,7 @@
  * Nothing here touches React, the DAG, MediaPipe or audio. The host pushes feature
  * vectors in and reads a model out.
  */
-import { ALL_FEATURES, FEATURE_BY_ID } from '@/features/catalog';
+import { ALL_FEATURES, FEATURE_BY_ID } from '../features/catalog';
 import { buildHierarchy, cutAt, suggestK, type Hierarchy } from './cluster';
 import { trainModel } from './classify';
 import { cueFeatures, routineFeatures, samplingFor, type Cue } from './cue';

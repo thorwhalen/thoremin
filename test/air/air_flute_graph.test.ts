@@ -12,9 +12,9 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { DEFAULT_AIR_FLUTE } from '@/extensions/air/dials';
 import { FLUTE_VOICE_ID } from '@/extensions/air/nodes/air_flute';
-import type { SynthParams } from '@/nodes/domain';
+import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
-import { midiToFreq } from '@/music/theory';
+import { midiToFreq } from '@thoremin/sdk/music/theory';
 import { fingeringSamples, fluteTake } from './synthetic_flute';
 import { AIR } from '../helpers/extensions';
 

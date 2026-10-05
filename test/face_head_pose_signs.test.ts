@@ -3,7 +3,7 @@
  *
  * The yaw/pitch/roll axes in `face_controls.ts` were tuned with no camera. Their
  * MAGNITUDES were plausible; their SIGNS were a coin-flip, because they depend on
- * MediaPipe's camera convention, which `src/nodes/domain.ts` explicitly declines to
+ * MediaPipe's camera convention, which `packages/sdk/src/nodes/domain.ts` explicitly declines to
  * assert. Until now the only way to settle that was a live webcam session — which
  * recurs every time anyone touches face mapping, and which no agent can perform.
  *
@@ -29,7 +29,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { replayNode } from '@thoremin/dag';
-import { matrixToHeadPose, type FaceControls, type FaceFrame } from '@/nodes/domain';
+import { matrixToHeadPose, type FaceControls, type FaceFrame } from '@thoremin/sdk/nodes/domain';
 import { faceControlsNode } from '@/nodes/features/face_controls';
 import { loadStream } from './helpers/fixtures';
 

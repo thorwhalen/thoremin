@@ -13,7 +13,7 @@ import { MAX_CHORD_VOICES, ABSENT_HAND, ABSENT_FACE } from '@/nodes';
 import type { ExpressionScores } from '@/music/expression';
 import { DEFAULT_EXPRESSION_TO_DEGREE, DEFAULT_EXPRESSION_SENSITIVITY } from '@/music/expression';
 import { voiceTriad } from '@/music/voicing';
-import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
+import { diatonicTriad, midiToFreq, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import type { FaceFrame, FaceFeatures, HandFeatures, SynthParams } from '@/nodes';
 
 const frame = (blendshapes: Record<string, number>): FaceFrame => ({ present: true, blendshapes });

@@ -3,7 +3,7 @@
  * into expression scores (the instruments-as-graphs ADR, §3.5 and seam 7).
  *
  * One candidate exists today, `face-expression`. The pointable second is the Trainer's
- * learned classifier over the face vector (`src/enroll/classify.ts`), whose output shape
+ * learned classifier over the face vector (`packages/sdk/src/enroll/classify.ts`), whose output shape
  * (a category plus memberships) needs one adapter to emit this port kind. Until then the
  * slot is declared, validated and has no dropdown, per the ">= 2 implementations" rule.
  */

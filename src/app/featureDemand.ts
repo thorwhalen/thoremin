@@ -9,7 +9,7 @@
  * A module-level instance rather than a store: it is read synchronously per tick, and
  * written a handful of times per session.
  */
-import { createFeatureDemand, type DemandedGroups } from '@/features/demand';
+import { createFeatureDemand, type DemandedGroups } from '@thoremin/sdk/features/demand';
 
 export const appFeatureDemand = createFeatureDemand();
 

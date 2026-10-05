@@ -6,7 +6,7 @@
  * pick does what the sources say, including refusing a lone hand on the wrong side.
  */
 import { describe, expect, it } from 'vitest';
-import { HAND_SIDE_FEATURES } from '@/features/catalog';
+import { HAND_SIDE_FEATURES } from '@thoremin/sdk/features/catalog';
 import { chordShapeFeatureIds, chordShapeFeaturizer, chordShapeVector, frettingHand } from '../../scripts/air/lib_chord_shape_features';
 import { SHAPES, frameOf, syntheticHand } from './synthetic_hand';
 

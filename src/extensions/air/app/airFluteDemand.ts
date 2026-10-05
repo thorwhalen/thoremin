@@ -8,7 +8,7 @@
  * the face model); when it is off, or breathing is `always`, the claim is released and
  * the model can idle again.
  */
-import type { FeatureDemand } from '@/features/demand';
+import type { FeatureDemand } from '@thoremin/sdk/features/demand';
 import { MOUTH_GROUPS, type AirFluteDialParams } from '@/extensions/air/nodes/air_flute';
 import { appFeatureDemand } from '@/app/featureDemand';
 import { useControls } from '@/app/store';

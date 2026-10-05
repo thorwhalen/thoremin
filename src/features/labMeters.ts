@@ -14,7 +14,7 @@
  */
 import { OnlineNormalizer, type NormalizerMode } from './normalizer';
 import { compileFormula, type CompiledFormula } from './formula';
-import { ALL_FEATURES, ALL_SAFE_NAMES, DERIVED_GROUP, safeName, type FeatureVector } from './catalog';
+import { ALL_FEATURES, ALL_SAFE_NAMES, DERIVED_GROUP, safeName, type FeatureVector } from '@thoremin/sdk/features/catalog';
 import { makeCorrelationMatrix, type CorrelationResult } from './labCorrelation';
 
 /**

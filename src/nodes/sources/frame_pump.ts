@@ -39,7 +39,7 @@
  * a replayed recording. The sources put all of it on the frame, so the recorder
  * keeps it. A capture time in the future, or more than a second old, is not trusted.
  */
-import type { FrameTiming } from '../domain';
+import type { FrameTiming } from '@thoremin/sdk/nodes/domain';
 
 /** The subset of `VideoFrameCallbackMetadata` this module reads. */
 export interface VideoFrameMetadataLike {

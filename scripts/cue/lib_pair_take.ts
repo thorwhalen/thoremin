@@ -61,7 +61,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, wr
 import { basename, dirname, join, resolve } from 'node:path';
 import { unzipSync } from 'fflate';
 import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
-import { CueSchema, clickPlan, type Cue } from '@/enroll';
+import { CueSchema, clickPlan, type Cue } from '@thoremin/sdk/enroll';
 import { cueWindows, edgeEventsFromRows, findStem, sealOpenEnded, type CueWindow } from '../lib_trainer_take';
 import { dataRoot } from '../air/lib_air_paths';
 import { isHeadsetMic } from '@/app/recording/mic';

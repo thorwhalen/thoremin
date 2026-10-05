@@ -33,7 +33,7 @@ const setConducting = (enabled: boolean) => dialsStore.set('conductor', { ...con
 import { useControls } from '@/app/store';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { defaultFeatureLab } from '@/features/labConfig';
+import { defaultFeatureLab } from '@thoremin/sdk/features/labConfig';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
 
@@ -708,7 +708,7 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
   }
 
   it('opens from the panel, shows a canvas once projected, and a labelled selection makes a category', async () => {
-    const { categoryKey } = await import('@/enroll');
+    const { categoryKey } = await import('@thoremin/sdk/enroll');
     useTools.setState({ open: 'trainer' });
     act(() => buildTake());
     render(<TrainerPanel />);

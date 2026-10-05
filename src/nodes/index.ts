@@ -81,7 +81,7 @@ export type { Pose, GestureEvent } from './features/gesture_classifier';
 export { faceFeatureVectorNode } from './features/face_feature_vector';
 export { handFeatureVectorNode } from './features/hand_feature_vector';
 export { bodyFeatureVectorNode } from './features/body_feature_vector';
-export type { FeatureVector } from '@/features/catalog';
+export type { FeatureVector } from '@thoremin/sdk/features/catalog';
 export { voiceMappingNode } from './mapping/voice_mapping';
 export { bodyRouteNode } from './mapping/body_route';
 export { BODY_ROUTE_TARGETS, BODY_ROUTE_SLOTS, BodyMapSchema, DEFAULT_BODY_MAP, NEUTRAL_MODS, bodyRouteMods } from './mapping/body_map';
@@ -103,7 +103,7 @@ export { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES } from './music/score'
 export { performanceNode } from './music/performance';
 export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt, GenerativeEngineFactory, GenerativeEngineOpts } from './output/generative';
 export type { GenerativeStatus } from './output/lyria';
-export * from './domain';
+export * from '@thoremin/sdk/nodes/domain';
 
 /** The pure node definitions, safe to instantiate anywhere (incl. Node tests). */
 export const CORE_NODES = [

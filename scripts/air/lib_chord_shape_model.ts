@@ -10,7 +10,7 @@
  *   features. The workhorse. A linear model on ~30 joint angles is enough for a dozen
  *   open-chord shapes and it is small enough to ship as JSON.
  * - **Nearest centroid**, via the trainer's own `trainModel` / `classify`
- *   (`src/enroll/classify.ts`) with inverse-spread weights. The baseline that answers
+ *   (`packages/sdk/src/enroll/classify.ts`) with inverse-spread weights. The baseline that answers
  *   "would the existing trainer machinery, which learns a player's own categories from
  *   a few demonstrations, have been enough?" If it is close to the softmax number, the
  *   in-app path is already built.
@@ -25,8 +25,8 @@
  * (i.e. to 0), the least-informative value, so a frame where one finger is occluded is
  * still classifiable instead of being thrown away.
  */
-import type { FeatureVector } from '@/features/catalog';
-import { classify, trainModel } from '@/enroll/classify';
+import type { FeatureVector } from '@thoremin/sdk/features/catalog';
+import { classify, trainModel } from '@thoremin/sdk/enroll/classify';
 
 // ---- Data shapes -----------------------------------------------------------
 

@@ -13,7 +13,7 @@
  * Hands are drawn palm-away, as the player sees their own hands in the mirrored video:
  * the left hand on the left with its thumb inward, the right on the right.
  */
-import type { FingerId } from '@/music/fingerings';
+import type { FingerId } from '@thoremin/sdk/music/fingerings';
 
 export interface FingeringGuideProps {
   /** The note (or any label) shown above the hands. */

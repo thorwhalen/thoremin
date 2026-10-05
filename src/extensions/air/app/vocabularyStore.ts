@@ -23,14 +23,14 @@ import type { DataProvider } from '@zodal/store';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type TrainVocabularyOptions, type Vocabulary } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
-import { ALL_FEATURES } from '@/features/catalog';
+import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
 import { MOUTH_GROUPS } from '@/extensions/air/nodes/air_flute';
 import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
 
 /** The mouth gate's reject, in multiples of the enrolment's own reach (see
  *  `TrainVocabularyOptions.rejectScale`). */
 export const MOUTH_REJECT_SCALE = 3;
-import type { FeatureVector, TrainedModel } from '@/enroll';
+import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll';
 import { useControls } from '@/app/store';
 
 export const VOCABULARIES_STORAGE_KEY = 'thoremin-air-vocabularies';

@@ -10,11 +10,11 @@
  * the control sources (note source, face mode, finger FX), and only the *non-default*
  * master tweaks — so the tooltip stays a glance, not a second editor.
  */
-import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
-import { SOUNDS, type SoundId } from '@/music/sounds';
+import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { SOUNDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import type { Settings } from '@/settings/schema';
 import type { PositionSource, FingerTarget } from '@/nodes/mapping/hand_map';
-import type { FingerName } from '@/nodes/domain';
+import type { FingerName } from '@thoremin/sdk/nodes/domain';
 import { AIR_INSTRUMENTS, airInstrumentsOf, type AirInstrumentId } from './category';
 
 /** The coarse scale quality used for the scale-quality system tag + the tooltip. */

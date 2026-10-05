@@ -34,8 +34,8 @@
  * clips (`public/voice/`) cover the face starter set, and a click in the player's
  * headphones would talk over a voice anyway.
  */
-import { FEATURE_GROUPS } from '@/features/catalog';
-import { CueSchema, type Cue, type CueSpecInput } from '@/enroll';
+import { FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
+import { CueSchema, type Cue, type CueSpecInput } from '@thoremin/sdk/enroll';
 
 /** Every hand group the catalog computes: the take records them all (a pair is compared
  *  feature by feature offline, so the recording must not pre-select). */

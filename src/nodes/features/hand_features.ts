@@ -10,7 +10,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { clamp01 } from '@/features/math';
+import { clamp01 } from '@thoremin/sdk/features/math';
 import {
   ABSENT_HAND,
   dist2d,
@@ -25,7 +25,7 @@ import {
   type HandsFrame,
   type Keypoint,
   type SingleHandFeatures,
-} from '../domain';
+} from '@thoremin/sdk/nodes/domain';
 
 const Params = z.object({
   /** Mirror x so moving the hand to your right increases x (selfie view). */

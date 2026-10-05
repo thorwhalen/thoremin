@@ -12,8 +12,8 @@ import { defaultGesturePrefs } from '@/app/gesturePrefs';
 import { DEFAULT_FACE_CHORD, SettingsSchema } from '@/settings/schema';
 import { DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { storeControlsNode } from '@/nodes/browser';
-import { generateScale } from '@/music/theory';
-import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
+import { generateScale } from '@thoremin/sdk/music/theory';
+import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
 import type { NodeContext } from '@thoremin/dag';
 
 beforeEach(() => {

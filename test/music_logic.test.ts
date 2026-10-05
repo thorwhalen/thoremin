@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { chordNode, progressionNode, voiceChord, createCoreRegistry } from '@/nodes';
-import { freqToMidi } from '@/music/theory';
+import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@/nodes';
 
 describe('chord node', () => {

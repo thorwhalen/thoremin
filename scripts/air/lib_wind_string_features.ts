@@ -20,9 +20,9 @@
  * Both are `Featurize<FrameBundle>` for the generic join; the bass one also works on a
  * plain hands stream through `bassHandsFeaturizer`.
  */
-import type { FeatureVector } from '@/features/catalog';
-import type { FaceFrame, Hand, HandsFrame } from '@/nodes/domain';
-import { LM } from '@/nodes/domain';
+import type { FeatureVector } from '@thoremin/sdk/features/catalog';
+import type { FaceFrame, Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { LM } from '@thoremin/sdk/nodes/domain';
 import { NO_CHORD, labelAt, pitchClassOf, type ChordSegment, type FrameBundle } from './lib_chord_shape_dataset';
 import { chordShapeVector, frettingHand, type FeatureSelection } from './lib_chord_shape_features';
 import type { FrettingHandPick } from './lib_sources';

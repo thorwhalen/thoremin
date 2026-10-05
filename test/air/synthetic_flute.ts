@@ -4,8 +4,8 @@
  * blowing or a resting mouth (the catalog's mouth ids, jittered). Plus the enrolment
  * samples for both. Self-made data, safe to commit. Handedness as the player sees it.
  */
-import type { HandsFrame } from '@/nodes/domain';
-import type { FeatureVector } from '@/enroll';
+import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
+import type { FeatureVector } from '@thoremin/sdk/enroll';
 import { fingeringVector } from '@/extensions/air/nodes/air_flute';
 import { SHAPES, noise, perturb, rng, syntheticHand } from './synthetic_hand';
 

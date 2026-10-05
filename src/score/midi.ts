@@ -10,7 +10,7 @@
  * so the orchestra can route it to the drum section rather than to a pitched one.
  */
 import { Midi } from '@tonejs/midi';
-import { notesLength, partId, ScoreDocSchema, type ScoreDoc, type ScorePart } from './schema';
+import { notesLength, partId, ScoreDocSchema, type ScoreDoc, type ScorePart } from '@thoremin/sdk/score/schema';
 
 /** GM channel 10 (0-based 9) is percussion by convention. */
 const PERCUSSION_CHANNEL = 9;

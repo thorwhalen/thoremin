@@ -36,7 +36,7 @@ import { z } from 'zod';
 import { createFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { FeatureLabConfig } from '@/features/labConfig';
+import type { FeatureLabConfig } from '@thoremin/sdk/features/labConfig';
 import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@thoremin/lazy';
 import {
   BODY_MODELS,
@@ -44,7 +44,7 @@ import {
   type BodyFrame,
   type BodyModel,
   type Keypoint,
-} from '../domain';
+} from '@thoremin/sdk/nodes/domain';
 import { BODY_SLOT_OUTPUT } from './body_contract';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 

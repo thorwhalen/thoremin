@@ -7,7 +7,7 @@
  */
 import { create } from 'zustand';
 import { IDLE_AIR_BASS_STATUS, type AirBassStatus } from '@/extensions/air/nodes/air_bass';
-import { midiToName } from '@/music/theory';
+import { midiToName } from '@thoremin/sdk/music/theory';
 
 export type AirBassLive = AirBassStatus;
 export const ABSENT_AIR_BASS_LIVE: AirBassLive = IDLE_AIR_BASS_STATUS;

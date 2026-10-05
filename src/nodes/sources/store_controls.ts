@@ -9,19 +9,19 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import type { Extension } from '@/instruments/extension';
+import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { NodeContext } from '@thoremin/dag';
-import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
-import type { SoundId } from '@/music/sounds';
-import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';
+import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import type { SoundId } from '@thoremin/sdk/music/sounds';
+import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { BodyMap } from '@/nodes/mapping/body_map';
 import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import type { ConductorSettings, ExtensionDials } from '@/settings/schema';
-import type { TrainedModel } from '@/enroll';
-import type { ScoreDoc } from '@/score/schema';
+import type { TrainedModel } from '@thoremin/sdk/enroll';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
-import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
+import { defaultFeatureLab, type FeatureLabConfig } from '@thoremin/sdk/features/labConfig';
 
 export interface VoiceControlSnapshot {
   root: number;
