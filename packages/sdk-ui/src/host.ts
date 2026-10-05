@@ -2,8 +2,9 @@
  * The host: what the app provides to an extension's React side, by dependency inversion. An
  * extension imports this package, never the app; the app installs the implementations when
  * the modules that own them load (the hot store registers `controls`, the dial write path
- * registers `dials`). So the package depends on nothing of the app's, and an extension built
- * against it runs in any host that provides these two seams.
+ * registers `dials`, the dials-form hook registers `dialsForm`). So the package depends on
+ * nothing of the app's, and an extension built against it runs in any host that provides these
+ * three seams. An extension uses `controlsFor<typeof ITS_MANIFEST>()`, typed by its manifest.
  *
  * Calls are resolved at USE time, never at import: an extension module can be imported before
  * the host is installed (a test, a lazy chunk), and only calling a seam before the app has

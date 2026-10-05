@@ -20,7 +20,6 @@
     "src/enroll",
     "src/latency",
     "src/app/graph.ts",
-    "src/app/featureDemand.ts",
     "src/app/enroll",
     "src/app/lab",
     "src/app/store.ts",
