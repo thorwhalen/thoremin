@@ -91,6 +91,31 @@ export type SteerConfig = z.infer<typeof SteerConfigSchema>;
 export type SteerStrain = z.infer<typeof SteerStrainSchema>;
 export type SteerDial = z.infer<typeof SteerDialSchema>;
 
+/**
+ * The default steering CONFIG — what the gestures mean until the player edits it:
+ * the right hand's openness fades a pad in, raising the left hand brings in an
+ * arpeggio, raising the right hand brightens the mix. The hand `y` feature is in IMAGE
+ * coordinates (0 at the top), so "raise = more" is the inverted `inMin: 1, inMax: 0`,
+ * exactly as `voice-mapping` inverts it for gain. COMPLETE (strains, dials, smoothing,
+ * cadence) rather than partial, so the structured dial always fully specifies the
+ * steering — the editor and the `steer.*` commands read and write one whole object,
+ * and the scalar leaves resolve for `dial.setIn`. The generative branch
+ * (`src/instruments/branches.ts`) hands the same object to `indirect-map` as its build-time params, so an unset dial and the default agree.
+ */
+export const DEFAULT_STEER_CONFIG: SteerConfig = {
+  strains: [
+    { text: 'warm ambient pads', source: 'hand', hand: 'right', feature: 'openness', inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 },
+    { text: 'bright plucked arpeggios', source: 'hand', hand: 'left', feature: 'y', inMin: 1, inMax: 0, weightMin: 0, weightMax: 2 },
+  ],
+  dials: [{ name: 'brightness', source: 'hand', hand: 'right', feature: 'y', inMin: 1, inMax: 0, outMin: 0.2, outMax: 0.9 }],
+  smoothing: 0.6,
+  throttleSec: 0.2,
+};
+
+/** A fresh, unshared copy of {@link DEFAULT_STEER_CONFIG} (its arrays must never be
+ *  aliased between the defaults, the store and an instrument). */
+export const defaultSteerConfig = (): SteerConfig => structuredClone(DEFAULT_STEER_CONFIG);
+
 type Ref = z.infer<typeof FeatureRef>;
 
 /**

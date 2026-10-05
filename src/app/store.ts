@@ -50,7 +50,7 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, AirDrumSettingsSchema, DEFAULT_AIR_DRUM, type AirDrumSettings, AirBassSettingsSchema, DEFAULT_AIR_BASS, type AirBassSettings, AirGuitarSettingsSchema, DEFAULT_AIR_GUITAR, type AirGuitarSettings, AirFluteSettingsSchema, DEFAULT_AIR_FLUTE, type AirFluteSettings } from '@/settings/schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, type ExtensionDials } from '@/settings/schema';
 import type { TrainedModel } from '@/enroll';
 import type { ScoreDoc } from '@/score/schema';
 
@@ -66,14 +66,6 @@ const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CON
 const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structuredClone(DEFAULT_STEER.config) });
 /** A fresh copy of the shipped conductor dial (#187): off. */
 const defaultConductor = (): ConductorSettings => ({ ...DEFAULT_CONDUCTOR });
-/** A fresh copy of the shipped air-drum dial (#233): off. */
-const defaultAirDrum = (): AirDrumSettings => ({ ...DEFAULT_AIR_DRUM });
-/** A fresh copy of the shipped air-bass dial (#249): off. */
-const defaultAirBass = (): AirBassSettings => ({ ...DEFAULT_AIR_BASS });
-/** A fresh copy of the shipped air-guitar dial (#249): off. */
-const defaultAirGuitar = (): AirGuitarSettings => ({ ...DEFAULT_AIR_GUITAR });
-/** A fresh copy of the shipped air-flute dial (#249): off. */
-const defaultAirFlute = (): AirFluteSettings => ({ ...DEFAULT_AIR_FLUTE });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -95,7 +87,13 @@ export interface VoiceControl {
   rangeHigh?: number;
 }
 
-export interface ControlState {
+/**
+ * The live controls. The extensions' whole-object dials (`airDrum`, `airBass`, … in a build
+ * with the air extension) are fields too, typed from the manifests ({@link ExtensionDials}),
+ * defaulted, healed and persisted by folds over their slices: preset fields, fed live to
+ * each extension node's `config` port through `store-controls`.
+ */
+export interface ControlState extends ExtensionDials {
   right: VoiceControl;
   left: VoiceControl;
   syncHands: boolean;
@@ -204,13 +202,6 @@ export interface ControlState {
    *  dynamics ranges. A preset field, fed live to the `conductor` node's `config` port
    *  through store-controls, so conducting starts with no rebuild. */
   conductor: ConductorSettings;
-  /** The air drum dial (#233): on/off, hands, point, sounds, lead, magnetism. A preset
-   *  field, fed live to the `air-drum` node's `config` port through store-controls. */
-  airDrum: AirDrumSettings;
-  /** The air bass dial (#249), fed live to the `air-bass` node's `config` port. */
-  airBass: AirBassSettings;
-  /** The air guitar dial (#249), fed live to the `air-guitar` node's `config` port. */
-  airGuitar: AirGuitarSettings;
   /**
    * The air guitar's chord classifier (#249), trained from the player's enrolled chords
    * (`src/app/air/vocabularyStore.ts` is the SSOT; this is derived) and fed to the
@@ -218,8 +209,6 @@ export interface ControlState {
    * the stored vocabulary on load, never persisted here.
    */
   airGuitarModel: TrainedModel | null;
-  /** The air flute dial (#249), fed live to the `air-flute` node's `config` port. */
-  airFlute: AirFluteSettings;
   /** The air flute's fingering and mouth classifiers (#249), derived from their enrolled
    *  vocabularies like {@link airGuitarModel}. TRANSIENT. */
   airFluteFingerModel: TrainedModel | null;
@@ -561,40 +550,20 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       conductor = current.conductor;
     }
   }
-  // Heal the air drum dial (#233) the same way.
-  let airDrum = current.airDrum;
-  if (p.airDrum) {
-    try {
-      airDrum = AirDrumSettingsSchema.parse({ ...current.airDrum, ...p.airDrum });
-    } catch {
-      airDrum = current.airDrum;
+  // Heal the extensions' whole-object dials (the air instruments' today) the same way:
+  // each re-parsed through its own slice schema over the current value, kept on failure.
+  const extensionDials: Record<string, unknown> = {};
+  for (const [key, schema] of Object.entries(EXTENSION_DIAL_SCHEMAS)) {
+    const cur = (current as unknown as Record<string, unknown>)[key];
+    const patch = (p as Record<string, unknown>)[key];
+    if (!patch) {
+      extensionDials[key] = cur;
+      continue;
     }
-  }
-  // Heal the air bass dial (#249) the same way.
-  let airBass = current.airBass;
-  if (p.airBass) {
     try {
-      airBass = AirBassSettingsSchema.parse({ ...current.airBass, ...p.airBass });
+      extensionDials[key] = schema.parse({ ...(cur as object), ...(patch as object) });
     } catch {
-      airBass = current.airBass;
-    }
-  }
-  // Heal the air guitar dial (#249) the same way.
-  let airGuitar = current.airGuitar;
-  if (p.airGuitar) {
-    try {
-      airGuitar = AirGuitarSettingsSchema.parse({ ...current.airGuitar, ...p.airGuitar });
-    } catch {
-      airGuitar = current.airGuitar;
-    }
-  }
-  // Heal the air flute dial (#249) the same way.
-  let airFlute = current.airFlute;
-  if (p.airFlute) {
-    try {
-      airFlute = AirFluteSettingsSchema.parse({ ...current.airFlute, ...p.airFlute });
-    } catch {
-      airFlute = current.airFlute;
+      extensionDials[key] = cur;
     }
   }
   let gestures = current.gestures;
@@ -607,7 +576,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, airDrum, airBass, airGuitar, airFlute, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, airGuitarModel: current.airGuitarModel, airFluteFingerModel: current.airFluteFingerModel, airFluteMouthModel: current.airFluteMouthModel, airDrumPattern: current.airDrumPattern };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, airGuitarModel: current.airGuitarModel, airFluteFingerModel: current.airFluteFingerModel, airFluteMouthModel: current.airFluteMouthModel, airDrumPattern: current.airDrumPattern };
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -649,11 +618,8 @@ export const useControls = create<ControlState>()(
       graphElements: null,
       faceControls: defaultFaceControls(),
       conductor: defaultConductor(),
-      airDrum: defaultAirDrum(),
-      airBass: defaultAirBass(),
-      airGuitar: defaultAirGuitar(),
+      ...extensionDialDefaults(),
       airGuitarModel: null,
-      airFlute: defaultAirFlute(),
       airFluteFingerModel: null,
       airFluteMouthModel: null,
       airDrumPattern: null,

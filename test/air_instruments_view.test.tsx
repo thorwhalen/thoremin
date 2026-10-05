@@ -21,7 +21,7 @@ import { TOOLS } from '@/app/tools';
 import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@/extensions/air/app/airDrumStatus';
 import { AirDrumReadout } from '@/extensions/air/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
-import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/settings/schema';
+import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/extensions/air/dials';
 import type { HandMap } from '@/nodes/mapping/hand_map';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;

@@ -19,7 +19,7 @@ import { AirBassDialSchema } from '@/extensions/air/nodes/air_bass';
 import { AirGuitarDialSchema } from '@/extensions/air/nodes/air_guitar';
 import { AirFluteDialSchema } from '@/extensions/air/nodes/air_flute';
 import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from '@/extensions/air/lib/fingering_prior';
-import type { DialSlice } from '@/instruments/extension';
+import { dialSlice } from '@/instruments/extension';
 
 /** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269: the id
  *  of a trained pattern, '' for none), which the node never sees as a param (the app resolves
@@ -53,8 +53,8 @@ export const AIR_SETTINGS_SHAPE = {
 };
 
 /** The same four keys as dial slices: what `store-controls` and the dials form fold over. */
-export const AIR_DIAL_SLICES: readonly DialSlice[] = [
-  {
+export const AIR_DIAL_SLICES = [
+  dialSlice({
     key: 'airDrum',
     schema: AIR_SETTINGS_SHAPE.airDrum,
     kind: 'air-drum-config',
@@ -63,8 +63,8 @@ export const AIR_DIAL_SLICES: readonly DialSlice[] = [
       title: 'Air drum',
       description: 'Strike the air and hear a drum at the strike: on/off, which hands and point, the sounds, how far ahead a hit is committed, timing magnetism',
     },
-  },
-  {
+  }),
+  dialSlice({
     key: 'airBass',
     schema: AIR_SETTINGS_SHAPE.airBass,
     kind: 'air-bass-config',
@@ -73,8 +73,8 @@ export const AIR_DIAL_SLICES: readonly DialSlice[] = [
       title: 'Air bass',
       description: 'Play a bass in the air: on/off, which hand plucks, the neck length (where the lowest and highest notes are), how far ahead a note is committed, volume',
     },
-  },
-  {
+  }),
+  dialSlice({
     key: 'airGuitar',
     schema: AIR_SETTINGS_SHAPE.airGuitar,
     kind: 'air-guitar-config',
@@ -83,8 +83,8 @@ export const AIR_DIAL_SLICES: readonly DialSlice[] = [
       title: 'Air guitar',
       description: 'Strum enrolled chords in the air: on/off, which hand strums and its point, the strum spread, how far ahead a strum is committed, volume',
     },
-  },
-  {
+  }),
+  dialSlice({
     key: 'airFlute',
     schema: AIR_SETTINGS_SHAPE.airFlute,
     kind: 'air-flute-config',
@@ -93,5 +93,5 @@ export const AIR_DIAL_SLICES: readonly DialSlice[] = [
       title: 'Air flute',
       description: 'Play enrolled fingerings in the air: on/off, what sounds the note (the enrolled blowing mouth, or a held fingering alone), volume',
     },
-  },
-];
+  }),
+] as const;

@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
-import { DEFAULT_AIR_GUITAR } from '@/settings/schema';
+import { DEFAULT_AIR_GUITAR } from '@/extensions/air/dials';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';

@@ -8,7 +8,7 @@ import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema, priorOptionsFrom
 import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
 import { FLUTE_FINGER_FEATURES, deriveFluteFingerModel, startFlutePriorSync } from '@/extensions/air/app/vocabularyStore';
 import { FLUTE_STARTER_SEQUENCES, GUITAR_STARTER_SEQUENCES, mergeSequences, parseTargets } from '@/app/enroll/sequenceStore';
-import { AirFluteSettingsSchema } from '@/settings/schema';
+import { AirFluteSettingsSchema } from '@/extensions/air/dials';
 import { structuredDialLeaves } from '@/app/commands/paths';
 import { FLUTE_CHART } from '@/music/fingerings';
 import { priorClasses } from '@/extensions/air/lib/fingering_prior';

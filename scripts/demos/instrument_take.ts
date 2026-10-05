@@ -32,7 +32,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import { DEFAULT_PADS_SET, STARTER_KIT, type PadId, type Pads } from '@/nodes/music/drum_pads';
-import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_GUITAR } from '@/settings/schema';
+import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_GUITAR } from '@/extensions/air/dials';
 import { generateScale } from '@/music/theory';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';

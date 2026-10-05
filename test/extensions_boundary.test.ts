@@ -9,12 +9,11 @@
  * and the spec assembly take the extension table as a parameter, bound once in `graph.ts`. Any other core file importing
  * anything under `src/extensions/` is the old hand-listing coming back in a new place.
  *
- * One named exception, on purpose: `src/settings/schema.ts` imports the air dial slice's
- * SHAPE directly, because the `Settings` TYPE must know the air keys statically (a hundred
- * importers read `settings.airDrum`); a generic fold would type them as `unknown`. It goes
- * when the settings type is generated from the manifests, which PR 6 deferred to the `sdk`
- * cut that precedes the repository split (PR 7). Until then a build from a manifest that
- * omits `air` still bundles the air code through this one import.
+ * No named exceptions. Until the follow-up to PR 6, `src/settings/schema.ts` imported the
+ * air dial shape directly so that the `Settings` TYPE knew the air keys. Now the type is
+ * computed from the manifests (`npm run extensions` generates the list's declaration, a
+ * tuple of each listed manifest's type) and the schema folds the list like any fold point,
+ * so a build from a manifest without `air` bundles no air code.
  *
  * Rule 2, on since 5b (the physical move): an extension imports only `SDK_SURFACE` (the
  * core modules listed below, which IS the SDK contract as data), packages, and itself.
@@ -53,6 +52,7 @@ const isExtensionFile = (file: string): boolean => file.startsWith('src/extensio
 /** The fold points: the only core files that may name the extension LISTS. */
 const FOLD_POINTS = new Set([
   'src/nodes/browser.ts', // createAppRegistry
+  'src/settings/schema.ts', // SettingsSchema = core + the extensions' dial slices
   'src/settings/dials.ts', // the dials form fields + the layer bijection
   'src/app/graph.ts', // the full branch table, and the derivation and spec bound to it
   'src/app/dials/DialsControlsPanel.tsx', // the editor sections
@@ -124,9 +124,6 @@ const allows = (list: readonly string[], spec: string): boolean =>
 const LIST_MODULES = /^@\/(extensions|app\/extensions)$/;
 /** The list side's type-only files: the manifest types and the virtual module's declaration. */
 const LIST_TYPE_FILES = new Set(['src/app/extensions/types.ts', 'src/app/extensions/virtual.d.ts']);
-const NAMED_EXCEPTIONS: Record<string, RegExp> = {
-  'src/settings/schema.ts': /^@\/extensions\/air\/dials$/,
-};
 
 describe('core reaches the extensions only through the lists, from the fold points', () => {
   it('no core file imports from src/extensions except as allowed', () => {
@@ -139,7 +136,6 @@ describe('core reaches the extensions only through the lists, from the fold poin
           // Alias or relative, a directory or the list module itself (`../extensions`).
           const reachesExtensions = /^@\/extensions(\/|$)/.test(spec) || /^@\/app\/extensions(\/|$)/.test(spec) || /(^|\/)extensions(\/|$)/.test(spec);
           if (!reachesExtensions) continue;
-          if (NAMED_EXCEPTIONS[file]?.test(spec)) continue;
           const isList = LIST_MODULES.test(spec) || (file.startsWith('src/app/') && /^\.\/extensions$/.test(spec));
           if (FOLD_POINTS.has(file) && (isList || (file === 'src/app/extensions/index.ts' && spec === './types'))) continue;
           offenders.push(`${file} imports ${spec}`);
@@ -173,10 +169,41 @@ describe('core reaches the extensions only through the lists, from the fold poin
     expect(ui.sort()).toEqual(['./types', 'virtual:thoremin/extensions-ui']);
   });
 
+  it('the pure SDK never reaches the settings or the app, so the settings can fold the list without a cycle', () => {
+    // `SettingsSchema` folds the extension list, whose manifests import the pure SDK. Were any
+    // pure SDK module to import `@/settings/*` (as `src/instruments/branches.ts` once did for
+    // the default steering config), loading an extension first would read the schema before it
+    // is initialised: a TDZ error at start-up, in some entry orders only.
+    const resolve = (from: string, spec: string): string | null => {
+      const base = spec.startsWith('@/') ? `src/${spec.slice(2)}` : spec.startsWith('.') ? join(from, '..', spec) : null;
+      if (!base) return null; // a package: outside src/, checked by packages_purity
+      for (const cand of [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`]) if (existsSync(cand)) return cand;
+      return null;
+    };
+    const seen = new Set<string>();
+    const stack = SDK_PURE.map((m) => resolve('src/x.ts', m)).filter((f): f is string => !!f);
+    const offenders: string[] = [];
+    while (stack.length) {
+      const file = stack.pop()!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
+        const target = resolve(file, spec);
+        if (!target) continue;
+        if (/^src\/(settings|app)\//.test(target)) offenders.push(`${file} imports ${spec}`);
+        else stack.push(target);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(SDK_PURE.length);
+    expect(offenders).toEqual([]);
+  });
+
   it('an extension imports only the SDK surface, packages and itself (rule 2, on since 5b)', () => {
     const offenders: string[] = [];
     for (const file of tsFiles('src/extensions')) {
-      if (file === 'src/extensions/index.ts') continue; // the list module, covered below
+      // The list module, covered below, and its generated declaration, which names exactly the
+      // manifests `extensions.json` lists (pinned by `extensions_manifest.test.ts`).
+      if (file === 'src/extensions/index.ts' || file === 'src/extensions/virtual.d.ts') continue;
       const ext = file.split('/')[2];
       const pure = isPureExtensionFile(file);
       for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
