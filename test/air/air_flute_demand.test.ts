@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { airFluteGroups, startAirFluteDemand, AIR_FLUTE_DEMAND_OWNER } from '@/extensions/air/app/airFluteDemand';
 import { MOUTH_GROUPS } from '@/extensions/air/nodes/air_flute';
-import { demandWantsFace } from '@thoremin/sdk/features/labConfig';
+import { demandWantsFace } from '@/features/labConfig';
 
 describe('the air flute demand', () => {
   it('claims the mouth groups only when on in the mouth mode', () => {

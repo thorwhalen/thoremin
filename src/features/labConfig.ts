@@ -15,8 +15,8 @@
  *  - the app's hot control store, which owns the value and persists it per-device.
  */
 import { z } from 'zod';
-import type { DemandedGroups } from './demand';
-import { DEFAULT_LAB_GROUPS, DERIVED_GROUP, FEATURE_GROUPS } from './catalog';
+import type { DemandedGroups } from '@thoremin/sdk/features/demand';
+import { DEFAULT_LAB_GROUPS, DERIVED_GROUP, FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
 
 /**
  * A dense grid of grouped, online-normalized meters over the raw face/hand feature
@@ -162,7 +162,7 @@ export function readLiveLab(controls: LabControlsSnapshot | undefined): LiveLabC
  *
  * `undefined` live config (a headless test / a host that wires no controls) → active with
  * the params' groups. A live config → active only when the meters are shown — OR when
- * some other consumer has a live feature DEMAND (#163, `@/features/demand`): the trainer
+ * some other consumer has a live feature DEMAND (#163, `@thoremin/sdk/features/demand`): the trainer
  * claims the groups its running cue needs, and those compute whether or not the Lab is
  * open. The Lab's own groups still compute only while it is shown, so a demand never
  * turns the meters on and never widens what they measure.

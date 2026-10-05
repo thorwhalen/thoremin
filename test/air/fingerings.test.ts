@@ -20,8 +20,8 @@ import {
   fingeringFor,
   fingeringKey,
   parseFingers,
-} from '@thoremin/sdk/music/fingerings';
-import { parseNoteName } from '@thoremin/sdk/music/notes';
+} from '@/extensions/air/lib/fingerings';
+import { parseNoteName } from '@/extensions/air/lib/notes';
 
 describe('the notation', () => {
   it('reads both hands, in any order, ignoring fillers', () => {

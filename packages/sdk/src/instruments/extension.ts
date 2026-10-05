@@ -22,7 +22,6 @@
 import type { z } from 'zod';
 import type { NodeDef } from '@thoremin/dag';
 import type { GraphBranch } from './branch';
-import type { DerivationSettings } from './derive';
 
 /**
  * A whole-object dial the extension owns: one top-level key of the settings schema.
@@ -46,13 +45,27 @@ export function dialSlice<const K extends string, S extends z.ZodTypeAny>(slice:
   return slice;
 }
 
+/** The settings an extension's `derive` reads: the whole settings object, typed opaquely here
+ *  because its core keys are core's business. An extension reads its OWN dials from it (it
+ *  knows their types: they are its dial slices). */
+export type ExtensionDerivationSettings = Readonly<Record<string, unknown>>;
+
 /** A transient hot-store field the extension reads through a `store-controls` port
  *  (a learned model, a status): always emitted, `null` when absent, so a clear reaches
  *  the node. */
-export interface TransientPort {
+export interface TransientPort<F extends string = string, T = unknown> {
   /** The hot-store field name, also the port name. */
-  field: string;
+  field: F;
   kind: string;
+  /** Phantom: the field's value type (never set at runtime), so the hot store's TYPE can carry
+   *  the field without core naming it. Build with {@link transientPort}. */
+  readonly __value?: T;
+}
+
+/** A {@link TransientPort} with its field name literal and its value type kept:
+ *  `transientPort<TrainedModel>()('airGuitarModel', 'shape-model')`. */
+export function transientPort<T>() {
+  return <const F extends string>(field: F, kind: string): TransientPort<F, T> => ({ field, kind });
 }
 
 /**
@@ -86,7 +99,7 @@ export interface ExtensionTraining {
   byBranch: readonly (readonly [branch: string, route: string])[];
 }
 
-export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]> {
+export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[], Tr extends readonly TransientPort[] = readonly TransientPort[]> {
   /** Stable id (`air`). */
   id: string;
   /** Node definitions registered into the app registry. */
@@ -95,7 +108,7 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   branches: readonly GraphBranch[];
   /** The settings keys this extension owns, one per whole-object dial. */
   dials: D;
-  transient?: readonly TransientPort[];
+  transient?: Tr;
   /** The instruments it ships, appended to core's seeds in this order. */
   instruments?: readonly ExtensionInstrument[];
   /** Its training routes, tried before core's Trainer tool. */
@@ -104,11 +117,11 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
    * Which of this extension's branches the settings imply (the derivation column of the ADR,
    * §3.4, for this extension). Called by `branchIdsFor` when no explicit set is given.
    */
-  derive: (settings: DerivationSettings) => readonly string[];
+  derive: (settings: ExtensionDerivationSettings) => readonly string[];
 }
 
 /** An {@link Extension} with its dial slices' types kept, so the settings type can read them. */
-export function defineExtension<const D extends readonly DialSlice[]>(ext: Extension<D>): Extension<D> {
+export function defineExtension<const D extends readonly DialSlice[], const Tr extends readonly TransientPort[] = readonly []>(ext: Extension<D, Tr>): Extension<D, Tr> {
   return ext;
 }
 
@@ -133,6 +146,19 @@ export type ExtensionsSettingsShape<Es extends readonly Extension[]> = [Es[numbe
   : [LooseSlice<Es[number]['dials'][number]>] extends [never]
     ? UnionToIntersection<SliceShape<Es[number]['dials'][number]>>
     : LooseExtensionDials;
+
+type TransientShape<P> = P extends TransientPort<infer F, infer T> ? (string extends F ? never : { [K in F]: T | null }) : never;
+type TransientsOf<E> = E extends Extension<readonly DialSlice[], infer Tr> ? Tr[number] : never;
+
+/**
+ * The hot-store fields a list of extensions declares as transient (`{ airGuitarModel:
+ * TrainedModel | null, ... }`), computed from the manifests' TYPES like the settings shape. Each
+ * is `null` when absent. An empty list (or a port declared without {@link transientPort})
+ * contributes nothing.
+ */
+export type ExtensionsTransients<Es extends readonly Extension[]> = [TransientShape<TransientsOf<Es[number]>>] extends [never]
+  ? Record<never, never>
+  : UnionToIntersection<TransientShape<TransientsOf<Es[number]>>>;
 
 /** The runtime value of {@link ExtensionsSettingsShape}: one entry per dial slice, keyed by its key. */
 export function extensionsSettingsShape<Es extends readonly Extension[]>(extensions: Es): ExtensionsSettingsShape<Es> {

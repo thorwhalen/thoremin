@@ -7,7 +7,7 @@
  *
  * ## Level 1 — declared invariance (consumes what #131 already shipped)
  *
- * `src/features/types.ts` already defines the vocabulary (`scale` = camera distance,
+ * `packages/sdk/src/features/types.ts` already defines the vocabulary (`scale` = camera distance,
  * `position`, `yaw`/`pitch`/`roll`) and every catalog feature can declare `invariantTo`,
  * with deliberate three-state semantics: **absent = not assessed**, `[]` = assessed and
  * invariant to nothing, a listed axis = moving along it should not move this feature.

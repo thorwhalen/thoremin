@@ -18,7 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FEATURE_GROUPS, ALL_SAFE_NAMES, groupInvarianceSummary } from '@thoremin/sdk/features/catalog';
 import { compileFormula, DEFAULT_HELPERS, STATEFUL_HELPERS } from '@/features/formula';
 import { useControls } from './store';
-import type { FeatureLabConfig } from '@thoremin/sdk/features/labConfig';
+import type { FeatureLabConfig } from '@/features/labConfig';
 import { createLabViewStore } from './lab/labViews';
 import type { LabViewConfig, LabViewSummary } from './lab/schema';
 

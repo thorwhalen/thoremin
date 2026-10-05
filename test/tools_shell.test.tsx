@@ -33,7 +33,7 @@ const setConducting = (enabled: boolean) => dialsStore.set('conductor', { ...con
 import { useControls } from '@/app/store';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { defaultFeatureLab } from '@thoremin/sdk/features/labConfig';
+import { defaultFeatureLab } from '@/features/labConfig';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
 

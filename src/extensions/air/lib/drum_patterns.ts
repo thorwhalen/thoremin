@@ -25,8 +25,8 @@
  * compiled events, not on the text. The drum names map to General MIDI numbers and to
  * the air drum's sounds through `gm_drums.ts`. Pure.
  */
-import type { ScoreDoc } from '../score/schema';
-import type { DrumSound } from '../nodes/music/drum_pads';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import type { DrumSound } from '@thoremin/sdk/nodes/music/drum_pads';
 import { DRUM_MIDI, DRUM_NAMES, DRUM_SOUND, type DrumName } from './gm_drums';
 
 export interface DrumPatternInput {

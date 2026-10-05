@@ -32,7 +32,7 @@
  * teaches first); common alternates are listed where a player is likely to use them.
  */
 import { parseNoteName } from './notes';
-import { midiToName } from './theory';
+import { midiToName } from '@thoremin/sdk/music/theory';
 
 export const FINGER_IDS = ['LT', 'L1', 'L2', 'L3', 'L4', 'R1', 'R2', 'R3', 'R4'] as const;
 export type FingerId = (typeof FINGER_IDS)[number];

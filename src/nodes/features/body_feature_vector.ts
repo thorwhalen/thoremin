@@ -30,7 +30,7 @@ import type { NodeContext } from '@thoremin/dag';
 import type { BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type FeatureVector } from '@thoremin/sdk/features/catalog';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
-import { resolveLabGate, type LabControlsSnapshot } from '@thoremin/sdk/features/labConfig';
+import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
 
 const Params = z.object({
   /** Mirror image-x so moving right increases x (selfie view), matching the hand features. */

@@ -19,9 +19,9 @@
  */
 import { createTrendPrior, type RhythmPrior } from '@thoremin/ictus';
 import { beatAt as priorBeatAt } from '@thoremin/ictus/types';
-import type { DrumSound, PadId } from '../nodes/music/drum_pads';
-import type { DrumPattern } from '../music/drum_patterns';
-import type { DrumName } from '../music/gm_drums';
+import type { DrumSound, PadId } from '@thoremin/sdk/nodes/music/drum_pads';
+import type { DrumPattern } from './drum_patterns';
+import type { DrumName } from './gm_drums';
 import { playbackOffset, type PatternModel } from './pattern_fit';
 
 /** What the air drum is handed to play a pattern: the pattern, its trained model, and

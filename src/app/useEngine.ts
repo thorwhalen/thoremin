@@ -19,7 +19,7 @@ import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
 import { branchIdsFor } from '@/app/graph';
-import { branchSetKey } from '@thoremin/sdk/instruments/derive';
+import { branchSetKey } from '@/instruments/derive';
 import type { Composed } from '@/instruments/compose';
 import { useDemandedGroups } from './useDemandedGroups';
 import type { NodeRegistry } from '@thoremin/dag';

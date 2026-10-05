@@ -17,7 +17,9 @@
  *
  * Pure: no React (the editor sections and status hooks are `./ui.tsx`, the React half).
  */
-import { defineExtension } from '@thoremin/sdk/instruments/extension';
+import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
+import type { TrainedModel } from '@thoremin/sdk/enroll';
+import type { PatternPlay } from '@/extensions/air/lib/pattern_play';
 import type { NodeDef } from '@thoremin/dag';
 import { airDrumNode } from '@/extensions/air/nodes/air_drum';
 import { airBassNode } from '@/extensions/air/nodes/air_bass';
@@ -46,11 +48,11 @@ export const AIR_EXTENSION = defineExtension({
   // The enrolled classifiers: transient hot-store fields the nodes read as ports. Always
   // emitted, null included, so clearing an enrolment reaches the node.
   transient: [
-    { field: 'airGuitarModel', kind: 'shape-model' },
-    { field: 'airFluteFingerModel', kind: 'shape-model' },
-    { field: 'airFluteMouthModel', kind: 'shape-model' },
+    transientPort<TrainedModel>()('airGuitarModel', 'shape-model'),
+    transientPort<TrainedModel>()('airFluteFingerModel', 'shape-model'),
+    transientPort<TrainedModel>()('airFluteMouthModel', 'shape-model'),
     // #269: the trained drum pattern in play (pattern + model), resolved by the app off the tick.
-    { field: 'airDrumPattern', kind: 'drum-pattern' },
+    transientPort<PatternPlay>()('airDrumPattern', 'drum-pattern'),
   ],
   // The four air instruments (#249), played by miming, listed in their own class. Each
   // silences the theremin voices (hand-map max gain 0) so the hands only play the air

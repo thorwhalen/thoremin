@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { createFeatureDemand } from '@thoremin/sdk/features/demand';
-import { resolveLabGate } from '@thoremin/sdk/features/labConfig';
+import { resolveLabGate } from '@/features/labConfig';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
 import { appFeatureDemand, featureDemandResource } from '@/app/featureDemand';
@@ -188,7 +188,7 @@ describe('the face MODEL gate honours a demand (the second half of the v1 bug)',
     const { branchIdsFor } = await import('@/app/graph');
     const { SEED_INSTRUMENTS } = await import('@/app/dials/instruments');
     const { settingsFromLayer } = await import('@/app/library/derive');
-    const { defaultFeatureLab } = await import('@thoremin/sdk/features/labConfig');
+    const { defaultFeatureLab } = await import('@/features/labConfig');
     const s = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer), faceMapping: 'none' as const };
     const has = (demanded?: Set<string>) =>
       branchIdsFor(s, { demanded, featureLab: defaultFeatureLab() }).includes('face-source');
@@ -243,7 +243,7 @@ describe('the production wiring (source guard — useEngine is outside the stric
     // (PR 4 routes it through `liveBranchIds`, whose demand defaults to the live resource.)
     expect(engine).toMatch(/demanded = featureDemandResource\(\)/);
     expect(engine).toMatch(/branchIdsFor\(controls, \{ demanded/);
-    expect(read('packages/sdk/src/instruments/derive.ts')).toMatch(/demandWantsFace\(/);
+    expect(read('src/instruments/derive.ts')).toMatch(/demandWantsFace\(/);
   });
 });
 

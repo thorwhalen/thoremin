@@ -18,7 +18,7 @@ import { SEED_INSTRUMENTS, settingsWithPatch } from '@/app/dials/instruments';
 import { TRAINING_ROUTES } from '@/app/training/routes';
 import { settingsFromLayer } from '@/app/library/derive';
 import { useControls } from '@/app/store';
-import { deriveBranchIds } from '@thoremin/sdk/instruments/derive';
+import { deriveBranchIds } from '@/instruments/derive';
 import type { Extension, ExtensionsSettingsShape, LooseExtensionDials } from '@thoremin/sdk/instruments/extension';
 import type { BreathStatus } from '@/nodes/output/canvas_overlay';
 import { IDLE_AIR_FLUTE_STATUS } from '@/extensions/air/nodes/air_flute';

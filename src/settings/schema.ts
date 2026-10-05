@@ -26,7 +26,7 @@ import { ConductorDialSchema } from '@/nodes/features/conductor';
 // The extensions' dials (today the air instruments') are folded in from the manifests:
 // the runtime shape from the injected list, the TYPE from its generated declaration
 // (`src/extensions/virtual.d.ts`), so core never imports an extension to know its keys.
-import { EXTENSION_SETTINGS_SHAPE } from '@/extensions';
+import { EXTENSION_SETTINGS_SHAPE, EXTENSION_TRANSIENT_FIELDS, type ExtensionTransients } from '@/extensions';
 
 /** The piece id that means "the built-in demo scale" (no document loaded). */
 export const BUILTIN_PIECE = 'builtin';
@@ -180,7 +180,7 @@ export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
 export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '' };
 
 /** The body source (#186): on/off + which PoseLandmarker model to load. `BODY_MODELS`
- *  is the node's own list (`@/nodes/domain`), re-exported so the panel reads one SSOT. */
+ *  is the node's own list (`@thoremin/sdk/nodes/domain`), re-exported so the panel reads one SSOT. */
 export { BODY_MODELS };
 export const BodySettingsSchema = z.object({
   enabled: z.boolean(),
@@ -293,6 +293,15 @@ export type ExtensionDials = Omit<Settings, keyof CoreSettings>;
 /** The extensions' dial schemas by settings key (each with its `.default(...)`): what the hot
  *  store and the instruments heal an extension dial through, without naming one. */
 export const EXTENSION_DIAL_SCHEMAS: Readonly<Record<string, z.ZodTypeAny>> = EXTENSION_SETTINGS_SHAPE;
+
+/** The hot-store fields the listed extensions declare as transient (a learned model, a pattern
+ *  in play): never persisted, never a preset field, `null` when absent. Typed from the
+ *  manifests, so the hot store carries them without naming one. */
+export type { ExtensionTransients };
+/** Every extension transient field at its absent value (`null`). */
+export function extensionTransientDefaults(): ExtensionTransients {
+  return Object.fromEntries(EXTENSION_TRANSIENT_FIELDS.map((f) => [f, null])) as ExtensionTransients;
+}
 
 /** Fresh defaults of every extension dial: deep copies, so a store or a layer never shares
  *  a mutable sub-object with the default (the HandMap lesson). */

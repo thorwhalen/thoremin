@@ -8,12 +8,12 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { branchIdsFor } from '@/app/graph';
-import { type DerivationContext } from '@thoremin/sdk/instruments/derive';
+import { type DerivationContext } from '@/instruments/derive';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import type { NodeContext } from '@thoremin/dag';
 import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@thoremin/sdk/nodes/domain';
-import { defaultFeatureLab } from '@thoremin/sdk/features/labConfig';
+import { defaultFeatureLab } from '@/features/labConfig';
 import {
   resultToBodyFrame,
   webcamBodyNode,

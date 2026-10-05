@@ -23,7 +23,7 @@ import { readShape } from '@/extensions/air/app/shapeTap';
 import { VocabularyEnrolment, type EnrolmentWords } from '@/extensions/air/app/VocabularyEnrolment';
 import { useGuitarVocabulary } from '@/extensions/air/app/vocabularyStore';
 import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app/SequenceTrainer';
-import { GUITAR_STARTER_SEQUENCES } from '@/app/enroll/sequenceStore';
+import { GUITAR_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
 import { TRAINING_ANCHORS } from '@/extensions/air/training';
 import { useControls } from '@/app/store';
 import { checkTake } from '@/extensions/air/lib/fingering_prior';

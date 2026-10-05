@@ -17,8 +17,8 @@
  * tap's `t` is the same clock in seconds). Nothing here touches the tick loop.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DRUM_PATTERNS, patternById, type DrumPattern } from '@thoremin/sdk/music/drum_patterns';
-import { fitPattern, playbackOffset, type PatternModel } from '@thoremin/sdk/drums/pattern_fit';
+import { DRUM_PATTERNS, patternById, type DrumPattern } from '@/extensions/air/lib/drum_patterns';
+import { fitPattern, playbackOffset, type PatternModel } from '@/extensions/air/lib/pattern_fit';
 import type { Click } from '@thoremin/sdk/enroll';
 import { clickPlayer } from '@/app/enroll/click';
 import { hitsSince } from '@/extensions/air/app/hitsTap';
@@ -123,7 +123,7 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     setError(null);
     // No pattern in play during a take: the take must be the player's strokes, not the
     // mode's snapped output (fitting that would only reproduce the old model).
-    useControls.getState().setAirDrumPattern(null);
+    useControls.getState().setTransient('airDrumPattern', null);
     const player = clickPlayer();
     player.unlock?.();
     const startMs = now() + 200;

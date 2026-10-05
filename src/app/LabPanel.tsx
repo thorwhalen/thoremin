@@ -21,7 +21,7 @@ import { useControls } from './store';
 import { useTools } from './toolsStore';
 import { toolById } from './tools';
 import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
-import { labWantsFace } from '@thoremin/sdk/features/labConfig';
+import { labWantsFace } from '@/features/labConfig';
 import { useFaceStatus } from './faceStatus';
 import LabControls from './LabControls';
 

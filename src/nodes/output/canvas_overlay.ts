@@ -41,7 +41,7 @@ import { EMOTIONS, type ExpressionScores } from '@/music/expression';
 import { clamp01 } from '@thoremin/sdk/features/math';
 import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
 import { pairIndex } from '@/features/labCorrelation';
-import { FeatureLabSchema } from '@thoremin/sdk/features/labConfig';
+import { FeatureLabSchema } from '@/features/labConfig';
 import {
   DERIVED_GROUP,
   FEATURE_BY_ID,

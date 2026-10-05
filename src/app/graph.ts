@@ -37,7 +37,7 @@ import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { composeGraph, type Composed } from '@/instruments/compose';
 import { BRANCHES, TRUNK, trunk } from '@/instruments/branches';
 import { EXTENSIONS, EXTENSION_BRANCHES } from '@/extensions';
-import { deriveBranchIds, type DerivationContext, type DerivationSettings, type DerivationTable } from '@thoremin/sdk/instruments/derive';
+import { deriveBranchIds, type DerivationContext, type DerivationSettings, type DerivationTable } from '@/instruments/derive';
 import { assembleSpecWith, type InstrumentSpec, type SpecParts } from '@/instruments/spec';
 
 /** The full branch table this build composes from: the core branches, then every extension's. */
@@ -49,7 +49,7 @@ export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_B
 
 /**
  * The branch ids the settings and the live demand imply, in this build (core plus every
- * extension). The pure derivation is `deriveBranchIds` in `packages/sdk/src/instruments/derive.ts`; this
+ * extension). The pure derivation is `deriveBranchIds` in `src/instruments/derive.ts`; this
  * is the one place it is bound to the extension list.
  */
 export function branchIdsFor(settings: DerivationSettings, ctx: DerivationContext = {}): string[] {

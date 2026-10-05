@@ -25,7 +25,7 @@ beforeEach(() => {
   provider = createInMemoryProvider<VocabularyRecord>([], { searchFields: ['name'] });
   useVocabularyStore(provider);
   useGuitarVocabulary.setState({ vocab: emptyVocabulary(chordShapeFeatureIds()), loaded: true, error: null });
-  useControls.getState().setAirGuitarModel(null);
+  useControls.getState().setTransient('airGuitarModel', null);
   setShape(AIR_GUITAR_NODE_ID, null);
   vi.useFakeTimers();
 });

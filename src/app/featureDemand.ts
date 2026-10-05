@@ -3,7 +3,7 @@
  *
  * `useEngine` installs {@link featureDemandResource} as `ctx.resources.featureDemand`,
  * and any host-side consumer that needs feature groups computed while the Lab is
- * closed claims them here (the trainer, while a cue runs). See `@/features/demand` for
+ * closed claims them here (the trainer, while a cue runs). See `@thoremin/sdk/features/demand` for
  * the contract and the bug it closes.
  *
  * A module-level instance rather than a store: it is read synchronously per tick, and

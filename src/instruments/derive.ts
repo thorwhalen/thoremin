@@ -22,7 +22,7 @@
  * gates in `webcam-face` / `webcam-body` used to compute per tick; those gates go once the
  * node is simply absent when unwanted.
  */
-import type { DemandedGroups } from '../features/demand';
+import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '../features/labConfig';
 /**
  * What the derivation needs to know about the build it runs in: which branch ids exist,

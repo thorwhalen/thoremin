@@ -6,8 +6,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { resolvePatternPlay, startPatternPlaySync } from '@/extensions/air/app/patternPlaySync';
-import type { PatternModel } from '@thoremin/sdk/drums/pattern_fit';
-import type { PatternPlay } from '@thoremin/sdk/drums/pattern_play';
+import type { PatternModel } from '@/extensions/air/lib/pattern_fit';
+import type { PatternPlay } from '@/extensions/air/lib/pattern_play';
 
 const model = (id: string): PatternModel => ({ v: 1, patternId: id, bpm: 96, statedBpm: 96, passes: 4, feel: {}, positions: {}, recall: 1, precision: 1, takenAt: 0 });
 

@@ -30,7 +30,7 @@
  */
 import { DEFAULT_STEER_CONFIG } from '@/nodes/mapping/indirect_map';
 import { DEMO_SCALE_NOTES } from '@/nodes/music/score';
-import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@thoremin/sdk/features/labConfig';
+import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@/features/labConfig';
 import { defineBranch, type GraphBranch } from '@thoremin/sdk/instruments/branch';
 
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
