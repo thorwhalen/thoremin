@@ -35,8 +35,8 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { clamp01 } from '@/features/math';
-import { ABSENT_FACE_CONTROLS, type FaceControls, type FaceFrame } from '../domain';
+import { clamp01 } from '@thoremin/sdk/features/math';
+import { ABSENT_FACE_CONTROLS, type FaceControls, type FaceFrame } from '@thoremin/sdk/nodes/domain';
 
 const Params = z.object({
   /** Shared EMA smoothing 0..1 per tick (0 = instant, higher = smoother/slower). */
@@ -61,7 +61,7 @@ const Params = z.object({
    * `test/fixtures/video_head_pose/`, whose frames show exactly that pose. The axis's
    * intent (#146 check 2) is "tilt the chin up, the chord goes UP an octave", so the
    * raw sign has to be flipped. It shipped at +1 for a month, inverted, because the
-   * axes were tuned with no camera and this convention is one `src/nodes/domain.ts`
+   * axes were tuned with no camera and this convention is one `packages/sdk/src/nodes/domain.ts`
    * deliberately declines to assert.
    *
    * Pitch is settled and the other two are not: horizontal mirroring cannot affect

@@ -10,7 +10,7 @@
  * never reach the recorder or the online normalizer (one NaN permanently
  * corrupts a running mean).
  */
-import type { HeadPose } from '@/nodes/domain';
+import type { HeadPose } from '../nodes/domain';
 import type { FaceLandmarks } from './landmarks';
 import type { Vec3 } from './math';
 

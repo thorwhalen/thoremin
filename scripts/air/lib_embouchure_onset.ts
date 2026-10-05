@@ -20,7 +20,7 @@
  *    `packages/ictus/src` contract, so a mouth onset can be fed to a `RhythmPrior` exactly as a
  *    drum stroke is). Two modes: `level` fires when the signal departs from its resting
  *    baseline by a threshold in NOISE UNITS (multiples of the signal's own frame-to-frame
- *    jitter, from `src/enroll/noise.ts`, the trainer's convention), which is the
+ *    jitter, from `packages/sdk/src/enroll/noise.ts`, the trainer's convention), which is the
  *    "embouchure forms" event; `velocity` fires on any movement faster than a threshold,
  *    which is the only thing that can see a re-articulation inside a held embouchure.
  *    Both interpolate the crossing time below the frame period, hold a refractory
@@ -40,7 +40,7 @@
  *
  * Two noise units appear here and are close but not identical: the profile's sigma is
  * the MAD-scaled frame-to-frame jitter of the whole series ({@link jitterSigma}, an
- * offline number), the detector's is `src/enroll/noise.ts`'s clipped running estimate
+ * offline number), the detector's is `packages/sdk/src/enroll/noise.ts`'s clipped running estimate
  * (a mean absolute difference, about 1.13 sigma for Gaussian noise, floored at 1 % of
  * the running range), because the detector must be causal. A threshold of "4 sigma"
  * in one table is therefore within a fifth of the other's.
@@ -51,8 +51,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import type { StreamRecord } from '@thoremin/dag';
-import { createNoiseEstimator, type NoiseEstimator } from '@/enroll/noise';
-import type { FeatureVector } from '@/features/catalog';
+import { createNoiseEstimator, type NoiseEstimator } from '@thoremin/sdk/enroll/noise';
+import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import type { Anchor } from '@thoremin/ictus/types';
 import { EMBOUCHURE_BLENDSHAPES } from './lib_wind_string_features';
 

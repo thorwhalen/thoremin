@@ -5,7 +5,7 @@
  * data only, safe to commit. Handedness is as the player sees it (no mirror), so the
  * node under test runs with `mirrorHandedness: false`.
  */
-import { makeHandKeypoints, type HandsFrame } from '@/nodes/domain';
+import { makeHandKeypoints, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 
 export interface BassTake {
   /** Seconds. */

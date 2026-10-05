@@ -7,8 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import { replayNode } from '@thoremin/dag';
 import { poseChordNode, yawToDegree, POSE_VOICE_ID_BASE, MAX_POSE_VOICES } from '@/nodes';
-import { ABSENT_FACE_CONTROLS, type FaceControls, type VoiceParams } from '@/nodes/domain';
-import { diatonicChord, diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
+import { ABSENT_FACE_CONTROLS, type FaceControls, type VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { diatonicChord, diatonicTriad, midiToFreq, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { voiceTriad } from '@/music/voicing';
 
 const cMajor: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };

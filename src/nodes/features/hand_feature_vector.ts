@@ -43,7 +43,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { Hand, HandsFrame } from '../domain';
+import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import {
   buildHandCtx,
   HAND_PAIR_FEATURES,
@@ -52,8 +52,8 @@ import {
   type FeatureVector,
   type HandCtx,
   type HandSide,
-} from '@/features/catalog';
-import type { DemandedGroups } from '@/features/demand';
+} from '@thoremin/sdk/features/catalog';
+import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
 
 const Params = z.object({

@@ -16,16 +16,16 @@
  * stored, so a change to the training rule applies to every saved vocabulary on the next
  * load, and there is no model format to migrate.
  *
- * Training is the trainer's core (`src/enroll/classify.ts`: one category per enrolled
+ * Training is the trainer's core (`packages/sdk/src/enroll/classify.ts`: one category per enrolled
  * entry, CLOSED-SET: every frame is its nearest entry, as the research measured), with distances measured
  * in the player's OWN hold jitter: each feature is weighted by the inverse of its pooled
- * within-shape spread, the trainer's noise-unit idea (`src/enroll/noise.ts`) with the
+ * within-shape spread, the trainer's noise-unit idea (`packages/sdk/src/enroll/noise.ts`) with the
  * enrolment itself as the demonstration of noise. A feature that wobbles while a shape
  * is held counts for little; one that is steady within a shape and differs between
  * shapes decides.
  */
 import { z } from 'zod';
-import { trainModel, weightedDistance, type FeatureVector, type TrainedModel } from '@/enroll';
+import { trainModel, weightedDistance, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 
 /** One enrolled shape: the player's name for it and the vectors captured while held. */
 export const VocabularyEntrySchema = z.object({

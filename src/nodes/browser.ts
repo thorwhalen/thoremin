@@ -11,7 +11,7 @@ import { webcamFaceNode } from './sources/webcam_face';
 import { webcamBodyNode } from './sources/webcam_body';
 import { keyboardSourceNode } from './sources/keyboard';
 import { makeStoreControlsNode } from './sources/store_controls';
-import type { Extension } from '@/instruments/extension';
+import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { EXTENSIONS } from '@/extensions';
 import type { NodeDef } from '@thoremin/dag';
 import { webAudioSynthNode } from './output/webaudio_synth';

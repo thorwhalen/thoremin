@@ -26,9 +26,9 @@ import {
   weightsFromNuisance,
   type Cue,
   type FeatureVector,
-} from '@/enroll';
+} from '@thoremin/sdk/enroll';
 import { starterCueById } from '@/app/enroll/starterCues';
-import { matrixToHeadPose } from '@/nodes/domain';
+import { matrixToHeadPose } from '@thoremin/sdk/nodes/domain';
 import { loadStream } from './helpers/fixtures';
 
 /** A toy registry for sessions: every key is its own group named after itself. */

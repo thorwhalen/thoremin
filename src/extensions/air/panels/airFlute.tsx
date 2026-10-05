@@ -32,12 +32,12 @@ import { useFluteFingerVocabulary, useFluteMouthVocabulary } from '@/extensions/
 import { VocabularyEnrolment, type EnrolmentWords } from '@/extensions/air/app/VocabularyEnrolment';
 import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app/SequenceTrainer';
 import { FingeringGuide } from '@/extensions/air/app/FingeringGuide';
-import { FLUTE_STARTER_SEQUENCES } from '@/app/enroll/sequenceStore';
+import { FLUTE_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
 import { TRAINING_ANCHORS } from '@/extensions/air/training';
 import { useControls } from '@/app/store';
 import { checkTake, expectedFingering, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
-import { FINGERING_CHARTS } from '@/music/fingerings';
-import { parseNoteName } from '@/music/notes';
+import { FINGERING_CHARTS } from '@/extensions/air/lib/fingerings';
+import { parseNoteName } from '@/extensions/air/lib/notes';
 import { BREATH_MODES, MOUTH_BLOW, MOUTH_REST, type AirFluteDialParams } from '@/extensions/air/nodes/air_flute';
 
 const BREATH_LABEL: Record<AirFluteDialParams['breath'], string> = {

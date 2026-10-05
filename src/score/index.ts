@@ -6,7 +6,7 @@
  * NOT re-exported: reaching them statically would put both parsers in the main
  * chunk — `loadScore` is the way in.
  */
-export * from './schema';
+export * from '@thoremin/sdk/score/schema';
 export * from './library';
 export { loadScore, loadScoreWithStatus, fetchDemo, sniffFormat, titleFromFilename, defaultParsers } from './load';
 export type { ScoreFormat, ScoreParsers } from './load';

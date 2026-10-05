@@ -5,9 +5,9 @@
  * give for a shape: the same featurizer the node runs, on jittered holds. Self-made data,
  * safe to commit. Handedness is as the player sees it (no mirror).
  */
-import { makeHandKeypoints, type HandsFrame } from '@/nodes/domain';
+import { makeHandKeypoints, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { chordShapeVector } from '@/extensions/air/lib/hand_shape';
-import type { FeatureVector } from '@/enroll';
+import type { FeatureVector } from '@thoremin/sdk/enroll';
 import { SHAPES, frameOf, noise, perturb, rng, syntheticHand } from './synthetic_hand';
 
 const W = 640;

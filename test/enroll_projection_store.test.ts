@@ -5,7 +5,7 @@
  * wrong (a 2-D centroid would be meaningless to the classifier).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { categoryKey, classify, type FeatureVector } from '@/enroll';
+import { categoryKey, classify, type FeatureVector } from '@thoremin/sdk/enroll';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { appFeatureDemand } from '@/app/featureDemand';

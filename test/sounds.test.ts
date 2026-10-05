@@ -13,7 +13,7 @@ import {
   DEFAULT_SOUND_LEFT,
   getSound,
   SoundSchema,
-} from '@/music/sounds';
+} from '@thoremin/sdk/music/sounds';
 
 const OSC_TYPES = ['sine', 'square', 'sawtooth', 'triangle'];
 

@@ -18,7 +18,7 @@ import { useDialsSettings } from '../useDialsSettings';
 import { selectCls, Toggle } from '../primitives';
 import { BODY_MODELS } from '@/settings/schema';
 import { BODY_ROUTE_SLOTS, BODY_ROUTE_TARGETS, type BodyMap, type BodyRouteSlot } from '@/nodes/mapping/body_map';
-import { ALL_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS } from '@/features/catalog';
+import { ALL_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
 import { EFFECT_LABELS } from '../labels';
 
 const MODEL_LABEL: Record<(typeof BODY_MODELS)[number], string> = {

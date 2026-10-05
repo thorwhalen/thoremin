@@ -10,8 +10,8 @@ import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { runHeadless } from '@thoremin/dag';
 import { createCoreRegistry, bodyFeatureVectorNode } from '@/nodes';
-import { BLM, makeBodyKeypoints, type BodyFrame } from '@/nodes/domain';
-import { ALL_FEATURES, BODY_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS, buildBodyCtx, type FeatureVector } from '@/features/catalog';
+import { BLM, makeBodyKeypoints, type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { ALL_FEATURES, BODY_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS, buildBodyCtx, type FeatureVector } from '@thoremin/sdk/features/catalog';
 import { BODY_GROUP_IDS, labWantsBody } from '@/features/labConfig';
 
 const W = 640;

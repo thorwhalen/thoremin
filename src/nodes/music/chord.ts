@@ -12,9 +12,9 @@
 import { z } from 'zod';
 import { Chord, Note } from 'tonal';
 import { defineNode } from '@thoremin/dag';
-import { midiToFreq } from '@/music/theory';
-import { SoundSchema } from '@/music/sounds';
-import type { SynthParams, VoiceParams } from '../domain';
+import { midiToFreq } from '@thoremin/sdk/music/theory';
+import { SoundSchema } from '@thoremin/sdk/music/sounds';
+import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 const Params = z.object({
   /** Octave of the lowest chord tone. */

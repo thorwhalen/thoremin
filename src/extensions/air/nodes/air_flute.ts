@@ -29,11 +29,11 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@/enroll';
+import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '@/extensions/air/lib/hand_shape';
-import { parseNoteName } from '@/music/notes';
-import { midiToFreq } from '@/music/theory';
-import type { HandsFrame, SynthParams, VoiceParams } from '@/nodes/domain';
+import { parseNoteName } from '@/extensions/air/lib/notes';
+import { midiToFreq } from '@thoremin/sdk/music/theory';
+import type { HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { labelFor, type PlayerHand } from '@/extensions/air/nodes/air_bass';
 
 /** The flute's synth voice id. The hands are 0-1, the chords 2-10, and the score takes

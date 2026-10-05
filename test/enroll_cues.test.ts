@@ -41,7 +41,7 @@ import {
   type CueSpecInput,
   type RoutineRecord,
   RoutineSpecSchema,
-} from '@/enroll';
+} from '@thoremin/sdk/enroll';
 import { DEFAULT_ROUTINE_CUE_IDS, FACE_OMIT, FACE_TRAINING_GROUPS, STARTER_CUES } from '@/app/enroll/starterCues';
 import {
   CUES_STORAGE_KEY,
@@ -56,7 +56,7 @@ import {
   mergeCues,
   ALL_STARTER_CUES,
 } from '@/app/enroll/cueStore';
-import { FEATURE_BY_ID, FEATURE_GROUPS } from '@/features/catalog';
+import { FEATURE_BY_ID, FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
 
 // ---- Fixtures ----------------------------------------------------------------
 

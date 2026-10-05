@@ -12,7 +12,7 @@ import { type DerivationContext } from '@/instruments/derive';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import type { NodeContext } from '@thoremin/dag';
-import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@/nodes/domain';
+import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { defaultFeatureLab } from '@/features/labConfig';
 import {
   resultToBodyFrame,

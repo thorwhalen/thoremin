@@ -29,7 +29,7 @@
  *
  * Pure and headlessly unit-testable (no DOM/audio/time source — `dt` is passed in).
  */
-import { clamp01 } from './math';
+import { clamp01 } from '@thoremin/sdk/features/math';
 
 /** How a raw value maps to a 0..1 display level. */
 export type NormalizerMode = 'minmax' | 'quantile' | 'zscore';

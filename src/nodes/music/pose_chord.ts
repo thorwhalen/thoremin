@@ -30,12 +30,12 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { clamp01 } from '@/features/math';
+import { clamp01 } from '@thoremin/sdk/features/math';
 import type { NodeContext } from '@thoremin/dag';
-import { diatonicChord, midiToFreq, SCALE_TYPES, type ScaleSpec } from '@/music/theory';
-import { SoundSchema } from '@/music/sounds';
+import { diatonicChord, midiToFreq, SCALE_TYPES, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';
-import type { FaceControls, VoiceParams } from '../domain';
+import type { FaceControls, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 /** Pose-chord voices start here — above the hand voices (0, 1) and the
  *  expression-chord voices (2..5), so hand melody + emotion chord + pose chord

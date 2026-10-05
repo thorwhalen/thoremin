@@ -10,8 +10,8 @@ export {
   BranchVoiceSchema,
   PortRefSchema,
   VOICE_ROLES,
-} from './branch';
-export type { GraphBranch, GraphBranchInput, BranchNode, BranchEdge, BranchVoice, PortRef, VoiceRole } from './branch';
+} from '@thoremin/sdk/instruments/branch';
+export type { GraphBranch, GraphBranchInput, BranchNode, BranchEdge, BranchVoice, PortRef, VoiceRole } from '@thoremin/sdk/instruments/branch';
 export { composeGraph, ComposeError } from './compose';
 export type { ComposeOptions, Composed, MergeTarget } from './compose';
 export { BRANCHES, ALL_BRANCH_IDS, TRUNK } from './branches';

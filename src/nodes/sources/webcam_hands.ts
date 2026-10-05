@@ -22,7 +22,7 @@ import { SOURCE_SLOT_OUTPUT } from './source_contract';
 import { createFramePump, stampToTiming } from './frame_pump';
 import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
-import type { Hand, Handedness, HandsFrame, Keypoint } from '../domain';
+import type { Hand, Handedness, HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
 
 // tasks-vision assets, loaded from a CDN on demand. The wasm fileset is pinned to
 // the installed `@mediapipe/tasks-vision` version (shared with `webcam-face`), and

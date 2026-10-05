@@ -51,8 +51,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
-import { LM, frameTime, type Hand, type HandsFrame } from '../domain';
-import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@/score/schema';
+import { LM, frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
 export type ConductorHand = (typeof CONDUCTOR_HANDS)[number];

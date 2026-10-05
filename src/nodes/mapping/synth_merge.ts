@@ -31,7 +31,7 @@
  * or `hush` is treated as false (passthrough).
  */
 import { defineNode } from '@thoremin/dag';
-import type { SynthParams } from '../domain';
+import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 
 const EMPTY: SynthParams = { voices: [] };
 

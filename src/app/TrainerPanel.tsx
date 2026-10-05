@@ -49,7 +49,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
-import { categoryKey, type Category } from '@/enroll';
+import { categoryKey, type Category } from '@thoremin/sdk/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import RoutinePicker from './enroll/RoutinePicker';

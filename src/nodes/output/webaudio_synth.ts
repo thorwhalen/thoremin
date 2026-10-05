@@ -17,8 +17,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
-import { getSound } from '@/music/sounds';
-import type { SynthParams, VoiceParams } from '../domain';
+import { getSound } from '@thoremin/sdk/music/sounds';
+import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 const Params = z.object({
   /** Frequency smoothing time constant (seconds). */

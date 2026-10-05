@@ -20,7 +20,7 @@ import { FlaskConical, X } from 'lucide-react';
 import { useControls } from './store';
 import { useTools } from './toolsStore';
 import { toolById } from './tools';
-import { ALL_FEATURES } from '@/features/catalog';
+import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
 import { labWantsFace } from '@/features/labConfig';
 import { useFaceStatus } from './faceStatus';
 import LabControls from './LabControls';

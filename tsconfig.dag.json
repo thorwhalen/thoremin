@@ -5,9 +5,38 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "types": ["node", "vitest/globals"]
+    "types": [
+      "node",
+      "vitest/globals"
+    ]
   },
-  "include": ["packages/dag/src", "src/instruments", "src/extensions", "packages/ictus/src", "src/drums", "src/score", "packages/lazy/src", "src/keys", "src/nodes", "src/music", "src/features", "src/settings", "packages/taglog/src", "src/enroll", "src/latency", "src/app/graph.ts", "src/app/featureDemand.ts", "src/app/enroll", "src/app/lab", "test", "scripts"],
+  "include": [
+    "packages/dag/src",
+    "packages/sdk/src",
+    "src/instruments",
+    "src/extensions",
+    "packages/ictus/src",
+    "src/score",
+    "packages/lazy/src",
+    "src/keys",
+    "src/nodes",
+    "src/music",
+    "src/features",
+    "src/settings",
+    "packages/taglog/src",
+    "src/enroll",
+    "src/latency",
+    "src/app/graph.ts",
+    "src/app/featureDemand.ts",
+    "src/app/enroll",
+    "src/app/lab",
+    "test",
+    "scripts"
+  ],
   "//exclude": "The jsdom SHELL tests are .tsx (they render React components) and this project ships no @types/react by design — same reason the React app layer is excluded. Vitest still runs them; Vite/esbuild type-erases the JSX.",
-  "exclude": ["test/**/*.test.tsx", "src/app/enroll/**/*.tsx", "src/extensions/**/*.tsx"]
+  "exclude": [
+    "test/**/*.test.tsx",
+    "src/app/enroll/**/*.tsx",
+    "src/extensions/**/*.tsx"
+  ]
 }

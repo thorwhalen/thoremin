@@ -29,7 +29,7 @@
 import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '../recording/schema';
 import { prefillName } from '../recording/naming';
 import { FEATURE_VECTOR_EDGES } from './liveVector';
-import type { Cue } from '@/enroll';
+import type { Cue } from '@thoremin/sdk/enroll';
 
 /** The instrument label a training take is filed under. */
 export const TRAINER_TAKE_INSTRUMENT = 'trainer';

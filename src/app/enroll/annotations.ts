@@ -16,7 +16,7 @@
  * the anchor carries `t0` and every consumer applies the offset itself (§5 of the
  * taglog design).
  */
-import type { Cue, RunnerEvent } from '@/enroll';
+import type { Cue, RunnerEvent } from '@thoremin/sdk/enroll';
 import { TagEventSink } from '@thoremin/taglog/provider/sink';
 import { applyToggle, closeAll } from '@thoremin/taglog/affordances/toggle';
 import {

@@ -14,7 +14,7 @@
  *
  * Tracked points (#246): the pose wrist is the baseline; when the source also has a
  * hands stream (`extract.py --streams hands`), each point on the hand the air drum can
- * track (`src/nodes/music/drum_anchor.ts`: the hand's wrist landmark, the index
+ * track (`packages/sdk/src/nodes/music/drum_anchor.ts`: the hand's wrist landmark, the index
  * fingertip, the estimated stick tip) is scored on the same onsets, one row per point,
  * the hands joined to the pose by tick for identity and normalisation
  * (`handTracks`). `--points` narrows the list.
@@ -27,7 +27,7 @@ import { join } from 'node:path';
 import { fMeasure, medianInterval } from '@thoremin/ictus/metrics';
 import { airDir } from './lib_air_paths';
 import { readLandmarks } from './lib_chord_shape_dataset';
-import { DRUM_ANCHOR_POINTS, DEFAULT_STICK_LENGTH, type DrumAnchorPoint } from '@/nodes/music/drum_anchor';
+import { DRUM_ANCHOR_POINTS, DEFAULT_STICK_LENGTH, type DrumAnchorPoint } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { assignStrokes, handTracks, maskTracks, median, strokesOfTracks, timingErrors, wristTracks, type Cluster, type Stroke, type Wrist, type WristSample } from './lib_drum_strokes';
 import { parseSourcesFor } from './lib_sources';
 

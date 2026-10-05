@@ -13,11 +13,10 @@
  * a separate async persistence layer (src/settings) — load a preset by calling
  * `applySettings`, snapshot the current state with `toSettings`.
  */
-import type { PatternPlay } from '@/drums/pattern_play';
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import type { ScaleTypeId } from '@/music/theory';
-import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@/music/sounds';
+import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
 import { OverlayDialSchema, TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 import { GesturePrefsSchema, defaultGesturePrefs, type GesturePrefs } from './gesturePrefs';
@@ -50,9 +49,8 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, type ExtensionDials } from '@/settings/schema';
-import type { TrainedModel } from '@/enroll';
-import type { ScoreDoc } from '@/score/schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
@@ -93,7 +91,7 @@ export interface VoiceControl {
  * defaulted, healed and persisted by folds over their slices: preset fields, fed live to
  * each extension node's `config` port through `store-controls`.
  */
-export interface ControlState extends ExtensionDials {
+export interface ControlState extends ExtensionDials, ExtensionTransients {
   right: VoiceControl;
   left: VoiceControl;
   syncHands: boolean;
@@ -203,19 +201,6 @@ export interface ControlState extends ExtensionDials {
    *  through store-controls, so conducting starts with no rebuild. */
   conductor: ConductorSettings;
   /**
-   * The air guitar's chord classifier (#249), trained from the player's enrolled chords
-   * (`src/app/air/vocabularyStore.ts` is the SSOT; this is derived) and fed to the
-   * `air-guitar` node's `model` port. TRANSIENT, like {@link scoreDoc}: re-derived from
-   * the stored vocabulary on load, never persisted here.
-   */
-  airGuitarModel: TrainedModel | null;
-  /** The air flute's fingering and mouth classifiers (#249), derived from their enrolled
-   *  vocabularies like {@link airGuitarModel}. TRANSIENT. */
-  airFluteFingerModel: TrainedModel | null;
-  airFluteMouthModel: TrainedModel | null;
-  /** #269: the trained drum pattern the air drum plays in its pattern mode (transient, never persisted). */
-  airDrumPattern: PatternPlay | null;
-  /**
    * The loaded score (#187 PR 3): the `ScoreDoc` the `score` node plays, handed to the
    * graph through `store-controls` as the live `scoreDoc` port. TRANSIENT, like
    * {@link muted}: never persisted (a parsed movement is hundreds of kilobytes; the
@@ -267,12 +252,9 @@ export interface ControlState extends ExtensionDials {
   /** Replace the composed graph's overlay element set (transient, see {@link graphElements}). */
   setGraphElements: (elements: string[] | null) => void;
 
-  /** Replace the air guitar's chord classifier (transient, see {@link airGuitarModel}). */
-  setAirGuitarModel: (model: TrainedModel | null) => void;
-  /** Replace the air flute's classifiers (transient). */
-  setAirFluteFingerModel: (model: TrainedModel | null) => void;
-  setAirFluteMouthModel: (model: TrainedModel | null) => void;
-  setAirDrumPattern: (play: PatternPlay | null) => void;
+  /** Replace an extension's transient field (a learned model, a pattern in play; see
+   *  {@link ExtensionTransients}): never persisted, re-derived by the extension on load. */
+  setTransient<K extends keyof ExtensionTransients & string>(field: K, value: ExtensionTransients[K]): void;
   /** Set / toggle the generative transport (transient, see {@link steerPlaying}). */
   setSteerPlaying(v: boolean): void;
   toggleSteerPlaying(): void;
@@ -576,7 +558,14 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, airGuitarModel: current.airGuitarModel, airFluteFingerModel: current.airFluteFingerModel, airFluteMouthModel: current.airFluteMouthModel, airDrumPattern: current.airDrumPattern };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, ...keptTransients(current) };
+}
+
+/** The extensions' transient fields as they are now: a rehydrated blob never carries them
+ *  (they are not persisted), and a hand-edited one must not override them. */
+function keptTransients(current: ControlState): Partial<ControlState> {
+  const c = current as unknown as Record<string, unknown>;
+  return Object.fromEntries(Object.keys(extensionTransientDefaults()).map((f) => [f, c[f]])) as Partial<ControlState>;
 }
 
 // localStorage in the browser; a no-op elsewhere (Node test runtime) so the
@@ -619,10 +608,7 @@ export const useControls = create<ControlState>()(
       faceControls: defaultFaceControls(),
       conductor: defaultConductor(),
       ...extensionDialDefaults(),
-      airGuitarModel: null,
-      airFluteFingerModel: null,
-      airFluteMouthModel: null,
-      airDrumPattern: null,
+      ...extensionTransientDefaults(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       trainerHud: TrainerHudParamsSchema.parse({}),
@@ -655,10 +641,7 @@ export const useControls = create<ControlState>()(
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
       setGraphElements: (elements) => set({ graphElements: elements }),
 
-      setAirGuitarModel: (model) => set({ airGuitarModel: model }),
-      setAirFluteFingerModel: (model) => set({ airFluteFingerModel: model }),
-      setAirFluteMouthModel: (model) => set({ airFluteMouthModel: model }),
-      setAirDrumPattern: (play) => set({ airDrumPattern: play }),
+      setTransient: (field, value) => set({ [field]: value } as Partial<ControlState>),
       toggleSteerPlaying: () => set((s) => ({ steerPlaying: !s.steerPlaying })),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),

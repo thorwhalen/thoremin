@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
-import { createFeatureDemand } from '@/features/demand';
+import { createFeatureDemand } from '@thoremin/sdk/features/demand';
 import { resolveLabGate } from '@/features/labConfig';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
@@ -249,7 +249,7 @@ describe('the production wiring (source guard — useEngine is outside the stric
 
 describe('the registry\'s `derived` literal matches the catalog\'s DERIVED_GROUP', () => {
   it('(no import edge demand -> catalog, so the two are tied here)', async () => {
-    const { DERIVED_GROUP } = await import('@/features/catalog');
+    const { DERIVED_GROUP } = await import('@thoremin/sdk/features/catalog');
     const d = createFeatureDemand();
     d.claim('a', [DERIVED_GROUP]);
     expect(d.groups()).toBeNull();

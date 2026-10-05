@@ -19,8 +19,8 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { rangeMap } from '@/music/theory';
-import { ABSENT_FACE, ABSENT_HAND, type FaceFeatures, type HandFeatures, type SingleHandFeatures } from '../domain';
+import { rangeMap } from '@thoremin/sdk/music/theory';
+import { ABSENT_FACE, ABSENT_HAND, type FaceFeatures, type HandFeatures, type SingleHandFeatures } from '@thoremin/sdk/nodes/domain';
 import type { GenerativeSteer, WeightedPrompt } from '../output/generative';
 
 /** The vocabularies a steering entry is built from — exported so an editor and the

@@ -9,17 +9,16 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import type { Extension } from '@/instruments/extension';
+import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { NodeContext } from '@thoremin/dag';
-import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@/music/theory';
-import type { SoundId } from '@/music/sounds';
-import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/domain';
+import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import type { SoundId } from '@thoremin/sdk/music/sounds';
+import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { BodyMap } from '@/nodes/mapping/body_map';
 import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
-import type { ConductorSettings, ExtensionDials } from '@/settings/schema';
-import type { TrainedModel } from '@/enroll';
-import type { ScoreDoc } from '@/score/schema';
+import type { ConductorSettings, ExtensionDials, ExtensionTransients } from '@/settings/schema';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 
@@ -34,9 +33,10 @@ export interface VoiceControlSnapshot {
   rangeLow?: number;
   rangeHigh?: number;
 }
-/** The extensions' whole-object dials (`airDrum`, …) ride the snapshot under their slice
- *  keys; their TYPE comes from the manifests (see {@link ExtensionDials}), never named here. */
-export interface ControlSnapshot extends Partial<ExtensionDials> {
+/** The extensions' whole-object dials (`airDrum`, …) and transient fields (`airGuitarModel`, …)
+ *  ride the snapshot under their own keys; their TYPES come from the manifests (see
+ *  {@link ExtensionDials}, {@link ExtensionTransients}), never named here. */
+export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<ExtensionTransients> {
   right: VoiceControlSnapshot;
   left: VoiceControlSnapshot;
   /** Global octave transpose (−2..+2), read by voice-mapping / chords / overlay
@@ -99,11 +99,6 @@ export interface ControlSnapshot extends Partial<ExtensionDials> {
   /** The conductor dial (#187): fed to the `conductor` node's `config` input as a live
    *  override of its build-time params, so turning conducting on needs no rebuild. */
   conductor?: ConductorSettings;
-  /** The air guitar's chord classifier (#249), derived from the enrolled vocabulary. */
-  airGuitarModel?: TrainedModel | null;
-  /** The air flute's two derived classifiers (#249). */
-  airFluteFingerModel?: TrainedModel | null;
-  airFluteMouthModel?: TrainedModel | null;
   /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;

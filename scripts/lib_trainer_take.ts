@@ -28,7 +28,7 @@
  *    reconstruct a face. It does **not** claim the emitted vectors are free of every
  *    landmark-derived number: four catalog features are positions computed from a single
  *    point — `face.head.x` / `face.head.y` are the nose tip's normalized image coordinates
- *    (`src/features/face_catalog.ts`), and `palm.x` / `palm.y` are the palm centroid. Two
+ *    (`packages/sdk/src/features/face_catalog.ts`), and `palm.x` / `palm.y` are the palm centroid. Two
  *    coordinates of one point are the same class of thing as the head-pose matrix's
  *    translation, which the committed `video_head_pose` fixture already carries by
  *    deliberate decision. They locate a face in a frame; they do not describe it.
@@ -50,7 +50,7 @@ import { gzipSync } from 'node:zlib';
 import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
 import type { EdgeEvent, ResolvedInterval, TagKind, TagStatus } from '@thoremin/taglog/affordances/schema';
 import { FACE_OMIT } from '@/app/enroll/starterCues';
-import { ALL_FEATURES } from '@/features/catalog';
+import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
 
 /** Gzip anything at or above this many bytes, mirroring the existing committed fixtures. */
 const GZIP_THRESHOLD_BYTES = 200_000;
@@ -73,7 +73,7 @@ const RAW_POSITION_GROUP = 'hand.position.raw';
  * Stripping them costs the fixture nothing, which is what makes this the right call
  * rather than a trade-off: `FACE_OMIT` is the trainer's own declaration that the learner
  * does not use them. They are recorded only because `routineGroups` unions a cue's
- * `groups` without applying its `omit` (`src/enroll/cue.ts`), so the engine computes a
+ * `groups` without applying its `omit` (`packages/sdk/src/enroll/cue.ts`), so the engine computes a
  * superset of what the learner consumes. The fixture should carry what the learner used.
  */
 function rawPositionIds(): Set<string> {

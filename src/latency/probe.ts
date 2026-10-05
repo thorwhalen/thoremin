@@ -35,7 +35,7 @@
  * Pure apart from the injected clock and audio reader; unit-tested in Node.
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
-import type { FrameTiming, HandsFrame } from '@/nodes/domain';
+import type { FrameTiming, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { RingSamples, type Summary } from './stats';
 
 /** The slice of an `AudioContext` the probe reads. */

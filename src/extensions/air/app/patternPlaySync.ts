@@ -9,9 +9,9 @@
  * feeds to the air drum. A pattern with no model yet publishes null: the mode is off
  * until the take that trains it. The `startFlutePriorSync` pattern.
  */
-import { patternById } from '@/music/drum_patterns';
-import type { PatternPlay } from '@/drums/pattern_play';
-import type { PatternModel } from '@/drums/pattern_fit';
+import { patternById } from '@/extensions/air/lib/drum_patterns';
+import type { PatternPlay } from '@/extensions/air/lib/pattern_play';
+import type { PatternModel } from '@/extensions/air/lib/pattern_fit';
 import { useControls } from '@/app/store';
 import { loadPatternModel } from '@/extensions/air/app/patternModels';
 
@@ -35,7 +35,7 @@ export async function resolvePatternPlay(patternId: string, load: (id: string) =
  *  again before the model arrived) is dropped. */
 export function startPatternPlaySync(deps: PatternPlaySyncDeps = {}): () => void {
   const store = deps.store ?? useControls;
-  const publish = deps.publish ?? ((play) => useControls.getState().setAirDrumPattern(play));
+  const publish = deps.publish ?? ((play) => useControls.getState().setTransient('airDrumPattern', play));
   let last: string | null = null;
   let generation = 0;
   const apply = (s: DrumState) => {
@@ -65,7 +65,7 @@ export function startPatternPlaySync(deps: PatternPlaySyncDeps = {}): () => void
  *  is dropped. */
 export function refreshPatternPlay(deps: Pick<PatternPlaySyncDeps, 'publish' | 'load'> = {}): void {
   const id = useControls.getState().airDrum?.pattern ?? '';
-  const publish = deps.publish ?? ((play) => useControls.getState().setAirDrumPattern(play));
+  const publish = deps.publish ?? ((play) => useControls.getState().setTransient('airDrumPattern', play));
   void resolvePatternPlay(id, deps.load).then((play) => {
     if ((useControls.getState().airDrum?.pattern ?? '') === id) publish(play);
   });

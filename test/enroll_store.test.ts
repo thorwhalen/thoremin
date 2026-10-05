@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
-import { CueSpecSchema, categoryKey, type CueRecord, type FeatureVector, type RoutineRecord } from '@/enroll';
+import { CueSpecSchema, categoryKey, type CueRecord, type FeatureVector, type RoutineRecord } from '@thoremin/sdk/enroll';
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { useTrainer, useTrainerStores } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';

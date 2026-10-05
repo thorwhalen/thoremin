@@ -13,9 +13,9 @@ import { PatternTrainer, takeClicks } from '@/extensions/air/app/PatternTrainer'
 import { clearHits, hitsSince, makeHitsTap, pushHits } from '@/extensions/air/app/hitsTap';
 import { loadPatternModel, usePatternModelStore, type PatternModelRecord } from '@/extensions/air/app/patternModels';
 import { setClickPlayer } from '@/app/enroll/click';
-import { patternById } from '@/music/drum_patterns';
+import { patternById } from '@/extensions/air/lib/drum_patterns';
 import { useControls } from '@/app/store';
-import type { Click } from '@/enroll';
+import type { Click } from '@thoremin/sdk/enroll';
 import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 
 const ROCK = patternById('rock')!;
@@ -107,7 +107,7 @@ describe('the pattern trainer', () => {
     await settle();
     expect(screen.getByLabelText('Pattern')).toBeTruthy();
     // A pattern in play is switched off for the take: the take must be the strokes.
-    useControls.getState().setAirDrumPattern({ pattern: ROCK, model: { v: 1, patternId: 'rock', bpm: 96, statedBpm: 96, passes: 1, feel: {}, positions: {}, recall: 1, precision: 1, takenAt: 0 } });
+    useControls.getState().setTransient('airDrumPattern', { pattern: ROCK, model: { v: 1, patternId: 'rock', bpm: 96, statedBpm: 96, passes: 1, feel: {}, positions: {}, recall: 1, precision: 1, takenAt: 0 } });
     fireEvent.click(screen.getByText('Start'));
     expect(useControls.getState().airDrumPattern).toBeNull();
     expect(played).toHaveLength(1);

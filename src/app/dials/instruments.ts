@@ -31,7 +31,7 @@ import { SettingsSchema, type Settings } from '@/settings/schema';
 import { EXTENSION_INSTRUMENTS } from '@/extensions';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
-import type { FingerName } from '@/nodes/domain';
+import type { FingerName } from '@thoremin/sdk/nodes/domain';
 import { dialsStore } from './settingsStore';
 
 // --- Hand-map builders for the feature-demo seeds ---------------------------------

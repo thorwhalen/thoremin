@@ -19,7 +19,7 @@ import { DrumPadEditor } from '@/extensions/air/panels/airDrumPads';
 import { useEffect, useState } from 'react';
 import { PatternTrainer } from '@/extensions/air/app/PatternTrainer';
 import { trainedPatternIds, usePatternModelsVersion } from '@/extensions/air/app/patternModels';
-import { DRUM_PATTERNS } from '@/music/drum_patterns';
+import { DRUM_PATTERNS } from '@/extensions/air/lib/drum_patterns';
 import { AIR_DRUM_HANDS, AIR_DRUM_POINTS, DRUM_SOUNDS, type AirDrumDialParams } from '@/extensions/air/nodes/air_drum';
 
 const HAND_LABEL: Record<AirDrumDialParams['hand'], string> = {

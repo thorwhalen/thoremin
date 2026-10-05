@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { replayNode } from '@thoremin/dag';
 import { bodyFeatureVectorNode, type BodyFrame } from '@/nodes';
 import { BODY_GROUP_IDS } from '@/features/labConfig';
-import type { FeatureVector } from '@/features/catalog';
+import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import { FIXTURES, loadStream, roundVector } from './helpers/fixtures';
 
 const SC = 'video_body_que_calor';

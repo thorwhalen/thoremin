@@ -5,7 +5,7 @@
  * ticked groups, or a feature DEMAND (#163) — and in production the Lab is closed
  * by default. Without this claim a configured body route would be fed an empty
  * vector every tick and do nothing, with every unit test green: the exact failure
- * `src/features/demand.ts` was created to end for the trainer. So the routes are a
+ * `packages/sdk/src/features/demand.ts` was created to end for the trainer. So the routes are a
  * demand owner like the trainer is: whenever the `bodyMap` dial has a live route,
  * the groups its features belong to are claimed; when the last route is cleared,
  * the claim is released and the model can idle again.
@@ -15,8 +15,8 @@
  */
 import type { BodyMap } from '@/nodes/mapping/body_map';
 import { BODY_ROUTE_SLOTS } from '@/nodes/mapping/body_map';
-import { FEATURE_BY_ID } from '@/features/catalog';
-import type { FeatureDemand } from '@/features/demand';
+import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
+import type { FeatureDemand } from '@thoremin/sdk/features/demand';
 import { appFeatureDemand } from './featureDemand';
 import { useControls } from './store';
 

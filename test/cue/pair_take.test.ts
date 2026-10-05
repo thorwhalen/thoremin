@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zipSync } from 'fflate';
 import { strum } from '../helpers/strum';
-import type { Click, FeatureVector } from '@/enroll';
+import type { Click, FeatureVector } from '@thoremin/sdk/enroll';
 import { useTrainer, useTrainerStores } from '@/app/enroll/store';
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { STARTER_ROUTINES, REAL_VS_AIR_CUES } from '@/app/enroll/realVsAirCues';

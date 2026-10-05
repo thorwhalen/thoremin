@@ -27,7 +27,7 @@
  *  - Distances are RAW palm-span ratios (pinch/gap/reach/opposition): low = close.
  *    Direction/inversion is a display/mapping concern, so no magic thresholds here.
  */
-import { LM } from '@/nodes/domain';
+import { LM } from '../nodes/domain';
 import { angleAt, angleBetween, centroid, cross, dist2, dist3, normalize, sub, type Vec3 } from './math';
 import type { FeatureDef, HandCtx, Invariance, TwoHandCtx } from './types';
 

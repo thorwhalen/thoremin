@@ -1,7 +1,7 @@
 /**
  * The React half of an extension manifest (the `sdk/ui` side of the instruments-as-graphs
  * ADR, §4.2): what the shell needs from an extension beyond its nodes and branches. The
- * pure half is `src/instruments/extension.ts`.
+ * pure half is `packages/sdk/src/instruments/extension.ts`.
  *
  *  - `panels`: one editor section per instrument the extension ships (its controls and its
  *    live readout), keyed by the instrument id `AIR_INSTRUMENTS` uses. `DialsControlsPanel`

@@ -13,7 +13,7 @@
  *
  * Pure: the React halves are listed in `src/app/extensions`.
  */
-import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionsSettingsShape } from '@/instruments/extension';
+import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionsSettingsShape, type ExtensionsTransients } from '@thoremin/sdk/instruments/extension';
 import listed from 'virtual:thoremin/extensions';
 
 type Listed = typeof listed;
@@ -41,6 +41,12 @@ export const EXTENSION_DIAL_SLICES: readonly DialSlice[] = all.flatMap((e) => e.
 
 /** Every extension's branch, in extension order. */
 export const EXTENSION_BRANCHES = all.flatMap((e) => e.branches);
+
+/** The hot-store fields the listed extensions declare as transient (`{ airGuitarModel:
+ *  TrainedModel | null, ... }`), typed from the generated list declaration like the settings. */
+export type ExtensionTransients = ExtensionsTransients<Listed>;
+/** Every extension's transient field names, in extension order. */
+export const EXTENSION_TRANSIENT_FIELDS: readonly string[] = all.flatMap((e) => (e.transient ?? []).map((t) => t.field));
 
 /** Every extension's training routes, and its branch → route table, in extension order. */
 export const EXTENSION_TRAINING_ROUTES = all.flatMap((e) => e.training?.routes ?? []);

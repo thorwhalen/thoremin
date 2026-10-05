@@ -5,10 +5,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { StreamRecord } from '@thoremin/dag';
-import { BLM, BODY_LANDMARK_COUNT, type BodyFrame } from '@/nodes/domain';
+import { BLM, BODY_LANDMARK_COUNT, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { fMeasure } from '@thoremin/ictus/metrics';
-import type { HandsFrame } from '@/nodes/domain';
-import { LM } from '@/nodes/domain';
+import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { LM } from '@thoremin/sdk/nodes/domain';
 import { assignStrokes, handTracks, kmeans, median, strokesOf, strokesOfTracks, timingErrors, wristTracks } from '../../scripts/air/lib_drum_strokes';
 import { rng } from './synthetic_hand';
 

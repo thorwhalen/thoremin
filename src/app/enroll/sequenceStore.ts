@@ -2,21 +2,20 @@
  * Saved sequences (#263) — the third trainer collection, next to cues and routines.
  *
  * A sequence is an ordered list of targets a player is walked through
- * (`src/enroll/sequence.ts` is the schema and the runner). Like cues, the shipped
+ * (`packages/sdk/src/enroll/sequence.ts` is the schema and the runner). Like cues, the shipped
  * STARTERS are merged with what is stored, by id, so a starter a player edits is saved
  * under its name and shadows the shipped one, and a starter whose list improves in code
  * is not shadowed by a stale seed row. Default target is localStorage through the same
  * {@link createNamedCollectionStore} facade; tests pass an in-memory provider.
  *
- * Starters are per instrument: the flute's scales are notes the chart knows, the
- * guitar's are chords. A caller asks for the starters of its instrument and adds the
+ * Starters are per instrument and live with the instrument (the air flute's scales and the
+ * air guitar's chords are in `src/extensions/air/app/starterSequences.ts`). A caller asks for the starters of its instrument and adds the
  * stored ones, which are not tagged by instrument: a saved list of labels is only
  * meaningful to the instrument whose labels they are, and the trainer shows every stored
  * sequence, so a player can reuse a scale on any instrument that names notes.
  */
 import type { DataProvider } from '@zodal/store';
-import { SequenceRecordSchema, sequenceOf, type SequenceRecord, type SequenceSpec } from '@/enroll';
-import { FLUTE_CHART, chartNotes } from '@/music/fingerings';
+import { SequenceRecordSchema, sequenceOf, type SequenceRecord, type SequenceSpec } from '@thoremin/sdk/enroll';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 import { slugId } from '@/util/ids';
 
@@ -39,48 +38,14 @@ export interface NamedSequence {
   starter: boolean;
 }
 
-const starter = (name: string, labels: readonly string[], overrides: Parameters<typeof sequenceOf>[1] = {}): NamedSequence => ({
+/** A sequence shipped in code: its id is its name's slug. An instrument's own starters are its
+ *  extension's (the air flute's scales, the air guitar's chords). */
+export const starterSequence = (name: string, labels: readonly string[], overrides: Parameters<typeof sequenceOf>[1] = {}): NamedSequence => ({
   id: slugId(name, 'sequence'),
   name,
   spec: sequenceOf(labels, overrides),
   starter: true,
 });
-
-/** The notes of a major scale from `root` (a note name) through the chart, inclusive. */
-function majorScale(root: string, octaves = 1): string[] {
-  const steps = [2, 2, 1, 2, 2, 2, 1];
-  const all = chartNotes(FLUTE_CHART);
-  const start = all.findIndex((x) => x.note === root);
-  if (start < 0) return [];
-  const out = [all[start].note];
-  let i = start;
-  for (let o = 0; o < octaves; o++) {
-    for (const s of steps) {
-      i += s;
-      if (i >= all.length) return out;
-      out.push(all[i].note);
-    }
-  }
-  return out;
-}
-
-/** The flute's starters: what a method book's first pages ask for, in the chart's spelling. */
-export const FLUTE_STARTER_SEQUENCES: readonly NamedSequence[] = [
-  starter('Flute: first notes (B, A, G)', ['B4', 'A4', 'G4', 'A4', 'B4']),
-  starter('Flute: G major, one octave', majorScale('G4')),
-  // Up to C#6, the top of the default chart range: the third octave's D6 is out of it.
-  starter('Flute: D major, second register (D5 to C#6)', majorScale('D5').filter((n) => n !== 'D6')),
-  starter('Flute: chromatic, first octave', chartNotes(FLUTE_CHART, ['D4', 'D5']).map((x) => x.note)),
-  starter('Flute: G major, two loops', majorScale('G4'), { loops: 2 }),
-];
-
-/** The guitar's starters: the open chords every player meets first. */
-export const GUITAR_STARTER_SEQUENCES: readonly NamedSequence[] = [
-  starter('Guitar: G, C, D', ['G', 'C', 'D']),
-  starter('Guitar: E, A, D (the open-string family)', ['E', 'A', 'D']),
-  starter('Guitar: Em, Am, Dm', ['Em', 'Am', 'Dm']),
-  starter('Guitar: G C D Em, two loops', ['G', 'C', 'D', 'Em'], { loops: 2 }),
-];
 
 let store: SequenceStore | null = null;
 const getStore = (): SequenceStore => (store ??= createSequenceStore());

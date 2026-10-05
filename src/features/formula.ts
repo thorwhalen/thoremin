@@ -17,7 +17,7 @@
  */
 import jsep from 'jsep';
 import ternary from '@jsep-plugin/ternary';
-import { clamp01 } from './math';
+import { clamp01 } from '@thoremin/sdk/features/math';
 import { makeEwPair } from './ewMoments';
 import { makeUnwrapper } from './circular';
 

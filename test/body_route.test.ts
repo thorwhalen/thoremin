@@ -8,7 +8,7 @@ import { Engine, runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { createCoreRegistry, voiceMappingNode, type SynthParams } from '@/nodes';
 import { bodyRouteMods, DEFAULT_BODY_MAP, NEUTRAL_MODS, BodyMapSchema, HOLD_GRACE_S, type BodyMap } from '@/nodes/mapping/body_map';
-import { createFeatureDemand } from '@/features/demand';
+import { createFeatureDemand } from '@thoremin/sdk/features/demand';
 import { bodyRouteGroups, startBodyRouteDemand } from '@/app/bodyRouteDemand';
 import { MAPPING_SLOT_INPUTS } from '@/nodes/mapping/mapping_contract';
 import { SLOTS, defaultGraph } from '@/app/graph';

@@ -29,8 +29,8 @@
 import { z } from 'zod';
 import { INSTRUMENT_CLASSES, normaliseClassId, DEFAULT_CLASS, type InstrumentClassId } from './classes';
 import { branchClosureIds } from './compose';
-import { TRUNK_ID } from './branches';
-import type { GraphBranch } from './branch';
+import { TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
+import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 
 /** Where "train this instrument" goes: a route the trainer stream resolves (its shape is
  *  the trainer's; the spec only carries it). */

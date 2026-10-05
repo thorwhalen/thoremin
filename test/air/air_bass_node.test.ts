@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { airBassNode, neckNote, type NoteEvent, type AirBassStatus } from '@/extensions/air/nodes/air_bass';
-import { makeHandKeypoints, type Hand, type HandsFrame } from '@/nodes/domain';
+import { makeHandKeypoints, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { bassTake } from './synthetic_bass';
 
 const SCALE = [28, 31, 33, 35, 38, 40, 43, 45, 47, 50]; // E minor pentatonic, E1 up

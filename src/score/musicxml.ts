@@ -18,7 +18,7 @@
  */
 import { exportMidiWithTimingMap, getAllPartInfos, getDivisions, getDynamics, parseAuto } from 'musicxml-io/browser';
 import { midiToScoreDoc } from './midi';
-import { dynamicValue, ScoreDocSchema, type DynamicMark, type ScoreDoc } from './schema';
+import { dynamicValue, ScoreDocSchema, type DynamicMark, type ScoreDoc } from '@thoremin/sdk/score/schema';
 
 interface Breakpoint {
   midiSec: number;

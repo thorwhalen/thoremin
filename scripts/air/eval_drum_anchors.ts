@@ -2,7 +2,7 @@
  * Which point on the hand should the air drum track? (#246) Scored on the `an.impacts`
  * stick clips, where the truth is exact: a synthetic hand grips each clip's stick
  * (`lib_synthetic_grip.ts`), the shipped `air-drum` node is replayed over it once per
- * tracked point (`src/nodes/music/drum_anchor.ts`), and its hits are matched to the
+ * tracked point (`packages/sdk/src/nodes/music/drum_anchor.ts`), and its hits are matched to the
  * clip's ground-truth impacts.
  *
  * Swept: the tracked point (wrist, index fingertip, estimated stick tip), the arm's
@@ -28,7 +28,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
-import { DRUM_ANCHOR_POINTS, type DrumAnchorPoint } from '@/nodes/music/drum_anchor';
+import { DRUM_ANCHOR_POINTS, type DrumAnchorPoint } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { airDir } from './lib_air_paths';
 import { gripFrames, parseStickClip } from './lib_synthetic_grip';
 import { median } from './lib_drum_strokes';

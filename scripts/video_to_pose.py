@@ -39,7 +39,7 @@ from mediapipe.tasks.python.core.base_options import BaseOptions
 MODEL_BASE = "https://storage.googleapis.com/mediapipe-models/pose_landmarker"
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "media", "models")
 
-# The 33 BlazePose landmarks, MediaPipe's order — mirrors `BLM` in src/nodes/domain.ts.
+# The 33 BlazePose landmarks, MediaPipe's order — mirrors `BLM` in packages/sdk/src/nodes/domain.ts.
 LM_NAMES = [
     "nose",
     "left_eye_inner", "left_eye", "left_eye_outer",

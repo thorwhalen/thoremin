@@ -31,20 +31,10 @@
 import { DEFAULT_STEER_CONFIG } from '@/nodes/mapping/indirect_map';
 import { DEMO_SCALE_NOTES } from '@/nodes/music/score';
 import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@/features/labConfig';
-import { defineBranch, type GraphBranch } from './branch';
+import { defineBranch, type GraphBranch } from '@thoremin/sdk/instruments/branch';
 
-/** The trunk branch's id: implied by every spec, never listed as a feature. */
-export const TRUNK_ID = 'trunk';
-
-/** Node ids the trunk owns; branches wire to these by name. */
-export const TRUNK = {
-  cam: 'cam',
-  feat: 'feat',
-  ui: 'ui',
-  merge: 'merge',
-  synth: 'synth',
-  overlay: 'overlay',
-} as const;
+import { TRUNK } from '@thoremin/sdk/instruments/trunk';
+export { TRUNK, TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 
 const ui = (port: string) => ({ node: TRUNK.ui, port });
 const overlay = (port: string) => ({ node: TRUNK.overlay, port });

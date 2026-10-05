@@ -10,7 +10,7 @@
  *   each shape they want and names it, and the `model` input is the classifier trained
  *   from those samples (`src/air/vocabulary.ts`). The live shape is the same featurizer
  *   the footage model used (`src/features/hand_shape.ts`), classified by the trainer's
- *   hysteretic tracker (`src/enroll/classify.ts`): a new chord must win a few frames in a
+ *   hysteretic tracker (`packages/sdk/src/enroll/classify.ts`): a new chord must win a few frames in a
  *   row, and a moment of doubt HOLDS the last chord rather than dropping it.
  * - **The strumming hand says WHEN, and it is the drum problem** (§7.3): a strum's moment
  *   is predicted before the frame that shows it by the air drum's impact predictor
@@ -29,10 +29,10 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
-import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@/enroll';
+import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '@/extensions/air/lib/hand_shape';
 import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';
-import { LM, frameTime, type HandsFrame } from '@/nodes/domain';
+import { LM, frameTime, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { NoteEventsSchema, type NoteEvent } from '@/extensions/air/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from '@/extensions/air/nodes/air_bass';
 

@@ -22,8 +22,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { parseRecords, type StreamRecord } from '@thoremin/dag';
-import type { FeatureVector } from '@/features/catalog';
-import type { BodyFrame, FaceFrame, HandsFrame } from '@/nodes/domain';
+import type { FeatureVector } from '@thoremin/sdk/features/catalog';
+import type { BodyFrame, FaceFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { Sample } from './lib_chord_shape_model';
 
 /** One labelled span of audio, seconds. `label` is a chord shape or `N` (no chord). */

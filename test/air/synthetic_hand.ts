@@ -10,8 +10,8 @@
  * Self-made data only (this file is the whole provenance), so the tests are safe to
  * commit in a public repository.
  */
-import type { Hand, HandsFrame, Keypoint } from '@/nodes/domain';
-import { LM } from '@/nodes/domain';
+import type { Hand, HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
+import { LM } from '@thoremin/sdk/nodes/domain';
 
 export interface HandShape {
   /** Curl per finger, radians per joint (0 = straight, ~1.2 = fist). */

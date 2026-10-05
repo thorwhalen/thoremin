@@ -33,11 +33,11 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { midiToFreq } from '@/music/theory';
-import { SoundSchema } from '@/music/sounds';
+import { midiToFreq } from '@thoremin/sdk/music/theory';
+import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { MAX_POSE_VOICES, POSE_VOICE_ID_BASE } from './pose_chord';
-import { flattenNotes, ScoreDocSchema, type ScoreDoc, type ScoreNote } from '@/score/schema';
-import type { SynthParams, VoiceParams } from '../domain';
+import { flattenNotes, ScoreDocSchema, type ScoreDoc, type ScoreNote } from '@thoremin/sdk/score/schema';
+import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 const Note = z.object({
   midi: z.number(),

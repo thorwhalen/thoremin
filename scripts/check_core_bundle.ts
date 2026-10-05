@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build, type Plugin } from 'vite';
 import { AIR_EXTENSION } from '@/extensions/air';
-import type { Extension } from '@/instruments/extension';
+import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
 const SHIPPED: readonly Extension[] = [AIR_EXTENSION];

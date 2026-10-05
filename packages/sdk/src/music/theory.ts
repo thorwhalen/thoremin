@@ -9,9 +9,9 @@
  * MIDI note numbers are the common currency: 60 = middle C, +12 per octave,
  * and `midiToFreq(69) === 440`.
  */
-import { clamp01 } from '@/features/math';
+import { clamp01 } from '../features/math';
 
-/** Re-exported from the scalar-math SSOT (`@/features/math`), which owns the single
+/** Re-exported from the scalar-math SSOT (`@thoremin/sdk/features/math`), which owns the single
  *  definition; kept on the theory surface because the mapping layer imports it from here. */
 export { clamp01 };
 

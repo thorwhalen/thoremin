@@ -11,7 +11,7 @@ import { dispatchDialSetIn } from '@/app/dispatchDial';
 import { useDialsSettings } from '@/app/dials/useDialsSettings';
 import { selectCls } from '@/app/dials/primitives';
 import { describeBassLive, useAirBassStatus } from '@/extensions/air/app/airBassStatus';
-import { midiToName } from '@/music/theory';
+import { midiToName } from '@thoremin/sdk/music/theory';
 import { PLAYER_HANDS, PLUCK_POINTS, type AirBassDialParams } from '@/extensions/air/nodes/air_bass';
 
 /** The shortest neck the sliders allow, in palm spans: the highest note stays nearer the

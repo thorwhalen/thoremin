@@ -19,7 +19,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { dataRoot } from '../air/lib_air_paths';
-import type { HandsFrame } from '@/nodes/domain';
+import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { chordLabelsPath, landmarksPath } from '../air/lib_air_paths';
 import { joinLabelledFrames, readChordLabels, readLandmarks, segmentLabeller, NO_CHORD } from '../air/lib_chord_shape_dataset';
 import { chordShapeFeatureIds, chordShapeFeaturizer } from '../air/lib_chord_shape_features';

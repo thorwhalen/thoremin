@@ -36,9 +36,9 @@ import {
   romanNumeral,
   scaleDegreeOf,
   scaleGuide,
-} from '@/music/theory';
+} from '@thoremin/sdk/music/theory';
 import { EMOTIONS, type ExpressionScores } from '@/music/expression';
-import { clamp01 } from '@/features/math';
+import { clamp01 } from '@thoremin/sdk/features/math';
 import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
 import { pairIndex } from '@/features/labCorrelation';
 import { FeatureLabSchema } from '@/features/labConfig';
@@ -47,12 +47,12 @@ import {
   FEATURE_BY_ID,
   FEATURE_GROUPS,
   type FeatureVector,
-} from '@/features/catalog';
+} from '@thoremin/sdk/features/catalog';
 import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
-import { PAD_IDS, anyPadOn, type PadId, type Pads } from '../music/drum_pads';
-import { gripFulcrum, stickTip } from '../music/drum_anchor';
+import { PAD_IDS, anyPadOn, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
+import { gripFulcrum, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
 import {
   BODY_BONES,
   BODY_LANDMARK_COUNT,
@@ -67,7 +67,7 @@ import {
   type HandsFrame,
   type SingleHandFeatures,
   type SynthParams,
-} from '../domain';
+} from '@thoremin/sdk/nodes/domain';
 
 /** Which screen edge a HUD cue is placed on. */
 const CuePositionEnum = z.enum(['left', 'right', 'top', 'bottom']);

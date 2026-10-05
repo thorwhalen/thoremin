@@ -102,7 +102,7 @@ export const SLOTS: Record<string, SlotDef> = {
     contract: BODY_SLOT_CONTRACT,
   },
   // The face's expression classifier (the ADR's seam 7). One candidate today; the
-  // pointable second is the Trainer's learned classifier (`src/enroll/classify.ts`) once
+  // pointable second is the Trainer's learned classifier (`packages/sdk/src/enroll/classify.ts`) once
   // an adapter emits the `face-expression` kind. Declared so the seam exists; no UI.
   expression: {
     role: 'feature',

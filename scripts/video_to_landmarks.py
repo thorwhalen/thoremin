@@ -32,7 +32,7 @@ MODEL_URL = (
 )
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "media", "models", "hand_landmarker.task")
 
-# Tasks HandLandmarker emits 21 landmarks in this canonical order (matches src/nodes/domain.ts LM).
+# Tasks HandLandmarker emits 21 landmarks in this canonical order (matches packages/sdk/src/nodes/domain.ts LM).
 LM_NAMES = [
     "wrist",
     "thumb_cmc", "thumb_mcp", "thumb_ip", "thumb_tip",

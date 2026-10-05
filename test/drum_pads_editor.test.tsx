@@ -27,7 +27,7 @@ import { useAirDrumStatus } from '@/extensions/air/app/airDrumStatus';
 import { DrumPadEditor, visibleCrop } from '@/extensions/air/panels/airDrumPads';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore, resetDial } from '@/app/dials/settingsStore';
-import { PAD_IDS, type Pads } from '@/nodes/music/drum_pads';
+import { PAD_IDS, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { createPadLayoutStore, padLayoutWrites } from '@/extensions/air/app/padLayouts';
 import { leafByPath } from '@/app/commands/paths';
 import type { AirDrumSettings } from '@/extensions/air/dials';

@@ -18,7 +18,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { effectiveSigma } from '@/enroll/noise';
+import { effectiveSigma } from '@thoremin/sdk/enroll/noise';
 import { airDir } from './lib_air_paths';
 import {
   allSeries,
@@ -220,7 +220,7 @@ for (const src of doc.sources) {
   for (const signal of SIGNALS) {
     const { t, x } = ser[signal];
     if (x.length < MIN_SERIES_FRAMES) continue;
-    // The noise unit, floored at 1 % of the signal's range (the `src/enroll/noise.ts`
+    // The noise unit, floored at 1 % of the signal's range (the `packages/sdk/src/enroll/noise.ts`
     // rule), so a blendshape that barely jitters does not make every drift a "move".
     const sigma = effectiveSigma(jitterSigma(x), quantile(x, 0.99) - quantile(x, 0.01), 0.01);
     jitter[signal] = sigma;

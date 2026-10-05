@@ -39,9 +39,9 @@
  */
 import { z } from 'zod';
 import { fitGrid } from '@thoremin/ictus/metrics';
-import { PAD_IDS, DRUM_SOUNDS, type DrumSound, type PadId } from '@/nodes/music/drum_pads';
-import { DRUM_NAMES, type DrumName } from '@/music/gm_drums';
-import type { DrumPattern, PatternEvent } from '@/music/drum_patterns';
+import { PAD_IDS, DRUM_SOUNDS, type DrumSound, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
+import { DRUM_NAMES, type DrumName } from './gm_drums';
+import type { DrumPattern, PatternEvent } from './drum_patterns';
 
 /** What the fit reads of a hit: the subset of `DrumHit` it needs. */
 export interface HitSample {

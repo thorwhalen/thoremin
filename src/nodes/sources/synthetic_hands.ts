@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { makeHandKeypoints, type Hand, type HandsFrame } from '../domain';
+import { makeHandKeypoints, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 
 const Params = z.object({

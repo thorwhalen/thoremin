@@ -27,7 +27,7 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { useControls } from '@/app/store';
 import { thoreminDials } from '@/settings/dials';
 import { EXPRESSIONS, EMOTIONS } from '@/music/expression';
-import { FINGER_NAMES } from '@/nodes/domain';
+import { FINGER_NAMES } from '@thoremin/sdk/nodes/domain';
 import { AIR } from './helpers/extensions';
 
 /** Read a dotted path out of a plain object (the read-side mirror of `setIn`). */

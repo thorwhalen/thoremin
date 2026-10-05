@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StoreApi, UseBoundStore } from 'zustand';
 import { MIN_SAMPLES_PER_ENTRY, separation, trainVocabulary } from '@/extensions/air/lib/vocabulary';
-import type { FeatureVector } from '@/enroll';
+import type { FeatureVector } from '@thoremin/sdk/enroll';
 import type { VocabularyState } from '@/extensions/air/app/vocabularyStore';
 
 /** Seconds of countdown before a shape is captured: time to make it. */

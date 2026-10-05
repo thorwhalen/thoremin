@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { clamp01, rangeMap } from '@/music/theory';
+import { clamp01, rangeMap } from '@thoremin/sdk/music/theory';
 
 const Params = z.object({
   bpmMin: z.number().default(60),

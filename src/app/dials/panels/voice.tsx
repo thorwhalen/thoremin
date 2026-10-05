@@ -2,8 +2,8 @@
  * The per-hand VOICE section of the settings panel: sound / root / scale / octave
  * range / base octave for one hand, read from and written to the dials store.
  */
-import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@/music/theory';
-import { SOUNDS, SOUND_IDS } from '@/music/sounds';
+import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { SOUNDS, SOUND_IDS } from '@thoremin/sdk/music/sounds';
 import { dispatchDialPatch } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { voiceEditWrites, type VoiceField } from '../settingsStore';

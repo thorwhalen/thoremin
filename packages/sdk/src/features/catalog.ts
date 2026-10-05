@@ -8,7 +8,7 @@
  * "affordances first, data-driven" rule lands: adding a feature is appending a
  * `FeatureDef` in the sub-catalogs; nothing here changes.
  */
-import { kp, LM, BLM, type BodyFrame, type Hand, type HandsFrame, type FaceFrame } from '@/nodes/domain';
+import { kp, LM, BLM, type BodyFrame, type Hand, type HandsFrame, type FaceFrame } from '../nodes/domain';
 import { dist3, type Vec3 } from './math';
 import { iod as iodOf, type FaceLandmarks } from './landmarks';
 import { FACE_FEATURES } from './face_catalog';

@@ -6,7 +6,7 @@
  * named by that instrument's id: the player's enrolled entries, samples included
  * (`src/air/vocabulary.ts` is the schema and the training). The samples are the SSOT; the
  * classifier is derived from them on load and after every change, and handed to the
- * DAG through the hot store's transient model slot (`setAirGuitarModel`), never
+ * DAG through the hot store's transient model slot (`setTransient('airGuitarModel', …)`), never
  * persisted there.
  *
  * Default target is localStorage, through the {@link createNamedCollectionStore} facade
@@ -23,14 +23,14 @@ import type { DataProvider } from '@zodal/store';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
 import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type TrainVocabularyOptions, type Vocabulary } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
-import { ALL_FEATURES } from '@/features/catalog';
+import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
 import { MOUTH_GROUPS } from '@/extensions/air/nodes/air_flute';
 import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
 
 /** The mouth gate's reject, in multiples of the enrolment's own reach (see
  *  `TrainVocabularyOptions.rejectScale`). */
 export const MOUTH_REJECT_SCALE = 3;
-import type { FeatureVector, TrainedModel } from '@/enroll';
+import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll';
 import { useControls } from '@/app/store';
 
 export const VOCABULARIES_STORAGE_KEY = 'thoremin-air-vocabularies';
@@ -134,7 +134,7 @@ export const GUITAR_VOCABULARY = 'guitar';
 export const useGuitarVocabulary = createVocabularyState({
   name: GUITAR_VOCABULARY,
   features: chordShapeFeatureIds(),
-  publish: (model) => useControls.getState().setAirGuitarModel(model),
+  publish: (model) => useControls.getState().setTransient('airGuitarModel', model),
 });
 
 /** The flute's finger features: both hands' shapes, prefixed by the player's hand. */
@@ -151,7 +151,7 @@ export function deriveFluteFingerModel(vocab: Vocabulary, prior: Partial<Fingeri
 export const useFluteFingerVocabulary = createVocabularyState({
   name: 'flute-fingers',
   features: FLUTE_FINGER_FEATURES,
-  publish: (model) => useControls.getState().setAirFluteFingerModel(model),
+  publish: (model) => useControls.getState().setTransient('airFluteFingerModel', model),
   derive: (vocab) => deriveFluteFingerModel(vocab, useControls.getState().airFlute?.prior),
 });
 
@@ -178,7 +178,7 @@ export function startFlutePriorSync(
 export const useFluteMouthVocabulary = createVocabularyState({
   name: 'flute-mouth',
   features: ALL_FEATURES.filter((f) => (MOUTH_GROUPS as readonly string[]).includes(f.group)).map((f) => f.id),
-  publish: (model) => useControls.getState().setAirFluteMouthModel(model),
+  publish: (model) => useControls.getState().setTransient('airFluteMouthModel', model),
   // A gate, so open-set: a mouth like neither state (talking, a smile) is not blowing.
   train: { rejectScale: MOUTH_REJECT_SCALE },
 });

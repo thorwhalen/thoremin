@@ -13,7 +13,7 @@ import { SLOTS, defaultGraph, parseSlotSelection, resolveSlot, sourceNeedsVideo 
 import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
 import { CORE_NODES } from '@/nodes';
 import { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT } from '@/nodes/sources/body_contract';
-import { BLM, BODY_LANDMARK_COUNT, BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame } from '@/nodes/domain';
+import { BLM, BODY_LANDMARK_COUNT, BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 
 const appRegistry = () => createAppRegistry();
 

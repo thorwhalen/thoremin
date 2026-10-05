@@ -6,7 +6,7 @@
  *
  * The enrolled vocabulary (`./vocabulary.ts`) learns a class per label from samples
  * alone: a note the player has not enrolled does not exist. A fingering chart
- * (`src/music/fingerings.ts`) says, for every note, which fingers are down, and on an
+ * (`src/extensions/air/lib/fingerings.ts`) says, for every note, which fingers are down, and on an
  * air flute a down finger is a curled one and an up finger a straight one (the
  * research's "large lifts": a real key press is under the tracker's noise, so the air
  * instrument reads the exaggerated shape, `docs/research/air-instruments.md` §7.2). So
@@ -61,10 +61,10 @@
  * Pure: no React, no DAG, no catalog import beyond the feature-id convention passed in.
  */
 import { z } from 'zod';
-import { trainModel, weightedDistance, type FeatureVector, type TrainedModel } from '@/enroll';
-import type { TargetVerdict } from '@/enroll';
-import { FINGERING_CHARTS, chartById, chartNotes, fingeringKey, type FingerId, type Fingering, type FingeringChart } from '@/music/fingerings';
-import { parseNoteName } from '@/music/notes';
+import { trainModel, weightedDistance, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
+import type { TargetVerdict } from '@thoremin/sdk/enroll';
+import { FINGERING_CHARTS, chartById, chartNotes, fingeringKey, type FingerId, type Fingering, type FingeringChart } from '@/extensions/air/lib/fingerings';
+import { parseNoteName } from '@/extensions/air/lib/notes';
 import { MIN_SAMPLES_PER_ENTRY, jitterWeights, type Vocabulary, type VocabularyEntry } from '@/extensions/air/lib/vocabulary';
 
 /** The per-finger flexion features a chart can have an opinion on, by their id suffix in

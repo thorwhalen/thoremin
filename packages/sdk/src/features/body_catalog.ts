@@ -30,7 +30,7 @@
  * can never NaN a meter. A degenerate frame (no torso, missing landmark) yields
  * NaN, which the vector node drops.
  */
-import { BLM } from '@/nodes/domain';
+import { BLM } from '../nodes/domain';
 import { angleAt, centroid, dist3, sub, type Vec3 } from './math';
 import type { BodyCtx, FeatureDef, Invariance } from './types';
 

@@ -24,7 +24,7 @@ import {
   type FaceFrame,
   type SynthParams,
 } from '@/nodes';
-import { FACE_FEATURES } from '@/features/catalog';
+import { FACE_FEATURES } from '@thoremin/sdk/features/catalog';
 
 const presentSide = (f: HandFeatures) => (f.right.present ? f.right : f.left.present ? f.left : null);
 // Loop, not Math.max(...xs): the face-mesh z guard feeds ~58k values, and a

@@ -19,7 +19,7 @@ import { AirBassDialSchema } from '@/extensions/air/nodes/air_bass';
 import { AirGuitarDialSchema } from '@/extensions/air/nodes/air_guitar';
 import { AirFluteDialSchema } from '@/extensions/air/nodes/air_flute';
 import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from '@/extensions/air/lib/fingering_prior';
-import { dialSlice } from '@/instruments/extension';
+import { dialSlice } from '@thoremin/sdk/instruments/extension';
 
 /** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269: the id
  *  of a trained pattern, '' for none), which the node never sees as a param (the app resolves

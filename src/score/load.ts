@@ -14,7 +14,7 @@
  */
 import type { LoadStatus } from '@thoremin/lazy';
 import type { DemoScore } from './library';
-import type { ScoreDoc } from './schema';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 
 export type ScoreFormat = 'midi' | 'musicxml';
 

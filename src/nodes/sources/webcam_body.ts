@@ -44,7 +44,7 @@ import {
   type BodyFrame,
   type BodyModel,
   type Keypoint,
-} from '../domain';
+} from '@thoremin/sdk/nodes/domain';
 import { BODY_SLOT_OUTPUT } from './body_contract';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 

@@ -3,7 +3,7 @@
  * one, instead of one Learn press per label.
  *
  * Pick a sequence (a shipped starter, a saved one, or a list typed in), press Start, and
- * the runner (`src/enroll/sequence.ts`) takes over: a lead-in to read the list, then for
+ * the runner (`packages/sdk/src/enroll/sequence.ts`) takes over: a lead-in to read the list, then for
  * every target a countdown with the NEXT target already showing, a hold that is
  * captured after a settle, and a verdict from the injected check. When the list ends,
  * every hold that looked like its label is enrolled through the vocabulary store's
@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { StoreApi, UseBoundStore } from 'zustand';
 import { MIN_SAMPLES_PER_ENTRY } from '@/extensions/air/lib/vocabulary';
-import { createSequenceRunner, sequenceDurationMs, sequenceOf, sequenceLength, type FeatureVector, type SequenceRunner, type SequenceState, type TargetCheck, type TargetResult } from '@/enroll';
+import { createSequenceRunner, sequenceDurationMs, sequenceOf, sequenceLength, type FeatureVector, type SequenceRunner, type SequenceState, type TargetCheck, type TargetResult } from '@thoremin/sdk/enroll';
 import { emitGuidance, emitGuidanceStop } from '@/app/enroll/guidance';
 import { useControls } from '@/app/store';
 

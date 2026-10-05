@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createRunner, createSession, type Cue, type FeatureVector, type RunnerEvent } from '@/enroll';
+import { createRunner, createSession, type Cue, type FeatureVector, type RunnerEvent } from '@thoremin/sdk/enroll';
 import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/app/enroll/annotations';
 import { trainerTakeSession, TRAINER_TAKE_INSTRUMENT } from '@/app/enroll/takeSession';
 import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';

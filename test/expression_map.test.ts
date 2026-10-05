@@ -4,7 +4,7 @@
  * expression→scale-degree assignment + its brute-force optimizer.
  */
 import { describe, it, expect } from 'vitest';
-import { diatonicTriad, isSevenNoteScale, type ScaleSpec } from '@/music/theory';
+import { diatonicTriad, isSevenNoteScale, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import {
   EMOTIONS,
   CONFUSION_EXPRESSIONS,

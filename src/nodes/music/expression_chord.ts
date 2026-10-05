@@ -30,8 +30,8 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { diatonicTriad, midiToFreq, type ScaleSpec } from '@/music/theory';
-import { SoundSchema } from '@/music/sounds';
+import { diatonicTriad, midiToFreq, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import {
   DEFAULT_EXPRESSION_TO_DEGREE,
   SILENCE_DEGREE,
@@ -39,7 +39,7 @@ import {
   type ExpressionLabel,
 } from '@/music/expression';
 import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';
-import type { VoiceParams } from '../domain';
+import type { VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 /** Chord voices start at this id, above the two hand voices (0 = right, 1 = left). */
 export const CHORD_VOICE_ID_BASE = 2;

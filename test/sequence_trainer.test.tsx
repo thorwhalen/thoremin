@@ -15,12 +15,13 @@ import { SEQUENCE_HUSH_ID, SequenceTrainer } from '@/extensions/air/app/Sequence
 import { setShape, readShape } from '@/extensions/air/app/shapeTap';
 import { AIR_GUITAR_NODE_ID } from '@/extensions/air/app/airGuitarStatus';
 import { useGuitarVocabulary, useVocabularyStore, type VocabularyRecord } from '@/extensions/air/app/vocabularyStore';
-import { GUITAR_STARTER_SEQUENCES, useSequenceStore, listSequences } from '@/app/enroll/sequenceStore';
+import { useSequenceStore, listSequences } from '@/app/enroll/sequenceStore';
+import { GUITAR_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
 import { useControls } from '@/app/store';
 import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { parseChordName } from '@/extensions/air/lib/guitar';
-import type { SequenceRecord, TargetCheck } from '@/enroll';
+import type { SequenceRecord, TargetCheck } from '@thoremin/sdk/enroll';
 import { enrolSamples } from './air/synthetic_guitar';
 
 const WORDS = { title: 'Learn a sequence of chords', noun: 'chord', placeholder: 'Or type chords', offHint: 'Turn the air guitar on' };
@@ -34,7 +35,7 @@ beforeEach(() => {
   useVocabularyStore(provider);
   useSequenceStore(sequences);
   useGuitarVocabulary.setState({ vocab: emptyVocabulary(chordShapeFeatureIds()), loaded: true, error: null });
-  useControls.getState().setAirGuitarModel(null);
+  useControls.getState().setTransient('airGuitarModel', null);
   setShape(AIR_GUITAR_NODE_ID, null);
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'] });
 });

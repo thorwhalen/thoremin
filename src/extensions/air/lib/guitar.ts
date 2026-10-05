@@ -16,7 +16,7 @@
  *
  * Pure: no audio, no DOM.
  */
-import { NOTES } from '@/music/theory';
+import { NOTES } from '@thoremin/sdk/music/theory';
 
 /** Standard tuning, low to high: E2 A2 D3 G3 B3 E4. */
 export const STANDARD_TUNING = [40, 45, 50, 55, 59, 64] as const;

@@ -3,13 +3,13 @@
  *
  * `useEngine` installs {@link featureDemandResource} as `ctx.resources.featureDemand`,
  * and any host-side consumer that needs feature groups computed while the Lab is
- * closed claims them here (the trainer, while a cue runs). See `@/features/demand` for
+ * closed claims them here (the trainer, while a cue runs). See `@thoremin/sdk/features/demand` for
  * the contract and the bug it closes.
  *
  * A module-level instance rather than a store: it is read synchronously per tick, and
  * written a handful of times per session.
  */
-import { createFeatureDemand, type DemandedGroups } from '@/features/demand';
+import { createFeatureDemand, type DemandedGroups } from '@thoremin/sdk/features/demand';
 
 export const appFeatureDemand = createFeatureDemand();
 

@@ -19,7 +19,7 @@ import {
   melodyNotesOutsideChord,
   DEFAULT_SCALE,
   type ScaleSpec,
-} from '@/music/theory';
+} from '@thoremin/sdk/music/theory';
 
 describe('chordName', () => {
   it('classifies triad quality from the tones (root = lowest)', () => {

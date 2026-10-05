@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { readLiveVector } from './liveVector';
 import { useTrainer } from './store';
-import { selectInRect, type Point2 } from '@/enroll';
+import { selectInRect, type Point2 } from '@thoremin/sdk/enroll';
 
 const W = 340;
 const H = 240;

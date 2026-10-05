@@ -1,7 +1,7 @@
 /**
  * The chord-shape featurizer: one fretting hand → one flat feature vector.
  *
- * It is deliberately NOT a new featurizer. The hand catalog (`src/features/hand_catalog.ts`)
+ * It is deliberately NOT a new featurizer. The hand catalog (`packages/sdk/src/features/hand_catalog.ts`)
  * already computes per-finger joint angles and curls, adjacent-finger spreads, thumb
  * opposition, pinch distances and openness from the world landmarks, and declares what
  * each is invariant to (#131). A guitar chord shape is exactly a configuration of those
@@ -25,8 +25,8 @@
  * in-plane invariance; real footage decoded by `video_to_landmarks.py` carries them.
  */
 import { chordShapeVector, type FeatureSelection } from '@/extensions/air/lib/hand_shape';
-import type { FeatureVector } from '@/features/catalog';
-import type { Hand, HandsFrame } from '@/nodes/domain';
+import type { FeatureVector } from '@thoremin/sdk/features/catalog';
+import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { FrettingHandPick } from './lib_sources';
 
 // The featurizer itself lives in `src/extensions/air/lib/hand_shape.ts` since the air guitar (#249)

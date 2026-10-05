@@ -46,7 +46,7 @@
  * toggle, text is not — a player with sound off loses nothing.
  */
 import { z } from 'zod';
-import type { Invariance } from '@/features/types';
+import type { Invariance } from '../features/types';
 
 /** The confound axes a cue can demonstrate (mirrors `Invariance` — checked below). */
 export const INVARIANCE_AXES = ['scale', 'position', 'yaw', 'pitch', 'roll'] as const satisfies readonly Invariance[];
