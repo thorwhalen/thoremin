@@ -12,13 +12,21 @@
  *
  * Clicks from a cold load to a playable three-pad kit: Edit Air Drum (1), Add pad x3
  * (4). Saving it: type a name, Save layout (5).
+ *
+ * Two tests, not one (#290): the cold-load walk renders the whole Instruments view, and every
+ * dial write re-renders all of it, so the editing walk on it took ~0.7 s alone and over 5 s
+ * under the full suite's load. The reachability (cold load to the editor, one write) stays on
+ * the real view; the editing walk renders the editor itself, against the same dials store
+ * and the same command path; the cold-load test also checks the editor survives the view's
+ * re-render (the same element after a write). And the walk waits for the Air Drum's ROW, not
+ * only its group: the group renders before the seeded instruments arrive.
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { useAirDrumStatus } from '@/extensions/air/app/airDrumStatus';
-import { visibleCrop } from '@/extensions/air/panels/airDrumPads';
+import { DrumPadEditor, visibleCrop } from '@/extensions/air/panels/airDrumPads';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
-import { dialsStore } from '@/app/dials/settingsStore';
+import { dialsStore, resetDial } from '@/app/dials/settingsStore';
 import { PAD_IDS, type Pads } from '@/nodes/music/drum_pads';
 import { createPadLayoutStore, padLayoutWrites } from '@/extensions/air/app/padLayouts';
 import { leafByPath } from '@/app/commands/paths';
@@ -33,14 +41,33 @@ beforeAll(() => {
   // jsdom has no PointerEvent: a MouseEvent carries the coordinates the editor reads.
   if (!('PointerEvent' in window)) (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = class extends MouseEvent {} as typeof MouseEvent;
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  resetDial('airDrum'); // each walk starts from the shipped dial: no pads, off
+  useAirDrumStatus.getState().report({ ...useAirDrumStatus.getState().live, frameAspect: 0 }); // even if a walk failed midway
+});
 
 describe('the pad editor, from a cold load (#245)', () => {
-  it.runIf(AIR)('lays out three pads, edits one, drags one, saves the layout and loads it back', async () => {
+  it.runIf(AIR)('reaches the editor from a cold load: Edit Air Drum opens it, and Add pad writes the dial', async () => {
     render(<InstrumentsPanel />);
-    const air = await waitFor(() => screen.getByRole('group', { name: 'Air instruments' }));
-    fireEvent.click(within(air).getByLabelText('Edit Air Drum'));
+    // The row, not only the group: the group renders before the seeded instruments arrive.
+    const edit = await waitFor(() => within(screen.getByRole('group', { name: 'Air instruments' })).getByLabelText('Edit Air Drum'));
+    fireEvent.click(edit);
     await waitFor(() => expect(airDrum().enabled).toBe(true));
+    const editor = await screen.findByTestId('drum-pad-editor');
+    expect(padsOn()).toHaveLength(0);
+    fireEvent.click(within(editor).getByRole('button', { name: 'Add pad' }));
+    await waitFor(() => expect(padsOn()).toHaveLength(1));
+    // Inside the real view a dial write re-renders the whole panel; the editor must survive it
+    // (the same element, so its own state, the chosen pad and a colour being picked, does too).
+    expect(screen.getByTestId('drum-pad-editor')).toBe(editor);
+    fireEvent.change(within(editor).getByLabelText('Pad drum'), { target: { value: 'crash' } });
+    await waitFor(() => expect((airDrum().pads as Pads)[padsOn()[0]].sound).toBe('crash'));
+    expect(screen.getByTestId('drum-pad-editor')).toBe(editor);
+  });
+
+  it.runIf(AIR)('lays out three pads, edits one, drags one, saves the layout and loads it back', async () => {
+    render(<DrumPadEditor enabled />);
     const editor = await screen.findByTestId('drum-pad-editor');
     const ed = within(editor);
 

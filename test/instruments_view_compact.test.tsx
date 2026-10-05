@@ -23,10 +23,14 @@ afterEach(() => cleanup());
 /** A class heading's button (its accessible name is its visible text). */
 const heading = (classId: string) => document.querySelector(`[data-collapse-class="${classId}"]`) as HTMLButtonElement;
 
+/** The class group once its instruments have arrived. Waits for a NAMED row, not any list
+ *  item: an empty group renders a "None saved" placeholder item before the seeded rows land
+ *  (#290's race; all rows arrive in one batch, so one named row means every group is full). */
+const ROW_OF: Record<string, string> = { 'Field instruments': 'Pentatonic', 'Air instruments': 'Air Drum' };
 const group = (name: string) =>
   waitFor(() => {
     const g = screen.getByRole('group', { name });
-    expect(within(g).getAllByRole('listitem').length).toBeGreaterThan(0);
+    expect(within(g).getByText(ROW_OF[name])).toBeTruthy();
     return g;
   });
 
