@@ -40,8 +40,6 @@ export default defineConfig(({mode}) => {
       globals: true,
       environment: 'node',
       include: ['test/**/*.test.{ts,tsx}'],
-      // jsdom shell tests wait longer than testing-library's 1 s default (#290; see the file).
-      setupFiles: ['test/setup/dom.ts'],
     },
   };
 });

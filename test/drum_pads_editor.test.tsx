@@ -17,8 +17,9 @@
  * dial write re-renders all of it, so the editing walk on it took ~0.7 s alone and over 5 s
  * under the full suite's load. The reachability (cold load to the editor, one write) stays on
  * the real view; the editing walk renders the editor itself, against the same dials store
- * and the same command path. And the walk waits for the Air Drum's ROW, not only its group:
- * the group renders before the seeded instruments arrive.
+ * and the same command path; the cold-load test also checks the editor survives the view's
+ * re-render (the same element after a write). And the walk waits for the Air Drum's ROW, not
+ * only its group: the group renders before the seeded instruments arrive.
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
@@ -43,6 +44,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   resetDial('airDrum'); // each walk starts from the shipped dial: no pads, off
+  useAirDrumStatus.getState().report({ ...useAirDrumStatus.getState().live, frameAspect: 0 }); // even if a walk failed midway
 });
 
 describe('the pad editor, from a cold load (#245)', () => {
@@ -56,6 +58,12 @@ describe('the pad editor, from a cold load (#245)', () => {
     expect(padsOn()).toHaveLength(0);
     fireEvent.click(within(editor).getByRole('button', { name: 'Add pad' }));
     await waitFor(() => expect(padsOn()).toHaveLength(1));
+    // Inside the real view a dial write re-renders the whole panel; the editor must survive it
+    // (the same element, so its own state, the chosen pad and a colour being picked, does too).
+    expect(screen.getByTestId('drum-pad-editor')).toBe(editor);
+    fireEvent.change(within(editor).getByLabelText('Pad drum'), { target: { value: 'crash' } });
+    await waitFor(() => expect((airDrum().pads as Pads)[padsOn()[0]].sound).toBe('crash'));
+    expect(screen.getByTestId('drum-pad-editor')).toBe(editor);
   });
 
   it.runIf(AIR)('lays out three pads, edits one, drags one, saves the layout and loads it back', async () => {
