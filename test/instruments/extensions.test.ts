@@ -3,7 +3,7 @@
  * manifests. Without the air extension there is no air node, no air branch, no air port and
  * no air dial; with it, every one of them is there, from one object.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { Engine } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { makeStoreControlsNode } from '@/nodes/sources/store_controls';
@@ -11,7 +11,8 @@ import { EXTENSIONS, EXTENSION_DIAL_SLICES, EXTENSION_BRANCHES } from '@/extensi
 import { AIR_EXTENSION } from '@/extensions/air';
 import { composeInstrumentGraph, ALL_BRANCH_IDS } from '@/app/graph';
 import { branchIdsFor } from '@/app/graph';
-import { SettingsSchema } from '@/settings/schema';
+import { SettingsSchema, type Settings, type ExtensionDials } from '@/settings/schema';
+import type { AirDrumSettings, AirFluteSettings } from '@/extensions/air/dials';
 import { thoreminDials } from '@/settings/dials';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
@@ -64,10 +65,21 @@ describe('the registry folds over the extensions', () => {
     void thoreminDials;
   });
 
+  it('the Settings TYPE is computed from the manifests: the air keys, typed by their own schemas', () => {
+    // Checked by the strict typecheck (`npm run typecheck` covers test/): the generated list
+    // declaration carries each manifest's type, so these hold with no import of air in core.
+    expectTypeOf<Settings['airDrum']>().toEqualTypeOf<AirDrumSettings>();
+    expectTypeOf<Settings['airFlute']>().toEqualTypeOf<AirFluteSettings>();
+    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute'>();
+    // @ts-expect-error a key no listed extension declares is not a settings key
+    expectTypeOf<Settings['airKazoo']>().toBeNever();
+    expect(Object.keys(SettingsSchema.shape)).toEqual(expect.arrayContaining(EXTENSION_DIAL_SLICES.map((s) => s.key)));
+  });
+
   it('every dial slice of every extension is a key of the settings schema AND of the hot store', () => {
-    // The schema spreads the air shape by hand (so the Settings TYPE knows the keys) while the
-    // dials form and store-controls fold over the slices: this pins that the two agree, so a
-    // second extension cannot get a port and a form field whose value the schema then strips.
+    // The schema, the dials form, store-controls and the hot store all fold over the slices:
+    // this pins that they agree, so a second extension cannot get a port and a form field
+    // whose value the schema then strips.
     const schemaKeys = Object.keys(SettingsSchema.shape);
     const storeKeys = Object.keys(useControls.getState());
     for (const slice of EXTENSION_DIAL_SLICES) {

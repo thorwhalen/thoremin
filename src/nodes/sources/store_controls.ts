@@ -17,7 +17,7 @@ import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@/nodes/d
 import type { BodyMap } from '@/nodes/mapping/body_map';
 import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
-import type { ConductorSettings, AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/settings/schema';
+import type { ConductorSettings, ExtensionDials } from '@/settings/schema';
 import type { TrainedModel } from '@/enroll';
 import type { ScoreDoc } from '@/score/schema';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
@@ -34,7 +34,9 @@ export interface VoiceControlSnapshot {
   rangeLow?: number;
   rangeHigh?: number;
 }
-export interface ControlSnapshot {
+/** The extensions' whole-object dials (`airDrum`, …) ride the snapshot under their slice
+ *  keys; their TYPE comes from the manifests (see {@link ExtensionDials}), never named here. */
+export interface ControlSnapshot extends Partial<ExtensionDials> {
   right: VoiceControlSnapshot;
   left: VoiceControlSnapshot;
   /** Global octave transpose (−2..+2), read by voice-mapping / chords / overlay
@@ -97,16 +99,9 @@ export interface ControlSnapshot {
   /** The conductor dial (#187): fed to the `conductor` node's `config` input as a live
    *  override of its build-time params, so turning conducting on needs no rebuild. */
   conductor?: ConductorSettings;
-  /** The air drum dial (#233): fed to the `air-drum` node's `config` input live. */
-  airDrum?: AirDrumSettings;
-  /** The air bass dial (#249): fed to the `air-bass` node's `config` input live. */
-  airBass?: AirBassSettings;
-  /** The air guitar dial (#249): fed to the `air-guitar` node's `config` input live. */
-  airGuitar?: AirGuitarSettings;
   /** The air guitar's chord classifier (#249), derived from the enrolled vocabulary. */
   airGuitarModel?: TrainedModel | null;
-  /** The air flute dial and its two derived classifiers (#249). */
-  airFlute?: AirFluteSettings;
+  /** The air flute's two derived classifiers (#249). */
   airFluteFingerModel?: TrainedModel | null;
   airFluteMouthModel?: TrainedModel | null;
   /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →

@@ -15,6 +15,7 @@
     "record": "vite-node scripts/record_stream.ts",
     "pair": "vite-node scripts/cue/pair_take.ts",
     "catalog": "vite-node scripts/gen_catalog.ts",
+    "extensions": "vite-node scripts/gen_extensions.ts",
     "voice": "vite-node scripts/cue_strings.ts | python3 scripts/gen_cue_voice.py",
     "check:models": "tsx scripts/check_models.ts",
     "smoke": "npm run smoke:setup && npm run smoke:run",

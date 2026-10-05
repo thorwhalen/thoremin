@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeLayer } from '@/app/dials/instruments';
 import { DEFAULT_FINGERING_PRIOR } from '@/extensions/air/lib/fingering_prior';
-import { DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE } from '@/settings/schema';
+import { DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE } from '@/extensions/air/dials';
 
 describe('normalizeLayer and a nested additive key', () => {
   it('fills airFlute.prior into a layer saved before it existed, and matches the working layer', () => {

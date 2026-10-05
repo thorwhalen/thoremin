@@ -1,10 +1,11 @@
 /**
  * The air extension (PR 5a of the instruments-as-graphs ADR): the drum, the bass, the guitar
  * and the flute as ONE manifest. The app folds over `EXTENSIONS` for its node registry, its
- * branch table, its dials form, its `store-controls` ports and its derivation. Still named in
- * core, on purpose: the settings schema's typed spread of the air shape, the hot store's
- * fields, `AIR_INSTRUMENTS` (the library's class derivation), the seeds, and the catalog
- * script's category row.
+ * branch table, its dials form, its settings schema and type (`defineExtension` keeps the
+ * slices' keys literal, so the `Settings` type computed from the generated list declaration
+ * knows `airDrum`), its `store-controls` ports and its derivation. Still named in core, as
+ * strings and types, not imports: the hot store's transient fields, `AIR_INSTRUMENTS` (the
+ * library's class derivation), the seeds, and the catalog script's category row.
  *
  * Since 5b the air files live here: `nodes/` (the four instruments and their two sinks),
  * `lib/` (vocabulary, fingering prior, hand shape, guitar voicings), `app/` (status stores,
@@ -14,7 +15,7 @@
  *
  * Pure: no React (the editor sections and status hooks are `./ui.tsx`, the React half).
  */
-import type { Extension } from '@/instruments/extension';
+import { defineExtension } from '@/instruments/extension';
 import type { NodeDef } from '@thoremin/dag';
 import { airDrumNode } from '@/extensions/air/nodes/air_drum';
 import { airBassNode } from '@/extensions/air/nodes/air_bass';
@@ -27,7 +28,7 @@ import { AIR_DIAL_SLICES } from './dials';
 
 const on = (x: unknown): boolean => !!x && typeof x === 'object' && (x as { enabled?: boolean }).enabled === true;
 
-export const AIR_EXTENSION: Extension = {
+export const AIR_EXTENSION = defineExtension({
   id: 'air',
   nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode] as unknown as NodeDef<unknown>[],
   branches: AIR_BRANCHES,
@@ -50,6 +51,6 @@ export const AIR_EXTENSION: Extension = {
     if (on(settings.airFlute)) ids.push('air-flute');
     return ids;
   },
-};
+});
 
 export default AIR_EXTENSION;

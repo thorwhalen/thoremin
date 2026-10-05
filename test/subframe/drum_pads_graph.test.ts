@@ -17,7 +17,7 @@ import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 import { DEFAULT_PADS_SET, type Pads } from '@/nodes/music/drum_pads';
-import { DEFAULT_AIR_DRUM } from '@/settings/schema';
+import { DEFAULT_AIR_DRUM } from '@/extensions/air/dials';
 import { loadStream } from '../helpers/fixtures';
 
 describe('drum pads in the default graph', () => {

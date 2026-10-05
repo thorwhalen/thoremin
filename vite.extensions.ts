@@ -10,12 +10,13 @@
  * in-tree (`@/extensions/air`); after the repository split (PR 7) the same file names
  * registry packages.
  *
- * What this does NOT do yet: leaving `air` out of the manifest removes its nodes, branches,
- * ports and panels from the running app, but not its code from the bundle, because
- * `src/settings/schema.ts` still imports the air dial shape directly (the one named
- * exception in `test/extensions_boundary.test.ts`).
+ * The pure list's TYPE is generated from the same file (`npm run extensions` writes
+ * `src/extensions/virtual.d.ts`, {@link declarationSource}): a tuple of the listed manifests'
+ * types, from which the `Settings` type is computed. So core never imports an extension to
+ * know its settings keys, and a manifest without `air` builds a bundle without the air code.
  *
- * Set `THOREMIN_EXTENSIONS` to build from another manifest file.
+ * Set `THOREMIN_EXTENSIONS` to build from another manifest file (and run `npm run extensions`
+ * with the same variable to typecheck against it).
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -60,6 +61,33 @@ export function readExtensionEntries(file: string): ExtensionEntry[] {
 export function listModuleSource(entries: readonly ExtensionEntry[], key: 'module' | 'ui'): string {
   const imports = entries.map((e, i) => `import e${i} from ${JSON.stringify(e[key])};`).join('\n');
   return `${imports}\nexport default [${entries.map((_, i) => `e${i}`).join(', ')}];\n`;
+}
+
+/** Where the generated declaration of the pure list lives (relative to the root). */
+export const DECLARATION_FILE = 'src/extensions/virtual.d.ts';
+
+/**
+ * The declaration of `virtual:thoremin/extensions`: a readonly tuple of the listed pure
+ * manifests' own types (`typeof import('@/extensions/air').default`), in manifest order. The
+ * settings type folds over it (`ExtensionsSettingsShape`), so it is typed per build and the
+ * import is type-only: erased from the bundle.
+ */
+export function declarationSource(entries: readonly ExtensionEntry[], manifest = 'extensions.json'): string {
+  const members = entries.map((e) => `typeof import(${JSON.stringify(e.module)}).default`).join(', ');
+  return `/**
+ * GENERATED from ${manifest} by \`npm run extensions\` (scripts/gen_extensions.ts); do not edit.
+ *
+ * The virtual module \`vite.extensions.ts\` generates: the pure manifests of the extensions this
+ * build ships, typed as a tuple of each listed manifest's own type, so the \`Settings\` type is
+ * computed from the manifests (\`src/settings/schema.ts\`) without core importing an extension.
+ * (The React halves' module is declared next to their list, in \`src/app/extensions/virtual.d.ts\`,
+ * so that the strict, React-free typecheck never reads a React type.)
+ */
+declare module 'virtual:thoremin/extensions' {
+  const extensions: readonly [${members}];
+  export default extensions;
+}
+`;
 }
 
 export function thoreminExtensions(root: string, manifest = process.env.THOREMIN_EXTENSIONS ?? 'extensions.json'): Plugin {

@@ -18,7 +18,6 @@
  * the dirty baseline to the selected instrument. {@link LAST_MODIFIED} is a reserved
  * name kept solely so any legacy autosave profile is filtered out of the visible list.
  */
-import { AirDrumSettingsSchema, AirFluteSettingsSchema } from '@/settings/schema';
 import {
   createProfileStore,
   createLocalStorageProfileStorage,
@@ -26,7 +25,7 @@ import {
 } from '@zodal/dials-ui';
 import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
-import { defaultSteerConfig } from '@/settings/schema';
+import { defaultSteerConfig, EXTENSION_DIAL_SCHEMAS } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import type { Settings } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
@@ -400,13 +399,6 @@ function isFreshBrowser(): boolean {
  *   default (the optional #63 range fields) are deliberately left absent — their
  *   absence is meaningful (the legacy `octaves` span path).
  */
-/** Whole-object dials that grew a key after instruments were being saved: the dial key,
- *  its schema, and the key whose absence marks a pre-addition layer. */
-const NESTED_ADDITIONS: readonly [string, { safeParse(v: unknown): { success: true; data: unknown } | { success: false } }, string][] = [
-  ['airFlute', AirFluteSettingsSchema, 'prior'],
-  ['airDrum', AirDrumSettingsSchema, 'pattern'],
-];
-
 export function normalizeLayer(layer: Layer): Layer {
   let out = layer;
   for (const key of thoreminDials.keys) {
@@ -426,16 +418,17 @@ export function normalizeLayer(layer: Layer): Layer {
     if (out === layer) out = { ...layer };
     out.steerConfig = { ...defaultSteerConfig(), ...sc };
   }
-  // A nested key a later release added INSIDE a whole-object dial (#263: `airFlute.prior`;
-  // #269: `airDrum.pattern`) is the same drift one level down: the working layer's
-  // object always carries it, an instrument saved before it does not. Re-parse through
-  // the dial's own schema, as `overlay` is, so the default is filled the way the hot
-  // store fills it.
-  for (const [key, schema, added] of NESTED_ADDITIONS) {
+  // A nested key a later release added INSIDE an extension's whole-object dial (#263:
+  // `airFlute.prior`; #269: `airDrum.pattern`) is the same drift one level down: the working
+  // layer's object always carries it, an instrument saved before it does not. Re-parse
+  // through the dial's own schema (folded over the manifests, so the next added key heals
+  // with no edit here), as `overlay` is, so the default is filled the way the hot store
+  // fills it. Only when a key is actually missing: a complete dial is left as saved.
+  for (const [key, schema] of Object.entries(EXTENSION_DIAL_SCHEMAS)) {
     const obj = out[key] as Record<string, unknown> | undefined;
-    if (!obj || typeof obj !== 'object' || obj[added] !== undefined) continue;
+    if (!obj || typeof obj !== 'object') continue;
     const parsed = schema.safeParse(obj);
-    if (!parsed.success) continue;
+    if (!parsed.success || Object.keys(parsed.data as object).every((k) => k in obj)) continue;
     if (out === layer) out = { ...layer };
     out[key] = parsed.data;
   }

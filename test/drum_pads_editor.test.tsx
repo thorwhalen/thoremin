@@ -22,7 +22,7 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { PAD_IDS, type Pads } from '@/nodes/music/drum_pads';
 import { createPadLayoutStore, padLayoutWrites } from '@/extensions/air/app/padLayouts';
 import { leafByPath } from '@/app/commands/paths';
-import type { AirDrumSettings } from '@/settings/schema';
+import type { AirDrumSettings } from '@/extensions/air/dials';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;
 const padsOn = () => PAD_IDS.filter((id) => (airDrum().pads as Pads)[id].on);

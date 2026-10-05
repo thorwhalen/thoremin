@@ -17,27 +17,16 @@ import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } fro
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
-import { SteerConfigSchema, type SteerConfig } from '@/nodes/mapping/indirect_map';
+import { SteerConfigSchema, defaultSteerConfig } from '@/nodes/mapping/indirect_map';
 // Re-exported so the `steer.*` commands (whose import allowlist stops at `@/settings`)
 // validate against the node's own contract without reaching into `src/nodes`.
 export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map';
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
 import { ConductorDialSchema } from '@/nodes/features/conductor';
-// The air instruments' dials are the air EXTENSION's (PR 5a of the instruments-as-graphs
-// ADR): core no longer names an air node. The names stay exported from here for the many
-// importers; the shape is spread into `SettingsSchema` below.
-import { AIR_SETTINGS_SHAPE } from '@/extensions/air/dials';
-export {
-  AirDrumSettingsSchema,
-  DEFAULT_AIR_DRUM,
-  AirBassSettingsSchema,
-  DEFAULT_AIR_BASS,
-  AirGuitarSettingsSchema,
-  DEFAULT_AIR_GUITAR,
-  AirFluteSettingsSchema,
-  DEFAULT_AIR_FLUTE,
-} from '@/extensions/air/dials';
-export type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/extensions/air/dials';
+// The extensions' dials (today the air instruments') are folded in from the manifests:
+// the runtime shape from the injected list, the TYPE from its generated declaration
+// (`src/extensions/virtual.d.ts`), so core never imports an extension to know its keys.
+import { EXTENSION_SETTINGS_SHAPE } from '@/extensions';
 
 /** The piece id that means "the built-in demo scale" (no document loaded). */
 export const BUILTIN_PIECE = 'builtin';
@@ -219,30 +208,10 @@ export const SteerSettingsSchema = z.object({
 });
 export type SteerSettings = z.infer<typeof SteerSettingsSchema>;
 
-/**
- * The default steering CONFIG — what the gestures mean until the player edits it:
- * the right hand's openness fades a pad in, raising the left hand brings in an
- * arpeggio, raising the right hand brightens the mix. The hand `y` feature is in IMAGE
- * coordinates (0 at the top), so "raise = more" is the inverted `inMin: 1, inMax: 0`,
- * exactly as `voice-mapping` inverts it for gain. COMPLETE (strains, dials, smoothing,
- * cadence) rather than partial, so the structured dial always fully specifies the
- * steering — the editor and the `steer.*` commands read and write one whole object,
- * and the scalar leaves resolve for `dial.setIn`. `graph.ts` hands the same object to
- * `indirect-map` as its build-time params, so an unset dial and the default agree.
- */
-export const DEFAULT_STEER_CONFIG: SteerConfig = {
-  strains: [
-    { text: 'warm ambient pads', source: 'hand', hand: 'right', feature: 'openness', inMin: 0, inMax: 1, weightMin: 0, weightMax: 2 },
-    { text: 'bright plucked arpeggios', source: 'hand', hand: 'left', feature: 'y', inMin: 1, inMax: 0, weightMin: 0, weightMax: 2 },
-  ],
-  dials: [{ name: 'brightness', source: 'hand', hand: 'right', feature: 'y', inMin: 1, inMax: 0, outMin: 0.2, outMax: 0.9 }],
-  smoothing: 0.6,
-  throttleSec: 0.2,
-};
-
-/** A fresh, unshared copy of {@link DEFAULT_STEER_CONFIG} (its arrays must never be
- *  aliased between the defaults, the store and an instrument). */
-export const defaultSteerConfig = (): SteerConfig => structuredClone(DEFAULT_STEER_CONFIG);
+// The default steering config is the `indirect-map` node's own (it lives beside
+// `SteerConfigSchema`, below the settings, so `src/instruments/branches.ts` can name it
+// without importing the settings, which fold the extension list in).
+export { DEFAULT_STEER_CONFIG, defaultSteerConfig } from '@/nodes/mapping/indirect_map';
 
 /** The shipped generative defaults: off, 0.7, the default steering config. */
 export const DEFAULT_STEER: SteerSettings = { enabled: false, volume: 0.7, config: defaultSteerConfig() };
@@ -264,7 +233,8 @@ export const VoiceSettingsSchema = z.object({
 export type VoiceSettings = z.infer<typeof VoiceSettingsSchema>;
 
 /** A full snapshot of the tunable controls (what a preset stores). */
-export const SettingsSchema = z.object({
+/** The settings core owns: everything but the extensions' dials. */
+export const CoreSettingsSchema = z.object({
   right: VoiceSettingsSchema,
   left: VoiceSettingsSchema,
   syncHands: z.boolean(),
@@ -304,11 +274,33 @@ export const SettingsSchema = z.object({
   // The conductor (#187): the node's params lifted 1:1 as a structured dial, like
   // `faceControls`. `.default(...)` keeps pre-conductor presets valid (off).
   conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
-  // The extensions' whole-object dials (today: the air instruments'), spread in; each
-  // carries its own `.default(...)`, which keeps older presets valid (off).
-  ...AIR_SETTINGS_SHAPE,
 });
+
+/**
+ * The whole settings: core's, extended with every listed extension's whole-object dials
+ * (today the air instruments'). Each slice carries its own `.default(...)`, which keeps
+ * older presets valid (off). Which keys exist is the build's extension list: a build
+ * without `air` has no `airDrum`, in the schema and in the {@link Settings} type alike.
+ */
+export const SettingsSchema = CoreSettingsSchema.extend(EXTENSION_SETTINGS_SHAPE);
 export type Settings = z.infer<typeof SettingsSchema>;
+/** The settings core owns, as values. */
+export type CoreSettings = z.infer<typeof CoreSettingsSchema>;
+/** The settings the listed extensions own (`{ airDrum, airBass, ... }` in a build with `air`;
+ *  `{}` in a build without extensions). Typed from the generated list declaration. */
+export type ExtensionDials = Omit<Settings, keyof CoreSettings>;
+
+/** The extensions' dial schemas by settings key (each with its `.default(...)`): what the hot
+ *  store and the instruments heal an extension dial through, without naming one. */
+export const EXTENSION_DIAL_SCHEMAS: Readonly<Record<string, z.ZodTypeAny>> = EXTENSION_SETTINGS_SHAPE;
+
+/** Fresh defaults of every extension dial: deep copies, so a store or a layer never shares
+ *  a mutable sub-object with the default (the HandMap lesson). */
+export function extensionDialDefaults(): ExtensionDials {
+  const out: Record<string, unknown> = {};
+  for (const [key, schema] of Object.entries(EXTENSION_DIAL_SCHEMAS)) out[key] = structuredClone(schema.parse(undefined));
+  return out as ExtensionDials;
+}
 
 /** Rename a legacy `instrument` timbre field to `sound` on a settings sub-object,
  *  so a returning preset keeps its sound after the instrument → sound rename. */

@@ -3,14 +3,15 @@
  * injected at build time by `vite.extensions.ts`. These tests pin the file against the
  * tree (every named module exists), the generated source, and the running lists.
  */
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { listModuleSource, readExtensionEntries } from '../../vite.extensions';
+import { DECLARATION_FILE, declarationSource, listModuleSource, readExtensionEntries } from '../../vite.extensions';
 import { EXTENSIONS } from '@/extensions';
 
-const entries = readExtensionEntries(process.env.THOREMIN_EXTENSIONS ?? 'extensions.json');
+const manifest = process.env.THOREMIN_EXTENSIONS ?? 'extensions.json';
+const entries = readExtensionEntries(manifest);
 const fileOf = (spec: string, ext: string): string => `src/${spec.slice(2)}${ext}`;
 
 describe('extensions.json', () => {
@@ -23,6 +24,16 @@ describe('extensions.json', () => {
 
   it('is what the app runs: the injected list has the same ids in the same order', () => {
     expect(EXTENSIONS.map((e) => e.id)).toEqual(entries.map((e) => e.id));
+  });
+
+  it('has a current generated declaration (the Settings type is computed from it): run `npm run extensions`', () => {
+    expect(readFileSync(DECLARATION_FILE, 'utf8')).toBe(declarationSource(entries, manifest));
+  });
+
+  it('declares the list as a tuple of the listed manifests\' own types, in order', () => {
+    const src = declarationSource([{ id: 'a', module: 'pkg-a', ui: 'pkg-a/ui' }, { id: 'b', module: '@/extensions/b', ui: '@/extensions/b/ui' }]);
+    expect(src).toContain('const extensions: readonly [typeof import("pkg-a").default, typeof import("@/extensions/b").default];');
+    expect(declarationSource([])).toContain('const extensions: readonly [];');
   });
 
   it('refuses a relative or absolute module path, naming the entry', () => {
