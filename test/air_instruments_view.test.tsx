@@ -23,6 +23,7 @@ import { AirDrumReadout } from '@/extensions/air/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
 import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/extensions/air/dials';
 import type { HandMap } from '@/nodes/mapping/hand_map';
+import { AIR } from './helpers/extensions';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;
 const airBass = () => dialsStore.getState().effective.airBass as AirBassSettings;
@@ -45,7 +46,7 @@ async function airGroup(): Promise<HTMLElement> {
 }
 
 describe('the Air instruments category (#249)', () => {
-  it('lists the air drum under Air instruments, and the field instruments in their own group', async () => {
+  it.runIf(AIR)('lists the air drum under Air instruments, and the field instruments in their own group', async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
     const theremin = screen.getByRole('group', { name: 'Field instruments' });
@@ -59,7 +60,7 @@ describe('the Air instruments category (#249)', () => {
     expect(within(air).getByTitle('Air drum')).toBeTruthy();
   });
 
-  it('plays the air drum with one click on its row, like any instrument, and a theremin turns it off', async () => {
+  it.runIf(AIR)('plays the air drum with one click on its row, like any instrument, and a theremin turns it off', async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
     fireEvent.click(within(air).getByText('Air Drum'));
@@ -78,7 +79,7 @@ describe('the Air instruments category (#249)', () => {
     expect(within(air).queryByTestId('air-drum-live')).toBeNull();
   });
 
-  it('shows the readout under a theremin whose drum is live, so a drum left on is never invisible', async () => {
+  it.runIf(AIR)('shows the readout under a theremin whose drum is live, so a drum left on is never invisible', async () => {
     render(<InstrumentsPanel />);
     await airGroup();
     const theremin = screen.getByRole('group', { name: 'Field instruments' });
@@ -88,7 +89,7 @@ describe('the Air instruments category (#249)', () => {
     expect(await within(theremin).findByTestId('air-drum-live')).toBeTruthy();
   });
 
-  it('plays the air bass the same way, and the air drum stops', async () => {
+  it.runIf(AIR)('plays the air bass the same way, and the air drum stops', async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
     fireEvent.click(within(air).getByText('Air Drum'));
@@ -106,7 +107,7 @@ describe('the Air instruments category (#249)', () => {
     expect(screen.getByLabelText('Plucking hand')).toBeTruthy();
   });
 
-  it('plays the air guitar the same way, and its settings open on the enrolment step', async () => {
+  it.runIf(AIR)('plays the air guitar the same way, and its settings open on the enrolment step', async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
     fireEvent.click(within(air).getByText('Air Guitar'));
@@ -122,7 +123,7 @@ describe('the Air instruments category (#249)', () => {
     expect(within(section).getByLabelText('Chord to learn')).toBeTruthy();
   });
 
-  it('plays the air flute the same way; its settings carry both enrolment steps', async () => {
+  it.runIf(AIR)('plays the air flute the same way; its settings carry both enrolment steps', async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
     fireEvent.click(within(air).getByText('Air Flute'));
@@ -156,7 +157,7 @@ describe('the Air instruments category (#249)', () => {
     await waitFor(() => expect(within(section).queryByText('Learn blowing')).toBeNull());
   });
 
-  it("opens the air drum's settings on its own section, first", async () => {
+  it.runIf(AIR)("opens the air drum's settings on its own section, first", async () => {
     render(<InstrumentsPanel />);
     const air = await airGroup();
     fireEvent.click(within(air).getByLabelText('Edit Air Drum'));

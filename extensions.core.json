@@ -1,0 +1,4 @@
+{
+  "//": "CORE ALONE: no extensions. Not a deploy target; the guard that core runs, typechecks and builds with an empty extension list (`npm run test:core`, the CI job 'core alone'). Its typed declaration is extensions.core.d.ts (`npm run extensions` writes both).",
+  "extensions": []
+}

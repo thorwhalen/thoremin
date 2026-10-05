@@ -28,6 +28,7 @@ import { useControls } from '@/app/store';
 import { thoreminDials } from '@/settings/dials';
 import { EXPRESSIONS, EMOTIONS } from '@/music/expression';
 import { FINGER_NAMES } from '@/nodes/domain';
+import { AIR } from './helpers/extensions';
 
 /** Read a dotted path out of a plain object (the read-side mirror of `setIn`). */
 function getIn(obj: unknown, rest: readonly string[]): unknown {
@@ -105,7 +106,7 @@ describe('structured-dial leaf paths (#126)', () => {
     expect(new Set(paths).size).toBe(paths.length);
     const owners = new Set(structuredDialLeaves().map((l) => l.key));
     expect(owners).toEqual(
-      new Set(['overlay', 'handMap', 'bodyMap', 'faceControls', 'faceExpr.degrees', 'faceExpr.sensitivity', 'steerConfig', 'conductor', 'airDrum', 'airBass', 'airGuitar', 'airFlute']),
+      new Set(['overlay', 'handMap', 'bodyMap', 'faceControls', 'faceExpr.degrees', 'faceExpr.sensitivity', 'steerConfig', 'conductor', ...(AIR ? ['airDrum', 'airBass', 'airGuitar', 'airFlute'] : [])]),
     );
     // Every declared structured dial has at least one settable leaf — otherwise it would
     // be silently unreachable by BOTH `dial.set` (skipped: not a scalar) and `dial.setIn`.

@@ -10,6 +10,7 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-li
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { assembleSpec } from '@/app/graph';
 import { branchLabel, listingOf, whyMatched } from '@/app/library/instrumentsListing';
+import { AIR } from './helpers/extensions';
 
 beforeAll(() => localStorage.clear());
 afterEach(() => cleanup());
@@ -76,7 +77,7 @@ describe('search in the view', () => {
 });
 
 describe('filter chips', () => {
-  it('a selected chip whose value disappears stays, so the filter can be seen and undone', async () => {
+  it.runIf(AIR)('a selected chip whose value disappears stays, so the filter can be seen and undone', async () => {
     render(<InstrumentsPanel />);
     await loaded();
     fireEvent.click(screen.getByLabelText('Favorite Pentatonic'));
@@ -92,7 +93,7 @@ describe('filter chips', () => {
     await waitFor(() => expect(rowNames().length).toBe(17));
   });
 
-  it('are behind a Filters toggle, with a chip per class and live counts', async () => {
+  it.runIf(AIR)('are behind a Filters toggle, with a chip per class and live counts', async () => {
     render(<InstrumentsPanel />);
     await loaded();
     expect(document.querySelector('[data-instrument-filters]')).toBeNull();
@@ -104,7 +105,7 @@ describe('filter chips', () => {
     expect(field.textContent).toMatch(/^Field\s*13$/);
   });
 
-  it('narrow the list; the class chips keep their counts; the toggle stays open while one is on', async () => {
+  it.runIf(AIR)('narrow the list; the class chips keep their counts; the toggle stays open while one is on', async () => {
     render(<InstrumentsPanel />);
     await loaded();
     fireEvent.click(screen.getByRole('button', { name: /Filters/ }));

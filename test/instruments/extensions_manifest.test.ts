@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DECLARATION_FILE, declarationSource, listModuleSource, readExtensionEntries } from '../../vite.extensions';
+import { CORE_DECLARATION_FILE, CORE_MANIFEST, DECLARATION_FILE, declarationSource, listModuleSource, readExtensionEntries } from '../../vite.extensions';
 import { EXTENSIONS } from '@/extensions';
 
 const manifest = process.env.THOREMIN_EXTENSIONS ?? 'extensions.json';
@@ -26,8 +26,12 @@ describe('extensions.json', () => {
     expect(EXTENSIONS.map((e) => e.id)).toEqual(entries.map((e) => e.id));
   });
 
-  it('has a current generated declaration (the Settings type is computed from it): run `npm run extensions`', () => {
-    expect(readFileSync(DECLARATION_FILE, 'utf8')).toBe(declarationSource(entries, manifest));
+  it('has current generated declarations (the Settings type is computed from them): run `npm run extensions`', () => {
+    // The committed files: the shipped list's, and core-alone's (what tsconfig.core.json reads).
+    // Independent of THOREMIN_EXTENSIONS, so the core-alone run checks them too.
+    expect(readFileSync(DECLARATION_FILE, 'utf8')).toBe(declarationSource(readExtensionEntries('extensions.json'), 'extensions.json'));
+    expect(readFileSync(CORE_DECLARATION_FILE, 'utf8')).toBe(declarationSource(readExtensionEntries(CORE_MANIFEST), CORE_MANIFEST));
+    expect(readExtensionEntries(CORE_MANIFEST)).toEqual([]);
   });
 
   it('declares the list as a tuple of the listed manifests\' own types, in order', () => {

@@ -54,6 +54,8 @@ const FOLD_POINTS = new Set([
   'src/nodes/browser.ts', // createAppRegistry
   'src/settings/schema.ts', // SettingsSchema = core + the extensions' dial slices
   'src/settings/dials.ts', // the dials form fields + the layer bijection
+  'src/app/dials/instruments.ts', // the seeds: core's, then the extensions' instruments
+  'src/app/training/routes.ts', // the extensions' training routes, then core's Trainer
   'src/app/graph.ts', // the full branch table, and the derivation and spec bound to it
   'src/app/dials/DialsControlsPanel.tsx', // the editor sections
   'src/app/dials/InstrumentsPanel.tsx', // the live readouts under the chosen row
@@ -102,7 +104,6 @@ const SDK_APP = [
   '@/app/store',
   '@/app/featureDemand',
   // the trainer's hooks the air instruments' training panels use
-  '@/app/training/routes',
   '@/app/enroll/sequenceStore',
   '@/app/enroll/guidance',
   '@/app/enroll/click',

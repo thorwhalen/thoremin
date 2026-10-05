@@ -21,6 +21,7 @@ const _controlStateDerives: StrictDerivationSettings = null as unknown as Contro
 void _controlStateDerives;
 import { composeInstrumentGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
+import { AIR } from '../helpers/extensions';
 
 const seedSettings = (name: string) => {
   const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -40,19 +41,19 @@ describe('branchIdsFor: the dials imply the branches', () => {
     expect(ids('Everything')).toEqual(['face-source', 'face-timbre', 'field-voices']);
   });
 
-  it('the air drum, bass and guitar have no face and no hand voices', () => {
+  it.runIf(AIR)('the air drum, bass and guitar have no face and no hand voices', () => {
     expect(ids('Air Drum')).toEqual(['air-drum']);
     expect(ids('Air Bass')).toEqual(['air-bass']);
     expect(ids('Air Guitar')).toEqual(['air-guitar']);
   });
 
-  it('the air flute alone has no face source; a mouth-group demand (its breath) brings it in', () => {
+  it.runIf(AIR)('the air flute alone has no face source; a mouth-group demand (its breath) brings it in', () => {
     expect(ids('Air Flute')).toEqual(['air-flute']);
     const demanded = new Set(['face.geom.mouth']);
     expect(ids('Air Flute', { demanded })).toEqual(['air-flute', 'face-source']);
   });
 
-  it('a field instrument with a drum added keeps its hand voices (the class never decides)', () => {
+  it.runIf(AIR)('a field instrument with a drum added keeps its hand voices (the class never decides)', () => {
     const s = seedSettings('Pentatonic');
     const withDrum = { ...s, airDrum: { ...s.airDrum, enabled: true } };
     expect(branchIdsFor(withDrum).sort()).toEqual(['air-drum', 'field-voices']);

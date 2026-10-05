@@ -14,13 +14,15 @@ import { branchIdsFor } from '@/app/graph';
 import { SettingsSchema, type Settings, type ExtensionDials } from '@/settings/schema';
 import type { AirDrumSettings, AirFluteSettings } from '@/extensions/air/dials';
 import { thoreminDials } from '@/settings/dials';
-import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
+import { SEED_INSTRUMENTS, settingsWithPatch } from '@/app/dials/instruments';
+import { TRAINING_ROUTES } from '@/app/training/routes';
 import { settingsFromLayer } from '@/app/library/derive';
 import { useControls } from '@/app/store';
 import { deriveBranchIds } from '@/instruments/derive';
 import type { Extension, ExtensionsSettingsShape, LooseExtensionDials } from '@/instruments/extension';
 import type { BreathStatus } from '@/nodes/output/canvas_overlay';
 import { IDLE_AIR_FLUTE_STATUS } from '@/extensions/air/nodes/air_flute';
+import { AIR } from '../helpers/extensions';
 
 // The overlay reads the flute's status through a structural slice (it names no extension);
 // this pins, at typecheck time, that the flute's status still has those fields.
@@ -28,7 +30,7 @@ const _breath: BreathStatus = IDLE_AIR_FLUTE_STATUS;
 void _breath;
 
 describe('the extension list', () => {
-  it('ships the air extension, whose four instruments are four branches and four dial slices', () => {
+  it.runIf(AIR)('ships the air extension, whose four instruments are four branches and four dial slices', () => {
     expect(EXTENSIONS.map((e) => e.id)).toEqual(['air']);
     expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute']);
     expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute']);
@@ -37,7 +39,7 @@ describe('the extension list', () => {
 });
 
 describe('the registry folds over the extensions', () => {
-  it('with the extensions: every air node and the generated ports; without: none of them', () => {
+  it.runIf(AIR)('with the extensions: every air node and the generated ports; without: none of them', () => {
     const withAir = createAppRegistry();
     for (const type of ['air-drum', 'air-bass', 'air-guitar', 'air-flute', 'drum-out', 'pluck-out']) expect(withAir.has(type)).toBe(true);
     const ports = withAir.get('store-controls').outputs.map((p) => p.name);
@@ -58,7 +60,7 @@ describe('the registry folds over the extensions', () => {
     expect(kinds.airGuitarModel).toBe('shape-model');
   });
 
-  it('the settings schema and the dials form carry the extension slices', () => {
+  it.runIf(AIR)('the settings schema and the dials form carry the extension slices', () => {
     expect(Object.keys(SettingsSchema.shape)).toEqual(expect.arrayContaining(['airDrum', 'airBass', 'airGuitar', 'airFlute']));
     const parsed = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Pentatonic')!.layer);
     expect(parsed.airDrum.enabled).toBe(false);
@@ -108,18 +110,33 @@ describe('the registry folds over the extensions', () => {
     expect(deriveBranchIds({ handMap: { maxGain: 0 } }, {}, table)).toEqual(['field-voices']);
   });
 
-  it('the derivation asks each extension which of its branches the dials imply', () => {
+  it.runIf(AIR)('the derivation asks each extension which of its branches the dials imply', () => {
     const drum = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Air Drum')!.layer);
     expect(branchIdsFor(drum)).toEqual(['air-drum']);
     expect(AIR_EXTENSION.derive(drum)).toEqual(['air-drum']);
   });
 
-  it('an air graph composes and ticks against the folded registry', () => {
+  it.runIf(AIR)('an air graph composes and ticks against the folded registry', () => {
     const registry = createAppRegistry();
     const { spec } = composeInstrumentGraph(['air-flute'], { source: 'synthetic-hands' }, registry);
     const engine = new Engine(spec, registry, { validatePorts: true });
     for (let i = 0; i < 5; i++) engine.tick();
     expect(engine.evaluationOrder()).toContain('airFlute');
     engine.dispose();
+  });
+});
+
+describe('the extensions\' shipped instruments and training routes', () => {
+  it('a patch is checked at every depth: a typo throws, naming the path', () => {
+    expect(() => settingsWithPatch('Typo', { handMap: { maxGian: 0 } })).toThrow(/handMap\.maxGian/);
+    expect(() => settingsWithPatch('Typo', { nope: 1 })).toThrow(/"Typo".*nope/);
+    expect(settingsWithPatch('Quiet', { handMap: { maxGain: 0 } }).handMap.maxGain).toBe(0);
+  });
+
+  it('names no instrument twice, and no route twice (an extension never shadows core)', () => {
+    const names = SEED_INSTRUMENTS.map((s) => s.name);
+    expect(new Set(names).size).toBe(names.length);
+    const routes = TRAINING_ROUTES.map((r) => r.id);
+    expect(new Set(routes).size).toBe(routes.length);
   });
 });

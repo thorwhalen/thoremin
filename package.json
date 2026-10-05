@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.dag.json --noEmit",
+    "typecheck:core": "tsc -p tsconfig.core.json --noEmit",
+    "test:core": "npm run typecheck:core && THOREMIN_EXTENSIONS=extensions.core.json vitest run && vite-node scripts/check_core_bundle.ts",
     "record": "vite-node scripts/record_stream.ts",
     "pair": "vite-node scripts/cue/pair_take.ts",
     "catalog": "vite-node scripts/gen_catalog.ts",

@@ -15,8 +15,9 @@ import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/li
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { guitarVoicing, parseChordName } from '@/extensions/air/lib/guitar';
 import { enrolSamples, guitarTake } from './synthetic_guitar';
+import { AIR } from '../helpers/extensions';
 
-describe('air guitar in the default graph', () => {
+describe.runIf(AIR)('air guitar in the default graph', () => {
   it('wires the dial, the model, the octave shift, the hands and the strums — the #249 guard', () => {
     const g = defaultGraph();
     const has = (fn: string, fp: string, tn: string, tp: string) =>

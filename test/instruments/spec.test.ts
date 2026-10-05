@@ -13,6 +13,7 @@ import { healInstrumentMetaMap } from '@/app/library/store';
 import { deriveForName } from '@/app/library/derive';
 import { SEED_INSTRUMENTS, instruments } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
+import { AIR } from '../helpers/extensions';
 
 const layer = { 'master.volume': 0.5 };
 
@@ -37,7 +38,8 @@ describe('assembleSpec', () => {
     expect(neither.branches).toBeUndefined();
     expect(neither.features).toEqual([]);
     // An unknown id in a saved record is dropped from the facet, never thrown.
-    expect(assembleSpec({ name: 'X', layer, meta: { branches: ['nope', 'trunk', 'air-drum'] } }).features).toEqual(['air-drum']);
+    const extensionBranch = AIR ? ['air-drum'] : [];
+    expect(assembleSpec({ name: 'X', layer, meta: { branches: ['nope', 'trunk', ...extensionBranch] } }).features).toEqual(extensionBranch);
     // An EMPTY explicit list is explicit (a silent instrument), not "derive".
     expect(assembleSpec({ name: 'X', layer, meta: { branches: [] }, derived }).branches).toEqual([]);
   });
@@ -103,7 +105,7 @@ describe('the metadata record carries the spec fields and heals old records', ()
 });
 
 describe('deriveForName carries the derived branch set and the Layer, so the spec assembles synchronously', () => {
-  it('for a seeded instrument', async () => {
+  it.runIf(AIR)('for a seeded instrument', async () => {
     const seed = SEED_INSTRUMENTS.find((x) => x.name === 'Air Drum')!;
     await instruments.save(seed.name, seed.layer);
     const d = await deriveForName(seed.name);

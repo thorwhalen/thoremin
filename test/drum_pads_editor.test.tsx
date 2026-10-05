@@ -23,6 +23,7 @@ import { PAD_IDS, type Pads } from '@/nodes/music/drum_pads';
 import { createPadLayoutStore, padLayoutWrites } from '@/extensions/air/app/padLayouts';
 import { leafByPath } from '@/app/commands/paths';
 import type { AirDrumSettings } from '@/extensions/air/dials';
+import { AIR } from './helpers/extensions';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;
 const padsOn = () => PAD_IDS.filter((id) => (airDrum().pads as Pads)[id].on);
@@ -35,7 +36,7 @@ beforeAll(() => {
 afterEach(() => cleanup());
 
 describe('the pad editor, from a cold load (#245)', () => {
-  it('lays out three pads, edits one, drags one, saves the layout and loads it back', async () => {
+  it.runIf(AIR)('lays out three pads, edits one, drags one, saves the layout and loads it back', async () => {
     render(<InstrumentsPanel />);
     const air = await waitFor(() => screen.getByRole('group', { name: 'Air instruments' }));
     fireEvent.click(within(air).getByLabelText('Edit Air Drum'));
@@ -134,7 +135,7 @@ describe('the pad editor, from a cold load (#245)', () => {
 });
 
 describe('pad layouts (the zodal collection)', () => {
-  it('loads a layout with writes that are every addressable leaf of every slot', () => {
+  it.runIf(AIR)('loads a layout with writes that are every addressable leaf of every slot', () => {
     const writes = padLayoutWrites(airDrum().pads as Pads);
     expect(writes).toHaveLength(PAD_IDS.length * 8);
     for (const [path] of writes) expect(leafByPath[path], path).toBeDefined();

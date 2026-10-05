@@ -24,7 +24,7 @@ import { VocabularyEnrolment, type EnrolmentWords } from '@/extensions/air/app/V
 import { useGuitarVocabulary } from '@/extensions/air/app/vocabularyStore';
 import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app/SequenceTrainer';
 import { GUITAR_STARTER_SEQUENCES } from '@/app/enroll/sequenceStore';
-import { TRAINING_ANCHORS } from '@/app/training/routes';
+import { TRAINING_ANCHORS } from '@/extensions/air/training';
 import { useControls } from '@/app/store';
 import { checkTake } from '@/extensions/air/lib/fingering_prior';
 import { parseChordName } from '@/extensions/air/lib/guitar';
