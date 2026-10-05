@@ -18,6 +18,7 @@ import { useControls } from '@/app/store';
 import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
 import { enrolSamples } from './air/synthetic_guitar';
+import { AIR } from './helpers/extensions';
 
 let provider: ReturnType<typeof createInMemoryProvider<VocabularyRecord>>;
 
@@ -45,7 +46,7 @@ function runCapture(shapes: (() => Record<string, number> | null)) {
   }
 }
 
-describe('learning a chord', () => {
+describe.runIf(AIR)('learning a chord', () => {
   it('captures the held shape as the named chord, saves it and trains the instrument', async () => {
     render(<ChordEnrolment enabled />);
     expect(screen.getByText(/None yet/)).toBeTruthy();

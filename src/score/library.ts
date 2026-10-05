@@ -14,7 +14,7 @@
  * Nothing here parses: `loadScore` (`./load.ts`) does, lazily. Nothing here touches
  * the DOM: the fetch is injected so tests pass bytes from disk.
  */
-import { createNamedCollectionStore, type NamedCollectionStore, type NamedRecord } from '@/settings/namedCollection';
+import { createNamedCollectionStore, type NamedCollectionStore, type NamedRecord } from '@thoremin/sdk-ui/namedCollection';
 import { z } from 'zod';
 import { ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
 

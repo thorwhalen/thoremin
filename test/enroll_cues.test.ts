@@ -21,7 +21,7 @@
  * localStorage in the browser), so this needs no DOM and proves the backend swaps.
  */
 import { describe, it, expect } from 'vitest';
-import { slugId } from '@/util/ids';
+import { slugId } from '@thoremin/sdk/util/ids';
 import { createInMemoryProvider } from '@zodal/store';
 import {
   CueRecordSchema,

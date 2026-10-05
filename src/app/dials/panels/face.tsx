@@ -20,7 +20,7 @@ import { POSE_MOVES } from '../../poseControlsHelp';
 import { useFaceStatus } from '../../faceStatus';
 import { useDialsSettings } from '../useDialsSettings';
 import { FACE_MODE_OPTIONS, FACE_MODE_HINT } from '../labels';
-import { CollapsibleSection, ValueRow, selectCls } from '../primitives';
+import { CollapsibleSection, ValueRow, selectCls } from '@thoremin/sdk-ui/primitives';
 import { ChordControls } from './chord';
 import { ExpressionMapping } from './expression';
 

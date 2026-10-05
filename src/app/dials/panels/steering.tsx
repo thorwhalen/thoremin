@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { dispatchCommand } from '../../dispatchDial';
 import { currentSteerConfig } from '../../commands/steer';
 import { useDialsSettings } from '../useDialsSettings';
-import { selectCls } from '../primitives';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 import {
   STEER_HANDS,
   STEER_HAND_FEATURES,

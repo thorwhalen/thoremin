@@ -11,7 +11,7 @@ import { useControls } from '../../store';
 import { CalibrationWizard } from '../../CalibrationWizard';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
-import { CollapsibleSection, selectCls } from '../primitives';
+import { CollapsibleSection, selectCls } from '@thoremin/sdk-ui/primitives';
 
 /**
  * Per-expression mapping editor (advanced). The per-emotion SENSITIVITY sliders

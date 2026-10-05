@@ -7,9 +7,9 @@
  * plucks. The live readout ({@link AirBassReadout}) is shown here and under the chosen
  * row in the Instruments list.
  */
-import { dispatchDialSetIn } from '@/app/dispatchDial';
-import { useDialsSettings } from '@/app/dials/useDialsSettings';
-import { selectCls } from '@/app/dials/primitives';
+import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeBassLive, useAirBassStatus } from '@/extensions/air/app/airBassStatus';
 import { midiToName } from '@thoremin/sdk/music/theory';
 import { PLAYER_HANDS, PLUCK_POINTS, type AirBassDialParams } from '@/extensions/air/nodes/air_bass';

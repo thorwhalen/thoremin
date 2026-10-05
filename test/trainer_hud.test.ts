@@ -14,11 +14,11 @@ import type { NodeContext } from '@thoremin/dag';
 import { canvasOverlayNode, OVERLAY_ELEMENTS } from '@/nodes/output/canvas_overlay';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { trainerHudResource } from '@/app/enroll/hud';
-import { addGuidanceSink, emitGuidance, resetGuidanceSinks } from '@/app/enroll/guidance';
+import { addGuidanceSink, emitGuidance, resetGuidanceSinks } from '@thoremin/sdk-ui/enroll/guidance';
 import { useTrainer, type TranscriptLine } from '@/app/enroll/store';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { OVERLAY_CONTROLS } from '@/app/overlayControls';
-import { appFeatureDemand } from '@/app/featureDemand';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 
 interface Call {
   m: string;

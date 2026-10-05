@@ -5,7 +5,7 @@
  * flute's breath demand, the vocabulary loads, the fingering-prior sync, the drum-pattern sync). The panel and store modules
  * live under `./panels/` and `./app/` (5b).
  */
-import type { ExtensionUi, StatusHook } from '@/app/extensions/types';
+import type { ExtensionUi, StatusHook } from '@thoremin/sdk-ui/types';
 import { AirDrumControls, AirDrumReadout } from '@/extensions/air/panels/airDrum';
 import { AirBassControls, AirBassReadout } from '@/extensions/air/panels/airBass';
 import { AirGuitarControls, AirGuitarReadout } from '@/extensions/air/panels/airGuitar';

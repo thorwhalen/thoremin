@@ -26,7 +26,7 @@ import type { NodeRegistry } from '@thoremin/dag';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
-import { featureDemandResource } from './featureDemand';
+import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { trainerHudResource } from './enroll/hud';
 import { useToasts } from './toasts';
 import { SessionRecorder, activeStreamLabels } from './recording/session';

@@ -17,7 +17,7 @@ import type { BodyMap } from '@/nodes/mapping/body_map';
 import { BODY_ROUTE_SLOTS } from '@/nodes/mapping/body_map';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
 import type { FeatureDemand } from '@thoremin/sdk/features/demand';
-import { appFeatureDemand } from './featureDemand';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { useControls } from './store';
 
 export const BODY_ROUTE_DEMAND_OWNER = 'body-route';

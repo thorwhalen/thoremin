@@ -5,7 +5,7 @@
  * sequence store (core), which owns the collection but not any instrument's content.
  */
 import { FLUTE_CHART, chartNotes } from '@/extensions/air/lib/fingerings';
-import { starterSequence, type NamedSequence } from '@/app/enroll/sequenceStore';
+import { starterSequence, type NamedSequence } from '@thoremin/sdk-ui/enroll/sequenceStore';
 
 const starter = starterSequence;
 

@@ -12,7 +12,7 @@
 import { patternById } from '@/extensions/air/lib/drum_patterns';
 import type { PatternPlay } from '@/extensions/air/lib/pattern_play';
 import type { PatternModel } from '@/extensions/air/lib/pattern_fit';
-import { useControls } from '@/app/store';
+import { controls, controlsStore } from '@thoremin/sdk-ui/host';
 import { loadPatternModel } from '@/extensions/air/app/patternModels';
 
 type DrumState = { airDrum?: { pattern?: string } };
@@ -34,8 +34,8 @@ export async function resolvePatternPlay(patternId: string, load: (id: string) =
 /** Start watching the dial. Returns the unsubscribe. A stale load (the dial changed
  *  again before the model arrived) is dropped. */
 export function startPatternPlaySync(deps: PatternPlaySyncDeps = {}): () => void {
-  const store = deps.store ?? useControls;
-  const publish = deps.publish ?? ((play) => useControls.getState().setTransient('airDrumPattern', play));
+  const store = deps.store ?? controlsStore<DrumState>();
+  const publish = deps.publish ?? ((play) => controls().setTransient('airDrumPattern', play));
   let last: string | null = null;
   let generation = 0;
   const apply = (s: DrumState) => {
@@ -64,9 +64,9 @@ export function startPatternPlaySync(deps: PatternPlaySyncDeps = {}): () => void
  *  mode back to what the dial says. A result for a dial value the dial has since left
  *  is dropped. */
 export function refreshPatternPlay(deps: Pick<PatternPlaySyncDeps, 'publish' | 'load'> = {}): void {
-  const id = useControls.getState().airDrum?.pattern ?? '';
-  const publish = deps.publish ?? ((play) => useControls.getState().setTransient('airDrumPattern', play));
+  const id = (controls().get().airDrum as DrumState['airDrum'])?.pattern ?? '';
+  const publish = deps.publish ?? ((play) => controls().setTransient('airDrumPattern', play));
   void resolvePatternPlay(id, deps.load).then((play) => {
-    if ((useControls.getState().airDrum?.pattern ?? '') === id) publish(play);
+    if (((controls().get().airDrum as DrumState['airDrum'])?.pattern ?? '') === id) publish(play);
   });
 }

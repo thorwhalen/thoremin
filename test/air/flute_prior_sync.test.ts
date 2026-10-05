@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema, priorOptionsFrom } from '@/extensions/air/lib/fingering_prior';
 import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
 import { FLUTE_FINGER_FEATURES, deriveFluteFingerModel, startFlutePriorSync } from '@/extensions/air/app/vocabularyStore';
-import { mergeSequences, parseTargets } from '@/app/enroll/sequenceStore';
+import { mergeSequences, parseTargets } from '@thoremin/sdk-ui/enroll/sequenceStore';
 import { FLUTE_STARTER_SEQUENCES, GUITAR_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
 import { AirFluteSettingsSchema } from '@/extensions/air/dials';
 import { structuredDialLeaves } from '@/app/commands/paths';

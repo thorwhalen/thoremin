@@ -7,7 +7,7 @@ import { FINGER_NAMES } from '@thoremin/sdk/nodes/domain';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { EFFECT_LABELS } from '../labels';
-import { CollapsibleSection, Toggle, selectCls } from '../primitives';
+import { CollapsibleSection, Toggle, selectCls } from '@thoremin/sdk-ui/primitives';
 
 /** A finger route's fields, as addressable leaf names under `handMap.fingers.<name>`. */
 type FingerField = keyof FingerRoute;

@@ -13,7 +13,7 @@ import { createFeatureDemand } from '@thoremin/sdk/features/demand';
 import { resolveLabGate } from '@/features/labConfig';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
-import { appFeatureDemand, featureDemandResource } from '@/app/featureDemand';
+import { appFeatureDemand, featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { useTrainer } from '@/app/enroll/store';
 
 const ctx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });

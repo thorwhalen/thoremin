@@ -20,12 +20,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DRUM_PATTERNS, patternById, type DrumPattern } from '@/extensions/air/lib/drum_patterns';
 import { fitPattern, playbackOffset, type PatternModel } from '@/extensions/air/lib/pattern_fit';
 import type { Click } from '@thoremin/sdk/enroll';
-import { clickPlayer } from '@/app/enroll/click';
+import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { hitsSince } from '@/extensions/air/app/hitsTap';
 import { loadPatternModel, removePatternModel, savePatternModel } from '@/extensions/air/app/patternModels';
 import { refreshPatternPlay } from '@/extensions/air/app/patternPlaySync';
 import { TRAINING_ANCHORS } from '@/extensions/air/training';
-import { useControls } from '@/app/store';
+import { controls } from '@thoremin/sdk-ui/host';
 import { PatternStrip } from '@/extensions/air/app/PatternStrip';
 
 /** Bars of count-in before the pattern starts. */
@@ -123,7 +123,7 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     setError(null);
     // No pattern in play during a take: the take must be the player's strokes, not the
     // mode's snapped output (fitting that would only reproduce the old model).
-    useControls.getState().setTransient('airDrumPattern', null);
+    controls().setTransient('airDrumPattern', null);
     const player = clickPlayer();
     player.unlock?.();
     const startMs = now() + 200;

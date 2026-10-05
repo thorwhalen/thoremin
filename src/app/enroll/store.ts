@@ -53,29 +53,24 @@ import {
   type TrainedModel,
   type Verdict,
 } from '@thoremin/sdk/enroll';
-import { appFeatureDemand } from '../featureDemand';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { createCueStore, createRoutineStore, listCues, loadRoutine, type CueStore, type RoutineStore } from './cueStore';
 import { createTrainerTagSource, type TrainerTagSource } from './annotations';
 import { recordingController } from '../recording/controller';
 import { useTrainerPrefs } from './prefs';
 import { REAL_VS_AIR_TAKE_INSTRUMENT, TRAINER_TAKE_INSTRUMENT, trainerTakeMeta, trainerTakeSession } from './takeSession';
 import { clickPlan, type Click } from '@thoremin/sdk/enroll';
-import { clickPlayer } from './click';
+import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { routineRecordsPerformance } from './realVsAirCues';
 import { ALL_STARTER_CUES } from './cueStore';
 import { parseSession, RECORDING_SESSION_KEY } from '../recording/schema';
-import { emitGuidance, emitGuidanceStop } from './guidance';
+import { emitGuidance, emitGuidanceStop } from '@thoremin/sdk-ui/enroll/guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 
-/** One line of what the runner said, for the panel's transcript. */
-export interface TranscriptLine {
-  t: number;
-  kind: 'instruction' | 'guidance' | 'end' | 'done';
-  say: string;
-  /** For `end`: the outcome, and the written detail when it was `cannot`. */
-  outcome?: CueOutcome;
-  why?: string;
-}
+/** One line of what the runner said, for the panel's transcript (defined beside the sinks
+ *  that render it, so the guidance channel needs nothing from this store). */
+export type { TranscriptLine } from '@thoremin/sdk-ui/enroll/guidance';
+import type { TranscriptLine } from '@thoremin/sdk-ui/enroll/guidance';
 
 /** How many transcript lines the panel keeps. */
 const TRANSCRIPT_LIMIT = 40;

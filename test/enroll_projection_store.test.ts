@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { categoryKey, classify, type FeatureVector } from '@thoremin/sdk/enroll';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { appFeatureDemand } from '@/app/featureDemand';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 
 const prng = (seed: number) => () => {
   seed = (seed * 1664525 + 1013904223) % 4294967296;

@@ -13,7 +13,7 @@
  */
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
-import { addGuidanceSink } from './guidance';
+import { addGuidanceSink } from '@thoremin/sdk-ui/enroll/guidance';
 import { clipFor, type VoiceManifest } from './speakable';
 import { createAudioElementPlayer, createVoiceSink, type AudioElementPlayer, type VoiceSink } from './voice';
 

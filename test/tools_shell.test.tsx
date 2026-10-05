@@ -570,7 +570,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   });
 
   it('closing the panel mid-routine STOPS it (and releases the feature demand)', async () => {
-    const { appFeatureDemand } = await import('@/app/featureDemand');
+    const { appFeatureDemand } = await import('@thoremin/sdk-ui/featureDemand');
     useTools.setState({ open: 'trainer' });
     render(<TrainerPanel />);
     fireEvent.click(screen.getByText('Start'));

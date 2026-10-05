@@ -9,7 +9,7 @@
  * primary extension, with a role as a SECONDARY extension when several streams
  * share a primary ext, e.g. `demo-theremin-2026-07-05T14-30-12.overlay.webm`.
  */
-import { slugId } from '@/util/ids';
+import { slugId } from '@thoremin/sdk/util/ids';
 
 /** A filesystem-safe timestamp, e.g. `2026-07-05T14-30-12` (colons/millis
  * dropped; the `T` and dashes are safe on every filesystem and stay sortable).

@@ -6,6 +6,7 @@
     "src/extensions/index.ts",
     "packages/dag/src",
     "packages/sdk/src",
+    "packages/sdk-ui/src",
     "src/instruments",
     "packages/ictus/src",
     "src/score",
@@ -31,6 +32,8 @@
     "src/app/training/routes.ts"
   ],
   "exclude": [
-    "src/app/enroll/**/*.tsx"
+    "src/app/enroll/**/*.tsx",
+    "packages/sdk-ui/src/**/*.tsx",
+    "packages/sdk-ui/src/types.ts"
   ]
 }

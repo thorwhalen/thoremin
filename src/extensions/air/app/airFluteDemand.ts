@@ -10,8 +10,8 @@
  */
 import type { FeatureDemand } from '@thoremin/sdk/features/demand';
 import { MOUTH_GROUPS, type AirFluteDialParams } from '@/extensions/air/nodes/air_flute';
-import { appFeatureDemand } from '@/app/featureDemand';
-import { useControls } from '@/app/store';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
+import { controlsStore } from '@thoremin/sdk-ui/host';
 
 export const AIR_FLUTE_DEMAND_OWNER = 'air-flute';
 
@@ -24,7 +24,7 @@ type FluteState = { airFlute?: Partial<AirFluteDialParams> };
 
 /** Keep the demand in step with the `airFlute` dial. Returns the unsubscribe. */
 export function startAirFluteDemand(
-  store: { getState(): FluteState; subscribe(listener: (s: FluteState) => void): () => void } = useControls,
+  store: { getState(): FluteState; subscribe(listener: (s: FluteState) => void): () => void } = controlsStore<FluteState>(),
   demand: FeatureDemand = appFeatureDemand,
 ): () => void {
   let last = '';

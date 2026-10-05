@@ -26,13 +26,13 @@ import type { Click, FeatureVector } from '@thoremin/sdk/enroll';
 import { useTrainer, useTrainerStores } from '@/app/enroll/store';
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { STARTER_ROUTINES, REAL_VS_AIR_CUES } from '@/app/enroll/realVsAirCues';
-import { setClickPlayer } from '@/app/enroll/click';
+import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { registerRecordingController, type RecordingController, type StartTakeOptions } from '@/app/recording/controller';
 import type { RecordingSession } from '@/app/recording/schema';
 import { buildManifest, serializeManifest } from '@/app/recording/manifest';
 import { planRecording } from '@/app/recording/plan';
 import { encodeWav } from '@/app/recording/wav';
-import { appFeatureDemand } from '@/app/featureDemand';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { createInMemoryProvider } from '@zodal/store';
 import {
   chroma,

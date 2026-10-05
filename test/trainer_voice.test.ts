@@ -230,9 +230,9 @@ describe('the voice sink', () => {
 
 describe('Stop reaches the sink through the store', () => {
   it('a routine stopped mid-instruction drops the queued lines and silences the clip', async () => {
-    const { addGuidanceSink, resetGuidanceSinks } = await import('@/app/enroll/guidance');
+    const { addGuidanceSink, resetGuidanceSinks } = await import('@thoremin/sdk-ui/enroll/guidance');
     const { useTrainer } = await import('@/app/enroll/store');
-    const { appFeatureDemand } = await import('@/app/featureDemand');
+    const { appFeatureDemand } = await import('@thoremin/sdk-ui/featureDemand');
     resetGuidanceSinks();
     useTrainer.getState().reset();
     appFeatureDemand.reset();

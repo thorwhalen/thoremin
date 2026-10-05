@@ -6,7 +6,7 @@ import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayDialParams } from '@/
 import { controlsForSurface, type OverlayControlDesc } from '../../overlayControls';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
-import { CollapsibleSection, Toggle, selectCls } from '../primitives';
+import { CollapsibleSection, Toggle, selectCls } from '@thoremin/sdk-ui/primitives';
 
 /**
  * Overlay settings, DATA-DRIVEN by the element categories: a collapsible section

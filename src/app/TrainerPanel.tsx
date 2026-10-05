@@ -60,7 +60,7 @@ import { useControls } from './store';
 import { useTrainerPrefs } from './enroll/prefs';
 import { toolById } from './tools';
 import { STARTER_ROUTINES, routineRecordsPerformance, starterRoutineById } from './enroll/realVsAirCues';
-import { clickPlayer } from './enroll/click';
+import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 
 /** The tool id, and the id of the Trainer's hush claim (see `useControls.setHush`). */
 export const TOOL_ID = 'trainer';

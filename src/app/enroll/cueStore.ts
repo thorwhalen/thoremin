@@ -2,7 +2,7 @@
  * Cue and routine stores (#163) — the trainer's two zodal collections.
  *
  * Two instances of the {@link createNamedCollectionStore} facade (see
- * `@/settings/namedCollection` for the CRUD contract, the swappable `DataProvider`
+ * `@thoremin/sdk-ui/namedCollection` for the CRUD contract, the swappable `DataProvider`
  * target and the sync/async hot-path split). This file supplies only what makes a cue
  * a cue and a routine a routine: the schema, the storage key, the payload field, and
  * the id fallback — the same shape as saved lab views and named instruments.
@@ -21,7 +21,7 @@
  */
 import type { DataProvider } from '@zodal/store';
 import { ALL_FEATURES, FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
-import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
+import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import {
   CueRecordSchema,
   RoutineRecordSchema,

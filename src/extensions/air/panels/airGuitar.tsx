@@ -15,9 +15,9 @@
  * (the single write path). The vocabulary is not a dial: it is the player's hands, kept
  * per browser.
  */
-import { dispatchDialSetIn } from '@/app/dispatchDial';
-import { useDialsSettings } from '@/app/dials/useDialsSettings';
-import { selectCls } from '@/app/dials/primitives';
+import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { AIR_GUITAR_NODE_ID, describeGuitarLive, useAirGuitarStatus } from '@/extensions/air/app/airGuitarStatus';
 import { readShape } from '@/extensions/air/app/shapeTap';
 import { VocabularyEnrolment, type EnrolmentWords } from '@/extensions/air/app/VocabularyEnrolment';
@@ -25,7 +25,7 @@ import { useGuitarVocabulary } from '@/extensions/air/app/vocabularyStore';
 import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app/SequenceTrainer';
 import { GUITAR_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
 import { TRAINING_ANCHORS } from '@/extensions/air/training';
-import { useControls } from '@/app/store';
+import { controls } from '@thoremin/sdk-ui/host';
 import { checkTake } from '@/extensions/air/lib/fingering_prior';
 import { parseChordName } from '@/extensions/air/lib/guitar';
 import { PLAYER_HANDS } from '@/extensions/air/nodes/air_bass';
@@ -116,7 +116,7 @@ export function AirGuitarControls() {
         canonical={(typed) => parseChordName(typed)?.name ?? null}
         makeCheck={() => {
           // Against what is enrolled so far: a G held when C was asked, once both are known.
-          const model = useControls.getState().airGuitarModel;
+          const model = controls().get().airGuitarModel;
           return model ? (label, samples) => checkTake(model, label, samples) : undefined;
         }}
         starters={GUITAR_STARTER_SEQUENCES}

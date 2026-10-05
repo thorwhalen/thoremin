@@ -16,8 +16,8 @@
  */
 import type { DataProvider } from '@zodal/store';
 import { SequenceRecordSchema, sequenceOf, type SequenceRecord, type SequenceSpec } from '@thoremin/sdk/enroll';
-import { createNamedCollectionStore, type NamedCollectionStore } from '@/settings/namedCollection';
-import { slugId } from '@/util/ids';
+import { createNamedCollectionStore, type NamedCollectionStore } from '../namedCollection';
+import { slugId } from '@thoremin/sdk/util/ids';
 
 export const SEQUENCES_STORAGE_KEY = 'thoremin-sequences';
 

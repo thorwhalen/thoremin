@@ -19,7 +19,7 @@
 import { useEffect, useState } from 'react';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
-import { selectCls } from '../primitives';
+import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
 import { CONDUCTOR_HANDS, CONDUCTOR_POINTS, type ConductorDialParams } from '@/nodes/features/conductor';
