@@ -164,9 +164,38 @@ describe('core reaches the extensions only through the lists, from the fold poin
   it('the list modules import only manifests (no component or store reaches in through them)', () => {
     // Since PR 6 the lists come from `extensions.json` through two virtual modules.
     const pure = importSpecifiers(readFileSync('src/extensions/index.ts', 'utf8'));
-    expect(pure.sort()).toEqual(['@/instruments/extension', 'virtual:thoremin/extensions', 'zod']);
+    expect(pure.sort()).toEqual(['@/instruments/extension', 'virtual:thoremin/extensions']);
     const ui = importSpecifiers(readFileSync('src/app/extensions/index.ts', 'utf8'));
     expect(ui.sort()).toEqual(['./types', 'virtual:thoremin/extensions-ui']);
+  });
+
+  it('the pure SDK never reaches the settings or the app, so the settings can fold the list without a cycle', () => {
+    // `SettingsSchema` folds the extension list, whose manifests import the pure SDK. Were any
+    // pure SDK module to import `@/settings/*` (as `src/instruments/branches.ts` once did for
+    // the default steering config), loading an extension first would read the schema before it
+    // is initialised: a TDZ error at start-up, in some entry orders only.
+    const resolve = (from: string, spec: string): string | null => {
+      const base = spec.startsWith('@/') ? `src/${spec.slice(2)}` : spec.startsWith('.') ? join(from, '..', spec) : null;
+      if (!base) return null; // a package: outside src/, checked by packages_purity
+      for (const cand of [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`]) if (existsSync(cand)) return cand;
+      return null;
+    };
+    const seen = new Set<string>();
+    const stack = SDK_PURE.map((m) => resolve('src/x.ts', m)).filter((f): f is string => !!f);
+    const offenders: string[] = [];
+    while (stack.length) {
+      const file = stack.pop()!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
+        const target = resolve(file, spec);
+        if (!target) continue;
+        if (/^src\/(settings|app)\//.test(target)) offenders.push(`${file} imports ${spec}`);
+        else stack.push(target);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(SDK_PURE.length);
+    expect(offenders).toEqual([]);
   });
 
   it('an extension imports only the SDK surface, packages and itself (rule 2, on since 5b)', () => {

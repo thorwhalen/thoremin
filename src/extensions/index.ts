@@ -8,13 +8,12 @@
  *
  * The list is TYPED per build too: `npm run extensions` generates the virtual module's
  * declaration from the same file (a tuple of the listed manifests' own types), and
- * {@link ExtensionSettings} is computed from it. That is how the `Settings` type knows
+ * {@link ExtensionSettingsShape} is computed from it. That is how the `Settings` type knows
  * `airDrum` without core importing the air extension.
  *
  * Pure: the React halves are listed in `src/app/extensions`.
  */
-import type { z } from 'zod';
-import { extensionsSettingsShape, type Extension, type ExtensionsSettingsShape } from '@/instruments/extension';
+import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionsSettingsShape } from '@/instruments/extension';
 import listed from 'virtual:thoremin/extensions';
 
 type Listed = typeof listed;
@@ -33,18 +32,17 @@ function checked<Es extends readonly Extension[]>(es: Es): Es {
 /** The extensions `extensions.json` names, in its order (injected at build time). */
 export const EXTENSIONS: Listed = checked(listed);
 
+// Widened for the folds: over an EMPTY tuple (a build without extensions) `flatMap` would
+// type its element as `never`.
+const all: readonly Extension[] = EXTENSIONS;
+
 /** Every extension's dial slices, in extension order (what the settings schema spreads). */
-export const EXTENSION_DIAL_SLICES = EXTENSIONS.flatMap((e) => e.dials);
+export const EXTENSION_DIAL_SLICES: readonly DialSlice[] = all.flatMap((e) => e.dials);
 
 /** Every extension's branch, in extension order. */
-export const EXTENSION_BRANCHES = EXTENSIONS.flatMap((e) => e.branches);
+export const EXTENSION_BRANCHES = all.flatMap((e) => e.branches);
 
 /** The settings-schema shape the listed extensions contribute (`{ airDrum: <schema>, ... }`),
  *  typed from the generated list declaration. `SettingsSchema` extends the core shape with it. */
 export type ExtensionSettingsShape = ExtensionsSettingsShape<Listed>;
 export const EXTENSION_SETTINGS_SHAPE: ExtensionSettingsShape = extensionsSettingsShape(EXTENSIONS);
-
-/** The settings the listed extensions own, as values (`{ airDrum: AirDrumSettings, ... }`). */
-export type ExtensionSettings = {
-  [K in keyof ExtensionSettingsShape]: ExtensionSettingsShape[K] extends z.ZodTypeAny ? z.output<ExtensionSettingsShape[K]> : never;
-};

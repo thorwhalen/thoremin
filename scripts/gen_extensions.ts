@@ -4,7 +4,7 @@
  * computed from it, so run this after changing the manifest (a test fails if it is stale).
  *
  *   npm run extensions
- *   THOREMIN_EXTENSIONS=extensions.core.json npm run extensions   # typecheck core alone
+ *   THOREMIN_EXTENSIONS=other.json npm run extensions   # then typecheck against that set
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { DECLARATION_FILE, declarationSource, readExtensionEntries } from '../vite.extensions';

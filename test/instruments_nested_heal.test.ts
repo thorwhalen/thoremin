@@ -7,7 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeLayer } from '@/app/dials/instruments';
 import { DEFAULT_FINGERING_PRIOR } from '@/extensions/air/lib/fingering_prior';
-import { DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE } from '@/extensions/air/dials';
+import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE, DEFAULT_AIR_GUITAR } from '@/extensions/air/dials';
+import { mergeControls, useControls } from '@/app/store';
 
 describe('normalizeLayer and a nested additive key', () => {
   it('fills airFlute.prior into a layer saved before it existed, and matches the working layer', () => {
@@ -32,5 +33,30 @@ describe('normalizeLayer and a nested additive key', () => {
     const healed = normalizeLayer(saved);
     expect((healed.airDrum as { pattern: unknown }).pattern).toBe('');
     expect(healed.airDrum).toEqual(normalizeLayer(JSON.parse(JSON.stringify({ airDrum: DEFAULT_AIR_DRUM }))).airDrum);
+  });
+
+  it('heals every extension dial generically (bass, guitar), and leaves a complete dial as saved', () => {
+    const { volume: _v, ...oldBass } = DEFAULT_AIR_BASS as Record<string, unknown> & { volume: unknown };
+    void _v;
+    const healed = normalizeLayer(JSON.parse(JSON.stringify({ airBass: oldBass })));
+    expect(healed.airBass).toEqual(DEFAULT_AIR_BASS);
+    const complete = { airGuitar: { ...DEFAULT_AIR_GUITAR, enabled: true } };
+    // Untouched: the same object, not a re-parse (other dial keys may be default-filled around it).
+    expect(normalizeLayer(complete).airGuitar).toBe(complete.airGuitar);
+  });
+});
+
+describe('mergeControls and the extension dials (folded over the manifests)', () => {
+  const current = useControls.getState();
+
+  it('fills a partial stored dial from the current one, through its schema', () => {
+    const merged = mergeControls({ airBass: { enabled: true } }, current);
+    expect(merged.airBass).toEqual({ ...current.airBass, enabled: true });
+    expect(merged.airGuitar).toBe(current.airGuitar); // absent from the blob: kept as is
+  });
+
+  it('keeps the current dial when the stored one is invalid', () => {
+    const merged = mergeControls({ airDrum: { enabled: 'yes' } }, current);
+    expect(merged.airDrum).toBe(current.airDrum);
   });
 });

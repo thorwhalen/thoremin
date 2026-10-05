@@ -30,15 +30,22 @@ export interface AirInstrument {
   on: (s: Settings) => boolean;
 }
 
+/** Whether the extension dial `key` is on. Read structurally: the dial exists only in a build
+ *  whose extension list declares it, so a build without the air extension reads "off". */
+const dialOn = (key: string) => (s: Settings): boolean => {
+  const dial = (s as unknown as Record<string, { enabled?: unknown } | undefined>)[key];
+  return dial?.enabled === true;
+};
+
 /** The air instruments, in display order. SSOT for everything air-specific in the library. */
 export const AIR_INSTRUMENTS = [
-  { id: 'drum', label: 'Air drum', emoji: '🥁', usesScale: false, on: (s: Settings) => s.airDrum.enabled },
+  { id: 'drum', label: 'Air drum', emoji: '🥁', usesScale: false, on: dialOn('airDrum') },
   // 🎸 for the bass; 🤘 for the air guitar (the air guitarist's own sign).
-  { id: 'bass', label: 'Air bass', emoji: '🎸', usesScale: true, on: (s: Settings) => s.airBass.enabled },
+  { id: 'bass', label: 'Air bass', emoji: '🎸', usesScale: true, on: dialOn('airBass') },
   // The guitar plays the chords the player enrolled, not the scale.
-  { id: 'guitar', label: 'Air guitar', emoji: '🤘', usesScale: false, on: (s: Settings) => s.airGuitar.enabled },
+  { id: 'guitar', label: 'Air guitar', emoji: '🤘', usesScale: false, on: dialOn('airGuitar') },
   // The flute plays the notes the player named when enrolling fingerings, not the scale.
-  { id: 'flute', label: 'Air flute', emoji: '🪈', usesScale: false, on: (s: Settings) => s.airFlute.enabled },
+  { id: 'flute', label: 'Air flute', emoji: '🪈', usesScale: false, on: dialOn('airFlute') },
 ] as const satisfies readonly AirInstrument[];
 
 export type AirInstrumentId = (typeof AIR_INSTRUMENTS)[number]['id'];

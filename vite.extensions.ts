@@ -73,6 +73,9 @@ export const DECLARATION_FILE = 'src/extensions/virtual.d.ts';
  * import is type-only: erased from the bundle.
  */
 export function declarationSource(entries: readonly ExtensionEntry[], manifest = 'extensions.json'): string {
+  // The header names the manifest by its file name only: a committed file never carries a
+  // local absolute path, whatever `THOREMIN_EXTENSIONS` pointed at.
+  manifest = path.basename(manifest);
   const members = entries.map((e) => `typeof import(${JSON.stringify(e.module)}).default`).join(', ');
   return `/**
  * GENERATED from ${manifest} by \`npm run extensions\` (scripts/gen_extensions.ts); do not edit.

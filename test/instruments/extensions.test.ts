@@ -18,6 +18,7 @@ import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { useControls } from '@/app/store';
 import { deriveBranchIds } from '@/instruments/derive';
+import type { Extension, ExtensionsSettingsShape, LooseExtensionDials } from '@/instruments/extension';
 import type { BreathStatus } from '@/nodes/output/canvas_overlay';
 import { IDLE_AIR_FLUTE_STATUS } from '@/extensions/air/nodes/air_flute';
 
@@ -73,6 +74,10 @@ describe('the registry folds over the extensions', () => {
     expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute'>();
     // @ts-expect-error a key no listed extension declares is not a settings key
     expectTypeOf<Settings['airKazoo']>().toBeNever();
+    // A manifest typed loosely (`const x: Extension = ...`) widens its keys to `string`; the fold
+    // refuses it as a type rather than letting `Settings` collapse to `unknown`.
+    expectTypeOf<ExtensionsSettingsShape<readonly [Extension]>>().toEqualTypeOf<LooseExtensionDials>();
+    expectTypeOf<ExtensionsSettingsShape<readonly []>>().toEqualTypeOf<Record<never, never>>();
     expect(Object.keys(SettingsSchema.shape)).toEqual(expect.arrayContaining(EXTENSION_DIAL_SLICES.map((s) => s.key)));
   });
 

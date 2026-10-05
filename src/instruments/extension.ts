@@ -79,6 +79,14 @@ export function defineExtension<const D extends readonly DialSlice[]>(ext: Exten
 
 type UnionToIntersection<U> = (U extends unknown ? (u: U) => void : never) extends (i: infer I) => void ? I : never;
 type SliceShape<S> = S extends DialSlice<infer K, infer Z> ? { [P in K]: Z } : never;
+/** `true` for a slice whose key widened to `string` (declared without {@link dialSlice}). */
+type LooseSlice<S> = S extends DialSlice<infer K, z.ZodTypeAny> ? (string extends K ? true : never) : never;
+
+/** What a loosely typed manifest folds to: not a shape, so `CoreSettingsSchema.extend(...)` fails
+ *  to typecheck, loudly, instead of the whole `Settings` type silently widening to `unknown`. */
+export interface LooseExtensionDials {
+  error: 'an extension dial key widened to string: build the slices with dialSlice() and the manifest with defineExtension()';
+}
 
 /**
  * The settings-schema SHAPE a list of extensions contributes (`{ airDrum: <its schema>, ... }`),
@@ -87,7 +95,9 @@ type SliceShape<S> = S extends DialSlice<infer K, infer Z> ? { [P in K]: Z } : n
  */
 export type ExtensionsSettingsShape<Es extends readonly Extension[]> = [Es[number]['dials'][number]] extends [never]
   ? Record<never, never>
-  : UnionToIntersection<SliceShape<Es[number]['dials'][number]>>;
+  : [LooseSlice<Es[number]['dials'][number]>] extends [never]
+    ? UnionToIntersection<SliceShape<Es[number]['dials'][number]>>
+    : LooseExtensionDials;
 
 /** The runtime value of {@link ExtensionsSettingsShape}: one entry per dial slice, keyed by its key. */
 export function extensionsSettingsShape<Es extends readonly Extension[]>(extensions: Es): ExtensionsSettingsShape<Es> {
