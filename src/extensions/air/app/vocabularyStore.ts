@@ -31,7 +31,7 @@ import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '@/
  *  `TrainVocabularyOptions.rejectScale`). */
 export const MOUTH_REJECT_SCALE = 3;
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll';
-import { controls, controlsStore } from '@thoremin/sdk-ui/host';
+import { airControls } from '@/extensions/air/app/controls';
 
 export const VOCABULARIES_STORAGE_KEY = 'thoremin-air-vocabularies';
 
@@ -134,7 +134,7 @@ export const GUITAR_VOCABULARY = 'guitar';
 export const useGuitarVocabulary = createVocabularyState({
   name: GUITAR_VOCABULARY,
   features: chordShapeFeatureIds(),
-  publish: (model) => controls().setTransient('airGuitarModel', model),
+  publish: (model) => airControls.setTransient('airGuitarModel', model),
 });
 
 /** The flute's finger features: both hands' shapes, prefixed by the player's hand. */
@@ -151,8 +151,8 @@ export function deriveFluteFingerModel(vocab: Vocabulary, prior: Partial<Fingeri
 export const useFluteFingerVocabulary = createVocabularyState({
   name: 'flute-fingers',
   features: FLUTE_FINGER_FEATURES,
-  publish: (model) => controls().setTransient('airFluteFingerModel', model),
-  derive: (vocab) => deriveFluteFingerModel(vocab, controlsStore<PriorState>().getState().airFlute?.prior),
+  publish: (model) => airControls.setTransient('airFluteFingerModel', model),
+  derive: (vocab) => deriveFluteFingerModel(vocab, airControls.store().getState().airFlute?.prior),
 });
 
 /**
@@ -165,7 +165,7 @@ export const useFluteFingerVocabulary = createVocabularyState({
 type PriorState = { airFlute?: { prior?: Partial<FingeringPriorSettings> } };
 
 export function startFlutePriorSync(
-  store: { getState(): PriorState; subscribe(l: (s: PriorState) => void): () => void } = controlsStore<PriorState>(),
+  store: { getState(): PriorState; subscribe(l: (s: PriorState) => void): () => void } = airControls.store(),
   vocabulary: { getState(): Pick<VocabularyState, 'republish'> } = useFluteFingerVocabulary,
 ): () => void {
   let last = JSON.stringify(store.getState().airFlute?.prior ?? null);
@@ -181,7 +181,7 @@ export function startFlutePriorSync(
 export const useFluteMouthVocabulary = createVocabularyState({
   name: 'flute-mouth',
   features: ALL_FEATURES.filter((f) => (MOUTH_GROUPS as readonly string[]).includes(f.group)).map((f) => f.id),
-  publish: (model) => controls().setTransient('airFluteMouthModel', model),
+  publish: (model) => airControls.setTransient('airFluteMouthModel', model),
   // A gate, so open-set: a mouth like neither state (talking, a smile) is not blowing.
   train: { rejectScale: MOUTH_REJECT_SCALE },
 });

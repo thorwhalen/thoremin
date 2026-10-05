@@ -10,6 +10,9 @@
  * loaded its implementation is an error, one that names what is missing.
  */
 
+import type { z } from 'zod';
+import type { Extension, ExtensionsSettingsShape, ExtensionsTransients } from '@thoremin/sdk/instruments/extension';
+
 /** The live control store (the app's hot store), as an extension may use it. */
 export interface ControlsHost {
   /** The current state: every dial and transient field by key. An extension reads its OWN
@@ -89,6 +92,37 @@ export function controlsStore<S>(): { getState(): S; subscribe(listener: (state:
   return {
     getState: () => controls().get() as unknown as S,
     subscribe: (listener) => controls().subscribe(() => listener(controls().get() as unknown as S)),
+  };
+}
+
+type DialsOf<E extends Extension> = {
+  [K in keyof ExtensionsSettingsShape<readonly [E]>]: ExtensionsSettingsShape<readonly [E]>[K] extends z.ZodTypeAny ? z.output<ExtensionsSettingsShape<readonly [E]>[K]> : never;
+};
+type TransientsOf<E extends Extension> = ExtensionsTransients<readonly [E]>;
+
+/** What an extension sees of the controls: ITS dials and transient fields, typed from its own
+ *  manifest (the same fold that types the app's `Settings`). */
+export type ControlsOf<E extends Extension> = DialsOf<E> & TransientsOf<E>;
+
+/** The controls seam typed for one extension: a typo'd key or a wrong value is a type error. */
+export interface ExtensionControls<E extends Extension> {
+  get(): Readonly<ControlsOf<E>>;
+  setTransient<K extends keyof TransientsOf<E> & string>(field: K, value: TransientsOf<E>[K]): void;
+  setHush(claimer: string, on: boolean): void;
+  /** The same, as a minimal store for an injectable sync loop. */
+  store(): { getState(): ControlsOf<E>; subscribe(listener: (state: ControlsOf<E>) => void): () => void };
+}
+
+/**
+ * The controls typed by an extension's manifest TYPE: `controlsFor<typeof MY_EXTENSION>()`
+ * (a type-only import of the manifest, so no runtime cycle). Resolved per call like the raw seam.
+ */
+export function controlsFor<E extends Extension>(): ExtensionControls<E> {
+  return {
+    get: () => controls().get() as unknown as Readonly<ControlsOf<E>>,
+    setTransient: (field, value) => controls().setTransient(field, value),
+    setHush: (claimer, on) => controls().setHush(claimer, on),
+    store: () => controlsStore<ControlsOf<E>>(),
   };
 }
 

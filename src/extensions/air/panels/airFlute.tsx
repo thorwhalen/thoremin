@@ -34,7 +34,7 @@ import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app
 import { FingeringGuide } from '@/extensions/air/app/FingeringGuide';
 import { FLUTE_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
 import { TRAINING_ANCHORS } from '@/extensions/air/training';
-import { controls } from '@thoremin/sdk-ui/host';
+import { airControls } from '@/extensions/air/app/controls';
 import { checkTake, expectedFingering, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
 import { FINGERING_CHARTS } from '@/extensions/air/lib/fingerings';
 import { parseNoteName } from '@/extensions/air/lib/notes';
@@ -209,7 +209,7 @@ export function AirFluteControls() {
         readShape={() => readShape(AIR_FLUTE_NODE_ID, 'shape')}
         canonical={(typed) => parseNoteName(typed)?.name ?? null}
         makeCheck={() => {
-          const model = controls().get().airFluteFingerModel;
+          const model = airControls.get().airFluteFingerModel;
           return model ? (label, samples) => checkTake(model, label, samples) : undefined;
         }}
         guide={(label, dim) => fluteGuide(prior, label, dim)}

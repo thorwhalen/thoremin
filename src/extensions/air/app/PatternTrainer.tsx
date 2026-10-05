@@ -25,7 +25,7 @@ import { hitsSince } from '@/extensions/air/app/hitsTap';
 import { loadPatternModel, removePatternModel, savePatternModel } from '@/extensions/air/app/patternModels';
 import { refreshPatternPlay } from '@/extensions/air/app/patternPlaySync';
 import { TRAINING_ANCHORS } from '@/extensions/air/training';
-import { controls } from '@thoremin/sdk-ui/host';
+import { airControls } from '@/extensions/air/app/controls';
 import { PatternStrip } from '@/extensions/air/app/PatternStrip';
 
 /** Bars of count-in before the pattern starts. */
@@ -123,7 +123,7 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     setError(null);
     // No pattern in play during a take: the take must be the player's strokes, not the
     // mode's snapped output (fitting that would only reproduce the old model).
-    controls().setTransient('airDrumPattern', null);
+    airControls.setTransient('airDrumPattern', null);
     const player = clickPlayer();
     player.unlock?.();
     const startMs = now() + 200;
