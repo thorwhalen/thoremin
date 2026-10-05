@@ -1,25 +1,31 @@
 /**
  * Generate the typed declaration of the extension list (`src/extensions/virtual.d.ts`) from
- * `extensions.json`, or from the file `THOREMIN_EXTENSIONS` names. The settings type is
- * computed from it, so run this after changing the manifest (a test fails if it is stale).
+ * `extensions.json`, or from the file `THOREMIN_EXTENSIONS` names, and the core-alone one
+ * (`extensions.core.d.ts`, from `extensions.core.json`, read by `tsconfig.core.json`). The
+ * settings type is computed from them, so run this after changing a manifest (a test fails if
+ * either is stale).
  *
  *   npm run extensions
  *   THOREMIN_EXTENSIONS=other.json npm run extensions   # then typecheck against that set
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { DECLARATION_FILE, declarationSource, readExtensionEntries } from '../vite.extensions';
+import { CORE_DECLARATION_FILE, CORE_MANIFEST, DECLARATION_FILE, declarationSource, readExtensionEntries } from '../vite.extensions';
 
-const manifest = process.env.THOREMIN_EXTENSIONS ?? 'extensions.json';
-const source = declarationSource(readExtensionEntries(manifest), manifest);
-let current = '';
-try {
-  current = readFileSync(DECLARATION_FILE, 'utf8');
-} catch {
-  // first generation
+function generate(manifest: string, out: string): void {
+  const source = declarationSource(readExtensionEntries(manifest), manifest);
+  let current = '';
+  try {
+    current = readFileSync(out, 'utf8');
+  } catch {
+    // first generation
+  }
+  if (current === source) {
+    console.log(`${out} is up to date with ${manifest}`);
+  } else {
+    writeFileSync(out, source);
+    console.log(`wrote ${out} from ${manifest}`);
+  }
 }
-if (current === source) {
-  console.log(`${DECLARATION_FILE} is up to date with ${manifest}`);
-} else {
-  writeFileSync(DECLARATION_FILE, source);
-  console.log(`wrote ${DECLARATION_FILE} from ${manifest}`);
-}
+
+generate(process.env.THOREMIN_EXTENSIONS ?? 'extensions.json', DECLARATION_FILE);
+generate(CORE_MANIFEST, CORE_DECLARATION_FILE);

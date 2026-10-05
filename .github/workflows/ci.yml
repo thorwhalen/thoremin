@@ -63,3 +63,25 @@ jobs:
 
       - name: Build (vite — verifies the React layer)
         run: npm run build
+
+  # Core alone: thoremin must typecheck, test and build with NO extension listed
+  # (extensions.core.json), so an extension stays something a deploy chooses and core
+  # never quietly depends on one. Tests that exercise an extension skip themselves here
+  # (`it.runIf(AIR)`, test/helpers/extensions.ts). See docs/design/instruments-as-graphs-and-extensions.md.
+  core:
+    name: core alone (no extensions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install (lockfile-exact)
+        run: npm ci
+
+      - name: Typecheck, test and build with no extensions
+        run: npm run test:core

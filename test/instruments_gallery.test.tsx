@@ -15,6 +15,7 @@ import {
   type InstrumentsViewPrefs,
 } from '@/app/library/instrumentsViewPrefs';
 import { instrumentsCollection } from '@/app/library/instrumentsCollection';
+import { AIR } from './helpers/extensions';
 
 beforeAll(() => localStorage.clear());
 beforeEach(() => useInstrumentsView.setState({ view: 'list', collapsed: [] }));
@@ -28,7 +29,7 @@ describe('the gallery view', () => {
     expect(instrumentsCollection.affordances.views).toEqual(['list', 'grid']);
   });
 
-  it('the toggle switches to cards, with the same groups, and back', async () => {
+  it.runIf(AIR)('the toggle switches to cards, with the same groups, and back', async () => {
     render(<InstrumentsPanel />);
     await loaded();
     fireEvent.click(screen.getByRole('button', { name: 'Gallery view' }));
@@ -42,7 +43,7 @@ describe('the gallery view', () => {
     expect(within(screen.getByRole('group', { name: 'Air instruments' })).getByText('Air Drum').closest('li')!.querySelector('.aspect-\\[16\\/10\\]')).toBeNull();
   });
 
-  it('keeps the search: a query narrows the cards the same way', async () => {
+  it.runIf(AIR)('keeps the search: a query narrows the cards the same way', async () => {
     render(<InstrumentsPanel />);
     await loaded();
     fireEvent.click(screen.getByRole('button', { name: 'Gallery view' }));
@@ -52,7 +53,7 @@ describe('the gallery view', () => {
     );
   });
 
-  it("shows an instrument's picture once it has one, set from its editor", async () => {
+  it.runIf(AIR)("shows an instrument's picture once it has one, set from its editor", async () => {
     render(<InstrumentsPanel />);
     await loaded();
     fireEvent.click(screen.getByLabelText('Edit Air Drum'));
@@ -107,7 +108,7 @@ describe('picture references', () => {
 });
 
 describe('a card without a picture still tells instruments apart', () => {
-  it("shows its air instrument's emoji, else its initials", async () => {
+  it.runIf(AIR)("shows its air instrument's emoji, else its initials", async () => {
     const { initialsOf } = await import('@/app/library/InstrumentPicture');
     expect(initialsOf('Wrist Theremin')).toBe('WT');
     expect(initialsOf('Pentatonic')).toBe('PE');

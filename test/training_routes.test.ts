@@ -5,10 +5,18 @@
  * tool route opens the tool; a route whose trainer is not on the page says so.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { TRAINING_ANCHORS, TRAINING_ROUTES, goToTraining, routeById, trainingRouteFor } from '@/app/training/routes';
+import { TRAINING_ROUTES, goToTraining, routeById, trainingRouteFor } from '@/app/training/routes';
+import { TRAINING_ANCHORS } from '@/extensions/air/training';
+import { AIR } from './helpers/extensions';
 
 describe('trainingRouteFor', () => {
-  it('derives the route from the composed branches, the flute, guitar and drum before the Trainer', () => {
+  it('falls back to the Trainer tool for an instrument no extension trains (core alone too)', () => {
+    expect(trainingRouteFor({ branches: ['face-chord'], features: ['face-chord'] }).id).toBe('trainer');
+    expect(trainingRouteFor(undefined).id).toBe('trainer');
+    expect(TRAINING_ROUTES.at(-1)?.id).toBe('trainer');
+  });
+
+  it.runIf(AIR)('derives the route from the composed branches, the flute, guitar and drum before the Trainer', () => {
     expect(trainingRouteFor({ branches: ['air-flute'], features: [] }).id).toBe('sequence:flute');
     expect(trainingRouteFor({ branches: undefined, features: ['air-guitar', 'hands'] }).id).toBe('sequence:guitar');
     expect(trainingRouteFor({ branches: ['air-drum', 'conductor'], features: [] }).id).toBe('patterns:drum');
@@ -18,7 +26,7 @@ describe('trainingRouteFor', () => {
     expect(trainingRouteFor({ branches: ['air-drum', 'air-flute'], features: [] }).id).toBe('sequence:flute');
   });
 
-  it('honours a declared route it knows, and ignores one it does not', () => {
+  it.runIf(AIR)('honours a declared route it knows, and ignores one it does not', () => {
     expect(trainingRouteFor({ training: { route: 'patterns:drum' }, branches: ['air-flute'], features: [] }).id).toBe('patterns:drum');
     expect(trainingRouteFor({ training: { route: 'no-such' }, branches: ['air-flute'], features: [] }).id).toBe('sequence:flute');
   });
@@ -29,7 +37,7 @@ describe('trainingRouteFor', () => {
       expect(r.hint.length).toBeGreaterThan(0);
       expect(Boolean(r.section) !== Boolean(r.tool)).toBe(true);
     }
-    for (const anchor of Object.values(TRAINING_ANCHORS)) expect(TRAINING_ROUTES.some((r) => r.section?.anchor === anchor)).toBe(true);
+    if (AIR) for (const anchor of Object.values(TRAINING_ANCHORS)) expect(TRAINING_ROUTES.some((r) => r.section?.anchor === anchor)).toBe(true);
     expect(routeById('trainer')?.tool).toBe('trainer');
   });
 });
@@ -41,7 +49,7 @@ describe('goToTraining', () => {
     expect(openTool).toHaveBeenCalledWith('trainer');
   });
 
-  it('opens the sections above a trainer and scrolls to it, or reports it absent', () => {
+  it.runIf(AIR)('opens the sections above a trainer and scrolls to it, or reports it absent', () => {
     const scrolled: unknown[] = [];
     const details = { tagName: 'DETAILS', open: false, parentElement: null as unknown };
     const wrapper = { tagName: 'DIV', parentElement: details };

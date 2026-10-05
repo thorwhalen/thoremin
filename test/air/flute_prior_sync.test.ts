@@ -12,6 +12,7 @@ import { AirFluteSettingsSchema } from '@/extensions/air/dials';
 import { structuredDialLeaves } from '@/app/commands/paths';
 import { FLUTE_CHART } from '@/music/fingerings';
 import { priorClasses } from '@/extensions/air/lib/fingering_prior';
+import { AIR } from '../helpers/extensions';
 
 describe('the prior dial', () => {
   it('defaults to the flute chart over its first two octaves, worth ten samples', () => {
@@ -22,7 +23,7 @@ describe('the prior dial', () => {
     expect(AirFluteSettingsSchema.parse({ enabled: true }).prior).toEqual(DEFAULT_FINGERING_PRIOR);
   });
 
-  it('is reachable leaf by leaf through the command paths', () => {
+  it.runIf(AIR)('is reachable leaf by leaf through the command paths', () => {
     const paths = structuredDialLeaves().map((l) => l.path);
     for (const leaf of ['enabled', 'chart', 'strength', 'low', 'high']) expect(paths).toContain(`airFlute.prior.${leaf}`);
   });

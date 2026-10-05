@@ -16,8 +16,9 @@ import type { SynthParams } from '@/nodes/domain';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
 import { midiToFreq } from '@/music/theory';
 import { fingeringSamples, fluteTake } from './synthetic_flute';
+import { AIR } from '../helpers/extensions';
 
-describe('air flute in the default graph', () => {
+describe.runIf(AIR)('air flute in the default graph', () => {
   it('wires the dial, both models, the octave shift, the hands, the face and the voice — the #249 guard', () => {
     const g = defaultGraph();
     const has = (fn: string, fp: string, tn: string, tp: string) =>

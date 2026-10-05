@@ -3,8 +3,10 @@
  * instrument spec's `training` link (the instruments-as-graphs ADR, PR 4).
  *
  * A spec may declare `training: { route }`; when it does not, the route is derived from
- * what the instrument composes: an air flute or guitar trains by a scripted sequence in
- * its own settings section, an air drum by a pattern take in its, and everything else
+ * what the instrument composes: an extension's instrument trains where its manifest's
+ * `training` says (the air flute or guitar by a scripted sequence in its own settings
+ * section, the air drum by a pattern take in its: `src/extensions/air/training.ts`), and
+ * everything else
  * (the field instruments, whose control is a face or a hand the trainer carves
  * categories out of) by the Trainer tool (#163). The route is what the link in the
  * instrument's panel follows; the trainer stream owns this table, the spec only names
@@ -16,45 +18,15 @@
  * touches the DOM and the tools store.
  */
 import type { InstrumentSpec } from '@/instruments/spec';
+import type { TrainingRoute } from '@/instruments/extension';
+import { EXTENSION_TRAINING_BY_BRANCH, EXTENSION_TRAINING_ROUTES } from '@/extensions';
 
-export interface TrainingRoute {
-  id: string;
-  /** What the link says. */
-  label: string;
-  /** One line under it. */
-  hint: string;
-  /** A section route: the settings section's `data-section` label and the trainer's DOM id. */
-  section?: { label: string; anchor: string };
-  /** A tool route: the shell tool to open. */
-  tool?: string;
-}
+export type { TrainingRoute };
 
-/** The DOM ids the trainers render, so a route can find them. */
-export const TRAINING_ANCHORS = {
-  fluteSequence: 'training-sequence-flute',
-  guitarSequence: 'training-sequence-guitar',
-  drumPatterns: 'training-patterns-drum',
-} as const;
-
+/** Every route: the extensions' own (their instruments train in their settings sections),
+ *  then core's Trainer tool, the fallback. */
 export const TRAINING_ROUTES: readonly TrainingRoute[] = [
-  {
-    id: 'sequence:flute',
-    label: 'Learn a sequence of notes',
-    hint: 'Walk through a scale or a list of notes; every note you hold is learned.',
-    section: { label: 'Air flute', anchor: TRAINING_ANCHORS.fluteSequence },
-  },
-  {
-    id: 'sequence:guitar',
-    label: 'Learn a sequence of chords',
-    hint: 'Walk through a list of chords; every shape you hold is learned.',
-    section: { label: 'Air guitar', anchor: TRAINING_ANCHORS.guitarSequence },
-  },
-  {
-    id: 'patterns:drum',
-    label: 'Learn a drum pattern',
-    hint: 'Play a pattern through a few times; your tempo, feel and pads are learned, then played back snapped.',
-    section: { label: 'Air drum', anchor: TRAINING_ANCHORS.drumPatterns },
-  },
+  ...EXTENSION_TRAINING_ROUTES,
   {
     id: 'trainer',
     label: 'Open the Trainer',
@@ -65,12 +37,9 @@ export const TRAINING_ROUTES: readonly TrainingRoute[] = [
 
 export const routeById = (id: string): TrainingRoute | undefined => TRAINING_ROUTES.find((r) => r.id === id);
 
-/** The branch each section route trains, in the order a lead instrument is looked for. */
-const BY_BRANCH: readonly [branch: string, route: string][] = [
-  ['air-flute', 'sequence:flute'],
-  ['air-guitar', 'sequence:guitar'],
-  ['air-drum', 'patterns:drum'],
-];
+/** The branch each section route trains, in the order a lead instrument is looked for
+ *  (each extension's table, in extension order). */
+const BY_BRANCH = EXTENSION_TRAINING_BY_BRANCH;
 
 /**
  * The route for a spec: its declared `training.route` when it names a known route, else

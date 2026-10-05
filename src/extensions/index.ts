@@ -42,6 +42,13 @@ export const EXTENSION_DIAL_SLICES: readonly DialSlice[] = all.flatMap((e) => e.
 /** Every extension's branch, in extension order. */
 export const EXTENSION_BRANCHES = all.flatMap((e) => e.branches);
 
+/** Every extension's training routes, and its branch → route table, in extension order. */
+export const EXTENSION_TRAINING_ROUTES = all.flatMap((e) => e.training?.routes ?? []);
+export const EXTENSION_TRAINING_BY_BRANCH = all.flatMap((e) => e.training?.byBranch ?? []);
+
+/** Every extension's shipped instrument, in extension order (seeded after core's own). */
+export const EXTENSION_INSTRUMENTS = all.flatMap((e) => e.instruments ?? []);
+
 /** The settings-schema shape the listed extensions contribute (`{ airDrum: <schema>, ... }`),
  *  typed from the generated list declaration. `SettingsSchema` extends the core shape with it. */
 export type ExtensionSettingsShape = ExtensionsSettingsShape<Listed>;

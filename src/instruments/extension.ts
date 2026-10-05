@@ -55,6 +55,37 @@ export interface TransientPort {
   kind: string;
 }
 
+/**
+ * A shipped instrument an extension contributes: a name and a PATCH over the default settings,
+ * deep-merged by core's seeder (objects merge key by key, anything else replaces), then
+ * validated by the settings schema. A patch, not a full snapshot, because the defaults are
+ * core's: the extension states only what its instrument changes.
+ */
+export interface ExtensionInstrument {
+  name: string;
+  patch: Readonly<Record<string, unknown>>;
+}
+
+/** Where "train this instrument" goes (`src/app/training/routes.ts` resolves a spec to one). */
+export interface TrainingRoute {
+  id: string;
+  /** What the link says. */
+  label: string;
+  /** One line under it. */
+  hint: string;
+  /** A section route: the settings section's `data-section` label and the trainer's DOM id. */
+  section?: { label: string; anchor: string };
+  /** A tool route: the shell tool to open. */
+  tool?: string;
+}
+
+/** The training an extension's instruments offer: its routes, and which of its branches leads
+ *  to which route, in the order a lead instrument is looked for. */
+export interface ExtensionTraining {
+  routes: readonly TrainingRoute[];
+  byBranch: readonly (readonly [branch: string, route: string])[];
+}
+
 export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]> {
   /** Stable id (`air`). */
   id: string;
@@ -65,6 +96,10 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   /** The settings keys this extension owns, one per whole-object dial. */
   dials: D;
   transient?: readonly TransientPort[];
+  /** The instruments it ships, appended to core's seeds in this order. */
+  instruments?: readonly ExtensionInstrument[];
+  /** Its training routes, tried before core's Trainer tool. */
+  training?: ExtensionTraining;
   /**
    * Which of this extension's branches the settings imply (the derivation column of the ADR,
    * §3.4, for this extension). Called by `branchIdsFor` when no explicit set is given.

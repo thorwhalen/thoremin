@@ -5,8 +5,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { ensureSeeded, instruments } from '@/app/dials/instruments';
+import { AIR } from './helpers/extensions';
 
-describe('upgrading a browser seeded before the air instruments', () => {
+describe.runIf(AIR)('upgrading a browser seeded before the air instruments', () => {
   it('adds the Air Drum and keeps an edited shipped instrument as the player left it', async () => {
     localStorage.clear();
     await ensureSeeded();

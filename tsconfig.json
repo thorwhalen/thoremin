@@ -22,5 +22,7 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "//exclude": "extensions.core.d.ts declares the extension list as EMPTY, for tsconfig.core.json only; the editor and every other config read src/extensions/virtual.d.ts.",
+  "exclude": ["node_modules", "frontend", "extensions.core.d.ts"]
 }

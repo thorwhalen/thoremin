@@ -58,7 +58,7 @@ export interface SequenceTrainerProps {
   guide?: (label: string, dim: boolean) => ReactNode;
   starters: readonly NamedSequence[];
   words: SequenceTrainerWords;
-  /** The DOM id a training route scrolls to (`src/app/training/routes.ts`). */
+  /** The DOM id a training route scrolls to (`../training.ts`). */
   id?: string;
 }
 

@@ -13,8 +13,9 @@ import { defaultGraph } from '@/app/graph';
 import { DEFAULT_AIR_BASS } from '@/extensions/air/dials';
 import { generateScale } from '@/music/theory';
 import { bassTake } from './synthetic_bass';
+import { AIR } from '../helpers/extensions';
 
-describe('air bass in the default graph', () => {
+describe.runIf(AIR)('air bass in the default graph', () => {
   it('wires the dial, the hands, the scale and the notes — the #249 guard', () => {
     const g = defaultGraph();
     const has = (fn: string, fp: string, tn: string, tp: string) =>

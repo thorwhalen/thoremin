@@ -27,7 +27,8 @@ import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
 import { defaultSteerConfig, EXTENSION_DIAL_SCHEMAS } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
-import type { Settings } from '@/settings/schema';
+import { SettingsSchema, type Settings } from '@/settings/schema';
+import { EXTENSION_INSTRUMENTS } from '@/extensions';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import type { FingerName } from '@/nodes/domain';
@@ -75,6 +76,28 @@ export interface SeedInstrument {
 function seed(name: string, s: Settings): SeedInstrument {
   return { name, layer: settingsToLayer(s) };
 }
+
+/** The default settings with an extension instrument's patch deep-merged in (objects merge
+ *  key by key, anything else replaces), validated by the settings schema: an extension states
+ *  only what its instrument changes. A key the defaults do not have, at ANY depth (a typo,
+ *  `airDrum.enabeld`), throws at module load, naming the path, rather than shipping a seed that
+ *  silently plays the defaults. Exported for the tests. */
+export function settingsWithPatch(name: string, patch: Readonly<Record<string, unknown>>): Settings {
+  const unknown: string[] = [];
+  const merge = (base: unknown, over: unknown, path: string): unknown => {
+    if (!isPlainObject(base) || !isPlainObject(over)) return structuredClone(over);
+    const out: Record<string, unknown> = { ...structuredClone(base) };
+    for (const [k, v] of Object.entries(over)) {
+      if (!(k in base)) unknown.push(path + k);
+      out[k] = merge(out[k], v, `${path}${k}.`);
+    }
+    return out;
+  };
+  const merged = merge(DEFAULTS, patch, '');
+  if (unknown.length) throw new Error(`instrument "${name}": its patch names settings that do not exist: ${unknown.join(', ')}`);
+  return SettingsSchema.parse(merged);
+}
+const isPlainObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 
 /**
  * The shipped instruments — a dozen, each demoing a feature of the stack:
@@ -225,51 +248,8 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     }),
   }),
 
-  // --- Air instruments (#249): played by miming, listed in their own category -------
-  // Strike the air, hear a drum at the strike (#233). The theremin voices are silenced
-  // (hand-map max gain 0) so the hands only drum; raise it in the Hand section to play
-  // a melody over the beat. The note grid and the note names on the hands go with them:
-  // they would label notes nobody hears.
-  seed('Air Drum', {
-    ...DEFAULTS,
-    handMap: handMap({ maxGain: 0 }),
-    airDrum: { ...DEFAULTS.airDrum, enabled: true },
-    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
-  }),
-
-  // Pluck a bass that is not there (#249): the neck hand's distance from the plucking
-  // hand picks the note from this scale (E minor pentatonic over the two octaves from E2:
-  // a real bass's lowest octave, E1, is mostly below what a laptop speaker plays), a
-  // pluck sounds it. The theremin voices and their on-screen note grid are off: the
-  // grid is laid across the screen, the bass's neck is laid between the hands.
-  seed('Air Bass', {
-    ...DEFAULTS,
-    right: { ...DEFAULTS.right, root: 4, type: 'minorPentatonic', baseOctave: 2, octaves: 2 },
-    left: { ...DEFAULTS.left, root: 4, type: 'minorPentatonic', baseOctave: 2, octaves: 2 },
-    handMap: handMap({ maxGain: 0 }),
-    airBass: { ...DEFAULTS.airBass, enabled: true },
-    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
-  }),
-
-  // Strum chords in the air (#249): the chord hand's shape against the chords this player
-  // taught it (the enrolment step, in its settings), a predicted strum of the other hand.
-  // The theremin voices and their note grid are off.
-  seed('Air Guitar', {
-    ...DEFAULTS,
-    handMap: handMap({ maxGain: 0 }),
-    airGuitar: { ...DEFAULTS.airGuitar, enabled: true },
-    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
-  }),
-
-  // Play a flute in the air (#249): enrolled finger lifts of both hands choose the note,
-  // the enrolled blowing mouth sounds it (the enrolment steps are in its settings). The
-  // theremin voices and their note grid are off.
-  seed('Air Flute', {
-    ...DEFAULTS,
-    handMap: handMap({ maxGain: 0 }),
-    airFlute: { ...DEFAULTS.airFlute, enabled: true },
-    overlay: overlay({ scaleGuide: { show: false }, markers: { showNotes: false } }),
-  }),
+  // --- The extensions' instruments (the air instruments, #249), after core's own -----
+  ...EXTENSION_INSTRUMENTS.map((i) => seed(i.name, settingsWithPatch(i.name, i.patch))),
 ];
 
 function instrumentStorage(): ProfileStorage {

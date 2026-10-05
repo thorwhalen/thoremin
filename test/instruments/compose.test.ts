@@ -9,6 +9,7 @@ import { Engine } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeGraph, ComposeError, defineBranch } from '@/instruments';
 import { composeInstrumentGraph, ALL_BRANCHES, ALL_BRANCH_IDS } from '@/app/graph';
+import { AIR } from '../helpers/extensions';
 
 const MERGE = { node: 'merge', pools: { instrument: ['v1', 'v2'], score: ['s1'] } } as const;
 
@@ -119,9 +120,11 @@ describe('composeGraph rules', () => {
   it('3: allocation is order-independent: the hand voices land on voice1 whatever order the caller names', () => {
     const byOrder = (ids: string[]) =>
       Object.fromEntries(composeInstrumentGraph(ids).spec.edges.filter((e) => e.to.node === 'merge' && e.from.node !== 'ui').map((e) => [e.from.node, e.to.port]));
+    expect(byOrder(['conductor', 'field-voices'])).toEqual({ map: 'voice1', score: 'score1' });
+    expect(byOrder(['field-voices', 'conductor'])).toEqual({ map: 'voice1', score: 'score1' });
+    if (!AIR) return;
     expect(byOrder(['trunk', 'air-flute', 'field-voices'])).toEqual({ map: 'voice1', airFlute: 'voice2' });
     expect(byOrder(['air-flute', 'face-timbre'])).toEqual({ map: 'voice1', airFlute: 'voice2' });
-    expect(byOrder(['conductor', 'field-voices'])).toEqual({ map: 'voice1', score: 'score1' });
   });
 
   it('a branch table is frozen: mutating one composition cannot leak into the next', () => {

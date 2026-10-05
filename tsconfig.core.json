@@ -1,0 +1,36 @@
+{
+  "//": "CORE ALONE: the strict typecheck of tsconfig.dag.json over core's sources with NO extension listed. The extension list's type comes from extensions.core.d.ts (generated from extensions.core.json: an empty tuple), so `Settings` has no extension keys and any core file that names an extension's dial, node or type fails here. Extensions and tests are left out (tests exercise the extensions); the core-alone TEST run is `npm run test:core`. Files are reached from the includes, so a core file importing an extension would pull it in and fail too. The app files are tsconfig.dag.json's React-free ones plus the core files that once named an extension (the store, the seeds, the library's class derivation and summary, the command paths); the React layer has no types to check (no @types/react, by design).",
+  "extends": "./tsconfig.dag.json",
+  "include": [
+    "extensions.core.d.ts",
+    "src/extensions/index.ts",
+    "packages/dag/src",
+    "src/instruments",
+    "packages/ictus/src",
+    "src/drums",
+    "src/score",
+    "packages/lazy/src",
+    "src/keys",
+    "src/nodes",
+    "src/music",
+    "src/features",
+    "src/settings",
+    "packages/taglog/src",
+    "src/enroll",
+    "src/latency",
+    "src/app/graph.ts",
+    "src/app/featureDemand.ts",
+    "src/app/enroll",
+    "src/app/lab",
+    "src/app/store.ts",
+    "src/app/dials/instruments.ts",
+    "src/app/library/category.ts",
+    "src/app/library/derive.ts",
+    "src/app/library/summarize.ts",
+    "src/app/commands",
+    "src/app/training/routes.ts"
+  ],
+  "exclude": [
+    "src/app/enroll/**/*.tsx"
+  ]
+}

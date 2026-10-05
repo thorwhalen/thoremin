@@ -33,7 +33,7 @@ import { VocabularyEnrolment, type EnrolmentWords } from '@/extensions/air/app/V
 import { SequenceTrainer, type SequenceTrainerWords } from '@/extensions/air/app/SequenceTrainer';
 import { FingeringGuide } from '@/extensions/air/app/FingeringGuide';
 import { FLUTE_STARTER_SEQUENCES } from '@/app/enroll/sequenceStore';
-import { TRAINING_ANCHORS } from '@/app/training/routes';
+import { TRAINING_ANCHORS } from '@/extensions/air/training';
 import { useControls } from '@/app/store';
 import { checkTake, expectedFingering, priorOptionsFrom, type FingeringPriorSettings } from '@/extensions/air/lib/fingering_prior';
 import { FINGERING_CHARTS } from '@/music/fingerings';

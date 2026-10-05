@@ -18,6 +18,7 @@ import type { EdgeSpec, GraphSpec, NodeSpec } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { defaultGraph, type SlotSelection } from '@/app/graph';
+import { AIR } from '../helpers/extensions';
 
 const FIXTURES = join(__dirname, '..', 'fixtures', 'graph');
 
@@ -49,7 +50,7 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } },
 ];
 
-describe('composed graph == the hand-listed graph (golden)', () => {
+describe.runIf(AIR)('composed graph == the hand-listed graph (golden)', () => {
   const registry = createAppRegistry();
 
   for (const [name, selection] of Object.entries(CASES)) {

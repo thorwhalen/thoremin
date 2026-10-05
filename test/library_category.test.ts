@@ -5,7 +5,7 @@
  * scale nobody hears); and any theremin becomes an air instrument the moment its air
  * drum is on.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/app/library/category';
 import { summarizeInstrument, summaryLines } from '@/app/library/summarize';
 import { deriveSystemTags } from '@/app/library/systemTags';
+import { AIR } from './helpers/extensions';
 
 const settingsOf = (name: string) => {
   const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -26,7 +27,7 @@ const settingsOf = (name: string) => {
 };
 
 describe('instrument categories', () => {
-  it('ships one instrument per air instrument, each playing only its own; every other seed is a theremin', () => {
+  it.runIf(AIR)('ships one instrument per air instrument, each playing only its own; every other seed is a theremin', () => {
     const air = SEED_INSTRUMENTS.filter((s) => categoryOf(settingsFromLayer(s.layer)) === 'air').map((s) => s.name);
     expect(air).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute']);
     expect(airInstrumentsOf(settingsOf('Air Drum'))).toEqual(['drum']);
@@ -55,8 +56,13 @@ describe('instrument categories', () => {
   });
 });
 
-describe('an air-only instrument describes the air instrument, not the silent voices', () => {
-  const sum = summarizeInstrument(settingsOf('Air Drum'));
+describe.runIf(AIR)('an air-only instrument describes the air instrument, not the silent voices', () => {
+  // Built in beforeAll, not at collection: a skipped suite's body still runs, and a build
+  // without the air extension has no 'Air Drum' seed.
+  let sum: ReturnType<typeof summarizeInstrument>;
+  beforeAll(() => {
+    sum = summarizeInstrument(settingsOf('Air Drum'));
+  });
 
   it('summarizes as air with the hand voices off', () => {
     expect(sum.air).toEqual(['drum']);
@@ -83,8 +89,13 @@ describe('an air-only instrument describes the air instrument, not the silent vo
   });
 });
 
-describe('an air instrument that plays the scale keeps describing it', () => {
-  const sum = summarizeInstrument(settingsOf('Air Bass'));
+describe.runIf(AIR)('an air instrument that plays the scale keeps describing it', () => {
+  // Built in beforeAll, not at collection: a skipped suite's body still runs, and a build
+  // without the air extension has no 'Air Bass' seed.
+  let sum: ReturnType<typeof summarizeInstrument>;
+  beforeAll(() => {
+    sum = summarizeInstrument(settingsOf('Air Bass'));
+  });
 
   it('shows the scale and range, not the silent voices', () => {
     expect(sum.air).toEqual(['bass']);

@@ -17,8 +17,9 @@ import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import { DEFAULT_AIR_DRUM } from '@/extensions/air/dials';
 import { loadStream } from '../helpers/fixtures';
+import { AIR } from '../helpers/extensions';
 
-describe('air drum in the default graph', () => {
+describe.runIf(AIR)('air drum in the default graph', () => {
   it('wires the dial, the hands, the conductor time and the hits — the #233 guard', () => {
     const g = defaultGraph();
     const edges = g.edges;

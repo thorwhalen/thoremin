@@ -10,6 +10,7 @@ import { renderHook, waitFor, act, cleanup } from '@testing-library/react';
 import { useLibrary } from '@/app/library/useLibrary';
 import { __resetMemoryMeta, readInstrumentMeta } from '@/app/library/store';
 import { SEED_INSTRUMENTS, instruments } from '@/app/dials/instruments';
+import { AIR } from '../helpers/extensions';
 
 const seedNames = ['Pentatonic', 'Air Drum'];
 const list = seedNames.map((name) => ({ name }));
@@ -21,7 +22,7 @@ async function saveSeeds(): Promise<void> {
   }
 }
 
-describe('useLibrary: the spec surface', () => {
+describe.runIf(AIR)('useLibrary: the spec surface', () => {
   beforeEach(async () => {
     localStorage.clear();
     __resetMemoryMeta();

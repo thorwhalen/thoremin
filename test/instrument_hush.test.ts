@@ -18,6 +18,7 @@ import type { SynthParams, VoiceParams } from '@/nodes';
 import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 import { defaultGraph } from '@/app/graph';
 import { useControls, migrateControls } from '@/app/store';
+import { AIR } from './helpers/extensions';
 
 const voice = (id: number): VoiceParams => ({ id, present: true, freq: 440, gain: 0.5, sound: 'sine', brightness: 1, vibrato: 0, pan: 0 });
 const params = (...ids: number[]): SynthParams => ({ voices: ids.map(voice) });
@@ -141,7 +142,7 @@ describe('the default graph wires the hush (a switch nothing reads is #120 again
   it('the merge\'s two switches, and the all-mute at every struck scheduler', () => {
     expect(has('ui', 'hushVoices', 'merge', 'hush')).toBe(true);
     expect(has('ui', 'muteAll', 'merge', 'mute')).toBe(true);
-    for (const out of ['drumOut', 'bassOut', 'guitarOut']) expect(has('ui', 'muteStrikes', out, 'mute')).toBe(true);
+    for (const out of AIR ? ['drumOut', 'bassOut', 'guitarOut'] : []) expect(has('ui', 'muteStrikes', out, 'mute')).toBe(true);
   });
 
   it('the conducted score is on the merge port the hush spares', () => {

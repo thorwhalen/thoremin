@@ -65,6 +65,10 @@ export function listModuleSource(entries: readonly ExtensionEntry[], key: 'modul
 
 /** Where the generated declaration of the pure list lives (relative to the root). */
 export const DECLARATION_FILE = 'src/extensions/virtual.d.ts';
+/** The core-alone manifest (no extensions) and its declaration, which `tsconfig.core.json`
+ *  reads instead of {@link DECLARATION_FILE}: core typechecks with no extension listed. */
+export const CORE_MANIFEST = 'extensions.core.json';
+export const CORE_DECLARATION_FILE = 'extensions.core.d.ts';
 
 /**
  * The declaration of `virtual:thoremin/extensions`: a readonly tuple of the listed pure

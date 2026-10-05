@@ -15,6 +15,7 @@ import { settingsFromLayer } from '@/app/library/derive';
 import { branchIdsFor } from '@/app/graph';
 import { TRUNK } from '@/instruments/branches';
 import { composeInstrumentGraph } from '@/app/graph';
+import { AIR } from '../helpers/extensions';
 
 const SLOTS = { source: 'synthetic-hands', body: 'synthetic-body' } as const;
 
@@ -24,7 +25,30 @@ const graphOf = (name: string, registry: ReturnType<typeof createAppRegistry>) =
   return composeInstrumentGraph(branchIdsFor(settingsFromLayer(seed.layer)), SLOTS, registry);
 };
 
-describe('an instrument switch keeps the trunk and never stops the tick', () => {
+describe('an instrument switch between core instruments (core alone too)', () => {
+  it('Pentatonic → Glass Bells: trunk kept, the face branch added; ticks continue through the apply', async () => {
+    const registry = createAppRegistry();
+    const engine = new Engine(graphOf('Pentatonic', registry).spec, registry);
+    await engine.init();
+    for (let i = 0; i < 3; i++) engine.tick();
+    const applying = engine.applyGraph(graphOf('Glass Bells', registry).spec, registry);
+    let ticksDuring = 0;
+    for (let i = 0; i < 3; i++) {
+      engine.tick();
+      ticksDuring += 1;
+      await Promise.resolve();
+    }
+    const change = await applying;
+    engine.tick();
+    expect(ticksDuring).toBe(3);
+    for (const id of Object.values(TRUNK)) expect(change.kept).toContain(id);
+    expect(change.added).toContain('camFace');
+    expect(engine.evaluationOrder()).toContain('camFace');
+    engine.dispose();
+  });
+});
+
+describe.runIf(AIR)('an instrument switch keeps the trunk and never stops the tick', () => {
   it('Pentatonic → Air Drum: trunk kept, hand voices removed, drum added; ticks continue through the apply', async () => {
     const registry = createAppRegistry();
     const from = graphOf('Pentatonic', registry);

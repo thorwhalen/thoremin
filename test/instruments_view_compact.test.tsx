@@ -14,6 +14,7 @@ import {
   type InstrumentsViewPrefs,
 } from '@/app/library/instrumentsViewPrefs';
 import { INSTRUMENT_CLASSES } from '@/instruments/classes';
+import { AIR } from './helpers/extensions';
 
 beforeAll(() => localStorage.clear());
 beforeEach(() => useInstrumentsView.setState({ collapsed: [] }));
@@ -42,7 +43,7 @@ describe('one line per instrument', () => {
     expect(within(line as HTMLElement).getByLabelText('Edit Pentatonic')).toBeTruthy();
   });
 
-  it("marks every row with its class's colour, from the class registry", async () => {
+  it.runIf(AIR)("marks every row with its class's colour, from the class registry", async () => {
     render(<InstrumentsPanel />);
     const air = await group('Air instruments');
     const field = screen.getByRole('group', { name: 'Field instruments' });
@@ -89,7 +90,7 @@ describe('collapsible classes', () => {
     );
   });
 
-  it('a collapsed class keeps the playing air instrument\'s live readout showing', async () => {
+  it.runIf(AIR)('a collapsed class keeps the playing air instrument\'s live readout showing', async () => {
     render(<InstrumentsPanel />);
     const air = await group('Air instruments');
     fireEvent.click(within(air).getByText('Air Drum'));
@@ -101,7 +102,7 @@ describe('collapsible classes', () => {
     expect(live.closest('ul[hidden]')).toBeNull();
   });
 
-  it('a search opens every class, so a match is never a bare count', async () => {
+  it.runIf(AIR)('a search opens every class, so a match is never a bare count', async () => {
     render(<InstrumentsPanel />);
     const air = await group('Air instruments');
     fireEvent.click(heading('air'));

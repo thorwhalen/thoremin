@@ -24,7 +24,7 @@ import { clickPlayer } from '@/app/enroll/click';
 import { hitsSince } from '@/extensions/air/app/hitsTap';
 import { loadPatternModel, removePatternModel, savePatternModel } from '@/extensions/air/app/patternModels';
 import { refreshPatternPlay } from '@/extensions/air/app/patternPlaySync';
-import { TRAINING_ANCHORS } from '@/app/training/routes';
+import { TRAINING_ANCHORS } from '@/extensions/air/training';
 import { useControls } from '@/app/store';
 import { PatternStrip } from '@/extensions/air/app/PatternStrip';
 

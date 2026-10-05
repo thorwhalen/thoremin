@@ -10,13 +10,14 @@ import { describe, expect, it } from 'vitest';
 import { EXTENSION_PANELS, EXTENSION_STATUS_HOOKS, EXTENSION_MOUNT_EFFECTS, EXTENSION_UIS } from '@/app/extensions';
 import { EXTENSIONS } from '@/extensions';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
+import { AIR } from '../helpers/extensions';
 
 describe('the React halves of the extensions', () => {
   it('one ui manifest per extension, in the same order', () => {
     expect(EXTENSION_UIS.map((u) => u.id)).toEqual(EXTENSIONS.map((e) => e.id));
   });
 
-  it('the editor sections cover exactly the air instruments the library lists', () => {
+  it.runIf(AIR)('the editor sections cover exactly the air instruments the library lists', () => {
     expect(EXTENSION_PANELS.map((p) => p.instrumentId).sort()).toEqual(AIR_INSTRUMENTS.map((a) => a.id).sort());
     for (const p of EXTENSION_PANELS) {
       expect(p.section.length).toBeGreaterThan(0);

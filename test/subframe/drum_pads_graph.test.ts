@@ -19,8 +19,9 @@ import type { DrumHit } from '@/extensions/air/nodes/air_drum';
 import { DEFAULT_PADS_SET, type Pads } from '@/nodes/music/drum_pads';
 import { DEFAULT_AIR_DRUM } from '@/extensions/air/dials';
 import { loadStream } from '../helpers/fixtures';
+import { AIR } from '../helpers/extensions';
 
-describe('drum pads in the default graph', () => {
+describe.runIf(AIR)('drum pads in the default graph', () => {
   it('wires the dial and the hits to the overlay, and the hits to the scheduler (the #245 guard)', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) => edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
