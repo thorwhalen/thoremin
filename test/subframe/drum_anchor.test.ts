@@ -18,7 +18,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
-import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
+import { airDrumNode, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, gripLength, stickReach, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip, type StickPose } from '../../scripts/air/lib_synthetic_grip';

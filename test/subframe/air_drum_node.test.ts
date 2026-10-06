@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
-import { airDrumNode, type DrumHit, type AirDrumStatus } from '@/extensions/air/nodes/air_drum';
+import { airDrumNode, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
 import type { MusicalTime } from '@thoremin/ictus';
 import { FIXTURES } from '../helpers/fixtures';
 

@@ -16,7 +16,7 @@
  *    `DialsControlsPanel`, `useEngine` and `App` read this half.
  *
  * In PR 5a the air instruments are registered through a manifest at their CURRENT paths;
- * the physical move into `src/extensions/air/` (5b) follows once the trainer stream is done
+ * the physical move (5b) followed, and since the follow-ups to PR 6 the air extension is the `@thoremin/ext-air` package; the original note: the move follows once the trainer stream is done
  * with `src/air`. The manifest is what makes the move a `git mv`.
  */
 import type { z } from 'zod';

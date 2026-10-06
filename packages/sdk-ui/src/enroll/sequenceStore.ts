@@ -9,7 +9,7 @@
  * {@link createNamedCollectionStore} facade; tests pass an in-memory provider.
  *
  * Starters are per instrument and live with the instrument (the air flute's scales and the
- * air guitar's chords are in `src/extensions/air/app/starterSequences.ts`). A caller asks for the starters of its instrument and adds the
+ * air guitar's chords are in `packages/ext-air/src/app/starterSequences.ts`). A caller asks for the starters of its instrument and adds the
  * stored ones, which are not tagged by instrument: a saved list of labels is only
  * meaningful to the instrument whose labels they are, and the trainer shows every stored
  * sequence, so a player can reuse a scale on any instrument that names notes.

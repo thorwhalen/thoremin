@@ -15,7 +15,7 @@ import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
-import { DEFAULT_AIR_DRUM } from '@/extensions/air/dials';
+import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import { loadStream } from '../helpers/fixtures';
 import { AIR } from '../helpers/extensions';
 

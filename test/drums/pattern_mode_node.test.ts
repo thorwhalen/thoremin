@@ -11,10 +11,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
-import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
-import { compilePattern } from '@/extensions/air/lib/drum_patterns';
-import type { PatternModel } from '@/extensions/air/lib/pattern_fit';
-import type { PatternPlay } from '@/extensions/air/lib/pattern_play';
+import { airDrumNode, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
+import { compilePattern } from '@thoremin/ext-air/lib/drum_patterns';
+import type { PatternModel } from '@thoremin/ext-air/lib/pattern_fit';
+import type { PatternPlay } from '@thoremin/ext-air/lib/pattern_play';
 import { FIXTURES } from '../helpers/fixtures';
 
 interface Truth {

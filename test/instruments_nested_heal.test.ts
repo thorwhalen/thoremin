@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { normalizeLayer } from '@/app/dials/instruments';
-import { DEFAULT_FINGERING_PRIOR } from '@/extensions/air/lib/fingering_prior';
-import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE, DEFAULT_AIR_GUITAR } from '@/extensions/air/dials';
+import { DEFAULT_FINGERING_PRIOR } from '@thoremin/ext-air/lib/fingering_prior';
+import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_FLUTE, DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
 import { mergeControls, useControls } from '@/app/store';
 import { AIR } from './helpers/extensions';
 

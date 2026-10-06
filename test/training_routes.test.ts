@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { TRAINING_ROUTES, goToTraining, routeById, trainingRouteFor } from '@/app/training/routes';
-import { TRAINING_ANCHORS } from '@/extensions/air/training';
+import { TRAINING_ANCHORS } from '@thoremin/ext-air/training';
 import { AIR } from './helpers/extensions';
 
 describe('trainingRouteFor', () => {

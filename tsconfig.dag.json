@@ -14,6 +14,7 @@
     "packages/dag/src",
     "packages/sdk/src",
     "packages/sdk-ui/src",
+    "packages/ext-air/src",
     "src/instruments",
     "src/extensions",
     "packages/ictus/src",
@@ -37,8 +38,8 @@
   "exclude": [
     "test/**/*.test.tsx",
     "src/app/enroll/**/*.tsx",
-    "src/extensions/**/*.tsx",
     "packages/sdk-ui/src/**/*.tsx",
-    "packages/sdk-ui/src/types.ts"
+    "packages/sdk-ui/src/types.ts",
+    "packages/ext-air/src/**/*.tsx"
   ]
 }

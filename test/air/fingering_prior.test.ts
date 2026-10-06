@@ -10,10 +10,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { classify, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
-import { fingeringVector } from '@/extensions/air/nodes/air_flute';
-import { FLUTE_CHART, chartNotes, fingeringFor, type FingerId } from '@/extensions/air/lib/fingerings';
-import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
-import { emptyVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
+import { fingeringVector } from '@thoremin/ext-air/nodes/air_flute';
+import { FLUTE_CHART, chartNotes, fingeringFor, type FingerId } from '@thoremin/ext-air/lib/fingerings';
+import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
+import { emptyVocabulary, withEntry } from '@thoremin/ext-air/lib/vocabulary';
 import {
   DEFAULT_ANCHORS,
   DEFAULT_FINGERING_PRIOR,
@@ -25,7 +25,7 @@ import {
   priorCentroid,
   priorClasses,
   priorOptionsFrom,
-} from '@/extensions/air/lib/fingering_prior';
+} from '@thoremin/ext-air/lib/fingering_prior';
 import { noise, perturb, rng, syntheticHand, type HandShape } from './synthetic_hand';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 

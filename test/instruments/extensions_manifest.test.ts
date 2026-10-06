@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CORE_DECLARATION_FILE, CORE_MANIFEST, DECLARATION_FILE, declarationSource, listModuleSource, readExtensionEntries } from '../../vite.extensions';
 import { EXTENSIONS } from '@/extensions';
+import { extensionSourceDir } from '../helpers/extensions';
 
 const manifest = process.env.THOREMIN_EXTENSIONS ?? 'extensions.json';
 const entries = readExtensionEntries(manifest);
@@ -19,6 +20,9 @@ describe('extensions.json', () => {
     for (const e of entries) {
       if (e.module.startsWith('@/')) expect(existsSync(fileOf(e.module, '/index.ts')), e.module).toBe(true);
       if (e.ui.startsWith('@/')) expect(existsSync(fileOf(e.ui, '.tsx')), e.ui).toBe(true);
+      // A package: it resolves through the workspace (its `exports` map names `.` and `./ui`).
+      if (!e.module.startsWith('@/')) expect(existsSync(join(extensionSourceDir(e.module), 'index.ts')), e.module).toBe(true);
+      if (!e.ui.startsWith('@/')) expect(existsSync(join(extensionSourceDir(e.module), 'ui.tsx')), e.ui).toBe(true);
     }
   });
 

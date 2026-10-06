@@ -6,8 +6,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { classify } from '@thoremin/sdk/enroll';
-import { VocabularySchema, emptyVocabulary, jitterWeights, trainVocabulary, withEntry, withoutEntry, MIN_SAMPLES_PER_ENTRY } from '@/extensions/air/lib/vocabulary';
-import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
+import { VocabularySchema, emptyVocabulary, jitterWeights, trainVocabulary, withEntry, withoutEntry, MIN_SAMPLES_PER_ENTRY } from '@thoremin/ext-air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { enrolSamples } from './synthetic_guitar';
 
 const NAMES: Record<string, string> = { G: 'G', C: 'C', D: 'D', E: 'Em' };

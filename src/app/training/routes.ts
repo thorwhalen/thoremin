@@ -5,7 +5,7 @@
  * A spec may declare `training: { route }`; when it does not, the route is derived from
  * what the instrument composes: an extension's instrument trains where its manifest's
  * `training` says (the air flute or guitar by a scripted sequence in its own settings
- * section, the air drum by a pattern take in its: `src/extensions/air/training.ts`), and
+ * section, the air drum by a pattern take in its: `packages/ext-air/src/training.ts`), and
  * everything else
  * (the field instruments, whose control is a face or a hand the trainer carves
  * categories out of) by the Trainer tool (#163). The route is what the link in the

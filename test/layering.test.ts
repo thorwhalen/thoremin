@@ -10,19 +10,19 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
 
 /** The nodes and libraries of every extension are Node-safe core too (they moved out of
  *  `src/nodes` and `src/music` in PR 5b of the instruments-as-graphs ADR; the rule moved with them). */
-const EXTENSION_PURE_DIRS = readdirSync('src/extensions', { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .flatMap((d) => ['nodes', 'lib'].map((sub) => join('src/extensions', d.name, sub)))
-  .filter((dir) => {
-    try {
-      return statSync(dir).isDirectory();
-    } catch {
-      return false;
-    }
-  });
+const EXTENSION_PURE_DIRS = SHIPPED_EXTENSION_DIRS.flatMap(({ dir }) => ['nodes', 'lib'].map((sub) => join(dir, sub))).filter((dir) => {
+  try {
+    return statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+});
+// The air extension's nodes and libraries, at least: a guard that finds none checks nothing.
+if (EXTENSION_PURE_DIRS.length === 0) throw new Error('layering: no extension nodes/lib directory found from extensions.json');
 const CORE_DIRS = ['packages/dag/src', 'src/nodes', 'packages/lazy/src', 'src/keys', 'src/music', 'src/settings', ...EXTENSION_PURE_DIRS];
 const FORBIDDEN = /from\s+['"](@\/(app|plugins)(\/|['"])|\.\.\/(\.\.\/)*(app|plugins)\/)/;
 

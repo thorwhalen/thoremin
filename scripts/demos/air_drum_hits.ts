@@ -29,7 +29,7 @@ import { join } from 'node:path';
 import type { NodeContext } from '@thoremin/dag';
 import { createTrendPrior, type Anchor } from '@thoremin/ictus';
 import { type HandsFrame } from '@/nodes';
-import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
+import { airDrumNode, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);

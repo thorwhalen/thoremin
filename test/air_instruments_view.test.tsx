@@ -18,10 +18,10 @@ import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testi
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { TOOLS } from '@/app/tools';
-import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@/extensions/air/app/airDrumStatus';
-import { AirDrumReadout } from '@/extensions/air/panels/airDrum';
+import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@thoremin/ext-air/app/airDrumStatus';
+import { AirDrumReadout } from '@thoremin/ext-air/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
-import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@/extensions/air/dials';
+import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@thoremin/ext-air/dials';
 import type { HandMap } from '@/nodes/mapping/hand_map';
 import { AIR } from './helpers/extensions';
 

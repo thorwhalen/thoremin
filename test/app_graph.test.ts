@@ -6,7 +6,7 @@
  * here, so the app registry is Node-importable.
  */
 import { describe, it, expect } from 'vitest';
-import { FLUTE_VOICE_ID } from '@/extensions/air/nodes/air_flute';
+import { FLUTE_VOICE_ID } from '@thoremin/ext-air/nodes/air_flute';
 import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
 import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
