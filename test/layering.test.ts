@@ -10,11 +10,11 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
+import { ALL_EXTENSION_DIRS } from './helpers/extensions';
 
 /** The nodes and libraries of every extension are Node-safe core too (they moved out of
  *  `src/nodes` and `src/music` in PR 5b of the instruments-as-graphs ADR; the rule moved with them). */
-const EXTENSION_PURE_DIRS = SHIPPED_EXTENSION_DIRS.flatMap(({ dir }) => ['nodes', 'lib'].map((sub) => join(dir, sub))).filter((dir) => {
+const EXTENSION_PURE_DIRS = ALL_EXTENSION_DIRS.flatMap(({ dir }) => ['nodes', 'lib'].map((sub) => join(dir, sub))).filter((dir) => {
   try {
     return statSync(dir).isDirectory();
   } catch {

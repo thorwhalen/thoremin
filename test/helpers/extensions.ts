@@ -49,3 +49,24 @@ export const SHIPPED_EXTENSION_DIRS: readonly { id: string; dir: string }[] = re
   id: e.id,
   dir: extensionSourceDir(e.module),
 }));
+
+/**
+ * Every extension source directory there is: the shipped ones, plus any in-tree
+ * `src/extensions/<x>/` or `packages/ext-<x>/src` not (yet) listed. The static guards scan these,
+ * so an extension added but not listed, or a file left behind by a move, is still checked.
+ */
+export const ALL_EXTENSION_DIRS: readonly { id: string; dir: string }[] = (() => {
+  const out = new Map(SHIPPED_EXTENSION_DIRS.map((e) => [e.dir, e]));
+  const inTree = join(ROOT, 'src', 'extensions');
+  if (existsSync(inTree)) {
+    for (const d of readdirSync(inTree, { withFileTypes: true })) {
+      if (d.isDirectory() && !out.has(join('src', 'extensions', d.name))) out.set(join('src', 'extensions', d.name), { id: d.name, dir: join('src', 'extensions', d.name) });
+    }
+  }
+  for (const d of readdirSync(join(ROOT, 'packages'), { withFileTypes: true })) {
+    const dir = join('packages', d.name, 'src');
+    if (d.isDirectory() && d.name.startsWith('ext-') && existsSync(join(ROOT, dir)) && !out.has(dir)) out.set(dir, { id: d.name.slice(4), dir });
+  }
+  return [...out.values()];
+})();
+

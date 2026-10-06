@@ -20,8 +20,8 @@
  * packages, and itself.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { ALL_EXTENSION_DIRS, SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
 import { dirname, join, normalize, relative } from 'node:path';
 
 function tsFiles(dir: string): string[] {
@@ -147,7 +147,7 @@ describe('core reaches the extensions only through the lists, from the fold poin
 
   it('an extension imports only the SDK, other packages and itself; its pure side only pure packages and its own pure files (rule 2)', () => {
     const offenders: string[] = [];
-    for (const { id, dir } of SHIPPED_EXTENSION_DIRS) {
+    for (const { id, dir } of ALL_EXTENSION_DIRS) {
       const inTree = dir.startsWith('src/');
       for (const file of tsFiles(dir)) {
         const pure = isPureExtensionPath(relative(dir, file));
@@ -164,9 +164,16 @@ describe('core reaches the extensions only through the lists, from the fold poin
             continue;
           }
           const rel = relative(dir, target);
-          if (rel.startsWith('..')) offenders.push(`${file} leaves its extension: ${spec}`);
-          else if (pure && !isPureExtensionPath(rel.replace(/(\.tsx?)?$/, '.ts')) && !/^[^/]+$/.test(rel)) offenders.push(`${file} (pure) imports its own app side: ${spec}`);
-          else if (pure && /^[^/]+$/.test(rel) && !existsSync(`${target}.ts`) && !existsSync(target)) offenders.push(`${file} (pure) imports its own React half: ${spec}`);
+          if (rel.startsWith('..')) {
+            offenders.push(`${file} leaves its extension: ${spec}`);
+            continue;
+          }
+          if (!pure) continue;
+          // Resolve to the FILE the import reaches (an explicit `.tsx`, an extensionless path, a
+          // directory's index): a pure file may reach only a pure `.ts` file of its own extension.
+          const reached = [target, `${target}.ts`, `${target}.tsx`, join(target, 'index.ts'), join(target, 'index.tsx')].find((f) => existsSync(f) && !statSync(f).isDirectory());
+          const reachedRel = reached ? relative(dir, reached) : rel;
+          if (!reached || !reached.endsWith('.ts') || !isPureExtensionPath(reachedRel)) offenders.push(`${file} (pure) imports its own app or React side: ${spec}`);
         }
       }
     }
@@ -175,7 +182,7 @@ describe('core reaches the extensions only through the lists, from the fold poin
 
   it('the pure side never imports the app half of the SDK', () => {
     const offenders: string[] = [];
-    for (const { dir } of SHIPPED_EXTENSION_DIRS) {
+    for (const { dir } of ALL_EXTENSION_DIRS) {
       for (const file of tsFiles(dir).filter((f) => isPureExtensionPath(relative(dir, f)))) {
         for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) if (spec.startsWith('@thoremin/sdk-ui')) offenders.push(`${file} imports ${spec}`);
       }

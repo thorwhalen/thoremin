@@ -28,12 +28,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
-import { SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
+import { ALL_EXTENSION_DIRS } from './helpers/extensions';
 
 /** The settings-panel sources this rule governs: the composition root + every section. */
 const PANEL_DIR = 'src/app/dials/panels';
 /** Every shipped extension's panels directory (found from `extensions.json`: in-tree or a package). */
-const EXTENSION_PANEL_DIRS = SHIPPED_EXTENSION_DIRS.map(({ dir }) => join(dir, 'panels')).filter((d) => existsSync(d));
+const EXTENSION_PANEL_DIRS = ALL_EXTENSION_DIRS.map(({ dir }) => join(dir, 'panels')).filter((d) => existsSync(d));
 if (EXTENSION_PANEL_DIRS.length === 0) throw new Error('dials_write_path: no extension panels directory found from extensions.json');
 const PANEL_FILES = [
   'src/app/dials/DialsControlsPanel.tsx',
