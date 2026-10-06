@@ -2,8 +2,8 @@
  * Core alone ships no extension code: build the app from `extensions.core.json` (no
  * extensions) into a temporary directory and fail if
  *
- *  1. any module under `src/extensions/` other than the list module is in the build's module
- *     graph (read from the bundle itself, so a core file importing an extension's library
+ *  1. any module of an extension (under `src/extensions/` other than the list module, or under
+ *     `packages/ext-*`) is in the build's module graph (read from the bundle itself, so a core file importing an extension's library
  *     helper is caught even when nothing of it survives as a string), or
  *  2. any node type, branch id or dial kind of a shipped extension appears in the JS (a copy
  *     of an extension's identifiers living in core).
@@ -17,7 +17,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build, type Plugin } from 'vite';
-import { AIR_EXTENSION } from '@/extensions/air';
+import { AIR_EXTENSION } from '@thoremin/ext-air';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
@@ -38,8 +38,11 @@ try {
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== 'chunk') continue;
         for (const id of Object.keys(chunk.modules)) {
-          const rel = id.replace(/\\/g, '/').split('/src/extensions/')[1];
-          if (rel !== undefined && rel !== 'index.ts') extensionModules.add(`src/extensions/${rel}`);
+          const path = id.replace(/\\/g, '/');
+          const inTree = path.split('/src/extensions/')[1];
+          if (inTree !== undefined && inTree !== 'index.ts') extensionModules.add(`src/extensions/${inTree}`);
+          const pkg = path.match(/\/packages\/(ext-[^/]+\/.*)$/);
+          if (pkg) extensionModules.add(`packages/${pkg[1]}`);
         }
       }
     },

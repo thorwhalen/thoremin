@@ -11,11 +11,11 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { replayNode } from '@thoremin/dag';
 import { synthMergeNode } from '@/nodes';
-import { drumOutNode, type DrumSink } from '@/extensions/air/nodes/drum_out';
-import { pluckOutNode } from '@/extensions/air/nodes/pluck_out';
+import { drumOutNode, type DrumSink } from '@thoremin/ext-air/nodes/drum_out';
+import { pluckOutNode } from '@thoremin/ext-air/nodes/pluck_out';
 import { hushOf, storeControlsNode } from '@/nodes/sources/store_controls';
 import type { SynthParams, VoiceParams } from '@/nodes';
-import type { DrumHit } from '@/extensions/air/nodes/air_drum';
+import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { defaultGraph } from '@/app/graph';
 import { useControls, migrateControls } from '@/app/store';
 import { AIR } from './helpers/extensions';

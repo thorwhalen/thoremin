@@ -4,15 +4,15 @@
  * that re-derives it when the dial changes, and the saved-sequence helpers.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema, priorOptionsFrom } from '@/extensions/air/lib/fingering_prior';
-import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
-import { FLUTE_FINGER_FEATURES, deriveFluteFingerModel, startFlutePriorSync } from '@/extensions/air/app/vocabularyStore';
+import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema, priorOptionsFrom } from '@thoremin/ext-air/lib/fingering_prior';
+import { emptyVocabulary } from '@thoremin/ext-air/lib/vocabulary';
+import { FLUTE_FINGER_FEATURES, deriveFluteFingerModel, startFlutePriorSync } from '@thoremin/ext-air/app/vocabularyStore';
 import { mergeSequences, parseTargets } from '@thoremin/sdk-ui/enroll/sequenceStore';
-import { FLUTE_STARTER_SEQUENCES, GUITAR_STARTER_SEQUENCES } from '@/extensions/air/app/starterSequences';
-import { AirFluteSettingsSchema } from '@/extensions/air/dials';
+import { FLUTE_STARTER_SEQUENCES, GUITAR_STARTER_SEQUENCES } from '@thoremin/ext-air/app/starterSequences';
+import { AirFluteSettingsSchema } from '@thoremin/ext-air/dials';
 import { structuredDialLeaves } from '@/app/commands/paths';
-import { FLUTE_CHART } from '@/extensions/air/lib/fingerings';
-import { priorClasses } from '@/extensions/air/lib/fingering_prior';
+import { FLUTE_CHART } from '@thoremin/ext-air/lib/fingerings';
+import { priorClasses } from '@thoremin/ext-air/lib/fingering_prior';
 import { AIR } from '../helpers/extensions';
 
 describe('the prior dial', () => {

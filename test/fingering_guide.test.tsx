@@ -6,9 +6,9 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { FingeringGuide, describeFingering } from '@/extensions/air/app/FingeringGuide';
-import { fluteGuide } from '@/extensions/air/panels/airFlute';
-import { DEFAULT_FINGERING_PRIOR } from '@/extensions/air/lib/fingering_prior';
+import { FingeringGuide, describeFingering } from '@thoremin/ext-air/app/FingeringGuide';
+import { fluteGuide } from '@thoremin/ext-air/panels/airFlute';
+import { DEFAULT_FINGERING_PRIOR } from '@thoremin/ext-air/lib/fingering_prior';
 
 afterEach(cleanup);
 

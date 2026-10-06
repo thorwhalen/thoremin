@@ -27,6 +27,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctxWith = (resources: Record<string, unknown>) =>
@@ -139,11 +140,12 @@ describe('every node that makes real-time output honours the boundary', () => {
   });
 
   it('each one consults realtimeOutputAllowed', () => {
+    const airDir = SHIPPED_EXTENSION_DIRS.find((e) => e.id === 'air')!.dir;
     const files: Record<string, string> = {
       'webaudio-synth': 'src/nodes/output/webaudio_synth.ts',
       'midi-out': 'src/nodes/output/midi_out.ts',
-      'drum-out': 'src/extensions/air/nodes/drum_out.ts',
-      'pluck-out': 'src/extensions/air/nodes/pluck_out.ts',
+      'drum-out': join(airDir, 'nodes/drum_out.ts'),
+      'pluck-out': join(airDir, 'nodes/pluck_out.ts'),
       lyria: 'src/nodes/output/lyria.ts',
     };
     const missingFile = synthNodes.map((d) => d.type).filter((t) => !(t in files));

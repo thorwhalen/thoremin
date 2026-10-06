@@ -23,14 +23,14 @@
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
-import { useAirDrumStatus } from '@/extensions/air/app/airDrumStatus';
-import { DrumPadEditor, visibleCrop } from '@/extensions/air/panels/airDrumPads';
+import { useAirDrumStatus } from '@thoremin/ext-air/app/airDrumStatus';
+import { DrumPadEditor, visibleCrop } from '@thoremin/ext-air/panels/airDrumPads';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore, resetDial } from '@/app/dials/settingsStore';
 import { PAD_IDS, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
-import { createPadLayoutStore, padLayoutWrites } from '@/extensions/air/app/padLayouts';
+import { createPadLayoutStore, padLayoutWrites } from '@thoremin/ext-air/app/padLayouts';
 import { leafByPath } from '@/app/commands/paths';
-import type { AirDrumSettings } from '@/extensions/air/dials';
+import type { AirDrumSettings } from '@thoremin/ext-air/dials';
 import { AIR } from './helpers/extensions';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;

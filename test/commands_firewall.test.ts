@@ -21,6 +21,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { ALL_EXTENSION_DIRS } from './helpers/extensions';
 
 /** Recursively list .ts/.tsx files under a directory. */
 function tsFiles(dir: string): string[] {
@@ -126,11 +127,8 @@ describe('command-dispatch import firewall (#87)', () => {
 
   it('the DAG / node / tick layer never imports the command registry', () => {
     // The extensions' nodes are the real-time path too (they left `src/nodes` in PR 5b).
-    const extensionNodeDirs = existsSync('src/extensions')
-      ? readdirSync('src/extensions', { withFileTypes: true })
-          .filter((d) => d.isDirectory())
-          .map((d) => join('src/extensions', d.name, 'nodes'))
-      : [];
+    const extensionNodeDirs = ALL_EXTENSION_DIRS.map(({ dir }) => join(dir, 'nodes')).filter((d) => existsSync(d));
+    expect(extensionNodeDirs.length, 'no extension nodes directory found from extensions.json').toBeGreaterThan(0);
     for (const dir of ['packages/dag/src', 'src/nodes', ...extensionNodeDirs]) {
       for (const f of tsFiles(dir)) {
         for (const spec of importSpecifiers(readFileSync(f, 'utf8'))) {

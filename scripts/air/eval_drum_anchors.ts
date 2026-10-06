@@ -27,7 +27,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
-import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
+import { airDrumNode, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { DRUM_ANCHOR_POINTS, type DrumAnchorPoint } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { airDir } from './lib_air_paths';
 import { gripFrames, parseStickClip } from './lib_synthetic_grip';

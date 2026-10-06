@@ -6,7 +6,7 @@
  */
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { FeatureVector } from '@thoremin/sdk/enroll';
-import { fingeringVector } from '@/extensions/air/nodes/air_flute';
+import { fingeringVector } from '@thoremin/ext-air/nodes/air_flute';
 import { SHAPES, noise, perturb, rng, syntheticHand } from './synthetic_hand';
 
 const W = 640;

@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
-import { DEFAULT_AIR_BASS } from '@/extensions/air/dials';
+import { DEFAULT_AIR_BASS } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
 import { bassTake } from './synthetic_bass';
 import { AIR } from '../helpers/extensions';

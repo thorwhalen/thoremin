@@ -8,6 +8,6 @@
  * so that the strict, React-free typecheck never reads a React type.)
  */
 declare module 'virtual:thoremin/extensions' {
-  const extensions: readonly [typeof import("@/extensions/air").default];
+  const extensions: readonly [typeof import("@thoremin/ext-air").default];
   export default extensions;
 }

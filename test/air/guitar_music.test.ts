@@ -4,8 +4,8 @@
  * string first, a few milliseconds apart, each note on its string's voice.
  */
 import { describe, it, expect } from 'vitest';
-import { parseChordName, guitarVoicing } from '@/extensions/air/lib/guitar';
-import { strumNotes } from '@/extensions/air/nodes/air_guitar';
+import { parseChordName, guitarVoicing } from '@thoremin/ext-air/lib/guitar';
+import { strumNotes } from '@thoremin/ext-air/nodes/air_guitar';
 
 const voicing = (name: string) => guitarVoicing(parseChordName(name)!);
 

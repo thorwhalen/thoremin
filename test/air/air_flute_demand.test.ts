@@ -4,8 +4,8 @@
  * "fingers only", the claim is released.
  */
 import { describe, it, expect } from 'vitest';
-import { airFluteGroups, startAirFluteDemand, AIR_FLUTE_DEMAND_OWNER } from '@/extensions/air/app/airFluteDemand';
-import { MOUTH_GROUPS } from '@/extensions/air/nodes/air_flute';
+import { airFluteGroups, startAirFluteDemand, AIR_FLUTE_DEMAND_OWNER } from '@thoremin/ext-air/app/airFluteDemand';
+import { MOUTH_GROUPS } from '@thoremin/ext-air/nodes/air_flute';
 import { demandWantsFace } from '@/features/labConfig';
 
 describe('the air flute demand', () => {

@@ -20,8 +20,9 @@
  * packages, and itself.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { ALL_EXTENSION_DIRS, SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
+import { dirname, join, normalize, relative } from 'node:path';
 
 function tsFiles(dir: string): string[] {
   if (!existsSync(dir)) return [];
@@ -81,8 +82,9 @@ const FOLD_POINTS = new Set([
 const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', 'zod'];
 
 /** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
-const isPureExtensionFile = (file: string): boolean =>
-  /^src\/extensions\/[^/]+\/(nodes|lib)\//.test(file) || /^src\/extensions\/[^/]+\/[^/]+\.ts$/.test(file);
+/** A file of an extension's PURE side, by its path below the extension's source directory: a
+ *  node, a library, or a pure manifest file at its root (`ui.tsx` is the React half). */
+const isPureExtensionPath = (rel: string): boolean => /^(nodes|lib)\//.test(rel) || /^[^/]+\.ts$/.test(rel);
 const allows = (list: readonly string[], spec: string): boolean =>
   list.some((allowed) => spec === allowed || spec.startsWith(`${allowed}/`));
 
@@ -104,6 +106,10 @@ describe('core reaches the extensions only through the lists, from the fold poin
           const isList = LIST_MODULES.test(spec) || (file.startsWith('src/app/') && /^\.\/extensions$/.test(spec));
           if (FOLD_POINTS.has(file) && isList) continue;
           offenders.push(`${file} imports ${spec}`);
+        }
+        // An extension that is a package is reached by its package name: never from core.
+        for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
+          if (/^@thoremin\/ext-/.test(spec)) offenders.push(`${file} imports the extension package ${spec}`);
         }
       }
     }
@@ -134,32 +140,41 @@ describe('core reaches the extensions only through the lists, from the fold poin
     expect(ui.sort()).toEqual(['@thoremin/sdk-ui/types', 'virtual:thoremin/extensions-ui']);
   });
 
-  it('an extension imports only the SDK surface, packages and itself (rule 2, on since 5b)', () => {
+  it('finds the shipped extensions (a guard over no files checks nothing)', () => {
+    expect(SHIPPED_EXTENSION_DIRS.length).toBeGreaterThan(0);
+    for (const { id, dir } of SHIPPED_EXTENSION_DIRS) expect(tsFiles(dir).length, `${id}: ${dir}`).toBeGreaterThan(0);
+  });
+
+  it('an extension imports only the SDK, other packages and itself; its pure side only pure packages and its own pure files (rule 2)', () => {
     const offenders: string[] = [];
-    for (const file of tsFiles('src/extensions')) {
-      // The list module, covered below, and its generated declaration, which names exactly the
-      // manifests `extensions.json` lists (pinned by `extensions_manifest.test.ts`).
-      if (file === 'src/extensions/index.ts' || file === 'src/extensions/virtual.d.ts') continue;
-      const ext = file.split('/')[2];
-      const pure = isPureExtensionFile(file);
-      for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
-        if (spec.startsWith('.')) continue; // relative: checked below
-        if (!spec.startsWith('@/')) {
-          // A package. The React side may import any; a pure file only the pure ones.
-          if (pure && !allows(PURE_PACKAGES, spec)) offenders.push(`${file} (pure) imports the package ${spec}`);
-          continue;
+    for (const { id, dir } of ALL_EXTENSION_DIRS) {
+      const inTree = dir.startsWith('src/');
+      for (const file of tsFiles(dir)) {
+        const pure = isPureExtensionPath(relative(dir, file));
+        for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
+          let target: string | null = null;
+          if (spec.startsWith('.')) target = normalize(join(dirname(file), spec));
+          else if (inTree && spec.startsWith(`@/extensions/${id}/`)) target = join(dir, spec.slice(`@/extensions/${id}/`.length));
+          else if (spec.startsWith('@/')) {
+            offenders.push(`${file} imports the app: ${spec}`);
+            continue;
+          } else {
+            // A package. The React side may import any the app depends on; a pure file only the pure ones.
+            if (pure && !allows(PURE_PACKAGES, spec)) offenders.push(`${file} (pure) imports the package ${spec}`);
+            continue;
+          }
+          const rel = relative(dir, target);
+          if (rel.startsWith('..')) {
+            offenders.push(`${file} leaves its extension: ${spec}`);
+            continue;
+          }
+          if (!pure) continue;
+          // Resolve to the FILE the import reaches (an explicit `.tsx`, an extensionless path, a
+          // directory's index): a pure file may reach only a pure `.ts` file of its own extension.
+          const reached = [target, `${target}.ts`, `${target}.tsx`, join(target, 'index.ts'), join(target, 'index.tsx')].find((f) => existsSync(f) && !statSync(f).isDirectory());
+          const reachedRel = reached ? relative(dir, reached) : rel;
+          if (!reached || !reached.endsWith('.ts') || !isPureExtensionPath(reachedRel)) offenders.push(`${file} (pure) imports its own app or React side: ${spec}`);
         }
-        if (spec.startsWith(`@/extensions/${ext}/`)) {
-          // Itself. A pure file stays on the pure side of its own extension too.
-          // A root module counts as pure only if it is a `.ts` file (`ui.tsx` is the React half).
-          const ownPure =
-            /^@\/extensions\/[^/]+\/(nodes|lib)\//.test(spec) ||
-            (/^@\/extensions\/[^/]+\/[^/]+$/.test(spec) && existsSync(`src/${spec.slice(2)}.ts`));
-          if (!pure || ownPure) continue;
-          offenders.push(`${file} (pure) imports its own app side: ${spec}`);
-          continue;
-        }
-        offenders.push(`${file}${pure ? ' (pure)' : ''} imports ${spec}`);
       }
     }
     expect(offenders).toEqual([]);
@@ -167,22 +182,11 @@ describe('core reaches the extensions only through the lists, from the fold poin
 
   it('the pure side never imports the app half of the SDK', () => {
     const offenders: string[] = [];
-    for (const file of tsFiles('src/extensions').filter(isPureExtensionFile)) {
-      for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) if (spec.startsWith('@thoremin/sdk-ui')) offenders.push(`${file} imports ${spec}`);
-    }
-    expect(offenders).toEqual([]);
-  });
-
-  it('no relative import leaves an extension', () => {
-    const leaving: string[] = [];
-    for (const file of tsFiles('src/extensions')) {
-      const depth = file.split('/').length - 4; // directories below src/extensions/<ext>/
-      for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
-        if (!spec.startsWith('..')) continue;
-        const ups = spec.split('/').filter((s) => s === '..').length;
-        if (ups > Math.max(depth, 0)) leaving.push(`${file} imports ${spec}`);
+    for (const { dir } of ALL_EXTENSION_DIRS) {
+      for (const file of tsFiles(dir).filter((f) => isPureExtensionPath(relative(dir, f)))) {
+        for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) if (spec.startsWith('@thoremin/sdk-ui')) offenders.push(`${file} imports ${spec}`);
       }
     }
-    expect(leaving).toEqual([]);
+    expect(offenders).toEqual([]);
   });
 });

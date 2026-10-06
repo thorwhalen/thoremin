@@ -32,7 +32,7 @@ export { midiOutNode } from './output/midi_out';
 export type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus, MidiPhase } from './output/midi_out';
 export { openWebMidiSink } from './output/midi_engine';
 // The air instruments' sinks (drums, plucked strings) are the air extension's
-// (`src/extensions/air/nodes/{drum,pluck}_out`), registered through its manifest.
+// (`packages/ext-air/src/nodes/{drum,pluck}_out`), registered through its manifest.
 // The browser-only Lyria engine (`./output/lyria_engine`) is deliberately NOT
 // re-exported here (#188): the `lyria` node dynamically imports it the first time
 // the generative layer is enabled, and a static re-export from this module — which

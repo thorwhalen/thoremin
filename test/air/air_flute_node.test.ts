@@ -6,15 +6,15 @@
  * plays nothing, and says so.
  */
 import { describe, it, expect } from 'vitest';
-import { airFluteNode, mouthVector, FLUTE_VOICE_ID, MOUTH_BLOW, MOUTH_REST, type AirFluteStatus } from '@/extensions/air/nodes/air_flute';
+import { airFluteNode, mouthVector, FLUTE_VOICE_ID, MOUTH_BLOW, MOUTH_REST, type AirFluteStatus } from '@thoremin/ext-air/nodes/air_flute';
 import type { HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll';
-import { fingeringVector } from '@/extensions/air/nodes/air_flute';
+import { fingeringVector } from '@thoremin/ext-air/nodes/air_flute';
 import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
-import { MOUTH_GROUPS } from '@/extensions/air/nodes/air_flute';
-import { MOUTH_REJECT_SCALE } from '@/extensions/air/app/vocabularyStore';
+import { MOUTH_GROUPS } from '@thoremin/ext-air/nodes/air_flute';
+import { MOUTH_REJECT_SCALE } from '@thoremin/ext-air/app/vocabularyStore';
 import { rng } from './synthetic_hand';
-import { emptyVocabulary, trainVocabulary, withEntry } from '@/extensions/air/lib/vocabulary';
+import { emptyVocabulary, trainVocabulary, withEntry } from '@thoremin/ext-air/lib/vocabulary';
 import { midiToFreq } from '@thoremin/sdk/music/theory';
 import { fingeringSamples, fluteTake, mouthSamples, type Fingering, type FluteTake } from './synthetic_flute';
 

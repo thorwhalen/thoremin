@@ -7,7 +7,7 @@
  * `Extension`s) and `virtual:thoremin/extensions-ui` (their React halves). The app's two list
  * modules (`src/extensions/index.ts`, `src/app/extensions/index.ts`) import those, so which
  * extensions exist is DATA a build reads, not code the app hand-lists. Today the modules are
- * in-tree (`@/extensions/air`); after the repository split (PR 7) the same file names
+ * a workspace package (`@thoremin/ext-air`); after the repository split (PR 7) the same file names
  * registry packages.
  *
  * The pure list's TYPE is generated from the same file (`npm run extensions` writes
@@ -72,7 +72,7 @@ export const CORE_DECLARATION_FILE = 'extensions.core.d.ts';
 
 /**
  * The declaration of `virtual:thoremin/extensions`: a readonly tuple of the listed pure
- * manifests' own types (`typeof import('@/extensions/air').default`), in manifest order. The
+ * manifests' own types (`typeof import('@thoremin/ext-air').default`), in manifest order. The
  * settings type folds over it (`ExtensionsSettingsShape`), so it is typed per build and the
  * import is type-only: erased from the bundle.
  */

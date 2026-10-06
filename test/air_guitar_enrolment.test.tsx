@@ -9,14 +9,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { createInMemoryProvider } from '@zodal/store';
-import { ChordEnrolment } from '@/extensions/air/panels/airGuitar';
-import { ENROL_CAPTURE_S, ENROL_COUNTDOWN_S, ENROL_SETTLE_MS } from '@/extensions/air/app/VocabularyEnrolment';
-import { setShape } from '@/extensions/air/app/shapeTap';
-import { AIR_GUITAR_NODE_ID } from '@/extensions/air/app/airGuitarStatus';
-import { useGuitarVocabulary, useVocabularyStore, GUITAR_VOCABULARY, createVocabularyStore, type VocabularyRecord } from '@/extensions/air/app/vocabularyStore';
+import { ChordEnrolment } from '@thoremin/ext-air/panels/airGuitar';
+import { ENROL_CAPTURE_S, ENROL_COUNTDOWN_S, ENROL_SETTLE_MS } from '@thoremin/ext-air/app/VocabularyEnrolment';
+import { setShape } from '@thoremin/ext-air/app/shapeTap';
+import { AIR_GUITAR_NODE_ID } from '@thoremin/ext-air/app/airGuitarStatus';
+import { useGuitarVocabulary, useVocabularyStore, GUITAR_VOCABULARY, createVocabularyStore, type VocabularyRecord } from '@thoremin/ext-air/app/vocabularyStore';
 import { useControls } from '@/app/store';
-import { emptyVocabulary } from '@/extensions/air/lib/vocabulary';
-import { chordShapeFeatureIds } from '@/extensions/air/lib/hand_shape';
+import { emptyVocabulary } from '@thoremin/ext-air/lib/vocabulary';
+import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { enrolSamples } from './air/synthetic_guitar';
 import { AIR } from './helpers/extensions';
 
@@ -85,8 +85,8 @@ describe.runIf(AIR)('learning a chord', () => {
   });
 
   it('says so when two learned chords look alike', async () => {
-    const { useGuitarVocabulary: v } = await import('@/extensions/air/app/vocabularyStore');
-    const { withEntry } = await import('@/extensions/air/lib/vocabulary');
+    const { useGuitarVocabulary: v } = await import('@thoremin/ext-air/app/vocabularyStore');
+    const { withEntry } = await import('@thoremin/ext-air/lib/vocabulary');
     let vocab = emptyVocabulary(chordShapeFeatureIds());
     vocab = withEntry(vocab, 'G', enrolSamples('G', 30, 1));
     vocab = withEntry(vocab, 'G7', enrolSamples('G', 30, 2)); // the same shape, another name

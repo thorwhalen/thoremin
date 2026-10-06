@@ -9,14 +9,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { createInMemoryProvider } from '@zodal/store';
-import { PatternTrainer, takeClicks } from '@/extensions/air/app/PatternTrainer';
-import { clearHits, hitsSince, makeHitsTap, pushHits } from '@/extensions/air/app/hitsTap';
-import { loadPatternModel, usePatternModelStore, type PatternModelRecord } from '@/extensions/air/app/patternModels';
+import { PatternTrainer, takeClicks } from '@thoremin/ext-air/app/PatternTrainer';
+import { clearHits, hitsSince, makeHitsTap, pushHits } from '@thoremin/ext-air/app/hitsTap';
+import { loadPatternModel, usePatternModelStore, type PatternModelRecord } from '@thoremin/ext-air/app/patternModels';
 import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
-import { patternById } from '@/extensions/air/lib/drum_patterns';
+import { patternById } from '@thoremin/ext-air/lib/drum_patterns';
 import { useControls } from '@/app/store';
 import type { Click } from '@thoremin/sdk/enroll';
-import type { DrumHit } from '@/extensions/air/nodes/air_drum';
+import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { AIR } from '../helpers/extensions';
 
 const ROCK = patternById('rock')!;

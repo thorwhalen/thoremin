@@ -1,6 +1,6 @@
 /** Note names (#249): the air flute's fingerings are named by their note. */
 import { describe, it, expect } from 'vitest';
-import { parseNoteName } from '@/extensions/air/lib/notes';
+import { parseNoteName } from '@thoremin/ext-air/lib/notes';
 
 describe('parseNoteName', () => {
   it('reads letter, accidental and octave (C4 = 60), keeping the typed spelling', () => {

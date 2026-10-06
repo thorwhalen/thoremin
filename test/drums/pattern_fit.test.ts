@@ -6,9 +6,9 @@
  * null. Then the starters compile to what a drummer would read off them.
  */
 import { describe, expect, it } from 'vitest';
-import { DRUM_PATTERNS, compilePattern, eventTime, patternById, type DrumPattern } from '@/extensions/air/lib/drum_patterns';
-import { DRUM_SOUND, drumNameForGmNote, soundForGmNote } from '@/extensions/air/lib/gm_drums';
-import { assignHits, fitPattern, patternDrums, playbackOffset, playbackPad, type HitSample } from '@/extensions/air/lib/pattern_fit';
+import { DRUM_PATTERNS, compilePattern, eventTime, patternById, type DrumPattern } from '@thoremin/ext-air/lib/drum_patterns';
+import { DRUM_SOUND, drumNameForGmNote, soundForGmNote } from '@thoremin/ext-air/lib/gm_drums';
+import { assignHits, fitPattern, patternDrums, playbackOffset, playbackPad, type HitSample } from '@thoremin/ext-air/lib/pattern_fit';
 import type { PadId } from '@thoremin/sdk/nodes/music/drum_pads';
 
 /** Deterministic PRNG (mulberry32). */

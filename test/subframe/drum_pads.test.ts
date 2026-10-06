@@ -16,10 +16,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
-import { airDrumNode, type DrumHit } from '@/extensions/air/nodes/air_drum';
+import { airDrumNode, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { DEFAULT_PADS_SET, PAD_IDS, STARTER_KIT, hitPad, padDistance, toDisplay, type Pad, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
-import { fallingSegment, landingAt, velocityOf, SOFTEST_HIT } from '@/extensions/air/nodes/air_drum';
-import { drumVoice } from '@/extensions/air/nodes/drum_out';
+import { fallingSegment, landingAt, velocityOf, SOFTEST_HIT } from '@thoremin/ext-air/nodes/air_drum';
+import { drumVoice } from '@thoremin/ext-air/nodes/drum_out';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip } from '../../scripts/air/lib_synthetic_grip';
 import { FIXTURES } from '../helpers/fixtures';
 
