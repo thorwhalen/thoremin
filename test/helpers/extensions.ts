@@ -8,7 +8,7 @@
  */
 import { EXTENSIONS } from '@/extensions';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { readExtensionEntries } from '../../vite.extensions';
 
 export const hasExtension = (id: string): boolean => EXTENSIONS.some((e) => e.id === id);
@@ -17,13 +17,23 @@ export const hasExtension = (id: string): boolean => EXTENSIONS.some((e) => e.id
 export const AIR = hasExtension('air');
 
 
+/** The repository root: the nearest directory at or above the working directory holding
+ *  `extensions.json`, so running vitest from a subdirectory (`--root ..`) still finds it. (Not
+ *  `import.meta.url`: under jsdom it is not a file URL.) The paths returned are root-relative. */
+const ROOT = ((): string => {
+  for (let dir = resolve(process.cwd()); ; dir = dirname(dir)) {
+    if (existsSync(join(dir, 'extensions.json'))) return dir;
+    if (dirname(dir) === dir) return process.cwd();
+  }
+})();
+
 /** Where an extension's source lives, found from its manifest specifier: an in-tree alias
  *  (`@/extensions/x` → `src/extensions/x`) or a workspace package (`@thoremin/ext-x` →
  *  `packages/<dir>/src`). */
 export function extensionSourceDir(moduleSpec: string): string {
   if (moduleSpec.startsWith('@/')) return join('src', moduleSpec.slice(2));
-  for (const d of readdirSync('packages', { withFileTypes: true })) {
-    const pj = join('packages', d.name, 'package.json');
+  for (const d of readdirSync(join(ROOT, 'packages'), { withFileTypes: true })) {
+    const pj = join(ROOT, 'packages', d.name, 'package.json');
     if (d.isDirectory() && existsSync(pj) && (JSON.parse(readFileSync(pj, 'utf8')) as { name: string }).name === moduleSpec) return join('packages', d.name, 'src');
   }
   throw new Error(`no source directory for the extension module "${moduleSpec}"`);
@@ -35,7 +45,7 @@ export function extensionSourceDir(moduleSpec: string): string {
  * command firewall, boundary) scan these, so moving an extension (into a package, say) moves
  * what they scan instead of leaving them green over nothing.
  */
-export const SHIPPED_EXTENSION_DIRS: readonly { id: string; dir: string }[] = readExtensionEntries('extensions.json').map((e) => ({
+export const SHIPPED_EXTENSION_DIRS: readonly { id: string; dir: string }[] = readExtensionEntries(join(ROOT, 'extensions.json')).map((e) => ({
   id: e.id,
   dir: extensionSourceDir(e.module),
 }));
