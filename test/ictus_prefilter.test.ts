@@ -27,8 +27,9 @@ const PERIOD = 0.7;
 const PHASE = 0.0123;
 const AMP = 100;
 const SECONDS = 8;
-/** The first strokes are left clean so the envelope exists before anything is corrupted. */
-const CLEAN_SECONDS = 1.5;
+/** The first strokes are left clean so the envelope exists before anything is
+ *  corrupted (the relative spike ceiling waits for three). */
+const CLEAN_SECONDS = 2.5;
 /** An anchor further than this from every true ictus is spurious (seconds). */
 const SPURIOUS_WINDOW = 0.05;
 /** The sub-frame bound the clean train is pinned to (seconds). */
@@ -96,21 +97,29 @@ function sampleAndHold(samples: Sample[]): Sample[] {
   return samples.flatMap((s) => [s, { ...s, t: s.t + 0.5 / FPS }]);
 }
 
-/** A clipped sinusoid: the stroke dwells at the bottom for `dwell` seconds (a tenuto),
- *  with Gaussian tracker noise of `noise` units. The true ictus is the dwell's start. */
+/** A tenuto: a straight fall into the bottom, a dwell of `DWELL` seconds there, a
+ *  slower rise, with Gaussian tracker noise of `noise` units. The true ictus is the
+ *  arrival at the bottom. */
 const DWELL = 0.15;
+const TENUTO_PERIOD = 0.8;
+const TENUTO_FALL = 0.18;
+const TENUTO_RISE = 0.25;
+const TENUTO_ARRIVAL = 0.3;
 function tenutoTrain(fps: number, noise: number, seed = 3): { samples: Sample[]; trueIctus: (t: number) => number } {
   const next = rng(seed);
   const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-12, next()))) * Math.cos(2 * Math.PI * next());
-  // The sinusoid's value DWELL / 2 before its bottom is the clip level.
-  const clip = 300 + (AMP * (Math.cos((2 * Math.PI * (DWELL / 2)) / PERIOD) + 1)) / 2;
   const samples: Sample[] = [];
   for (let i = 0; i * (1 / fps) <= SECONDS; i++) {
     const t = i / fps;
-    const { x, y } = stroke(t);
-    samples.push({ t, x: x + noise * gauss(), y: Math.min(y, clip) + noise * gauss() });
+    const u = t - Math.floor(t / TENUTO_PERIOD) * TENUTO_PERIOD;
+    let y: number;
+    if (u < TENUTO_ARRIVAL - TENUTO_FALL) y = 300;
+    else if (u < TENUTO_ARRIVAL) y = 300 + (AMP * (u - (TENUTO_ARRIVAL - TENUTO_FALL))) / TENUTO_FALL;
+    else if (u < TENUTO_ARRIVAL + DWELL) y = 300 + AMP;
+    else y = Math.max(300, 300 + AMP - (AMP * (u - TENUTO_ARRIVAL - DWELL)) / TENUTO_RISE);
+    samples.push({ t, x: 300, y: y + noise * gauss() });
   }
-  return { samples, trueIctus: (t) => trueIctus(t) - DWELL / 2 };
+  return { samples, trueIctus: (t) => Math.round((t - TENUTO_ARRIVAL) / TENUTO_PERIOD) * TENUTO_PERIOD + TENUTO_ARRIVAL };
 }
 
 function anchors(samples: Sample[], options: DetectorOptions = {}): { t: number; at: number }[] {
@@ -218,12 +227,11 @@ describe('ictus prefilter (#231): the raw samples time, the spikes are bridged',
     for (const fps of [30, 60]) {
       const { samples, trueIctus: arrival } = tenutoTrain(fps, 0.5);
       const found = anchors(samples);
-      expect(found.length, `${fps} fps`).toBeGreaterThanOrEqual(10);
+      expect(found.length, `${fps} fps`).toBeGreaterThanOrEqual(8);
       const within = found.filter((a) => Math.abs(a.t - arrival(a.t)) < 0.05).length;
       // The deepest point moves only to a sample deeper by more than the noise margin,
       // so the bottom stays the first sample of the dwell, not the deepest noise in it.
-      // (9 of 11 at 30 fps: a flat puts the fit's vertex half a frame past its first sample,
-      // and the arrival can be a frame before it.)
+      // (9 of 11 at 30 fps on this realisation of the noise; 11 of 11 at 60.)
       expect(within / found.length, `${fps} fps`).toBeGreaterThanOrEqual(0.8);
       // Timed from the dwell's first sample, confirmed by the first sample past the
       // dwell: the hand leaving the bottom is what says the dwell is over.

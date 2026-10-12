@@ -117,16 +117,24 @@ export interface DetectorOptions {
    *  point faster than this, is deferred until it has settled. 0 = use the relative
    *  ceiling only. */
   maxSpeed?: number;
-  /** The relative spike ceiling, in multiples of the amplitude envelope per second
-   *  (unit-free, scaling with the player's strokes). The fastest human stroke covers
-   *  its amplitude in under 100 ms, about 12 envelopes per second; the default is well
-   *  above it, so a real turn is never a spike at any frame rate, and a jump of more
-   *  than `ceiling · dt` envelopes is: the whole stroke at 30 fps, a third of it at
-   *  120. Inactive until an envelope exists. 0 = off. */
+  /** The relative spike ceiling, in multiples of the largest amplitude envelope seen
+   *  per second (unit-free, scaling with the player's strokes). The fastest human
+   *  stroke covers its amplitude in under 100 ms, about 12 envelopes per second; the
+   *  default is well above it, so a real turn is never a spike at any frame rate, and
+   *  a jump of more than `ceiling · dt` envelopes is: the whole stroke at 30 fps, a
+   *  third of it at 120. Inactive until three strokes have been seen. 0 = off. */
   maxSpeedEnvelopes?: number;
+  /** A sample within this fraction of the envelope of the stroke's deepest point is on
+   *  the same plateau (one bottom): half the decisive-return margin, so that a soft
+   *  70 bpm turn at 30 fps spans at most two samples of plateau while a tenuto under a
+   *  tracker's noise (half a percent of a stroke) stays one. */
+  plateauFraction?: number;
   /** The noise part of the bottom's margin, in multiples of the online jitter (a sigma
-   *  of the tracker's frame-to-frame noise, from the median residual, which is zero
-   *  on a clean stream). See `reversalFraction` for the margin itself. */
+   *  of the tracker's frame-to-frame noise). Two: measured on smooth 60 fps strokes
+   *  under 4 and 8 % tracker noise, two sigmas keep the spurious anchors at or under
+   *  the median prefilter's (5 and 24 against 9 and 25 in 30 s) with every stroke
+   *  hit, where three and four cost 20 to 30 ms of confirmation latency on the
+   *  conducting fixtures. See `reversalFraction` for the margin itself. */
   reversalNoiseUnits?: number;
   /** The bottom's margin, as a fraction of the amplitude envelope (the larger of this
    *  and the noise margin). The turn is confirmed by the first sample that has come
@@ -153,8 +161,8 @@ export interface DetectorOptions {
   /** Absolute amplitude floor in the caller's units (0 = relative gate only). */
   minAmplitude?: number;
   /** A stroke must also exceed this many NOISE UNITS — multiples of the point's own
-   *  frame-to-frame jitter, estimated online as the residual of each sample against the
-   *  median of its neighbours (the same convention as `packages/sdk/src/enroll/noise.ts`). This is
+   *  frame-to-frame jitter, a sigma estimated online from the third difference of the
+   *  position (the convention of `packages/sdk/src/enroll/noise.ts`, in sigmas). This is
    *  what keeps a still hand's tremor, or the small bounce of hands being raised into
    *  position, from beating before the envelope exists, in any units. A real stroke is
    *  hundreds of jitter units even from a small conductor at 30 fps. */
@@ -175,16 +183,36 @@ export interface DetectorOptions {
 
 /** The relative spike ceiling's default; the option's doc derives it. */
 const SPIKE_SPEED_ENVELOPES = 30;
-/** A sample within this fraction of the envelope of the stroke's deepest point is on
- *  the same plateau (one bottom): half the decisive-return margin, so that a soft
- *  70 bpm turn at 30 fps spans at most two samples of plateau while a tenuto under a
- *  tracker's noise (half a percent of a stroke) stays one. */
-const PLATEAU_FRACTION = 0.015;
+/** Strokes the relative spike ceiling waits for: before the envelope has a history
+ *  it has nothing to scale by (a small preparatory stroke would set a ceiling the
+ *  next full stroke's rise exceeds, deferring its confirmation sample after sample:
+ *  300 ms on the 3/4 fixture's second beat). */
+const CEILING_AFTER_STROKES = 3;
 /** Residuals the jitter median is taken over, and the factor that makes the median
- *  absolute residual a standard deviation (Gaussian noise), so a "noise unit" is a
- *  sigma. */
+ *  absolute THIRD difference of the position (`y3 − 3y2 + 3y1 − y0`) a standard
+ *  deviation of the tracker's noise, so a "noise unit" is a sigma. The third
+ *  difference is what a smooth stroke leaves nothing in: a line and a parabola
+ *  cancel exactly, a sinusoid at 60 fps leaves a hundredth of a pixel, so the
+ *  median over a few strokes' samples is the noise and not the motion (the residual
+ *  against the median of the neighbours, the pre-#231 estimator, is zero on any
+ *  monotone run and so measures nothing while the hand moves, and the mean of it
+ *  counts every turn as noise, which at 15 fps is a frame's travel). Gaussian noise
+ *  gives the third difference a sigma of sqrt(20) and its absolute value a median
+ *  of 3.02 sigma (measured on 200 000 draws). */
 const JITTER_WINDOW = 16;
-const MAD_TO_SD = 1.4826;
+const THIRD_DIFF_TO_SD = 1 / 3.02;
+/** The noise-unit amplitude gate can never reject a stroke larger than this fraction
+ *  of the largest envelope seen (the envelope gate's own fraction, so the noise gate
+ *  is never the stricter of the two against the player's biggest stroke): at 15 fps
+ *  the third difference of a real stroke is a good part of the stroke itself, so the
+ *  "noise" it estimates would gate the player's own beats, and a tremor is never a
+ *  fifth of a stroke. */
+const NOISE_GATE_PEAK_FRACTION = 0.2;
+/** Before any stroke has set the envelope, a turn must span at least this fraction
+ *  of the range of positions seen so far: the hands' small bounce as they are raised
+ *  into position (3 % of the beat that follows it on the 3/4 fixture) is not the
+ *  first beat, and there is nothing else to be small against yet. */
+const FIRST_STROKE_RANGE_FRACTION = 0.1;
 
 const DEFAULTS: Required<Omit<DetectorOptions, 'medianFilter'>> = {
   mode: 'turning',
@@ -193,7 +221,8 @@ const DEFAULTS: Required<Omit<DetectorOptions, 'medianFilter'>> = {
   prefilter: 'spikes',
   maxSpeed: 0,
   maxSpeedEnvelopes: SPIKE_SPEED_ENVELOPES,
-  reversalNoiseUnits: 3,
+  plateauFraction: 0.015,
+  reversalNoiseUnits: 2,
   reversalFraction: 0.03,
   refractoryFraction: 0.25,
   initialPeriod: 0.6,
@@ -303,17 +332,23 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   let strokeTop = Infinity;
   /** Online jitter estimate (the noise floor, caller's units): under the median
    *  prefilter the EW mean of |raw − median3| (the pre-#231 estimator, kept for the
-   *  ablation); otherwise the MEDIAN of the last few residuals, which is zero on a
-   *  clean stream and the noise on a noisy one, and is not dragged up by the two
-   *  kinks of every stroke — at 15 fps a real ictus is a residual of a frame's travel,
-   *  and a mean that counts it gates real strokes out as tremor. */
+   *  ablation); otherwise a sigma from the median absolute third difference (see
+   *  `THIRD_DIFF_TO_SD`), which is the noise and not the motion. */
   let jitter = NaN;
   let jitterN = 0;
   const residuals: number[] = [];
+  /** The last four settled (down-positive) positions, for the third difference. */
+  const recent: number[] = [];
   /** The largest envelope seen since reset: the scale of the spike ceiling. The
    *  envelope itself decays within seconds of a rest, and a ceiling that shrank with
    *  it would defer every sample of the first stroke after one. */
   let peakEnvelope = 0;
+  /** Anchors emitted since reset (the relative ceiling waits for a few). */
+  let anchorsSeen = 0;
+  /** The range of (down-positive) positions seen since reset: the first stroke's
+   *  scale, before an envelope exists. */
+  let yMin = Infinity;
+  let yMax = -Infinity;
   /** Approach statistics for the stroke in progress (while moving down). */
   let peakDecel = 0;
   let speedSum = 0;
@@ -322,6 +357,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   const clearHistory = () => {
     raw.length = 0;
     settled.length = 0;
+    recent.length = 0;
     deepest = beforePlateau = null;
     plateau.length = 0;
     strokeTop = Infinity;
@@ -340,8 +376,10 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   const passesAmplitude = (amplitude: number): boolean => {
     if (!(amplitude > 0)) return false;
     if (amplitude < o.minAmplitude) return false;
-    if (Number.isFinite(jitter) && amplitude < o.minAmplitudeNoiseUnits * jitter) return false;
+    const noiseGate = Math.min(o.minAmplitudeNoiseUnits * jitter, peakEnvelope > 0 ? NOISE_GATE_PEAK_FRACTION * peakEnvelope : Infinity);
+    if (Number.isFinite(jitter) && amplitude < noiseGate) return false;
     if (envelope > 0 && amplitude < o.minAmplitudeFraction * envelope) return false;
+    if (!(envelope > 0) && amplitude < FIRST_STROKE_RANGE_FRACTION * (yMax - yMin)) return false;
     return true;
   };
 
@@ -355,22 +393,36 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     if (residuals.length > JITTER_WINDOW) residuals.shift();
     const sorted = [...residuals].sort((a, b) => a - b);
     const m = sorted.length >> 1;
-    jitter = MAD_TO_SD * (sorted.length % 2 ? sorted[m] : 0.5 * (sorted[m - 1] + sorted[m]));
+    jitter = THIRD_DIFF_TO_SD * (sorted.length % 2 ? sorted[m] : 0.5 * (sorted[m - 1] + sorted[m]));
+  };
+  /** The third difference of the settled positions, once four are in. A repeated
+   *  position is a held frame (a 30 fps camera polled at 60 Hz) or a hand at rest on
+   *  an exact stream, not a new observation: it counts as a zero residual and stays
+   *  out of the differences, or every duplicate-then-jump would read as noise of a
+   *  frame's travel. */
+  const noteThirdDifference = (y: number) => {
+    if (recent.length && recent[recent.length - 1] === y) {
+      noteJitter(0);
+      return;
+    }
+    recent.push(y);
+    if (recent.length > 4) recent.shift();
+    if (recent.length === 4) noteJitter(Math.abs(recent[3] - 3 * recent[2] + 3 * recent[1] - recent[0]));
   };
   /** The noise margin in the caller's units (0 until the jitter is estimated). */
   const noiseMargin = (): number => (Number.isFinite(jitter) ? o.reversalNoiseUnits * jitter : 0);
   /** The decisive return: the noise margin, and `reversalFraction` of the envelope. */
   const bottomMargin = (): number => Math.max(noiseMargin(), o.reversalFraction * envelope);
   /** The plateau's margin: a sample within it of the deepest point is the same bottom
-   *  (a dwell, a flat, a held copy, the tracker's noise); the online jitter alone
-   *  cannot say so, since on a stroke most samples sit on a monotone run where the
-   *  residual is zero. */
-  const plateauMargin = (): number => Math.max(noiseMargin(), PLATEAU_FRACTION * envelope);
+   *  (a dwell, a flat, a held copy). A fraction of the stroke, not of the noise: under
+   *  heavy noise a soft turn's samples sit within the noise for many frames, and a
+   *  plateau that wide would time the turn from its first noisy sample. */
+  const plateauMargin = (): number => o.plateauFraction * envelope;
 
   /** The spike ceiling in force: the absolute one, else the envelope-relative one. */
   const spikeCeiling = (): number => {
     if (o.maxSpeed > 0) return o.maxSpeed;
-    if (o.maxSpeedEnvelopes > 0 && peakEnvelope > 0) return o.maxSpeedEnvelopes * peakEnvelope;
+    if (o.maxSpeedEnvelopes > 0 && anchorsSeen >= CEILING_AFTER_STROKES) return o.maxSpeedEnvelopes * peakEnvelope;
     return Infinity;
   };
 
@@ -382,6 +434,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     const strength = ref > 0 ? amplitude / ref : 0;
     envelope = Math.max(envelope, amplitude);
     peakEnvelope = Math.max(peakEnvelope, envelope);
+    anchorsSeen++;
     const meanSpeed = speedCount > 0 ? speedSum / speedCount : NaN;
     const sharpness = meanSpeed > 0 ? peakDecel / meanSpeed : NaN;
     const lateral = Number.isFinite(lastAnchorX) ? xSign * (x - lastAnchorX) : 0;
@@ -423,10 +476,6 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
         x = a.x + w * (c.x - a.x);
         y = sign * (a.y + w * (c.y - a.y));
         bridged = true;
-      } else {
-        // A spike is not jitter: it would drag the noise floor (and every gate counted
-        // in it) up by its whole size over the next hundred samples.
-        noteJitter(Math.abs(y - median3(sign * a.y, y, sign * c.y)));
       }
     }
     return { t: b.t, x, y, vy: vyOf(b.t, y), bridged };
@@ -485,12 +534,12 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     // says nothing about the bottom.
     if (Math.abs(p2.y - last.y) / (p2.t - last.t) > spikeCeiling()) return null;
     // Confirmed by a decisive return, or, once the plateau has a second sample, by
-    // any sample that is not deeper than the deepest point: the soft turn's second
-    // sample after the bottom (where the median prefilter confirmed every turn), the
-    // dwell's third. A sample deeper by a hair, a stall still creeping down, or a
-    // held copy's first repeat is none of these.
+    // any sample back from the deepest point by more than the noise: the soft turn's
+    // second sample after the bottom (where the median prefilter confirmed every
+    // turn), the dwell's third. A sample deeper by a hair, a stall still creeping
+    // down, a held copy's first repeat, or noise on a flat is none of these.
     const decisive = p2.y < deepest.y - bottomMargin();
-    const settledBack = plateau.length >= 2 && !(p2.y > deepest.y);
+    const settledBack = plateau.length >= 2 && p2.y < deepest.y - noiseMargin();
     if (!decisive && !settledBack) return null;
     // The fit's middle point is the deeper of the plateau's first two samples (a soft
     // turn's two nearly equal deepest samples: the later one, exactly; a dwell: its
@@ -538,7 +587,12 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
 
       const pt = settle();
       if (pt) {
+        // Bridged, a spike leaves the noise estimate its interpolated value, not
+        // its own size.
+        if (o.prefilter === 'spikes') noteThirdDifference(pt.y);
         if (pt.y < strokeTop) strokeTop = pt.y;
+        if (pt.y < yMin) yMin = pt.y;
+        if (pt.y > yMax) yMax = pt.y;
         trackDeepest(pt, settled[settled.length - 1]);
         settled.push(pt);
         if (settled.length > 3) settled.shift();
@@ -595,7 +649,11 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
       jitter = NaN;
       jitterN = 0;
       residuals.length = 0;
+      recent.length = 0;
       peakEnvelope = 0;
+      anchorsSeen = 0;
+      yMin = Infinity;
+      yMax = -Infinity;
       envelope = 0;
       envelopeT = NaN;
       lastAnchorT = -Infinity;
