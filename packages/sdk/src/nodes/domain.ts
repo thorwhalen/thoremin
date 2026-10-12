@@ -55,6 +55,10 @@ export interface FrameTiming {
   tOrigin?: number;
   /** Seconds from `t` to the start of inference, measured by the source (#226/#227). */
   lag?: number;
+  /** Camera frames presented between the previous processed frame and this one that
+   *  were not processed (inference was still busy; the pump takes the latest): absent
+   *  or 0 when none, or when the browser cannot say (#226, the `presentedFrames` pump). */
+  skipped?: number;
 }
 
 export const FRAME_TIME_SOURCES = ['capture', 'presentation', 'estimated', 'clock'] as const;
@@ -120,6 +124,7 @@ export const FrameTimingSchema = {
   tSource: z.enum(FRAME_TIME_SOURCES).optional(),
   tOrigin: z.number().optional(),
   lag: z.number().optional(),
+  skipped: z.number().int().min(0).optional(),
 };
 
 export const HandsFrameSchema = z.object({

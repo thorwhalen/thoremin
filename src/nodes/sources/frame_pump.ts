@@ -13,22 +13,34 @@
  * `requestVideoFrameCallback` API fires once per presented video frame and, for a
  * `getUserMedia` source, carries `captureTime`: the camera's own capture timestamp
  * in the `performance.now()` time base. That is the number a sub-frame estimator
- * needs, and it costs nothing to read.
+ * needs, and it costs nothing to read. What the stamp IS: in Chrome on macOS and in
+ * Safari it is the frame's ARRIVAL in the capture service, not the sensor's exposure
+ * time (Chromium forwards the AVFoundation sample timestamp only behind a flag that is
+ * off by default); Firefox hands over the camera pipeline's own timestamp. So the stamp
+ * removes the browser-side jitter and the frame's position in the pipeline, not the
+ * camera's exposure-to-arrival constant, which the strike test calibrates (#146 §A5.2).
  *
- * The shape, and why. The animation-frame loop stays the DRIVER: it polls
- * `currentTime` and runs inference on every new frame at once, exactly as before, so
- * no frame is ever held or dropped and a browser that never fires the video frame
- * callback for an element that is not rendered (the app's `<video>` is
- * `display: none`) degrades to exactly the pre-#226 behaviour instead of a silent
- * instrument. The video frame callback is a SIDE CHANNEL that records each presented
- * frame's metadata. When the driver sees a new frame whose `currentTime` matches the
- * recorded `mediaTime`, the frame is stamped from that metadata (`captureTime`, else
- * `presentationTime`). When the callback runs late — after the driver has already
- * delivered the frame, which the spec allows by one vsync — the metadata still
- * teaches the pump the camera's lag (capture to delivery), and every frame whose own
- * metadata has not arrived is stamped at the clock minus that recent lag (source
- * `estimated`): a few milliseconds of jitter instead of a whole lag of bias. With no
- * lag learned yet, the stamp is the clock.
+ * The shape, and why (revised by step 0 of the 2026-10-05 timing plan). The video frame
+ * callback DRIVES delivery wherever it reports `presentedFrames`: a rise in that counter
+ * is a new frame, whatever the element's clocks say, and the frame is handed to
+ * inference from inside the callback with its own metadata. The earlier design let the
+ * animation-frame loop drive (a change of `currentTime`) and used the callback only as a
+ * side channel matched by `mediaTime`; measured in WebKit, that delivered every camera
+ * frame TWICE and matched nothing (182 deliveries for 91 frames, every stamp `clock`):
+ * WebKit's MediaStream player reports `currentTime` as a wall clock and `mediaTime` as
+ * always 0, so the API had the stamp and the pump threw it away. The animation-frame
+ * path is kept only where the callback is absent, has no `presentedFrames`, or has gone
+ * silent for about two frame periods (a hidden tab; a browser that never fires it for
+ * an element that is not rendered): there it polls `currentTime` and stamps at the
+ * clock minus the lag the callbacks taught it (source `estimated`), else at the clock,
+ * exactly the pre-#226 behaviour rather than a silent instrument. A frame the consumer
+ * refuses (no model loaded yet) is offered again on the next animation frame.
+ *
+ * A callback that fires late for a frame the animation loop already delivered (the
+ * first one after start, or after a silence) still teaches the pump the camera's lag.
+ * When the counter rises by more than one, the frames in between were presented while
+ * inference was busy and never processed: the stamp says how many (`skipped`), which is
+ * the dropped-frame count the timing resource reports.
  *
  * {@link pickFrameStamp} is the pure decision and is unit-tested. A stamp says which
  * source it came from (`FrameTiming.tSource`), is strictly increasing by at least a
@@ -48,8 +60,11 @@ export interface VideoFrameMetadataLike {
   /** When the frame was submitted for compositing, `performance.now()` base. */
   presentationTime?: number;
   /** The frame's presentation time in the media timeline (seconds; what
-   *  `video.currentTime` reads while this frame is current). */
+   *  `video.currentTime` reads while this frame is current). Always 0 in WebKit's
+   *  MediaStream player. */
   mediaTime?: number;
+  /** Frames presented so far: a rise is a new frame, whatever the clocks say. */
+  presentedFrames?: number;
 }
 
 /** The element surface this module needs; declared here rather than relying on the
@@ -61,7 +76,8 @@ export interface VideoFrameCallbackTarget {
 
 export type StampSource = NonNullable<FrameTiming['tSource']>;
 
-export interface FrameStamp {
+/** The timestamp decision alone (what {@link pickFrameStamp} returns). */
+export interface PickedStamp {
   /** The frame's timestamp in milliseconds, `performance.now()` base; at least
    *  {@link MIN_STAMP_STEP_MS} greater than the previous frame's. */
   tMs: number;
@@ -75,6 +91,12 @@ export interface FrameStamp {
   lagMs: number;
 }
 
+export interface FrameStamp extends PickedStamp {
+  /** Camera frames presented since the previously delivered one that were not
+   *  delivered (inference was busy); 0 when none or when the browser cannot say. */
+  skipped: number;
+}
+
 /** A timestamp older than this is in another time base, or garbage. */
 export const MAX_PLAUSIBLE_LAG_MS = 1000;
 /** A timestamp may lead the clock by at most this (clock skew between the compositor
@@ -85,11 +107,22 @@ export const MIN_STAMP_STEP_MS = 1;
 /** `mediaTime` must match `currentTime` this closely (seconds) for the metadata to
  *  describe the frame the driver is looking at. */
 export const MEDIA_TIME_TOLERANCE_S = 0.002;
-/** The recent-lag estimate ignores any single lag above this (ms): a stalled frame
- *  must not drag every estimated stamp early. */
+/** The recent-lag estimate clamps any single lag to this (ms): a stalled frame must
+ *  not drag every estimated stamp early. */
 export const MAX_LAG_EW_MS = 200;
 /** Gain of the exponentially weighted recent lag. */
 export const LAG_EW_GAIN = 0.2;
+/** The callback has gone silent when none has fired for this many of its own periods
+ *  (and at least {@link MIN_VFC_SILENCE_MS}): the animation-frame path takes over. */
+export const VFC_SILENCE_PERIODS = 2;
+/** A floor on the silence, ms: one inference on the CPU delegate (about 42 ms) or a
+ *  garbage-collection pause must not hand delivery to the animation loop, which on
+ *  WebKit would mean duplicates. */
+export const MIN_VFC_SILENCE_MS = 100;
+/** The callback period assumed before one is measured, ms (a 30 fps camera). */
+export const DEFAULT_FRAME_PERIOD_MS = 1000 / 30;
+/** Gain of the exponentially weighted callback period. */
+export const VFC_PERIOD_EW_GAIN = 0.2;
 
 const plausible = (candidate: number | undefined, nowMs: number): candidate is number =>
   typeof candidate === 'number' &&
@@ -104,7 +137,7 @@ const plausible = (candidate: number | undefined, nowMs: number): candidate is n
  * first); `estimatedLagMs` the recent capture lag when the channel is live but this
  * frame's metadata was missed (NaN otherwise). Pure.
  */
-export function pickFrameStamp(nowMs: number, meta: VideoFrameMetadataLike | undefined, lastMs: number, estimatedLagMs = NaN): FrameStamp {
+export function pickFrameStamp(nowMs: number, meta: VideoFrameMetadataLike | undefined, lastMs: number, estimatedLagMs = NaN): PickedStamp {
   let tMs: number;
   let source: StampSource;
   if (plausible(meta?.captureTime, nowMs)) {
@@ -129,7 +162,7 @@ export function pickFrameStamp(nowMs: number, meta: VideoFrameMetadataLike | und
 
 /** The timing fields a source spreads onto a frame from a {@link FrameStamp}. */
 export function stampToTiming(stamp: FrameStamp, originMs: number = timeOrigin()): Required<FrameTiming> {
-  return { t: stamp.tMs / 1000, tSource: stamp.source, tOrigin: originMs, lag: stamp.lagMs / 1000 };
+  return { t: stamp.tMs / 1000, tSource: stamp.source, tOrigin: originMs, lag: stamp.lagMs / 1000, skipped: stamp.skipped };
 }
 
 /** This document's `performance.timeOrigin` (ms since the epoch); NaN where absent. */
@@ -143,9 +176,15 @@ export function metadataMatches(meta: VideoFrameMetadataLike | null, currentTime
   return !!meta && typeof meta.mediaTime === 'number' && Math.abs(meta.mediaTime - currentTime) <= MEDIA_TIME_TOLERANCE_S;
 }
 
+/** How long (ms) the callback may stay silent before the animation loop takes over,
+ *  given its measured period (NaN before one is measured). */
+export function vfcSilenceMs(periodMs: number): number {
+  const period = Number.isFinite(periodMs) && periodMs > 0 ? periodMs : DEFAULT_FRAME_PERIOD_MS;
+  return Math.max(MIN_VFC_SILENCE_MS, VFC_SILENCE_PERIODS * period);
+}
+
 export interface FramePumpOptions {
-  /** Register the video frame callback side channel when the element has it (default
-   *  true). */
+  /** Register the video frame callback when the element has it (default true). */
   useVideoFrameCallback?: boolean;
   /** Injectable for tests. */
   now?: () => number;
@@ -153,21 +192,27 @@ export interface FramePumpOptions {
   cancelAnimationFrame?: (handle: number) => void;
 }
 
+/** Which path is delivering frames right now. */
+export type FramePumpDriver = 'vfc' | 'raf';
+
 export interface FramePump {
   start(): void;
   stop(): void;
   readonly running: boolean;
-  /** Whether the video frame callback side channel is registered on the element. */
+  /** Whether the video frame callback is registered on the element. */
   readonly metadataChannel: boolean;
+  /** `vfc` while the callback reports `presentedFrames` and is not silent; `raf` otherwise. */
+  readonly driver: FramePumpDriver;
 }
 
 /**
  * Pump frames from `getVideo()` into `onFrame`. The element is read through a getter
  * because two of the sources re-read it from the engine resources every tick. A frame
- * is delivered once per change of `currentTime` on a ready element (`readyState >= 2`,
- * a non-zero width). `onFrame` may return `false` to say it did not consume the frame
- * (no model loaded yet), in which case the same frame is offered again on the next
- * animation frame.
+ * is delivered once per presented camera frame on a ready element (`readyState >= 2`,
+ * a non-zero width): once per rise of `presentedFrames` where the video frame callback
+ * reports it, once per change of `currentTime` where it does not. `onFrame` may return
+ * `false` to say it did not consume the frame (no model loaded yet), in which case the
+ * same frame is offered again on the next animation frame.
  */
 export function createFramePump(
   getVideo: () => HTMLVideoElement | undefined,
@@ -183,7 +228,7 @@ export function createFramePump(
   let rafId: number | null = null;
   let vfcId: number | null = null;
   let vfcVideo: (HTMLVideoElement & VideoFrameCallbackTarget) | null = null;
-  /** The most recent presented frame's metadata (the side channel). */
+  /** The most recent presented frame's metadata (the side channel of the rAF path). */
   let latestMeta: VideoFrameMetadataLike | null = null;
   let lastVideoTime = -1;
   let lastMs = -Infinity;
@@ -191,24 +236,43 @@ export function createFramePump(
   let lastDeliveryMs = NaN;
   /** Exponentially weighted capture-to-delivery lag (ms); NaN until learned. */
   let lagEw = NaN;
+  /** The clock at the last callback that carried `presentedFrames`; NaN until one. */
+  let lastVfcMs = NaN;
+  /** Exponentially weighted interval between such callbacks (ms). */
+  let vfcPeriodEw = NaN;
+  /** The `presentedFrames` of the last frame the callback path delivered or saw. */
+  let lastPresented = NaN;
+  /** A callback-path frame the consumer refused, offered again on the next animation frame. */
+  let pending: { meta: VideoFrameMetadataLike; skipped: number } | null = null;
 
   const ready = (v: HTMLVideoElement) => v.readyState >= 2 && v.videoWidth > 0;
   const learnLag = (lagMs: number) => {
     const lag = Math.min(MAX_LAG_EW_MS, Math.max(0, lagMs));
     lagEw = Number.isFinite(lagEw) ? lagEw + LAG_EW_GAIN * (lag - lagEw) : lag;
   };
+  const vfcDriving = (nowMs: number) => Number.isFinite(lastVfcMs) && nowMs - lastVfcMs <= vfcSilenceMs(vfcPeriodEw);
 
-  const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined) => {
+  /** Hand a frame to inference; false when the consumer refused it. */
+  const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined, skipped: number): boolean => {
     const nowMs = now();
     // The learned lag describes the pipeline, not the channel: once known it is used
     // even after the callbacks go quiet (a hidden tab), so a return does not start
     // again from a clock stamp.
-    const stamp = pickFrameStamp(nowMs, meta, lastMs, lagEw);
-    if (onFrame(stamp, v) === false) return;
+    const stamp: FrameStamp = { ...pickFrameStamp(nowMs, meta, lastMs, lagEw), skipped };
+    if (onFrame(stamp, v) === false) return false;
     lastMs = stamp.tMs;
     lastVideoTime = v.currentTime;
     lastDeliveryMs = nowMs;
     if (stamp.source === 'capture') learnLag(stamp.lagMs);
+    return true;
+  };
+
+  /** A callback for a frame the animation loop already delivered: learn the lag from it. */
+  const learnFromLate = (meta: VideoFrameMetadataLike) => {
+    if (metadataMatches(meta, lastVideoTime) && Number.isFinite(lastDeliveryMs) && typeof meta.captureTime === 'number') {
+      const lag = lastDeliveryMs - meta.captureTime;
+      if (lag >= -MAX_FUTURE_MS && lag <= MAX_PLAUSIBLE_LAG_MS) learnLag(lag);
+    }
   };
 
   const unregisterVfc = () => {
@@ -217,7 +281,35 @@ export function createFramePump(
     vfcVideo = null;
   };
 
-  /** Keep the side channel registered on the element the driver is looking at. */
+  /** The callback: the driver where it reports `presentedFrames`, a side channel elsewhere. */
+  const onVideoFrame = (v: HTMLVideoElement & VideoFrameCallbackTarget, meta: VideoFrameMetadataLike) => {
+    latestMeta = meta;
+    const presented = typeof meta.presentedFrames === 'number' && Number.isFinite(meta.presentedFrames) ? meta.presentedFrames : NaN;
+    if (!Number.isFinite(presented)) {
+      learnFromLate(meta);
+      return;
+    }
+    const nowMs = now();
+    // The first callback, or the first after a silence: the animation loop may have
+    // delivered this very frame already (its mediaTime then matches), and the frames
+    // presented meanwhile were its to deliver, not skipped.
+    const resumed = !vfcDriving(nowMs);
+    if (!resumed) vfcPeriodEw = Number.isFinite(vfcPeriodEw) ? vfcPeriodEw + VFC_PERIOD_EW_GAIN * (nowMs - lastVfcMs - vfcPeriodEw) : nowMs - lastVfcMs;
+    lastVfcMs = nowMs;
+    const rise = Number.isFinite(lastPresented) ? presented - lastPresented : 1;
+    if (resumed && metadataMatches(meta, lastVideoTime)) {
+      learnFromLate(meta);
+      lastPresented = presented;
+      return;
+    }
+    if (!(rise > 0)) return;
+    const skipped = resumed ? 0 : rise - 1;
+    lastPresented = presented;
+    pending = null;
+    if (!ready(v) || !deliver(v, meta, skipped)) pending = { meta, skipped };
+  };
+
+  /** Keep the callback registered on the element the pump is looking at. */
   const ensureVfc = (v: HTMLVideoElement & VideoFrameCallbackTarget) => {
     if (!useVfc || typeof v.requestVideoFrameCallback !== 'function') return;
     if (vfcVideo !== v) unregisterVfc();
@@ -226,12 +318,7 @@ export function createFramePump(
     vfcId = v.requestVideoFrameCallback((_cbNow, meta) => {
       vfcId = null;
       if (!running || vfcVideo !== v) return;
-      latestMeta = meta;
-      // Late for a frame the driver already delivered: still learn the lag from it.
-      if (metadataMatches(meta, lastVideoTime) && Number.isFinite(lastDeliveryMs) && typeof meta.captureTime === 'number') {
-        const lag = lastDeliveryMs - meta.captureTime;
-        if (lag >= -MAX_FUTURE_MS && lag <= MAX_PLAUSIBLE_LAG_MS) learnLag(lag);
-      }
+      onVideoFrame(v, meta);
       ensureVfc(v);
     });
   };
@@ -242,7 +329,13 @@ export function createFramePump(
     const v = getVideo() as (HTMLVideoElement & VideoFrameCallbackTarget) | undefined;
     if (v) {
       ensureVfc(v);
-      if (ready(v) && v.currentTime !== lastVideoTime) deliver(v, metadataMatches(latestMeta, v.currentTime) ? latestMeta! : undefined);
+      if (ready(v)) {
+        if (pending) {
+          if (deliver(v, pending.meta, pending.skipped)) pending = null;
+        } else if (!vfcDriving(now()) && v.currentTime !== lastVideoTime) {
+          deliver(v, metadataMatches(latestMeta, v.currentTime) ? latestMeta! : undefined, 0);
+        }
+      }
     }
     rafId = raf(tick);
   };
@@ -253,6 +346,9 @@ export function createFramePump(
     },
     get metadataChannel() {
       return vfcId !== null;
+    },
+    get driver() {
+      return vfcDriving(now()) ? 'vfc' : 'raf';
     },
     start() {
       if (running) return;
@@ -269,6 +365,10 @@ export function createFramePump(
       latestMeta = null;
       lastVideoTime = -1;
       lastDeliveryMs = NaN;
+      lastVfcMs = NaN;
+      vfcPeriodEw = NaN;
+      lastPresented = NaN;
+      pending = null;
     },
   };
 }

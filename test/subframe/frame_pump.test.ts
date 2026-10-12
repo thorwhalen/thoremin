@@ -1,11 +1,13 @@
 /**
- * The frame pump (#226): the animation-frame loop delivers every new frame at once
- * (never held, never dropped) and stamps it from the video frame callback's metadata
- * when that already describes the frame, else from the clock minus the recent lag
- * the callbacks taught it (even late ones), else from the clock. A browser that never
- * fires the callback for the hidden `<video>` degrades to the pre-#226 behaviour
- * rather than to silence. All paths are exercised here with fake schedulers; the
- * live webcam behaviour is on #146's list.
+ * The frame pump (#226): where the video frame callback reports `presentedFrames` it
+ * DRIVES delivery (one frame per rise of the counter, stamped from its own metadata:
+ * step 0 of the timing plan, the WebKit-shaped cases below); elsewhere the
+ * animation-frame loop delivers every new frame at once (never held, never dropped)
+ * and stamps it from the callback's metadata when that already describes the frame,
+ * else from the clock minus the recent lag the callbacks taught it (even late ones),
+ * else from the clock. A browser that never fires the callback for the hidden `<video>`
+ * degrades to the pre-#226 behaviour rather than to silence. All paths are exercised
+ * here with fake schedulers; the live webcam behaviour is on #146's list.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -16,6 +18,8 @@ import {
   MAX_FUTURE_MS,
   MAX_PLAUSIBLE_LAG_MS,
   MIN_STAMP_STEP_MS,
+  MIN_VFC_SILENCE_MS,
+  vfcSilenceMs,
   type FrameStamp,
   type VideoFrameMetadataLike,
 } from '@/nodes/sources/frame_pump';
@@ -52,7 +56,7 @@ describe('pickFrameStamp', () => {
   });
 
   it('converts to the seconds the frame carries, with the source and the time origin', () => {
-    expect(stampToTiming({ tMs: 2500, source: 'capture', lagMs: 40 }, 1700000000000)).toEqual({ t: 2.5, tSource: 'capture', tOrigin: 1700000000000, lag: 0.04 });
+    expect(stampToTiming({ tMs: 2500, source: 'capture', lagMs: 40, skipped: 1 }, 1700000000000)).toEqual({ t: 2.5, tSource: 'capture', tOrigin: 1700000000000, lag: 0.04, skipped: 1 });
   });
 
   it('metadata describes the current frame only when mediaTime matches currentTime', () => {
@@ -160,7 +164,7 @@ describe('createFramePump', () => {
     clock = 1000;
     s.tick();
     expect(got.length).toBe(1);
-    expect(got[0]).toEqual({ tMs: 960, source: 'capture', lagMs: 40 });
+    expect(got[0]).toEqual({ tMs: 960, source: 'capture', lagMs: 40, skipped: 0 });
     expect(v.handle).toBe(2); // the callback re-registered itself
 
     // Frame 2 likewise, 33.3 ms later.
@@ -272,7 +276,7 @@ describe('createFramePump', () => {
     clock = 1033;
     s.tick();
     expect(got.length).toBe(2);
-    expect(got[1]).toEqual({ tMs: 1033, source: 'clock', lagMs: 0 });
+    expect(got[1]).toEqual({ tMs: 1033, source: 'clock', lagMs: 0, skipped: 0 });
     pump.stop();
   });
 
@@ -414,5 +418,163 @@ describe('createFramePump', () => {
     expect(delivered).toBe(2);
     pump.stop();
     expect(cancelled).toEqual(['a', 'b']);
+  });
+});
+
+/**
+ * WebKit's MediaStream player, as measured in Playwright's WebKit (the Safari red-team
+ * of the timing plan): `currentTime` is a wall clock that changes on EVERY animation
+ * frame, `mediaTime` is always 0, `captureTime` and `presentationTime` are integer
+ * milliseconds, and `presentedFrames` rises by one per camera frame. The old pump
+ * delivered every camera frame twice (182 for 91) and matched nothing (all `clock`).
+ */
+describe('createFramePump on WebKit-shaped metadata', () => {
+  const RAF_MS = 1000 / 60;
+  const CAM_MS = 1000 / 30;
+
+  function webkitRun(opts: { frames: number; callbackEvery?: number; skipCallbacksFrom?: number }) {
+    const v = vfcVideo();
+    const s = scheduler();
+    let clock = 1000;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => v.video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
+      now: () => clock,
+      requestAnimationFrame: s.raf,
+      cancelAnimationFrame: s.caf,
+    });
+    pump.start();
+    v.video.readyState = 0; // the stream is not attached yet: the first tick only registers
+    s.tick();
+    v.video.readyState = 4;
+    let presented = 0;
+    for (let i = 0; i < opts.frames * 2; i++) {
+      clock = 1000 + i * RAF_MS;
+      v.video.currentTime = 0.5 + (clock - 1000) / 1000; // the wall clock since the stream started, not the frame
+      if (i % 2 === 0) {
+        presented++;
+        const every = opts.callbackEvery ?? 1;
+        const silent = opts.skipCallbacksFrom !== undefined && presented >= opts.skipCallbacksFrom;
+        if (presented % every === 0 && !silent) v.fire(clock, { mediaTime: 0, captureTime: Math.round(clock - 12), presentationTime: Math.round(clock - 2), presentedFrames: presented });
+      }
+      s.tick();
+    }
+    return { got, pump, v, s, setClock: (ms: number) => void (clock = ms), presented: () => presented };
+  }
+
+  it('delivers one frame per camera frame, not per animation frame, stamped from the capture time', () => {
+    const { got, pump } = webkitRun({ frames: 60 });
+    expect(got).toHaveLength(60);
+    expect(got.every((g) => g.source === 'capture')).toBe(true);
+    // WebKit rounds the capture time to the millisecond: the lag reads 12 +- 0.5.
+    expect(got.every((g) => Math.abs(g.lagMs - 12) <= 0.5)).toBe(true);
+    expect(got.every((g) => g.skipped === 0)).toBe(true);
+    // Consecutive stamps are one camera period apart (to the rounding), never the animation period.
+    for (let i = 1; i < got.length; i++) expect(Math.abs(got[i].tMs - got[i - 1].tMs - CAM_MS)).toBeLessThan(1);
+    expect(pump.driver).toBe('vfc');
+    pump.stop();
+  });
+
+  it('a rise of more than one says how many camera frames inference was too busy for', () => {
+    // The callback fires for every other camera frame (inference blocked the thread).
+    // Until its first callback the animation loop delivers from the clock (two frames here).
+    const { got, pump } = webkitRun({ frames: 40, callbackEvery: 2 });
+    const captured = got.filter((g) => g.source === 'capture');
+    expect(got.length - captured.length).toBe(2);
+    expect(captured).toHaveLength(20);
+    expect(captured[0].skipped).toBe(0);
+    expect(captured.slice(1).every((g) => g.skipped === 1)).toBe(true);
+    pump.stop();
+  });
+
+  it('falls back to the animation loop when the callback goes silent, and hands back when it returns', () => {
+    const { got, pump, v, s, setClock } = webkitRun({ frames: 30, skipCallbacksFrom: 16 });
+    // 15 frames from the callback; then silence for 15 camera frames (500 ms): after the
+    // silence threshold the animation loop takes over on this wall-clock element, with
+    // estimated stamps from the learned lag.
+    const fromCallback = got.filter((g) => g.source === 'capture');
+    expect(fromCallback).toHaveLength(15);
+    const fallback = got.filter((g) => g.source === 'estimated');
+    expect(fallback.length).toBeGreaterThan(0);
+    expect(fallback.every((g) => Math.abs(g.lagMs - 12) <= 0.5)).toBe(true);
+    expect(pump.driver).toBe('raf');
+    // The silence is at least the floor, and about two periods of a 30 fps callback.
+    expect(vfcSilenceMs(NaN)).toBe(MIN_VFC_SILENCE_MS);
+    expect(vfcSilenceMs(CAM_MS)).toBe(MIN_VFC_SILENCE_MS);
+    expect(vfcSilenceMs(80)).toBe(160);
+    // The callback returns: the first one after a silence is not charged with skipped
+    // frames (the loop delivered them), and from then on it drives again.
+    const before = got.length;
+    const clock = 1000 + 60 * RAF_MS + 10;
+    setClock(clock);
+    v.fire(clock, { mediaTime: 0, captureTime: clock - 12, presentationTime: clock - 2, presentedFrames: 31 });
+    expect(got).toHaveLength(before + 1);
+    expect(got[got.length - 1].skipped).toBe(0);
+    expect(got[got.length - 1].source).toBe('capture');
+    setClock(clock + RAF_MS);
+    v.video.currentTime += RAF_MS / 1000; // the wall clock moved on
+    s.tick();
+    expect(got).toHaveLength(before + 1); // the loop no longer delivers on the wall clock
+    expect(pump.driver).toBe('vfc');
+    pump.stop();
+  });
+
+  it('a frame refused by the consumer (no model yet) is offered again, once', () => {
+    const v = vfcVideo();
+    const s = scheduler();
+    let clock = 1000;
+    let ready = false;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(
+      () => v.video as unknown as HTMLVideoElement,
+      (stamp) => {
+        if (!ready) return false;
+        got.push(stamp);
+      },
+      { now: () => clock, requestAnimationFrame: s.raf, cancelAnimationFrame: s.caf },
+    );
+    pump.start();
+    s.tick();
+    v.fire(1000, { mediaTime: 0, captureTime: 988, presentedFrames: 1 });
+    s.tick();
+    expect(got).toHaveLength(0);
+    ready = true;
+    clock = 1016;
+    s.tick();
+    expect(got).toHaveLength(1);
+    expect(got[0].tMs).toBe(988);
+    clock = 1032;
+    s.tick();
+    expect(got).toHaveLength(1);
+    pump.stop();
+  });
+
+  it('on Chromium the callback for a frame the loop already delivered teaches the lag; the next one drives', () => {
+    // Before the first callback the loop delivers from the clock (currentTime changed);
+    // the callback then arrives for that same frame (mediaTime matches): not a second
+    // delivery, but a lag lesson. Every later callback delivers its frame itself.
+    const v = vfcVideo();
+    const s = scheduler();
+    let clock = 1000;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => v.video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
+      now: () => clock,
+      requestAnimationFrame: s.raf,
+      cancelAnimationFrame: s.caf,
+    });
+    pump.start();
+    v.video.currentTime = 0.1;
+    s.tick(); // delivered from the clock
+    expect(got).toHaveLength(1);
+    expect(got[0].source).toBe('clock');
+    v.fire(1005, { mediaTime: 0.1, captureTime: 960, presentedFrames: 4 });
+    expect(got).toHaveLength(1);
+    clock = 1033;
+    v.video.currentTime = 0.1333;
+    v.fire(clock, { mediaTime: 0.1333, captureTime: 1010, presentedFrames: 5 });
+    expect(got).toHaveLength(2);
+    expect(got[1]).toEqual({ tMs: 1010, source: 'capture', lagMs: 23, skipped: 0 });
+    s.tick();
+    expect(got).toHaveLength(2);
+    pump.stop();
   });
 });
