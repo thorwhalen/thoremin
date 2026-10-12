@@ -46,6 +46,21 @@
  *    case. Then, two samples later, the departure is fitted and the floor and lag are
  *    updated for the next stroke.
  *
+ * Two things the slow column of the timing plan (2026-10-05, step 1b) made explicit.
+ * The commit deadline — "would waiting for the next sample leave too little lead?" —
+ * needs the NEXT gap, and the last gap is a poor guess for it when inference paces
+ * the samples (a slow laptop stamps 33 then 67 ms, alternating): waiting on a 33 ms
+ * guess for a sample that comes 67 ms later commits short, or finds the bottom
+ * already past and the stroke a ghost. So the deadline uses a high quantile of the
+ * recent gaps. And the departure that teaches the floor was a COUNT of samples (3),
+ * which at 15 fps is 200 ms of settling: at 150 bpm the next descent starts first,
+ * the learning is abandoned every stroke, the floor never exists, and since a commit
+ * needs a floor the predictor never commits while the panel keeps asking the player
+ * to strike once. The departure is now a span of time as well, so two samples 67 ms
+ * apart teach what three at 33 ms did; a consumer that still sees no floor after a
+ * few confirmations can say "camera too slow for prediction"
+ * ({@link ImpactPredictor.unlearnedConfirmations}).
+ *
  * What it does NOT do: decide where the beat is, or snap anything to a grid. Those
  * are the rhythm prior's job (`oscillator.ts`) and the magnet's (`magnet.ts`); a
  * confirmation is an {@link Anchor} for the prior, a prediction is what the magnet
@@ -111,8 +126,14 @@ export interface ImpactPredictorOptions {
    *  its extent (1 − √f) of its duration before the impact, so 0.15 leaves about
    *  60 % of the fall (110 ms of a 180 ms stroke) for the prediction. */
   minDescentFraction?: number;
-  /** Departure samples the kink fit uses (after the bottom). */
+  /** Departure samples the kink fit uses (after the bottom), when they come fast. */
   departureSamples?: number;
+  /** When the next descent starts before `departureSamples` have arrived (a slow
+   *  camera at a fast tempo), the departure still teaches the floor if its samples
+   *  (at least two) span this long after the bottom, seconds. Three samples are
+   *  always preferred when they come: two fit a line, and a line learns a worse
+   *  floor (the irregular-stamp air-drum test is the case). */
+  departureWindow?: number;
   /** A stroke smaller than this fraction of the recent envelope is not a stroke. */
   minAmplitudeFraction?: number;
   /** A stroke must also exceed this many noise units (multiples of the online jitter). */
@@ -152,6 +173,7 @@ const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
   stabilityTolerance: 0.012,
   minDescentFraction: 0.15,
   departureSamples: 3,
+  departureWindow: 0.1,
   minAmplitudeFraction: 0.2,
   minAmplitudeNoiseUnits: 20,
   minAmplitude: 0,
@@ -179,6 +201,10 @@ export interface ImpactPrediction {
   confidence: number;
   /** The extrapolated crossing before the learned lag was added. */
   crossing: number;
+  /** Committed on its first usable fit, because waiting for a second to agree would
+   *  have left too little lead (the stability check's bypass). A slow camera makes
+   *  most predictions provisional; the harness counts them. */
+  provisional: boolean;
 }
 
 export interface ImpactConfirmation {
@@ -229,6 +255,11 @@ export interface ImpactPredictor {
    *  refused it. The next sample is the top of a new stroke; the learned floor, lag and
    *  envelope stay, so the refusal costs nothing the next stroke needs. */
   dropStroke(): void;
+  /** Strokes confirmed while the floor is still unlearned (0 once it is, or when it
+   *  is given). A consumer that sees this climb past a few knows the departures are
+   *  being abandoned — the camera is too slow for prediction at this tempo — and can
+   *  say so instead of asking for one more stroke. */
+  unlearnedConfirmations(): number;
   reset(): void;
 }
 
@@ -375,6 +406,26 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 /** Residuals kept for the jitter estimate. */
 const JITTER_WINDOW = 16;
+/** Recent sample gaps the commit deadline is read from, and the quantile it reads: the
+ *  deadline expects the next sample no sooner than most recent ones came. */
+const GAP_WINDOW = 8;
+const GAP_QUANTILE = 0.9;
+/** The fewest departure samples a floor can be learned from (a line fit). */
+const MIN_DEPARTURE_SAMPLES = 2;
+
+/** The `q` quantile of the recent gaps (NaN with none). */
+function gapQuantile(gaps: readonly number[], q: number): number {
+  if (!gaps.length) return NaN;
+  const sorted = [...gaps].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(q * sorted.length) - 1))];
+}
+
+/** The expected next gap: the `GAP_QUANTILE` quantile of the last `GAP_WINDOW` gaps
+ *  (NaN with none). With regular sampling this is the gap itself. */
+export function expectedGap(gaps: readonly number[]): number {
+  return gapQuantile(gaps, GAP_QUANTILE);
+}
+
 
 /**
  * The online jitter estimate: the MEDIAN of the last few residuals of a sample against
@@ -462,6 +513,9 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   let confirmed: { lastConfirmT: number; envelope: number } | null = null;
   let lastKind: 'surface' | 'air' | null = null;
   const votes: ('surface' | 'air')[] = [];
+  /** The last few sample gaps (the deadline's expectation of the next one). */
+  const gaps: number[] = [];
+  let unlearned = 0;
 
   const clearStroke = () => {
     ts.length = 0;
@@ -479,6 +533,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     prev2D = NaN;
     prevT = NaN;
     learning = null;
+    gaps.length = 0;
   };
 
   const decayEnvelope = (t: number) => {
@@ -517,6 +572,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   const learnLevel = (observed: number) => {
     if (levelKnown || !Number.isFinite(observed)) return;
     level = Number.isFinite(level) ? level + o.levelGain * (observed - level) : observed;
+    unlearned = 0;
   };
 
   /** The departure is in: classify the stroke and learn the floor and lag. */
@@ -575,6 +631,10 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
       if (t < lastT || t - lastT > o.maxGap) clearHistory();
       const dt = Number.isFinite(prevT) ? t - prevT : NaN;
       lastT = t;
+      if (dt > 0) {
+        gaps.push(dt);
+        if (gaps.length > GAP_WINDOW) gaps.shift();
+      }
       decayEnvelope(t);
 
       // Online jitter: the residual of the previous sample against the median of its
@@ -592,6 +652,10 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
           L.departT.push(t);
           L.departD.push(d);
           if (L.departT.length >= o.departureSamples) finishLearning(L);
+        } else if (L.departT.length >= MIN_DEPARTURE_SAMPLES && L.departT[L.departT.length - 1] - L.bottomT >= o.departureWindow) {
+          // The next descent came before the third departure sample (a slow camera at
+          // a fast tempo): what the departure did span teaches the floor, as a line.
+          finishLearning(L);
         } else {
           learning = null;
           confirmed = null;
@@ -665,6 +729,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
           confirmed = { lastConfirmT, envelope };
           envelope = Math.max(envelope, amplitude);
           lastConfirmT = t;
+          if (!Number.isFinite(level)) unlearned++;
           clearStroke();
         }
       }
@@ -723,15 +788,18 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
             const first = descended && !Number.isFinite(tentative);
             if (descended) tentative = tPred;
             const lead = tPred - t;
-            // As late as possible: commit now if the next sample would leave less than
+            // As late as possible: commit now if the next sample — expected no sooner
+            // than most recent gaps, not merely the last one — would leave less than
             // the needed lead, allowing for the prediction still moving by its
             // tolerance; a stroke whose first usable fit is already the last chance
             // commits on it rather than a frame late.
-            const lastChance = !Number.isFinite(dt) || lead - dt - o.stabilityTolerance < minLead;
-            const stable = !Number.isFinite(o.stabilityTolerance) || agrees || (first && lastChance);
+            const gap = expectedGap(gaps);
+            const lastChance = !Number.isFinite(gap) || lead - gap - o.stabilityTolerance < minLead;
+            const provisional = !agrees && first && lastChance;
+            const stable = !Number.isFinite(o.stabilityTolerance) || agrees || provisional;
             if (stable && lastChance && descended && passesAmplitude(amplitude) && t - lastConfirmT >= o.refractoryFraction * period) {
               const strength = strengthOf(amplitude);
-              committed = { kind: 'predict', t: tPred, at: t, lead, strength, confidence: clamp01(strength), crossing };
+              committed = { kind: 'predict', t: tPred, at: t, lead, strength, confidence: clamp01(strength), crossing, provisional };
               events.push(committed);
             }
           }
@@ -765,8 +833,10 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
       learning = null;
       confirmed = null;
     },
+    unlearnedConfirmations: () => unlearned,
     reset() {
       clearHistory();
+      unlearned = 0;
       lastT = -Infinity;
       level = levelKnown ? (options.level as number) : NaN;
       lag = 0;

@@ -18,15 +18,15 @@ import { createDynamicsEstimator, type DynamicsEstimate, type DynamicsOptions } 
 import type { Anchor, MusicalTime, RhythmPrior, Sample } from './types';
 
 export * from './types';
-export { createIctusDetector, parabolicOffset } from './detector';
-export type { DetectorOptions, IctusDetector } from './detector';
+export { createIctusDetector, parabolicOffset, excursion } from './detector';
+export type { DetectorOptions, IctusDetector, Prefilter } from './detector';
 export { createAdaptiveOscillator, kappaFromResultant } from './oscillator';
 export type { OscillatorOptions } from './oscillator';
 export { createDynamicsEstimator } from './dynamics';
 export type { DynamicsEstimate, DynamicsEstimator, DynamicsOptions } from './dynamics';
 export { fMeasure, cemgil, continuity, fitGrid, medianInterval } from './metrics';
 export type { GridFit } from './metrics';
-export { createImpactPredictor, fitQuadratic, fitLine, crossingTau, intersectionTau } from './impact';
+export { createImpactPredictor, fitQuadratic, fitLine, crossingTau, intersectionTau, expectedGap } from './impact';
 export type { ImpactPredictor, ImpactPredictorOptions, ImpactEvent, ImpactPrediction, ImpactConfirmation, ImpactMode, Quadratic } from './impact';
 export { magnetise, nearestExpectedBeat } from './magnet';
 export type { MagnetOptions, MagnetResult } from './magnet';

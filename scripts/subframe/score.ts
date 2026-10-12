@@ -3,10 +3,22 @@
  *
  *   npx vite-node scripts/subframe/score.ts [--set DIR] [--noise 0,1,2] [--min-lead 0,0.03,0.06]
  *                                           [--magnetism 0.5,1] [--out results.json] [--limit N]
+ *                                           [--fps 15] [--infer 0.045]
  *
  * For every clip (see `gen_clip_sets.py`) the impact keypoint's observation stream is
  * read from `keypoints.ndjson`, optionally corrupted with seeded Gaussian tracker
- * noise, and fed causally to each estimator. Estimates are matched to the ground
+ * noise, optionally thinned to a slower camera or a slower machine (below), and fed
+ * causally to each estimator.
+ *
+ * The slow column (the timing plan's step 0c, the part of it the detector and the
+ * predictor need): `--fps N` keeps every clip's samples at the nearest regular N fps
+ * (a clip already at or below N is untouched; the by-fps table then groups by the
+ * decimated rate), and `--infer S` is INFERENCE-PACED decimation: a frame is processed
+ * only once the simulated inference of S seconds on the previous one has finished,
+ * the latest captured frame wins, and every processed frame keeps its own capture
+ * stamp — which yields the alternating 33 / 67 ms spacings a slow laptop really
+ * produces on a 30 fps camera, not a regular slower rate. Either applies before the
+ * noise. Estimates are matched to the ground
  * truth events in `truth.json` (nearest within a window; the rest are misses and
  * spurious events) and scored three ways, one per objective of
  * `docs/research/intent-and-subframe-timing.md` §3:
@@ -22,9 +34,11 @@
  * - `lowest`       — the frame-snapped baseline: the shipped ictus detector with its
  *                    sub-frame refinement OFF (the deepest sample's own time, confirmed
  *                    by the sample after it; median filter off). The bar to beat.
- * - `parabola`     — the shipped ictus detector as shipped (turning mode, median
- *                    filter on: one more frame of latency, one-frame spikes removed).
- * - `parabolaRaw`  — the same with the median filter off.
+ * - `parabola`     — the shipped ictus detector as shipped (turning mode; since #231
+ *                    the raw samples time the turn and only a spike is bridged).
+ * - `parabolaRaw`  — the same with no prefilter at all (and no jitter estimate).
+ * - `parabolaMedian` — the pre-#231 detector: median-of-three on every sample, one
+ *                    more frame of latency and a fit on a neighbour of the bottom.
  * - `confirm`      — `createImpactPredictor`'s post-hoc `confirm` (crossing + lag).
  * - `predict`      — its committed PREDICTION, one per stroke, per `minLead`; the floor
  *                    learned (`auto` mode).
@@ -52,6 +66,7 @@ import { createAdaptiveOscillator, createIctusDetector, type Anchor, type Rhythm
 import { createImpactPredictor, type ImpactEvent, type ImpactPredictorOptions } from '@thoremin/ictus/impact';
 import { magnetise } from '@thoremin/ictus/magnet';
 import { createTrendPrior } from '@thoremin/ictus/trend_prior';
+import { decimateByInference, decimateToFps } from './decimate';
 
 // ---- CLI ----------------------------------------------------------------------
 
@@ -66,6 +81,10 @@ const NOISES = list(arg('noise', '0,1,2'));
 const MIN_LEADS = list(arg('min-lead', '0,0.03,0.06'));
 const MAGNETISMS = list(arg('magnetism', '0.5'));
 const LIMIT = Number(arg('limit', '0'));
+/** Decimate every clip to this regular rate (0 = as recorded). */
+const FPS = Number(arg('fps', '0'));
+/** Inference-paced decimation: the simulated inference time per frame, seconds (0 = off). */
+const INFER = Number(arg('infer', '0'));
 const OUT = arg('out', join(SET, 'results.json'));
 /** An estimate further than this from every truth event is spurious (seconds). */
 const MATCH_WINDOW = 0.12;
@@ -121,7 +140,24 @@ function loadClip(dir: string, name: string, axes: Record<string, string | numbe
 function loadSet(dir: string): Clip[] {
   const index = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8')) as { clips: { clip: string; axes: Record<string, string | number> }[] };
   const clips = index.clips.filter((c) => existsSync(join(dir, c.clip, 'truth.json')));
-  return (LIMIT > 0 ? clips.slice(0, LIMIT) : clips).map((c) => loadClip(dir, c.clip, c.axes));
+  return (LIMIT > 0 ? clips.slice(0, LIMIT) : clips).map((c) => slowed(loadClip(dir, c.clip, c.axes)));
+}
+
+// ---- The slow column ------------------------------------------------------------
+
+function slowed(clip: Clip): Clip {
+  const native = Number(clip.axes.fps);
+  let samples = clip.samples;
+  const axes = { ...clip.axes };
+  if (FPS > 0 && native > FPS) {
+    samples = decimateToFps(samples, FPS);
+    axes.fps = `${FPS} (from ${native})`;
+  }
+  if (INFER > 0) {
+    samples = decimateByInference(samples, INFER);
+    axes.fps = `${axes.fps} infer ${Math.round(1000 * INFER)} ms`;
+  }
+  return { ...clip, samples, axes };
 }
 
 // ---- Noise --------------------------------------------------------------------
@@ -180,6 +216,8 @@ interface PredictorRun {
   sounded: Estimate[];
   /** Predictions committed with less lead than the consumer needs. */
   shortLeads: number;
+  /** Predictions committed on their first usable fit (the stability check's bypass). */
+  provisional: number;
   /** Per prior name, per magnetism: the pulled prediction, with the grid. */
   magnet: Map<string, Map<number, Estimate[]>>;
   grid: Map<string, Estimate[]>;
@@ -196,6 +234,7 @@ function runPredictor(samples: Sample[], opts: ImpactPredictorOptions, magnetism
     confirmations: [],
     sounded: [],
     shortLeads: 0,
+    provisional: 0,
     magnet: new Map(names.map((n) => [n, new Map(magnetisms.map((m) => [m, []]))])),
     grid: new Map(names.map((n) => [n, []])),
     kinds: [],
@@ -210,6 +249,7 @@ function runPredictor(samples: Sample[], opts: ImpactPredictorOptions, magnetism
         // (the commit time plus the lead it needs).
         run.sounded.push({ t: Math.max(e.t, e.at + minLead), at: e.at });
         if (e.lead < minLead) run.shortLeads++;
+        if (e.provisional) run.provisional++;
         for (const n of names) {
           const state = live[n].state();
           for (const m of magnetisms) {
@@ -319,7 +359,7 @@ const records: Record_[] = [];
 const tallies = new Map<string, { events: number; missed: number; spurious: number }>();
 const kindHits = { total: 0, right: 0 };
 /** Per minLead: predictions committed short of it, and predictions in all. */
-const shortLeads = new Map<number, { short: number; total: number }>();
+const shortLeads = new Map<number, { short: number; provisional: number; total: number }>();
 
 function score(clip: Clip, estimator: string, noise: number, minLead: number, estimates: Estimate[]) {
   const { pairs, missed, spurious } = match(clip.truth.events, estimates);
@@ -339,23 +379,25 @@ function score(clip: Clip, estimator: string, noise: number, minLead: number, es
   }
 }
 
-const BASELINES = ['lowest', 'parabola', 'parabolaRaw'];
+const BASELINES = ['lowest', 'parabola', 'parabolaRaw', 'parabolaMedian'];
 const PREDICTOR_FAMILY = ['confirm', 'predict', 'predictKnown', 'sounded'];
 const PRIOR_FAMILY = Object.keys(PRIORS).flatMap((p) => [`grid:${p}`, ...MAGNETISMS.map((m) => `magnet${m}:${p}`)]);
 
 for (const clip of clips) {
   for (const noise of NOISES) {
     const samples = withNoise(clip.samples, noise, hash(clip.name) ^ Math.round(noise * 1000));
-    score(clip, 'lowest', noise, 0, detector(samples, { refine: false, medianFilter: false }));
+    score(clip, 'lowest', noise, 0, detector(samples, { refine: false, prefilter: 'none' }));
     score(clip, 'parabola', noise, 0, detector(samples, {}));
-    score(clip, 'parabolaRaw', noise, 0, detector(samples, { medianFilter: false }));
+    score(clip, 'parabolaRaw', noise, 0, detector(samples, { prefilter: 'none' }));
+    score(clip, 'parabolaMedian', noise, 0, detector(samples, { prefilter: 'median' }));
     for (const minLead of MIN_LEADS) {
       const run = runPredictor(samples, { minLead }, MAGNETISMS, PRIORS);
       score(clip, 'predict', noise, minLead, run.predictions);
       score(clip, 'confirm', noise, minLead, run.confirmations);
       if (noise === NOISES[0]) {
-        const sl = shortLeads.get(minLead) ?? { short: 0, total: 0 };
+        const sl = shortLeads.get(minLead) ?? { short: 0, provisional: 0, total: 0 };
         sl.short += run.shortLeads;
+        sl.provisional += run.provisional;
         sl.total += run.predictions.length;
         shortLeads.set(minLead, sl);
       }
@@ -427,7 +469,8 @@ const byAxis = (estimator: string, noise: number, minLead: number, axis: Axis) =
   aggregate((r) => r.estimator === estimator && r.noise === noise && r.minLead === minLeadOf(estimator, minLead), (r) => String(axesOf(r.clip)[axis]));
 const ML = MIN_LEADS[Math.min(1, MIN_LEADS.length - 1)];
 
-const md: string[] = [`# Sub-frame impact estimators on \`${SET.split('/').pop()}\``, '', `${clips.length} clips; noise ${NOISES.join('/')} px; minLead ${MIN_LEADS.join('/')} s; magnetism ${MAGNETISMS.join('/')}. Errors are estimate minus truth in ms (negative = early); "vs grid" is against the INTENDED grid time; lead is impact minus commit time (negative = after the fact).`, ''];
+const slow = [FPS > 0 ? `decimated to ${FPS} fps` : '', INFER > 0 ? `inference-paced at ${Math.round(1000 * INFER)} ms` : ''].filter(Boolean).join(', ');
+const md: string[] = [`# Sub-frame impact estimators on \`${SET.split('/').pop()}\`${slow ? ` (${slow})` : ''}`, '', `${clips.length} clips; noise ${NOISES.join('/')} px; minLead ${MIN_LEADS.join('/')} s; magnetism ${MAGNETISMS.join('/')}. Errors are estimate minus truth in ms (negative = early); "vs grid" is against the INTENDED grid time; lead is impact minus commit time (negative = after the fact).`, ''];
 
 // 1. Headline: every estimator by kind, at each noise level, one minLead.
 for (const noise of NOISES) {
@@ -446,11 +489,12 @@ for (const noise of NOISES) {
 // 3. By fps, exposure, timing, object.
 for (const axis of ['fps', 'exposure', 'timing', 'object'] as Axis[]) {
   const rows = new Map<string, CellStats>();
-  for (const est of ['lowest', 'parabola', 'predict', 'predictKnown', 'sounded']) for (const [k, s] of byAxis(est, NOISES[0], ML, axis)) rows.set(`${est} / ${k}`, s);
+  for (const est of ['lowest', 'parabola', 'parabolaMedian', 'predict', 'predictKnown', 'sounded']) for (const [k, s] of byAxis(est, NOISES[0], ML, axis)) rows.set(`${est} / ${k}`, s);
   md.push(table(`By ${axis} — noise ${NOISES[0]} px, minLead ${ML} s`, rows, `estimator / ${axis}`));
 }
 md.push(`Stroke kind classified correctly by the predictor (auto mode, noise ${NOISES[0]} px): ${kindHits.right}/${kindHits.total}.`, '');
 md.push(`Predictions committed with less lead than required (noise ${NOISES[0]} px): ${[...shortLeads.entries()].map(([ml, s]) => `minLead ${ml}: ${s.short}/${s.total}`).join('; ')}.`, '');
+md.push(`Predictions committed on their first usable fit, no second fit agreeing (the stability check's bypass; noise ${NOISES[0]} px): ${[...shortLeads.entries()].map(([ml, s]) => `minLead ${ml}: ${s.provisional}/${s.total}`).join('; ')}.`, '');
 
 const summary = md.join('\n');
 const cells: Record<string, CellStats> = {};
