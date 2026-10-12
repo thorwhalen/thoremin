@@ -20,6 +20,11 @@
  * - {@link rememberedRecordingFolder} — the remembered folder's name, for a panel to
  *   show where takes go. Never prompts.
  *
+ * Whoever shows the folder's name subscribes with {@link onRecordingFolderChange}:
+ * the remembered folder changes at take start too (a pick, a refused handle
+ * forgotten), not only from the control, and a panel reading it once on open would
+ * show a stale name after that.
+ *
  * The handle store and the picker are keyword options so tests run the whole thing
  * with an in-memory store and a stubbed picker; the defaults are the real ones.
  */
@@ -88,13 +93,41 @@ function nameOf(handle: FsDirHandle): string {
   return handle.name ?? '';
 }
 
-async function permissionHolds(handle: FsDirHandle): Promise<boolean> {
+type FolderListener = (name: string | null) => void;
+const listeners = new Set<FolderListener>();
+
+/** Be told whenever the remembered folder changes (its name, or null once forgotten). */
+export function onRecordingFolderChange(listener: FolderListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+async function remember(store: FolderHandleStore, handle: FsDirHandle): Promise<void> {
+  await store.save(handle);
+  for (const l of listeners) l(nameOf(handle));
+}
+
+async function forget(store: FolderHandleStore): Promise<void> {
+  await store.clear();
+  for (const l of listeners) l(null);
+}
+
+/**
+ * Whether the handle may be written to: `granted`; `denied` (the browser or the
+ * player refused, the handle is dead); or `prompt`, which is what a DISMISSED
+ * "allow edits?" prompt leaves behind. A dismissal is not a refusal: the folder is
+ * still the player's choice and is kept, the take is simply not started.
+ */
+async function permissionState(handle: FsDirHandle): Promise<PermissionState> {
   try {
     const opts = { mode: 'readwrite' as const };
-    if ((await handle.queryPermission?.(opts)) === 'granted') return true;
-    return (await handle.requestPermission?.(opts)) === 'granted';
+    const queried = await handle.queryPermission?.(opts);
+    if (queried === 'granted' || queried === 'denied') return queried;
+    return (await handle.requestPermission?.(opts)) ?? 'denied';
   } catch {
-    return false;
+    return 'denied';
   }
 }
 
@@ -120,15 +153,16 @@ export async function chooseRecordingFolder({
   if (!picker) return { kind: 'unsupported' };
   const handle = await prompt(picker);
   if (!handle) return { kind: 'cancelled' };
-  await store.save(handle);
+  await remember(store, handle);
   return { kind: 'chosen', name: nameOf(handle) };
 }
 
 /**
  * The folder a take writes into: the remembered one when its permission still holds
  * (or is re-granted on asking), else a fresh pick. Null when there is no picker or the
- * player dismissed it. A remembered folder whose permission is refused is forgotten,
- * so the next start asks for a folder rather than failing on the old one again.
+ * player dismissed it. A remembered folder whose permission is REFUSED is forgotten,
+ * so the next start asks for a folder rather than failing on the old one again; one
+ * whose re-grant prompt was merely dismissed is kept, and the take does not start.
  */
 export async function acquireRecordingFolder({
   store = IDB_FOLDER_STORE,
@@ -137,11 +171,13 @@ export async function acquireRecordingFolder({
   if (!picker) return null;
   const remembered = await store.load();
   if (remembered) {
-    if (await permissionHolds(remembered)) return remembered;
-    await store.clear();
+    const state = await permissionState(remembered);
+    if (state === 'granted') return remembered;
+    if (state === 'prompt') return null;
+    await forget(store);
   }
   const handle = await prompt(picker);
-  if (handle) await store.save(handle);
+  if (handle) await remember(store, handle);
   return handle;
 }
 

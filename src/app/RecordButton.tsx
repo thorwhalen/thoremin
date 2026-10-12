@@ -18,6 +18,7 @@ import { Circle, Square, X } from 'lucide-react';
 import { RECORDING_FORMATS } from './recording/formats';
 import { supportsOverlayAlpha } from './recording/caps';
 import { useRecordingConfig } from './recording/configStore';
+import { dispatchCommand } from './dispatchDial';
 import type { RecordingSession } from './recording/schema';
 
 export interface RecordingControls {
@@ -122,6 +123,9 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
         />
       </label>
 
+      {/* Where takes go is written through the recording commands (#257), like the
+          trainer's control, so the journal sees it; the rest of the sheet is the
+          take's own config and stays a plain setting. */}
       <div className="mb-2">
         <span className="text-[10px] uppercase tracking-widest text-white/50">Location</span>
         <div className="mt-1 flex flex-col gap-1">
@@ -130,7 +134,7 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
               type="radio"
               name="rec-location"
               checked={session.location === 'directory'}
-              onChange={() => setSession((prev) => ({ ...prev, location: 'directory' }))}
+              onChange={() => void dispatchCommand('recording.location.set', { location: 'directory' })}
             />
             {folder ? `Folder "${folder}"` : 'Choose folder…'}
           </label>
@@ -139,7 +143,7 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
               type="radio"
               name="rec-location"
               checked={session.location === 'downloads'}
-              onChange={() => setSession((prev) => ({ ...prev, location: 'downloads' }))}
+              onChange={() => void dispatchCommand('recording.location.set', { location: 'downloads' })}
             />
             Downloads (zip)
           </label>

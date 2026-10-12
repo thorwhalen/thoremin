@@ -13,8 +13,9 @@
  *
  * Beside the config, the store mirrors the NAME of the remembered folder (`./folder`),
  * which lives in IndexedDB as a handle and so cannot be read synchronously by a panel:
- * `refreshFolder()` reads it, and the choose command refreshes it after a pick. The
- * name is derived, never persisted here; the handle is the SSOT.
+ * `refreshFolder()` reads it on open, and the store follows every later change
+ * (`onRecordingFolderChange`: a pick from the control or at take start, a refused
+ * handle forgotten). The name is derived, never persisted here; the handle is the SSOT.
  *
  * This module also installs the recording host the commands act on
  * (`@/app/commands/recordingHost`), because it owns both things a recording command
@@ -23,7 +24,7 @@
 import { create } from 'zustand';
 import { provideRecordingHost } from '@/app/commands/recordingHost';
 import { DEFAULT_RECORDING_SESSION, parseSession, RECORDING_SESSION_KEY, type RecordingSession } from './schema';
-import { chooseRecordingFolder, rememberedRecordingFolder } from './folder';
+import { chooseRecordingFolder, onRecordingFolderChange, rememberedRecordingFolder } from './folder';
 
 type SessionUpdate = RecordingSession | ((prev: RecordingSession) => RecordingSession);
 
@@ -74,11 +75,9 @@ export function recordingConfig(): RecordingSession {
   return useRecordingConfig.getState().session;
 }
 
+onRecordingFolderChange((folder) => useRecordingConfig.setState({ folder }));
+
 provideRecordingHost({
   setLocation: (location) => useRecordingConfig.getState().setSession((prev) => ({ ...prev, location })),
-  chooseFolder: async () => {
-    const result = await chooseRecordingFolder();
-    if (result.kind === 'chosen') useRecordingConfig.setState({ folder: result.name });
-    return result;
-  },
+  chooseFolder: () => chooseRecordingFolder(),
 });

@@ -9,12 +9,14 @@ import { describe, it, expect } from 'vitest';
 import {
   acquireRecordingFolder,
   chooseRecordingFolder,
+  onRecordingFolderChange,
   rememberedRecordingFolder,
   type DirPicker,
   type FolderHandleStore,
   type FsDirHandle,
 } from '@/app/recording/folder';
 import { createRecordingSink, SinkCancelled } from '@/app/recording/sink';
+import { useRecordingConfig } from '@/app/recording/configStore';
 
 function memoryStore(initial: FsDirHandle | null = null): FolderHandleStore & { handle: FsDirHandle | null } {
   const store = {
@@ -109,6 +111,34 @@ describe('acquireRecordingFolder (the sink)', () => {
     expect(handle?.name).toBe('fresh');
     expect(calls).toHaveLength(1);
     expect(store.handle?.name).toBe('fresh');
+  });
+
+  it('keeps a remembered folder whose re-grant prompt was dismissed (not refused), and does not start', async () => {
+    const store = memoryStore(fakeDir('kept', 'prompt').dir);
+    const { picker, calls } = pickerOf(fakeDir('fresh').dir);
+    expect(await acquireRecordingFolder({ store, picker })).toBeNull();
+    expect(store.handle?.name).toBe('kept');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('tells subscribers (and so the config store) when the folder is forgotten or picked at take start', async () => {
+    const heard: (string | null)[] = [];
+    const off = onRecordingFolderChange((name) => heard.push(name));
+    try {
+      useRecordingConfig.setState({ folder: 'refused' });
+      const store = memoryStore(fakeDir('refused', 'denied').dir);
+      await acquireRecordingFolder({ store, picker: pickerOf(fakeDir('fresh').dir).picker });
+      expect(heard).toEqual([null, 'fresh']);
+      expect(useRecordingConfig.getState().folder).toBe('fresh');
+      await chooseRecordingFolder({ store, picker: pickerOf(fakeDir('chosen').dir).picker });
+      expect(useRecordingConfig.getState().folder).toBe('chosen');
+      // A dismissed re-grant changes nothing, so nothing is said.
+      heard.length = 0;
+      await acquireRecordingFolder({ store: memoryStore(fakeDir('kept', 'prompt').dir), picker: pickerOf(null).picker });
+      expect(heard).toEqual([]);
+    } finally {
+      off();
+    }
   });
 
   it('is null with no picker, and null (remembering nothing) when the picker is dismissed', async () => {

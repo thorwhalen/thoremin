@@ -48,7 +48,7 @@
 import { isErr, type Result } from 'acture';
 import type { Pose } from '@/nodes';
 import { registry } from './commands/registry';
-import { defaultGetRisk } from './commands/confirmation';
+import { defaultGetRisk, needsUserActivation } from './commands/confirmation';
 import { useControls } from './store';
 import { useToasts } from './toasts';
 import { GESTURE_LABELS, isGestureId, type GestureBinding, type GestureId, type GesturePrefs } from './gesturePrefs';
@@ -60,10 +60,13 @@ const ERROR_TOAST_MS = 5000;
 
 /**
  * True if a command may be bound to a gesture: everything except commands the
- * confirmation gate classifies destructive (or explicitly confirmation-requiring).
- * Shared by the dispatcher's refusal guard and the panel's picker filter (SSOT).
+ * confirmation gate classifies destructive (or explicitly confirmation-requiring), and
+ * except the ones the browser only runs from a click (a folder picker, #257), which a
+ * pose could only ever fail at. Shared by the dispatcher's refusal guard and the
+ * panel's picker filter (SSOT).
  */
 export function isGestureBindable(id: string): boolean {
+  if (needsUserActivation(id)) return false;
   const risk = defaultGetRisk(id);
   return !(risk.requiresConfirmation ?? risk.sideEffect === 'destructive');
 }

@@ -23,6 +23,7 @@ describe('confirmation gate (#87 Phase 3)', () => {
     expect(defaultGetRisk('instrument.create').sideEffect).toBe('destructive');
     expect(defaultGetRisk('dial.set').sideEffect).toBe('additive');
     expect(defaultGetRisk('dial.reset').sideEffect).toBe('additive');
+    expect(defaultGetRisk('recording.location.set').sideEffect).toBe('additive');
     expect(defaultGetRisk('mode.toggle').sideEffect).toBe('query');
   });
 

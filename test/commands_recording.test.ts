@@ -7,6 +7,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createThoreminRegistry } from '@/app/commands/registry';
 import { provideRecordingHost, type ChosenFolder, type RecordingHost } from '@/app/commands/recordingHost';
+import { createJournal } from '@/app/commands/journal';
+import { installMiddleware } from '@/app/commands/middleware';
+import { defaultGetRisk, needsUserActivation } from '@/app/commands/confirmation';
+import { isGestureBindable } from '@/app/gestureDispatch';
 
 const reg = createThoreminRegistry();
 
@@ -73,6 +77,29 @@ describe('recording commands (#257)', () => {
     const r = await reg.dispatch('recording.folder.choose', {});
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.code).toBe('needs_gesture');
+  });
+
+  it('both commands write (additive), and only the picker needs a click: no hand pose binds to it', () => {
+    expect(defaultGetRisk('recording.location.set').sideEffect).toBe('additive');
+    expect(defaultGetRisk('recording.folder.choose').sideEffect).toBe('additive');
+    expect(needsUserActivation('recording.folder.choose')).toBe(true);
+    expect(needsUserActivation('recording.location.set')).toBe(false);
+    expect(isGestureBindable('recording.folder.choose')).toBe(false);
+    expect(isGestureBindable('recording.location.set')).toBe(true);
+  });
+
+  it('a replay never re-opens the picker: the journal keeps the pick out of its replayable set', async () => {
+    const journaled = createThoreminRegistry();
+    const journal = createJournal();
+    installMiddleware(journaled, journal.middleware);
+    next = { kind: 'chosen', name: 'takes' };
+    await journaled.dispatch('recording.folder.choose', {});
+    await journaled.dispatch('recording.location.set', { location: 'downloads' });
+    expect(journal.entries().map((e) => [e.command, e.ok])).toEqual([
+      ['recording.folder.choose', true],
+      ['recording.location.set', true],
+    ]);
+    expect(journal.replayable().map((e) => e.command)).toEqual(['recording.location.set']);
   });
 
   it('dispatching before the recording module loaded names the missing seam', async () => {
