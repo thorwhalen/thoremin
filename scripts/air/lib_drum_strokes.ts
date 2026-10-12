@@ -194,7 +194,7 @@ export function handTracks(handRecords: readonly StreamRecord[], poseRecords: re
 export const DRUM_DETECTOR_DEFAULTS: DetectorOptions = {
   mode: 'turning',
   yDown: true,
-  medianFilter: false,
+  prefilter: 'none',
   initialPeriod: 0.3,
   refractoryFraction: 0.2,
   minAmplitudeNoiseUnits: 12,

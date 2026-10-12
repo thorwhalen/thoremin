@@ -60,7 +60,7 @@ type Onset = { t: number; at: number };
 const sound = (t: number, at: number): Onset => ({ t: Math.max(t, at + minLead), at });
 
 // The frame-snapped baseline, configured as the benchmark's `lowest`.
-const det = createIctusDetector({ initialPeriod: 0.5, refine: false, medianFilter: false });
+const det = createIctusDetector({ initialPeriod: 0.5, refine: false, prefilter: 'none' });
 const frameSnapped: Onset[] = [];
 for (const s of samples) {
   const a = det.push(s);

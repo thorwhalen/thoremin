@@ -22,9 +22,11 @@
  * - `lowest`       — the frame-snapped baseline: the shipped ictus detector with its
  *                    sub-frame refinement OFF (the deepest sample's own time, confirmed
  *                    by the sample after it; median filter off). The bar to beat.
- * - `parabola`     — the shipped ictus detector as shipped (turning mode, median
- *                    filter on: one more frame of latency, one-frame spikes removed).
- * - `parabolaRaw`  — the same with the median filter off.
+ * - `parabola`     — the shipped ictus detector as shipped (turning mode; since #231
+ *                    the raw samples time the turn and only a spike is bridged).
+ * - `parabolaRaw`  — the same with no prefilter at all (and no jitter estimate).
+ * - `parabolaMedian` — the pre-#231 detector: median-of-three on every sample, one
+ *                    more frame of latency and a fit on a neighbour of the bottom.
  * - `confirm`      — `createImpactPredictor`'s post-hoc `confirm` (crossing + lag).
  * - `predict`      — its committed PREDICTION, one per stroke, per `minLead`; the floor
  *                    learned (`auto` mode).
@@ -339,16 +341,17 @@ function score(clip: Clip, estimator: string, noise: number, minLead: number, es
   }
 }
 
-const BASELINES = ['lowest', 'parabola', 'parabolaRaw'];
+const BASELINES = ['lowest', 'parabola', 'parabolaRaw', 'parabolaMedian'];
 const PREDICTOR_FAMILY = ['confirm', 'predict', 'predictKnown', 'sounded'];
 const PRIOR_FAMILY = Object.keys(PRIORS).flatMap((p) => [`grid:${p}`, ...MAGNETISMS.map((m) => `magnet${m}:${p}`)]);
 
 for (const clip of clips) {
   for (const noise of NOISES) {
     const samples = withNoise(clip.samples, noise, hash(clip.name) ^ Math.round(noise * 1000));
-    score(clip, 'lowest', noise, 0, detector(samples, { refine: false, medianFilter: false }));
+    score(clip, 'lowest', noise, 0, detector(samples, { refine: false, prefilter: 'none' }));
     score(clip, 'parabola', noise, 0, detector(samples, {}));
-    score(clip, 'parabolaRaw', noise, 0, detector(samples, { medianFilter: false }));
+    score(clip, 'parabolaRaw', noise, 0, detector(samples, { prefilter: 'none' }));
+    score(clip, 'parabolaMedian', noise, 0, detector(samples, { prefilter: 'median' }));
     for (const minLead of MIN_LEADS) {
       const run = runPredictor(samples, { minLead }, MAGNETISMS, PRIORS);
       score(clip, 'predict', noise, minLead, run.predictions);
@@ -446,7 +449,7 @@ for (const noise of NOISES) {
 // 3. By fps, exposure, timing, object.
 for (const axis of ['fps', 'exposure', 'timing', 'object'] as Axis[]) {
   const rows = new Map<string, CellStats>();
-  for (const est of ['lowest', 'parabola', 'predict', 'predictKnown', 'sounded']) for (const [k, s] of byAxis(est, NOISES[0], ML, axis)) rows.set(`${est} / ${k}`, s);
+  for (const est of ['lowest', 'parabola', 'parabolaMedian', 'predict', 'predictKnown', 'sounded']) for (const [k, s] of byAxis(est, NOISES[0], ML, axis)) rows.set(`${est} / ${k}`, s);
   md.push(table(`By ${axis} — noise ${NOISES[0]} px, minLead ${ML} s`, rows, `estimator / ${axis}`));
 }
 md.push(`Stroke kind classified correctly by the predictor (auto mode, noise ${NOISES[0]} px): ${kindHits.right}/${kindHits.total}.`, '');

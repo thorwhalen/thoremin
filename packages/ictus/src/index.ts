@@ -18,8 +18,8 @@ import { createDynamicsEstimator, type DynamicsEstimate, type DynamicsOptions } 
 import type { Anchor, MusicalTime, RhythmPrior, Sample } from './types';
 
 export * from './types';
-export { createIctusDetector, parabolicOffset } from './detector';
-export type { DetectorOptions, IctusDetector } from './detector';
+export { createIctusDetector, parabolicOffset, excursion } from './detector';
+export type { DetectorOptions, IctusDetector, Prefilter } from './detector';
 export { createAdaptiveOscillator, kappaFromResultant } from './oscillator';
 export type { OscillatorOptions } from './oscillator';
 export { createDynamicsEstimator } from './dynamics';
