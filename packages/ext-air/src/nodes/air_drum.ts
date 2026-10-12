@@ -20,6 +20,18 @@
  * sets the velocity, which the drum voice reads for loudness
  * and brightness. With no pad on, each hand plays its own drum, as before.
  *
+ * The landing is read along the fall's shape, not at a time (#261). A stick swings on
+ * an arc about the hand, so its x is a parabola in its depth near the bottom and a
+ * quartic in time (the brake flattens it); a quadratic in time, or a line, extrapolated
+ * to the predicted impact lands wide of a hard hit. The depth of a committed stroke is
+ * the least certain coordinate of all (one or two falling samples at 30 fps, the brake
+ * unseen, the floor learned on another pad), so a pad is picked along the path the
+ * stroke is on, and a stroke heading into a pad above the learned floor stops there.
+ * And a stick CARRIED down to a lower pad, raised, is not a stroke however fast the arm
+ * moves: the tip's descent must come from the stick's own swing ({@link SWING_SHARE});
+ * a carried stick's descent is dropped at the predictor, so the stroke the arm was
+ * carrying it to is still heard.
+ *
  * What comes out is a list of {@link DrumHit}s on the `hits` port — each with the
  * time it should SOUND, in engine seconds, possibly in the future — which the
  * `drum-out` node schedules on the audio clock (the two-clock discipline: this node
@@ -40,12 +52,12 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { createImpactPredictor, fitLine, fitQuadratic, magnetise, type ImpactPredictor, type MusicalTime } from '@thoremin/ictus';
+import { createImpactPredictor, fitLine, fitQuadratic, magnetise, type ImpactPredictor, type MusicalTime, type Quadratic } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
 import { frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
-import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
+import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
+import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type FallPath, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };
@@ -204,6 +216,8 @@ const MAX_EXTRAPOLATION = 0.12;
 const FALL_JITTER = 0.25;
 /** Two samples closer than this are not two camera frames (the conductor's rule). */
 const MIN_SAMPLE_SPACING = 0.004;
+/** The displayed frame's bottom edge, display fractions: as far as a landing path runs. */
+const FRAME_BOTTOM = 1;
 
 /** MediaPipe's label for the player's hand, given the mirror convention. */
 function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness'] {
@@ -219,7 +233,56 @@ export interface TrackSample {
   t: number;
   x: number;
   y: number;
+  /** The grip (the heel of the hand, where the stick's butt leaves the palm and near
+   *  enough the wrist joint the stick turns about; display fractions) when the point is a
+   *  stick tip. The tip is one reach from it by construction (the estimate extends the
+   *  heel-to-fulcrum line), so the tip's depth over it is the stick's own swing, a change
+   *  in it the hand's rotation, and the tip's path an arc about it. Absent for a point
+   *  with no lever (the wrist, a fingertip). */
+  grip?: { x: number; y: number };
 }
+
+/**
+ * How much of the tip's descent over its fall is the stick's own swing, the rest the
+ * hand carrying it: 1 for a wrist stroke, 0 for a raised stick carried down to a lower
+ * pad, in between when the arm takes part (#261). NaN for a point with no grip.
+ */
+export function swingShare(seg: readonly TrackSample[]): number {
+  if (seg.length < 2) return NaN;
+  const first = seg[0];
+  const last = seg[seg.length - 1];
+  if (!first.grip || !last.grip) return NaN;
+  const descent = last.y - first.y;
+  if (!(descent > 0)) return NaN;
+  return (last.y - last.grip.y - (first.y - first.grip.y)) / descent;
+}
+
+/**
+ * Whether a fall is a carried stick rather than a stroke (#261): a grip was tracked and
+ * the stick's OWN swing over the whole fall, `amplitude` deep (the fall so far at a
+ * confirmation; at a prediction, the fall the predictor expects, down to its floor), is
+ * under `minSwing`. A carried stick swings not at all (the demo take's arm moves) or a
+ * little (a stick lowered while carried); a wrist stroke swings its whole amplitude, and
+ * an arm carrying the hand on top of a full swing adds depth but takes no swing away, so
+ * a stroke stays a stroke however much arm is in it. The swing so far is scaled to the
+ * whole fall by its share of the descent ({@link swingShare}): at a prediction only part
+ * of the fall has been seen. An absolute swing, not a share: see
+ * {@link CARRY_SWING_FRACTION} for how small.
+ */
+export function isCarried(seg: readonly TrackSample[], { amplitude, minSwing }: { amplitude: number; minSwing: number }): boolean {
+  const share = swingShare(seg);
+  return Number.isFinite(share) && share * amplitude < minSwing;
+}
+
+/** A carried stick's swing, as a fraction of the point's smallest stroke (0.45 reach for
+ *  the stick tip): under a quarter, about 6 degrees of the hand. Measured against the
+ *  gate itself: the demo take's carries read 0.00 to 0.13 of it (the 0.13 under landmark
+ *  noise), its strokes 0.84 to 3.2 (two real strokes under the full gate, at an early
+ *  commit under noise), the recorded conducting beats on the stick tip 0.3 to 2.1 (a
+ *  conductor's beat is mostly arm, and must stay a beat: `drum_anchor.test.ts`), and
+ *  the jittered synthetic strokes 0.7 to 1.8. A quarter is between what a carry reads
+ *  and what any stroke reads. */
+export const CARRY_SWING_FRACTION = 0.25;
 
 /**
  * The stroke's fall so far: the samples up to `tEnd`, walked back from the latest while
@@ -247,36 +310,141 @@ export interface Landing {
   y: number;
   /** How fast: the fall's mean downward speed so far, frame heights per second. */
   speed: number;
+  /** The fall as a curve in the frame, latest sample to the depth the fit reaches
+   *  (`drum_pads.ts`'s `hitPad` picks a pad along it). */
+  path: FallPath;
+}
+
+/** The heel's drift is read from the lower part of the fall: the samples within this
+ *  fraction of the fall's depth above the latest one (at least the fewest a line needs).
+ *  The top of a fall, where the depth has barely started, says little about where the
+ *  hand is heading. */
+const SHAPE_DEPTH_FRACTION = 0.5;
+/** The fewest samples the heel's drift is a line through. */
+const SHAPE_MIN_SAMPLES = 2;
+/** The stick's reach may vary by this factor (as a log ratio) over the fall and still be
+ *  an image-plane swing; beyond it the stick is foreshortening and the arc is not its
+ *  path. A 0.7 rad swing in the image plane keeps its reach exactly. */
+const REACH_TOLERANCE = Math.log(1.15);
+
+/** The lower part of the fall the shape is read from (at least the last `atLeast`). */
+function lowerPart(seg: readonly TrackSample[], last: TrackSample, atLeast: number): TrackSample[] {
+  const floor = last.y - SHAPE_DEPTH_FRACTION * (last.y - seg[0].y);
+  const from = Math.min(seg.length - atLeast, seg.findIndex((s) => s.y >= floor));
+  return seg.slice(Math.max(0, from));
 }
 
 /**
- * Where a stroke lands at `t`, and how fast it came down (#245): a quadratic through its
- * falling segment ({@link fallingSegment}) evaluated at `t` (never more than
- * {@link MAX_EXTRAPOLATION} past the last sample), never below the learned `floor` (the
- * impact predictor's plane, where a surface stroke meets it by definition), with x on a
- * line (the sideways drift; a quadratic overshoots on the stick's arc). The speed is the
- * fall's mean speed so far, departure to the latest sample, not a fitted derivative
- * extrapolated to the impact: that one is mostly landmark jitter. With a single falling
- * sample, the last sample and no speed.
+ * The fall's shape (#261), x at each depth, free of the fall's timing. A stick tip is one
+ * reach from the heel of the hand by construction, so its path is an ARC about the heel:
+ * the heel's own drift is a line in the tip's depth over the lower part of the fall, and
+ * the tip sits on the circle of the stick's reach about it (`aspect`, the frame's width
+ * over its height, makes the display fractions isotropic). Exact for a swung stick,
+ * whatever the brake; nothing is fitted that landmark noise could bend. The near-vertical
+ * stick (the tip under the heel) is where a depth has no x, and there the tip stays
+ * under the heel.
  */
-export function landingAt(samples: readonly TrackSample[], t: number, eps: number, floor = Infinity): Landing {
+function arcShape(seg: readonly TrackSample[], last: TrackSample, aspect: number): ((y: number) => number) | null {
+  if (!last.grip || !seg.every((s) => s.grip)) return null;
+  const reachOf = (s: TrackSample) => Math.hypot((s.x - s.grip!.x) * aspect, s.y - s.grip!.y);
+  const reach = reachOf(last);
+  if (!(reach > 0)) return null;
+  const side = Math.sign((last.x - last.grip.x) * aspect) || 1;
+  const lower = lowerPart(seg, last, SHAPE_MIN_SAMPLES);
+  // A stick turning toward or away from the camera shortens or lengthens in the image:
+  // its path is no circle in the frame, and the time line knows better.
+  if (lower.some((s) => Math.abs(Math.log(reachOf(s) / reach)) > REACH_TOLERANCE)) return null;
+  const ys = lower.map((s) => s.y);
+  const heelX = lower.length >= SHAPE_MIN_SAMPLES ? fitLine(ys, lower.map((s) => s.grip!.x * aspect), last.y) : null;
+  const heelY = lower.length >= SHAPE_MIN_SAMPLES ? fitLine(ys, lower.map((s) => s.grip!.y), last.y) : null;
+  return (y) => {
+    const d = y - last.y;
+    const hx = heelX ? heelX.a + heelX.b * d : last.grip!.x * aspect;
+    const hy = heelY ? heelY.a + heelY.b * d : last.grip!.y;
+    const swingY = Math.min(reach, Math.max(-reach, y - hy));
+    return (hx + side * Math.sqrt(reach * reach - swingY * swingY)) / aspect;
+  };
+}
+
+/**
+ * The fall's shape for a point with no lever (the wrist, a fingertip), which has no known
+ * pivot: x stays the line in time of #245 (the sideways drift), read at the time the fall's
+ * depth fit (`fy`, the quadratic in time; a line with two samples) reaches each depth. At
+ * the landing point this is exactly #245's x; along the path it is the same curve by depth.
+ */
+function timeShape(seg: readonly TrackSample[], last: TrackSample, fy: Quadratic | null): (y: number) => number {
+  const ts = seg.map((s) => s.t);
+  const fx = seg.length >= 2 ? fitLine(ts, seg.map((s) => s.x), last.t) : null;
+  if (!fx) return () => last.x;
+  const depth = fy ?? (seg.length >= 2 ? fitLine(ts, seg.map((s) => s.y), last.t) : null);
+  /** The first time at or after the latest sample the depth fit reaches `y`, or where
+   *  it turns if it never does. */
+  const tauOf = (y: number): number => {
+    if (!depth) return 0;
+    const { a, b, c } = depth;
+    const d = y - a;
+    if (Math.abs(c) < 1e-12) return b > 0 ? Math.max(0, d / b) : 0;
+    const disc = b * b + 4 * c * d;
+    if (disc < 0) return Math.max(0, -b / (2 * c));
+    const r = Math.sqrt(disc);
+    const roots = [(-b - r) / (2 * c), (-b + r) / (2 * c)].filter((t) => t >= 0);
+    return roots.length ? Math.min(...roots) : 0;
+  };
+  return (y) => fx.a + fx.b * tauOf(y);
+}
+
+export interface LandingOptions {
+  /** The learned floor (the impact predictor's plane, display depth): the landing point is
+   *  never below it. Default none. */
+  floor?: number;
+  /** The frame's width over its height, which makes display fractions isotropic for the
+   *  stick's arc. Default 1. */
+  aspect?: number;
+}
+
+/**
+ * Where a stroke lands at `t`, and how fast it came down (#245): a quadratic in time
+ * through its falling segment ({@link fallingSegment}) gives the depth at `t` (never more
+ * than {@link MAX_EXTRAPOLATION} past the last sample), never below the learned `floor`
+ * (the impact predictor's plane, where a surface stroke meets it by definition); x is
+ * read off the fall's shape at that depth (#261: the arc about the heel for a stick tip,
+ * {@link arcShape}; #245's line in time for a point with no lever, {@link timeShape}). The
+ * `path` carries the shape from the latest sample to the depth the fit reaches, floor or
+ * not: a pad above the floor is still on the stroke's way. The speed is the fall's mean
+ * speed so far, departure to the latest sample, not a fitted derivative extrapolated to
+ * the impact: that one is mostly landmark jitter. With a single falling sample, the last
+ * sample and no speed.
+ */
+export function landingAt(samples: readonly TrackSample[], t: number, eps: number, { floor = Infinity, aspect = 1 }: LandingOptions = {}): Landing {
   const seg = fallingSegment(samples, t, eps);
   const last = seg[seg.length - 1] ?? samples[samples.length - 1];
   const at = Math.min(t, last.t + MAX_EXTRAPOLATION);
   const tau = at - last.t;
   const ts = seg.map((s) => s.t);
   const fy = seg.length >= 3 ? fitQuadratic(ts, seg.map((s) => s.y), last.t) : null;
-  const fx = seg.length >= 2 ? fitLine(ts, seg.map((s) => s.x), last.t) : null;
+  // The depth the fit reaches: at `at` for the landing point; for the path, as far as
+  // the fall is heading within MAX_EXTRAPOLATION whatever the predicted time (which
+  // aims at a floor learned on another pad). A decelerating fit that turns first has
+  // stopped at its vertex.
+  const depthBy = (tEnd: number) => {
+    if (!fy) return last.y;
+    const tv = fy.c < 0 ? -fy.b / (2 * fy.c) : Infinity;
+    const te = tv > 0 && tv < tEnd ? tv : tEnd;
+    return Math.max(last.y, fy.a + fy.b * te + fy.c * te * te);
+  };
+  const reach = depthBy(tau);
+  const xAt = arcShape(seg, last, aspect) ?? timeShape(seg, last, fy);
+  const y = Math.min(reach, Math.max(floor, last.y));
   // How fast the fall came down so far: its mean speed, departure to the latest sample.
   // Not a fitted derivative: differentiating three noisy samples and extrapolating them
   // ahead makes the speed mostly jitter (an adversarial review measured it).
   const span = seg.length >= 2 ? last.t - seg[0].t : 0;
   const speed = span > 0 ? Math.max(0, (last.y - seg[0].y) / span) : 0;
-  return {
-    x: fx ? fx.a + fx.b * tau : last.x,
-    y: Math.min(fy ? fy.a + fy.b * tau + fy.c * tau * tau : last.y, Math.max(floor, last.y)),
-    speed,
-  };
+  // The path runs to the frame's bottom: it is consulted only when the landing point is
+  // on no pad, and then the pad is wherever the stroke's way meets one, not where the
+  // fit's horizon ends (a stroke from a high pad to a low one commits against the high
+  // pad's floor, well short of the low pad).
+  return { x: xAt(y), y, speed, path: { yFrom: last.y, yTo: FRAME_BOTTOM, xAt } };
 }
 
 /** How fast, 0..1: `ratio` is the stroke's speed over the slowest stroke's, `hardHit`
@@ -467,7 +635,12 @@ export const airDrumNode = defineNode<Params>({
             stick.lastT = t;
             if (gatesInGrips(c.point)) regate(stick, c, stickReach(hand.keypoints, c.stickLength) / frame.height, t);
             const d = toDisplay(anchor.x, anchor.y, frame.width, frame.height);
-            stick.recent.push({ t, x: d.x, y: d.y });
+            const sample: TrackSample = { t, x: d.x, y: d.y };
+            if (gatesInGrips(c.point)) {
+              const heel = gripHeel(hand.keypoints);
+              sample.grip = toDisplay(heel.x, heel.y, frame.width, frame.height);
+            }
+            stick.recent.push(sample);
             while (stick.recent.length > 2 && stick.recent[0].t < t - 2 * APPROACH_WINDOW) stick.recent.shift();
             const predictor = stick.predictor;
             if (!predictor) continue;
@@ -482,22 +655,35 @@ export const airDrumNode = defineNode<Params>({
              *  stroke's hardness (`velocityOf`) as the velocity before the volume dial. */
             const strike = (landing: Landing, strength: number) => {
               const speed = landing.speed;
-              const padHit = anyPadOn(c.pads) ? hitPad(c.pads, landing, c.offPad) : null;
+              const padHit = anyPadOn(c.pads) ? hitPad(c.pads, landing, c.offPad, landing.path) : null;
               const silent = !padHit && anyPadOn(c.pads) && c.offPad === 'silent';
               return {
                 silent,
                 sound: padHit ? padHit.pad.sound : handSound,
                 pad: padHit ? padHit.id : null,
                 radial: padHit ? clamp01(padHit.radial) : 0,
-                x: landing.x,
-                y: landing.y,
+                x: padHit ? padHit.at.x : landing.x,
+                y: padHit ? padHit.at.y : landing.y,
                 speed,
                 hardness: velocityOf(speed / Math.max(gates.minApproachSpeed, hardnessFloor), c.hardHit, strength),
               };
             };
+            /** A raised stick carried down by the arm (#261): not a stroke, whatever the
+             *  predictor made of its depth. Dropped there too, so the stroke the arm is
+             *  carrying it toward starts fresh from where the carry ends. */
+            const carried = (tEnd: number, floor: number) => {
+              const seg = fallingSegment(stick.recent, tEnd, gates.minAmplitude * FALL_JITTER);
+              if (seg.length < 2) return false;
+              const fallen = seg[seg.length - 1].y - seg[0].y;
+              const amplitude = Number.isFinite(floor) ? Math.max(fallen, floor - seg[0].y) : fallen;
+              if (!isCarried(seg, { amplitude, minSwing: CARRY_SWING_FRACTION * gates.minAmplitude })) return false;
+              predictor.dropStroke();
+              return true;
+            };
             for (const e of predictor.push({ t, x: anchor.x / frame.height, y: anchor.y / frame.height })) {
               if (e.kind === 'predict') {
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, predictor.level()), e.strength);
+                if (carried(e.t, predictor.level())) continue;
+                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect }), e.strength);
                 if (s.silent) continue;
                 let at = e.t;
                 let pull = 0;
@@ -540,7 +726,8 @@ export const airDrumNode = defineNode<Params>({
               } else if (e.predicted === null) {
                 // Unpredicted: a ghost note, now; its lead is how late that is. It landed
                 // where the deepest sample was.
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER), e.strength);
+                if (carried(e.t, NaN)) continue;
+                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { aspect }), e.strength);
                 if (s.silent) continue;
                 hits.push({
                   t: ctx.time,

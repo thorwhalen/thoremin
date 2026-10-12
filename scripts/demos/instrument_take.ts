@@ -8,11 +8,12 @@
  * `ctx.resources.controls` getter the app injects, and the node's output port recorded.
  * What differs is the performance, written to be heard:
  *
- * - `drums`: a synthetic hand gripping a stick (`scripts/air/lib_synthetic_grip.ts`, the
- *   dial's `stickLength` set to that stick's, as a player would calibrate it) plays
- *   the starter kit's pads: the snare at its centre and at its rim, softly and hard, then
- *   the other pads. Soft is a short, slow stroke; hard a long, fast one (the node's
- *   hardness is half accent, half fall speed).
+ * - `drums`: `test/air/synthetic_drums.ts`, a synthetic hand gripping a stick
+ *   (`scripts/air/lib_synthetic_grip.ts`, the dial's `stickLength` set to that stick's,
+ *   as a player would calibrate it) plays the starter kit's pads: the snare at its centre
+ *   and at its rim, softly and hard, then the other pads. Soft is a short, slow stroke;
+ *   hard a long, fast one (the node's hardness is half accent, half fall speed). The
+ *   same take is the landing-point test's fixture (#261), so the demo and the test agree.
  * - `bass`: `test/air/synthetic_bass.ts`, the fretting hand walking down the neck while
  *   the other hand plucks.
  * - `guitar`: four chord shapes enrolled from the synthetic hand (`test/air/synthetic_guitar.ts`),
@@ -31,14 +32,14 @@ import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
-import { DEFAULT_PADS_SET, STARTER_KIT, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@thoremin/ext-air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { dataRoot } from '../air/lib_air_paths';
-import { TRUE_STICK_LENGTH, gripFrames, type StickPose } from '../air/lib_synthetic_grip';
+import { TRUE_STICK_LENGTH } from '../air/lib_synthetic_grip';
 import { bassTake } from '../../test/air/synthetic_bass';
+import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, starterKitPads } from '../../test/air/synthetic_drums';
 import { enrolSamples, guitarTake } from '../../test/air/synthetic_guitar';
 
 function arg(name: string, fallback: string): string {
@@ -52,95 +53,6 @@ const FPS = 30;
 const W = 640;
 const H = 480;
 const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sound: 'sine' } as const;
-
-// ---- Drums --------------------------------------------------------------------------
-
-interface Stroke {
-  pad: PadId;
-  where: 'centre' | 'rim';
-  force: 'soft' | 'hard';
-}
-const DRUM_SCRIPT: Stroke[] = [
-  // A warm-up: the node learns where the strokes turn from the first one (a ghost note).
-  { pad: 'p1', where: 'centre', force: 'hard' },
-  { pad: 'p1', where: 'centre', force: 'soft' },
-  { pad: 'p1', where: 'centre', force: 'hard' },
-  { pad: 'p1', where: 'rim', force: 'soft' },
-  { pad: 'p1', where: 'rim', force: 'hard' },
-  { pad: 'p3', where: 'centre', force: 'soft' },
-  { pad: 'p3', where: 'centre', force: 'hard' },
-  { pad: 'p3', where: 'rim', force: 'hard' },
-  { pad: 'p2', where: 'centre', force: 'hard' },
-  { pad: 'p2', where: 'centre', force: 'soft' },
-  { pad: 'p5', where: 'centre', force: 'hard' },
-  { pad: 'p4', where: 'centre', force: 'hard' },
-  { pad: 'p1', where: 'centre', force: 'hard' },
-];
-/** The stick, pixels, from the hand (pivot) to the tip, and its raised angles. */
-const STICK = 170;
-const FORCE = { soft: { lift: 0.4, fall: 0.22 }, hard: { lift: 0.7, fall: 0.09 } };
-const MOVE_S = 0.5;
-const HOLD_S = 0.12;
-const RETURN_S = 0.22;
-
-function drumTake(pads: Pads): { frames: HandsFrame[]; overlay: unknown[]; script: (Stroke & { tLand: number })[] } {
-  // Landing point per stroke, source pixels (the display is mirrored).
-  const target = (s: Stroke) => {
-    const p = pads[s.pad];
-    const dx = s.where === 'rim' ? 0.85 * (p.w / 2) : 0;
-    return { x: (1 - (p.x + dx)) * W, y: p.y * H };
-  };
-  // The stick lies down and to the left of the hand at contact (the player's right hand
-  // held out to the side), turning about the hand: tip = pivot + STICK * (cos a, sin a).
-  const LAND_ANGLE = Math.PI - 0.1;
-  const pivotFor = (tip: { x: number; y: number }) => ({ x: tip.x - STICK * Math.cos(LAND_ANGLE), y: tip.y - STICK * Math.sin(LAND_ANGLE) });
-  const poses: StickPose[] = [];
-  const overlay: unknown[] = [];
-  const script: (Stroke & { tLand: number })[] = [];
-  let t = 0;
-  let pivot = pivotFor(target(DRUM_SCRIPT[0]));
-  let angle = LAND_ANGLE + FORCE.soft.lift;
-  const push = () => {
-    const tip = { x: pivot.x + STICK * Math.cos(angle), y: pivot.y + STICK * Math.sin(angle) };
-    poses.push({ t, width: W, height: H, pivot: { ...pivot }, tip });
-    overlay.push({ pivot: { ...pivot }, tip });
-    t += 1 / FPS;
-  };
-  const phase = (seconds: number, step: (s: number) => void) => {
-    const n = Math.max(1, Math.round(seconds * FPS));
-    for (let i = 1; i <= n; i++) {
-      step(i / n);
-      push();
-    }
-  };
-  // Rest first, so the tracker sees a still hand.
-  phase(0.6, () => {});
-  for (const s of DRUM_SCRIPT) {
-    const f = FORCE[s.force];
-    const from = { ...pivot };
-    const to = pivotFor(target(s));
-    const a0 = angle;
-    const up = LAND_ANGLE + f.lift;
-    // Move the arm to the pad with the stick raised (smoothstep, no dip).
-    phase(MOVE_S, (u) => {
-      const e = u * u * (3 - 2 * u);
-      pivot = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e };
-      angle = a0 + (up - a0) * e;
-    });
-    phase(HOLD_S, () => {});
-    // The stroke: a braked fall (fastest mid-way, still at the bottom), then back up.
-    phase(f.fall, (u) => {
-      angle = up - f.lift * (1 - Math.cos(Math.PI * u)) / 2;
-    });
-    script.push({ ...s, tLand: t - 1 / FPS });
-    phase(RETURN_S, (u) => {
-      angle = LAND_ANGLE + f.lift * (1 - Math.cos(Math.PI * u)) / 2;
-    });
-  }
-  phase(0.8, () => {});
-  // The mirrored webcam labels the player's right hand 'Left' (the dial's default).
-  return { frames: gripFrames(poses, { arm: 0, handedness: 'Left' }), overlay, script };
-}
 
 // ---- Run ------------------------------------------------------------------------------
 
@@ -164,11 +76,10 @@ async function run(frames: HandsFrame[], controls: () => Record<string, unknown>
 async function main(): Promise<void> {
   let doc: Record<string, unknown>;
   if (instrument === 'drums') {
-    const pads: Pads = { ...DEFAULT_PADS_SET };
-    for (const id of STARTER_KIT) pads[id] = { ...pads[id], on: true };
+    const pads = starterKitPads();
     const { frames, overlay, script } = drumTake(pads);
     const events = await run(frames, () => ({ right: voice, left: voice, airDrum: { ...DEFAULT_AIR_DRUM, enabled: true, hand: 'right', pads, stickLength: TRUE_STICK_LENGTH } }), 'airDrum.hits');
-    doc = { instrument, fps: FPS, width: W, height: H, frames, overlay, events, pads, script };
+    doc = { instrument, fps: DRUM_TAKE_FPS, width: DRUM_TAKE_WIDTH, height: DRUM_TAKE_HEIGHT, frames, overlay, events, pads, script };
   } else if (instrument === 'bass') {
     // Walk down the neck and back: two plucks on each place.
     const places = [6.6, 5.6, 4.6, 3.6, 2.6, 3.6, 4.6, 6.6];
