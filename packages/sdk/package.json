@@ -36,6 +36,9 @@
     "./nodes/music/drum_anchor": "./src/nodes/music/drum_anchor.ts",
     "./nodes/music/drum_pads": "./src/nodes/music/drum_pads.ts",
     "./score/schema": "./src/score/schema.ts",
+    "./timing/clock_map": "./src/timing/clock_map.ts",
+    "./timing/output_stage": "./src/timing/output_stage.ts",
+    "./timing/tracker": "./src/timing/tracker.ts",
     "./util/ids": "./src/util/ids.ts"
   },
   "dependencies": {

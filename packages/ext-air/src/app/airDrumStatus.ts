@@ -42,12 +42,17 @@ export function describeLive(live: AirDrumLive): string {
   if (live.hits === 0) return 'Ready. Strike.';
   const ms = Math.round(Math.abs(live.lastLead) * 1000);
   const hand = live.lastHand === 'left' ? 'Left' : 'Right';
-  return live.lastLead >= 0 ? `${hand}: predicted ${ms} ms before the strike.` : `${hand}: sounded ${ms} ms after the strike (too fast to predict).`;
+  if (live.lastLead < 0) return `${hand}: sounded ${ms} ms after the strike (too fast to predict).`;
+  // Predicted, but the audio output may eat the lead (step 0 of the timing plan): say so.
+  const onTime = live.lastOnTime ?? 'yes';
+  if (onTime === 'late') return `${hand}: predicted ${ms} ms ahead, but the audio output needs more: sounds ${Math.round((live.lastLateBy ?? 0) * 1000)} ms late.`;
+  if (onTime === 'unknown-output') return `${hand}: predicted ${ms} ms before the strike (audio output latency unknown on this browser).`;
+  return `${hand}: predicted ${ms} ms before the strike.`;
 }
 
 /** Quantise what the panel shows (the lead to the millisecond). */
 export function airDrumLiveKey(l: AirDrumLive): string {
-  return `${l.enabled ? 1 : 0}|${l.hits}|${l.predicted}|${l.lastHand ?? '-'}|${l.lastPad ?? '-'}|${Math.round((l.frameAspect ?? 0) * 100)}|${Math.round(l.lastLead * 1000)}|${Math.round(l.lastPull * 1000)}|${l.ready.right ? 1 : 0}${l.ready.left ? 1 : 0}`;
+  return `${l.enabled ? 1 : 0}|${l.hits}|${l.predicted}|${l.lastHand ?? '-'}|${l.lastPad ?? '-'}|${Math.round((l.frameAspect ?? 0) * 100)}|${Math.round(l.lastLead * 1000)}|${Math.round(l.lastPull * 1000)}|${l.lastOnTime ?? 'yes'}|${Math.round((l.lastLateBy ?? 0) * 1000)}|${l.ready.right ? 1 : 0}${l.ready.left ? 1 : 0}`;
 }
 
 export function makeAirDrumReporter(

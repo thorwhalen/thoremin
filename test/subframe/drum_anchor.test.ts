@@ -23,6 +23,7 @@ import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DRUM_ANCHOR_POINTS, anchorPoint, gripFulcrum, gripHeel, gripLength, stickReach, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip, type StickPose } from '../../scripts/air/lib_synthetic_grip';
 import { FIXTURES, loadRecords } from '../helpers/fixtures';
+import { NO_OUTPUT_STAGE } from '../helpers/timing';
 
 interface Truth {
   spec: { fps: number };
@@ -81,7 +82,7 @@ async function play(name: string, point: (typeof DRUM_ANCHOR_POINTS)[number], ar
   const { truth, poses } = load(name);
   const fps = truth.spec.fps;
   const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, point, minLead: 0.03, ...extra }));
-  const outs = await replayNode(h, { hands: gripFrames(poses, { arm }) }, { dt: 1 / fps });
+  const outs = await replayNode(h, { hands: gripFrames(poses, { arm }) }, { dt: 1 / fps, resources: NO_OUTPUT_STAGE });
   const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
   return { truth, fps, hits };
 }
@@ -124,7 +125,7 @@ describe('the stickLength leaf', () => {
     const run = async (lengthAt: (i: number) => number) => {
       const h = airDrumNode.make(airDrumNode.params.parse({ minLead: 0.03 }));
       const config = frames.map((_, i) => ({ enabled: true, point: 'stickTip', stickLength: lengthAt(i) }));
-      const outs = await replayNode(h, { hands: frames, config }, { dt: 1 / fps });
+      const outs = await replayNode(h, { hands: frames, config }, { dt: 1 / fps, resources: NO_OUTPUT_STAGE });
       return outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
     };
     // Switch between two strokes: halfway between the 4th and 5th impacts.
@@ -151,7 +152,7 @@ describe('the default point on real and scaled hands (gates in reaches)', () => 
     // Both mirror conventions: a third-person recording labels the hands either way.
     for (const mirrorHandedness of [true, false]) {
       const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, mirrorHandedness, ...params }));
-      const outs = await replayNode(h, { hands: frames }, { dt: 1 / fps });
+      const outs = await replayNode(h, { hands: frames }, { dt: 1 / fps, resources: NO_OUTPUT_STAGE });
       hits += outs.flatMap((o) => o.hits as DrumHit[]).length;
     }
     return hits;
@@ -171,7 +172,7 @@ describe('the default point on real and scaled hands (gates in reaches)', () => 
     for (const k of [1, 0.5, 0.3]) {
       for (const stickLength of [2, 3, 4]) {
         const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, stickLength }));
-        const outs = await replayNode(h, { hands: shrink(gripFrames(poses), k) }, { dt: 1 / truth.spec.fps });
+        const outs = await replayNode(h, { hands: shrink(gripFrames(poses), k) }, { dt: 1 / truth.spec.fps, resources: NO_OUTPUT_STAGE });
         expect(outs.flatMap((o) => o.hits as DrumHit[]), `scale ${k}, length ${stickLength}`).toHaveLength(truth.events.length);
       }
     }

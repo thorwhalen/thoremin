@@ -34,6 +34,10 @@ describe('app shell', () => {
     expect(app).toMatch(/<ToolsLauncher\s*\/>/);
   });
 
+  it('mounts the camera status line (the timing resource\'s readout, step 0 of the timing plan)', () => {
+    expect(app).toMatch(/<TimingChip\s*\/>/);
+  });
+
   it('mounts a surface component for every non-link tool', () => {
     for (const tool of TOOLS) {
       if (tool.kind === 'link') continue;

@@ -22,6 +22,7 @@ import { fallingSegment, landingAt, velocityOf, SOFTEST_HIT } from '@thoremin/ex
 import { drumVoice } from '@thoremin/ext-air/nodes/drum_out';
 import { TRUE_STICK_LENGTH, gripFrames, parseStickClip } from '../../scripts/air/lib_synthetic_grip';
 import { FIXTURES } from '../helpers/fixtures';
+import { NO_OUTPUT_STAGE } from '../helpers/timing';
 
 interface Truth {
   spec: { fps: number };
@@ -231,7 +232,7 @@ describe.each(['subframe_stick_air_30', 'subframe_stick_surface_30'])('the air d
     const { poses } = load(name);
     for (let seed = 1; seed <= 10; seed++) {
       const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, point: 'stickTip', stickLength: TRUE_STICK_LENGTH, minLead: 0.03, volume: 1 }));
-      const outs = await replayNode(h, { hands: gripFrames(poses, { noise: 0.02, seed }) }, { dt: 1 / fps });
+      const outs = await replayNode(h, { hands: gripFrames(poses, { noise: 0.02, seed }) }, { dt: 1 / fps, resources: NO_OUTPUT_STAGE });
       for (const hit of outs.flatMap((o) => o.hits as DrumHit[])) {
         if (!hit.predicted) continue;
         amp.push(truth.events.reduce((b, e) => (Math.abs(e.t_impact - hit.t) < Math.abs(b.t_impact - hit.t) ? e : b)).amplitude);

@@ -7,6 +7,10 @@
  * node is ticked by hand so three things a live session has can be simulated:
  *
  * - `--latency S`: the pipeline delay from capture to tick (inference, scheduling).
+ * - `--output-stage S`: the audio output stage the node is told (its `timing` resource,
+ *   step 0 of the timing plan): a hit is `predicted` only if its lead from the decision
+ *   covers it. Default 0 (the predictor's own lead is the whole story); the measured
+ *   Chromium value is 0.032.
  *   Each frame carries its capture stamp and the node sees it `S` seconds later, so
  *   the node's lead is counted from its decision, exactly as live (#226). With a
  *   delay the node can no longer commit every stroke far enough ahead, and those
@@ -22,7 +26,7 @@
  *
  * Usage:
  *   npx vite-node scripts/demos/air_drum_hits.ts <clip-dir> <out.json> \
- *     [--name drum] [--latency 0] [--magnetism 0] [--min-lead 0.05] [--merge]
+ *     [--name drum] [--latency 0] [--output-stage 0] [--magnetism 0] [--min-lead 0.05] [--merge]
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,6 +34,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { createTrendPrior, type Anchor } from '@thoremin/ictus';
 import { type HandsFrame } from '@/nodes';
 import { airDrumNode, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
+import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -42,6 +47,7 @@ const name = arg('name', 'drum');
 const latency = Number(arg('latency', '0'));
 const magnetism = Number(arg('magnetism', '0'));
 const minLead = Number(arg('min-lead', '0.05'));
+const outputStage = Number(arg('output-stage', '0'));
 
 interface Truth {
   spec: { fps: number; kind: string; object: string };
@@ -71,7 +77,7 @@ for (const line of readFileSync(join(clipDir, 'keypoints.ndjson'), 'utf8').split
 }
 
 const handlers = airDrumNode.make(airDrumNode.params.parse({ enabled: true, minLead, magnetism }));
-const resources = { timeScale: 1 };
+const resources = { timeScale: 1, [TIMING_RESOURCE_KEY]: () => ({ outputStage: { value: outputStage, source: 'measured' as const }, audioEpoch: 0, leadBudget: outputStage }) };
 const follower = createTrendPrior({ memory: 12, quadraticAfter: 5 });
 const hits: (DrumHit & { at: number })[] = [];
 // The follower hears a hit once it has sounded (never the future).
@@ -95,8 +101,8 @@ for (let i = 0; i < frames.length; i++) {
 handlers.dispose?.();
 
 const doc = existsSync(out) && process.argv.includes('--merge') ? JSON.parse(readFileSync(out, 'utf8')) : { clip: clipDir.split('/').filter(Boolean).pop(), fps, kind: truth.spec.kind, events: truth.events, onsets: {}, settings: {} };
-doc.onsets[name] = hits.map((h) => ({ t: h.t, at: h.at, predicted: h.predicted, velocity: h.velocity, pull: h.pull }));
-doc.settings[name] = { latency, magnetism, minLead };
+doc.onsets[name] = hits.map((h) => ({ t: h.t, at: h.at, impactT: h.impactT, predicted: h.predicted, onTime: h.onTime, lead: h.lead, lateBy: h.lateBy, velocity: h.velocity, pull: h.pull }));
+doc.settings[name] = { latency, magnetism, minLead, outputStage };
 writeFileSync(out, JSON.stringify(doc, null, 1));
 
 const ms = (x: number) => (1000 * x).toFixed(1);

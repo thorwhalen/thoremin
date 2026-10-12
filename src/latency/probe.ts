@@ -32,10 +32,17 @@
  * the DAC and loudspeaker after the reported output latency. The strike test
  * (`onsets.ts`, `strike.ts`) measures those, glass to air, with a microphone.
  *
+ * The probe DISPLAYS the lead budget; it does not own it. The always-on `timing`
+ * resource (`@thoremin/sdk/timing/tracker`: the output stage with its source, the audio
+ * epoch, the frame's age, the stamp mix, the skipped frames) is what the instruments
+ * read; the probe's snapshot carries its reading when the host hands it one, so the
+ * headless measurement reports both.
+ *
  * Pure apart from the injected clock and audio reader; unit-tested in Node.
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
 import type { FrameTiming, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import type { TimingReading } from '@thoremin/sdk/timing/tracker';
 import { RingSamples, type Summary } from './stats';
 
 /** The slice of an `AudioContext` the probe reads. */
@@ -76,6 +83,8 @@ export interface LatencySnapshot {
   /** Frames with at least one hand / all frames seen. */
   framesWithHand: number;
   frames: number;
+  /** The always-on timing resource's reading, when the host handed the probe one. */
+  timing: TimingReading | null;
 }
 
 /** A new camera frame as the probe saw it, for listeners such as the strike test. */
@@ -94,12 +103,15 @@ export interface LatencyProbeOptions {
   audio?: () => AudioLike | undefined;
   /** Samples kept per stage. */
   capacity?: number;
+  /** The always-on timing resource, for the snapshot. */
+  timing?: () => TimingReading | undefined;
 }
 
 export class LatencyProbe implements Tap {
   private readonly sourceKey: string;
   private readonly now: () => number;
   private readonly audio: () => AudioLike | undefined;
+  private readonly timing: () => TimingReading | undefined;
   private readonly samples: Record<StageName, RingSamples>;
   private readonly listeners = new Set<(f: ProbeFrame) => void>();
   private stampSources: Record<string, number> = {};
@@ -114,6 +126,7 @@ export class LatencyProbe implements Tap {
     this.sourceKey = options.sourceKey ?? 'cam.hands';
     this.now = options.now ?? (() => performance.now());
     this.audio = options.audio ?? (() => undefined);
+    this.timing = options.timing ?? (() => undefined);
     const capacity = options.capacity ?? 2000;
     this.samples = Object.fromEntries(STAGES.map((s) => [s, new RingSamples(capacity)])) as Record<StageName, RingSamples>;
   }
@@ -163,6 +176,7 @@ export class LatencyProbe implements Tap {
       stampSources: { ...this.stampSources },
       framesWithHand: this.framesWithHand,
       frames: this.frames,
+      timing: this.timing() ?? null,
     };
   }
 

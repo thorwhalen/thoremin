@@ -6,9 +6,10 @@
  * gain smoothed every tick, `webaudio-synth`), which is right for a theremin and wrong
  * for a string: a pluck is an event with an attack at a precise instant and a decay,
  * and the instant is predicted ahead of the frame that shows it. So this is the
- * `drum-out` discipline for pitched notes: the engine-to-audio clock map is the one
- * `drum-out` owns ({@link engineToContextTime}), a committed note is never moved, and a
- * context that is not running drops notes instead of bursting them on resume.
+ * `drum-out` discipline for pitched notes: the engine-to-audio clock map is the ONE
+ * every scheduler shares (`@thoremin/sdk/timing/clock_map`, the output stage from the
+ * host's `timing` resource), a committed note is never moved, and a context that is not
+ * running drops notes instead of bursting them on resume.
  *
  * The sound sits behind a {@link PluckSink} facade (injectable through
  * `ctx.resources.createPluckSink`, so the scheduling logic is headlessly testable). The
@@ -22,7 +23,9 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
-import { engineToContextTime, type AudioClockLike } from './drum_out';
+import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
+import { timingFrom } from '@thoremin/sdk/timing/tracker';
+import type { AudioClockLike } from './drum_out';
 
 /** The plucked timbres: the attack's brightness and where it settles (multiples of the
  *  fundamental), the decay, and the peak gain. The settled brightness is well above the
@@ -169,9 +172,10 @@ export const pluckOutNode = defineNode<Params>({
         if (clock.state !== undefined && clock.state !== 'running') return {};
         const parsed = NoteEventsSchema.safeParse(raw);
         if (!parsed.success) return {};
+        const outputStage = timingFrom(ctx.resources).outputStage.value;
         for (const note of parsed.data as NoteEvent[]) {
           // Never in the past: a late note sounds at once.
-          const when = Math.max(clock.currentTime + 0.001, engineToContextTime(clock, note.t, ctx.time));
+          const when = scheduleAt(clock, note.t, ctx.time, outputStage);
           sink.play(note.midi, note.velocity, when, note.voice);
         }
         return {};

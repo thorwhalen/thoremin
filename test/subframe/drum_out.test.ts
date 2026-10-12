@@ -5,35 +5,24 @@
  * without an audio context, a malformed hit skipped.
  */
 import { describe, it, expect } from 'vitest';
-import { drumOutNode, engineToContextTime, type DrumSink } from '@thoremin/ext-air/nodes/drum_out';
+import { drumOutNode, type DrumSink } from '@thoremin/ext-air/nodes/drum_out';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
+import { engineToContextTime, scheduleAt, MIN_SCHEDULE_AHEAD_S } from '@thoremin/sdk/timing/clock_map';
+import { OUTPUT_STAGE_PRIOR_S } from '@thoremin/sdk/timing/output_stage';
+import { knownOutputStage } from '../helpers/timing';
 
-describe('engineToContextTime', () => {
-  it('uses the output timestamp pair when the context has one (the exact map)', () => {
-    const ac = { currentTime: 5, getOutputTimestamp: () => ({ contextTime: 4.9, performanceTime: 12000 }) };
-    // Engine time 12.05 s (performance base) is 50 ms after the paired instant.
-    expect(engineToContextTime(ac, 12.05, 12.0)).toBeCloseTo(4.95, 9);
+describe('the clock map (the one shared through @thoremin/sdk/timing/clock_map)', () => {
+  it('schedules a hit one output stage EARLIER on the context clock than its distance from the tick', () => {
+    const ac = { currentTime: 5 };
+    // Engine time 12.05 s is 50 ms after the tick at 12.0; with a 32 ms output stage the
+    // sound must be written at 5.018 so it leaves the device at 5.05.
+    expect(engineToContextTime(ac, 12.05, 12.0, 0.032)).toBeCloseTo(5.018, 9);
+    expect(scheduleAt(ac, 12.05, 12.0, 0.032)).toBeCloseTo(5.018, 9);
   });
 
-  it('distrusts a zero or stale output timestamp (before the context renders, or suspended)', () => {
-    // Chromium before the first render: zeros. The exact map would put the hit at
-    // "seconds since page load" on the context clock.
-    const zeros = { currentTime: 0, getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 0 }) };
-    expect(engineToContextTime(zeros, 812.05, 812.0)).toBeCloseTo(0.05, 9);
-    // A frozen pair from a suspension a second ago disagrees with the plain map.
-    const stale = { currentTime: 5, getOutputTimestamp: () => ({ contextTime: 5, performanceTime: 11000 }) };
-    expect(engineToContextTime(stale, 12.05, 12.0)).toBeCloseTo(5.05, 9);
-  });
-
-  it('allows the exact map to lead the plain one by the output latency (Bluetooth headphones)', () => {
-    const bt = { currentTime: 5, outputLatency: 0.3, getOutputTimestamp: () => ({ contextTime: 5.5, performanceTime: 12000 }) };
-    expect(engineToContextTime(bt, 12.05, 12.0)).toBeCloseTo(5.55, 9);
-  });
-
-  it('falls back to now plus the distance from the tick', () => {
-    expect(engineToContextTime({ currentTime: 5 }, 12.05, 12.0)).toBeCloseTo(5.05, 9);
-    const broken = { currentTime: 5, getOutputTimestamp: () => ({}) };
-    expect(engineToContextTime(broken, 12.05, 12.0)).toBeCloseTo(5.05, 9);
+  it('never schedules behind the context clock: a late hit sounds at once', () => {
+    const ac = { currentTime: 5 };
+    expect(scheduleAt(ac, 11.99, 12.0, 0.032)).toBeCloseTo(5 + MIN_SCHEDULE_AHEAD_S, 9);
   });
 });
 
@@ -47,22 +36,22 @@ function mockSink() {
   return { sink, played, closed: () => closed };
 }
 
-const hit = (t: number, over: Partial<DrumHit> = {}): DrumHit => ({ t, velocity: 0.7, hand: 'right', sound: 'kick', predicted: true, lead: 0.05, pull: 0, ...over });
+const hit = (t: number, over: Partial<DrumHit> = {}): DrumHit => ({ t, impactT: t, velocity: 0.7, hand: 'right', sound: 'kick', predicted: true, onTime: 'yes', lead: 0.05, lateBy: 0, pull: 0, ...over });
 
 describe('drum-out node', () => {
   const ac = { currentTime: 10 } as unknown as AudioContext;
   const master = {} as AudioNode;
 
-  it('plays each hit once at its mapped time, never before now', () => {
+  it('plays each hit once at its mapped time (one output stage early), never before now', () => {
     const m = mockSink();
     const h = drumOutNode.make({});
-    const resources = { audioContext: ac, masterGain: master, createDrumSink: () => m.sink, timeScale: 1 };
+    const resources = { audioContext: ac, masterGain: master, createDrumSink: () => m.sink, timeScale: 1, ...knownOutputStage(0.03) };
     const ctx = { tick: 1, time: 100, dt: 1 / 60, resources };
-    h.process({ hits: [hit(100.05), hit(99.99, { sound: 'snare', predicted: false })] }, ctx);
+    h.process({ hits: [hit(100.05), hit(99.99, { sound: 'snare', predicted: false, onTime: 'late' })] }, ctx);
     expect(m.played).toHaveLength(2);
     expect(m.played[0].sound).toBe('kick');
     expect(m.played[0].velocity).toBe(0.7);
-    expect(m.played[0].when).toBeCloseTo(10.05, 9);
+    expect(m.played[0].when).toBeCloseTo(10.05 - 0.03, 9);
     expect(m.played[1].sound).toBe('snare');
     expect(m.played[1].when).toBeCloseTo(10.001, 9); // a late ghost note sounds at once
     // The next tick with no hits plays nothing more.
@@ -70,6 +59,14 @@ describe('drum-out node', () => {
     expect(m.played).toHaveLength(2);
     h.dispose?.();
     expect(m.closed()).toBe(1);
+  });
+
+  it('without a timing resource the output stage is the stated prior, never 0 (Safari before the first tap)', () => {
+    const m = mockSink();
+    const h = drumOutNode.make({});
+    const resources = { audioContext: ac, masterGain: master, createDrumSink: () => m.sink, timeScale: 1 };
+    h.process({ hits: [hit(100.05)] }, { tick: 1, time: 100, dt: 1 / 60, resources });
+    expect(m.played[0].when).toBeCloseTo(10.05 - OUTPUT_STAGE_PRIOR_S, 9);
   });
 
   it('is silent at any clock scale but real time, and without an audio context', () => {
