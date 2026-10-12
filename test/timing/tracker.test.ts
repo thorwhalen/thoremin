@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { TimingTracker, timingFrom, ABSENT_TIMING, TIMING_RESOURCE_KEY, MIN_FRAMES_FOR_RATE } from '@thoremin/sdk/timing/tracker';
+import { TimingTracker, timingFrom, ABSENT_TIMING, TIMING_RESOURCE_KEY, MIN_FRAMES_FOR_RATE, UNSTAMPED_SOURCE } from '@thoremin/sdk/timing/tracker';
 import { OUTPUT_STAGE_PRIOR_S, type OutputStageAudioLike } from '@thoremin/sdk/timing/output_stage';
 import { loadRecords } from '../helpers/fixtures';
 
@@ -103,6 +103,19 @@ describe('TimingTracker over the conducting_44 fixture', () => {
   it('skipped frames accumulate from the frames\' own counts', () => {
     const r = run(stampedFrames(0.027, 'capture', 10), audio()).reading();
     expect(r.skippedFrames).toBe(Math.ceil(records.length / 10));
+  });
+
+  it('a stamp that was not used (another document: a replay) and no stamp at all (a synthetic source) both count as none, never as capture', () => {
+    const replayed = stampedFrames(0.027).map((f) => ({ ...f, tOrigin: origin - 60000 }));
+    const r = run(replayed, audio()).reading();
+    expect(r.stampSources).toEqual({ [UNSTAMPED_SOURCE]: 90 });
+    expect(r.dominantSource).toBe(UNSTAMPED_SOURCE);
+    expect(r.deliveredFps).toBeNaN();
+    expect(r.frameAge.mean).toBeNaN();
+    const bare = records.map((rec) => ({ ...(rec.value as HandsFrame), tick: rec.tick }));
+    const b = run(bare, audio()).reading();
+    expect(b.stampSources).toEqual({ [UNSTAMPED_SOURCE]: 90 });
+    expect(b.frames).toBe(records.length);
   });
 
   it('clock stamps are the dominant source and yield no delivered rate (the stamp is not a capture time)', () => {

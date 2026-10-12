@@ -93,6 +93,17 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(c).toMatch(/sinks: \[\.\.\.latencySinks, toMs\(reportFace\)/);
   });
 
+  it('installs the timing resource and its tap on EVERY run, and disposes it (step 0 of the timing plan)', () => {
+    // The resource is what makes `outputStage` a measured number instead of the flagged
+    // prior: drop the install and every instrument silently reads the prior while the
+    // whole suite stays green (the replays pass their own); drop the tap and the
+    // reading never sees a frame. Neither is behind a flag, unlike the probe.
+    const c = code(useEngine);
+    expect(c).toMatch(/resources\[TIMING_RESOURCE_KEY\] = \(\) => timing!\.reading\(\)/);
+    expect(c).toMatch(/engine\.addTap\(timing\.tap\)/);
+    expect(c).toMatch(/timing\?\.dispose\(\)/);
+  });
+
   it('releases the Applier on unmount, so its taps do not outlive the run', () => {
     // The engine is caller-owned and survives StrictMode remounts; a tap the Applier
     // attached and never detached would keep receiving values from every later run.

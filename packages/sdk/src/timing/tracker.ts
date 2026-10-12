@@ -59,7 +59,9 @@ export interface TimingReading {
    *  until enough capture-stamped frames. */
   deliveredFps: number;
   /** How many of the recent frames were stamped from each source (`capture` is the one
-   *  to trust). */
+   *  to trust), counted only where the stamp was HONOURED (real time at speed 1, this
+   *  document's origin); {@link UNSTAMPED_SOURCE} for a frame without a stamp (a
+   *  synthetic source) or whose stamp was not used (a replayed recording). */
   stampSources: Record<string, number>;
   /** The most common stamp source over the window, or null before a frame. */
   dominantSource: string | null;
@@ -85,6 +87,8 @@ export interface TimingReading {
 
 /** Frames the window statistics (age p95, stamp mix, delivered rate) are taken over. */
 export const TIMING_WINDOW_FRAMES = 90;
+/** The stamp-mix label of a frame with no stamp, or whose stamp was not used. */
+export const UNSTAMPED_SOURCE = 'none';
 /** Gain of the exponentially weighted frame age and period. */
 export const AGE_EW_GAIN = 0.1;
 /** Gain of the exponentially weighted pair reading. */
@@ -210,7 +214,10 @@ export class TimingTracker implements Tap {
     if (stamped) this.ageEw = Number.isFinite(this.ageEw) ? this.ageEw + AGE_EW_GAIN * (age - this.ageEw) : age;
     this.frames++;
     if (typeof frame.skipped === 'number' && frame.skipped > 0) this.skipped += frame.skipped;
-    this.recent.push({ t, age, source: frame.tSource ?? 'none', stamped });
+    // A stamp that was not honoured says nothing about the pipeline: it is counted as no
+    // stamp at all, so a replayed recording never reads as a camera delivering capture
+    // times, and a synthetic source never reads as a browser without them.
+    this.recent.push({ t, age, source: stamped ? (frame.tSource ?? UNSTAMPED_SOURCE) : UNSTAMPED_SOURCE, stamped });
     if (this.recent.length > this.windowFrames) this.recent.shift();
     this.cached = null;
   }

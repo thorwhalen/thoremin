@@ -19,6 +19,7 @@ import {
   MAX_PLAUSIBLE_LAG_MS,
   MIN_STAMP_STEP_MS,
   MIN_VFC_SILENCE_MS,
+  MAX_VFC_CALLBACKS_WITHOUT_RISE,
   vfcSilenceMs,
   type FrameStamp,
   type VideoFrameMetadataLike,
@@ -115,7 +116,9 @@ function scheduler() {
   };
 }
 
-/** A fake element with a video frame callback the test fires by hand. */
+/** A fake element with a video frame callback the test fires by hand. Like the real
+ *  one, a registered callback fires ONCE: `fire` forgets it before calling it, so a pump
+ *  that forgets to re-register is caught (the next `fire` throws). */
 function vfcVideo() {
   let cb: ((now: number, meta: VideoFrameMetadataLike) => void) | null = null;
   const cancelled: number[] = [];
@@ -132,7 +135,12 @@ function vfcVideo() {
   };
   return {
     video,
-    fire: (now: number, meta: VideoFrameMetadataLike) => cb!(now, meta),
+    fire: (now: number, meta: VideoFrameMetadataLike) => {
+      const f = cb;
+      cb = null;
+      if (!f) throw new Error('no video frame callback registered');
+      f(now, meta);
+    },
     cancelled,
     get handle() {
       return handle;
@@ -432,7 +440,7 @@ describe('createFramePump on WebKit-shaped metadata', () => {
   const RAF_MS = 1000 / 60;
   const CAM_MS = 1000 / 30;
 
-  function webkitRun(opts: { frames: number; callbackEvery?: number; skipCallbacksFrom?: number }) {
+  function webkitRun(opts: { frames: number; callbackEvery?: number; skipCallbacksFrom?: number; freezeCounterFrom?: number }) {
     const v = vfcVideo();
     const s = scheduler();
     let clock = 1000;
@@ -454,7 +462,9 @@ describe('createFramePump on WebKit-shaped metadata', () => {
         presented++;
         const every = opts.callbackEvery ?? 1;
         const silent = opts.skipCallbacksFrom !== undefined && presented >= opts.skipCallbacksFrom;
-        if (presented % every === 0 && !silent) v.fire(clock, { mediaTime: 0, captureTime: Math.round(clock - 12), presentationTime: Math.round(clock - 2), presentedFrames: presented });
+        // A frozen counter: the callbacks keep firing per camera frame but count nothing.
+        const counted = opts.freezeCounterFrom !== undefined ? Math.min(presented, opts.freezeCounterFrom - 1) : presented;
+        if (presented % every === 0 && !silent) v.fire(clock, { mediaTime: 0, captureTime: Math.round(clock - 12), presentationTime: Math.round(clock - 2), presentedFrames: counted });
       }
       s.tick();
     }
@@ -476,10 +486,12 @@ describe('createFramePump on WebKit-shaped metadata', () => {
 
   it('a rise of more than one says how many camera frames inference was too busy for', () => {
     // The callback fires for every other camera frame (inference blocked the thread).
-    // Until its first callback the animation loop delivers from the clock (two frames here).
+    // Until its first callback the animation loop delivers from the clock: ONE frame,
+    // not one per animation frame, although this element's `currentTime` moves on every
+    // one of them (the registered-but-silent callback spaces the loop at the default period).
     const { got, pump } = webkitRun({ frames: 40, callbackEvery: 2 });
     const captured = got.filter((g) => g.source === 'capture');
-    expect(got.length - captured.length).toBe(2);
+    expect(got.length - captured.length).toBe(1);
     expect(captured).toHaveLength(20);
     expect(captured[0].skipped).toBe(0);
     expect(captured.slice(1).every((g) => g.skipped === 1)).toBe(true);
@@ -496,6 +508,12 @@ describe('createFramePump on WebKit-shaped metadata', () => {
     const fallback = got.filter((g) => g.source === 'estimated');
     expect(fallback.length).toBeGreaterThan(0);
     expect(fallback.every((g) => Math.abs(g.lagMs - 12) <= 0.5)).toBe(true);
+    // One delivery per CAMERA frame on this wall-clock element, not per animation frame:
+    // the loop ran 25 animation frames after the silence threshold and delivered on
+    // every other one (it used to deliver 15 frames for about 10 camera frames).
+    expect(fallback.length).toBeGreaterThanOrEqual(12);
+    expect(fallback.length).toBeLessThanOrEqual(13);
+    for (let i = 1; i < fallback.length; i++) expect(fallback[i].tMs - fallback[i - 1].tMs).toBeGreaterThanOrEqual(0.75 * CAM_MS - 0.01);
     expect(pump.driver).toBe('raf');
     // The silence is at least the floor, and about two periods of a 30 fps callback.
     expect(vfcSilenceMs(NaN)).toBe(MIN_VFC_SILENCE_MS);
@@ -515,6 +533,90 @@ describe('createFramePump on WebKit-shaped metadata', () => {
     s.tick();
     expect(got).toHaveLength(before + 1); // the loop no longer delivers on the wall clock
     expect(pump.driver).toBe('vfc');
+    pump.stop();
+  });
+
+  it('a frozen counter (callbacks that count nothing) hands delivery to the animation loop, and a rise takes it back', () => {
+    // From camera frame 16 the callback keeps firing once per camera frame with
+    // `presentedFrames` stuck at 15. The pump used to read every callback as a sign of
+    // life and deliver one frame in sixty; now a callback without a rise is not life.
+    const { got, pump, v, s, setClock } = webkitRun({ frames: 40, freezeCounterFrom: 16 });
+    const fromCallback = got.filter((g) => g.source === 'capture');
+    expect(fromCallback).toHaveLength(15);
+    expect(pump.driver).toBe('raf');
+    const fallback = got.filter((g) => g.source === 'estimated');
+    // 25 frozen camera frames; the hand-over costs MAX_VFC_CALLBACKS_WITHOUT_RISE of them
+    // and the loop then delivers once per camera frame, give or take one.
+    expect(fallback.length).toBeGreaterThanOrEqual(25 - MAX_VFC_CALLBACKS_WITHOUT_RISE - 1);
+    expect(fallback.length).toBeLessThanOrEqual(25 - MAX_VFC_CALLBACKS_WITHOUT_RISE + 1);
+    // The counter counts again: that frame is delivered from the callback, nothing
+    // skipped, and the callback drives from then on.
+    const before = got.length;
+    const clock = 1000 + 80 * RAF_MS + 10;
+    setClock(clock);
+    v.fire(clock, { mediaTime: 0, captureTime: clock - 12, presentationTime: clock - 2, presentedFrames: 16 });
+    expect(got).toHaveLength(before + 1);
+    expect(got[got.length - 1]).toMatchObject({ source: 'capture', skipped: 0 });
+    expect(pump.driver).toBe('vfc');
+    setClock(clock + RAF_MS);
+    v.video.currentTime += RAF_MS / 1000;
+    s.tick();
+    expect(got).toHaveLength(before + 1);
+    pump.stop();
+  });
+
+  it('a counter that runs backwards is a new source on the element: delivered at once, nothing skipped', () => {
+    // A new `srcObject` restarts `presentedFrames` from 1. The pump used to wait until
+    // the new count passed the old one (20 frames of silence here).
+    const { got, pump, v, setClock } = webkitRun({ frames: 20 });
+    expect(got).toHaveLength(20);
+    const before = got.length;
+    for (let n = 1; n <= 3; n++) {
+      const clock = 1000 + (40 + 2 * n) * RAF_MS;
+      setClock(clock);
+      v.video.currentTime += CAM_MS / 1000;
+      v.fire(clock, { mediaTime: 0, captureTime: Math.round(clock - 12), presentationTime: Math.round(clock - 2), presentedFrames: n });
+      expect(got).toHaveLength(before + n);
+    }
+    expect(got[before]).toMatchObject({ source: 'capture', skipped: 0 });
+    expect(got[before + 1].skipped).toBe(0);
+    expect(got[before + 2].skipped).toBe(0);
+    expect(pump.driver).toBe('vfc');
+    pump.stop();
+  });
+
+  it('a replaced element starts its counter afresh: its first frame is delivered, not compared with the old count', () => {
+    const a = vfcVideo();
+    const b = vfcVideo();
+    let current = a;
+    const s = scheduler();
+    let clock = 1000;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => current.video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
+      now: () => clock,
+      requestAnimationFrame: s.raf,
+      cancelAnimationFrame: s.caf,
+    });
+    pump.start();
+    a.video.readyState = 0; // the stream is not attached yet: the first tick only registers
+    s.tick();
+    a.video.readyState = 4;
+    for (let n = 1; n <= 100; n++) {
+      clock = 1000 + n * CAM_MS;
+      a.fire(clock, { mediaTime: 0, captureTime: clock - 12, presentedFrames: n });
+    }
+    expect(got).toHaveLength(100);
+    current = b;
+    b.video.readyState = 0;
+    clock += CAM_MS;
+    s.tick(); // the pump notices the new element and registers on it
+    expect(a.cancelled).toHaveLength(1);
+    b.video.readyState = 4;
+    clock += CAM_MS;
+    b.fire(clock, { mediaTime: 0, captureTime: clock - 12, presentedFrames: 1 });
+    expect(got).toHaveLength(101);
+    expect(got[100]).toMatchObject({ source: 'capture', skipped: 0 });
+    expect(got[100].tMs).toBeGreaterThan(got[99].tMs);
     pump.stop();
   });
 

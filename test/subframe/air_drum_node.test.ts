@@ -27,7 +27,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
-import { airDrumNode, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
+import { airDrumNode, standing, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
 import type { MusicalTime } from '@thoremin/ictus';
 import { FIXTURES } from '../helpers/fixtures';
 import { NO_OUTPUT_STAGE, knownOutputStage } from '../helpers/timing';
@@ -286,6 +286,37 @@ describe('air-drum node on the synthetic surface fixture', () => {
       const last = outs[outs.length - 1].status as AirDrumStatus;
       expect(last.lastOnTime).toBe(hits[hits.length - 1].onTime);
       expect(last.lastLateBy).toBeCloseTo(hits[hits.length - 1].lateBy, 9);
+    });
+
+    it('a predicted impact already past at the decision is clamped to now, and that clamp is not a pull', async () => {
+      // Stamped frames 100 ms old (a slow pipeline, sampled at the stamp in real time):
+      // the predictor's last-chance commits land behind the decision and the sound is
+      // truncated to now. With no conductor and no pattern the move is the clamp alone,
+      // which `pull` must not report (it used to report `t - impactT`, a pull from nowhere).
+      const age = 0.1;
+      const aged = frames.map((f, i) => ({ ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: performance.timeOrigin, lag: age }));
+      const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
+      const outs = await replayNode(h, { hands: aged }, { dt: 1 / FPS, resources: { timeScale: 1, ...NO_OUTPUT_STAGE } });
+      const hits = outs.flatMap((o) => o.hits as DrumHit[]);
+      expect(hits).toHaveLength(truth.events.length);
+      const behind = hits.slice(1).filter((x) => x.lead < 0);
+      expect(behind.length).toBeGreaterThan(1);
+      for (const hit of hits) {
+        expect(hit.pull).toBe(0);
+        expect(hit.t).toBeGreaterThanOrEqual(hit.impactT);
+      }
+    });
+
+    it('under the prior, standing() says only what is certain: unknown-output for any lead at or above 0, late by its own size below', () => {
+      const prior = { value: 0.02, source: 'prior' };
+      // A lead under the prior is NOT a definite late with a lateBy read off a guess.
+      expect(standing(0.01, 0, prior)).toEqual({ lead: 0.01, lateBy: 0, predicted: true, onTime: 'unknown-output' });
+      expect(standing(0, 0, prior)).toEqual({ lead: 0, lateBy: 0, predicted: true, onTime: 'unknown-output' });
+      expect(standing(0.05, 0, prior)).toEqual({ lead: 0.05, lateBy: 0, predicted: true, onTime: 'unknown-output' });
+      expect(standing(-0.01, 0, prior)).toEqual({ lead: -0.01, lateBy: 0.01, predicted: false, onTime: 'late' });
+      // A measured stage is a measurement: late by the shortfall.
+      expect(standing(0.01, 0, { value: 0.02, source: 'measured' })).toEqual({ lead: 0.01, lateBy: 0.01, predicted: false, onTime: 'late' });
+      expect(standing(0.02, 0, { value: 0.02, source: 'measured' })).toEqual({ lead: 0.02, lateBy: 0, predicted: true, onTime: 'yes' });
     });
 
     it('with no timing resource the stage is the stated prior and a predicted hit says unknown-output, never yes', async () => {

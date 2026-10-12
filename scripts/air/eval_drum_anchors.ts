@@ -15,7 +15,13 @@
  * Scores, per cell: recall (truth impacts that got a hit within 120 ms), precision (hits
  * that matched one), the share of matched hits that were PREDICTED ahead of the impact
  * (rather than sounded late on confirmation), and the median and 90th-percentile
- * absolute error of the sounded time against the executed impact.
+ * absolute error of the sounded time against the executed impact. The replay installs a
+ * `timing` resource with a KNOWN output stage of 0, so `predicted` keeps meaning "the
+ * lead from the decision is not negative", the quantity section 7.3 of
+ * `docs/research/air-instruments.md` reports; without one the node reads the 20 ms prior
+ * and `predicted` would mean "lead at or above 20 ms" (step 0 of the timing plan). The
+ * air bass and guitar still call a note predicted at a lead of 0 or more while
+ * `pluck_out` subtracts the stage when scheduling it; that is theirs, not this scorer's.
  *
  * Usage:
  *   npx vite-node scripts/air/eval_drum_anchors.ts [--set DIR] [--arm 0,0.25,1] [--noise 0,0.02,0.05] [--min-lead 0.03]
@@ -28,6 +34,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { airDrumNode, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
+import { TIMING_RESOURCE_KEY, type TimingReading } from '@thoremin/sdk/timing/tracker';
 import { DRUM_ANCHOR_POINTS, type DrumAnchorPoint } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { airDir } from './lib_air_paths';
 import { gripFrames, parseStickClip } from './lib_synthetic_grip';
@@ -84,6 +91,11 @@ export function matchHits(truth: readonly number[], hits: readonly DrumHit[], wi
   return { matched, predicted, errors };
 }
 
+/** A known output stage of 0 (see the header): the scorer's `predicted` is the lead's sign. */
+const KNOWN_STAGE_0: Record<string, () => Pick<TimingReading, 'outputStage' | 'audioEpoch' | 'leadBudget'>> = {
+  [TIMING_RESOURCE_KEY]: () => ({ outputStage: { value: 0, source: 'measured' }, audioEpoch: 0, leadBudget: 0 }),
+};
+
 async function main() {
   const indexPath = join(SET, 'index.json');
   if (!existsSync(indexPath)) {
@@ -104,7 +116,7 @@ async function main() {
         const frames = gripFrames(poses, { arm, noise, seed: c.axes.seed + 1 });
         for (const point of DRUM_ANCHOR_POINTS) {
           const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, point, minLead: MIN_LEAD }));
-          const outs = await replayNode(h, { hands: frames }, { dt: 1 / c.axes.fps });
+          const outs = await replayNode(h, { hands: frames }, { dt: 1 / c.axes.fps, resources: KNOWN_STAGE_0 });
           const hits = outs.flatMap((o) => o.hits as DrumHit[]);
           const m = matchHits(truth, hits);
           const k = key(c.axes.kind, arm, noise, point);

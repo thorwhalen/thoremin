@@ -148,8 +148,9 @@ export const DEFAULT_AIR_DRUM_DIAL: AirDrumDialParams = AirDrumDialSchema.parse(
 
 /** Whether a hit's sound lands at its intended time: `yes` (the lead covers the audio
  *  output stage), `late` (it does not: the sound lands `lateBy` after the intended time),
- *  or `unknown-output` (the lead covers the stated prior, but the output stage of this
- *  browser is not known: Safari before the first tap, fingerprinting protection). */
+ *  or `unknown-output` (the lead is not negative, but the output stage of this browser
+ *  is not known: Safari before the first tap, fingerprinting protection; whether the
+ *  lead covers it cannot be said, so neither `yes` nor `late` is). */
 export const HIT_ON_TIME = ['yes', 'late', 'unknown-output'] as const;
 export type HitOnTime = (typeof HIT_ON_TIME)[number];
 
@@ -189,7 +190,9 @@ export interface DrumHit {
    *  the decision (a ghost note, a pull toward a beat gone by). */
   lead: number;
   /** How far the sound lands after its intended time, seconds: 0 when on time; the
-   *  shortfall of `lead` against the output stage otherwise. */
+   *  shortfall of `lead` against the output stage otherwise. With an unknown stage
+   *  (`unknown-output`, or `late` under the prior) only the certain part: how far the
+   *  intended time was already past at the decision. */
   lateBy: number;
   /** The move actually made from the impact to the sounding time, seconds: the magnet's
    *  pull (or the pattern's snap), after the clamp to the decision time (0 without a
@@ -264,13 +267,19 @@ const FRAME_BOTTOM = 1;
  * A hit's standing against the pipeline (step 0b, #239): its lead from the decision
  * (unclamped), whether its sound can land at the intended time, and by how much it
  * cannot. The earliest a sound decided at `decisionT` can leave the device is
- * `decisionT + outputStage.value`, so the lead must cover the stage; the stage's source
- * says whether that number is known or a flagged prior.
+ * `decisionT + outputStage.value`, so the lead must cover the stage. When the stage is
+ * only the stated prior (its source says so) that comparison is not a measurement: a
+ * lead at or above zero is `unknown-output`, never a definite `late` with a `lateBy`
+ * read off a guess, and a negative lead is late by at least its own size.
  */
 export function standing(intendedT: number, decisionT: number, outputStage: { value: number; source: string }): Pick<DrumHit, 'lead' | 'lateBy' | 'predicted' | 'onTime'> {
   const lead = intendedT - decisionT;
+  if (outputStage.source === 'prior') {
+    const onTime: HitOnTime = lead >= 0 ? 'unknown-output' : 'late';
+    return { lead, lateBy: Math.max(0, -lead), predicted: onTime !== 'late', onTime };
+  }
   const lateBy = Math.max(0, outputStage.value - lead);
-  const onTime: HitOnTime = lateBy > 0 ? 'late' : outputStage.source === 'prior' ? 'unknown-output' : 'yes';
+  const onTime: HitOnTime = lateBy > 0 ? 'late' : 'yes';
   return { lead, lateBy, predicted: onTime !== 'late', onTime };
 }
 
@@ -746,16 +755,22 @@ export const airDrumNode = defineNode<Params>({
                 /** The INTENDED sounding time: the impact, pulled toward the grid. */
                 let intended = e.t;
                 let sound = s.sound;
+                /** Whether a snap or the magnet moved the sounding time: only then is the
+                 *  move a `pull`; the clamp alone (an impact already past at the decision,
+                 *  a lastChance commit on a slow pipeline) is not one. */
+                let pulled = false;
                 if (follower) {
                   // Pattern mode: the first hit is the one when no count-in said where it falls.
                   if (follower.beat(e.t) === null) follower.start(e.t);
                   const snap = follower.snap(e.t, { sound: s.sound, pad: s.pad });
                   if (snap.event !== null) {
                     intended = snap.at;
+                    pulled = true;
                     if (snap.drum) sound = DRUM_SOUND[snap.drum];
                   }
                 } else if (time && c.magnetism > 0) {
                   intended = magnetise(e.t, time, c.magnetism).t;
+                  pulled = true;
                 }
                 // Never behind the decision: a pull toward a beat already past is truncated
                 // to "now" for the SOUND; the lead and the pull report what really happened.
@@ -773,7 +788,7 @@ export const airDrumNode = defineNode<Params>({
                   speed: s.speed,
                   strength: clamp01(e.strength),
                   ...standing(intended, ctx.time, outputStage),
-                  pull: at - e.t,
+                  pull: pulled ? at - e.t : 0,
                 });
               } else if (e.predicted === null) {
                 // Unpredicted: a ghost note, now; its lead is how late that is. It landed

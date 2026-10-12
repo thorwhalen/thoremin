@@ -10,9 +10,11 @@
  * browser cannot report (so a predicted hit may still sound late: run the strike test),
  * a camera delivering under {@link LOW_LIGHT_FPS} (the usual cause is dim light), and
  * stamps that are not capture stamps (a sub-frame estimate then claims a precision the
- * stamp cannot carry).
+ * stamp cannot carry). That last hint is about a BROWSER's stamps: frames with no stamp
+ * at all (a synthetic source) or whose stamp was not used (a replay) earn no hint, since
+ * there is nothing the player or the browser could do about them.
  */
-import type { TimingReading } from '@thoremin/sdk/timing/tracker';
+import { UNSTAMPED_SOURCE, type TimingReading } from '@thoremin/sdk/timing/tracker';
 
 /** A delivered rate under this (fps) is the low-light hint: the camera has lengthened
  *  its exposure. Cameras grant 24 to 30 in good light. */
@@ -51,6 +53,8 @@ export function describeTiming(r: TimingReading): TimingDescription {
   if (r.audio.state === 'running' && r.outputStage.source === 'prior') warnings.push('audio output latency unknown on this browser: run the strike test (?probe=latency)');
   if (r.outputStage.source !== 'prior' && r.outputStage.value >= HIGH_OUTPUT_STAGE_S) warnings.push(`your audio output adds ${ms(r.outputStage.value)}`);
   if (Number.isFinite(r.deliveredFps) && r.deliveredFps < LOW_LIGHT_FPS) warnings.push(`camera delivers ${r.deliveredFps.toFixed(0)} fps (low light?)`);
-  if (total >= MIN_FRAMES_FOR_STAMP_HINT && r.dominantSource !== null && r.dominantSource !== 'capture') warnings.push(`frames carry ${r.dominantSource} stamps, not capture times`);
+  if (total >= MIN_FRAMES_FOR_STAMP_HINT && r.dominantSource !== null && r.dominantSource !== 'capture' && r.dominantSource !== UNSTAMPED_SOURCE) {
+    warnings.push(`frames carry ${r.dominantSource} stamps, not capture times`);
+  }
   return { line: r.frames > 0 ? parts.join(' · ') : '', warnings };
 }

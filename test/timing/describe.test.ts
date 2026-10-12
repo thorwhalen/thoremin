@@ -4,7 +4,7 @@
  * probe's panel are covered without a DOM.
  */
 import { describe, it, expect } from 'vitest';
-import type { TimingReading } from '@thoremin/sdk/timing/tracker';
+import { UNSTAMPED_SOURCE, type TimingReading } from '@thoremin/sdk/timing/tracker';
 import { describeTiming, LOW_LIGHT_FPS, MIN_FRAMES_FOR_STAMP_HINT } from '@/app/timing/describe';
 import { makeTimingReporter, timingStatusKey } from '@/app/timingStatus';
 
@@ -54,6 +54,12 @@ describe('describeTiming', () => {
     expect(describeTiming(clocked).warnings).toEqual(['frames carry clock stamps, not capture times']);
     expect(describeTiming(clocked).line).toContain('30 fps processed');
     expect(describeTiming(reading({ dominantSource: 'clock', stampSources: { clock: MIN_FRAMES_FOR_STAMP_HINT - 1 } })).warnings).toEqual([]);
+  });
+
+  it('says nothing about stamps when the frames carry none (a synthetic source) or theirs were not used (a replay)', () => {
+    const unstamped = reading({ deliveredFps: NaN, dominantSource: UNSTAMPED_SOURCE, stampSources: { [UNSTAMPED_SOURCE]: MIN_FRAMES_FOR_STAMP_HINT * 2 } });
+    expect(describeTiming(unstamped).warnings).toEqual([]);
+    expect(describeTiming(unstamped).line).toContain('capture stamps 0 %');
   });
 
   it('counts skipped frames in the line', () => {
