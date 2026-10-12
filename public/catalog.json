@@ -497,6 +497,70 @@
     ]
   },
   {
+    "type": "asl-signs",
+    "title": "ASL Signs",
+    "description": "Hands → ASL signs: the fingerspelled alphabet and a few common words, a score per sign (two small MLPs over the hand landmarks).",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "asl-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "reading",
+        "kind": "asl-reading"
+      },
+      {
+        "name": "signs",
+        "kind": "category-scores"
+      },
+      {
+        "name": "status",
+        "kind": "load-status"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "motion",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "minConfidence",
+        "type": "number",
+        "default": 0.45
+      },
+      {
+        "name": "smoothing",
+        "type": "number",
+        "default": 0.12
+      },
+      {
+        "name": "chords",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "holdChord",
+        "type": "boolean",
+        "default": true
+      }
+    ]
+  },
+  {
     "type": "body-feature-vector",
     "title": "Body Feature Vector",
     "description": "Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).",
@@ -687,6 +751,14 @@
         "kind": "air-flute-status"
       },
       {
+        "name": "categories",
+        "kind": "category-scores"
+      },
+      {
+        "name": "categoryCaptions",
+        "kind": "string[]"
+      },
+      {
         "name": "elements",
         "kind": "string[]"
       },
@@ -776,6 +848,16 @@
         "default": {}
       },
       {
+        "name": "categoryLabel",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "categoryBars",
+        "type": "object",
+        "default": {}
+      },
+      {
         "name": "fingerBars",
         "type": "object",
         "default": {}
@@ -853,7 +935,7 @@
   {
     "type": "chord-select",
     "title": "Chord Select",
-    "description": "Pick the first non-empty of two chord-tone streams (e.g. emotion triad vs pose chord) for the overlay.",
+    "description": "Pick the first non-empty of up to three chord-tone streams (emotion triad, pose chord, sign chord) for the overlay.",
     "roles": [
       "mapping"
     ],
@@ -864,6 +946,10 @@
       },
       {
         "name": "b",
+        "kind": "number[]"
+      },
+      {
+        "name": "c",
         "kind": "number[]"
       }
     ],
@@ -2204,6 +2290,78 @@
     ]
   },
   {
+    "type": "sign-chord",
+    "title": "Sign Chord",
+    "description": "ASL letters A..G → the diatonic chord of the key whose root has that letter name (accidentals of the key applied), voiced and rendered like the face chords.",
+    "roles": [
+      "music"
+    ],
+    "inputs": [
+      {
+        "name": "reading",
+        "kind": "asl-reading"
+      },
+      {
+        "name": "spec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
+      },
+      {
+        "name": "config",
+        "kind": "asl-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "triad",
+        "kind": "number[]"
+      },
+      {
+        "name": "captions",
+        "kind": "string[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "sound",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "triangle"
+      },
+      {
+        "name": "voicing",
+        "type": "enum(spread | bassTriad | close | shell | power)",
+        "default": "spread"
+      },
+      {
+        "name": "rendering",
+        "type": "enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)",
+        "default": "sustained"
+      },
+      {
+        "name": "bpm",
+        "type": "number",
+        "default": 100
+      }
+    ]
+  },
+  {
     "type": "store-controls",
     "title": "UI Controls",
     "description": "Reads the live UI control store → scale + sound + overlay port values.",
@@ -2344,6 +2502,10 @@
       {
         "name": "airFlute",
         "kind": "air-flute-config"
+      },
+      {
+        "name": "asl",
+        "kind": "asl-config"
       },
       {
         "name": "airGuitarModel",

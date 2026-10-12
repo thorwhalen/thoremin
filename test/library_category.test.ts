@@ -124,7 +124,7 @@ describe('instrument classes (the ADR\'s PR 2)', () => {
       expect(c.emoji.length).toBeGreaterThan(0);
       expect(c.colour).toMatch(/^hsl\(/);
     }
-    expect(ids).toEqual(['field', 'air']);
+    expect(ids).toEqual(['field', 'air', 'sign']);
   });
 
   it('normalises the former id `theremin` to `field` and rejects unknown ids', () => {

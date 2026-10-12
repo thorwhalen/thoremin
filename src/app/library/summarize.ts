@@ -15,7 +15,7 @@ import { SOUNDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import type { Settings } from '@/settings/schema';
 import type { PositionSource, FingerTarget } from '@/nodes/mapping/hand_map';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
-import { AIR_INSTRUMENTS, airInstrumentsOf, type AirInstrumentId } from './category';
+import { AIR_INSTRUMENTS, airInstrumentsOf, classOfEntry, type AirInstrumentId } from './category';
 
 /** The coarse scale quality used for the scale-quality system tag + the tooltip. */
 export type ScaleQuality =
@@ -189,8 +189,12 @@ const MASTER_DEFAULTS = { masterVolume: 0.4, magnetism: 0.8, octaveShift: 0 } as
 export function summaryLines(sum: InstrumentSummary): SummaryLine[] {
   const lines: SummaryLine[] = [];
   if (sum.air.length > 0) {
-    const label = (id: AirInstrumentId) => AIR_INSTRUMENTS.find((a) => a.id === id)?.label ?? id;
-    lines.push({ label: 'Air', value: sum.air.map(label).join(', ') });
+    // One line per class: the air instruments under "Air", the sign reader under "Sign".
+    const entries = sum.air.map((id) => AIR_INSTRUMENTS.find((a) => a.id === id)).filter((a): a is (typeof AIR_INSTRUMENTS)[number] => !!a);
+    for (const cls of ['air', 'sign'] as const) {
+      const of = entries.filter((a) => classOfEntry(a) === cls);
+      if (of.length) lines.push({ label: cls === 'air' ? 'Air' : 'Sign', value: of.map((a) => a.label).join(', ') });
+    }
   }
   if (sum.scaleHeard) {
     lines.push({ label: 'Scale', value: sum.scaleLabel });

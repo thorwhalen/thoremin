@@ -18,14 +18,18 @@ export const chordSelectNode = defineNode({
   type: 'chord-select',
   roles: ['mapping'],
   title: 'Chord Select',
-  description: 'Pick the first non-empty of two chord-tone streams (e.g. emotion triad vs pose chord) for the overlay.',
+  description: 'Pick the first non-empty of up to three chord-tone streams (emotion triad, pose chord, sign chord) for the overlay.',
   inputs: [
     { name: 'a', kind: 'number[]' },
     { name: 'b', kind: 'number[]' },
+    // A third producer (the ASL chord branch); last in priority.
+    { name: 'c', kind: 'number[]' },
   ],
   outputs: [{ name: 'chord', kind: 'number[]' }],
   process(inputs) {
     const a = asTones(inputs.a);
-    return { chord: a.length ? a : asTones(inputs.b) };
+    if (a.length) return { chord: a };
+    const b = asTones(inputs.b);
+    return { chord: b.length ? b : asTones(inputs.c) };
   },
 });

@@ -52,7 +52,7 @@ const branchHint = (id: string): string | undefined => BRANCHES.find((b) => b.id
  */
 export const USES_SAID_ELSEWHERE: ReadonlySet<string> = new Set([
   'field-voices',
-  ...AIR_INSTRUMENTS.map((a) => `air-${a.id}`),
+  ...AIR_INSTRUMENTS.flatMap((a): readonly string[] => ('branches' in a ? a.branches : [`air-${a.id}`])),
 ]);
 
 const classLabel = (id: string): string => {

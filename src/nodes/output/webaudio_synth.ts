@@ -293,6 +293,13 @@ export const webAudioSynthNode = defineNode<Params>({
         if (!sp) return {};
         const now = ac.currentTime;
 
+        // A voice whose id is no longer in the stream fades out: its producer left the graph
+        // (an instrument switch, a branch switched off) mid-note, and nothing else would ever
+        // send it the silence. Producers keep stable ids while they exist, so this only fires
+        // on such a removal.
+        const seen = new Set(sp.voices.map((v) => v.id));
+        for (const [id, voice] of voices) if (!seen.has(id)) voice.voiceGain.gain.setTargetAtTime(0, now, voice.release);
+
         for (const v of sp.voices) {
           // Guard against non-finite params (a degenerate upstream feature):
           // setTargetAtTime throws on NaN/Infinity, which would otherwise abort

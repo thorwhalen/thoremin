@@ -79,7 +79,7 @@ const FOLD_POINTS = new Set([
 /** The PACKAGES a pure extension file may import: the pure SDK, thoremin's other pure
  *  workspace packages and the schema library. Its React side may import any package the app
  *  depends on, `@thoremin/sdk-ui` included. */
-const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', 'zod'];
+const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', '@thoremin/asl', 'zod'];
 
 /** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
 /** A file of an extension's PURE side, by its path below the extension's source directory: a

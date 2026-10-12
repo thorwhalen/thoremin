@@ -1,0 +1,29 @@
+{
+  "name": "@thoremin/ext-asl",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's ASL extension: the sign reader (@thoremin/asl) as a node and branch, the sign-chord node, and the ASL Viewer and ASL Chords instruments. Imports only the SDK packages. TypeScript source, consumed through the workspace.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app/aslStatus": "./src/app/aslStatus.ts",
+    "./branches": "./src/branches.ts",
+    "./dials": "./src/dials.ts",
+    "./nodes/asl_signs": "./src/nodes/asl_signs.ts",
+    "./nodes/sign_chord": "./src/nodes/sign_chord.ts",
+    "./panels/asl": "./src/panels/asl.tsx",
+    "./ui": "./src/ui.tsx"
+  },
+  "dependencies": {
+    "@thoremin/asl": "*",
+    "@thoremin/dag": "*",
+    "@thoremin/lazy": "*",
+    "@thoremin/sdk": "*",
+    "@thoremin/sdk-ui": "*",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
+  },
+  "peerDependencies": {
+    "react": "*"
+  }
+}

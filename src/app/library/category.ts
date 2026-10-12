@@ -28,7 +28,15 @@ export interface AirInstrument {
   usesScale: boolean;
   /** True when these settings play this air instrument. */
   on: (s: Settings) => boolean;
+  /** The class an instrument playing it is listed under (default: air). */
+  class?: InstrumentClassId;
+  /** The branch ids its system tag already says (default: `air-<id>`), which the "uses"
+   *  facet therefore leaves out. */
+  branches?: readonly string[];
 }
+
+/** The class an entry lists its instruments under. */
+export const classOfEntry = (a: AirInstrument): InstrumentClassId => a.class ?? 'air';
 
 /** Whether the extension dial `key` is on. Read structurally: the dial exists only in a build
  *  whose extension list declares it, so a build without the air extension reads "off". */
@@ -46,6 +54,9 @@ export const AIR_INSTRUMENTS = [
   { id: 'guitar', label: 'Air guitar', emoji: '🤘', usesScale: false, on: dialOn('airGuitar') },
   // The flute plays the notes the player named when enrolling fingerings, not the scale.
   { id: 'flute', label: 'Air flute', emoji: '🪈', usesScale: false, on: dialOn('airFlute') },
+  // Not an air instrument but the same kind of entry: an extension's instrument, detected
+  // from its dial. The ASL reader (and its chords) is listed under the sign instruments.
+  { id: 'asl', label: 'Sign language', emoji: '🤟', usesScale: false, on: dialOn('asl'), class: 'sign', branches: ['asl-signs'] },
 ] as const satisfies readonly AirInstrument[];
 
 export type AirInstrumentId = (typeof AIR_INSTRUMENTS)[number]['id'];
@@ -71,9 +82,11 @@ export const INSTRUMENT_CATEGORIES = INSTRUMENT_CLASSES;
 export type InstrumentCategory = InstrumentClassId;
 
 /** The class an instrument that plays these air instruments belongs to. An air
- *  instrument wins: a field instrument with a drum added is found where the drums are. */
+ *  instrument wins: a field instrument with a drum added is found where the drums are.
+ *  Among several, the first in {@link AIR_INSTRUMENTS} order decides (the air ones lead). */
 export function categoryOfAir(air: readonly AirInstrumentId[]): InstrumentClassId {
-  return air.length > 0 ? 'air' : DEFAULT_CLASS;
+  const first = (AIR_INSTRUMENTS as readonly AirInstrument[]).find((a) => (air as readonly string[]).includes(a.id));
+  return first ? (first.class ?? 'air') : DEFAULT_CLASS;
 }
 
 /** The class of an instrument's settings. */

@@ -23,7 +23,7 @@ import { AirDrumReadout } from '@thoremin/ext-air/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
 import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@thoremin/ext-air/dials';
 import type { HandMap } from '@/nodes/mapping/hand_map';
-import { AIR } from './helpers/extensions';
+import { AIR, ASL } from './helpers/extensions';
 
 const airDrum = () => dialsStore.getState().effective.airDrum as AirDrumSettings;
 const airBass = () => dialsStore.getState().effective.airBass as AirBassSettings;
@@ -55,7 +55,7 @@ describe('the Air instruments category (#249)', () => {
     expect(within(air).queryByText('Pentatonic')).toBeNull();
     // Field instruments first, then the air instruments.
     const groups = screen.getAllByRole('group').map((g) => g.getAttribute('data-category'));
-    expect(groups).toEqual(['field', 'air']);
+    expect(groups).toEqual(['field', 'air', ...(ASL ? ['sign'] : [])]);
     // Its system tag says what it is at a glance.
     expect(within(air).getByTitle('Air drum')).toBeTruthy();
   });
