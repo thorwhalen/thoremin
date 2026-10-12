@@ -65,6 +65,14 @@
  * - **The stroke's top** stays the running highest point since the last anchor rather
  *   than a state a glitch can reset.
  *
+ * Two trade-offs are stated here because they are measured. Under tracker noise the
+ * default confirms later than the median prefilter did (smooth 30 fps strokes at 4 %
+ * noise: 62 ms after the bottom against 49), because a return has to clear the noise
+ * margin before it counts; and a tenuto is confirmed only when the hand leaves the
+ * dwell (159 ms at 30 fps against the median's 82, which fired on the dwell's second
+ * sample), the price of timing it from its arrival rather than from the dwell's
+ * deepest noise sample.
+ *
  * The limit this leaves is physical: with three samples a one-frame spike and a sharp
  * V differ only in scale, so a spike smaller than the ceiling that lands exactly as
  * the sample after a descent can still read as a bottom; the amplitude gates are what
@@ -80,6 +88,7 @@
  * Pure state, no allocation per sample beyond the emitted anchor, no clock.
  */
 import type { Anchor, Sample } from './types';
+import { fitQuadratic } from './impact';
 
 /** What is done to the samples before the turning point is looked for. */
 export type Prefilter =
@@ -122,7 +131,8 @@ export interface DetectorOptions {
    *  stroke covers its amplitude in under 100 ms, about 12 envelopes per second; the
    *  default is well above it, so a real turn is never a spike at any frame rate, and
    *  a jump of more than `ceiling · dt` envelopes is: the whole stroke at 30 fps, a
-   *  third of it at 120. Inactive until three strokes have been seen. 0 = off. */
+   *  third of it at 120. Until three strokes have been seen the range of positions
+   *  seen so far stands in for the envelope. 0 = off. */
   maxSpeedEnvelopes?: number;
   /** A sample within this fraction of the envelope of the stroke's deepest point is on
    *  the same plateau (one bottom): half the decisive-return margin, so that a soft
@@ -183,10 +193,11 @@ export interface DetectorOptions {
 
 /** The relative spike ceiling's default; the option's doc derives it. */
 const SPIKE_SPEED_ENVELOPES = 30;
-/** Strokes the relative spike ceiling waits for: before the envelope has a history
- *  it has nothing to scale by (a small preparatory stroke would set a ceiling the
- *  next full stroke's rise exceeds, deferring its confirmation sample after sample:
- *  300 ms on the 3/4 fixture's second beat). */
+/** Strokes after which the relative spike ceiling scales by the largest envelope
+ *  seen; before that, by the range of positions seen (a small preparatory stroke
+ *  would set an envelope-based ceiling the next full stroke's rise exceeds,
+ *  deferring its confirmation sample after sample: 300 ms on the 3/4 fixture's
+ *  second beat). */
 const CEILING_AFTER_STROKES = 3;
 /** Residuals the jitter median is taken over, and the factor that makes the median
  *  absolute THIRD difference of the position (`y3 − 3y2 + 3y1 − y0`) a standard
@@ -314,6 +325,9 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   // and p2 is the provisional newest sample, so a turn at p1 is confirmed by the very
   // next sample.
   const raw: Sample[] = [];
+  /** Raw samples kept: the three the spike test needs, and the one before them that
+   *  lets a bridge keep the stroke's curvature. */
+  const RAW_KEPT = 4;
   /** The settled points, newest last (at most three). */
   const settled: Point[] = [];
   /** The running bottom of the stroke in progress (`turning` on raw samples): the
@@ -422,8 +436,15 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   /** The spike ceiling in force: the absolute one, else the envelope-relative one. */
   const spikeCeiling = (): number => {
     if (o.maxSpeed > 0) return o.maxSpeed;
-    if (o.maxSpeedEnvelopes > 0 && anchorsSeen >= CEILING_AFTER_STROKES) return o.maxSpeedEnvelopes * peakEnvelope;
-    return Infinity;
+    if (!(o.maxSpeedEnvelopes > 0)) return Infinity;
+    if (anchorsSeen >= CEILING_AFTER_STROKES) return o.maxSpeedEnvelopes * peakEnvelope;
+    // Before the envelope has a history, the range of positions seen so far is the
+    // scale: at least the stroke in progress, so a real stroke's rise stays under
+    // the ceiling (its first two or three samples aside, before there is anything to
+    // confirm) and a jump of more than a stroke in a frame is over it from the first
+    // stroke on.
+    const range = yMax - yMin;
+    return range > 0 ? o.maxSpeedEnvelopes * range : Infinity;
   };
 
   const emit = (t: number, x: number, amplitude: number): Anchor => {
@@ -453,7 +474,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     const vyOf = (t: number, y: number) => (last && t > last.t ? (y - last.y) / (t - last.t) : 0);
     if (o.prefilter === 'median') {
       if (raw.length < 3) return null;
-      const [a, b, c] = raw;
+      const [a, b, c] = raw.slice(-3);
       const my = sign * median3(sign * a.y, sign * b.y, sign * c.y);
       // The residual of the middle sample against the median of its neighbours is the
       // frame-to-frame jitter, whether the hand is still or sweeping smoothly.
@@ -467,14 +488,21 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     let x = b.x;
     let y = sign * b.y;
     let bridged = false;
-    if (raw.length === 3 && o.prefilter === 'spikes') {
-      const [a, , c] = raw;
+    if (raw.length >= 3 && o.prefilter === 'spikes') {
+      const a = raw[raw.length - 3];
+      const c = raw[raw.length - 1];
       const e = excursion(a, b, c);
       const ceiling = spikeCeiling();
       if (e.reverses && e.inSpeed > ceiling && e.outSpeed > ceiling) {
         const w = (b.t - a.t) / (c.t - a.t);
         x = a.x + w * (c.x - a.x);
-        y = sign * (a.y + w * (c.y - a.y));
+        // The bridge keeps the stroke's curvature when a sample before `a` is there
+        // (the parabola through it, `a` and `c`, read at `b`): a straight line in
+        // place of a bottom's neighbour would move the fitted vertex by a third of
+        // a frame. Straight only for the first samples of the history.
+        const z = raw.length === RAW_KEPT ? raw[0] : undefined;
+        const q = z ? fitQuadratic([z.t, a.t, c.t], [z.y, a.y, c.y], b.t) : null;
+        y = sign * (q ? q.a : a.y + w * (c.y - a.y));
         bridged = true;
       }
     }
@@ -583,7 +611,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
       const prev = raw[raw.length - 1];
       if (prev && (s.t < prev.t || s.t - prev.t > o.maxGap)) clearHistory();
       raw.push(s);
-      if (raw.length > 3) raw.shift();
+      if (raw.length > RAW_KEPT) raw.shift();
 
       const pt = settle();
       if (pt) {

@@ -27,9 +27,8 @@ const PERIOD = 0.7;
 const PHASE = 0.0123;
 const AMP = 100;
 const SECONDS = 8;
-/** The first strokes are left clean so the envelope exists before anything is
- *  corrupted (the relative spike ceiling waits for three). */
-const CLEAN_SECONDS = 2.5;
+/** The first strokes are left clean so the envelope exists before anything is corrupted. */
+const CLEAN_SECONDS = 1.5;
 /** An anchor further than this from every true ictus is spurious (seconds). */
 const SPURIOUS_WINDOW = 0.05;
 /** The sub-frame bound the clean train is pinned to (seconds). */
@@ -213,6 +212,26 @@ describe('ictus prefilter (#231): the raw samples time, the spikes are bridged',
     expect(shipped.beats).toBeGreaterThanOrEqual(expectedBeats(1 / FPS, SECONDS) - 1);
     // The control: trusting every sample, the same spikes make false bottoms.
     expect(audit(anchors(spiked, { prefilter: 'none' })).spurious).toBeGreaterThan(0);
+  });
+
+  it('spikes inside the first strokes are bridged too (the range seen stands in for the envelope): none spurious, timing kept', () => {
+    for (const fps of [30, 60]) {
+      const clean: Sample[] = [];
+      for (let i = 0; i * (1 / fps) <= SECONDS; i++) clean.push({ t: i / fps, ...stroke(i / fps) });
+      // 1.5 strokes of spike, every seventh sample from the very first stroke on.
+      const next = rng(5);
+      // (Not the very first sample: with no neighbour yet it can only be taken as read.)
+      const spiked = clean.map((s, i) => (i % 7 === 0 && i > 0 ? { t: s.t, x: s.x, y: s.y + (next() < 0.5 ? -1 : 1) * 1.5 * AMP } : s));
+      const found = anchors(spiked);
+      const a = audit(found);
+      expect(a.spurious, `${fps} fps`).toBe(0);
+      expect(a.doubled, `${fps} fps`).toBe(0);
+      expect(a.beats, `${fps} fps`).toBeGreaterThanOrEqual(expectedBeats(1 / fps, SECONDS) - 1);
+      // A bridged spike next to a bottom leaves the fit a frame's travel at most.
+      for (const x of found) expect(Math.abs(x.t - trueIctus(x.t)), `${fps} fps`).toBeLessThan(CLEAN_TOLERANCE + 0.5 / fps);
+      const mean = found.reduce((s, x) => s + (x.t - trueIctus(x.t)), 0) / found.length;
+      expect(Math.abs(mean), `${fps} fps`).toBeLessThan(CLEAN_TOLERANCE);
+    }
   });
 
   it('an absolute ceiling in the caller\'s units works before any envelope exists', () => {
