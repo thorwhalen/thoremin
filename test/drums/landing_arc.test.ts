@@ -18,9 +18,14 @@ import { defaultGraph } from '@/app/graph';
 import { fitLine } from '@thoremin/ictus';
 import { fallingSegment, isCarried, landingAt, swingShare, type DrumHit, type TrackSample } from '@thoremin/ext-air/nodes/air_drum';
 import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
-import { DEFAULT_PADS_SET, hitPad, type FallPath, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
-import { TRUE_STICK_LENGTH } from '../../scripts/air/lib_synthetic_grip';
-import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, scoreTake, starterKitPads, type DrumTakeOptions } from '../air/synthetic_drums';
+import { DEFAULT_PADS_SET, hitPad, type FallPath, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
+import { replayNode } from '@thoremin/dag';
+import { airDrumNode } from '@thoremin/ext-air/nodes/air_drum';
+import { TRUE_STICK_LENGTH, gripFrames, parseStickClip } from '../../scripts/air/lib_synthetic_grip';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { FIXTURES } from '../helpers/fixtures';
+import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, scoreTake, starterKitPads, type DrumStroke, type DrumTakeOptions } from '../air/synthetic_drums';
 import { AIR } from '../helpers/extensions';
 
 const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sound: 'sine' } as const;
@@ -52,12 +57,14 @@ describe.runIf(AIR)('the pads demo take (#261): every stroke on its pad, no fals
     expect({ on: score.on, off: score.off, missed: score.missed, false: score.false }).toEqual({ on: 13, off: 0, missed: 0, false: 0 });
     for (const { stroke, hit } of score.perStroke) {
       const tip = overlay[Math.round(stroke.tLand * DRUM_TAKE_FPS)].tip;
-      // The hit is read at the pad's depth, across the stroke where the tip really went.
+      // The hit's x is where the tip really went (the arc); its depth is the fit's, within
+      // the pad (the real landing point is kept, so where-in-the-pad still has a depth).
       expect(Math.abs(hit!.x! - (1 - tip.x / DRUM_TAKE_WIDTH)), `${stroke.pad} ${stroke.where} ${stroke.force}`).toBeLessThan(0.01);
-      expect(hit!.y).toBeCloseTo(pads[stroke.pad].y, 9);
-      if (stroke.where === 'centre') expect(hit!.radial, `${stroke.pad} centre`).toBeLessThan(0.1);
-      else expect(hit!.radial, `${stroke.pad} rim`).toBeGreaterThan(0.7);
+      expect(Math.abs(hit!.y! - tip.y / DRUM_TAKE_HEIGHT), `${stroke.pad} ${stroke.where} ${stroke.force} depth`).toBeLessThan(0.08);
     }
+    // Every rim stroke reads further out than every centre stroke.
+    const radial = (where: 'centre' | 'rim') => score.perStroke.filter((p) => p.stroke.where === where).map((p) => p.hit!.radial!);
+    expect(Math.max(...radial('centre'))).toBeLessThan(Math.min(...radial('rim')));
     // The arm's move from the crash (high) down to the snare, stick raised, used to sound
     // a false hit AND swallow the snare stroke after it; now the stroke is heard.
     expect(score.perStroke[score.perStroke.length - 1].hit).not.toBeNull();
@@ -68,6 +75,38 @@ describe.runIf(AIR)('the pads demo take (#261): every stroke on its pad, no fals
     const pads = starterKitPads();
     const { score } = await playTake(pads, { noise: 0.02, seed: 3 });
     expect({ on: score.on, off: score.off, missed: score.missed, false: score.false }).toEqual({ on: 13, off: 0, missed: 0, false: 0 });
+  });
+
+  it('overlapping pads: the pad under the landing point wins, the later slot on top (kick over snare, floor tom over tom)', async () => {
+    // p6 (kick) overlaps p1 (snare) and p7 (floor tom) overlaps p3 (tom): a stroke into
+    // the later slot must not be read as the earlier one just because its path crossed
+    // that one's top edge first. Each pad is struck three times: a stroke after a change
+    // of pad is predicted against the previous pad's floor, which follows at half a stroke
+    // per stroke, and the overlap here (the kick's centre 0.08 below the snare's) is
+    // within that depth error for two strokes, so what is pinned is the third stroke on
+    // each pad, and no false hit.
+    const pads = starterKitPads();
+    for (const id of ['p6', 'p7'] as PadId[]) pads[id] = { ...pads[id], on: true };
+    const order = ['p1', 'p6', 'p1', 'p7', 'p3', 'p6', 'p7', 'p5'] as PadId[];
+    const stroke = (pad: PadId): DrumStroke => ({ pad, where: 'centre', force: 'hard' });
+    const script: DrumStroke[] = order.flatMap((pad) => [stroke(pad), stroke(pad), stroke(pad)]);
+    const { score } = await playTake(pads, { script });
+    expect(score.perStroke.filter((_, k) => k % 3 === 2).map(({ stroke: s, hit }) => `${s.pad}:${hit?.pad ?? 'none'}`)).toEqual(order.map((pad) => `${pad}:${pad}`));
+    expect(score.false).toBe(0);
+    expect(score.missed).toBe(0);
+  });
+});
+
+describe.runIf(AIR)('a full swing with the arm on top of it is a stroke (#261 review)', () => {
+  it('hears every stroke of the synthetic grip when the arm carries up to three times the swing', async () => {
+    const dir = join(FIXTURES, 'subframe_stick_air_30');
+    const truth = JSON.parse(readFileSync(join(dir, 'truth.json'), 'utf8')) as { spec: { fps: number }; events: unknown[] };
+    const poses = parseStickClip(readFileSync(join(dir, 'keypoints.ndjson'), 'utf8'));
+    for (const arm of [1, 2, 3]) {
+      const h = airDrumNode.make(airDrumNode.params.parse({ enabled: true, point: 'stickTip', minLead: 0.03 }));
+      const outs = await replayNode(h, { hands: gripFrames(poses, { arm }) }, { dt: 1 / truth.spec.fps });
+      expect(outs.flatMap((o) => o.hits as unknown[]), `arm ${arm}`).toHaveLength(truth.events.length);
+    }
   });
 });
 
@@ -141,11 +180,16 @@ describe('a pad along the path (#261)', () => {
     expect(hitPad(pads, { x: 0.5, y: 0.5 }, 'hand')).toBeNull();
   });
 
-  it('a landing on a pad keeps that pad, read across the stroke at the pad\'s depth', () => {
+  it('a landing on a pad keeps that pad and its real landing point, the later slot on top, whatever the path crossed first', () => {
     const arc: FallPath = { yFrom: 0.6, yTo: 0.78, xAt: (y) => 0.5 + 0.5 * (0.7 - y) };
     const hit = hitPad(pads, { x: 0.46, y: 0.78 }, 'hand', arc);
     expect(hit?.id).toBe('p2');
-    expect(hit?.at).toEqual({ x: 0.5, y: 0.7 });
+    expect(hit?.at).toEqual({ x: 0.46, y: 0.78 });
+    // A small pad nested in a big one: the path enters the big one first, but a landing
+    // point inside the small one (the later slot) is the small one's.
+    const nested: Pads = { ...pads, p3: pad({ x: 0.5, y: 0.75, w: 0.06, h: 0.06, sound: 'kick' }) };
+    expect(hitPad(nested, { x: 0.5, y: 0.75 }, 'hand', straight(0.55, 1))?.id).toBe('p3');
+    expect(hitPad(nested, { x: 0.5, y: 0.65 }, 'hand', straight(0.55, 1))?.id).toBe('p2');
     // A path that misses every pad changes nothing: offPad still decides.
     expect(hitPad(pads, { x: 0.9, y: 0.9 }, 'hand', { yFrom: 0.8, yTo: 0.9, xAt: () => 0.9 })).toBeNull();
     expect(hitPad(pads, { x: 0.9, y: 0.9 }, 'nearest', { yFrom: 0.8, yTo: 0.9, xAt: () => 0.9 })?.id).toBe('p2');
@@ -153,15 +197,27 @@ describe('a pad along the path (#261)', () => {
 });
 
 describe('a carried stick is not a stroke (#261)', () => {
+  const gate = { amplitude: 0.3, minSwing: 0.15 };
   it('has no swing; a wrist stroke is all swing; a point with no grip says nothing', () => {
     const carried: TrackSample[] = [0, 1, 2, 3].map((i) => ({ t: i / 30, x: 0.5, y: 0.3 + 0.05 * i, grip: { x: 0.8, y: 0.1 + 0.05 * i } }));
     expect(swingShare(carried)).toBeCloseTo(0, 9);
-    expect(isCarried(carried)).toBe(true);
+    expect(isCarried(carried, gate)).toBe(true);
     const { samples } = arcFall({ lift: 0.7, fall: 0.09, fps: 30 });
     expect(swingShare(fallingSegment(samples, samples[samples.length - 1].t, 0.005))).toBeCloseTo(1, 9);
-    expect(isCarried(samples)).toBe(false);
+    expect(isCarried(samples, gate)).toBe(false);
     const wrist: TrackSample[] = carried.map(({ t, x, y }) => ({ t, x, y }));
     expect(swingShare(wrist)).toBeNaN();
-    expect(isCarried(wrist)).toBe(false);
+    expect(isCarried(wrist, gate)).toBe(false);
+  });
+
+  it('is the swing against the stroke gate, not a share: a full swing plus a big arm is a stroke, a small swing plus a big arm a carry', () => {
+    // The stick swings `swing` while the hand carries it `carry` further down.
+    const fall = (swing: number, carry: number): TrackSample[] => [0, 1, 2, 3].map((i) => ({ t: i / 30, x: 0.5, y: 0.2 + ((swing + carry) * i) / 3, grip: { x: 0.8, y: 0.1 + (carry * i) / 3 } }));
+    // A quarter of the descent is swing, but the swing is a full stroke.
+    expect(isCarried(fall(0.3, 0.9), { amplitude: 1.2, minSwing: 0.15 })).toBe(false);
+    // The same share, but the swing is under the smallest stroke.
+    expect(isCarried(fall(0.05, 0.15), { amplitude: 0.2, minSwing: 0.15 })).toBe(true);
+    // At a prediction the whole fall is deeper than what has been seen: the swing scales.
+    expect(isCarried(fall(0.05, 0.05), { amplitude: 0.4, minSwing: 0.15 })).toBe(false);
   });
 });

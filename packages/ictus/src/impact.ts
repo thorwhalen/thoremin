@@ -457,6 +457,9 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   let committed: ImpactPrediction | null = null;
   let tentative = NaN;
   let learning: Learning | null = null;
+  /** The refractory clock and the envelope as they were before the stroke now awaiting
+   *  its departure was confirmed (null once it has been learned or dropped). */
+  let confirmed: { lastConfirmT: number; envelope: number } | null = null;
   let lastKind: 'surface' | 'air' | null = null;
   const votes: ('surface' | 'air')[] = [];
 
@@ -519,6 +522,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   /** The departure is in: classify the stroke and learn the floor and lag. */
   const finishLearning = (L: Learning) => {
     learning = null;
+    confirmed = null;
     const { approach } = L;
     if (!approach) {
       // No usable approach: learn what the vertex says, under the air rule.
@@ -590,6 +594,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
           if (L.departT.length >= o.departureSamples) finishLearning(L);
         } else {
           learning = null;
+          confirmed = null;
         }
       }
 
@@ -655,6 +660,9 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
             departT: [t],
             departD: [d],
           };
+          // What the confirmation changed, so a consumer refusing this stroke
+          // (`dropStroke`) can put it back.
+          confirmed = { lastConfirmT, envelope };
           envelope = Math.max(envelope, amplitude);
           lastConfirmT = t;
           clearStroke();
@@ -748,6 +756,14 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     dropStroke() {
       // The stroke's history goes; `topD = Infinity` makes the next sample a new top.
       clearStroke();
+      // A stroke already confirmed (the consumer refused it on confirmation) must not
+      // teach the floor or the lag, start the refractory period, or grow the envelope.
+      if (learning && confirmed) {
+        lastConfirmT = confirmed.lastConfirmT;
+        envelope = confirmed.envelope;
+      }
+      learning = null;
+      confirmed = null;
     },
     reset() {
       clearHistory();

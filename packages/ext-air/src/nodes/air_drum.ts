@@ -216,6 +216,8 @@ const MAX_EXTRAPOLATION = 0.12;
 const FALL_JITTER = 0.25;
 /** Two samples closer than this are not two camera frames (the conductor's rule). */
 const MIN_SAMPLE_SPACING = 0.004;
+/** The displayed frame's bottom edge, display fractions: as far as a landing path runs. */
+const FRAME_BOTTOM = 1;
 
 /** MediaPipe's label for the player's hand, given the mirror convention. */
 function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness'] {
@@ -255,21 +257,32 @@ export function swingShare(seg: readonly TrackSample[]): number {
   return (last.y - last.grip.y - (first.y - first.grip.y)) / descent;
 }
 
-/** The least share of a tip's descent that must be the stick's swing for the descent to
- *  be a stroke. A carried stick swings not at all (0; the demo take's arm moves read
- *  0.00, and a stick lowered a little while carried stays under 0.2), a wrist stroke
- *  entirely (0.98 on the synthetic grip: the heel is a tenth of a grip from the joint),
- *  and the arm's part lowers it: a third admits a stroke whose arm carries twice what the
- *  wrist swings (the synthetic grip's `arm: 1` reads 0.37 to 0.63 across the stick
- *  lengths of the dial). */
-export const SWING_SHARE = 1 / 3;
-
-/** Whether a fall is a carried stick rather than a stroke: a grip was tracked and the
- *  stick's swing is less than {@link SWING_SHARE} of the descent. */
-export function isCarried(seg: readonly TrackSample[]): boolean {
+/**
+ * Whether a fall is a carried stick rather than a stroke (#261): a grip was tracked and
+ * the stick's OWN swing over the whole fall, `amplitude` deep (the fall so far at a
+ * confirmation; at a prediction, the fall the predictor expects, down to its floor), is
+ * under `minSwing`. A carried stick swings not at all (the demo take's arm moves) or a
+ * little (a stick lowered while carried); a wrist stroke swings its whole amplitude, and
+ * an arm carrying the hand on top of a full swing adds depth but takes no swing away, so
+ * a stroke stays a stroke however much arm is in it. The swing so far is scaled to the
+ * whole fall by its share of the descent ({@link swingShare}): at a prediction only part
+ * of the fall has been seen. An absolute swing, not a share: see
+ * {@link CARRY_SWING_FRACTION} for how small.
+ */
+export function isCarried(seg: readonly TrackSample[], { amplitude, minSwing }: { amplitude: number; minSwing: number }): boolean {
   const share = swingShare(seg);
-  return Number.isFinite(share) && share < SWING_SHARE;
+  return Number.isFinite(share) && share * amplitude < minSwing;
 }
+
+/** A carried stick's swing, as a fraction of the point's smallest stroke (0.45 reach for
+ *  the stick tip): under a quarter, about 6 degrees of the hand. Measured against the
+ *  gate itself: the demo take's carries read 0.00 to 0.13 of it (the 0.13 under landmark
+ *  noise), its strokes 0.84 to 3.2 (two real strokes under the full gate, at an early
+ *  commit under noise), the recorded conducting beats on the stick tip 0.3 to 2.1 (a
+ *  conductor's beat is mostly arm, and must stay a beat: `drum_anchor.test.ts`), and
+ *  the jittered synthetic strokes 0.7 to 1.8. A quarter is between what a carry reads
+ *  and what any stroke reads. */
+export const CARRY_SWING_FRACTION = 0.25;
 
 /**
  * The stroke's fall so far: the samples up to `tEnd`, walked back from the latest while
@@ -309,6 +322,10 @@ export interface Landing {
 const SHAPE_DEPTH_FRACTION = 0.5;
 /** The fewest samples the heel's drift is a line through. */
 const SHAPE_MIN_SAMPLES = 2;
+/** The stick's reach may vary by this factor (as a log ratio) over the fall and still be
+ *  an image-plane swing; beyond it the stick is foreshortening and the arc is not its
+ *  path. A 0.7 rad swing in the image plane keeps its reach exactly. */
+const REACH_TOLERANCE = Math.log(1.15);
 
 /** The lower part of the fall the shape is read from (at least the last `atLeast`). */
 function lowerPart(seg: readonly TrackSample[], last: TrackSample, atLeast: number): TrackSample[] {
@@ -329,10 +346,14 @@ function lowerPart(seg: readonly TrackSample[], last: TrackSample, atLeast: numb
  */
 function arcShape(seg: readonly TrackSample[], last: TrackSample, aspect: number): ((y: number) => number) | null {
   if (!last.grip || !seg.every((s) => s.grip)) return null;
-  const reach = Math.hypot((last.x - last.grip.x) * aspect, last.y - last.grip.y);
+  const reachOf = (s: TrackSample) => Math.hypot((s.x - s.grip!.x) * aspect, s.y - s.grip!.y);
+  const reach = reachOf(last);
   if (!(reach > 0)) return null;
   const side = Math.sign((last.x - last.grip.x) * aspect) || 1;
   const lower = lowerPart(seg, last, SHAPE_MIN_SAMPLES);
+  // A stick turning toward or away from the camera shortens or lengthens in the image:
+  // its path is no circle in the frame, and the time line knows better.
+  if (lower.some((s) => Math.abs(Math.log(reachOf(s) / reach)) > REACH_TOLERANCE)) return null;
   const ys = lower.map((s) => s.y);
   const heelX = lower.length >= SHAPE_MIN_SAMPLES ? fitLine(ys, lower.map((s) => s.grip!.x * aspect), last.y) : null;
   const heelY = lower.length >= SHAPE_MIN_SAMPLES ? fitLine(ys, lower.map((s) => s.grip!.y), last.y) : null;
@@ -419,7 +440,11 @@ export function landingAt(samples: readonly TrackSample[], t: number, eps: numbe
   // ahead makes the speed mostly jitter (an adversarial review measured it).
   const span = seg.length >= 2 ? last.t - seg[0].t : 0;
   const speed = span > 0 ? Math.max(0, (last.y - seg[0].y) / span) : 0;
-  return { x: xAt(y), y, speed, path: { yFrom: last.y, yTo: depthBy(MAX_EXTRAPOLATION), xAt } };
+  // The path runs to the frame's bottom: it is consulted only when the landing point is
+  // on no pad, and then the pad is wherever the stroke's way meets one, not where the
+  // fit's horizon ends (a stroke from a high pad to a low one commits against the high
+  // pad's floor, well short of the low pad).
+  return { x: xAt(y), y, speed, path: { yFrom: last.y, yTo: FRAME_BOTTOM, xAt } };
 }
 
 /** How fast, 0..1: `ratio` is the stroke's speed over the slowest stroke's, `hardHit`
@@ -646,14 +671,18 @@ export const airDrumNode = defineNode<Params>({
             /** A raised stick carried down by the arm (#261): not a stroke, whatever the
              *  predictor made of its depth. Dropped there too, so the stroke the arm is
              *  carrying it toward starts fresh from where the carry ends. */
-            const carried = (tEnd: number) => {
-              if (!isCarried(fallingSegment(stick.recent, tEnd, gates.minAmplitude * FALL_JITTER))) return false;
+            const carried = (tEnd: number, floor: number) => {
+              const seg = fallingSegment(stick.recent, tEnd, gates.minAmplitude * FALL_JITTER);
+              if (seg.length < 2) return false;
+              const fallen = seg[seg.length - 1].y - seg[0].y;
+              const amplitude = Number.isFinite(floor) ? Math.max(fallen, floor - seg[0].y) : fallen;
+              if (!isCarried(seg, { amplitude, minSwing: CARRY_SWING_FRACTION * gates.minAmplitude })) return false;
               predictor.dropStroke();
               return true;
             };
             for (const e of predictor.push({ t, x: anchor.x / frame.height, y: anchor.y / frame.height })) {
               if (e.kind === 'predict') {
-                if (carried(e.t)) continue;
+                if (carried(e.t, predictor.level())) continue;
                 const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect }), e.strength);
                 if (s.silent) continue;
                 let at = e.t;
@@ -697,7 +726,7 @@ export const airDrumNode = defineNode<Params>({
               } else if (e.predicted === null) {
                 // Unpredicted: a ghost note, now; its lead is how late that is. It landed
                 // where the deepest sample was.
-                if (carried(e.t)) continue;
+                if (carried(e.t, NaN)) continue;
                 const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { aspect }), e.strength);
                 if (s.silent) continue;
                 hits.push({

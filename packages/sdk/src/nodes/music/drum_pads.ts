@@ -141,17 +141,21 @@ function padUnder(pads: Pads, p: { x: number; y: number }): PadHit | null {
  * wins. Outside every pad, `offPad: 'nearest'` picks the pad whose edge is nearest (in
  * its own half-sizes) and reads the hit as a rim shot; anything else returns null.
  *
- * With the stroke's `path` (#261): the pad is the first one the path enters on its way
- * down from the latest sample (the stick strikes the first thing in its way; the landing
- * point itself aims at a floor learned on whatever pad came before, so a pad above that
- * floor is still on the stroke's way and a pad at the floor is not yet), the landing
- * point's own pad only when the path enters none; and the hit is read where the path
- * crosses the pad's own depth (the fit's depth is its least certain coordinate, so
- * where-in-the-pad is read across the stroke, not along it).
+ * With the stroke's `path` (#261): the landing point's depth is the fit's, aimed at a
+ * floor learned on whatever pad came before, so the first pad the path enters on its way
+ * down from the latest sample is where the stick is heading, and it wins when the
+ * landing point is on no pad or on some other pad further down (a stroke into the ride
+ * after strokes on the tom lands, by the fit, on the tom); it is read where the path
+ * crosses that pad's own depth. But a pad the path enters first that ALSO holds the
+ * landing point does not override the pad under the point: there the later slot is on
+ * top, as drawn, so a small pad inside a big one, or a kick pad overlapping the snare,
+ * stays reachable, and the real landing point is kept.
  */
 export function hitPad(pads: Pads, p: { x: number; y: number }, offPad: OffPadMode = 'hand', path?: FallPath): PadHit | null {
-  const hit = (path ? firstPadAlong(pads, path) : null) ?? padUnder(pads, p);
-  if (hit) return path ? readAcross(hit, path) : hit;
+  const under = padUnder(pads, p);
+  const along = path ? firstPadAlong(pads, path) : null;
+  if (along && (!under || padDistance(along.pad, p) > 1)) return readAcross(along, path!);
+  if (under) return under;
   if (offPad === 'nearest') {
     let nearest: { id: PadId; d: number } | null = null;
     for (const id of PAD_IDS) {
