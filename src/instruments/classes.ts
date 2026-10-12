@@ -26,6 +26,8 @@ export interface InstrumentClass {
 export const INSTRUMENT_CLASSES = [
   { id: 'field', label: 'Field instruments', emoji: '🖐️', colour: 'hsl(205 55% 48%)' },
   { id: 'air', label: 'Air instruments', emoji: '🌬️', colour: 'hsl(32 75% 50%)' },
+  // Instruments played by signing: the hand's sign (ASL) is the control, not its place.
+  { id: 'sign', label: 'Sign instruments', emoji: '🤟', colour: 'hsl(280 45% 58%)' },
 ] as const satisfies readonly InstrumentClass[];
 
 export type InstrumentClassId = (typeof INSTRUMENT_CLASSES)[number]['id'];

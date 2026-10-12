@@ -131,6 +131,13 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
     ],
     position: true,
   },
+  { name: 'categoryLabel', label: 'Sign (big label)', slider: { key: 'size', label: 'Size' }, position: true },
+  {
+    name: 'categoryBars',
+    label: 'Sign scores (bars)',
+    toggles: [{ key: 'captions', label: 'Chord under A..G' }],
+    position: true,
+  },
   { name: 'timbreLevels', label: 'Timbre levels' },
   { name: 'chordGuide', label: 'Chord highlight' },
   {

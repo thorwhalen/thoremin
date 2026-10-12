@@ -18,7 +18,7 @@ import type { EdgeSpec, GraphSpec, NodeSpec } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { defaultGraph, type SlotSelection } from '@/app/graph';
-import { AIR } from '../helpers/extensions';
+import { AIR, hasExtension } from '../helpers/extensions';
 
 const FIXTURES = join(__dirname, '..', 'fixtures', 'graph');
 
@@ -50,13 +50,23 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } },
 ];
 
+/** Nodes of extensions added after the snapshot (the ASL reader and its chords): the golden
+ *  is the core + air graph, so these and every edge touching them are set aside before the
+ *  comparison; their own branches are tested in `test/asl/`. */
+const LATER_EXTENSION_NODES = new Set(hasExtension('asl') ? ['aslSigns', 'signChord'] : []);
+const withoutLaterExtensions = (spec: GraphSpec): GraphSpec => ({
+  ...spec,
+  nodes: spec.nodes.filter((n) => !LATER_EXTENSION_NODES.has(n.id)),
+  edges: spec.edges.filter((e) => !LATER_EXTENSION_NODES.has(e.from.node) && !LATER_EXTENSION_NODES.has(e.to.node)),
+});
+
 describe.runIf(AIR)('composed graph == the hand-listed graph (golden)', () => {
   const registry = createAppRegistry();
 
   for (const [name, selection] of Object.entries(CASES)) {
     it(`selection "${name}"`, () => {
       const golden = JSON.parse(readFileSync(join(FIXTURES, `default_graph.${name}.json`), 'utf8')) as GraphSpec;
-      const composed = defaultGraph(selection, registry);
+      const composed = withoutLaterExtensions(defaultGraph(selection, registry));
 
       expect(composed.nodes).toHaveLength(golden.nodes.length);
       expect(sorted(composed.nodes.map(nodeKey))).toEqual(sorted(golden.nodes.map(nodeKey)));

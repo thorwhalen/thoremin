@@ -1,6 +1,7 @@
 {
   "//": "The extensions this build ships, injected at build time (vite.extensions.ts). Point THOREMIN_EXTENSIONS at another file to build with a different set. `module` is the pure manifest (an Extension, default export); `ui` is its React half (an ExtensionUi, default export).",
   "extensions": [
-    { "id": "air", "module": "@thoremin/ext-air", "ui": "@thoremin/ext-air/ui" }
+    { "id": "air", "module": "@thoremin/ext-air", "ui": "@thoremin/ext-air/ui" },
+    { "id": "asl", "module": "@thoremin/ext-asl", "ui": "@thoremin/ext-asl/ui" }
   ]
 }

@@ -52,7 +52,7 @@ import TagsEditor from '@/app/library/TagsEditor';
 import { TrainingLink } from '@/app/training/TrainingLink';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
-import { AIR_INSTRUMENTS, airInstrumentsOf, groupByCategory, type AirInstrumentId } from '@/app/library/category';
+import { AIR_INSTRUMENTS, airInstrumentsOf, classOfEntry, groupByCategory, type AirInstrumentId } from '@/app/library/category';
 import { assembleSpec } from '@/app/graph';
 import { type InstrumentSpec } from '@/instruments/spec';
 import { instrumentsCollection, type InstrumentSort } from '@/app/library/instrumentsCollection';
@@ -793,7 +793,7 @@ export default function InstrumentsPanel() {
                     {g.items.map(gallery ? renderCard : renderRow)}
                     {g.items.length === 0 && (
                       <li className="col-span-full px-2 py-2 text-[10px] leading-relaxed text-white/40">
-                        None saved. Turn on {AIR_INSTRUMENTS.map((a) => a.label.toLowerCase()).join(' or ')} in any
+                        None saved. Turn on {AIR_INSTRUMENTS.filter((a) => classOfEntry(a) === g.id).map((a) => a.label.toLowerCase()).join(' or ')} in any
                         instrument’s settings and save it.
                       </li>
                     )}

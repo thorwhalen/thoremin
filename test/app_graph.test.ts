@@ -12,7 +12,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR } from './helpers/extensions';
+import { AIR, ASL } from './helpers/extensions';
 
 describe('production app graph', () => {
   it('builds with a valid topology', () => {
@@ -76,7 +76,8 @@ describe('production app graph', () => {
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
     // Without the air extension: the 25 core nodes (the 7 air nodes come with it).
-    expect(order).toHaveLength(AIR ? 32 : 25);
+    // The ASL extension adds its reader and its chord node.
+    expect(order).toHaveLength((AIR ? 32 : 25) + (ASL ? 2 : 0));
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
@@ -287,7 +288,8 @@ describe('production app graph', () => {
     const merged = recorder.values('merge.params') as SynthParams[];
     const ids = merged[0].voices.map((v) => v.id);
     const core = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    expect(ids).toEqual(AIR ? [...core, FLUTE_VOICE_ID] : core);
+    // The ASL chords (ids from 2e6) always carry their four voices, silent here.
+    expect(ids).toEqual([...core, ...(AIR ? [FLUTE_VOICE_ID] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : [])]);
     expect(new Set(ids).size).toBe(ids.length); // no id collision across hands + both chords + flute
     expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });

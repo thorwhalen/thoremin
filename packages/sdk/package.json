@@ -31,6 +31,7 @@
     "./instruments/trunk": "./src/instruments/trunk.ts",
     "./music/sounds": "./src/music/sounds.ts",
     "./music/theory": "./src/music/theory.ts",
+    "./music/voicing": "./src/music/voicing.ts",
     "./nodes/domain": "./src/nodes/domain.ts",
     "./nodes/music/drum_anchor": "./src/nodes/music/drum_anchor.ts",
     "./nodes/music/drum_pads": "./src/nodes/music/drum_pads.ts",

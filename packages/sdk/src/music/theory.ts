@@ -367,6 +367,57 @@ export function defaultChordSpecFor(melody: Pick<ScaleSpec, 'root' | 'type'>): {
   }
 }
 
+/** The seven note letters, in scale order from C. */
+export const NOTE_LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
+export type NoteLetter = (typeof NOTE_LETTERS)[number];
+
+/** The letter each major key's tonic is conventionally spelled with, by root pitch class
+ *  (Db, Eb, F#, Ab, Bb: the usual key signatures, F# preferred over Gb). */
+const MAJOR_TONIC_LETTER: readonly NoteLetter[] = ['C', 'D', 'D', 'E', 'E', 'F', 'F', 'G', 'A', 'A', 'B', 'B'];
+/** The same for minor keys (C#m, Ebm, F#m, G#m, Bbm). */
+const MINOR_TONIC_LETTER: readonly NoteLetter[] = ['C', 'C', 'D', 'E', 'E', 'F', 'F', 'G', 'G', 'A', 'B', 'B'];
+
+/**
+ * The scale degree (0..6) whose note is spelled with `letter` in this key: the chord a
+ * letter names when letters name chords "in their own key". The key's accidentals apply,
+ * so in D major the letter F is F#, degree 2 (iii, F#m), and C is C#, degree 6 (vii°).
+ *
+ * The key is read through its seven-note embedding ({@link defaultChordSpecFor}), so a
+ * pentatonic or blues key spells like its parent major or minor. Use the result with that
+ * embedding's spec (see {@link letterChordSpec}): on a five-note scale the degree would wrap.
+ */
+export function letterDegree(key: Pick<ScaleSpec, 'root' | 'type'>, letter: NoteLetter): number {
+  const parent = defaultChordSpecFor(key);
+  const root = ((parent.root % 12) + 12) % 12;
+  const minorish = SCALE_TYPES[parent.type].intervals[2] === 3;
+  const tonic = (minorish ? MINOR_TONIC_LETTER : MAJOR_TONIC_LETTER)[root]!;
+  return (NOTE_LETTERS.indexOf(letter) - NOTE_LETTERS.indexOf(tonic) + 7) % 7;
+}
+
+const NATURAL_PC: Readonly<Record<NoteLetter, number>> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const ACCIDENTAL: Readonly<Record<number, string>> = { [-2]: 'bb', [-1]: 'b', 0: '', 1: '#', 2: '##' };
+
+/** A pitch class spelled on a given letter: 10 on B is "Bb", 6 on F is "F#". */
+export function spellOnLetter(pc: number, letter: NoteLetter): string {
+  const d = ((((pc - NATURAL_PC[letter]) % 12) + 18) % 12) - 6;
+  return letter + (ACCIDENTAL[d] ?? '?');
+}
+
+/** How a key is conventionally written: "Bb", "F#", "C#m"-style roots (the tonic letter of
+ *  {@link letterDegree}'s tables), so a key picker and the letter chords agree on spelling. */
+export function keyName(key: Pick<ScaleSpec, 'root' | 'type'>): string {
+  const parent = defaultChordSpecFor(key);
+  const root = ((parent.root % 12) + 12) % 12;
+  const minorish = SCALE_TYPES[parent.type].intervals[2] === 3;
+  return spellOnLetter(root, (minorish ? MINOR_TONIC_LETTER : MAJOR_TONIC_LETTER)[root]!);
+}
+
+/** The seven-note spec letter chords are built on: the key's own when it has seven notes,
+ *  else its embedding ({@link defaultChordSpecFor}), keeping the register fields. */
+export function letterChordSpec<S extends Pick<ScaleSpec, 'root' | 'type'>>(key: S): S {
+  return { ...key, ...defaultChordSpecFor(key) };
+}
+
 /** The distinct pitch classes (0..11) a scale sounds — its root plus intervals, mod 12. */
 export function scalePitchClasses(root: number, type: ScaleTypeId): Set<number> {
   return new Set(SCALE_TYPES[type].intervals.map((iv) => ((((root + iv) % 12) + 12) % 12)));

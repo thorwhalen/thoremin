@@ -18,10 +18,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build, type Plugin } from 'vite';
 import { AIR_EXTENSION } from '@thoremin/ext-air';
+import { ASL_EXTENSION } from '@thoremin/ext-asl';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
-const SHIPPED: readonly Extension[] = [AIR_EXTENSION];
+const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION];
 
 if (readExtensionEntries(CORE_MANIFEST).length !== 0) throw new Error(`${CORE_MANIFEST} must list no extensions`);
 const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);

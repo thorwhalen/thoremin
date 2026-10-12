@@ -24,7 +24,7 @@ import { deriveBranchIds } from '@/instruments/derive';
 import type { Extension, ExtensionsSettingsShape, LooseExtensionDials } from '@thoremin/sdk/instruments/extension';
 import type { BreathStatus } from '@/nodes/output/canvas_overlay';
 import { IDLE_AIR_FLUTE_STATUS } from '@thoremin/ext-air/nodes/air_flute';
-import { AIR } from '../helpers/extensions';
+import { AIR, ASL } from '../helpers/extensions';
 
 // The overlay reads the flute's status through a structural slice (it names no extension);
 // this pins, at typecheck time, that the flute's status still has those fields.
@@ -33,9 +33,9 @@ void _breath;
 
 describe('the extension list', () => {
   it.runIf(AIR)('ships the air extension, whose four instruments are four branches and four dial slices', () => {
-    expect(EXTENSIONS.map((e) => e.id)).toEqual(['air']);
-    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute']);
-    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute']);
+    expect(EXTENSIONS.map((e) => e.id)).toEqual(['air', ...(ASL ? ['asl'] : [])]);
+    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', ...(ASL ? ['asl-signs', 'asl-chord'] : [])]);
+    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', ...(ASL ? ['asl'] : [])]);
     expect(ALL_BRANCH_IDS).toEqual(expect.arrayContaining(['trunk', 'field-voices', 'air-drum', 'air-flute']));
   });
 });
@@ -75,7 +75,7 @@ describe('the registry folds over the extensions', () => {
     // declaration carries each manifest's type, so these hold with no import of air in core.
     expectTypeOf<Settings['airDrum']>().toEqualTypeOf<AirDrumSettings>();
     expectTypeOf<Settings['airFlute']>().toEqualTypeOf<AirFluteSettings>();
-    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute'>();
+    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'asl'>();
     // @ts-expect-error a key no listed extension declares is not a settings key
     expectTypeOf<Settings['airKazoo']>().toBeNever();
     // A manifest typed loosely (`const x: Extension = ...`) widens its keys to `string`; the fold

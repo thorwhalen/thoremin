@@ -58,6 +58,7 @@ import {
   BODY_LANDMARK_COUNT,
   type BodyFrame,
   type BodyStatus,
+  type CategoryScores,
   FINGER_NAMES,
   kp,
   LM,
@@ -139,6 +140,30 @@ const Params = z.object({
       exprLabels: z.boolean().default(true),
       /** x-axis: the chord each expression maps to, under each bar (vertical). */
       chordLabels: z.boolean().default(true),
+    })
+    .prefault({}),
+  /**
+   * A classifier's reading (the ASL sign reader), named large: the class currently named
+   * (a letter, a word), gold on a dark plate. `size` scales it (0 = 40 px, 1 = 200 px).
+   * Drawn only while a branch that produces a reading is composed.
+   */
+  categoryLabel: z
+    .object({
+      show: z.boolean().default(true),
+      position: CuePositionEnum.default('top'),
+      size: z.number().min(0).max(1).default(0.45),
+    })
+    .prefault({}),
+  /**
+   * The same reading as a bar per class (the face-expression idiom), the named one gold.
+   * `captions` adds a second label under a bar when the producer sends one (the chord a
+   * letter plays).
+   */
+  categoryBars: z
+    .object({
+      show: z.boolean().default(true),
+      position: CuePositionEnum.default('bottom'),
+      captions: z.boolean().default(true),
     })
     .prefault({}),
   /** Finger→effect bar graph (HUD cue): a bar per routed finger, effect-labelled. Opt-in. */
@@ -312,6 +337,10 @@ export interface OverlayView {
     trainerHud?: TrainerHudSnapshot | null;
     /** The air flute's live status (#249), for its breath cue. */
     airFluteStatus?: BreathStatus;
+    /** A classifier's reading (the ASL sign reader), for the category cues. */
+    categories?: CategoryScores | null;
+    /** Second bar labels aligned with `categories.labels` ('' for none): the chord a sign plays. */
+    categoryCaptions?: readonly string[] | null;
   };
   params: Params;
   /** Computed top-left origin per cue element name (set by the layout pass). */
@@ -982,6 +1011,89 @@ const faceExpressionCue: OverlayElement = {
       };
     });
     drawBarGraph(g, origin.x, origin.y, bars, { title: p.topLabel ? expr.label : undefined, labelColor: FACE_COLOR });
+  },
+};
+
+/** The category label's text, or null when nothing is named. */
+function categoryText(view: OverlayView): string | null {
+  const c = view.inputs.categories;
+  if (!view.params.categoryLabel.show || !c?.present || !c.label) return null;
+  return c.text ?? c.label;
+}
+const CATEGORY_CHAR_W = 0.62; // bold monospace glyph width per px of font size
+const categoryLabelPx = (view: OverlayView): number => Math.round(40 + 160 * clamp01(view.params.categoryLabel.size));
+
+/** A classifier's named class, written large (the ASL reader's letter or word). */
+const categoryLabelCue: OverlayElement = {
+  name: 'categoryLabel',
+  category: 'output',
+  cue: true,
+  positionOf: (view) => view.params.categoryLabel.position,
+  measure(view) {
+    const text = categoryText(view);
+    if (text === null) return null;
+    const px = categoryLabelPx(view);
+    return { w: Math.ceil(text.length * px * CATEGORY_CHAR_W) + PAD * 2, h: Math.ceil(px * 0.95) + PAD * 2 };
+  },
+  draw(g, view) {
+    const text = categoryText(view);
+    const origin = view.layout['categoryLabel'];
+    if (text === null || !origin) return;
+    const px = categoryLabelPx(view);
+    const w = Math.ceil(text.length * px * CATEGORY_CHAR_W) + PAD * 2;
+    const h = Math.ceil(px * 0.95) + PAD * 2;
+    g.save();
+    g.globalAlpha = 0.45;
+    g.fillStyle = '#000000';
+    g.fillRect(origin.x, origin.y, w, h);
+    g.globalAlpha = 1;
+    g.fillStyle = CHORD_COLOR;
+    g.font = `bold ${px}px monospace`;
+    g.textAlign = 'center';
+    g.fillText(text, origin.x + w / 2, origin.y + PAD + px * 0.8);
+    g.restore();
+  },
+};
+
+/** Bar geometry for `n` classes, narrowed so the graph fits 90% of the frame width. */
+function categoryBarOpts(view: OverlayView, n: number): BarGraphOpts {
+  const fit = Math.floor((view.W * 0.9 - PAD * 2) / Math.max(1, n));
+  const step = Math.max(6, Math.min(BAR_W + BAR_GAP, fit));
+  const gap = Math.max(2, Math.round(step * 0.3));
+  return { barW: step - gap, gap, maxH: 48, title: view.inputs.categories?.title, labelColor: '#ffffff' };
+}
+
+function categoryBars(view: OverlayView): BarSpec[] | null {
+  const c = view.inputs.categories;
+  if (!view.params.categoryBars.show || !c?.present || !c.labels.length) return null;
+  const captions = view.params.categoryBars.captions ? view.inputs.categoryCaptions : null;
+  return c.labels.map((label, i) => {
+    const caption = captions?.[i];
+    return {
+      value: clamp01(c.scores[i] ?? 0),
+      color: FACE_COLOR,
+      highlight: label === c.label,
+      fired: (c.scores[i] ?? 0) >= 0.05,
+      labels: caption ? [label, caption] : [label],
+    };
+  });
+}
+
+/** A bar per class of a classifier's reading (the face-expression idiom), winner in gold. */
+const categoryBarsCue: OverlayElement = {
+  name: 'categoryBars',
+  category: 'output',
+  cue: true,
+  positionOf: (view) => view.params.categoryBars.position,
+  measure(view) {
+    const bars = categoryBars(view);
+    return bars ? measureBarGraph(bars, categoryBarOpts(view, bars.length)) : null;
+  },
+  draw(g, view) {
+    const bars = categoryBars(view);
+    const origin = view.layout['categoryBars'];
+    if (!bars || !origin) return;
+    drawBarGraph(g, origin.x, origin.y, bars, categoryBarOpts(view, bars.length));
   },
 };
 
@@ -1872,6 +1984,8 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   chordNameCue,
   mouthCue,
   faceExpressionCue,
+  categoryLabelCue,
+  categoryBarsCue,
   // The burned-in tag HUD sits above the cues (its own top corner); fingerBars stays
   // the array's last element so the z-order invariant + concurrent additions hold.
   tagHud,
@@ -1975,6 +2089,9 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'overlayConfig', kind: 'overlay-config' },
     // The air flute's status, for its breath cue (#249).
     { name: 'airFluteStatus', kind: 'air-flute-status' },
+    // A classifier's reading and per-class captions, for the category cues.
+    { name: 'categories', kind: 'category-scores' },
+    { name: 'categoryCaptions', kind: 'string[]' },
     // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
     // the current instrument. Absent → every element (headless tests, pre-composition).
     { name: 'elements', kind: 'string[]' },
@@ -2073,6 +2190,8 @@ export const canvasOverlayNode = defineNode<Params>({
             tagOverlay,
             trainerHud: trainerHudSnapshot,
             airFluteStatus: inputs.airFluteStatus as BreathStatus | undefined,
+            categories: inputs.categories as CategoryScores | null | undefined,
+            categoryCaptions: inputs.categoryCaptions as readonly string[] | null | undefined,
           },
         };
         if (Array.isArray(inputs.elements)) {
