@@ -27,6 +27,7 @@
  */
 import { isOk, type Registry } from 'acture';
 import type { Dispatch, Middleware } from './middleware';
+import { needsUserActivation } from './confirmation';
 
 /** One recorded dispatch. `t` is epoch ms (injectable, so tests are deterministic). */
 export interface JournalEntry {
@@ -63,7 +64,8 @@ export interface Journal {
   middleware: Middleware;
   /** A snapshot copy of the buffer, oldest first. */
   entries(): JournalEntry[];
-  /** The successful entries only — what `replayJournal` should be given. */
+  /** The successful entries only, less the ones that can only run from a click (a
+   *  folder picker, #257) — what `replayJournal` should be given. */
   replayable(): JournalEntry[];
   /** Drop everything recorded so far. */
   clear(): void;
@@ -103,7 +105,7 @@ export function createJournal(options: { limit?: number; now?: () => number } = 
   return {
     middleware,
     entries: () => buffer.slice(),
-    replayable: () => buffer.filter((e) => e.ok),
+    replayable: () => buffer.filter((e) => e.ok && !needsUserActivation(e.command)),
     clear: () => {
       buffer.length = 0;
     },

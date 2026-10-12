@@ -32,12 +32,29 @@ export interface RiskMeta {
  *   - instrument.create commits under a name (a collision clobbers a saved instrument) */
 const DESTRUCTIVE_COMMANDS = new Set<string>(['instrument.load', 'instrument.save', 'instrument.create']);
 
+/** The command-id prefixes whose commands WRITE, reversibly: the generic dial verbs,
+ *  the per-dial ones, the `steer.*` verbs that write the steering dial (#188) and the
+ *  `recording.*` verbs that write the recording config (#257). */
+const ADDITIVE_PREFIXES = ['dial.', 'steer.', 'recording.'] as const;
+
 /** The default thoremin risk map: destructive for the instrument mutations above,
- *  additive for reversible dial edits (the generic verbs, the per-dial ones and the
- *  `steer.*` verbs that write the steering dial, #188), query for everything else. */
+ *  additive for the reversible writes, query for everything else. */
 export function defaultGetRisk(id: string): RiskMeta {
   if (DESTRUCTIVE_COMMANDS.has(id)) return { sideEffect: 'destructive' };
-  return { sideEffect: id.startsWith('dial.') || id.startsWith('steer.') ? 'additive' : 'query' };
+  return { sideEffect: ADDITIVE_PREFIXES.some((p) => id.startsWith(p)) ? 'additive' : 'query' };
+}
+
+/**
+ * The commands the browser only runs inside a user's click (#257): a folder picker.
+ * A convention beside the risk map, not a risk: such a command is neither destructive
+ * nor confirmation-gated, it is simply impossible to fire from a hand pose, a replay
+ * or the assistant, so those surfaces leave it out rather than fail on it.
+ */
+const USER_ACTIVATION_COMMANDS = new Set<string>(['recording.folder.choose']);
+
+/** True if `id` can only run from a user gesture (a click or key press in the page). */
+export function needsUserActivation(id: string): boolean {
+  return USER_ACTIVATION_COMMANDS.has(id);
 }
 
 /** One-use approval token store. `approve` is called by the runtime AFTER a human

@@ -13,9 +13,12 @@
  * All state lives in the engine hook (`useThoreminEngine().recording`); this is
  * purely presentational. Part of the build-checked React layer (no @types/react).
  */
+import { useEffect } from 'react';
 import { Circle, Square, X } from 'lucide-react';
 import { RECORDING_FORMATS } from './recording/formats';
 import { supportsOverlayAlpha } from './recording/caps';
+import { useRecordingConfig } from './recording/configStore';
+import { dispatchCommand } from './dispatchDial';
 import type { RecordingSession } from './recording/schema';
 
 export interface RecordingControls {
@@ -73,6 +76,12 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
   const { session, setSession } = recording;
   const s = session.streams;
   const alphaOk = supportsOverlayAlpha();
+  // The remembered folder (#257) is a handle in IndexedDB; read its name on open.
+  const folder = useRecordingConfig((c) => c.folder);
+  const refreshFolder = useRecordingConfig((c) => c.refreshFolder);
+  useEffect(() => {
+    void refreshFolder();
+  }, [refreshFolder]);
 
   const setStream = (key: keyof RecordingSession['streams'], v: boolean) =>
     setSession((prev) => ({ ...prev, streams: { ...prev.streams, [key]: v } }));
@@ -114,6 +123,9 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
         />
       </label>
 
+      {/* Where takes go is written through the recording commands (#257), like the
+          trainer's control, so the journal sees it; the rest of the sheet is the
+          take's own config and stays a plain setting. */}
       <div className="mb-2">
         <span className="text-[10px] uppercase tracking-widest text-white/50">Location</span>
         <div className="mt-1 flex flex-col gap-1">
@@ -122,16 +134,16 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
               type="radio"
               name="rec-location"
               checked={session.location === 'directory'}
-              onChange={() => setSession((prev) => ({ ...prev, location: 'directory' }))}
+              onChange={() => void dispatchCommand('recording.location.set', { location: 'directory' })}
             />
-            Choose folder…
+            {folder ? `Folder "${folder}"` : 'Choose folder…'}
           </label>
           <label className="flex items-center gap-2 text-xs">
             <input
               type="radio"
               name="rec-location"
               checked={session.location === 'downloads'}
-              onChange={() => setSession((prev) => ({ ...prev, location: 'downloads' }))}
+              onChange={() => void dispatchCommand('recording.location.set', { location: 'downloads' })}
             />
             Downloads (zip)
           </label>

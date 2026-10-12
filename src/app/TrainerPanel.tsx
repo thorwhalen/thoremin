@@ -61,6 +61,10 @@ import { useTrainerPrefs } from './enroll/prefs';
 import { toolById } from './tools';
 import { STARTER_ROUTINES, routineRecordsPerformance, starterRoutineById } from './enroll/realVsAirCues';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
+import { useRecordingConfig } from './recording/configStore';
+import { describeTakeDestination } from './recording/destination';
+import { detectCaps } from './recording/caps';
+import { dispatchCommand } from './dispatchDial';
 
 /** The tool id, and the id of the Trainer's hush claim (see `useControls.setHush`). */
 export const TOOL_ID = 'trainer';
@@ -257,6 +261,12 @@ export default function TrainerPanel() {
   const setManualAdvance = useTrainerPrefs((s) => s.setManualAdvance);
   const recording = useTrainer((s) => s.recording);
   const notice = useTrainer((s) => s.notice);
+  // Where the take goes (#257): the recording location, the remembered folder and
+  // whether this browser can pick one. Written only through the recording commands.
+  const takeLocation = useRecordingConfig((s) => s.session.location);
+  const takeFolder = useRecordingConfig((s) => s.folder);
+  const refreshFolder = useRecordingConfig((s) => s.refreshFolder);
+  const destination = describeTakeDestination({ location: takeLocation, folder: takeFolder, supported: detectCaps().directoryPicker });
   const voiceOn = useVoice((s) => s.enabled);
   const setVoice = useVoice((s) => s.setEnabled);
 
@@ -272,6 +282,7 @@ export default function TrainerPanel() {
     if (open) {
       void useTrainer.getState().load();
       installVoice();
+      void refreshFolder();
     }
   }, [open]);
 
@@ -518,6 +529,32 @@ export default function TrainerPanel() {
           <input type="checkbox" checked={manualAdvance} onChange={(e) => setManualAdvance(e.target.checked)} />
           I'll say when I'm done (press Done or Enter to advance)
         </label>
+        {/* Where the take lands (#257): a folder the player picks once, so the pairing
+            script finds it without a move out of Downloads. The picker only opens from a
+            click, so the button dispatches the command directly from the gesture. */}
+        {(recordTake || pairRoutine) && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-white/45" aria-label="Where takes go">
+            <span>{destination.text}</span>
+            {destination.chooseLabel && (
+              <button
+                type="button"
+                onClick={() => void dispatchCommand('recording.folder.choose', {})}
+                className="rounded bg-white/10 px-2 py-0.5 text-white/80 transition hover:bg-white/20"
+              >
+                {destination.chooseLabel}
+              </button>
+            )}
+            {destination.offerDownloads && (
+              <button
+                type="button"
+                onClick={() => void dispatchCommand('recording.location.set', { location: 'downloads' })}
+                className="rounded px-2 py-0.5 text-white/60 transition hover:bg-white/10 hover:text-white/80"
+              >
+                Downloads instead
+              </button>
+            )}
+          </div>
+        )}
 
         {status === 'done' && (
           <p className="text-[11px] text-emerald-200/80">

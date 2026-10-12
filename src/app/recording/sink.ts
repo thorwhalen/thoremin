@@ -4,7 +4,8 @@
  * with `add(name, data)` + `close()`:
  *
  *   1. directory — File System Access API: a real folder with N streamed files
- *      (Chromium). The picked handle is reused from IndexedDB across takes.
+ *      (Chromium). The folder is picked and remembered by `./folder` (#257), the
+ *      one mechanism the trainer's control shares.
  *   2. zip       — one `.zip` (lazy `fflate`) = the whole folder, one download.
  *      Works everywhere (the honest fallback where no folder picker exists) and
  *      lands in the browser's Downloads folder.
@@ -15,7 +16,7 @@
  * naming contract can't drift between them.
  */
 import { saveBlob } from './save';
-import { loadDirHandle, saveDirHandle, clearDirHandle } from './idb';
+import { acquireRecordingFolder } from './folder';
 import type { SinkKind } from './caps';
 
 /** A recording session was cancelled by the user (e.g. dismissed the folder
@@ -48,68 +49,21 @@ export interface RecordingSink {
   close(): Promise<SinkResult>;
 }
 
-// ---- File System Access API surface (not in the TS DOM lib) -----------------
-interface FsWritable {
-  write(data: Blob | string | BufferSource): Promise<void>;
-  close(): Promise<void>;
-}
-interface FsFileHandle {
-  createWritable(): Promise<FsWritable>;
-}
-interface FsDirHandle {
-  name?: string;
-  getDirectoryHandle(name: string, opts?: { create?: boolean }): Promise<FsDirHandle>;
-  getFileHandle(name: string, opts?: { create?: boolean }): Promise<FsFileHandle>;
-  queryPermission?(desc: { mode: 'read' | 'readwrite' }): Promise<PermissionState>;
-  requestPermission?(desc: { mode: 'read' | 'readwrite' }): Promise<PermissionState>;
-}
-type DirPicker = (opts?: {
-  mode?: 'read' | 'readwrite';
-  startIn?: string;
-  id?: string;
-}) => Promise<FsDirHandle>;
-
 function toBytes(data: Blob | string): Promise<Uint8Array> {
   if (typeof data === 'string') return Promise.resolve(new TextEncoder().encode(data));
   return data.arrayBuffer().then((b) => new Uint8Array(b));
 }
 
-async function ensurePermission(handle: FsDirHandle): Promise<boolean> {
-  try {
-    const opts = { mode: 'readwrite' as const };
-    if ((await handle.queryPermission?.(opts)) === 'granted') return true;
-    return (await handle.requestPermission?.(opts)) === 'granted';
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Directory sink: acquire a base folder (reused from IndexedDB, else the picker
- * opened at Downloads), create the recording subfolder, and stream each file into
- * it. Acquires the handle up-front (at construction) so the folder prompt appears
- * when recording starts, not on stop. Throws {@link SinkCancelled} if the user
- * dismisses the picker so the caller can fall back to a zip.
+ * Directory sink: acquire the base folder (`./folder`: the remembered one, else the
+ * picker), create the recording subfolder, and stream each file into it. Acquires
+ * the handle up-front (at construction) so the folder prompt appears when recording
+ * starts, not on stop. Throws {@link SinkCancelled} if the user dismisses the picker
+ * (or no picker exists) so the caller can fall back to a zip.
  */
 async function createDirectorySink(folderName: string): Promise<RecordingSink> {
-  const picker = (globalThis as unknown as { showDirectoryPicker?: DirPicker }).showDirectoryPicker;
-  if (!picker) throw new SinkCancelled();
-
-  // Reuse a previously-picked folder when its permission is still (re-)grantable.
-  let base = await loadDirHandle<FsDirHandle>();
-  if (base && !(await ensurePermission(base))) {
-    await clearDirHandle();
-    base = null;
-  }
-  if (!base) {
-    try {
-      base = await picker({ mode: 'readwrite', startIn: 'downloads', id: 'thoremin-recording' });
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') throw new SinkCancelled();
-      throw e;
-    }
-    await saveDirHandle(base);
-  }
+  const base = await acquireRecordingFolder();
+  if (!base) throw new SinkCancelled();
 
   const dir = await base.getDirectoryHandle(folderName, { create: true });
   let count = 0;

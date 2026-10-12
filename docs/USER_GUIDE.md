@@ -151,6 +151,14 @@ A take is **one folder**, named after the take, containing every stream plus a
 the video and the features line up without guessing. Thoremin will ask for a folder
 if your browser supports it; otherwise you get the same folder as a single `.zip`.
 
+**Where takes go.** By default a take downloads as a zip. In a browser with a folder
+picker (Chrome, Edge), pick a folder once and every later take is written straight into
+it: in the **Trainer**, under the Start button, press **Save takes to a folder...**
+(the Record sheet's **Location** offers the same choice). The folder is remembered
+across reloads; the browser asks once per session to confirm it may write there.
+**Downloads instead** goes back to the zip. Safari and Firefox have no folder picker,
+and the Trainer says so.
+
 ### Annotating a take
 
 Annotations let you mark *what was happening, when* — so a recording can be cut into
