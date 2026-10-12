@@ -13,9 +13,11 @@
  * All state lives in the engine hook (`useThoreminEngine().recording`); this is
  * purely presentational. Part of the build-checked React layer (no @types/react).
  */
+import { useEffect } from 'react';
 import { Circle, Square, X } from 'lucide-react';
 import { RECORDING_FORMATS } from './recording/formats';
 import { supportsOverlayAlpha } from './recording/caps';
+import { useRecordingConfig } from './recording/configStore';
 import type { RecordingSession } from './recording/schema';
 
 export interface RecordingControls {
@@ -73,6 +75,12 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
   const { session, setSession } = recording;
   const s = session.streams;
   const alphaOk = supportsOverlayAlpha();
+  // The remembered folder (#257) is a handle in IndexedDB; read its name on open.
+  const folder = useRecordingConfig((c) => c.folder);
+  const refreshFolder = useRecordingConfig((c) => c.refreshFolder);
+  useEffect(() => {
+    void refreshFolder();
+  }, [refreshFolder]);
 
   const setStream = (key: keyof RecordingSession['streams'], v: boolean) =>
     setSession((prev) => ({ ...prev, streams: { ...prev.streams, [key]: v } }));
@@ -124,7 +132,7 @@ function SettingsSheet({ recording }: { recording: RecordingControls }) {
               checked={session.location === 'directory'}
               onChange={() => setSession((prev) => ({ ...prev, location: 'directory' }))}
             />
-            Choose folder…
+            {folder ? `Folder "${folder}"` : 'Choose folder…'}
           </label>
           <label className="flex items-center gap-2 text-xs">
             <input

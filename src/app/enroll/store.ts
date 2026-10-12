@@ -63,7 +63,7 @@ import { clickPlan, type Click } from '@thoremin/sdk/enroll';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { routineRecordsPerformance } from './realVsAirCues';
 import { ALL_STARTER_CUES } from './cueStore';
-import { parseSession, RECORDING_SESSION_KEY } from '../recording/schema';
+import { recordingConfig } from '../recording/configStore';
 import { emitGuidance, emitGuidanceStop } from '@thoremin/sdk-ui/enroll/guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 
@@ -237,16 +237,9 @@ const DEMAND_OWNER = 'trainer';
 
 /** The annotation source for the running take (created per start). */
 let tagSource: TrainerTagSource | null = null;
-/** The player's last Record-sheet config (for the take's location / fps / formats),
- *  or the defaults. Read fresh at each start; localStorage may be absent in tests. */
-function playerRecordingBase() {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RECORDING_SESSION_KEY) : null;
-    return parseSession(raw ? JSON.parse(raw) : null);
-  } catch {
-    return parseSession(null);
-  }
-}
+/** The player's recording config (for the take's location / fps / formats): the one
+ *  store the Record sheet and the trainer's folder control write (#257). */
+const playerRecordingBase = recordingConfig;
 
 /** Bumped by every routine choice (`setRoutine`, `useRoutine`). An async read that
  *  began before a choice must not overwrite it when it lands: opening the panel starts

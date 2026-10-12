@@ -32,12 +32,8 @@ import { useToasts } from './toasts';
 import { SessionRecorder, activeStreamLabels } from './recording/session';
 import { registerRecordingController, type StartTakeOptions } from './recording/controller';
 import { SinkCancelled } from './recording/sink';
-import {
-  parseSession,
-  DEFAULT_RECORDING_SESSION,
-  RECORDING_SESSION_KEY,
-  type RecordingSession,
-} from './recording/schema';
+import { type RecordingSession } from './recording/schema';
+import { useRecordingConfig } from './recording/configStore';
 import { prefillName } from './recording/naming';
 import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus } from './faceStatus';
@@ -71,16 +67,6 @@ const MIDI_REPORT_MS = 250;
  * camera keeps its original settle behavior.
  */
 const VIDEO_LOAD_TIMEOUT_MS = 15000;
-
-/** Read the persisted last-used recording session (validated), or the default. */
-function loadRecordingSession(): RecordingSession {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RECORDING_SESSION_KEY) : null;
-    return parseSession(raw ? JSON.parse(raw) : null);
-  } catch {
-    return DEFAULT_RECORDING_SESSION;
-  }
-}
 
 /** Which phase the recording UI is in: the idle button, the settings sheet, an
  * active take (HUD), or the brief save/convert step after Stop. */
@@ -177,7 +163,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const [audioOn, setAudioOn] = useState(false);
   const [recPhase, setRecPhase] = useState<RecordingPhase>('idle');
   const [recElapsedMs, setRecElapsedMs] = useState(0);
-  const [recSession, setRecSessionState] = useState<RecordingSession>(loadRecordingSession);
+  // The config lives in its own store (#257) so the trainer's folder control, a command
+  // or the palette can change it and the sheet shows the change without a reload.
+  const recSession = useRecordingConfig((s) => s.session);
 
   const masterVolume = useControls((s) => s.masterVolume);
   const muted = useControls((s) => s.muted);
@@ -620,19 +608,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // ---- Recording session (#88): out-of-instrument multi-stream recorder --------
 
   /** Update the working session config and persist it (auto-save — the sheet is a
-   * settings surface, not a form to submit). */
+   * settings surface, not a form to submit). The store's setter is stable. */
   const setRecSession = useCallback(
-    (next: RecordingSession | ((prev: RecordingSession) => RecordingSession)) => {
-      setRecSessionState((prev) => {
-        const value = typeof next === 'function' ? (next as (p: RecordingSession) => RecordingSession)(prev) : next;
-        try {
-          localStorage.setItem(RECORDING_SESSION_KEY, JSON.stringify(value));
-        } catch {
-          /* localStorage full/unavailable — the take still records this session. */
-        }
-        return value;
-      });
-    },
+    (next: RecordingSession | ((prev: RecordingSession) => RecordingSession)) => useRecordingConfig.getState().setSession(next),
     [],
   );
 

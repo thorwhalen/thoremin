@@ -32,7 +32,7 @@ That extracts the take to `~/.local/share/thoremin/takes/cue/<name>/`, pairs it,
 7. **Soft and hard, in the air:** the same pattern, as if striking.
 8. **Clap again**, eight claps, to finish.
 
-It stops by itself after about two and a half minutes and saves `real-vs-air-<date>.zip` to Downloads (or to the folder the Record button is set to). Then run the command above. (For an agent to run it, move the zip where it can read: on the maintainer's Mac, `$PP/_tmp/thoremin-cue/`.)
+It stops by itself after about two and a half minutes and saves `real-vs-air-<date>.zip` to Downloads. Then run the command above. If the tool that runs the command cannot read Downloads (macOS privacy protection on an agent's shell), save takes to a folder it can read instead: in the Trainer, under Start, **Save takes to a folder...** (Chrome or Edge) picks a folder once, remembered for every later take, and the take lands there as a folder, `real-vs-air-<date>/`, which `npm run pair` accepts as it accepts the zip. On the maintainer's Mac that folder is `$PP/_tmp/thoremin-cue/`.
 
 With a guitar, the routine **Real vs air: guitar** does the same for strums: a chord on each click, changing every four, then the same chords on air guitar.
 

@@ -79,8 +79,15 @@ media stream, no features) saves a bare file with no folder.
 Feature-detected, never UA-sniffed:
 
 1. **directory** — File System Access API `showDirectoryPicker` → a real folder,
-   N streamed files. The picked handle is reused from **IndexedDB** (`idb.ts`)
-   across takes (one re-grant).
+   N streamed files. The folder is picked and remembered by **`folder.ts`** (#257):
+   the handle is reused from **IndexedDB** (`idb.ts`) across takes (one re-grant), and
+   the same module serves the trainer's "Save takes to a folder..." control, so a
+   player picks the folder once, up front, and a training take lands there without a
+   move out of Downloads. The preference (`location`) lives in the recording config
+   store (`configStore.ts`, persisted under `recording.session.last`) and is written
+   only through the `recording.location.set` / `recording.folder.choose` commands,
+   which reach it through a host seam (`commands/recordingHost.ts`) so the command
+   import firewall holds.
 2. **zip** — one `.zip` (lazy `fflate`) = the whole folder, one download. Works
    everywhere; lands in the browser's Downloads folder.
 3. **perFile** — per-file `saveBlob` (last resort).

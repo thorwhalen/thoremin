@@ -18,6 +18,8 @@ export {
 } from './paths';
 export { DIAL_FIELD_COMMANDS, generateDialCommands, setCommandIdFor } from './perDial';
 export { INSTRUMENT_COMMANDS, loadInstrumentCmd, saveInstrumentCmd, createInstrumentCmd } from './instruments';
+export { RECORDING_COMMANDS, setRecordingLocationCmd, chooseRecordingFolderCmd } from './recording';
+export { provideRecordingHost, recordingHost, type RecordingHost, type ChosenFolder } from './recordingHost';
 export {
   installConfirmationGate,
   createApprovalStore,
