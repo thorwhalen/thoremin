@@ -196,7 +196,10 @@ describe.each(['subframe_stick_air_30', 'subframe_stick_surface_30'])('the air d
 
   it('a centre hit and a rim hit on the same pad differ by where they landed', async () => {
     const { frames } = movingGrip(name, (k) => (k % 2 ? 0.07 * truth.clip.width : 0));
-    const pads = only({ p1: pad({ x: land.x - 0.02, y: land.y, w: 0.2, h: 0.3 }) });
+    // The pad sits a little to the right of the centre stroke, so the rim stroke (shifted
+    // left) lands near its rim. Where in the pad is read ACROSS the stroke at the pad's
+    // depth (#261), so the radial is the lateral offset alone.
+    const pads = only({ p1: pad({ x: land.x + 0.02, y: land.y, w: 0.2, h: 0.3 }) });
     const hits = await strike(frames, fps, { pads });
     const centre = hits.filter((_, k) => k % 2 === 0).map((h) => h.radial!);
     const rim = hits.filter((_, k) => k % 2 === 1).map((h) => h.radial!);

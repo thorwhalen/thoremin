@@ -101,26 +101,90 @@ export interface PadHit {
   pad: Pad;
   /** 0 = the centre, 1 = the rim (clamped for a 'nearest' pick outside every pad). */
   radial: number;
+  /** Where on the pad the hit is read (display fractions): the landing point, or for a
+   *  stroke read along its path, the path's point at the pad's own depth. */
+  at: { x: number; y: number };
+}
+
+/**
+ * The fall of a stroke as a curve in the frame, free of time (#261): where the tracked
+ * point is at each depth `y` it passes, from the depth of its latest sample (`yFrom`) to
+ * the depth the fit says it stops at (`yTo`). The depth a committed stroke stops at is
+ * the coordinate the fit knows least (a hard stroke at 30 fps is committed from one or
+ * two falling samples, its brake unseen, toward a floor learned on another pad), so a
+ * pad is picked along the path rather than at its end alone.
+ */
+export interface FallPath {
+  yFrom: number;
+  yTo: number;
+  xAt(y: number): number;
+}
+
+/** The path is walked in steps of this depth (display fractions): a third of the smallest
+ *  pad, so no pad can fall between two steps. */
+const PATH_STEP = MIN_PAD_SIZE / 3;
+
+/** The pad under the point, the later slot (drawn on top) winning. */
+function padUnder(pads: Pads, p: { x: number; y: number }): PadHit | null {
+  let best: PadHit | null = null;
+  for (const id of PAD_IDS) {
+    const pad = pads[id];
+    if (!pad.on) continue;
+    const d = padDistance(pad, p);
+    if (d <= 1) best = { id, pad, radial: d, at: p };
+  }
+  return best;
 }
 
 /**
  * The pad a landing point struck. Overlapping pads: the later slot is drawn on top and
  * wins. Outside every pad, `offPad: 'nearest'` picks the pad whose edge is nearest (in
  * its own half-sizes) and reads the hit as a rim shot; anything else returns null.
+ *
+ * With the stroke's `path` (#261): the pad is the first one the path enters on its way
+ * down from the latest sample (the stick strikes the first thing in its way; the landing
+ * point itself aims at a floor learned on whatever pad came before, so a pad above that
+ * floor is still on the stroke's way and a pad at the floor is not yet), the landing
+ * point's own pad only when the path enters none; and the hit is read where the path
+ * crosses the pad's own depth (the fit's depth is its least certain coordinate, so
+ * where-in-the-pad is read across the stroke, not along it).
  */
-export function hitPad(pads: Pads, p: { x: number; y: number }, offPad: OffPadMode = 'hand'): PadHit | null {
-  let best: PadHit | null = null;
-  let nearest: { id: PadId; d: number } | null = null;
-  for (const id of PAD_IDS) {
-    const pad = pads[id];
-    if (!pad.on) continue;
-    const d = padDistance(pad, p);
-    if (d <= 1) best = { id, pad, radial: d };
-    if (!nearest || d < nearest.d) nearest = { id, d };
+export function hitPad(pads: Pads, p: { x: number; y: number }, offPad: OffPadMode = 'hand', path?: FallPath): PadHit | null {
+  const hit = (path ? firstPadAlong(pads, path) : null) ?? padUnder(pads, p);
+  if (hit) return path ? readAcross(hit, path) : hit;
+  if (offPad === 'nearest') {
+    let nearest: { id: PadId; d: number } | null = null;
+    for (const id of PAD_IDS) {
+      const pad = pads[id];
+      if (!pad.on) continue;
+      const d = padDistance(pad, p);
+      if (!nearest || d < nearest.d) nearest = { id, d };
+    }
+    if (nearest) return { id: nearest.id, pad: pads[nearest.id], radial: 1, at: p };
   }
-  if (best) return best;
-  if (offPad === 'nearest' && nearest) return { id: nearest.id, pad: pads[nearest.id], radial: 1 };
   return null;
+}
+
+/** The first pad the path enters walking down from `yFrom` to `yTo`, if any. */
+function firstPadAlong(pads: Pads, path: FallPath): PadHit | null {
+  const y0 = Math.min(path.yFrom, path.yTo);
+  const y1 = Math.max(path.yFrom, path.yTo);
+  const steps = Math.ceil((y1 - y0) / PATH_STEP);
+  for (let i = 0; i <= steps; i++) {
+    const y = Math.min(y0 + i * PATH_STEP, y1);
+    const hit = padUnder(pads, { x: path.xAt(y), y });
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** The hit re-read at the pad's own depth where the path reaches it (a pad taller than
+ *  the fall is read as deep as the fall goes): the pad is where the stroke stops, and
+ *  the shape says where across the pad. */
+function readAcross(hit: PadHit, path: FallPath): PadHit {
+  const y = Math.min(Math.max(hit.pad.y, Math.min(path.yFrom, path.yTo)), Math.max(path.yFrom, path.yTo));
+  const at = { x: path.xAt(y), y };
+  return { ...hit, radial: padDistance(hit.pad, at), at };
 }
 
 /** Whether any pad is on (with none, the air drum is the per-hand instrument it was). */

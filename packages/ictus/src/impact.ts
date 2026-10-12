@@ -224,6 +224,11 @@ export interface ImpactPredictor {
   envelope(): number;
   /** The kind the last learned stroke was classified as (`auto`). */
   lastKind(): 'surface' | 'air' | null;
+  /** Forget the descent in progress, prediction included: the consumer knows something
+   *  the depth alone cannot (the stick was carried down, not swung: #261) and has
+   *  refused it. The next sample is the top of a new stroke; the learned floor, lag and
+   *  envelope stay, so the refusal costs nothing the next stroke needs. */
+  dropStroke(): void;
   reset(): void;
 }
 
@@ -740,6 +745,10 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     lag: () => lag,
     envelope: () => envelope,
     lastKind: () => lastKind,
+    dropStroke() {
+      // The stroke's history goes; `topD = Infinity` makes the next sample a new top.
+      clearStroke();
+    },
     reset() {
       clearHistory();
       lastT = -Infinity;
