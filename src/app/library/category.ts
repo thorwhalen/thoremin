@@ -30,9 +30,6 @@ export interface AirInstrument {
   on: (s: Settings) => boolean;
   /** The class an instrument playing it is listed under (default: air). */
   class?: InstrumentClassId;
-  /** The branch ids its system tag already says (default: `air-<id>`), which the "uses"
-   *  facet therefore leaves out. */
-  branches?: readonly string[];
 }
 
 /** The class an entry lists its instruments under. */
@@ -56,7 +53,7 @@ export const AIR_INSTRUMENTS = [
   { id: 'flute', label: 'Air flute', emoji: '🪈', usesScale: false, on: dialOn('airFlute') },
   // Not an air instrument but the same kind of entry: an extension's instrument, detected
   // from its dial. The ASL reader (and its chords) is listed under the sign instruments.
-  { id: 'asl', label: 'Sign language', emoji: '🤟', usesScale: false, on: dialOn('asl'), class: 'sign', branches: ['asl-signs'] },
+  { id: 'asl', label: 'Sign language', emoji: '🤟', usesScale: false, on: dialOn('asl'), class: 'sign' },
 ] as const satisfies readonly AirInstrument[];
 
 export type AirInstrumentId = (typeof AIR_INSTRUMENTS)[number]['id'];
