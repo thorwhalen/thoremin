@@ -219,32 +219,39 @@ describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 7
     expect(fit.fMeasure).toBeGreaterThan(0.45);
   });
 
-  // The 2/4 excerpt sits on the oscillator's lost-lock boundary: its alternating
-  // ~1.05 s / ~0.65 s beats put two consecutive phase errors within a few
-  // milliseconds of `lostPhaseError`, and whether the follower keeps its lock or
-  // re-seeds at half tempo flips with a 10 ms change in the anchors. The raw-sample
-  // timing of #231 (which removed the median prefilter's 5 ms late bias; the
-  // detections themselves score the same, see the F-measure above) flipped it, so
-  // the lock assertions are made on the 4/4 and 3/4 clips only; the follower's
-  // behaviour under uneven beats is #232's (the timing plan's step 2) to fix, not
-  // the detector's to hide.
-  const lockAsserted = scenario !== 'conducting_24';
+  // KNOWN FAILURE on the 2/4 excerpt since #231, for #232 (the timing plan's step 2):
+  // the detections score the same as before (the F-measures above), but the raw-sample
+  // timing moved three anchors by 10 to 15 ms, and with this clip's alternating
+  // ~1.05 s / ~0.65 s beats that is enough for the oscillator's lost-lock rule
+  // (`lostAfterMisses` consecutive phase errors past `lostPhaseError`) to fire and
+  // re-seed at half tempo: it ends at 41.7 bpm, `running` (never `hold`), with the
+  // predictions' F-measure at 0.40 against 0.667 for the median-prefiltered anchors.
+  // Fed the same anchors with 5 ms of jitter, the old lock held 174 times in 200, the
+  // new one 0 — so this is the follower's fragility under uneven beats, not a boundary
+  // case, and it is left failing here so that #232's fix is measured against it.
+  const lock = scenario === 'conducting_24' ? it.fails : it;
 
-  it('the oscillator is running at most anchors, reports the stated tempo within 10% at the last beat, and enters hold when she stops', () => {
+  lock('the oscillator is running at most anchors, reports the stated tempo within 10% at the last beat, and enters hold when she stops', () => {
     const runningFraction = statesAtAnchors.filter((st) => st === 'running').length / statesAtAnchors.length;
     expect(runningFraction).toBeGreaterThanOrEqual(0.75);
-    if (!lockAsserted) return;
     expect(Math.abs(atLastAnchor.tempo - meta.statedBpm) / meta.statedBpm).toBeLessThan(0.1);
     // Every clip ends with the conductor lowering her hands: the follower must notice.
     expect(last.state).toBe('hold');
   });
 
-  it('the follower PREDICTS the next beat: predictions score against the grid too', () => {
+  lock('the follower PREDICTS the next beat: predictions score against the grid too', () => {
     // The prediction made at each anchor for the beat after it, scored like the detections.
     // Looser than the detections by construction (a prediction carries the period error),
     // and the 2/4 clip's alternating long/short beats are the hardest case.
     expect(predicted.length).toBeGreaterThan(5);
     const f30 = fMeasure(fit.grid, predicted, 0.3 * period);
-    expect(f30).toBeGreaterThanOrEqual(lockAsserted ? 0.6 : 0.35);
+    expect(f30).toBeGreaterThanOrEqual(scenario === 'conducting_24' ? 0.5 : 0.6);
   });
+
+  if (scenario === 'conducting_24') {
+    it('the 2/4 lock as it stands (the state #232 starts from): half tempo, never hold', () => {
+      expect(Math.abs(atLastAnchor.tempo - meta.statedBpm / 2) / (meta.statedBpm / 2)).toBeLessThan(0.25);
+      expect(last.state).toBe('running');
+    });
+  }
 });

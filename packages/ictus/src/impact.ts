@@ -128,10 +128,11 @@ export interface ImpactPredictorOptions {
   minDescentFraction?: number;
   /** Departure samples the kink fit uses (after the bottom), when they come fast. */
   departureSamples?: number;
-  /** The departure is also in once its samples (at least two) span this long after
-   *  the bottom, seconds: at a slow sample rate two samples a frame apart teach the
-   *  floor, instead of the next descent abandoning the learning. At 30 fps and above
-   *  `departureSamples` arrive first and nothing changes. */
+  /** When the next descent starts before `departureSamples` have arrived (a slow
+   *  camera at a fast tempo), the departure still teaches the floor if its samples
+   *  (at least two) span this long after the bottom, seconds. Three samples are
+   *  always preferred when they come: two fit a line, and a line learns a worse
+   *  floor (the irregular-stamp air-drum test is the case). */
   departureWindow?: number;
   /** A stroke smaller than this fraction of the recent envelope is not a stroke. */
   minAmplitudeFraction?: number;
@@ -412,13 +413,19 @@ const GAP_QUANTILE = 0.9;
 /** The fewest departure samples a floor can be learned from (a line fit). */
 const MIN_DEPARTURE_SAMPLES = 2;
 
+/** The `q` quantile of the recent gaps (NaN with none). */
+function gapQuantile(gaps: readonly number[], q: number): number {
+  if (!gaps.length) return NaN;
+  const sorted = [...gaps].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(q * sorted.length) - 1))];
+}
+
 /** The expected next gap: the `GAP_QUANTILE` quantile of the last `GAP_WINDOW` gaps
  *  (NaN with none). With regular sampling this is the gap itself. */
 export function expectedGap(gaps: readonly number[]): number {
-  if (!gaps.length) return NaN;
-  const sorted = [...gaps].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.ceil(GAP_QUANTILE * sorted.length) - 1)];
+  return gapQuantile(gaps, GAP_QUANTILE);
 }
+
 
 /**
  * The online jitter estimate: the MEDIAN of the last few residuals of a sample against
@@ -644,8 +651,11 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
         if (d < lastDep + margin) {
           L.departT.push(t);
           L.departD.push(d);
-          const spanned = L.departT.length >= MIN_DEPARTURE_SAMPLES && t - L.bottomT >= o.departureWindow;
-          if (L.departT.length >= o.departureSamples || spanned) finishLearning(L);
+          if (L.departT.length >= o.departureSamples) finishLearning(L);
+        } else if (L.departT.length >= MIN_DEPARTURE_SAMPLES && L.departT[L.departT.length - 1] - L.bottomT >= o.departureWindow) {
+          // The next descent came before the third departure sample (a slow camera at
+          // a fast tempo): what the departure did span teaches the floor, as a line.
+          finishLearning(L);
         } else {
           learning = null;
           confirmed = null;

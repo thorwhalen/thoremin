@@ -58,7 +58,10 @@
  *   bottom; a one-frame wobble on the way down (the tracker pausing before it loses
  *   the hand, seen on the conducting fixtures) comes back by a hundredth and is not
  *   a bottom; a soft turn whose first return is within the margin is confirmed on its
- *   second sample, where the median always confirmed, and still timed exactly.
+ *   second sample, where the median always confirmed, and still timed exactly; a
+ *   dwell at the bottom (a tenuto) is timed from its first sample, the start of the
+ *   plateau of samples within the margin of each other, and confirmed when the hand
+ *   leaves it.
  * - **The stroke's top** stays the running highest point since the last anchor rather
  *   than a state a glitch can reset.
  *
@@ -82,7 +85,7 @@ import type { Anchor, Sample } from './types';
 export type Prefilter =
   /** Spikes (jumps faster than a hand can move) are bridged by their neighbours, so
    *  they cannot be a turning point; every other sample is trusted and times the
-   *  anchor. No latency. */
+   *  anchor. A sharp turn is confirmed one sample after its bottom, any other two. */
   | 'spikes'
   /** Median-of-three on every sample: the pre-#231 detector, one frame of latency and
    *  a biased fit at a sharp turn. Kept for the ablation (`scripts/subframe/score.ts`). */
@@ -121,22 +124,23 @@ export interface DetectorOptions {
    *  than `ceiling · dt` envelopes is: the whole stroke at 30 fps, a third of it at
    *  120. Inactive until an envelope exists. 0 = off. */
   maxSpeedEnvelopes?: number;
-  /** The turn is confirmed when the position has come back from the stroke's deepest
-   *  point by more than this many noise units (multiples of the online jitter) AND
-   *  more than `reversalFraction` of the envelope (0 = any strict rise). A sharp
-   *  stroke rebounds by a good part of itself in one frame, so the margin costs it
-   *  nothing; a one-frame wobble on the way down (a landmark pausing as the tracker
-   *  loses the hand) comes back by a hundredth of the stroke and must not be the
-   *  bottom; a soft, slow turn that comes back by less than the margin on its first
-   *  frame is confirmed on the next, still timed through the right three points. */
+  /** The noise part of the bottom's margin, in multiples of the online jitter (a sigma
+   *  of the tracker's frame-to-frame noise, from the median residual, which is zero
+   *  on a clean stream). See `reversalFraction` for the margin itself. */
   reversalNoiseUnits?: number;
-  /** See `reversalNoiseUnits`: the reversal margin as a fraction of the amplitude
-   *  envelope. Calibrated on the conducting fixtures: the tracker's wobbles there
-   *  come back by 1 to 2 % of the envelope, a sharp stroke by a third or more of it
-   *  in one frame at 30 fps, and a smooth 70 bpm turn by about 3 % in its first
-   *  30 fps frame and 12 % in its second — so the soft turn is confirmed on its
-   *  first or second frame (as the median prefilter always did on its second), the
-   *  sharp one always on its first. */
+  /** The bottom's margin, as a fraction of the amplitude envelope (the larger of this
+   *  and the noise margin). The turn is confirmed by the first sample that has come
+   *  back from the stroke's deepest point by more than it, and a sample within it of
+   *  the deepest point is on the same plateau, so a dwell at the bottom (a tenuto)
+   *  is timed from its first sample rather than from whichever noise sample is
+   *  deepest, and a soft turn whose two deepest samples differ by a hair is timed
+   *  through the earlier one's neighbours (the parabola puts its vertex within a few
+   *  milliseconds either way). Calibrated on the
+   *  conducting fixtures: the tracker's one-frame wobbles there come back by 1 to
+   *  2 % of the envelope and then go deeper; a sharp stroke comes back by a third or
+   *  more of itself in one frame at 30 fps; a smooth 70 bpm turn by about 3 % in its
+   *  first 30 fps frame. So a sharp turn is confirmed one sample after its bottom, a
+   *  soft one two (where the median prefilter confirmed every turn), never later. */
   reversalFraction?: number;
   /** Refractory window after an anchor, as a fraction of the current period. */
   refractoryFraction?: number;
@@ -171,6 +175,16 @@ export interface DetectorOptions {
 
 /** The relative spike ceiling's default; the option's doc derives it. */
 const SPIKE_SPEED_ENVELOPES = 30;
+/** A sample within this fraction of the envelope of the stroke's deepest point is on
+ *  the same plateau (one bottom): half the decisive-return margin, so that a soft
+ *  70 bpm turn at 30 fps spans at most two samples of plateau while a tenuto under a
+ *  tracker's noise (half a percent of a stroke) stays one. */
+const PLATEAU_FRACTION = 0.015;
+/** Residuals the jitter median is taken over, and the factor that makes the median
+ *  absolute residual a standard deviation (Gaussian noise), so a "noise unit" is a
+ *  sigma. */
+const JITTER_WINDOW = 16;
+const MAD_TO_SD = 1.4826;
 
 const DEFAULTS: Required<Omit<DetectorOptions, 'medianFilter'>> = {
   mode: 'turning',
@@ -179,7 +193,7 @@ const DEFAULTS: Required<Omit<DetectorOptions, 'medianFilter'>> = {
   prefilter: 'spikes',
   maxSpeed: 0,
   maxSpeedEnvelopes: SPIKE_SPEED_ENVELOPES,
-  reversalNoiseUnits: 2,
+  reversalNoiseUnits: 3,
   reversalFraction: 0.03,
   refractoryFraction: 0.25,
   initialPeriod: 0.6,
@@ -274,10 +288,12 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   /** The settled points, newest last (at most three). */
   const settled: Point[] = [];
   /** The running bottom of the stroke in progress (`turning` on raw samples): the
-   *  deepest settled point since the last anchor, with its neighbours for the fit. */
+   *  deepest settled point since the last anchor, the start of the plateau it sits
+   *  on, and that start's two neighbours for the fit. */
   let deepest: Point | null = null;
-  let beforeDeepest: Point | null = null;
-  let afterDeepest: Point | null = null;
+  /** The first three settled points of the plateau, and the point before it. */
+  const plateau: Point[] = [];
+  let beforePlateau: Point | null = null;
   let period = o.initialPeriod;
   let envelope = 0;
   let envelopeT = NaN;
@@ -285,9 +301,19 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   let lastAnchorX = NaN;
   /** Highest point (smallest down-positive y) seen since the last anchor. */
   let strokeTop = Infinity;
-  /** Online jitter estimate: EW mean of |raw − median3| (the noise floor, caller's units). */
+  /** Online jitter estimate (the noise floor, caller's units): under the median
+   *  prefilter the EW mean of |raw − median3| (the pre-#231 estimator, kept for the
+   *  ablation); otherwise the MEDIAN of the last few residuals, which is zero on a
+   *  clean stream and the noise on a noisy one, and is not dragged up by the two
+   *  kinks of every stroke — at 15 fps a real ictus is a residual of a frame's travel,
+   *  and a mean that counts it gates real strokes out as tremor. */
   let jitter = NaN;
   let jitterN = 0;
+  const residuals: number[] = [];
+  /** The largest envelope seen since reset: the scale of the spike ceiling. The
+   *  envelope itself decays within seconds of a rest, and a ceiling that shrank with
+   *  it would defer every sample of the first stroke after one. */
+  let peakEnvelope = 0;
   /** Approach statistics for the stroke in progress (while moving down). */
   let peakDecel = 0;
   let speedSum = 0;
@@ -296,7 +322,8 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   const clearHistory = () => {
     raw.length = 0;
     settled.length = 0;
-    deepest = beforeDeepest = afterDeepest = null;
+    deepest = beforePlateau = null;
+    plateau.length = 0;
     strokeTop = Infinity;
     peakDecel = 0;
     speedSum = 0;
@@ -319,14 +346,31 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
   };
 
   const noteJitter = (resid: number) => {
-    jitterN++;
-    jitter = jitterN === 1 ? resid : jitter + Math.max(1 / jitterN, 0.02) * (resid - jitter);
+    if (o.prefilter === 'median') {
+      jitterN++;
+      jitter = jitterN === 1 ? resid : jitter + Math.max(1 / jitterN, 0.02) * (resid - jitter);
+      return;
+    }
+    residuals.push(resid);
+    if (residuals.length > JITTER_WINDOW) residuals.shift();
+    const sorted = [...residuals].sort((a, b) => a - b);
+    const m = sorted.length >> 1;
+    jitter = MAD_TO_SD * (sorted.length % 2 ? sorted[m] : 0.5 * (sorted[m - 1] + sorted[m]));
   };
+  /** The noise margin in the caller's units (0 until the jitter is estimated). */
+  const noiseMargin = (): number => (Number.isFinite(jitter) ? o.reversalNoiseUnits * jitter : 0);
+  /** The decisive return: the noise margin, and `reversalFraction` of the envelope. */
+  const bottomMargin = (): number => Math.max(noiseMargin(), o.reversalFraction * envelope);
+  /** The plateau's margin: a sample within it of the deepest point is the same bottom
+   *  (a dwell, a flat, a held copy, the tracker's noise); the online jitter alone
+   *  cannot say so, since on a stroke most samples sit on a monotone run where the
+   *  residual is zero. */
+  const plateauMargin = (): number => Math.max(noiseMargin(), PLATEAU_FRACTION * envelope);
 
   /** The spike ceiling in force: the absolute one, else the envelope-relative one. */
   const spikeCeiling = (): number => {
     if (o.maxSpeed > 0) return o.maxSpeed;
-    if (o.maxSpeedEnvelopes > 0 && envelope > 0) return o.maxSpeedEnvelopes * envelope;
+    if (o.maxSpeedEnvelopes > 0 && peakEnvelope > 0) return o.maxSpeedEnvelopes * peakEnvelope;
     return Infinity;
   };
 
@@ -337,6 +381,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     const ref = envelope > 0 ? envelope : amplitude;
     const strength = ref > 0 ? amplitude / ref : 0;
     envelope = Math.max(envelope, amplitude);
+    peakEnvelope = Math.max(peakEnvelope, envelope);
     const meanSpeed = speedCount > 0 ? speedSum / speedCount : NaN;
     const sharpness = meanSpeed > 0 ? peakDecel / meanSpeed : NaN;
     const lateral = Number.isFinite(lastAnchorX) ? xSign * (x - lastAnchorX) : 0;
@@ -420,13 +465,17 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     return emitTurn(p0, p1, p2, amplitude);
   };
 
-  /** `turning` on raw samples: the bottom is the running deepest settled point since
-   *  the last anchor, confirmed by the first sample (settled or provisional) that has
-   *  come back from it by more than the reversal margin. A real stroke rebounds by
-   *  hundreds of noise units in one frame, so the margin costs it nothing; a one-frame
-   *  wobble on the way down comes back by less, and the descent simply carries on
-   *  (the deepest point moves on with it). A held copy comes back by zero, so it is
-   *  not a confirmation either. */
+  /** `turning` on raw samples: the bottom is the stroke's deepest settled point,
+   *  confirmed by the first sample that has come back from it by more than the
+   *  bottom's margin, or by the second sample after it that is not deeper. A sharp
+   *  stroke rebounds by a third of itself in a frame, so it is confirmed one sample
+   *  after its bottom; a soft turn on its second; a one-frame wobble on the way down
+   *  comes back by a hundredth and then goes deeper, so the descent carries on; a
+   *  held copy comes back by zero and the next sample is deeper. The bottom's TIME is
+   *  the start of its plateau: a
+   *  run of samples within the margin of each other (a dwell at the bottom, a tenuto;
+   *  a soft turn's two nearly equal deepest samples; tracker noise on either) is one
+   *  bottom, timed from its first sample through that sample's two neighbours. */
   const detectRunning = (last: Point, p2: Point): Anchor | null => {
     if (!deepest || !(p2.t > deepest.t)) return null;
     // The newest sample has no far neighbour to be a spike against yet: one that rose
@@ -435,34 +484,49 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     // jump (the tracker swapping hands for a frame, seen on the conducting fixtures)
     // says nothing about the bottom.
     if (Math.abs(p2.y - last.y) / (p2.t - last.t) > spikeCeiling()) return null;
-    const margin = Math.max(Number.isFinite(jitter) ? o.reversalNoiseUnits * jitter : 0, o.reversalFraction * envelope);
-    if (!(p2.y < deepest.y - margin)) return null;
-    const p0 = beforeDeepest;
-    const p1 = deepest;
-    // The first point after the bottom is the far neighbour of the fit: the
-    // confirming sample itself when it came straight back, else the settled point
-    // between (a flat or slow turn).
-    const after = afterDeepest ?? p2;
-    // A reversal, whether or not it is a beat: whatever happens next is the next
-    // stroke, so a hand coming up from where its history began cannot pin the
-    // bottom at that first sample.
-    deepest = beforeDeepest = afterDeepest = null;
-    if (!p0) return null;
+    // Confirmed by a decisive return, or, once the plateau has a second sample, by
+    // any sample that is not deeper than the deepest point: the soft turn's second
+    // sample after the bottom (where the median prefilter confirmed every turn), the
+    // dwell's third. A sample deeper by a hair, a stall still creeping down, or a
+    // held copy's first repeat is none of these.
+    const decisive = p2.y < deepest.y - bottomMargin();
+    const settledBack = plateau.length >= 2 && !(p2.y > deepest.y);
+    if (!decisive && !settledBack) return null;
+    // The fit's middle point is the deeper of the plateau's first two samples (a soft
+    // turn's two nearly equal deepest samples: the later one, exactly; a dwell: its
+    // first or second, within a frame of its arrival either way), with its own two
+    // neighbours — the confirming sample itself when the bottom came straight back.
+    const second = plateau[1] && plateau[1].y > plateau[0].y;
+    const p0 = second ? plateau[0] : beforePlateau;
+    const p1 = second ? plateau[1] : plateau[0];
+    const after = (second ? plateau[2] : plateau[1]) ?? p2;
+    // Decided, whether or not it is a beat: whatever happens next is the next stroke,
+    // so a hand coming up from where its history began cannot pin the bottom at that
+    // first sample.
+    deepest = beforePlateau = null;
+    plateau.length = 0;
+    // A bottom is approached from above: the point before it is higher (a hand coming
+    // up from where its history began, or from a bridged spike, is not turning).
+    if (!p0 || !(p1.y > p0.y)) return null;
     if (p1.t - lastAnchorT < o.refractoryFraction * period) return null;
     const amplitude = p1.y - Math.min(strokeTop, p0.y);
     if (!passesAmplitude(amplitude)) return null;
     return emitTurn(p0, p1, after, amplitude);
   };
 
-  /** Track the running deepest point over the settled stream. */
+  /** Track the deepest settled point and its plateau: a deeper sample moves the
+   *  deepest point; one deeper by more than the plateau's margin starts a new plateau
+   *  (with `before` as the point before it), anything else extends the current one. */
   const trackDeepest = (pt: Point, before: Point | undefined) => {
-    if (!deepest || pt.y > deepest.y) {
+    if (!deepest || pt.y > deepest.y + plateauMargin()) {
       deepest = pt;
-      beforeDeepest = before ?? null;
-      afterDeepest = null;
-    } else if (!afterDeepest) {
-      afterDeepest = pt;
+      beforePlateau = before ?? null;
+      plateau.length = 0;
+      plateau.push(pt);
+      return;
     }
+    if (pt.y > deepest.y) deepest = pt;
+    if (plateau.length < 3) plateau.push(pt);
   };
 
   return {
@@ -530,6 +594,8 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
       clearHistory();
       jitter = NaN;
       jitterN = 0;
+      residuals.length = 0;
+      peakEnvelope = 0;
       envelope = 0;
       envelopeT = NaN;
       lastAnchorT = -Infinity;

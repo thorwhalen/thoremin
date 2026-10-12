@@ -1,7 +1,8 @@
 /**
  * The conducting fixtures' beat-tracking numbers, as one table: what the ictus
  * detector (through the facade) scores on `test/fixtures/conducting_{44,34,24}` at the
- * recorded 30 fps and decimated to 15 fps (every other frame, the slow-laptop regime).
+ * recorded 30 fps and decimated to 15 fps (every other frame, the slow-laptop regime),
+ * with the mean confirmation latency (the confirming sample's time past the anchor's).
  *
  *   npx vite-node scripts/ictus/conducting_metrics.ts [--prefilter spikes|median|none] [--detector '{"reversalFraction":0.03}']
  *
@@ -55,14 +56,18 @@ function decimate(samples: Sample[], fps: number, factor: number): Sample[] {
   return samples.filter((s) => Math.round(s.t * fps) % factor === 0);
 }
 
-function anchors(samples: Sample[], detector: DetectorOptions): number[] {
+function anchors(samples: Sample[], detector: DetectorOptions): { times: number[]; latency: number } {
   const ictus = createIctus({ detector });
   const times: number[] = [];
+  let lag = 0;
   for (const s of samples) {
     const st = ictus.feed(s);
-    if (st.anchor) times.push(st.anchor.t);
+    if (st.anchor) {
+      times.push(st.anchor.t);
+      lag += s.t - st.anchor.t;
+    }
   }
-  return times;
+  return { times, latency: times.length ? lag / times.length : NaN };
 }
 
 const prefilter = arg('prefilter', '') as DetectorOptions['prefilter'] | '';
@@ -70,13 +75,13 @@ const prefilter = arg('prefilter', '') as DetectorOptions['prefilter'] | '';
 const detector: DetectorOptions = { ...(JSON.parse(arg('detector', '{}')) as DetectorOptions), ...(prefilter ? { prefilter } : {}) };
 const f = (x: number) => x.toFixed(3);
 
-console.log(`| fixture | fps | anchors | F (17.5%) | F (30%) | F (70 ms) | CMLt |`);
-console.log(`|---|---|---|---|---|---|---|`);
+console.log(`| fixture | fps | anchors | F (17.5%) | F (30%) | F (70 ms) | CMLt | confirm latency (ms) |`);
+console.log(`|---|---|---|---|---|---|---|---|`);
 for (const scenario of SCENARIOS) {
   const { samples, meta } = load(scenario);
   const period = 60 / meta.statedBpm;
   for (const factor of DECIMATIONS) {
-    const times = anchors(decimate(samples, meta.fps, factor), detector);
+    const { times, latency } = anchors(decimate(samples, meta.fps, factor), detector);
     const fit = fitGrid(times, meta.statedBpm, times[0], times[times.length - 1] + 1e-6);
     const row = [
       scenario,
@@ -86,6 +91,7 @@ for (const scenario of SCENARIOS) {
       f(fMeasure(fit.grid, times, 0.3 * period)),
       f(fit.fMeasure),
       f(continuity(fit.grid, times)),
+      (1000 * latency).toFixed(0),
     ];
     console.log(`| ${row.join(' | ')} |`);
   }

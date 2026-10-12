@@ -96,6 +96,23 @@ function sampleAndHold(samples: Sample[]): Sample[] {
   return samples.flatMap((s) => [s, { ...s, t: s.t + 0.5 / FPS }]);
 }
 
+/** A clipped sinusoid: the stroke dwells at the bottom for `dwell` seconds (a tenuto),
+ *  with Gaussian tracker noise of `noise` units. The true ictus is the dwell's start. */
+const DWELL = 0.15;
+function tenutoTrain(fps: number, noise: number, seed = 3): { samples: Sample[]; trueIctus: (t: number) => number } {
+  const next = rng(seed);
+  const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-12, next()))) * Math.cos(2 * Math.PI * next());
+  // The sinusoid's value DWELL / 2 before its bottom is the clip level.
+  const clip = 300 + (AMP * (Math.cos((2 * Math.PI * (DWELL / 2)) / PERIOD) + 1)) / 2;
+  const samples: Sample[] = [];
+  for (let i = 0; i * (1 / fps) <= SECONDS; i++) {
+    const t = i / fps;
+    const { x, y } = stroke(t);
+    samples.push({ t, x: x + noise * gauss(), y: Math.min(y, clip) + noise * gauss() });
+  }
+  return { samples, trueIctus: (t) => trueIctus(t) - DWELL / 2 };
+}
+
 function anchors(samples: Sample[], options: DetectorOptions = {}): { t: number; at: number }[] {
   const det = createIctusDetector(options);
   const out: { t: number; at: number }[] = [];
@@ -195,6 +212,41 @@ describe('ictus prefilter (#231): the raw samples time, the spikes are bridged',
     const spiked = withSpikes(train(), 2.5 * AMP, 7).map((s, i) => (i % 7 === 0 && s.t < CLEAN_SECONDS ? { ...s, y: s.y + 2.5 * AMP } : s));
     const shipped = audit(anchors(spiked, { maxSpeed: (4 * AMP * Math.PI) / PERIOD }));
     expect(shipped.spurious).toBe(0);
+  });
+
+  it('a tenuto (a dwell at the bottom under tracker noise) is timed to its arrival, at 30 and at 60 fps', () => {
+    for (const fps of [30, 60]) {
+      const { samples, trueIctus: arrival } = tenutoTrain(fps, 0.5);
+      const found = anchors(samples);
+      expect(found.length, `${fps} fps`).toBeGreaterThanOrEqual(10);
+      const within = found.filter((a) => Math.abs(a.t - arrival(a.t)) < 0.05).length;
+      // The deepest point moves only to a sample deeper by more than the noise margin,
+      // so the bottom stays the first sample of the dwell, not the deepest noise in it.
+      // (9 of 11 at 30 fps: a flat puts the fit's vertex half a frame past its first sample,
+      // and the arrival can be a frame before it.)
+      expect(within / found.length, `${fps} fps`).toBeGreaterThanOrEqual(0.8);
+      // Timed from the dwell's first sample, confirmed by the first sample past the
+      // dwell: the hand leaving the bottom is what says the dwell is over.
+      for (const a of found) expect(a.at - arrival(a.t), `${fps} fps`).toBeLessThan(DWELL + 2.5 / fps);
+    }
+  });
+
+  it('the first stroke after a long rest is confirmed within the normal latency (the spike ceiling does not decay with the envelope)', () => {
+    const before = train();
+    const last = before[before.length - 1];
+    const rest: Sample[] = [];
+    for (let i = 1; i * (1 / FPS) <= 40; i++) rest.push({ t: last.t + i / FPS, x: last.x, y: last.y });
+    const t0 = rest[rest.length - 1].t;
+    const after = train().map((s) => ({ ...s, t: s.t + t0 + 1 / FPS }));
+    const det = createIctusDetector();
+    for (const s of [...before, ...rest]) det.push(s);
+    const found: { t: number; at: number }[] = [];
+    for (const s of after) {
+      const a = det.push(s);
+      if (a) found.push({ t: a.t, at: s.t });
+    }
+    expect(found.length).toBeGreaterThanOrEqual(8);
+    for (const a of found) expect(a.at - a.t).toBeLessThan(2.5 / FPS);
   });
 
   it('dropouts: no spurious anchor, the beats are still found at their time', () => {
