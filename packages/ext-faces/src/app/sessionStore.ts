@@ -18,6 +18,14 @@
  * Every asynchronous step checks the store's `generation` when it resumes: `reset`, a new take
  * and opening a saved categorizer each bump it, so a late result for a take no longer shown is
  * dropped instead of landing on the new one.
+ *
+ * #385 E2: a take may begin in **Explore** (`explore()`: the features claimed and the camera
+ * read, nothing collected) and be **paused** and resumed (`pause()` / `resume()`, or
+ * `toggleCapture()`, which the host's `carve.capture.toggle` command reaches through the
+ * capture seam the store provides while it is live). The live feature bars and the hold ring
+ * are read, not pushed: the poll feeds the bars model, and the panel reads `live()` at its own
+ * rate (the hot-path rule: a holder plus a poll, never a store write per frame). The store is
+ * told only when the ring's state changes.
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import {
@@ -33,11 +41,13 @@ import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedC
 import { carveView, carverFor, savedView, withTypedName, type CarveView, type TypedName } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, type Tuning } from '../lib/live';
-import { createFaceTake, type FaceTake } from '../lib/take';
+import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
 import type { Carver } from '@thoremin/sdk/enroll/carve';
 import { foreignModality, keepOnly, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
+import type { CaptureState, CarveCaptureControl } from '@thoremin/sdk-ui/enroll/capture';
 import type { FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
 import { thumbKey, type FrameGrabber, type ThumbStore } from './thumbnails';
@@ -46,10 +56,14 @@ import { startVideoTake, type VideoTake } from './videoTake';
 export type FacePhase =
   /** Nothing recorded; the saved list and Record. */
   | 'idle'
+  /** The camera read (the bars, the ring), nothing recorded yet (#385 E2). */
+  | 'explore'
   /** Recording the resting face. */
   | 'rest'
   /** Recording the player's faces. */
   | 'faces'
+  /** The capture paused: the camera still read, nothing collected (#385 E2). */
+  | 'paused'
   /** Stop was pressed: the video is being closed and the take carved. */
   | 'stopping'
   /** A take carved: the grid, k, the mode, names, Save. */
@@ -66,7 +80,11 @@ export type FacePhase =
 export type MergeSeed = 'samples' | 'centroids';
 
 /** Whether a phase is a recording in progress (closing the tool must end it). */
-export const isRecording = (phase: FacePhase): boolean => phase === 'rest' || phase === 'faces' || phase === 'stopping';
+export const isRecording = (phase: FacePhase): boolean => phase === 'rest' || phase === 'faces' || phase === 'paused' || phase === 'stopping';
+
+/** Whether a phase reads the camera (claims the features, hushes the instrument): exploring
+ *  or recording. Closing the tool ends it. */
+export const isLive = (phase: FacePhase): boolean => phase === 'explore' || isRecording(phase);
 
 export interface FaceSessionDeps {
   source: () => FaceSource;
@@ -85,6 +103,10 @@ export interface FaceSessionDeps {
   /** What is carved (the face by default): the keys a sample keeps, the cues, the names, the
    *  modality a file must be to import. */
   modality?: CarveModality;
+  /** Provide the live take's capture control for the host's `carve.capture.toggle` command
+   *  (`@thoremin/sdk-ui/enroll/capture`'s `provideCarveCapture`); returns its withdrawal. None
+   *  by default. */
+  capture?: (control: CarveCaptureControl) => () => void;
 }
 
 export interface FaceSessionState {
@@ -96,6 +118,8 @@ export interface FaceSessionState {
   thumbs: Readonly<Record<number, string>>;
   /** Held faces captured so far (while recording). */
   points: number;
+  /** The hold ring's state (exploring, capturing or paused). */
+  hold: HoldState;
   /** Seconds since Record (while recording). */
   elapsed: number;
   /** Whether this take's video is being / was kept (false: no pictures in the grid). */
@@ -117,7 +141,18 @@ export interface FaceSessionState {
   /** The take being recorded is merged into the open categorizer, with this seed. */
   merging: MergeSeed | null;
 
+  /** Read the camera without recording (#385 E2): the bars and the ring run; Start captures. */
+  explore(): void;
+  /** Record: the rest, then the faces. From Explore it goes on with the same reading. */
   start(): void;
+  /** Stop collecting faces; the camera is still read (from `faces`). */
+  pause(): void;
+  /** Collect faces again (from `paused`). */
+  resume(): void;
+  /** Space: Explore starts, capturing pauses, paused resumes (the rest is left to end). */
+  toggleCapture(): void;
+  /** The live feature bars now, or null when nothing is read. Not reactive: a panel polls it. */
+  live(options?: { count?: number }): LiveBars | null;
   stop(): Promise<void>;
   setMode(mode: CategorizerMode): void;
   setK(k: number): void;
@@ -166,6 +201,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
    *  and body that rode along in the live vector (it is stored in localStorage). */
   const modalityOnly = (v: FeatureVector): FeatureVector => keepOnly(modality, v);
   let take: FaceTake | null = null;
+  /** The live bars over the take being read (null when nothing is read). */
+  let bars: LiveBarsModel | null = null;
+  /** Withdraws the capture control this store provided. */
+  let withdraw: (() => void) | null = null;
   let source: FaceSource | null = null;
   let video: VideoTake | null = null;
   let blob: Blob | null = null;
@@ -213,6 +252,62 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       claimed = false;
       source?.dispose();
       source = null;
+      bars = null;
+      withdraw?.();
+      withdraw = null;
+    };
+
+    /** The capture state the host's command sees (null when nothing is live). */
+    const captureState = (): CaptureState | null => {
+      const phase = get().phase;
+      return phase === 'explore' ? 'explore' : phase === 'rest' ? 'rest' : phase === 'faces' ? 'capturing' : phase === 'paused' ? 'paused' : null;
+    };
+    const provideCapture = () => {
+      if (withdraw || !deps.capture) return;
+      const control: CarveCaptureControl = { what: modality.words.many, state: () => captureState() ?? 'explore', toggle: () => get().toggleCapture() };
+      withdraw = deps.capture(control);
+    };
+
+    /** The bars' view of a take: its features, its noise unit, its rest once there is one, and
+     *  its holds (the arrays cached, so the online carve runs once per new hold). */
+    const barsFor = (t: FaceTake): LiveBarsModel => {
+      const session = t.session();
+      const ids = session.featuresFor(vocabularyCue(modality));
+      let holds: { n: number; vectors: FeatureVector[] } = { n: 0, vectors: [] };
+      let rest: { mean: FeatureVector; spread: Record<string, number> } | null = null;
+      const context = (): LiveBarsContext => {
+        const points = session.points();
+        if (points.length !== holds.n) holds = { n: points.length, vectors: points.map((p) => p.vector) };
+        if (!rest && t.facesStartedAt() !== null) rest = restStats(t.restVectors(), ids);
+        const noise = session.noise();
+        return { ids, sigma: (id) => (noise.isWarm(id) ? noise.sigma(id) : Number.NaN), rest: rest?.mean ?? null, restSpread: rest?.spread ?? null, holds: holds.vectors };
+      };
+      return createLiveBars(context);
+    };
+
+    /** Read the source into the take every `pollMs`, telling the store only what a person can
+     *  see change (the phase, the count of held faces, the ring, a coarse elapsed time). */
+    const poll = (t0: number) => {
+      stopPolling();
+      let lastShown = -1;
+      timer = setInterval(() => {
+        if (!take || !source) return;
+        const live = source.read();
+        if (live) {
+          take.push(live.vector, live.t);
+          bars?.push(modality.read(live.vector), live.t);
+        }
+        const tp = take.phase();
+        const phaseNow: FacePhase = tp === 'explore' || tp === 'rest' || tp === 'faces' || tp === 'paused' ? tp : get().phase;
+        const elapsed = phaseNow === 'explore' ? 0 : Math.floor((deps.now() - t0) / 250) / 4;
+        const points = take.pointCount();
+        const hold = take.hold();
+        const s = get();
+        if (s.phase !== phaseNow || s.points !== points || elapsed !== lastShown || s.hold !== hold) {
+          lastShown = elapsed;
+          set({ phase: phaseNow, points, elapsed, hold });
+        }
+      }, deps.pollMs);
     };
     const show = (gen: number) => {
       if (gen === generation) set({ thumbs: Object.fromEntries(urls) });
@@ -313,6 +408,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       view: null,
       thumbs: {},
       points: 0,
+      hold: 'open',
       elapsed: 0,
       hasVideo: false,
       notice: null,
@@ -325,39 +421,74 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       dirty: false,
       merging: null,
 
-      start() {
-        if (isRecording(get().phase)) return;
-        const merge = mergeBase;
+      explore() {
+        if (isLive(get().phase)) return;
         get().reset();
-        mergeBase = merge;
         source = deps.source();
         take = createFaceTake({ modality });
-        takeId = deps.newTakeId();
+        bars = barsFor(take);
         deps.claim(true);
         claimed = true;
-        video = startVideoTake(source.video(), deps.now);
+        take.explore(deps.now());
+        set({ phase: 'explore', points: 0, elapsed: 0, hold: 'open', notice: null, view: null, thumbs: {}, openId: null, name: '', merging: null });
+        provideCapture();
+        poll(deps.now());
+      },
+
+      start() {
+        const exploring = get().phase === 'explore' && take !== null && source !== null;
+        if (isRecording(get().phase)) return;
+        const merge = mergeBase;
+        if (!exploring) {
+          get().reset();
+          mergeBase = merge;
+          source = deps.source();
+          take = createFaceTake({ modality });
+          bars = barsFor(take);
+          deps.claim(true);
+          claimed = true;
+        }
+        else {
+          // A fresh source for the capture: the live one is stateless (the tap and the camera
+          // stay), and the scripted one starts its script, rest first, when the capture does.
+          source!.dispose();
+          source = deps.source();
+        }
+        takeId = deps.newTakeId();
+        video = startVideoTake(source!.video(), deps.now);
         const t0 = deps.now();
-        take.start(t0);
-        set({ phase: 'rest', points: 0, elapsed: 0, hasVideo: video !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
-        let lastShown = -1;
-        timer = setInterval(() => {
-          if (!take || !source) return;
-          const live = source.read();
-          if (live) take.push(live.vector, live.t);
-          const phaseNow = take.phase() === 'faces' ? 'faces' : 'rest';
-          const elapsed = Math.floor((deps.now() - t0) / 250) / 4;
-          const points = take.pointCount();
-          const s = get();
-          if (s.phase !== phaseNow || s.points !== points || elapsed !== lastShown) {
-            lastShown = elapsed;
-            set({ phase: phaseNow, points, elapsed });
-          }
-        }, deps.pollMs);
+        take!.start(t0);
+        set({ phase: 'rest', points: 0, elapsed: 0, hold: 'open', hasVideo: video !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
+        provideCapture();
+        poll(t0);
+      },
+
+      pause() {
+        if (get().phase !== 'faces' || !take) return;
+        take.pause(deps.now());
+        set({ phase: 'paused', hold: take.hold() });
+      },
+
+      resume() {
+        if (get().phase !== 'paused' || !take) return;
+        take.resume(deps.now());
+        set({ phase: 'faces', hold: take.hold() });
+      },
+
+      toggleCapture() {
+        const phase = get().phase;
+        if (phase === 'explore') get().start();
+        else if (phase === 'faces') get().pause();
+        else if (phase === 'paused') get().resume();
+      },
+
+      live(options) {
+        return bars && isLive(get().phase) && get().phase !== 'stopping' ? bars.snapshot(options) : null;
       },
 
       async stop() {
         const phase = get().phase;
-        if (phase !== 'rest' && phase !== 'faces') return;
+        if (phase !== 'rest' && phase !== 'faces' && phase !== 'paused') return;
         // Synchronously out of the recording phases: a second Stop, or the panel's cleanup, now
         // sees a take being stopped, not one to stop again.
         set({ phase: 'stopping' });
@@ -426,12 +557,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return;
         }
         if (!built) {
+          const { one } = modality.words;
           set({
             phase: 'empty',
             notice:
               phase === 'rest'
-                ? 'The take stopped during the rest, before any face was held. Record again and keep going after the rest.'
-                : 'No face was held long enough to carve. Hold each face for a moment.',
+                ? `The take stopped during the rest, before any ${one} was held. Record again and keep going after the rest.`
+                : `No ${one} was held long enough to carve. Hold each ${one} for a moment.`,
           });
           return;
         }
@@ -596,13 +728,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         grabbing.clear();
         grabs = Promise.resolve();
         dropUrls();
-        set({ phase: 'idle', view: null, thumbs: {}, points: 0, elapsed: 0, hasVideo: false, openId: null, k: 0, notice: null, working: null, tuning: DEFAULT_TUNING, dirty: false, merging: null });
+        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasVideo: false, openId: null, k: 0, notice: null, working: null, tuning: DEFAULT_TUNING, dirty: false, merging: null });
       },
 
       cancelRecording() {
         const merge = mergeBase;
         if (!isRecording(get().phase) || !merge) {
-          if (isRecording(get().phase)) get().reset();
+          if (isLive(get().phase)) get().reset();
           return;
         }
         // A merge take abandoned: back to the categorizer it was adding to, unsaved work and all.
@@ -698,4 +830,20 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     };
   });
   return store;
+}
+
+/** The rest frames' mean and standard deviation over `ids` (raw units): what the bars measure
+ *  from, and the neutral band they draw. */
+function restStats(vectors: readonly FeatureVector[], ids: readonly string[]): { mean: FeatureVector; spread: Record<string, number> } | null {
+  if (vectors.length === 0) return null;
+  const mean: FeatureVector = {};
+  const spread: Record<string, number> = {};
+  for (const id of ids) {
+    const xs = vectors.map((v) => v[id]).filter((x): x is number => Number.isFinite(x));
+    if (xs.length === 0) continue;
+    const m = xs.reduce((a, x) => a + x, 0) / xs.length;
+    mean[id] = m;
+    spread[id] = Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / xs.length);
+  }
+  return { mean, spread };
 }

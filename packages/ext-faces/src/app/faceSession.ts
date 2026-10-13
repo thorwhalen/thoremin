@@ -3,11 +3,13 @@
  * dependencies, made once per page, on first use (that is, when the tool's panel first opens);
  * and its live test store (P3), the same way.
  *
- * While a take records it claims the face feature groups (so the face vector is computed with
- * the Lab closed, the trainer's mechanism) and hushes the instrument (making faces at the camera
- * is not playing it).
+ * While a take explores or records it claims the face feature groups (so the face vector is
+ * computed with the Lab closed, the trainer's mechanism) and hushes the instrument (making faces
+ * at the camera is not playing it), and provides its capture control to the host's
+ * `carve.capture.toggle` command (Space).
  */
 import type { StoreApi } from 'zustand/vanilla';
+import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
 import { carveOwners, claimCarve } from '@thoremin/sdk-ui/enroll/modality';
 import { faceModalityUi } from './modality';
 import { createFaceModelStore, withChangeNotice } from './models';
@@ -35,6 +37,7 @@ export function browserDeps(): FaceSessionDeps {
     now: () => performance.now(),
     pollMs: FACE_SESSION_DEFAULTS.pollMs,
     claim: (on) => claimCarve(FACES_CLAIMER, modality, on),
+    capture: provideCarveCapture,
     newTakeId: () => `take-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     isoNow: () => new Date().toISOString(),
   };

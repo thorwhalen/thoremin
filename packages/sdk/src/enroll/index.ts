@@ -29,6 +29,7 @@
  * | Show | `exemplars.ts` | each category's medoid, then members toward its edge (#330) |
  * | Save | `categorizer.ts` | the versioned file: samples as the SSOT, the model derived, migrations (#330) |
  * | Reuse | `from_model.ts` | merge a new session into a model; carry names to a fresh carve (#330) |
+ * | Watch | `bars.ts` | live feature bars in noise units from the rest; the online carve's separating features (#385) |
  *
  * ## The one architectural rule
  *

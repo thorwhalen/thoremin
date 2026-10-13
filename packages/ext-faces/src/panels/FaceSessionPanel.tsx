@@ -6,20 +6,29 @@
  * (P3, `./TestAndTune.tsx`). The host draws the frame (`ExtensionToolPanels`); this is its content.
  *
  * Rendering only: every action is the session store's (`../app/sessionStore.ts`). Closing the
- * tool (unmounting this) stops a recording, so nothing keeps sampling with no panel to say so.
+ * tool (unmounting this) stops a recording, or an exploration, so nothing keeps sampling (or
+ * keeps the instrument quiet) with no panel to say so.
+ *
+ * #385 E2: "Record my faces" opens Explore (the camera read, the live feature bars and the hold
+ * ring, nothing recorded); "Start capturing" (or Space) begins the take; while capturing, Pause
+ * (or Space) stops collecting and the bars and ring keep running. Space is the host's
+ * `carve.capture.toggle` command, through the capture seam the session store provides.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
+import { FeatureBars } from '@thoremin/sdk-ui/enroll/FeatureBars';
+import { HoldRing, type HoldRingState } from '@thoremin/sdk-ui/enroll/HoldRing';
 import { dispatchDialPatch, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { CategorizerMode } from '@thoremin/sdk/enroll/categorizer';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
-import { isRecording, type FaceSessionState } from '../app/sessionStore';
+import { isLive, type FaceSessionState } from '../app/sessionStore';
+import { faceModalityUi } from '../app/modality';
 import type { FaceTestState } from '../app/testStore';
 import { categoryOf } from '../lib/corrections';
 import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
-import { FACE_REST_CUE, FACE_VOCABULARY_CUE } from '../lib/take';
+import { restCue, vocabularyCue } from '../lib/take';
 import type { CarveView, CarvedCategory } from '../lib/carving';
 import { chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
@@ -328,6 +337,80 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
   );
 }
 
+const { modality } = faceModalityUi;
+
+/** The hold ring's words, per phase: what a hold does now. */
+function ringWords(phase: 'explore' | 'faces' | 'paused'): Record<HoldRingState, string> {
+  const { one } = modality.words;
+  if (phase === 'faces') return { open: `Hold a ${one} until the ring closes.`, settling: 'Holding…', held: `Taken. Move to a new ${one}.` };
+  if (phase === 'paused') return { open: 'Paused: a hold now is not taken.', settling: 'Holding… (paused, not taken)', held: 'Would be taken, if not paused.' };
+  return { open: `Hold a ${one}: the ring closes when it would be taken.`, settling: 'Holding…', held: `Held. Try a new ${one}.` };
+}
+
+const STATE_TEXT: Record<'explore' | 'rest' | 'faces' | 'paused', string> = {
+  explore: 'Exploring',
+  rest: 'Resting',
+  faces: 'Capturing',
+  paused: 'Paused',
+};
+
+/** Explore, the rest, Capturing and Paused: one screen (design C.3.1). */
+function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessionState> }) {
+  const phase = s.phase as 'explore' | 'rest' | 'faces' | 'paused';
+  const { one, many } = modality.words;
+  const read = useCallback((o: { count: number }) => store.getState().live(o), [store]);
+  const cue = phase === 'rest' ? restCue(modality) : vocabularyCue(modality);
+  const instruction =
+    phase === 'explore'
+      ? `Try your ${many}: the bars show what the camera reads, and the ring when a ${one} is held. Nothing is recorded yet.`
+      : phase === 'paused'
+        ? `Paused: nothing is recorded. Rehearse the next ${one}, then resume.`
+        : cue.instruction;
+  return (
+    <div className="space-y-2" data-faces-recording={phase}>
+      {s.merging && <p className="text-[11px] font-semibold text-emerald-200">{`Adding to "${s.name}": ${s.merging === 'samples' ? `new ${many} join its categories` : 'its categories are learned again from this take'}.`}</p>}
+      <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-white/70" role="status" aria-live="polite">
+        <span className={`font-bold uppercase tracking-widest ${phase === 'faces' ? 'text-rose-300' : phase === 'paused' ? 'text-amber-200' : 'text-white/60'}`} data-faces-state>
+          {phase === 'faces' ? '● ' : ''}
+          {STATE_TEXT[phase]}
+        </span>
+        {phase !== 'explore' && <span>{`${s.elapsed.toFixed(0)} s`}</span>}
+        {(phase === 'faces' || phase === 'paused') && <span>{`${s.points} held ${s.points === 1 ? one : many}`}</span>}
+        {phase !== 'explore' && <span>{s.hasVideo ? 'video kept in this page only' : 'no video'}</span>}
+      </p>
+      <p className="text-sm font-semibold text-white">{instruction}</p>
+      {phase !== 'explore' && phase !== 'paused' && <p className={hint}>{cue.rationale}</p>}
+      <div className="flex flex-wrap gap-2">
+        {phase === 'explore' && (
+          <button type="button" className={primary} onClick={() => s.start()}>
+            Start capturing (Space)
+          </button>
+        )}
+        {phase === 'faces' && (
+          <button type="button" className={btn} onClick={() => s.pause()}>
+            Pause (Space)
+          </button>
+        )}
+        {phase === 'paused' && (
+          <button type="button" className={primary} onClick={() => s.resume()}>
+            Resume (Space)
+          </button>
+        )}
+        {phase !== 'explore' && (
+          <button type="button" className={primary} onClick={() => void s.stop()}>
+            Stop and carve
+          </button>
+        )}
+        <button type="button" className={btn} onClick={() => s.cancelRecording()}>
+          Cancel
+        </button>
+      </div>
+      {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase)} />}
+      <FeatureBars read={read} part={modality.words.part} one={one} />
+    </div>
+  );
+}
+
 export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
   const s = useStore(store);
   /** Whether to go on when that drops something unsaved (a carve, a correction, an import). */
@@ -337,7 +420,7 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
     // Closing the tool stops a recording: nothing keeps sampling with no panel to say so.
     return () => {
       const { phase, cancelRecording } = store.getState();
-      if (isRecording(phase)) cancelRecording();
+      if (isLive(phase)) cancelRecording();
     };
   }, [store]);
 
@@ -348,31 +431,14 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
       </p>
     );
   }
-  if (s.phase === 'rest' || s.phase === 'faces') {
-    const cue = s.phase === 'rest' ? FACE_REST_CUE : FACE_VOCABULARY_CUE;
-    return (
-      <div className="space-y-2" data-faces-recording={s.phase}>
-        {s.merging && <p className="text-[11px] font-semibold text-emerald-200">{`Adding to "${s.name}": ${s.merging === 'samples' ? 'new faces join its categories' : 'its categories are learned again from this take'}.`}</p>}
-        <p className="text-sm font-semibold text-white">{cue.instruction}</p>
-        <p className={hint}>{cue.rationale}</p>
-        <p className="text-[11px] text-white/70" role="status" aria-live="polite">
-          {`${s.elapsed.toFixed(0)} s`}
-          {s.phase === 'faces' && ` · ${s.points} held face${s.points === 1 ? '' : 's'}`}
-          {s.hasVideo ? ' · video kept in this page only' : ' · no video'}
-        </p>
-        <button type="button" className={primary} onClick={() => void s.stop()}>
-          Stop and carve
-        </button>
-      </div>
-    );
-  }
+  if (s.phase === 'explore' || s.phase === 'rest' || s.phase === 'faces' || s.phase === 'paused') return <LiveTake s={s} store={store} />;
 
   return (
     <div className="space-y-3">
       {s.phase === 'idle' && (
         <p className={hint}>
           Record a minute of your own faces: a few seconds of rest, then each face you want the instrument to know. They are carved into categories you can
-          name and keep. Everything stays in this browser.
+          name and keep. First you see what the camera reads; nothing is recorded until you start. Everything stays in this browser.
         </p>
       )}
       {s.notice && (
@@ -381,7 +447,7 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={primary} onClick={() => confirmDiscard() && s.start()}>
+        <button type="button" className={primary} onClick={() => confirmDiscard() && s.explore()}>
           {s.phase === 'idle' ? 'Record my faces' : 'Record a new take'}
         </button>
         {s.phase !== 'idle' && (

@@ -208,6 +208,9 @@ export interface StillPointSampler {
   /** True once the vector has exceeded the held threshold at least once since reset —
    *  i.e. the player has MOVED. Tells "never moved" apart from "moved, never held". */
   hasMoved(): boolean;
+  /** Whether a held pose would be emitted: false once a point is emitted (or at a disarmed
+   *  start) until the vector moves away. "Hold a new pose", for a hold indicator (#385 E2). */
+  isArmed(): boolean;
 }
 
 /**
@@ -345,5 +348,6 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
     isSettling: () => settlingSince !== null,
     lastSpeed: () => lastSpeed,
     hasMoved: () => moved,
+    isArmed: () => armed,
   };
 }

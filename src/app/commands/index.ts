@@ -22,6 +22,8 @@ export { RECORDING_COMMANDS, setRecordingLocationCmd, chooseRecordingFolderCmd }
 export { provideRecordingHost, recordingHost, type RecordingHost, type ChosenFolder } from './recordingHost';
 export { SONG_COMMANDS, playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd } from './song';
 export { provideSongHost, songHost, type SongHost } from './songHost';
+export { CARVE_COMMANDS, toggleCarveCaptureCmd } from './carve';
+export { provideCarveHost, liveCarve, type CarveHost, type CarveControl, type CarveCaptureState } from './carveHost';
 export {
   installConfirmationGate,
   createApprovalStore,

@@ -6,7 +6,12 @@ This package is phases P2 (the session), P3 (test, correct, tune, import and exp
 
 ## In the app
 
-Tools, then **Your faces**, then **Record my faces**: a few seconds of rest, then each face you want the instrument to know, holding each for a moment. **Stop and carve** shows the grid:
+Tools, then **Your faces**, then **Record my faces**, which opens **Explore** (#385 E2): the camera is read (the face features claimed, the instrument quiet) and nothing is recorded. Two things show what the camera reads:
+
+- **The bars**: a handful of features, each centred on your rest and measured in noise units (how far a feature moved, in multiples of its own frame-to-frame jitter: the units the carve uses, so a bar that barely moves is a feature the carve cannot use either). Before the rest they are measured from the last moments. Exploring, they are the features that moved most lately; once your holds make two or more categories, they are the features that tell those apart, with a coloured tick at each category so far (numbered by its first hold), and the faint band is your rest's own spread. *more* shows twelve.
+- **The ring**: it fills while a face is held, closes when the hold is taken, and asks for a new face while that one is already given.
+
+**Start capturing** (or **Space**) records: a few seconds of rest, then each face you want the instrument to know, holding each for a moment. **Pause** (or Space) stops collecting while you think of the next face: the bars and the ring keep running (the ring says what *would* be taken), and nothing is taken inside a pause or across one. **Resume** (or Space) carries on. Space is the command `carve.capture.toggle` (also in the palette, and for a gesture or the assistant); it only acts while a carve is live, so elsewhere Space is the page's. Four clicks from a cold load to recording: Tools, Your faces, Record my faces, Start capturing. **Stop and carve** shows the grid:
 
 - **Neutral**, stated plainly. *Neutral means "none of these"* (the default): faces close to your resting face are set aside and read as nothing, so k counts only your expressions. *Every face is a category*: your resting face is a category too, so k counts it (expressions + 1). The line under the switch says which one is in use.
 - **How many**: a slider starting at the suggested k. Moving it re-divides the same take, with no new recording.

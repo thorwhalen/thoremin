@@ -62,13 +62,34 @@ test('the face session loads only when opened, and records, carves, names and sa
   await settled();
   expect(scripts.some((s) => s.body.includes(DEFERRED_MARKER)), 'opening the tool did not fetch the faces code').toBe(true);
 
-  // Record my faces (3): the rest, then the faces.
+  // Record my faces (3): Explore (#385 E2), the camera read, the bars and the ring, nothing recorded.
   await record.click();
+  await expect(panel.locator('[data-faces-recording="explore"]')).toBeVisible();
+  await expect(panel.locator('[data-feature-bar]').first()).toBeVisible({ timeout: 10_000 });
+  await expect(panel.locator('[data-hold-ring]')).toBeVisible();
+  // Space (4), with the Start button focused: the key's command starts the capture (the button's
+  // own activation, if the browser still fires it, is a no-op once recording: start, pause and
+  // resume are each idempotent, never a toggle).
+  await panel.getByRole('button', { name: 'Start capturing (Space)' }).focus();
+  await page.keyboard.press('Space');
   await expect(panel.locator('[data-faces-recording="rest"]')).toBeVisible();
   await expect(panel.locator('[data-faces-recording="faces"]')).toBeVisible({ timeout: 15_000 });
   // The synthetic face holds smile, rest, surprise, rest, frown, rest (1.55 s each) after its
   // rest; a full cycle and a half, so a slow machine still sees every face held.
-  await page.waitForTimeout(14_000);
+  await page.waitForTimeout(7_000);
+  // Space pauses: the bars and the ring keep running, nothing is collected; Space resumes.
+  await page.keyboard.press('Space');
+  await expect(panel.locator('[data-faces-recording="paused"]')).toBeVisible();
+  const status = panel.locator('[data-faces-recording="paused"] p[role=status]');
+  const heldCount = async () => Number(/(\d+) held/.exec((await status.textContent()) ?? '')?.[1] ?? NaN);
+  const held = await heldCount();
+  expect(held).toBeGreaterThan(0);
+  await page.waitForTimeout(2_000);
+  expect(await heldCount()).toBe(held);
+  await expect(panel.locator('[data-feature-bar-tick]').first()).toBeVisible();
+  await page.keyboard.press('Space');
+  await expect(panel.locator('[data-faces-recording="faces"]')).toBeVisible();
+  await page.waitForTimeout(7_000);
   await panel.getByRole('button', { name: 'Stop and carve' }).click();
 
   // The grid: neutral is "none of these" by default, the expressions carved, with pictures.
