@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { CAPTURE, cameraConstraints } from '@/app/camera';
 import { isSoftwareRenderer, resolveDelegate, DelegateChoiceSchema } from '@/nodes/sources/delegate';
-import { latencyHintFor, honoursNumericLatencyHint, DEFAULT_AUDIO_PREFS, DEFAULT_LATENCY_HINT } from '@/app/timing/audioPrefs';
+import { latencyHintFor, honoursNumericLatencyHint, DEFAULT_AUDIO_PREFS, DEFAULT_LATENCY_HINT, noteLatencyHintInEffect, lowLatencyHintInEffect } from '@/app/timing/audioPrefs';
 import { useControls, mergeControls } from '@/app/store';
 import { SettingsSchema } from '@/settings/schema';
 import { webcamHandsNode } from '@/nodes/sources/webcam_hands';
@@ -17,7 +17,7 @@ import { webcamBodyNode } from '@/nodes/sources/webcam_body';
 
 describe('the capture the instrument asks for', () => {
   it('is 1280x720 at 16:9, up to 60 fps, the front camera, all soft', () => {
-    // Not 640x360: the CPU delegate finds no hands at 640x360 (measured; see camera.ts).
+    // Not 640x360: the CPU delegate found no hands at 640x360 in headless Chromium (#324).
     expect(CAPTURE).toEqual({ width: 1280, height: 720, frameRate: 60 });
     const c = cameraConstraints();
     expect(c).toEqual({
@@ -47,9 +47,10 @@ describe('the model delegate (auto: CPU on software WebGL)', () => {
 
   it('auto resolves by the renderer; GPU and CPU force one', () => {
     expect(resolveDelegate('auto', 'SwiftShader driver')).toBe('CPU');
-    expect(resolveDelegate('auto', null)).toBe('CPU'); // no WebGL at all
+    // No WebGL context (or a transient failure): the GPU first, and its fall-back, as before.
+    expect(resolveDelegate('auto', null)).toBe('GPU');
     expect(resolveDelegate('auto', 'Apple M1 Max')).toBe('GPU');
-    expect(resolveDelegate('auto', undefined)).toBe('GPU'); // not a browser
+    expect(resolveDelegate('auto')).toBe('GPU'); // not a browser: no probe possible
     expect(resolveDelegate('GPU', 'SwiftShader driver')).toBe('GPU');
     expect(resolveDelegate('CPU', 'Apple M1 Max')).toBe('CPU');
   });
@@ -76,6 +77,19 @@ describe('the low-latency audio pref (per device, off by default)', () => {
     expect(honoursNumericLatencyHint('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0')).toBe(true);
     expect(honoursNumericLatencyHint('Mozilla/5.0 (Macintosh; Intel Mac OS X 14.6; rv:131.0) Gecko/20100101 Firefox/131.0')).toBe(false);
     expect(honoursNumericLatencyHint('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15')).toBe(false);
+  });
+
+  it('counts as in force only when the context was created with it, on a browser that honours it', () => {
+    const chrome = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+    const firefox = 'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0';
+    noteLatencyHintInEffect(null); // no context yet (the box may be ticked)
+    expect(lowLatencyHintInEffect(chrome)).toBe(false);
+    noteLatencyHintInEffect('interactive'); // ticked after the context was made, no reload
+    expect(lowLatencyHintInEffect(chrome)).toBe(false);
+    noteLatencyHintInEffect(0);
+    expect(lowLatencyHintInEffect(chrome)).toBe(true);
+    expect(lowLatencyHintInEffect(firefox)).toBe(false);
+    noteLatencyHintInEffect(null);
   });
 
   it('is a per-device tooling pref, not a preset field: persisted, healed, never saved with an instrument', () => {

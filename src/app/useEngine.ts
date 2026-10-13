@@ -54,7 +54,7 @@ import type { FaceStatus } from '@/nodes';
 import type { MidiStatus } from '@/nodes/browser';
 import type { ExpressionScores } from '@/music/expression';
 import { cameraConstraints } from './camera';
-import { latencyHintFor } from './timing/audioPrefs';
+import { latencyHintFor, noteLatencyHintInEffect } from './timing/audioPrefs';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -616,7 +616,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       // The per-device low-latency pref (#240) asks for the smallest buffer; read once,
       // here, because a context's hint is fixed at creation.
-      ac = new Ctor({ latencyHint: latencyHintFor(useControls.getState().audioPrefs) });
+      const latencyHint = latencyHintFor(useControls.getState().audioPrefs);
+      ac = new Ctor({ latencyHint });
+      noteLatencyHintInEffect(latencyHint);
       const master = ac.createGain();
       const { masterVolume: v0, muted: muted0 } = useControls.getState();
       master.gain.setValueAtTime(muted0 ? 0 : v0, ac.currentTime);

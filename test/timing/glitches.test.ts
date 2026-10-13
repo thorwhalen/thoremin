@@ -98,6 +98,53 @@ describe('GlitchCounter, the clock reading', () => {
   });
 });
 
+/**
+ * A pair whose `performanceTime` is the moment of the CALL while the context time moves
+ * once per output callback (the adversarial review's model of Firefox): the offset is a
+ * sawtooth one callback wide. Ticks at ~60 Hz with jitter, and occasional main-thread
+ * stalls of up to a few frames (inference).
+ */
+function callTimePair(callbackMs: number, seed = 1) {
+  let wallMs = 1000;
+  let lostMs = 0; // context time lost to dropouts
+  let rnd = seed;
+  const rand = () => ((rnd = (rnd * 16807) % 2147483647) / 2147483647);
+  const ac = {
+    state: 'running',
+    getOutputTimestamp: () => {
+      const ctxMs = Math.floor((wallMs - lostMs) / callbackMs) * callbackMs;
+      return { contextTime: ctxMs / 1000, performanceTime: wallMs };
+    },
+  };
+  return {
+    ac,
+    tick(dropoutMs = 0) {
+      lostMs += dropoutMs;
+      const stall = rand() < 0.05 ? rand() * 60 : 0;
+      wallMs += 1000 / 60 + (rand() - 0.5) * 4 + stall;
+      return wallMs;
+    },
+  };
+}
+
+describe('GlitchCounter, a pair taken at the call (Firefox-shaped)', () => {
+  for (const callbackMs of [10.7, 21.3, 42.7]) {
+    it(`counts nothing over ten minutes of a ${callbackMs} ms sawtooth, stalls included`, () => {
+      const c = callTimePair(callbackMs);
+      const g = new GlitchCounter();
+      for (let i = 0; i < 60 * 60 * 10; i++) g.observe(c.ac, c.tick());
+      expect(g.reading().total).toBe(0);
+    });
+  }
+
+  it('still counts a dropout well beyond the sawtooth (100 ms against a 10.7 ms callback)', () => {
+    const c = callTimePair(10.7, 7);
+    const g = new GlitchCounter();
+    for (let i = 0; i < 600; i++) g.observe(c.ac, c.tick(i === 300 ? 100 : 0));
+    expect(g.reading().total).toBe(1);
+  });
+});
+
 describe('GlitchCounter, the playbackStats reading (Chromium)', () => {
   it('counts underrun events after the first reading, with the seconds lost, and prefers them to the clock', () => {
     const stats = { underrunEvents: 3, underrunDuration: 0.02 };
@@ -118,6 +165,18 @@ describe('GlitchCounter, the playbackStats reading (Chromium)', () => {
     stats.underrunEvents = 10;
     g.observe(ac, 1048);
     expect(g.reading().total).toBe(3);
+  });
+
+  it('re-bases across a sampling gap (a hidden tab): underruns meanwhile are not the player\'s', () => {
+    const stats = { underrunEvents: 0, underrunDuration: 0 };
+    const g = new GlitchCounter();
+    g.observe({ state: 'running', playbackStats: stats }, 0);
+    stats.underrunEvents = 12; // while hidden
+    g.observe({ state: 'running', playbackStats: stats }, 5000);
+    expect(g.reading().total).toBe(0);
+    stats.underrunEvents = 13;
+    g.observe({ state: 'running', playbackStats: stats }, 5016);
+    expect(g.reading().total).toBe(1);
   });
 
   it('re-bases when the counters go back (a new context)', () => {

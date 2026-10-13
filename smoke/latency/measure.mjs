@@ -128,41 +128,47 @@ async function measureInference(page, args) {
       const fileset = await vision.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${version}/wasm`);
       const out = {};
       for (const capture of captures) {
-      const [width, height] = capture.split('x').map(Number);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: width }, height: { ideal: height }, aspectRatio: { ideal: width / height } } });
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = stream;
-      await video.play();
-      for (const delegate of delegates) for (const numHands of numHandsList) {
-        const key = `${delegate} ${capture} numHands=${numHands}`;
-        let lm;
+        const [width, height] = capture.split('x').map(Number);
+        let stream;
         try {
-          lm = await vision.HandLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: model, delegate }, numHands, runningMode: 'VIDEO' });
+          stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: width }, height: { ideal: height }, aspectRatio: { ideal: width / height } } });
         } catch (e) {
-          out[key] = { error: String(e) };
+          out[capture] = { error: String(e) };
           continue;
         }
-        const ms = [];
-        let withHands = 0;
-        let lastTime = -1;
-        let ts = 0;
-        const deadline = performance.now() + 60_000;
-        while (ms.length < frames && performance.now() < deadline) {
-          await new Promise((r) => requestAnimationFrame(r));
-          if (video.currentTime === lastTime) continue;
-          lastTime = video.currentTime;
-          ts = Math.max(ts + 1, Math.floor(performance.now()));
-          const t0 = performance.now();
-          const res = lm.detectForVideo(video, ts);
-          ms.push(performance.now() - t0);
-          if (res.landmarks.length) withHands++;
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        await video.play();
+        for (const delegate of delegates) for (const numHands of numHandsList) {
+          const key = `${delegate} ${capture} numHands=${numHands}`;
+          let lm;
+          try {
+            lm = await vision.HandLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: model, delegate }, numHands, runningMode: 'VIDEO' });
+          } catch (e) {
+            out[key] = { error: String(e) };
+            continue;
+          }
+          const ms = [];
+          let withHands = 0;
+          let lastTime = -1;
+          let ts = 0;
+          const deadline = performance.now() + 60_000;
+          while (ms.length < frames && performance.now() < deadline) {
+            await new Promise((r) => requestAnimationFrame(r));
+            if (video.currentTime === lastTime) continue;
+            lastTime = video.currentTime;
+            ts = Math.max(ts + 1, Math.floor(performance.now()));
+            const t0 = performance.now();
+            const res = lm.detectForVideo(video, ts);
+            ms.push(performance.now() - t0);
+            if (res.landmarks.length) withHands++;
+          }
+          lm.close();
+          out[key] = { samples: ms.slice(10), withHands, frames: ms.length, granted: `${video.videoWidth}x${video.videoHeight}` };
         }
-        lm.close();
-        out[key] = { samples: ms.slice(10), withHands, frames: ms.length, granted: `${video.videoWidth}x${video.videoHeight}` };
-      }
-      stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((t) => t.stop());
       }
       return out;
     },

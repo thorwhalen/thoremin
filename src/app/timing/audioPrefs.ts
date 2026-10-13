@@ -46,3 +46,20 @@ export function honoursNumericLatencyHint(userAgent: string): boolean {
   if (/Firefox\//.test(userAgent)) return false;
   return /Chrom(e|ium)\/|Edg\//.test(userAgent);
 }
+
+let hintInEffect: AudioContextLatencyCategory | number | null = null;
+
+/** The host records the hint the instrument's context was created with (once, when it
+ *  creates it), so the status line blames the low-latency box only when it is in force. */
+export function noteLatencyHintInEffect(hint: AudioContextLatencyCategory | number | null): void {
+  hintInEffect = hint;
+}
+
+/**
+ * Whether the low-latency hint is actually in force: the context was created with it and
+ * this browser honours it. Ticking the box without a reload, or on Firefox or Safari,
+ * changes nothing, so a glitch there must not be blamed on it.
+ */
+export function lowLatencyHintInEffect(userAgent: string = typeof navigator === 'undefined' ? '' : navigator.userAgent): boolean {
+  return hintInEffect === LOW_LATENCY_HINT && honoursNumericLatencyHint(userAgent);
+}

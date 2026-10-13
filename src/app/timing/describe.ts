@@ -9,8 +9,8 @@
  * on or must know: an interrupted audio route ("tap to resume"), an output stage this
  * browser cannot report (so a predicted hit may still sound late: run the strike test),
  * a camera delivering under {@link LOW_LIGHT_FPS} (the usual cause is dim light), an
- * audio output that ran dry in the last minute (with the low-latency dial on, the line
- * names the dial, since the smaller buffer is the likely cause; #240), and
+ * audio output that ran dry in the last minute (with the low-latency hint in force, the line
+ * names the box, since the smaller buffer is the likely cause; #240), and
  * stamps that are not capture stamps (a sub-frame estimate then claims a precision the
  * stamp cannot carry). That last hint is about a BROWSER's stamps: frames with no stamp
  * at all (a synthetic source) or whose stamp was not used (a replay) earn no hint, since
@@ -39,7 +39,9 @@ const SOURCE_WORD: Record<string, string> = { measured: 'measured', pair: 'from 
 
 /** What the host knows that the reading does not. */
 export interface DescribeOptions {
-  /** The low-latency audio dial (`master.lowLatencyAudio`) is on: a glitch then names it. */
+  /** The low-latency hint is in force (the per-device box, `audioPrefs.lowLatency`, was
+   *  ticked when the context was created, on a browser that honours it): a glitch then
+   *  names it. */
   lowLatencyAudio?: boolean;
 }
 

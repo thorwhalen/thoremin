@@ -12,8 +12,8 @@
  * because SwiftShader does not throw: it is just seven times slower.
  *
  * So the models' `delegate` param gains `auto`, the default: the CPU delegate when the
- * renderer is a software one (or there is no WebGL at all), the GPU delegate otherwise,
- * with the old throw-and-fall-back kept behind it. `GPU` and `CPU` still force one.
+ * renderer is known to be a software one, the GPU delegate otherwise, with the old
+ * throw-and-fall-back kept behind it (so a browser without WebGL still lands on the CPU). `GPU` and `CPU` still force one.
  * A masked renderer string (privacy modes) reads as hardware: today's behaviour.
  */
 import { z } from 'zod';
@@ -30,38 +30,39 @@ export function isSoftwareRenderer(renderer: string): boolean {
   return SOFTWARE_RENDERER.test(renderer);
 }
 
-let cachedRenderer: string | null | undefined;
+let cachedRenderer: string | undefined;
 
 /**
  * This browser's WebGL renderer string (unmasked where the browser allows), or null when
- * there is no WebGL. Read once and cached: the probe creates a throwaway context.
+ * no WebGL context could be made. A string is cached (the probe creates a throwaway
+ * context); a failure is not, since it may be transient (too many contexts, a GPU
+ * process restarting).
  */
 export function webglRenderer(): string | null {
   if (cachedRenderer !== undefined) return cachedRenderer;
-  cachedRenderer = null;
   try {
-    if (typeof document === 'undefined') return cachedRenderer;
+    if (typeof document === 'undefined') return null;
     const canvas = document.createElement('canvas');
     const gl = (canvas.getContext('webgl2') ?? canvas.getContext('webgl')) as WebGLRenderingContext | null;
-    if (!gl) return cachedRenderer;
+    if (!gl) return null;
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
     const r = gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
     cachedRenderer = typeof r === 'string' ? r : '';
     gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return cachedRenderer;
   } catch {
-    /* no WebGL: null */
+    return null;
   }
-  return cachedRenderer;
 }
 
 /**
- * The delegate to load with. `auto`: CPU on a software renderer or without WebGL, GPU
- * otherwise. `renderer` is injectable for tests; it defaults to {@link webglRenderer}.
- * Outside a browser (no `document`) `auto` keeps the GPU first, as before.
+ * The delegate to load with. `auto`: CPU when the renderer is KNOWN to be software, the
+ * GPU otherwise (no WebGL context, or none yet, keeps the GPU first and its
+ * throw-and-fall-back, exactly as before). `GPU` / `CPU` force one without probing.
+ * `renderer` is injectable for tests; it defaults to {@link webglRenderer}.
  */
-export function resolveDelegate(choice: DelegateChoice, renderer: string | null | undefined = typeof document === 'undefined' ? undefined : webglRenderer()): Delegate {
+export function resolveDelegate(choice: DelegateChoice, renderer?: string | null): Delegate {
   if (choice !== 'auto') return choice;
-  if (renderer === undefined) return 'GPU';
-  if (renderer === null || isSoftwareRenderer(renderer)) return 'CPU';
-  return 'GPU';
+  const r = renderer !== undefined ? renderer : webglRenderer();
+  return r !== null && isSoftwareRenderer(r) ? 'CPU' : 'GPU';
 }

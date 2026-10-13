@@ -5,9 +5,10 @@
  * Why it exists. `latencyHint: 0` buys a few milliseconds of output latency by asking
  * for the smallest buffer the platform allows, and a smaller buffer is one the audio
  * thread can miss. A hint that glitches is worse than the milliseconds it saves, and
- * nobody hears a single dropout as a bug report, so the low-latency dial is guarded by
- * this count: the status line says when the output glitched, and with the dial on, it
- * says to turn it off. It is built first, before the dial it guards (the plan's order).
+ * nobody hears a single dropout as a bug report, so the low-latency box is guarded by
+ * this count: the status line says when the output glitched, and with the hint in force,
+ * it says to turn the box off. It is built first, before the lever it guards (the plan's
+ * order).
  *
  * Two readings, the better one when present:
  *
@@ -15,19 +16,24 @@
  *   proposal) reports `underrunEvents` and `underrunDuration` directly. Measured present
  *   in Chromium 153; absent in Firefox and WebKit.
  * - `clock`: elsewhere, the output timestamp pair. `getOutputTimestamp()` relates a
- *   context time to the performance clock at the output; while the output runs dry the
- *   context clock stops and the performance clock does not, so the offset
- *   `performanceTime - contextTime` steps up by the length of the dropout and stays there.
- *   The pair's own readings bounce by up to a callback buffer, so a step is the MEDIAN of
- *   the latest few offsets standing above the median of the window before them by more
- *   than {@link GLITCH_STEP_S}; the slow drift between the two clocks (tens of ppm) moves
- *   the window's median along with it and is never counted. A heuristic, stated as one:
- *   a dropout shorter than the step is not counted, and the source is reported so a
- *   reader knows which kind of count it is.
+ *   context time to the performance clock; while the output runs dry the context clock
+ *   stops and the performance clock does not, so the offset `performanceTime -
+ *   contextTime` steps up by the length of the dropout and stays there. The pair's own
+ *   readings spread: a pair taken at the output callback bounces by a fraction of a
+ *   buffer, and a pair whose `performanceTime` is the moment of the CALL (while the
+ *   context time moves once per callback) is a sawtooth a whole callback wide. So a step
+ *   is the MEDIAN of the latest few offsets standing above the median of the window
+ *   before them by more than the larger of {@link GLITCH_STEP_S} and
+ *   {@link GLITCH_SPREAD_FACTOR} times the window's own spread (p95 - p5). A median of a
+ *   sawtooth cannot move by more than its width, so neither shape is ever counted; the
+ *   slow drift between the two clocks (tens of ppm) moves the window along with it. A
+ *   heuristic, stated as one: a dropout shorter than the threshold is not counted (on a
+ *   call-time pair, shorter than about one and a half callbacks), and the source is
+ *   reported so a reader knows which kind of count it is.
  *
  * Counted only while the context is `running`; a suspend, an interruption, a route change
  * (`reset`, from the timing tracker's audio epoch) or a gap in the sampling (a hidden tab)
- * restarts the clock reading instead of counting the jump. Pure apart from the context
+ * restarts either reading instead of counting what happened meanwhile. Pure apart from the context
  * it is handed; replayable in Node.
  */
 
@@ -39,6 +45,11 @@ export const GLITCH_STEP_S = 0.004;
 export const GLITCH_RECENT_SAMPLES = 5;
 /** The reference window, readings (about a second at the tick rate). */
 export const GLITCH_WINDOW_SAMPLES = 45;
+/** A step is counted only against at least this many readings before it, so the
+ *  window's spread is measured before it sets the threshold. */
+export const GLITCH_MIN_REFERENCE_SAMPLES = 20;
+/** The threshold is at least this many times the window's spread (p95 - p5). */
+export const GLITCH_SPREAD_FACTOR = 1.5;
 /** A gap between two readings longer than this (seconds) restarts the clock reading. */
 export const GLITCH_MAX_GAP_S = 0.5;
 /** The "recent" count looks back this far (seconds). */
@@ -74,6 +85,8 @@ export interface GlitchCounterOptions {
   stepS?: number;
   recentSamples?: number;
   windowSamples?: number;
+  minReferenceSamples?: number;
+  spreadFactor?: number;
   maxGapS?: number;
   recentWindowS?: number;
 }
@@ -86,11 +99,20 @@ function median(xs: readonly number[]): number {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+/** p95 - p5 of a sample. */
+function spread(xs: readonly number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const q = (p: number) => s[Math.min(s.length - 1, Math.round(p * (s.length - 1)))];
+  return q(0.95) - q(0.05);
+}
+
 /** The running count; see the module header. */
 export class GlitchCounter {
   private readonly stepS: number;
   private readonly recentSamples: number;
   private readonly windowSamples: number;
+  private readonly minReferenceSamples: number;
+  private readonly spreadFactor: number;
   private readonly maxGapS: number;
   private readonly recentWindowS: number;
   private offsets: number[] = [];
@@ -109,6 +131,8 @@ export class GlitchCounter {
     this.stepS = options.stepS ?? GLITCH_STEP_S;
     this.recentSamples = options.recentSamples ?? GLITCH_RECENT_SAMPLES;
     this.windowSamples = options.windowSamples ?? GLITCH_WINDOW_SAMPLES;
+    this.minReferenceSamples = options.minReferenceSamples ?? GLITCH_MIN_REFERENCE_SAMPLES;
+    this.spreadFactor = options.spreadFactor ?? GLITCH_SPREAD_FACTOR;
     this.maxGapS = options.maxGapS ?? GLITCH_MAX_GAP_S;
     this.recentWindowS = options.recentWindowS ?? GLITCH_RECENT_WINDOW_S;
   }
@@ -129,6 +153,10 @@ export class GlitchCounter {
       this.reset();
       return;
     }
+    // A gap in the sampling (a hidden tab, a stalled page): what happened meanwhile is not
+    // the player's to hear, so both readings re-base rather than count it.
+    if (finite(this.lastNowS) && nowS - this.lastNowS > this.maxGapS) this.reset();
+    this.lastNowS = nowS;
     const stats = ac.playbackStats;
     if (stats && finite(stats.underrunEvents)) {
       this.source = 'playbackStats';
@@ -151,18 +179,18 @@ export class GlitchCounter {
     const ts = ac.getOutputTimestamp();
     if (!finite(ts.contextTime) || !finite(ts.performanceTime) || !(ts.performanceTime > 0)) return;
     this.source = 'clock';
-    if (finite(this.lastNowS) && nowS - this.lastNowS > this.maxGapS) this.reset();
-    this.lastNowS = nowS;
     // The pair updates once per output callback: a repeated reading adds no information.
     if (ts.performanceTime === this.lastPerf) return;
     this.lastPerf = ts.performanceTime;
     this.offsets.push(ts.performanceTime / 1000 - ts.contextTime);
     if (this.offsets.length > this.windowSamples + this.recentSamples) this.offsets.shift();
-    if (this.offsets.length < this.recentSamples + this.recentSamples) return;
+    if (this.offsets.length < this.minReferenceSamples + this.recentSamples) return;
     const split = this.offsets.length - this.recentSamples;
-    const before = median(this.offsets.slice(0, split));
+    const reference = this.offsets.slice(0, split);
+    const before = median(reference);
     const latest = median(this.offsets.slice(split));
-    if (latest - before > this.stepS) {
+    const threshold = Math.max(this.stepS, this.spreadFactor * spread(reference));
+    if (latest - before > threshold) {
       this.count(nowS);
       // The step is the new level: compare what follows with it, not with the old one.
       this.offsets = this.offsets.slice(split);

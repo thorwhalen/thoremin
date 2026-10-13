@@ -145,7 +145,7 @@ export class TimingTracker implements Tap {
   private strikeS = NaN;
   private cached: TimingReading | null = null;
   private readonly glitches = new GlitchCounter();
-  private glitchTotal = 0;
+  private glitchKey = '';
 
   constructor(options: TimingTrackerOptions = {}) {
     this.sourceKey = options.sourceKey ?? 'cam.hands';
@@ -198,9 +198,11 @@ export class TimingTracker implements Tap {
     }
     const now = this.now();
     this.glitches.observe(ac, now);
-    const glitchTotal = this.glitches.reading().total;
-    if (glitchTotal !== this.glitchTotal) {
-      this.glitchTotal = glitchTotal;
+    // A new glitch, or one ageing out of the last minute, changes the reading.
+    const g = this.glitches.reading();
+    const glitchKey = `${g.total}/${g.recent}`;
+    if (glitchKey !== this.glitchKey) {
+      this.glitchKey = glitchKey;
       this.cached = null;
     }
     const pair = pairScheduleToSpeaker(ac, now);
