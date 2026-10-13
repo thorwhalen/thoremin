@@ -65,10 +65,10 @@
  * clock reading (`clock`, `estimated`) and a run of them shows the pipeline's jitter, it
  * replaces each with a least-squares line of stamp against frame index over the last
  * thirty, which recovers the camera's grid from the jittered readings (on the bench's
- * stamp-noise regime the prediction spread falls by about a quarter). It is a
+ * stamp-noise regime the known-plane prediction's spread falls from 9.1 to 4.6 ms). It is a
  * pass-through, byte for byte, for a `capture` or `presentation` stamp — a de-jittered
  * capture stamp would undo #226 — and for a run that already sits on a grid (the
- * sample-and-hold stamps of a display-rate poll, a 1 ms-rounded capture time), so none
+ * jitter-free stamps of a display-rate poll, a 1 ms-rounded capture time), so none
  * of the tests below that stamp from a regular clock see it. It is fitted on the clock
  * readings themselves, and the learned lag is subtracted again afterwards: the lag is a
  * slowly moving offset, not jitter, and while it converges it must not bend the line.
@@ -338,7 +338,11 @@ export function createFramePump(
     if (dejitter) {
       const clockDerived = picked.source === 'clock' || picked.source === 'estimated';
       const smoothed = dejitter.push(clockDerived ? nowMs : picked.tMs, picked.source);
-      if (smoothed.engaged) tMs = Math.max(smoothed.tMs - (nowMs - picked.tMs), lastMs + MIN_STAMP_STEP_MS);
+      // The run's offset is one constant (the learned lag for `estimated`, none for
+      // `clock`), never this frame's own `nowMs - picked.tMs`: a stamp the picker pushed
+      // forward to keep the stamps increasing would otherwise jump against its run.
+      const offset = picked.source === 'estimated' && Number.isFinite(lagEw) ? lagEw : 0;
+      if (smoothed.engaged) tMs = Math.max(smoothed.tMs - offset, lastMs + MIN_STAMP_STEP_MS);
     }
     const stamp: FrameStamp = { tMs, source: picked.source, lagMs: nowMs - tMs, skipped };
     if (onFrame(stamp, v) === false) {

@@ -15,7 +15,8 @@
  * inference was too busy for — the 33 / 67 ms pacing of a slow laptop — costs one
  * index, not a bent line. The period itself is found by a small search: the seed is a
  * low quantile of the run's gaps (a skipped frame only ever lengthens a gap, so a 33 /
- * 67 stream seeds at 33, where a seed from the first gap alone read a 50 ms camera),
+ * 67 stream seeds at 33, where a seed from the first gap alone read a 50 ms camera) and
+ * the mean gap (a camera beating against a display's vsync alternates gaps around its period),
  * tried over 1 to 4 frames per seed (a 60 fps camera paced by inference shows gaps of
  * two and three frames, so the lattice is finer than any gap); a candidate counts only
  * when its residual is a small fraction of its period (a lattice finer than the noise
@@ -35,9 +36,11 @@
  * only on a run of stamps from a source that is a CLOCK READING rather than the
  * camera's (`clock`, `estimated`), and only once that run shows jitter worth removing:
  * stamps that already sit on a grid — a regular test clock, vsync-regular readings, a
- * capture time rounded to 1 ms (WebKit), or sample-and-hold pairs polled at the display
- * rate (the bench's `raf-poll` regime, which no line should ever be fitted to) — pass
- * through unchanged. Everything else is a pass-through too, byte for byte: a frame that
+ * capture time rounded to 1 ms (WebKit), or sample-and-hold pairs polled at a jitter-free
+ * display rate (the bench's `raf-poll` regime) — pass through unchanged. Nothing here
+ * detects sample-and-hold as such: it is the jitter floor that keeps the gate shut on a
+ * clean vsync, and a poll whose stamps carried jitter would engage. That case is gone
+ * from the pump itself (it no longer delivers a held frame twice: `presentedFrames`). Everything else is a pass-through too, byte for byte: a frame that
  * carries a `capture` or `presentation` stamp is never touched, and it ends the run, so
  * the window never mixes two time bases (a `clock` stamp after a hidden tab sits a lag
  * later than the capture stamps before it; a line across that step would be bent).
@@ -50,8 +53,9 @@
  * capped at the raw reading: the reading is an upper bound on the CAPTURE, but the line
  * estimates the grid plus the pipeline's mean offset, which the reading bounds the wrong
  * way, and capping keeps the late half of the noise (on the bench's stamp-noise regime
- * the capped line leaves the prediction at 9.1 ms where the line itself reaches 8.2,
- * the exact regime's 8.0; `clampToRaw` keeps the capped rule for comparison). So a
+ * the known-plane prediction's spread is 6.5 ms capped and 4.6 ms with the line itself,
+ * against 4.3 with exact stamps; `docs/research/subframe-impact-prediction.md` §3.4.1;
+ * `clampToRaw` keeps the capped rule for comparison). So a
  * de-jittered stamp may sit a few milliseconds past the clock reading that noticed the
  * frame, and its lag then reads slightly negative; nothing downstream needs the lag to
  * be positive (the timing resource floors a frame's age at 0). The output's
@@ -80,9 +84,13 @@ export const DEJITTER_MIN_JITTER_MS = 1;
 /** The smallest step between two output stamps (ms): MediaPipe works in whole
  *  milliseconds and requires them to increase. The same as the pump's step. */
 export const DEJITTER_MIN_STEP_MS = 1;
-/** The lattice search seeds the camera's period from this quantile of the run's gaps: a
- *  low one, because a skipped frame only ever makes a gap LONGER (a 33 / 67 ms pacing
- *  has its 20th percentile at 33), while noise spreads the gaps both ways. */
+/** The lattice search seeds the camera's period from two readings of the run's gaps.
+ *  This low quantile, because a skipped frame only ever makes a gap LONGER (a 33 / 67 ms
+ *  pacing has its 20th percentile at 33), while noise spreads the gaps both ways; and the
+ *  mean gap, because a camera delivered on a display's vsync alternates shorter and
+ *  longer gaps around its own period (30 fps on 75 Hz: 27 and 40 ms, mean 33), where the
+ *  low seed has no divisor near the camera's period and a 22 ms lattice fits the beat
+ *  pattern instead. */
 export const LATTICE_SEED_QUANTILE = 0.2;
 /** The seed may itself be several camera periods: a 60 fps camera paced by a 45 ms
  *  inference shows gaps of two and three frames and never one. The search tries the seed
@@ -101,6 +109,35 @@ export const LATTICE_MAX_RELATIVE_RESIDUAL = 0.15;
 /** The carried lattice is replaced when a fresh search explains the run with a residual
  *  this much smaller (ms): a fraction, so a near-tie keeps the lattice in hand. */
 export const LATTICE_TIE_FRACTION = 0.1;
+/** The frame rates a camera delivers, fps: a fitted lattice is the camera's only when its
+ *  period is one of these (within {@link CAMERA_RATE_TOLERANCE}). Stamps alone cannot tell
+ *  a 60 fps camera paced to 33 / 50 ms gaps from a 30 fps camera beating against a 75 Hz
+ *  display (27 / 40 ms gaps): both are a two-to-three alternation, fitted exactly by a
+ *  lattice at a fifth of their sum. What separates them is that 16.7 ms is a camera's
+ *  period and 22 ms (45 fps) is not. Nothing is finer than 60 fps either: periodic or
+ *  one-sided delivery noise is fitted well by a lattice a quarter of the camera's period
+ *  (a repeating eight-frame jitter of 2 ms held a 7.4 ms lattice on a 33 ms camera). A
+ *  run whose lattice is none of these passes through. */
+export const CAMERA_RATES_FPS: readonly number[] = [5, 7.5, 10, 12, 15, 20, 24, 25, 30, 50, 60];
+/** How far a fitted period may sit from a camera rate's period (fraction): 29.97 and
+ *  59.94 fps are within it, and so is a camera clock a little off its nominal rate. */
+export const CAMERA_RATE_TOLERANCE = 0.03;
+/** A FINER lattice replaces a coarser one only when its residual is smaller by this
+ *  factor. A lattice finer than the camera's soaks part of the noise into its indices
+ *  (one-sided or periodic delivery noise most of all), so a small gain is what noise
+ *  buys; a real sub-lattice (a 60 fps camera paced to 33 / 50 ms gaps) removes the
+ *  pacing's sawtooth and gains more than half again. */
+export const LATTICE_FINER_GAIN = 1.5;
+/** Two fits whose periods differ by less than this fraction are the same lattice. */
+export const LATTICE_SAME_FRACTION = 0.1;
+/** A stamp further than this fraction of a period from where the run's line puts it is
+ *  an outlier (a delivery spike, a stall): it passes through, unsmoothed, and stays out
+ *  of the run, because its index cannot be told (half a period off is a frame either
+ *  way), and a line bent to it would move its neighbours by most of a frame. */
+export const DEJITTER_OUTLIER_FRACTION = 0.5;
+/** This many outliers in a row are not spikes but a camera that changed: the run
+ *  restarts from the latest stamp. */
+export const DEJITTER_OUTLIERS_TO_RESTART = 3;
 /** The sources the de-jitter may engage on: clock readings, not the camera's time. A
  *  `presentation` stamp is the compositor's own time for that frame (a measurement,
  *  jittered or not), so it passes through like a capture stamp. */
@@ -214,30 +251,42 @@ function latticeFit(stamps: readonly number[], periodMs: number): { indices: num
   return fit ? { indices, fit } : null;
 }
 
-/** Whether `a` explains the run clearly better than `b`, in ms; see {@link LATTICE_TIE_FRACTION}.
- *  The exact term keeps floating-point dust from separating two exact fits. */
-const clearlyBetter = (a: Fit, b: Fit) => a.residualSd < (1 - LATTICE_TIE_FRACTION) * b.residualSd - 1e-9 * b.slope;
+/** Whether fit `a` is to be preferred to fit `b`. The same lattice: the smaller residual,
+ *  by the tie fraction (so the one in hand stays on a near-tie). Different lattices: the
+ *  coarser, unless the finer explains the run better by {@link LATTICE_FINER_GAIN}. */
+function preferred(a: Fit, b: Fit): boolean {
+  if (Math.abs(a.slope - b.slope) <= LATTICE_SAME_FRACTION * Math.max(a.slope, b.slope)) return a.residualSd < (1 - LATTICE_TIE_FRACTION) * b.residualSd - 1e-9 * b.slope;
+  if (a.slope > b.slope) return !(LATTICE_FINER_GAIN * b.residualSd < a.residualSd);
+  return LATTICE_FINER_GAIN * a.residualSd < b.residualSd;
+}
+
+/** Whether a period is a camera's; see {@link CAMERA_RATES_FPS}. */
+const isCameraPeriod = (periodMs: number) => CAMERA_RATES_FPS.some((fps) => Math.abs(periodMs * fps / 1000 - 1) <= CAMERA_RATE_TOLERANCE);
 
 /** Whether a fit is the camera's lattice; see {@link LATTICE_MAX_RELATIVE_RESIDUAL}. */
 const admissible = (f: Fit) => f.residualSd <= LATTICE_MAX_RELATIVE_RESIDUAL * f.slope;
 
 /** The camera's lattice under the run: the seed period (a low quantile of the gaps) over
- *  1, 2, ... frames per seed; of the admissible ones, the smallest residual, a near-tie
- *  keeping the coarser (a sub-multiple of the camera's lattice fits as well as the lattice
- *  itself, every index doubled; and a 33 / 50 ms pacing read as one and two steps of 28 ms
- *  leaves a small sawtooth that only the 17 ms lattice removes). A handful of candidates, not a
+ *  1, 2, ... frames per seed; of the admissible ones the coarsest, unless a finer one
+ *  explains the run clearly better (see {@link preferred}: a sub-multiple of the camera's
+ *  lattice fits as well as the lattice itself, every index doubled, and soaks up part of
+ *  the noise besides; a 33 / 50 ms pacing read as one and two steps of 28 ms leaves a
+ *  sawtooth that only the 17 ms lattice removes). A handful of candidates, not a
  *  scan of periods: over a short window, among hundreds of periods finer than the noise,
  *  one always fits by chance. Null when none is admissible. */
 function searchLattice(stamps: readonly number[]): { indices: number[]; fit: Fit } | null {
   const gaps = stamps.slice(1).map((t, k) => t - stamps[k]).filter((g) => g > 0);
   if (gaps.length < 2) return null;
   const sorted = gaps.slice().sort((a, b) => a - b);
-  const seed = sorted[Math.floor(LATTICE_SEED_QUANTILE * (sorted.length - 1))];
+  // The low quantile, and the mean gap (see LATTICE_SEED_QUANTILE).
+  const seeds = [sorted[Math.floor(LATTICE_SEED_QUANTILE * (sorted.length - 1))], (stamps[stamps.length - 1] - stamps[0]) / (stamps.length - 1)];
   let best: { indices: number[]; fit: Fit } | null = null;
-  for (let frames = 1; frames <= LATTICE_MAX_FRAMES_PER_GAP; frames++) {
-    const cand = latticeFit(stamps, seed / frames);
-    if (cand && admissible(cand.fit) && (!best || clearlyBetter(cand.fit, best.fit))) best = cand;
-  }
+  const minPeriod = (1000 / Math.max(...CAMERA_RATES_FPS)) * (1 - CAMERA_RATE_TOLERANCE);
+  for (const seed of seeds)
+    for (let frames = 1; frames <= LATTICE_MAX_FRAMES_PER_GAP && seed / frames >= minPeriod; frames++) {
+      const cand = latticeFit(stamps, seed / frames);
+      if (cand && isCameraPeriod(cand.fit.slope) && admissible(cand.fit) && (!best || preferred(cand.fit, best.fit))) best = cand;
+    }
   return best;
 }
 
@@ -259,10 +308,12 @@ export function createStampDejitter(options: StampDejitterOptions = {}): StampDe
   /** The latest output; -Infinity before any. Kept across runs and resets. */
   let lastOut = -Infinity;
   let lastEngaged = false;
+  /** Consecutive outliers against the run's line. */
+  let outliers = 0;
   /** What the latest push replaced, for `retract`. */
-  let undo: { stamps: number[]; indices: number[]; runSource: DejitterStampSource | null; fit: Fit | null; lastOut: number; lastEngaged: boolean } | null = null;
+  let undo: { stamps: number[]; indices: number[]; runSource: DejitterStampSource | null; fit: Fit | null; lastOut: number; lastEngaged: boolean; outliers: number } | null = null;
 
-  const snapshot = () => ({ stamps: stamps.slice(), indices: indices.slice(), runSource, fit, lastOut, lastEngaged });
+  const snapshot = () => ({ stamps: stamps.slice(), indices: indices.slice(), runSource, fit, lastOut, lastEngaged, outliers });
 
   /** Fit the run: carry the index forward on the lattice in hand, and search afresh too;
    *  the carried lattice stays while it is admissible and the search does not explain the
@@ -280,7 +331,7 @@ export function createStampDejitter(options: StampDejitterOptions = {}): StampDe
       carried = fitLine(indices, stamps);
     }
     const found = searchLattice(stamps);
-    if (carried && admissible(carried) && !(found && clearlyBetter(found.fit, carried))) fit = carried;
+    if (carried && isCameraPeriod(carried.slope) && admissible(carried) && !(found && preferred(found.fit, carried))) fit = carried;
     else if (found) ({ indices, fit } = found);
     else fit = null;
   };
@@ -299,29 +350,53 @@ export function createStampDejitter(options: StampDejitterOptions = {}): StampDe
       let out = tMs;
       let engaged = false;
       if (gated) {
-        stamps.push(tMs);
-        indices.push(indices.length ? indices[indices.length - 1] + 1 : 0);
-        if (stamps.length > windowFrames) {
-          stamps.shift();
-          indices.shift();
+        // An outlier against the line in hand passes through and stays out of the run.
+        let outlier = false;
+        if (fit && stamps.length) {
+          const n = stamps.length;
+          const k = indices[n - 1] + Math.max(1, Math.round((tMs - stamps[n - 1]) / fit.slope));
+          outlier = Math.abs(fit.intercept + fit.slope * k - tMs) > DEJITTER_OUTLIER_FRACTION * fit.slope;
         }
-        refit();
-        if (fit && fit.residualSd >= minJitterMs) {
-          const line = fit.intercept + fit.slope * indices[indices.length - 1];
-          out = clampToRaw ? Math.min(tMs, line) : line;
-          engaged = true;
+        if (outlier && ++outliers < DEJITTER_OUTLIERS_TO_RESTART) {
+          // Passed through below (floored); the run is left as it was.
+        } else {
+          if (outlier) {
+            stamps = [];
+            indices = [];
+            fit = null;
+          }
+          outliers = 0;
+          stamps.push(tMs);
+          indices.push(indices.length ? indices[indices.length - 1] + 1 : 0);
+          if (stamps.length > windowFrames) {
+            stamps.shift();
+            indices.shift();
+          }
+          refit();
+          if (fit && fit.residualSd >= minJitterMs) {
+            const line = fit.intercept + fit.slope * indices[indices.length - 1];
+            // The hard bound: never more than the outlier fraction of a period from the
+            // reading itself, whatever the fit says.
+            if (Math.abs(line - tMs) <= DEJITTER_OUTLIER_FRACTION * fit.slope) {
+              out = clampToRaw ? Math.min(tMs, line) : line;
+              engaged = true;
+            }
+          }
         }
       }
-      // Only a replaced stamp is clamped: a pass-through is byte-identical, and the raw
-      // stream's own monotonicity is the caller's contract (the pump's `pickFrameStamp`).
-      if (engaged && !(out >= lastOut + minStepMs)) out = lastOut + minStepMs;
+      // A clock-derived stamp is floored at the previous output plus the step: after a
+      // replaced stamp, the next raw reading may sit below it (the line ran a little
+      // ahead). A raw clock stream is increasing already, so this changes nothing on a
+      // run that never engaged; a capture or presentation stamp is never touched (the
+      // caller floors it: the pump's `pickFrameStamp`).
+      if (gated && !(out >= lastOut + minStepMs)) out = lastOut + minStepMs;
       lastOut = out;
       lastEngaged = engaged;
       return { tMs: out, source, engaged };
     },
     retract() {
       if (!undo) return;
-      ({ stamps, indices, runSource, fit, lastOut, lastEngaged } = undo);
+      ({ stamps, indices, runSource, fit, lastOut, lastEngaged, outliers } = undo);
       undo = null;
     },
     state() {
@@ -333,6 +408,7 @@ export function createStampDejitter(options: StampDejitterOptions = {}): StampDe
       runSource = null;
       fit = null;
       lastEngaged = false;
+      outliers = 0;
       undo = null;
     },
   };

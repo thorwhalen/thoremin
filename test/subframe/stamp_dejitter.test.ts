@@ -192,6 +192,93 @@ describe('stamp de-jitter on a jittered clock', () => {
 
 // ---- The gate ---------------------------------------------------------------------
 
+describe('stamp de-jitter under attack (the #319 review)', () => {
+  /** A 30 fps clock with noise from `noise(next)` (ms), kept increasing like the pump's. */
+  function clockRun(seed: number, n: number, noise: (next: () => number) => number, spike = 0): number[] {
+    const next = rng(seed);
+    const out: number[] = [];
+    let last = -Infinity;
+    for (let i = 0; i < n; i++) {
+      let t = 1000 + i * PERIOD_MS + OFFSET_MS + noise(next) + (spike > 0 && next() < spike ? 25 + 20 * next() : 0);
+      if (t < last + 1) t = last + 1;
+      out.push(t);
+      last = t;
+    }
+    return out;
+  }
+
+  it('one-sided delivery noise: the output sits closer to the camera, and rarely on a finer lattice', () => {
+    let engaged = 0;
+    let finer = 0;
+    const errRaw: number[] = [];
+    const errOut: number[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const dj = createStampDejitter();
+      clockRun(seed, 200, (next) => -2 * Math.log(Math.max(1e-12, next()))).forEach((t, i) => {
+        const r = dj.push(t, 'clock');
+        if (i < DEJITTER_WINDOW_FRAMES) return;
+        const truth = 1000 + i * PERIOD_MS;
+        errRaw.push(t - truth);
+        errOut.push(r.tMs - truth);
+        if (!r.engaged) return;
+        engaged++;
+        // A 60 fps lattice under a 30 fps camera is a camera rate too, and fits nearly the
+        // same line with every index doubled; it is counted, not forbidden.
+        if (dj.state().periodMs < 0.75 * PERIOD_MS) finer++;
+      });
+    }
+    expect(engaged).toBeGreaterThan(3000);
+    expect(finer / engaged).toBeLessThan(0.05);
+    expect(sd(errOut)).toBeLessThan(0.5 * sd(errRaw));
+  });
+
+  it('a 30 fps camera delivered on a 75 Hz display: the camera\'s period, not the beat pattern\'s 22 ms', () => {
+    // Frames at 33.3 ms delivered at the next 13.3 ms vsync: gaps of 40 and 26.7 ms.
+    const vsync = 1000 / 75;
+    const stamps = Array.from({ length: 120 }, (_, i) => Math.ceil((i * PERIOD_MS + 0.5) / vsync) * vsync + 1000);
+    const dj = createStampDejitter();
+    const out = stamps.map((t) => dj.push(t, 'clock').tMs);
+    expect(Math.abs(dj.state().periodMs - PERIOD_MS)).toBeLessThan(0.1);
+    const truth = (i: number) => 1000 + i * PERIOD_MS;
+    const settled = (xs: number[]) => xs.slice(DEJITTER_WINDOW_FRAMES).map((x, k) => x - truth(k + DEJITTER_WINDOW_FRAMES));
+    expect(sd(settled(out))).toBeLessThan(0.5 * sd(settled(stamps)));
+  });
+
+  it('a repeating eight-frame jitter holds the camera\'s period: no lattice is finer than a 60 fps camera', () => {
+    const jit = [1.5, -1.5, 2, -2, 0.5, -0.5, 1.8, -1.2];
+    const dj = createStampDejitter();
+    for (let i = 0; i < 100; i++) dj.push(1000 + i * PERIOD_MS + OFFSET_MS + jit[i % jit.length], 'clock');
+    expect(Math.abs(dj.state().periodMs - PERIOD_MS)).toBeLessThan(0.1);
+  });
+
+  it('with delivery spikes, no output sits more than half a period from its reading, and outputs keep increasing', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const dj = createStampDejitter();
+      let prev = -Infinity;
+      for (const t of clockRun(seed, 120, (next) => 2 * Math.abs(gaussian(next)), 0.05)) {
+        const r = dj.push(t, 'clock');
+        // The floor may lift a reading past a replaced stamp by at most the step.
+        expect(Math.abs(r.tMs - t)).toBeLessThanOrEqual(PERIOD_MS / 2 + 1);
+        expect(r.tMs - prev).toBeGreaterThanOrEqual(1);
+        prev = r.tMs;
+      }
+    }
+  });
+
+  it('a pass-through after a replaced stamp is floored, so the module alone never steps back', () => {
+    const dj = createStampDejitter();
+    let prev = -Infinity;
+    const run = clockRun(5, 60, (next) => 3 * gaussian(next));
+    // A run of clock stamps, then a jump to a regular (gate-shut) clock that starts just behind.
+    const tail = Array.from({ length: 10 }, (_, i) => run[run.length - 1] + 0.2 + i * PERIOD_MS);
+    for (const t of [...run, ...tail]) {
+      const r = dj.push(t, 'clock');
+      expect(r.tMs - prev).toBeGreaterThanOrEqual(1);
+      prev = r.tMs;
+    }
+  });
+});
+
 describe('stamp de-jitter gate', () => {
   it('a capture stamp is a pass-through, byte for byte, however jittered the camera is', () => {
     // The bench's capture-jitter-actual regime: an irregular camera reported truthfully.
