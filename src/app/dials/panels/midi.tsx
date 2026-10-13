@@ -42,6 +42,7 @@ export function MidiControls() {
   const v = state.effective;
   const enabled = v['midi.enabled'] as boolean;
   const port = (v['midi.port'] as string) ?? '';
+  const muteFollowsMaster = (v['midi.muteFollowsMaster'] as boolean) ?? true;
   const ports = useMidiStatus((s) => s.status.ports);
   const supported = webMidiSupported();
 
@@ -89,9 +90,25 @@ export function MidiControls() {
         </select>
       </label>
       <MidiStatusReadout enabled={enabled} />
+      {/* #168 Q3: what the master mute means once a DAW is the instrument. On (the
+          default) is what the instrument always did; off mutes only the local monitor. */}
+      <label
+        className="flex items-center gap-2 text-xs"
+        title="On: the M key mutes the sound here and stops the MIDI notes. Off: M mutes only the sound here; the notes keep flowing to your DAW (the muted badge then says so)."
+      >
+        <input
+          type="checkbox"
+          checked={muteFollowsMaster}
+          disabled={!enabled}
+          onChange={(e) => dispatchDialSet('midi.muteFollowsMaster', e.target.checked)}
+        />
+        Mute silences MIDI too
+      </label>
       <p className="text-[10px] leading-relaxed text-white/40">
         Plays the same notes your hands (and face chords) play on an external
-        hardware/software instrument — pick it as a MIDI input in your DAW.
+        hardware/software instrument — pick it as a MIDI input in your DAW. With
+        &ldquo;Mute silences MIDI too&rdquo; off, the M key quiets only the sound here and
+        the notes keep flowing to your DAW.
       </p>
     </div>
   );

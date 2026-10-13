@@ -89,7 +89,10 @@ export const fieldVoices = defineBranch({
     to({ node: TRUNK.feat, port: 'features' }, { node: 'map', port: 'features' }),
     to(ui('magnetism'), { node: 'map', port: 'magnetism' }),
     to(ui('octaveShift'), { node: 'map', port: 'octaveShift' }),
-    to(ui('mute'), { node: 'map', port: 'mute' }),
+    // The player's mute is NOT fed to the mapping node: the merge is the one place the
+    // master mute applies (#91), and silencing here too would stop the hands' voices
+    // before MIDI out could keep them flowing through a mute (#168 Q3). The mapping
+    // contract keeps its `mute` port (default false) for hosts that want it.
     to(ui('scaleRight'), { node: 'map', port: 'scaleRight' }),
     to(ui('scaleLeft'), { node: 'map', port: 'scaleLeft' }),
     to(ui('soundRight'), { node: 'map', port: 'soundRight' }),
@@ -231,7 +234,13 @@ export const midiOut = defineBranch({
   description: 'The merged voices as MIDI, when enabled.',
   nodes: [{ id: 'midiOut', type: 'midi-out', params: {} }],
   edges: [
-    to({ node: TRUNK.merge, port: 'params' }, { node: 'midiOut', port: 'params' }),
+    // The merge BEFORE the master mute, plus the player's mute and the dial that says
+    // whether it applies to MIDI (#168 Q3): `midi.muteFollowsMaster`, on by default. A
+    // tool's claim (the Trainer) is its own port and always silences.
+    to({ node: TRUNK.merge, port: 'unmuted' }, { node: 'midiOut', port: 'params' }),
+    to(ui('mute'), { node: 'midiOut', port: 'mute' }),
+    to(ui('claimed'), { node: 'midiOut', port: 'claimed' }),
+    to(ui('midiMuteFollowsMaster'), { node: 'midiOut', port: 'muteFollowsMaster' }),
     to(ui('midiEnabled'), { node: 'midiOut', port: 'enabled' }),
     to(ui('midiPort'), { node: 'midiOut', port: 'port' }),
   ],

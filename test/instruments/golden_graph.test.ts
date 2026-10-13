@@ -50,6 +50,21 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } },
   // #148: the handedness dwell dial reaches the sound path's hand reader live.
   { from: { node: 'ui', port: 'handednessDwell' }, to: { node: 'feat', port: 'handednessDwell' } },
+  // #168 Q3: MIDI out reads the merge before the master mute, and takes the player's
+  // mute, a tool's claim and the `midi.muteFollowsMaster` dial as live inputs.
+  { from: { node: 'merge', port: 'unmuted' }, to: { node: 'midiOut', port: 'params' } },
+  { from: { node: 'ui', port: 'mute' }, to: { node: 'midiOut', port: 'mute' } },
+  { from: { node: 'ui', port: 'claimed' }, to: { node: 'midiOut', port: 'claimed' } },
+  { from: { node: 'ui', port: 'midiMuteFollowsMaster' }, to: { node: 'midiOut', port: 'muteFollowsMaster' } },
+];
+
+/** Edges the branch table LOST after the snapshot, each named here for the same reason. */
+const REMOVED_SINCE_SNAPSHOT: EdgeSpec[] = [
+  // #168 Q3: MIDI out no longer reads the muted merge stream (it reads `unmuted`, above).
+  { from: { node: 'merge', port: 'params' }, to: { node: 'midiOut', port: 'params' } },
+  // #168 Q3: the mapping node no longer mutes at the source; the merge is the one place
+  // the master mute applies (#91), so the hands' voices can reach MIDI through a mute.
+  { from: { node: 'ui', port: 'mute' }, to: { node: 'map', port: 'mute' } },
 ];
 
 /** Nodes of extensions added after the snapshot (the ASL reader and its chords): the golden
@@ -73,7 +88,10 @@ describe.runIf(AIR)('composed graph == the hand-listed graph (golden)', () => {
       expect(composed.nodes).toHaveLength(golden.nodes.length);
       expect(sorted(composed.nodes.map(nodeKey))).toEqual(sorted(golden.nodes.map(nodeKey)));
 
-      const expected = [...golden.edges, ...ADDED_SINCE_SNAPSHOT];
+      const removed = new Set(REMOVED_SINCE_SNAPSHOT.map(edgeKey));
+      const expected = [...golden.edges.filter((e) => !removed.has(edgeKey(e))), ...ADDED_SINCE_SNAPSHOT];
+      // Every named removal was really in the snapshot (a stale entry would hide a drift).
+      for (const e of REMOVED_SINCE_SNAPSHOT) expect(golden.edges.map(edgeKey), edgeKey(e)).toContain(edgeKey(e));
       expect(composed.edges).toHaveLength(expected.length);
       expect(sorted(composed.edges.map(edgeKey))).toEqual(sorted(expected.map(edgeKey)));
     });

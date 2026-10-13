@@ -45,6 +45,11 @@ describe('MidiControls', () => {
     expect(screen.getByText('First available')).toBeTruthy();
     expect(screen.getByText('IAC Driver Bus 1')).toBeTruthy();
     expect(screen.getByText('Synth A')).toBeTruthy();
+    // #168 Q3: the mute-semantics dial sits in the same section, on by default (what the
+    // instrument always did), so a player who never finds it loses nothing.
+    const follow = screen.getByLabelText('Mute silences MIDI too') as HTMLInputElement;
+    expect(follow.type).toBe('checkbox');
+    expect(follow.checked).toBe(true);
   });
 
   it('renders the honest unsupported message — not a dead toggle — where Web MIDI is absent', () => {

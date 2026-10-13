@@ -266,16 +266,35 @@ describe('persist migration (v1 → v2, returning users)', () => {
 
   it('mergeControls heals the MIDI settings (#137): absent → off, partial → completed, corrupt → default', () => {
     const initial = useControls.getInitialState();
-    // A pre-#137 blob has no midi key at all → the default (off, first available).
-    expect(mergeControls({ masterVolume: 0.5 }, initial).midi).toEqual({ enabled: false, port: '' });
+    // A pre-#137 blob has no midi key at all → the default (off, first available, the
+    // mute silences MIDI too).
+    expect(mergeControls({ masterVolume: 0.5 }, initial).midi).toEqual({ enabled: false, port: '', muteFollowsMaster: true });
     // A partial blob keeps what it set and completes the rest.
     const partial = mergeControls({ midi: { enabled: true } as never }, initial).midi;
     expect(partial.enabled).toBe(true);
     expect(partial.port).toBe('');
-    // A corrupt value falls back to the default whole (never a crash, never undefined).
+    // #168 Q3: a pre-dial blob (enabled + port only) heals to ON — the behaviour it was
+    // played with — through this same heal, so no persist-version bump was needed.
+    expect(mergeControls({ midi: { enabled: true, port: 'IAC' } as never }, initial).midi.muteFollowsMaster).toBe(true);
+    expect(mergeControls({ midi: { enabled: true, port: 'IAC', muteFollowsMaster: false } }, initial).midi.muteFollowsMaster).toBe(false);
+    // A corrupt value falls back to the default (never a crash, never undefined)...
     expect(mergeControls({ midi: { enabled: 'yes', port: 3 } as never }, initial).midi).toEqual({
       enabled: false,
       port: '',
+      muteFollowsMaster: true,
+    });
+    // ...FIELD BY FIELD: one bad field must not reset the player's other MIDI choices.
+    for (const bad of [null, 'yes', 1]) {
+      expect(mergeControls({ midi: { enabled: true, port: 'IAC', muteFollowsMaster: bad } as never }, initial).midi).toEqual({
+        enabled: true,
+        port: 'IAC',
+        muteFollowsMaster: true,
+      });
+    }
+    expect(mergeControls({ midi: { enabled: true, port: 3, muteFollowsMaster: false } as never }, initial).midi).toEqual({
+      enabled: true,
+      port: '',
+      muteFollowsMaster: false,
     });
   });
 
@@ -418,16 +437,19 @@ describe('store-controls node reads the store', () => {
 
   it('emits the MIDI enable/port dials as live ports (#137)', () => {
     // Default: off, first available port — the graph-wired midi-out stays silent.
-    useControls.setState({ midi: { enabled: false, port: '' } });
+    useControls.setState({ midi: { enabled: false, port: '', muteFollowsMaster: true } });
     const node = storeControlsNode.make(storeControlsNode.params.parse({}));
     let out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
     expect(out.midiEnabled).toBe(false);
     expect(out.midiPort).toBe('');
+    // #168 Q3: the mute-semantics dial is a live port too, on by default.
+    expect(out.midiMuteFollowsMaster).toBe(true);
     // Turning the dial on flows straight through — no rebuild, next tick.
-    useControls.setState({ midi: { enabled: true, port: 'IAC Driver Bus 1' } });
+    useControls.setState({ midi: { enabled: true, port: 'IAC Driver Bus 1', muteFollowsMaster: false } });
     out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
     expect(out.midiEnabled).toBe(true);
     expect(out.midiPort).toBe('IAC Driver Bus 1');
+    expect(out.midiMuteFollowsMaster).toBe(false);
   });
 
   it('emits the face-control axis tuning as a live port (#76)', () => {

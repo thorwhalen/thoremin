@@ -82,11 +82,14 @@ function FaceChip() {
  * player how to unmute so a muted instrument is never mistaken for a broken one. */
 function MutedBadge() {
   const muted = useControls((s) => s.muted);
+  // #168 Q3: with `midi.muteFollowsMaster` off and MIDI on, M quiets only the local
+  // monitor; the notes still flow to the DAW, and the badge must not say otherwise.
+  const midiStillOn = useControls((s) => s.midi.enabled && !s.midi.muteFollowsMaster);
   if (!muted) return null;
   return (
     <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-red-500/90 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-lg backdrop-blur">
       <VolumeX className="h-3.5 w-3.5" />
-      Muted — press M to unmute
+      Muted — press M to unmute{midiStillOn ? ' · MIDI still on' : ''}
     </div>
   );
 }

@@ -330,6 +330,20 @@ function migrateInstrumentField(obj: unknown): void {
   }
 }
 
+/** The MIDI block healed field by field against its schema: a field that parses is kept,
+ *  one that is absent or corrupt takes `fallback`'s value (the shipped default on a first
+ *  load). Never throws, never undefined. */
+function healMidi(stored: unknown, fallback: MidiSettings): MidiSettings {
+  const raw = stored && typeof stored === 'object' ? (stored as Record<string, unknown>) : {};
+  const out: Record<string, unknown> = { ...DEFAULT_MIDI, ...fallback };
+  for (const [key, field] of Object.entries(MidiSettingsSchema.shape)) {
+    if (!(key in raw)) continue;
+    const r = field.safeParse(raw[key]);
+    if (r.success) out[key] = r.data;
+  }
+  return out as MidiSettings;
+}
+
 /**
  * Persist migration. v1 → v2: the #64 face-mapping chooser replaced the boolean
  * `faceEnabled` with the tri-state `faceMapping`. v2 → v3: the per-hand / chord
@@ -469,15 +483,10 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       handMap = current.handMap;
     }
   }
-  // Heal the MIDI settings (#137): a pre-MIDI blob has none → off / first port.
-  let midi = current.midi;
-  if (p.midi) {
-    try {
-      midi = MidiSettingsSchema.parse({ ...DEFAULT_MIDI, ...p.midi });
-    } catch {
-      midi = current.midi;
-    }
-  }
+  // Heal the MIDI settings (#137): a pre-MIDI blob has none → off / first port. Field by
+  // field (#168 Q3): one corrupt field (a `muteFollowsMaster` of null or "yes" from a bad
+  // write) takes its default alone and must not reset the player's `enabled` and `port`.
+  const midi = healMidi(p.midi, current.midi);
   // Heal the hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
   let hands = current.hands;
   if (p.hands) {
@@ -758,7 +767,10 @@ export const useControls = create<ControlState>()(
       // v22 (#148): `hands` added (the handedness dwell, default 0 = the raw per-frame
       // label every earlier blob played by). ADDITIVE, healed by mergeControls (which runs
       // after the v21 migrate); the bump marks the schema growth.
-      version: 22,
+      // v23 (#168 Q3): `midi.muteFollowsMaster` added (default true = the master mute
+      // silences MIDI, as every earlier blob played). ADDITIVE, healed field by field by
+      // mergeControls' healMidi; the bump marks the schema growth.
+      version: 23,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
