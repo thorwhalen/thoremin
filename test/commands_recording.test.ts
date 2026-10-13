@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, expectTypeOf, beforeEach, afterEach } from 'vitest';
 import { createThoreminRegistry } from '@/app/commands/registry';
-import { provideRecordingHost, type ChosenFolder, type RecordingHost } from '@/app/commands/recordingHost';
+import { provideRecordingHost, recordingHost, type ChosenFolder, type RecordingHost } from '@/app/commands/recordingHost';
 import { createJournal } from '@/app/commands/journal';
 import { installMiddleware } from '@/app/commands/middleware';
 import { defaultGetRisk, needsUserActivation } from '@/app/commands/confirmation';
@@ -122,5 +122,17 @@ describe('the host seam restates the folder outcome (#392)', () => {
     // the picker's outcome type. This pins the copy: a variant added on one side fails
     // the typecheck here instead of drifting silently.
     expectTypeOf<ChosenFolder>().toEqualTypeOf<ChooseFolderResult>();
+  });
+});
+
+describe('installRecording (#392)', () => {
+  it('importing the config store installs nothing; installRecording installs, its cleanup uninstalls', async () => {
+    provideRecordingHost(null);
+    const { installRecording } = await import('@/app/recording/configStore');
+    expect(() => recordingHost()).toThrow(/recording host not installed/);
+    const uninstall = installRecording();
+    expect(() => recordingHost()).not.toThrow();
+    uninstall();
+    expect(() => recordingHost()).toThrow(/recording host not installed/);
   });
 });

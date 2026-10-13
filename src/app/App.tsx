@@ -16,6 +16,7 @@ import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
+import { installRecording } from './recording/configStore';
 import { startBodyRouteDemand } from './bodyRouteDemand';
 import { EXTENSION_MOUNT_EFFECTS } from './extensions';
 import { useControls } from './store';
@@ -138,6 +139,9 @@ export default function App({
   // #92: install the MODAL tag-toggle keymap (1..9 / 0) — inert unless tagging mode
   // is on, so it never shadows other digit bindings.
   useEffect(() => installTaggingKeymap(), []);
+  // #257: the recording host the `recording.*` commands act on (the config store and the
+  // folder), installed here rather than as a side effect of importing the store.
+  useEffect(() => installRecording(), []);
   // #186: the body routes claim the feature groups they read, so a configured route
   // is fed even with the Lab closed (the groups are computed only on demand).
   useEffect(() => startBodyRouteDemand(), []);
