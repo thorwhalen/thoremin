@@ -78,6 +78,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
+import { median } from '@thoremin/stats';
 import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, fitLine, fitQuadratic, lagGate, magnetise, nearestExpectedBeat, type ImpactPredictor, type MusicalTime, type Quadratic } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
@@ -402,7 +403,8 @@ export interface TrackSample {
 export function deepestSampleTime(recent: readonly TrackSample[], near: number): number {
   const gaps: number[] = [];
   for (let i = 1; i < recent.length; i++) if (recent[i].t > recent[i - 1].t) gaps.push(recent[i].t - recent[i - 1].t);
-  const frame = gaps.length ? [...gaps].sort((a, b) => a - b)[gaps.length >> 1] : 0;
+  // The period: the upper median of the gaps (a real gap), 0 with none.
+  const frame = gaps.length ? median(gaps, { even: 'upper' }) : 0;
   const reach = 1.5 * frame + 1e-9;
   let best: TrackSample | null = null;
   for (const s of recent) {
