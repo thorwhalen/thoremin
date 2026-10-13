@@ -1,7 +1,7 @@
 {
   "scenario": "video_body_conducting_24",
   "source": "video",
-  "clip": "Conducting choir - Trisagion (Greek) (Commons), 24.0 s to 48.5 s, 640x360, 30 fps; pose_landmarker_full",
+  "clip": "Conducting choir - Trisagion (Greek) (Commons), 24.0 s to 48.5 s, 640x360, 30 fps",
   "frames": 735,
   "fps": 30,
   "bodyDetectedFrames": 735,
@@ -13,6 +13,7 @@
   "author": "OrthodoxMusicOnline (OMIO), with David Drillock",
   "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Trisagion_(Greek).webm",
   "description": "David Drillock demonstrates the 2 beat pattern with the Greek Trisagion hymn, sung; the grid is his own baton hand",
+  "pose": "MediaPipe PoseLandmarker full (Python Tasks API, mediapipe 0.10.14), scripts/video_to_pose.py",
   "excerpt": {
     "fromS": 24,
     "toS": 48.5

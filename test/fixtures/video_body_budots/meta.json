@@ -1,7 +1,7 @@
 {
   "scenario": "video_body_budots",
   "source": "video",
-  "clip": "Budots Dance Video (Commons), the uncut shot 8.8 s to 22.25 s, 1280x720 scaled to 640x360, 30 fps; pose_landmarker_full",
+  "clip": "Budots Dance Video (Commons), the uncut shot 8.8 s to 22.25 s, 1280x720 scaled to 640x360, 30 fps",
   "frames": 404,
   "fps": 30,
   "bodyDetectedFrames": 401,
@@ -16,6 +16,7 @@
   "author": "Sherwin Tuna (DJ Love)",
   "sourceUrl": "https://commons.wikimedia.org/wiki/File:Budots_Dance_Video.ogg",
   "description": "A Budots dance video (a bouncing street dance from Davao), the longest uncut shot: three dancers in front of the camera, the single most confident pose per frame (it may switch dancer now and then: 4 hip jumps over 40 px in 401 frames); the music is a steady electronic track",
+  "pose": "MediaPipe PoseLandmarker full (Python Tasks API, mediapipe 0.10.14), scripts/video_to_pose.py",
   "excerpt": {
     "fromS": 8.8,
     "toS": 22.25

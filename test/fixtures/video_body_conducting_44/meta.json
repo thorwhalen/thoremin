@@ -1,7 +1,7 @@
 {
   "scenario": "video_body_conducting_44",
   "source": "video",
-  "clip": "Conducting choir - Allelulias (Commons), 12.5 s to 36.5 s, 640x360, 30 fps; pose_landmarker_full",
+  "clip": "Conducting choir - Allelulias (Commons), 12.5 s to 36.5 s, 640x360, 30 fps",
   "frames": 720,
   "fps": 30,
   "bodyDetectedFrames": 720,
@@ -13,6 +13,7 @@
   "author": "OrthodoxMusicOnline (OMIO), with David Drillock",
   "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Allelulias.webm",
   "description": "David Drillock conducts a choir through three alleluia verses in a simple 4 pattern, filmed three-quarter front, waist to head with the knees in frame; the choir is legato and carries no usable beat (librosa's grid ran at 123 bpm against his 87), so the grid is his own baton hand",
+  "pose": "MediaPipe PoseLandmarker full (Python Tasks API, mediapipe 0.10.14), scripts/video_to_pose.py",
   "excerpt": {
     "fromS": 12.5,
     "toS": 36.5

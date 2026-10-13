@@ -73,3 +73,42 @@ describe(`${SC}: a real dancer through the body pipeline`, () => {
     expect(out.map((o) => roundVector(o.vector as FeatureVector))).toEqual(recorded);
   });
 });
+
+/**
+ * The fixtures of the channel-by-level measurement (#373): a bouncing dance and a
+ * choir conductor in three meters, from Wikimedia Commons under CC BY 3.0. The same two
+ * gates as Que Calor, and their provenance: every one states its licence, its source
+ * and the reference grid it is scored against (`scripts/body/measure_channels.ts`).
+ */
+const MEASURED = ['video_body_budots', 'video_body_conducting_44', 'video_body_conducting_34', 'video_body_conducting_24'] as const;
+
+describe.each(MEASURED)('%s: a measured body clip', (sc) => {
+  const frames = loadStream(sc, 'camBody.body') as BodyFrame[];
+  const recorded = loadStream(sc, 'bodyVec.vector') as FeatureVector[];
+  const meta = JSON.parse(readFileSync(`${FIXTURES}/${sc}/meta.json`, 'utf8')) as {
+    frames: number;
+    fps: number;
+    detectionRate: number;
+    licence: string;
+    sourceUrl: string;
+    grid: { source: string; beatsPerBar: number; beats: number[] };
+  };
+
+  it('states its licence, its source and a reference grid inside the clip', () => {
+    expect(frames).toHaveLength(meta.frames);
+    expect(meta.detectionRate).toBeGreaterThanOrEqual(95);
+    expect(meta.licence).toMatch(/^CC BY/);
+    expect(meta.sourceUrl).toMatch(/^https:\/\/commons\.wikimedia\.org\//);
+    expect(meta.grid.source.length).toBeGreaterThan(10);
+    expect([2, 3, 4]).toContain(meta.grid.beatsPerBar);
+    const dur = meta.frames / meta.fps;
+    expect(meta.grid.beats.length).toBeGreaterThan(15);
+    expect(meta.grid.beats.every((b, i) => b >= 0 && b < dur && (i === 0 || b > meta.grid.beats[i - 1]))).toBe(true);
+  });
+
+  it('REGRESSION: replaying the recorded pose reproduces the committed vector stream (6 dp)', async () => {
+    const params = bodyFeatureVectorNode.params.parse({ mirrorX: false });
+    const out = await replayNode(bodyFeatureVectorNode.make(params), { body: frames }, { dt: 1 / meta.fps });
+    expect(out.map((o) => roundVector(o.vector as FeatureVector))).toEqual(recorded);
+  });
+});

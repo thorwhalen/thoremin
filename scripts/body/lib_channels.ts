@@ -62,12 +62,11 @@ export interface Level {
   beats: number;
 }
 
+/** The levels of a meter. A bar of an odd number of beats has no half-bar (1.5 beats
+ *  of a 3-pattern is not a level anyone marks), and a 2-beat bar's half-bar is its beat. */
 export function levelsFor(beatsPerBar: number): Level[] {
-  return [
-    { name: 'beat', beats: 1 },
-    { name: 'half-bar', beats: beatsPerBar / 2 },
-    { name: 'bar', beats: beatsPerBar },
-  ];
+  const half: Level[] = beatsPerBar % 2 === 0 && beatsPerBar > 2 ? [{ name: 'half-bar', beats: beatsPerBar / 2 }] : [];
+  return [{ name: 'beat', beats: 1 }, ...half, { name: 'bar', beats: beatsPerBar }];
 }
 
 /** One channel: per-frame samples, either a scalar (`y` only) or a point (`x`, `y`),
@@ -189,6 +188,7 @@ export function extractChannels(frames: readonly BodyFrame[], fps: number): Chan
     if (!P(i, BLM.left_shoulder) || !P(i, BLM.right_shoulder) || !f.world) return NaN;
     const l = f.world[BLM.left_shoulder];
     const r = f.world[BLM.right_shoulder];
+    if (l.z === undefined || r.z === undefined) return NaN;
     return (Math.atan2(r.z - l.z, r.x - l.x) * 180) / Math.PI;
   });
 
@@ -353,16 +353,23 @@ export interface LevelScore {
   /** Rayleigh test p-value of R (Zar's approximation): the chance of an R this large
    *  from as many anchors at random phases. */
   p: number;
+  /** Its natural log: what cells are ranked by (a strong lock's p underflows to 0). */
+  logP: number;
   bas: number;
   cemgil: number;
 }
 
-/** Rayleigh p for a resultant length `r` of `n` unit vectors (Zar, Biostatistical
- *  Analysis, eq. 27.4). */
-export function rayleighP(r: number, n: number): number {
-  if (n < 2) return 1;
+/** The natural log of the Rayleigh p for a resultant length `r` of `n` unit vectors
+ *  (Zar, Biostatistical Analysis, eq. 27.4). */
+export function rayleighLogP(r: number, n: number): number {
+  if (n < 2) return 0;
   const R = n * r;
-  return Math.min(1, Math.exp(Math.sqrt(1 + 4 * n + 4 * (n * n - R * R)) - (1 + 2 * n)));
+  return Math.min(0, Math.sqrt(1 + 4 * n + 4 * (n * n - R * R)) - (1 + 2 * n));
+}
+
+/** The Rayleigh p itself. */
+export function rayleighP(r: number, n: number): number {
+  return Math.exp(rayleighLogP(r, n));
 }
 
 /** A grid interval longer than this many median intervals is a hold (a conductor
@@ -432,6 +439,7 @@ export function scoreLevel(anchors: readonly number[], grid: readonly number[], 
     lagS,
     r,
     p: rayleighP(r, A.length),
+    logP: rayleighLogP(r, A.length),
     bas: bas(A, ref),
     cemgil: cemgil(ref, A),
   };
@@ -490,26 +498,26 @@ export interface CellResult {
 
 /** Every channel x event x level for one clip. `span` limits scoring to where the
  *  grid is (the clip's music) and the body was tracked. */
-export function measureClip(frames: readonly BodyFrame[], fps: number, grid: readonly number[], beatsPerBar: number): CellResult[] {
+export function measureClip(frames: readonly BodyFrame[], fps: number, grid: readonly number[], beatsPerBar: number, only?: { channels?: readonly string[]; levels?: ReadonlyArray<Level['name']> }): CellResult[] {
   const dt = 1 / fps;
   const t = frames.map((_, i) => i * dt);
   const chans = extractChannels(frames, fps);
   const beatS = median(grid.slice(1).map((g, i) => g - grid[i]));
   const span = gridRuns(grid).map(([a, b]): [number, number] => [Math.max(a, t[0]), Math.min(b, t[t.length - 1])]).filter(([a, b]) => b > a);
+  const wanted = (id: string) => !only?.channels || only.channels.includes(id);
   const out: CellResult[] = [];
-  for (const level of levelsFor(beatsPerBar)) {
+  for (const level of levelsFor(beatsPerBar).filter((l) => !only?.levels || only.levels.includes(l.name))) {
     const sep = MIN_SEPARATION * level.beats * beatS;
-    for (const ch of chans) {
+    for (const ch of chans.filter((c) => wanted(c.id))) {
       for (const event of EVENTS) {
-        // An extremum or impact is scored at both polarities and the more significant
-        // lock (Rayleigh p) kept (the phase of
-        // a bounce is the player's own).
+        // An extremum or an impact is scored at both polarities and the more
+        // significant lock (Rayleigh p) kept: the phase of a bounce is the player's own.
         const pols: Array<1 | -1> = event === 'extremum' || event === 'impact' ? [1, -1] : [1];
         let best: CellResult | null = null;
         for (const pol of pols) {
           const anchors = pickAnchors(envelope(ch, event, dt, pol), t, sep);
           const score = scoreLevel(anchors, grid, level.beats, span);
-          if (!best || score.p < best.score.p) best = { channel: ch.id, event, polarity: pol, level: level.name, score };
+          if (!best || score.logP < best.score.logP) best = { channel: ch.id, event, polarity: pol, level: level.name, score };
         }
         out.push(best!);
       }
@@ -519,14 +527,23 @@ export function measureClip(frames: readonly BodyFrame[], fps: number, grid: rea
     // period, which needs a tempo but no grid phase, as the impact detector will have).
     const lag = Math.round((level.beats * beatS) / dt);
     for (const weighted of [false, true]) {
+      const id = weighted ? 'multi.weighted' : 'multi';
+      if (!wanted(id)) continue;
       const weights = weighted
         ? Object.fromEntries(chans.filter((c) => (ENVELOPE_JOINTS as readonly string[]).includes(c.id)).map((c) => [c.id, Math.max(0, acfAt(c.y, lag))]))
         : undefined;
       const anchors = pickAnchors(multiJointEnvelope(chans, dt, weights), t, sep);
-      out.push({ channel: weighted ? 'multi.weighted' : 'multi', event: 'multi', polarity: 1, level: level.name, score: scoreLevel(anchors, grid, level.beats, span) });
+      out.push({ channel: id, event: 'multi', polarity: 1, level: level.name, score: scoreLevel(anchors, grid, level.beats, span) });
     }
   }
   return out;
+}
+
+/** The most significant event of one channel at one level (the tables' cell). */
+export function bestCell(cells: readonly CellResult[], channel: string, level: Level['name']): CellResult {
+  const mine = cells.filter((c) => c.channel === channel && c.level === level);
+  if (mine.length === 0) throw new Error(`no cell for ${channel} at ${level}`);
+  return mine.reduce((a, b) => (b.score.logP < a.score.logP ? b : a));
 }
 
 /** Normalised autocorrelation of `y` at a lag of `lag` samples, over the pairs both
@@ -552,4 +569,52 @@ export function acfAt(y: readonly number[], lag: number): number {
     db += (b[i] - mb) ** 2;
   }
   return da > 0 && db > 0 ? num / Math.sqrt(da * db) : 0;
+}
+
+// ---------------------------------------------------------------- two levels at once: the meter
+
+/** The strongest autocorrelation peak of a channel with a lag inside [minS, maxS]. */
+export function acfPeak(y: readonly number[], fps: number, minS: number, maxS: number): { lagS: number; r: number } {
+  let best = { lagS: NaN, r: -Infinity };
+  const lo = Math.max(1, Math.round(minS * fps));
+  const hi = Math.round(maxS * fps);
+  const r = (k: number) => acfAt(y, k);
+  for (let k = lo; k <= hi; k++) {
+    const v = r(k);
+    // A local maximum (the edges of the window are not peaks).
+    if (k > lo && k < hi && v > best.r && v >= r(k - 1) && v >= r(k + 1)) best = { lagS: k / fps, r: v };
+  }
+  return best;
+}
+
+export interface MeterReading {
+  /** The beat-level (vertical) channel and its period, seconds. */
+  beatChannel: string;
+  beatS: number;
+  beatR: number;
+  /** The bar-level (lateral or rotational) channel and its period, seconds. */
+  barChannel: string;
+  barS: number;
+  barR: number;
+  /** barS / beatS: the meter the body writes, if both are real. */
+  ratio: number;
+}
+
+/**
+ * §3.4's "two levels at once give the meter": the period of the strongest vertical
+ * channel near the beat and of the strongest lateral or rotational channel at a slower
+ * level, each from its own autocorrelation, and their ratio. Grid-free except for the
+ * search windows, which are stated in the clip's beat period (a tempo, not a phase): the
+ * vertical within 0.6..1.6 beats, the lateral within 1.6..6 beats.
+ */
+export function meterReading(frames: readonly BodyFrame[], fps: number, beatS: number): MeterReading {
+  const chans = extractChannels(frames, fps);
+  const pick = (ids: readonly string[], lo: number, hi: number) =>
+    ids
+      .map((id) => ({ id, ...acfPeak(chans.find((c) => c.id === id)!.y, fps, lo * beatS, hi * beatS) }))
+      .filter((x) => Number.isFinite(x.lagS))
+      .reduce((a, b) => (b.r > a.r ? b : a), { id: '-', lagS: NaN, r: -Infinity });
+  const v = pick(['com.y', 'hips.y', 'head.y'], 0.6, 1.6);
+  const h = pick(['sway.x', 'torso.yaw', 'stride'], 1.6, 6);
+  return { beatChannel: v.id, beatS: v.lagS, beatR: v.r, barChannel: h.id, barS: h.lagS, barR: h.r, ratio: h.lagS / v.lagS };
 }
