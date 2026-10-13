@@ -78,6 +78,7 @@
  * Pure and causal like the rest of the package: no clock, nothing read from outside
  * the anchors it is given.
  */
+import { clamp01 } from '@thoremin/stats';
 import type { Anchor, MusicalTime, Prediction, RhythmPrior } from './types';
 import { wrapPhase } from './types';
 import { createAdaptiveOscillator, type AdaptiveOscillator, type OscillatorOptions } from './oscillator';
@@ -136,8 +137,6 @@ export interface BlendPrior extends RhythmPrior {
   readonly oscillator: AdaptiveOscillator;
   readonly trend: RhythmPrior;
 }
-
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
   const o = { ...DEFAULTS, ...options };

@@ -67,6 +67,7 @@
  * every prediction carries a systematic one-frame lag. Nothing here schedules audio;
  * the scheduler reads {@link MusicalTime}.
  */
+import { clamp01 } from '@thoremin/stats';
 import type { MusicalTime, Prediction, RhythmPrior } from './types';
 import { wrapPhase } from './types';
 
@@ -272,7 +273,7 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
   return {
     advance: advanceTo,
     update(a) {
-      const c = Math.max(0, Math.min(1, a.confidence));
+      const c = clamp01(a.confidence);
       // A weak anchor is not an observation: it touches nothing, not even the clock.
       if (!(c >= o.confidenceFloor)) return;
       const tNow = Math.max(t, a.t);
@@ -380,7 +381,7 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
       r += o.dispersionGain * (Math.cos(2 * Math.PI * e) - r);
       kappa = Math.max(o.kappaMin, Math.min(o.kappaMax, kappaFromResultant(Math.max(0, r))));
       // Confidence rises with agreement (r is the resultant length of recent errors).
-      confidence = Math.max(0, Math.min(1, 0.5 * confidence + 0.5 * Math.max(0, r)));
+      confidence = clamp01(0.5 * confidence + 0.5 * Math.max(0, r));
       lastAnchorT = a.t;
       consecutive++;
       advanceTo(tNow);

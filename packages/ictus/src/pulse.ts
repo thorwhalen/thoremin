@@ -28,6 +28,7 @@
  * (for an image-y channel, y down, that is the lowest point of the movement). Pure,
  * causal and clock-free like the rest of ictus: time is the caller's, in seconds.
  */
+import { clamp01 } from '@thoremin/stats';
 import { createRhythmPrior, DEFAULT_RHYTHM_PRIOR, type RhythmPriorKind } from './priors';
 import type { Anchor, MusicalTime, RhythmPrior } from './types';
 
@@ -461,9 +462,9 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       beatInBar: 0,
       phase: locked ? phase : NaN,
       nextBeatAt: locked ? t + (1 - phase) * s.period : NaN,
-      confidence: locked ? Math.max(0, Math.min(1, strength)) * s.confidence : 0,
+      confidence: locked ? clamp01(strength) * s.confidence : 0,
       level,
-      strength: Math.max(0, Math.min(1, strength)),
+      strength: clamp01(strength),
       candidates,
     };
   };
