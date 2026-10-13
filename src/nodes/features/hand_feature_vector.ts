@@ -21,20 +21,13 @@
  * `hand.left.*` / `hand.right.*` namespaces for a frame or two, blanking the
  * Lab meters. So while exactly ONE hand is detected the namespace is a
  * COMMITTED side: a new label must persist `handednessDwellFrames` consecutive
- * DETECTED single-hand frames before the assignment switches (the same
- * leave-counter dwell idiom as `face-expression`; brief dropouts within the
- * dwell window between those frames do not reset the count — detection
- * confidence dips at exactly the moments labels flicker). Two-hand frames pass
- * raw labels through untouched, and — because a "second hand" can itself be a
- * one-frame phantom detection of the same physical hand mid-turn — the
- * single-hand tracker is only cleared after a full dwell window of consecutive
- * multi-hand frames, not by the first one.
- *
- * DELIBERATE DIVERGENCE: the sound path (`hand-features`) still keys strictly
- * by the raw per-frame label, so during a flicker the audible instrument can
- * glitch while these Lab meters stay steady. Adopting the dwell there changes
- * what the INSTRUMENT plays and needs its own decision + live test — tracked
- * separately (see the follow-up issue referenced from #144).
+ * DETECTED single-hand frames before the assignment switches. The tracker is
+ * the shared `createHandednessDwell` (`@thoremin/sdk/features/handedness`,
+ * whose header states the full policy: dropouts, phantom second hands, the
+ * sustained two-hand reset). Since #148 the sound path (`hand-features`) runs
+ * the same tracker, with its dwell on the `hands.handednessDwell` dial — default
+ * 0, the raw label, because the re-route latency is audible there; this Lab
+ * default stays at {@link LAB_HANDEDNESS_DWELL_FRAMES} so the meters stay steady.
  *
  * Group + activity resolution mirrors `face-feature-vector`: live lab config
  * first, then the static `groups` param, then all hand groups; inactive (lab
@@ -54,7 +47,11 @@ import {
   type HandSide,
 } from '@thoremin/sdk/features/catalog';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
+import { createHandednessDwell, MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
+
+/** The Lab's dwell: three frames absorbs the measured 1-2 frame flicker (#144). */
+export const LAB_HANDEDNESS_DWELL_FRAMES = 3;
 
 const Params = z.object({
   /** Mirror image-x so moving right increases x (selfie view), matching hand-features. */
@@ -70,7 +67,7 @@ const Params = z.object({
    *  window of consecutive multi-hand frames required before the single-hand
    *  tracker is cleared (a one-frame phantom second hand must not strip the
    *  dwell protection). 1 = no hysteresis. */
-  handednessDwellFrames: z.number().int().min(1).max(30).default(3),
+  handednessDwellFrames: z.number().int().min(1).max(MAX_HANDEDNESS_DWELL_FRAMES).default(LAB_HANDEDNESS_DWELL_FRAMES),
 });
 type Params = z.infer<typeof Params>;
 
@@ -98,51 +95,10 @@ export const handFeatureVectorNode = defineNode<Params>({
   outputs: [{ name: 'vector', kind: 'feature-vector' }],
   params: Params,
   make(p) {
-    // Handedness->namespace hysteresis state (single-hand regime only). Policy
-    // across hand-count changes, each direction thought through:
-    //  - 1 -> 2+: raw labels pass through untouched. The tracker is cleared only
-    //    after a FULL dwell window of consecutive multi-hand frames: a sustained
-    //    two-hand regime means MediaPipe disambiguated two real hands against
-    //    each other (nothing for hysteresis to protect, and carrying single-hand
-    //    state across the interlude could pin the surviving hand to the wrong
-    //    side afterwards — we cannot know which physical hand remained), but a
-    //    ONE-frame "second hand" is often a phantom duplicate detection of the
-    //    same physical hand mid-turn — exactly the regime that flickers labels —
-    //    and letting it wipe the tracker would reopen the bug through a rarer
-    //    door (the next single-hand frame would cold-commit a flickered label).
-    //    (A phantom frame still fires pair features against the hand and itself
-    //    for that frame — indistinguishable from a real second hand in a single
-    //    frame; accepted.)
-    //  - sustained 2 -> 1: tracker was cleared during the interlude, so the
-    //    remaining hand cold-commits to its own raw label immediately (its label
-    //    was just disambiguated), and the dwell protects it from that point on.
-    //  - 1 -> 0 -> 1: a dropout no longer than the dwell window KEEPS the
-    //    assignment (and the disagreement count — the switch dwell counts
-    //    DETECTED frames) — detection confidence dips at the same moment labels
-    //    flicker (while the hand turns), so resetting on a one-frame dropout
-    //    would reopen the bug. A longer absence clears the tracker, so a
-    //    genuinely new hand commits to its own label at once.
-    let committedSide: HandSide | null = null;
-    let switchCount = 0; // consecutive DETECTED single-hand frames disagreeing with committedSide
-    let absentCount = 0; // consecutive frames with no detected hands
-    let multiCount = 0; // consecutive frames with 2+ detected hands
-
-    const reset = () => {
-      committedSide = null;
-      switchCount = 0;
-    };
-
-    /** Dwell-filter the single-hand raw side into the committed namespace. */
-    const commitSide = (raw: HandSide): HandSide => {
-      if (committedSide === null || raw === committedSide) {
-        committedSide = raw;
-        switchCount = 0;
-      } else if (++switchCount >= p.handednessDwellFrames) {
-        committedSide = raw;
-        switchCount = 0;
-      }
-      return committedSide;
-    };
+    // Handedness->namespace hysteresis (single-hand regime only): the shared tracker.
+    // The policy across hand-count changes (1 -> 2+, sustained 2 -> 1, 1 -> 0 -> 1) is
+    // stated once, in the tracker's module header, and pinned by this node's tests.
+    const dwell = createHandednessDwell({ dwellFrames: p.handednessDwellFrames });
 
     return {
       process(inputs, ctx) {
@@ -150,38 +106,25 @@ export const handFeatureVectorNode = defineNode<Params>({
         if (!active) {
           // Unobserved stream: drop the tracker so a much-later reshow
           // cold-commits to the then-current label instead of a stale one.
-          reset();
-          absentCount = 0;
-          multiCount = 0;
+          dwell.reset();
           return { vector: {} };
         }
         const frame = inputs.hands as HandsFrame | undefined;
         const vector: FeatureVector = {};
-        if (!frame || !frame.hands?.length) {
-          if (++absentCount > p.handednessDwellFrames) reset();
-          multiCount = 0;
-          return { vector };
-        }
-        absentCount = 0;
+        const hands = (frame?.hands ?? []) as Hand[];
+        // One committed side per hand (dwell-committed when a single hand is present,
+        // raw otherwise); an empty frame still steps the tracker (it counts the dropout).
+        const sides = dwell.step(hands.map((hand) => resolveSide(hand.handedness, p.mirrorHandedness)));
+        if (!hands.length) return { vector };
 
-        const hands = frame.hands as Hand[];
-        const single = hands.length === 1;
-        if (single) {
-          multiCount = 0;
-        } else if (++multiCount >= p.handednessDwellFrames) {
-          reset(); // a sustained (not phantom) multi-hand regime — see the policy above
-        }
-
-        // Per-hand features, keyed by the assigned side (dwell-committed when a
-        // single hand is present, raw otherwise).
+        // Per-hand features, keyed by the assigned side.
         const bySide: Partial<Record<HandSide, HandCtx>> = {};
-        for (const hand of hands) {
-          const raw = resolveSide(hand.handedness, p.mirrorHandedness);
+        for (const [i, hand] of hands.entries()) {
           // The committed side also labels the HandCtx (not just the keys):
           // during a flicker the physical hand is unchanged, so side-tagged
           // consumers must see the same side the features are keyed under.
-          const side = single ? commitSide(raw) : raw;
-          const hctx = buildHandCtx(hand, frame, { mirrorX: p.mirrorX, side });
+          const side = sides[i];
+          const hctx = buildHandCtx(hand, frame!, { mirrorX: p.mirrorX, side });
           bySide[side] = hctx;
           for (const feat of HAND_SIDE_FEATURES) {
             if (!enabled(feat.group)) continue;

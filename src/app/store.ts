@@ -26,6 +26,9 @@ import {
   DEFAULT_FACE_CHORD,
   DEFAULT_FACE_EXPR,
   DEFAULT_MIDI,
+  DEFAULT_HANDS,
+  HandsSettingsSchema,
+  type HandsSettings,
   DEFAULT_BODY,
   BodySettingsSchema,
   type BodySettings,
@@ -168,6 +171,10 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  field (in {@link SETTINGS_KEYS}); read live by the `midi-out` node via
    *  `store-controls` → its `enabled`/`port` inputs. */
   midi: MidiSettings;
+  /** The hands reading (#148): the handedness dwell `hand-features` applies (0 = raw
+   *  label). A preset field (in {@link SETTINGS_KEYS}); read live by `hand-features` via
+   *  `store-controls` → its `handednessDwell` input. */
+  hands: HandsSettings;
   /** The body source (#186): on/off + model. A preset field; read live by `webcam-body`
    *  through `ctx.resources.controls` (its gate, like the face's `faceMapping`). */
   body: BodySettings;
@@ -471,6 +478,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       midi = current.midi;
     }
   }
+  // Heal the hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
+  let hands = current.hands;
+  if (p.hands) {
+    try {
+      hands = HandsSettingsSchema.parse({ ...DEFAULT_HANDS, ...p.hands });
+    } catch {
+      hands = current.hands;
+    }
+  }
   // Heal the body settings (#186): a pre-body blob has none → off, lite.
   // Heal the body map (#186): a pre-routing blob has none → no routes.
   let bodyMap = current.bodyMap;
@@ -566,7 +582,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, ...keptTransients(current) };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, hands, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, ...keptTransients(current) };
 }
 
 /** The extensions' transient fields as they are now: a rehydrated blob never carries them
@@ -607,6 +623,7 @@ export const useControls = create<ControlState>()(
       featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
       midi: { ...DEFAULT_MIDI },
+      hands: { ...DEFAULT_HANDS },
       body: { ...DEFAULT_BODY },
       bodyMap: structuredClone(DEFAULT_BODY_MAP),
       steer: defaultSteer(),
@@ -736,7 +753,12 @@ export const useControls = create<ControlState>()(
       // schema parse, so no data transform is needed; the bump marks the schema growth.
       // v20 (#269): `airDrum.pattern` added (the trained pattern in play, '' for none).
       // ADDITIVE with a default, healed by mergeControls' schema parse; the bump marks it.
-      version: 21,
+      // v21 (#232): the conductor dial gained `prior`; migrateControls keeps a returning
+      // player's conductor on the oscillator (LEGACY_CONDUCTOR_PRIOR).
+      // v22 (#148): `hands` added (the handedness dwell, default 0 = the raw per-frame
+      // label every earlier blob played by). ADDITIVE, healed by mergeControls (which runs
+      // after the v21 migrate); the bump marks the schema growth.
+      version: 22,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

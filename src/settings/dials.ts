@@ -40,7 +40,8 @@ function extensionSlicesOf(o: Record<string, unknown>): Record<string, unknown> 
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
-import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, defaultSteerConfig, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, defaultSteerConfig, type Settings } from './schema';
+import { MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const SoundEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
@@ -113,6 +114,22 @@ export const thoreminDials = defineDials(
     // the port name as text. '' targets the first available port.
     'midi.enabled': z.boolean().default(false).meta({ facets: ['MIDI'], title: 'MIDI output', description: 'Send the played voices to a Web MIDI output (external synth or DAW)' }),
     'midi.port': z.string().default('').meta({ facets: ['MIDI'], title: 'MIDI port', description: 'MIDI output port name (empty = first available)' }),
+
+    // The hands reading (#148): the handedness dwell the sound path's `hand-features`
+    // applies, live through `store-controls`. 0 = the raw per-frame label (the instrument
+    // as it always played); a few frames absorb MediaPipe's Left/Right flicker at the
+    // cost of the same delay on a real hand swap. Whether to raise the default is #168.
+    'hands.handednessDwell': z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_HANDEDNESS_DWELL_FRAMES)
+      .default(DEFAULT_HANDS.handednessDwell)
+      .meta({
+        facets: ['Hand', 'advanced'],
+        title: 'Handedness dwell',
+        description: 'Frames a new Left/Right label must persist before a hand\'s voice moves to the other side (0 = follow the label at once; 3 absorbs a flicker at ~100 ms delay)',
+      }),
 
     // The body source (#186): the most expensive model in the graph, so it is a dial
     // the player turns on, never a default. `body.model` swaps the PoseLandmarker
@@ -222,6 +239,7 @@ export function settingsToLayer(s: Settings): Layer {
     'faceExpr.degrees': s.faceExpr.degrees,
     'midi.enabled': s.midi.enabled,
     'midi.port': s.midi.port,
+    'hands.handednessDwell': s.hands.handednessDwell,
     'body.enabled': s.body.enabled,
     'body.model': s.body.model,
     'steer.enabled': s.steer.enabled,
@@ -263,6 +281,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
     midi: { enabled: v['midi.enabled'], port: v['midi.port'] },
+    hands: { handednessDwell: v['hands.handednessDwell'] },
     body: { enabled: v['body.enabled'], model: v['body.model'] },
     steer: { enabled: v['steer.enabled'], volume: v['steer.volume'], config: v.steerConfig },
     overlay: v.overlay,

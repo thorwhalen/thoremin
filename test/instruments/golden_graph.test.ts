@@ -48,6 +48,8 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'airFlute', port: 'status' }, to: { node: 'overlay', port: 'airFluteStatus' } },
   // PR 3: the composed element set reaches the overlay through the UI bridge.
   { from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } },
+  // #148: the handedness dwell dial reaches the sound path's hand reader live.
+  { from: { node: 'ui', port: 'handednessDwell' }, to: { node: 'feat', port: 'handednessDwell' } },
 ];
 
 /** Nodes of extensions added after the snapshot (the ASL reader and its chords): the golden

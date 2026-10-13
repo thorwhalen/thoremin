@@ -14,6 +14,7 @@ import { SCALE_TYPES, type ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { SOUND_IDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
+import { DEFAULT_HANDEDNESS_DWELL_FRAMES, MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
@@ -186,6 +187,16 @@ export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
 /** The shipped MIDI defaults: off, first available port. */
 export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '' };
 
+/** The hands source's reading (#148): how many consecutive frames a new Left/Right label
+ *  must persist before a hand's voice re-routes. 0 (the default) = the raw per-frame
+ *  label, exactly what the instrument played before the dial existed; the Lab keeps its
+ *  own dwell. Rides the instrument (a preset field): the trade-off is musical. */
+export const HandsSettingsSchema = z.object({
+  handednessDwell: z.number().int().min(0).max(MAX_HANDEDNESS_DWELL_FRAMES),
+});
+export type HandsSettings = z.infer<typeof HandsSettingsSchema>;
+export const DEFAULT_HANDS: HandsSettings = { handednessDwell: DEFAULT_HANDEDNESS_DWELL_FRAMES };
+
 /** The body source (#186): on/off + which PoseLandmarker model to load. `BODY_MODELS`
  *  is the node's own list (`@thoremin/sdk/nodes/domain`), re-exported so the panel reads one SSOT. */
 export { BODY_MODELS };
@@ -265,6 +276,8 @@ export const CoreSettingsSchema = z.object({
   handMap: HandMapSchema,
   // MIDI output (#137). `.default(...)` keeps pre-MIDI presets valid (off).
   midi: MidiSettingsSchema.default(DEFAULT_MIDI),
+  // The hands reading (#148). `.default(...)` keeps every earlier preset valid (dwell 0).
+  hands: HandsSettingsSchema.default(DEFAULT_HANDS),
   // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
   body: BodySettingsSchema.default(DEFAULT_BODY),
   // The body→sound routing (#186 PR E): four route slots over the catalog. `.default`

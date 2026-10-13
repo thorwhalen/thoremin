@@ -15,7 +15,7 @@ import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } 
 import type { SoundId } from '@thoremin/sdk/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { BodyMap } from '@/nodes/mapping/body_map';
-import type { FaceChord, FaceExpr, SteerSettings } from '@/settings/schema';
+import type { FaceChord, FaceExpr, HandsSettings, SteerSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import type { ConductorSettings, ExtensionDials, ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
@@ -80,6 +80,9 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   /** MIDI output (#137): on/off + target port name ('' = first available). Fed to
    *  the `midi-out` node's `enabled`/`port` inputs as live ports. */
   midi?: { enabled: boolean; port: string };
+  /** The hands reading (#148): the handedness dwell, fed to `hand-features`'
+   *  `handednessDwell` input as a live port (absent → the node's build-time param). */
+  hands?: HandsSettings;
   /** The body source (#186): on/off + PoseLandmarker model. Read by `webcam-body` off
    *  the raw store (its gate, like `faceMapping` for the face) — not emitted as a port,
    *  because a slot candidate declares no inputs. */
@@ -183,6 +186,9 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     // so the settings panel / palette / AI can turn MIDI on without a graph rebuild.
     { name: 'midiEnabled', kind: 'boolean' },
     { name: 'midiPort', kind: 'string' },
+    // The handedness dwell (#148) → `hand-features`' `handednessDwell` input, so the
+    // panel / palette / AI can steady (or un-steady) the hand routing without a rebuild.
+    { name: 'handednessDwell', kind: 'number' },
     // The generative layer (#141 / #188): the switch, the transport and the level for
     // the `lyria` node, and what the gestures mean for `indirect-map` — all live, so the
     // settings panel / palette / AI can steer the layer without a graph rebuild.
@@ -258,6 +264,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         // the node on its build-time params, and an explicitly-emitted `undefined` would
         // be indistinguishable from that anyway — so skip the key entirely.
         if (c.faceControls) out.faceControls = c.faceControls;
+        if (c.hands) out.handednessDwell = c.hands.handednessDwell;
         if (c.bodyMap) out.bodyMap = c.bodyMap;
         // Same rule as faceControls: absent → the node keeps its build-time starter strains.
         if (c.steer?.config) out.steerConfig = c.steer.config;

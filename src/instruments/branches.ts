@@ -61,6 +61,8 @@ export const trunk = defineBranch({
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'handVec', port: 'hands' }),
     to({ node: 'handVec', port: 'vector' }, overlay('handVector')),
     to({ node: TRUNK.feat, port: 'features' }, { node: 'gesture', port: 'features' }),
+    // The handedness dwell (#148): a dial, live on the sound path's hand reader.
+    to(ui('handednessDwell'), { node: TRUNK.feat, port: 'handednessDwell' }),
     // `muteAll` is the player's mute OR a tool's hush claim; `hushVoices` silences every
     // instrument voice but keeps the conducted score. See `hushOf` in store-controls.
     to(ui('muteAll'), { node: TRUNK.merge, port: 'mute' }),
