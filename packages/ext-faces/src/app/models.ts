@@ -4,18 +4,22 @@
  * the cloud with accounts). The record carries the versioned categorizer file of P1
  * (`PersonalCategorizerSchema`: the samples are the source of truth, the model is derived), so
  * the collection and an exported file share one schema, plus the take id its stills are filed
- * under in IndexedDB.
+ * under in IndexedDB, and the live tuning (P3).
  *
  * Several per player, each named; saving under an existing name replaces that one.
  */
 import { z } from 'zod';
 import { PersonalCategorizerSchema } from '@thoremin/sdk/enroll/categorizer';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import { TuningSchema } from '../lib/live';
 
 export const SavedFaceModelSchema = z.object({
   categorizer: PersonalCategorizerSchema,
   /** The take whose stills (`<takeId>:<index>`) show this categorizer's exemplars; null without. */
   takeId: z.string().min(1).nullable(),
+  /** The live tuning set while testing (#330 P3): about this player's room and camera, so it is
+   *  kept with the record on this device and is NOT part of the exported file. Absent = defaults. */
+  tuning: TuningSchema.optional(),
 });
 export type SavedFaceModel = z.infer<typeof SavedFaceModelSchema>;
 

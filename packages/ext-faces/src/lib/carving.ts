@@ -177,11 +177,6 @@ export function carveView(input: CarveInput): CarveView {
   };
 }
 
-/** Rename one category (a saved categorizer's edit, where nothing is re-carved). */
-export function renameCategory(model: TrainedModel, id: string, label: string): TrainedModel {
-  return applyLabels(model, [{ id, label: label.trim() }]);
-}
-
 const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /**
@@ -227,15 +222,5 @@ export function savedView(categorizer: PersonalCategorizer, { exemplarCount }: {
     model,
     categories: model.categories.map((c) => ({ id: c.id, label: c.label, source: 'kept', matched: null, size: c.size, exemplars: exemplars[c.id] ?? [] })),
     neutral,
-  };
-}
-
-/** A saved categorizer with its categories renamed from `model` (same ids). */
-export function relabelCategorizer(categorizer: PersonalCategorizer, model: Pick<TrainedModel, 'categories'>, name?: string): PersonalCategorizer {
-  const label = new Map(model.categories.map((c) => [c.id, c.label]));
-  return {
-    ...categorizer,
-    ...(name ? { name } : {}),
-    categories: categorizer.categories.map((c) => ({ ...c, label: label.get(c.id) ?? c.label })),
   };
 }
