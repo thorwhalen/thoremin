@@ -150,7 +150,15 @@ export function kappaFromResultant(r: number): number {
   return 1 / (r ** 3 - 4 * r ** 2 + 3 * r);
 }
 
-export function createAdaptiveOscillator(options: OscillatorOptions = {}): RhythmPrior {
+/** The oscillator's own surface beyond {@link RhythmPrior}: how many times it has
+ *  re-seeded its lock since the last reset (a lost lock, an octave re-seed, a restart
+ *  out of hold; not the first lock). The blend reads it to learn that the grid its
+ *  trend half was fitting no longer exists. */
+export interface AdaptiveOscillator extends RhythmPrior {
+  restarts(): number;
+}
+
+export function createAdaptiveOscillator(options: OscillatorOptions = {}): AdaptiveOscillator {
   const o = { ...DEFAULTS, ...options };
   let t = 0;
   let phase = 0;
@@ -178,6 +186,8 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
    *  halved-tempo escape from hold). */
   let holdRestarts = 0;
   let holdRestartIai = NaN;
+  /** Re-seeds of the lock since reset (see {@link AdaptiveOscillator}). */
+  let restarts = 0;
 
   const freeRun = (dt: number) => {
     const dBeats = dt / period;
@@ -211,6 +221,7 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
   };
 
   const restartLock = (seedPeriod: number | null, conf: number) => {
+    restarts++;
     r = 0;
     kappa = o.kappaMin;
     misses = 0;
@@ -365,7 +376,9 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       return { expectedAt: s.nextBeatAt, window, phase };
     },
     state: snapshot,
+    restarts: () => restarts,
     reset() {
+      restarts = 0;
       t = 0;
       phase = 0;
       period = 60 / o.initialTempo;

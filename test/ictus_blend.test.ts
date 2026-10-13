@@ -6,7 +6,9 @@
  * at most 15 % of anchors, mean trend weight at most 0.1); with the trend engaged a
  * mid-beat rebound and a dropped beat leave the tempo within 2 % (the oscillator's
  * gate survives the blend); hold and restart pass through; the three priors are
- * selectable by name and the facade defaults to the blend.
+ * selectable by name and the facade defaults to the blend. The #232 review's cases:
+ * a sudden slowdown (the trend half must not settle at double tempo), the weight
+ * after the oscillator re-seeds, and the whole-beat count in a ritardando.
  *
  * The real-fixture half of #232's acceptance is in `ictus_detector.test.ts` (the 2/4
  * lock) and `scripts/ictus/conducting_metrics.ts`; the bench numbers are in
@@ -22,6 +24,7 @@ import {
   createTrendPrior,
   nearestExpectedBeat,
   DEFAULT_RHYTHM_PRIOR,
+  TREND_DEFAULTS,
   type Anchor,
   type RhythmPrior,
 } from '@thoremin/ictus';
@@ -105,8 +108,11 @@ describe('blend prior', () => {
     // The red-team's protocol (`design.md` step 2): 24-beat passages, counted from the
     // fifth anchor. Its 12 to 13 % excluded the cold start, where the oscillator's
     // one-interval seed makes a same-sign run likely and the trend's five-point fit
-    // is the better grid; counted from the lock itself the rate is about 16 %.
-    const RUNS = 100;
+    // is the better grid; counted from the lock itself the rate is about 16 %. The
+    // bound is at the margin: over 20 seed sets of 100 runs the review measured 12.7
+    // to 16.0 % (mean about 14.2), above 15 in 3 of 20, so this runs 400 passages on
+    // fixed seeds and the research doc states the range.
+    const RUNS = 400;
     const BEATS = 24;
     const COUNT_FROM = 5;
     let triggers = 0;
@@ -250,6 +256,113 @@ describe('blend prior', () => {
   });
 });
 
+/** Geometric periods: `n` of them from `start`, each `ratio` times the last. */
+const geo = (n: number, start: number, ratio: number): number[] => Array.from({ length: n }, (_, k) => start * ratio ** k);
+/** A beat train from a list of periods. */
+const train = (periods: number[], t0 = 1): number[] => {
+  const ts = [t0];
+  for (const p of periods) ts.push(ts[ts.length - 1] + p);
+  return ts;
+};
+
+/** Drive a prior densely (60 Hz), anchors folded in at their times, the state read
+ *  every tick: counts whole-beat steps back from `countFrom` anchors on, and runs
+ *  `atTick` on every state read. */
+function drive(prior: RhythmPrior, anchors: number[], { countFrom = 0, atTick = (_s: ReturnType<RhythmPrior['state']>, _k: number) => {} } = {}): { floorBack: number } {
+  const DT = 1 / 60;
+  let k = 0;
+  let prev = NaN;
+  let floorBack = 0;
+  for (let t = anchors[0] - 0.001; t < anchors[anchors.length - 1] + 0.3; t += DT) {
+    while (k < anchors.length && anchors[k] <= t) {
+      prior.advance(anchors[k] - ASK_BEFORE);
+      prior.update(anchor(anchors[k]));
+      k++;
+    }
+    prior.advance(t);
+    const s = prior.state();
+    if (k >= countFrom && Number.isFinite(prev) && Math.floor(s.beat) < Math.floor(prev)) floorBack++;
+    if (k >= countFrom) atTick(s, k);
+    prev = s.beat;
+  }
+  return { floorBack };
+}
+
+describe('blend prior under a tempo jump and a ritardando (the #232 review)', () => {
+  it.each([[0.75], [1.0]])('after a sudden slowdown 0.5 -> %s s the trend half is not left at double tempo: the published period re-locks within 25 %% and the count never steps back (100 humanised runs)', (slow) => {
+    const periods = [...Array<number>(20).fill(0.5), ...Array<number>(40).fill(slow)];
+    const RELOCKED_FROM = 30; // ten anchors after the jump; the oscillator re-seeds within three
+    let stuck = 0;
+    let off = 0;
+    let total = 0;
+    let floorBack = 0;
+    for (let run = 0; run < 100; run++) {
+      const anchors = humanise(train(periods), seeded(run * 31 + 5));
+      const blend = createBlendPrior();
+      const r = drive(blend, anchors, {
+        countFrom: RELOCKED_FROM,
+        atTick: (s) => {
+          total++;
+          if (Math.abs(s.period - slow) / slow > 0.25) off++;
+        },
+      });
+      floorBack += r.floorBack;
+      if (blend.trend.state().period < 0.6 * slow) stuck++;
+    }
+    expect(total).toBeGreaterThan(0);
+    // The review, before the restart and disagreement rules: the trend half stuck at
+    // double tempo in 53 and 100 of 100 runs, the published period off at 213 and 125
+    // of 3100 anchors. The 0.75 case is the one the oscillator rides out WITHOUT a
+    // re-seed, which is what the period-disagreement rule is for.
+    expect(stuck).toBe(0);
+    expect(off).toBe(0);
+    expect(floorBack).toBe(0);
+  });
+
+  it('when the oscillator re-seeds after an accelerando (a halving: the octave guard), the weight and the sign history go with the old grid: w is 0 at the restart and the grid is the oscillator\'s from there', () => {
+    const times = train([...geo(20, 0.625, 0.985), ...Array<number>(14).fill(0.92)]);
+    const blend = createBlendPrior();
+    const osc = createAdaptiveOscillator();
+    let restartAt = -1;
+    const eBlend: number[] = [];
+    const eOsc: number[] = [];
+    for (let k = 0; k < times.length; k++) {
+      blend.advance(times[k] - ASK_BEFORE);
+      osc.advance(times[k] - ASK_BEFORE);
+      if (restartAt >= 0 && k >= restartAt + 2) {
+        eBlend.push(nearestExpectedBeat(blend.state(), times[k]) - times[k]);
+        eOsc.push(nearestExpectedBeat(osc.state(), times[k]) - times[k]);
+      }
+      const restarts = blend.oscillator.restarts();
+      blend.update(anchor(times[k]));
+      osc.update(anchor(times[k]));
+      if (restartAt < 0 && blend.oscillator.restarts() !== restarts) {
+        restartAt = k;
+        expect(blend.weight()).toBe(0);
+        expect(blend.trend.state().anchors).toBe(1);
+      }
+    }
+    expect(restartAt).toBeGreaterThan(20);
+    expect(eBlend.length).toBeGreaterThan(5);
+    // The review: grid errors of -37 to -52 ms for five beats on a pre-jump trend fit
+    // while the oscillator's were 0.
+    expect(mae(eBlend)).toBeLessThan(mae(eOsc) + 0.005);
+    expect(Math.max(...eBlend.map(Math.abs))).toBeLessThan(0.02);
+  });
+
+  it('in a ritardando the whole-beat count never steps back (100 humanised runs; the review counted 81)', () => {
+    let floorBack = 0;
+    let floorBackOsc = 0;
+    for (let run = 0; run < 100; run++) {
+      const anchors = humanise(accelerando(24, 1, 0.45, 1 / 0.985), seeded(run * 977 + 3));
+      floorBack += drive(createBlendPrior(), anchors, { countFrom: 4 }).floorBack;
+      floorBackOsc += drive(createAdaptiveOscillator(), anchors, { countFrom: 4 }).floorBack;
+    }
+    expect(floorBackOsc).toBe(0);
+    expect(floorBack).toBe(0);
+  });
+});
+
 describe('the prior factory and the facade default', () => {
   it('builds each prior by name; the blend is the default and takes the oscillator and trend options for its halves', () => {
     expect(DEFAULT_RHYTHM_PRIOR).toBe('blend');
@@ -257,6 +370,18 @@ describe('the prior factory and the facade default', () => {
     expect(osc.state().tempo).toBe(90);
     const trend = createRhythmPrior('trend', { trend: { initialTempo: 80 } });
     expect(trend.state().tempo).toBe(80);
+    // `trend` by name is trend12q (the blend's trend half and the bench's best), not
+    // createTrendPrior's own six-anchor defaults.
+    const named = createRhythmPrior('trend');
+    const twelve = createTrendPrior(TREND_DEFAULTS);
+    const six = createTrendPrior();
+    for (const t of accelerando(14)) {
+      named.update(anchor(t));
+      twelve.update(anchor(t));
+      six.update(anchor(t));
+    }
+    expect(named.state()).toEqual(twelve.state());
+    expect(named.state().period).not.toBeCloseTo(six.state().period, 6);
     const blend = createRhythmPrior('blend', { oscillator: { initialTempo: 70 }, trend: { initialTempo: 70 } }) as ReturnType<typeof createBlendPrior>;
     expect(blend.weight).toBeTypeOf('function');
     expect(blend.oscillator.state().tempo).toBe(70);

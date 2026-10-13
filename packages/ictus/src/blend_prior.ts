@@ -43,7 +43,26 @@
  * by at most the oscillator's lag, a fraction of a beat, which the conductor's
  * servo (it never rewinds) absorbs, and the next anchor restarts on a whole beat of
  * the oscillator's count as it always did. At `w = 0` the state IS the
- * oscillator's, so `prior: 'oscillator'` and the blend at rest agree to the bit.
+ * oscillator's, so `prior: 'oscillator'` and the blend at rest agree to the bit. Two more things the published count
+ * promises: it never steps back over a whole beat it has already crossed (the slide
+ * can shrink at an anchor by a hundredth of a beat in a ritardando, and crossing a
+ * whole beat backwards would fire a whole-beat consumer twice), and the trend's beat
+ * numbering is never trusted across a tempo jump (below).
+ *
+ * The trend half is reset whenever the oscillator re-seeds its lock. The trend
+ * numbers each anchor by rounding the gap against its own period, so after a sudden
+ * slowdown (0.5 to 0.75 s, or to 1.0 s) every real beat gets two numbers and the fit
+ * settles at double tempo for good, while the oscillator loses its lock and re-seeds
+ * at the new tempo within three anchors; the review of #232 found the blend stuck at
+ * double tempo in 53 and 100 of 100 such runs. The oscillator's `restarts()` count
+ * is the signal: a restart (lost lock, octave re-seed, restart out of hold) resets the
+ * trend, the weight and the sign history, and the restart anchor is the trend's first
+ * (a restart ON a stray anchor is the same case: the sign history was about a grid
+ * that no longer exists). A slowdown the oscillator rides out by correction alone
+ * (0.5 to 0.75 s: no re-seed, the trend's double-tempo fit would stay for good) is
+ * caught by the periods: a trend half whose period disagrees with the oscillator's by
+ * more than `PERIOD_DISAGREEMENT` is not describing the same beat, and starts over
+ * from that anchor with the weight at 0, exactly as after a restart.
  *
  * The oscillator's gate survives the blend. A stray anchor (a rebound firing
  * mid-beat) barely moves the oscillator, whose attentional pulse is narrow once
@@ -61,7 +80,7 @@
  */
 import type { Anchor, MusicalTime, Prediction, RhythmPrior } from './types';
 import { wrapPhase } from './types';
-import { createAdaptiveOscillator, type OscillatorOptions } from './oscillator';
+import { createAdaptiveOscillator, type AdaptiveOscillator, type OscillatorOptions } from './oscillator';
 import { createTrendPrior, type TrendPriorOptions } from './trend_prior';
 import { nearestExpectedBeat } from './magnet';
 
@@ -91,10 +110,16 @@ export interface BlendPriorOptions {
   beatsPerBar?: number;
 }
 
-/** The trend half's defaults: the bench's `trend12q` (§3.7: MAE 16 / 17 ms under the
- *  accelerando, the best of six). The trend prior's own defaults (six anchors,
- *  quadratic from the fourth) react faster but are pulled further by one anchor. */
-const TREND_DEFAULTS: Required<Pick<TrendPriorOptions, 'memory' | 'quadraticAfter'>> = { memory: 12, quadraticAfter: 5 };
+/** The trend half's defaults, and what `createRhythmPrior('trend')` builds: the
+ *  bench's `trend12q` (§3.7: MAE 16 / 17 ms under the accelerando, the best of six).
+ *  The trend prior's own defaults (six anchors, quadratic from the fourth) react
+ *  faster but are pulled further by one anchor. */
+export const TREND_DEFAULTS: Required<Pick<TrendPriorOptions, 'memory' | 'quadraticAfter'>> = { memory: 12, quadraticAfter: 5 };
+
+/** Relative difference between the two halves' periods beyond which they are not
+ *  describing one beat and the trend is not blended in. A fifth: the humanised
+ *  periods differ by a few per cent, a wrongly numbered trend by half or double. */
+const PERIOD_DISAGREEMENT = 0.2;
 
 const DEFAULTS: Required<Omit<BlendPriorOptions, 'oscillator' | 'trend'>> = {
   sameSignRun: 3,
@@ -108,7 +133,7 @@ export interface BlendPrior extends RhythmPrior {
   /** The trend's current weight, 0 (the oscillator alone) to 1 (the trend alone). */
   weight(): number;
   /** The two halves, for tests and ablations. Read them; feed the blend. */
-  readonly oscillator: RhythmPrior;
+  readonly oscillator: AdaptiveOscillator;
   readonly trend: RhythmPrior;
 }
 
@@ -122,13 +147,36 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
   let w = 0;
   /** Signs of the last `sameSignRun` innovations (+1 late, -1 early, 0 on the beat). */
   const signs: number[] = [];
+  /** The whole beat the published count has crossed; the count never reads below it
+   *  until the oscillator restarts (its own restart rounds its count, as it always
+   *  did) or the blend is reset. */
+  let crossed = -Infinity;
+
+  const disagree = (a: MusicalTime, b: MusicalTime) => Math.abs(a.period - b.period) > PERIOD_DISAGREEMENT * a.period;
+
+  /** The state as published: the whole-beat floor applied, and remembered. */
+  const publish = (s: MusicalTime): MusicalTime => {
+    let out = s;
+    if (s.beat < crossed) {
+      out = {
+        ...s,
+        beat: crossed,
+        phase: 0,
+        nextBeatAt: s.state === 'hold' ? Infinity : s.t + s.period,
+        beatInBar: ((crossed % s.beatsPerBar) + s.beatsPerBar) % s.beatsPerBar,
+      };
+    }
+    crossed = Math.max(crossed, Math.floor(out.beat));
+    return out;
+  };
 
   const snapshot = (): MusicalTime => {
     const so = oscillator.state();
-    if (w <= 0) return so;
+    if (w <= 0) return publish(so);
     const st = trend.state();
-    if (so.state !== 'running' || st.state !== 'running') return so;
-    if (!(so.period > 0) || !(st.period > 0) || !Number.isFinite(so.nextBeatAt) || !Number.isFinite(st.nextBeatAt)) return so;
+    if (so.state !== 'running' || st.state !== 'running') return publish(so);
+    if (!(so.period > 0) || !(st.period > 0) || !Number.isFinite(so.nextBeatAt) || !Number.isFinite(st.nextBeatAt)) return publish(so);
+    if (disagree(so, st)) return publish(so);
     const t = so.t;
     const period = (1 - w) * so.period + w * st.period;
     // The trend's next beat on the branch nearest the oscillator's: right after an
@@ -140,7 +188,7 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
     phase -= Math.floor(phase);
     const beat = so.beat + wrapPhase(phase - so.phase);
     const wholeBeat = Math.floor(beat);
-    return {
+    return publish({
       ...so,
       beat,
       phase,
@@ -149,7 +197,13 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
       confidence: (1 - w) * so.confidence + w * st.confidence,
       nextBeatAt: t + (1 - phase) * period,
       beatInBar: ((wholeBeat % so.beatsPerBar) + so.beatsPerBar) % so.beatsPerBar,
-    };
+    });
+  };
+
+  /** Back to the oscillator alone: no weight, no history. */
+  const rest = () => {
+    w = 0;
+    signs.length = 0;
   };
 
   return {
@@ -162,17 +216,39 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
     },
     update(a: Anchor) {
       const before = oscillator.state();
+      const restartsBefore = oscillator.restarts();
       // The innovation: the anchor against the grid the oscillator was publishing, NaN
       // unless it was running.
       const grid = nearestExpectedBeat(before, a.t);
       const stray = Number.isFinite(grid) && Math.abs(a.t - grid) > o.strayPhaseError * before.period;
       oscillator.update(a);
+      if (oscillator.restarts() !== restartsBefore) {
+        // The oscillator re-seeded its lock: the trend's fit, the weight and the sign
+        // history were about a grid that no longer exists. The trend starts over from
+        // this anchor; the published count follows the oscillator's restart.
+        trend.reset();
+        trend.update(a);
+        rest();
+        crossed = -Infinity;
+        return;
+      }
       if (stray) return;
       trend.update(a);
       const after = oscillator.state();
       // Not an observation to the oscillator (below its floor, out of order): nothing
       // to learn about its grid from.
       if (after.anchors === before.anchors) return;
+      const st = trend.state();
+      if (after.state === 'running' && st.state === 'running' && disagree(after, st)) {
+        // Two priors a fifth apart are not describing one beat: the trend numbered a
+        // beat wrong (a slowdown the oscillator rode out by correction, without a
+        // re-seed, leaves the trend's fit at double tempo for good). The trend starts
+        // over from this anchor, as after a restart; the oscillator alone meanwhile.
+        trend.reset();
+        trend.update(a);
+        rest();
+        return;
+      }
       if (Number.isFinite(grid) && after.state === 'running') {
         signs.push(Math.sign(a.t - grid));
         while (signs.length > o.sameSignRun) signs.shift();
@@ -195,8 +271,8 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
     reset() {
       oscillator.reset();
       trend.reset();
-      w = 0;
-      signs.length = 0;
+      rest();
+      crossed = -Infinity;
     },
   };
 }

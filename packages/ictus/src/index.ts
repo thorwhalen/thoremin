@@ -16,7 +16,7 @@
 import { createIctusDetector, type DetectorOptions, type IctusDetector } from './detector';
 import { createAdaptiveOscillator, type OscillatorOptions } from './oscillator';
 import { createTrendPrior, type TrendPriorOptions } from './trend_prior';
-import { createBlendPrior, type BlendPriorOptions } from './blend_prior';
+import { createBlendPrior, TREND_DEFAULTS, type BlendPriorOptions } from './blend_prior';
 import { createDynamicsEstimator, type DynamicsEstimate, type DynamicsOptions } from './dynamics';
 import type { Anchor, MusicalTime, RhythmPrior, Sample } from './types';
 
@@ -24,7 +24,7 @@ export * from './types';
 export { createIctusDetector, parabolicOffset, excursion } from './detector';
 export type { DetectorOptions, IctusDetector, Prefilter } from './detector';
 export { createAdaptiveOscillator, kappaFromResultant } from './oscillator';
-export type { OscillatorOptions } from './oscillator';
+export type { AdaptiveOscillator, OscillatorOptions } from './oscillator';
 export { createDynamicsEstimator } from './dynamics';
 export type { DynamicsEstimate, DynamicsEstimator, DynamicsOptions } from './dynamics';
 export { fMeasure, cemgil, continuity, fitGrid, medianInterval } from './metrics';
@@ -35,7 +35,7 @@ export { magnetise, nearestExpectedBeat } from './magnet';
 export type { MagnetOptions, MagnetResult } from './magnet';
 export { createTrendPrior } from './trend_prior';
 export type { TrendPriorOptions } from './trend_prior';
-export { createBlendPrior } from './blend_prior';
+export { createBlendPrior, TREND_DEFAULTS } from './blend_prior';
 export type { BlendPrior, BlendPriorOptions } from './blend_prior';
 
 /** The priors a consumer selects by name: the adaptive oscillator (the v1 prior,
@@ -55,13 +55,15 @@ export interface RhythmPriorOptions {
 
 /** Build a prior by name. The blend takes the oscillator and trend options too, for
  *  its two halves, so a consumer tuning the oscillator's gains need not know which
- *  prior is in use. */
+ *  prior is in use. `trend` by name is the bench's best, `trend12q` ({@link
+ *  TREND_DEFAULTS}), the same fit the blend's trend half runs; `createTrendPrior`'s
+ *  own, faster defaults stay what they are for a caller building one directly. */
 export function createRhythmPrior(kind: RhythmPriorKind = DEFAULT_RHYTHM_PRIOR, options: RhythmPriorOptions = {}): RhythmPrior {
   switch (kind) {
     case 'oscillator':
       return createAdaptiveOscillator(options.oscillator);
     case 'trend':
-      return createTrendPrior(options.trend);
+      return createTrendPrior({ ...TREND_DEFAULTS, ...options.trend });
     case 'blend':
       return createBlendPrior({ ...options.blend, oscillator: { ...options.blend?.oscillator, ...options.oscillator }, trend: { ...options.blend?.trend, ...options.trend } });
   }

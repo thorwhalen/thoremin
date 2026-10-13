@@ -252,18 +252,18 @@ describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 7
       // The fixture's own anchors (the detector's confidences included), jittered: the
       // test the #231 review ran by hand (the old rule held 0 of 200 at 5 ms). Fed to
       // the prior alone, so the detector cannot hide an oscillator change.
-      const held = (options: OscillatorOptions, jitter: number, runs: number) => {
+      const held = (options: OscillatorOptions, jitter: number, runs: number, set: Anchor[] = anchors, last = lastT) => {
         let ok = 0;
         for (let run = 0; run < runs; run++) {
           const next = seeded(run * 7919 + 1);
           const osc = createAdaptiveOscillator(options);
-          for (const a of anchors) {
+          for (const a of set) {
             const t = a.t + jitter * gaussian(next);
             osc.advance(t - 0.01);
             osc.update({ ...a, t });
           }
           const tempo = osc.state().tempo;
-          osc.advance(lastT + 3);
+          osc.advance(last + 3);
           if (Math.abs(tempo - meta.statedBpm) / meta.statedBpm < 0.1 && osc.state().state === 'hold') ok++;
         }
         return ok;
@@ -273,7 +273,16 @@ describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 7
       // The pre-#232 rule, selectable, is the fragile one (about three runs in four at
       // 10 ms). The other half of the old loss, a re-seed from TWO intervals instead of
       // the missed anchors' own (the half-tempo lock), was a bug and is not selectable.
+      // On this clip's anchors either half alone recovers the clean run (the review
+      // checked both), so the result rests on 8 anchors and both halves.
       expect(held({ lostIfIntervalsAgree: false }, 0.01, 100)).toBeLessThan(90);
+      // At 15 fps (every other frame: 7 anchors, two of them moved by a frame) the lock
+      // is NOT robust: it holds in about half the runs at 5 ms of jitter (the review
+      // measured 108 of 200). Reported here as a floor, not claimed as a lock.
+      const fifteen = detect(samples.filter((s) => Math.round(s.t * meta.fps) % 2 === 0));
+      const held15 = held({}, 0.005, 100, fifteen.anchors, fifteen.times[fifteen.times.length - 1]);
+      expect(held15).toBeGreaterThanOrEqual(40);
+      expect(held15).toBeLessThan(100);
     });
   }
 });
