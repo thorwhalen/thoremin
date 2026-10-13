@@ -14,6 +14,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { replayNode } from '@thoremin/dag';
 import { loadStream } from './helpers/fixtures';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
+import { LAB_HANDEDNESS_DWELL_FRAMES } from '@/nodes/features/hand_feature_vector';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
 
 const bareCtx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });
@@ -112,7 +113,10 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
   // mirrorHandedness=false so the raw MediaPipe label maps straight onto the
   // namespace ('Left' -> hand.left.*), keeping the scenarios readable. The
   // hysteresis sits AFTER resolveSide, so the mirror setting is orthogonal.
-  const params = (dwell = 3) =>
+  // The Lab's shipped dwell (#144): a new label is HELD for two frames and takes
+  // over on the third (#148 renamed the unit to frames held; the behaviour is the
+  // #144 one, frame for frame).
+  const params = (dwell = LAB_HANDEDNESS_DWELL_FRAMES) =>
     handFeatureVectorNode.params.parse({ mirrorHandedness: false, handednessDwellFrames: dwell });
   const oneHand = (handedness: 'Left' | 'Right'): HandsFrame => ({
     width: 640,
@@ -139,8 +143,8 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
     }
   });
 
-  it('a SUSTAINED relabel (>= dwell frames) does switch namespaces', () => {
-    const handlers = handFeatureVectorNode.make(params(3));
+  it('a SUSTAINED relabel (> dwell frames) does switch namespaces', () => {
+    const handlers = handFeatureVectorNode.make(params());
     for (let i = 0; i < 4; i++) expect(run(handlers, oneHand('Left'))).toEqual({ left: true, right: false });
     // New label persists: frames 1 and 2 of the switch still dwell on left...
     expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
@@ -160,7 +164,7 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
   });
 
   it('two-hand frames pass raw labels through; a SUSTAINED interlude clears the tracker', () => {
-    const handlers = handFeatureVectorNode.make(params(3));
+    const handlers = handFeatureVectorNode.make(params());
     // Commit a single-hand left assignment first...
     for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
     // ...then a sustained (>= dwell) two-hand interlude: raw labels pass through
@@ -176,7 +180,7 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
   });
 
   it('a one-frame PHANTOM second hand cannot strip the dwell protection', () => {
-    const handlers = handFeatureVectorNode.make(params(3));
+    const handlers = handFeatureVectorNode.make(params());
     for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
     // MediaPipe momentarily "sees" the turning hand twice (its phantom takes
     // the complementary label). One such frame must NOT clear the tracker...
@@ -191,9 +195,9 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
     // Pinning the chosen semantics: during a rotation, relabels and dropouts
     // co-occur; every DETECTED frame disagreeing with the committed side counts
     // toward the switch, dropouts (each shorter than the dwell window) between
-    // them notwithstanding. [R, gap, R, gap, R] with dwell 3 switches on the
-    // third detected R.
-    const handlers = handFeatureVectorNode.make(params(3));
+    // them notwithstanding. [R, gap, R, gap, R] with two frames held switches on
+    // the third detected R.
+    const handlers = handFeatureVectorNode.make(params());
     for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
     expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
     run(handlers, noHands());
@@ -203,7 +207,7 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
   });
 
   it('a dropout within the dwell window keeps the assignment; a longer absence resets it', () => {
-    const handlers = handFeatureVectorNode.make(params(3));
+    const handlers = handFeatureVectorNode.make(params());
     for (let i = 0; i < 3; i++) run(handlers, oneHand('Left'));
     // Brief detection dropout (2 <= dwell) straddling a flicker frame: the
     // returning flicker label must NOT capture the namespace cold.

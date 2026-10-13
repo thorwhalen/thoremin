@@ -1513,7 +1513,7 @@
       {
         "name": "handednessDwellFrames",
         "type": "number",
-        "default": 3
+        "default": 2
       }
     ]
   },
@@ -1528,6 +1528,11 @@
       {
         "name": "hands",
         "kind": "hands-frame"
+      },
+      {
+        "name": "handednessDwell",
+        "kind": "number",
+        "description": "Live override of handednessDwellFrames (frames; 0 = raw label)"
       }
     ],
     "outputs": [
@@ -1576,6 +1581,11 @@
         "name": "fingerApart",
         "type": "number",
         "default": 1.8
+      },
+      {
+        "name": "handednessDwellFrames",
+        "type": "number",
+        "default": 0
       }
     ]
   },
@@ -2455,6 +2465,10 @@
       {
         "name": "midiPort",
         "kind": "string"
+      },
+      {
+        "name": "handednessDwell",
+        "kind": "number"
       },
       {
         "name": "steerEnabled",

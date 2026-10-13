@@ -4,13 +4,26 @@
  */
 import { EFFECTS, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
 import { FINGER_NAMES } from '@thoremin/sdk/nodes/domain';
-import { dispatchDialSetIn } from '../../dispatchDial';
+import { dispatchDialSet, dispatchDialSetIn } from '../../dispatchDial';
+import { DEFAULT_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 import { useDialsSettings } from '../useDialsSettings';
 import { EFFECT_LABELS } from '../labels';
 import { CollapsibleSection, Toggle, selectCls } from '@thoremin/sdk-ui/primitives';
 
 /** A finger route's fields, as addressable leaf names under `handMap.fingers.<name>`. */
 type FingerField = keyof FingerRoute;
+
+/** The handedness dwell choices (#148): off, and a few frame counts around the measured
+ *  1-2 frame flicker. A dwell of N holds a new label for N frames, so it absorbs a flicker
+ *  of up to N frames and delays a real hand swap by exactly N frames: the label says what
+ *  that costs at 30 fps. */
+const HANDEDNESS_DWELL_CHOICES: ReadonlyArray<{ frames: number; label: string }> = [
+  { frames: DEFAULT_HANDEDNESS_DWELL_FRAMES, label: 'Off (follow the label at once)' },
+  { frames: 2, label: '2 frames (swap delayed ~67 ms)' },
+  { frames: 3, label: '3 frames (swap delayed ~100 ms)' },
+  { frames: 5, label: '5 frames (swap delayed ~167 ms)' },
+  { frames: 8, label: '8 frames (swap delayed ~267 ms)' },
+];
 
 /**
  * Hand→sound mapping: the note SOURCE (index fingertip or the steadier wrist), the
@@ -22,10 +35,19 @@ type FingerField = keyof FingerRoute;
  * controls address one scalar LEAF by path (`handMap.fingers.index.target`) and dispatch
  * `dial.setIn` — the deep-set + validation happen inside the command, so the panel never
  * hand-rolls a merged copy. The sliders keep a direct merged write (Decision B).
+ *
+ * The handedness dwell (#148) is a SCALAR dial (`hands.handednessDwell`), so its select
+ * dispatches `dial.hands.handednessDwell.set` through `dispatchDialSet`. Three clicks from
+ * a cold load: Settings, the Hand section, the select.
  */
 export function HandControls() {
   const { state, set } = useDialsSettings();
   const hm = state.effective['handMap'] as HandMap;
+  const handednessDwell = state.effective['hands.handednessDwell'] as number;
+  // A value a saved instrument set that is not one of the shortlist still shows as itself.
+  const dwellChoices = HANDEDNESS_DWELL_CHOICES.some((c) => c.frames === handednessDwell)
+    ? HANDEDNESS_DWELL_CHOICES
+    : [...HANDEDNESS_DWELL_CHOICES, { frames: handednessDwell, label: `${handednessDwell} frames` }].sort((a, b) => a.frames - b.frames);
 
   /** A DISCRETE whole-hand edit (a select / toggle) — through the registry, by path. */
   const setField = (field: keyof HandMap, value: unknown) => dispatchDialSetIn(`handMap.${field}`, value);
@@ -70,6 +92,19 @@ export function HandControls() {
           type="range" min={0} max={1} step={0.01} value={hm.maxGain}
           onChange={(e) => patchLive({ maxGain: Number(e.target.value) })}
         />
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs" title="Field instruments only (the air instruments label hands themselves). The camera sometimes relabels a turning hand Left/Right for a frame or two; a dwell of N frames holds the voice on its side through any relabel of up to N frames, and delays a real hand swap by exactly N frames.">
+        Handedness dwell
+        <select
+          className={selectCls}
+          aria-label="Handedness dwell"
+          value={handednessDwell}
+          onChange={(e) => dispatchDialSet('hands.handednessDwell', Number(e.target.value))}
+        >
+          {dwellChoices.map((c) => (
+            <option key={c.frames} value={c.frames}>{c.label}</option>
+          ))}
+        </select>
       </label>
 
       <CollapsibleSection label="Finger effects" defaultOpen={false}>
