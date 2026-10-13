@@ -4,10 +4,10 @@ Research for the body-movement epic (#386), sub-issue A1 (#373). It folds in the
 
 ## 0. Answer in brief
 
-- **Body conductor, default channels:** the beating arm's strokes through the existing stroke detector when the arms are in view (nothing else in the body comes close: the beating elbow reaches R 0.85 to 0.92 at the beat), plus the **height of the trunk centroid** (the midpoint of shoulders and hips, `com.y`) as the body's own beat channel, read at its turning point (`extremum`), with its polarity and lag learned per player. The trunk locked to the hand's beat on the 4-pattern and the 2-pattern clips (R 0.77 and 0.68, Rayleigh p below 10⁻⁴) and not on the slow 3-pattern hymn (R 0.30). The head alone is weaker than the trunk on every clip and is not a default. The **torso's rotation** (shoulder yaw) is the bar channel, not a beat channel (R at the bar 0.98 and 0.84 on the same two clips).
-- **Dancer's `auto` channel:** keep the **stride** as the default and choose among {stride, lateral sway, torso rotation, trunk height} by the pulse follower's strength while trusted, with the 3 s persistence the pace controller already uses. On both dance clips the stride is periodic at the bar (ACF period 3.95 and 3.97 beats); neither dancer's head or hips lock at the beat (#339 item 3: they do not earn a place as defaults), and the multi-joint sum is never better than the best single channel.
+- **Body conductor, default channels:** the beating arm's strokes through the existing stroke detector when the arms are in view (nothing else in the body comes close: the beating elbow reaches R 0.85 to 0.92 at the beat), plus the **height of the trunk centroid** (the midpoint of shoulders and hips, `com.y`) as the body's own beat channel, read at its turning point (`extremum`), with its lag learned per player. The trunk locked to the hand's beat on the 4-pattern and the 2-pattern clips (R 0.77 and 0.68, Rayleigh p below 10⁻⁴; F after the lag 0.49 and 0.37 against chance levels of 0.33 and 0.30) and not on the slow 3-pattern hymn (R 0.35, p 0.08). The head alone is weaker than the trunk on every clip and is not a default. The **torso's rotation** (shoulder yaw) is the bar channel, not a beat channel (R at the bar 0.98 and 0.84 on the same two clips), with a caveat: the pelvis's rotation locks less (0.68 and 0.65), so part of the shoulders' rotation is the beating arm pulling one shoulder.
+- **Dancer's `auto` channel:** keep the **stride** as the default and choose among {stride, lateral sway, torso rotation, trunk height} by the pulse follower's strength while trusted, with the 3 s persistence the pace controller already uses. On both dance clips the stride is periodic at the bar (ACF period 3.95 and 4.07 beats); Que Calor's lateral sway locks at the BEAT (R 0.59, p 0.0004: the weight shifting with every step) and its torso rotation at the bar (0.77, p 0.002); neither dancer's head or hips lock at the beat (#339 item 3: they do not earn a place as defaults), and the multi-joint sum is never better than the best single channel.
 - **"Two levels at once give the meter": no** (not as a general mechanism). The ratio of a lateral period to a vertical one gave the conductor's meter on two of three clips (3.73 for a 4-pattern, 2.04 for a 2-pattern) but nothing on the 3-pattern, no dancer showed a beat-level vertical at all, and on the synthetic control the ratio read 2 for a 4-beat bar because a half-bar channel (the steps) outscored the bar channel (the sway). A7 should therefore take the bar's period and downbeat from torso rotation for a body conductor and snap it to the score's stated meter, rather than infer the meter from the body.
-- **For the impact detector (A2):** the event that won most often is the channel's own turning point (`extremum`: 31 of the 37 significant cells on the real clips), not the directional impact (3), the acceleration magnitude (2) or the speed's deceleration (1); a speed-only deceleration fires at both ends of a bounce. The multi-joint envelope of design §3.3 lost to the best single channel on every clip, even with weights matched to the level; select a channel (or weight by phase locking), do not sum.
+- **For the impact detector (A2):** the event that won is the channel's own turning point (`extremum`: 31 of the 32 significant cells on the real clips, the reference arm left out), not the acceleration magnitude (1), the directional impact or the speed's deceleration (none); a speed-only deceleration fires at both ends of a bounce. The multi-joint envelope of design §3.3 lost to the best single channel on every clip, even with weights matched to the level; select a channel (or weight by phase locking), do not sum.
 
 ## 1. Research
 
@@ -56,18 +56,18 @@ Sources were checked by a research pass on 2026-10-13 (DOIs through Crossref, ar
 
 ### 2.1 The clips
 
-Every clip is from Wikimedia Commons under CC BY 3.0, so the derived pose streams may be committed with attribution (each fixture's `meta.json` names the licence, author and source page). The videos and audio stay in the app-data directory; only the pose streams (`camBody.body.ndjson.gz`, `scripts/video_to_pose.py`, MediaPipe PoseLandmarker full) and the replayed feature vectors are committed.
+The four new clips are from Wikimedia Commons under CC BY 3.0, so the derived pose streams may be committed with attribution (each fixture's `meta.json` names the licence, author and source page); Que Calor is the existing #186 fixture, whose `meta.json` names no licence (#417). The videos and audio stay in the app-data directory; only the pose streams (`camBody.body.ndjson.gz`, `scripts/video_to_pose.py`, MediaPipe PoseLandmarker full) and the replayed feature vectors are committed.
 
 | fixture | what | length | reference grid | meter |
 |---|---|---:|---|---:|
 | `video_body_conducting_44` | David Drillock conducting a choir through alleluia verses, simple 4 pattern, three-quarter front, head to knees [47] | 24 s | the conductor's own right-wrist strokes (ictus's stroke detector), 87 bpm | 4 |
-| `video_body_conducting_34` | the same conductor, Bortniansky's Cherubic Hymn, 3 pattern, slow and uneven [48] | 27 s | the same, about 74 bpm with beats from 0.55 to 1.2 s | 3 |
+| `video_body_conducting_34` | the same conductor, Bortniansky's Cherubic Hymn, 3 pattern, slow and uneven [48] | 27 s | the same, about 71 bpm with beats from 0.54 to 1.47 s | 3 |
 | `video_body_conducting_24` | the same conductor, the Greek Trisagion, 2 pattern [49] | 24.5 s | the same, 62 bpm | 2 |
 | `video_body_budots` | a Budots dance (a bouncing street dance), the longest uncut shot, three dancers, the most confident pose per frame [50] | 13.5 s | the soundtrack's beats, librosa's beat tracker [51,52], 143.5 bpm, interval CV 0.027 | 4 |
 | `video_body_que_calor` (existing, #186) | a dancer stepping a routine | 20 s | the stated tempo, 129.2 bpm, phase unknown | 4 |
 | synthetic control (generated, not committed) | `synthetic-body` with bounce at the beat, steps and arms at the half-bar, sway at the bar, 1.5 px landmark noise | 30 s | the generator's own, 120 bpm | 4 |
 
-Two choices need saying. **The conductor's grid is the conductor's own hand.** The choir is legato: the soundtrack's onset autocorrelation peaks at only 0.2, and librosa's tracker returned 123 bpm against the 87 bpm the conductor beats. In conducting the beat is defined by the gesture, so the baton wrist is the reference and its rows are marked "(the grid)" and "(same arm)": they are a check of the method, not a finding. The question the conductor clips answer is therefore "when a conductor beats with the hand, what else in the body marks it?", which is what a body conductor (A3) needs to know about channels, but it is not the same as a player who conducts with the body on purpose; that case needs the self-recorded take of §5. **The grid's holds are not scored**: an interval longer than 1.6 median intervals (the conductor between verses) splits the grid into runs, and only anchors inside a run count.
+Two choices need saying. **The conductor's grid is the conductor's own hand.** The choir is legato: the soundtrack's onset autocorrelation peaks at only 0.2, and librosa's tracker returned 123 bpm against the 87 bpm the conductor beats. In conducting the beat is defined by the gesture, so the baton wrist is the reference and its rows are marked "(the grid)" and "(same arm)": they are a check of the method, not a finding. The question the conductor clips answer is therefore "when a conductor beats with the hand, what else in the body marks it?", which is what a body conductor (A3) needs to know about channels, but it is not the same as a player who conducts with the body on purpose; that case needs the self-recorded take of §5. **The grid's holds are not scored**: an interval longer than 1.6 median intervals (the conductor between verses) splits the grid into runs, and only anchors inside a run count. **False doubles are dropped**: a stroke closer than 0.6 median intervals to its neighbour (a wobble at the bottom of a slow stroke; the 3-pattern hymn had seven) loses to the stronger of the pair.
 
 What was looked at and rejected, so a later session does not repeat it: the AIST Dance Video Database (research use only, no redistribution [53]); AIST++'s keypoints (CC BY 4.0 annotations [54], but the download requires accepting the database's research-only terms, so not without the maintainer's decision); YouTube's Creative Commons search (it works, but every video page from this server answers with a bot check that needs a signed-in cookie); a Commons Beethoven 5 performance (wide shots, the conductor a few pixels tall, cuts); two more Commons dance clips (dark, filmed from behind, a crowd: no channel locked to anything, a null result, not committed).
 
@@ -75,10 +75,10 @@ What was looked at and rejected, so a later session does not repeat it: the AIST
 
 `scripts/body/lib_channels.ts` holds the method; `scripts/body/measure_channels.ts` prints the tables; every cell is in `docs/research/data/body-channels.csv`.
 
-- **Channels**, in image coordinates over a running 1 s median torso length, gaps up to 3 frames bridged, a 2 s moving average subtracted: `head.y` (nose height), `hips.y`, `com.y` (the trunk centroid, the midpoint of shoulders and hips), `hipsOverAnkles.y` (the knee bounce, needs the feet), `wrist.l/r` and `elbow.l/r` (points), `stride` (the ankles' horizontal distance, as `body-pulse`), `sway.x` (the trunk over the ankles, or the trunk alone without feet), `torso.yaw` (the shoulder line's angle in the world landmarks' x-z plane), and two multi-joint envelopes: `multi` (design §3.3: each joint's directional deceleration over its own median, averaged) and `multi.weighted` (each joint weighted by its own autocorrelation at the level's period, the matched weighting of §3.3 step 3, which needs a tempo but no grid phase).
+- **Channels**, in image coordinates over a running 1 s median torso length, gaps up to 3 frames bridged, a 2 s moving average subtracted: `head.y` (nose height), `hips.y`, `com.y` (the trunk centroid, the midpoint of shoulders and hips), `hipsOverAnkles.y` (the knee bounce, needs the feet), `wrist.l/r` and `elbow.l/r` (points), `stride` (the ankles' horizontal distance, as `body-pulse`), `sway.x` (the trunk over the ankles when both are in view in 80 % of the frames, else the trunk alone: one mode per clip), `torso.yaw` (the shoulder line's angle in the world landmarks' x-z plane, unwrapped), `hips.yaw` (the hip line's, the control that says how much of the shoulders' rotation is the beating arm), and two multi-joint envelopes: `multi` (design §3.3: each joint's directional deceleration over its own median, averaged) and `multi.weighted` (each joint weighted by its own autocorrelation at the level's period, the matched weighting of §3.3 step 3, which needs a tempo but no grid phase).
 - **Events** (what an anchor is): `decel` (a peak of the speed's deceleration: the dance literature's visual beat; it has no direction, so a bounce fires it at both ends), `accel` (a peak of the acceleration magnitude: where observers place a conductor's beat [13,14]), `impact` (directional: acceleration along the channel's axis toward one end, peaking as the movement brakes into the bottom or the top; §3.3's vertical option), `extremum` (the channel's own turning point; for a wrist its vertical, which is what ictus's stroke detector fires on). `impact` and `extremum` are tried at both polarities, since which end of a bounce lands on the beat differs between people [11].
 - **Levels:** beat, half-bar (in 4 only), bar. Anchors are picked once per level: local maxima of the event's envelope, kept greedily by height at least half a level period apart, above the envelope's median plus one MAD, refined by a parabola (the impact detector told the level).
-- **Scores per cell:** F (±70 ms, `fMeasure` from ictus) at the best of the level's downbeat phases; **F (lag)**, the same after removing the anchors' circular-mean lag (what a calibrated per-player offset could reach; one fitted constant, so slightly optimistic); **R**, the circular resultant of the anchors' phase in the level's cycle (phase locking regardless of lag), with the anchor count in brackets and the Rayleigh test [55] marked `*` for p < 0.01 and `**` for p < 0.001; the AIST++ beat-alignment score and Cemgil's accuracy are in the CSV. The table's cell is the event (and polarity) with the most significant lock, its initial printed (`d`, `a`, `i`, `e`); R alone is not used to choose, because it rewards a channel that fires three times in phase. The choice among four events and two polarities makes a starred p about eight times too generous; the claims below rest on cells far past that (p below 10⁻⁴) or on agreement across clips.
+- **Scores per cell:** F (±70 ms, `fMeasure` from ictus) at the best of the level's downbeat phases; **F (lag)**, the same after removing the anchors' circular-mean lag (what a calibrated per-player offset could reach; one fitted constant, so slightly optimistic); **R**, the circular resultant of the anchors' phase in the level's cycle (phase locking regardless of lag), with the anchor count in brackets and the Rayleigh test [55] marked `*` for p < 0.01 and `**` for p < 0.001; the AIST++ beat-alignment score and Cemgil's accuracy are in the CSV. Under each table, **chance**: what F after the lag reaches for random anchors at one per beat (200 draws); a channel's F means something only above its 95th percentile. The table's cell is the event (and polarity) with the most significant lock, its initial printed (`d`, `a`, `i`, `e`); R alone is not used to choose, because it rewards a channel that fires three times in phase. The choice among four events and two polarities makes a starred p about eight times too generous; the claims below rest on cells far past that (p below 10⁻⁴) or on agreement across clips.
 
 ### 2.3 The method's control
 
@@ -105,26 +105,32 @@ Columns: F | F after the lag | R (anchors) event. The event initials: `d` decel,
 | stride | 0.00 | 0.00 | 0.00 (0) d | 0.00 | 0.00 | 0.00 (0) d | 0.00 | 0.00 | 0.00 (0) d |
 | sway.x | 0.17 | 0.21 | 0.20 (17) e | 0.06 | 0.13 | 0.45 (15) e | 0.12 | 0.35 | 0.64 (9) e |
 | torso.yaw | 0.00 | 0.34 | 0.64** (16) e | 0.00 | 0.40 | 0.90** (14) e | 0.00 | 0.38 | 0.98** (8) e |
+| hips.yaw | 0.00 | 0.36 | 0.55* (19) e | 0.00 | 0.38 | 0.76** (16) e | 0.00 | 0.59 | 0.68 (9) d |
 | multi | 0.19 | 0.25 | 0.32 (33) | 0.22 | 0.11 | 0.08 (21) | 0.00 | 0.71 | 0.73* (9) |
 | multi.weighted | 0.13 | 0.19 | 0.47** (32) | 0.22 | 0.51 | 0.21 (20) | 0.11 | 0.67 | 0.56 (10) |
+
+Chance at the beat (random anchors, one per beat, 200 draws): F after the lag median 0.23, 95th percentile 0.33.
 
 #### video_body_conducting_34
 
 | channel | beat F | beat F (lag) | beat R | half-bar F | half-bar F (lag) | half-bar R | bar F | bar F (lag) | bar R |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| head.y | 0.20 | 0.35 | 0.15 (46) d | - | - | - | 0.15 | 0.15 | 0.36 (14) a |
-| hips.y | 0.26 | 0.23 | 0.24 (27) e | - | - | - | 0.22 | 0.15 | 0.40 (15) d |
-| com.y | 0.23 | 0.17 | 0.30 (25) e | - | - | - | 0.14 | 0.21 | 0.30 (17) d |
+| head.y | 0.14 | 0.34 | 0.20 (41) i | - | - | - | 0.10 | 0.10 | 0.47 (11) a |
+| hips.y | 0.11 | 0.33 | 0.26 (25) e | - | - | - | 0.19 | 0.00 | 0.26 (11) e |
+| com.y | 0.08 | 0.27 | 0.35 (21) e | - | - | - | 0.10 | 0.20 | 0.29 (10) e |
 | hipsOverAnkles.y | 0.00 | 0.00 | 0.00 (0) d | - | - | - | 0.00 | 0.00 | 0.00 (0) d |
-| wrist.l | 0.44 | 0.38 | 0.63** (28) e | - | - | - | 0.21 | 0.28 | 0.22 (17) i |
-| wrist.r (the grid) | 0.56 | 0.67 | 0.85** (22) e | - | - | - | 0.00 | 0.00 | 0.38 (10) e |
-| elbow.l | 0.37 | 0.30 | 0.54** (25) e | - | - | - | 0.14 | 0.07 | 0.30 (17) i |
-| elbow.r (same arm) | 0.45 | 0.42 | 0.85** (18) e | - | - | - | 0.26 | 0.17 | 0.34 (11) e |
+| wrist.l | 0.49 | 0.42 | 0.66** (27) e | - | - | - | 0.15 | 0.08 | 0.15 (16) d |
+| wrist.r (the grid) | 0.04 | 0.50 | 0.78** (22) e | - | - | - | 0.00 | 0.40 | 0.84** (10) e |
+| elbow.l | 0.42 | 0.35 | 0.67** (22) e | - | - | - | 0.10 | 0.10 | 0.47 (11) e |
+| elbow.r (same arm) | 0.50 | 0.42 | 0.86** (18) e | - | - | - | 0.00 | 0.60 | 0.84** (10) e |
 | stride | 0.00 | 0.00 | 0.00 (0) d | - | - | - | 0.00 | 0.00 | 0.00 (0) d |
-| sway.x | 0.21 | 0.26 | 0.20 (42) i | - | - | - | 0.29 | 0.00 | 0.40 (16) d |
-| torso.yaw | 0.11 | 0.40 | 0.23 (40) a | - | - | - | 0.07 | 0.07 | 0.24 (15) i |
-| multi | 0.24 | 0.24 | 0.09 (41) | - | - | - | 0.23 | 0.23 | 0.35 (15) |
-| multi.weighted | 0.31 | 0.31 | 0.35* (42) | - | - | - | 0.15 | 0.31 | 0.09 (15) |
+| sway.x | 0.04 | 0.21 | 0.36 (17) e | - | - | - | 0.09 | 0.17 | 0.44 (13) i |
+| torso.yaw | 0.06 | 0.45 | 0.31 (36) a | - | - | - | 0.11 | 0.11 | 0.47 (9) e |
+| hips.yaw | 0.31 | 0.29 | 0.23 (40) d | - | - | - | 0.19 | 0.19 | 0.31 (11) e |
+| multi | 0.18 | 0.15 | 0.01 (37) | - | - | - | 0.17 | 0.17 | 0.10 (13) |
+| multi.weighted | 0.27 | 0.24 | 0.31 (37) | - | - | - | 0.16 | 0.16 | 0.11 (15) |
+
+Chance at the beat (random anchors, one per beat, 200 draws): F after the lag median 0.17, 95th percentile 0.28.
 
 #### video_body_conducting_24
 
@@ -141,8 +147,11 @@ Columns: F | F after the lag | R (anchors) event. The event initials: `d` decel,
 | stride | 0.00 | 0.00 | 0.00 (0) d | - | - | - | 0.00 | 0.00 | 0.00 (0) d |
 | sway.x | 0.15 | 0.05 | 0.35 (15) e | - | - | - | 0.08 | 0.08 | 0.73** (12) e |
 | torso.yaw | 0.11 | 0.39 | 0.28 (33) i | - | - | - | 0.00 | 0.26 | 0.84** (11) e |
+| hips.yaw | 0.05 | 0.29 | 0.65** (17) e | - | - | - | 0.00 | 0.40 | 0.65* (13) e |
 | multi | 0.08 | 0.15 | 0.16 (28) | - | - | - | 0.00 | 0.07 | 0.45 (15) |
 | multi.weighted | 0.12 | 0.29 | 0.47* (25) | - | - | - | 0.07 | 0.15 | 0.36 (15) |
+
+Chance at the beat (random anchors, one per beat, 200 draws): F after the lag median 0.17, 95th percentile 0.30.
 
 #### video_body_budots
 
@@ -157,10 +166,13 @@ Columns: F | F after the lag | R (anchors) event. The event initials: `d` decel,
 | elbow.l | 0.16 | 0.41 | 0.22 (32) i | 0.23 | 0.15 | 0.39 (10) e | 0.15 | 0.14 | 0.48 (6) e |
 | elbow.r | 0.44 | 0.65 | 0.29 (37) d | 0.08 | 0.32 | 0.42 (10) e | 0.13 | 0.38 | 0.47 (8) e |
 | stride | 0.32 | 0.41 | 0.40 (13) d | 0.16 | 0.16 | 0.26 (9) a | 0.33 | 0.33 | 0.97 (4) d |
-| sway.x | 0.51 | 0.51 | 0.24 (36) d | 0.10 | 0.29 | 0.55 (6) e | 0.38 | 0.38 | 0.35 (9) i |
-| torso.yaw | 0.40 | 0.49 | 0.13 (39) d | 0.22 | 0.22 | 0.28 (11) e | 0.24 | 0.25 | 0.29 (9) e |
+| sway.x | 0.47 | 0.50 | 0.25 (33) i | 0.35 | 0.35 | 0.27 (19) i | 0.18 | 0.00 | 0.45 (4) e |
+| torso.yaw | 0.09 | 0.34 | 0.30 (16) e | 0.41 | 0.41 | 0.48 (19) a | 0.27 | 0.27 | 0.64 (8) e |
+| hips.yaw | 0.21 | 0.51 | 0.22 (36) d | 0.09 | 0.18 | 0.76 (7) e | 0.15 | 0.46 | 0.95* (6) e |
 | multi | 0.32 | 0.45 | 0.15 (31) | 0.25 | 0.31 | 0.26 (17) | 0.22 | 0.42 | 0.18 (11) |
 | multi.weighted | 0.33 | 0.48 | 0.15 (36) | 0.00 | 0.00 | 0.00 (0) | 0.38 | 0.10 | 0.12 (13) |
+
+Chance at the beat (random anchors, one per beat, 200 draws): F after the lag median 0.32, 95th percentile 0.45.
 
 #### video_body_que_calor (stated tempo, phase unknown: F is after the lag)
 
@@ -175,10 +187,13 @@ Columns: F | F after the lag | R (anchors) event. The event initials: `d` decel,
 | elbow.l | - | 0.37 | 0.20 (38) a | - | 0.33 | 0.48 (15) e | - | 0.35 | 0.36 (12) e |
 | elbow.r | - | 0.42 | 0.23 (38) i | - | 0.19 | 0.69* (9) e | - | 0.60 | 0.65 (9) e |
 | stride | - | 0.25 | 0.41 (14) e | - | 0.36 | 0.58 (12) e | - | 0.12 | 0.74 (7) e |
-| sway.x | - | 0.57 | 0.38** (49) i | - | 0.22 | 0.31 (15) e | - | 0.24 | 0.29 (14) a |
-| torso.yaw | - | 0.44 | 0.14 (48) a | - | 0.17 | 0.33 (13) e | - | 0.10 | 0.62 (11) e |
+| sway.x | - | 0.47 | 0.59** (21) e | - | 0.37 | 0.40 (17) e | - | 0.26 | 0.36 (12) a |
+| torso.yaw | - | 0.20 | 0.22 (18) e | - | 0.18 | 0.33 (12) e | - | 0.20 | 0.77* (9) e |
+| hips.yaw | - | 0.42 | 0.12 (57) i | - | 0.19 | 0.57 (10) e | - | 0.38 | 0.58 (10) e |
 | multi | - | 0.37 | 0.14 (53) | - | 0.20 | 0.22 (28) | - | 0.23 | 0.22 (16) |
 | multi.weighted | - | 0.38 | 0.14 (52) | - | 0.12 | 0.24 (28) | - | 0.15 | 0.27 (16) |
+
+Chance at the beat (random anchors, one per beat, 200 draws): F after the lag median 0.30, 95th percentile 0.40.
 
 #### synthetic
 
@@ -195,8 +210,11 @@ Columns: F | F after the lag | R (anchors) event. The event initials: `d` decel,
 | stride | 0.00 | 0.64 | 0.94** (30) e | 0.00 | 0.97 | 0.98** (30) e | 0.06 | 0.28 | 0.22 (21) i |
 | sway.x | 0.45 | 0.45 | 0.10 (83) d | 0.38 | 0.38 | 0.69** (17) e | 0.60 | 0.60 | 0.96** (15) e |
 | torso.yaw | 0.00 | 0.00 | 0.00 (0) d | 0.00 | 0.00 | 0.00 (0) d | 0.00 | 0.00 | 0.00 (0) d |
+| hips.yaw | 0.00 | 0.00 | 0.00 (0) d | 0.00 | 0.00 | 0.00 (0) d | 0.00 | 0.00 | 0.00 (0) d |
 | multi | 0.00 | 0.57 | 0.13 (67) | 0.00 | 0.34 | 0.15 (40) | 0.00 | 0.00 | 0.07 (21) |
 | multi.weighted | 0.03 | 0.61 | 0.55** (65) | 0.00 | 0.34 | 0.18 (40) | 0.00 | 0.00 | 0.07 (21) |
+
+Chance at the beat (random anchors, one per beat, 200 draws): F after the lag median 0.28, 95th percentile 0.35.
 
 ### 3.2 The pulse follower per channel (the `auto` channel's evidence)
 
@@ -206,65 +224,69 @@ ictus's pulse follower (`createPulseFollower`, the `body-pulse` defaults: 8 s wi
 
 | channel | trusted | strength | level (beats) | share |
 |---|---:|---:|---:|---:|
-| head.y | 0.27 | 0.57 | 3.5 | 0.35 |
-| hips.y | 0.19 | 0.69 | 3.75 | 0.66 |
-| com.y | 0.42 | 0.71 | 3.75 | 0.65 |
+| head.y | 0.27 | 0.57 | 3.75 | 0.50 |
+| hips.y | 0.19 | 0.69 | 4 | 0.72 |
+| com.y | 0.42 | 0.71 | 4 | 0.62 |
 | hipsOverAnkles.y | 0.00 | - | - | 0.00 |
-| wrist.l | 0.64 | 0.66 | 3.75 | 0.50 |
+| wrist.l | 0.64 | 0.66 | 4 | 0.63 |
 | wrist.r | 0.74 | 0.73 | 1 | 0.44 |
-| elbow.l | 0.03 | 0.49 | 3.75 | 0.56 |
-| elbow.r | 0.52 | 0.78 | 3.75 | 0.66 |
+| elbow.l | 0.03 | 0.49 | 4 | 1.00 |
+| elbow.r | 0.52 | 0.78 | 4 | 0.79 |
 | stride | 0.00 | - | - | 0.00 |
-| sway.x | 0.08 | 0.48 | 2.5 | 0.72 |
-| torso.yaw | 0.47 | 0.82 | 3.75 | 0.51 |
+| sway.x | 0.08 | 0.48 | 2.75 | 0.72 |
+| torso.yaw | 0.47 | 0.82 | 4 | 0.89 |
+| hips.yaw | 0.47 | 0.66 | 4 | 0.92 |
 
 #### video_body_conducting_34
 
 | channel | trusted | strength | level (beats) | share |
 |---|---:|---:|---:|---:|
-| head.y | 0.25 | 0.75 | 2.25 | 0.85 |
-| hips.y | 0.07 | 0.48 | 3.5 | 0.53 |
-| com.y | 0.32 | 0.58 | 3.25 | 0.38 |
+| head.y | 0.25 | 0.75 | 2 | 0.76 |
+| hips.y | 0.07 | 0.48 | 3.25 | 0.53 |
+| com.y | 0.32 | 0.58 | 3 | 0.54 |
 | hipsOverAnkles.y | 0.00 | - | - | 0.00 |
-| wrist.l | 0.53 | 0.56 | 1.25 | 0.60 |
-| wrist.r | 0.59 | 0.65 | 1.25 | 0.39 |
-| elbow.l | 0.26 | 0.60 | 2.25 | 0.40 |
-| elbow.r | 0.35 | 0.64 | 3.5 | 0.65 |
+| wrist.l | 0.53 | 0.56 | 1 | 0.39 |
+| wrist.r | 0.59 | 0.65 | 1 | 0.51 |
+| elbow.l | 0.26 | 0.60 | 3 | 0.56 |
+| elbow.r | 0.35 | 0.64 | 3.25 | 0.44 |
 | stride | 0.00 | - | - | 0.00 |
-| sway.x | 0.22 | 0.60 | 3.5 | 0.77 |
-| torso.yaw | 0.30 | 0.70 | 3 | 0.40 |
+| sway.x | 0.22 | 0.60 | 3 | 0.67 |
+| torso.yaw | 0.30 | 0.70 | 2.75 | 0.48 |
+| hips.yaw | 0.20 | 0.54 | 3.25 | 0.47 |
 
 #### video_body_conducting_24
 
 | channel | trusted | strength | level (beats) | share |
 |---|---:|---:|---:|---:|
-| head.y | 0.41 | 0.71 | 2 | 0.98 |
+| head.y | 0.41 | 0.71 | 2 | 0.94 |
 | hips.y | 0.30 | 0.50 | 2 | 0.71 |
 | com.y | 0.64 | 0.53 | 2 | 0.96 |
 | hipsOverAnkles.y | 0.00 | - | - | 0.00 |
 | wrist.l | 0.00 | - | - | 0.00 |
-| wrist.r | 0.91 | 0.74 | 2 | 0.68 |
+| wrist.r | 0.91 | 0.74 | 2 | 0.64 |
 | elbow.l | 0.03 | 0.48 | 2.75 | 1.00 |
-| elbow.r | 0.42 | 0.58 | 2 | 0.50 |
+| elbow.r | 0.42 | 0.58 | 1 | 0.45 |
 | stride | 0.00 | - | - | 0.00 |
-| sway.x | 0.44 | 0.68 | 2 | 0.65 |
-| torso.yaw | 0.64 | 0.78 | 2 | 0.84 |
+| sway.x | 0.44 | 0.68 | 2 | 0.68 |
+| torso.yaw | 0.64 | 0.78 | 2 | 0.73 |
+| hips.yaw | 0.65 | 0.60 | 2 | 0.62 |
 
 #### video_body_budots
 
 | channel | trusted | strength | level (beats) | share |
 |---|---:|---:|---:|---:|
-| head.y | 0.17 | 0.53 | 6.5 | 0.83 |
+| head.y | 0.17 | 0.53 | 6.5 | 0.50 |
 | hips.y | 0.00 | - | - | 0.00 |
-| com.y | 0.13 | 0.48 | 6.75 | 0.61 |
-| hipsOverAnkles.y | 0.10 | 0.52 | 3.75 | 0.90 |
-| wrist.l | 0.42 | 0.55 | 3.75 | 0.44 |
-| wrist.r | 0.21 | 0.69 | 4.25 | 0.87 |
+| com.y | 0.13 | 0.48 | 6.75 | 0.83 |
+| hipsOverAnkles.y | 0.10 | 0.52 | 3.75 | 0.55 |
+| wrist.l | 0.42 | 0.55 | 4.25 | 0.42 |
+| wrist.r | 0.21 | 0.69 | 4.5 | 0.73 |
 | elbow.l | 0.09 | 0.59 | 4.25 | 0.54 |
-| elbow.r | 0.23 | 0.66 | 4.25 | 0.69 |
+| elbow.r | 0.23 | 0.66 | 4.5 | 0.92 |
 | stride | 0.00 | - | - | 0.00 |
-| sway.x | 0.00 | - | - | 0.00 |
-| torso.yaw | 0.00 | - | - | 0.00 |
+| sway.x | 0.26 | 0.74 | 6 | 1.00 |
+| torso.yaw | 0.36 | 0.49 | 5.75 | 0.73 |
+| hips.yaw | 0.13 | 0.56 | 4 | 1.00 |
 
 #### video_body_que_calor (stated tempo, phase unknown: F is after the lag)
 
@@ -279,8 +301,9 @@ ictus's pulse follower (`createPulseFollower`, the `body-pulse` defaults: 8 s wi
 | elbow.l | 0.00 | - | - | 0.00 |
 | elbow.r | 0.23 | 0.56 | 4 | 1.00 |
 | stride | 0.86 | 0.80 | 4 | 0.65 |
-| sway.x | 0.74 | 0.66 | 4.25 | 0.65 |
-| torso.yaw | 0.04 | 0.68 | 5.75 | 0.53 |
+| sway.x | 0.49 | 0.71 | 4.25 | 0.59 |
+| torso.yaw | 0.18 | 0.67 | 4.25 | 0.47 |
+| hips.yaw | 0.63 | 0.73 | 4.25 | 0.55 |
 
 #### synthetic
 
@@ -297,6 +320,7 @@ ictus's pulse follower (`createPulseFollower`, the `body-pulse` defaults: 8 s wi
 | stride | 0.98 | 0.99 | 2 | 1.00 |
 | sway.x | 0.96 | 0.95 | 4 | 1.00 |
 | torso.yaw | 0.00 | - | - | 0.00 |
+| hips.yaw | 0.00 | - | - | 0.00 |
 
 ### 3.3 Two levels at once
 
@@ -304,27 +328,28 @@ The strongest vertical channel's ACF period within 0.6 to 1.6 beats, the stronge
 
 | clip | stated beats per bar | beat level: channel, period in beats (ACF r) | bar level: channel, period in beats (ACF r) | ratio |
 |---|---:|---|---|---:|
-| video_body_conducting_44 | 4 | hips.y 0.98 (r 0.22) | torso.yaw 3.65 (r 0.67) | 3.73 |
-| video_body_conducting_34 | 3 | hips.y 1.42 (r 0.10) | sway.x 3.49 (r 0.34) | 2.45 |
-| video_body_conducting_24 | 2 | hips.y 0.94 (r 0.16) | torso.yaw 1.92 (r 0.67) | 2.04 |
-| video_body_budots | 4 | - - (r -) | stride 3.97 (r 0.76) | - |
+| video_body_conducting_44 | 4 | hips.y 1.06 (r 0.22) | torso.yaw 3.97 (r 0.67) | 3.73 |
+| video_body_conducting_34 | 3 | hips.y 1.29 (r 0.10) | sway.x 3.18 (r 0.34) | 2.45 |
+| video_body_conducting_24 | 2 | hips.y 0.95 (r 0.16) | torso.yaw 1.94 (r 0.67) | 2.04 |
+| video_body_budots | 4 | - - (r -) | stride 4.07 (r 0.76) | - |
 | video_body_que_calor | 4 | - - (r -) | stride 3.95 (r 0.65) | - |
 | synthetic | 4 | com.y 1.00 (r 0.98) | stride 2.00 (r 0.99) | 2.00 |
 
 ## 4. What the numbers say
 
-1. **A conductor's trunk marks the beat the conductor's hand gives**, on the 4-pattern (`com.y` R 0.77, p < 10⁻⁶; `hips.y` 0.83) and the 2-pattern (`com.y` 0.68, p < 10⁻⁴; `hips.y` 0.58), at its turning point (`extremum`) in both. It does not on the slow 3-pattern hymn (`com.y` 0.30, p 0.1), where even the conductor's other hand is only at 0.63. The trunk's F is modest (0.34 and 0.23 raw, 0.49 and 0.37 after the lag), so it is a channel to correct a prediction with, which is all design §3.8 asks of it, not a beat tracker by itself. Its lag relative to the hand's stroke is +85 ms on one clip and -112 ms on the other, and the hips' polarity flips between clips: the per-player phase of Burger et al. [11] holds inside one player across pieces, so both lag and polarity must be learned per player (the `leadOffset` the design leaves unset until a trainer cue measures it).
+1. **A conductor's trunk marks the beat the conductor's hand gives**, on the 4-pattern (`com.y` R 0.77, p < 10⁻⁶; `hips.y` 0.83) and the 2-pattern (`com.y` 0.68, p < 10⁻⁴; `hips.y` 0.58), at the bottom of its travel in both. It does not on the slow 3-pattern hymn (`com.y` 0.35, p 0.08). The trunk's F is modest (0.34 and 0.23 raw, 0.49 and 0.37 after the lag, against chance levels of 0.33 and 0.30), so it is a channel to correct a prediction with, which is all design §3.8 asks of it, not a beat tracker by itself. Its lag relative to the hand's stroke is +85 ms on one clip and -112 ms on the other, so the lag must be learned per player and per piece (the `leadOffset` the design leaves unset until a trainer cue measures it). The hips alone lock too (0.83 and 0.58), so the trunk's beat is not only the beating arm moving the shoulders.
 2. **The head is not the body's beat.** On the conductor clips the head is weaker than the trunk every time (R 0.31, 0.15, 0.47, none significant at the beat). Head nods count for observers [14], but the trunk carries more of the beat in these clips.
-3. **The torso's rotation marks the bar.** `torso.yaw` at the bar: 0.98 (4-pattern, 8 anchors, p < 10⁻⁴), 0.84 (2-pattern, p < 10⁻⁴); for a conductor it is the pattern's left-right excursion seen in the torso. The lateral sway agrees on the 2-pattern (0.73). This is the body-native downbeat #187 PR 6 and #364 item 3 need, for a conductor.
-4. **Dancers: the stride (or the arms) carries the bar; nothing in these two dancers carries the beat.** Que Calor's stride is periodic at 3.95 beats (ACF r 0.65) and phase-locked at the bar (R 0.74, 7 anchors; F is low because the stride's ends are broad); Budots' stride is periodic at 3.97 beats (r 0.76) but its ankles are often off screen, so the pulse follower never trusts it; both dancers' arms repeat at about 4 beats. Neither dancer's head, hips or trunk height locks at the beat (best p 0.03, 33 anchors). Budots is a bouncing dance, so this is not "dancers don't bounce on the beat": it is that a bounce on three tracked dancers with switching identities, at 143 bpm (0.42 s per beat, 12.6 frames), did not survive the pose model and 30 fps. A single dancer bouncing to a known tempo is still missing (§5).
-5. **Which event:** on the real clips the turning point (`extremum`) won 31 of the 37 significant cells (p < 0.01), then `impact` 3, `accel` 2, `decel` 1. The deceleration of the speed alone is the wrong event for a channel that reverses (it fires at both ends); the directional impact is a reasonable stand-in but loses to the turning point on pose data, which matches ictus's own finding for the hand (its detector fires on the turning point and measures the braking as articulation, `detector.ts`).
+3. **The torso's rotation marks the bar, partly through the beating arm.** `torso.yaw` at the bar: 0.98 (4-pattern, 8 anchors, p < 10⁻⁴), 0.84 (2-pattern, p < 10⁻⁴); for a conductor it is the pattern's left-right excursion seen in the torso. The pelvis's rotation, which the arm moves less, locks less (0.68, not significant; 0.65, p < 0.01), and the lateral sway agrees on the 2-pattern (0.73). A downbeat from the torso is plausible for a conductor (#187 PR 6, #364 item 3), but these clips cannot separate it from the arm that drives it; a body conductor who keeps the arms still is the test (#415).
+4. **Dancers: the stride carries the bar, the sway can carry the beat, the height does not.** Que Calor's stride is periodic at 3.95 beats (ACF r 0.65) and leans toward a lock at the bar (R 0.74 on only 7 anchors, p 0.017: suggestive, not significant once the choice among eight event variants is counted); its torso rotation locks at the bar (0.77, p 0.002) and its lateral sway at the beat (0.59, 21 anchors, p 0.0004; F after the lag 0.47 against a chance level of 0.40): the weight shifting from foot to foot with every step. Budots' stride is periodic at 4.07 beats (r 0.76), but its ankles are often off screen, so the pulse follower never trusts it; both dancers' arms repeat at about 4 beats. Neither dancer's head, hips or trunk height locks at the beat (best p 0.03, 33 anchors). Budots is a bouncing dance, so this does not show that dancers fail to bounce on the beat. It shows that a bounce did not survive the pose model and 30 fps with three tracked dancers switching identities, at 143 bpm (0.42 s per beat, 12.6 frames). A single dancer bouncing to a known tempo is still missing (§5).
+5. **Which event:** on the real clips, the reference arm left out, the turning point (`extremum`) won 31 of the 32 significant cells (p < 0.01), `accel` 1. The deceleration of the speed alone is the wrong event for a channel that reverses (it fires at both ends); the directional impact is a reasonable stand-in but loses to the turning point on pose data, which matches ictus's own finding for the hand (its detector fires on the turning point and measures the braking as articulation, `detector.ts`).
 6. **The multi-joint envelope does not earn its place.** Equal weights: never significant at the beat on a real clip (0.32, 0.09, 0.16, 0.15, 0.14) and not on the synthetic control (0.13). Level-matched weights help (0.47, 0.35, 0.47 on the conductors) but stay below the best single non-reference channel (0.83, 0.63, 0.72). Joints in one body move at different levels (arms at the half-bar, trunk at the beat, torso at the bar), so a sum mixes levels; selecting the channel, or weighting by phase locking rather than by periodicity, is the design to build.
-7. **Against the literature's ceiling:** the best non-reference channel's F at the beat after the lag is 0.38 to 0.68 on the conductors and 0.59 on Budots, against Pedersoli and Goto's 0.61 for a learned tracker over 13 keypoints [9]. Raw F is lower because every channel has a lag of its own.
+7. **Against chance and the literature's ceiling:** random anchors at one per beat reach an F after the lag of 0.17 to 0.32 (median) and 0.28 to 0.45 (95th percentile) on these clips, because a fitted lag and a free downbeat phase help any anchor set. The best non-reference channels clear that on the conductors (the trunk 0.49 and 0.37, the other wrist 0.68 on the 4-pattern) and only modestly on Budots (the trunk 0.59 against 0.45). Pedersoli and Goto's 0.61 for a learned tracker over 13 keypoints [9] is a raw F without a fitted lag, so it is not directly comparable; raw F here is lower because every channel has a lag of its own.
+8. **What this measurement does not settle.** The meter reading has no significance floor (the beat-level vertical's ACF r is only 0.10 to 0.22, so the ratio is mostly the bar channel's own period); the 2 s moving-average detrend keeps only about two thirds of a 2.8 s bar's amplitude and slightly favours periods near 1.3 s; and the choice among events and polarities makes single-star cells weak evidence.
 
 ## 5. Defaults and decisions
 
-- **Body conductor (A2, A3):** `conductor.source = body` reads, in this order, the beating arm's wrist through the existing stroke detector when the arm is visible (its own elbow is the fallback when the wrist is lost), and the trunk centroid's height (`com.y`) at its turning point, polarity and lag learned per player, as the body's own beat channel; the head is not in the default set; `torso.yaw` is read for the bar (downbeat and bar period), never for the beat. The impact detector's event default is the turning point (`extremum`), with `impact` as the option for a bounce channel; do not sum joints into one envelope by default.
-- **Dancer (`body-pulse`, #339 item 3; built in #416):** the stride stays the default. `auto` chooses among {stride, sway.x, torso.yaw, com.y} by the pulse follower's strength while trusted, a new choice held 3 s (the pace controller's persistence). `com.y` replaces `head` and `hip` as the vertical candidate; the existing `head` and `hip` options can stay selectable but should not be in `auto`'s set: they never locked on either dancer.
+- **Body conductor (A2, A3):** `conductor.source = body` reads, in this order, the beating arm's wrist through the existing stroke detector when the arm is visible (its own elbow is the fallback when the wrist is lost), and the trunk centroid's height (`com.y`) at its turning point, polarity and lag learned per player, as the body's own beat channel; the head is not in the default set; `torso.yaw` is read for the bar (downbeat and bar period), never for the beat. The impact detector's event default is the turning point (`extremum`), with `impact` as the option for a bounce channel; do not sum joints into one envelope by default. A grid taken from strokes needs a minimum interval: false doubles at the bottom of slow strokes are real (seven in 27 s of the 3-pattern).
+- **Dancer (`body-pulse`, #339 item 3; built in #416):** the stride stays the default. `auto` chooses among {stride, sway.x, torso.yaw, com.y} by the pulse follower's strength while trusted, a new choice held 3 s (the pace controller's persistence). The sway is in the set because it carried Que Calor's beat; `com.y` replaces `head` and `hip` as the vertical candidate; the existing `head` and `hip` options can stay selectable but should not be in `auto`'s set: they never locked on either dancer.
 - **Meter from the body (A7): no.** Two levels at once gave the right meter for the conductor on two of three clips and never for a dancer, and the ratio cannot by itself tell a half-bar from a bar (the synthetic read 2 for a 4-beat bar). A7, if built, should take only the bar's phase (the downbeat) and period from torso rotation for a body conductor, and take the meter from the score (or the player), snapping the ratio to it.
 - **Still missing, and not something an agent can fetch from this server:** a single dancer bouncing in place to a known tempo (YouTube's Creative Commons videos need a signed-in download; AIST++ needs a licence decision), and a self-recorded take of a player conducting and bouncing with the body on purpose, through the trainer's click pipeline (#247). Both are asked for in #415; when they exist, the same script adds a row per fixture and the decisions above are re-checked, not re-derived.
 

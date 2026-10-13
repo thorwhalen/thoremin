@@ -50,6 +50,9 @@ export const TORSO_SPAN_S = 1;
 export const DETREND_S = 2;
 /** At most one anchor per this fraction of the level's period. */
 export const MIN_SEPARATION = 0.5;
+/** Sway is measured over the ankles only when both are seen in at least this fraction
+ *  of the clip's frames; otherwise it is the trunk's own horizontal position. */
+export const FEET_SEEN_FOR_SWAY = 0.8;
 /** An envelope peak must clear the envelope's median plus this many MADs. */
 export const PEAK_MADS = 1;
 
@@ -135,6 +138,23 @@ function detrend(xs: readonly number[], span: number): number[] {
   });
 }
 
+/** Remove the 360-degree jumps of an angle series (NaN-aware: a jump is measured from
+ *  the last observed sample). */
+export function unwrapDegrees(xs: readonly number[]): number[] {
+  let offset = 0;
+  let last = NaN;
+  return xs.map((x) => {
+    if (!Number.isFinite(x)) return NaN;
+    if (Number.isFinite(last)) {
+      const d = x + offset - last;
+      if (d > 180) offset -= 360 * Math.round(d / 360);
+      else if (d < -180) offset += 360 * Math.round(-d / 360);
+    }
+    last = x + offset;
+    return last;
+  });
+}
+
 /** Central difference over `dt`, NaN where a neighbour is missing. */
 function derivative(xs: readonly number[], dt: number): number[] {
   return xs.map((_, i) => (i === 0 || i === xs.length - 1 ? NaN : (xs[i + 1] - xs[i - 1]) / (2 * dt)));
@@ -183,14 +203,25 @@ export function extractChannels(frames: readonly BodyFrame[], fps: number): Chan
   };
   const ankleMid = (i: number) => mid(i, BLM.left_ankle, BLM.right_ankle);
 
-  // Torso rotation: the shoulder line's yaw from the world landmarks (x-z plane, degrees).
-  const yaw = frames.map((f, i) => {
-    if (!P(i, BLM.left_shoulder) || !P(i, BLM.right_shoulder) || !f.world) return NaN;
-    const l = f.world[BLM.left_shoulder];
-    const r = f.world[BLM.right_shoulder];
-    if (l.z === undefined || r.z === undefined) return NaN;
-    return (Math.atan2(r.z - l.z, r.x - l.x) * 180) / Math.PI;
-  });
+  // Torso rotation: a body line's yaw from the world landmarks (x-z plane, degrees),
+  // UNWRAPPED (atan2 jumps by 360 degrees when the line turns past side-on, which a
+  // dancer's does). The shoulder line is the torso; the hip line is the control that
+  // says how much of the shoulders' rotation is the beating arm pulling one shoulder.
+  const lineYaw = (a: number, b: number): number[] =>
+    unwrapDegrees(
+      frames.map((f, i) => {
+        if (!P(i, a) || !P(i, b) || !f.world) return NaN;
+        const l = f.world[a];
+        const r = f.world[b];
+        if (l.z === undefined || r.z === undefined) return NaN;
+        return (Math.atan2(r.z - l.z, r.x - l.x) * 180) / Math.PI;
+      }),
+    );
+  // Sway: the trunk over the ankles when the feet are in view for most of the clip,
+  // else the trunk alone, ONE mode per clip (mixing the two per frame makes steps of
+  // several torso lengths wherever the ankles flicker in and out of view).
+  const feetSeen = frames.filter((_, i) => ankleMid(i) !== null).length / Math.max(1, n);
+  const swayOverFeet = feetSeen >= FEET_SEEN_FOR_SWAY;
 
   const chans: Channel[] = [
     { id: 'head.y', label: 'head height (nose)', y: coord(joint(BLM.nose), 'y') },
@@ -210,15 +241,15 @@ export function extractChannels(frames: readonly BodyFrame[], fps: number): Chan
       const r = P(i, BLM.right_ankle);
       return l && r ? l.x - r.x : null;
     })) },
-    { id: 'sway.x', label: 'lateral sway (trunk over ankles)', y: norm(frames.map((_, i) => {
+    { id: 'sway.x', label: swayOverFeet ? 'lateral sway (trunk over ankles)' : 'lateral sway (trunk alone, feet out of view)', y: norm(frames.map((_, i) => {
       const t = trunk(i);
+      if (!swayOverFeet) return t ? t.x : null;
       const a = ankleMid(i);
-      // Without the feet, the trunk's own horizontal position (camera pans included).
-      return t ? t.x - (a?.x ?? 0) : null;
+      return t && a ? t.x - a.x : null;
     })) },
-    { id: 'torso.yaw', label: 'torso rotation (shoulder yaw)', y: detrend(fillGaps(yaw, 3), Math.round(DETREND_S * fps)) },
+    { id: 'torso.yaw', label: 'torso rotation (shoulder yaw)', y: detrend(fillGaps(lineYaw(BLM.left_shoulder, BLM.right_shoulder), 3), Math.round(DETREND_S * fps)) },
+    { id: 'hips.yaw', label: 'pelvis rotation (hip yaw, the control for torso.yaw)', y: detrend(fillGaps(lineYaw(BLM.left_hip, BLM.right_hip), 3), Math.round(DETREND_S * fps)) },
   ];
-  void n;
   return chans;
 }
 
@@ -502,8 +533,8 @@ export function measureClip(frames: readonly BodyFrame[], fps: number, grid: rea
   const dt = 1 / fps;
   const t = frames.map((_, i) => i * dt);
   const chans = extractChannels(frames, fps);
-  const beatS = median(grid.slice(1).map((g, i) => g - grid[i]));
-  const span = gridRuns(grid).map(([a, b]): [number, number] => [Math.max(a, t[0]), Math.min(b, t[t.length - 1])]).filter(([a, b]) => b > a);
+  const beatS = medianBeatS(grid);
+  const span = scoringSpans(grid, t[0], t[t.length - 1]);
   const wanted = (id: string) => !only?.channels || only.channels.includes(id);
   const out: CellResult[] = [];
   for (const level of levelsFor(beatsPerBar).filter((l) => !only?.levels || only.levels.includes(l.name))) {
@@ -537,6 +568,48 @@ export function measureClip(frames: readonly BodyFrame[], fps: number, grid: rea
     }
   }
   return out;
+}
+
+/** The grid's median beat interval, seconds (a hold between verses does not stretch it). */
+export function medianBeatS(grid: readonly number[]): number {
+  return median(grid.slice(1).map((g, i) => g - grid[i]));
+}
+
+/** The spans scored: the grid's runs, inside the clip. */
+export function scoringSpans(grid: readonly number[], t0: number, t1: number): Array<[number, number]> {
+  return gridRuns(grid).map(([a, b]): [number, number] => [Math.max(a, t0), Math.min(b, t1)]).filter(([a, b]) => b > a);
+}
+
+/** What F after the lag reaches by chance: `trials` sets of random anchors (uniform in
+ *  the scored spans, one per beat), scored like a channel; the median and the 95th
+ *  percentile. A channel's F is worth quoting only above the latter. */
+export function chanceFLag(grid: readonly number[], t0: number, t1: number, beats = 1, trials = 200, seed = 373): { median: number; p95: number } {
+  const spans = scoringSpans(grid, t0, t1);
+  const total = spans.reduce((a, [x, y]) => a + (y - x), 0);
+  const n = Math.max(2, Math.round(total / (beats * medianBeatS(grid))));
+  let a = seed >>> 0;
+  const rand = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const at = (u: number): number => {
+    let r = u * total;
+    for (const [x, y] of spans) {
+      if (r <= y - x) return x + r;
+      r -= y - x;
+    }
+    return spans[spans.length - 1][1];
+  };
+  const fs: number[] = [];
+  for (let k = 0; k < trials; k++) {
+    const anchors = Array.from({ length: n }, () => at(rand())).sort((p, q) => p - q);
+    fs.push(scoreLevel(anchors, grid, beats, spans).fLag);
+  }
+  fs.sort((p, q) => p - q);
+  return { median: fs[Math.floor(trials / 2)], p95: fs[Math.floor(trials * 0.95)] };
 }
 
 /** The most significant event of one channel at one level (the tables' cell). */

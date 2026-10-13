@@ -1,6 +1,7 @@
 /**
-* Clips for the channel measurement (#373): the committed body fixtures, and the synthetic control for the channel measurement (#373): the `synthetic-body`
- * skeleton with every period set to a known level of a 120 bpm grid (bounce at the
+ * Clips for the channel measurement (#373): the committed body fixtures, a clip being
+ * vetted before it becomes one, the conductor's stroke grid, and the synthetic control:
+ * the `synthetic-body` skeleton with every period set to a known level of a 120 bpm grid (bounce at the
  * beat, steps and arms at the half-bar, sway at the bar), plus seeded Gaussian
  * landmark noise of a real tracker's size. A measurement that cannot find the levels
  * here cannot be trusted on a real clip; it is a check of the method, not evidence
@@ -86,13 +87,31 @@ export function beatingWrist(frames: readonly BodyFrame[]): 'left' | 'right' {
 export function strokeGrid(frames: readonly BodyFrame[], fps: number, wrist: 'left' | 'right' = beatingWrist(frames)): number[] {
   const j = wrist === 'right' ? BLM.right_wrist : BLM.left_wrist;
   const det = createIctusDetector({ yDown: true });
-  const beats: number[] = [];
+  const strokes: Array<{ t: number; strength: number }> = [];
   frames.forEach((f, i) => {
     if (!f.present || (f.visibility[j] ?? 1) < 0.5) return;
     const a = det.push({ t: i / fps, x: f.landmarks[j].x, y: f.landmarks[j].y });
-    if (a) beats.push(a.t);
+    if (a) strokes.push({ t: a.t, strength: a.strength });
   });
-  return beats;
+  return dedouble(strokes);
+}
+
+/** A stroke closer than this fraction of the median interval to its neighbour is a
+ *  false double (a wobble at the bottom of a slow stroke), not a beat. */
+export const MIN_STROKE_GAP = 0.6;
+
+/** Drop false doubles: while two strokes are closer than `MIN_STROKE_GAP` median
+ *  intervals, the weaker of the pair goes. */
+export function dedouble(strokes: ReadonlyArray<{ t: number; strength: number }>): number[] {
+  const kept = [...strokes];
+  const ibis = kept.slice(1).map((s, i) => s.t - kept[i].t).sort((a, b) => a - b);
+  if (ibis.length < 3) return kept.map((s) => s.t);
+  const limit = MIN_STROKE_GAP * ibis[ibis.length >> 1];
+  for (let i = 1; i < kept.length; ) {
+    if (kept[i].t - kept[i - 1].t < limit) kept.splice(kept[i].strength < kept[i - 1].strength ? i : i - 1, 1);
+    else i++;
+  }
+  return kept.map((s) => s.t);
 }
 
 /** The control's beat period (120 bpm) and bar. */

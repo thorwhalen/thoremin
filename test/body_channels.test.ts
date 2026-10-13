@@ -17,7 +17,7 @@
  * channel that fires rarely.
  */
 import { describe, it, expect } from 'vitest';
-import { measureClip, bestCell, rayleighP, meterReading } from '../scripts/body/lib_channels';
+import { measureClip, bestCell, rayleighP, meterReading, medianBeatS } from '../scripts/body/lib_channels';
 import { loadClip, syntheticClip, type BodyClip } from '../scripts/body/lib_clips';
 
 function cell(clip: BodyClip, channel: string, level: 'beat' | 'half-bar' | 'bar') {
@@ -57,17 +57,18 @@ describe("a conductor: the trunk marks the beat the conductor's baton hand gives
     });
   }
 
-  it('the torso rotation locks at the bar of the 2-pattern', () => {
-    const s = cell(loadClip('video_body_conducting_24'), 'torso.yaw', 'bar');
-    expect(s.r).toBeGreaterThan(0.35);
-    expect(s.p).toBeLessThan(1e-2);
+  it('the torso rotation locks at the bar of the 2-pattern, more than the pelvis (part of it is the beating arm)', () => {
+    const clip = loadClip('video_body_conducting_24');
+    const torso = cell(clip, 'torso.yaw', 'bar');
+    expect(torso.r).toBeGreaterThan(0.35);
+    expect(torso.p).toBeLessThan(1e-2);
+    expect(cell(clip, 'hips.yaw', 'bar').r).toBeLessThan(torso.r);
   });
 });
 
 describe('two levels at once: the meter as the ratio of a lateral period to a vertical one', () => {
   const ratio = (clip: BodyClip) => {
-    const beatS = (clip.grid[clip.grid.length - 1] - clip.grid[0]) / (clip.grid.length - 1);
-    return meterReading(clip.frames, clip.fps, beatS);
+    return meterReading(clip.frames, clip.fps, medianBeatS(clip.grid));
   };
 
   it('reads 4 and 2 from the conductors, as torso rotation over the trunk bob', () => {
@@ -90,11 +91,13 @@ describe('two levels at once: the meter as the ratio of a lateral period to a ve
   });
 });
 
-describe('a dancer (Que Calor): the stride carries the bar, the head and hips do not carry the beat', () => {
+describe('a dancer (Que Calor): the stride suggests the bar, the head and hips do not carry the beat', () => {
   const clip = loadClip('video_body_que_calor');
 
-  it('the stride is phase-locked at the bar', () => {
-    expect(cell(clip, 'stride', 'bar').r).toBeGreaterThan(0.6);
+  it('the stride leans toward a lock at the bar (7 anchors in 20 s: suggestive, not significant after the event choice)', () => {
+    const s = cell(clip, 'stride', 'bar');
+    expect(s.r).toBeGreaterThan(0.6);
+    expect(s.p).toBeLessThan(0.05);
   });
 
   it('the head and the hips are not locked at the beat (#339 item 3)', () => {

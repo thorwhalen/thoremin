@@ -12,11 +12,11 @@
  * (`grid.beats`, the music's beats in the excerpt's own seconds) or a stated tempo
  * (`music.bpm`; the phase is then unknown and only the phase-free scores mean anything),
  * plus the synthetic control (`synthetic`, a skeleton with a known bounce, step and
- * sway and tracker-sized noise; `lib_synthetic.ts`).
+ * sway and tracker-sized noise; `lib_clips.ts`).
  */
 import { readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { measureClip, extractChannels, pulseSummary, bestCell, meterReading, type CellResult } from './lib_channels';
+import { measureClip, extractChannels, pulseSummary, bestCell, meterReading, medianBeatS, chanceFLag, type CellResult } from './lib_channels';
 import { FIXTURES, loadClip, adHocClip, syntheticClip, type BodyClip } from './lib_clips';
 
 const f2 = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : '-');
@@ -44,13 +44,15 @@ function table(clip: BodyClip, cells: readonly CellResult[]): string {
     const note = !clip.referenceWrist ? '' : ch === `wrist.${side}` ? ' (the grid)' : ch === `elbow.${side}` ? ' (same arm)' : '';
     lines.push(`| ${ch}${note} | ${row.join(' | ')} |`);
   }
+  const chance = chanceFLag(clip.grid, 0, (clip.frames.length - 1) / clip.fps);
+  lines.push('', `Chance at the beat (random anchors, one per beat, 200 draws): F after the lag median ${f2(chance.median)}, 95th percentile ${f2(chance.p95)}.`);
   return lines.join('\n');
 }
 
 function pulseTable(clip: BodyClip): string {
   const dt = 1 / clip.fps;
   const t = clip.frames.map((_, i) => i * dt);
-  const beatS = (clip.grid[clip.grid.length - 1] - clip.grid[0]) / (clip.grid.length - 1);
+  const beatS = medianBeatS(clip.grid);
   const lines = ['| channel | trusted | strength | level (beats) | share |', '|---|---:|---:|---:|---:|'];
   for (const ch of extractChannels(clip.frames, clip.fps)) {
     const s = pulseSummary(ch.y, t, beatS);
@@ -60,7 +62,7 @@ function pulseTable(clip: BodyClip): string {
 }
 
 function meterLine(clip: BodyClip): string {
-  const beatS = (clip.grid[clip.grid.length - 1] - clip.grid[0]) / (clip.grid.length - 1);
+  const beatS = medianBeatS(clip.grid);
   const m = meterReading(clip.frames, clip.fps, beatS);
   return `| ${clip.name} | ${clip.beatsPerBar} | ${m.beatChannel} ${f2(m.beatS / beatS)} (r ${f2(m.beatR)}) | ${m.barChannel} ${f2(m.barS / beatS)} (r ${f2(m.barR)}) | ${f2(m.ratio)} |`;
 }
