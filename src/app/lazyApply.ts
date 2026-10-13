@@ -41,7 +41,7 @@ export interface LazyApplyDeps<G> {
 
 const NONE: ReadonlySet<string> = new Set();
 
-/** Load rounds before giving up: a few cover settings that moved to another lazy extension
+/** Load rounds before giving up (the default of {@link ComposeLoadedOptions.maxRounds}): a few cover settings that moved to another lazy extension
  *  mid-fetch; more means a loader that resolves without registering. */
 const MAX_LOAD_ROUNDS = 3;
 
@@ -54,38 +54,48 @@ function failedAmong(missing: readonly string[], err: unknown): string[] {
   return failed.length > 0 ? failed : [...missing];
 }
 
+export interface ComposeLoadedOptions {
+  /** Load rounds before giving up and leaving out whatever is still pending (default
+   *  {@link MAX_LOAD_ROUNDS}). */
+  maxRounds?: number;
+}
+
 /**
  * A graph whose every node type is loaded: `compose`d as is when nothing is pending (returned
  * synchronously), else after `ensure` (recomposed, since the settings may have changed during
  * the fetch), or without the types that failed to load. Never rejects.
- *
- * @param without - the types already known to have failed in this request (left out of every
- *   later round, so a partial failure recomposes with what did load).
  */
 export function composeLoaded<G>(
   deps: Omit<LazyApplyDeps<G>, 'commit'>,
   isCurrent: () => boolean = () => true,
-  depth = 0,
-  without: ReadonlySet<string> = NONE,
+  { maxRounds = MAX_LOAD_ROUNDS }: ComposeLoadedOptions = {},
 ): G | Promise<G | null> {
-  const graph = deps.compose(without);
-  const missing = deps.pending(deps.typesOf(graph));
-  if (missing.length === 0) return graph;
-  // Each round loads what the CURRENT settings name.
-  const exhausted = depth >= MAX_LOAD_ROUNDS;
-  const load = exhausted ? Promise.reject(new Error(`still not loaded after ${depth} loads: ${missing.join(', ')}`)) : deps.ensure(missing);
-  return load.then(
-    () => (isCurrent() ? composeLoaded(deps, isCurrent, depth + 1, without) : null),
-    (err: unknown) => {
-      if (!isCurrent()) return null;
-      const failed = exhausted ? [...missing] : failedAmong(missing, err);
-      deps.onLoadError?.(failed, err);
-      const next = new Set([...without, ...failed]);
-      // Out of rounds: leave out everything still missing. Otherwise recompose without only the
-      // failed types, and load whatever else that graph still names.
-      return exhausted ? deps.compose(new Set([...next, ...missing])) : composeLoaded(deps, isCurrent, depth + 1, next);
-    },
-  );
+  /**
+   * One round. `depth` counts the loads so far; `without` holds the types already known to have
+   * failed in this request (left out of every later round, so a partial failure recomposes with
+   * what did load).
+   */
+  const round = (depth: number, without: ReadonlySet<string>): G | Promise<G | null> => {
+    const graph = deps.compose(without);
+    const missing = deps.pending(deps.typesOf(graph));
+    if (missing.length === 0) return graph;
+    // Each round loads what the CURRENT settings name.
+    const exhausted = depth >= maxRounds;
+    const load = exhausted ? Promise.reject(new Error(`still not loaded after ${depth} loads: ${missing.join(', ')}`)) : deps.ensure(missing);
+    return load.then(
+      () => (isCurrent() ? round(depth + 1, without) : null),
+      (err: unknown) => {
+        if (!isCurrent()) return null;
+        const failed = exhausted ? [...missing] : failedAmong(missing, err);
+        deps.onLoadError?.(failed, err);
+        const next = new Set([...without, ...failed]);
+        // Out of rounds: leave out everything still missing. Otherwise recompose without only the
+        // failed types, and load whatever else that graph still names.
+        return exhausted ? deps.compose(new Set([...next, ...missing])) : round(depth + 1, next);
+      },
+    );
+  };
+  return round(0, NONE);
 }
 
 /**

@@ -10,21 +10,55 @@
  * mounted) waits for it to open, so opening the editor fetches nothing until the player opens
  * that section.
  */
-import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type RefObject } from 'react';
 import type { ExtensionPanel, ExtensionPanelDecl, ExtensionToolDecl, ExtensionToolPanelProps, ExtensionUi } from '@thoremin/sdk-ui/types';
 import { LoadStatusReadout } from '@/app/LoadStatusReadout';
 import { useExtensionLoad } from '@/app/extensionLoadStatus';
 
+/** The page reload: a browser never refetches a failed `import()` in the same page. */
+const reloadPage = (): void => window.location.reload();
+
 /**
- * @param extensionId - whose load status the Readout shows: under the chosen instrument's row it
- *   says the extension is loading, or that it failed with a Reload, and is silent otherwise.
- * @param reload - the Reload action (the page reload; a parameter so a test can watch it).
+ * "Could not load", with a Reload: the one failure readout every lazy placeholder shows.
+ *
+ * @param lazyId - the `data-lazy-extension` marker (the panel's instrument id, the tool's id).
+ * @param containerRef - the placeholder's own ref, kept on the failure readout so a section's
+ *   `<details>` lookup sees the same element in every state.
  */
+export function LoadFailed({
+  message,
+  reload,
+  lazyId,
+  containerRef,
+}: {
+  message: string;
+  reload: () => void;
+  lazyId: string;
+  containerRef?: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div ref={containerRef} className="space-y-1" data-lazy-extension={lazyId}>
+      <LoadStatusReadout status={{ phase: 'error', message }} enabled />
+      <button type="button" className="text-[11px] text-white/70 underline hover:text-white" onClick={reload}>
+        Reload
+      </button>
+    </div>
+  );
+}
+
+export interface LazyPanelOptions {
+  /** Whose load status the Readout shows: under the chosen instrument's row it says the
+   *  extension is loading, or that it failed with a Reload, and is silent otherwise. Default
+   *  the panel's instrument id. */
+  extensionId?: string;
+  /** The Reload action (the page reload; an option so a test can watch it). */
+  reload?: () => void;
+}
+
 export function lazyPanel(
   decl: ExtensionPanelDecl,
   load: () => Promise<ExtensionUi>,
-  extensionId: string = decl.instrumentId,
-  reload: () => void = () => window.location.reload(),
+  { extensionId = decl.instrumentId, reload = reloadPage }: LazyPanelOptions = {},
 ): ExtensionPanel {
   const part = (key: 'Controls' | 'Readout'): ComponentType => {
     const resolve = () =>
@@ -73,26 +107,17 @@ export function lazyPanel(
       // readout would only say "absent", the player needs to know why and how to retry.
       const nodesFailed = key === 'Readout' && status?.phase === 'error';
       if (Component && !nodesFailed) return <Component />;
-      if (error) {
-        return (
-          <div ref={here} className="space-y-1" data-lazy-extension={decl.instrumentId}>
-            <LoadStatusReadout status={{ phase: 'error', message: `${decl.section} could not load (${error}). Reload the page to try again; your instrument is kept.` }} enabled />
-            <button type="button" className="text-[11px] text-white/70 underline hover:text-white" onClick={reload}>
-              Reload
-            </button>
-          </div>
-        );
-      }
       // The Controls say they are loading; a Readout under the instrument's row reports the
       // extension's own load (its nodes), with a Reload when that failed.
-      if (nodesFailed) {
+      const failure = error || (nodesFailed ? status!.message : null);
+      if (failure !== null) {
         return (
-          <div ref={here} className="space-y-1" data-lazy-extension={decl.instrumentId}>
-            <LoadStatusReadout status={{ phase: 'error', message: `${decl.section} could not load (${status!.message}). Reload the page to try again; your instrument is kept.` }} enabled />
-            <button type="button" className="text-[11px] text-white/70 underline hover:text-white" onClick={reload}>
-              Reload
-            </button>
-          </div>
+          <LoadFailed
+            containerRef={here}
+            lazyId={decl.instrumentId}
+            reload={reload}
+            message={`${decl.section} could not load (${failure}). Reload the page to try again; your instrument is kept.`}
+          />
         );
       }
       const loading = key === 'Controls' || status?.phase === 'loading';
@@ -117,7 +142,7 @@ export function lazyPanel(
 export function lazyToolPanel(
   decl: ExtensionToolDecl,
   load: () => Promise<ExtensionUi>,
-  reload: () => void = () => window.location.reload(),
+  reload: () => void = reloadPage,
 ): ComponentType<ExtensionToolPanelProps> {
   let loaded: ComponentType<ExtensionToolPanelProps> | null = null;
   function LazyExtensionTool(props: ExtensionToolPanelProps) {
@@ -146,16 +171,7 @@ export function lazyToolPanel(
       };
     }, [Component]);
     if (Component) return <Component {...props} />;
-    if (error) {
-      return (
-        <div className="space-y-1" data-lazy-extension={decl.id}>
-          <LoadStatusReadout status={{ phase: 'error', message: `${decl.label} could not load (${error}). Reload the page to try again.` }} enabled />
-          <button type="button" className="text-[11px] text-white/70 underline hover:text-white" onClick={reload}>
-            Reload
-          </button>
-        </div>
-      );
-    }
+    if (error) return <LoadFailed lazyId={decl.id} reload={reload} message={`${decl.label} could not load (${error}). Reload the page to try again.`} />;
     return (
       <div data-lazy-extension={decl.id}>
         <LoadStatusReadout status={{ phase: 'loading', message: `Loading ${decl.label}…` }} enabled />
