@@ -12,12 +12,14 @@ provideCarveHost({ control: carveCapture });
 
 /**
  * Space: toggle the live carve's capture through the command. Returns false when no carve is
- * live (or it is resting), so the key stays the browser's (a focused button, a scroll). A held
- * key's auto-repeat is swallowed, not dispatched: one press, one toggle.
+ * live, so the key stays the browser's (a focused button, a scroll). While one is live, Space is
+ * the carve's even during the rest (where it does nothing: a stray press must not press a
+ * focused Cancel), and a held key's auto-repeat is swallowed, not dispatched: one press, one
+ * toggle.
  */
 export function toggleCarveCapture(e?: Pick<KeyboardEvent, 'repeat'>): boolean {
   const control = liveCarve();
-  if (!control || control.state() === 'rest') return false;
-  if (!e?.repeat) void registry.dispatch('carve.capture.toggle', {});
+  if (!control) return false;
+  if (!e?.repeat && control.state() !== 'rest') void registry.dispatch('carve.capture.toggle', {});
   return true;
 }

@@ -84,7 +84,59 @@ describe('pause is a cue segment (the synthetic face)', () => {
     expect(segmentCue(faceModality, 2).id).toBe('faces-yours#2');
     // Paused, the ring still runs: holds are seen (not taken).
     expect(holdsWhilePaused).toContain('settling');
-    expect(holdsWhilePaused).toContain('held');
+    expect(holdsWhilePaused).toContain('taken');
+  });
+
+  it('a face taken before the pause and held across it (a blink in between) is not taken again', () => {
+    const t = createFaceTake();
+    t.start(0);
+    const blink = (v: FeatureVector): FeatureVector => ({ ...v, 'face.blendshape.eye.blinkLeft': 0.9, 'face.blendshape.eye.blinkRight': 0.9 });
+    // The smile is taken at about 4.07 s and held to 5.05 s: pause at 4.3 s, blink at 4.5 s,
+    // resume at 4.8 s still smiling.
+    for (let f = 0, ms = 0; ms <= 9000; f++, ms = f * FRAME_MS) {
+      if (ms >= 4300 && t.phase() === 'faces' && t.segments() === 1) t.pause(ms);
+      if (ms >= 4800 && t.phase() === 'paused') t.resume(ms);
+      const v = syntheticFaceVector(ms, f);
+      t.push(ms >= 4500 && ms < 4600 ? blink(v) : v, ms);
+    }
+    const points = t.session().points();
+    const smiles = points.filter((p) => p.t >= 3700 && p.t < 5100);
+    expect(smiles).toHaveLength(1);
+    expect(smiles[0].cue).toBe('faces-yours');
+    // The segment does take the next face (the relaxed face after the smile).
+    expect(points.some((p) => p.cue === 'faces-yours#2')).toBe(true);
+  });
+
+  it('the ring says latched, not taken, when the capture begins on a face already held', () => {
+    const t = createFaceTake();
+    t.start(0);
+    let first: string | null = null;
+    for (let f = 0, ms = 0; ms <= 4000 && first === null; f++, ms = f * FRAME_MS) {
+      t.push(syntheticFaceVector(ms, f), ms);
+      if (t.phase() === 'faces') first = t.hold();
+    }
+    expect(t.pointCount()).toBe(0);
+    expect(first).toBe('latched');
+  });
+
+  it('exploring first changes nothing in the capture: the noise units start at the rest', () => {
+    const frames = (offset: number, t: ReturnType<typeof createFaceTake>) => {
+      for (let f = 0, ms = 0; ms <= 12_000; f++, ms = f * FRAME_MS) t.push(syntheticFaceVector(ms, f), offset + ms);
+    };
+    const plain = createFaceTake();
+    plain.start(0);
+    frames(0, plain);
+    const explored = createFaceTake();
+    explored.explore(0);
+    // Six seconds of trying faces, the face changing every frame (smile, surprise, ...): the
+    // frame-to-frame differences a noise warm-up must never be fed. Then the same capture.
+    for (let f = 0, ms = 0; ms < 6000; f++, ms = f * FRAME_MS) explored.push(syntheticFaceVector(f % 2 ? 4500 : 7500, f), ms);
+    explored.start(6000);
+    frames(6001, explored);
+    const a = plain.session().points();
+    const b = explored.session().points();
+    expect(b.length).toBe(a.length);
+    b.forEach((p, i) => expect(p.t - 6001).toBeCloseTo(a[i].t, 6));
   });
 
   it('exploring collects nothing, and the ring runs', () => {
@@ -97,7 +149,7 @@ describe('pause is a cue segment (the synthetic face)', () => {
     }
     expect(t.phase()).toBe('explore');
     expect(t.pointCount()).toBe(0);
-    expect(holds).toEqual(new Set(['open', 'settling', 'held']));
+    for (const h of ['open', 'settling', 'taken']) expect(holds).toContain(h);
     t.start(9100);
     expect(t.phase()).toBe('rest');
     // Exploring then stopping builds nothing.
@@ -162,9 +214,11 @@ describe('Explore, Space and pause in the store', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(s().phase).toBe('rest');
     expect(claims).toEqual([true]);
-    // During the rest the command refuses, and Space is left to the browser.
+    // During the rest the command refuses; Space is still the carve's (swallowed, nothing done).
     expect((await registry.dispatch('carve.capture.toggle', {})).ok).toBe(false);
-    expect(toggleCarveCapture()).toBe(false);
+    expect(toggleCarveCapture()).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s().phase).toBe('rest');
     await run(SYNTHETIC_TIMELINE.restMs + 300);
     expect(s().phase).toBe('faces');
     await run(4 * (SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs));

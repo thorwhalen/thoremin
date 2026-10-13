@@ -26,7 +26,8 @@ export interface CarveHost {
 
 let host: CarveHost | null = null;
 
-/** Installed by `src/app/carveCapture.ts` when the app loads. */
+/** Installed by `src/app/carveCapture.ts` when the app loads. One carve is live at a time (the
+ *  SDK seam holds one control: a second carve tool, hands in #385 E8, takes it over while live). */
 export function provideCarveHost(next: CarveHost | null): void {
   host = next;
 }

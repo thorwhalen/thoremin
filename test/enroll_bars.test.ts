@@ -48,6 +48,13 @@ describe('the online carve and the separation ratio', () => {
     expect(liveCarve([holds[0]], ids, one)).toEqual([[0]]);
   });
 
+  it('repeats of one face never split (the gap floor), and nothing splits before there are units', () => {
+    const same: FeatureVector[] = [{ a: 10, b: 0 }, { a: 10.3, b: 0.2 }, { a: 9.8, b: 0.4 }];
+    expect(liveCarve(same, ['a', 'b'], one)).toEqual([[0, 1, 2]]);
+    expect(liveCarve(same.slice(0, 2), ['a', 'b'], one)).toEqual([[0, 1]]);
+    expect(liveCarve(holds, ids, () => Number.NaN)).toEqual([[0, 1, 2, 3, 4, 5]]);
+  });
+
   it('ranks the features that separate the categories, the within spread floored at one unit', () => {
     const r = separationRatios(holds, liveCarve(holds, ids, one), ids, one);
     expect(r.a).toBeGreaterThan(50);

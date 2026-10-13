@@ -44,6 +44,11 @@ export const BARS_DEFAULTS = {
   swapRatio: 1.5,
   /** The most categories the online carve proposes. */
   maxK: 8,
+  /** Two categories closer than this (RMS noise units, the sampler's own "same pose" bar)
+   *  are one: repeats of a face never split into two. */
+  minGap: 3,
+  /** How often the online carve is redone between new holds (the noise units drift), ms. */
+  recarveMs: 1000,
 } as const;
 
 /** Words that only namespace an id (`face.blendshape.mouth.smileLeft`). */
@@ -70,18 +75,34 @@ export function noiseUnit(x: number | undefined, ref: number | undefined, sigma:
 
 /**
  * The holds so far, carved online: the average-linkage hierarchy over the holds, distances in
- * noise units over `ids`, cut at the suggested k. Clusters are arrays of hold indices, ordered
- * by their earliest hold.
+ * noise units over `ids`, cut at the suggested k, but never between two groups closer than
+ * `minGap` (RMS noise units: the sampler's "same pose" bar, so repeats of one face stay one).
+ * With no feature in units yet, everything is one group. Clusters are arrays of hold indices,
+ * ordered by their earliest hold.
  */
-export function liveCarve(holds: readonly FeatureVector[], ids: readonly string[], sigma: (id: string) => number, maxK: number = BARS_DEFAULTS.maxK): number[][] {
+export function liveCarve(
+  holds: readonly FeatureVector[],
+  ids: readonly string[],
+  sigma: (id: string) => number,
+  maxK: number = BARS_DEFAULTS.maxK,
+  minGap: number = BARS_DEFAULTS.minGap,
+): number[][] {
   if (holds.length === 0) return [];
   const weights: Record<string, number> = {};
+  let measured = 0;
   for (const id of ids) {
     const s = sigma(id);
     weights[id] = s > 0 ? 1 / s : 0;
+    if (s > 0) measured++;
   }
+  if (measured === 0) return [holds.map((_, i) => i)];
   const tree = buildHierarchy(holds, ids, weights);
-  const clusters = cutAt(tree, suggestK(tree, { max: maxK }));
+  // The tree's heights are Euclidean over the measured features; the gap is an RMS.
+  const floor = minGap * Math.sqrt(measured);
+  let k = suggestK(tree, { max: maxK });
+  // Cutting into k leaves the merge at heights[size - k] undone: k only if that join is wide.
+  while (k > 1 && (tree.heights[tree.size - k] ?? Infinity) < floor) k--;
+  const clusters = cutAt(tree, k);
   return clusters.map((c) => [...c].sort((a, b) => a - b)).sort((a, b) => a[0] - b[0]);
 }
 
@@ -189,6 +210,8 @@ export interface LiveBarsOptions {
   baselineMs?: number;
   swapRatio?: number;
   maxK?: number;
+  minGap?: number;
+  recarveMs?: number;
 }
 
 export interface LiveBarsModel {
@@ -210,13 +233,16 @@ export function createLiveBars(context: () => LiveBarsContext, options: LiveBars
   let lastT = Number.NEGATIVE_INFINITY;
   let shown: string[] = [];
   let shownRanking: LiveBars['ranking'] | null = null;
-  /** The online carve, cached by the holds it was made from. */
-  let carve: { holds: readonly FeatureVector[]; n: number; clusters: number[][] } | null = null;
+  /** The online carve, cached by the holds it was made from, redone every `recarveMs`. */
+  let carve: { holds: readonly FeatureVector[]; n: number; at: number; clusters: number[][] } | null = null;
+  const recarveMs = options.recarveMs ?? BARS_DEFAULTS.recarveMs;
+  const minGap = options.minGap ?? BARS_DEFAULTS.minGap;
 
   const reference = (ctx: LiveBarsContext): Readonly<Record<string, number>> => ctx.rest ?? baseline;
   const clustersOf = (ctx: LiveBarsContext): number[][] => {
-    if (!carve || carve.holds !== ctx.holds || carve.n !== ctx.holds.length) carve = { holds: ctx.holds, n: ctx.holds.length, clusters: liveCarve(ctx.holds, ctx.ids, ctx.sigma, maxK) };
-    return carve.clusters;
+    const stale = !carve || carve.holds !== ctx.holds || carve.n !== ctx.holds.length || lastT - carve.at >= recarveMs;
+    if (stale) carve = { holds: ctx.holds, n: ctx.holds.length, at: lastT, clusters: liveCarve(ctx.holds, ctx.ids, ctx.sigma, maxK, minGap) };
+    return carve!.clusters;
   };
 
   return {

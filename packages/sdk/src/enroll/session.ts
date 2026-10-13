@@ -73,8 +73,10 @@ export interface SessionOptions {
 }
 
 export interface Session {
-  /** Start capturing for `cue`. Re-running a cue discards only that cue's samples. */
-  beginCue(cue: Cue): void;
+  /** Start capturing for `cue`. Re-running a cue discards only that cue's samples.
+   *  `after` continues a capture: the last point taken before it, so the same held pose is
+   *  not taken again (a carve resumed after a pause, #385 E2). */
+  beginCue(cue: Cue, options?: { after?: FeatureVector }): void;
   /** Feed a live feature vector. Every frame feeds the noise estimate; the active
    *  cue (if any) samples it. */
   push(vector: FeatureVector, tMs: number): void;
@@ -206,7 +208,7 @@ export function createSession(options: SessionOptions = {}): Session {
   };
 
   return {
-    beginCue(cue) {
+    beginCue(cue, options = {}) {
       active = cue;
       cuesSeen.set(cue.id, cue);
       activeFeatures = featuresFor(cue);
@@ -233,6 +235,7 @@ export function createSession(options: SessionOptions = {}): Session {
           features: activeFeatures,
           noise,
           ...(seed ? { seed } : {}),
+          ...(options.after ? { lastEmitted: options.after } : {}),
         });
         points.set(cue.id, []);
       } else {

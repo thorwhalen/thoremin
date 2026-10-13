@@ -342,9 +342,10 @@ const { modality } = faceModalityUi;
 /** The hold ring's words, per phase: what a hold does now. */
 function ringWords(phase: 'explore' | 'faces' | 'paused'): Record<HoldRingState, string> {
   const { one } = modality.words;
-  if (phase === 'faces') return { open: `Hold a ${one} until the ring closes.`, settling: 'Holding…', held: `Taken. Move to a new ${one}.` };
-  if (phase === 'paused') return { open: 'Paused: a hold now is not taken.', settling: 'Holding… (paused, not taken)', held: 'Would be taken, if not paused.' };
-  return { open: `Hold a ${one}: the ring closes when it would be taken.`, settling: 'Holding…', held: `Held. Try a new ${one}.` };
+  const latched = `Move to a new ${one} first.`;
+  if (phase === 'faces') return { open: `Hold a ${one} until the ring closes.`, settling: 'Holding…', taken: `Taken. Move to a new ${one}.`, latched };
+  if (phase === 'paused') return { open: 'Paused: a hold now is not taken.', settling: 'Holding… (paused)', taken: 'Held: it would have been taken, if not paused.', latched };
+  return { open: `Hold a ${one}: the ring closes when it would be taken.`, settling: 'Holding…', taken: `Held: that one would be taken. Try a new ${one}.`, latched };
 }
 
 const STATE_TEXT: Record<'explore' | 'rest' | 'faces' | 'paused', string> = {

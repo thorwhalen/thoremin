@@ -19,7 +19,10 @@
  * and resuming begins a NEW cue segment (`faces-yours`, then `faces-yours#2`, ...). The session
  * pools every vocabulary cue, so the carve is unchanged; and each segment has its own sampler,
  * so no still-point is taken inside a pause and none spans one (a hold in progress when Pause is
- * pressed is dropped with its sampler). A take with no pause has exactly the cues it had before.
+ * pressed is dropped with its sampler); a resumed segment is told the last face taken, so holding
+ * that face through the pause does not take it twice. A take with no pause has exactly the cues
+ * it had before, and a take that explored first resets the noise estimate at the rest, so its
+ * units are those of a take that did not.
  */
 import { CueSchema, type Cue, type CueSpecInput } from '@thoremin/sdk/enroll/cue';
 import { samplingFor } from '@thoremin/sdk/enroll/cue';
@@ -83,9 +86,10 @@ export const FACE_TAKE_DEFAULTS = {
 export type FaceTakePhase = 'idle' | 'explore' | 'rest' | 'faces' | 'paused' | 'done';
 
 /** What a hold indicator shows: `open` (moving, or nothing to judge), `settling` (a pose is
- *  being held and will be taken once the dwell is up), `held` (taken, or the pose already
- *  given: move to a new one first). */
-export type HoldState = 'open' | 'settling' | 'held';
+ *  being held and will be taken once the dwell is up), `taken` (it was just taken, or while
+ *  exploring or paused, would have been), `latched` (the pose held is one already given, or
+ *  was held when the capture began: move to a new one first). */
+export type HoldState = 'open' | 'settling' | 'taken' | 'latched';
 
 export interface FaceTakeOptions {
   restMs?: number;
@@ -144,7 +148,13 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     samplingFor(cues.vocabulary) === 'still-points'
       ? createStillPointSampler({ armed, cue: cues.vocabulary.id, features: session.featuresFor(cues.vocabulary), noise: session.noise() })
       : null;
-  const holdOf = (settling: boolean, armed: boolean): HoldState => (!armed ? 'held' : settling ? 'settling' : 'open');
+  /** Whether the latch now is a point just taken (by the capture, or the watch), not a pose
+   *  that was held when the sampler began. Cleared by the next move (the sampler re-arms). */
+  let justTaken = false;
+  const holdOf = (settling: boolean, armed: boolean): HoldState => {
+    if (armed) justTaken = false;
+    return !armed ? (justTaken ? 'taken' : 'latched') : settling ? 'settling' : 'open';
+  };
 
   return {
     phase: () => phase,
@@ -155,8 +165,12 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     },
     start(tMs) {
       if (phase !== 'idle' && phase !== 'explore') return;
+      // Exploring is making faces: its frame-to-frame differences would warm the noise estimate
+      // on motion and set the units the take is carved in. The capture's units start at the rest.
+      if (phase === 'explore') session.noise().reset();
       phase = 'rest';
       watch = null;
+      justTaken = false;
       t0 = tMs;
       session.beginCue(cues.rest);
     },
@@ -164,15 +178,19 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       if (phase !== 'faces') return;
       session.endCue();
       phase = 'paused';
-      // The pose held as Pause is pressed is one just given: it reads as held until the player moves.
+      // The pose held as Pause is pressed reads as latched until the player moves.
       watch = watching(false);
+      justTaken = false;
     },
     resume() {
       if (phase !== 'paused') return;
       watch = null;
       segment++;
-      session.beginCue(segmentCue(modality, segment));
+      // The new segment continues the capture: the last face taken is not taken again.
+      const last = session.points().at(-1);
+      session.beginCue(segmentCue(modality, segment), last ? { after: last.vector } : {});
       phase = 'faces';
+      justTaken = false;
     },
     segments: () => segment,
     hold() {
@@ -184,11 +202,13 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       if (phase === 'idle' || phase === 'done') return;
       if (!(tMs > lastT)) return;
       lastT = tMs;
+      const before = session.points().length;
       session.push(vector, tMs);
       if (phase === 'explore' || phase === 'paused') {
-        if (modality.read(vector) !== null) watch?.push(vector, tMs);
+        if (modality.read(vector) !== null && watch?.push(vector, tMs)) justTaken = true;
         return;
       }
+      if (session.points().length > before) justTaken = true;
       if (phase === 'rest') {
         if (modality.read(vector) !== null) rest.push(vector);
         if (tMs - t0 >= restMs && rest.length >= minRestFrames) {
@@ -196,6 +216,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
           segment = 1;
           session.beginCue(segmentCue(modality, segment));
           phase = 'faces';
+          justTaken = false;
           facesAt = tMs;
         }
       }

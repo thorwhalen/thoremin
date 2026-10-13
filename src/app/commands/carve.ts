@@ -22,7 +22,7 @@ export const toggleCarveCaptureCmd = defineCommand({
   params: z.object({}),
   execute: async () => {
     const control = liveCarve();
-    if (!control) return err('no_carve', 'Nothing is being carved: open Your faces and choose Record my faces.');
+    if (!control) return err('no_carve', 'No carve tool is reading the camera (in Your faces: Record my faces).');
     const before = control.state();
     if (before === 'rest') return err('resting', 'The rest is being recorded; capturing starts by itself when it ends.');
     control.toggle();
