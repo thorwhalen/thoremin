@@ -111,6 +111,8 @@ describe.runIf(FACES)('the face categorizer section of the instrument editor', (
     expect(branchIdsFor(useControls.getState() as unknown as DerivationSettings)).toContain('face-categorizer');
     // The extension's loader resolved it: its categories are listed, each on Auto.
     await waitFor(() => expect(useCategorizerPlay.getState().phase).toBe('ready'));
+    // The section says what the face chords read with (#359: the host shows no row readout for it).
+    await waitFor(() => expect(document.querySelector('[data-faces-readout]')?.textContent).toBe('Reading with My faces'));
     const rows = await screen.findByTestId('face-categorizer-degrees');
     const first = useCategorizerPlay.getState().categories[0];
     const chord = screen.getByLabelText(`Chord for ${first.name}`) as HTMLSelectElement;
