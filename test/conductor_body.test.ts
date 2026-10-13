@@ -3,9 +3,11 @@
  *
  * Node level: on A1's 4-pattern choir conductor (`video_body_conducting_44`, the pose
  * stream of a real conductor, its grid his own baton-hand strokes) the body conductor's
- * beat is monotone and counts about the grid's beats; `auto` follows the arm that beats;
- * the source decides which input is read (hands are ignored while reading the body, and
- * the other way round); a live switch of source keeps the beat and waits for a stroke.
+ * beat is monotone and counts about the grid's beats; `auto` follows the arm that beats,
+ * right or left (the clip with its sides swapped); the source decides which input is read
+ * (hands are ignored while reading the body, and the other way round); a live switch of
+ * source or point keeps the beat and waits for a stroke, and a fermata held across that
+ * rebuild is released by the new follower's first stroke.
  *
  * Graph level, the acceptance test: `runHeadless` over the COMPOSED instrument graph the
  * derivation gives for "conductor on, source body", with the body slot on `replay-body`
@@ -22,6 +24,7 @@
 import { describe, expect, it } from 'vitest';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { conductorNode, DEFAULT_CONDUCTOR_DIAL, SCORE_VOICE_ID_BASE, type BodyFrame, type HandsFrame, type SynthParams } from '@/nodes';
+import { BLM } from '@thoremin/sdk/nodes/domain';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints } from '@/nodes/features/conductor_body';
 import { createAppRegistry } from '@/nodes/browser';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
@@ -39,6 +42,22 @@ const RECORDED = { mirrorX: false, mirrorHandedness: false };
 const BODY = { enabled: true, source: 'body', ...RECORDED } as const;
 
 const monotone = (xs: number[]) => xs.every((x, i) => i === 0 || x >= xs[i - 1]);
+
+/** The clip with the body's sides swapped (every `left_*` landmark for its `right_*`): the
+ *  same conductor beating with his LEFT arm. */
+function swapSides(frames: BodyFrame[]): BodyFrame[] {
+  const names = Object.keys(BLM) as (keyof typeof BLM)[];
+  const pairs = names.filter((n) => n.startsWith('left_')).map((n) => [BLM[n], BLM[n.replace('left_', 'right_') as keyof typeof BLM]] as const);
+  return frames.map((f) => {
+    const landmarks = [...f.landmarks];
+    const visibility = [...f.visibility];
+    for (const [l, r] of pairs) {
+      [landmarks[l], landmarks[r]] = [landmarks[r], landmarks[l]];
+      [visibility[l], visibility[r]] = [visibility[r], visibility[l]];
+    }
+    return { ...f, landmarks, visibility };
+  });
+}
 
 describe('the body channel frame and the joints', () => {
   const f = body.find((x) => x.present)!;
@@ -95,6 +114,20 @@ describe(`the body conductor on ${CLIP} (${grid.length} beats in the grid)`, () 
     expect(auto).toBeGreaterThan(grid.length * 0.8);
   });
 
+  it('auto follows a LEFT beating arm too (the clip with its sides swapped), as naming the left arm does', async () => {
+    const swapped = swapSides(body);
+    const run = async (hand: 'auto' | 'left' | 'right') => {
+      const h = conductorNode.make(conductorNode.params.parse({ ...BODY, bodyPoint: 'wrist', hand }));
+      const outs = await replayNode(h, { body: swapped }, { dt: 1 / FPS });
+      return outs.map((o) => o.beat as number);
+    };
+    const auto = await run('auto');
+    expect(auto).toEqual(await run('left'));
+    // The arm that does not beat is not what auto followed.
+    expect(auto).not.toEqual(await run('right'));
+    expect(auto[auto.length - 1]).toBeGreaterThan(grid.length * 0.85);
+  });
+
   it('every body point follows something on a real conductor', async () => {
     for (const bodyPoint of ['impact', 'wrist', 'com'] as const) {
       const h = conductorNode.make(conductorNode.params.parse({ ...BODY, bodyPoint }));
@@ -116,7 +149,45 @@ describe(`the body conductor on ${CLIP} (${grid.length} beats in the grid)`, () 
     expect(b[b.length - 1].beat).toBe(0);
   });
 
-  it('switching the source live keeps the beat where it is and waits for the next stroke', async () => {
+  it('switching the source live, hands to body: the beat keeps its place, then the body leads', async () => {
+    const h = conductorNode.make(conductorNode.params.parse({ enabled: true, ...RECORDED }));
+    const hands = loadStream('conducting_44', 'src.hands') as HandsFrame[];
+    const n = Math.min(hands.length, body.length);
+    const half = Math.floor(n / 2);
+    const config = body.slice(0, n).map((_, i) => (i < half ? { enabled: true, ...RECORDED } : BODY));
+    const outs = await replayNode(h, { hands: hands.slice(0, n), body: body.slice(0, n), config }, { dt: 1 / FPS });
+    const beats = outs.map((o) => o.beat as number);
+    expect(monotone(beats)).toBe(true);
+    expect(beats[half - 1]).toBeGreaterThan(3);
+    expect((outs[half].time as { anchors: number }).anchors).toBe(0);
+    expect(beats[half]).toBeCloseTo(beats[half - 1], 6);
+    expect(beats[n - 1]).toBeGreaterThan(beats[half - 1] + 2);
+  });
+
+  it('a fermata held across a rebuild of the follower is released by its first stroke', async () => {
+    const doc = { v: 1, title: 't', source: 'builtin', parts: [], tempoMap: [{ beat: 0, bpm: 87 }], timeSignatures: [], dynamics: [], fermatas: [6], lengthBeats: 64 };
+    const run = async (switchAfterHold: boolean) => {
+      const h = conductorNode.make(conductorNode.params.parse(BODY));
+      let held = -1;
+      let heldTicks = 0;
+      for (let i = 0; i < body.length; i++) {
+        const config = switchAfterHold && held >= 0 && i > held ? { ...BODY, hand: 'right' } : BODY;
+        const o = (await h.process({ body: body[i], doc, config }, { time: i / FPS, dt: 1 / FPS, tick: i, resources: {} } as never)) as { time: { state: string }; beat: number };
+        if (o.beat === 6 && o.time.state === 'hold') {
+          if (held < 0) held = i;
+          heldTicks += 1;
+        }
+      }
+      return heldTicks;
+    };
+    const plain = await run(false);
+    const rebuilt = await run(true);
+    expect(plain).toBeGreaterThan(0);
+    // One new stroke releases it: at most a little over a beat (87 bpm, 30 fps) longer.
+    expect(rebuilt).toBeLessThan(plain + 2 * FPS);
+  });
+
+  it('switching the body point live keeps the beat where it is and waits for the next stroke', async () => {
     const h = conductorNode.make(conductorNode.params.parse({ enabled: true, ...RECORDED }));
     const n = 360;
     const config = body.slice(0, n).map((_, i) => (i < 180 ? BODY : { ...BODY, bodyPoint: 'com' }));
@@ -184,6 +255,10 @@ describe('structural guard: conductor.body is connected whenever the source is b
       expect(bodyEdge(spec)).toBe(true);
     });
   }
+
+  it('an explicit set that lists an idle conductor does not start the pose camera', () => {
+    expect(branchIdsFor({ conductor: { enabled: false, source: 'body' } }, { explicit: ['conductor'] })).not.toContain('body-source');
+  });
 
   it('the hand conductor does not start the pose camera', () => {
     expect(branchIdsFor({ conductor: { enabled: true, source: 'hands' } })).not.toContain('body-source');

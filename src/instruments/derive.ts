@@ -138,7 +138,9 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // is the player's, like the dancer's song.
     const conducted = songConducted(settings) && ids.includes('conductor');
     const dancerLeads = songFollows(settings) && !conducted;
-    const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor');
+    // As below: only while the conductor (or its orchestra) is on, not for a saved set
+    // that merely lists an idle conductor.
+    const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor') && (on(settings.conductor) || on(settings.conductor?.orchestra));
     add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || dancerLeads || bodyConducts);
     add('song-pace', dancerLeads || conducted);
     return ids;

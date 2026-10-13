@@ -29,7 +29,7 @@ import { unlockSongPlayback } from '@/nodes/output/song_player';
 import { loadSongFile } from './song/host';
 import { useControls } from './store';
 import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
-import { ConductorControls, SOURCE_LABEL } from './dials/panels/conductor';
+import { ConductorControls } from './dials/panels/conductor';
 import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
@@ -184,7 +184,7 @@ export default function ConductorPanel() {
               onClick={() => void dispatchDialSetIn('conductor.source', value)}
               className={`rounded px-2 py-1 font-semibold transition ${value === source ? 'bg-emerald-500 text-black' : 'text-white/70 hover:bg-white/10'}`}
             >
-              Conduct with {SOURCE_LABEL[value].toLowerCase()}
+              Conduct with {value}
             </button>
           ))}
         </div>

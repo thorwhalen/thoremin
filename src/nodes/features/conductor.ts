@@ -262,6 +262,8 @@ export const conductorNode = defineNode<Params>({
     /** What the follower was built for: a change re-creates it (the body's joints are
      *  fixed at construction), keeping the beat where it is. */
     let coreKey = '';
+    /** The score tempo (bpm) the body detector's period was last seeded from. */
+    let seededBpm: number | null = null;
     // Speed-based fallback: EW speed of the tracked point (or the body's quantity of
     // motion) and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
@@ -275,6 +277,7 @@ export const conductorNode = defineNode<Params>({
       ictus = null;
       lastPt = null;
       lastBody = null;
+      seededBpm = null;
       speedEw = 0;
       speedEnv = 0;
     };
@@ -356,19 +359,18 @@ export const conductorNode = defineNode<Params>({
         // joints when built, so a change of side or point (or of source) re-creates it.
         // The beat stays where it is: the new follower waits for its first stroke.
         const key = c.source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : 'hands';
-        if (ictus && key !== coreKey) resetFollower();
+        if (ictus && key !== coreKey) {
+          resetFollower();
+          // A held fermata stays held, and the new follower's first stroke releases it
+          // (its anchor count starts again from 0).
+          fermataAnchors = 0;
+        }
         if (!wasEnabled || !ictus) {
           coreKey = key;
           ictus = createIctus({
             detector:
               c.source === 'body'
-                ? createImpactDetector({
-                    joints: conductorBodyJoints(c.bodyPoint, c.hand),
-                    mirrorX: c.mirrorX,
-                    // The level confirms itself from the first joint followed (A2, note 5):
-                    // a score's marked tempo seeds it at the beat.
-                    ...(docBpm ? { initialPeriod: 60 / docBpm } : {}),
-                  })
+                ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX })
                 : { mirrorX: c.mirrorX },
             prior: c.prior,
             oscillator: { beatsPerBar: c.beatsPerBar, phaseGain: c.phaseGain, periodGain: c.periodGain },
@@ -390,6 +392,14 @@ export const conductorNode = defineNode<Params>({
           f !== prev && !(!!f && !!prev && f.t !== undefined && f.t === prev.t);
         let s: IctusState;
         if (c.source === 'body') {
+          // The level confirms itself from the first joint followed (A2, note 5 on #386):
+          // a score's marked tempo seeds the detector at the beat. The piece loads only
+          // once conducting is on, so it usually arrives after the detector was built:
+          // seed whenever it (re)appears, until the first stroke sets the period itself.
+          if (docBpm !== null && docBpm !== seededBpm && ictus.state().anchors === 0) {
+            ictus.detector.setPeriod(60 / docBpm);
+            seededBpm = docBpm;
+          }
           const body = inputs.body as BodyFrame | undefined;
           const fresh = isFresh(body, lastBodyFrame);
           lastBodyFrame = body;

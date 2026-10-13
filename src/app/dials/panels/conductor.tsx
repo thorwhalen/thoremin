@@ -54,9 +54,9 @@ const BODY_POINT_LABEL: Record<ConductorDialParams['bodyPoint'], string> = {
   hips: 'hips bounce',
   head: 'head nod',
 };
-export const SOURCE_LABEL: Record<ConductorDialParams['source'], string> = {
-  hands: 'Hands',
-  body: 'Body',
+const SOURCE_LABEL: Record<ConductorDialParams['source'], string> = {
+  hands: 'a beating hand',
+  body: 'the body (an arm, or a bounce)',
 };
 /** The rhythm prior (#232), in the player's terms: what kind of tempo it follows best. */
 const PRIOR_LABEL: Record<RhythmPriorKind, string> = {
@@ -250,7 +250,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
         the trunk, with the camera seeing you from head to hips): the bottom of each
         stroke is a beat, stroke size is loudness, and the score follows your tempo. Stop beating and it holds. A short
         catch-up follows a conductor closely; a long one forgives a shaky beat. The
-        tempo sense takes effect the next time conducting is switched on. The demo
+        tempo sense takes effect the next time conducting is switched on (with the body, also when the arm or the point changes). The demo
         pieces are public domain or CC0 (see scores/LICENSES.md); a file you load stays
         in this browser.
       </p>
