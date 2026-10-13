@@ -109,6 +109,7 @@ export function toExpressionScores(
     thresholds: cats.map(() => 0),
     fired: cats.map((_, i) => i === index),
     personal: {
+      categorizer: play.id,
       id: index >= 0 ? cats[index].id : null,
       name: index >= 0 ? cats[index].label : null,
       ids: cats.map((c) => c.id),

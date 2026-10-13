@@ -27,6 +27,7 @@ import {
   ABSENT_EXPRESSION,
   expressionActivations,
   decideExpression,
+  generalReading,
   DEFAULT_EXPRESSION_SENSITIVITY,
   type ExpressionScores,
   type ExpressionSensitivity,
@@ -97,6 +98,9 @@ export const faceExpressionNode = defineNode<Params>({
         scores: EMOTIONS.map((e) => smoothed[e]),
         thresholds: EMOTIONS.map((e) => decision.thresholds[e]),
         fired: EMOTIONS.map((e) => decision.fired[e]),
+        // The general model is one categorizer (#330 P6): its reading in the shape every
+        // categorizer's takes, so the chord and the overlay read one shape.
+        personal: generalReading(committed),
       };
     };
 

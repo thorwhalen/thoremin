@@ -13,9 +13,11 @@
  *   default) plays the degree of the expression the category stands in for; -1 is silence.
  */
 import { z } from 'zod';
+import { GENERAL_CATEGORIZER_ID } from '@thoremin/sdk/music/expression';
 
-/** The general (shipped) expression model: the categorizer id that changes nothing. */
-export const GENERAL_CATEGORIZER = 'general';
+/** The general (shipped) expression model: the categorizer id that changes nothing. Since
+ *  #330 P6 the general model is a categorizer like the others, under this id (the SDK's). */
+export const GENERAL_CATEGORIZER = GENERAL_CATEGORIZER_ID;
 
 /** A category with no degree of its own: it plays the expression it stands in for. */
 export const AUTO_DEGREE = -2;

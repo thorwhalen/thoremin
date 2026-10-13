@@ -2,7 +2,7 @@
 
 Personal facial-expression categorizers for thoremin ([#330](https://github.com/thorwhalen/thoremin/issues/330)). A player records a take of their own faces; the take is carved into categories (as many as they choose); each category is shown by its faces and named, with defaults from the general expression model matched one-to-one; several categorizers are saved, and an instrument's face chords read one in place of the general model.
 
-This package is phases P2 (the session), P3 (test, correct, tune, import and export), P4 (an instrument chooses its categorizer and the chord each category plays) and P5 (shared categorizers) of #330.
+This package is phases P2 (the session), P3 (test, correct, tune, import and export), P4 (an instrument chooses its categorizer and the chord each category plays), P5 (shared categorizers) and P6 (the general model is one categorizer) of #330.
 
 ## In the app
 
@@ -56,6 +56,16 @@ Categorizers shipped with the app for every player, listed under **Shared** in *
 - A shared file's categories are given the dial's slot ids (`cat-1`, ...) in order on load, so each one can have its own chord.
 - A shared categorizer plays **untuned**: the P3 tuning is about one player's room and camera. **Copy to my categorizers** saves it among your own (under a name none of yours has, by name or by the id the name slugs to, so nothing is replaced) and points the instrument at the copy, keeping the chords you chose. Open the copy in Tools, then Your faces, to tune it or *Retrain on my face*. A copy, not a per-device tuning keyed by the shared id: the tuning dials only make sense next to the live test, which is in the tool, and a model that does not transfer from one face to another needs the retrain anyway, which needs a copy.
 - The one shipped today is a **demo** (`demo-smile`), built by `npm run faces:demo` from the repo's own three-second test recording (`test/fixtures/video_face_expressions`) and checked against it by a test. The real shared categorizers are recorded and exported in the app (Tools, Your faces, Export file) and added beside it with an index entry.
+
+### The general model is one categorizer (P6)
+
+The general (shipped) expression model is a categorizer like the others, with the id `general`:
+
+- Its categories are the seven expressions (`happy`, `sad`, `angry`, `surprised`, `fearful`, `disgusted`, `kiss`), each standing in for itself, and `neutral` is its "none of these". Core's `face-expression` emits its readings in the categorizer shape (`ExpressionScores.personal`, from the SDK's `generalReading`).
+- The chord renderer and the overlay read only that shape, whichever categorizer made the reading. There is no second, closed-label path. A reading recorded before P6 (no `personal`) is read as the general one (`categorizerReading`).
+- Its per-category degrees are the instrument's expression degrees (`faceExpr.degrees`). Each category stands in for itself, so its Auto degree is that map, and no second copy of the map exists. No persisted shape changed, so there is no store migration.
+- Instruments play exactly as before: `test/faces/general_categorizer.test.ts` replays the real recording and a scripted face holding all seven expressions. It runs under two degree maps, through `face-chord` and through `face-categorizer` with the dial on `general` or on a missing id, and checks a golden hashed from main before the change.
+- The general model stays core's node, not the extension's `face-categorizer`. A build without this extension (`npm run test:core`) must still play the face chords, and an extension node is loaded lazily.
 
 `?faces.source=synthetic` runs the session on a scripted face with a canvas video: no camera and no face model. It is a verification affordance, and the browser smoke drives it.
 

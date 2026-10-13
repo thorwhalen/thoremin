@@ -60,11 +60,16 @@ export type BlendshapeWeights = Record<string, number>;
  * aligned to {@link EMOTIONS}, for the readout); `fired` is score ≥ threshold; and
  * `label` is the decided expression — one of the seven emotions or `neutral`.
  *
- * `personal` is set when a PERSONAL categorizer made the reading (#330 P4): the player's own
- * categories, by id and name. `label` is then the expression the current category stands in
- * for (its one-to-one match with the general model), so a consumer that knows only the
- * seven expressions still works, and `scores` / `thresholds` / `fired` are aligned to the
- * player's categories, not to {@link EMOTIONS}.
+ * `personal` is the CATEGORIZER's reading (#330 P4, P6): its categories by id and name, the
+ * one being read, and the expression each stands in for. `label` is the expression the
+ * current category stands in for, so a consumer that knows only the seven expressions still
+ * works, and `scores` / `thresholds` / `fired` are aligned to the categorizer's categories.
+ *
+ * Since P6 the general model is one categorizer among the others ({@link generalReading}): its
+ * categories are the seven expressions (ids and names {@link EMOTIONS}, each standing in for
+ * itself), `neutral` is its "none of these", and its readings carry `personal` too. So the
+ * chord renderer and the overlay read ONE shape, whichever categorizer made it. A reading
+ * without `personal` (recorded before P6) is read as the general one ({@link categorizerReading}).
  */
 export interface ExpressionScores {
   present: boolean;
@@ -75,8 +80,14 @@ export interface ExpressionScores {
   personal?: PersonalReading;
 }
 
-/** A personal categorizer's reading, carried on {@link ExpressionScores}. */
+/** A categorizer's reading, carried on {@link ExpressionScores} (the general model's too, #330 P6). */
 export interface PersonalReading {
+  /** Which categorizer read it: {@link GENERAL_CATEGORIZER_ID} or a player's (or shared) id.
+   *  Absent on a reading made before P6. */
+  categorizer?: string;
+  /** What this categorizer calls "none of these" (the general model: `neutral`); absent =
+   *  {@link NONE_OF_THESE}. */
+  noneName?: string;
   /** The category being read, or null: none of these (a rejected face, or not yet settled). */
   id: string | null;
   /** The player's name for it, or null with `id`. */
@@ -87,6 +98,38 @@ export interface PersonalReading {
   names: readonly string[];
   /** The expression each category stands in for, aligned with `ids`. */
   standsFor: readonly ExpressionLabel[];
+}
+
+/** The general (shipped) expression model's categorizer id (#330 P6): one id among the others. */
+export const GENERAL_CATEGORIZER_ID = 'general';
+
+/** What a reading with no category is called when its categorizer names nothing else. */
+export const NONE_OF_THESE = 'none of these';
+
+/** The general model's categories: the seven expressions, each standing in for itself. */
+const GENERAL_IDS: readonly ExpressionLabel[] = EMOTIONS;
+
+/**
+ * The general model's reading as a categorizer's (#330 P6): `label` is read as its category,
+ * `neutral` as its "none of these" (named `neutral`). Its categories stand in for themselves,
+ * so its per-category degrees are the instrument's expression degrees (`faceExpr.degrees`):
+ * {@link personalDegree} with no category degree of its own plays `degreeFor(label)`, exactly
+ * the closed-label rule it replaces.
+ */
+export function generalReading(label: ExpressionLabel): PersonalReading {
+  const id = label === 'neutral' ? null : label;
+  return { categorizer: GENERAL_CATEGORIZER_ID, noneName: 'neutral', id, name: id, ids: GENERAL_IDS, names: GENERAL_IDS, standsFor: GENERAL_IDS };
+}
+
+/** `expr`'s categorizer reading: its own, or (a reading made before P6) the general one. */
+export function categorizerReading(expr: Pick<ExpressionScores, 'label' | 'personal'>): PersonalReading {
+  return expr.personal ?? generalReading(expr.label);
+}
+
+/** The name of what `expr` reads: the category's name, or its categorizer's "none of these". */
+export function readingName(expr: Pick<ExpressionScores, 'label' | 'personal'>): string {
+  const r = categorizerReading(expr);
+  return r.name ?? r.noneName ?? NONE_OF_THESE;
 }
 
 /**
@@ -385,6 +428,7 @@ export const ABSENT_EXPRESSION: ExpressionScores = {
   scores: EMOTIONS.map(() => 0),
   thresholds: EMOTIONS.map(() => 0),
   fired: EMOTIONS.map(() => false),
+  personal: generalReading('neutral'),
 };
 
 // ---- Confusion-aware expression → scale-degree assignment -----------------

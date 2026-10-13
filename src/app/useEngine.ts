@@ -57,7 +57,7 @@ import { createCategoryDispatcher, resetCategoryLive } from './enroll/categoryDi
 import { installCategoryDemand, useCategoryBinding } from './enroll/categoryBinding';
 import type { FaceStatus } from '@/nodes';
 import type { MidiStatus } from '@/nodes/browser';
-import type { ExpressionScores } from '@/music/expression';
+import { readingName, type ExpressionScores } from '@/music/expression';
 import { cameraConstraints } from './camera';
 import { latencyHintFor, noteLatencyHintInEffect } from './timing/audioPrefs';
 
@@ -456,11 +456,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           }
           const expr = engine.getOutput('faceExpr', 'expression') as ExpressionScores | undefined;
           const detected = fs.phase === 'ready' && fs.faceDetected && expr?.present;
-          // The label is what the chord PLAYED: a personal categorizer's category name when
-          // one reads the face (#330 P4); the scores stay the general model's (the calibration
-          // wizard meters them per emotion).
+          // The label is what the chord PLAYED: the name of the category its categorizer read
+          // (the general model's is an expression or `neutral`; #330 P4, P6); the scores stay
+          // the general model's (the calibration wizard meters them per emotion).
           const played = engine.getOutput('exprChord', 'played') as ExpressionScores | undefined;
-          const label = played?.personal ? (played.personal.name ?? 'none of these') : expr?.label;
+          const label = played ? readingName(played) : expr?.label;
           useFaceStatus.getState().report(fs, detected ? (label ?? null) : null, detected ? expr!.scores : null);
           lastFaceReport = now;
           lastPhase = fs.phase;

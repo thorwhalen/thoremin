@@ -24,10 +24,13 @@
  * never rebuilds the graph. The `triad` output is the un-voiced scale triad (three
  * tones), used by the overlay to highlight the chord's pitch classes on the guide.
  *
- * A PERSONAL categorizer (#330 P4) reaches it on the same `expression` port: the reading
- * then carries the player's categories (`expression.personal`), and the degree is the
- * player's choice for that category (`categoryDegrees`, by category id) or, by default, the
- * degree of the expression the category stands in for ({@link personalDegree}).
+ * Every reading is a CATEGORIZER's (#330 P4, P6): the general model's (its categories are the
+ * seven expressions, each standing in for itself) or a player's own. The degree is the
+ * categorizer's own choice for the category being read (`categoryDegrees`, by category id) or,
+ * by default, the degree of the expression the category stands in for ({@link personalDegree}),
+ * from the instrument's expression degrees (`degrees`). For the general model that default IS
+ * its per-category degree, so its chords are exactly what the closed-label rule played. A
+ * reading recorded before P6 (no `personal`) is read as the general one.
  *
  * Stateful (a beat clock + a strum re-trigger), but deterministic given the tick
  * timing — so it replays exactly.
@@ -40,6 +43,7 @@ import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import {
   DEFAULT_EXPRESSION_TO_DEGREE,
   SILENCE_DEGREE,
+  categorizerReading,
   personalDegree,
   type ExpressionScores,
   type ExpressionLabel,
@@ -139,13 +143,11 @@ export const expressionChordNode = defineNode<Params>({
         const degrees = inputs.degrees as Partial<Record<ExpressionLabel, number>> | undefined;
         const degreeFor = (label: ExpressionLabel) =>
           degrees?.[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
-        const personal = expr?.personal;
         const categoryDegrees = inputs.categoryDegrees as Record<string, number> | undefined;
-        const degree = !active
+        const reading = active ? categorizerReading(expr!) : null;
+        const degree = !reading
           ? SILENCE_DEGREE
-          : personal
-            ? personalDegree(personal, personal.id === null ? null : personal.ids.indexOf(personal.id), categoryDegrees, degreeFor)
-            : degreeFor(expr!.label);
+          : personalDegree(reading, reading.id === null ? null : reading.ids.indexOf(reading.id), categoryDegrees, degreeFor);
         // The un-voiced scale triad (3 tones) for the overlay highlight; [] when
         // idle or when the expression maps to silence (a non-seven-note chord source
         // now yields a generalized chord rather than [], per #75).
