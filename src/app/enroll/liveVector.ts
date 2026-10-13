@@ -34,8 +34,11 @@ let latest: FeatureVector | null = null;
  *  ever read as "held". Convert HERE, at the boundary, once. */
 let latestT = 0;
 
-/** Per-edge last value, so one absent source does not erase the other's keys. */
-const byEdge = new Map<string, FeatureVector>();
+/** Per-edge last value and the tick (`ctx.time`) it came from. Only the parts emitted in
+ *  the CURRENT tick are merged: a source whose node left the graph (the face branch drops
+ *  when nothing demands it) stops emitting, and its last vector must not ride along in
+ *  every later tick as if the face were still there. */
+const byEdge = new Map<string, { vector: FeatureVector; time: number }>();
 
 /**
  * A DAG {@link Tap} that keeps {@link readLiveVector} current. Attach once at engine
@@ -46,14 +49,14 @@ export class LiveVectorTap implements Tap {
   onValue(key: string, value: unknown, ctx: NodeContext): void {
     if (!(FEATURE_VECTOR_EDGES as readonly string[]).includes(key)) return;
     if (!value || typeof value !== 'object') return;
-    byEdge.set(key, value as FeatureVector);
+    byEdge.set(key, { vector: value as FeatureVector, time: ctx.time });
     // Merge in a fixed edge order so a key present in both sources resolves the same way
     // every tick (it should not happen — face and hand ids are namespaced — but a
     // non-deterministic merge would be an awful bug to chase).
     const merged: FeatureVector = {};
     for (const k of FEATURE_VECTOR_EDGES) {
       const part = byEdge.get(k);
-      if (part) Object.assign(merged, part);
+      if (part && part.time === ctx.time) Object.assign(merged, part.vector);
     }
     latest = merged;
     latestT = ctx.time * 1000;

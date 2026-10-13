@@ -43,15 +43,18 @@
  * It does not change what the instrument IS. While the panel is open the instrument is
  * hushed (a `trainer` claim on the store's `hushedBy`) so the click and the spoken cues
  * are audible, and it sounds again on close; the player's own mute is never touched.
- * Training produces a model and nothing else;
- * binding a category to a dial or a command is a later, separate decision and will go
- * through the #127 write path. A bad training run cannot break the instrument.
+ * Training produces a model and nothing else. Binding is a separate, later step: *Save
+ * and bind* keeps the model (a zodal collection, `enroll/categoryBinding.ts`) and opens
+ * the Gestures tool, where each category is bound to a command that runs through the #87
+ * write path (`enroll/categoryDispatch.ts`). Nothing fires while a trainer is open, so a
+ * bad training run cannot re-voice the instrument under the player.
  */
 import { useEffect, useRef, useState } from 'react';
 import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
-import { categoryKey, type Category } from '@thoremin/sdk/enroll';
+import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
+import { savedCategoriesId, useCategoryBinding } from './enroll/categoryBinding';
 import RoutinePicker from './enroll/RoutinePicker';
 import ProjectionView from './enroll/ProjectionView';
 import { installVoice, unlockVoice, useVoice } from './enroll/voiceRuntime';
@@ -102,6 +105,73 @@ function suggestedLabel(c: Category, cueNames: Map<string, string>): string {
   if (entries.length === 0) return '';
   const [cueId, n] = entries[0];
   return n / c.size >= 0.7 ? cueNames.get(cueId) ?? cueId : '';
+}
+
+/** The trained model with the names the player sees: a typed name, else the suggestion
+ *  shown as its placeholder, else none (`categoryName` then says "category N"). */
+function labelledModel(model: TrainedModel, labels: Record<string, string>, cueNames: Map<string, string>): TrainedModel {
+  return {
+    ...model,
+    categories: model.categories.map((c) => ({ ...c, label: (labels[categoryKey(c)] ?? '').trim() || suggestedLabel(c, cueNames) })),
+  };
+}
+
+const DEFAULT_CATEGORIES_NAME = 'My categories';
+
+/** Keep the categories (#160): save the model under a name and go bind it. The binding
+ *  itself happens in the Gestures tool, where the instrument is audible again. */
+function KeepCategories({ model, labels, cueNames }: { model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
+  // Default to the active set's name: retraining the same vocabulary is the common case,
+  // and a re-save under its name carries its bindings over by category name.
+  const [name, setName] = useState(() => useCategoryBinding.getState().active?.name ?? DEFAULT_CATEGORIES_NAME);
+  const saved = useCategoryBinding((s) => s.saved);
+  const replaces = saved.find((s) => s.id === savedCategoriesId(name));
+  useEffect(() => {
+    void useCategoryBinding.getState().load();
+  }, []);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await useCategoryBinding.getState().saveModel(name.trim() || DEFAULT_CATEGORIES_NAME, labelledModel(model, labels, cueNames));
+      useTools.getState().openTool('gestures');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-1.5 rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-2">
+      <p className="text-[11px] leading-snug text-white/70">
+        Keep these categories and make them play: each one can run a command when you move into it.
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          aria-label="Name for these categories"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85"
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void save()}
+          className="rounded border border-emerald-400/40 px-2 py-1 text-[11px] text-emerald-200 transition hover:bg-emerald-400/10 disabled:opacity-50"
+        >
+          Save and bind
+        </button>
+      </div>
+      {replaces && (
+        <p className="text-[10px] text-white/45">
+          Replaces your saved &ldquo;{replaces.name}&rdquo;; its bindings move to the categories with the same names.
+        </p>
+      )}
+      {error && <p className="text-[10px] text-rose-300/80">{error}</p>}
+    </div>
+  );
 }
 
 const OUTCOME_GLYPH = { enough: '✓', cannot: '✗', skipped: '–' } as const;
@@ -659,6 +729,7 @@ export default function TrainerPanel() {
               {routine.some((c, i) => c.produces === 'nuisance' && outcomes[i] === 'enough') &&
                 ' Anything that moved during the "should not matter" cue was quieted.'}
             </p>
+            <KeepCategories model={model} labels={labels} cueNames={cueNames} />
           </div>
         )}
 

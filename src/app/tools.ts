@@ -168,7 +168,7 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     id: 'gestures',
     label: 'Gestures',
     description:
-      'Bind hand poses (fist, open palm, pinch) to commands for hands-free control — hold a pose to fire it.',
+      'Bind hand poses (fist, open palm, pinch) and the categories you trained to commands for hands-free control.',
     kind: 'panel',
     group: 'tool',
     defaultPinned: false,
