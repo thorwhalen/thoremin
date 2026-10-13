@@ -1,6 +1,6 @@
 /**
  * `composeGraph`: a pure union of branches into one `GraphSpec` the engine already
- * understands (`docs/design/instruments-as-graphs-and-extensions.md` §3.2). Four rules:
+ * understands (`docs/design/instruments-as-graphs-and-extensions.md` §3.2). Five rules:
  *
  * 1. Shared nodes must be the same node. A node id declared by two branches must resolve to
  *    the same type and structurally equal params; a conflicting duplicate is an error that
@@ -15,6 +15,11 @@
  * 4. The overlay element set is data: the composer returns the union of the branches'
  *    `overlay` lists; the host delivers it to the overlay through a port, never a param
  *    (a param change would rebuild the overlay node on every switch).
+ * 5. A branch may REPLACE others (`replaces`): when the replacing branch is in the closure, the
+ *    replaced ones are dropped, and the closure is resolved again without them (so what only
+ *    they required goes too). A replaced branch that something else still requires is an
+ *    error. This is how an extension swaps a part of a core instrument (#330: a personal face
+ *    categorizer for the general one) without core naming it.
  *
  * Deterministic and ORDER-INDEPENDENT: the composition order is the library's order (the
  * branch table), whatever order the caller names branches in, so the same SET of branch ids
@@ -88,6 +93,23 @@ function resolveClosure(ids: readonly string[], lib: Library): GraphBranch[] {
   return out.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
 }
 
+/**
+ * The closure of `ids` with rule 5 applied: the branches some branch in it replaces are left
+ * out, and the closure resolved again without them.
+ */
+function resolveComposed(ids: readonly string[], lib: Library): GraphBranch[] {
+  const first = resolveClosure(ids, lib);
+  const replacedBy = new Map<string, string>();
+  for (const b of first) for (const r of b.replaces ?? []) if (r !== b.id && !replacedBy.has(r)) replacedBy.set(r, b.id);
+  if (replacedBy.size === 0) return first;
+  const kept = resolveClosure(ids.filter((id) => !replacedBy.has(id)), lib);
+  for (const b of kept) {
+    const by = replacedBy.get(b.id);
+    if (by) throw new ComposeError(`branch "${b.id}" is replaced by "${by}" but another composed branch requires it`);
+  }
+  return kept;
+}
+
 function structurallyEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
@@ -115,7 +137,7 @@ const portKey = (p: { node: string; port: string }): string => `${p.node}.${p.po
 export function branchClosureIds(ids: readonly string[], library: Library | readonly GraphBranch[]): string[] {
   const lib = asLibrary(library);
   const known = ids.filter((id) => id in lib);
-  return resolveClosure(known, lib).map((b) => b.id);
+  return resolveComposed(known, lib).map((b) => b.id);
 }
 
 export function composeGraph(
@@ -124,7 +146,8 @@ export function composeGraph(
   opts: ComposeOptions = {},
 ): Composed {
   const lib = asLibrary(library);
-  const branches = resolveClosure(branchIds, lib);
+  // Rule 5 first: what the composed set replaces is not composed at all.
+  const branches = resolveComposed(branchIds, lib);
 
   // Rule 1: nodes, with shared-node identity.
   const nodes = new Map<string, { spec: NodeSpec; owner: string }>();

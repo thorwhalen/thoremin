@@ -143,27 +143,49 @@ export const faceTimbre = defineBranch({
   overlay: ['faceLandmarks'],
 });
 
-export const faceChord = defineBranch({
-  id: 'face-chord',
-  description: 'Expression to a diatonic chord: the expression classifier and the expression chord.',
+/**
+ * The face chord in three pieces (#330 P4), so the classifier can be swapped while the chord
+ * stays: `face-expression` is the general expression model, `face-chord-voice` the chord it
+ * plays, and `face-chord` joins the two. A personal categorizer (the faces extension's
+ * `face-categorizer`) replaces `face-chord` and joins its own reading to the same voice;
+ * the general model stays composed under it, as its fallback.
+ */
+export const faceExpression = defineBranch({
+  id: 'face-expression',
+  description: 'The general expression model: the face to seven expression scores.',
   requires: ['face-source'],
-  nodes: [
-    { id: 'faceExpr', slot: 'expression', params: {} },
-    { id: 'exprChord', type: 'expression-chord', params: {} },
-  ],
+  nodes: [{ id: 'faceExpr', slot: 'expression', params: {} }],
   edges: [
     to({ node: 'camFace', port: 'face' }, { node: 'faceExpr', port: 'face' }),
     to(ui('expressionSensitivity'), { node: 'faceExpr', port: 'sensitivity' }),
-    to({ node: 'faceExpr', port: 'expression' }, { node: 'exprChord', port: 'expression' }),
+  ],
+});
+
+export const faceChordVoice = defineBranch({
+  id: 'face-chord-voice',
+  description: 'The expression chord: an expression to a voiced diatonic chord, whichever classifier reads it.',
+  requires: ['face-source'],
+  nodes: [{ id: 'exprChord', type: 'expression-chord', params: {} }],
+  edges: [
     to(ui('chordSpec'), { node: 'exprChord', port: 'spec' }),
     to(ui('expressionDegrees'), { node: 'exprChord', port: 'degrees' }),
     to(ui('faceMapping'), { node: 'exprChord', port: 'faceMapping' }),
     to(ui('chordConfig'), { node: 'exprChord', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'exprChord', port: 'octaveShift' }),
     to({ node: 'exprChord', port: 'triad' }, { node: 'chordSel', port: 'a' }),
-    to({ node: 'faceExpr', port: 'expression' }, overlay('expression')),
   ],
   voices: [{ from: { node: 'exprChord', port: 'params' }, role: 'instrument' }],
+  overlay: ['chordGuide', 'chordName'],
+});
+
+export const faceChord = defineBranch({
+  id: 'face-chord',
+  description: 'Expression to a diatonic chord: the expression classifier and the expression chord.',
+  requires: ['face-expression', 'face-chord-voice'],
+  edges: [
+    to({ node: 'faceExpr', port: 'expression' }, { node: 'exprChord', port: 'expression' }),
+    to({ node: 'faceExpr', port: 'expression' }, overlay('expression')),
+  ],
   overlay: ['faceLandmarks', 'faceExpression', 'chordGuide', 'chordName'],
 });
 
@@ -324,6 +346,8 @@ export const BRANCHES: readonly GraphBranch[] = [
   fieldVoices,
   faceSource,
   faceTimbre,
+  faceExpression,
+  faceChordVoice,
   faceChord,
   faceControls,
   bodySource,

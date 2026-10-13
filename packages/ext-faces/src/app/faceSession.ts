@@ -11,7 +11,7 @@ import type { StoreApi } from 'zustand/vanilla';
 import { FACE_TRAINING_GROUPS } from '@thoremin/sdk/features/face_groups';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { controls } from '@thoremin/sdk-ui/host';
-import { createFaceModelStore } from './models';
+import { createFaceModelStore, withChangeNotice } from './models';
 import { createFaceSessionStore, FACE_SESSION_DEFAULTS, type FaceSessionDeps, type FaceSessionState } from './sessionStore';
 import { sourceFromUrl } from './sources';
 import { createFaceTestStore, FACE_TEST_DEFAULTS, type FaceTestState } from './testStore';
@@ -39,7 +39,7 @@ export function browserDeps(): FaceSessionDeps {
     source: () => sourceFromUrl(),
     thumbs: idbThumbStore(),
     grab: grabFrames,
-    models: createFaceModelStore(),
+    models: withChangeNotice(createFaceModelStore()),
     now: () => performance.now(),
     pollMs: FACE_SESSION_DEFAULTS.pollMs,
     claim: (on) => claimFaces(FACES_CLAIMER, on),

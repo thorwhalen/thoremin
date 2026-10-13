@@ -52,6 +52,9 @@ const branchHint = (id: string): string | undefined => BRANCHES.find((b) => b.id
  */
 export const USES_SAID_ELSEWHERE: ReadonlySet<string> = new Set([
   'field-voices',
+  // The face chord's two pieces (#330 P4): they compose with it and say nothing it does not.
+  'face-expression',
+  'face-chord-voice',
   ...AIR_INSTRUMENTS.map((a) => `air-${a.id}`),
 ]);
 

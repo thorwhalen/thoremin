@@ -1,7 +1,9 @@
 /**
- * The faces extension's React half, EAGER STUB: the shell tool it contributes, as data, so the
- * Tools launcher lists it before anything loads. The panel is `./lazy_ui.tsx`, loaded the first
- * time the tool opens (`docs/design/lazy-extensions.md`). No React import: it is data.
+ * The faces extension's React half, EAGER STUB: the shell tool and the editor section it
+ * contributes, as data, so the Tools launcher and the instrument editor list them before
+ * anything loads. Their components are `./lazy_ui.tsx`, loaded the first time the tool or the
+ * section opens, or a graph names the categorizer node (`docs/design/lazy-extensions.md`). No
+ * React import: it is data.
  */
 import type { ExtensionUiStub } from '@thoremin/sdk-ui/types';
 import type { ExtensionToolDecl } from '@thoremin/sdk-ui/tools';
@@ -17,7 +19,8 @@ export const FACES_TOOL: ExtensionToolDecl = {
 
 export const FACES_UI_STUB: ExtensionUiStub = {
   id: 'faces',
-  panels: [],
+  // The instrument editor's section (#330 P4): which categorizer the face chords read.
+  panels: [{ instrumentId: 'faces', section: 'Face categorizer' }],
   tools: [FACES_TOOL],
 };
 

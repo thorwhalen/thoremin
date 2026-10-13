@@ -1,8 +1,8 @@
 # @thoremin/ext-faces
 
-Personal facial-expression categorizers for thoremin ([#330](https://github.com/thorwhalen/thoremin/issues/330)). A player records a take of their own faces; the take is carved into categories (as many as they choose); each category is shown by its faces and named, with defaults from the general expression model matched one-to-one; several categorizers are saved.
+Personal facial-expression categorizers for thoremin ([#330](https://github.com/thorwhalen/thoremin/issues/330)). A player records a take of their own faces; the take is carved into categories (as many as they choose); each category is shown by its faces and named, with defaults from the general expression model matched one-to-one; several categorizers are saved, and an instrument's face chords read one in place of the general model.
 
-This package is phases P2 (the session) and P3 (test, correct, tune, import and export) of #330. Using a saved categorizer in an instrument is P4.
+This package is phases P2 (the session), P3 (test, correct, tune, import and export) and P4 (an instrument chooses its categorizer and the chord each category plays) of #330.
 
 ## In the app
 
@@ -30,11 +30,28 @@ Nothing leaves the browser. The take's video is never written to disk, and only 
 
 Lighting gets no dial: [`docs/research/face-categorizer-lighting-and-distance.md`](../../docs/research/face-categorizer-lighting-and-distance.md) has what was measured.
 
+### Play it: an instrument chooses its categorizer (P4)
+
+In the instrument editor (**Edit** an instrument), the **Face categorizer** section:
+
+- **Reads your face with**: *The general model* (the default, so nothing changes for an existing instrument) or one of your saved categorizers. Choosing one turns the face chords on if the face played nothing yet, and puts every category's chord back to Auto. Three clicks from a cold load: Edit, the section, the categorizer.
+- **The chord each of your faces plays**: *Auto* plays the chord this instrument gives the expression the face stands in for (its one-to-one match with the general model, the same match that named it; a face the general model does not recognise takes an expression no other face took). Or pick a degree, or *Silence*.
+
+What plays:
+
+- A face beyond the reject radius for a moment (reject mode) is *none of these* and plays what `neutral` plays: silence by default, like a resting face on the general model. In partition mode the category named `neutral` (the carve's name for the resting face) stands in for `neutral`; rename it and it is a face like any other.
+- The instrument keeps the categorizer's **id**, not the model. The model stays in your collection on this device, with its tuning (P3). An instrument that names a categorizer this device does not have plays the general model, and the section says so. A correction saved in the tool reaches the instrument at once.
+- The chord choices are kept per category PLACE (`cat-1`, `cat-2`, ...): re-carving or merging into the categorizer can renumber its faces, so check them after one.
+- Silence, not hold: a face beyond the reject radius for 8 camera frames (about a quarter second) lets the chord go, so a resting face is quiet as on the general model; a blink is not. The node param `holdOnReject` keeps the last chord instead.
+- The general model stays in the graph under yours: it plays until yours has loaded, and whenever the dial names a categorizer that is not there.
+
+How it is built: the dial `faceCategorizer` (`src/schema.ts`: `id`, and a degree per category slot `cat-1`..`cat-12`, Auto by default) composes the branch `face-categorizer`, which **replaces** core's `face-chord` (rule 5 of `composeGraph`) and feeds core's chord renderer (`expression-chord`) the same `face-expression` kind with the player's categories on it (`ExpressionScores.personal`). The node computes the face vector itself from the face frame (no feature claim), and the model arrives on the transient `faceCategorizerModel`, resolved off the tick by the React half's mount effect (`src/app/categorizerPlay.ts`). The node's code loads the first time a composed graph names it.
+
 `?faces.source=synthetic` runs the session on a scripted face with a canvas video: no camera and no face model. It is a verification affordance, and the browser smoke drives it.
 
 ## Shape
 
-A **lazy, tool-only** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-extensions.md)). The eager stubs total about 0.5 kB: `index.ts`, which ships no node, dial or branch, and `ui.tsx`, which declares the tool as data. Everything else is in `lazy_ui.tsx`, which loads the first time the tool opens.
+A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-extensions.md)). The eager stubs are `index.ts` (the dial, the branch as data, the transient, the derivation; its node type named in `provides`) and `ui.tsx` (the tool and the editor section, as data). The node is `lazy.ts`, loaded the first time a composed graph names it; the React half is `lazy_ui.tsx`, loaded with it or the first time the tool or the section opens.
 
 | Path | What |
 |---|---|
@@ -51,5 +68,11 @@ A **lazy, tool-only** extension ([`docs/design/lazy-extensions.md`](../../docs/d
 | `src/app/testStore.ts` | the live test: polls the source, feeds the reader, publishes at UI rate, holds its own claim |
 | `src/panels/TestAndTune.tsx` | try it, correct it, add faces, tune it, export; the import button |
 | `src/panels/FaceSessionPanel.tsx` | the panel |
+| `src/schema.ts`, `src/dials.ts` | the `faceCategorizer` dial (P4): the categorizer id, a degree per category slot |
+| `src/branches.ts` | the `face-categorizer` branch, replacing core's `face-chord` |
+| `src/lib/play.ts` | a saved categorizer resolved to play: what each category stands in for, the reading the renderer consumes |
+| `src/nodes/face_categorizer.ts` | the node: the face vector, tuned, tracked, read; the general reading passed through without a model |
+| `src/app/categorizerPlay.ts` | the dial's id resolved to a model off the tick, published on the transient |
+| `src/panels/CategorizerSection.tsx` | the editor section |
 
 The pure pieces that hands will want too are in the SDK. `@thoremin/sdk/enroll/carve` holds `createCarver` and `neutralIndices`. P1 provides the matcher, the exemplars and the file.

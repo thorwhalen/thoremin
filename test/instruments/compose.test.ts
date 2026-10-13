@@ -143,6 +143,27 @@ describe('composeGraph rules', () => {
     expect(composeGraph(['a', 'b'], [a, b]).elements).toEqual(['video', 'markers', 'faceLandmarks']);
   });
 
+  it('5: a branch that replaces another drops it, and what only it required, when both are named', () => {
+    const piece = defineBranch({ id: 'piece', nodes: [{ id: 'p', type: 'one-euro', params: {} }] });
+    const onlyOld = defineBranch({ id: 'only-old', nodes: [{ id: 'q', type: 'one-euro', params: {} }] });
+    const old = defineBranch({ id: 'old', requires: ['piece', 'only-old'], overlay: ['markers'] });
+    const swap = defineBranch({ id: 'swap', requires: ['piece'], replaces: ['old'], overlay: ['video'] });
+    const lib = [piece, onlyOld, old, swap];
+    const both = composeGraph(['old', 'swap'], lib);
+    expect(both.branches).toEqual(['piece', 'swap']);
+    expect(both.spec.nodes.map((n) => n.id)).toEqual(['p']);
+    expect(both.elements).toEqual(['video']);
+    // Alone, the replaced branch composes as before (how a failed lazy load falls back).
+    expect(composeGraph(['old'], lib).branches).toEqual(['piece', 'only-old', 'old']);
+  });
+
+  it('5: a replaced branch that another composed branch still requires is an error', () => {
+    const old = defineBranch({ id: 'old' });
+    const needsOld = defineBranch({ id: 'needs-old', requires: ['old'] });
+    const swap = defineBranch({ id: 'swap', replaces: ['old'] });
+    expect(() => composeGraph(['needs-old', 'swap'], [old, needsOld, swap])).toThrow(/"old" is replaced by "swap"/);
+  });
+
   it('is deterministic: the same ids give the same spec', () => {
     const one = composeInstrumentGraph(ALL_BRANCH_IDS);
     const two = composeInstrumentGraph(ALL_BRANCH_IDS);

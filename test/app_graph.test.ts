@@ -12,7 +12,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL } from './helpers/extensions';
+import { AIR, ASL, FACES } from './helpers/extensions';
 
 describe('production app graph', () => {
   it('builds with a valid topology', () => {
@@ -80,8 +80,9 @@ describe('production app graph', () => {
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
     // Without the air extension: the 29 core nodes (the 7 air nodes come with it); the
     // dance pulse (#186 PR F) is the 27th, the song player (#186 PR G) the 28th, the pace
-    // controller (#186 PR H) the 29th. The ASL extension adds its reader and its chord node.
-    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0));
+    // controller (#186 PR H) the 29th. The ASL extension adds its reader and its chord node,
+    // the faces extension its personal categorizer (#330 P4).
+    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0) + (FACES ? 1 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
@@ -132,7 +133,9 @@ describe('production app graph', () => {
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
     expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true); // face mesh data
-    expect(has('faceExpr', 'expression', 'overlay', 'expression')).toBe(true); // expression readout
+    // The expression readout: the general model's, or (every branch composed) the personal
+    // categorizer's, which replaces the general chord (#330 P4) and passes it through.
+    expect(has(FACES ? 'faceCat' : 'faceExpr', 'expression', 'overlay', 'expression')).toBe(true);
     // The overlay chord highlight is fed by whichever chord instrument sounds (#76).
     expect(has('exprChord', 'triad', 'chordSel', 'a')).toBe(true);
     expect(has('poseChord', 'chord', 'chordSel', 'b')).toBe(true);

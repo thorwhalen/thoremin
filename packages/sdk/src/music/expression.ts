@@ -59,6 +59,12 @@ export type BlendshapeWeights = Record<string, number>;
  * per-emotion activations and `thresholds` their effective firing thresholds (both
  * aligned to {@link EMOTIONS}, for the readout); `fired` is score ≥ threshold; and
  * `label` is the decided expression — one of the seven emotions or `neutral`.
+ *
+ * `personal` is set when a PERSONAL categorizer made the reading (#330 P4): the player's own
+ * categories, by id and name. `label` is then the expression the current category stands in
+ * for (its one-to-one match with the general model), so a consumer that knows only the
+ * seven expressions still works, and `scores` / `thresholds` / `fired` are aligned to the
+ * player's categories, not to {@link EMOTIONS}.
  */
 export interface ExpressionScores {
   present: boolean;
@@ -66,6 +72,40 @@ export interface ExpressionScores {
   scores: number[];
   thresholds: number[];
   fired: boolean[];
+  personal?: PersonalReading;
+}
+
+/** A personal categorizer's reading, carried on {@link ExpressionScores}. */
+export interface PersonalReading {
+  /** The category being read, or null: none of these (a rejected face, or not yet settled). */
+  id: string | null;
+  /** The player's name for it, or null with `id`. */
+  name: string | null;
+  /** Every category id, in the categorizer's order. */
+  ids: readonly string[];
+  /** Every category's name, aligned with `ids` (and with `scores`). */
+  names: readonly string[];
+  /** The expression each category stands in for, aligned with `ids`. */
+  standsFor: readonly ExpressionLabel[];
+}
+
+/**
+ * The scale degree a personal category plays (#330 P4): the player's own choice for that
+ * category when they made one (`categoryDegrees[id]`, {@link SILENCE_DEGREE} included), else
+ * the degree of the expression it stands in for. `index` is the category's position, or null
+ * for none of these (which plays what `neutral` plays). Shared by the renderer and the
+ * overlay, so the chord printed under a bar is the chord that plays.
+ */
+export function personalDegree(
+  personal: PersonalReading,
+  index: number | null,
+  categoryDegrees: Readonly<Record<string, number>> | undefined,
+  degreeFor: (label: ExpressionLabel) => number,
+): number {
+  if (index === null || index < 0 || index >= personal.ids.length) return degreeFor('neutral');
+  const own = categoryDegrees?.[personal.ids[index]];
+  if (typeof own === 'number' && Number.isInteger(own) && own >= SILENCE_DEGREE) return own;
+  return degreeFor(personal.standsFor[index] ?? 'neutral');
 }
 
 

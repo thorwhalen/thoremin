@@ -34,8 +34,8 @@ void _breath;
 describe('the extension list', () => {
   it.runIf(AIR)('ships the air extension, whose four instruments are four branches and four dial slices', () => {
     expect(EXTENSIONS.map((e) => e.id)).toEqual(['air', ...(ASL ? ['asl'] : []), ...(FACES ? ['faces'] : [])]);
-    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', ...(ASL ? ['asl-signs', 'asl-chord'] : [])]);
-    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', ...(ASL ? ['asl'] : [])]);
+    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', ...(ASL ? ['asl-signs', 'asl-chord'] : []), ...(FACES ? ['face-categorizer'] : [])]);
+    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', ...(ASL ? ['asl'] : []), ...(FACES ? ['faceCategorizer'] : [])]);
     expect(ALL_BRANCH_IDS).toEqual(expect.arrayContaining(['trunk', 'field-voices', 'air-drum', 'air-flute']));
   });
 });
@@ -75,7 +75,7 @@ describe('the registry folds over the extensions', () => {
     // declaration carries each manifest's type, so these hold with no import of air in core.
     expectTypeOf<Settings['airDrum']>().toEqualTypeOf<AirDrumSettings>();
     expectTypeOf<Settings['airFlute']>().toEqualTypeOf<AirFluteSettings>();
-    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'asl'>();
+    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'asl' | 'faceCategorizer'>();
     // @ts-expect-error a key no listed extension declares is not a settings key
     expectTypeOf<Settings['airKazoo']>().toBeNever();
     // A manifest typed loosely (`const x: Extension = ...`) widens its keys to `string`; the fold
@@ -95,7 +95,7 @@ describe('the registry folds over the extensions', () => {
       expect(schemaKeys, `SettingsSchema lacks "${slice.key}"`).toContain(slice.key);
       expect(storeKeys, `the hot store lacks "${slice.key}"`).toContain(slice.key);
     }
-    for (const t of EXTENSIONS.flatMap((e) => e.transient ?? [])) {
+    for (const t of EXTENSIONS.flatMap((e): readonly { field: string }[] => e.transient ?? [])) {
       expect(storeKeys, `the hot store lacks the transient field "${t.field}"`).toContain(t.field);
     }
   });

@@ -122,9 +122,9 @@ export const SLOTS: Record<string, SlotDef> = {
     candidates: ['webcam-body', 'synthetic-body', 'replay-body'],
     contract: BODY_SLOT_CONTRACT,
   },
-  // The face's expression classifier (the ADR's seam 7). One candidate today; the
-  // pointable second is the Trainer's learned classifier (`packages/sdk/src/enroll/classify.ts`) once
-  // an adapter emits the `face-expression` kind. Declared so the seam exists; no UI.
+  // The face's expression classifier (the ADR's seam 7). One candidate. A player's own
+  // categorizer (#330 P4) is chosen per instrument and swaps in by branch replacement, not
+  // here: see `src/nodes/features/expression_contract.ts`. Declared so the seam exists; no UI.
   expression: {
     role: 'feature',
     default: 'face-expression',

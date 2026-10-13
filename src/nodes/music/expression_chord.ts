@@ -24,6 +24,11 @@
  * never rebuilds the graph. The `triad` output is the un-voiced scale triad (three
  * tones), used by the overlay to highlight the chord's pitch classes on the guide.
  *
+ * A PERSONAL categorizer (#330 P4) reaches it on the same `expression` port: the reading
+ * then carries the player's categories (`expression.personal`), and the degree is the
+ * player's choice for that category (`categoryDegrees`, by category id) or, by default, the
+ * degree of the expression the category stands in for ({@link personalDegree}).
+ *
  * Stateful (a beat clock + a strum re-trigger), but deterministic given the tick
  * timing — so it replays exactly.
  */
@@ -35,6 +40,7 @@ import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import {
   DEFAULT_EXPRESSION_TO_DEGREE,
   SILENCE_DEGREE,
+  personalDegree,
   type ExpressionScores,
   type ExpressionLabel,
 } from '@/music/expression';
@@ -86,12 +92,17 @@ export const expressionChordNode = defineNode<Params>({
     { name: 'chordConfig', kind: 'chord-config' },
     // Per-expression scale-degree map (which triad each expression plays); optional.
     { name: 'degrees', kind: 'expression-degrees' },
+    // A personal categorizer's per-category degrees, by category id (#330 P4); optional.
+    // A category it does not name plays the degree of the expression it stands in for.
+    { name: 'categoryDegrees', kind: 'category-degrees' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
     // The un-voiced scale triad (three tones), for the overlay to highlight the
     // chord's pitch classes on the pitch guide — independent of the voicing.
     { name: 'triad', kind: 'number[]' },
+    // The reading it played (whichever classifier made it, #330 P4), for the shell's readout.
+    { name: 'played', kind: 'face-expression' },
   ],
   params: Params,
   make(p) {
@@ -128,7 +139,13 @@ export const expressionChordNode = defineNode<Params>({
         const degrees = inputs.degrees as Partial<Record<ExpressionLabel, number>> | undefined;
         const degreeFor = (label: ExpressionLabel) =>
           degrees?.[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
-        const degree = active ? degreeFor(expr!.label) : SILENCE_DEGREE;
+        const personal = expr?.personal;
+        const categoryDegrees = inputs.categoryDegrees as Record<string, number> | undefined;
+        const degree = !active
+          ? SILENCE_DEGREE
+          : personal
+            ? personalDegree(personal, personal.id === null ? null : personal.ids.indexOf(personal.id), categoryDegrees, degreeFor)
+            : degreeFor(expr!.label);
         // The un-voiced scale triad (3 tones) for the overlay highlight; [] when
         // idle or when the expression maps to silence (a non-seven-note chord source
         // now yields a generalized chord rather than [], per #75).
@@ -153,7 +170,7 @@ export const expressionChordNode = defineNode<Params>({
           timeSinceChange += dt;
         }
 
-        if (voiced.length === 0) return { params: { voices: silent() }, triad: [] };
+        if (voiced.length === 0) return { params: { voices: silent() }, triad: [], played: expr };
 
         const gains = renderGains(voiced.length, rendering, beat, timeSinceChange);
         const voices: VoiceParams[] = [];
@@ -169,7 +186,7 @@ export const expressionChordNode = defineNode<Params>({
             sound,
           });
         }
-        return { params: { voices }, triad };
+        return { params: { voices }, triad, played: expr };
       },
     };
   },
