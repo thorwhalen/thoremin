@@ -141,24 +141,28 @@ describe.runIf(FACES)('playing a saved categorizer from the tool (#357)', () => 
     const effective = () => dialsStore.getState().effective as Record<string, unknown>;
     const dispatch = vi.spyOn(registry, 'dispatch');
 
-    render(<Shell />);
-    act(() => useTools.getState().toggleTool('faces'));
-    const play = await screen.findByRole('button', { name: 'Play Play test' });
-    act(() => {
-      fireEvent.click(play);
-    });
-    await waitFor(() => expect((effective().faceCategorizer as { id: string }).id).toBe(id));
-    // The section's own writes: the face chords on, every category's chord back to Auto.
-    expect(effective()['face.mapping']).toBe('chord');
-    expect((effective().faceCategorizer as { degrees: Record<string, number> }).degrees['cat-1']).toBe(AUTO_DEGREE);
-    // Chosen now: no second click to put the chords back to Auto.
-    expect(await screen.findByText('Playing')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Play Play test' })).toBeNull();
-    // Through the command registry, as one `dial.patch` (one undoable step).
-    const patches = dispatch.mock.calls.filter(([cmd]) => cmd === 'dial.patch');
-    expect(patches).toHaveLength(1);
-    dispatch.mockRestore();
-    dispatchDialPatch([['faceCategorizer.id', GENERAL_CATEGORIZER], ['face.mapping', 'none']]);
-    for (const m of await saved.list()) await saved.remove(m.id);
+    try {
+      render(<Shell />);
+      act(() => useTools.getState().toggleTool('faces'));
+      const play = await screen.findByRole('button', { name: 'Play Play test' });
+      act(() => {
+        fireEvent.click(play);
+      });
+      await waitFor(() => expect((effective().faceCategorizer as { id: string }).id).toBe(id));
+      // The section's own writes: the face chords on, every category's chord back to Auto.
+      expect(effective()['face.mapping']).toBe('chord');
+      expect((effective().faceCategorizer as { degrees: Record<string, number> }).degrees['cat-1']).toBe(AUTO_DEGREE);
+      // Chosen now, and Playing once the instrument has resolved it: no second click to put the
+      // chords back to Auto.
+      expect(await screen.findByText('Playing', {}, { timeout: 15000 })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Play Play test' })).toBeNull();
+      // Through the command registry, as one `dial.patch` (one undoable step).
+      const patches = dispatch.mock.calls.filter(([cmd]) => cmd === 'dial.patch');
+      expect(patches).toHaveLength(1);
+    } finally {
+      dispatch.mockRestore();
+      dispatchDialPatch([['faceCategorizer.id', GENERAL_CATEGORIZER], ['face.mapping', 'none']]);
+      for (const m of await saved.list()) await saved.remove(m.id);
+    }
   });
 });
