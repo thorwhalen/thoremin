@@ -9,6 +9,10 @@
  * tool (unmounting this) stops a recording, or an exploration, so nothing keeps sampling (or
  * keeps the instrument quiet) with no panel to say so.
  *
+ * #385 E4: the grid is Sorting (`./Sorting.tsx`), the same for a fresh carve and an opened
+ * categorizer: every hold shown, moved by drag, keys or menu, k re-cut around the player's pins,
+ * merge, split, delete, undo.
+ *
  * #385 E2: "Record my faces" opens Explore (the camera read, the live feature bars and the hold
  * ring, nothing recorded); "Start capturing" (or Space) begins the take; while capturing, Pause
  * (or Space) stops collecting and the bars and ring keep running. Space is the host's
@@ -26,10 +30,10 @@ import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isLive, type FaceSessionState } from '../app/sessionStore';
 import { faceModalityUi } from '../app/modality';
 import type { FaceTestState } from '../app/testStore';
-import { categoryOf } from '../lib/corrections';
 import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
 import { restCue, vocabularyCue } from '../lib/take';
-import type { CarveView, CarvedCategory } from '../lib/carving';
+import type { CarveView } from '../lib/carving';
+import { Sorting } from './Sorting';
 import { chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
 
@@ -58,91 +62,6 @@ export function modeSummary(view: CarveView): string {
     : `${view.k} expressions. There was no rest to tell neutral by, so nothing was set aside.`;
 }
 
-const sourceText = (c: CarvedCategory): string =>
-  c.source === 'edited'
-    ? 'your name'
-    : c.source === 'neutral'
-      ? 'mostly your resting face'
-      : c.source === 'matched'
-        ? `the general model reads "${c.matched}"`
-        : c.source === 'kept'
-          ? 'saved name'
-          : 'no general label fits';
-
-// `key` is declared on the props: the repo ships no @types/react, so JSX does not add it.
-/** Where a shown face can be moved (an open categorizer only): its categories, or none. */
-export interface MoveTarget {
-  options: readonly { id: string; label: string }[];
-  /** The category the face is in now, or null. */
-  current: (index: number) => string | null;
-  move: (index: number, to: string | null) => void;
-  /** Whether "no category" is offered (`reject` mode: it then reads as neutral). */
-  allowNone: boolean;
-}
-
-function Still({ url, label, first, index, target }: { key?: number; url?: string; label: string; first: boolean; index: number; target?: MoveTarget }) {
-  const current = target?.current(index) ?? null;
-  return (
-    <figure className="flex w-16 shrink-0 flex-col items-center gap-0.5">
-      {url ? (
-        <img src={url} alt={label} data-face-still className="h-12 w-16 rounded object-cover" />
-      ) : (
-        <div className="flex h-12 w-16 items-center justify-center rounded bg-white/5 text-[9px] text-white/30">no picture</div>
-      )}
-      <figcaption className="text-[9px] text-white/40">{first ? 'most typical' : 'less typical'}</figcaption>
-      {target && (
-        <select
-          aria-label={`Move ${label}`}
-          data-face-move={index}
-          value={current ?? ''}
-          onChange={(e) => target.move(index, e.target.value === '' ? null : e.target.value)}
-          className="w-16 rounded bg-white/10 text-[9px] text-white/70"
-        >
-          {(target.allowNone || current === null) && <option value="">{target.allowNone ? 'none of these' : '(none)'}</option>}
-          {target.options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label || o.id}
-            </option>
-          ))}
-        </select>
-      )}
-    </figure>
-  );
-}
-
-function CategoryCard({ c, thumbs, rename, target }: { key?: string; c: CarvedCategory; thumbs: Readonly<Record<number, string>>; rename: (id: string, label: string) => void; target?: MoveTarget }) {
-  const [text, setText] = useState(c.label);
-  useEffect(() => setText(c.label), [c.label]);
-  const commit = () => {
-    if (text.trim() && text.trim() !== c.label) rename(c.id, text);
-    else setText(c.label);
-  };
-  return (
-    <li data-face-category={c.id} className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2">
-      <div className="flex items-center gap-2">
-        <input
-          aria-label={`Name of ${c.label}`}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') setText(c.label);
-          }}
-          className="min-w-0 flex-1 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold text-white outline-none focus:bg-white/20"
-        />
-        <span className="shrink-0 text-[10px] text-white/50">{c.size} held</span>
-      </div>
-      <p className="text-[10px] text-white/40">{sourceText(c)}</p>
-      <div className="flex gap-1.5 overflow-x-auto">
-        {c.exemplars.map((e, i) => (
-          <Still key={e.index} url={thumbs[e.index]} label={`${c.label}, example ${i + 1}`} first={i === 0} index={e.index} target={target} />
-        ))}
-      </div>
-    </li>
-  );
-}
-
 function ModeSwitch({ mode, setMode, disabled }: { mode: CategorizerMode; setMode: (m: CategorizerMode) => void; disabled: boolean }) {
   return (
     <fieldset className="space-y-1" disabled={disabled}>
@@ -160,76 +79,18 @@ function ModeSwitch({ mode, setMode, disabled }: { mode: CategorizerMode; setMod
   );
 }
 
-function KControl({ s }: { s: FaceSessionState }) {
-  const view = s.view!;
-  const max = Math.max(1, Math.min(view.maxK, 12));
-  if (s.phase === 'saved') return <p className={hint}>{`k = ${view.k}. Changing k re-divides a take, so it needs a new recording. Move a face to another category with the menu under it.`}</p>;
-  if (view.maxK === 0) return null;
-  return (
-    <div className="space-y-1">
-      <label className="flex items-center gap-2 text-[11px] text-white/80">
-        <span className="w-20 shrink-0">How many: {view.k}</span>
-        <input
-          type="range"
-          aria-label="Number of categories"
-          min={1}
-          max={max}
-          step={1}
-          value={Math.min(view.k, max)}
-          onChange={(e) => s.setK(Number(e.target.value))}
-          className="flex-1"
-        />
-      </label>
-      <p className={hint}>
-        {`Suggested: ${view.suggestedK}. A suggestion from how the faces group, not a rule. `}
-        {view.k !== view.suggestedK && view.suggestedK > 0 && (
-          <button type="button" className="underline hover:text-white" onClick={() => s.setK(view.suggestedK)}>
-            Use {view.suggestedK}
-          </button>
-        )}
-      </p>
-    </div>
-  );
-}
-
 function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
   const view = s.view!;
   const [name, setName] = useState(s.name);
   useEffect(() => setName(s.name), [s.name]);
-  const working = s.working;
-  const target: MoveTarget | undefined =
-    s.phase === 'saved' && working
-      ? {
-          options: working.categories.map((c) => ({ id: c.id, label: c.label })),
-          current: (i) => categoryOf(working, i),
-          move: (i, to) => s.move(i, to),
-          allowNone: working.strangers === 'neutral',
-        }
-      : undefined;
   return (
     <div className="space-y-3">
       <ModeSwitch mode={view.mode} setMode={s.setMode} disabled={s.phase === 'saved'} />
       <p data-faces-summary className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/80">
         <span className="font-semibold text-emerald-200">In use: {MODE_TEXT[view.mode].title}.</span> {modeSummary(view)}
       </p>
-      <KControl s={s} />
       {!s.hasStills && <p className={hint}>No pictures were taken, so the categories have none.</p>}
-      <ul className="space-y-2">
-        {view.categories.map((c) => (
-          <CategoryCard key={c.id} c={c} thumbs={s.thumbs} rename={s.rename} target={target} />
-        ))}
-      </ul>
-      {view.mode === 'reject' && view.neutral.count > 0 && (
-        <div data-face-neutral className="space-y-1.5 rounded-lg border border-dashed border-white/15 p-2">
-          <p className="text-xs font-semibold text-white/70">Neutral: none of these</p>
-          <p className="text-[10px] text-white/40">{`${view.neutral.count} held faces close to your rest. They read as no category.`}</p>
-          <div className="flex gap-1.5 overflow-x-auto">
-            {view.neutral.exemplars.map((i, j) => (
-              <Still key={i} url={s.thumbs[i]} label={`neutral, example ${j + 1}`} first={j === 0} index={i} target={target} />
-            ))}
-          </div>
-        </div>
-      )}
+      <Sorting s={s} />
       <form
         className="flex items-center gap-2"
         onSubmit={(e) => {
