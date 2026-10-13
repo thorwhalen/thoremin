@@ -43,11 +43,26 @@
  * the score, the orchestra and `recordingTime` are the hand conductor's, unchanged. The
  * speed fallback reads the body's quantity of motion where the hand reads its point's
  * speed. Which law follows is the conductor's (strict); which level the body marks is
- * the beat: the follower starts at the score's marked tempo where a score is loaded (A2's
- * note 5 on #386), though the priors re-estimate from the first stroke interval, so a
- * body that marks the half-bar is related to the score by A4's `relateLevel`, not by
- * this seed. The pose
- * branch is composed only while the source is `body` (`src/instruments/derive.ts`).
+ * the beat by default (`markLevel`, below): the follower starts at the score's marked
+ * tempo at that level where a score is loaded (A2's note 5 on #386), though the priors
+ * re-estimate from the first stroke interval. The pose branch is composed only while
+ * the source is `body` (`src/instruments/derive.ts`).
+ *
+ * The level (#376, body-movement A4). A stroke need not be a beat: a body conductor may
+ * bounce every other beat, a player may mark only the bars. `markLevel` says which, as
+ * the piece's beats per mark `k`: `beat` (1, the default, strict like the hand), `half`
+ * (2), `bar` (the meter's beats per bar at the position) or `auto`, ictus's level
+ * relation (`relateLevel`, the conductor's ratio set {1/2, 1, 2, beats per bar}) against
+ * the score's marked tempo at the position: the beat, kept while the strokes' tempo is
+ * within 50 % of the marked one (a slow beat is not a fast half-time), and another ratio
+ * followed only once it has persisted 3 s (the red-noise guard of #339); a level held
+ * survives a change of source or side. `k` is applied at the
+ * one seam between the follower's state and the integrated beat: the tempo is `k` times
+ * the strokes' and the phase servo lands a stroke on a multiple of `k` beats (counted
+ * from the current time signature's start), so the score, the orchestra and
+ * `recordingTime` all inherit it. Leading a recording, `auto` has no marked tempo to
+ * relate to and stays at the beat: the song's pace controller relates the conducted beat
+ * to the song's tracked one ({1/2, 1, 2}, the servo's level). The `level` output is `k`.
  *
  * The dial. {@link ConductorDialSchema} IS this node's params (the `faceControls`
  * pattern): the `conductor` dial re-exports it, the `config` input overrides the
@@ -68,11 +83,11 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, createIctus, createImpactDetector, wrapPhase, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
+import { beatAt, conductorRatios, createIctus, createImpactDetector, createLevelHold, wrapPhase, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type Ictus, type IctusState, type LevelHold, type MusicalTime } from '@thoremin/ictus';
 import { LM, frameTime, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, CONDUCTOR_BODY_POINTS } from './conductor_body';
-import { beatsPerBarAt } from '@thoremin/sdk/score/schema';
+import { beatsPerBarAt, timeSignatureAt } from '@thoremin/sdk/score/schema';
 import { readScoreDoc } from '@thoremin/sdk/score/prepare';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
@@ -88,6 +103,15 @@ export type ConductorTarget = (typeof CONDUCTOR_TARGETS)[number];
 export const CONDUCTOR_SOURCES = ['hands', 'body'] as const;
 export type ConductorSource = (typeof CONDUCTOR_SOURCES)[number];
 export { CONDUCTOR_BODY_POINTS, type ConductorBodyPoint } from './conductor_body';
+/** Which level a stroke marks (#376): every beat, every other beat, every bar, or found
+ *  by relating the strokes to the score's marked tempo. */
+export const CONDUCTOR_MARK_LEVELS = ['beat', 'half', 'bar', 'auto'] as const;
+export type ConductorMarkLevel = (typeof CONDUCTOR_MARK_LEVELS)[number];
+/** `markLevel: auto`: how far (a fraction, in log terms) the player's tempo may be from
+ *  the marked tempo at the level followed before another level is tried, and how long a
+ *  different level must persist before it is followed. */
+export const MARK_LEVEL_CAPTURE = 0.5;
+export const MARK_LEVEL_PERSIST_S = 3;
 
 const Params = z.object({
   /** Off by default: conducting replaces the score's fixed tempo, and a player who
@@ -119,6 +143,9 @@ const Params = z.object({
   /** The mirrored webcam reports the opposite hand label (the same knob `hand-features`
    *  carries). Off for a recorded third-person video. */
   mirrorHandedness: z.boolean().default(true),
+  /** Which level a stroke marks (#376): `beat` (default), `half` (every other beat),
+   *  `bar`, or `auto` (related to the score's marked tempo, held once chosen). */
+  markLevel: z.enum(CONDUCTOR_MARK_LEVELS).default('beat'),
   /** Beats per bar, for `beatInBar` (the meter recogniser is a later PR). */
   beatsPerBar: z.number().int().min(1).max(12).default(4),
   /** The phase servo's convergence horizon in beats: how long the score takes to catch
@@ -201,6 +228,18 @@ function firstTempo(doc: ScoreDoc): number | null {
   return first ? first.bpm : null;
 }
 
+/** The score's marked tempo (bpm) at a beat: the last mark at or before it, else the
+ *  first. Null when it marks none. */
+function tempoAt(doc: ScoreDoc, beat: number): number | null {
+  let at: { beat: number; bpm: number } | null = null;
+  let first: { beat: number; bpm: number } | null = null;
+  for (const m of doc.tempoMap) {
+    if (!first || m.beat < first.beat) first = m;
+    if (m.beat <= beat && (!at || m.beat >= at.beat)) at = m;
+  }
+  return (at ?? first)?.bpm ?? null;
+}
+
 /** Two samples closer than this (seconds) are not two camera frames: a stamp-source
  *  switch (a clock stamp followed by an estimated one, pushed forward to stay
  *  increasing) can put them a millisecond apart, and a backward difference over that
@@ -234,6 +273,7 @@ export const conductorNode = defineNode<Params>({
     { name: 'enabled', kind: 'boolean' },
     { name: 'leadsScore', kind: 'boolean', description: 'Conducting the score (enabled, and not leading a recording): what the score and the orchestra play on' },
     { name: 'recordingTime', kind: 'musical-time', description: "`time`, only while the conductor leads the recording (#187 PR 7): the song's pace controller follows it" },
+    { name: 'level', kind: 'number', description: "The piece's beats per stroke (#376): 1 marking beats, 2 every other beat, the bar's beats marking bars" },
   ],
   params: Params,
   make(p) {
@@ -247,6 +287,13 @@ export const conductorNode = defineNode<Params>({
     let docRef: unknown = null;
     let fermatas: number[] = [];
     let docMeter: ((beat: number) => number) | null = null;
+    /** The document's marked tempo at a beat, and where the time signature in force at a
+     *  beat starts (the reference a bar or half-bar mark is counted from). */
+    let docTempo: ((beat: number) => number | null) | null = null;
+    let docSigStart: ((beat: number) => number) | null = null;
+    /** `markLevel: auto`: the level held (its ratio set has this beats-per-bar). */
+    let levelHold: LevelHold | null = null;
+    let levelBpb = 0;
     /** The document's first tempo mark (bpm), seeding the body detector's period. */
     let docBpm: number | null = null;
     /** Fermata hold: the beat we stopped at, and the anchor count when we stopped (a
@@ -289,6 +336,8 @@ export const conductorNode = defineNode<Params>({
       docRef = raw;
       fermatas = [];
       docMeter = null;
+      docTempo = null;
+      docSigStart = null;
       docBpm = null;
       fermataAt = null;
       fermataReleased = null;
@@ -296,6 +345,8 @@ export const conductorNode = defineNode<Params>({
       if (!doc) return;
       fermatas = [...doc.fermatas].sort((a, b) => a - b);
       docMeter = (beat) => beatsPerBarAt(doc, beat);
+      docTempo = (beat) => tempoAt(doc, beat);
+      docSigStart = (beat) => timeSignatureAt(doc, beat).beat;
       docBpm = firstTempo(doc);
     };
 
@@ -328,7 +379,7 @@ export const conductorNode = defineNode<Params>({
       anchors: 0,
     });
 
-    const emit = (time: MusicalTime, bpm: number, dyn: number, art: number, enabled: boolean, c: Params) => ({
+    const emit = (time: MusicalTime, bpm: number, dyn: number, art: number, enabled: boolean, c: Params, level = 1) => ({
       time,
       beat: beatOut,
       bpm,
@@ -340,7 +391,41 @@ export const conductorNode = defineNode<Params>({
       enabled,
       leadsScore: enabled && c.conducts === 'score',
       recordingTime: enabled && c.conducts === 'recording' ? time : undefined,
+      level,
     });
+
+    /** The piece's beats per stroke `k` (see the header). `auto` relates the strokes to
+     *  the marked tempo at the position, conducting the score only. */
+    const markRatio = (c: Params, s: IctusState | null, t: number, bpb: number): number => {
+      if (c.markLevel === 'beat') return 1;
+      if (c.markLevel === 'half') return 2;
+      if (c.markLevel === 'bar') return bpb;
+      if (c.conducts !== 'score') {
+        levelHold = null;
+        return 1;
+      }
+      if (!levelHold || levelBpb !== bpb) {
+        // A new meter: a held bar stays a bar, a held beat stays a beat.
+        // A conductor beats the beat until a different level persists.
+        const held = levelHold?.ratio() ?? 1;
+        levelHold = createLevelHold({ ratios: conductorRatios(bpb), captureRange: MARK_LEVEL_CAPTURE, persistS: MARK_LEVEL_PERSIST_S, sticky: true });
+        levelHold.set(held === levelBpb && held > 2 ? bpb : held);
+        levelBpb = bpb;
+      }
+      const marked = docTempo ? docTempo(beatOut) : null;
+      if (s && marked !== null && marked > 0) {
+        const trusted = s.state === 'running' && s.confidence >= c.fallbackBelowConfidence && Number.isFinite(s.period) && s.period > 0;
+        levelHold.step(t, trusted ? s.period : NaN, 60 / marked);
+      }
+      return levelHold.ratio() ?? 1;
+    };
+    /** The tempo the body follower is seeded at: the score's first mark, at the stated
+     *  level (null without a score, or reading the hands). */
+    const bodySeed = (c: Params): number | null => {
+      if (c.source !== 'body' || docBpm === null) return null;
+      const k = c.markLevel === 'half' ? 2 : c.markLevel === 'bar' ? (docMeter ? docMeter(0) : c.beatsPerBar) : 1;
+      return docBpm / k;
+    };
 
     return {
       process(inputs, ctx: NodeContext) {
@@ -355,6 +440,7 @@ export const conductorNode = defineNode<Params>({
             fermataReleased = null;
             wasEnabled = false;
           }
+          levelHold = null;
           return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
         }
         // The hand's follower reads `hand` and `point` live; the body's detector fixes its
@@ -365,7 +451,7 @@ export const conductorNode = defineNode<Params>({
         // the body follower starts at the score's marked tempo: the detector's period and
         // both priors'. The piece loads only once conducting is on, so it usually arrives
         // after the follower was built; until the first stroke, a new tempo rebuilds it.
-        if (ictus && c.source === 'body' && docBpm !== seededBpm && ictus.state().anchors === 0) resetFollower();
+        if (ictus && c.source === 'body' && bodySeed(c) !== seededBpm && ictus.state().anchors === 0) resetFollower();
         if (ictus && key !== coreKey) {
           resetFollower();
           // A held fermata stays held, and the new follower's first stroke releases it
@@ -374,8 +460,8 @@ export const conductorNode = defineNode<Params>({
         }
         if (!wasEnabled || !ictus) {
           coreKey = key;
-          const seed = c.source === 'body' && docBpm !== null ? docBpm : null;
-          seededBpm = c.source === 'body' ? docBpm : null;
+          const seed = bodySeed(c);
+          seededBpm = seed;
           const tempo = seed !== null ? { initialTempo: seed } : {};
           ictus = createIctus({
             detector:
@@ -439,7 +525,9 @@ export const conductorNode = defineNode<Params>({
           }
         }
 
-        // 2. Blend the inferred tempo with the speed fallback by confidence; integrate.
+        // 2. Blend the inferred tempo with the speed fallback by confidence; integrate. The
+        //    strokes' tempo and phase are scaled to the piece's beats by the level `k`.
+        const k = markRatio(c, s, ctx.time, beatsPerBar);
         const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
         let bpm: number;
         // A fermata releases on the NEXT stroke after it was reached.
@@ -454,13 +542,16 @@ export const conductorNode = defineNode<Params>({
           bpm = 0;
         } else {
           const w = s.state === 'running' && c.fallbackBelowConfidence > 0 ? clamp01(s.confidence / c.fallbackBelowConfidence) : s.state === 'running' ? 1 : 0;
-          bpm = w * s.tempo + (1 - w) * fallbackBpm;
+          bpm = w * s.tempo * k + (1 - w) * fallbackBpm;
           const advanced = beatOut + (bpm / 60) * ctx.dt;
           // 3. Phase servo: converge onto the inferred beat over `servoBeats`, never
           //    below where the beat already was (a rewind would retrigger a note).
           let corrected = advanced;
           if (w > 0 && Number.isFinite(s.period) && s.period > 0) {
-            const err = wrapPhase(advanced - beatAt(s, ctx.time));
+            // A stroke lands on a multiple of `k` beats, counted from the time
+            // signature's start. The horizon stays in strokes (`s.period`).
+            const ref = k === 1 ? 0 : docSigStart ? docSigStart(beatOut) : 0;
+            const err = k === 1 ? wrapPhase(advanced - beatAt(s, ctx.time)) : wrapPhase((advanced - ref) / k - beatAt(s, ctx.time)) * k;
             corrected = advanced - w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
           }
           let next = Math.max(beatOut, corrected);
@@ -496,7 +587,7 @@ export const conductorNode = defineNode<Params>({
           lastAnchorAt: s.lastAnchorAt,
           leadOffset: s.leadOffset,
         };
-        return emit(time, bpm, s.dynamics, s.articulation, true, c);
+        return emit(time, bpm, s.dynamics, s.articulation, true, c, k);
       },
       dispose() {
         ictus = null;

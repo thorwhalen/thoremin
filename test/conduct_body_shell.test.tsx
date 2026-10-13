@@ -25,6 +25,7 @@ const derived = () => branchIdsFor(useControls.getState() as unknown as Derivati
 const reset = async () => {
   await dispatchDialSetIn('conductor.enabled', false);
   await dispatchDialSetIn('conductor.source', 'hands');
+  await dispatchDialSetIn('conductor.markLevel', 'beat');
 };
 beforeEach(async () => {
   useTools.setState({ open: null, independentOpen: {}, launcherOpen: false });
@@ -74,6 +75,24 @@ describe('Conduct with body', () => {
     expect(screen.queryByTestId('conductor-body-point')).toBeNull();
     expect(screen.getByText('Beating hand')).toBeTruthy();
     await dispatchDialSetIn('conductor.bodyPoint', 'impact');
+  });
+
+  it('the level a stroke marks (#376): Conductor, Start conducting, Each stroke marks (three clicks)', async () => {
+    render(
+      <>
+        <ToolsBar />
+        <ConductorPanel />
+      </>,
+    );
+    fireEvent.click(screen.getByText('Conductor'));
+    fireEvent.click(screen.getByText('Start conducting'));
+    await waitFor(() => expect(conductor().enabled).toBe(true));
+    const select = screen.getByTestId('conductor-mark-level') as HTMLSelectElement;
+    expect(select.value).toBe('beat');
+    fireEvent.change(select, { target: { value: 'half' } });
+    await waitFor(() => expect(conductor().markLevel).toBe('half'));
+    fireEvent.change(select, { target: { value: 'auto' } });
+    await waitFor(() => expect(conductor().markLevel).toBe('auto'));
   });
 
   it('describeLive speaks of the hand by default', () => {

@@ -369,8 +369,8 @@ The beating hand (or, with source = body, the body) becomes musical time: ictus 
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, body:body-frame, config:conductor-config, doc:score-doc
-- **out:** time:musical-time, beat:number, bpm:number, velocityScale:number, phase:number, dynamics:number, articulation:number, confidence:number, enabled:boolean, leadsScore:boolean, recordingTime:musical-time
-- **params:** enabled (boolean=false), conducts (enum(score | recording)="score"), source (enum(hands | body)="hands"), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), bodyPoint (enum(impact | wrist | head | hips | com)="impact"), mirrorX (boolean=true), mirrorHandedness (boolean=true), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), prior (enum(oscillator | trend | blend)="blend"), phaseGain (number=0.5), periodGain (number=0.4)
+- **out:** time:musical-time, beat:number, bpm:number, velocityScale:number, phase:number, dynamics:number, articulation:number, confidence:number, enabled:boolean, leadsScore:boolean, recordingTime:musical-time, level:number
+- **params:** enabled (boolean=false), conducts (enum(score | recording)="score"), source (enum(hands | body)="hands"), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), bodyPoint (enum(impact | wrist | head | hips | com)="impact"), mirrorX (boolean=true), mirrorHandedness (boolean=true), markLevel (enum(beat | half | bar | auto)="beat"), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), prior (enum(oscillator | trend | blend)="blend"), phaseGain (number=0.5), periodGain (number=0.4)
 
 #### `transport` — Transport
 Beat clock: integrates BPM over time into a running beat position.

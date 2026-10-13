@@ -17,7 +17,9 @@
  *    Only the FOLLOWED level is related, not every entry of `candidates`: the follower
  *    measures a phase at its own level only, and a level without a phase cannot be
  *    phase-locked. Within the default capture the ratio is unique for `k <= 8` (adjacent
- *    ratios differ by at least 12.5 %).
+ *    ratios differ by at least 12.5 %). The relation and its persistence (step 2) are
+ *    ictus's one level relation (`level.ts`, #376), shared with the conductor's servo and
+ *    the conductor's `markLevel`; only the ratio set and the capture are the dancer's.
  * 2. **A relation is followed only once it has persisted** for `persistS`, the first one
  *    and every change of it (a level switch in the follower is a change of ratio). That
  *    is the defence #339 asks for against a slow level faked by red noise, which reaches
@@ -45,6 +47,9 @@
  */
 import { beatAt, wrapPhase, type MusicalTime } from './types';
 import { PULSE_TRUSTED_CONFIDENCE, type PulseState } from './pulse';
+import { createLevelHold, paceRatios, relateLevel, type LevelMatch } from './level';
+
+export { paceRatios };
 
 export interface PaceOptions {
   /** The clamp around `base`, a fraction (0.1 = the rate stays within +-10 %). */
@@ -146,45 +151,32 @@ export interface PaceController {
 
 const clampTo = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
 
-/** The integer ratios tried, as song beats per dancer cycle. */
-export function paceRatios(maxRatio: number): number[] {
-  const out: number[] = [];
-  for (let k = 1; k <= maxRatio; k++) out.push(k);
-  for (let k = 2; k <= maxRatio; k++) out.push(1 / k);
-  return out;
-}
-
 /**
  * The integer ratio relating a dancer's period to a song's, and the rate that matches
- * them: the ratio whose rate is nearest `base` (in log terms), or null when even that one
- * is further than `captureRange` from `base`. `songPeriod` is the song's OWN beat period
- * (at rate 1), seconds; `dancerPeriod` one cycle of the movement, seconds.
+ * them: the pace controller's reading of {@link relateLevel} over the dancer's ratio set
+ * ({@link paceRatios}), nearest `base`, or null when even that one is further than
+ * `captureRange` from it. `songPeriod` is the song's OWN beat period (at rate 1), seconds;
+ * `dancerPeriod` one cycle of the movement, seconds.
  */
 export function relatePeriods(
   dancerPeriod: number,
   songPeriod: number,
   base: number,
   opts: { maxRatio?: number; captureRange?: number } = {},
-): { ratio: number; rate: number } | null {
-  if (!(dancerPeriod > 0) || !(songPeriod > 0) || !(base > 0)) return null;
-  const capture = opts.captureRange ?? PACE_DEFAULTS.captureRange;
-  let best: { ratio: number; rate: number; d: number } | null = null;
-  for (const ratio of paceRatios(opts.maxRatio ?? PACE_DEFAULTS.maxRatio)) {
-    // One dancer cycle = `ratio` song beats: the song's engine period must be
-    // dancerPeriod / ratio, so the rate is songPeriod / (dancerPeriod / ratio).
-    const rate = (ratio * songPeriod) / dancerPeriod;
-    const d = Math.abs(Math.log(rate / base));
-    if (!best || d < best.d) best = { ratio, rate, d };
-  }
-  return best && best.d <= Math.log(1 + capture) ? { ratio: best.ratio, rate: best.rate } : null;
+): LevelMatch | null {
+  if (!(base > 0)) return null;
+  return relateLevel(dancerPeriod, songPeriod, {
+    ratios: paceRatios(opts.maxRatio ?? PACE_DEFAULTS.maxRatio),
+    captureRange: opts.captureRange ?? PACE_DEFAULTS.captureRange,
+    base,
+  });
 }
 
 const IDLE = (t: number, base: number): PaceState => ({ t, mode: 'idle', rate: base, ratio: NaN, target: NaN, phaseError: NaN, nudge: 0 });
 
 export function createPaceController(options: PaceOptions = {}): PaceController {
   const o = { ...PACE_DEFAULTS, ...options };
-  let followed: number | null = null;
-  let candidate: { ratio: number; since: number } | null = null;
+  const level = createLevelHold({ ratios: paceRatios(o.maxRatio), captureRange: o.captureRange, persistS: o.persistS });
   let smoothed = NaN;
   let nudge: -1 | 0 | 1 = 0;
   let lastT = NaN;
@@ -193,8 +185,7 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
   let periods: Array<{ t: number; p: number }> = [];
 
   const reset = () => {
-    followed = null;
-    candidate = null;
+    level.reset();
     smoothed = NaN;
     nudge = 0;
     lastT = NaN;
@@ -225,30 +216,24 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
       periods.push({ t, p: song.period * rate });
       while (periods.length > 1 && periods[0].t < t - o.songPeriodS) periods.shift();
       const songPeriod = periods.reduce((a, x) => a + x.p, 0) / periods.length;
-      const rel = trusted ? relatePeriods(pulse.period, songPeriod, base, { maxRatio: o.maxRatio, captureRange: Math.max(o.captureRange, r) }) : null;
+      const rel = level.step(t, trusted ? pulse.period : NaN, songPeriod, { base, captureRange: Math.max(o.captureRange, r) });
 
-      if (!rel) {
-        candidate = null;
+      if (!rel.match) {
         nudge = 0;
         if (Number.isFinite(smoothed)) smoothed = clampTo(smoothed, lo, hi);
-        last = { t, mode: followed === null ? 'waiting' : 'holding', rate: followed === null ? base : held, ratio: followed ?? NaN, target: NaN, phaseError: NaN, nudge: 0 };
+        last = { t, mode: rel.mode as PaceMode, rate: rel.ratio === null ? base : held, ratio: rel.ratio ?? NaN, target: NaN, phaseError: NaN, nudge: 0 };
         return last;
       }
-
-      if (rel.ratio !== followed) {
-        if (candidate?.ratio !== rel.ratio) candidate = { ratio: rel.ratio, since: t };
-        if (t - candidate.since < o.persistS) {
-          nudge = 0;
-          last = { t, mode: followed === null ? 'locking' : 'switching', rate: followed === null ? base : held, ratio: rel.ratio, target: NaN, phaseError: NaN, nudge: 0 };
-          return last;
-        }
-        // Adopted: start from what plays now, so the change is smoothed, not stepped.
-        followed = rel.ratio;
-        if (!Number.isFinite(smoothed)) smoothed = held;
+      if (rel.mode !== 'following') {
+        nudge = 0;
+        last = { t, mode: rel.mode as PaceMode, rate: rel.ratio === null ? base : held, ratio: rel.match.ratio, target: NaN, phaseError: NaN, nudge: 0 };
+        return last;
       }
-      candidate = null;
+      // Adopted: start from what plays now, so the change is smoothed, not stepped.
+      if (rel.adopted && !Number.isFinite(smoothed)) smoothed = held;
+      const followed = rel.match.ratio;
 
-      const target = clampTo(rel.rate, lo, hi);
+      const target = clampTo(rel.match.rate, lo, hi);
       smoothed = clampTo(smoothed + (target - smoothed) * (1 - Math.exp(-dt / o.smoothS)), lo, hi);
 
       // The phase, in song beats, both extrapolated to now. A dancer cycle of k >= 1

@@ -33,9 +33,25 @@
  * `seekBeyondBeats` adrift (a rate cannot close that without an audible race), at most
  * once per `cueRefractoryS`.
  *
+ * **The level (#376, absorbing #364 item 2).** A beat tracker may lock a song at double or
+ * half the conducted tempo, and then one conducted beat is not one tracked beat: `r0`
+ * reads near 2 or 0.5, hits the clamp and drifts, with a seek about once a second. So
+ * the conductor's beat `b` maps to the song's beat `k * b` (plus the offset), with `k` in
+ * `ratios` ({1/2, 1, 2} by default) chosen by ictus's one level relation (`level.ts`):
+ * 1 while its `r0` is within `ratioCapture` of 1 (a conductor at 70 % of the recording's
+ * tempo is slow, not at half time), else the `k` whose `r0` is nearest 1, chosen at his
+ * first RUNNING tempo (not the speed fallback a first stroke may still be on), then held
+ * while its `r0` stays in capture and changed only after another has persisted
+ * `persistS`. A change while the song plays re-anchors the map at the conductor's beat by
+ * a whole number of song beats (so his beats still land on the song's): the song is not
+ * sought, and the servo absorbs the rest (under half a beat) within its horizon.
+ * The horizon and the seek threshold are in the CONDUCTOR's beats; the error stays in the
+ * song's.
+ *
  * Pure, causal and clock-free like the rest of ictus: the caller passes the time.
  */
 import { beatAt, type MusicalTime } from './types';
+import { conductorRatios, createLevelHold } from './level';
 
 export interface ServoOptions {
   /** The convergence horizon, in the conductor's beats. */
@@ -45,7 +61,8 @@ export interface ServoOptions {
   /** The rates the song player can play (its own clamp). */
   minRate?: number;
   maxRate?: number;
-  /** A running song further than this from the conductor, in beats, is cued, not chased. */
+  /** A running song further than this from the conductor, in the conductor's beats, is
+   *  cued, not chased. */
   seekBeyondBeats?: number;
   /** A paused song further than this from its cue, in beats, is cued again. */
   cueTolerance?: number;
@@ -54,6 +71,13 @@ export interface ServoOptions {
   /** Seconds after a cue during which the song's reported position is not trusted (a
    *  seek takes a tick or two to show in it): the rate holds at the tempo match. */
   settleS?: number;
+  /** Song beats per conductor beat that may relate the two (#376). */
+  ratios?: readonly number[];
+  /** The followed ratio is kept while its `r0` is within this fraction of 1 (in log
+   *  terms); past it, the nearest other ratio takes over once it has persisted. */
+  ratioCapture?: number;
+  /** Seconds a different ratio must persist before it is followed. */
+  persistS?: number;
 }
 
 export const SERVO_DEFAULTS = {
@@ -65,6 +89,9 @@ export const SERVO_DEFAULTS = {
   cueTolerance: 0.02,
   cueRefractoryS: 1,
   settleS: 0.1,
+  ratios: conductorRatios(),
+  ratioCapture: 0.5,
+  persistS: 3,
 } as const satisfies Required<ServoOptions>;
 
 export interface ServoInput {
@@ -112,6 +139,8 @@ export interface ServoState {
   cue: ServoCue | null;
   /** Song beats, positive = the song is ahead of the conductor; NaN unless following. */
   error: number;
+  /** Song beats per conductor beat (1 until the conductor starts). */
+  ratio: number;
 }
 
 export interface BeatServo {
@@ -147,7 +176,10 @@ export function createBeatServo(options: ServoOptions = {}): BeatServo {
   let nextId = 1;
   let lastCueT = -Infinity;
   let rate = 1;
-  let last: ServoState = { t: 0, mode: 'idle', rate: 1, playing: false, cue: null, error: NaN };
+  let last: ServoState = { t: 0, mode: 'idle', rate: 1, playing: false, cue: null, error: NaN, ratio: 1 };
+  const level = createLevelHold({ ratios: o.ratios, captureRange: o.ratioCapture, persistS: o.persistS, persistFirst: false, sticky: true, prefer: 1 });
+  /** Song beats added to `k * b + offset`: what keeps the song in place when `k` changes. */
+  let shift = 0;
 
   const cueTo = (t: number, beat: number): void => {
     cue = { id: nextId++, beat };
@@ -158,8 +190,9 @@ export function createBeatServo(options: ServoOptions = {}): BeatServo {
     step({ t, lead, song, rate: songRate, latency, offset = 0 }) {
       const L = Number.isFinite(latency) && latency > 0 ? latency : 0;
       // A song with no ruler (no grid, or not loaded) cannot be led.
+      let k = level.ratio() ?? 1;
       if (!(song.period > 0) || !(songRate > 0)) {
-        last = { t, mode: 'idle', rate, playing: false, cue, error: NaN };
+        last = { t, mode: 'idle', rate, playing: false, cue, error: NaN, ratio: k };
         return last;
       }
       const songBeat = beatAt(song, t);
@@ -167,28 +200,40 @@ export function createBeatServo(options: ServoOptions = {}): BeatServo {
 
       if (!running(lead)) {
         // Waiting (no stroke yet) or holding: the song waits on the conductor's beat.
-        const target = lead.beat + offset;
+        const target = k * lead.beat + shift + offset;
         if (free && Math.abs(songBeat - target) > o.cueTolerance && (cue === null || Math.abs(cue.beat - target) > o.cueTolerance)) cueTo(t, target);
-        last = { t, mode: lead.anchors > 0 && lead.state === 'hold' ? 'holding' : 'cueing', rate, playing: false, cue, error: NaN };
+        last = { t, mode: lead.anchors > 0 && lead.state === 'hold' ? 'holding' : 'cueing', rate, playing: false, cue, error: NaN, ratio: k };
         return last;
       }
 
       // Where the conductor will be when the audio read now is heard.
-      const target = beatAt(lead, t + L) + offset;
+      const leadBeat = beatAt(lead, t + L);
       const songOwnPeriod = song.period * songRate;
-      if (!last.playing || (free && Math.abs(target - songBeat) > o.seekBeyondBeats)) {
+      // The level: chosen when he starts, then held (see the header).
+      if (lead.state === 'running') {
+        const rel = level.step(t, lead.period, songOwnPeriod);
+        if (rel.adopted && rel.ratio !== null && rel.ratio !== k) {
+          // While the song plays, re-anchor at his beat by whole song beats; before, the
+          // map starts here.
+          if (last.playing) shift = Math.round(shift + (k - rel.ratio) * leadBeat);
+          k = rel.ratio;
+        }
+      }
+      const target = k * leadBeat + shift + offset;
+      if (!last.playing || (free && Math.abs(target - songBeat) > o.seekBeyondBeats * k)) {
         // Starting (the first stroke, or the one that releases a hold), or adrift: cue to
         // the beat that will be sounding when this is heard, at the tempo-matched rate.
         cueTo(t, target);
-        rate = servoRate(lead.period, songOwnPeriod, 0, o);
-        last = { t, mode: 'following', rate, playing: true, cue, error: 0 };
+        rate = servoRate(lead.period / k, songOwnPeriod, 0, o);
+        last = { t, mode: 'following', rate, playing: true, cue, error: 0, ratio: k };
         return last;
       }
       // Just after a cue the song's reported beat may still be the pre-seek one: the rate
       // holds at the tempo match until the seek shows.
       const e = t - lastCueT >= o.settleS ? target - songBeat : 0;
-      rate = servoRate(lead.period, songOwnPeriod, e, o);
-      last = { t, mode: 'following', rate, playing: true, cue, error: -e };
+      // In the conductor's beats, the servo's law is the 1:1 one (`servoRate`).
+      rate = servoRate(lead.period / k, songOwnPeriod, e / k, o);
+      last = { t, mode: 'following', rate, playing: true, cue, error: -e, ratio: k };
       return last;
     },
     state: () => last,
@@ -196,7 +241,9 @@ export function createBeatServo(options: ServoOptions = {}): BeatServo {
       cue = null;
       lastCueT = -Infinity;
       rate = 1;
-      last = { t: 0, mode: 'idle', rate: 1, playing: false, cue: null, error: NaN };
+      level.reset();
+      shift = 0;
+      last = { t: 0, mode: 'idle', rate: 1, playing: false, cue: null, error: NaN, ratio: 1 };
     },
   };
 }
