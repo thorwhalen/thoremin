@@ -12,12 +12,17 @@
  *
  * `tinykeys` is used directly (not `acture-hotkeys`) because a binding must carry
  * FIXED params (a specific octave delta), which the hotkeys adapter can't express.
+ *
+ * An action may return `false` to say "not mine now": the key is then left to the browser
+ * (no `preventDefault`). Space is such a binding (#385 E2): it toggles a carve tool's capture
+ * only while one is live, and otherwise still presses a focused button or scrolls.
  */
 import { tinykeys } from 'tinykeys';
 import { isEditableTarget } from '@/nodes/sources/keyboard';
 import { history, registry } from './commands/registry';
 import { useControls } from './store';
 import { useTools } from './toolsStore';
+import { toggleCarveCapture } from './carveCapture';
 
 const OCTAVE_MIN = -2;
 const OCTAVE_MAX = 2;
@@ -80,8 +85,9 @@ export function toggleToolsLauncher(): void {
   useTools.getState().toggleLauncher();
 }
 
-/** A keymap: a tinykeys key-binding string → a zero-arg action. */
-export type Keymap = Record<string, () => void>;
+/** A keymap: a tinykeys key-binding string → an action (given the event; most ignore it);
+ *  `false` means "not handled". */
+export type Keymap = Record<string, (e?: KeyboardEvent) => void | boolean>;
 
 /** The shipped default keymap (mirrors the retired keyboard-control node). */
 export const DEFAULT_KEYMAP: Keymap = {
@@ -93,6 +99,8 @@ export const DEFAULT_KEYMAP: Keymap = {
   p: toggleGenerativePlaying,
   // The Tools launcher (Round 4, #271): every shell tool, one key from anywhere.
   t: toggleToolsLauncher,
+  // A carve tool's capture (#385 E2): start, pause, resume. Only while a carve is live.
+  Space: toggleCarveCapture,
   // `$mod` is Cmd on macOS, Ctrl elsewhere. Both redo spellings are bound: Shift-Cmd-Z is
   // the macOS convention, Ctrl-Y the Windows one, and a player should not have to know
   // which platform the binding table was written on.
@@ -114,8 +122,8 @@ export function installKeyboardShortcuts(
   for (const [keys, action] of Object.entries(keymap)) {
     bindings[keys] = (e) => {
       if (isEditableTarget(e.target)) return;
+      if (action(e) === false) return;
       e.preventDefault();
-      action();
     };
   }
   return tinykeys(target, bindings);

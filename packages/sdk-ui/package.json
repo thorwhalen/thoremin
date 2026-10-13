@@ -6,6 +6,9 @@
   "description": "thoremin's extension SDK, the app half: what an extension's React side uses (the host's hot store and dial write path, panel primitives, the extension UI types, feature demand, the trainer's sequence store, guidance and click). TypeScript source, consumed through the workspace.",
   "exports": {
     "./dials": "./src/dials.ts",
+    "./enroll/FeatureBars": "./src/enroll/FeatureBars.tsx",
+    "./enroll/HoldRing": "./src/enroll/HoldRing.tsx",
+    "./enroll/capture": "./src/enroll/capture.ts",
     "./enroll/click": "./src/enroll/click.ts",
     "./enroll/guidance": "./src/enroll/guidance.ts",
     "./enroll/liveVector": "./src/enroll/liveVector.ts",

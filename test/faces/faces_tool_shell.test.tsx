@@ -6,7 +6,8 @@
  * React half is fetched only when the tool opens (the network half is the browser smoke,
  * `smoke/tests/faces.smoke.ts`; the bundle half is `npm run check:lazy`).
  *
- * Clicks from a cold load: Tools (1), "Your faces" (2), "Record my faces" (3). Testing a saved
+ * Clicks from a cold load: Tools (1), "Your faces" (2), "Record my faces" (3: Explore, the camera
+ * read, #385 E2), "Start capturing" or Space (4). Testing a saved
  * categorizer (P3): Tools, "Your faces", Open, "Test with my face" (4).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -26,6 +27,8 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialPatch } from '@/app/dispatchDial';
 import '@/app/dials/useDialsSettings';
 import { registry } from '@/app/commands/registry';
+import { installKeyboardShortcuts } from '@/app/keyboardShortcuts';
+import { carveCapture } from '@thoremin/sdk-ui/enroll/capture';
 
 const Shell = () => (
   <>
@@ -68,15 +71,50 @@ describe.runIf(FACES)('the face session tool is reachable from the shell', () =>
     expect(document.querySelector('[data-tool="faces"]')).toBeNull();
   });
 
-  it('closing the tool while recording stops the take and releases the face features', async () => {
+  it('"Record my faces" opens Explore: the face features are claimed, the bars and the ring shown, nothing recorded; closing the tool releases them (#385 E2)', async () => {
     render(<Shell />);
     act(() => useTools.getState().toggleTool('faces'));
     fireEvent.click(await screen.findByRole('button', { name: 'Record my faces' }));
-    expect(faceSessionStore().getState().phase).toBe('rest');
+    expect(faceSessionStore().getState().phase).toBe('explore');
     expect(appFeatureDemand.owners()).toContain('faces');
+    expect(carveCapture()?.state()).toBe('explore');
+    expect(document.querySelector('[data-faces-recording="explore"]')).not.toBeNull();
+    expect(document.querySelector('[data-hold-ring]')).not.toBeNull();
+    expect(await screen.findByText(/What the camera reads/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Start capturing (Space)' })).toBeTruthy();
     act(() => useTools.getState().close());
     expect(faceSessionStore().getState().phase).toBe('idle');
     expect(appFeatureDemand.owners()).not.toContain('faces');
+    expect(carveCapture()).toBeNull();
+  });
+
+  it('Space starts capturing from Explore (the carve command), and is left alone when nothing is live; closing the tool stops the take', async () => {
+    const uninstall = installKeyboardShortcuts(window);
+    try {
+      render(<Shell />);
+      act(() => useTools.getState().toggleTool('faces'));
+      const record = await screen.findByRole('button', { name: 'Record my faces' });
+      // Nothing live: Space is not taken from the page.
+      const idle = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
+      act(() => {
+        window.dispatchEvent(idle);
+      });
+      expect(idle.defaultPrevented).toBe(false);
+      fireEvent.click(record);
+      expect(faceSessionStore().getState().phase).toBe('explore');
+      const space = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
+      act(() => {
+        window.dispatchEvent(space);
+      });
+      expect(space.defaultPrevented).toBe(true);
+      await waitFor(() => expect(faceSessionStore().getState().phase).toBe('rest'));
+      expect(document.querySelector('[data-faces-recording="rest"]')).not.toBeNull();
+      act(() => useTools.getState().close());
+      expect(faceSessionStore().getState().phase).toBe('idle');
+      expect(appFeatureDemand.owners()).not.toContain('faces');
+    } finally {
+      uninstall();
+    }
   });
 
   it('an extension tool may not reuse a core tool id', () => {

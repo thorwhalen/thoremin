@@ -73,8 +73,10 @@ export interface SessionOptions {
 }
 
 export interface Session {
-  /** Start capturing for `cue`. Re-running a cue discards only that cue's samples. */
-  beginCue(cue: Cue): void;
+  /** Start capturing for `cue`. Re-running a cue discards only that cue's samples.
+   *  `after` continues a capture: the last point taken before it, so the same held pose is
+   *  not taken again (a carve resumed after a pause, #385 E2). */
+  beginCue(cue: Cue, options?: { after?: FeatureVector }): void;
   /** Feed a live feature vector. Every frame feeds the noise estimate; the active
    *  cue (if any) samples it. */
   push(vector: FeatureVector, tMs: number): void;
@@ -97,6 +99,9 @@ export interface Session {
   moved(): boolean;
   /** Whether the vector is currently held (the active sampler is in a dwell). */
   settling(): boolean;
+  /** Whether the active sampler would emit a held pose (false right after one, until the
+   *  player moves; false when idle). With `settling`, what a hold indicator shows. */
+  armed(): boolean;
   /** True once `build()` has run over the CURRENT pool (re-running a cue invalidates it). */
   built(): boolean;
   /** The session's noise unit for a feature (NaN if unseen). */
@@ -203,7 +208,7 @@ export function createSession(options: SessionOptions = {}): Session {
   };
 
   return {
-    beginCue(cue) {
+    beginCue(cue, options = {}) {
       active = cue;
       cuesSeen.set(cue.id, cue);
       activeFeatures = featuresFor(cue);
@@ -230,6 +235,7 @@ export function createSession(options: SessionOptions = {}): Session {
           features: activeFeatures,
           noise,
           ...(seed ? { seed } : {}),
+          ...(options.after ? { lastEmitted: options.after } : {}),
         });
         points.set(cue.id, []);
       } else {
@@ -275,6 +281,7 @@ export function createSession(options: SessionOptions = {}): Session {
     baseline: () => meanOf(framesWhere('baseline')),
     moved: () => sampler?.hasMoved() ?? false,
     settling: () => sampler?.isSettling() ?? false,
+    armed: () => sampler?.isArmed() ?? false,
     built: () => hierarchy.size > 0 && hierarchy.size === vocabulary().length,
     sigma: (id) => noise.sigma(id),
     noise: () => noise,

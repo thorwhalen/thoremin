@@ -29,6 +29,7 @@ import { INSTRUMENT_COMMANDS } from './instruments';
 import { STEER_COMMANDS } from './steer';
 import { RECORDING_COMMANDS } from './recording';
 import { SONG_COMMANDS } from './song';
+import { CARVE_COMMANDS } from './carve';
 import { confirmationGate, createApprovalStore, defaultGetRisk, type ApprovalStore } from './confirmation';
 import { createDialsHistory, type DialsHistory } from './history';
 import { createJournal, type Journal } from './journal';
@@ -37,7 +38,8 @@ import { installMiddleware } from './middleware';
 /** Build a registry with all thoremin commands registered: the generic dial verbs,
  *  one typed `set` command per dial (generated from the dials SSOT), the instrument
  *  load/save/create commands, the generative steering commands (#188), the
- *  recording-location commands (#257) and the song transport (#186 PR G). */
+ *  recording-location commands (#257), the song transport (#186 PR G) and the live carve's
+ *  capture (#385 E2). */
 export function createThoreminRegistry(): Registry {
   const r = createRegistry();
   r.registerAll(DIAL_COMMANDS);
@@ -46,6 +48,7 @@ export function createThoreminRegistry(): Registry {
   r.registerAll(STEER_COMMANDS);
   r.registerAll(RECORDING_COMMANDS);
   r.registerAll(SONG_COMMANDS);
+  r.registerAll(CARVE_COMMANDS);
   return r;
 }
 

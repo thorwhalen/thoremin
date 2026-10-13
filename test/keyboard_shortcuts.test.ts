@@ -69,6 +69,8 @@ describe('keyboard shortcuts (#90)', () => {
       'ArrowLeft',
       'ArrowRight',
       'ArrowUp',
+      // A carve tool's capture (#385 E2), only while one is live (else the browser's).
+      'Space',
       'm',
       'p',
       't',
