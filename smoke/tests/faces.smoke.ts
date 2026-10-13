@@ -6,7 +6,7 @@
  * - Opening "Your faces" from the Tools launcher fetches it and shows the session.
  * - A whole session on the synthetic face (`?faces.source=synthetic`: scripted vectors and a
  *   canvas video, so no camera and no face model): record, stop, the grid carved at the
- *   suggested k with pictures grabbed from the kept video, neutral switched in and out, a name
+ *   suggested k with pictures taken at capture (one per held face), neutral switched in and out, a name
  *   edited, saved, and listed.
  * - Test and correct (P3): a categorizer file imported (validated), saved, opened, tested live
  *   on the synthetic face (the readout names its categories), tuned, corrected ("this face is

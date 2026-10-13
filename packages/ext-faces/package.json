@@ -14,6 +14,7 @@
     "./app/sources": "./src/app/sources.ts",
     "./app/testStore": "./src/app/testStore.ts",
     "./app/thumbnails": "./src/app/thumbnails.ts",
+    "./app/modality": "./src/app/modality.ts",
     "./branches": "./src/branches.ts",
     "./dials": "./src/dials.ts",
     "./lazy": "./src/lazy.ts",

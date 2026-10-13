@@ -203,7 +203,7 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
           options: working.categories.map((c) => ({ id: c.id, label: c.label })),
           current: (i) => categoryOf(working, i),
           move: (i, to) => s.move(i, to),
-          allowNone: working.mode === 'reject',
+          allowNone: working.strangers === 'neutral',
         }
       : undefined;
   return (
