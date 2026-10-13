@@ -12,7 +12,8 @@ import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import type { FaceSessionState, MergeSeed } from '../app/sessionStore';
 import type { FaceTestState } from '../app/testStore';
-import { liveModel, TUNING_BOUNDS, type LiveModel, type Tuning } from '../lib/live';
+import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
+import { liveModel, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '../lib/live';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -31,6 +32,29 @@ export const MERGE_TEXT: Record<MergeSeed, { button: string; says: string }> = {
   },
 };
 
+/**
+ * The margin meter (#385 E6, design C.3.3): how deep inside its nearest category (or Neutral) this
+ * frame is, from the distance to it against the runner-up's: full on the centre, empty on the
+ * boundary. The live form of Sorting's quality chip: a face that only ever reaches "on the edge"
+ * is one to make bigger, or to merge.
+ */
+function MarginMeter({ r, live }: { r: LiveReading; live: LiveModel }) {
+  const m = r.margin;
+  if (m.nearest === null) return null;
+  const name = (id: string | null): string => (id === NEUTRAL_TARGET ? 'Neutral' : (live.model.categories.find((c) => c.id === id)?.label ?? id ?? ''));
+  const says = m.state === 'outside' ? 'outside every category' : m.state === 'edge' ? `on the edge with ${name(m.second)}` : `safely inside ${name(m.nearest)}`;
+  const colour = m.state === 'inside' ? 'bg-emerald-400' : m.state === 'edge' ? 'bg-amber-400' : 'bg-white/25';
+  return (
+    <div className="flex items-center gap-2 text-[10px]" data-faces-margin={m.state}>
+      <span className="w-24 shrink-0 text-white/60">margin</span>
+      <span className="h-1.5 flex-1 overflow-hidden rounded bg-white/10" title={`Distance to ${name(m.nearest)}: ${m.d1.toFixed(1)}; to ${m.second ? name(m.second) : 'nothing else'}: ${Number.isFinite(m.d2) ? m.d2.toFixed(1) : '-'}`}>
+        <span className={`block h-full ${colour}`} style={{ width: `${Math.round(Math.max(0, Math.min(1, m.state === 'outside' ? 0 : m.margin)) * 100)}%` }} />
+      </span>
+      <span className="w-32 shrink-0 truncate text-right text-white/60">{says}</span>
+    </div>
+  );
+}
+
 function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
   const r = test.reading;
   const none = r !== null && (r.rejected || r.neutral);
@@ -41,6 +65,7 @@ function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
       <p className="text-base font-bold text-white" role="status" aria-live="polite" data-faces-reading={r?.categoryId ?? (none ? 'none' : '')}>
         {headline}
       </p>
+      {r && !test.noFace && <MarginMeter r={r} live={live} />}
       <ul className="space-y-0.5">
         {live.model.categories.map((c) => {
           const m = r?.memberships.find((x) => x.id === c.id)?.value ?? 0;

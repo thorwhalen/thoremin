@@ -10,9 +10,9 @@
  */
 import type { CarveModality, ModalityWords } from '../../enroll/modality';
 import type { FeatureVector } from '../../enroll/types';
-import { FACE_FEATURES } from '../face_catalog';
 import { FACE_TRAINING_GROUPS, faceCollects } from '../face_groups';
 import { generalFaceLabeling } from '../face_labels';
+import { faceWords } from './face_words';
 
 const PREFIX = 'face.';
 
@@ -25,8 +25,6 @@ const FACE_WORDS: ModalityWords = {
   neutral: 'neutral',
   fallback: (i) => `expression ${i + 1}`,
 };
-
-const DESCRIPTION_BY_ID = new Map(FACE_FEATURES.map((f) => [f.id, f.description ?? f.id]));
 
 const keep = (key: string): boolean => key.startsWith(PREFIX);
 
@@ -50,5 +48,6 @@ export const faceModality: CarveModality = {
   general: () => generalFaceLabeling(),
   /** Both grow as the face comes closer; the scale first. */
   nuisance: { distance: ['face.head.scale', 'face.head.distanceProxy'] },
-  describe: (featureId, sign) => `${sign > 0 ? 'more' : 'less'}: ${DESCRIPTION_BY_ID.get(featureId) ?? featureId}`,
+  /** The face's movements in plain words (`./face_words.ts`). */
+  describe: faceWords,
 };

@@ -25,6 +25,7 @@
     "./enroll/sequence": "./src/enroll/sequence.ts",
     "./enroll/session": "./src/enroll/session.ts",
     "./enroll/sorting": "./src/enroll/sorting.ts",
+    "./enroll/quality": "./src/enroll/quality.ts",
     "./enroll/sufficiency": "./src/enroll/sufficiency.ts",
     "./enroll/types": "./src/enroll/types.ts",
     "./features/body_catalog": "./src/features/body_catalog.ts",

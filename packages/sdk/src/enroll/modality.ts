@@ -35,6 +35,23 @@ export interface ModalityWords {
   fallback(index: number): string;
 }
 
+/**
+ * One feature in a player's words (#385 E6): the movement it reads and what to do to make more or
+ * less of it. Several features reading one movement share `movement`, so a hint says it once.
+ */
+export interface FeatureWords {
+  /** The movement, as a noun phrase: `mouth open`. */
+  name: string;
+  /** The instruction for more of it: `open your mouth wider`. */
+  more: string;
+  /** The instruction for less of it: `close your mouth more`. */
+  less: string;
+  /** The movement's key, shared by the features that read it (`mouth-open`). Defaults to `name`. */
+  movement?: string;
+  /** The feature falls as the movement grows (an eye aspect ratio as the eye closes). */
+  invert?: boolean;
+}
+
 /** A general model as the matcher's inputs (P1's `matchLabels` options, minus the fallback). */
 export type GeneralLabeling = Omit<LabelMatchOptions, 'fallback' | 'keepExisting'>;
 
@@ -64,8 +81,9 @@ export interface CarveModality {
   general?(): GeneralLabeling;
   /** Nuisance proxies for the live tuning: camera distance, in order of preference. */
   readonly nuisance: { readonly distance?: readonly string[] };
-  /** Plain words for moving a feature one way, for hints. */
-  describe(featureId: string, sign: 1 | -1): string;
+  /** A feature in plain words, for the quality hints (#385 E6): undefined for a feature the
+   *  modality has no words for (the hint then names the id). */
+  describe(featureId: string): FeatureWords | undefined;
 }
 
 /** The vector with only the modality's keys (what a stored sample carries). */
