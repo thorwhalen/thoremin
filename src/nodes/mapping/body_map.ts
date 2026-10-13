@@ -19,6 +19,7 @@
  * configures a body route sounds byte-identical.
  */
 import { z } from 'zod';
+import { clamp01 } from '@thoremin/sdk/features/math';
 import { EFFECTS, type EffectId } from './hand_map';
 
 /** The sound aspects a body feature can be routed to: the finger effects plus gain. */
@@ -79,8 +80,6 @@ export const NEUTRAL_MODS: VoiceMods = {
   gate: 1,
   gain: 1,
 };
-
-const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** The per-slot smoothed level, carried between ticks by the node, keyed by what the
  *  slot was routing so a re-targeted slot starts fresh instead of smoothing from the

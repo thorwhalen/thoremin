@@ -14,19 +14,16 @@
  *
  * Pure functions over sorted arrays of seconds.
  */
+import { median, sortedCopy } from '@thoremin/stats';
 
 const DEFAULT_WINDOW = 0.07;
 const DEFAULT_SIGMA = 0.04;
 const DEFAULT_TOLERANCE = 0.175;
 
-function sorted(xs: readonly number[]): number[] {
-  return [...xs].sort((a, b) => a - b);
-}
-
 /** Greedy one-to-one matching of estimates to references within ±window. */
 function matchCount(ref: readonly number[], est: readonly number[], window: number): number {
-  const R = sorted(ref);
-  const E = sorted(est);
+  const R = sortedCopy(ref);
+  const E = sortedCopy(est);
   let i = 0;
   let j = 0;
   let matched = 0;
@@ -68,8 +65,8 @@ export function cemgil(ref: readonly number[], est: readonly number[], sigma = D
 /** CMLt: the fraction of reference beats that have an estimate within `tolerance` of
  *  the local reference inter-beat interval in BOTH phase and period. */
 export function continuity(ref: readonly number[], est: readonly number[], tolerance = DEFAULT_TOLERANCE): number {
-  const R = sorted(ref);
-  const E = sorted(est);
+  const R = sortedCopy(ref);
+  const E = sortedCopy(est);
   if (R.length < 2 || E.length < 2) return 0;
   let ok = 0;
   for (let i = 1; i < R.length; i++) {
@@ -147,10 +144,8 @@ function meanMatchedError(ref: readonly number[], est: readonly number[], window
 
 /** Median inter-onset interval of a sorted-or-not list of times. NaN below two. */
 export function medianInterval(times: readonly number[]): number {
-  const T = sorted(times);
+  const T = sortedCopy(times);
   if (T.length < 2) return NaN;
   const d = T.slice(1).map((t, i) => t - T[i]);
-  d.sort((a, b) => a - b);
-  const m = d.length >> 1;
-  return d.length % 2 ? d[m] : (d[m - 1] + d[m]) / 2;
+  return median(d);
 }

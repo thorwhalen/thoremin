@@ -87,7 +87,7 @@
  *
  * Pure state, no allocation per sample beyond the emitted anchor, no clock.
  */
-import { median3 } from '@thoremin/stats';
+import { median, median3 } from '@thoremin/stats';
 import type { Anchor, Sample } from './types';
 import { fitQuadratic } from './impact';
 
@@ -402,9 +402,7 @@ export function createIctusDetector(options: DetectorOptions = {}): IctusDetecto
     }
     residuals.push(resid);
     if (residuals.length > JITTER_WINDOW) residuals.shift();
-    const sorted = [...residuals].sort((a, b) => a - b);
-    const m = sorted.length >> 1;
-    jitter = THIRD_DIFF_TO_SD * (sorted.length % 2 ? sorted[m] : 0.5 * (sorted[m - 1] + sorted[m]));
+    jitter = THIRD_DIFF_TO_SD * median(residuals);
   };
   /** The third difference of the settled positions, once four are in. A repeated
    *  position is a held frame (a 30 fps camera polled at 60 Hz) or a hand at rest on

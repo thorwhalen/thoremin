@@ -23,10 +23,9 @@ export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
-/** Clamp `v` into `[0, 1]`. */
-export function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v;
-}
+/** Clamp `v` into `[0, 1]`: the one definition in `@thoremin/stats`, re-exported here
+ *  because the feature code and the app import it by this path. */
+export { clamp01 } from '@thoremin/stats';
 
 /** The z of a point, defaulting to 0 (image landmarks may omit it). */
 export function z(a: Vec3): number {
