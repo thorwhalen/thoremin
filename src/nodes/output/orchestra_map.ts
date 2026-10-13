@@ -65,7 +65,7 @@ export function bankProgramFor(program: number | undefined, bank: readonly numbe
 }
 
 /** One part's place in the synth. */
-export interface PartChannel {
+interface PartChannel {
   partId: string;
   channel: number;
   /** The program sent to the channel (already mapped onto the bank). */
