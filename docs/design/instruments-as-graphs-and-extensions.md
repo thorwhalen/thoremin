@@ -251,7 +251,7 @@ What the split makes *possible*, so the maintainer can choose; the choice itself
 |---|---|---|---|
 | 1 | which branches an instrument has | derived from its dials `Layer` (§3.4) | the explicit `branches` field of a persisted `InstrumentSpec` (PR 4) |
 | 2 | how voices reach the synth | two declared pools by role (`voice1..8` hushable, `score1..2` kept), allocated by the composer | a variadic merge once the engine allows dynamic ports (`dag/types.ts`, static `inputs` today) |
-| 3 | how an extension's node code is loaded | statically, through the manifest array | `registry.registerLazy(type, () => import(...))` resolved before `applyGraph` plans, giving one chunk per extension (`lazy-loading.md`'s loader seam, applied to node *definitions*) |
+| 3 | how an extension's node code is loaded | statically, through the manifest array | `registry.registerLazy(type, () => import(...))` resolved before `applyGraph` plans, giving one chunk per extension (`lazy-loading.md`'s loader seam, applied to node *definitions*). **Built (2026-10-13)** as `declareLazy` / `ensure` with an opt-in `lazy` entry in `extensions.json`, ASL first: [`lazy-extensions.md`](lazy-extensions.md) |
 | 4 | where the extension list comes from | an in-tree array of manifests | a build-time `extensions.json` (O2) naming registry packages (O3) |
 | 5 | the class registry | two entries, `field` and `air` (#274) | an extension's `classes` field |
 | 6 | how a dial reaches the graph | `store-controls` ports **generated**: one per top-level key of the composed dials schema, one per declared transient field, plus the trunk's hand-written scalars | the whole-object ports already in `store_controls.ts` are the pattern; nothing further needed |
@@ -284,7 +284,7 @@ Ordering: 1 → 3 → 4 → 5 → 6 is a chain; 7 waits on #262 and on the other
 
 - Does not decide what is public, private or under which licence (#262); it states the engineering opinion in §5 and stops.
 - Does not move the field instruments out of core, or build `ext-field`; it records the step and the condition (a track record for the optional-edge rule).
-- Does not build per-extension lazy loading of node code (seam 3); the bytes are elsewhere today (§2.4).
+- Does not build per-extension lazy loading of node code (seam 3); the bytes are elsewhere today (§2.4). *(Built later, opt-in per extension, when ASL brought a recogniser and weights only some players use: [`lazy-extensions.md`](lazy-extensions.md).)*
 - Does not build a discovery mechanism beyond the manifest array and the build-time list; a third party appears before a plugin loader does.
 - Does not change `webcam-hands`' unconditional model load: the hand source is the trunk. A hand-free instrument (keyboard, MIDI-in) would make it a branch; that is a real future instrument and a one-line change to the trunk definition when it comes.
 - Does not build the `chord-mapper` slot or any swap dropdown; the `expression` slot is declared with one candidate and no UI.

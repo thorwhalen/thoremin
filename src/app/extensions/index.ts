@@ -2,18 +2,99 @@
  * The React halves of the extensions this build ships, in the same order as `EXTENSIONS`
  * (`src/extensions`). `DialsControlsPanel` folds over their panels, `useEngine` over their
  * status hooks, `App` over their mount effects.
+ *
+ * A LAZY extension (`docs/design/lazy-extensions.md`) lists only its stub here: its sections as
+ * data, plus the `load` the build generated for its deferred half. Its panels are placeholders
+ * that load that half when first rendered ({@link lazyPanel}), its status hooks join
+ * {@link extensionStatusHooks} once loaded, and its mount effects run when it loads.
  */
-import type { ExtensionUi } from '@thoremin/sdk-ui/types';
+import type { ExtensionPanel, ExtensionUi, ExtensionUiStub, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
 import listed from 'virtual:thoremin/extensions-ui';
+import { lazyPanel } from './lazyPanel';
 
-/** The React halves of the extensions `extensions.json` names, in its order. */
-export const EXTENSION_UIS: readonly ExtensionUi[] = listed.map((u, i) => {
-  if (!u || !Array.isArray(u.panels) || !Array.isArray(u.statusHooks) || !Array.isArray(u.onMount)) {
-    throw new Error(`extensions.json: entry ${i} does not default-export an ExtensionUi (panels, statusHooks, onMount)`);
+type Listed = ExtensionUi | (ExtensionUiStub & { load: () => Promise<ExtensionUi> });
+const isLazy = (u: Listed): u is ExtensionUiStub & { load: () => Promise<ExtensionUi> } => typeof (u as { load?: unknown }).load === 'function';
+
+const LISTED: readonly Listed[] = (listed as readonly Listed[]).map((u, i) => {
+  const ok = u && Array.isArray(u.panels) && (isLazy(u) || (Array.isArray((u as ExtensionUi).statusHooks) && Array.isArray((u as ExtensionUi).onMount)));
+  if (!ok) {
+    throw new Error(`extensions.json: entry ${i} does not default-export an ExtensionUi (panels, statusHooks, onMount) or, with a "lazy" entry, an ExtensionUiStub (id, panels)`);
   }
   return u;
 });
 
-export const EXTENSION_PANELS = EXTENSION_UIS.flatMap((u) => u.panels);
-export const EXTENSION_STATUS_HOOKS = EXTENSION_UIS.flatMap((u) => u.statusHooks);
+/** Every listed extension's id, eager or lazy, in `extensions.json`'s order. */
+export const EXTENSION_UI_IDS: readonly string[] = LISTED.map((u) => u.id);
+
+/** The EAGER extensions' React halves (a lazy one's arrives through {@link loadExtensionUi}). */
+export const EXTENSION_UIS: readonly ExtensionUi[] = LISTED.filter((u): u is ExtensionUi => !isLazy(u));
+
+const loadedUis = new Map<string, ExtensionUi>();
+const loadingUis = new Map<string, Promise<ExtensionUi>>();
+
+/**
+ * Load a lazy extension's React half (once per page; a failure is forgotten, so the next call
+ * retries). Its status hooks join {@link extensionStatusHooks} and its mount effects run, once.
+ * An eager extension's half resolves at once.
+ */
+export function loadExtensionUi(id: string): Promise<ExtensionUi> {
+  const eager = EXTENSION_UIS.find((u) => u.id === id);
+  if (eager) return Promise.resolve(eager);
+  const done = loadedUis.get(id);
+  if (done) return Promise.resolve(done);
+  const stub = LISTED.find((u) => u.id === id);
+  if (!stub || !isLazy(stub)) return Promise.reject(new Error(`no extension "${id}" in this build`));
+  let p = loadingUis.get(id);
+  if (!p) {
+    p = stub.load().then(
+      (ui) => {
+        loadingUis.delete(id);
+        loadedUis.set(id, ui);
+        // Its mount effects run for the rest of the page's life, like an eager one's (whose
+        // cleanup only runs when the whole shell unmounts).
+        for (const effect of ui.onMount) effect();
+        return ui;
+      },
+      (err: unknown) => {
+        loadingUis.delete(id);
+        throw err;
+      },
+    );
+    loadingUis.set(id, p);
+  }
+  return p;
+}
+
+/** Every extension's editor section: an eager one's components, a lazy one's placeholders. */
+export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
+  isLazy(u) ? u.panels.map((decl) => lazyPanel(decl, () => loadExtensionUi(u.id), u.id)) : u.panels,
+);
+
+/** The status hooks in hand now: every eager extension's, and each lazy one's once it loaded. */
+export function extensionStatusHooks(): readonly StatusHook[] {
+  return [...EXTENSION_UIS, ...loadedUis.values()].flatMap((u) => u.statusHooks);
+}
+
+/**
+ * One engine sink that runs every status hook in hand, building each hook's sink the first
+ * time it sees it, so a lazy extension that loads while the engine runs gets its readout. Every
+ * hook runs even when one throws; the first error is rethrown for the Applier to report.
+ */
+export function makeExtensionSinks(engine: OutputReader): () => void {
+  const made = new Map<StatusHook, () => void>();
+  return () => {
+    let failure: unknown = null;
+    for (const hook of extensionStatusHooks()) {
+      try {
+        let sink = made.get(hook);
+        if (!sink) made.set(hook, (sink = hook.make(engine)));
+        sink();
+      } catch (err) {
+        failure ??= err;
+      }
+    }
+    if (failure !== null) throw failure;
+  };
+}
+
 export const EXTENSION_MOUNT_EFFECTS = EXTENSION_UIS.flatMap((u) => u.onMount);

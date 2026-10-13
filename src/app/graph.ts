@@ -44,6 +44,27 @@ import { assembleSpecWith, type InstrumentSpec, type SpecParts } from '@/instrum
 export const ALL_BRANCHES = [...BRANCHES, ...EXTENSION_BRANCHES];
 export const ALL_BRANCH_IDS: readonly string[] = ALL_BRANCHES.map((b) => b.id);
 
+/**
+ * `branchIds` without every branch that names a node of one of `types`, and without every branch
+ * that requires one of those (transitively, since the composer would add the required one back).
+ * How the app still plays when a lazy extension's code failed to load: the graph is composed
+ * without that extension's branches (`docs/design/lazy-extensions.md`).
+ */
+export function branchIdsWithout(branchIds: readonly string[], types: ReadonlySet<string>): string[] {
+  if (types.size === 0) return [...branchIds];
+  const dropped = new Set(ALL_BRANCHES.filter((b) => b.nodes.some((n) => n.type !== undefined && types.has(n.type))).map((b) => b.id));
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const b of ALL_BRANCHES) {
+      if (!dropped.has(b.id) && b.requires.some((r) => dropped.has(r))) {
+        dropped.add(b.id);
+        grew = true;
+      }
+    }
+  }
+  return branchIds.filter((id) => !dropped.has(id));
+}
+
 /** What the derivation knows in THIS build: every branch id, and each extension's derivation. */
 export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_BRANCH_IDS), extensions: EXTENSIONS };
 
@@ -145,6 +166,9 @@ export function slotSelectionKey(selection: SlotSelection = NO_SLOTS): string {
 /** Why `type` cannot fill `slot`, or null when it can. Checked against the contract. */
 function slotFillReason(type: string, slot: SlotDef, registry: NodeRegistry): string | null {
   if (!registry.has(type)) return 'is not a registered node type';
+  // A lazy extension's type is known before its code is: its contract cannot be checked yet,
+  // and a slot never waits for a download, so it falls back like any other unfit candidate.
+  if (registry.pending([type]).length > 0) return 'is a lazy extension\'s node, not loaded';
   const def = registry.get(type);
   if (!def.roles?.includes(slot.role)) return `does not carry role "${slot.role}"`;
   const out = def.outputs.find((p) => p.name === slot.contract.output.name);

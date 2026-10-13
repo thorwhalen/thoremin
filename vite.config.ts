@@ -41,6 +41,8 @@ export default defineConfig(({mode}) => {
       globals: true,
       environment: 'node',
       include: ['test/**/*.test.{ts,tsx}'],
+      // The lazy extensions' nodes, preloaded per file (test/setup/lazy_extensions.ts says why).
+      setupFiles: ['test/setup/lazy_extensions.ts'],
     },
   };
 });

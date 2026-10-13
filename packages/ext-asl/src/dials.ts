@@ -4,9 +4,9 @@
  * ASL chords instrument). The chord key, sound and voicing are NOT here: they are the face
  * chords' (`faceChord.*`), so one chord section sets both.
  *
- * Pure: Zod and the node schema only.
+ * Pure: Zod only (the schema is `./schema`, so this eager file never imports the node).
  */
-import { AslDialSchema, DEFAULT_ASL_DIAL } from './nodes/asl_signs';
+import { AslDialSchema, DEFAULT_ASL_DIAL } from './schema';
 import { dialSlice } from '@thoremin/sdk/instruments/extension';
 
 export const AslSettingsSchema = AslDialSchema;

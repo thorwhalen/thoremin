@@ -7,7 +7,6 @@
  * sign ids (what the chord node keys on) and `signs` in the overlay's generic
  * `CategoryScores` shape (short bar labels, the named sign written out).
  */
-import { z } from 'zod';
 import { defineNode, type NodeContext } from '@thoremin/dag';
 import { lazyResource, withActive, type LoadStatus } from '@thoremin/lazy';
 import { frameTime, type CategoryScores, type HandsFrame } from '@thoremin/sdk/nodes/domain';
@@ -21,26 +20,13 @@ import {
   type SignRecognizer,
   type SignScores,
 } from '@thoremin/asl';
+import { AslDialSchema, DEFAULT_ASL_DIAL, type AslDialParams } from '../schema';
 
-const Params = z.object({
-  /** The sign reader is on. Off by default: nothing new happens for a player who never asks. */
-  enabled: z.boolean().default(false),
-  /** Also read the movement signs (J, Z and the words); off = the 24 held letters only. */
-  motion: z.boolean().default(true),
-  /** A sign is named only above this smoothed score. */
-  minConfidence: z.number().min(0.2).max(0.95).default(0.45),
-  /** Smoothing time constant, seconds (0 = none: every frame's reading as is). */
-  smoothing: z.number().min(0).max(0.5).default(0.12),
-  /** A..G play chords of the key (the ASL chords instrument). */
-  chords: z.boolean().default(false),
-  /** Chords: keep the last chord sounding while the hand signs other things (off = only while A..G is held). */
-  holdChord: z.boolean().default(true),
-});
-type Params = z.infer<typeof Params>;
-
-export const AslDialSchema = Params;
-export type AslDialParams = Params;
-export const DEFAULT_ASL_DIAL: AslDialParams = AslDialSchema.parse({});
+// The params ARE the `asl` dial; the schema lives in `../schema` so the eager stub can carry
+// the dial without importing this node (the extension is lazy: docs/design/lazy-extensions.md).
+const Params = AslDialSchema;
+type Params = AslDialParams;
+export { AslDialSchema, DEFAULT_ASL_DIAL, type AslDialParams };
 
 export interface AslModels {
   staticModel: MlpModel;

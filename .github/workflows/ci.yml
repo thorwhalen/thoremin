@@ -64,6 +64,12 @@ jobs:
       - name: Build (vite — verifies the React layer)
         run: npm run build
 
+      # A lazy extension's code (extensions.json's `lazy` entries) is in no chunk the page
+      # loads up front, only in chunks fetched by import() on demand
+      # (docs/design/lazy-extensions.md).
+      - name: Lazy extensions stay out of the initial chunks
+        run: npm run check:lazy
+
   # Core alone: thoremin must typecheck, test and build with NO extension listed
   # (extensions.core.json), so an extension stays something a deploy chooses and core
   # never quietly depends on one. Tests that exercise an extension skip themselves here

@@ -99,11 +99,25 @@ export interface ExtensionTraining {
   byBranch: readonly (readonly [branch: string, route: string])[];
 }
 
+/** What a LAZY extension's deferred half provides (`docs/design/lazy-extensions.md`): its node
+ *  definitions, exactly the types its stub {@link Extension.provides}. */
+export interface ExtensionNodes {
+  nodes: readonly NodeDef<unknown>[];
+}
+
 export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[], Tr extends readonly TransientPort[] = readonly TransientPort[]> {
   /** Stable id (`air`). */
   id: string;
-  /** Node definitions registered into the app registry. */
-  nodes: readonly NodeDef<unknown>[];
+  /** Node definitions registered into the app registry (an EAGER extension). A lazy one
+   *  leaves this out and names its node types in {@link provides} instead. */
+  nodes?: readonly NodeDef<unknown>[];
+  /** A LAZY extension's node types: declared at once (a composer may name them), their code
+   *  loaded by {@link load} the first time a graph names one. */
+  provides?: readonly string[];
+  /** Loads the deferred half. Never written by the extension: the host's build generates it
+   *  from the `lazy` entry of `extensions.json` (a dynamic `import()`), so the deferred
+   *  module is its own chunk. Present exactly when {@link provides} is. */
+  load?: () => Promise<ExtensionNodes>;
   /** Branches the composer may name; their ids join the branch table. */
   branches: readonly GraphBranch[];
   /** The settings keys this extension owns, one per whole-object dial. */

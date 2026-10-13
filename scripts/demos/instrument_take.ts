@@ -29,7 +29,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runHeadless } from '@thoremin/dag';
-import { createAppRegistry } from '@/nodes/browser';
+import { loadedAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
@@ -57,7 +57,8 @@ const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sou
 // ---- Run ------------------------------------------------------------------------------
 
 async function run(frames: HandsFrame[], controls: () => Record<string, unknown>, port: string): Promise<unknown[]> {
-  const registry = createAppRegistry();
+  // `defaultGraph` names every branch, a lazy extension's too: load them all.
+  const registry = await loadedAppRegistry();
   const g = defaultGraph({ source: 'replay-hands' }, registry);
   g.nodes.find((n) => n.id === 'cam')!.params = { frames };
   const { recorder } = await runHeadless(g, registry, {

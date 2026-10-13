@@ -13,7 +13,7 @@
  *
  * Pure: the React halves are listed in `src/app/extensions`.
  */
-import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionsSettingsShape, type ExtensionsTransients } from '@thoremin/sdk/instruments/extension';
+import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionNodes, type ExtensionsSettingsShape, type ExtensionsTransients } from '@thoremin/sdk/instruments/extension';
 import listed from 'virtual:thoremin/extensions';
 
 type Listed = typeof listed;
@@ -24,6 +24,19 @@ function checked<Es extends readonly Extension[]>(es: Es): Es {
     // export arrives here as `undefined`, and only the production build would say so.
     if (typeof e?.id !== 'string' || !Array.isArray(e.branches) || !Array.isArray(e.dials)) {
       throw new Error(`extensions.json: entry ${i} does not default-export an Extension (id, branches, dials)`);
+    }
+    // Eager: the nodes are in the manifest. Lazy: the stub names them (`provides`) and the
+    // build gave it `load` from the `lazy` entry; the two always come together.
+    const lazy = typeof e.load === 'function';
+    if (lazy !== Array.isArray(e.provides)) {
+      throw new Error(
+        lazy
+          ? `extensions.json: "${e.id}" has a "lazy" entry but its manifest names no \`provides\` (the node types its deferred half defines)`
+          : `extensions.json: "${e.id}" names \`provides\` (a lazy extension's stub) but has no "lazy" entry to load them from`,
+      );
+    }
+    if (lazy ? e.nodes !== undefined || e.provides!.length === 0 : !Array.isArray(e.nodes)) {
+      throw new Error(`extensions.json: "${e.id}" must have either \`nodes\` (eager) or a non-empty \`provides\` and no \`nodes\` (lazy)`);
     }
   });
   return es;
@@ -59,3 +72,46 @@ export const EXTENSION_INSTRUMENTS = all.flatMap((e) => e.instruments ?? []);
  *  typed from the generated list declaration. `SettingsSchema` extends the core shape with it. */
 export type ExtensionSettingsShape = ExtensionsSettingsShape<Listed>;
 export const EXTENSION_SETTINGS_SHAPE: ExtensionSettingsShape = extensionsSettingsShape(EXTENSIONS);
+
+/**
+ * A LAZY extension's node definitions, loaded once per page and shared by every registry
+ * (`docs/design/lazy-extensions.md`): the first call runs the build's `import()`, later calls
+ * reuse it, and a failed load is forgotten so the next call retries. {@link loadedExtensionNodes}
+ * is the synchronous view, so a registry built after the load (a new engine) registers the
+ * nodes at once instead of declaring them again.
+ */
+const nodesLoaded = new Map<string, ExtensionNodes['nodes']>();
+const nodesLoading = new Map<string, Promise<ExtensionNodes['nodes']>>();
+
+export function loadExtensionNodes(e: Extension): Promise<ExtensionNodes['nodes']> {
+  const done = nodesLoaded.get(e.id);
+  if (done) return Promise.resolve(done);
+  if (!e.load) return Promise.resolve(e.nodes ?? []);
+  let p = nodesLoading.get(e.id);
+  if (!p) {
+    p = e.load().then(
+      (m) => {
+        nodesLoaded.set(e.id, m.nodes);
+        nodesLoading.delete(e.id);
+        return m.nodes;
+      },
+      (err: unknown) => {
+        nodesLoading.delete(e.id);
+        throw err;
+      },
+    );
+    nodesLoading.set(e.id, p);
+  }
+  return p;
+}
+
+/** The node definitions of `e` if they are in hand: an eager extension's always, a lazy one's
+ *  once {@link loadExtensionNodes} has resolved; `undefined` before that. */
+export function loadedExtensionNodes(e: Extension): ExtensionNodes['nodes'] | undefined {
+  return e.load ? nodesLoaded.get(e.id) : (e.nodes ?? []);
+}
+
+/** The listed extension that provides node type `type` lazily, if any. */
+export function lazyExtensionProviding(type: string): Extension | undefined {
+  return all.find((e) => e.provides?.includes(type));
+}

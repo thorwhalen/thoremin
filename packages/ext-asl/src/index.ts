@@ -10,11 +10,14 @@
  *   D major, F plays F#m). Key, sound and voicing are the face chords' settings.
  *
  * Pure: no React (the editor section and the readout are `./ui.tsx`).
+ *
+ * LAZY (`docs/design/lazy-extensions.md`): this file is the EAGER STUB, so it imports no node
+ * and no recogniser. It carries what the app needs before anyone signs (the dial, the
+ * branches as data, the two instruments, the derivation) and names its node types in
+ * `provides`; their code is `./lazy.ts`, which the host's build loads with a dynamic
+ * `import()` the first time a graph names one (`extensions.json`'s `lazy` entry).
  */
 import { defineExtension } from '@thoremin/sdk/instruments/extension';
-import type { NodeDef } from '@thoremin/dag';
-import { aslSignsNode } from './nodes/asl_signs';
-import { signChordNode } from './nodes/sign_chord';
 import { ASL_BRANCHES } from './branches';
 import { ASL_DIAL_SLICES } from './dials';
 
@@ -28,7 +31,8 @@ const dial = (x: unknown): { enabled?: boolean; chords?: boolean } => (x && type
 
 export const ASL_EXTENSION = defineExtension({
   id: 'asl',
-  nodes: [aslSignsNode, signChordNode] as unknown as NodeDef<unknown>[],
+  // The node types `./lazy.ts` defines (the registry checks the two lists agree on load).
+  provides: ['asl-signs', 'sign-chord'],
   branches: ASL_BRANCHES,
   dials: ASL_DIAL_SLICES,
   instruments: [

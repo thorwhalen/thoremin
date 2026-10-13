@@ -12,7 +12,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCatalog, type CatalogEntry, type ParamInfo, type PortInfo } from '@/catalog';
-import { createAppRegistry } from '@/nodes/browser';
+import { loadedAppRegistry } from '@/nodes/browser';
 import { PROVIDER_LIST } from '@/plugins/assistant/providers';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -247,8 +247,9 @@ function toHtml(catalog: CatalogEntry[]): string {
 </div></body></html>`;
 }
 
-function main(): void {
-  const catalog = buildCatalog(createAppRegistry());
+async function main(): Promise<void> {
+  // Every node, a lazy extension's included (the app loads those on demand; the catalog lists them).
+  const catalog = buildCatalog(await loadedAppRegistry());
   mkdirSync(join(ROOT, 'public'), { recursive: true });
   writeFileSync(join(ROOT, 'docs', 'CATALOG.md'), toMarkdown(catalog) + '\n');
   writeFileSync(join(ROOT, 'public', 'manual.html'), toHtml(catalog) + '\n');
@@ -256,4 +257,4 @@ function main(): void {
   console.log(`catalog: ${catalog.length} nodes -> docs/CATALOG.md, public/manual.html, public/catalog.json`);
 }
 
-main();
+await main();

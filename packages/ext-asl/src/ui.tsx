@@ -1,24 +1,14 @@
 /**
- * The ASL extension's React half: the Sign language editor section and the status hook that
- * mirrors the reader into its readout.
+ * The ASL extension's React half, EAGER STUB: only the editor section it will contribute
+ * (which instrument, under what label), so the shell can list it before anything loads. The
+ * section's components and the status hook are `./lazy_ui.tsx`, loaded on demand
+ * (`docs/design/lazy-extensions.md`). No React import: it is data.
  */
-import type { ExtensionUi } from '@thoremin/sdk-ui/types';
-import { AslControls, AslReadout } from './panels/asl';
-import { ABSENT_ASL_LIVE, makeAslReporter, useAslStatus } from './app/aslStatus';
-import { ASL_SIGNS_NODE_ID } from './branches';
+import type { ExtensionUiStub } from '@thoremin/sdk-ui/types';
 
-export const ASL_UI: ExtensionUi = {
+export const ASL_UI_STUB: ExtensionUiStub = {
   id: 'asl',
-  panels: [{ instrumentId: 'asl', section: 'Sign language', Controls: AslControls, Readout: AslReadout }],
-  statusHooks: [
-    {
-      nodeId: ASL_SIGNS_NODE_ID,
-      make: (engine) => makeAslReporter(engine),
-      onRemoved: () => useAslStatus.getState().report(ABSENT_ASL_LIVE),
-      reset: () => useAslStatus.getState().reset(),
-    },
-  ],
-  onMount: [],
+  panels: [{ instrumentId: 'asl', section: 'Sign language' }],
 };
 
-export default ASL_UI;
+export default ASL_UI_STUB;
