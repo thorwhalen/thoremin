@@ -129,11 +129,17 @@ export interface FaceSessionState {
   startMerge(seed: MergeSeed): void;
   /** Open a categorizer from a file's text (validated, older versions migrated); not saved yet. */
   importFile(text: string): boolean;
-  /** The open categorizer as a file's text (P1's versioned format), or null. */
-  exportFile(): { name: string; text: string } | null;
+  /** The categorizer shown, as a file's text (P1's versioned format): an open one, or a fresh
+   *  carve before it is saved (#369), named `name` when given (the Save field's text), else
+   *  its own name, else {@link FACE_SESSION_DEFAULTS.exportName}. Null with nothing to export. */
+  exportFile(name?: string): { name: string; text: string } | null;
+  /** A saved categorizer as a file's text, without opening it (#369); null if unreadable. */
+  exportSaved(id: string): Promise<{ name: string; text: string } | null>;
 }
 
 export const FACE_SESSION_DEFAULTS = {
+  /** The name a fresh carve is exported under when it has none yet. */
+  exportName: 'My faces',
   pollMs: 33,
   exemplars: 4,
   /** A still-point's `t` is when the hold BEGAN; its picture is taken this much later, half the
@@ -240,6 +246,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       show(gen);
     };
     const shownIndices = (view: CarveView): number[] => [...view.categories.flatMap((c) => c.exemplars.map((e) => e.index)), ...view.neutral.exemplars];
+
+    /** The take in hand as a categorizer, carved as shown (what Save files and Export writes). */
+    const carvedCategorizer = (view: CarveView, mode: CategorizerMode, name: string): PersonalCategorizer => {
+      const points = take!.session().points().map((p) => ({ ...p, vector: faceOnly(p.vector) }));
+      return categorizerFromModel(view.model, points, { name, mode, modality: 'face', createdAt: deps.isoNow() });
+    };
 
     /** Carve the take at (mode, k), with the player's typed names. */
     const recarve = (mode: CategorizerMode, k: number) => {
@@ -467,8 +479,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
             categorizer = { ...working, name: trimmed };
             tid = stillsTakeId ?? openRecord?.model.takeId ?? null;
           } else if (phase === 'carved' && take) {
-            const points = take.session().points().map((p) => ({ ...p, vector: faceOnly(p.vector) }));
-            categorizer = categorizerFromModel(view.model, points, { name: trimmed, mode, modality: 'face', createdAt: deps.isoNow() });
+            categorizer = carvedCategorizer(view, mode, trimmed);
             tid = stillsTakeId;
           } else return false;
           // The shown stills of the take in hand (a carve's, or a merged take's), grabbed in full
@@ -638,11 +649,24 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         return true;
       },
 
-      exportFile() {
-        const working = get().working;
-        if (get().phase !== 'saved' || !working) return null;
-        const name = get().name.trim() || working.name;
-        return { name, text: exportCategorizer({ ...working, name }) };
+      exportFile(asked) {
+        const { phase, working, view, mode } = get();
+        const typed = asked?.trim() || get().name.trim();
+        if (phase === 'saved' && working) {
+          const name = typed || working.name;
+          return { name, text: exportCategorizer({ ...working, name }) };
+        }
+        if (phase === 'carved' && take && view && view.k > 0) {
+          const name = typed || FACE_SESSION_DEFAULTS.exportName;
+          return { name, text: exportCategorizer(carvedCategorizer(view, mode, name)) };
+        }
+        return null;
+      },
+
+      async exportSaved(id) {
+        const record = await deps.models.load(id).catch(() => null);
+        if (!record) return null;
+        return { name: record.name, text: exportCategorizer({ ...record.model.categorizer, name: record.name }) };
       },
     };
   });
