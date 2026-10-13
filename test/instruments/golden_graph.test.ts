@@ -69,6 +69,12 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   // #186 PR F: the dancer's pulse reads the body frame and feeds the body vector.
   { from: { node: 'camBody', port: 'body' }, to: { node: 'bodyPulse', port: 'body' } },
   { from: { node: 'bodyPulse', port: 'pulse' }, to: { node: 'bodyVec', port: 'pulse' } },
+  // #186 PR G: the song player, in the trunk, fed by the store and a tool's claim.
+  { from: { node: 'ui', port: 'songHandle' }, to: { node: 'songPlayer', port: 'song' } },
+  { from: { node: 'ui', port: 'songPlaying' }, to: { node: 'songPlayer', port: 'playing' } },
+  { from: { node: 'ui', port: 'songRate' }, to: { node: 'songPlayer', port: 'rate' } },
+  { from: { node: 'ui', port: 'songVolume' }, to: { node: 'songPlayer', port: 'volume' } },
+  { from: { node: 'ui', port: 'claimed' }, to: { node: 'songPlayer', port: 'claimed' } },
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */
@@ -77,6 +83,8 @@ const NODES_ADDED_SINCE_SNAPSHOT: NodeSpec[] = [
   { id: 'orchestra', type: 'orchestra', params: {} },
   // #186 PR F: the dancer's pulse, in the body-source branch.
   { id: 'bodyPulse', type: 'body-pulse', params: {} },
+  // #186 PR G: the song player, in the trunk.
+  { id: 'songPlayer', type: 'song-player', params: {} },
 ];
 
 /** Edges the branch table LOST after the snapshot, each named here for the same reason. */

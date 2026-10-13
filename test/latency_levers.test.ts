@@ -101,7 +101,8 @@ describe('the low-latency audio pref (per device, off by default)', () => {
     expect(mergeControls({ audioPrefs: { lowLatency: true } } as never, initial).audioPrefs).toEqual({ lowLatency: true });
     expect(mergeControls({ audioPrefs: { lowLatency: 'yes' } } as never, initial).audioPrefs).toEqual({ lowLatency: false });
     const persist = (useControls as unknown as { persist: { getOptions(): { partialize(s: unknown): Record<string, unknown>; version: number } } }).persist.getOptions();
-    expect(persist.version).toBe(24);
+    // v24 added the pref; later bumps (v25: the song dials, #186 PR G) keep it.
+    expect(persist.version).toBeGreaterThanOrEqual(24);
     expect(persist.partialize(useControls.getState()).audioPrefs).toEqual({ lowLatency: false });
   });
 

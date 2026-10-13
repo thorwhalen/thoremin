@@ -15,7 +15,8 @@ import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } 
 import type { SoundId } from '@thoremin/sdk/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { BodyMap } from '@/nodes/mapping/body_map';
-import type { FaceChord, FaceExpr, HandsSettings, SteerSettings } from '@/settings/schema';
+import { DEFAULT_SONG, type FaceChord, type FaceExpr, type HandsSettings, type SteerSettings } from '@/settings/schema';
+import type { SongHandle } from '@/nodes/output/song_player';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls';
 import type { ConductorSettings, ExtensionDials, ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
@@ -106,6 +107,14 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
   graphElements?: string[] | null;
+  /** The song's level and rate (#186 PR G, a per-device pref) → `song-player`'s
+   *  `volume` / `rate`. */
+  songPrefs?: { volume: number; rate: number };
+  /** The loaded song (transient), emitted as the SAME object until another loads, so
+   *  `song-player` tells a new song by identity. */
+  songHandle?: SongHandle | null;
+  /** The song's transport (transient). */
+  songPlaying?: boolean;
 }
 
 const Params = z.object({});
@@ -208,6 +217,12 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
+    // The song (#186 PR G) → `song-player`: the loaded song (transient, by identity), its
+    // transport (transient), and its level and rate (a per-device pref).
+    { name: 'songHandle', kind: 'song-handle' },
+    { name: 'songPlaying', kind: 'boolean' },
+    { name: 'songVolume', kind: 'number' },
+    { name: 'songRate', kind: 'number' },
     // The composed graph's overlay element set (the instruments-as-graphs ADR, §3.2 rule
     // 4): data on a port, never an overlay param, so a switch keeps the overlay instance.
     { name: 'graphElements', kind: 'string[]' },
@@ -285,6 +300,11 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         }
         for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
+        // Always emitted, null included: unloading a song must reach the player.
+        out.songHandle = c.songHandle ?? null;
+        out.songPlaying = c.songPlaying ?? false;
+        out.songVolume = c.songPrefs?.volume ?? DEFAULT_SONG.volume;
+        out.songRate = c.songPrefs?.rate ?? DEFAULT_SONG.rate;
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {
           out.chordConfig = {

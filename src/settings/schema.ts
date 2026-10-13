@@ -219,6 +219,26 @@ export type BodySettings = z.infer<typeof BodySettingsSchema>;
 
 /** The shipped body defaults: off (the model is the most expensive in the graph), lite. */
 export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
+
+/** The song's rate range: the native media element's quality range (research map §6.1),
+ *  and the `song-player` node's default clamp. */
+export const SONG_RATE_MIN = 0.5;
+export const SONG_RATE_MAX = 2;
+/**
+ * The song the player dances to (#186 PR G): its level and the rate it plays at, pitch
+ * preserved. A per-DEVICE tooling pref like `audioPrefs`, NOT a preset field: the song
+ * plays under whatever instrument is loaded, so switching instrument must not change its
+ * tempo, and moving its slider must not mark the instrument edited. Persisted through
+ * the store's `partialize`; the palette and the assistant reach it through the
+ * `song.volume.set` / `song.rate.set` commands. The song ITSELF (`songHandle`) and its
+ * transport (`songPlaying`) are transient and never persisted.
+ */
+export const SongSettingsSchema = z.object({
+  volume: z.number().min(0).max(1),
+  rate: z.number().min(SONG_RATE_MIN).max(SONG_RATE_MAX),
+});
+export type SongSettings = z.infer<typeof SongSettingsSchema>;
+export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1 };
 /**
  * The generative layer (#141 / #188): gesture features steering a cloud generative
  * engine (Lyria RealTime) through the `indirect-map → lyria` branch. A preset field:

@@ -39,7 +39,7 @@ import { useTools } from './toolsStore';
 import { publishHeight, TOOLS_BAR_HEIGHT_VAR } from './shellLayout';
 import { useControls } from './store';
 import { useDialsSettings } from './dials/useDialsSettings';
-import { dispatchDialSetIn } from './dispatchDial';
+import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
 import type { ConductorSettings } from '@/settings/schema';
 import VersionBadge from './VersionBadge';
 
@@ -153,6 +153,7 @@ function useDetached(): Record<string, { running: boolean; stop: () => void; hin
   const setFeatureLab = useControls((s) => s.setFeatureLab);
   const { state } = useDialsSettings();
   const conducting = ((state.effective.conductor ?? {}) as Partial<ConductorSettings>).enabled === true;
+  const songPlaying = useControls((s) => s.songPlaying);
   return {
     lab: { running: metersOn, stop: () => setFeatureLab({ show: false }), hint: 'turn the meters off' },
     // Through the single write path: `conductor.enabled` is a dial.
@@ -161,6 +162,8 @@ function useDetached(): Record<string, { running: boolean; stop: () => void; hin
       stop: () => void dispatchDialSetIn('conductor.enabled', false),
       hint: 'stop conducting (the instrument sounds again)',
     },
+    // Through the single write path: the `song.pause` command (#186 PR G).
+    song: { running: songPlaying, stop: () => void dispatchCommand('song.pause', {}), hint: 'pause the song' },
   };
 }
 
