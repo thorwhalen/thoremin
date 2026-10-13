@@ -138,3 +138,44 @@ export function wrapPhase(phase: number): number {
   if (e > 0.5) e -= 1;
   return e;
 }
+
+/** One tracked point of a {@link ChannelFrame}, in the caller's units (`y` down, as
+ *  {@link Sample}). `visibility` is the tracker's 0..1 confidence that the point is
+ *  seen; absent means seen. */
+export interface ChannelPoint {
+  x: number;
+  y: number;
+  z?: number;
+  visibility?: number;
+}
+
+/**
+ * One frame of several named tracked points: what an {@link AnchorDetector} reads. A
+ * one-point detector (the hand's stroke detector) reads one channel; a multi-joint
+ * detector (the body's impact detector) reads several. A channel absent from a frame
+ * is not seen in it.
+ */
+export interface ChannelFrame {
+  /** Seconds. Must be non-decreasing. */
+  t: number;
+  channels: Readonly<Record<string, ChannelPoint | undefined>>;
+  /** The body's own length unit in the channels' units (the image torso length, say).
+   *  A detector that works in body units divides by its running median; absent means
+   *  the channels are already in the unit the caller wants. */
+  scale?: number;
+}
+
+/**
+ * The anchor-detector seam (#374): frames in, beat candidates out. The hand's stroke
+ * detector (`createStrokeDetector`), the body's impact detector
+ * (`createImpactDetector`) and any later source sit behind it, so a follower takes a
+ * detector the way it takes a {@link RhythmPrior}: by instance.
+ */
+export interface AnchorDetector {
+  /** Feed one frame. Returns an anchor when this frame confirmed a beat candidate, else
+   *  null. Frames must arrive in time order. */
+  push(frame: ChannelFrame): Anchor | null;
+  /** The follower's current period (seconds), so refractory windows track the tempo. */
+  setPeriod(period: number): void;
+  reset(): void;
+}
