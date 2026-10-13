@@ -1,10 +1,9 @@
 # Thoremin Roadmap
 
-Status board, swept 2026-09-05 (previous sweeps 2026-08-17, 2026-07-12). Two horizons:
+Status board, swept 2026-10-13 (previous sweeps 2026-09-05, 2026-08-17, 2026-07-12). Two horizons:
 
 1. **What shipped** and **what is next** (below) — the live planning surface.
-2. **Longer-horizon engine milestones (M0–M8)** — the original platform/engine arc,
-   kept at the bottom for direction.
+2. **Longer-horizon engine milestones (M0–M8)** — the original platform/engine arc, kept at the bottom for direction.
 
 A note on vocabulary, because it used to collide: **annotations** are the live
 time-anchored taps over a *recording* (#92); **tags** are keywords on a saved
@@ -13,7 +12,7 @@ time-anchored taps over a *recording* (#92); **tags** are keywords on a saved
 
 ---
 
-## Shipped (2026-06 → 2026-09)
+## Shipped (2026-06 → 2026-10)
 
 The tracks below all landed. Each row is the issue, the PR that closed it, and
 what it actually gives you.
@@ -134,154 +133,70 @@ in the player's terms, which is exactly the missing frame of reference.
 judgment), and recorder backpressure (#88). The two source nodes split out to #215,
 `replay-source-timed` and `stateGeneratorSource`, are now built.
 
+### Body, conductor, extensions, air instruments and the timing plan (2026-09-05 → 2026-10-13)
+
+The largest wave yet: roughly 110 merged PRs. Five through-lines: the camera is no longer the only source (a body source, a song), the instrument is composed from declared parts (branches and extensions), the air instruments exist, the timing cluster was resolved into one plan and executed, and a player's own categories now reach the sound.
+
+| Track | Issues | PRs | What shipped |
+|-------|--------|-----|--------------|
+| **Generative layer** | #141, #188 | #195-#208 | Hands steer Lyria RealTime through the `indirect-map` → `lyria` branch, gated by `steer.enabled`; the lyria SDK is lazy-loaded; the steering editor. #141 closed. The human check is #146 §B8. |
+| **Body source and pacing** (epic **#186, closed**) | #186 | #194, #205, #207, #341, #345, #347 | A featurized body pose (`webcam-body` / `synthetic-body` / `replay-body`, the body slot, skeleton overlay, body feature catalog, body-to-sound routing, the Que Calor fixture); then F: the octave-free pulse follower and the `body-pulse` node (#341); G: a beat-tracked song, the `song-player` node and the Song tool (#345); H: the pace controller, so the song follows the dancer within ±10 % (#347). Follow-ups: #339, #344, #346. |
+| **Conductor** (epic **#187**) | #187 | #200, #206, #213, #216, #336 | The ictus core, the `conductor` node, the score pipeline (MIDI and MusicXML into a `ScoreDoc`), the Conductor tool, and PR 5: the pending-event scheduler and a lazily loaded sampled orchestra (CC11/CC74 dynamics, 3.7 MB SF3). "Done" for the epic is PR 5; PR 6 (meter / beat pattern, optional) and PR 7 (the audio pacer, shared with #186) remain. |
+| **Instruments as declared graphs, and extensions** | #268 ADR | #276, #278, #280, #286, #294, #295-#301 | Branches and the composer (the default graph is composed, not listed), only-what-an-instrument-declares-runs, the `InstrumentSpec`, the `Extension` manifest, npm workspaces (`dag`, `ictus`, `taglog`, `lazy`, `sdk`, `sdk-ui`, `ext-air`), the `Settings` type generated from the manifests, and the core-alone guard (`npm run test:core`). O3 (separate repositories) waits on #262. |
+| **Lazy extensions and ASL** | #302, #303 | #303, #329, #340 | An extension's code loads when the player asks for it (`lazy` entries in `extensions.json`, `check:lazy`, a Reload offer after a failed import). ASL sign recognition (ASL Viewer, ASL Chords, class `sign`) shipped in #303 and now lives in its own repository, [thorwhalen/thoremin-asl](https://github.com/thorwhalen/thoremin-asl), pinned by sha. |
+| **Shell** | #136 follow-ups | #281, #285-#291, #266, #287 | The Tools launcher and pins (the tools as a zodal collection), the Instruments view over the `InstrumentSpec` (list and gallery, facet chips), Record and Annotations bottom-right, an occlusion smoke test. |
+| **Air instruments** (#249) | #233, #245, #246, #249, #263, #269 | #236, #250-#258, #275, #277, #279, #282, #284 | Air drum (stick tip, pads, kit, pattern training and the pattern mode), air bass, air guitar with per-player chord enrolment, air flute with enrolled fingerings and breath; fingering charts, the fingering prior and the sequence trainer; every instrument's editor links to its training. |
+| **Timing plan** (the 2026-10-05 plan; umbrella #178) | #226, #231, #232, #234, #239, #240, #261, #318 | #228, #235, #241, #305, #309, #310, #321, #328, #319, #335, #304, #354 | Capture-time frame stamps (#228); sub-frame impact prediction (#235); the measured latency budget (#241); step 0, the always-on `timing` resource (#309); steps 1 and 1b, the median-free prefilter and the predictor's time gates (#305); step 2, the rhythm-prior blend (#310); step 3, the lag-gated magnet (#321); step 4, the silent latency levers and the opt-in low-latency audio pref (#328); step 9, the gated de-jitter (#319) and the drum reading the stamp source (#335); the arc landing fit (#304); the three-sample vertex as the air learning reference (#354, #234 narrowed, still open). Details: [research/subframe-impact-prediction.md](research/subframe-impact-prediction.md), [research/latency-budget-and-browser-realtime.md](research/latency-budget-and-browser-realtime.md). |
+| **Trainer to sound** | #160, #330, #257 | #327, #338, #343, #350, #307 | A saved category binds to a command and fires it through the registry (#327; #160 closed). Personal face categorizers: P1 the pure core (#338), P2 the session as a lazy tool-only extension, "Your faces" (#343), P3 test, correct, tune, import and export (#350); P4 (instruments choose a categorizer) is in flight. Takes can be saved to a chosen folder (#307). |
+| **Small dials and guards** | #148, #168 Q3, #201, #209 | #313, #315, #311, #265 | The handedness dwell as a dial (default unchanged), a dial for whether the master mute silences MIDI (default unchanged), a CI-only type-error ratchet for the React layer, a browser smoke harness, and a measured cost of private CI. |
+
 ---
 
 ## Open decisions
 
-### #128 — the generative layer: **DECIDED (retired to `?engine=legacy`)**
-
-The legacy AI-DJ is retired to `?engine=legacy` — a status decision, no code change; it
-keeps working there. The reframing fact: the legacy AI-DJ is **slider**-steered, and the
-compelling version (hand/face features steering a generative model) exists only as the
-`indirect-map` node, which had never run in a browser. So "port it forward" was really
-"first-run an unproven feature", split out and budgeted honestly as **#141**
-(gesture-steered generative layer, DAG-native) — which depended on the #126 dials/command
-surface, then merged. **#141 has since shipped and closed** (via #188's PR chain,
-#195-#208): `indirect-map` → `lyria` is a live additive branch in `graph.ts`, gated
-behind `steer.enabled`. The `lyria` / `indirect-map` / `generative` nodes are no longer
-registry-only — see the "Generative" section under Next for what remains (human-only
-verification, #146 §B8).
+The maintainer's standing questions live in **#168** (a decision inbox, rewritten 2026-10-13 to show only what is still open). The generative-layer question that used to be recorded here (#128) is settled: the legacy AI-DJ is retired to `?engine=legacy`, and the gesture-steered replacement (#141) shipped.
 
 ---
 
 ## Next (open issues, by track)
 
-Every entry below is an issue that is **open right now**. Discussions are marked as
-such — a bracketed `#n` in this list always means an issue.
+Every entry below is an issue that is **open right now**. Discussions are marked as such; a bracketed `#n` in this list always means an issue. Swept 2026-10-13.
 
-### Live verification — the one blocking several others
+### Live verification
 
-- **[#146] Live verification needed** — **re-scored 2026-09-05.** It had grown to 63
-  items across a body and five comments, and roughly **40% were already closed by the
-  suite** and had never been re-scored. Worse, two of its four head-pose checks are
-  *refuted* headlessly: a visible frown barely moves `mouthFrown*`, and `browRaise` swings
-  a third of full scale from camera distance alone — so running them live as written would
-  produce a misleading verdict. Both are now decisions rather than observations.
+- **[#146] Live verification needed.** Re-scored 2026-10-13: one list ranked by what a human with a webcam can close in five minutes, then the checks that need ears or a DAW, then the decisions that are theirs. It also closes #226 (the capture-stamp check, §A5.1).
 
-  The body is now sorted by **what it costs the maintainer**: (A) needs a camera — one
-  run plus 12 checks; (B) needs a human but **no camera** — a DAW, an API key, ears, or a
-  one-line answer — 21 checks; (C) already closed, listed so nobody re-runs them.
+### Timing and rhythm
 
-  **A1 is one ~2-minute trainer run**, and it closes the oldest thing in the issue. The
-  cue is what a clip could not supply: mirror state is not recoverable from pixels, but a
-  cue asks the player to turn to *their* left. That is #168 Q1's answer taken literally.
+The plan is done through step 9; what remains is measurement, a supported range, and the refinements the benchmark pointed at. Umbrella: **[#178]** (updated 2026-10-13).
 
-### Feature Lab
+- **[#234]** Impact predictor at 24/30 fps. Narrowed by #354, not closed. Follow-ups: **[#352]** (the late mean after #234), **[#351]** (a per-player stroke template), **[#353]** (per-pad floors in the air drum).
+- **[#226]** closes on the live camera check in #146.
+- **[#320]** the conductor's wrist-versus-stick-tip grid offset, on a real take.
+- **[#324]**, **[#325]**, **[#326]** the hand model: no hands on the CPU delegate at 640x360, `numHands: 1` for one-hand instruments, and hand inference off the main thread (timing step 5).
+- **[#337]** the stamp-source follow-ups (the clock-lag shift in the SDK, judging presentation stamps).
+- **[#339]**, **[#346]**, **[#344]** the body pulse and the song transport: faster tempo-step following, the pace controller's follow-ups, and a Play pressed in the frame the song ends.
 
-- **[#148] Adopt the handedness dwell in `hand-features`** — PR #149 fixed handedness
-  flicker with hysteresis in the Lab's feature path, but not in the SOUND path. Either
-  adopt it there too, or decide the divergence is wanted and say why.
+### Conductor
 
-### Face / head control
+- **[#187]** Epic, "done" at PR 5. Remaining: PR 6 (meter / beat pattern, optional) and PR 7 (the audio pacer, shared with #186). Follow-ups: **[#332]** (articulation as a program or keyswitch change), **[#333]** (the KTH final-ritard prior), **[#334]** (stand-ins for programs outside the cut bank).
 
-- **[#76] Controllable face/head CONTROL dimensions** — PR #86 shipped the pose/control
-  plumbing (head/jaw/brow → chord instrument, the `controls` face mode). The issue's own
-  narrowed scope is what remains: **per-axis live-tuning UI**, **per-user calibration**
-  (the `*ZeroDeg` seam exists), and **demoting the emotion classifier to opt-in** once
-  `controls` proves out. The **axis-sign live check** is the #146 item.
+### Faces and learned categories
 
-- **[#160] Trainer mode → the BINDING half is what remains.** Research:
-  [`docs/research/trainer-mode.md`](research/trainer-mode.md) (26 refs). The premise —
-  stop tuning a population model against identity bias, let each player carve their own
-  space — is unchanged and is now **mostly built**.
+- **[#330]** Personal face categorizers. P1 to P3 shipped; P4 (instruments choose a categorizer and a renderer) is in flight. Follow-ups: **[#357]** (play a saved categorizer from the tool), **[#358]** (an exported instrument carries its categorizer), **[#359]** (a browser smoke test), **[#348]** (warn when the room is too dark), **[#349]** (a distance cue in the take).
+- **[#323]** A `learned-category` node, so the overlay draws and the recording keeps the player's categories, plus continuous membership mapping.
+- **[#76]** Face/head control dimensions: what remains is per-user calibration and demoting the emotion classifier to opt-in; the yaw/roll signs wait on the trainer take in #146 §A1.
 
-  **What shipped** (#162 the core, #164 the feature-demand prep, then #163's five PRs
-  #170–#174 and #176): cues and routines as zodal collections; a runner; **noise units**
-  (`src/enroll/noise.ts` — a feature's displacement over its own frame-to-frame jitter,
-  which is what lets one threshold mean the same thing for a value in degrees and a
-  0..1 blendshape); still-point sampling with a velocity gate; hierarchical clustering
-  cut at k; a reject region that *holds the last category* rather than going silent; a
-  projection view the player labels; spoken guidance; and a recorded take.
+### Platform
 
-  **What did NOT ship is the last verb: bind.** The pipeline ends in an in-memory
-  zustand field (`model: TrainedModel | null`, `src/app/enroll/store.ts:117`) that **no
-  sound path reads** — `TrainedModel` appears nowhere in `src/nodes/`, `src/music/`,
-  `src/app/graph.ts`, `src/app/dials/` or `src/app/commands/`. The temporal layer that
-  would make a category playable, `createCategoryTracker`
-  (`src/enroll/classify.ts:226`), has **zero callers outside `test/enroll.test.ts`**.
-  So a player can today teach the trainer four categories, see them projected, name
-  them — and change nothing they can hear.
+- **[#14]** The React Flow patcher UI, with its scope the open question (**[#181]**). The build is parked.
+- **[#82]** The configuration calculus for composable instruments (design only; waits on a #168 answer).
+- **[#283]**, **[#322]** migrate the in-repo zodal stand-ins and adopt `@zodal/store-localstorage` 0.3 once published.
+- **[#331]** Accounts, cloud save and tiers (future).
+- **[#262]** What to open-source and what to keep private; it gates the repository split (O3 of the extensions ADR) and publishing `ictus`.
+- Hygiene: **[#308]** (a recorder folder write that fails at stop), **[#312]** (untyped React hooks defeat the ratchet), **[#314]** (air instruments and the ASL reader ignore the handedness dwell), **[#342]** (`check:lazy` and barrel imports), and the **[#355]** sprint-review checklist (6 should-fix items and 6 nits across 18 merged PRs).
 
-  #160 therefore stays open as the **binding** issue, not as the trainer issue.
-  `src/app/gestureDispatch.ts` is the closest existing precedent for the missing
-  shape — a discrete recognized thing, edge-triggered, dispatching a command — and the
-  open design question is whether a learned category binds like that (a command
-  dispatcher), like a dial, or as a node in the graph.
-
-- **[#163] Trainer v2 — cues, routines, spoken guidance, projection view.** The five PRs
-  above landed; the issue stays open on its own live-run gate, which #146 covers.
-
-### Rhythm
-
-- **[#178] Infer rhythm from low-rate gesture — propose `ictus`.** Research map only
-  (#179): melody and timbre tolerate a 30–60 Hz control rate, rhythm does not, so rhythm
-  must be *inferred* against a musical prior rather than measured frame-to-onset. Read §1
-  and §6 of [`docs/research/rhythm-from-gesture-research-map.md`](research/rhythm-from-gesture-research-map.md)
-  before touching anything timing-related. Proposes extracting the engine as a package
-  shared with `muvid`.
-
-### Waiting on the maintainer
-
-- **[#168] Decisions needed from you.** The standing list of questions only the
-  maintainer can answer. Q1 (yaw) and Q2 (frown) were answered 2026-08-23 with a
-  redirect — *don't chase them from the old clip; let the trainer produce the material*,
-  which is what the trainer-take → fixture path exists to do. Q3 (MIDI mute semantics),
-  Q4 (#148 handedness dwell) and Q5 (#82 ADR) are open. Q6 (#141 needing a Gemini key)
-  is superseded — #141 shipped and closed; what remains is the live verification at
-  #146 §B8. It also carries thorwhalen/tw_platform#156, which is not a thoremin decision.
-
-### Generative
-
-**Shipped and closed.** #141 (gesture-steered generative layer, DAG-native, budgeted
-as new work rather than a port per the #128 decision) landed as #188's PR chain
-(#195-#208): `LyriaEngine` construction, the `indirect-map` → `lyria` additive branch
-in `graph.ts`, the live `steerConfig` write path + transport, and the steering editor.
-Remaining: human-only verification (Gemini key + ears) at **#146 §B8**.
-
-### Engine / platform
-
-- **[#215] Two source nodes the Stream Applier designed** — **built**:
-  `replay-source-timed` (replay by `StreamRecord.t`, hold-last; index-by-tick
-  `replay-source` stays canonical for CI goldens) and the `stateGeneratorSource` factory
-  (R3's consumer: seeded randomness from `seed + ctx.tick`, the read snapshot re-emitted
-  so a replay reproduces the feedback). See `docs/design/stream-applier.md` M-E / M-F.
-  **#101 itself is closed** — see the shipped table above.
-
-  One thing worth knowing before touching the live loop: **M-D's stated gate, a browser
-  smoke test, does not exist** — this repo has no Playwright or e2e harness (#209). What
-  stands in for it is a jsdom test that mounts the real hook and watches the loop run and
-  stop.
-
-- **[#14] React Flow patcher UI** driven by Zod node configs (M6's remaining half).
-  **Build is parked**; the open question is scope, not schedule — see #181.
-
-### Design now, build later
-
-- **[#82] Configuration calculus (composable instruments)** — partial instruments
-  (sparse dials layers) + transformers that mix into new instruments. Fed by #90 (a
-  keymap is a partial) and #87 (a materialized instrument is a replayable command
-  sequence). Library tags (#113) are orthogonal metadata; system tags (#114) are a
-  read-only *view* of the same parametrization #82 formalizes.
-- **DAG diagnostics + connection assistant** — a "linter for the instrument graph".
-  Pure analyzers + a notes panel are buildable headless today; mid-drag compatibility
-  highlighting waits on the patcher (#14). This lives in **discussion #93**, not an
-  issue — earlier revisions of this file listed it as `[#93]` alongside issues, which
-  was wrong: there is no issue #93.
-- **[#5]** The original DAG roadmap issue, kept as the umbrella. Its M2 "CI gate" line
-  was unbacked until #153, which closed it (PR #154).
-
-Closed since the 2026-07-12 sweep: **#51, #87, #104, #126, #127, #128, #129, #130,
-#131, #136, #137, #143, #144, #150, #153** (see the shipped tables above).
+Closed since the 2026-09-05 sweep: **#101, #141, #148, #160, #163, #186, #188, #201, #231, #232, #239, #240, #249, #257, #261, #263, #269, #302, #318** and the rest of the shipped table above.
 
 ---
 
@@ -297,10 +212,10 @@ these rather than inside them, so read the status column, not the milestone numb
 | **M2** | Fixture record/replay infra + persisted per-edge feature streams on disk + CI gate. | done — but the "CI gate" half was **claimed years before it existed**: no test workflow had ever been committed to this repo. Closed by #153. |
 | **M3** | Wire the deployed app through the DAG. | **done** — the DAG view is the default at the bare URL (PR #58); the legacy app is frozen at `?engine=legacy`. The Lyria half (a generative node in the *default graph*) was decided in **#128** — the legacy AI-DJ is retired to `?engine=legacy`; the DAG-native, gesture-steered generative layer (**#141**) has since shipped too (#188's PR chain, #195-#208), live behind `steer.enabled`. |
 | **M4** | Broaden the feature surface + tonal depth. | done and then some — face blendshapes, face expression, head/jaw/brow pose control, gesture classifier, Tonal.js chords/voicings, and the ~200-feature catalog (#119). |
-| **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | **Decided (#180 → #187, Option A: wire it) and wired.** The `conductor` node (PR 2 of #187) wraps `packages/ictus/src` (PR 1): the beating hand's ictus → an adaptive oscillator → `beat` / `bpm` / `velocityScale` for the `score` node, which is now in the default graph behind the `conductor.enabled` dial (off by default; the built-in demo scale until the score pipeline, PR 3). `transport` / `performance` stay registered for the non-conductor chain. The score pipeline (PR 3) loads MIDI / MusicXML lazily into a `ScoreDoc` (two shipped public-domain / CC0 demos, a file picker, saved scores) that the `score` node plays instead of the demo scale. Remaining per the #187 plan: the Conductor tool + scheduler, the orchestra node, meter recognition, the audio pacer. |
+| **M5** | Conductor mode: immutable `score` node + `performance` overlay + humanization. | **Decided (#180 → #187, Option A: wire it) and wired.** The `conductor` node (PR 2 of #187) wraps `packages/ictus/src` (PR 1): the beating hand's ictus → an adaptive oscillator → `beat` / `bpm` / `velocityScale` for the `score` node, which is now in the default graph behind the `conductor.enabled` dial (off by default; the built-in demo scale until the score pipeline, PR 3). `transport` / `performance` stay registered for the non-conductor chain. The score pipeline (PR 3) loads MIDI / MusicXML lazily into a `ScoreDoc` (two shipped public-domain / CC0 demos, a file picker, saved scores) that the `score` node plays instead of the demo scale. The Conductor tool (PR 4) and the sampled orchestra with its scheduler (PR 5, #336) landed, which is "done" for the epic; meter recognition (PR 6, optional) and the audio pacer (PR 7, shared with #186) remain. |
 | **M6** | `midi-out` + a React Flow patcher UI + deploy as a tw_platform static app. | partial — deploy done; `midi-out` shipped (#13 / PR #120) and made reachable (#137 / PR #147); the patcher (#14) is open, with its **scope** the actual open question (#181). |
 | **M7** | (optional) Pluggable Python feature service + self-hosted generative service behind the existing node facades. | optional, untouched. |
-| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | **done** — M-A…M-G shipped; #101 closed. Two source nodes split out to #215, the offline render to #146 B9. See [design/stream-applier.md](design/stream-applier.md). |
+| **M8** | **Stream Applier**: pluggable sources + batch-vs-paced execution + state-feedback generators. | **done** — M-A…M-G shipped; #101 closed. The two source nodes split out to #215 are built; the offline render-at-speed action is not built (its value is a listening judgment, see #146 B9). See [design/stream-applier.md](design/stream-applier.md). |
 
 ### Open engine decisions (recorded; defaults taken)
 
