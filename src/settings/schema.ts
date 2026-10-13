@@ -181,11 +181,16 @@ export const DEFAULT_FACE_EXPR: FaceExpr = {
 export const MidiSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   port: z.string().default(''),
+  /** Whether the master mute (M) silences the MIDI stream too (#168 Q3). On is what the
+   *  instrument always did; off keeps the notes flowing to a DAW while the local monitor
+   *  is quiet. `.default(true)` heals pre-dial presets to the behaviour they were played
+   *  with (through the existing `midi` heal in the store: no persist-version bump). */
+  muteFollowsMaster: z.boolean().default(true),
 });
 export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
 
-/** The shipped MIDI defaults: off, first available port. */
-export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '' };
+/** The shipped MIDI defaults: off, first available port, the master mute silences MIDI too. */
+export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '', muteFollowsMaster: true };
 
 /** The hands source's reading (#148): how many frames a new Left/Right label is held
  *  before a field instrument's hand voice re-routes (the switch lands on the next frame).

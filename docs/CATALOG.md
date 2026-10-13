@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, handednessDwell:number, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -173,9 +173,9 @@ _Raw sensor data → normalized control signals._
 Landmarks → normalized per-hand position, openness, pinch.
 
 - **roles:** feature
-- **in:** hands:hands-frame, handednessDwell:number
+- **in:** hands:hands-frame
 - **out:** features:hand-features
-- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), opennessMin (number=1.3), opennessMax (number=2.3), pinchTouch (number=0.25), pinchApart (number=1.2), fingerTouch (number=0.3), fingerApart (number=1.8), handednessDwellFrames (number=0)
+- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), opennessMin (number=1.3), opennessMax (number=2.3), pinchTouch (number=0.25), pinchApart (number=1.2), fingerTouch (number=0.3), fingerApart (number=1.8)
 
 #### `face-features` — Face Features
 Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).
@@ -223,7 +223,7 @@ Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand cat
 - **roles:** feature
 - **in:** hands:hands-frame
 - **out:** vector:feature-vector
-- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array), handednessDwellFrames (number=2)
+- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array), handednessDwellFrames (number=3)
 
 #### `body-feature-vector` — Body Feature Vector
 Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).
@@ -285,11 +285,11 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 - **params:** minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)
 
 #### `synth-merge` — Synth Merge
-Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute.
+Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute. `unmuted` is the same stream before the master mute (for MIDI out).
 
 - **roles:** mapping
 - **in:** voice1:synth-params, voice2:synth-params, voice3:synth-params, voice4:synth-params, voice5:synth-params, voice6:synth-params, voice7:synth-params, voice8:synth-params, score1:synth-params, score2:synth-params, mute:boolean, hush:boolean
-- **out:** params:synth-params
+- **out:** params:synth-params, unmuted:synth-params
 - **params:** —
 
 #### `chord-select` — Chord Select
@@ -471,7 +471,7 @@ Steers a generative engine (Lyria RealTime) from weighted prompts + config dials
 Sends the merged voices to a Web MIDI output as note-on/off + CC (WEBMIDI.js). Off by default; gracefully disabled where Web MIDI is unsupported (Safari/iOS).
 
 - **roles:** synth
-- **in:** params:synth-params, enabled:boolean, port:string
+- **in:** params:synth-params, enabled:boolean, port:string, mute:boolean, muteFollowsMaster:boolean
 - **out:** status:midi-status
 - **params:** channel (number=1), fullVelocityGain (number=0.5), minVelocity (number=1), noteHysteresis (number=0.1), cc (object={"expression":11,"brightness":74,"vibrato":1,"pan":10})
 

@@ -143,6 +143,17 @@ describe('production app graph', () => {
     // The exact wiring: the midi dials flow from the store into the node's live inputs.
     expect(has('ui', 'midiEnabled', 'midiOut', 'enabled')).toBe(true);
     expect(has('ui', 'midiPort', 'midiOut', 'port')).toBe(true);
+    // #168 Q3: MIDI reads the merge BEFORE the master mute and takes the mute and the
+    // `midi.muteFollowsMaster` dial as its own live inputs. Fed from `merge.params` again,
+    // the dial could never keep notes flowing through a mute; with either of the two
+    // ports unconnected the dial would be a switch nothing reads (#120 again).
+    expect(has('merge', 'unmuted', 'midiOut', 'params')).toBe(true);
+    expect(has('ui', 'muteAll', 'midiOut', 'mute')).toBe(true);
+    expect(has('ui', 'midiMuteFollowsMaster', 'midiOut', 'muteFollowsMaster')).toBe(true);
+    expect(has('merge', 'params', 'midiOut', 'params')).toBe(false);
+    // And the mapping node no longer mutes at the source: the merge is the one place the
+    // master mute applies (#91), so the hands' voices still reach MIDI through a mute.
+    expect(has('ui', 'mute', 'map', 'mute')).toBe(false);
     // The structural guard #137 asked for: `enabled` left UNCONNECTED means the node
     // can never be turned on from the app — MIDI out shipped exactly that way once
     // (PR #120: complete, tested, unreachable). If this fails, some rewiring dropped
@@ -151,6 +162,8 @@ describe('production app graph', () => {
     expect(inbound).toContain('enabled');
     expect(inbound).toContain('port');
     expect(inbound).toContain('params');
+    expect(inbound).toContain('mute');
+    expect(inbound).toContain('muteFollowsMaster');
   });
 
   it('wires the face CONTROL axis tuning live from the store — the #76 regression guard', () => {
@@ -258,8 +271,11 @@ describe('production app graph', () => {
     // Round 4: the merge reads `muteAll` = the player's mute OR a tool's hush claim
     // (`hushOf`, whose tests pin that `muted` alone raises it), so M still reaches it.
     expect(has('ui', 'muteAll', 'merge', 'mute')).toBe(true);
-    // The original hand-stage mute edge is still present (belt-and-suspenders).
-    expect(has('ui', 'mute', 'map', 'mute')).toBe(true);
+    // The original hand-stage mute edge is GONE (#168 Q3): it was belt-and-suspenders
+    // for the synth, but it silenced the hands' voices before MIDI out could read them,
+    // and the `midi.muteFollowsMaster` dial needs them flowing through a mute. The merge
+    // alone mutes the synth: `muteAll` covers the player's M (`hushOf` pins that).
+    expect(has('ui', 'mute', 'map', 'mute')).toBe(false);
   });
 
   it('ticks cleanly with no host resources (everything no-ops or idles)', () => {

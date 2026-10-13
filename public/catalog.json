@@ -1513,7 +1513,7 @@
       {
         "name": "handednessDwellFrames",
         "type": "number",
-        "default": 2
+        "default": 3
       }
     ]
   },
@@ -1528,11 +1528,6 @@
       {
         "name": "hands",
         "kind": "hands-frame"
-      },
-      {
-        "name": "handednessDwell",
-        "kind": "number",
-        "description": "Live override of handednessDwellFrames (frames; 0 = raw label)"
       }
     ],
     "outputs": [
@@ -1581,11 +1576,6 @@
         "name": "fingerApart",
         "type": "number",
         "default": 1.8
-      },
-      {
-        "name": "handednessDwellFrames",
-        "type": "number",
-        "default": 0
       }
     ]
   },
@@ -1795,6 +1785,16 @@
         "name": "port",
         "kind": "string",
         "default": ""
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
+      },
+      {
+        "name": "muteFollowsMaster",
+        "kind": "boolean",
+        "default": true
       }
     ],
     "outputs": [
@@ -2467,8 +2467,8 @@
         "kind": "string"
       },
       {
-        "name": "handednessDwell",
-        "kind": "number"
+        "name": "midiMuteFollowsMaster",
+        "kind": "boolean"
       },
       {
         "name": "steerEnabled",
@@ -2548,7 +2548,7 @@
   {
     "type": "synth-merge",
     "title": "Synth Merge",
-    "description": "Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute.",
+    "description": "Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute. `unmuted` is the same stream before the master mute (for MIDI out).",
     "roles": [
       "mapping"
     ],
@@ -2607,6 +2607,10 @@
     "outputs": [
       {
         "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "unmuted",
         "kind": "synth-params"
       }
     ],

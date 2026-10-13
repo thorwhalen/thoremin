@@ -79,7 +79,7 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   faceCalibration?: Partial<Record<string, number>> | null;
   /** MIDI output (#137): on/off + target port name ('' = first available). Fed to
    *  the `midi-out` node's `enabled`/`port` inputs as live ports. */
-  midi?: { enabled: boolean; port: string };
+  midi?: { enabled: boolean; port: string; muteFollowsMaster?: boolean };
   /** The hands reading (#148): the handedness dwell, fed to `hand-features`'
    *  `handednessDwell` input as a live port (absent → the node's build-time param). */
   hands?: HandsSettings;
@@ -189,6 +189,8 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     // The handedness dwell (#148) → `hand-features`' `handednessDwell` input, so the
     // panel / palette / AI can steady (or un-steady) the hand routing without a rebuild.
     { name: 'handednessDwell', kind: 'number' },
+    // Whether the master mute silences MIDI too (#168 Q3) → `midi-out`'s `muteFollowsMaster`.
+    { name: 'midiMuteFollowsMaster', kind: 'boolean' },
     // The generative layer (#141 / #188): the switch, the transport and the level for
     // the `lyria` node, and what the gestures mean for `indirect-map` — all live, so the
     // settings panel / palette / AI can steer the layer without a graph rebuild.
@@ -250,6 +252,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
           muteStrikes: hush.muteStrikes,
           midiEnabled: c.midi?.enabled ?? false,
           midiPort: c.midi?.port ?? '',
+          midiMuteFollowsMaster: c.midi?.muteFollowsMaster ?? true,
           steerEnabled: c.steer?.enabled ?? false,
           steerPlaying: c.steerPlaying ?? false,
           // A tool claim (the Trainer) quiets the generative layer too; it is not a voice

@@ -40,7 +40,7 @@ function extensionSlicesOf(o: Record<string, unknown>): Record<string, unknown> 
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
-import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, defaultSteerConfig, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, DEFAULT_MIDI, defaultSteerConfig, type Settings } from './schema';
 import { MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
@@ -114,6 +114,9 @@ export const thoreminDials = defineDials(
     // the port name as text. '' targets the first available port.
     'midi.enabled': z.boolean().default(false).meta({ facets: ['MIDI'], title: 'MIDI output', description: 'Send the played voices to a Web MIDI output (external synth or DAW)' }),
     'midi.port': z.string().default('').meta({ facets: ['MIDI'], title: 'MIDI port', description: 'MIDI output port name (empty = first available)' }),
+    // #168 Q3: on (the default) the master mute silences MIDI too; off keeps the notes
+    // flowing to the DAW while only the local monitor goes quiet.
+    'midi.muteFollowsMaster': z.boolean().default(DEFAULT_MIDI.muteFollowsMaster).meta({ facets: ['MIDI'], title: 'Mute silences MIDI too', description: 'When on, the master mute (M) also stops the MIDI notes; when off, only the local sound is muted and notes keep flowing to your DAW' }),
 
     // The hands reading (#148): the handedness dwell the sound path's `hand-features`
     // applies, live through `store-controls`. 0 = the raw per-frame label (the instrument
@@ -242,6 +245,7 @@ export function settingsToLayer(s: Settings): Layer {
     'midi.enabled': s.midi.enabled,
     'midi.port': s.midi.port,
     'hands.handednessDwell': s.hands.handednessDwell,
+    'midi.muteFollowsMaster': s.midi.muteFollowsMaster,
     'body.enabled': s.body.enabled,
     'body.model': s.body.model,
     'steer.enabled': s.steer.enabled,
@@ -282,7 +286,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
       chordType: v['faceChord.chordType'],
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
-    midi: { enabled: v['midi.enabled'], port: v['midi.port'] },
+    midi: { enabled: v['midi.enabled'], port: v['midi.port'], muteFollowsMaster: v['midi.muteFollowsMaster'] },
     hands: { handednessDwell: v['hands.handednessDwell'] },
     body: { enabled: v['body.enabled'], model: v['body.model'] },
     steer: { enabled: v['steer.enabled'], volume: v['steer.volume'], config: v.steerConfig },

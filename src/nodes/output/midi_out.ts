@@ -19,6 +19,15 @@
  * input defaults false), so wiring the node into the graph costs nothing until a
  * player turns it on.
  *
+ * The master mute (#168 Q3, #146 B1.1): `params` is the merge's UNMUTED stream and the
+ * mute arrives on its own `mute` input (the merge's `muteAll`: the player's M or a tool's
+ * hush claim). `muteFollowsMaster` — the `midi.muteFollowsMaster` dial — decides what it
+ * means here. On (the default, what the instrument always did): the mute silences the
+ * MIDI stream too — every held note is released and nothing sounds until unmute; one
+ * mental model, "mute means silence everything". Off: the mute never reaches the port,
+ * so the local monitor goes quiet while the notes keep flowing to the DAW — the DAW is
+ * the instrument and thoremin only its controller.
+ *
  * Pitch is quantized to the nearest semitone (with a small hysteresis so jitter at
  * a semitone boundary doesn't machine-gun note-on/off); continuous expression rides
  * on Control Change. Because CC is per-channel, the channel's continuous CCs follow
@@ -206,6 +215,9 @@ export const midiOutNode = defineNode<Params>({
     { name: 'params', kind: 'synth-params' },
     { name: 'enabled', kind: 'boolean', default: false },
     { name: 'port', kind: 'string', default: '' },
+    // The master mute (the merge's `muteAll`) and whether it applies here (#168 Q3).
+    { name: 'mute', kind: 'boolean', default: false },
+    { name: 'muteFollowsMaster', kind: 'boolean', default: true },
   ],
   outputs: [{ name: 'status', kind: 'midi-status' }],
   params: Params,
@@ -398,7 +410,12 @@ export const midiOutNode = defineNode<Params>({
 
         // --- note + CC from the merged voices ---
         const sp = inputs.params as SynthParams | undefined;
-        const voices = sp?.voices ?? [];
+        // A master mute that follows here (the dial's default) makes every voice count as
+        // not sounding: the ordinary release path below then sends the same note-offs the
+        // muted merge stream used to cause, and no note-on until unmute. With the dial off
+        // the mute is not this node's business and the voices play on.
+        const masterMuted = inputs.mute === true && inputs.muteFollowsMaster !== false;
+        const voices = masterMuted ? [] : sp?.voices ?? [];
         const seen = new Set<number>();
         let primary: VoiceParams | undefined;
 
