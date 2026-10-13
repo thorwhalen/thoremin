@@ -197,6 +197,9 @@ test.describe('the Tools launcher', () => {
     expect(n).toBeGreaterThanOrEqual(TOOLS.length);
     for (let i = 0; i < n; i++) {
       for (const el of [rows.nth(i).locator('a, button').first(), rows.nth(i).locator('button[aria-pressed]')]) {
+        // The launcher scrolls once its rows outgrow a short viewport (nine tools at 720 px):
+        // a row is pressable when scrolled to, as a player would, and nothing may cover it then.
+        await el.scrollIntoViewIfNeeded();
         expect(await occluder(el), `launcher row ${i}`).toBeNull();
       }
     }
