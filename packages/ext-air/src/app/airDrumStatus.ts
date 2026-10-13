@@ -73,7 +73,7 @@ export function describeMagnet(live: AirDrumLive): string | null {
 
 /** Quantise what the panel shows (the lead to the millisecond). */
 export function airDrumLiveKey(l: AirDrumLive): string {
-  return `${l.enabled ? 1 : 0}|${l.hits}|${l.predicted}|${l.lastHand ?? '-'}|${l.lastPad ?? '-'}|${Math.round((l.frameAspect ?? 0) * 100)}|${Math.round(l.lastLead * 1000)}|${Math.round(l.lastPull * 1000)}|${l.lastOnTime ?? 'yes'}|${Math.round((l.lastLateBy ?? 0) * 1000)}|${l.magnet ?? 'off'}|${l.ready.right ? 1 : 0}${l.ready.left ? 1 : 0}`;
+  return `${l.enabled ? 1 : 0}|${l.hits}|${l.predicted}|${l.lastHand ?? '-'}|${l.lastPad ?? '-'}|${Math.round((l.frameAspect ?? 0) * 100)}|${Math.round(l.lastLead * 1000)}|${Math.round(l.lastPull * 1000)}|${l.lastOnTime ?? 'yes'}|${Math.round((l.lastLateBy ?? 0) * 1000)}|${l.magnet ?? 'off'}|${Number.isFinite(l.magnetLag) ? Math.round(l.magnetLag * 1000) : '-'}|${l.ready.right ? 1 : 0}${l.ready.left ? 1 : 0}`;
 }
 
 export function makeAirDrumReporter(

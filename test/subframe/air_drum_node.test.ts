@@ -185,8 +185,17 @@ describe('air-drum node on the synthetic surface fixture', () => {
       expect(pulled.status.magnetLag).toBeGreaterThan(-0.035);
       expect(pulled.status.magnetLag).toBeLessThan(-0.02);
       expect(pulled.status.magnetGate).toBe(0);
-      expect(pulled.status.magnet).toBe('grid-lag');
       expect(free.status.magnet).toBe('off');
+      // Eight strokes are mostly warm-up (a ghost, then four before the lag is measured):
+      // too little to call. Played twice over, the run is the gate's alone.
+      expect(pulled.status.magnet).toBe('on');
+      const span = frames.length / FPS;
+      const twice = [...frames, ...frames.map((f) => ({ ...f }))];
+      const time2 = [...time, ...time.map((m) => ({ ...m, t: m.t + span }))];
+      const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, magnetism: 1 }));
+      const outs = await replayNode(h, { hands: twice, time: time2 }, { dt: 1 / FPS, resources: NO_OUTPUT_STAGE });
+      expect(outs.flatMap((o) => o.hits as DrumHit[]).every((x) => x.pull === 0)).toBe(true);
+      expect((outs[outs.length - 1].status as AirDrumStatus).magnet).toBe('grid-lag');
     });
 
     it('rule (c): the lag is measured on the confirmed impacts, never on what was sounded, so the pull cannot feed itself', async () => {
@@ -228,7 +237,11 @@ describe('air-drum node on the synthetic surface fixture', () => {
       expect(magnetStanding(Array(LAG_STROKES).fill('quiet'))).toBe('on');
       expect(magnetStanding([...Array(5).fill('pipeline'), ...Array(3).fill('gated')])).toBe('too-slow');
       expect(magnetStanding([...Array(3).fill('pipeline'), ...Array(5).fill('gated')])).toBe('grid-lag');
-      expect(magnetStanding([...Array(4).fill('warming'), ...Array(4).fill('gated')])).toBe('grid-lag');
+      expect(magnetStanding([...Array(3).fill('warming'), ...Array(5).fill('gated')])).toBe('grid-lag');
+      // A warm-up ghost among strokes with nothing to pull is not evidence of anything.
+      expect(magnetStanding(['pipeline', ...Array(4).fill('warming'), ...Array(3).fill('quiet')])).toBe('on');
+      expect(magnetStanding(['pipeline', ...Array(7).fill('quiet')])).toBe('on');
+      expect(magnetStanding([...Array(4).fill('warming'), ...Array(4).fill('gated')])).toBe('on');
     });
 
     it('a pipeline too slow to predict reads as too-slow, not as a lagging grid', async () => {
