@@ -26,8 +26,8 @@
  *   de-jitter): the spread of their intervals around the camera's lattice. Above a few ms
  *   a sub-frame estimate is worse than the frame-snapped one (`subframe-impact-prediction.md`
  *   §3.4), which is what the air drum's fallback reads (#318);
- * - two RUNTIME CHECKS (#318): whether the first stamped frame carried the camera's
- *   `captureTime`, and the page's timer (`crossOriginIsolated`, and the resolution of
+ * - two RUNTIME CHECKS (#318): whether the browser hands the pump the camera's
+ *   `captureTime` at all, and the page's timer (`crossOriginIsolated`, and the resolution of
  *   `performance.now()` measured, since that is what bounds any stamp's precision);
  * - the output's GLITCHES (`glitches.ts`), the guard on the low-latency hint (#240);
  * - the processed frame period (inference-paced, not the camera's), the DELIVERED camera
@@ -99,12 +99,15 @@ export interface TimingReading {
    *  `measured` from capture-stamped frames, else the stated {@link CAPTURE_LAG_PRIOR_S}. */
   captureLag: { value: number; source: 'measured' | 'prior' };
   /** The noise of the clock-derived stamps (`clock`, `estimated`) over the window,
-   *  seconds (a robust sd); NaN until {@link MIN_FRAMES_FOR_NOISE} such frames. Capture
-   *  stamps are truthful and are not judged. */
+   *  seconds, measured against the CAMERA's frame period ({@link stampNoise}); NaN until
+   *  {@link MIN_FRAMES_FOR_NOISE} such frames. Capture stamps are truthful and are not
+   *  judged. */
   stampNoise: number;
-  /** Whether the first honoured stamp was a camera capture time (`captureTime` was there
-   *  from the start); null before one. */
-  captureTimeFirst: boolean | null;
+  /** Whether this browser hands the pump the camera's `captureTime`: true once a capture
+   *  stamp is seen, false after {@link CAPTURE_TIME_VERDICT_FRAMES} honoured frames with
+   *  none, null before. (Not the FIRST frame's: the pump's first frame usually comes
+   *  through the animation-frame path, before the first video-frame callback.) */
+  captureTimeAvailable: boolean | null;
   /** The page's timer, from the host: `crossOriginIsolated` (null when unknown) and the
    *  measured resolution of `performance.now()`, seconds (NaN when not measured). */
   runtime: RuntimeChecks;
@@ -127,25 +130,40 @@ export const CAPTURE_LAG_PRIOR_S = 0.03;
 export const CAPTURE_LAG_EW_GAIN = 0.1;
 /** The stamp noise is judged once this many clock-derived frames are in the window. */
 export const MIN_FRAMES_FOR_NOISE = 20;
+/** `captureTimeAvailable` says no only after this many honoured frames without one. */
+export const CAPTURE_TIME_VERDICT_FRAMES = 30;
+/** The share of the largest residuals {@link stampNoise} leaves out (a stalled frame). */
+export const STAMP_NOISE_TRIM = 0.05;
 
 /**
- * The noise of a run of stamps, seconds: each interval's residual from the nearest
- * multiple of the lattice period (the 20th percentile of the intervals, so a skipped frame
- * is a multiple, not noise), as a robust sd (1.4826 MAD), over the square root of two (an
- * interval is the difference of two noisy stamps). Folding at half a period caps what it
- * can see at about a quarter period, which is still far above any useful threshold.
+ * The noise of a run of stamps against a camera of frame period `period` (seconds):
+ * each interval's residual from the nearest whole number of periods (a skipped frame is
+ * a multiple, not noise), as a trimmed RMS over the square root of two (an interval is
+ * the difference of two noisy stamps).
+ *
+ * The period must be the CAMERA's (`getSettings().frameRate`, which the host reports),
+ * never one read off the stamps themselves: clock stamps quantised to a 60 Hz display
+ * from a 24 fps camera alternate 33 / 50 ms, and a lattice taken from those intervals
+ * calls half of them perfect; stamps paced by a slow inference every 50 ms off a 30 fps
+ * camera are perfectly regular, and the frames behind them are up to a period old. Against
+ * the camera's period both read as the noise they are. Without a period (no camera
+ * settings) the smallest common interval (the 20th percentile) stands in. An RMS rather
+ * than a median, because residuals that split into two clusters make a median jump between
+ * them window to window. Folding at half a period caps the reading near 0.2 periods.
  */
-export function stampNoise(times: readonly number[]): number {
+export function stampNoise(times: readonly number[], period: number = NaN): number {
   const d: number[] = [];
   for (let i = 1; i < times.length; i++) if (times[i] > times[i - 1]) d.push(times[i] - times[i - 1]);
   if (d.length < 3) return NaN;
-  const sorted = [...d].sort((a, b) => a - b);
-  const period = sorted[Math.floor(0.2 * (sorted.length - 1))];
-  if (!(period > 0)) return NaN;
-  const r = d.map((x) => x - Math.max(1, Math.round(x / period)) * period).sort((a, b) => a - b);
-  const med = r[r.length >> 1];
-  const mad = r.map((x) => Math.abs(x - med)).sort((a, b) => a - b)[r.length >> 1];
-  return (1.4826 * mad) / Math.SQRT2;
+  let p = period;
+  if (!(p > 0)) {
+    const sorted = [...d].sort((a, b) => a - b);
+    p = sorted[Math.floor(0.2 * (sorted.length - 1))];
+  }
+  if (!(p > 0)) return NaN;
+  const sq = d.map((x) => (x - Math.max(1, Math.round(x / p)) * p) ** 2).sort((a, b) => a - b);
+  const kept = sq.slice(0, Math.max(1, Math.ceil(sq.length * (1 - STAMP_NOISE_TRIM))));
+  return Math.sqrt(kept.reduce((a, b) => a + b, 0) / kept.length) / Math.SQRT2;
 }
 
 /** Frames the window statistics (age p95, stamp mix, delivered rate) are taken over. */
@@ -212,7 +230,8 @@ export class TimingTracker implements Tap {
   private readonly runtime: RuntimeChecks;
   private readonly captureLagPriorS: number;
   private captureLagEw = NaN;
-  private captureTimeFirst: boolean | null = null;
+  private captureTimeSeen = false;
+  private honouredFrames = 0;
   private glitchKey = '';
 
   constructor(options: TimingTrackerOptions = {}) {
@@ -299,7 +318,10 @@ export class TimingTracker implements Tap {
     }
     this.lastT = t;
     if (stamped) this.ageEw = Number.isFinite(this.ageEw) ? this.ageEw + AGE_EW_GAIN * (age - this.ageEw) : age;
-    if (stamped && this.captureTimeFirst === null) this.captureTimeFirst = frame.tSource === 'capture';
+    if (stamped) {
+      this.honouredFrames++;
+      if (frame.tSource === 'capture') this.captureTimeSeen = true;
+    }
     if (stamped && frame.tSource === 'capture' && typeof frame.lag === 'number' && Number.isFinite(frame.lag) && frame.lag >= 0) {
       this.captureLagEw = Number.isFinite(this.captureLagEw) ? this.captureLagEw + CAPTURE_LAG_EW_GAIN * (frame.lag - this.captureLagEw) : frame.lag;
     }
@@ -336,7 +358,8 @@ export class TimingTracker implements Tap {
     const span = captured.length >= MIN_FRAMES_FOR_RATE ? captured[captured.length - 1].t - captured[0].t : 0;
     const deliveredFps = span > 0 ? (captured.length - 1) / span : NaN;
     const derived = this.recent.filter((r) => CLOCK_DERIVED.has(r.source));
-    const noise = derived.length >= MIN_FRAMES_FOR_NOISE ? stampNoise(derived.map((r) => r.t)) : NaN;
+    const cameraPeriod = this.camera?.frameRate && this.camera.frameRate > 0 ? 1 / this.camera.frameRate : NaN;
+    const noise = derived.length >= MIN_FRAMES_FOR_NOISE ? stampNoise(derived.map((r) => r.t), cameraPeriod) : NaN;
     return {
       outputStage,
       audioEpoch: this.epoch,
@@ -359,7 +382,7 @@ export class TimingTracker implements Tap {
       camera: this.camera,
       captureLag: Number.isFinite(this.captureLagEw) ? { value: this.captureLagEw, source: 'measured' } : { value: this.captureLagPriorS, source: 'prior' },
       stampNoise: noise,
-      captureTimeFirst: this.captureTimeFirst,
+      captureTimeAvailable: this.captureTimeSeen ? true : this.honouredFrames >= CAPTURE_TIME_VERDICT_FRAMES ? false : null,
       runtime: this.runtime,
       leadBudget: (Number.isFinite(p95) ? p95 : 0) + outputStage.value,
     };

@@ -60,7 +60,7 @@ export function measureTimerResolution(now: () => number = () => performance.now
   const start = now();
   let last = start;
   let step = Infinity;
-  for (let i = 0; i < 1e6; i++) {
+  for (let i = 0; i < 2e5; i++) {
     const t = now();
     if (t > last) {
       step = Math.min(step, t - last);

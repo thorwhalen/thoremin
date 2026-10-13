@@ -47,6 +47,7 @@ export function describeLive(live: AirDrumLive): string {
     // predicted one the magnet pulled toward a beat that was already past (a negative
     // pull): different causes, different words.
     if (live.lastPull < 0) return `${hand}: pulled ${Math.round(-live.lastPull * 1000)} ms toward a beat already past; sounds ${Math.round((live.lastLateBy ?? -live.lastLead) * 1000)} ms late.`;
+    if (live.subframe === 'off-stamps') return `${hand}: sounded ${ms} ms after the strike (prediction off: see below).`;
     return `${hand}: sounded ${ms} ms after the strike (too fast to predict).`;
   }
   // Predicted, but the audio output may eat the lead (step 0 of the timing plan): say so.

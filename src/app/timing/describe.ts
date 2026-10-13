@@ -16,7 +16,7 @@
  * at all (a synthetic source) or whose stamp was not used (a replay) earn no hint, since
  * there is nothing the player or the browser could do about them. The line also carries
  * the runtime checks of #318 when they matter: a timer coarser than half a millisecond,
- * and a first frame that came without the camera's `captureTime`.
+ * and a browser whose frames never carry the camera's `captureTime`.
  */
 import { UNSTAMPED_SOURCE, type TimingReading } from '@thoremin/sdk/timing/tracker';
 
@@ -65,10 +65,10 @@ export function describeTiming(r: TimingReading, { lowLatencyAudio = false }: De
   if (r.skippedFrames > 0) parts.push(`${r.skippedFrames} skipped`);
   parts.push(`out ${ms(r.outputStage.value)} ${SOURCE_WORD[r.outputStage.source] ?? r.outputStage.source}`);
   // The runtime checks (#318): what bounds every stamp's precision. Named only when it
-  // matters: a timer at 1 ms, and a camera whose first frame carried no capture time.
+  // matters: a timer at 1 ms, and a browser that never hands over a capture time.
   const timer = r.runtime?.timerResolution;
   if (typeof timer === 'number' && Number.isFinite(timer) && timer >= COARSE_TIMER_S) parts.push(`timer ${ms(timer)}${r.runtime.crossOriginIsolated === false ? ' (not isolated)' : ''}`);
-  if (r.captureTimeFirst === false) parts.push('no captureTime');
+  if (r.captureTimeAvailable === false) parts.push('no captureTime');
 
   if (r.audio.state === 'interrupted') warnings.push('audio interrupted: tap to resume');
   if (r.audio.state === 'running' && r.outputStage.source === 'prior') warnings.push('audio output latency unknown on this browser: run the strike test (?probe=latency)');
