@@ -63,7 +63,8 @@ function perfectTake(startS: number, passes: number): DrumHit[] {
   const out: DrumHit[] = [];
   for (let p = 0; p < passes; p++) {
     for (const e of ROCK.events) {
-      out.push({ t: startS + (p * ROCK.lengthBeats + e.beat) * period, velocity: 0.7, hand: 'right', sound: e.sound, predicted: true, lead: 0.05, pull: 0, pad: pads[e.drum as keyof typeof pads], x: 0.5, y: 0.7 });
+      const t = startS + (p * ROCK.lengthBeats + e.beat) * period;
+      out.push({ t, impactT: t, velocity: 0.7, hand: 'right', sound: e.sound, predicted: true, onTime: 'yes', lead: 0.05, lateBy: 0, pull: 0, pad: pads[e.drum as keyof typeof pads], x: 0.5, y: 0.7 });
     }
   }
   return out;

@@ -100,10 +100,10 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     stopTimer();
     setCursor(null);
     setPhase({ kind: 'fitting' });
-    // The RAW strike time: `t` is when the hit sounded, which a magnet or a pattern in
-    // play may have moved; `pull` is by how much. (The pattern mode is also off for the
-    // take, see `start`, so the sound is the pad's own.)
-    const hits = hitsSince(patternStartMs / 1000 - 0.25).map((h) => ({ t: h.t - h.pull, sound: h.sound, pad: h.pad, x: h.x, y: h.y }));
+    // The RAW strike time, `impactT`: `t` is when the hit sounded, which a magnet, the
+    // truncation to the earliest sound (#239) or a ghost note's lateness may have moved.
+    // (The pattern mode is also off for the take, see `start`, so the sound is the pad's own.)
+    const hits = hitsSince(patternStartMs / 1000 - 0.25).map((h) => ({ t: h.impactT, sound: h.sound, pad: h.pad, x: h.x, y: h.y }));
     const model = fitPattern(hits, p, { statedBpm: p.bpm, takenAt: Date.now() });
     if (model) {
       try {

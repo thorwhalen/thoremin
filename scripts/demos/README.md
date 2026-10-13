@@ -6,7 +6,8 @@ Each script turns something that has landed into a short video, GIF or data file
 |---|---|
 | `impact_onsets.ts` | the onsets three timing strategies would sound for one `an.impacts` clip (frame-snapped, predicted, predicted + pulled to the grid), with per-clip errors |
 | `render_impact_demo.py` | the clip with its ground truth drawn on (contact plane, exact contact point, a scrolling strip of frame / impact / beat times), optionally with drum hits at one strategy's onsets, at any playback speed |
-| `air_drum_hits.ts` | the hits the shipped `air-drum` node plays over one `an.impacts` clip, with a simulated capture-to-tick delay and an optional pull toward a beat follower; same file shape as `impact_onsets.ts` |
+| `air_drum_hits.ts` (+ `lib_air_drum_hits.ts`) | the hits the shipped `air-drum` node plays over one `an.impacts` clip, with a simulated capture-to-tick delay, output stage and an optional pull toward a beat follower (`--follower trend`, `trend-sounded`, `conductor`, `ictus` or `oracle`); same file shape as `impact_onsets.ts` |
+| `magnet_sweep.ts` | the #239 acceptance table: intent and actuality error with and without the lag-gated magnet, per follower and pipeline delay, and the magnet's status |
 | `chord_shape_timeline.ts` | per-frame chord-shape predictions for one guitar video, enrolled on the first seconds of each chord and scored on the rest |
 | `render_chord_demo.py` | the footage with the hand skeleton, the recognised chord and a synthesised strum of it (or, with `--voice bass|flute`, the recognised pitch class as a single note), the original audio mixed underneath |
 | `air_pitch_timeline.ts` | one leave-one-player-out fold of the bass or flute pitch model, per frame, in the chord-timeline shape |
@@ -24,6 +25,7 @@ an impacts clip $OUT/clips --object stick --kind surface --tempo 0:96,16:132 --b
 npx vite-node scripts/demos/impact_onsets.ts $OUT/clips/<clip> $OUT/onsets.json
 python3 scripts/demos/render_impact_demo.py --clip $OUT/clips/<clip> --onsets $OUT/onsets.json --strategy predicted --speed 0.25 --out $OUT/predicted.slow.mp4
 npx vite-node scripts/demos/air_drum_hits.ts $OUT/clips/<air clip> $OUT/drum.json --name lat40 --latency 0.04
+npx vite-node scripts/demos/magnet_sweep.ts $OUT/clips/<surface clip> $OUT/clips/<air clip>   # the air clip: the `an impacts clip` line above with `--kind air`
 python3 scripts/demos/render_impact_demo.py --clip $OUT/clips/<air clip> --onsets $OUT/drum.json --strategy lat40 --sound kick --out $OUT/airdrum.lat40.mp4
 npx vite-node scripts/demos/chord_shape_timeline.ts --video 2pXS8k1zx8U   # -> $OUT/guitar/2pXS8k1zx8U.timeline.json
 python3 scripts/demos/render_chord_demo.py --timeline $OUT/guitar/2pXS8k1zx8U.timeline.json --video V.mp4 --landmarks L.ndjson --start 110 --out $OUT/guitar/guitar.mp4

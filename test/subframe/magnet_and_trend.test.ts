@@ -9,7 +9,7 @@
  * when the beats stop, and honours the RhythmPrior contract (`beatAt`, `predict`).
  */
 import { describe, it, expect } from 'vitest';
-import { beatAt, createAdaptiveOscillator, createTrendPrior, magnetise, nearestExpectedBeat, type Anchor, type MusicalTime } from '@thoremin/ictus';
+import { LAG_MIN_STROKES, beatAt, createAdaptiveOscillator, createTrendPrior, lagGate, magnetise, nearestExpectedBeat, type Anchor, type MusicalTime } from '@thoremin/ictus';
 
 const anchor = (t: number, confidence = 1): Anchor => ({ t, confidence, strength: 1, sharpness: NaN, lateral: 0 });
 
@@ -72,6 +72,37 @@ describe('magnetise', () => {
     const r = magnetise(10.52, { ...state, state: 'hold' }, 1);
     expect(r.t).toBe(10.52);
     expect(r.gate).toBe(0);
+  });
+});
+
+describe('lagGate (#239, rule a)', () => {
+  it('a grid the strokes straddle keeps most of the pull', () => {
+    const g = lagGate([0.01, -0.012, 0.008, -0.009, 0.011, -0.01, 0.012, -0.008]);
+    expect(g.n).toBe(8);
+    expect(Math.abs(g.lag)).toBeLessThan(0.001);
+    expect(g.gate).toBeGreaterThan(0.8);
+  });
+  it('a steady bias the scatter cannot explain gates to 0', () => {
+    const g = lagGate([-0.03, -0.028, -0.033, -0.031, -0.029, -0.032, -0.03, -0.031]);
+    expect(g.lag).toBeCloseTo(-0.0305, 3);
+    expect(g.tolerance).toBeLessThan(0.005);
+    expect(g.gate).toBe(0);
+  });
+  it('scales linearly in between: 1 - |lag| / (k se)', () => {
+    const lags = [0.01, 0.03, 0.01, 0.03];
+    const g = lagGate(lags);
+    const se = Math.sqrt(lags.reduce((a, x) => a + (x - 0.02) ** 2, 0) / 3 / 4);
+    expect(g.se).toBeCloseTo(se, 12);
+    expect(g.gate).toBeCloseTo(Math.max(0, 1 - 0.02 / (3 * se)), 12);
+    expect(lagGate(lags, { k: 10 }).gate).toBeGreaterThan(g.gate);
+  });
+  it('too few strokes is no evidence the grid is unbiased: 0, and NaN-safe', () => {
+    expect(lagGate([]).gate).toBe(0);
+    expect(Number.isNaN(lagGate([]).lag)).toBe(true);
+    expect(lagGate(Array.from({ length: LAG_MIN_STROKES - 1 }, (_, i) => (i % 2 ? 0.01 : -0.01))).gate).toBe(0);
+    expect(lagGate([0.01, NaN, -0.01, 0.012, -0.011]).n).toBe(4);
+    // Identical lags: no scatter, no tolerance, no pull.
+    expect(lagGate([0.01, 0.01, 0.01, 0.01]).gate).toBe(0);
   });
 });
 
