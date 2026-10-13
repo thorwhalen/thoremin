@@ -86,6 +86,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
   const point = c.point ?? 'wrist';
   const bodyPoint = c.bodyPoint ?? 'impact';
   const markLevel = c.markLevel ?? 'beat';
+  const transportRules = c.transport?.rules ?? true;
   const servo = c.servoBeats ?? 1;
   const prior = (c.prior ?? DEFAULT_RHYTHM_PRIOR) as RhythmPriorKind;
   const piece = c.piece ?? BUILTIN_PIECE;
@@ -206,6 +207,22 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
               </option>
             ))}
           </select>
+        </label>
+      ) : null}
+      {body ? (
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={transportRules}
+            disabled={!enabled}
+            data-testid="conductor-transport-rules"
+            aria-label="Start, hold and stop from the pose"
+            onChange={(e) => dispatchDialSetIn('conductor.transport.rules', e.target.checked)}
+          />
+          <span>
+            Start, hold and stop from the pose{' '}
+            <span className="text-white/40">(raise the arm and hold still, then give an upbeat; hold still to sustain; drop the arm to stop)</span>
+          </span>
         </label>
       ) : (
         <label className="flex items-center justify-between gap-2 text-xs">

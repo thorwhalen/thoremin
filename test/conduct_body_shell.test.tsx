@@ -95,6 +95,34 @@ describe('Conduct with body', () => {
     await waitFor(() => expect(conductor().markLevel).toBe('auto'));
   });
 
+  it('the body transport (#377): Conductor, Conduct with body, the pose toggle (three clicks), and the status speaks of the pose', async () => {
+    render(
+      <>
+        <ToolsBar />
+        <ConductorPanel />
+      </>,
+    );
+    fireEvent.click(screen.getByText('Conductor'));
+    expect(screen.queryByTestId('conductor-transport-rules')).toBeNull();
+    fireEvent.click(screen.getByText('Conduct with body'));
+    await waitFor(() => expect(conductor().source).toBe('body'));
+    fireEvent.click(screen.getByText('Start conducting'));
+    await waitFor(() => expect(conductor().enabled).toBe(true));
+    const toggle = screen.getByTestId('conductor-transport-rules') as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    fireEvent.click(toggle);
+    await waitFor(() => expect((conductor() as { transport: { rules: boolean } }).transport.rules).toBe(false));
+    fireEvent.click(toggle);
+    await waitFor(() => expect((conductor() as { transport: { rules: boolean } }).transport.rules).toBe(true));
+    const live = { ...useConductorStatus.getState().live, enabled: true, state: 'ready' as const, anchors: 0 };
+    expect(describeLive({ ...live, transport: 'idle' }, 'body')).toMatch(/Raise your beating arm/);
+    expect(describeLive({ ...live, transport: 'armed' }, 'body')).toMatch(/upbeat/);
+    expect(describeLive({ ...live, state: 'hold', anchors: 5, transport: 'holding' }, 'body')).toMatch(/drop your arm to stop/);
+    expect(describeLive({ ...live, transport: 'off' })).toBe('Waiting for your first beat.');
+    fireEvent.click(screen.getByText('Conduct with hands'));
+    await waitFor(() => expect(conductor().source).toBe('hands'));
+  });
+
   it('describeLive speaks of the hand by default', () => {
     const off = { ...useConductorStatus.getState().live, enabled: false };
     expect(describeLive(off)).toBe('Off. Press Start, then beat time with your hand.');
