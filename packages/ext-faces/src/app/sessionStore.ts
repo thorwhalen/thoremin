@@ -505,7 +505,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       const maxK = Math.min(bounds.maxK, FACE_SESSION_DEFAULTS.maxCategories);
       const suggested = recutable && bounds.pool <= FACE_SESSION_DEFAULTS.suggestUpTo ? recutRange(working, recutOptions()).suggestedK : working.categories.length;
       const range = recutable ? { minK: bounds.minK, maxK, suggestedK: Math.min(suggested, maxK), recutable } : { minK: working.categories.length, maxK: working.categories.length, suggestedK: working.categories.length, recutable };
-      const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true });
+      const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true, modality });
       shownIds = working.samples.map((x) => x.id);
       set({ working, view, strangers: working.strangers, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
       const gen = generation;

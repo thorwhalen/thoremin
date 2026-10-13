@@ -31,6 +31,7 @@ import { categorizerMode, modelFromCategorizer, type CategorizerMode, type Categ
 import { carryLabels } from '@thoremin/sdk/enroll/from_model';
 import { recut, recutRange, type SortResult } from '@thoremin/sdk/enroll/sorting';
 import { weightedDistance } from '@thoremin/sdk/enroll/cluster';
+import { carveQuality, qualityHint, type CarveQuality, type QualityHint } from '@thoremin/sdk/enroll/quality';
 import { exemplarsByCategory, selectExemplars, type Exemplar } from '@thoremin/sdk/enroll/exemplars';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
 import type { Session } from '@thoremin/sdk/enroll/session';
@@ -284,6 +285,13 @@ export interface SortingView extends CarveView {
   ids: readonly string[];
   /** Whether k can be re-cut here (false when the pool is too large to re-cut at once). */
   recutable: boolean;
+  /** How distinct each category is, and the suspect holds (#385 E6). */
+  quality: CarveQuality;
+  /** The hint for each CLOSE category, in the modality's words, by category id. */
+  hints: ReadonlyMap<string, QualityHint>;
+  /** The suspect holds by sample index: where each looks like it belongs (a category id or
+   *  `neutral`). */
+  suspects: ReadonlyMap<number, string>;
 }
 
 /** Above this many holds a bin or category is ordered by distance from its centre alone: the
@@ -309,11 +317,25 @@ function ordered(model: Pick<TrainedModel, 'features' | 'weights'>, vectors: rea
  */
 export function sortingView(
   c: PersonalCategorizer,
-  { sources, range, neutralKnown = true }: { sources: NameSources; range: { minK: number; maxK: number; suggestedK: number; recutable?: boolean }; neutralKnown?: boolean },
+  {
+    sources,
+    range,
+    neutralKnown = true,
+    modality = faceModality,
+  }: { sources: NameSources; range: { minK: number; maxK: number; suggestedK: number; recutable?: boolean }; neutralKnown?: boolean; modality?: CarveModality },
 ): SortingView {
   const model = modelFromCategorizer(c);
   const vectors = c.samples.map((s) => s.vector);
+  const quality = carveQuality(model, vectors);
+  // As the grid names a category with no label: its id.
+  const label = (id: string): string => model.categories.find((x) => x.id === id)?.label || id;
+  const hints = new Map<string, QualityHint>();
+  for (const q of quality.categories) {
+    const hint = q.closeTo ? qualityHint(model, q.id, q.closeTo, { describe: (f) => modality.describe(f), label, neutralName: `your ${modality.words.neutral} ${modality.words.many}` }) : null;
+    if (hint) hints.set(q.id, hint);
+  }
   const at = new Map(c.samples.map((s, i) => [s.id, i]));
+  const pinned = new Set(Object.keys(c.pins ?? {}).flatMap((id) => (at.has(id) ? [at.get(id)!] : [])));
   const bin = (ids: readonly string[]): SortedBin => {
     const members = ids.map((id) => at.get(id)!);
     return { count: members.length, exemplars: ordered(model, vectors, members).map((e) => e.index) };
@@ -334,9 +356,13 @@ export function sortingView(
     }),
     neutral: bin(c.neutral),
     aside: bin(c.aside ?? []),
-    pinned: new Set(Object.keys(c.pins ?? {}).flatMap((id) => (at.has(id) ? [at.get(id)!] : []))),
+    pinned,
     ids: c.samples.map((s) => s.id),
     recutable: range.recutable ?? true,
+    quality,
+    hints,
+    // A hold the player placed is where they want it: no "looks more like" on it.
+    suspects: new Map(quality.suspects.filter((x) => !pinned.has(x.index)).map((x) => [x.index, x.nearer])),
   };
 }
 

@@ -34,6 +34,7 @@
 import { z } from 'zod';
 import { createCategoryTracker, trainModel, type CategoryTracker } from '@thoremin/sdk/enroll/classify';
 import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { liveMargin, type LiveMargin } from '@thoremin/sdk/enroll/quality';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
 import { isNeutralLabel, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
@@ -289,6 +290,9 @@ export interface LiveReading {
   distance: number;
   /** The tuned reject radius, or null when strangers read as the nearest face. */
   radius: number | null;
+  /** How deep inside its nearest category (or Neutral) this frame is, against the runner-up and
+   *  the reject radius: the margin meter (#385 E6). Per frame, before the hysteresis. */
+  margin: LiveMargin;
 }
 
 export interface LiveReader {
@@ -310,7 +314,8 @@ export function createLiveReader(live: LiveModel): LiveReader {
   return {
     live,
     push(vector) {
-      const r = tracker.push(tuneVector(live, vector));
+      const tuned = tuneVector(live, vector);
+      const r = tracker.push(tuned);
       // Neutral once the tracker has settled on it (while it is entering, the held category is
       // still the reading, and the readout must not say both).
       const neutral = r.neutral === true && r.categoryId === null;
@@ -324,6 +329,7 @@ export function createLiveReader(live: LiveModel): LiveReader {
         memberships: live.model.categories.map((c) => ({ id: c.id, label: c.label, value: r.memberships[c.id] ?? 0 })),
         distance: r.distance,
         radius,
+        margin: liveMargin(live.model, tuned, { noRejectRadius: NO_REJECT_RADIUS }),
       };
     },
     reset: () => tracker.reset(),

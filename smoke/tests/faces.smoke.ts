@@ -101,6 +101,8 @@ test('the face session loads only when opened, and records, carves, names and sa
   const k = await cats.count();
   await expect(panel.locator('[data-face-neutral]')).toBeVisible();
   await expect.poll(() => panel.locator('img[data-face-still]').count(), { timeout: 20_000 }).toBeGreaterThan(k);
+  // Quality (#385 E6): a chip per category.
+  await expect(panel.locator('[data-face-category] [data-face-quality]')).toHaveCount(k);
 
   // The strangers switch (#385 E5): the nearest face, and back; Neutral is taught either way,
   // so no category comes or goes.
@@ -180,6 +182,9 @@ test('a categorizer file is imported, tested live, tuned, corrected, saved and e
       { timeout: 30_000, intervals: [100] },
     )
     .toBe(true);
+
+  // The margin meter (#385 E6): a held face is safely inside its category.
+  await expect.poll(() => panel.locator('[data-faces-margin]').getAttribute('data-faces-margin'), { timeout: 15_000, intervals: [100] }).toBe('inside');
 
   // Tune and correct: both unsaved until Save.
   await panel.getByRole('slider', { name: 'Reject radius' }).fill('2');

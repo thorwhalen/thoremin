@@ -8,11 +8,17 @@
  * slider, never below the categories the player has pinned. Undo and redo (the buttons, or
  * Cmd/Ctrl-Z inside the grid) restore the exact previous categorizer.
  *
+ * Quality (#385 E6, design C.3.2): every category carries a chip (three dots and a word: distinct,
+ * ok, close to X, needs another hold; the numbers in its tooltip), a CLOSE category a hint in the
+ * modality's words with a Merge, and a hold that sits nearer another category (or Neutral) than
+ * its own a corner mark and a one-click "looks more like X" (a move, so a pin like any other).
+ *
  * Rendering only: every edit is the session store's, and every move is a pin there.
  */
 import { useEffect, useState } from 'react';
 import { ASIDE_BIN, NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
 import { NEW_CATEGORY } from '@thoremin/sdk/enroll/sorting';
+import { NEUTRAL_TARGET, QUALITY_DEFAULTS, type CategoryQuality } from '@thoremin/sdk/enroll/quality';
 import type { FaceSessionState } from '../app/sessionStore';
 import type { CarvedCategory, SortingView } from '../lib/carving';
 
@@ -62,7 +68,16 @@ interface HoldProps {
   send: (ids: readonly string[], to: string) => void;
 }
 
+/** A place's name in the grid: a category's label, or a bin's. */
+function placeName(view: SortingView, place: string): string {
+  if (place === NEUTRAL_TARGET) return 'Neutral';
+  if (place === ASIDE_BIN) return 'Set aside';
+  const c = view.categories.find((x) => x.id === place);
+  return c ? c.label || c.id : place;
+}
+
 function Hold({ index, id, url, label, first, pinned, selected, place, view, toggle, dragIds, send }: HoldProps) {
+  const looksLike = view.suspects.get(index);
   return (
     <figure
       className={`relative flex w-16 shrink-0 flex-col items-center gap-0.5 rounded ${selected ? 'ring-2 ring-emerald-300' : ''}`}
@@ -86,7 +101,23 @@ function Hold({ index, id, url, label, first, pinned, selected, place, view, tog
           pin
         </span>
       )}
+      {looksLike && (
+        <span className="absolute left-0.5 top-0.5 rounded bg-amber-500/80 px-0.5 text-[8px] font-bold text-black" title={`Nearer ${placeName(view, looksLike)} than its own`} data-face-suspect={looksLike}>
+          ?
+        </span>
+      )}
       <figcaption className="text-[9px] text-white/40">{first ? 'most typical' : 'less typical'}</figcaption>
+      {looksLike && (
+        <button
+          type="button"
+          className="w-16 truncate rounded bg-amber-500/15 px-0.5 text-[9px] text-amber-100 hover:bg-amber-500/30"
+          data-face-accept={looksLike}
+          title={`Looks more like ${placeName(view, looksLike)}: move it there`}
+          onClick={() => send([id], looksLike)}
+        >
+          {`like ${placeName(view, looksLike)}?`}
+        </button>
+      )}
       <select
         aria-label={`Move ${label}`}
         data-face-move={index}
@@ -161,6 +192,27 @@ function dropTarget(grid: GridApi, to: string) {
   };
 }
 
+const GRADE_TEXT = {
+  distinct: 'distinct',
+  ok: 'ok',
+  thin: 'needs another hold',
+} as const;
+
+/** The chip: three dots and a word, the numbers in the tooltip. */
+function QualityChip({ q, view }: { q: CategoryQuality; view: SortingView }) {
+  const word = q.grade === 'close' ? `close to ${placeName(view, q.closeTo ?? q.nearest ?? '')}` : GRADE_TEXT[q.grade];
+  const colour = q.grade === 'distinct' ? 'text-emerald-300' : q.grade === 'ok' ? 'text-white/70' : 'text-amber-300';
+  const numbers = [
+    q.nearest === null ? 'No other category to be confused with.' : `Nearest: ${placeName(view, q.nearest)}, ${Number.isFinite(q.ratio) ? q.ratio.toFixed(1) : 'many'} times its own spread apart (below ${QUALITY_DEFAULTS.closeRatio} is close).`,
+    q.looAccuracy === null ? 'One hold: record another to measure it.' : `${Math.round(q.looAccuracy * 100)}% of its holds sit nearest their own category${q.leaksTo ? `; the others nearest ${placeName(view, q.leaksTo)}` : ''}.`,
+  ].join(' ');
+  return (
+    <span className={`shrink-0 whitespace-nowrap text-[10px] ${colour}`} title={numbers} data-face-quality={q.grade}>
+      <span aria-hidden="true">{'●'.repeat(q.dots) + '○'.repeat(3 - q.dots)}</span> {word}
+    </span>
+  );
+}
+
 function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: number; grid: GridApi }) {
   const [text, setText] = useState(c.label);
   useEffect(() => setText(c.label), [c.label]);
@@ -169,6 +221,8 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
     else setText(c.label);
   };
   const others = grid.view.categories.filter((x) => x.id !== c.id);
+  const quality = grid.view.quality.categories.find((q) => q.id === c.id);
+  const hint = grid.view.hints.get(c.id);
   return (
     <li data-face-category={c.id} className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2" {...dropTarget(grid, c.id)}>
       <div
@@ -194,6 +248,7 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
           className="min-w-0 flex-1 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold text-white outline-none focus:bg-white/20"
         />
         <span className="shrink-0 text-[10px] text-white/50">{c.size} held</span>
+        {quality && <QualityChip q={quality} view={grid.view} />}
         <select
           aria-label={`Change ${c.label}`}
           value=""
@@ -214,6 +269,16 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
         </select>
       </div>
       <p className="text-[10px] text-white/40">{sourceText(c)}</p>
+      {hint && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100" data-face-hint={c.id}>
+          <span className="min-w-0 flex-1">{hint.text}</span>
+          {hint.other !== NEUTRAL_TARGET && grid.s.working !== null && (
+            <button type="button" className={btn} onClick={() => grid.s.merge(c.id, hint.other)}>
+              {`Merge with ${placeName(grid.view, hint.other)}`}
+            </button>
+          )}
+        </div>
+      )}
       <Strip holds={c.exemplars.map((e) => e.index)} label={c.label} place={c.id} grid={grid} />
     </li>
   );
