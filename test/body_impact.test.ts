@@ -23,8 +23,8 @@ function beat(name: string, options: ImpactDetectorOptions = {}) {
 describe('the impact detector on the conductor clips', () => {
   it.each([
     ['video_body_conducting_44', 0.9],
-    ['video_body_conducting_34', 0.7],
-    ['video_body_conducting_24', 0.85],
+    ['video_body_conducting_34', 0.75],
+    ['video_body_conducting_24', 0.9],
   ] as const)('%s: the default set marks the beat (F >= %s)', (name, f) => {
     const s = beat(name);
     expect(s.f).toBeGreaterThanOrEqual(f);
@@ -33,7 +33,7 @@ describe('the impact detector on the conductor clips', () => {
 
   it.each(['video_body_conducting_44', 'video_body_conducting_24'])("%s: without the wrist, the body's own joints lock to the hand's beat", (name) => {
     const s = beat(name, { joints: ['trunk', 'elbow'] });
-    expect(s.r).toBeGreaterThan(0.45);
+    expect(s.r).toBeGreaterThan(0.5);
     expect(s.p).toBeLessThan(1e-3);
   });
 

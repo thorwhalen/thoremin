@@ -26,7 +26,7 @@ export { createIctusDetector, parabolicOffset, excursion } from './detector';
 export type { DetectorOptions, IctusDetector, Prefilter } from './detector';
 export { asAnchorDetector, createStrokeDetector, isAnchorDetector, sampleFrame, MIN_VISIBILITY, POINT_CHANNEL } from './anchor';
 export type { StrokeDetector, StrokeDetectorOptions } from './anchor';
-export { createImpactDetector, BODY_IMPACT_JOINTS, IMPACT_DEFAULTS, IMPACT_EVENTS } from './visual_impact';
+export { createImpactDetector, parabolicVertex, BODY_IMPACT_JOINTS, IMPACT_DEFAULTS, IMPACT_EVENTS } from './visual_impact';
 export type { ImpactDetector, ImpactDetectorOptions, ImpactEventKind, ImpactJoint } from './visual_impact';
 export { createAdaptiveOscillator, kappaFromResultant } from './oscillator';
 export type { AdaptiveOscillator, OscillatorOptions } from './oscillator';

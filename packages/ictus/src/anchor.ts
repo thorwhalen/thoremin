@@ -60,5 +60,5 @@ export function createStrokeDetector(options: StrokeDetectorOptions = {}): Strok
 
 /** True for a detector instance, false for options (the `createIctus` switch). */
 export function isAnchorDetector(d: unknown): d is AnchorDetector {
-  return typeof d === 'object' && d !== null && typeof (d as AnchorDetector).push === 'function' && typeof (d as AnchorDetector).setPeriod === 'function';
+  return typeof d === 'object' && d !== null && typeof (d as AnchorDetector).push === 'function' && typeof (d as AnchorDetector).setPeriod === 'function' && typeof (d as AnchorDetector).reset === 'function';
 }

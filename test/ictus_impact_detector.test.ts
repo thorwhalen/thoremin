@@ -18,6 +18,8 @@ import {
   createRhythmPrior,
   createStrokeDetector,
   fMeasure,
+  parabolicOffset,
+  parabolicVertex,
   sampleFrame,
   type Anchor,
   type AnchorDetector,
@@ -139,7 +141,7 @@ describe('createImpactDetector (synthetic multi-joint bounces)', () => {
     for (const f of b.frames) {
       const s = ictus.feedFrame(f);
       if (s.anchor) times.push(s.anchor.t);
-      if (f.t > 6.2 && f.t < 11) {
+      if (f.t > 6.5 && f.t < 11) {
         followed.add(det.selected()!);
         running &&= s.state === 'running';
       }
@@ -199,6 +201,60 @@ describe('createImpactDetector (synthetic multi-joint bounces)', () => {
     // The synthetic wrist sways one way on one beat and back on the next.
     expect(plain.some((a) => a.lateral > 0.1) && plain.some((a) => a.lateral < -0.1)).toBe(true);
     plain.forEach((a, i) => expect(mirrored[i].lateral).toBeCloseTo(-a.lateral, 9));
+  });
+
+  it('times the beat below the frame, off the frame grid and across dropped frames', () => {
+    // 97 bpm from 0.417 s: no beat falls on a frame.
+    const b = bounce({ bpm: () => 97, firstBeat: 0.417, noisePx: 0 });
+    const median = (xs: number[]) => xs.sort((x, y) => x - y)[xs.length >> 1];
+    const err = (frames: readonly ChannelFrame[], subframe: boolean) => median(run(frames, createImpactDetector({ joints: ['wrist'], subframe })).times.slice(2).map((t) => nearest(b.beats, t)));
+    expect(err(b.frames, true)).toBeLessThan(0.002);
+    expect(err(b.frames, false)).toBeGreaterThan(0.004);
+    const dropped = b.frames.filter((_, i) => i % 3 !== 2);
+    expect(err(dropped, true)).toBeLessThan(0.003);
+  });
+
+  it('parabolicVertex is parabolicOffset at equal spacing, and exact at any spacing', () => {
+    const pts = [{ t: 1, v: 2 }, { t: 1.1, v: 3 }, { t: 1.2, v: 2.5 }] as const;
+    expect(parabolicVertex(pts[0], pts[1], pts[2])).toBeCloseTo(1.1 + 0.1 * parabolicOffset(2, 3, 2.5), 12);
+    const f = (t: number) => -4 * (t - 0.537) ** 2;
+    const at = (t: number) => ({ t, v: f(t) });
+    expect(parabolicVertex(at(0.5), at(0.54), at(0.6))).toBeCloseTo(0.537, 12);
+  });
+
+  it('a single dropped frame of the followed joint keeps it followed, and the strength steady', () => {
+    const flicker = (c: string, t: number) => (c === 'wrist' && Math.round(t * 30) % 13 === 0 ? 0 : 0.99);
+    const b = bounce({ visibility: flicker });
+    const det = createImpactDetector();
+    const ictus = createIctus({ detector: det });
+    const followed = new Set<string>();
+    const strengths: number[] = [];
+    for (const f of b.frames) {
+      const s = ictus.feedFrame(f);
+      if (f.t > 3) followed.add(det.selected()!);
+      if (s.anchor && f.t > 3) strengths.push(s.anchor.strength);
+    }
+    expect([...followed]).toEqual(['wrist']);
+    expect(Math.min(...strengths)).toBeGreaterThan(0.7);
+  });
+
+  it('the strength is the followed joint’s own: a hand-over is not a diminuendo', () => {
+    const lost = (c: string, t: number) => (c === 'wrist' && t > 6 && t < 11 ? 0 : 0.99);
+    const b = bounce({ seconds: 16, visibility: lost, trunkPx: 30 });
+    const { anchors } = run(b.frames, createImpactDetector());
+    const late = anchors.filter((a) => a.t > 3);
+    for (const a of late) {
+      expect(a.strength).toBeGreaterThan(0.6);
+      expect(a.strength).toBeLessThan(1.5);
+    }
+  });
+
+  it('a frame without a scale keeps the last body unit', () => {
+    const b = bounce();
+    const gap = b.frames.map((f) => (f.t > 8 && f.t < 10 ? { ...f, scale: undefined } : f));
+    const inGap = (x: number) => x > 8 && x < 10.5;
+    const times = run(gap, createImpactDetector()).times;
+    expect(fMeasure(times.filter(inGap), b.beats.filter(inGap), F_WINDOW)).toBeGreaterThan(0.95);
   });
 
   it('reset() starts over', () => {
