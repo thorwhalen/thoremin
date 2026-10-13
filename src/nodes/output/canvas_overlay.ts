@@ -37,7 +37,7 @@ import {
   scaleDegreeOf,
   scaleGuide,
 } from '@thoremin/sdk/music/theory';
-import { EMOTIONS, type ExpressionScores } from '@/music/expression';
+import { EMOTIONS, personalDegree, type ExpressionScores } from '@/music/expression';
 import { clamp01 } from '@thoremin/sdk/features/math';
 import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
 import { pairIndex } from '@/features/labCorrelation';
@@ -327,6 +327,8 @@ export interface OverlayView {
     handMap?: HandMap;
     /** Live expression→scale-degree map, to name each expression's chord. */
     faceDegrees?: Record<string, number>;
+    /** A personal categorizer's per-category degrees (#330 P4), to name each category's chord. */
+    categoryDegrees?: Record<string, number>;
     /** Live face mapping mode ('chord'/'timbre'/…); chord labels show only in 'chord'. */
     faceMapping?: string;
     /** Burned-in tag HUD frame (#92): open tags + timecode + blink; null unless a
@@ -980,7 +982,7 @@ const faceExpressionCue: OverlayElement = {
     const labelLines = (p.exprLabels ? 1 : 0) + (p.chordLabels && chordMode ? 1 : 0);
     return measureBarGraph(
       expr.scores.map(() => ({ value: 0, labels: new Array(labelLines).fill('x') })),
-      { title: p.topLabel ? expr.label : undefined },
+      { title: p.topLabel ? faceExpressionTitle(expr) : undefined },
     );
   },
   draw(g, view) {
@@ -989,17 +991,21 @@ const faceExpressionCue: OverlayElement = {
     if (!expr?.present || !expr.scores?.length || !origin) return;
     const p = view.params.faceExpression;
     const chordMode = view.inputs.faceMapping === 'chord';
+    // Name each bar's chord from the CHORD-SOURCE scale (#75), not the melody — so the
+    // printed name matches the audible chord for a pentatonic melody.
+    const chordScale = view.inputs.chordScale ?? view.inputs.scale;
+    const chordLabel = (deg: number): string => (deg >= 0 ? chordName(triadForDegree(chordScale, deg)) : '—');
+    const degreeFor = (name: string): number => view.inputs.faceDegrees?.[name] ?? -1;
+    // A personal categorizer (#330 P4): a bar per category of the player's, named as they
+    // named it, its chord the one the renderer plays for it.
+    const personal = expr.personal;
     const bars: BarSpec[] = expr.scores.map((score, i) => {
-      const name = EMOTIONS[i];
-      const isWinner = name === expr.label;
+      const name = personal ? (personal.names[i] ?? '') : EMOTIONS[i];
+      const isWinner = personal ? personal.id !== null && personal.ids[i] === personal.id : name === expr.label;
       const labels: string[] = [];
       if (p.exprLabels) labels.push(name ?? '');
       if (p.chordLabels && chordMode) {
-        const deg = view.inputs.faceDegrees?.[name] ?? -1;
-        // Name each expression's chord from the CHORD-SOURCE scale (#75), not the
-        // melody — so the printed name matches the audible chord for a pentatonic melody.
-        const chordScale = view.inputs.chordScale ?? view.inputs.scale;
-        labels.push(deg >= 0 ? chordName(triadForDegree(chordScale, deg)) : '—');
+        labels.push(chordLabel(personal ? personalDegree(personal, i, view.inputs.categoryDegrees, degreeFor) : degreeFor(name ?? '')));
       }
       return {
         value: clamp01(score),
@@ -1010,9 +1016,14 @@ const faceExpressionCue: OverlayElement = {
         labels,
       };
     });
-    drawBarGraph(g, origin.x, origin.y, bars, { title: p.topLabel ? expr.label : undefined, labelColor: FACE_COLOR });
+    drawBarGraph(g, origin.x, origin.y, bars, { title: p.topLabel ? faceExpressionTitle(expr) : undefined, labelColor: FACE_COLOR });
   },
 };
+
+/** The bar graph's title: the expression read, or the player's own category name (#330 P4). */
+function faceExpressionTitle(expr: ExpressionScores): string {
+  return expr.personal ? (expr.personal.name ?? 'none of these') : expr.label;
+}
 
 /** The category label's text, or null when nothing is named. */
 function categoryText(view: OverlayView): string | null {
@@ -2085,6 +2096,8 @@ export const canvasOverlayNode = defineNode<Params>({
     { name: 'airDrumConfig', kind: 'air-drum-config' },
     { name: 'drumHits', kind: 'drum-hits' },
     { name: 'expression', kind: 'face-expression' },
+    // A personal categorizer's per-category degrees (#330 P4), for its bars' chord names.
+    { name: 'categoryDegrees', kind: 'category-degrees' },
     { name: 'octaveShift', kind: 'number', default: 0 },
     { name: 'overlayConfig', kind: 'overlay-config' },
     // The air flute's status, for its breath cue (#249).
@@ -2186,6 +2199,7 @@ export const canvasOverlayNode = defineNode<Params>({
             expression: inputs.expression as ExpressionScores | undefined,
             handMap: controls?.handMap,
             faceDegrees: controls?.faceExpr?.degrees,
+            categoryDegrees: inputs.categoryDegrees as Record<string, number> | undefined,
             faceMapping: controls?.faceMapping,
             tagOverlay,
             trainerHud: trainerHudSnapshot,

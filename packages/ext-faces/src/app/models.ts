@@ -41,3 +41,34 @@ export const createFaceModelStore: (provider?: Parameters<ReturnType<typeof crea
     payloadKey: 'model',
     idFallback: 'faces',
   });
+
+/**
+ * Saved categorizers changed (a save, a replace, a delete): the listeners re-read what they hold.
+ * How an instrument playing a categorizer picks up a correction made in the tool (#330 P4)
+ * without polling. In-page only; another tab's edit reaches this one on its next load.
+ */
+const changeListeners = new Set<() => void>();
+
+export function onFaceModelsChanged(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+/** `store` with a change notice after every save and remove. */
+export function withChangeNotice(store: NamedCollectionStore<FaceModelRecord, SavedFaceModel>): NamedCollectionStore<FaceModelRecord, SavedFaceModel> {
+  const notify = () => {
+    for (const l of [...changeListeners]) l();
+  };
+  return {
+    ...store,
+    save: async (name, payload, now) => {
+      const out = await store.save(name, payload, now);
+      notify();
+      return out;
+    },
+    remove: async (id: string) => {
+      await store.remove(id);
+      notify();
+    },
+  };
+}

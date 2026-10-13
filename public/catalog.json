@@ -794,6 +794,10 @@
         "kind": "face-expression"
       },
       {
+        "name": "categoryDegrees",
+        "kind": "category-degrees"
+      },
+      {
         "name": "octaveShift",
         "kind": "number",
         "default": 0
@@ -1236,6 +1240,10 @@
       {
         "name": "degrees",
         "kind": "expression-degrees"
+      },
+      {
+        "name": "categoryDegrees",
+        "kind": "category-degrees"
       }
     ],
     "outputs": [
@@ -1273,6 +1281,64 @@
         "name": "bpm",
         "type": "number",
         "default": 100
+      }
+    ]
+  },
+  {
+    "type": "face-categorizer",
+    "title": "Face Categorizer",
+    "description": "Your own face categorizer (#330), read live: the face to one of your categories, as the expression it stands in for. Passes the general model through until it is loaded.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "face",
+        "kind": "face-frame"
+      },
+      {
+        "name": "general",
+        "kind": "face-expression"
+      },
+      {
+        "name": "model",
+        "kind": "face-categorizer-model"
+      },
+      {
+        "name": "config",
+        "kind": "face-categorizer-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "expression",
+        "kind": "face-expression"
+      },
+      {
+        "name": "degrees",
+        "kind": "category-degrees"
+      }
+    ],
+    "params": [
+      {
+        "name": "holdOnReject",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "enterFrames",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "exitFrames",
+        "type": "number",
+        "default": 8
+      },
+      {
+        "name": "minPresent",
+        "type": "number",
+        "default": 0.9
       }
     ]
   },
@@ -2886,6 +2952,10 @@
         "kind": "asl-config"
       },
       {
+        "name": "faceCategorizer",
+        "kind": "face-categorizer-config"
+      },
+      {
         "name": "airGuitarModel",
         "kind": "shape-model"
       },
@@ -2900,6 +2970,10 @@
       {
         "name": "airDrumPattern",
         "kind": "drum-pattern"
+      },
+      {
+        "name": "faceCategorizerModel",
+        "kind": "face-categorizer-model"
       }
     ],
     "params": []

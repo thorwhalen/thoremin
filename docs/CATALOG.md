@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (52)
+## Nodes (53)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -117,7 +117,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, handednessDwell:number, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, songHandle:song-handle, songPlaying:boolean, songVolume:number, songRate:number, songFollowRange:number, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, handednessDwell:number, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, songHandle:song-handle, songPlaying:boolean, songVolume:number, songRate:number, songFollowRange:number, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, faceCategorizer:face-categorizer-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern, faceCategorizerModel:face-categorizer-model
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -202,6 +202,14 @@ Face blendshapes → one of 7 emotions or neutral (per-class thresholds + neutra
 - **in:** face:face-frame, sensitivity:expression-sensitivity
 - **out:** expression:face-expression
 - **params:** smoothing (number=0.4), dwellFrames (number=2)
+
+#### `face-categorizer` — Face Categorizer
+Your own face categorizer (#330), read live: the face to one of your categories, as the expression it stands in for. Passes the general model through until it is loaded.
+
+- **roles:** feature
+- **in:** face:face-frame, general:face-expression, model:face-categorizer-model, config:face-categorizer-config
+- **out:** expression:face-expression, degrees:category-degrees
+- **params:** holdOnReject (boolean=false), enterFrames (number=3), exitFrames (number=8), minPresent (number=0.9)
 
 #### `gesture-classifier` — Gesture Classifier
 Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.
@@ -341,7 +349,7 @@ Roman-numeral progression in a key + position (0..1) → current chord symbol.
 Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).
 
 - **roles:** music
-- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees
+- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees
 - **out:** params:synth-params, triad:number[]
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
@@ -519,7 +527,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, airDrumConfig:air-drum-config, drumHits:drum-hits, expression:face-expression, octaveShift:number, overlayConfig:overlay-config, airFluteStatus:air-flute-status, categories:category-scores, categoryCaptions:string[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, airDrumConfig:air-drum-config, drumHits:drum-hits, expression:face-expression, categoryDegrees:category-degrees, octaveShift:number, overlayConfig:overlay-config, airFluteStatus:air-flute-status, categories:category-scores, categoryCaptions:string[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), drumPads (object={}), timbreLevels (object={}), mouthCue (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 

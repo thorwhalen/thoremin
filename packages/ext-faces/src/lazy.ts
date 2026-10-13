@@ -1,9 +1,12 @@
 /**
- * The faces extension's deferred node half: none. It is a tool-only extension (#330 P2); a
- * categorizer node for the instruments is P4's. Kept so the `lazy` entry has both halves.
+ * The faces extension's deferred node half (#330 P4): the personal categorizer node, loaded the
+ * first time a composed graph names `face-categorizer` (an instrument whose face chords read one
+ * of the player's categorizers).
  */
+import type { NodeDef } from '@thoremin/dag';
 import type { ExtensionNodes } from '@thoremin/sdk/instruments/extension';
+import { faceCategorizerNode } from './nodes/face_categorizer';
 
-const FACES_NODES: ExtensionNodes = { nodes: [] };
+const FACES_NODES: ExtensionNodes = { nodes: [faceCategorizerNode] as unknown as NodeDef<unknown>[] };
 
 export default FACES_NODES;

@@ -32,8 +32,9 @@ describe('assembleSpec', () => {
     expect(explicit.features).toEqual(['field-voices', 'conductor']);
     const derivedOnly = assembleSpec({ name: 'X', layer, derived });
     expect(derivedOnly.branches).toEqual(['field-voices', 'face-chord']);
-    // `face-chord` requires `face-source`: the facet says so, in library order, trunk excluded.
-    expect(derivedOnly.features).toEqual(['field-voices', 'face-source', 'face-chord']);
+    // `face-chord` requires its two pieces (#330 P4), which require `face-source`: the facet
+    // says so, in library order, trunk excluded.
+    expect(derivedOnly.features).toEqual(['field-voices', 'face-source', 'face-expression', 'face-chord-voice', 'face-chord']);
     const neither = assembleSpec({ name: 'X', layer });
     expect(neither.branches).toBeUndefined();
     expect(neither.features).toEqual([]);

@@ -1,18 +1,40 @@
 /**
  * The faces extension's React half, DEFERRED: the face session tool's panel (and through it the
- * session, the carving, the stills and the saved collection). Loaded by the host's build with a
- * dynamic `import()` (`extensions.json`'s `lazy.ui`) the first time the player opens the tool, so
- * none of it is in the main chunk (`docs/design/lazy-extensions.md`).
+ * session, the carving, the stills and the saved collection), the instrument editor's "Face
+ * categorizer" section, and the mount effect that resolves the instrument's categorizer for the
+ * DAG (#330 P4). Loaded by the host's build with a dynamic `import()` (`extensions.json`'s
+ * `lazy.ui`) the first time the player opens the tool or the section, or a composed graph names
+ * the categorizer node, so none of it is in the main chunk (`docs/design/lazy-extensions.md`).
  */
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import FaceSessionPanel from './panels/FaceSessionPanel';
+import CategorizerSection from './panels/CategorizerSection';
+import { startCategorizerPlay, useCategorizerPlay } from './app/categorizerPlay';
 import { FACES_TOOL } from './ui';
+
+/** One line under the section: which categorizer the face chords read right now. */
+function CategorizerReadout() {
+  const play = useCategorizerPlay();
+  const text = play.phase === 'ready' ? `Reading with ${play.name}` : play.phase === 'loading' ? 'Loading…' : play.phase === 'missing' ? 'Not on this device: the general model plays' : 'The general model';
+  return <span className="text-[10px] text-white/50">{text}</span>;
+}
 
 export const FACES_UI: ExtensionUi = {
   id: 'faces',
-  panels: [],
+  panels: [{ instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerSection, Readout: CategorizerReadout }],
   statusHooks: [],
-  onMount: [],
+  // Resolve the categorizer the instrument names and hand it to the DAG, for the app's lifetime.
+  // A host with no hot store (a headless test that loads this half) has nothing to resolve.
+  onMount: [
+    () => {
+      try {
+        return startCategorizerPlay();
+      } catch (err) {
+        console.warn('faces: the categorizer is not resolved (no hot store):', err);
+        return undefined;
+      }
+    },
+  ],
   tools: [{ ...FACES_TOOL, Panel: FaceSessionPanel }],
 };
 

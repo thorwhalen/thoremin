@@ -65,6 +65,14 @@ export const GraphBranchSchema = z.object({
   description: z.string().optional(),
   /** Branch ids that must be present for this one to make sense; resolved transitively. */
   requires: z.array(z.string()).default([]),
+  /**
+   * Branch ids this one stands in for: when both are named, the composer drops the replaced
+   * one (rule 5 of `composeGraph`). It is how an extension swaps a part of a core instrument
+   * (a personal face categorizer in place of the general one, #330) without core naming the
+   * extension, and why a failed lazy load falls back: the replacing branch is left out, so
+   * the replaced one composes again.
+   */
+  replaces: z.array(z.string()).default([]),
   nodes: z.array(BranchNodeSchema).default([]),
   edges: z.array(BranchEdgeSchema).default([]),
   /** `synth-params` streams this branch contributes; the composer allocates merge inputs. */

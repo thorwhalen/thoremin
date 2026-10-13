@@ -109,11 +109,23 @@ const REMOVED_SINCE_SNAPSHOT: EdgeSpec[] = [
 /** Nodes of extensions added after the snapshot (the ASL reader and its chords): the golden
  *  is the core + air graph, so these and every edge touching them are set aside before the
  *  comparison; their own branches are tested in `test/asl/`. */
-const LATER_EXTENSION_NODES = new Set(hasExtension('asl') ? ['aslSigns', 'signChord'] : []);
+const LATER_EXTENSION_NODES = new Set([...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat'] : [])]);
+/** The faces extension's categorizer REPLACES the general face chord when every branch is
+ *  composed (#330 P4, rule 5): the general reading's two edges then run through `faceCat`, set
+ *  aside above, so they are restored here to compare with the core + air snapshot. */
+const REPLACED_BY_LATER_EXTENSIONS: EdgeSpec[] = hasExtension('faces')
+  ? [
+      { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'exprChord', port: 'expression' } },
+      { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
+    ]
+  : [];
 const withoutLaterExtensions = (spec: GraphSpec): GraphSpec => ({
   ...spec,
   nodes: spec.nodes.filter((n) => !LATER_EXTENSION_NODES.has(n.id)),
-  edges: spec.edges.filter((e) => !LATER_EXTENSION_NODES.has(e.from.node) && !LATER_EXTENSION_NODES.has(e.to.node)),
+  edges: [
+    ...spec.edges.filter((e) => !LATER_EXTENSION_NODES.has(e.from.node) && !LATER_EXTENSION_NODES.has(e.to.node)),
+    ...REPLACED_BY_LATER_EXTENSIONS,
+  ],
 });
 
 describe.runIf(AIR)('composed graph == the hand-listed graph (golden)', () => {
