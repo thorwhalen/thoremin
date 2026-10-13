@@ -95,13 +95,20 @@ export const bodyPulseNode = defineNode<Params>({
     return {
       process(inputs, ctx) {
         const frame = inputs.body as BodyFrame | undefined;
-        if (frame === lastFrame && frame !== undefined) return { pulse: last };
-        lastFrame = frame;
         // An absent body is "not observed" (NaN), not a reset: the model misses a pose
         // for a frame now and then, and the follower starts over by itself only after
-        // a gap of half its window.
+        // a gap of half its window. It is fed every tick, at the tick's time, even when
+        // it is the same object (the source's shared empty frame while no model is
+        // held), or that gap would never be seen and a stale pulse would stay trusted.
         const seen = frame !== undefined && frame.present && frame.landmarks.length >= 33;
-        last = follower.feed(frameTime(frame, ctx), seen ? pulseChannelValue(frame, p.channel, p.minVisibility) : NaN);
+        if (!seen) {
+          lastFrame = undefined;
+          last = follower.feed(ctx.time, NaN);
+          return { pulse: last };
+        }
+        if (frame === lastFrame) return { pulse: last };
+        lastFrame = frame;
+        last = follower.feed(frameTime(frame, ctx), pulseChannelValue(frame, p.channel, p.minVisibility));
         return { pulse: last };
       },
     };

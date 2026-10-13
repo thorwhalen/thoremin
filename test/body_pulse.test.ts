@@ -125,6 +125,16 @@ describe('the node', () => {
     expect(back.level).toBeNaN();
   });
 
+  it("the source's shared empty frame, repeated, still counts as a dropout (the pulse does not freeze trusted)", () => {
+    const h = bodyPulseNode.make(bodyPulseNode.params.parse({}));
+    for (let i = 0; i < 12 * 30; i++) h.process({ body: frameAt(Math.sin((2 * Math.PI * i) / 30 / 1.2)) }, ctx(i / 30));
+    const empty = { width: W, height: H, present: false, landmarks: [], visibility: [] };
+    let s!: PulseState;
+    for (let t = 12; t < 17; t += 1 / 30) s = (h.process({ body: empty }, ctx(t)) as { pulse: PulseState }).pulse;
+    expect(s.confidence).toBe(0);
+    expect(s.t).toBeGreaterThan(16.9);
+  });
+
   it('refuses a window too short for its longest period', () => {
     expect(() => bodyPulseNode.params.parse({ windowS: 4, maxPeriodS: 3 })).toThrow();
   });

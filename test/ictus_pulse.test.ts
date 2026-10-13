@@ -100,6 +100,30 @@ describe('the pulse follower on a channel of known period and phase', () => {
     expect(p.feed(5, 99)).toBe(before);
   });
 
+  it('the published beat never steps back, also when the lock goes into hold', () => {
+    for (const P of [0.7, 1.2]) {
+      const p = createPulseFollower();
+      let prev = -Infinity;
+      for (let i = 0; i < 16 * HZ; i++) {
+        const t = i / HZ;
+        // Observed for 12 s, then 3 s unobserved (the prior holds), then back.
+        const s = p.feed(t, t >= 12 && t < 15 ? NaN : Math.cos((2 * Math.PI * t) / P));
+        if (s.confidence > 0 || s.state === 'hold') {
+          expect(s.beat, `at ${t.toFixed(2)} (P ${P})`).toBeGreaterThanOrEqual(prev);
+          prev = s.beat;
+        }
+      }
+    }
+  });
+
+  it('an unobserved tick does not block a later sample stamped a little earlier', () => {
+    const p = createPulseFollower();
+    for (let i = 0; i < 10 * HZ; i++) p.feed(i / HZ, Math.cos((2 * Math.PI * i) / HZ / 0.8));
+    p.feed(10.02, NaN);
+    const before = p.state();
+    expect(p.feed(10.0, 1)).not.toBe(before);
+  });
+
   it('a long dropout starts over instead of extrapolating a stale lock', () => {
     const p = createPulseFollower();
     const f = (t: number) => Math.cos((2 * Math.PI * t) / 0.8);

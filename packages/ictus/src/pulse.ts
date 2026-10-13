@@ -319,6 +319,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
 
   let samples: Sample[] = [];
   let lastT = NaN;
+  let lastNanT = NaN;
   let lastValidT = NaN;
   let lastEstimateT = -Infinity;
   let level = NaN;
@@ -328,6 +329,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   let phi = NaN; // the fundamental's phase angle at the level, from the last estimate
   let lastAnchorT = NaN;
   let priorT = -Infinity; // how far the prior has been advanced (a delayed clock)
+  let lastBeat = -Infinity; // the published beat never steps back within a lock
   let current: PulseState = UNKNOWN_PULSE;
 
   /** The shortest peak within `nearTop` of the strongest (see {@link PulseOptions.nearTop}),
@@ -348,6 +350,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     phi = NaN;
     lastAnchorT = NaN;
     priorT = -Infinity;
+    lastBeat = -Infinity;
     if (typeof priorOpt === 'object') prior.reset();
     else prior = makePrior();
   };
@@ -355,6 +358,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   const reset = () => {
     samples = [];
     lastT = NaN;
+    lastNanT = NaN;
     lastValidT = NaN;
     lastEstimateT = -Infinity;
     candidates = [];
@@ -440,7 +444,11 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     if (!Number.isFinite(level)) return { ...UNKNOWN_PULSE, t, candidates };
     const s = prior.state();
     const locked = s.state === 'running' && s.anchors > 0;
-    const beat = locked ? s.beat + (t - s.t) / s.period : s.beat;
+    // Running, the beat is projected from the delayed clock to now; in `hold` the prior
+    // freezes its own beat, which is behind the projection by the delay: hold the
+    // published beat where it got to rather than step it back.
+    const beat = Math.max(lastBeat, locked ? s.beat + (t - s.t) / s.period : s.beat);
+    lastBeat = beat;
     const phase = beat - Math.floor(beat);
     // Before the prior locks, its period is its own initial guess: report the level.
     return {
@@ -462,24 +470,26 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
 
   return {
     feed(t, value) {
-      if (!Number.isFinite(t) || (Number.isFinite(lastT) && t <= lastT)) return current;
-      lastT = t;
+      if (!Number.isFinite(t)) return current;
       const longGap = Number.isFinite(lastValidT) && t - lastValidT > o.windowS / 2;
       if (!Number.isFinite(value)) {
-        // Unobserved: a lock is not extrapolated across a long dropout.
-        if (longGap) {
-          const keep = lastT;
-          reset();
-          lastT = keep;
-        }
+        // Unobserved: a lock is not extrapolated across a long dropout. An unobserved
+        // tick only reads the clock: it does not move `lastT`, so a later sample stamped
+        // a little earlier (a capture stamp after a tick-time NaN) is still taken.
+        if (Number.isFinite(lastNanT) && t <= lastNanT) return current;
+        lastNanT = t;
+        if (longGap) reset();
         if (Number.isFinite(level)) advancePrior(t);
         current = publish(t);
         return current;
       }
+      if (Number.isFinite(lastT) && t <= lastT) return current;
+      lastT = t;
       if (longGap) {
         reset();
         lastT = t;
       }
+      lastNanT = NaN;
       lastValidT = t;
       samples.push({ t, v: value });
       const cutoff = t - o.windowS - 1 / o.gridHz;
