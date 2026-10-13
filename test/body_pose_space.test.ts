@@ -219,7 +219,7 @@ describe('the pose space under nuisance: replays of synthetic-body', () => {
 });
 
 describe('the visibility mask and coverage: legs out of frame', () => {
-  const LEGS = [BLM.left_knee, BLM.right_knee, BLM.left_ankle, BLM.right_ankle, BLM.left_heel, BLM.right_heel, BLM.left_foot_index, BLM.right_foot_index];
+  const LEGS: readonly number[] = [BLM.left_knee, BLM.right_knee, BLM.left_ankle, BLM.right_ankle, BLM.left_heel, BLM.right_heel, BLM.left_foot_index, BLM.right_foot_index];
   /** The frame cropped above the knees: the pose model still guesses the legs, below the
    *  frame and with a low visibility, as MediaPipe does. */
   const cropLegs = (f: BodyFrame): BodyFrame => {
