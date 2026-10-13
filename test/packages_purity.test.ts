@@ -51,7 +51,7 @@ const roots: string[] = [
 
 describe('a workspace package imports only itself and its declared dependencies', () => {
   it('finds the packages', () => {
-    expect(packages).toEqual(expect.arrayContaining(['dag', 'ictus', 'lazy', 'taglog']));
+    expect(packages).toEqual(expect.arrayContaining(['dag', 'ictus', 'lazy', 'stats', 'taglog']));
   });
 
   it('checks every installed extension the manifest ships', () => {

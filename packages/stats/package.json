@@ -1,0 +1,15 @@
+{
+  "name": "@thoremin/stats",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's small pure statistics: quantiles with a stated index rule, medians, an ordinary least-squares line, an exponentially weighted update and a clamp (TypeScript source, consumed through the workspace).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./clamp": "./src/clamp.ts",
+    "./line": "./src/line.ts",
+    "./quantile": "./src/quantile.ts",
+    "./smooth": "./src/smooth.ts"
+  },
+  "dependencies": {}
+}
