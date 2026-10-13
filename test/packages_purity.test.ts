@@ -54,8 +54,9 @@ describe('a workspace package imports only itself and its declared dependencies'
     expect(packages).toEqual(expect.arrayContaining(['dag', 'ictus', 'lazy', 'taglog']));
   });
 
-  it('finds the installed extensions too', () => {
-    expect(roots.length).toBeGreaterThan(packages.length);
+  it('checks every installed extension the manifest ships', () => {
+    const installed = SHIPPED_EXTENSION_DIRS.filter((e) => e.dir.split(/[\\/]/).includes('node_modules')).length;
+    expect(roots.length, 'one root per workspace package and per installed extension').toBe(packages.length + installed);
   });
 
   for (const root of roots) {
