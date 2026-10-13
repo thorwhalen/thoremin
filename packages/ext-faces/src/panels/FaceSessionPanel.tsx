@@ -297,7 +297,7 @@ function BurstControls({ s }: { s: FaceSessionState }) {
           {s.burst ? 'Recording... let go to keep it' : 'Hold to record a burst (B)'}
         </button>
       </div>
-      <p className={hint} role="status" aria-live="polite">
+      <p className={hint} aria-live="polite" data-faces-burst-says>
         {s.burst
           ? `Recording a burst${s.burst.label ? ` named "${s.burst.label}"` : ''}: ${s.burst.frames} frames so far. Let go to keep it as one ${one}.`
           : name
