@@ -19,6 +19,8 @@ import { useEffect, useState } from 'react';
 import { ASIDE_BIN, NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
 import { NEW_CATEGORY } from '@thoremin/sdk/enroll/sorting';
 import { NEUTRAL_TARGET, QUALITY_DEFAULTS, type CategoryQuality } from '@thoremin/sdk/enroll/quality';
+import { reproducibilityOf, reproducibilityScore } from '@thoremin/sdk/enroll/quiz';
+import { everydayFlags } from '@thoremin/sdk/enroll/everyday';
 import type { FaceSessionState } from '../app/sessionStore';
 import type { CarvedCategory, SortingView } from '../lib/carving';
 
@@ -213,6 +215,31 @@ function QualityChip({ q, view }: { q: CategoryQuality; view: SortingView }) {
   );
 }
 
+/**
+ * What the player's checks said of this category (#385 E7), beside the quality chip: the last
+ * quiz (how often it was found again: "found 1 of 2") and, if it fired by accident in the last
+ * everyday check, how often. Shown only while the category is the one checked (same id and name).
+ */
+function ChecksChip({ c, s }: { c: CarvedCategory; s: FaceSessionState }) {
+  const r = reproducibilityOf(s.checks.quiz, c);
+  const everyday = s.checks.everyday;
+  const flag = everyday && (everyday.labels[c.id] ?? '').trim().toLowerCase() === c.label.trim().toLowerCase() ? everydayFlags(everyday).find((f) => f.categoryId === c.id) : undefined;
+  if (!r && !flag) return null;
+  const score = r ? reproducibilityScore(r) : 1;
+  const colour = flag || score < 0.5 ? 'text-amber-300' : score < 1 ? 'text-white/70' : 'text-emerald-300';
+  const title = [
+    r ? `Quiz: asked ${r.asked}, found ${r.hits} in time${r.slow ? `, ${r.slow} slowly` : ''}${r.misses ? `, missed ${r.misses}${r.confusedWith ? ` (read as ${placeName(s.view as SortingView, r.confusedWith)})` : ''}` : ''}.` : '',
+    flag ? `Fired ${flag.fires} times by accident in the everyday check (${flag.perMinute.toFixed(1)} a minute): make it bigger, set a larger size, or merge it.` : '',
+  ].filter(Boolean).join(' ');
+  return (
+    <span className={`shrink-0 whitespace-nowrap text-[10px] ${colour}`} title={title} data-face-checks={c.id}>
+      {r ? `found ${r.hits + r.slow} of ${r.asked}` : ''}
+      {r && flag ? ', ' : ''}
+      {flag ? `fired ${flag.fires}x` : ''}
+    </span>
+  );
+}
+
 function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: number; grid: GridApi }) {
   const [text, setText] = useState(c.label);
   useEffect(() => setText(c.label), [c.label]);
@@ -249,6 +276,7 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
         />
         <span className="shrink-0 text-[10px] text-white/50">{c.size} held</span>
         {quality && <QualityChip q={quality} view={grid.view} />}
+        <ChecksChip c={c} s={grid.s} />
         <select
           aria-label={`Change ${c.label}`}
           value=""

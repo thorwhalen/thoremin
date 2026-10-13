@@ -17,6 +17,10 @@
  * ring, nothing recorded); "Start capturing" (or Space) begins the take; while capturing, Pause
  * (or Space) stops collecting and the bars and ring keep running. Space is the host's
  * `carve.capture.toggle` command, through the capture seam the session store provides.
+ *
+ * #385 E7: while capturing or paused, a **burst** records one held face from every frame while
+ * B (or the button) is held, optionally under a name typed first (a labelled hold, pinned to the
+ * category of that name). Paused, bursts are the only capture: burst mode.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useStore } from 'zustand';
@@ -222,6 +226,88 @@ const STATE_TEXT: Record<'explore' | 'rest' | 'faces' | 'paused', string> = {
   paused: 'Paused',
 };
 
+/** Whether a key event belongs to a text field (typing a name must not start a burst). */
+const typing = (e: KeyboardEvent): boolean => {
+  const t = e.target as HTMLElement | null;
+  return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+};
+
+/** The key a burst is held on. */
+export const BURST_KEY = 'b';
+
+/**
+ * Bursts (#385 E7, design C.4.2 and C.4.6): hold B or the button to record; let go and the burst
+ * is one held face. A name typed first puts it straight into the category of that name.
+ */
+function BurstControls({ s }: { s: FaceSessionState }) {
+  const { one } = modality.words;
+  const { beginBurst, endBurst } = s;
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== BURST_KEY || e.repeat || e.metaKey || e.ctrlKey || e.altKey || typing(e)) return;
+      e.preventDefault();
+      beginBurst();
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === BURST_KEY) endBurst();
+    };
+    // A key let go in another window never arrives: losing focus ends the burst.
+    const blur = () => endBurst();
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+      endBurst();
+    };
+  }, [beginBurst, endBurst]);
+  const name = s.burstName.trim();
+  return (
+    <div className="space-y-1 rounded-md border border-white/10 p-2" data-faces-burst={s.burst ? 'on' : 'off'}>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          aria-label="Name for the next burst"
+          placeholder="Name (optional)"
+          value={s.burstName}
+          onChange={(e) => s.setBurstName(e.target.value)}
+          className="w-36 rounded bg-white/10 px-2 py-0.5 text-xs text-white outline-none focus:bg-white/20"
+        />
+        <button
+          type="button"
+          className={s.burst ? primary : btn}
+          aria-pressed={s.burst !== null}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            beginBurst();
+          }}
+          onPointerUp={() => endBurst()}
+          onPointerCancel={() => endBurst()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.repeat) {
+              e.preventDefault();
+              beginBurst();
+            }
+          }}
+          onKeyUp={(e) => {
+            if (e.key === 'Enter') endBurst();
+          }}
+        >
+          {s.burst ? 'Recording... let go to keep it' : 'Hold to record a burst (B)'}
+        </button>
+      </div>
+      <p className={hint} role="status" aria-live="polite">
+        {s.burst
+          ? `Recording a burst${s.burst.label ? ` named "${s.burst.label}"` : ''}: ${s.burst.frames} frames so far. Let go to keep it as one ${one}.`
+          : name
+            ? `Every frame while you hold it becomes one ${one}, put straight into "${name}" (it stays there however you re-cut).`
+            : `Every frame while you hold it becomes one ${one}. Type a name first to put it straight into that category.`}
+      </p>
+    </div>
+  );
+}
+
 /** Explore, the rest, Capturing and Paused: one screen (design C.3.1). */
 function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessionState> }) {
   const phase = s.phase as 'explore' | 'rest' | 'faces' | 'paused';
@@ -273,6 +359,7 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
           Cancel
         </button>
       </div>
+      {(phase === 'faces' || phase === 'paused') && <BurstControls s={s} />}
       {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase)} />}
       <FeatureBars read={read} part={modality.words.part} one={one} />
     </div>
