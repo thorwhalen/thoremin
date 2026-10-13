@@ -24,6 +24,11 @@ const Params = z.object({
   swayPeriod: z.number().positive().default(2.4),
   /** Seconds per arm raise/lower cycle. */
   armPeriod: z.number().positive().default(3.2),
+  /** Seconds per step cycle (the feet swap sides once per cycle): the stride the
+   *  `body-pulse` node listens to by default. */
+  stepPeriod: z.number().positive().default(1.2),
+  /** Step size in torso lengths (0 keeps the feet still). */
+  stepAmount: z.number().min(0).max(1).default(0.3),
   /** Knee bend depth 0..1 at the bottom of each bounce. */
   kneeBend: z.number().min(0).max(1).default(0.3),
   /** Torso length in pixels. */
@@ -37,7 +42,7 @@ export const syntheticBodyNode = defineNode<Params>({
   type: 'synthetic-body',
   roles: ['source'],
   title: 'Synthetic Body',
-  description: 'Camera-free animated full-body skeleton (bounce / sway / arms) for tests & demos.',
+  description: 'Camera-free animated full-body skeleton (bounce / sway / arms / steps) for tests & demos.',
   inputs: [],
   outputs: [
     BODY_SLOT_OUTPUT,
@@ -63,6 +68,7 @@ export const syntheticBodyNode = defineNode<Params>({
       rightArm: osc(t, p.armPeriod, Math.PI),
       kneeBend: p.kneeBend * dip,
       lean: sway,
+      step: p.stepAmount * Math.sin((2 * Math.PI * t) / p.stepPeriod),
     });
     const frame: BodyFrame = {
       width: p.width,

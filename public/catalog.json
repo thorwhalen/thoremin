@@ -571,6 +571,10 @@
       {
         "name": "body",
         "kind": "body-frame"
+      },
+      {
+        "name": "pulse",
+        "kind": "pulse-state"
       }
     ],
     "outputs": [
@@ -593,6 +597,58 @@
         "name": "windowSeconds",
         "type": "number",
         "default": 1
+      }
+    ]
+  },
+  {
+    "type": "body-pulse",
+    "title": "Body Pulse",
+    "description": "The dancer's pulse: the period, phase and confidence of the body's repeating movement (the stride by default), from ictus's octave-free pulse follower.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "body",
+        "kind": "body-frame"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "pulse",
+        "kind": "pulse-state"
+      }
+    ],
+    "params": [
+      {
+        "name": "channel",
+        "type": "enum(stride | head | hip)",
+        "default": "stride"
+      },
+      {
+        "name": "windowS",
+        "type": "number",
+        "default": 8
+      },
+      {
+        "name": "minPeriodS",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "maxPeriodS",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "prior",
+        "type": "enum(oscillator | trend | blend)",
+        "default": "oscillator"
+      },
+      {
+        "name": "minVisibility",
+        "type": "number",
+        "default": 0.5
       }
     ]
   },
@@ -2728,7 +2784,7 @@
   {
     "type": "synthetic-body",
     "title": "Synthetic Body",
-    "description": "Camera-free animated full-body skeleton (bounce / sway / arms) for tests & demos.",
+    "description": "Camera-free animated full-body skeleton (bounce / sway / arms / steps) for tests & demos.",
     "roles": [
       "source"
     ],
@@ -2774,6 +2830,16 @@
         "name": "armPeriod",
         "type": "number",
         "default": 3.2
+      },
+      {
+        "name": "stepPeriod",
+        "type": "number",
+        "default": 1.2
+      },
+      {
+        "name": "stepAmount",
+        "type": "number",
+        "default": 0.3
       },
       {
         "name": "kneeBend",

@@ -14,9 +14,9 @@ import { iod as iodOf, type FaceLandmarks } from './landmarks';
 import { FACE_FEATURES } from './face_catalog';
 import { HAND_PAIR_FEATURES, HAND_SIDE_FEATURES } from './hand_catalog';
 import { BODY_FEATURES } from './body_catalog';
-import type { BodyCtx, BodyHistorySample, Controllability, FaceCtx, FeatureSource, HandCtx, Invariance } from './types';
+import type { BodyCtx, BodyHistorySample, BodyPulseReading, Controllability, FaceCtx, FeatureSource, HandCtx, Invariance } from './types';
 
-export type { BodyCtx, BodyHistorySample, Controllability, FaceCtx, HandCtx, TwoHandCtx, FeatureDef, FeatureSource, FeatureVector } from './types';
+export type { BodyCtx, BodyHistorySample, BodyPulseReading, Controllability, FaceCtx, HandCtx, TwoHandCtx, FeatureDef, FeatureSource, FeatureVector } from './types';
 export { FACE_FEATURES } from './face_catalog';
 export { HAND_SIDE_FEATURES, HAND_PAIR_FEATURES } from './hand_catalog';
 export { BODY_FEATURES } from './body_catalog';
@@ -78,7 +78,7 @@ const HAND_GROUPS: [string, string][] = [
   ['hand.twohand.relational', 'Two-hand'],
 ];
 
-/** The body groups (#186): angles, positions, kinematics, shape, Laban effort, relations. */
+/** The body groups (#186): angles, positions, kinematics, shape, Laban effort, relations, pulse. */
 const BODY_GROUPS: [string, string][] = [
   ['body.angle', 'Joint angles'],
   ['body.pos', 'Body positions'],
@@ -86,6 +86,7 @@ const BODY_GROUPS: [string, string][] = [
   ['body.shape', 'Body shape'],
   ['body.effort', 'Laban effort'],
   ['body.rel', 'Body relations'],
+  ['body.rhythm', 'Body pulse'],
 ];
 
 /** The group id for user-defined derived (formula) features. */
@@ -232,6 +233,8 @@ export interface BodyCtxOptions {
   mirrorX: boolean;
   dtS: number;
   history: readonly BodyHistorySample[];
+  /** The dancer's pulse, when a `body-pulse` node feeds the vector (#186 PR F). */
+  pulse?: BodyPulseReading;
 }
 
 /** The torso length (shoulder-mid to hip-mid) of a body frame in the given point set. */
@@ -268,6 +271,7 @@ export function buildBodyCtx(frame: BodyFrame, opts: BodyCtxOptions): BodyCtx {
     height: frame.height,
     dtS: opts.dtS,
     history: opts.history,
+    pulse: opts.pulse,
   };
 }
 

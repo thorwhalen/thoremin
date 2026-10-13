@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (49)
+## Nodes (50)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -153,12 +153,12 @@ Replays a recorded hand-landmark stream, one frame per tick. Camera-free and det
 - **params:** frames (array=[]), loop (boolean=false)
 
 #### `synthetic-body` — Synthetic Body
-Camera-free animated full-body skeleton (bounce / sway / arms) for tests & demos.
+Camera-free animated full-body skeleton (bounce / sway / arms / steps) for tests & demos.
 
 - **roles:** source
 - **in:** —
 - **out:** body:body-frame, status:body-status
-- **params:** width (number=640), height (number=480), bouncePeriod (number=0.5), bounceAmount (number=0.04), swayPeriod (number=2.4), armPeriod (number=3.2), kneeBend (number=0.3), torso (number=120)
+- **params:** width (number=640), height (number=480), bouncePeriod (number=0.5), bounceAmount (number=0.04), swayPeriod (number=2.4), armPeriod (number=3.2), stepPeriod (number=1.2), stepAmount (number=0.3), kneeBend (number=0.3), torso (number=120)
 
 #### `replay-body` — Replay Body
 Replays a recorded full-body pose stream, one frame per tick. Camera-free and deterministic.
@@ -231,9 +231,17 @@ Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand cat
 Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).
 
 - **roles:** feature
-- **in:** body:body-frame
+- **in:** body:body-frame, pulse:pulse-state
 - **out:** vector:feature-vector
 - **params:** mirrorX (boolean=true), groups (array), windowSeconds (number=1)
+
+#### `body-pulse` — Body Pulse
+The dancer's pulse: the period, phase and confidence of the body's repeating movement (the stride by default), from ictus's octave-free pulse follower.
+
+- **roles:** feature
+- **in:** body:body-frame
+- **out:** pulse:pulse-state
+- **params:** channel (enum(stride | head | hip)="stride"), windowS (number=8), minPeriodS (number=0.3), maxPeriodS (number=3), prior (enum(oscillator | trend | blend)="oscillator"), minVisibility (number=0.5)
 
 ### Mapping (direct ↔ indirect)
 _Features → engine parameters, across the expression spectrum._

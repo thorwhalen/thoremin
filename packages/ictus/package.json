@@ -13,6 +13,8 @@
     "./magnet": "./src/magnet.ts",
     "./metrics": "./src/metrics.ts",
     "./oscillator": "./src/oscillator.ts",
+    "./priors": "./src/priors.ts",
+    "./pulse": "./src/pulse.ts",
     "./scheduler": "./src/scheduler.ts",
     "./trend_prior": "./src/trend_prior.ts",
     "./types": "./src/types.ts"

@@ -682,6 +682,9 @@ export interface SyntheticBodySpec {
   kneeBend: number;
   /** Lateral lean of the torso in radians (positive = towards frame right). */
   lean: number;
+  /** A step: the left foot moved this many torso lengths toward frame right and the
+   *  right foot as far the other way (negative crosses them back). 0 when absent. */
+  step?: number;
 }
 
 /**
@@ -692,7 +695,7 @@ export interface SyntheticBodySpec {
  * what MediaPipe's world landmarks approximate for a frontal pose.
  */
 export function makeBodyKeypoints(spec: SyntheticBodySpec): { landmarks: Keypoint[]; world: Keypoint[] } {
-  const { width, height, cx, cy, torso, leftArm, rightArm, kneeBend, lean } = spec;
+  const { width, height, cx, cy, torso, leftArm, rightArm, kneeBend, lean, step = 0 } = spec;
   const hx = cx * width;
   const hy = cy * height;
   const pts: Keypoint[] = new Array(BODY_LANDMARK_COUNT);
@@ -745,13 +748,14 @@ export function makeBodyKeypoints(spec: SyntheticBodySpec): { landmarks: Keypoin
   arm(1, leftArm, BLM.left_shoulder, BLM.left_elbow, BLM.left_wrist, BLM.left_pinky, BLM.left_index, BLM.left_thumb);
   arm(-1, rightArm, BLM.right_shoulder, BLM.right_elbow, BLM.right_wrist, BLM.right_pinky, BLM.right_index, BLM.right_thumb);
   // Legs: thigh + shin each 0.75 torso; a knee bend folds them (knee forward = +x
-  // offset outward, feet rise), keeping the feet under the hips.
+  // offset outward, feet rise), keeping the feet under the hips, each foot shifted
+  // by half the step.
   const leg = (side: 1 | -1, hip: number, knee: number, ankle: number, heel: number, foot: number) => {
     const b = clamp(kneeBend);
     const h = pts[hip];
     const kx = h.x + side * b * 0.3 * torso;
     const ky = h.y + 0.75 * torso * (1 - 0.35 * b);
-    const ax = h.x;
+    const ax = h.x + side * 0.5 * step * torso;
     const ay = ky + 0.75 * torso * (1 - 0.35 * b);
     set(knee, kx, ky);
     set(ankle, ax, ay);
