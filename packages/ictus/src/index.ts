@@ -7,20 +7,27 @@
  * from outside this directory. See `README.md` here for the design, and
  * `docs/research/conducting-and-virtual-orchestra-research-map.md` §7 for why.
  *
- * {@link createIctus} composes the three parts: a detector (samples → anchors), a
+ * {@link createIctus} composes the three parts: a detector (frames → anchors, behind
+ * the {@link AnchorDetector} seam: the hand's stroke detector by default, the body's
+ * impact detector by instance), a
  * rhythm prior (anchors → musical time; one of three by name, see
  * {@link createRhythmPrior}) and a dynamics estimator (anchors → dynamics and
  * articulation). Each is also exported on its own so a consumer with its own anchor
  * source (an audio onset detector, say) can skip the detector.
  */
-import { createIctusDetector, type DetectorOptions, type IctusDetector } from './detector';
+import type { DetectorOptions } from './detector';
+import { createStrokeDetector, isAnchorDetector, sampleFrame } from './anchor';
 import { createRhythmPrior, type RhythmPriorKind, type RhythmPriorOptions } from './priors';
 import { createDynamicsEstimator, type DynamicsEstimate, type DynamicsOptions } from './dynamics';
-import type { Anchor, MusicalTime, RhythmPrior, Sample } from './types';
+import type { Anchor, AnchorDetector, ChannelFrame, MusicalTime, RhythmPrior, Sample } from './types';
 
 export * from './types';
 export { createIctusDetector, parabolicOffset, excursion } from './detector';
 export type { DetectorOptions, IctusDetector, Prefilter } from './detector';
+export { asAnchorDetector, createStrokeDetector, isAnchorDetector, sampleFrame, MIN_VISIBILITY, POINT_CHANNEL } from './anchor';
+export type { StrokeDetector, StrokeDetectorOptions } from './anchor';
+export { createImpactDetector, BODY_IMPACT_JOINTS, IMPACT_DEFAULTS, IMPACT_EVENTS } from './visual_impact';
+export type { ImpactDetector, ImpactDetectorOptions, ImpactEventKind, ImpactJoint } from './visual_impact';
 export { createAdaptiveOscillator, kappaFromResultant } from './oscillator';
 export type { AdaptiveOscillator, OscillatorOptions } from './oscillator';
 export { createDynamicsEstimator } from './dynamics';
@@ -50,7 +57,11 @@ export { createRhythmPrior, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS } from './p
 export type { RhythmPriorKind, RhythmPriorOptions } from './priors';
 
 export interface IctusOptions extends RhythmPriorOptions {
-  detector?: DetectorOptions;
+  /** The stroke detector's options (it reads the {@link POINT_CHANNEL} a bare sample
+   *  is filed under), or an instance behind the {@link AnchorDetector} seam (the
+   *  body's impact detector, a stroke detector on a named channel), the way `prior`
+   *  takes one. */
+  detector?: DetectorOptions | AnchorDetector;
   dynamics?: DynamicsOptions;
   /** The prior by name (see {@link RhythmPriorKind}; the blend by default), or an
    *  instance (a Kalman filter, a multi-agent tracker) behind the same interface. */
@@ -66,21 +77,24 @@ export interface IctusState extends MusicalTime {
 }
 
 export interface Ictus {
-  /** Feed one tracked-point sample; returns the state at `sample.t`. */
+  /** Feed one tracked-point sample (filed under {@link POINT_CHANNEL}); returns the
+   *  state at `sample.t`. */
   feed(sample: Sample): IctusState;
+  /** Feed one frame of named points to the detector; returns the state at `frame.t`. */
+  feedFrame(frame: ChannelFrame): IctusState;
   /** Feed an anchor from an external detector; returns the state at `anchor.t`. */
   feedAnchor(anchor: Anchor): IctusState;
   /** Free-run to `t` (no observation) and return the state. */
   advance(t: number): IctusState;
   state(): IctusState;
   /** The parts, for tests and for consumers that need one of them directly. */
-  readonly detector: IctusDetector;
+  readonly detector: AnchorDetector;
   readonly prior: RhythmPrior;
   reset(): void;
 }
 
 export function createIctus(options: IctusOptions = {}): Ictus {
-  const detector = createIctusDetector(options.detector);
+  const detector = isAnchorDetector(options.detector) ? options.detector : createStrokeDetector(options.detector);
   const prior = typeof options.prior === 'object' ? options.prior : createRhythmPrior(options.prior, options);
   const dynamics = createDynamicsEstimator(options.dynamics);
 
@@ -97,15 +111,18 @@ export function createIctus(options: IctusOptions = {}): Ictus {
     return compose(a);
   };
 
+  const feedFrame = (frame: ChannelFrame): IctusState => {
+    const a = detector.push(frame);
+    if (a) return takeAnchor(a);
+    prior.advance(frame.t);
+    return compose(null);
+  };
+
   return {
     detector,
     prior,
-    feed(sample) {
-      const a = detector.push(sample);
-      if (a) return takeAnchor(a);
-      prior.advance(sample.t);
-      return compose(null);
-    },
+    feed: (sample) => feedFrame(sampleFrame(sample)),
+    feedFrame,
     feedAnchor: takeAnchor,
     advance(t) {
       prior.advance(t);
