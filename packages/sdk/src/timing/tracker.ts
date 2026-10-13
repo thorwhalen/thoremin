@@ -19,6 +19,16 @@
  * - the `audioEpoch`: bumped on an audio `statechange`, a `devicechange` or a sample-rate
  *   mismatch (an AirPods connect turns 16 ms into 150), which resets the pair smoothing
  *   so a stale number is never carried across a route change;
+ * - the CAPTURE LAG a clock-stamped frame's age leaves out (#318): learned from the
+ *   capture-stamped frames' own `lag` (capture to delivery), else a stated prior, flagged;
+ *   an `estimated` stamp already subtracts the pump's learned lag, a `clock` stamp does not;
+ * - the STAMP NOISE of clock-derived stamps (`clock`, `estimated`, after the pump's gated
+ *   de-jitter): the spread of their intervals around the camera's lattice. Above a few ms
+ *   a sub-frame estimate is worse than the frame-snapped one (`subframe-impact-prediction.md`
+ *   §3.4), which is what the air drum's fallback reads (#318);
+ * - two RUNTIME CHECKS (#318): whether the first stamped frame carried the camera's
+ *   `captureTime`, and the page's timer (`crossOriginIsolated`, and the resolution of
+ *   `performance.now()` measured, since that is what bounds any stamp's precision);
  * - the output's GLITCHES (`glitches.ts`), the guard on the low-latency hint (#240);
  * - the processed frame period (inference-paced, not the camera's), the DELIVERED camera
  *   rate measured from the capture stamps (`getSettings().frameRate` reports the request,
@@ -85,9 +95,57 @@ export interface TimingReading {
     glitches: GlitchReading;
   };
   camera: CameraSettings | null;
+  /** The capture-to-delivery lag a `clock` stamp leaves out of the frame's age, seconds:
+   *  `measured` from capture-stamped frames, else the stated {@link CAPTURE_LAG_PRIOR_S}. */
+  captureLag: { value: number; source: 'measured' | 'prior' };
+  /** The noise of the clock-derived stamps (`clock`, `estimated`) over the window,
+   *  seconds (a robust sd); NaN until {@link MIN_FRAMES_FOR_NOISE} such frames. Capture
+   *  stamps are truthful and are not judged. */
+  stampNoise: number;
+  /** Whether the first honoured stamp was a camera capture time (`captureTime` was there
+   *  from the start); null before one. */
+  captureTimeFirst: boolean | null;
+  /** The page's timer, from the host: `crossOriginIsolated` (null when unknown) and the
+   *  measured resolution of `performance.now()`, seconds (NaN when not measured). */
+  runtime: RuntimeChecks;
   /** `frameAge.p95 + outputStage.value`, seconds (the output stage's prior when unknown;
    *  the age alone before a stamped frame counts as 0). */
   leadBudget: number;
+}
+
+/** What the host measures about the page once (#318). */
+export interface RuntimeChecks {
+  crossOriginIsolated: boolean | null;
+  timerResolution: number;
+}
+
+/** The capture-to-delivery lag assumed for a `clock` stamp when no capture stamp ever
+ *  taught one, seconds: about one frame at 30 fps (exposure midpoint, readout and the
+ *  transfer), a stated prior like the output stage's, never 0. */
+export const CAPTURE_LAG_PRIOR_S = 0.03;
+/** Gain of the exponentially weighted capture lag. */
+export const CAPTURE_LAG_EW_GAIN = 0.1;
+/** The stamp noise is judged once this many clock-derived frames are in the window. */
+export const MIN_FRAMES_FOR_NOISE = 20;
+
+/**
+ * The noise of a run of stamps, seconds: each interval's residual from the nearest
+ * multiple of the lattice period (the 20th percentile of the intervals, so a skipped frame
+ * is a multiple, not noise), as a robust sd (1.4826 MAD), over the square root of two (an
+ * interval is the difference of two noisy stamps). Folding at half a period caps what it
+ * can see at about a quarter period, which is still far above any useful threshold.
+ */
+export function stampNoise(times: readonly number[]): number {
+  const d: number[] = [];
+  for (let i = 1; i < times.length; i++) if (times[i] > times[i - 1]) d.push(times[i] - times[i - 1]);
+  if (d.length < 3) return NaN;
+  const sorted = [...d].sort((a, b) => a - b);
+  const period = sorted[Math.floor(0.2 * (sorted.length - 1))];
+  if (!(period > 0)) return NaN;
+  const r = d.map((x) => x - Math.max(1, Math.round(x / period)) * period).sort((a, b) => a - b);
+  const med = r[r.length >> 1];
+  const mad = r.map((x) => Math.abs(x - med)).sort((a, b) => a - b)[r.length >> 1];
+  return (1.4826 * mad) / Math.SQRT2;
 }
 
 /** Frames the window statistics (age p95, stamp mix, delivered rate) are taken over. */
@@ -110,6 +168,10 @@ export interface TimingTrackerOptions {
   audio?: () => OutputStageAudioLike | undefined;
   /** The prior when nothing is known about the output stage. */
   priorS?: number;
+  /** The page's timer checks, from the host. */
+  runtime?: RuntimeChecks;
+  /** The capture lag assumed for a `clock` stamp before one is measured. */
+  captureLagPriorS?: number;
   windowFrames?: number;
 }
 
@@ -120,6 +182,8 @@ interface FrameRecord {
   source: string;
   stamped: boolean;
 }
+
+const CLOCK_DERIVED = new Set(['clock', 'estimated']);
 
 /** The running estimates; see the module header. */
 export class TimingTracker implements Tap {
@@ -145,6 +209,10 @@ export class TimingTracker implements Tap {
   private strikeS = NaN;
   private cached: TimingReading | null = null;
   private readonly glitches = new GlitchCounter();
+  private readonly runtime: RuntimeChecks;
+  private readonly captureLagPriorS: number;
+  private captureLagEw = NaN;
+  private captureTimeFirst: boolean | null = null;
   private glitchKey = '';
 
   constructor(options: TimingTrackerOptions = {}) {
@@ -153,6 +221,8 @@ export class TimingTracker implements Tap {
     this.audio = options.audio ?? (() => undefined);
     this.priorS = options.priorS ?? OUTPUT_STAGE_PRIOR_S;
     this.windowFrames = options.windowFrames ?? TIMING_WINDOW_FRAMES;
+    this.runtime = options.runtime ?? { crossOriginIsolated: null, timerResolution: NaN };
+    this.captureLagPriorS = options.captureLagPriorS ?? CAPTURE_LAG_PRIOR_S;
   }
 
   onValue(key: string, value: unknown, ctx: NodeContext): void {
@@ -229,6 +299,10 @@ export class TimingTracker implements Tap {
     }
     this.lastT = t;
     if (stamped) this.ageEw = Number.isFinite(this.ageEw) ? this.ageEw + AGE_EW_GAIN * (age - this.ageEw) : age;
+    if (stamped && this.captureTimeFirst === null) this.captureTimeFirst = frame.tSource === 'capture';
+    if (stamped && frame.tSource === 'capture' && typeof frame.lag === 'number' && Number.isFinite(frame.lag) && frame.lag >= 0) {
+      this.captureLagEw = Number.isFinite(this.captureLagEw) ? this.captureLagEw + CAPTURE_LAG_EW_GAIN * (frame.lag - this.captureLagEw) : frame.lag;
+    }
     this.frames++;
     if (typeof frame.skipped === 'number' && frame.skipped > 0) this.skipped += frame.skipped;
     // A stamp that was not honoured says nothing about the pipeline: it is counted as no
@@ -261,6 +335,8 @@ export class TimingTracker implements Tap {
     const captured = this.recent.filter((r) => r.source === 'capture');
     const span = captured.length >= MIN_FRAMES_FOR_RATE ? captured[captured.length - 1].t - captured[0].t : 0;
     const deliveredFps = span > 0 ? (captured.length - 1) / span : NaN;
+    const derived = this.recent.filter((r) => CLOCK_DERIVED.has(r.source));
+    const noise = derived.length >= MIN_FRAMES_FOR_NOISE ? stampNoise(derived.map((r) => r.t)) : NaN;
     return {
       outputStage,
       audioEpoch: this.epoch,
@@ -281,6 +357,10 @@ export class TimingTracker implements Tap {
         glitches: this.glitches.reading(),
       },
       camera: this.camera,
+      captureLag: Number.isFinite(this.captureLagEw) ? { value: this.captureLagEw, source: 'measured' } : { value: this.captureLagPriorS, source: 'prior' },
+      stampNoise: noise,
+      captureTimeFirst: this.captureTimeFirst,
+      runtime: this.runtime,
       leadBudget: (Number.isFinite(p95) ? p95 : 0) + outputStage.value,
     };
   }
@@ -289,11 +369,17 @@ export class TimingTracker implements Tap {
 /** The resource key the host installs the reader under. */
 export const TIMING_RESOURCE_KEY = 'timing';
 
+/** The slice of the reading a node reads through `ctx.resources`. */
+export type TimingView = Pick<TimingReading, 'outputStage' | 'audioEpoch' | 'leadBudget' | 'captureLag' | 'stampNoise' | 'dominantSource'>;
+
 /** What a node gets when no host installed the resource: the stated prior, flagged. */
-export const ABSENT_TIMING: Pick<TimingReading, 'outputStage' | 'audioEpoch' | 'leadBudget'> = Object.freeze({
+export const ABSENT_TIMING: TimingView = Object.freeze({
   outputStage: Object.freeze({ value: OUTPUT_STAGE_PRIOR_S, source: 'prior' as const }),
   audioEpoch: 0,
   leadBudget: OUTPUT_STAGE_PRIOR_S,
+  captureLag: Object.freeze({ value: CAPTURE_LAG_PRIOR_S, source: 'prior' as const }),
+  stampNoise: NaN,
+  dominantSource: null,
 });
 
 /**
@@ -301,7 +387,7 @@ export const ABSENT_TIMING: Pick<TimingReading, 'outputStage' | 'audioEpoch' | '
  * {@link ABSENT_TIMING} (a headless replay, a test, a host without the resource), so a
  * consumer always has an output stage and it is never 0.
  */
-export function timingFrom(resources: Record<string, unknown>): Pick<TimingReading, 'outputStage' | 'audioEpoch' | 'leadBudget'> {
+export function timingFrom(resources: Record<string, unknown>): TimingView {
   const r = resources[TIMING_RESOURCE_KEY];
   const reading = typeof r === 'function' ? (r as () => unknown)() : r;
   if (reading && typeof reading === 'object' && 'outputStage' in reading) return reading as TimingReading;

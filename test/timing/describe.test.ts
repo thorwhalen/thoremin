@@ -22,6 +22,10 @@ function reading(over: Partial<TimingReading> = {}): TimingReading {
     scheduleToSpeaker: 0.0329,
     audio: { state: 'running', sampleRate: 48000, baseLatency: 0.0058, outputLatency: 0.032, outputLatencyKnown: true, glitches: { total: 0, recent: 0, underrunS: NaN, source: 'none' } },
     camera: { frameRate: 30, width: 1280, height: 720 },
+    captureLag: { value: 0.012, source: 'measured' },
+    stampNoise: NaN,
+    captureTimeFirst: true,
+    runtime: { crossOriginIsolated: false, timerResolution: 0.0001 },
     leadBudget: 0.067,
     ...over,
   };

@@ -6,14 +6,16 @@
  * `predicted` means what it meant before the output stage entered the rule (the lead
  * from the decision is not negative).
  */
-import { TIMING_RESOURCE_KEY, type TimingReading } from '@thoremin/sdk/timing/tracker';
+import { TIMING_RESOURCE_KEY, ABSENT_TIMING, type TimingView } from '@thoremin/sdk/timing/tracker';
 import type { OutputStageSource } from '@thoremin/sdk/timing/output_stage';
 
-export type TimingResourceStub = Pick<TimingReading, 'outputStage' | 'audioEpoch' | 'leadBudget'>;
+export type TimingResourceStub = TimingView;
 
-/** The engine resources entry for a known output stage of `valueS` seconds. */
-export function knownOutputStage(valueS: number, source: OutputStageSource = 'measured'): Record<string, () => TimingResourceStub> {
-  const reading: TimingResourceStub = { outputStage: { value: valueS, source }, audioEpoch: 0, leadBudget: valueS };
+/** The engine resources entry for a known output stage of `valueS` seconds; `over`
+ *  replaces any other field of the view (the stamp source, its noise, the capture lag:
+ *  #318), which otherwise read as no host would report them. */
+export function knownOutputStage(valueS: number, source: OutputStageSource = 'measured', over: Partial<TimingView> = {}): Record<string, () => TimingResourceStub> {
+  const reading: TimingResourceStub = { ...ABSENT_TIMING, outputStage: { value: valueS, source }, audioEpoch: 0, leadBudget: valueS, ...over };
   return { [TIMING_RESOURCE_KEY]: () => reading };
 }
 

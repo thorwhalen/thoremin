@@ -14,7 +14,7 @@
 import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
 import { useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
-import { describeLive, describeMagnet, useAirDrumStatus } from '../app/airDrumStatus';
+import { describeLive, describeMagnet, describeSubframe, useAirDrumStatus } from '../app/airDrumStatus';
 import { DrumPadEditor } from './airDrumPads';
 import { useEffect, useState } from 'react';
 import { PatternTrainer } from '../app/PatternTrainer';
@@ -46,6 +46,7 @@ export function AirDrumReadout() {
   const live = useAirDrumStatus((s) => s.live);
   const share = live.hits > 0 ? Math.round((100 * live.predicted) / live.hits) : 0;
   const magnet = describeMagnet(live);
+  const subframe = describeSubframe(live);
   return (
     <div
       className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2 text-xs"
@@ -63,6 +64,11 @@ export function AirDrumReadout() {
       {magnet && (
         <div className="text-[10px] text-amber-300" data-testid="air-drum-magnet" data-state={live.magnet}>
           {magnet}
+        </div>
+      )}
+      {subframe && (
+        <div className="text-[10px] text-amber-300" data-testid="air-drum-subframe" data-state={live.subframe}>
+          {subframe}
         </div>
       )}
       {live.enabled && (
