@@ -363,6 +363,35 @@ describe('blend prior under a tempo jump and a ritardando (the #232 review)', ()
   });
 });
 
+describe('polling is not an input', () => {
+  it('the published state after an anchor is identical whether or not state() was read between anchors (100 humanised ritardando runs)', () => {
+    // The never-step-back floor is raised by advance and update only; a read is pure.
+    // Before this rule the floor was raised by state(), and a consumer that polled saw
+    // the next beat up to 636 ms away from one that did not (the #310 re-verification).
+    for (let run = 0; run < 100; run++) {
+      const anchors = humanise(accelerando(24, 1, 0.45, 1 / 0.985), seeded(run * 977 + 3));
+      const polled = createBlendPrior();
+      const quiet = createBlendPrior();
+      for (let k = 0; k < anchors.length; k++) {
+        if (k) {
+          for (let t = anchors[k - 1]; t < anchors[k]; t += 1 / 60) {
+            polled.advance(t);
+            quiet.advance(t);
+            polled.state();
+            polled.predict();
+          }
+        }
+        polled.advance(anchors[k] - ASK_BEFORE);
+        quiet.advance(anchors[k] - ASK_BEFORE);
+        polled.update(anchor(anchors[k]));
+        quiet.update(anchor(anchors[k]));
+        expect(polled.state()).toEqual(quiet.state());
+        expect(polled.predict()).toEqual(quiet.predict());
+      }
+    }
+  });
+});
+
 describe('the prior factory and the facade default', () => {
   it('builds each prior by name; the blend is the default and takes the oscillator and trend options for its halves', () => {
     expect(DEFAULT_RHYTHM_PRIOR).toBe('blend');

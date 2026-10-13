@@ -149,25 +149,23 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
   const signs: number[] = [];
   /** The whole beat the published count has crossed; the count never reads below it
    *  until the oscillator restarts (its own restart rounds its count, as it always
-   *  did) or the blend is reset. */
+   *  did) or the blend is reset. Raised only by `advance` and `update` (`settle`),
+   *  never by a read: `state()` is pure, so a consumer sees the same published state
+   *  whether or not it polled between anchors. */
   let crossed = -Infinity;
 
   const disagree = (a: MusicalTime, b: MusicalTime) => Math.abs(a.period - b.period) > PERIOD_DISAGREEMENT * a.period;
 
-  /** The state as published: the whole-beat floor applied, and remembered. */
+  /** The state as published: the whole-beat floor applied. Pure. */
   const publish = (s: MusicalTime): MusicalTime => {
-    let out = s;
-    if (s.beat < crossed) {
-      out = {
-        ...s,
-        beat: crossed,
-        phase: 0,
-        nextBeatAt: s.state === 'hold' ? Infinity : s.t + s.period,
-        beatInBar: ((crossed % s.beatsPerBar) + s.beatsPerBar) % s.beatsPerBar,
-      };
-    }
-    crossed = Math.max(crossed, Math.floor(out.beat));
-    return out;
+    if (!(s.beat < crossed)) return s;
+    return {
+      ...s,
+      beat: crossed,
+      phase: 0,
+      nextBeatAt: s.state === 'hold' ? Infinity : s.t + s.period,
+      beatInBar: ((crossed % s.beatsPerBar) + s.beatsPerBar) % s.beatsPerBar,
+    };
   };
 
   const snapshot = (): MusicalTime => {
@@ -206,6 +204,59 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
     signs.length = 0;
   };
 
+  /** Remember the whole beat the published count has reached (after every advance
+   *  and update, the only two things that move the count). */
+  const settle = () => {
+    crossed = Math.max(crossed, Math.floor(snapshot().beat));
+  };
+
+  const applyUpdate = (a: Anchor) => {
+    const before = oscillator.state();
+    const restartsBefore = oscillator.restarts();
+    // The innovation: the anchor against the grid the oscillator was publishing, NaN
+    // unless it was running.
+    const grid = nearestExpectedBeat(before, a.t);
+    const stray = Number.isFinite(grid) && Math.abs(a.t - grid) > o.strayPhaseError * before.period;
+    oscillator.update(a);
+    if (oscillator.restarts() !== restartsBefore) {
+      // The oscillator re-seeded its lock: the trend's fit, the weight and the sign
+      // history were about a grid that no longer exists. The trend starts over from
+      // this anchor; the published count follows the oscillator's restart.
+      trend.reset();
+      trend.update(a);
+      rest();
+      crossed = -Infinity;
+      return;
+    }
+    if (stray) return;
+    trend.update(a);
+    const after = oscillator.state();
+    // Not an observation to the oscillator (below its floor, out of order): nothing
+    // to learn about its grid from.
+    if (after.anchors === before.anchors) return;
+    const st = trend.state();
+    if (after.state === 'running' && st.state === 'running' && disagree(after, st)) {
+      // Two priors a fifth apart are not describing one beat: the trend numbered a
+      // beat wrong (a slowdown the oscillator rode out by correction, without a
+      // re-seed, leaves the trend's fit at double tempo for good). The trend starts
+      // over from this anchor, as after a restart; the oscillator alone meanwhile.
+      trend.reset();
+      trend.update(a);
+      rest();
+      return;
+    }
+    if (Number.isFinite(grid) && after.state === 'running') {
+      signs.push(Math.sign(a.t - grid));
+      while (signs.length > o.sameSignRun) signs.shift();
+    } else {
+      // A restart (hold, lost lock, the first anchors): the history is about a grid
+      // that no longer exists.
+      signs.length = 0;
+    }
+    const run = signs.length >= o.sameSignRun && signs[0] !== 0 && signs.every((s) => s === signs[0]);
+    w = clamp01(w + (run ? o.weightStep : -o.weightStep));
+  };
+
   return {
     oscillator,
     trend,
@@ -213,52 +264,11 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
     advance(t) {
       oscillator.advance(t);
       trend.advance(t);
+      settle();
     },
     update(a: Anchor) {
-      const before = oscillator.state();
-      const restartsBefore = oscillator.restarts();
-      // The innovation: the anchor against the grid the oscillator was publishing, NaN
-      // unless it was running.
-      const grid = nearestExpectedBeat(before, a.t);
-      const stray = Number.isFinite(grid) && Math.abs(a.t - grid) > o.strayPhaseError * before.period;
-      oscillator.update(a);
-      if (oscillator.restarts() !== restartsBefore) {
-        // The oscillator re-seeded its lock: the trend's fit, the weight and the sign
-        // history were about a grid that no longer exists. The trend starts over from
-        // this anchor; the published count follows the oscillator's restart.
-        trend.reset();
-        trend.update(a);
-        rest();
-        crossed = -Infinity;
-        return;
-      }
-      if (stray) return;
-      trend.update(a);
-      const after = oscillator.state();
-      // Not an observation to the oscillator (below its floor, out of order): nothing
-      // to learn about its grid from.
-      if (after.anchors === before.anchors) return;
-      const st = trend.state();
-      if (after.state === 'running' && st.state === 'running' && disagree(after, st)) {
-        // Two priors a fifth apart are not describing one beat: the trend numbered a
-        // beat wrong (a slowdown the oscillator rode out by correction, without a
-        // re-seed, leaves the trend's fit at double tempo for good). The trend starts
-        // over from this anchor, as after a restart; the oscillator alone meanwhile.
-        trend.reset();
-        trend.update(a);
-        rest();
-        return;
-      }
-      if (Number.isFinite(grid) && after.state === 'running') {
-        signs.push(Math.sign(a.t - grid));
-        while (signs.length > o.sameSignRun) signs.shift();
-      } else {
-        // A restart (hold, lost lock, the first anchors): the history is about a grid
-        // that no longer exists.
-        signs.length = 0;
-      }
-      const run = signs.length >= o.sameSignRun && signs[0] !== 0 && signs.every((s) => s === signs[0]);
-      w = clamp01(w + (run ? o.weightStep : -o.weightStep));
+      applyUpdate(a);
+      settle();
     },
     predict(): Prediction {
       const s = snapshot();
