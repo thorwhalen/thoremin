@@ -309,7 +309,7 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
             Open
           </button>
           <PlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
-          <button type="button" className={btn} aria-label={`Export ${m.name}`} title="Save it as a file (no pictures)" onClick={() => void s.exportSaved(m.id).then(downloadCategorizer)}>
+          <button type="button" className={btn} aria-label={`Export ${m.name} as a file`} title="Save it as a file, as saved (no pictures)" onClick={() => void s.exportSaved(m.id).then(downloadCategorizer)}>
             Export
           </button>
           <button

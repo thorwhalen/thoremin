@@ -133,7 +133,8 @@ export interface FaceSessionState {
    *  carve before it is saved (#369), named `name` when given (the Save field's text), else
    *  its own name, else {@link FACE_SESSION_DEFAULTS.exportName}. Null with nothing to export. */
   exportFile(name?: string): { name: string; text: string } | null;
-  /** A saved categorizer as a file's text, without opening it (#369); null if unreadable. */
+  /** A saved categorizer as a file's text, without opening it (#369): the SAVED version, not
+   *  unsaved edits on it while it is open. Null (and a notice) if it cannot be read. */
   exportSaved(id: string): Promise<{ name: string; text: string } | null>;
 }
 
@@ -651,13 +652,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       exportFile(asked) {
         const { phase, working, view, mode } = get();
-        const typed = asked?.trim() || get().name.trim();
+        const given = asked?.trim() || get().name.trim();
         if (phase === 'saved' && working) {
-          const name = typed || working.name;
+          const name = given || working.name;
           return { name, text: exportCategorizer({ ...working, name }) };
         }
         if (phase === 'carved' && take && view && view.k > 0) {
-          const name = typed || FACE_SESSION_DEFAULTS.exportName;
+          const name = given || FACE_SESSION_DEFAULTS.exportName;
           return { name, text: exportCategorizer(carvedCategorizer(view, mode, name)) };
         }
         return null;
@@ -665,7 +666,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       async exportSaved(id) {
         const record = await deps.models.load(id).catch(() => null);
-        if (!record) return null;
+        if (!record) {
+          set({ notice: 'That categorizer could not be read.' });
+          return null;
+        }
         return { name: record.name, text: exportCategorizer({ ...record.model.categorizer, name: record.name }) };
       },
     };

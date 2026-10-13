@@ -35,6 +35,9 @@ function deps(): FaceSessionDeps {
   };
 }
 
+/** URL's own object-URL functions (jsdom may have none), put back after each test. */
+const urlBefore = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+
 /** Every file the panel downloads: its name and its text. */
 let downloads: { name: string; text: Promise<string> }[] = [];
 
@@ -43,7 +46,8 @@ beforeEach(() => {
   downloads = [];
   const blobs = new Map<string, Blob>();
   let n = 0;
-  vi.stubGlobal('URL', { ...URL, createObjectURL: (b: Blob) => (blobs.set(`blob:${++n}`, b), `blob:${n}`), revokeObjectURL: () => undefined });
+  // jsdom has no createObjectURL: give it one that keeps the blob, leaving URL itself alone.
+  Object.assign(URL, { createObjectURL: (b: Blob) => (blobs.set(`blob:${++n}`, b), `blob:${n}`), revokeObjectURL: () => undefined });
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
     const blob = blobs.get(this.href)!;
     const text = new Promise<string>((resolve) => {
@@ -59,7 +63,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
+  Object.assign(URL, urlBefore);
 });
 
 /** A store holding a fresh carve of the synthetic face take. */
@@ -107,7 +111,7 @@ describe('export to file from "Your faces" (#369)', () => {
     await act(async () => void (await store.getState().save('Evening faces')));
     store.getState().reset();
     render(<FaceSessionView store={store} test={faceTestStore()} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Export Evening faces' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Export Evening faces as a file' }));
     await waitFor(() => expect(downloads).toHaveLength(1));
     expect(downloads[0].name).toBe('Evening_faces.categorizer.json');
     expect((await parsed(0)).name).toBe('Evening faces');
