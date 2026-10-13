@@ -6,6 +6,7 @@
   "description": "thoremin's ictus package (TypeScript source, consumed by the app through the workspace).",
   "exports": {
     ".": "./src/index.ts",
+    "./blend_prior": "./src/blend_prior.ts",
     "./detector": "./src/detector.ts",
     "./dynamics": "./src/dynamics.ts",
     "./impact": "./src/impact.ts",
