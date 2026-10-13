@@ -129,14 +129,18 @@ export function bodyQuantityOfMotion(prev: BodyFrame, cur: BodyFrame, dtS: numbe
  *   waist-up player) is extrapolated from its elbow along the upper arm, the position of a
  *   hanging forearm; undefined when neither is seen or there is no torso.
  * - `motion`: the beating arm's frame-to-frame displacement (its wrist and elbow, the seen
- *   ones; with the side `auto`, whichever arm moved more) over
+ *   ones; with the side `auto`, the arm whose wrist is higher) over
  *   the tracker's own jitter, smoothed over `motionTauS`. The jitter is the body's: per
  *   frame, the median over every seen landmark of the second difference (most landmarks of
  *   a conductor are near still, and a second difference rejects a smooth movement),
  *   converted to a step's jitter (white noise: a second difference has sqrt(3) times the
- *   spread of a first one) and averaged slowly (`jitterTauS`), each update clipped at
- *   `jitterClip` times the estimate so an impact does not inflate it. A still body reads
- *   about 1, by construction; a stroke reads tens.
+ *   spread of a first one), and the jitter is a low quantile (`jitterQuantile`) of those
+ *   per-frame values over the last `jitterWindowS`. Movement only ever inflates the
+ *   per-frame value, so a low quantile ignores an impact, a player settling in front of the
+ *   camera, or a whole-body shake while the pose model locks on, as soon as a quarter of
+ *   the window is quiet; an exponential average kept such a start several times too large
+ *   for seconds, and the upbeat unseen (the review of #377). A still body reads about 1;
+ *   a stroke reads tens.
  */
 export interface BodyTransportCues {
   raise?: number;
@@ -148,23 +152,20 @@ export interface BodyMotionMeterOptions {
   minVisibility?: number;
   /** Smoothing of the arms' motion, seconds. */
   motionTauS?: number;
-  /** Time constant of the jitter estimate, seconds (slow: it is the camera's, not the player's). */
-  jitterTauS?: number;
-  /** A jitter update larger than this many times the estimate is clipped to it. */
-  jitterClip?: number;
+  /** The window the jitter is read over, seconds. */
+  jitterWindowS?: number;
+  /** The jitter is this quantile of the per-frame values in the window. */
+  jitterQuantile?: number;
   /** The jitter's floor, torso lengths per frame (a noise-free synthetic skeleton has none). */
   minJitter?: number;
-  /** Frames of plain averaging before the clipped update takes over. */
-  warmupFrames?: number;
 }
 
 export const BODY_MOTION_DEFAULTS: Required<BodyMotionMeterOptions> = {
   minVisibility: 0.5,
   motionTauS: 0.15,
-  jitterTauS: 5,
-  jitterClip: 2,
+  jitterWindowS: 4,
+  jitterQuantile: 0.25,
   minJitter: 5e-4,
-  warmupFrames: 10,
 };
 
 export interface BodyMotionMeter {
@@ -203,14 +204,16 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
   let prev: { t: number; f: BodyFrame } | null = null;
   let prev2: BodyFrame | null = null;
   let jitter = NaN;
-  let warm: number[] = [];
-  let motion: number | undefined;
+  /** The per-frame jitter values in the window, with their times. */
+  let steps: { t: number; v: number }[] = [];
+  /** The smoothed motion per arm (noise units). */
+  let motion: Record<'left' | 'right', number | undefined> = { left: undefined, right: undefined };
   const reset = () => {
     prev = null;
     prev2 = null;
     jitter = NaN;
-    warm = [];
-    motion = undefined;
+    steps = [];
+    motion = { left: undefined, right: undefined };
   };
   return {
     jitter: () => jitter,
@@ -221,14 +224,21 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
         prev2 = null;
         return {};
       }
-      const raises = side === 'auto' ? SIDES.map((s) => armRaise(f, s, o.minVisibility)).filter((r): r is number => r !== undefined) : [armRaise(f, side, o.minVisibility)].filter((r): r is number => r !== undefined);
-      const raise = raises.length ? Math.max(...raises) : undefined;
+      // The beating arm: the named side, or with `auto` the higher wrist (its height and its
+      // own motion, so the other arm's gestures do not read as the beating arm's).
+      const sides = side === 'auto' ? SIDES : ([side] as const);
+      const raiseOf = { left: undefined as number | undefined, right: undefined as number | undefined };
+      for (const sd of sides) raiseOf[sd] = armRaise(f, sd, o.minVisibility);
+      let beating: 'left' | 'right' = side === 'auto' ? 'right' : side;
+      if (side === 'auto' && (raiseOf.right === undefined || (raiseOf.left !== undefined && raiseOf.left > raiseOf.right))) beating = 'left';
+      const raise = raiseOf[beating];
+      const cues = (): BodyTransportCues => ({ raise, motion: motion[beating] });
       const torso = torsoPx(f);
       const dt = prev ? t - prev.t : 0;
       if (!prev || !torso || !(dt > 0)) {
         prev2 = null;
         prev = { t, f };
-        return { raise, motion };
+        return cues();
       }
       const p = prev.f;
       const seen = (fr: BodyFrame, j: number) => !!fr.landmarks[j] && (fr.visibility[j] ?? 1) >= o.minVisibility;
@@ -247,37 +257,30 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
         if (d2.length) {
           d2.sort((x, y) => x - y);
           const step = d2[d2.length >> 1] / Math.SQRT2 / Math.sqrt(1.5);
-          if (warm.length < o.warmupFrames) {
-            warm.push(step);
-            const w = [...warm].sort((x, y) => x - y);
-            jitter = w[w.length >> 1];
-          } else {
-            const alpha = 1 - Math.exp(-dt / o.jitterTauS);
-            jitter += alpha * (Math.min(step, o.jitterClip * jitter) - jitter);
-          }
+          steps.push({ t, v: step });
+          while (steps.length && steps[0].t < t - o.jitterWindowS) steps.shift();
+          const w = steps.map((x) => x.v).sort((x, y) => x - y);
+          jitter = w[Math.min(w.length - 1, Math.floor(o.jitterQuantile * w.length))];
         }
       }
-      // The beating arm's displacement this step (its wrist and elbow; with `auto`, the arm
-      // that moved more), in noise units.
-      let best: number | undefined;
-      for (const s of side === 'auto' ? SIDES : [side]) {
+      // Each arm's displacement this step (its wrist and elbow, the seen ones), in noise units.
+      for (const sd of sides) {
         let sum = 0;
         let count = 0;
-        for (const j of ARM_JOINTS[s]) {
+        for (const j of ARM_JOINTS[sd]) {
           if (!seen(f, j) || !seen(p, j)) continue;
           sum += Math.hypot(f.landmarks[j].x - p.landmarks[j].x, f.landmarks[j].y - p.landmarks[j].y) / torso;
           count++;
         }
-        if (count) best = Math.max(best ?? 0, sum / count);
-      }
-      if (best !== undefined && Number.isFinite(jitter)) {
-        const nu = best / Math.max(jitter, o.minJitter);
+        if (!count || !Number.isFinite(jitter)) continue;
+        const nu = sum / count / Math.max(jitter, o.minJitter);
         const a = 1 - Math.exp(-dt / o.motionTauS);
-        motion = motion === undefined ? nu : motion + a * (nu - motion);
+        const m = motion[sd];
+        motion[sd] = m === undefined ? nu : m + a * (nu - m);
       }
       prev2 = p;
       prev = { t, f };
-      return { raise, motion };
+      return cues();
     },
   };
 }

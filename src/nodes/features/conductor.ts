@@ -393,6 +393,8 @@ export const conductorNode = defineNode<Params>({
     /** The tempo of that interval when it is a release (the tempo before the hold); null at
      *  a start (the marked tempo then). */
     let startBpm: number | null = null;
+    /** A cut-off left the beat where it stopped (not at the top): the next start moves on. */
+    let afterStop = false;
     /** The beat at the last stroke the body's transport accepted, and whether the
      *  transport says the next stroke is overdue with the body still (`waiting`). */
     let strokeBeat: number | null = null;
@@ -481,7 +483,7 @@ export const conductorNode = defineNode<Params>({
       confidence: time.confidence,
       enabled,
       // Before the body's transport has started, and after a cut-off, the score is silent.
-      leadsScore: enabled && c.conducts === 'score' && !(transport && !TRANSPORT_SOUNDING.has(transport.phase())),
+      leadsScore: enabled && c.conducts === 'score' && !(transport && (!TRANSPORT_SOUNDING.has(transport.phase()) || time.anchors === 0)),
       recordingTime: enabled && c.conducts === 'recording' ? time : undefined,
       level,
       transport: enabled ? transportReading : 'off',
@@ -542,6 +544,8 @@ export const conductorNode = defineNode<Params>({
           transport = null;
           meter = null;
           transportReading = 'off';
+          afterStop = false;
+          startBeat = null;
           return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
         }
         // The hand's follower reads `hand` and `point` live; the body's detector fixes its
@@ -554,8 +558,8 @@ export const conductorNode = defineNode<Params>({
         // after the follower was built; until the first stroke, a new tempo rebuilds it.
         if (ictus && c.source === 'body' && bodySeed(c) !== seededBpm && ictus.state().anchors === 0) resetFollower();
         // The body's transport: made when the body is read with the rules on. A live change
-        // from the hands to the body while the music runs keeps it running (the body's
-        // first stroke is taken as the hand's next one); otherwise it starts idle and
+        // (from the hands to the body, or the rules turned on) while the music runs keeps it
+        // running (the next stroke is taken as the next one); otherwise it starts idle and
         // waits for the ready pose.
         const rulesOn = c.source === 'body' && c.transport.rules;
         if (!rulesOn) {
@@ -566,7 +570,8 @@ export const conductorNode = defineNode<Params>({
             transport = createTransport(c.transport);
             transportCfg = c.transport;
             transportReading = 'idle';
-            if (ictus && coreKey === 'hands' && ictus.state().anchors > 0) {
+            // The music is running (on the hands, or on the body with the rules off).
+            if (ictus && ictus.state().anchors > 0) {
               transport.run(ctx.time);
               transportReading = 'running';
             }
@@ -697,7 +702,8 @@ export const conductorNode = defineNode<Params>({
             beatOut = 0;
             fermataAt = null;
             fermataReleased = null;
-          }
+            afterStop = false;
+          } else afterStop = true;
         }
         // The strokes' tempo and phase are scaled to the piece's beats by the level `k`.
         const k = markRatio(c, s, ctx.time, beatsPerBar);
@@ -713,8 +719,25 @@ export const conductorNode = defineNode<Params>({
         // prior a period, the beat moves at the score's marked tempo (or the priors' initial
         // one) rather than the speed fallback, and never reaches the next stroke's beat on
         // its own: the second stroke plays it.
+        if (started && afterStop) {
+          // After a cut-off the note at the stop has sounded (a fermata's too): the restart
+          // plays the next stroke's beat strictly after it.
+          const from = beatOut;
+          beatOut = strokeGrid(beatOut + START_EPS / 2, Math.ceil);
+          if (fermataAt !== null && fermataAt <= from) {
+            fermataReleased = fermataAt;
+            fermataAt = null;
+          }
+          afterStop = false;
+        } else if (started) beatOut = strokeGrid(beatOut - START_EPS, Math.ceil);
+        else if (released) {
+          // A body hold waits just short of a stroke's beat: the release plays it. A fermata
+          // is not on the stroke grid at every level (beat 3 marking half bars): the beat
+          // goes on from it rather than jumping to the next stroke's beat.
+          const g = strokeGrid(beatOut - 2 * START_EPS, Math.ceil);
+          if (g - beatOut <= 2 * START_EPS) beatOut = Math.max(beatOut, g);
+        }
         if (started || released) {
-          beatOut = strokeGrid(beatOut - START_EPS, Math.ceil);
           startBeat = beatOut;
           startBpm = released && holdBpm > 0 ? holdBpm : null;
         }
@@ -728,7 +751,9 @@ export const conductorNode = defineNode<Params>({
         const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
         let bpm: number;
         // A fermata releases on the NEXT stroke after it was reached.
-        if (fermataAt !== null && s.anchors > fermataAnchors && !(s.lastAnchorAt !== undefined && s.lastAnchorAt < fermataT + FERMATA_RELEASE_PERIODS * fermataPeriod)) {
+        // Reading the body, the stroke that landed on it does not release it (`fermataT`).
+        const landedOnIt = c.source === 'body' && s.lastAnchorAt !== undefined && s.lastAnchorAt < fermataT + FERMATA_RELEASE_PERIODS * fermataPeriod;
+        if (fermataAt !== null && s.anchors > fermataAnchors && !landedOnIt) {
           fermataReleased = fermataAt;
           fermataAt = null;
         }
@@ -771,7 +796,7 @@ export const conductorNode = defineNode<Params>({
             corrected = advanced - w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
           }
           let next = Math.max(beatOut, corrected);
-          if (startBeat !== null) next = Math.max(beatOut, Math.min(next, startBeat + k - START_EPS));
+          if (startBeat !== null) next = Math.max(beatOut, Math.min(next, strokeGrid(startBeat + START_EPS, Math.ceil) - START_EPS));
           // The stroke overdue and the body still: the next stroke's beat waits for it.
           if (waiting && strokeBeat !== null) next = Math.max(beatOut, Math.min(next, strokeBeat + k - START_EPS));
           // 4. Fermatas: stop exactly on one the beat would cross, and hold there.

@@ -27,9 +27,16 @@
  *   stroke's beat, so the hold sustains the beat the conductor last gave. The next anchor releases it, the
  *   preparatory beat that releases a fermata in every shipped system.
  * - **Stop (cut-off).** The arm dropped (`raise` below `droppedBelow`) and the body still
- *   for `stopAfterPeriods` periods: stop. A cut-off looks like a beat; only the stillness
+ *   for `stopAfterPeriods` periods, counted from when the stroke is overdue
+ *   (`holdAfterPeriods` after the last, so one missed stroke of a bouncer is not a stop): stop. A cut-off looks like a beat; only the stillness
  *   that follows tells them apart, which is why the rule waits for it. After a stop the
  *   start rule applies again.
+ *
+ * Two more ways in and out. A steady rhythm starts too, without the ready pose
+ * (`rhythmStrokes` anchors whose intervals agree): a player bouncing with the arms down has
+ * no raised arm to show, and four regular strokes are as deliberate as a ready pose, where
+ * walking in and settling are not regular. And running with the arm unseen for `lostStopS`
+ * (the player left the frame) stops, so walking back in does not resume the piece.
  *
  * The override seam (B4, a personal pose category, #387 choice B5): `pose` on a step may
  * state any of the three pose predicates (`ready`, `hold`, `cutoff`) directly, and a stated
@@ -75,8 +82,7 @@ export interface TransportStep {
   accept: boolean;
   /** Freeze the beat (the body's fermata). */
   hold: boolean;
-  /** Running, the stroke overdue (past `waitAfterPeriods`) and the body still (in the hold
-   *  or the cut-off pose):
+  /** Running, the stroke overdue (past `waitAfterPeriods`) and the body in the hold pose:
    *  the caller should not let the beat cross the next stroke's beat on its own. Without
    *  it, the beat runs on for the whole `holdAfterPeriods` and the hold sustains a note
    *  the conductor never gave. */
@@ -109,12 +115,23 @@ export interface TransportOptions {
   stopAfterPeriods?: number;
   /** The period used before a stroke period is known, seconds. */
   fallbackPeriodS?: number;
+  /** A steady rhythm also starts, without the ready pose: this many anchors in a row whose
+   *  intervals agree (a bounce with the arms down, a conductor who skips the ready pose). */
+  rhythmStrokes?: number;
+  /** How far those intervals may differ (the longest over the shortest, minus 1). */
+  rhythmTolerance?: number;
+  /** The plausible stroke period for that rhythm, seconds. */
+  rhythmMinPeriodS?: number;
+  rhythmMaxPeriodS?: number;
+  /** Running, the arm unseen (the player left the frame, or both arms dropped below it)
+   *  this long: stop, so walking back in does not resume the piece. */
+  lostStopS?: number;
 }
 
 export const TRANSPORT_DEFAULTS: Required<TransportOptions> = {
   raisedAbove: 0.45,
   droppedBelow: 0.2,
-  stillBelow: 6,
+  stillBelow: 8,
   moveAbove: 9,
   readyS: 0.4,
   prepareTimeoutS: 2,
@@ -122,7 +139,27 @@ export const TRANSPORT_DEFAULTS: Required<TransportOptions> = {
   holdAfterPeriods: 1.5,
   stopAfterPeriods: 1,
   fallbackPeriodS: 0.75,
+  rhythmStrokes: 4,
+  rhythmTolerance: 0.15,
+  rhythmMinPeriodS: 0.25,
+  rhythmMaxPeriodS: 2,
+  lostStopS: 2,
 };
+
+/** The options with the thresholds made consistent: a pose cannot be raised and dropped at
+ *  once, and the upbeat must move more than still. */
+function normalise(options: TransportOptions): Required<TransportOptions> {
+  const o = { ...TRANSPORT_DEFAULTS, ...options };
+  return {
+    ...o,
+    raisedAbove: Math.max(o.raisedAbove, o.droppedBelow + MIN_HEIGHT_GAP),
+    moveAbove: Math.max(o.moveAbove, o.stillBelow + MIN_MOTION_GAP),
+  };
+}
+/** The least gap between the raised and the dropped heights (torso units), and between
+ *  still and the upbeat (noise units), when a configuration inverts them. */
+const MIN_HEIGHT_GAP = 0.05;
+const MIN_MOTION_GAP = 1;
 
 export interface Transport {
   step(input: TransportInput): TransportStep;
@@ -137,13 +174,16 @@ export interface Transport {
 }
 
 export function createTransport(options: TransportOptions = {}): Transport {
-  let o: Required<TransportOptions> = { ...TRANSPORT_DEFAULTS, ...options };
+  let o = normalise(options);
   let phase: TransportPhase = 'idle';
   /** Since when the ready pose (or the cut-off pose) has held without a break. */
   let readySince = NaN;
   let cutoffSince = NaN;
   let preparedAt = NaN;
   let lastAnchorT = NaN;
+  let lostSince = NaN;
+  /** The anchors seen while waiting to start (own times), for the rhythm start. */
+  let waitingAnchors: number[] = [];
 
   const reset = (): void => {
     phase = 'idle';
@@ -151,12 +191,23 @@ export function createTransport(options: TransportOptions = {}): Transport {
     cutoffSince = NaN;
     preparedAt = NaN;
     lastAnchorT = NaN;
+    lostSince = NaN;
+    waitingAnchors = [];
+  };
+  /** The last `rhythmStrokes` waiting anchors make a steady, plausible rhythm. */
+  const steady = (): boolean => {
+    const n = o.rhythmStrokes;
+    if (n < 2 || waitingAnchors.length < n) return false;
+    const iv = waitingAnchors.slice(-n).map((x, i, a) => (i ? x - a[i - 1] : NaN)).slice(1);
+    const lo = Math.min(...iv);
+    const hi = Math.max(...iv);
+    return lo >= o.rhythmMinPeriodS && hi <= o.rhythmMaxPeriodS && hi <= lo * (1 + o.rhythmTolerance);
   };
 
   return {
     phase: () => phase,
     configure(next) {
-      o = { ...TRANSPORT_DEFAULTS, ...next };
+      o = normalise(next);
     },
     reset,
     run(t) {
@@ -168,18 +219,31 @@ export function createTransport(options: TransportOptions = {}): Transport {
       const still = motion !== undefined && motion < o.stillBelow;
       const raised = raise !== undefined && raise > o.raisedAbove;
       const dropped = raise !== undefined && raise < o.droppedBelow;
-      const readyPose = pose.ready ?? (raised && still);
-      const holdPose = pose.hold ?? (raised && still);
+      // A stated cut-off is not also a ready or a hold pose by geometry.
+      const readyPose = pose.ready ?? (pose.cutoff !== true && raised && still);
+      const holdPose = pose.hold ?? (pose.cutoff !== true && raised && still);
       const cutoffPose = pose.cutoff ?? (dropped && still);
       const moving = motion !== undefined && motion > o.moveAbove;
 
       readySince = readyPose ? (Number.isNaN(readySince) ? t : readySince) : NaN;
       cutoffSince = cutoffPose ? (Number.isNaN(cutoffSince) ? t : cutoffSince) : NaN;
+      const lost = raise === undefined && pose.cutoff === undefined;
+      lostSince = lost ? (Number.isNaN(lostSince) ? t : lostSince) : NaN;
+      const waitingToStart = phase === 'idle' || phase === 'armed' || phase === 'prepared';
+      if (waitingToStart && anchor !== undefined) waitingAnchors = [...waitingAnchors.slice(1 - o.rhythmStrokes), anchor];
+      if (!waitingToStart) waitingAnchors = [];
 
       let accept = false;
       let started = false;
       let stopped = false;
-      switch (phase) {
+      if (waitingToStart && anchor !== undefined && phase !== 'prepared' && steady()) {
+        // The rhythm start: a steady run of strokes is as deliberate as a ready pose.
+        phase = 'running';
+        accept = true;
+        started = true;
+        lastAnchorT = anchor;
+        waitingAnchors = [];
+      } else switch (phase) {
         case 'idle':
           if (readyPose && t - readySince >= o.readyS) phase = 'armed';
           break;
@@ -193,27 +257,34 @@ export function createTransport(options: TransportOptions = {}): Transport {
           } else if (pose.ready === false || (pose.ready === undefined && dropped)) phase = 'idle';
           break;
         case 'prepared':
-          if (anchor !== undefined) {
+          // Dropping the arm is not an upbeat: it disarms, and its anchor starts nothing.
+          if (pose.ready === false || (pose.ready === undefined && dropped)) phase = 'idle';
+          else if (anchor !== undefined) {
             phase = 'running';
             accept = true;
             started = true;
             lastAnchorT = anchor;
           } else if (t - preparedAt > o.prepareTimeoutS) phase = readyPose ? 'armed' : 'idle';
           break;
+        // The cut-off's stillness counts only once the stroke is overdue (`holdAfterPeriods`
+        // after the last): a body still in the arms but giving strokes (a bounce with the arms
+        // hanging, whose strokes the detector may miss one of) is beating.
         case 'running':
         case 'holding':
           if (anchor !== undefined) {
             phase = 'running';
             accept = true;
             lastAnchorT = anchor;
-          } else if (cutoffPose && t - cutoffSince >= o.stopAfterPeriods * P) {
+          } else if ((cutoffPose && t - Math.max(cutoffSince, lastAnchorT + o.holdAfterPeriods * P) >= o.stopAfterPeriods * P) || (lost && t - lostSince >= o.lostStopS)) {
             reset();
             stopped = true;
           } else if (phase === 'running' && holdPose && t - lastAnchorT > o.holdAfterPeriods * P) phase = 'holding';
           break;
       }
-      // Still, raised or dropped: a body that has stopped beating gives no next stroke.
-      const waiting = phase === 'running' && !accept && (holdPose || cutoffPose) && t - lastAnchorT > o.waitAfterPeriods * P;
+      // Raised and still: a conductor who has stopped beating gives no next stroke. Not the
+      // dropped arm: a player bouncing with the arms hanging is still in the arms between
+      // strokes, and each late-confirmed stroke would then come a frame late.
+      const waiting = phase === 'running' && !accept && holdPose && t - lastAnchorT > o.waitAfterPeriods * P;
       return { phase, accept, hold: phase === 'holding', waiting, started, stopped };
     },
   };

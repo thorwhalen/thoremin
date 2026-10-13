@@ -25,7 +25,14 @@ export type Gesture =
   /** A short flick, the arm dropped to the side, then still. */
   | { kind: 'cutoff'; s: number }
   /** Strokes with the arm low and moving, never still: walking in, adjusting. */
-  | { kind: 'fidget'; s: number };
+  | { kind: 'fidget'; s: number }
+  /** The whole body bouncing at `bpm` (a sharp bottom), the arms hanging: a dancer's beat. */
+  | { kind: 'bounce'; bpm: number; beats: number }
+  /** Arms hanging, the whole skeleton shaking by `px` of extra noise (settling in, the pose
+   *  model locking on). */
+  | { kind: 'shake'; s: number; px: number }
+  /** Nobody in frame. */
+  | { kind: 'absent'; s: number };
 
 export const STROKE_BOTTOM = 0.55;
 export const STROKE_TOP = 1.1;
@@ -45,14 +52,14 @@ export interface ConductScript {
 export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso = 150, seed = 377 } = {}): ConductScript {
   const rnd = seeded(seed);
   // The wrist's height as a function of time, piecewise.
-  type Piece = { t0: number; t1: number; raise: (u: number) => number };
+  type Piece = { t0: number; t1: number; raise: (u: number) => number; dip?: (u: number) => number; shake?: number; absent?: boolean };
   const pieces: Piece[] = [];
   const ictus: number[] = [];
   const starts: number[] = [];
   let t = 0;
   let r = HANGING;
-  const add = (s: number, f: (u: number) => number) => {
-    pieces.push({ t0: t, t1: t + s, raise: f });
+  const add = (s: number, f: (u: number) => number, extra: Partial<Piece> = {}) => {
+    pieces.push({ t0: t, t1: t + s, raise: f, ...extra });
     t += s;
     r = f(1);
   };
@@ -89,21 +96,58 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
           return HANGING;
         });
         break;
-      case 'fidget':
-        add(g.s, (u) => 0.25 + 0.25 * Math.sin(2 * Math.PI * 1.7 * u * g.s) * Math.sin(Math.PI * 0.9 * u * g.s));
+      case 'fidget': {
+        // Irregular: the arm moves between random heights at random intervals, so no run of
+        // its turning points is a steady rhythm.
+        const way: [number, number][] = [[0, from]];
+        for (let x = 0; x < g.s; ) {
+          x += 0.2 + 0.6 * rnd();
+          way.push([Math.min(x, g.s), 0.45 * rnd()]);
+        }
+        add(g.s, (u) => {
+          const x = u * g.s;
+          const k = Math.max(1, way.findIndex(([wx]) => wx >= x));
+          const [x0, y0] = way[k - 1];
+          const [x1, y1] = way[k];
+          return y0 + (y1 - y0) * smooth((x - x0) / Math.max(1e-6, x1 - x0));
+        });
+        break;
+      }
+      case 'bounce': {
+        const p = 60 / g.bpm;
+        add(g.beats * p, () => HANGING, { dip: (u) => 1 - Math.abs(Math.sin(Math.PI * u * g.beats)) });
+        for (let i = 1; i <= g.beats; i++) ictus.push(starts[starts.length - 1] + i * p);
+        break;
+      }
+      case 'shake':
+        add(g.s, () => HANGING, { shake: g.px });
+        break;
+      case 'absent':
+        add(g.s, () => from, { absent: true });
         break;
     }
   }
+  const pieceAt = (x: number): { piece: Piece | undefined; u: number } => {
+    for (const p of pieces) if (x <= p.t1 + 1e-9) return { piece: p, u: Math.min(1, Math.max(0, (x - p.t0) / (p.t1 - p.t0))) };
+    return { piece: undefined, u: 1 };
+  };
   const raiseAt = (x: number): number => {
-    for (const p of pieces) if (x <= p.t1 + 1e-9) return p.raise(Math.min(1, Math.max(0, (x - p.t0) / (p.t1 - p.t0))));
-    return r;
+    const { piece, u } = pieceAt(x);
+    return piece ? piece.raise(u) : r;
   };
   const frames: BodyFrame[] = [];
   const width = 640;
   const height = 480;
   for (let i = 0; i * (1 / fps) <= t + 1e-9; i++) {
     const ft = i / fps;
-    const { landmarks, world } = makeBodyKeypoints({ width, height, cx: 0.5, cy: 0.7, torso, leftArm: 0, rightArm: 0, kneeBend: 0, lean: 0 });
+    const { piece, u } = pieceAt(ft);
+    if (piece?.absent) {
+      frames.push({ t: ft, width, height, present: false, landmarks: [], visibility: [] });
+      continue;
+    }
+    // A bounce: the whole body dips by up to 0.08 of the torso, sharp at the bottom.
+    const dip = piece?.dip ? piece.dip(u) * 0.08 * torso : 0;
+    const { landmarks, world } = makeBodyKeypoints({ width, height, cx: 0.5, cy: 0.7 + dip / height, torso, leftArm: 0, rightArm: 0, kneeBend: 0, lean: 0 });
     const sh = landmarks[BLM.right_shoulder];
     const hipY = (landmarks[BLM.left_hip].y + landmarks[BLM.right_hip].y) / 2;
     const wrist = { x: sh.x - 0.25 * torso, y: hipY - raiseAt(ft) * torso };
@@ -111,7 +155,8 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
     landmarks[BLM.right_wrist] = wrist;
     landmarks[BLM.right_elbow] = elbow;
     for (const j of [BLM.right_pinky, BLM.right_index, BLM.right_thumb]) landmarks[j] = { x: wrist.x - 0.05 * torso, y: wrist.y - 0.08 * torso };
-    const noisy = landmarks.map((p) => ({ ...p, x: p.x + noisePx * gaussian(rnd), y: p.y + noisePx * gaussian(rnd) }));
+    const sd = Math.hypot(noisePx, piece?.shake ?? 0);
+    const noisy = landmarks.map((p) => ({ ...p, x: p.x + sd * gaussian(rnd), y: p.y + sd * gaussian(rnd) }));
     frames.push({ t: ft, width, height, present: true, landmarks: noisy, world, visibility: new Array(BODY_LANDMARK_COUNT).fill(0.99) });
   }
   return { frames, ictus, starts, seconds: t };

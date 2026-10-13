@@ -123,8 +123,9 @@ describe('the body transport: cut-off', () => {
     const stop = firstIndex(outs, (o) => o.transport === 'stopped');
     const cut = sc.starts[4];
     expect(stop / FPS).toBeGreaterThan(cut + 0.65);
-    // The drop lasts until 0.65 s into the cut-off; then a period of stillness, plus the filter.
-    expect(stop / FPS - (cut + 0.65)).toBeLessThan(P + 0.5);
+    // The drop lasts until 0.65 s into the cut-off; the stillness counts from when the stroke
+    // is overdue (1.5 periods after the last, the flick's), then a period, plus the filter.
+    expect(stop / FPS - (cut + 0.65)).toBeLessThan(2.5 * P + 0.2);
     const stoppedBeat = outs[stop].beat;
     const silent = outs.slice(stop, Math.round(sc.ictus[7] * FPS));
     expect(silent.every((o) => o.time.state === 'ready' && o.time.anchors === 0 && !o.leadsScore && o.bpm === 0 && o.beat === stoppedBeat)).toBe(true);
@@ -143,6 +144,78 @@ describe('the body transport: cut-off', () => {
     const stop = firstIndex(outs, (o) => o.transport === 'stopped');
     expect(outs[stop].beat).toBe(0);
     expect(Math.abs(at(sc.ictus[8]).beat - 1)).toBeLessThan(0.3);
+  });
+});
+
+describe('the adversarial review (#377)', () => {
+  it('a bounce with the arms down starts on its fourth regular stroke (the rhythm start), for the trunk and the default point', async () => {
+    for (const bodyPoint of ['com', 'impact'] as const) {
+      const { sc, outs, at } = await play([{ kind: 'rest', s: 1.5 }, { kind: 'bounce', bpm: 100, beats: 16 }], { bodyPoint, hand: 'auto' });
+      const start = firstIndex(outs, (o) => o.transport === 'running');
+      expect(start).toBeGreaterThan(0);
+      // A steady run of strokes is as deliberate as a ready pose; it starts within six strokes.
+      expect(start / FPS).toBeLessThan(sc.ictus[6]);
+      expect(outs[outs.length - 1].beat).toBeGreaterThan(8);
+      expect(at(sc.ictus[15]).leadsScore).toBe(true);
+    }
+  });
+
+  it('a player settling in (the whole skeleton shaking) during the meter warm-up still starts on the downbeat', async () => {
+    for (const px of [2, 8]) {
+      const { sc, outs } = await play([{ kind: 'shake', s: 0.4, px }, { kind: 'rest', s: 1.5 }, ...START.slice(1), { kind: 'beat', bpm: BPM, beats: 8 }]);
+      const start = firstIndex(outs, (o) => o.beat > 0);
+      expect(start / FPS - sc.ictus[0]).toBeLessThanOrEqual(2 / FPS + 1e-9);
+      expect(start / FPS - sc.ictus[0]).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('a cut-off that stops on a written fermata restarts on the beat after it, not on the fermata again', async () => {
+    // Held on the fermata, a cut-off stated by a pose category (no flick), the arm down, then a
+    // ready pose, the upbeat and strokes.
+    const gestures: Gesture[] = [...START, { kind: 'beat', bpm: BPM, beats: 4 }, { kind: 'hold', s: 2 }, { kind: 'hold', s: 2 }, ...START, { kind: 'beat', bpm: BPM, beats: 3 }];
+    const sc = conduct(gestures, { fps: FPS });
+    const doc = { v: 1, title: 't', source: 'builtin', parts: [], tempoMap: [{ beat: 0, bpm: BPM }], timeSignatures: [], dynamics: [], fermatas: [4], lengthBeats: 64 };
+    const cutFrom = Math.round(sc.starts[5] * FPS);
+    const cutTo = Math.round(sc.starts[6] * FPS);
+    const pose = sc.frames.map((_, i) => (i >= cutFrom && i < cutTo ? { cutoff: true } : undefined));
+    const { outs, at } = await play(gestures, {}, { doc: sc.frames.map(() => doc), transportPose: pose });
+    const stop = firstIndex(outs, (o) => o.transport === 'stopped');
+    expect(outs[stop].beat).toBe(4);
+    const restart = at(sc.ictus[5] + 2 / FPS);
+    expect(Math.abs(restart.beat - 5)).toBeLessThan(0.15);
+    expect(Math.abs(at(sc.ictus[6]).beat - 6)).toBeLessThan(0.3);
+  });
+
+  it('turning the rules on while conducting with the body keeps the music going', async () => {
+    const gestures: Gesture[] = [...START, { kind: 'beat', bpm: BPM, beats: 12 }];
+    const sc = conduct(gestures, { fps: FPS });
+    const on = Math.round(sc.ictus[5] * FPS);
+    const config = sc.frames.map((_, i) => ({ ...BODY, transport: { rules: i >= on } }));
+    const { outs } = await play(gestures, { transport: { rules: false } }, { config });
+    expect(outs.slice(on).every((o) => o.leadsScore && o.transport === 'running')).toBe(true);
+    expect(outs[outs.length - 1].beat).toBeGreaterThan(11);
+  });
+
+  it('marking half bars, the release of a written fermata off the stroke grid goes on from it rather than jumping', async () => {
+    const doc = { v: 1, title: 't', source: 'builtin', parts: [], tempoMap: [{ beat: 0, bpm: 2 * BPM }], timeSignatures: [{ beat: 0, numerator: 4, denominator: 4 }], dynamics: [], fermatas: [3], lengthBeats: 64 };
+    const gestures: Gesture[] = [...START, { kind: 'beat', bpm: BPM, beats: 2 }, { kind: 'hold', s: 3 }, { kind: 'beat', bpm: BPM, beats: 3 }];
+    const n = conduct(gestures, { fps: FPS }).frames.length;
+    const { outs } = await play(gestures, { markLevel: 'half' }, { doc: new Array(n).fill(doc) });
+    const beats = outs.map((o) => o.beat);
+    expect(beats.some((b) => b === 3)).toBe(true);
+    // No tick advances more than the tempo allows (a jump would skip notes at once).
+    const maxStep = Math.max(...beats.slice(1).map((b, i) => b - beats[i]));
+    expect(maxStep).toBeLessThan(0.3);
+  });
+
+  it('running, the player leaving the frame stops the piece; walking back in does not resume it', async () => {
+    const gestures: Gesture[] = [...START, { kind: 'beat', bpm: BPM, beats: 6 }, { kind: 'absent', s: 3 }, { kind: 'fidget', s: 2 }];
+    const { sc, outs } = await play(gestures);
+    const stop = firstIndex(outs, (o) => o.transport === 'stopped');
+    expect(stop / FPS).toBeGreaterThan(sc.starts[4]);
+    expect(stop / FPS - sc.starts[4]).toBeLessThan(2.5);
+    const back = Math.round(sc.starts[5] * FPS);
+    expect(outs.slice(back).every((o) => !o.leadsScore && o.bpm === 0)).toBe(true);
   });
 });
 

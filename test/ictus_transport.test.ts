@@ -116,7 +116,8 @@ describe('the transport rules', () => {
   it('before a stroke period is known the fallback period is used', () => {
     const tr = started();
     const steps = run(tr, [[2, { raise: DROPPED, motion: STILL }]], 0.75);
-    expect(steps.find((s) => s.stopped)!.t - 0.75).toBeCloseTo(TRANSPORT_DEFAULTS.stopAfterPeriods * TRANSPORT_DEFAULTS.fallbackPeriodS, 1);
+    // Counted from when the stroke is overdue: the last anchor (0.7) + holdAfterPeriods.
+    expect(steps.find((s) => s.stopped)!.t - 0.7).toBeCloseTo((TRANSPORT_DEFAULTS.holdAfterPeriods + TRANSPORT_DEFAULTS.stopAfterPeriods) * TRANSPORT_DEFAULTS.fallbackPeriodS, 1);
   });
 
   it('a stated pose replaces the rule geometry (the override seam), keeping the timing', () => {
@@ -129,7 +130,7 @@ describe('the transport rules', () => {
     expect(phases(run(tr2, [[1, { raise: RAISED, motion: STILL, pose: { ready: false } }]]))).toEqual(['idle']);
     // A cut-off category with the arm raised and moving stops; a hold category holds.
     const tr3 = started();
-    const stop = run(tr3, [[1, { raise: RAISED, motion: MOVING, period: P, pose: { cutoff: true } }]], 0.75);
+    const stop = run(tr3, [[2, { raise: RAISED, motion: MOVING, period: P, pose: { cutoff: true } }]], 0.75);
     expect(stop.some((s) => s.stopped)).toBe(true);
     const tr4 = started();
     const hold = run(tr4, [[1.5, { raise: DROPPED, motion: MOVING, period: P, pose: { hold: true } }]], 0.75);
@@ -141,6 +142,33 @@ describe('the transport rules', () => {
     tr.run(5);
     expect(tr.phase()).toBe('running');
     expect(tr.step({ t: 5.1, raise: 0.7, motion: MOVING, anchor: 5.1, period: P })).toMatchObject({ accept: true, started: false });
+  });
+
+  it('inverted thresholds are made consistent: never raised and dropped at once, the upbeat above still', () => {
+    const tr = createTransport({ raisedAbove: 0.1, droppedBelow: 0.3, stillBelow: 10, moveAbove: 5 });
+    // At 0.2 the arm would be both raised (> 0.1) and dropped (< 0.3): it is only dropped.
+    const steps = run(tr, [[1, { raise: 0.2, motion: STILL }]]);
+    expect(phases(steps)).toEqual(['idle']);
+    // Motion 7 is still (< 10), and not an upbeat (the upbeat is lifted above still).
+    const tr2 = createTransport({ stillBelow: 10, moveAbove: 5 });
+    expect(phases(run(tr2, [[0.6, { raise: RAISED, motion: STILL }], [0.3, { raise: RAISED, motion: 7 }]]))).toEqual(['idle', 'armed']);
+  });
+
+  it('a steady run of anchors starts without the ready pose; an irregular one does not', () => {
+    const tr = createTransport();
+    const steady = run(tr, [[3, beating(0.2, { raise: DROPPED, motion: MOVING })]]);
+    const s0 = steady.find((s) => s.started)!;
+    expect(s0.t).toBeCloseTo(0.2 + (TRANSPORT_DEFAULTS.rhythmStrokes - 1) * P, 1);
+    const tr2 = createTransport();
+    const times = [0.2, 0.5, 1.3, 1.6, 2.6, 2.8, 3.9];
+    const irregular = run(tr2, [[4.5, (t: number): Frame => (times.some((x) => Math.abs(x - t) < 0.5 / FPS) ? { raise: DROPPED, motion: MOVING, anchor: t } : { raise: DROPPED, motion: MOVING })]]);
+    expect(irregular.some((s) => s.started)).toBe(false);
+  });
+
+  it('running with the arm unseen for lostStopS stops', () => {
+    const tr = started();
+    const steps = run(tr, [[3, { motion: undefined, raise: undefined, period: P }]], 0.75);
+    expect(steps.find((s) => s.stopped)!.t - 0.75).toBeCloseTo(TRANSPORT_DEFAULTS.lostStopS, 1);
   });
 
   it('configure() changes thresholds live and keeps the phase', () => {

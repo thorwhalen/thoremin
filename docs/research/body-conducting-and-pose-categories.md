@@ -358,18 +358,20 @@ The strongest vertical channel's ACF period within 0.6 to 1.6 beats, the stronge
 The body conductor's start, hold and stop are rules over two numbers measured per pose frame (`createBodyMotionMeter` in `src/nodes/features/conductor_body.ts`), run by a pure state machine (`createTransport` in `packages/ictus/src/transport.ts`):
 
 - **`raise`**: the beating wrist's height on the torso, 0 at the hip midpoint and 1 at the shoulder midpoint. With the side `auto` it is the higher wrist. A wrist the tracker does not see is extrapolated from its elbow along the upper arm (a hanging forearm below the frame of a waist-up player).
-- **`motion`**: the beating arm's wrist and elbow displacement per frame over the tracker's own jitter (noise units), smoothed over 0.15 s. The jitter is the median second difference over every seen landmark, converted to a step's jitter and averaged slowly with a clipped update, so a still body reads about 1.
+- **`motion`**: the beating arm's wrist and elbow displacement per frame over the tracker's own jitter (noise units), smoothed over 0.15 s; with the side `auto`, the arm whose wrist is higher. The jitter is the median second difference over every seen landmark, converted to a step's jitter, and then the 25th percentile of those per-frame values over the last 4 s. Movement only ever inflates the per-frame value, so the low quantile ignores a stroke, or a player settling in front of the camera while the pose model locks on, once a quarter of the window is quiet. A still body reads about 1.
 
-On `video_body_conducting_44` (right arm) the arm at rest reads 1.6 to 2.2 noise units, the hold between the verses 1.6 to 6, gentle beating 5 to 13 and full strokes 10 to 45. The raised arm reads 0.3 to 1.2 while beating and 0.6 to 1.0 in the hold; a hanging arm reads about 0. The defaults follow from that: still below 6, the upbeat above 9, raised above 0.45, dropped below 0.2.
+On `video_body_conducting_44` (10th to 90th percentile, right arm or `auto`) the arm at rest reads 1.5 to 2.0 noise units, the hold between the verses 2.2 to 7.7, gentle beating 6 to 18 and full strokes 15 to 45. The raised arm reads 0.3 to 1.2 while beating and 0.6 to 1.0 in the hold; a hanging arm reads about 0. The defaults follow from that: still below 8, the upbeat above 9, raised above 0.45, dropped below 0.2. An inverted configuration (dropped above raised, the upbeat below still) is made consistent by the transport.
 
 The rules, each threshold a field of `conductor.transport`:
 
 | Rule | Condition | Effect |
 |---|---|---|
 | Ready, then start | raised and still for `readyS` (0.4 s); then motion above `moveAbove` (the upbeat); then the first anchor | that anchor is the downbeat: beat 0 at the top, or the next stroke's beat after a cut-off; no anchor reaches the prior before it |
-| Wait | running, no anchor for `waitAfterPeriods` (0.9) stroke periods, the body still (raised or dropped) | the beat does not cross the next stroke's beat on its own |
+| Rhythm start | `rhythmStrokes` (4) anchors in a row whose intervals agree within 15 %, without the ready pose | starts on the last of them: a player bouncing with the arms down has no raised arm to show, and four regular strokes are deliberate where walking in is not |
+| Wait | running, no anchor for `waitAfterPeriods` (0.9) stroke periods, raised and still | the beat does not cross the next stroke's beat on its own |
 | Hold (fermata) | no anchor for `holdAfterPeriods` (1.5) stroke periods, raised and still | `hold`: the beat runs up to just short of the next stroke's beat and stays; the next stroke releases it, restarting the prior (the tempo after a fermata is a new one) |
-| Stop (cut-off) | dropped and still for `stopAfterPeriods` (1) stroke periods | the prior back to `ready`, the score silent; the next start needs the ready pose and an upbeat again; past the piece's last note the beat returns to the top |
+| Stop (cut-off) | dropped and still for `stopAfterPeriods` (1) stroke periods, counted from when the stroke is overdue (`holdAfterPeriods` after the last, so a bouncer's one missed stroke is not a stop) | the prior back to `ready`, the score silent; the next start needs the ready pose and an upbeat (or a steady rhythm) again, and plays the next stroke's beat after the stop; past the piece's last note the beat returns to the top |
+| Lost | running with the arm unseen for 2 s (the player left the frame) | stop, so walking back in does not resume the piece |
 
 Periods are the STROKE period (A4's note: at bar level a stroke is a bar). Before any period is known the transport uses 0.75 s.
 
@@ -378,7 +380,7 @@ Measured on the same clip: the transport is idle until the still raised arm at 0
 Three consequences found while building it:
 
 1. **The score's tempo no longer seeds the body follower when the rules are on.** A3 seeded the detector's period and both priors from the score's first tempo mark. Under the start rule the first anchor the prior sees is the downbeat, and a seed at twice the conductor's tempo (the level test's 160 bpm score) handed the detector a period short enough to take every stroke's rebound for a stroke for eight beats. The beat now moves at the marked tempo between the downbeat and the second stroke instead, and never crosses the second stroke's beat on its own.
-2. **A fermata is released by a stroke at least half a period after it was reached.** A stroke that ends in a stop is confirmed late (the detector needs the frames after it), so the stroke that lands on a written fermata could arrive after the beat got there and count as its release.
+2. **Reading the body, a fermata is released by a stroke at least half a period after it was reached.** A stroke that ends in a stop is confirmed late (the detector needs the frames after it), so the stroke that lands on a written fermata could arrive after the beat got there and count as its release. The hand conductor has the same lag (the review measured 2 to 6 frames on the hand fixtures, 7 of 12 fermatas released one stroke early on `conducting_44`), but its behaviour is left as it was (#449).
 3. **A hold never freezes the beat between two strokes.** The release of a beat frozen at three quarters of a stroke has no right answer: the phase servo picks a side by rounding, and the `half` and `beat` levels then disagreed by a stroke on the same clip.
 
 The override seam (B4, #387 choice B5): the node's `transportPose` input takes `{ ready?, hold?, cutoff? }`, and a stated predicate replaces its rule's geometry while the timing stays. Nothing feeds it yet; a personal pose category will.
