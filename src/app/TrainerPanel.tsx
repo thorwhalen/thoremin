@@ -125,7 +125,9 @@ function KeepCategories({ model, labels, cueNames }: { model: TrainedModel; labe
   // and a re-save under its name carries its bindings over by category name.
   const [name, setName] = useState(() => useCategoryBinding.getState().active?.name ?? DEFAULT_CATEGORIES_NAME);
   const saved = useCategoryBinding((s) => s.saved);
-  const replaces = saved.find((s) => s.id === savedCategoriesId(name));
+  // The name the save will use: the warning must name what a blank field overwrites too.
+  const saveName = name.trim() || DEFAULT_CATEGORIES_NAME;
+  const replaces = saved.find((s) => s.id === savedCategoriesId(saveName));
   useEffect(() => {
     void useCategoryBinding.getState().load();
   }, []);
@@ -135,7 +137,7 @@ function KeepCategories({ model, labels, cueNames }: { model: TrainedModel; labe
     setBusy(true);
     setError(null);
     try {
-      await useCategoryBinding.getState().saveModel(name.trim() || DEFAULT_CATEGORIES_NAME, labelledModel(model, labels, cueNames));
+      await useCategoryBinding.getState().saveModel(saveName, labelledModel(model, labels, cueNames));
       useTools.getState().openTool('gestures');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -335,8 +337,14 @@ export default function TrainerPanel() {
   // whether this browser can pick one. Written only through the recording commands.
   const takeLocation = useRecordingConfig((s) => s.session.location);
   const takeFolder = useRecordingConfig((s) => s.folder);
+  const takeFolderRemembered = useRecordingConfig((s) => s.folderRemembered);
   const refreshFolder = useRecordingConfig((s) => s.refreshFolder);
-  const destination = describeTakeDestination({ location: takeLocation, folder: takeFolder, supported: detectCaps().directoryPicker });
+  const destination = describeTakeDestination({
+    location: takeLocation,
+    folder: takeFolder,
+    supported: detectCaps().directoryPicker,
+    remembered: takeFolderRemembered,
+  });
   const voiceOn = useVoice((s) => s.enabled);
   const setVoice = useVoice((s) => s.setEnabled);
 

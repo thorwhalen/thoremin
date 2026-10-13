@@ -78,7 +78,7 @@ export interface ScheduleTick {
 
 export interface SchedulerOptions {
   /** Repeat the events every this many beats (0 = play once). Every event's onset must
-   *  then be below it. */
+   *  then be below it: `createScheduler` throws a `RangeError` otherwise. */
   loopBeats?: number;
   /** A key struck again while it sounds is released this long before the new onset,
    *  seconds. */
@@ -121,6 +121,13 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
   const notes = [...events].sort((a, b) => a.start - b.start || a.channel - b.channel || a.key - b.key);
   const n = notes.length;
   const loop = o.loopBeats > 0 ? o.loopBeats : 0;
+  // An onset at or past the loop would sort before the next pass's first notes in the
+  // looped sequence, break its monotone order, and count that pass's notes as skipped
+  // without a trace (#393). It is a contract violation by the caller, so say so.
+  if (loop) {
+    const past = notes.find((e) => !(e.start < loop));
+    if (past) throw new RangeError(`createScheduler: an event starts at beat ${past.start}, not below loopBeats ${loop}`);
+  }
   let maxDuration = 0;
   for (const e of notes) maxDuration = Math.max(maxDuration, e.duration);
 

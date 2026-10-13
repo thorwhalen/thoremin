@@ -27,6 +27,7 @@
     "./branches": "./src/branches.ts",
     "./dials": "./src/dials.ts",
     "./lib/drum_patterns": "./src/lib/drum_patterns.ts",
+    "./lib/event_batch": "./src/lib/event_batch.ts",
     "./lib/fingering_prior": "./src/lib/fingering_prior.ts",
     "./lib/fingerings": "./src/lib/fingerings.ts",
     "./lib/gm_drums": "./src/lib/gm_drums.ts",

@@ -16,6 +16,44 @@ import type { NodeDef, Role } from './types';
 /** Loads the definitions of a group of lazily declared node types. */
 export type LazyNodesLoader = () => Promise<readonly NodeDef<any>[]>;
 
+/** One lazy group that failed to load: its declared types and its loader's error. */
+export interface LazyLoadFailure {
+  types: readonly string[];
+  error: unknown;
+}
+
+/**
+ * What {@link NodeRegistry.ensure} rejects with when some groups failed: which ones, each with
+ * its own error, so a host can leave out only those types and report per extension. The
+ * groups not listed here loaded. Its message is the failed loaders' own messages.
+ */
+export class LazyLoadError extends Error {
+  readonly failures: readonly LazyLoadFailure[];
+  /** Every type of every failed group. */
+  readonly failedTypes: readonly string[];
+  constructor(failures: readonly LazyLoadFailure[]) {
+    super([...new Set(failures.map((f) => messageOf(f.error)))].join('; '), { cause: failures[0]?.error });
+    this.name = 'LazyLoadError';
+    this.failures = failures;
+    this.failedTypes = failures.flatMap((f) => f.types);
+  }
+}
+
+/**
+ * The failed groups a rejected {@link NodeRegistry.ensure} names, or `null` for any other error.
+ * Read by shape rather than `instanceof`, so it holds across two copies of this module (a test
+ * that re-imports the app, a host bundling its own copy).
+ */
+export function lazyLoadFailures(err: unknown): readonly LazyLoadFailure[] | null {
+  const failures = (err as { failures?: unknown } | null)?.failures;
+  return Array.isArray(failures) && failures.every((f) => Array.isArray((f as LazyLoadFailure | null)?.types)) ? (failures as LazyLoadFailure[]) : null;
+}
+
+/** An error's message, or the thrown value as text. */
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 interface LazyGroup {
   types: readonly string[];
   load: LazyNodesLoader;
@@ -63,12 +101,16 @@ export class NodeRegistry {
 
   /**
    * Load every lazily declared type among `types` (one load per group, shared by concurrent
-   * callers). Resolves when all are registered; rejects with the loader's error, and a
-   * failed group stays declared so the next `ensure` retries it.
+   * callers). Resolves when all are registered. Every group is waited for, failed or not, so a
+   * group that loads is registered by the time this settles even when another fails (#393):
+   * it then rejects with a {@link LazyLoadError} naming the failed groups' types, and a failed
+   * group stays declared so the next `ensure` retries it.
    */
   async ensure(types: Iterable<string>): Promise<void> {
-    const groups = new Set(this.pending(types).map((t) => this.lazy.get(t)!));
-    await Promise.all([...groups].map((g) => this.loadGroup(g)));
+    const groups = [...new Set(this.pending(types).map((t) => this.lazy.get(t)!))];
+    const settled = await Promise.allSettled(groups.map((g) => this.loadGroup(g)));
+    const failures = settled.flatMap((r, i) => (r.status === 'rejected' ? [{ types: groups[i].types, error: r.reason as unknown }] : []));
+    if (failures.length > 0) throw new LazyLoadError(failures);
   }
 
   private loadGroup(group: LazyGroup): Promise<void> {

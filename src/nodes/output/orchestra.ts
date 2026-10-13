@@ -43,7 +43,7 @@ import { lazyResource, withActive, type LoadResult, type LoadStatus } from '@tho
 import { createScheduler, type MusicalTime, type ScheduleCommand, type Scheduler, type ScoreEvent } from '@thoremin/ictus';
 import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
-import { ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
+import { flattenNotes, ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
 import { DEMO_SCALE_NOTES } from '../music/score';
 import { allocateChannels, DEFAULT_PROGRAM, SECTIONS, type Section } from './orchestra_map';
 
@@ -105,6 +105,22 @@ const _defaultFactory: OrchestraEngineFactory = async (opts) => {
   return createOrchestraEngine(opts);
 };
 
+/**
+ * Where a note's velocity comes from. `raw`: the source's own velocity, as the orchestra
+ * has played it since #336. `written`: scaled by the score's dynamics marks through
+ * `flattenNotes`, exactly as the `score` node's oscillators voice it, so switching the
+ * orchestra on keeps the balance of a `p` passage (#393 item 3). `raw` stays the default
+ * until a player has heard the difference: it changes how every marked piece sounds.
+ */
+export const ORCHESTRA_DYNAMICS = ['raw', 'written'] as const;
+export type OrchestraDynamics = (typeof ORCHESTRA_DYNAMICS)[number];
+export const DEFAULT_ORCHESTRA_DYNAMICS: OrchestraDynamics = 'raw';
+
+export interface PlanPieceOptions {
+  /** {@link OrchestraDynamics}; {@link DEFAULT_ORCHESTRA_DYNAMICS} when absent. */
+  dynamics?: OrchestraDynamics;
+}
+
 const Params = z.object({
   /** Engine ticks of look-ahead beyond the output stage: the scheduler commits what is
    *  due before the tick after next could send it. */
@@ -116,6 +132,9 @@ const Params = z.object({
   brightnessDepth: z.number().min(0).max(1).default(0.5),
   /** The shortest interval between two expression / brightness updates, seconds. */
   ccInterval: z.number().min(0).max(1).default(0.05),
+  /** Note velocities as recorded (`raw`) or shaped by the score's dynamics marks
+   *  (`written`, as the score node plays them); see {@link OrchestraDynamics}. */
+  dynamics: z.enum(ORCHESTRA_DYNAMICS).default(DEFAULT_ORCHESTRA_DYNAMICS),
 });
 type Params = z.infer<typeof Params>;
 
@@ -143,7 +162,7 @@ export interface OrchestraPlan {
 
 /** Plan a document (or, with none, the built-in demo scale, looped like the `score`
  *  node loops it). */
-export function planPiece(doc: ScoreDoc | null): OrchestraPlan {
+export function planPiece(doc: ScoreDoc | null, { dynamics = DEFAULT_ORCHESTRA_DYNAMICS }: PlanPieceOptions = {}): OrchestraPlan {
   if (!doc) {
     return {
       events: DEMO_SCALE_NOTES.map((n) => ({ key: n.midi, channel: 0, start: n.start, duration: n.duration, velocity: n.velocity })),
@@ -161,7 +180,8 @@ export function planPiece(doc: ScoreDoc | null): OrchestraPlan {
     // (#334 tracks a kit); timpani is a pitched program and plays.
     if (part.percussion) return;
     if (!channels.has(a.channel)) channels.set(a.channel, { channel: a.channel, program: a.program, section: a.section });
-    for (const n of part.notes) events.push({ key: n.midi, channel: a.channel, start: n.start, duration: n.duration, velocity: n.velocity });
+    const notes = dynamics === 'written' ? flattenNotes(doc, [part.id]) : part.notes;
+    for (const n of notes) events.push({ key: n.midi, channel: a.channel, start: n.start, duration: n.duration, velocity: n.velocity });
   });
   return { events, loopBeats: 0, channels: [...channels.values()].sort((a, b) => a.channel - b.channel) };
 }
@@ -287,7 +307,7 @@ export const orchestraNode = defineNode<Params>({
       if (rawDoc !== docRef || !plan) {
         docRef = rawDoc;
         const parsed = rawDoc && typeof rawDoc === 'object' ? ScoreDocSchema.safeParse(rawDoc) : null;
-        plan = planPiece(parsed?.success ? (parsed.data as ScoreDoc) : null);
+        plan = planPiece(parsed?.success ? (parsed.data as ScoreDoc) : null, { dynamics: p.dynamics });
       }
       scheduler = createScheduler(plan.events, { loopBeats: plan.loopBeats });
       attached = s;

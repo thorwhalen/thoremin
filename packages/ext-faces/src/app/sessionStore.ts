@@ -20,7 +20,14 @@
  * dropped instead of landing on the new one.
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { categorizerFromModel, exportCategorizer, importCategorizer, type CategorizerMode, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import {
+  MAX_CATEGORIZER_SAMPLES,
+  categorizerFromModel,
+  exportCategorizer,
+  importCategorizer,
+  type CategorizerMode,
+  type PersonalCategorizer,
+} from '@thoremin/sdk/enroll/categorizer';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { carveView, carverFor, savedView, withTypedName, type CarveView, type TypedName } from '../lib/carving';
@@ -383,6 +390,17 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // setting rather than being written into the samples' radius.
           const base = merge.working.mode === 'reject' ? { ...merge.working, rejectRadius: flooredRejectRadius(merge.working) } : merge.working;
           const result = mergeSession(base, fresh, { seed: merge.seed });
+          // The import bound (addSample keeps it too): a categorizer merged past it could not
+          // be read back from its own exported file. Refused as a notice, the base kept.
+          if (result.categorizer.samples.length > MAX_CATEGORIZER_SAMPLES) {
+            pointOf = () => null;
+            showWorking(merge.working, {
+              ...restore,
+              dirty: merge.dirty,
+              notice: `Nothing was merged: the result would hold ${result.categorizer.samples.length} faces, more than the ${MAX_CATEGORIZER_SAMPLES} a categorizer keeps.`,
+            });
+            return;
+          }
           const offset = result.categorizer.samples.length - fresh.length;
           pointOf = (i) => (i >= offset ? i - offset : null);
           // The base's stills still show (from its take id) unless its samples were replaced by

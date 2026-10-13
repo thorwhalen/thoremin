@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { TimingTracker, timingFrom, ABSENT_TIMING, TIMING_RESOURCE_KEY, MIN_FRAMES_FOR_RATE, UNSTAMPED_SOURCE } from '@thoremin/sdk/timing/tracker';
+import { TimingTracker, timingFrom, ABSENT_TIMING, TIMING_RESOURCE_KEY, MIN_FRAMES_FOR_RATE, UNSTAMPED_SOURCE, CAPTURE_LAG_PRIOR_S } from '@thoremin/sdk/timing/tracker';
 import { OUTPUT_STAGE_PRIOR_S, type OutputStageAudioLike } from '@thoremin/sdk/timing/output_stage';
 import { loadRecords } from '../helpers/fixtures';
 
@@ -122,7 +122,9 @@ describe('TimingTracker over the conducting_44 fixture', () => {
     const r = run(stampedFrames(0, 'clock'), audio()).reading();
     expect(r.dominantSource).toBe('clock');
     expect(r.deliveredFps).toBeNaN();
-    expect(r.frameAge.mean).toBeCloseTo(0, 6);
+    // Stamped at the tick, but a clock stamp is when the frame was NOTICED: its age carries
+    // the capture lag, here the prior (no capture stamp taught one; #393 item 4).
+    expect(r.frameAge.mean).toBeCloseTo(CAPTURE_LAG_PRIOR_S, 6);
   });
 
   it('Chromium: the output stage is the smoothed pair and outputLatency, measured', () => {

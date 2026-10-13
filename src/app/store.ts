@@ -356,14 +356,12 @@ export function toSettings(s: ControlState): Settings {
   return pickSettings(s as unknown as Record<string, unknown>);
 }
 
-/** Rename a legacy `instrument` timbre field to `sound` on a settings sub-object,
- *  so a returning player keeps their selection after the rename. */
-function migrateInstrumentField(obj: unknown): void {
-  if (obj && typeof obj === 'object') {
-    const o = obj as Record<string, unknown>;
-    if (o.instrument !== undefined && o.sound === undefined) o.sound = o.instrument;
-    delete o.instrument;
-  }
+/** A copy of a settings sub-object with its legacy `instrument` timbre field renamed to
+ *  `sound`, so a returning player keeps their selection after the rename. A copy, never an
+ *  edit: the object belongs to the caller's persisted blob. */
+function migrateInstrumentField(o: Record<string, unknown>): Record<string, unknown> {
+  const { instrument, ...rest } = o;
+  return instrument !== undefined && rest.sound === undefined ? { ...rest, sound: instrument } : rest;
 }
 
 /** The MIDI block healed field by field against its schema: a field that parses is kept,
@@ -395,19 +393,23 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
     delete s.faceEnabled;
   }
   if (version < 3) {
-    migrateInstrumentField(s.right);
-    migrateInstrumentField(s.left);
-    migrateInstrumentField(s.faceChord);
+    for (const key of ['right', 'left', 'faceChord'] as const) {
+      const sub = s[key];
+      if (sub && typeof sub === 'object') s[key] = migrateInstrumentField(sub as Record<string, unknown>);
+    }
   }
   if (version < 5) {
     // The abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
     // Deliver it to a returning player who never customized those two (persisted value
     // still === the OLD default), while preserving any value they DID set.
+    // Copied, not edited in place: `faceExpr` is the caller's object (see v7 below).
     const fe = s.faceExpr as { sensitivity?: Record<string, number> } | undefined;
     if (fe?.sensitivity) {
+      const sensitivity = { ...fe.sensitivity };
       for (const e of ['fearful', 'disgusted'] as const) {
-        if (fe.sensitivity[e] === 0.5) fe.sensitivity[e] = 0.7;
+        if (sensitivity[e] === 0.5) sensitivity[e] = 0.7;
       }
+      s.faceExpr = { ...fe, sensitivity };
     }
   }
   if (version < 7) {

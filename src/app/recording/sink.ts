@@ -16,7 +16,7 @@
  * naming contract can't drift between them.
  */
 import { saveBlob } from './save';
-import { acquireRecordingFolder, type FsDirHandle } from './folder';
+import { acquireRecordingFolder, forgetRecordingFolder, type FsDirHandle } from './folder';
 import type { SinkKind } from './caps';
 
 /** A recording session was cancelled by the user (e.g. dismissed the folder
@@ -82,17 +82,45 @@ async function freshSubfolder(base: FsDirHandle, name: string): Promise<{ dir: F
 }
 
 /**
+ * The errors a folder handle throws once its folder is gone from disk: deleted or
+ * renamed (`NotFoundError`, since creating a subfolder in an EXISTING folder never
+ * reports one), or a handle the browser has invalidated (`InvalidStateError`).
+ */
+const VANISHED_FOLDER_ERRORS: ReadonlySet<string> = new Set(['NotFoundError', 'InvalidStateError']);
+
+function folderVanished(e: unknown): boolean {
+  return VANISHED_FOLDER_ERRORS.has((e as { name?: string })?.name ?? '');
+}
+
+/**
  * Directory sink: acquire the base folder (`./folder`: the remembered one, else the
  * picker), create the recording subfolder, and stream each file into it. Acquires
  * the handle up-front (at construction) so the folder prompt appears when recording
  * starts, not on stop. A name already taken gets a `-2`, `-3`, ... suffix. Throws {@link SinkCancelled} if the user dismisses the picker
  * (or no picker exists) so the caller can fall back to a zip.
+ *
+ * A remembered folder deleted or renamed on disk still reads `granted`, so it is
+ * found out here, by the subfolder it refuses (#393 item 6): it is forgotten and the
+ * picker offered once, in the same start, rather than failing this take and every
+ * later one while the Trainer still names it.
  */
 async function createDirectorySink(folderName: string): Promise<RecordingSink> {
-  const base = await acquireRecordingFolder();
-  if (!base) throw new SinkCancelled();
+  const subfolderIn = async (): Promise<{ dir: FsDirHandle; name: string }> => {
+    const base = await acquireRecordingFolder();
+    if (!base) throw new SinkCancelled();
+    return freshSubfolder(base, folderName);
+  };
+  let made: { dir: FsDirHandle; name: string };
+  try {
+    made = await subfolderIn();
+  } catch (e) {
+    if (!folderVanished(e)) throw e;
+    await forgetRecordingFolder();
+    // The picker opens after several awaits here; if the click's activation has lapsed it throws SecurityError and this take fails, but the folder is already forgotten, so the next take offers the picker cleanly.
+    made = await subfolderIn();
+  }
 
-  const { dir, name: label } = await freshSubfolder(base, folderName);
+  const { dir, name: label } = made;
   let count = 0;
   return {
     kind: 'directory',

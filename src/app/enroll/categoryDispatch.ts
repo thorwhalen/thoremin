@@ -108,7 +108,9 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
   let edge: CategoryEdge | null = null;
 
   const fire = (set: SavedCategories, categoryId: string) => {
-    const binding = set.categories.bindings[categoryId];
+    // Own keys only: an id such as `constructor` reads as present on any `{}` (#338).
+    const bindings = set.categories.bindings;
+    const binding = Object.hasOwn(bindings, categoryId) ? bindings[categoryId] : undefined;
     if (!binding) return; // an unbound entry is spent
     const label = categoryName(set.categories.model, categoryId);
     if (!deps.hasCommand(binding.command)) {

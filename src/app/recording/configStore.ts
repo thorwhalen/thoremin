@@ -15,7 +15,8 @@
  * which lives in IndexedDB as a handle and so cannot be read synchronously by a panel:
  * `refreshFolder()` reads it on open, and the store follows every later change
  * (`onRecordingFolderChange`: a pick from the control or at take start, a refused
- * handle forgotten). The name is derived, never persisted here; the handle is the SSOT.
+ * handle forgotten), with whether the browser kept it beyond this page
+ * (`folderRemembered`). The name is derived, never persisted here; the handle is the SSOT.
  *
  * This module also installs the recording host the commands act on
  * (`@/app/commands/recordingHost`), because it owns both things a recording command
@@ -33,6 +34,9 @@ export interface RecordingConfigState {
   session: RecordingSession;
   /** The remembered folder's name, null when none is remembered or not yet read. */
   folder: string | null;
+  /** False when that folder is held for this page only: the browser could not keep it
+   *  (IndexedDB refused the handle), so a reload will ask for it again. */
+  folderRemembered: boolean;
   /** Update the config and persist it (auto-save; the sheet is a settings surface). */
   setSession(next: SessionUpdate): void;
   /** Re-read the remembered folder's name from the handle store. */
@@ -60,6 +64,7 @@ function persistSession(session: RecordingSession): void {
 export const useRecordingConfig = create<RecordingConfigState>()((set, get) => ({
   session: loadSession(),
   folder: null,
+  folderRemembered: true,
   setSession: (next) => {
     const session = typeof next === 'function' ? next(get().session) : next;
     persistSession(session);
@@ -75,7 +80,9 @@ export function recordingConfig(): RecordingSession {
   return useRecordingConfig.getState().session;
 }
 
-onRecordingFolderChange((folder) => useRecordingConfig.setState({ folder }));
+onRecordingFolderChange((folder, { persistence }) =>
+  useRecordingConfig.setState({ folder, folderRemembered: persistence !== 'page-only' }),
+);
 
 provideRecordingHost({
   setLocation: (location) => useRecordingConfig.getState().setSession((prev) => ({ ...prev, location })),

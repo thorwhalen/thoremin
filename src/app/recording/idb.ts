@@ -28,27 +28,44 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+/**
+ * Run one request in its own transaction. Settles on the TRANSACTION, not the request:
+ * a write whose request succeeded can still abort at commit (a full disk, a private
+ * window's quota), and a write reported kept must be one the browser actually kept.
+ */
 async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest): Promise<T> {
   const db = await openDb();
   try {
     return await new Promise<T>((resolve, reject) => {
       const tx = db.transaction(STORE, mode);
       const req = fn(tx.objectStore(STORE));
-      req.onsuccess = () => resolve(req.result as T);
-      req.onerror = () => reject(req.error);
+      const fail = () => reject(req.error ?? tx.error ?? new DOMException('IndexedDB transaction failed', 'AbortError'));
+      req.onerror = fail;
+      tx.onerror = fail;
+      tx.onabort = fail;
+      tx.oncomplete = () => resolve(req.result as T);
     });
   } finally {
     db.close();
   }
 }
 
-/** Persist the picked directory handle for reuse (best-effort; swallows errors). */
-export async function saveDirHandle(handle: unknown): Promise<void> {
-  if (!idbAvailable()) return;
+/**
+ * What became of a save: `saved`; `failed` (IndexedDB exists but did not keep it: a
+ * full disk, a private window); or `unavailable` (no IndexedDB in this runtime, so
+ * nothing was ever going to persist). Data, not an exception, so the caller can say
+ * which (#393 item 6: a failed save used to be reported as a success).
+ */
+export type HandleSaveOutcome = 'saved' | 'failed' | 'unavailable';
+
+/** Persist the picked directory handle for reuse; never throws, reports what happened. */
+export async function saveDirHandle(handle: unknown): Promise<HandleSaveOutcome> {
+  if (!idbAvailable()) return 'unavailable';
   try {
     await withStore('readwrite', (s) => s.put(handle, DIR_KEY));
+    return 'saved';
   } catch {
-    /* IndexedDB unavailable / private mode — non-fatal, we just re-pick. */
+    return 'failed';
   }
 }
 

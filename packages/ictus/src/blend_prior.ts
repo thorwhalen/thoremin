@@ -168,13 +168,24 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
     };
   };
 
+  /** Whether the trend half is blended in at all: some weight, both halves running on
+   *  usable grids, and describing one beat. `state()` and `predict()` share it, so a
+   *  prediction's window never mixes in a trend the published state left out. */
+  const blended = (so: MusicalTime, st: MusicalTime): boolean =>
+    w > 0 &&
+    so.state === 'running' &&
+    st.state === 'running' &&
+    so.period > 0 &&
+    st.period > 0 &&
+    Number.isFinite(so.nextBeatAt) &&
+    Number.isFinite(st.nextBeatAt) &&
+    !disagree(so, st);
+
   const snapshot = (): MusicalTime => {
     const so = oscillator.state();
     if (w <= 0) return publish(so);
     const st = trend.state();
-    if (so.state !== 'running' || st.state !== 'running') return publish(so);
-    if (!(so.period > 0) || !(st.period > 0) || !Number.isFinite(so.nextBeatAt) || !Number.isFinite(st.nextBeatAt)) return publish(so);
-    if (disagree(so, st)) return publish(so);
+    if (!blended(so, st)) return publish(so);
     const t = so.t;
     const period = (1 - w) * so.period + w * st.period;
     // The trend's next beat on the branch nearest the oscillator's: right after an
@@ -229,11 +240,13 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
       return;
     }
     if (stray) return;
-    trend.update(a);
     const after = oscillator.state();
     // Not an observation to the oscillator (below its floor, out of order): nothing
-    // to learn about its grid from.
+    // to learn about its grid from, and nothing for the trend either. The oscillator's
+    // floor is the blend's: a trend fitted to anchors the oscillator refused would be
+    // a second grid built from evidence the first one rejected (#393).
     if (after.anchors === before.anchors) return;
+    trend.update(a);
     const st = trend.state();
     if (after.state === 'running' && st.state === 'running' && disagree(after, st)) {
       // Two priors a fifth apart are not describing one beat: the trend numbered a
@@ -273,8 +286,11 @@ export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
     predict(): Prediction {
       const s = snapshot();
       const po = oscillator.predict();
+      // Gated like the state: where `state()` fell back to the oscillator alone, so
+      // does the window (#393).
+      if (!blended(oscillator.state(), trend.state())) return { expectedAt: s.nextBeatAt, window: po.window, phase: s.phase };
       const pt = trend.predict();
-      const window = w <= 0 ? po.window : (1 - w) * po.window + w * pt.window;
+      const window = (1 - w) * po.window + w * pt.window;
       return { expectedAt: s.nextBeatAt, window, phase: s.phase };
     },
     state: snapshot,

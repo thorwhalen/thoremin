@@ -195,13 +195,14 @@ export function carryLabels(
   return matchLabels(to.categories, {
     labels: named.map((c) => c.label.trim()),
     score: (centroid) => {
-      const out: Record<string, number> = {};
+      // A Map, not a `{}`: an old name such as `constructor` would read as present (#338).
+      const out = new Map<string, number>();
       for (const c of named) {
         const s = similarity(weightedDistance(centroid, c.centroid, to.features, to.weights));
         const l = c.label.trim();
-        out[l] = Math.max(out[l] ?? 0, s);
+        out.set(l, Math.max(out.get(l) ?? 0, s));
       }
-      return out;
+      return Object.fromEntries(out);
     },
     minScore: Number.isFinite(maxDistance) ? similarity(maxDistance) : Number.MIN_VALUE,
     ...(options.fallback ? { fallback: options.fallback } : {}),

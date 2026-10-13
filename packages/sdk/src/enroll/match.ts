@@ -165,7 +165,10 @@ export function matchLabels<L extends string>(
   const keep = options.keepExisting ?? LABEL_MATCH_DEFAULTS.keepExisting;
   const fallback = options.fallback ?? LABEL_MATCH_DEFAULTS.fallback;
   const minScore = options.minScore ?? LABEL_MATCH_DEFAULTS.minScore;
-  const bar = (l: L): number => (typeof minScore === 'number' ? minScore : (minScore[l] ?? LABEL_MATCH_DEFAULTS.minScore));
+  // Own keys only, here and below: a label such as `constructor` reads as present on any
+  // plain object (it is inherited), and its "score" would then be a function (#338).
+  const own = <V>(o: Partial<Record<L, V>>, l: L): V | undefined => (Object.hasOwn(o, l) ? o[l] : undefined);
+  const bar = (l: L): number => (typeof minScore === 'number' ? minScore : (own(minScore, l) ?? LABEL_MATCH_DEFAULTS.minScore));
 
   const out: (LabelMatch<L> | null)[] = categories.map((c) =>
     keep && c.label.trim() ? { id: c.id, label: c.label, source: 'kept', matched: null, score: null } : null,
@@ -183,7 +186,7 @@ export function matchLabels<L extends string>(
   const raw = open.map((i) => options.score(categories[i].centroid, categories[i]));
   const matrix = raw.map((s) =>
     pool.map((l) => {
-      const x = s[l] ?? 0;
+      const x = own(s, l) ?? 0;
       return Number.isFinite(x) && x >= bar(l) ? Math.max(0, x) : 0;
     }),
   );
@@ -192,7 +195,7 @@ export function matchLabels<L extends string>(
     const j = assignment[r];
     if (j >= 0 && matrix[r][j] > 0) {
       const l = pool[j];
-      out[i] = { id: categories[i].id, label: l, source: 'matched', matched: l, score: raw[r][l] ?? 0 };
+      out[i] = { id: categories[i].id, label: l, source: 'matched', matched: l, score: own(raw[r], l) ?? 0 };
       taken.add(norm(l));
     }
   });

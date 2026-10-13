@@ -350,12 +350,13 @@ export function createSession(options: SessionOptions = {}): Session {
       });
       // Which cues fed each category — a label suggestion the host may offer.
       for (const cat of model.categories) {
-        const cues: Record<string, number> = {};
+        // A Map, not a `{}`: a cue id such as `toString` would read as present (#338).
+        const cues = new Map<string, number>();
         for (const j of cat.members) {
           const id = pool[j]?.cue;
-          if (id !== undefined) cues[id] = (cues[id] ?? 0) + 1;
+          if (id !== undefined) cues.set(id, (cues.get(id) ?? 0) + 1);
         }
-        cat.cues = cues;
+        cat.cues = Object.fromEntries(cues);
       }
       return model;
     },

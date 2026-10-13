@@ -83,6 +83,29 @@ export const MAX_CATEGORY_HOLD_MS = 1000;
 /** The feature-demand owner while binding is live. */
 export const CATEGORY_DEMAND_OWNER = 'category-binding';
 
+/** A hold in range: [0, MAX_CATEGORY_HOLD_MS] (NaN reads as the default hold). */
+function clampHoldMs(ms: number): number {
+  const n = Number.isNaN(ms) ? (CATEGORY_EDGE_DEFAULTS.holdMs as number) : ms;
+  return Math.max(0, Math.min(MAX_CATEGORY_HOLD_MS, n));
+}
+
+/** The persisted prefs healed field by field (a hand-edited or older blob must not put a
+ *  string or a ten-second hold into the dispatcher's tick): a field that does not parse
+ *  keeps the current value, and the hold is clamped like `setHoldMs` clamps it. */
+function healPrefs(
+  persisted: unknown,
+  current: Pick<CategoryBindingState, 'activeId' | 'enabled' | 'holdMs'>,
+): Pick<CategoryBindingState, 'activeId' | 'enabled' | 'holdMs'> {
+  const p = persisted && typeof persisted === 'object' ? (persisted as Record<string, unknown>) : {};
+  const activeId = z.string().nullable().safeParse(p.activeId);
+  const enabled = z.boolean().safeParse(p.enabled);
+  return {
+    activeId: activeId.success ? activeId.data : current.activeId,
+    enabled: enabled.success ? enabled.data : current.enabled,
+    holdMs: typeof p.holdMs === 'number' && !Number.isNaN(p.holdMs) ? clampHoldMs(p.holdMs) : current.holdMs,
+  };
+}
+
 interface CategoryBindingState {
   /** Saved sets (metadata), newest first. */
   saved: NamedSummary[];
@@ -114,6 +137,10 @@ export const useCategoryBinding = create<CategoryBindingState>()(
       const refreshList = async (): Promise<void> => {
         set({ saved: await getCollection().list() });
       };
+      // The last REQUESTED switch of the active set wins, not the last to resolve: every
+      // switch (activate, save) takes a ticket, and a load that returns after a newer
+      // ticket was taken is dropped (a slow read of A must not undo a later pick of B).
+      let ticket = 0;
       return {
         saved: [],
         active: null,
@@ -139,21 +166,25 @@ export const useCategoryBinding = create<CategoryBindingState>()(
           const store = getCollection();
           // The record this save overwrites is the one with the same SLUG (the collection's
           // id), not the same spelling: "faces" replaces "Faces".
+          const mine = ++ticket;
           const id = savedCategoriesId(name);
           const slugTwin = (await store.list()).find((s) => s.id === id);
           const previous = (slugTwin ? await store.load(slugTwin.id) : null) ?? get().active;
           const rec = await store.save(name, { model, bindings: carryBindings(previous?.categories, model) });
-          set({ active: rec, activeId: rec.id });
+          // Saved either way; it becomes active only if no newer switch was asked for.
+          if (mine === ticket) set({ active: rec, activeId: rec.id });
           await refreshList();
           return rec;
         },
 
         async activate(id) {
+          const mine = ++ticket;
           if (!id) {
             set({ active: null, activeId: null });
             return;
           }
           const rec = await getCollection().load(id);
+          if (mine !== ticket) return;
           set({ active: rec, activeId: rec ? rec.id : null });
         },
 
@@ -179,13 +210,14 @@ export const useCategoryBinding = create<CategoryBindingState>()(
           set({ enabled: on });
         },
         setHoldMs(ms) {
-          set({ holdMs: Math.max(0, Math.min(MAX_CATEGORY_HOLD_MS, ms)) });
+          set({ holdMs: clampHoldMs(ms) });
         },
       };
     },
     {
       name: CATEGORY_PREFS_STORAGE_KEY,
       partialize: (s) => ({ activeId: s.activeId, enabled: s.enabled, holdMs: s.holdMs }),
+      merge: (persisted, current) => ({ ...current, ...healPrefs(persisted, current) }),
     },
   ),
 );
