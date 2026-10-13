@@ -3,7 +3,7 @@
  *
  *   npx vite-node scripts/subframe/score.ts [--set DIR] [--noise 0,1,2] [--min-lead 0,0.03,0.06]
  *                                           [--magnetism 0.5,1] [--out results.json] [--limit N]
- *                                           [--fps 15] [--infer 0.045]
+ *                                           [--fps 15] [--infer 0.045] [--poll 60] [--dejitter line]
  *
  * For every clip (see `gen_clip_sets.py`) the impact keypoint's observation stream is
  * read from `keypoints.ndjson`, optionally corrupted with seeded Gaussian tracker
@@ -18,7 +18,17 @@
  * the latest captured frame wins, and every processed frame keeps its own capture
  * stamp — which yields the alternating 33 / 67 ms spacings a slow laptop really
  * produces on a 30 fps camera, not a regular slower rate. Either applies before the
- * noise. Estimates are matched to the ground
+ * noise.
+ *
+ * The stamp regimes (the timing plan's step 9; `stamps.ts`): `--poll HZ` is the
+ * `raf-poll` regime, positions held from the latest frame and sampled at a HZ vsync
+ * with the vsync time as the stamp (Safari before the pump fix; the timing axis reads
+ * `raf-poll(<regime>)`), and `--dejitter line|clamp` runs the frame pump's gated
+ * de-jitter over every clip's stamps with the source its regime stands for (`exact` and
+ * `capture-jitter-actual` are capture stamps and must come out byte-identical, which the
+ * scorer checks; the others are clock stamps). `line` is the shipped rule (the fitted
+ * line as it is), `clamp` the variant capped at the raw stamp, kept for comparison.
+ * Both apply after the slow column and before the noise. Estimates are matched to the ground
  * truth events in `truth.json` (nearest within a window; the rest are misses and
  * spurious events) and scored three ways, one per objective of
  * `docs/research/intent-and-subframe-timing.md` §3:
@@ -69,6 +79,7 @@ import { magnetise } from '@thoremin/ictus/magnet';
 import { createTrendPrior } from '@thoremin/ictus/trend_prior';
 import { createBlendPrior } from '@thoremin/ictus/blend_prior';
 import { decimateByInference, decimateToFps } from './decimate';
+import { dejitterStamps, pollAtVsync, stampSourceOfRegime } from './stamps';
 
 // ---- CLI ----------------------------------------------------------------------
 
@@ -87,6 +98,11 @@ const LIMIT = Number(arg('limit', '0'));
 const FPS = Number(arg('fps', '0'));
 /** Inference-paced decimation: the simulated inference time per frame, seconds (0 = off). */
 const INFER = Number(arg('infer', '0'));
+/** The `raf-poll` regime: sample-and-hold at this display rate, Hz (0 = off). */
+const POLL = Number(arg('poll', '0'));
+/** The gated de-jitter over the stamps: `off`, `line` (shipped) or `clamp`. */
+const DEJITTER = arg('dejitter', 'off') as 'off' | 'clamp' | 'line';
+if (!['off', 'clamp', 'line'].includes(DEJITTER)) throw new Error(`--dejitter must be off, clamp or line, got ${DEJITTER}`);
 const OUT = arg('out', join(SET, 'results.json'));
 /** An estimate further than this from every truth event is spurious (seconds). */
 const MATCH_WINDOW = 0.12;
@@ -161,6 +177,18 @@ function slowed(clip: Clip): Clip {
   if (INFER > 0) {
     samples = decimateByInference(samples, INFER);
     axes.fps = `${axes.fps} infer ${Math.round(1000 * INFER)} ms`;
+  }
+  const regime = String(clip.axes.timing);
+  if (POLL > 0) {
+    samples = pollAtVsync(samples, POLL);
+    axes.timing = `raf-poll(${regime})`;
+  }
+  if (DEJITTER !== 'off') {
+    const source = stampSourceOfRegime(POLL > 0 ? 'raf-poll' : regime);
+    const before = source === 'capture' ? JSON.stringify(samples) : null;
+    samples = dejitterStamps(samples, source, { clampToRaw: DEJITTER === 'clamp' });
+    // The gate's contract: a capture stamp is never touched.
+    if (before !== null && JSON.stringify(samples) !== before) throw new Error(`de-jitter touched the capture stamps of ${clip.name}`);
   }
   return { ...clip, samples, axes };
 }
@@ -474,7 +502,7 @@ const byAxis = (estimator: string, noise: number, minLead: number, axis: Axis) =
   aggregate((r) => r.estimator === estimator && r.noise === noise && r.minLead === minLeadOf(estimator, minLead), (r) => String(axesOf(r.clip)[axis]));
 const ML = MIN_LEADS[Math.min(1, MIN_LEADS.length - 1)];
 
-const slow = [FPS > 0 ? `decimated to ${FPS} fps` : '', INFER > 0 ? `inference-paced at ${Math.round(1000 * INFER)} ms` : ''].filter(Boolean).join(', ');
+const slow = [FPS > 0 ? `decimated to ${FPS} fps` : '', INFER > 0 ? `inference-paced at ${Math.round(1000 * INFER)} ms` : '', POLL > 0 ? `polled at ${POLL} Hz` : '', DEJITTER !== 'off' ? `de-jitter ${DEJITTER}` : ''].filter(Boolean).join(', ');
 const md: string[] = [`# Sub-frame impact estimators on \`${SET.split('/').pop()}\`${slow ? ` (${slow})` : ''}`, '', `${clips.length} clips; noise ${NOISES.join('/')} px; minLead ${MIN_LEADS.join('/')} s; magnetism ${MAGNETISMS.join('/')}. Errors are estimate minus truth in ms (negative = early); "vs grid" is against the INTENDED grid time; lead is impact minus commit time (negative = after the fact).`, ''];
 
 // 1. Headline: every estimator by kind, at each noise level, one minLead.
@@ -521,7 +549,7 @@ md.push(`Predictions committed on their first usable fit, no second fit agreeing
 const summary = md.join('\n');
 const cells: Record<string, CellStats> = {};
 for (const noise of NOISES) for (const est of [...BASELINES, ...PREDICTOR_FAMILY, ...PRIOR_FAMILY]) for (const ml of MIN_LEADS) for (const axis of ['kind', 'fps', 'exposure', 'timing', 'object'] as Axis[]) for (const [k, s] of byAxis(est, noise, ml, axis)) cells[`${est}|noise=${noise}|minLead=${minLeadOf(est, ml)}|${axis}=${k}`] = s;
-writeFileSync(OUT, JSON.stringify({ set: SET, noises: NOISES, minLeads: MIN_LEADS, magnetisms: MAGNETISMS, clips: clips.map((c) => ({ name: c.name, axes: c.axes })), kindHits, cells, records }, null, 0));
+writeFileSync(OUT, JSON.stringify({ set: SET, noises: NOISES, minLeads: MIN_LEADS, magnetisms: MAGNETISMS, fps: FPS, infer: INFER, poll: POLL, dejitter: DEJITTER, clips: clips.map((c) => ({ name: c.name, axes: c.axes })), kindHits, cells, records }, null, 0));
 writeFileSync(OUT.replace(/\.json$/, '.md'), summary);
 console.log(summary);
 console.error(`wrote ${OUT}`);

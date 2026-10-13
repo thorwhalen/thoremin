@@ -131,6 +131,28 @@ The four regimes: `exact` (frames on time, reported truthfully); `capture-jitter
 
 The frame-snapped detector does not care (its error is dominated by the frame period). The predictor does: 4 ms of noise on the timestamps doubles the known-plane prediction's spread (4.3 → 8.5) and makes it *decline* to predict one stroke in fourteen (the stability check refuses a fit that keeps moving), while an irregular camera reported truthfully costs nothing. Honest timestamps are what a sub-frame estimator needs, and they are what #226 (landed as [PR #228](https://github.com/thorwhalen/thoremin/pull/228)) provides when the browser reports the capture time.
 
+#### 3.4.1 The gated de-jitter (timing plan step 9, measured 2026-10-13)
+
+Where the browser hands the frame pump no capture time, its stamps are clock readings (`clock`, `estimated`), the `stamp-noise` row's world. The gated de-jitter (`packages/sdk/src/timing/stamp_dejitter.ts`) fits a line of stamp against frame index over the last 30 frames of such a run and moves each stamp onto it; the frame index is inferred from a handful of candidate lattices (two seed periods, the 20th percentile and the mean of the gaps, each over 1 to 4 frames; the rules are below the table). A capture stamp passes through byte for byte, and so does a run that already sits on a grid. The scorer runs it with `--dejitter line` (the shipped rule) or `--dejitter clamp` (each output capped at its raw reading), and `--poll 60` for the `raf-poll` regime (positions held from the latest frame, sampled and stamped at a 60 Hz vsync: Safari before the pump fix). Same 288 clips; today's baseline in the first column (it differs from the table above by up to 0.6 ms: the estimators have changed since that table was measured).
+
+| `stamp-noise`, sd / missed | off | `line` (shipped) | `clamp` |
+|---|---|---|---|
+| `lowest` | 11.3 / 0 | 10.9 / 0 | 11.2 / 0 |
+| `predict` | 11.0 / 168 | 7.9 / 72 | 8.3 / 97 |
+| `predictKnown` | 9.1 / 45 | **4.6 / 0** | 6.5 / 3 |
+
+The known-plane prediction gets back to within 0.3 ms of exact stamps (4.3), and stops declining strokes; the learned-plane prediction recovers most of the way (exact 7.7 / 74). The line as it is beats the capped line because capping keeps the late half of the noise. The gate holds where it must: `exact` and `capture-jitter-actual` come out byte-identical (the scorer refuses to run otherwise), `capture-jitter` (nominal, stamps on the nominal grid) is unchanged, and every `raf-poll` row is identical with and without the de-jitter (`predictKnown` sd 12.3 ms on `exact`, 14.4 on `capture-jitter`, 11.0 on `capture-jitter-actual`, 14.7 on `stamp-noise`, either way): no line is fitted to the poll's stamps. That holds because the bench's poll stamps are jitter-free and the 1 ms jitter floor keeps the gate shut, not because anything detects sample-and-hold: a poll whose stamps carried 1.5 ms of jitter engaged on 289 of 300 frames in the review's test. The case is gone from the pump itself, which no longer delivers a held frame twice.
+
+**What carries over to the browser.** The de-jitter only ever sees the pump's fallbacks: a browser with the video frame callback but no capture time, or one where the callback is absent or silent. On Chrome, Firefox and Safari with a camera it changes nothing. On the animation-frame fallback the delivery error is mostly the camera beating against the display's vsync. The adversarial review simulated it (cameras at 15 to 30 fps under 50 to 144 Hz vsync, 3000 frames each). Under 50, 59.94 and 60 Hz, with under 0.5 ms of callback jitter, the gate stayed shut on every frame (raw error 3 to 6 ms, passed through): a beat pattern on a 60 Hz grid is fitted by no lattice at a camera's rate within the residual bound. Under 75, 120 and 144 Hz it engaged and the error against the camera's grid fell: 3.45 to 0.64 ms, 0.72 to 0.38 and 2.20 to 0.77. Under 60 Hz with 2 ms of callback jitter it fell from 3.82 to 3.39. So the Gaussian `stamp-noise` gain above is the gain on Gaussian clock noise; on the vsync fallback the gain depends on the display, and at 60 Hz there is none.
+
+**How the lattice is found, after the review.** A candidate period is believed only if:
+
+- it is a camera's frame rate (5 to 60 fps, within 3 percent);
+- its residual is under 0.15 of its period;
+- it is the coarsest such lattice, or a finer one that explains the run 1.5 times better.
+
+The seeds are the 20th percentile and the mean of the gaps, each over 1 to 4 frames. The camera-rate rule is what separates a 60 fps camera paced to 33 / 50 ms gaps from a 30 fps camera beating against a 75 Hz display at 27 / 40 ms: from the stamps alone both are the same two-to-three alternation. A stamp more than half a period from its own line passes through and stays out of the run; three in a row restart it. On one-sided (exponential, 2 ms) delivery noise, 4 percent of engaged frames sit on a 60 fps sub-lattice, which fits nearly the same line with every index doubled; the output error is 0.84 ms against 2.05 raw. Before the review, a third of them sat on sub-lattices down to a fifth of the camera's period.
+
 ### 3.5 How early, and what it costs
 
 | required lead | `predict` mean lead (surface / air) | sd (surface / air) | strokes not predicted (surface / air) |
