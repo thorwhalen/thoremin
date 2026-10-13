@@ -1,5 +1,5 @@
 /**
- * The face categorizer session in a real browser (#330 P2): a LAZY, tool-only extension.
+ * The face categorizer session in a real browser (#330 P2, P3): a LAZY, tool-only extension.
  *
  * - A cold load fetches none of its code (recognised by content: the mode wording only the
  *   deferred half carries), and the launcher still lists the tool (its eager stub).
@@ -8,10 +8,18 @@
  *   canvas video, so no camera and no face model): record, stop, the grid carved at the
  *   suggested k with pictures grabbed from the kept video, neutral switched in and out, a name
  *   edited, saved, and listed.
+ * - Test and correct (P3): a categorizer file imported (validated), saved, opened, tested live
+ *   on the synthetic face (the readout names its categories), tuned, corrected ("this face is
+ *   X"), saved again, and exported as a file.
  *
  * The bundle half of the lazy claim is `npm run check:lazy`.
  */
 import { test, expect, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** A two-category file (smile, surprise; reject mode) whose features the synthetic face shows. */
+const FIXTURE = join(__dirname, '../../test/faces/fixtures/two_faces.categorizer.json');
 
 const URL_PARAMS = '?slot.source=synthetic-hands&faces.source=synthetic';
 /** In the deferred panel only (`packages/ext-faces/src/panels/FaceSessionPanel.tsx`). */
@@ -94,6 +102,65 @@ test('the face session loads only when opened, and records, carves, names and sa
   await panel.getByLabel('Categorizer name').fill('Smoke faces');
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(panel.locator('[data-faces-saved]')).toContainText('Smoke faces');
+
+  expect(errors).toEqual([]);
+});
+
+test('a categorizer file is imported, tested live, tuned, corrected, saved and exported', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  await page.goto(URL_PARAMS);
+  await expect(page.getByRole('button', { name: /tap to play/i })).toBeVisible({ timeout: 60_000 });
+  await page.locator('[data-tools-launcher]').click();
+  await page.locator('[data-launcher-tool="faces"]').click();
+  const panel = page.locator('[data-tool="faces"]');
+  await expect(panel.getByRole('button', { name: 'Import file' })).toBeVisible({ timeout: 30_000 });
+
+  // Import: validated, shown unsaved, no pictures; then saved under a name.
+  await panel.locator('input[data-faces-import]').setInputFiles(FIXTURE);
+  await expect(panel.locator('[data-face-category]')).toHaveCount(2);
+  await expect(panel.locator('[data-faces-unsaved]')).toBeVisible();
+  await panel.getByLabel('Categorizer name').fill('Imported faces');
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(panel.locator('[data-faces-saved]')).toContainText('Imported faces');
+  await expect(panel.locator('[data-faces-unsaved]')).toHaveCount(0);
+
+  // Close, reopen from the list: Open (3), "Test with my face" (4).
+  await panel.getByRole('button', { name: 'Close the grid' }).click();
+  await panel.getByRole('button', { name: 'Open Imported faces' }).click();
+  await panel.getByRole('button', { name: 'Test with my face' }).click();
+  // The synthetic face cycles rest, smile, rest, surprise, ...: the readout names both
+  // categories and "none of these" for the rest, within a cycle.
+  const reading = panel.locator('[data-faces-reading]');
+  const seen = new Set<string>();
+  await expect
+    .poll(
+      async () => {
+        seen.add((await reading.textContent()) ?? '');
+        return ['smile', 'surprise', 'None of these'].every((x) => seen.has(x));
+      },
+      { timeout: 30_000, intervals: [100] },
+    )
+    .toBe(true);
+
+  // Tune and correct: both unsaved until Save.
+  await panel.getByRole('slider', { name: 'Reject radius' }).fill('2');
+  await expect(panel.locator('[data-faces-unsaved]')).toBeVisible();
+  await expect.poll(async () => (await reading.textContent()) ?? '', { timeout: 15_000, intervals: [100] }).toBe('smile');
+  await panel.getByRole('button', { name: 'This face is smile' }).click();
+  await expect(panel.locator('[data-face-category="cat-1"]')).toContainText('7 held');
+  await panel.getByRole('button', { name: 'Stop', exact: true }).click();
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(panel.locator('[data-faces-unsaved]')).toHaveCount(0);
+
+  // Export: P1's file, with the correction in it and no tuning.
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'Export file' }).click();
+  const file = JSON.parse(readFileSync((await (await download).path())!, 'utf8'));
+  expect(file.format).toBe('thoremin.categorizer');
+  expect(file.samples).toHaveLength(JSON.parse(readFileSync(FIXTURE, 'utf8')).samples.length + 1);
+  expect(file.tuning).toBeUndefined();
 
   expect(errors).toEqual([]);
 });

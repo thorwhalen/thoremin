@@ -6,7 +6,8 @@
  * React half is fetched only when the tool opens (the network half is the browser smoke,
  * `smoke/tests/faces.smoke.ts`; the bundle half is `npm run check:lazy`).
  *
- * Clicks from a cold load: Tools (1), "Your faces" (2), "Record my faces" (3).
+ * Clicks from a cold load: Tools (1), "Your faces" (2), "Record my faces" (3). Testing a saved
+ * categorizer (P3): Tools, "Your faces", Open, "Test with my face" (4).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
@@ -75,5 +76,46 @@ describe.runIf(FACES)('the face session tool is reachable from the shell', () =>
 
   it('an extension tool may not reuse a core tool id', () => {
     expect(() => withExtensionTools(TOOLS, [{ id: 'trainer', label: 'X', description: 'x', group: 'tool', defaultPinned: false }])).toThrow(/already uses/);
+  });
+});
+
+describe.runIf(FACES)('testing and correcting a saved categorizer is reachable (#330 P3)', () => {
+  /** Clicks from a cold load, with a saved categorizer: Tools (1), "Your faces" (2), Open (3),
+   *  "Test with my face" (4). The dials, the corrections and Export are on the same screen. */
+  it('Open, then "Test with my face": the readout, the dials, the corrections, Export; closing the tool ends the test', async () => {
+    const { createFaceModelStore } = await import('@thoremin/ext-faces/app/models');
+    const { faceTestStore } = await import('@thoremin/ext-faces/app/faceSession');
+    const { importCategorizer } = await import('@thoremin/sdk/enroll/categorizer');
+    const file = await import('./fixtures/two_faces.categorizer.json');
+    const parsed = importCategorizer(file.default);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const saved = createFaceModelStore();
+    await saved.save('Shell test', { categorizer: parsed.categorizer, takeId: null });
+
+    render(<Shell />);
+    act(() => useTools.getState().toggleTool('faces'));
+    expect(await screen.findByRole('button', { name: 'Import file' })).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Shell test' }));
+    const testButton = await screen.findByRole('button', { name: 'Test with my face' });
+    expect(screen.getByRole('slider', { name: 'Sensitivity' })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: 'Reject radius' })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: 'Distance' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export file' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add more of my faces' })).toBeTruthy();
+    expect(document.querySelectorAll('[data-face-move]').length).toBeGreaterThan(0);
+    fireEvent.click(testButton);
+    expect(faceTestStore().getState().running).toBe(true);
+    expect(appFeatureDemand.owners()).toContain('faces-test');
+    // No camera in jsdom: the readout says so rather than guessing.
+    expect(await screen.findByText(/No face in view|Reading/)).toBeTruthy();
+    const corrections = screen.getAllByRole('button', { name: /^This face is / });
+    expect(corrections.map((b) => b.getAttribute('aria-label'))).toEqual(['This face is smile', 'This face is surprise']);
+    // With no face in view there is nothing to add.
+    for (const b of corrections) expect((b as HTMLButtonElement).disabled).toBe(true);
+    act(() => useTools.getState().close());
+    expect(faceTestStore().getState().running).toBe(false);
+    expect(appFeatureDemand.owners()).not.toContain('faces-test');
+    for (const s of await saved.list()) await saved.remove(s.id);
   });
 });

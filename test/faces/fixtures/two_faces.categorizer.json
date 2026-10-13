@@ -1,0 +1,247 @@
+{
+  "format": "thoremin.categorizer",
+  "version": 1,
+  "name": "Two faces",
+  "modality": "face",
+  "features": [
+    "face.blendshape.mouth.smileLeft",
+    "face.blendshape.mouth.smileRight",
+    "face.blendshape.jaw.open",
+    "face.blendshape.brow.innerUp"
+  ],
+  "weights": {
+    "face.blendshape.mouth.smileLeft": 20,
+    "face.blendshape.mouth.smileRight": 20,
+    "face.blendshape.jaw.open": 20,
+    "face.blendshape.brow.innerUp": 20
+  },
+  "mode": "reject",
+  "k": 2,
+  "rejectRadius": 4,
+  "samples": [
+    {
+      "vector": {
+        "face.head.scale": 0.2,
+        "face.blendshape.mouth.smileLeft": 0.05,
+        "face.blendshape.mouth.smileRight": 0.0752,
+        "face.blendshape.jaw.open": 0.0773,
+        "face.blendshape.brow.innerUp": 0.0542
+      },
+      "t": 400,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2311,
+        "face.blendshape.mouth.smileLeft": 0.0759,
+        "face.blendshape.mouth.smileRight": 0.0512,
+        "face.blendshape.jaw.open": 0.0255,
+        "face.blendshape.brow.innerUp": 0.0222
+      },
+      "t": 800,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2161,
+        "face.blendshape.mouth.smileLeft": 0.0239,
+        "face.blendshape.mouth.smileRight": 0.0235,
+        "face.blendshape.jaw.open": 0.0475,
+        "face.blendshape.brow.innerUp": 0.0738
+      },
+      "t": 1200,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.1804,
+        "face.blendshape.mouth.smileLeft": 0.0505,
+        "face.blendshape.mouth.smileRight": 0.0755,
+        "face.blendshape.jaw.open": 0.0771,
+        "face.blendshape.brow.innerUp": 0.0537
+      },
+      "t": 1600,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.1752,
+        "face.blendshape.mouth.smileLeft": 0.0756,
+        "face.blendshape.mouth.smileRight": 0.0507,
+        "face.blendshape.jaw.open": 0.0252,
+        "face.blendshape.brow.innerUp": 0.0224
+      },
+      "t": 2000,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2066,
+        "face.blendshape.mouth.smileLeft": 0.0236,
+        "face.blendshape.mouth.smileRight": 0.0237,
+        "face.blendshape.jaw.open": 0.048,
+        "face.blendshape.brow.innerUp": 0.0741
+      },
+      "t": 2400,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2,
+        "face.blendshape.mouth.smileLeft": 0.9,
+        "face.blendshape.mouth.smileRight": 0.9252,
+        "face.blendshape.jaw.open": 0.0773,
+        "face.blendshape.brow.innerUp": 0.0542
+      },
+      "t": 2800,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2311,
+        "face.blendshape.mouth.smileLeft": 0.9259,
+        "face.blendshape.mouth.smileRight": 0.9012,
+        "face.blendshape.jaw.open": 0.0255,
+        "face.blendshape.brow.innerUp": 0.0222
+      },
+      "t": 3200,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2161,
+        "face.blendshape.mouth.smileLeft": 0.8739,
+        "face.blendshape.mouth.smileRight": 0.8735,
+        "face.blendshape.jaw.open": 0.0475,
+        "face.blendshape.brow.innerUp": 0.0738
+      },
+      "t": 3600,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.1804,
+        "face.blendshape.mouth.smileLeft": 0.9005,
+        "face.blendshape.mouth.smileRight": 0.9255,
+        "face.blendshape.jaw.open": 0.0771,
+        "face.blendshape.brow.innerUp": 0.0537
+      },
+      "t": 4000,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.1752,
+        "face.blendshape.mouth.smileLeft": 0.9256,
+        "face.blendshape.mouth.smileRight": 0.9007,
+        "face.blendshape.jaw.open": 0.0252,
+        "face.blendshape.brow.innerUp": 0.0224
+      },
+      "t": 4400,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2066,
+        "face.blendshape.mouth.smileLeft": 0.8736,
+        "face.blendshape.mouth.smileRight": 0.8737,
+        "face.blendshape.jaw.open": 0.048,
+        "face.blendshape.brow.innerUp": 0.0741
+      },
+      "t": 4800,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2,
+        "face.blendshape.mouth.smileLeft": 0.05,
+        "face.blendshape.mouth.smileRight": 0.0752,
+        "face.blendshape.jaw.open": 0.6773,
+        "face.blendshape.brow.innerUp": 0.9042
+      },
+      "t": 5200,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2311,
+        "face.blendshape.mouth.smileLeft": 0.0759,
+        "face.blendshape.mouth.smileRight": 0.0512,
+        "face.blendshape.jaw.open": 0.6255,
+        "face.blendshape.brow.innerUp": 0.8722
+      },
+      "t": 5600,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2161,
+        "face.blendshape.mouth.smileLeft": 0.0239,
+        "face.blendshape.mouth.smileRight": 0.0235,
+        "face.blendshape.jaw.open": 0.6475,
+        "face.blendshape.brow.innerUp": 0.9238
+      },
+      "t": 6000,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.1804,
+        "face.blendshape.mouth.smileLeft": 0.0505,
+        "face.blendshape.mouth.smileRight": 0.0755,
+        "face.blendshape.jaw.open": 0.6771,
+        "face.blendshape.brow.innerUp": 0.9037
+      },
+      "t": 6400,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.1752,
+        "face.blendshape.mouth.smileLeft": 0.0756,
+        "face.blendshape.mouth.smileRight": 0.0507,
+        "face.blendshape.jaw.open": 0.6252,
+        "face.blendshape.brow.innerUp": 0.8724
+      },
+      "t": 6800,
+      "cue": "faces-yours"
+    },
+    {
+      "vector": {
+        "face.head.scale": 0.2066,
+        "face.blendshape.mouth.smileLeft": 0.0236,
+        "face.blendshape.mouth.smileRight": 0.0237,
+        "face.blendshape.jaw.open": 0.648,
+        "face.blendshape.brow.innerUp": 0.9241
+      },
+      "t": 7200,
+      "cue": "faces-yours"
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat-1",
+      "label": "smile",
+      "members": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ]
+    },
+    {
+      "id": "cat-2",
+      "label": "surprise",
+      "members": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    }
+  ]
+}

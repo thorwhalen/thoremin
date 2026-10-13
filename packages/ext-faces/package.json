@@ -10,14 +10,18 @@
     "./app/models": "./src/app/models.ts",
     "./app/sessionStore": "./src/app/sessionStore.ts",
     "./app/sources": "./src/app/sources.ts",
+    "./app/testStore": "./src/app/testStore.ts",
     "./app/thumbnails": "./src/app/thumbnails.ts",
     "./app/videoTake": "./src/app/videoTake.ts",
     "./lazy": "./src/lazy.ts",
     "./lazy_ui": "./src/lazy_ui.tsx",
     "./lib/carving": "./src/lib/carving.ts",
+    "./lib/corrections": "./src/lib/corrections.ts",
+    "./lib/live": "./src/lib/live.ts",
     "./lib/synthetic": "./src/lib/synthetic.ts",
     "./lib/take": "./src/lib/take.ts",
     "./panels/FaceSessionPanel": "./src/panels/FaceSessionPanel.tsx",
+    "./panels/TestAndTune": "./src/panels/TestAndTune.tsx",
     "./ui": "./src/ui.tsx"
   },
   "dependencies": {
