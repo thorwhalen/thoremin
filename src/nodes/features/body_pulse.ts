@@ -12,17 +12,18 @@
  * autocorrelate far better than speeds: the body research map §4.2). The default is
  * the **stride**: the signed horizontal distance between the ankles, which swings once
  * per step cycle. Measured on the real dancer (`video_body_que_calor`, 129.2 bpm;
- * `test/body_pulse.test.ts`): the stride repeats once per BAR (1.86 s) in every
- * analysis window, while the head and the hips repeat once per six beats (2.79 s), a
- * level the follower reports honestly but one that sits on no power-of-two of the beat.
- * The head (the nod) and the hips (the bounce) stay selectable for a dancer who marks
- * the pulse in place. No octave is assumed: the period is whatever level the channel
+ * `test/body_pulse.test.ts`): the stride repeats once per BAR (1.86 s), with an
+ * autocorrelation strength of 0.76 (median), while the head and the hips show only a
+ * weak periodicity (around six beats, at the noise floor) and the follower mostly
+ * declines to report one. The head (the nod) and the hips (the bounce) stay selectable
+ * for a dancer who marks the pulse in place rather than with the feet. No octave is assumed: the period is whatever level the channel
  * repeats at, and the song's grid is related to it downstream.
  *
- * An absent body resets the follower (a dancer who steps out and back does not carry a
- * stale tempo); a frame that is the same object as last tick (the engine ticking faster
- * than inference) is not a new sample; a landmark below `minVisibility` is fed as NaN
- * (not observed). Time is the frame's capture stamp where it shares the engine's base
+ * An absent body, or a landmark below `minVisibility`, is fed as NaN (not observed):
+ * the follower keeps its lock across a missed detection and starts over by itself after
+ * half a window without one, so a dancer who steps out and back does not carry a stale
+ * tempo. A frame that is the same object as last tick (the engine ticking faster than
+ * inference) is not a new sample. Time is the frame's capture stamp where it shares the engine's base
  * (`frameTime`), else the tick.
  */
 import { z } from 'zod';
@@ -94,15 +95,13 @@ export const bodyPulseNode = defineNode<Params>({
     return {
       process(inputs, ctx) {
         const frame = inputs.body as BodyFrame | undefined;
-        if (!frame || !frame.present || frame.landmarks.length < 33) {
-          if (lastFrame !== undefined) follower.reset();
-          lastFrame = undefined;
-          last = UNKNOWN_PULSE;
-          return { pulse: last };
-        }
-        if (frame === lastFrame) return { pulse: last };
+        if (frame === lastFrame && frame !== undefined) return { pulse: last };
         lastFrame = frame;
-        last = follower.feed(frameTime(frame, ctx), pulseChannelValue(frame, p.channel, p.minVisibility));
+        // An absent body is "not observed" (NaN), not a reset: the model misses a pose
+        // for a frame now and then, and the follower starts over by itself only after
+        // a gap of half its window.
+        const seen = frame !== undefined && frame.present && frame.landmarks.length >= 33;
+        last = follower.feed(frameTime(frame, ctx), seen ? pulseChannelValue(frame, p.channel, p.minVisibility) : NaN);
         return { pulse: last };
       },
     };

@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
-import type { PulseState } from '@thoremin/ictus';
+import { PULSE_TRUSTED_CONFIDENCE, type PulseState } from '@thoremin/ictus';
 import { bodyPulseNode, bodyFeatureVectorNode, createCoreRegistry, pulseChannelValue, type BodyFrame } from '@/nodes';
 import { defaultGraph, branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
@@ -45,12 +45,13 @@ describe('the real dancer (video_body_que_calor, 129.2 bpm)', () => {
 
   it('the stride (the default) repeats once per BAR: the level, the period and the anchors sit on the bar', async () => {
     const states = await replay();
-    // After the first six seconds (a window of three bars), every confident tick.
-    // Measured with the shipped defaults: 410 of the last 420 ticks are confident, all
-    // with the level within 6 % of the bar and 98 % with the prior's period there; the
-    // 9 anchors' resultant against the bar grid is 0.90 (chance for n = 9 is 0.33).
+    // After the first six seconds (a window of three bars), every tick with confidence
+    // 0.2 or more (no noise channel reaches it: test/ictus_pulse.test.ts). Measured with
+    // the shipped defaults: nearly every late tick is that confident, all with the level
+    // within 6 % of the bar and the prior's period there; the anchors' resultant
+    // against the bar grid is about 0.9 (chance for n = 9 is 0.33).
     const late = states.slice(6 * 30);
-    const confident = late.filter((s) => s.confidence > 0);
+    const confident = late.filter((s) => s.confidence >= PULSE_TRUSTED_CONFIDENCE);
     expect(confident.length / late.length).toBeGreaterThan(0.9);
     expect(confident.every((s) => near(s.level, BAR))).toBe(true);
     expect(confident.filter((s) => near(s.period, BAR)).length / confident.length).toBeGreaterThan(0.9);
@@ -62,13 +63,18 @@ describe('the real dancer (video_body_que_calor, 129.2 bpm)', () => {
     expect(states.at(-1)!.tempo).toBeLessThan(35);
   });
 
-  it('the head repeats once per SIX beats, a level no power of two of the beat reaches (why no octave is assumed)', async () => {
-    const confident = (await replay({ channel: 'head' })).slice(6 * 30).filter((s) => s.confidence > 0);
-    expect(confident.length).toBeGreaterThan(100);
-    // Measured: 83 % at six beats, 15 % on any power-of-two multiple of the beat.
-    expect(confident.filter((s) => near(s.level, 6 * BEAT)).length / confident.length).toBeGreaterThan(0.7);
-    const pow2 = confident.filter((s) => [0.5, 1, 2, 4, 8].some((k) => near(s.level, k * BEAT)));
-    expect(pow2.length / confident.length).toBeLessThan(0.3);
+  it('the head and the hips are at the noise floor on this dancer: the follower mostly declines to report a pulse', async () => {
+    for (const channel of ['head', 'hip']) {
+      const late = (await replay({ channel })).slice(6 * 30);
+      expect(late.filter((s) => s.confidence >= PULSE_TRUSTED_CONFIDENCE).length / late.length, channel).toBeLessThan(0.05);
+    }
+  });
+
+  it('one missed detection does not cost the lock', async () => {
+    const holed = frames.map((f, i) => (i === 300 ? { ...f, present: false, landmarks: [], visibility: [] } : f));
+    const out = await replayNode(bodyPulseNode.make(bodyPulseNode.params.parse({})), { body: holed }, { dt: 1 / 30 });
+    const after = out.slice(301).map((o) => o.pulse as PulseState);
+    expect(after.filter((s) => s.confidence >= PULSE_TRUSTED_CONFIDENCE).length / after.length).toBeGreaterThan(0.95);
   });
 });
 
@@ -99,7 +105,7 @@ describe('the node', () => {
     expect(pulseChannelValue(hidden, 'head')).toBeCloseTo(0.6, 9);
   });
 
-  it('an absent body resets the pulse (no stale tempo when the dancer returns); a repeated frame is not a sample', () => {
+  it('a body absent for half a window starts the pulse over (no stale tempo when the dancer returns); a repeated frame is not a sample', () => {
     const h = bodyPulseNode.make(bodyPulseNode.params.parse({}));
     let last!: PulseState;
     for (let i = 0; i < 12 * 30; i++) last = (h.process({ body: frameAt(Math.sin((2 * Math.PI * i) / 30 / 1.2)) }, ctx(i / 30)) as { pulse: PulseState }).pulse;
@@ -108,9 +114,14 @@ describe('the node', () => {
     const same = frameAt(0);
     const a = (h.process({ body: same }, ctx(12)) as { pulse: PulseState }).pulse;
     expect((h.process({ body: same }, ctx(12 + 1 / 30)) as { pulse: PulseState }).pulse).toBe(a);
-    const gone = (h.process({ body: { width: W, height: H, present: false, landmarks: [], visibility: [] } }, ctx(12.1)) as { pulse: PulseState }).pulse;
+    const absent = { width: W, height: H, present: false, landmarks: [], visibility: [] };
+    // A missed frame keeps the lock...
+    expect((h.process({ body: absent }, ctx(12.1)) as { pulse: PulseState }).pulse.confidence).toBeGreaterThan(0.3);
+    // ...a gap of more than half the window (4 s) does not.
+    let gone!: PulseState;
+    for (let t = 12.2; t < 16.5; t += 1 / 30) gone = (h.process({ body: { ...absent } }, ctx(t)) as { pulse: PulseState }).pulse;
     expect(gone.confidence).toBe(0);
-    const back = (h.process({ body: frameAt(0.3) }, ctx(12.2)) as { pulse: PulseState }).pulse;
+    const back = (h.process({ body: frameAt(0.3) }, ctx(16.6)) as { pulse: PulseState }).pulse;
     expect(back.level).toBeNaN();
   });
 

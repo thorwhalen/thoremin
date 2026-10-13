@@ -4,7 +4,7 @@
  * known period and phase. The real dancer is in `test/body_pulse.test.ts`.
  */
 import { describe, it, expect } from 'vitest';
-import { createPulseFollower, acfPeaks, fitSine, refinePeriod, type PulseState } from '@thoremin/ictus';
+import { createPulseFollower, acfPeaks, fitSine, refinePeriod, PULSE_TRUSTED_CONFIDENCE, type PulseState } from '@thoremin/ictus';
 
 const HZ = 30;
 const QUARTER_FRAME = 1 / (4 * HZ);
@@ -39,6 +39,45 @@ describe('the pulse follower on a channel of known period and phase', () => {
       expect(Math.abs(gridError(s.nextBeatAt, t0, P))).toBeLessThan(QUARTER_FRAME);
     });
   }
+
+  it('fast cycles are reported at their period, off whole samples too (not at a multiple the ACF ties with)', () => {
+    for (let P = 0.31; P <= 0.6; P += 0.023) {
+      const s = run((t) => Math.cos((2 * Math.PI * t) / P), 14).at(-1)!;
+      expect(Math.abs(s.level / P - 1), `level at ${P.toFixed(3)}`).toBeLessThan(0.02);
+      expect(Math.abs(s.period / P - 1), `period at ${P.toFixed(3)}`).toBeLessThan(0.02);
+    }
+  });
+
+  it('confidence never drops on a steady cycle (anchors that are merely late do not decay it)', () => {
+    // With the prior on the live clock it fell 0.15 to 0.35 between anchors, every cycle.
+    for (const P of [1.2, 2.79]) {
+      const conf = run((t) => Math.cos((2 * Math.PI * t) / P), 30).slice(12 * HZ).map((s) => s.confidence);
+      const worstDrop = Math.min(...conf.slice(1).map((c, i) => c - conf[i]));
+      expect(worstDrop, `drop at ${P}`).toBeGreaterThan(-0.03);
+      expect(conf.at(-1)!, `final at ${P}`).toBeGreaterThan(0.8);
+    }
+  });
+
+  it('noise is not a pulse: white noise never reaches the trusted confidence, red noise rarely', () => {
+    // Red noise (a slowly wandering body) can look like a slow level for a second or two:
+    // an 8 s window cannot rule out a 2.5 s cycle seen three times. Measured: 0 % of
+    // ticks for white noise, 1 to 5 % for low-passed. A consumer holds below the trust.
+    let seed = 1;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
+    for (const a of [0, 0.8, 0.95]) {
+      let trusted = 0;
+      let ticks = 0;
+      for (let k = 0; k < 8; k++) {
+        let y = 0;
+        const xs = Array.from({ length: 30 * HZ }, () => (y = a * y + rand()));
+        const states = run((t) => xs[Math.round(t * HZ)], 30);
+        trusted += states.filter((s) => s.confidence >= PULSE_TRUSTED_CONFIDENCE).length;
+        ticks += states.length;
+      }
+      if (a === 0) expect(trusted, 'white').toBe(0);
+      else expect(trusted / ticks, `a=${a}`).toBeLessThan(0.06);
+    }
+  });
 
   it('reports nothing on a still or a random channel, and nothing before the first estimate', () => {
     const still = run(() => 1, 10);

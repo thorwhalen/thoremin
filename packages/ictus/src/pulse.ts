@@ -16,10 +16,11 @@
  * identity: a peak within `levelTolerance` of the current level is the same level and
  * refines it; any other peak is a different level, whatever its ratio, and takes over
  * only by being clearly stronger for `switchAfterS`. Nothing folds a period by two.
- * The measured reason (`test/ictus_pulse.test.ts`, the Que Calor fixture at
- * 129.2 bpm): the dancer's stride repeats once per BAR (1.86 s), and the head and hips
- * once per SIX beats (2.79 s), a level no power of two of the beat reaches; folding
- * either into a "beat range" picks a level the music does not have. Relating the
+ * The measured reason (`test/body_pulse.test.ts`, the Que Calor fixture at
+ * 129.2 bpm): the dancer's stride repeats once per BAR (1.86 s), not per beat, so a
+ * follower that folds periods into a "beat range" reports a level the dancer is not
+ * moving at; and a choreography can repeat at three or six beats as readily as at two
+ * or four, which no power of two reaches. Relating the
  * pulse to a song's grid (beat, bar, or a ratio of three) is the consumer's call, and
  * `candidates` hands it every level the channel shows.
  *
@@ -27,7 +28,7 @@
  * (for an image-y channel, y down, that is the lowest point of the movement). Pure,
  * causal and clock-free like the rest of ictus: time is the caller's, in seconds.
  */
-import { createRhythmPrior, DEFAULT_RHYTHM_PRIOR, type RhythmPriorKind } from './index';
+import { createRhythmPrior, DEFAULT_RHYTHM_PRIOR, type RhythmPriorKind } from './priors';
 import type { Anchor, MusicalTime, RhythmPrior } from './types';
 
 /** One ACF peak: a period the channel repeats at, and how strongly (normalised r). */
@@ -74,7 +75,10 @@ export interface PulseOptions {
   updateEveryS?: number;
   /** How many ACF peaks to keep in `candidates`. */
   topK?: number;
-  /** ACF strength below which no pulse is reported. */
+  /** ACF strength below which no pulse is reported. The per-lag normalisation lets
+   *  noise reach 0.2 to 0.5 at long lags (white and low-passed noise, measured in
+   *  `test/ictus_pulse.test.ts`); a real stride sits at 0.76 (median, Que Calor). The
+   *  floor makes a noise level rare; {@link PULSE_TRUSTED_CONFIDENCE} makes it harmless. */
   minStrength?: number;
   /** Relative distance within which a peak IS the current level. */
   levelTolerance?: number;
@@ -107,7 +111,7 @@ export const PULSE_DEFAULTS = {
   minSpanS: 4,
   updateEveryS: 0.25,
   topK: 4,
-  minStrength: 0.15,
+  minStrength: 0.45,
   levelTolerance: 0.06,
   nearTop: 0.9,
   switchMargin: 0.05,
@@ -116,6 +120,14 @@ export const PULSE_DEFAULTS = {
   settle: 0.25,
   anchorTrustAt: 0.5,
 } as const;
+
+/** The confidence from which a consumer should act on the pulse (follow it, gate on
+ *  it). White noise never reaches it; red noise (a slowly wandering body) does in 1 to 5 %
+ *  of ticks, as a slow level held for a second or two, because an 8 s window cannot
+ *  rule out a 2.5 s cycle seen three times (`test/ictus_pulse.test.ts`); the Que Calor
+ *  stride is above it in nearly every tick once locked. Below it, hold; and a consumer
+ *  that acts on a NEW level should want it to persist. */
+export const PULSE_TRUSTED_CONFIDENCE = 0.2;
 
 /** The state before anything is known: no level, no phase, zero confidence. */
 export const UNKNOWN_PULSE: PulseState = {
@@ -186,11 +198,12 @@ function detrend(x: readonly number[], span: number): number[] {
 
 /**
  * Normalised autocorrelation peaks with lags in [minLag, maxLag] (samples), strongest
- * first, each refined by a parabola through its neighbours. Each lag is normalised by
+ * first (all of them unless `k` says otherwise), each refined by a parabola through
+ * its neighbours. Each lag is normalised by
  * the geometric mean of the two overlapping segments' energies, so a long lag with a
  * short overlap is not penalised for the overlap it lacks.
  */
-export function acfPeaks(x: readonly number[], minLag: number, maxLag: number, k = 4): Array<{ lag: number; r: number }> {
+export function acfPeaks(x: readonly number[], minLag: number, maxLag: number, k = Infinity): Array<{ lag: number; r: number }> {
   const n = x.length;
   let mean = 0;
   for (const v of x) mean += v;
@@ -236,15 +249,30 @@ export function fitSine(x: readonly number[], t0: number, hz: number, period: nu
   const N = 4;
   const tMid = t0 + (x.length - 1) / (2 * hz);
   // Normal equations over [cos, sin, 1, t - tMid], solved by Gauss-Jordan with pivoting.
-  const m = Array.from({ length: N }, () => new Array<number>(N + 1).fill(0));
+  // The sums are accumulated in scalars and the cos/sin by rotation (no allocation and
+  // two trig calls per fit: this runs a dozen times per estimate on the main thread).
+  let cc = 0, cs = 0, c1 = 0, ct = 0, ss = 0, s1 = 0, st = 0, n1 = 0, nt = 0, tt = 0, xc = 0, xs = 0, x1 = 0, xt = 0;
+  const dc = Math.cos(w / hz);
+  const ds = Math.sin(w / hz);
+  let c = Math.cos(w * t0);
+  let sn = Math.sin(w * t0);
   for (let i = 0; i < x.length; i++) {
-    const t = t0 + i / hz;
-    const basis = [Math.cos(w * t), Math.sin(w * t), 1, t - tMid];
-    for (let r = 0; r < N; r++) {
-      for (let c = 0; c < N; c++) m[r][c] += basis[r] * basis[c];
-      m[r][N] += basis[r] * x[i];
-    }
+    const u = t0 + i / hz - tMid;
+    const v = x[i];
+    cc += c * c; cs += c * sn; c1 += c; ct += c * u;
+    ss += sn * sn; s1 += sn; st += sn * u;
+    n1 += 1; nt += u; tt += u * u;
+    xc += v * c; xs += v * sn; x1 += v; xt += v * u;
+    const c2 = c * dc - sn * ds;
+    sn = sn * dc + c * ds;
+    c = c2;
   }
+  const m = [
+    [cc, cs, c1, ct, xc],
+    [cs, ss, s1, st, xs],
+    [c1, s1, n1, nt, x1],
+    [ct, st, nt, tt, xt],
+  ];
   for (let col = 0; col < N; col++) {
     let piv = col;
     for (let r = col + 1; r < N; r++) if (Math.abs(m[r][col]) > Math.abs(m[piv][col])) piv = r;
@@ -299,13 +327,18 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   let challenger: { period: number; since: number } | null = null;
   let phi = NaN; // the fundamental's phase angle at the level, from the last estimate
   let lastAnchorT = NaN;
+  let priorT = -Infinity; // how far the prior has been advanced (a delayed clock)
   let current: PulseState = UNKNOWN_PULSE;
 
-  /** The shortest peak within `nearTop` of the strongest (see {@link PulseOptions.nearTop}). */
+  /** The shortest peak within `nearTop` of the strongest (see {@link PulseOptions.nearTop}),
+   *  chosen over EVERY peak: a fast cycle's multiples all score near the top, so a cut
+   *  to the strongest few first can drop the period itself. */
   const fundamental = (peaks: readonly PulseLevel[]): PulseLevel | undefined => {
-    const best = peaks[0];
+    let best: PulseLevel | undefined;
+    for (const p of peaks) if (!best || p.r > best.r) best = p;
     if (!best) return undefined;
-    return peaks.filter((p) => p.r >= o.nearTop * best.r).reduce((a, b) => (b.period < a.period ? b : a));
+    const floor = o.nearTop * best.r;
+    return peaks.filter((p) => p.r >= floor).reduce((a, b) => (b.period < a.period ? b : a));
   };
 
   const forgetLevel = () => {
@@ -314,6 +347,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     challenger = null;
     phi = NaN;
     lastAnchorT = NaN;
+    priorT = -Infinity;
     if (typeof priorOpt === 'object') prior.reset();
     else prior = makePrior();
   };
@@ -334,9 +368,12 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     const n = Math.max(4, Math.floor(Math.min(o.windowS, span) * o.gridHz));
     const { t0, x } = resample(samples, o.gridHz, n);
     const d = detrend(x, o.detrendS * o.gridHz);
-    const peaks = acfPeaks(d, Math.round(o.minPeriodS * o.gridHz), Math.round(o.maxPeriodS * o.gridHz), o.topK);
-    candidates = peaks.map((p) => ({ period: refinePeriod(x, t0, o.gridHz, p.lag / o.gridHz), r: p.r }));
-    const top = fundamental(candidates);
+    const peaks: PulseLevel[] = acfPeaks(d, Math.round(o.minPeriodS * o.gridHz), Math.round(o.maxPeriodS * o.gridHz)).map((p) => ({ period: p.lag / o.gridHz, r: p.r }));
+    candidates = peaks.slice(0, o.topK);
+    // Only the levels in play are measured by the sine fit (the costly part).
+    const measure = (p: PulseLevel): PulseLevel => ({ period: refinePeriod(x, t0, o.gridHz, p.period), r: p.r });
+    const found = fundamental(peaks);
+    const top = found && measure(found);
     if (!top || top.r < o.minStrength) {
       if (Number.isFinite(level)) forgetLevel();
       strength = top?.r ?? 0;
@@ -347,8 +384,9 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       strength = top.r;
     } else {
       // The same level is a peak within tolerance of it: never a multiple of it.
-      const same = candidates.find((c) => Math.abs(c.period / level - 1) < o.levelTolerance);
-      const other = same === top ? undefined : top;
+      const near = peaks.find((c) => Math.abs(c.period / level - 1) < o.levelTolerance);
+      const same = near && (near === found ? top : measure(near));
+      const other = near === found ? undefined : top;
       // A challenger is the fundamental of this estimate when it is not the current
       // level: either a shorter near-top lag (the lock sat on a multiple) or a clearly
       // stronger peak. It takes over only by persisting.
@@ -382,19 +420,39 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     return (phi + 2 * Math.PI * k) / w;
   };
 
+  /**
+   * The prior runs on a DELAYED clock: an anchor reaches it a settle (plus up to an
+   * estimate and a frame) after its own time, so a prior advanced to now would find
+   * every anchor overdue and decay its confidence once per cycle. Advanced to
+   * `now - lag` instead, it sees each anchor when it is due; `publish` extrapolates
+   * its state to now at its own tempo, which is what `beatAt` does for any consumer.
+   */
+  const priorLag = (): number => o.settle * level + o.updateEveryS + 1 / o.gridHz;
+  const advancePrior = (t: number) => {
+    const target = t - priorLag();
+    if (target > priorT) {
+      priorT = target;
+      prior.advance(target);
+    }
+  };
+
   const publish = (t: number): PulseState => {
     if (!Number.isFinite(level)) return { ...UNKNOWN_PULSE, t, candidates };
     const s = prior.state();
     const locked = s.state === 'running' && s.anchors > 0;
+    const beat = locked ? s.beat + (t - s.t) / s.period : s.beat;
+    const phase = beat - Math.floor(beat);
     // Before the prior locks, its period is its own initial guess: report the level.
     return {
       ...s,
+      t,
+      beat,
       period: locked ? s.period : level,
       tempo: locked ? s.tempo : 60 / level,
       beatsPerBar: 1,
       beatInBar: 0,
-      phase: locked ? s.phase : NaN,
-      nextBeatAt: locked ? s.nextBeatAt : NaN,
+      phase: locked ? phase : NaN,
+      nextBeatAt: locked ? t + (1 - phase) * s.period : NaN,
       confidence: locked ? Math.max(0, Math.min(1, strength)) * s.confidence : 0,
       level,
       strength: Math.max(0, Math.min(1, strength)),
@@ -414,7 +472,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
           reset();
           lastT = keep;
         }
-        if (Number.isFinite(level)) prior.advance(t);
+        if (Number.isFinite(level)) advancePrior(t);
         current = publish(t);
         return current;
       }
@@ -438,7 +496,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
         const anchor: Anchor = { t: tau, confidence: Math.min(1, strength / o.anchorTrustAt), strength, sharpness: NaN, lateral: 0 };
         prior.update(anchor);
       }
-      if (Number.isFinite(level)) prior.advance(t);
+      if (Number.isFinite(level)) advancePrior(t);
       current = publish(t);
       return current;
     },

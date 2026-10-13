@@ -395,6 +395,10 @@ function relationFeatures(): BodyFeature[] {
 
 /** The fraction of a pulse cycle after phase 0 during which `body.rhythm.gate` is 1. */
 const PULSE_GATE = 0.15;
+/** The pulse confidence below which the gate stays shut (a still body's jitter has a
+ *  period too, a weak one). ictus's `PULSE_TRUSTED_CONFIDENCE`, restated: the SDK does
+ *  not depend on the inference package. */
+const PULSE_GATE_CONFIDENCE = 0.2;
 
 /** The dancer's pulse (#186 PR F), read from `body-pulse` through the context. The
  *  period is the level the body repeats at, never folded to a beat, so the tempo is
@@ -406,7 +410,7 @@ function rhythmFeatures(): BodyFeature[] {
     { id: 'body.rhythm.tempo', group: 'body.rhythm', source: 'body', controllability: 'moderate', description: 'Cycles of the dancer\'s movement per minute (not the song\'s beats per minute)', compute: (c) => read(c, 'tempo') },
     { id: 'body.rhythm.phase', group: 'body.rhythm', source: 'body', range: [0, 1], circular: true, controllability: 'moderate', description: 'Position within the current cycle, 0 at its anchor .. 1', compute: (c) => read(c, 'phase') },
     { id: 'body.rhythm.confidence', group: 'body.rhythm', source: 'body', range: [0, 1], controllability: 'involuntary', description: 'How much to trust the pulse (autocorrelation strength times the lock)', compute: (c) => read(c, 'confidence') },
-    { id: 'body.rhythm.gate', group: 'body.rhythm', source: 'body', range: [0, 1], controllability: 'moderate', description: `A pulse-synchronous gate: 1 for the first ${PULSE_GATE * 100} % of each cycle, else 0`, compute: (c) => { const ph = read(c, 'phase'); return Number.isFinite(ph) ? bool(ph < PULSE_GATE) : NaN; } },
+    { id: 'body.rhythm.gate', group: 'body.rhythm', source: 'body', range: [0, 1], controllability: 'moderate', description: `A pulse-synchronous gate: 1 for the first ${PULSE_GATE * 100} % of each cycle while the pulse is trusted (confidence ${PULSE_GATE_CONFIDENCE} or more), else 0`, compute: (c) => { const ph = read(c, 'phase'); return Number.isFinite(ph) ? bool(ph < PULSE_GATE && read(c, 'confidence') >= PULSE_GATE_CONFIDENCE) : NaN; } },
   ];
 }
 
