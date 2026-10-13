@@ -221,3 +221,159 @@ export function suggestK(hierarchy: Hierarchy, opts: { max?: number } = {}): num
   }
   return bestK;
 }
+
+/**
+ * A hierarchy that may stop short of one root: what {@link buildConstrainedForest} builds.
+ * `size` counts LEAVES (a must-link group is one leaf), so the finest cut has `size` clusters
+ * and the coarsest has `roots.length`.
+ */
+export interface Forest {
+  roots: TreeNode[];
+  /** Merge heights in the order they occurred, ascending. */
+  heights: number[];
+  /** How many leaves the forest was built from. */
+  size: number;
+}
+
+export interface ConstraintOptions {
+  /**
+   * Groups of point indices that must end in one cluster, each a DIFFERENT category: a group is
+   * one leaf (must-link), and two clusters holding different groups never merge (cannot-link).
+   * Disjoint; an index outside `vectors` or in two groups throws.
+   */
+  mustLink?: readonly (readonly number[])[];
+}
+
+/**
+ * The agglomerative hierarchy of {@link buildHierarchy} under pairwise constraints (#385 E4): a
+ * player's moves, kept as pins, are must-link (the holds pinned to one category start as one
+ * leaf) and cannot-link (clusters holding holds pinned to different categories never merge).
+ * Merging stops when no allowed pair is left, so the result is a forest with one root per
+ * pinned category (one root when nothing is pinned, the same tree `buildHierarchy` builds).
+ *
+ * Average linkage over POINTS, so a group of three counts three times: a group-to-cluster
+ * distance is the mean of its point-to-point distances, and the Lance-Williams update carries
+ * the counts. A forbidden pair has distance `Infinity`, and the update keeps it so: a cluster
+ * that took a group in inherits that group's `Infinity` to every other group. Deterministic.
+ */
+export function buildConstrainedForest(
+  vectors: readonly FeatureVector[],
+  features: readonly string[],
+  weights: Record<string, number> = {},
+  { mustLink = [] }: ConstraintOptions = {},
+): Forest {
+  const n = vectors.length;
+  const groupOf = new Array<number>(n).fill(-1);
+  mustLink.forEach((g, gi) => {
+    for (const j of g) {
+      if (!Number.isInteger(j) || j < 0 || j >= n) throw new Error(`buildConstrainedForest: index ${j} is not a point`);
+      if (groupOf[j] !== -1) throw new Error(`buildConstrainedForest: point ${j} is in two groups`);
+      groupOf[j] = gi;
+    }
+  });
+  // Leaves: each non-empty group, then every free point, in order of first member.
+  const leaves: { members: number[]; group: number }[] = [];
+  mustLink.forEach((g, gi) => {
+    if (g.length > 0) leaves.push({ members: [...g].sort((a, b) => a - b), group: gi });
+  });
+  for (let j = 0; j < n; j++) if (groupOf[j] === -1) leaves.push({ members: [j], group: -1 });
+  leaves.sort((a, b) => a.members[0] - b.members[0]);
+  const m = leaves.length;
+  if (m === 0) return { roots: [], heights: [], size: 0 };
+
+  const point: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const dist = weightedDistance(vectors[i], vectors[j], features, weights);
+      point[i][j] = dist;
+      point[j][i] = dist;
+    }
+  }
+  const nodes: (TreeNode | null)[] = leaves.map((l) => ({ members: l.members, height: 0 }));
+  const counts = leaves.map((l) => l.members.length);
+  const d: number[][] = Array.from({ length: m }, () => new Array(m).fill(Infinity));
+  for (let a = 0; a < m; a++) {
+    for (let b = a + 1; b < m; b++) {
+      let dist = Infinity;
+      if (leaves[a].group === -1 || leaves[b].group === -1) {
+        let s = 0;
+        for (const i of leaves[a].members) for (const j of leaves[b].members) s += point[i][j];
+        dist = s / (counts[a] * counts[b]);
+      }
+      d[a][b] = dist;
+      d[b][a] = dist;
+    }
+  }
+
+  const heights: number[] = [];
+  for (;;) {
+    let bi = -1;
+    let bj = -1;
+    let best = Infinity;
+    for (let i = 0; i < m; i++) {
+      if (!nodes[i]) continue;
+      for (let j = i + 1; j < m; j++) {
+        if (nodes[j] && d[i][j] < best) {
+          best = d[i][j];
+          bi = i;
+          bj = j;
+        }
+      }
+    }
+    if (bi < 0) break; // no allowed pair left
+    const a = nodes[bi]!;
+    const b = nodes[bj]!;
+    heights.push(best);
+    const na = counts[bi];
+    const nb = counts[bj];
+    for (let k = 0; k < m; k++) {
+      if (k === bi || k === bj || !nodes[k]) continue;
+      const nd = (na * d[bi][k] + nb * d[bj][k]) / (na + nb);
+      d[bi][k] = nd;
+      d[k][bi] = nd;
+    }
+    nodes[bi] = { members: [...a.members, ...b.members], height: best, left: a, right: b };
+    counts[bi] = na + nb;
+    nodes[bj] = null;
+  }
+  return { roots: nodes.filter((x): x is TreeNode => x !== null), heights, size: m };
+}
+
+/** The k a forest can be cut at: from one cluster per root to one per leaf. */
+export function forestRange(forest: Forest): { minK: number; maxK: number } {
+  return { minK: forest.roots.length, maxK: forest.size };
+}
+
+/**
+ * Cut a forest into `k` clusters, `k` clamped to {@link forestRange}: start from the roots and
+ * split the tallest splittable node until there are `k`, as {@link cutAt} does for one tree.
+ * A must-link leaf is never split. Clusters are ordered by first member.
+ */
+export function cutForest(forest: Forest, k: number): number[][] {
+  const { minK, maxK } = forestRange(forest);
+  if (maxK === 0) return [];
+  const want = Math.max(minK, Math.min(maxK, Math.floor(Number.isFinite(k) ? k : minK)));
+  const open: TreeNode[] = [...forest.roots];
+  while (open.length < want) {
+    let idx = -1;
+    let tallest = -Infinity;
+    for (let i = 0; i < open.length; i++) {
+      const nd = open[i];
+      if (nd.left && nd.right && nd.height > tallest) {
+        tallest = nd.height;
+        idx = i;
+      }
+    }
+    if (idx < 0) break;
+    const [node] = open.splice(idx, 1);
+    open.push(node.left!, node.right!);
+  }
+  return open.map((nd) => [...nd.members].sort((x, y) => x - y)).sort((x, y) => x[0] - y[0]);
+}
+
+/** {@link suggestK} for a forest, clamped to its range. A suggestion, as there. */
+export function suggestForestK(forest: Forest, opts: { max?: number } = {}): number {
+  const { minK, maxK } = forestRange(forest);
+  if (maxK === 0) return 0;
+  return Math.max(minK, Math.min(maxK, suggestK({ heights: forest.heights, size: forest.size }, opts)));
+}

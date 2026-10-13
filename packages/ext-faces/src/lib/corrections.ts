@@ -9,8 +9,12 @@
  * - {@link addSample}: "this face is X". The live face (the raw vector, never the tuned one: the
  *   tuning is about the room, the sample is about the face) joins category X.
  * - {@link moveSample}: a sample in the wrong category moves to another, or out of every
- *   category (`null`: neutral, or set aside when strangers read as the nearest category). A category keeps at least one face: moving its last one away is refused
- *   (an empty category would have no centroid).
+ *   category (`null`: neutral, or set aside when strangers read as the nearest category). A
+ *   category keeps at least one face: moving its last one away is refused (merge it instead).
+ *
+ * Both are the player's placements, so both are PINS (#385 E4): a re-cut keeps them where they
+ * were put. The rest of the sorting edits (several holds at once, merge, split, delete) are the
+ * SDK's `enroll/sorting`.
  *
  * Retraining from new faces in bulk is P1's `mergeSession` (a new take merged in); the store
  * calls it directly.
@@ -23,6 +27,7 @@ import {
   toSample,
   type PersonalCategorizer,
 } from '@thoremin/sdk/enroll/categorizer';
+import { moveHolds } from '@thoremin/sdk/enroll/sorting';
 import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
@@ -34,9 +39,6 @@ export const CORRECTION_CUE = correctionCue(faceModality);
 export type CorrectionResult = { ok: true; categorizer: PersonalCategorizer } | { ok: false; error: string };
 
 const named = (c: PersonalCategorizer, id: string) => c.categories.find((x) => x.id === id);
-
-/** The members of `ids` in sample order (how every list of sample ids is kept). */
-const inSampleOrder = (c: PersonalCategorizer, ids: ReadonlySet<string>): string[] => c.samples.flatMap((s) => (ids.has(s.id) ? [s.id] : []));
 
 /** Add a live face (or the modality's part) to category `id` as a new sample, under the new
  *  sample's own `sampleId` (#385 E3: unique, so it never takes another hold's still). */
@@ -61,6 +63,8 @@ export function addSample(
       ...categorizer,
       samples: [...categorizer.samples, sample],
       categories: categorizer.categories.map((c) => (c.id === id ? { ...c, members: [...c.members, sampleId] } : c)),
+      // "This face is X" is the player's placement: a pin (#385 E4).
+      pins: { ...(categorizer.pins ?? {}), [sampleId]: id },
     }),
   };
 }
@@ -68,6 +72,7 @@ export function addSample(
 /**
  * Move sample `index` to category `to`, or out of every category with `null`: into `neutral`
  * when strangers read as neutral (it is "none of these"), else set aside (kept, not trained).
+ * A pin, as every move (#385 E4: `moveHolds`), so a re-cut keeps it there.
  */
 export function moveSample(categorizer: PersonalCategorizer, index: number, to: string | null): CorrectionResult {
   if (!Number.isInteger(index) || index < 0 || index >= categorizer.samples.length) return { ok: false, error: `no sample ${index}` };
@@ -75,25 +80,7 @@ export function moveSample(categorizer: PersonalCategorizer, index: number, to: 
   const id = categorizer.samples[index].id;
   const from = categorizer.categories.find((c) => c.members.includes(id));
   if (from?.id === to || (!from && to === null)) return { ok: true, categorizer };
-  if (from && from.members.length === 1) return { ok: false, error: `"${from.label || from.id}" would be left with no face; a category keeps at least one` };
-  const bin = categorizer.strangers === 'neutral' ? NEUTRAL_BIN : ASIDE_BIN;
-  const without = (ids: readonly string[] | undefined) => (ids ?? []).filter((j) => j !== id);
-  const neutral = new Set(without(categorizer.neutral));
-  const aside = new Set(without(categorizer.aside));
-  if (to === null) (bin === NEUTRAL_BIN ? neutral : aside).add(id);
-  const { aside: _aside, ...rest } = categorizer;
-  void _aside;
-  return {
-    ok: true,
-    categorizer: PersonalCategorizerSchema.parse({
-      ...rest,
-      categories: categorizer.categories.map((c) =>
-        c.id === to ? { ...c, members: inSampleOrder(categorizer, new Set([...c.members, id])) } : c.id === from?.id ? { ...c, members: c.members.filter((j) => j !== id) } : c,
-      ),
-      neutral: inSampleOrder(categorizer, neutral),
-      ...(aside.size > 0 ? { aside: inSampleOrder(categorizer, aside) } : {}),
-    }),
-  };
+  return moveHolds(categorizer, [id], to ?? (categorizer.strangers === 'neutral' ? NEUTRAL_BIN : ASIDE_BIN));
 }
 
 /** The category that claims sample `index`, or null. */

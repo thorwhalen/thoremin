@@ -200,7 +200,7 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
         <div className="space-y-1" data-testid="face-categorizer-degrees">
           <p className="text-[10px] leading-relaxed text-white/40">
             The chord each of your faces plays. Auto plays what this instrument gives the expression the face stands in for. The choices follow the
-            category's place (first, second, ...): after re-carving this categorizer, check them again.
+            category's number: one you named or placed faces in keeps its number when the categorizer is re-cut, the others are numbered again, so check them after a re-cut.
           </p>
           {play.categories.map((c) => {
             const slot = CATEGORY_SLOTS.includes(c.id) ? c.id : null;

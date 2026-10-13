@@ -1,7 +1,7 @@
 /**
  * The face session store end to end (#330 P2), with the synthetic face and in-memory stores:
  * record (rest, then faces), stop and carve at the suggested k, switch neutral in and out of the
- * categories, re-cut k, rename (one click; the general model's names re-matched around it),
+ * categories, re-cut k (a reopened one too, #385 E4), rename (one click; the general model's names re-matched around it),
  * save several, reopen one with its stills from the store, and delete (its stills go with it
  * unless another saved categorizer names the same holds). #385 E3: stills are taken at capture,
  * one per hold, keyed by the hold's id.
@@ -128,7 +128,13 @@ describe('the face session store', () => {
     expect(s().phase).toBe('saved');
     expect(s().view!.k).toBe(3);
     expect(s().view!.categories.map((c) => c.label)).toEqual(expect.arrayContaining(['grin', 'happy']));
-    s().setK(5); // not without the take
+    // A reopened categorizer re-cuts from its samples (#385 E4), its names kept; undo is exact.
+    const opened = s().working;
+    s().setK(5);
+    expect(s().view!.k).toBe(5);
+    expect(s().view!.categories.map((c) => c.label)).toEqual(expect.arrayContaining(['grin', 'happy']));
+    s().undo();
+    expect(s().working).toBe(opened);
     expect(s().view!.k).toBe(3);
     // Rename and save in the saved view.
     s().rename(s().view!.categories[0].id, 'smirk');
