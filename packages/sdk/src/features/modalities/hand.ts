@@ -21,7 +21,8 @@
 import type { CarveModality, FeatureSpace, ModalityOptions, ModalityWords } from '../../enroll/modality';
 import type { GeneralLabeling } from '../../enroll/modality';
 import type { FeatureVector } from '../../enroll/types';
-import { HAND_SIDE_FEATURES } from '../catalog';
+import { buildHandCtx, HAND_SIDE_FEATURES, resolveSide } from '../catalog';
+import type { HandsFrame } from '../../nodes/domain';
 import { handWords } from './hand_words';
 
 /** The axes a hand-shape feature must be declared invariant to. */
@@ -178,3 +179,30 @@ export const handModality: CarveModality = {
   nuisance: {},
   describe: handWords,
 };
+
+/** Options for {@link handsFrameVector}: as the live `hand-feature-vector` node reads a frame. */
+export interface HandsFrameVectorOptions {
+  /** Mirror x (the selfie view). Default true, as the node. */
+  mirrorX?: boolean;
+  /** Swap the reported handedness (the mirrored webcam reports the opposite hand). Default true. */
+  mirrorHandedness?: boolean;
+}
+
+/**
+ * The merged vector's hand keys for one frame (`hand.<side>.<id>`, every per-hand feature), as
+ * the live vector carries them: what a recorded hands fixture or a scripted hand is pushed
+ * through the hand categorizer as. The pair features are not computed (no hand shape reads them).
+ */
+export function handsFrameVector(frame: HandsFrame, options: HandsFrameVectorOptions = {}): FeatureVector {
+  const mirrorX = options.mirrorX ?? true;
+  const out: FeatureVector = {};
+  const seen = new Set<string>();
+  for (const hand of frame.hands) {
+    const side = resolveSide(hand.handedness, options.mirrorHandedness ?? true);
+    if (seen.has(side)) continue;
+    seen.add(side);
+    const ctx = buildHandCtx(hand, frame, { mirrorX, side });
+    for (const f of HAND_SIDE_FEATURES) out[`hand.${side}.${f.id}`] = f.compute(ctx);
+  }
+  return out;
+}

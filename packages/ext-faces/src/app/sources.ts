@@ -16,6 +16,7 @@ import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
 import { camera } from '@thoremin/sdk-ui/host';
 import { syntheticExpressionAt, syntheticFaceVector } from '../lib/synthetic';
+import { syntheticHandShapeAt, syntheticHandVector } from '../lib/synthetic_hand';
 
 export interface FaceSource {
   readonly kind: 'live' | 'synthetic';
@@ -27,15 +28,30 @@ export interface FaceSource {
   dispose(): void;
 }
 
-/** The URL parameter that selects the synthetic source. */
-export const SOURCE_PARAM = 'faces.source';
+/** The URL parameter that selects the synthetic source, for every carve tool (#385 E8). */
+export const SOURCE_PARAM = 'carve.source';
+/** The face tool's parameter before #385 E8, still honoured (an alias of {@link SOURCE_PARAM}). */
+export const LEGACY_SOURCE_PARAM = 'faces.source';
+
+/** A scripted part: its vector at `ms` after the start (`frame` seeds the jitter), and the name
+ *  and colour its video frame shows. */
+export interface SyntheticScript {
+  vectorAt(ms: number, frame: number): FeatureVector;
+  labelAt(ms: number): { name: string; color: string };
+}
+
+/** The scripted face (`../lib/synthetic.ts`). */
+export const FACE_SCRIPT: SyntheticScript = { vectorAt: syntheticFaceVector, labelAt: syntheticExpressionAt };
+/** The scripted hand (`../lib/synthetic_hand.ts`). */
+export const HAND_SCRIPT: SyntheticScript = { vectorAt: syntheticHandVector, labelAt: syntheticHandShapeAt };
 
 export function liveSource(): FaceSource {
   return { kind: 'live', read: readLiveVector, video: () => camera().stream(), dispose: () => {} };
 }
 
-/** The scripted face, timed from when it is created; its video is a 160x120 canvas at 15 fps. */
-export function syntheticSource(now: () => number = () => performance.now()): FaceSource {
+/** A scripted part (the face by default), timed from when it is created; its video is a 160x120
+ *  canvas at 15 fps naming what it shows. */
+export function syntheticSource(now: () => number = () => performance.now(), script: SyntheticScript = FACE_SCRIPT): FaceSource {
   const start = now();
   let frame = 0;
   let canvas: HTMLCanvasElement | null = null;
@@ -44,7 +60,7 @@ export function syntheticSource(now: () => number = () => performance.now()): Fa
   const paint = () => {
     const ctx = canvas?.getContext('2d');
     if (!ctx || !canvas) return;
-    const e = syntheticExpressionAt(now() - start);
+    const e = script.labelAt(now() - start);
     ctx.fillStyle = e.color;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#fff';
@@ -56,7 +72,7 @@ export function syntheticSource(now: () => number = () => performance.now()): Fa
     kind: 'synthetic',
     read: () => {
       const t = now();
-      return { vector: syntheticFaceVector(t - start, frame++), t };
+      return { vector: script.vectorAt(t - start, frame++), t };
     },
     video() {
       if (stream) return stream;
@@ -80,7 +96,10 @@ export function syntheticSource(now: () => number = () => performance.now()): Fa
   };
 }
 
-/** The source the page asked for: synthetic when `?faces.source=synthetic`, else live. */
-export function sourceFromUrl(search: string = typeof location === 'undefined' ? '' : location.search): FaceSource {
-  return new URLSearchParams(search).get(SOURCE_PARAM) === 'synthetic' ? syntheticSource() : liveSource();
+/** The source the page asked for: synthetic (`script`, the face by default) when
+ *  `?carve.source=synthetic` (or the older `?faces.source=synthetic`), else live. */
+export function sourceFromUrl(search: string = typeof location === 'undefined' ? '' : location.search, script: SyntheticScript = FACE_SCRIPT): FaceSource {
+  const q = new URLSearchParams(search);
+  const synthetic = (q.get(SOURCE_PARAM) ?? q.get(LEGACY_SOURCE_PARAM)) === 'synthetic';
+  return synthetic ? syntheticSource(undefined, script) : liveSource();
 }

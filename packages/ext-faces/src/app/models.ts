@@ -1,5 +1,5 @@
 /**
- * The player's saved face categorizers (#330 P2): a zodal named collection
+ * The player's saved categorizers (#330 P2; every modality's since #385 E8, `./categorizers.ts`): a zodal named collection
  * (`createNamedCollectionStore`, localStorage by default, any `DataProvider` later: files, then
  * the cloud with accounts). The record carries the versioned categorizer file of P1
  * (`PersonalCategorizerSchema`: the samples are the source of truth, the model is derived), so
@@ -10,7 +10,9 @@
  */
 import { z } from 'zod';
 import { PersonalCategorizerSchema, migrateCategorizerV1, migrateCategorizerV2, v1SampleId } from '@thoremin/sdk/enroll/categorizer';
-import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import type { DataProvider, NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { CATEGORIZERS_STORAGE_KEY, createCategorizerStore } from './categorizers';
 import { QuizResultSchema } from '@thoremin/sdk/enroll/quiz';
 import { EverydayResultSchema } from '@thoremin/sdk/enroll/everyday';
 import { TuningSchema } from '../lib/live';
@@ -66,16 +68,16 @@ export const FaceModelRecordSchema = z.object({
 });
 export type FaceModelRecord = z.infer<typeof FaceModelRecordSchema>;
 
-/** localStorage key (the browser default target). */
-export const FACE_MODELS_STORAGE_KEY = 'thoremin.faceCategorizers';
+/** Where face categorizers are stored: the one collection of every modality since #385 E8 (the
+ *  face collection before it, `thoremin.faceCategorizers`, is copied once and left; see
+ *  `./categorizers.ts`). */
+export const FACE_MODELS_STORAGE_KEY = CATEGORIZERS_STORAGE_KEY;
 
-export const createFaceModelStore: (provider?: Parameters<ReturnType<typeof createNamedCollectionStore<FaceModelRecord, 'model'>>>[0]) => NamedCollectionStore<FaceModelRecord, SavedFaceModel> =
-  createNamedCollectionStore<FaceModelRecord, 'model'>({
-    schema: FaceModelRecordSchema,
-    storageKey: FACE_MODELS_STORAGE_KEY,
-    payloadKey: 'model',
-    idFallback: 'faces',
-  });
+/** The face's view of the one collection (`provider`: where it lives; the browser's localStorage,
+ *  with the one-time copy of the old face collection, by default). */
+export function createFaceModelStore(provider?: DataProvider<FaceModelRecord>): NamedCollectionStore<FaceModelRecord, SavedFaceModel> {
+  return createCategorizerStore(faceModality, provider ? { provider } : {});
+}
 
 /**
  * Saved categorizers changed (a save, a replace, a delete): the listeners re-read what they hold.

@@ -74,7 +74,7 @@ import {
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { carveTake, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
-import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '../lib/live';
+import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, liveModel, sameTuning, type Tuning } from '../lib/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
 import { foreignModality, keepOnly, projectVector, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
@@ -82,6 +82,7 @@ import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
 import type { CaptureState, CarveCaptureControl } from '@thoremin/sdk-ui/enroll/capture';
 import type { CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
+import type { CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import type { CategorizerChecks, FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
 import { holdId, type FrameOpener, type LiveFrames, type ThumbStore } from './thumbnails';
@@ -274,6 +275,10 @@ export interface FaceSessionState {
   /** A saved categorizer as a file's text, without opening it (#369): the SAVED version, not
    *  unsaved edits on it while it is open. Null (and a notice) if it cannot be read. */
   exportSaved(id: string): Promise<{ name: string; text: string } | null>;
+  /** Hand the SAVED categorizer `id` to the host's category bindings (#385 E8: a command per
+   *  category): its live model (the saved tuning's sizes and reject radius), read through this
+   *  modality with its hand. Returns whether it was bound. */
+  bindSaved(id: string, binder: CategoryBinder): Promise<boolean>;
 }
 
 export const FACE_SESSION_DEFAULTS = {
@@ -1209,6 +1214,24 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return null;
         }
         return { name: record.name, text: exportCategorizer({ ...record.model.categorizer, name: record.name }) };
+      },
+
+      async bindSaved(id, binder) {
+        const record = await deps.models.load(id).catch(() => null);
+        if (!record) {
+          set({ notice: 'That categorizer could not be read.' });
+          return false;
+        }
+        const { categorizer, tuning } = record.model;
+        const { model } = liveModel(categorizer, tuning ?? {}, { modality });
+        const hand = categorizer.hand;
+        try {
+          await binder.bind({ name: record.name, model, read: { modality: modality.id, ...(hand && hand !== 'either' ? { hand } : {}) } });
+          return true;
+        } catch (e) {
+          set({ notice: `Not bound: ${e instanceof Error ? e.message : String(e)}.` });
+          return false;
+        }
       },
     };
   });
