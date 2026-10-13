@@ -17,11 +17,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { exportCategorizer, importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { classify } from '@thoremin/sdk/enroll/classify';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { createLiveReader, liveModel, tuneVector } from '@thoremin/ext-faces/lib/live';
-import { SHARED_PUBLIC_DIR } from '../../scripts/faces/lib_demo_categorizer';
 import { recordedCategorizer, recordedFrames, vectorOf } from '../helpers/faceRecording';
 
 const FIXTURES = join(__dirname, 'fixtures');
@@ -44,13 +43,19 @@ const readFile = (path: string): PersonalCategorizer => {
 /** The scenarios: a name, the file, and extra probes beyond its samples and their midpoints. */
 function scenarios(): { name: string; categorizer: PersonalCategorizer; extra: FeatureVector[] }[] {
   const frames = recordedFrames().map(vectorOf);
-  const recorded = load(exportCategorizer(recordedCategorizer(recordedFrames())));
-  const demo = readFile(join(SHARED_PUBLIC_DIR, 'demo-smile.json'));
+  // The recording as a version-2 file (what the builder made before version 3).
+  const { neutralTrained: _t, ...recordedV2 } = recordedCategorizer(recordedFrames()) as PersonalCategorizer & { neutralTrained?: boolean };
+  void _t;
+  const recorded = load(JSON.stringify({ ...recordedV2, version: 2 }));
+  // The shipped demo as it was shipped at version 2 (kept as a fixture: the shipped file moves on).
+  const demo = readFile(join(FIXTURES, 'demo_smile.v2.categorizer.json'));
   // What E4 could save: the demo read as the nearest face, its resting holds left in Neutral
   // (E4 did not train on them).
   const { rejectRadius: _r, ...demoRest } = demo;
   void _r;
-  const e4Nearest = load(exportCategorizer({ ...demoRest, strangers: 'nearest' } as PersonalCategorizer));
+  const { neutralTrained: _d, ...demoV2 } = { ...demoRest, strangers: 'nearest', version: 2 } as Record<string, unknown>;
+  void _d;
+  const e4Nearest = load(JSON.stringify(demoV2));
   return [
     { name: 'demo_smile.v1', categorizer: readFile(join(FIXTURES, 'demo_smile.v1.categorizer.json')), extra: [] },
     { name: 'synthetic_partition.v1', categorizer: readFile(join(FIXTURES, 'synthetic_partition.v1.categorizer.json')), extra: [] },

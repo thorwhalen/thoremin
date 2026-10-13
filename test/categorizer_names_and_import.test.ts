@@ -38,6 +38,7 @@ function file(over: { ids?: [string, string]; labels?: [string, string]; cue?: s
   return {
     format: CATEGORIZER_FORMAT,
     version: CATEGORIZER_VERSION,
+    neutralTrained: true,
     name: 'odd names',
     features: ['x', 'y'],
     weights: { x: 1, y: 1 },
@@ -126,12 +127,13 @@ describe('importCategorizer: what a file may not carry', () => {
     const migrations = {
       0: (d: Record<string, unknown>) => ({ ...d, version: 1 }),
       1: (d: Record<string, unknown>) => ({ ...d, version: 2, format: 'thoremin.categorizer.v2' }),
+      2: (d: Record<string, unknown>) => ({ ...d, version: 3 }),
     };
     const r = importCategorizer(v0, { migrations });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/^invalid categorizer: format:/);
     // The same chain with the format kept reads the file.
-    const keep = importCategorizer(v0, { migrations: { 0: migrations[0], 1: (d: Record<string, unknown>) => ({ ...d, version: 2 }) } });
+    const keep = importCategorizer(v0, { migrations: { 0: migrations[0], 1: (d: Record<string, unknown>) => ({ ...d, version: 2 }), 2: migrations[2] } });
     expect(keep).toEqual({ ok: true, categorizer: file(), migratedFrom: 0 });
   });
 });

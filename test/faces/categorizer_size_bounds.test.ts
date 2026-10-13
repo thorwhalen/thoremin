@@ -34,6 +34,7 @@ function sized(total: number): PersonalCategorizer {
   return {
     format: CATEGORIZER_FORMAT,
     version: CATEGORIZER_VERSION,
+    neutralTrained: true,
     name: 'big',
     features: ['x', 'y'],
     weights: { x: 1, y: 1 },

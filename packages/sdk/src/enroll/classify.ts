@@ -23,8 +23,15 @@
  * category while unsure. An instrument that drops to silence whenever the classifier
  * hesitates is unplayable — silence is the host's decision to make explicitly, not a
  * side effect of an uncertain frame.
+ *
+ * **4. Neutral is a class the player teaches, and it does not hold (#385 E5).** "This face
+ * means nothing" is said by example: the holds in a categorizer's Neutral bin are trained as
+ * prototypes of a null class ({@link trainNeutral}), and a vector nearest one of them reads as
+ * no category. That is a reading, not a hesitation, so the tracker treats it as a class like
+ * any other (entry hysteresis, then null), never as a rejection to hold through. The reject
+ * radius stays what it was: the open-set rule for a face nobody taught.
  */
-import { weightedDistance } from './cluster';
+import { buildHierarchy, cutAt, weightedDistance } from './cluster';
 import type {
   Category,
   Classification,
@@ -142,6 +149,60 @@ export function trainModel(
   return { categories, weights, features: [...features], rejectRadius };
 }
 
+/** How {@link trainNeutral} shapes the null class. */
+export const NEUTRAL_DEFAULTS = {
+  /** The most prototypes the null class is split into. */
+  maxPrototypes: 4,
+  /** Two groups of Neutral holds are kept apart when they merge farther apart than this many
+   *  times the median category radius: farther apart than a category is wide, they are two
+   *  different "nothings" (a resting face, a look at the keyboard), and one centroid between
+   *  them would sit where neither is. */
+  splitScale: 2,
+  /** Above this many Neutral holds the null class is one prototype (the split is quadratic). */
+  splitUpTo: 400,
+} as const;
+
+export interface NeutralOptions {
+  maxPrototypes?: number;
+  splitScale?: number;
+  splitUpTo?: number;
+}
+
+/**
+ * The taught null class: the Neutral holds `idxs` (into `vectors`) as up to
+ * {@link NEUTRAL_DEFAULTS.maxPrototypes} prototypes, split where the holds sit farther apart
+ * than the `categories` are wide. Ids `neutral-1..n`; empty when `idxs` is.
+ */
+export function trainNeutral(
+  vectors: readonly FeatureVector[],
+  idxs: readonly number[],
+  features: readonly string[],
+  weights: FeatureWeights,
+  categories: readonly Pick<Category, 'radius'>[],
+  options: NeutralOptions = {},
+): Category[] {
+  const o = { ...NEUTRAL_DEFAULTS, ...options };
+  if (idxs.length === 0) return [];
+  let groups: number[][] = [[...idxs]];
+  if (idxs.length > 1 && idxs.length <= o.splitUpTo && categories.length > 0 && o.maxPrototypes > 1) {
+    const radii = categories.map((c) => c.radius).sort((a, b) => a - b);
+    const height = o.splitScale * radii[Math.floor((radii.length - 1) / 2)];
+    const hierarchy = buildHierarchy(idxs.map((j) => vectors[j]), features, weights);
+    // Cutting at `height` leaves one cluster per merge above it (heights are ascending).
+    const k = Math.min(o.maxPrototypes, 1 + hierarchy.heights.filter((h) => h > height).length);
+    if (k > 1) groups = cutAt(hierarchy, k).map((g) => g.map((j) => idxs[j]));
+  }
+  return groups
+    .filter((g) => g.length > 0)
+    .map((g) => [...g].sort((a, b) => a - b))
+    .sort((a, b) => a[0] - b[0])
+    .map((members, i) => {
+      const centroid = meanVector(members.map((j) => vectors[j]), features);
+      const radius = members.reduce((acc, j) => acc + weightedDistance(vectors[j], centroid, features, weights), 0) / members.length;
+      return { id: `neutral-${i + 1}`, label: '', centroid, size: members.length, radius, members };
+    });
+}
+
 export interface ClassifyOptions {
   /**
    * Softness of the membership distribution. Smaller = sharper (closer to one-hot),
@@ -172,17 +233,32 @@ export function classify(
   );
   let best = 0;
   for (let i = 1; i < dists.length; i++) if (dists[i] < dists[best]) best = i;
+  const minD = dists[best];
+  const neutral = model.neutral ?? [];
+  const nDists = neutral.map((c) => weightedDistance(vector, c.centroid, model.features, model.weights));
+  const minN = nDists.reduce((a, d) => Math.min(a, d), Infinity);
 
   // Softmax over negative distance. Subtracting the minimum first keeps the exponent in
   // range — without it a large distance underflows every term to 0 and the normalization
   // divides by zero, which is how a "smooth" mapping produces NaN and silences the synth.
-  const minD = dists[best];
-  const exps = dists.map((d) => Math.exp(-(d - minD) / Math.max(1e-6, o.temperature)));
-  const total = exps.reduce((a, b) => a + b, 0);
+  // The Neutral prototypes take their share of the mass, so a resting face leaves every
+  // category's membership low rather than spreading 1 across them.
+  const floor = Math.min(minD, minN);
+  const temperature = Math.max(1e-6, o.temperature);
+  const exps = dists.map((d) => Math.exp(-(d - floor) / temperature));
+  const nExps = nDists.map((d) => Math.exp(-(d - floor) / temperature));
+  const total = exps.reduce((a, b) => a + b, 0) + nExps.reduce((a, b) => a + b, 0);
   model.categories.forEach((c, i) => {
     memberships[c.id] = total > 0 ? exps[i] / total : 0;
   });
 
+  if (neutral.length > 0) {
+    const neutralMembership = total > 0 ? nExps.reduce((a, b) => a + b, 0) / total : 0;
+    // Strictly nearer: a tie goes to the category, as a tie between categories goes to the first.
+    if (minN < minD) return { categoryId: null, memberships, distance: minD, rejected: false, neutral: true, neutralMembership };
+    const rejected = minD > model.rejectRadius;
+    return { categoryId: rejected ? null : model.categories[best].id, memberships, distance: minD, rejected, neutral: false, neutralMembership };
+  }
   const rejected = minD > model.rejectRadius;
   return {
     categoryId: rejected ? null : model.categories[best].id,
@@ -206,6 +282,9 @@ export interface TrackerOptions extends ClassifyOptions {
 }
 
 const TRACKER_DEFAULTS = { enterFrames: 3, exitFrames: 8, holdOnReject: true };
+
+/** The tracker's candidate key for the taught Neutral class (never a category id). */
+const NEUTRAL_CANDIDATE: unique symbol = Symbol('neutral');
 
 export interface CategoryTracker {
   /** Feed one live vector; returns the stabilized classification. */
@@ -231,7 +310,8 @@ export function createCategoryTracker(
 ): CategoryTracker {
   const o = { ...TRACKER_DEFAULTS, ...options };
   let committed: string | null = null;
-  let candidate: string | null = null;
+  // A candidate is a category id, or the taught Neutral class (which commits as null).
+  let candidate: string | typeof NEUTRAL_CANDIDATE | null = null;
   let candidateRun = 0;
   let rejectRun = 0;
 
@@ -251,18 +331,21 @@ export function createCategoryTracker(
       }
 
       rejectRun = 0;
-      if (c.categoryId === committed) {
+      // The taught Neutral class is a reading like a category's: it is entered through the same
+      // hysteresis and commits as null (nothing), and it is never held through.
+      const key = c.neutral ? NEUTRAL_CANDIDATE : c.categoryId;
+      if (c.neutral ? committed === null : key === committed) {
         candidate = null;
         candidateRun = 0;
         return { ...c, held: false };
       }
-      if (c.categoryId === candidate) candidateRun += 1;
+      if (key === candidate) candidateRun += 1;
       else {
-        candidate = c.categoryId;
+        candidate = key;
         candidateRun = 1;
       }
       if (candidateRun >= o.enterFrames) {
-        committed = candidate;
+        committed = candidate === NEUTRAL_CANDIDATE ? null : candidate;
         candidate = null;
         candidateRun = 0;
         return { ...c, categoryId: committed, held: false };

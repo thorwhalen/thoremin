@@ -278,8 +278,13 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
       for (const f of ['x', 'y']) expect(x.centroid[f]).toBeCloseTo(model.categories[i].centroid[f], 12);
     });
     expect(derived.categories[0].cues).toEqual({ faces: 3 });
-    // The stray sample belongs to no category, and still classifies the same both ways.
-    for (const p of points) expect(classify(derived, p.vector)).toEqual(classify(model, p.vector));
+    // The stray sample belongs to no category; with Neutral untrained (a file made before
+    // version 3), every sample classifies the same both ways.
+    const untrained = modelFromCategorizer({ ...c, neutralTrained: false });
+    for (const p of points) expect(classify(untrained, p.vector)).toEqual(classify(model, p.vector));
+    // Taught (#385 E5), the stray is the Neutral class, and reads as none of these.
+    expect(derived.neutral?.map((x) => x.members)).toEqual([[5]]);
+    expect(classify(derived, points[5].vector)).toMatchObject({ categoryId: null, neutral: true, rejected: false });
   });
 
   it('partition mode rejects nothing, and the derived model still persists', () => {
@@ -343,11 +348,12 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
     const migrations = {
       0: (d: Record<string, unknown>) => ({ ...d, version: 1 }),
       1: (d: Record<string, unknown>) => ({ ...d, version: 2, strangers: d.strangers === 'open' ? 'neutral' : d.strangers }),
+      2: (d: Record<string, unknown>) => ({ ...d, version: 3 }),
     };
     expect(importCategorizer(v0, { migrations })).toEqual({ ok: true, categorizer: c, migratedFrom: 0 });
-    const missing = importCategorizer(v0, { migrations: { 1: migrations[1] } });
+    const missing = importCategorizer(v0, { migrations: { 1: migrations[1], 2: migrations[2] } });
     expect(missing).toEqual({ ok: false, error: 'no migration from version 0' });
-    const stuck = importCategorizer(v0, { migrations: { 0: (d) => d, 1: migrations[1] } });
+    const stuck = importCategorizer(v0, { migrations: { 0: (d) => d, 1: migrations[1], 2: migrations[2] } });
     expect(stuck.ok).toBe(false);
     const throws = importCategorizer(v0, {
       migrations: {
@@ -367,8 +373,8 @@ describe('version 1 to version 2 (#385 E3)', () => {
   /** A version-1 file as this build wrote it before E3: positions, `mode`, `k`. */
   const v1Of = (c: PersonalCategorizer, mode: 'reject' | 'partition'): Record<string, unknown> => {
     const at = new Map(c.samples.map((x, i) => [x.id, i]));
-    const { strangers: _s, neutral: _n, aside: _a, pins: _p, ...rest } = c;
-    void [_s, _n, _a, _p];
+    const { strangers: _s, neutral: _n, aside: _a, pins: _p, neutralTrained: _t, ...rest } = c;
+    void [_s, _n, _a, _p, _t];
     return {
       ...rest,
       version: 1,
@@ -382,7 +388,8 @@ describe('version 1 to version 2 (#385 E3)', () => {
   for (const mode of ['reject', 'partition'] as const) {
     it(`migrates a ${mode} file to the same model, and back to the same file`, () => {
       const { points, model } = toyTake();
-      const v2 = categorizerFromModel(model, points, { name: 'mine', mode });
+      // As a build before version 3 made it: its Neutral holds untrained.
+      const v2 = categorizerFromModel(model, points, { name: 'mine', mode, neutralTrained: false });
       const v1 = v1Of(v2, mode);
       const r = importCategorizer(JSON.stringify(v1));
       expect(r).toEqual({ ok: true, categorizer: v2, migratedFrom: 1 });

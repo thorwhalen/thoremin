@@ -32,6 +32,15 @@
  * (finite, so the derived model still persists under `TrainedModelSchema`, whose
  * `z.number()` refuses `Infinity`).
  *
+ * ## Neutral, taught (version 3, #385 E5)
+ *
+ * `neutralTrained: true` trains the Neutral holds as a null class (`trainNeutral`): a vector
+ * nearest them reads as no category in either setting of `strangers`, so "this face means
+ * nothing" is said by example, and `strangers` only says what a face nobody taught reads as.
+ * Every file this build makes says `true`. Files of versions 1 and 2 migrate to `false`, which
+ * is exactly how they classified (their Neutral holds were never trained); the player turns it
+ * on, as an edit, and only then do they classify differently.
+ *
  * ## Versions and migration
  *
  * Every file carries `format` and `version`. {@link importCategorizer} reads a file of an
@@ -40,19 +49,20 @@
  * partial read), and validates the result against the current schema. Bump
  * {@link CATEGORIZER_VERSION} and add `CATEGORIZER_MIGRATIONS[old]` together.
  *
- * Version 1 (positions, `mode`, `k`) migrates by {@link migrateCategorizerV1}.
+ * Version 1 (positions, `mode`, `k`) migrates by {@link migrateCategorizerV1}; version 2 by
+ * {@link migrateCategorizerV2}.
  *
  * Non-finite feature values (a feature not measurable on that frame) are DROPPED on the way
  * in: JSON cannot carry NaN, and a missing key is exactly how every distance in `enroll/`
  * already treats a non-finite value.
  */
 import { z } from 'zod';
-import { trainModel } from './classify';
+import { trainModel, trainNeutral } from './classify';
 import type { FeatureVector, StillPoint, TrainedModel } from './types';
 
 export const CATEGORIZER_FORMAT = 'thoremin.categorizer';
 /** The version this build writes. */
-export const CATEGORIZER_VERSION = 2;
+export const CATEGORIZER_VERSION = 3;
 /** How a carve treats the player's resting face; the UI's two settings (the file says it as
  *  {@link CategorizerStrangers}). */
 const CATEGORIZER_MODES = ['partition', 'reject'] as const;
@@ -144,6 +154,10 @@ export const PersonalCategorizerSchema = z
     /** The player's "none of these" holds (the rest cloud, or a face moved out of every
      *  category), by sample id. */
     neutral: z.array(z.string().min(1)),
+    /** Whether the `neutral` holds are trained as a null class (#385 E5): a face nearest them
+     *  reads as none of these. False only for a file made before version 3 (it classified so);
+     *  absent from a version-3 document, true (the migrations always write it). */
+    neutralTrained: z.boolean().default(true),
     /** Holds kept but not trained on ("not sure yet"), by sample id. */
     aside: z.array(z.string().min(1)).optional(),
     /** The player's moves, kept so a re-cut honours them (#385 E4): sample id -> a category id,
@@ -230,16 +244,23 @@ export function toSample(p: SampleInput, features?: readonly string[]): Categori
 
 export interface CategorizerMeta {
   name: string;
-  mode: CategorizerMode;
+  /** What a face nobody taught reads as. A sample no category claims is Neutral. */
+  strangers?: CategorizerStrangers;
+  /** The carve mode, v1's vocabulary, when `strangers` is not given: `reject` reads strangers
+   *  as neutral and puts the unclaimed samples in Neutral; `partition` reads strangers as the
+   *  nearest category and sets the unclaimed aside. */
+  mode?: CategorizerMode;
+  /** Whether the Neutral holds are trained as a null class (default true). */
+  neutralTrained?: boolean;
   modality?: string;
   createdAt?: string;
 }
 
 /**
  * Capture a trained model as a categorizer. `points` is the pool the model's `members`
- * index (the session's `points()`, each with its hold id; a point without one is `s-<index>`). A sample no category claims is
- * neutral in `reject` mode (it is "none of these") and set aside in `partition` mode. Throws
- * if the result does not validate.
+ * index (the session's `points()`, each with its hold id; a point without one is `s-<index>`).
+ * A sample no category claims is Neutral, except in v1's `partition` mode, which sets it aside.
+ * Throws if the result does not validate, or if neither `strangers` nor `mode` is given.
  */
 export function categorizerFromModel(
   model: TrainedModel,
@@ -249,6 +270,9 @@ export function categorizerFromModel(
   const samples: SampleInput[] = points.map((p, i) => ({ ...p, id: p.id ?? v1SampleId(i) }));
   const claimed = new Set(model.categories.flatMap((c) => c.members));
   const unclaimed = samples.flatMap((s, i) => (claimed.has(i) ? [] : [s.id]));
+  const strangers = meta.strangers ?? (meta.mode ? strangersFor(meta.mode) : undefined);
+  if (!strangers) throw new Error('categorizerFromModel needs strangers (or a mode)');
+  const aside = !meta.strangers && meta.mode === 'partition';
   return PersonalCategorizerSchema.parse({
     format: CATEGORIZER_FORMAT,
     version: CATEGORIZER_VERSION,
@@ -257,21 +281,23 @@ export function categorizerFromModel(
     ...(meta.createdAt ? { createdAt: meta.createdAt } : {}),
     features: [...model.features],
     weights: { ...model.weights },
-    strangers: strangersFor(meta.mode),
-    ...(meta.mode === 'reject' ? { rejectRadius: model.rejectRadius } : {}),
+    strangers,
+    ...(strangers === 'neutral' ? { rejectRadius: model.rejectRadius } : {}),
     samples: samples.map((s) => toSample(s, model.features)),
     categories: model.categories.map((c) => ({ id: c.id, label: c.label, members: [...c.members].sort((a, b) => a - b).map((j) => samples[j].id) })),
-    neutral: meta.mode === 'reject' ? unclaimed : [],
-    ...(meta.mode === 'partition' && unclaimed.length > 0 ? { aside: unclaimed } : {}),
+    neutral: aside ? [] : unclaimed,
+    neutralTrained: meta.neutralTrained ?? true,
+    ...(aside && unclaimed.length > 0 ? { aside: unclaimed } : {}),
   });
 }
 
 /**
  * The live model a categorizer describes: centroids and radii recomputed from its samples,
- * its ids and labels kept, its cue counts filled, its reject radius from `strangers`. The
- * model's `members` index `samples`. The input is validated first (throws if invalid): an
- * unvalidated empty category would otherwise shift every later category's id and label onto
- * its neighbour's members. Neutral and set-aside holds are not trained on.
+ * its ids and labels kept, its cue counts filled, its reject radius from `strangers`, its
+ * Neutral class trained when `neutralTrained` says so. The model's `members` index `samples`.
+ * The input is validated first (throws if invalid): an unvalidated empty category would
+ * otherwise shift every later category's id and label onto its neighbour's members. Set-aside
+ * holds are never trained on.
  */
 export function modelFromCategorizer(input: PersonalCategorizer): TrainedModel {
   const c = PersonalCategorizerSchema.parse(input);
@@ -285,10 +311,12 @@ export function modelFromCategorizer(input: PersonalCategorizer): TrainedModel {
     for (const j of cat.members) cues.set(c.samples[j].cue, (cues.get(c.samples[j].cue) ?? 0) + 1);
     return { ...cat, id: c.categories[i].id, label: c.categories[i].label, cues: Object.fromEntries(cues) };
   });
+  const neutral = c.neutralTrained ? trainNeutral(vectors, neutralSampleIndices(c), c.features, c.weights, categories) : [];
   return {
     ...trained,
     categories,
     rejectRadius: c.strangers === 'neutral' ? c.rejectRadius! : NO_REJECT_RADIUS,
+    ...(neutral.length > 0 ? { neutral } : {}),
   };
 }
 
@@ -354,9 +382,18 @@ export function migrateCategorizerV1(doc: Record<string, unknown>, options: Migr
   };
 }
 
+/**
+ * Version 2 to version 3 (#385 E5): `neutralTrained: false`, because a version-2 file's Neutral
+ * holds were never trained on, so it classifies exactly as it did.
+ */
+export function migrateCategorizerV2(doc: Record<string, unknown>): Record<string, unknown> {
+  return { ...doc, version: 3, neutralTrained: false };
+}
+
 /** The shipped migrations, keyed by the version they read. */
 export const CATEGORIZER_MIGRATIONS: Readonly<Record<number, CategorizerMigration>> = {
   1: (doc) => migrateCategorizerV1(doc),
+  2: (doc) => migrateCategorizerV2(doc),
 };
 
 export type ImportResult =
