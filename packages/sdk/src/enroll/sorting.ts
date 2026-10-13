@@ -163,6 +163,52 @@ export function moveHolds(c: PersonalCategorizer, ids: readonly string[], to: Pl
   });
 }
 
+/** Holds given a name before they were taken (#385 E7). */
+export interface LabelledHolds {
+  label: string;
+  ids: readonly string[];
+}
+
+/**
+ * Labelled holds (#385 E7, "B for discovery, A for confirmation" made one gesture): a burst
+ * recorded under a typed name. Each group's holds go to the category already called `label`
+ * (case-insensitively), else to a new category of that name, and are PINNED there, so they stay
+ * one category at every k (a re-cut's must-link). A label equal to `neutralLabel` (the modality's
+ * word for "none of these") puts them in the Neutral bin. A category the move empties is dropped
+ * (its holds were all relabelled). Refused when no category would be left.
+ */
+export function placeLabelled(c: PersonalCategorizer, groups: readonly LabelledHolds[], { neutralLabel }: { neutralLabel?: string } = {}): SortResult {
+  const named = groups.map((g) => ({ label: g.label.trim(), ids: [...new Set(g.ids)] })).filter((g) => g.label !== '' && g.ids.length > 0);
+  if (named.length === 0) return { ok: true, categorizer: c };
+  const place = placement(c);
+  for (const g of named) for (const id of g.ids) if (!place.has(id)) return fail(`no hold "${id}"`);
+  const key = (label: string) => label.toLowerCase();
+  const neutralKey = neutralLabel ? key(neutralLabel.trim()) : null;
+  const categories = c.categories.map((x) => ({ id: x.id, label: x.label }));
+  const taken = new Set<string>();
+  const pins = { ...(c.pins ?? {}) };
+  for (const g of named) {
+    let to: Place;
+    if (neutralKey !== null && key(g.label) === neutralKey) to = NEUTRAL_BIN;
+    else {
+      const found = categories.find((x) => key(x.label.trim()) === key(g.label));
+      if (found) to = found.id;
+      else {
+        to = freshCategoryId({ categories: categories.map((x) => ({ ...x, members: [] })) }, taken);
+        taken.add(to);
+        categories.push({ id: to, label: g.label });
+      }
+    }
+    for (const id of g.ids) {
+      place.set(id, to);
+      pins[id] = to;
+    }
+  }
+  const left = categories.filter((x) => [...place.values()].includes(x.id));
+  if (left.length === 0) return fail('that would leave no category; a categorizer keeps at least one');
+  return done(() => rebuild(c, categories, place, pins));
+}
+
 /** Delete holds `ids` (a sneeze, a look away): gone from the samples, their bins and their pins;
  *  a category they empty goes with them. Refused when no category would be left. */
 export function deleteHolds(c: PersonalCategorizer, ids: readonly string[]): SortResult {

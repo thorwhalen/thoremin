@@ -30,6 +30,7 @@
  */
 import { NEUTRAL_BIN } from './categorizer';
 import { weightedDistance } from './cluster';
+import { scaledDistance } from './classify';
 import type { FeatureWords } from './modality';
 import type { Category, FeatureVector, TrainedModel } from './types';
 
@@ -358,11 +359,11 @@ export function liveMargin(
 ): LiveMargin {
   // Per neighbour, its nearest centre (Neutral's prototypes are one neighbour).
   const near = new Map<string, number>();
-  const see = (id: string, centroid: FeatureVector) => {
-    const d = weightedDistance(vector, centroid, model.features, model.weights);
+  const see = (id: string, centroid: FeatureVector, scale?: number) => {
+    const d = scaledDistance({ scale }, weightedDistance(vector, centroid, model.features, model.weights));
     if (d < (near.get(id) ?? Infinity)) near.set(id, d);
   };
-  for (const c of model.categories) see(c.id, c.centroid);
+  for (const c of model.categories) see(c.id, c.centroid, c.scale);
   for (const p of model.neutral ?? []) see(NEUTRAL_TARGET, p.centroid);
   const ranked = [...near.entries()].sort((a, b) => a[1] - b[1]);
   const [first, runner] = ranked;

@@ -28,6 +28,15 @@
  * that face through the pause does not take it twice. A take with no pause has exactly the cues
  * it had before, and a take that explored first resets the noise estimate at the rest, so its
  * units are those of a take that did not.
+ *
+ * #385 E7 adds **bursts** (Teachable Machine's hold-to-record): while a key or button is held,
+ * every frame of the face is collected, and on release the burst becomes ONE hold (its mean, the
+ * frames thinned as its support), in a cue segment of its own, so it never mixes with a sampler's
+ * hold. A burst may carry a name typed beforehand: a labelled hold, which the carve pins to the
+ * category of that name. A burst runs from `faces` (the hold in progress is dropped, and the
+ * capture resumes in a new segment after it, the burst's face not taken again) or from `paused`
+ * (the take stays paused: burst-only capture). A burst shorter than `minBurstFrames` frames of the
+ * modality takes nothing.
  */
 import { CueSchema, type Cue, type CueSpecInput } from '@thoremin/sdk/enroll/cue';
 import { samplingFor } from '@thoremin/sdk/enroll/cue';
@@ -90,6 +99,8 @@ export const FACE_TAKE_DEFAULTS = {
   supportFrames: 4,
   /** How far back the take remembers frames for a hold's support (the dwell is 220 ms). */
   supportWindowMs: 1000,
+  /** Frames of the modality a burst needs to be a hold (#385 E7; about 0.17 s at 30 fps). */
+  minBurstFrames: 5,
 } as const;
 
 export type FaceTakePhase = 'idle' | 'explore' | 'rest' | 'faces' | 'paused' | 'done';
@@ -109,6 +120,8 @@ export interface FaceTakeOptions {
   modality?: CarveModality;
   /** Supporting frames kept per hold (0 keeps none). */
   supportFrames?: number;
+  /** Frames a burst needs to be a hold. */
+  minBurstFrames?: number;
 }
 
 export interface FaceTake {
@@ -140,12 +153,25 @@ export interface FaceTake {
   support(index: number): readonly FeatureVector[];
   /** When the faces began (engine ms), or null before. */
   facesStartedAt(): number | null;
+  /** Begin a burst (#385 E7) from `faces` or `paused`, named `label` when given. Returns whether
+   *  one began. */
+  beginBurst(tMs: number, label?: string): boolean;
+  /** End the burst: one hold of its frames when there were enough. Returns whether it took one. */
+  endBurst(tMs: number): boolean;
+  /** The burst under way: its name ('' for none) and frames so far; null when none. */
+  burst(): { label: string; frames: number } | null;
+  /** The names given to holds (by index), for the labelled ones only. */
+  labels(): ReadonlyMap<number, string>;
   session(): Session;
 }
 
 export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   const restMs = options.restMs ?? FACE_TAKE_DEFAULTS.restMs;
   const minRestFrames = options.minRestFrames ?? FACE_TAKE_DEFAULTS.minRestFrames;
+  const minBurstFrames = Math.max(1, Math.floor(options.minBurstFrames ?? FACE_TAKE_DEFAULTS.minBurstFrames));
+  /** The burst under way: where it came from, its name, its frames (the modality in view). */
+  let bursting: { from: 'faces' | 'paused'; label: string; t: number; frames: FeatureVector[] } | null = null;
+  const labels = new Map<number, string>();
   const session = options.session ?? createSession();
   const modality = options.modality ?? faceModality;
   const cues = { rest: restCue(modality), vocabulary: vocabularyCue(modality) };
@@ -174,6 +200,31 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     return !armed ? (justTaken ? 'taken' : 'latched') : settling ? 'settling' : 'open';
   };
 
+  const endBurst = (): boolean => {
+    const b = bursting;
+    if (!b) return false;
+    bursting = null;
+    const took = b.frames.length >= minBurstFrames;
+    const mean = took ? meanOf(b.frames) : null;
+    if (mean) {
+      const index = session.points().length;
+      segment++;
+      session.beginCue(segmentCue(modality, segment), { after: mean });
+      session.addPoint({ vector: mean, t: b.t, cue: '' });
+      supports[index] = thin(b.frames.map((f) => keepOnly(modality, f)), supportFrames);
+      if (b.label) labels.set(index, b.label);
+      justTaken = true;
+      if (b.from === 'paused') session.endCue();
+    } else if (b.from === 'faces') {
+      segment++;
+      const last = session.points().at(-1);
+      session.beginCue(segmentCue(modality, segment), last ? { after: last.vector } : {});
+    }
+    // Back where it began: capturing goes on in a new segment; paused stays paused, watching.
+    if (b.from === 'paused') watch = watching(false);
+    return took;
+  };
+
   return {
     phase: () => phase,
     explore() {
@@ -193,6 +244,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       session.beginCue(cues.rest);
     },
     pause() {
+      if (bursting) endBurst();
       if (phase !== 'faces') return;
       session.endCue();
       phase = 'paused';
@@ -212,6 +264,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     },
     segments: () => segment,
     hold() {
+      if (bursting) return 'settling';
       if (phase === 'faces') return holdOf(session.settling(), session.armed());
       if ((phase === 'explore' || phase === 'paused') && watch) return holdOf(watch.isSettling(), watch.isArmed());
       return 'open';
@@ -222,6 +275,11 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       lastT = tMs;
       const before = session.points().length;
       session.push(vector, tMs);
+      if (bursting) {
+        // No cue is active during a burst: the session only measures noise; the take collects.
+        if (modality.read(vector) !== null) bursting.frames.push(vector);
+        return;
+      }
       if (phase === 'explore' || phase === 'paused') {
         if (modality.read(vector) !== null && watch?.push(vector, tMs)) justTaken = true;
         return;
@@ -247,6 +305,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     },
     stop() {
       if (phase === 'idle' || phase === 'done') return session.built();
+      if (bursting) endBurst();
       watch = null;
       if (phase === 'explore') {
         // Nothing was collected: an exploration ends with nothing to carve.
@@ -263,8 +322,36 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     pointCount: () => session.points().length,
     support: (index) => supports[index] ?? [],
     facesStartedAt: () => facesAt,
+    beginBurst(tMs, label = '') {
+      if (bursting || (phase !== 'faces' && phase !== 'paused')) return false;
+      // The capture's hold in progress is dropped with its segment (as a pause drops it).
+      if (phase === 'faces') session.endCue();
+      watch = null;
+      justTaken = false;
+      bursting = { from: phase, label: label.trim(), t: tMs, frames: [] };
+      return true;
+    },
+    endBurst: () => endBurst(),
+    burst: () => (bursting ? { label: bursting.label, frames: bursting.frames.length } : null),
+    labels: () => labels,
     session: () => session,
   };
+}
+
+/** The mean of `vectors` over the union of their finite keys. */
+function meanOf(vectors: readonly FeatureVector[]): FeatureVector {
+  const sum: Record<string, number> = {};
+  const n: Record<string, number> = {};
+  for (const v of vectors)
+    for (const k of Object.keys(v)) {
+      const x = v[k];
+      if (!Number.isFinite(x)) continue;
+      sum[k] = (sum[k] ?? 0) + x;
+      n[k] = (n[k] ?? 0) + 1;
+    }
+  const out: FeatureVector = {};
+  for (const k of Object.keys(sum)) out[k] = sum[k] / n[k];
+  return out;
 }
 
 /** At most `n` of `frames`, evenly spaced, first and last kept. */

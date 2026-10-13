@@ -86,6 +86,13 @@ export interface Category {
    * session; a host may offer the dominant cue as the category's starting name.
    */
   cues?: Record<string, number>;
+  /**
+   * How big a face it takes to count as this category (#385 E7: the per-category size, a live
+   * tuning, never trained): every distance to its centroid is multiplied by it before any
+   * comparison (against the other categories, Neutral and the reject radius). Above 1 the face
+   * must go further; below 1 a smaller one reaches it. Absent = 1.
+   */
+  scale?: number;
 }
 
 /**
