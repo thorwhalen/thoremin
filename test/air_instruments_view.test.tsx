@@ -18,7 +18,7 @@ import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testi
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { TOOLS } from '@/app/tools';
-import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive } from '@thoremin/ext-air/app/airDrumStatus';
+import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive, describeMagnet } from '@thoremin/ext-air/app/airDrumStatus';
 import { AirDrumReadout } from '@thoremin/ext-air/panels/airDrum';
 import { AIR_INSTRUMENTS } from '@/app/library/category';
 import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@thoremin/ext-air/dials';
@@ -195,6 +195,15 @@ describe('the air drum readout (moved from the retired tool panel)', () => {
     expect(screen.getByTestId('air-drum-live').getAttribute('data-state')).toBe('playing');
     act(() => useAirDrumStatus.getState().report({ enabled: true, hits: 5, predicted: 3, lastHand: 'left', lastLead: -0.033, lastPull: 0, ready: { right: true, left: true } }));
     expect(screen.getByText(/Left: sounded 33 ms after/)).toBeTruthy();
+  });
+
+  it('describeMagnet speaks only when the magnet is blocked, and says why (#239)', () => {
+    const on = { ...ABSENT_AIR_DRUM_LIVE, enabled: true };
+    expect(describeMagnet(ABSENT_AIR_DRUM_LIVE)).toBeNull();
+    expect(describeMagnet({ ...on, magnet: 'on' })).toBeNull();
+    expect(describeMagnet({ ...on, magnet: 'too-slow' })).toMatch(/pipeline too slow for timing magnetism on this machine/);
+    expect(describeMagnet({ ...on, magnet: 'grid-lag', magnetLag: -0.031 })).toMatch(/31 ms late/);
+    expect(describeMagnet({ ...on, magnet: 'grid-lag', magnetLag: NaN })).toMatch(/paused/);
   });
 
   it('describeLive covers every state', () => {

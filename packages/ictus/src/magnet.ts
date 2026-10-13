@@ -63,3 +63,60 @@ export function magnetise(t: number, state: MusicalTime, magnetism: number, opti
   const pull = Math.max(0, Math.min(1, magnetism)) * gate * (grid - t);
   return { t: t + pull, grid, pull, gate };
 }
+
+/**
+ * The lag gate (#239, timing plan step 3, rule a): how much of a pull the grid has
+ * earned, from how far the strokes actually land from it.
+ *
+ * A grid built from late anchors (an oscillator lagging an accelerando, a phase servo
+ * that never rewinds, a follower tracking the wrist while the drum tracks the stick
+ * tip) sits a steady distance behind the strokes, and pulling toward it makes every
+ * hit worse, at every pipeline delay, including zero. Neither prior can see this from
+ * its own residual (a residual against anchors cannot see a grid built from late
+ * anchors), but the instrument can: it holds both the grid it used at a stroke's
+ * commit and the impact the stroke confirmed. `lags` are those `confirm.t - grid`
+ * differences over the last few strokes; their mean is the grid's bias, and the pull
+ * is scaled by `max(0, 1 - |mean| / L)` with `L = k * se(mean)`: a bias the strokes'
+ * own scatter cannot explain switches the magnet off, a grid the strokes straddle
+ * keeps it. Too few strokes to estimate the scatter is no evidence the grid is
+ * unbiased, so it gates to 0.
+ *
+ * Pure. The caller keeps the window (the last `LAG_STROKES` strokes).
+ */
+export interface LagGate {
+  /** The mean `confirm.t - grid`, seconds (NaN with no strokes): positive when the
+   *  strokes land after the grid. */
+  lag: number;
+  /** The standard error of that mean, seconds (NaN below two strokes). */
+  se: number;
+  /** The tolerance `L = k * se`, seconds. */
+  tolerance: number;
+  /** The factor the pull is scaled by, 0..1. */
+  gate: number;
+  /** The strokes it was measured over. */
+  n: number;
+}
+
+export interface LagGateOptions {
+  /** `L = k * se(lag)`. */
+  k?: number;
+  /** Below this many strokes the gate is 0. */
+  minStrokes?: number;
+}
+
+/** How many recent strokes the lag is measured over. */
+export const LAG_STROKES = 8;
+/** Below this many strokes the lag's scatter is not estimated and the gate is 0. */
+export const LAG_MIN_STROKES = 4;
+const LAG_DEFAULTS: Required<LagGateOptions> = { k: 3, minStrokes: LAG_MIN_STROKES };
+
+export function lagGate(lags: readonly number[], options: LagGateOptions = {}): LagGate {
+  const o = { ...LAG_DEFAULTS, ...options };
+  const xs = lags.filter(Number.isFinite);
+  const n = xs.length;
+  const lag = n ? xs.reduce((a, b) => a + b, 0) / n : NaN;
+  const se = n >= 2 ? Math.sqrt(xs.reduce((a, b) => a + (b - lag) ** 2, 0) / (n - 1) / n) : NaN;
+  const tolerance = o.k * se;
+  const gate = n < Math.max(2, o.minStrokes) || !(tolerance > 0) ? 0 : Math.max(0, 1 - Math.abs(lag) / tolerance);
+  return { lag, se, tolerance, gate, n };
+}

@@ -27,8 +27,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
-import { airDrumNode, standing, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
-import type { MusicalTime } from '@thoremin/ictus';
+import { airDrumNode, magnetStanding, standing, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
+import { LAG_MIN_STROKES, LAG_STROKES, type MusicalTime } from '@thoremin/ictus';
 import { FIXTURES } from '../helpers/fixtures';
 import { NO_OUTPUT_STAGE, knownOutputStage } from '../helpers/timing';
 
@@ -136,26 +136,113 @@ describe('air-drum node on the synthetic surface fixture', () => {
     expect(unmirrored.hits.every((h) => h.hand === 'left' && h.sound === 'hihat')).toBe(true);
   });
 
-  it('a running conductor with magnetism pulls the predicted hits toward its grid', async () => {
-    // A follower whose expected beats sit 25 ms AFTER each executed impact.
-    const offset = 0.025;
+  /** A running follower whose expected beat for event `i` sits `offset(i)` after its impact,
+   *  on the frames' own timeline (stamped `age` before the clip's, as the aged frames are). */
+  const gridAt = (offset: (i: number) => number, age = 0): MusicalTime[] => {
     const period = 60 / 100;
-    const time: MusicalTime[] = frames.map((_, i) => {
-      const t = i / FPS;
-      const e = nearest(t + 0.1);
-      const beatT = e.t_impact + offset;
+    return frames.map((_, k) => {
+      const e = nearest(k / FPS + 0.1);
+      const t = k / FPS - age;
+      const beatT = e.t_impact - age + offset(truth.events.indexOf(e));
       const beat = 4 + (t - beatT) / period;
       return { t, beat, phase: beat - Math.floor(beat), tempo: 100, period, confidence: 1, nextBeatAt: beatT > t ? beatT : beatT + period, beatsPerBar: 4, beatInBar: 0, state: 'running', anchors: 8 };
     });
-    const free = await run({ enabled: true, magnetism: 0 }, { time });
-    const pulled = await run({ enabled: true, magnetism: 1 }, { time });
-    expect(pulled.hits.length).toBe(free.hits.length);
-    for (let i = 1; i < free.hits.length; i++) {
-      const e = nearest(free.hits[i].t);
-      const grid = e.t_impact + offset;
-      expect(Math.abs(pulled.hits[i].t - grid)).toBeLessThan(Math.abs(free.hits[i].t - grid));
-      expect(pulled.hits[i].pull).not.toBe(0);
-    }
+  };
+
+  describe('the lag-gated magnet (#239, timing plan step 3)', () => {
+    it('a grid the strokes straddle earns the pull: once the lag is measured, hits move toward it', async () => {
+      // Expected beats alternately 25 ms after and before each impact: no bias, real scatter.
+      const offset = (i: number) => (i % 2 ? 0.025 : -0.025);
+      const time = gridAt(offset);
+      const free = await run({ enabled: true, magnetism: 0 }, { time });
+      const pulled = await run({ enabled: true, magnetism: 1 }, { time });
+      expect(pulled.hits.length).toBe(free.hits.length);
+      let moved = 0;
+      for (let i = 1; i < free.hits.length; i++) {
+        const e = nearest(free.hits[i].impactT);
+        const grid = e.t_impact + offset(truth.events.indexOf(e));
+        // Before LAG_MIN_STROKES confirmations there is no evidence the grid is unbiased.
+        if (i <= LAG_MIN_STROKES) {
+          expect(pulled.hits[i].pull).toBe(0);
+          continue;
+        }
+        expect(Math.abs(pulled.hits[i].t - grid)).toBeLessThan(Math.abs(free.hits[i].t - grid));
+        expect(pulled.hits[i].pull).not.toBe(0);
+        moved++;
+      }
+      expect(moved).toBeGreaterThanOrEqual(2);
+      expect(pulled.status.magnetGate).toBeGreaterThan(0.5);
+      expect(pulled.status.magnet).toBe('on');
+    });
+
+    it('a grid sitting a steady 25 ms off the strokes is a lagging grid: it pulls nothing, and the status says so', async () => {
+      const time = gridAt(() => 0.025);
+      const free = await run({ enabled: true, magnetism: 0 }, { time });
+      const pulled = await run({ enabled: true, magnetism: 1 }, { time });
+      expect(pulled.hits.map((x) => x.t)).toEqual(free.hits.map((x) => x.t));
+      expect(pulled.hits.every((x) => x.pull === 0)).toBe(true);
+      // The confirmed impact sits a few ms from the true one: the lag is about -25 ms.
+      expect(pulled.status.magnetLag).toBeGreaterThan(-0.035);
+      expect(pulled.status.magnetLag).toBeLessThan(-0.02);
+      expect(pulled.status.magnetGate).toBe(0);
+      expect(pulled.status.magnet).toBe('grid-lag');
+      expect(free.status.magnet).toBe('off');
+    });
+
+    it('rule (c): the lag is measured on the confirmed impacts, never on what was sounded, so the pull cannot feed itself', async () => {
+      const time = gridAt((i) => (i % 2 ? 0.03 : -0.02));
+      const free = await run({ enabled: true, magnetism: 0 }, { time });
+      const pulled = await run({ enabled: true, magnetism: 1 }, { time });
+      expect(pulled.hits.some((x) => x.pull !== 0)).toBe(true);
+      expect(pulled.status.magnetLag).toBe(free.status.magnetLag);
+      expect(Number.isFinite(free.status.magnetLag)).toBe(true);
+    });
+
+    it('rule (b): a pull toward a beat behind the earliest sound is truncated to decision + output stage, and reported as the move made', async () => {
+      // Beats alternately 120 ms before and after each impact: unbiased, so the gate is
+      // open, and the early ones pull behind the decision.
+      const stage = 0.02;
+      const time = gridAt((i) => (i % 2 ? -0.12 : 0.12));
+      const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, magnetism: 1, minLead: 0.03 }));
+      const outs = await replayNode(h, { hands: frames, time }, { dt: 1 / FPS, resources: knownOutputStage(stage) });
+      const hits = outs.flatMap((o, tick) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, decision: tick / FPS })));
+      const truncated = hits.filter((x) => x.lead < stage && x.pull !== 0);
+      expect(truncated.length).toBeGreaterThanOrEqual(1);
+      for (const hit of truncated) {
+        // Truncated to the earliest sound, never to "now".
+        expect(hit.t).toBeCloseTo(hit.decision + stage, 9);
+        expect(hit.predicted).toBe(false);
+        expect(hit.onTime).toBe('late');
+        expect(hit.lateBy).toBeCloseTo(stage - hit.lead, 9);
+        // The move actually made: from where the unpulled impact would have sounded.
+        expect(hit.pull).toBeCloseTo(hit.t - Math.max(hit.decision + stage, hit.impactT), 9);
+      }
+      for (const hit of hits) expect(hit.t).toBeGreaterThanOrEqual(hit.decision);
+    });
+
+    it('magnetStanding: blocked only when a full run had no pull, and named by what blocked it', () => {
+      expect(magnetStanding([])).toBe('off');
+      expect(magnetStanding(Array(LAG_STROKES - 1).fill('pipeline'))).toBe('on');
+      expect(magnetStanding([...Array(LAG_STROKES - 1).fill('pipeline'), 'pulled'])).toBe('on');
+      expect(magnetStanding(Array(LAG_STROKES).fill('warming'))).toBe('on');
+      expect(magnetStanding(Array(LAG_STROKES).fill('quiet'))).toBe('on');
+      expect(magnetStanding([...Array(5).fill('pipeline'), ...Array(3).fill('gated')])).toBe('too-slow');
+      expect(magnetStanding([...Array(3).fill('pipeline'), ...Array(5).fill('gated')])).toBe('grid-lag');
+      expect(magnetStanding([...Array(4).fill('warming'), ...Array(4).fill('gated')])).toBe('grid-lag');
+    });
+
+    it('a pipeline too slow to predict reads as too-slow, not as a lagging grid', async () => {
+      // Every frame 250 ms old: no stroke is predicted in time, so no pull can be made.
+      const age = 0.25;
+      const aged = frames.map((f, i) => ({ ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: performance.timeOrigin, lag: age }));
+      const time = gridAt((i) => (i % 2 ? 0.02 : -0.02), age);
+      const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, magnetism: 0.5, minLead: 0.05 }));
+      const outs = await replayNode(h, { hands: aged, time }, { dt: 1 / FPS, resources: { timeScale: 1, ...NO_OUTPUT_STAGE } });
+      const hits = outs.flatMap((o) => o.hits as DrumHit[]);
+      expect(hits.length).toBeGreaterThanOrEqual(LAG_STROKES);
+      expect(hits.every((x) => x.pull === 0)).toBe(true);
+      expect((outs[outs.length - 1].status as AirDrumStatus).magnet).toBe('too-slow');
+    });
   });
 
   it('a frame older than the tick (a camera pipeline) still gets the required lead from the DECISION, not the capture', async () => {
@@ -328,30 +415,6 @@ describe('air-drum node on the synthetic surface fixture', () => {
       for (const hit of hits) expect(hit.predicted).toBe(hit.onTime !== 'late');
     });
 
-    it('the lead is unclamped: a pull toward a beat already past reports a negative lead and a late hit, not a prediction', async () => {
-      // A follower whose expected beats sit 80 ms BEFORE each impact: the magnet pulls every
-      // prediction behind the decision, which used to be truncated to "now" and then
-      // reported as predicted with a lead of 0.
-      const offset = -0.08;
-      const period = 60 / 100;
-      const time: MusicalTime[] = frames.map((_, i) => {
-        const t = i / FPS;
-        const e = nearest(t + 0.1);
-        const beatT = e.t_impact + offset;
-        const beat = 4 + (t - beatT) / period;
-        return { t, beat, phase: beat - Math.floor(beat), tempo: 100, period, confidence: 1, nextBeatAt: beatT > t ? beatT : beatT + period, beatsPerBar: 4, beatInBar: 0, state: 'running', anchors: 8 };
-      });
-      const { hits } = await run({ enabled: true, magnetism: 1, minLead: 0.03 }, { time });
-      const pulledBack = hits.filter((x) => x.pull < 0 && x.lead < 0);
-      expect(pulledBack.length).toBeGreaterThan(2);
-      for (const hit of pulledBack) {
-        expect(hit.predicted).toBe(false);
-        expect(hit.onTime).toBe('late');
-        expect(hit.lateBy).toBeCloseTo(-hit.lead, 9);
-        // The sound is never behind the decision, and `impactT` is the stroke's own impact.
-        expect(hit.t).toBeGreaterThanOrEqual(hit.impactT + hit.pull - 1e-9);
-      }
-    });
   });
 
   it('the config input overrides the params live: enabling mid-stream starts drumming', async () => {

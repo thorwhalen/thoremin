@@ -65,7 +65,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { createImpactPredictor, fitLine, fitQuadratic, magnetise, type ImpactPredictor, type MusicalTime, type Quadratic } from '@thoremin/ictus';
+import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, fitLine, fitQuadratic, lagGate, magnetise, nearestExpectedBeat, type ImpactPredictor, type MusicalTime, type Quadratic } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
 import { frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
@@ -239,11 +239,51 @@ export interface AirDrumStatus {
   /** The last hit's standing against the output stage, and how late its sound lands. */
   lastOnTime: HitOnTime;
   lastLateBy: number;
+  /** Where the timing magnet stands (#239): see {@link MagnetStanding}. */
+  magnet: MagnetStanding;
+  /** The grid's measured lag behind the strokes, seconds (mean `impact - grid` over the
+   *  last {@link LAG_STROKES} predicted strokes; NaN before any), and the factor the
+   *  lag gate scales a pull by, 0..1. */
+  magnetLag: number;
+  magnetGate: number;
   /** Whether each hand's floor has been learned (a first stroke has been seen). */
   ready: { right: boolean; left: boolean };
 }
 
-export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, frameAspect: 0, lastLead: 0, lastPull: 0, lastOnTime: 'yes', lastLateBy: 0, ready: { right: false, left: false } };
+export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, frameAspect: 0, lastLead: 0, lastPull: 0, lastOnTime: 'yes', lastLateBy: 0, magnet: 'off', magnetLag: NaN, magnetGate: 0, ready: { right: false, left: false } };
+
+/**
+ * Where the timing magnet stands over the last {@link LAG_STROKES} strokes it was engaged
+ * for (magnetism above 0, a running conductor, no pattern in play):
+ * - `off`: not engaged;
+ * - `on`: engaged, and not blocked: some stroke in the run was pulled, the run is not
+ *   full yet, or nothing in it asked for a pull (the conductor warming up or unsure, the
+ *   grid's lag not yet measured over enough strokes, strokes outside the beat's window);
+ * - `too-slow`: every pull in the run was lost to the pipeline, mostly: ghost notes (a
+ *   stroke too fast for the pipeline is never predicted, so never pulled) and pulls
+ *   truncated to nothing because the beat was already behind the earliest sound;
+ * - `grid-lag`: every pull in the run was zeroed by the lag gate: the grid sits further
+ *   from the strokes than their own scatter explains (a lagging follower), so pulling
+ *   toward it would make the timing worse.
+ */
+export const MAGNET_STANDINGS = ['off', 'on', 'too-slow', 'grid-lag'] as const;
+export type MagnetStanding = (typeof MAGNET_STANDINGS)[number];
+
+/** What became of the magnet's pull for one engaged stroke. */
+type MagnetOutcome = 'pulled' | 'quiet' | 'warming' | 'gated' | 'pipeline';
+
+/** A pull smaller than this is no pull, seconds. */
+const NO_PULL = 0.0005;
+
+/** The magnet's standing over a run of engaged strokes' outcomes. */
+export function magnetStanding(run: readonly MagnetOutcome[]): MagnetStanding {
+  if (!run.length) return 'off';
+  if (run.length < LAG_STROKES || run.some((o) => o === 'pulled')) return 'on';
+  const pipeline = run.filter((o) => o === 'pipeline').length;
+  const gated = run.filter((o) => o === 'gated').length;
+  if (!pipeline && !gated) return 'on';
+  return pipeline >= gated ? 'too-slow' : 'grid-lag';
+}
 
 /** Ghost-note velocity for a stroke sounded on confirmation instead of prediction. */
 const GHOST_VELOCITY = 0.6;
@@ -557,6 +597,10 @@ interface Stick {
   lastGripT: number;
   /** The tracked point's recent samples, display fractions (the last {@link APPROACH_WINDOW} and a bit). */
   recent: TrackSample[];
+  /** The conductor's expected beat nearest the impact this stick committed to, at the
+   *  commit (NaN with no running grid or nothing committed): its confirmation measures
+   *  the grid's lag (#239). */
+  committedGrid: number;
 }
 
 /** The reach is smoothed over this long (seconds): a stroke's own foreshortening
@@ -629,6 +673,7 @@ export const airDrumNode = defineNode<Params>({
       grip: NaN,
       lastGripT: -Infinity,
       recent: [],
+      committedGrid: NaN,
     });
     /** Keep a grip-gated stick's predictor set for the hand's current size. */
     const regate = (stick: Stick, c: Params, gripFh: number, t: number) => {
@@ -650,9 +695,19 @@ export const airDrumNode = defineNode<Params>({
      *  old point), so every dial leaf takes effect live. */
     const stickKey = (c: Params) => `${c.point}|${c.stickLength}|${c.hand}|${c.mirrorHandedness}|${c.minStroke}|${c.minSpeed}`;
     let sticksKey = '';
+    /** #239: the last strokes' `impact - grid at commit`, both hands (one grid). */
+    let lags: number[] = [];
+    /** #239: what became of the magnet's pull, per engaged stroke, the last few. */
+    let magnetRun: MagnetOutcome[] = [];
+    const noteOutcome = (o: MagnetOutcome) => {
+      magnetRun.push(o);
+      if (magnetRun.length > LAG_STROKES) magnetRun.shift();
+    };
 
     const reset = () => {
       sticks = null;
+      lags = [];
+      magnetRun = [];
       lastFrame = undefined;
       status = { ...IDLE_STATUS, ready: { right: false, left: false } };
     };
@@ -667,6 +722,10 @@ export const airDrumNode = defineNode<Params>({
         if (!sticks || sticksKey !== stickKey(c)) {
           sticks = { right: makeStick(c), left: makeStick(c) };
           sticksKey = stickKey(c);
+          // The grid's lag is measured against THIS tracked point (a wrist-tracking
+          // conductor sits differently behind a stick tip than behind a wrist).
+          lags = [];
+          magnetRun = [];
           status = { ...IDLE_STATUS, enabled: true, ready: { right: false, left: false } };
         }
         const hits: DrumHit[] = [];
@@ -681,6 +740,11 @@ export const airDrumNode = defineNode<Params>({
           follower = play ? createPatternFollower({ pattern: play.pattern, model: play.model }) : null;
           if (follower && play?.startAt !== undefined) follower.start(play.startAt);
         }
+        const running = !!time && time.state === 'running';
+        /** The magnet is engaged: it would pull this tick's predicted hits. */
+        const engaged = running && c.magnetism > 0 && !follower;
+        if (!engaged) magnetRun = [];
+        const gate = lagGate(lags);
         if (frame && fresh && frame.height > 0) {
           // The output stage (how long after the decision the earliest sound can leave the
           // device), from the host's timing resource; a stated prior, flagged, when unknown.
@@ -759,6 +823,13 @@ export const airDrumNode = defineNode<Params>({
                  *  move a `pull`; the clamp alone (an impact already past at the decision,
                  *  a lastChance commit on a slow pipeline) is not one. */
                 let pulled = false;
+                // The grid this stroke is committed against: its confirmation measures the
+                // grid's lag (rule a), whether or not the magnet is on, so the gate is warm
+                // when the player turns it up.
+                stick.committedGrid = running ? nearestExpectedBeat(time!, e.t) : NaN;
+                /** Rule (a): the magnet's pull before the lag gate (to tell a gated
+                 *  stroke from one the magnet's own window left alone). */
+                let wanted = 0;
                 if (follower) {
                   // Pattern mode: the first hit is the one when no count-in said where it falls.
                   if (follower.beat(e.t) === null) follower.start(e.t);
@@ -768,13 +839,29 @@ export const airDrumNode = defineNode<Params>({
                     pulled = true;
                     if (snap.drum) sound = DRUM_SOUND[snap.drum];
                   }
-                } else if (time && c.magnetism > 0) {
-                  intended = magnetise(e.t, time, c.magnetism).t;
+                } else if (engaged) {
+                  // Rule (a): the pull scaled by the lag gate. A grid sitting measurably
+                  // off the strokes pulls nothing.
+                  wanted = magnetise(e.t, time!, c.magnetism).pull;
+                  intended = e.t + wanted * gate.gate;
                   pulled = true;
                 }
-                // Never behind the decision: a pull toward a beat already past is truncated
-                // to "now" for the SOUND; the lead and the pull report what really happened.
-                const at = Math.max(ctx.time, intended);
+                // Rule (b): never before the earliest sound, the decision plus the output
+                // stage (from the timing resource: never "now", which the device cannot
+                // reach). A pull toward a beat already behind that is truncated to it, and
+                // `pull` reports the move actually made against where the unpulled impact
+                // would have sounded; the lead reports what was intended.
+                const earliest = ctx.time + outputStage.value;
+                const at = pulled ? Math.max(earliest, intended) : Math.max(ctx.time, intended);
+                const pull = pulled ? at - Math.max(earliest, e.t) : 0;
+                if (engaged) {
+                  noteOutcome(
+                    Math.abs(pull) >= NO_PULL ? 'pulled'
+                    : gate.gate === 0 ? (gate.n < LAG_MIN_STROKES ? 'warming' : 'gated')
+                    : Math.abs(wanted * gate.gate) < NO_PULL ? 'quiet'
+                    : 'pipeline',
+                  );
+                }
                 hits.push({
                   t: at,
                   impactT: e.t,
@@ -788,14 +875,25 @@ export const airDrumNode = defineNode<Params>({
                   speed: s.speed,
                   strength: clamp01(e.strength),
                   ...standing(intended, ctx.time, outputStage),
-                  pull: pulled ? at - e.t : 0,
+                  pull,
                 });
+              } else if (e.predicted !== null) {
+                // Rule (a): a predicted stroke confirmed: how far the impact landed from the
+                // grid used at its commit. The confirmed impact, never what was sounded
+                // (rule c: nothing pulled or truncated is ever fed back).
+                if (Number.isFinite(stick.committedGrid)) {
+                  lags.push(e.t - stick.committedGrid);
+                  if (lags.length > LAG_STROKES) lags.shift();
+                }
+                stick.committedGrid = NaN;
               } else if (e.predicted === null) {
                 // Unpredicted: a ghost note, now; its lead is how late that is. It landed
                 // where the deepest sample was.
                 if (carried(e.t, NaN)) continue;
                 const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { aspect }), e.strength);
                 if (s.silent) continue;
+                // A stroke the pipeline could not predict cannot be pulled.
+                if (engaged) noteOutcome('pipeline');
                 hits.push({
                   t: ctx.time,
                   impactT: e.t,
@@ -815,6 +913,11 @@ export const airDrumNode = defineNode<Params>({
             }
             if (!status.ready[which] && Number.isFinite(predictor.level())) status = { ...status, ready: { ...status.ready, [which]: true } };
           }
+        }
+        {
+          const g = lagGate(lags);
+          const magnet = engaged ? magnetStanding(magnetRun) : 'off';
+          if (magnet !== status.magnet || !Object.is(g.lag, status.magnetLag) || g.gate !== status.magnetGate) status = { ...status, magnet, magnetLag: g.lag, magnetGate: g.gate };
         }
         if (hits.length) {
           const last = hits[hits.length - 1];

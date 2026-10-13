@@ -31,8 +31,8 @@ export { fMeasure, cemgil, continuity, fitGrid, medianInterval } from './metrics
 export type { GridFit } from './metrics';
 export { createImpactPredictor, fitQuadratic, fitLine, crossingTau, intersectionTau, expectedGap } from './impact';
 export type { ImpactPredictor, ImpactPredictorOptions, ImpactEvent, ImpactPrediction, ImpactConfirmation, ImpactMode, Quadratic } from './impact';
-export { magnetise, nearestExpectedBeat } from './magnet';
-export type { MagnetOptions, MagnetResult } from './magnet';
+export { LAG_MIN_STROKES, LAG_STROKES, lagGate, magnetise, nearestExpectedBeat } from './magnet';
+export type { LagGate, LagGateOptions, MagnetOptions, MagnetResult } from './magnet';
 export { createTrendPrior } from './trend_prior';
 export type { TrendPriorOptions } from './trend_prior';
 export { createBlendPrior, TREND_DEFAULTS } from './blend_prior';

@@ -56,9 +56,24 @@ export function describeLive(live: AirDrumLive): string {
   return `${hand}: predicted ${ms} ms before the strike.`;
 }
 
+/**
+ * The timing magnet's standing in words, or null when there is nothing to say (#239):
+ * the magnet off, or pulling as asked. The two blocked states are the reasons every
+ * pull of the last strokes came to nothing.
+ */
+export function describeMagnet(live: AirDrumLive): string | null {
+  if (!live.enabled) return null;
+  if (live.magnet === 'too-slow') return 'Timing magnet: pipeline too slow for timing magnetism on this machine (the strokes are heard too late to pull toward the beat).';
+  if (live.magnet === 'grid-lag') {
+    const lag = Number.isFinite(live.magnetLag) ? ` (${Math.round(Math.abs(live.magnetLag) * 1000)} ms ${live.magnetLag > 0 ? 'early' : 'late'})` : '';
+    return `Timing magnet: paused, the conductor's beat sits off your strokes${lag}; pulling toward it would make the timing worse.`;
+  }
+  return null;
+}
+
 /** Quantise what the panel shows (the lead to the millisecond). */
 export function airDrumLiveKey(l: AirDrumLive): string {
-  return `${l.enabled ? 1 : 0}|${l.hits}|${l.predicted}|${l.lastHand ?? '-'}|${l.lastPad ?? '-'}|${Math.round((l.frameAspect ?? 0) * 100)}|${Math.round(l.lastLead * 1000)}|${Math.round(l.lastPull * 1000)}|${l.lastOnTime ?? 'yes'}|${Math.round((l.lastLateBy ?? 0) * 1000)}|${l.ready.right ? 1 : 0}${l.ready.left ? 1 : 0}`;
+  return `${l.enabled ? 1 : 0}|${l.hits}|${l.predicted}|${l.lastHand ?? '-'}|${l.lastPad ?? '-'}|${Math.round((l.frameAspect ?? 0) * 100)}|${Math.round(l.lastLead * 1000)}|${Math.round(l.lastPull * 1000)}|${l.lastOnTime ?? 'yes'}|${Math.round((l.lastLateBy ?? 0) * 1000)}|${l.magnet ?? 'off'}|${l.ready.right ? 1 : 0}${l.ready.left ? 1 : 0}`;
 }
 
 export function makeAirDrumReporter(
