@@ -10,6 +10,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/re
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSet } from '@/app/dispatchDial';
+import { registry } from '@/app/commands/registry';
 
 const volume = () => dialsStore.getState().effective['master.volume'] as number;
 
@@ -35,7 +36,23 @@ describe('the instrument gear', () => {
     expect(localStorage.getItem('thoremin.instruments.selected')).toBe('Pentatonic');
   });
 
+  it('of the highlighted row chooses it again when the palette loaded another one meanwhile', async () => {
+    render(<InstrumentsPanel />);
+    fireEvent.click(await screen.findByText('Pentatonic'));
+    await waitFor(() => expect(localStorage.getItem('thoremin.instruments.selected')).toBe('Pentatonic'));
+    const gears = screen.getAllByRole('button', { name: /^Edit / });
+    const other = gears.find((b) => b.getAttribute('aria-label') !== 'Edit Pentatonic')!.getAttribute('aria-label')!.slice('Edit '.length);
+    // The palette (or the assistant) loads another instrument: the row highlight does not follow.
+    const result = await registry.dispatch('instrument.load', { name: other });
+    expect(result.ok).toBe(true);
+    expect(localStorage.getItem('thoremin.instruments.selected')).toBe(other);
+    // Pentatonic's gear must open Pentatonic, not the other one's dials under Pentatonic's name.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Pentatonic' }));
+    await waitFor(() => expect(localStorage.getItem('thoremin.instruments.selected')).toBe('Pentatonic'));
+  });
+
   it('of another instrument chooses it', async () => {
+    localStorage.removeItem('thoremin.instruments.selected');
     render(<InstrumentsPanel />);
     const gears = await screen.findAllByRole('button', { name: /^Edit / });
     const other = gears.find((b) => b.getAttribute('aria-label') !== 'Edit Pentatonic')!;

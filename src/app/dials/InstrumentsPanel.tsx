@@ -61,6 +61,7 @@ import { useInstrumentsView } from '@/app/library/instrumentsViewPrefs';
 import { listingOf, whyMatched, type Listing } from '@/app/library/instrumentsListing';
 import { chipValue, facetView, type FacetFamilyId, type FacetSelection } from '@/app/library/instrumentsFacets';
 import { INSTRUMENT_CLASSES } from '@/instruments/classes';
+import { getSelectedName } from '@/app/dials/instruments';
 
 /** A class's colour (the class registry's SSOT), for the row stripe and the heading swatch. */
 const classColour = (id: string): string => INSTRUMENT_CLASSES.find((c) => c.id === id)?.colour ?? 'rgba(255,255,255,0.3)';
@@ -308,10 +309,15 @@ export default function InstrumentsPanel() {
   };
 
   const openEditor = (name: string) => {
-    setEditorLead(library.summaryOf(name)?.air ?? []);
     // Editing the instrument already chosen keeps its unsaved edits: selecting reloads the saved
-    // layer, which is a revert, and the gear means "edit", not "revert" (#359).
-    if (name !== selected) select(name);
+    // layer, which is a revert, and the gear means "edit", not "revert" (#359). "Already chosen"
+    // is both the row's highlight and the persisted choice: an instrument loaded from the palette
+    // or the assistant moves only the latter, and then the gear chooses as before.
+    const current = name === selected && name === getSelectedName();
+    // What leads the editor: the air instruments playing now (unsaved edits included), or the
+    // saved ones of the instrument about to load.
+    setEditorLead(current ? liveAir : (library.summaryOf(name)?.air ?? []));
+    if (!current) select(name);
     setConfirming(false);
     setView('editor');
   };
