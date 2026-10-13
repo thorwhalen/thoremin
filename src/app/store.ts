@@ -55,6 +55,7 @@ import {
 } from '@/nodes/features/face_controls';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, LEGACY_CONDUCTOR_PRIOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import { AudioPrefsSchema, DEFAULT_AUDIO_PREFS, type AudioPrefs } from './timing/audioPrefs';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
@@ -246,6 +247,10 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    * `store-controls` composes it into the overlay node's params each tick.
    */
   trainerHud: TrainerHudParams;
+  /** The per-device audio pref (#240): `lowLatency` asks for `latencyHint: 0` when the
+   *  audio context is created (the first tap). Persisted with the tooling prefs, not a
+   *  preset field: the hint belongs to the machine's audio device, not an instrument. */
+  audioPrefs: AudioPrefs;
   setVoice(side: 'right' | 'left', patch: Partial<VoiceControl>): void;
   setSync(v: boolean): void;
   setMasterVolume(v: number): void;
@@ -287,6 +292,8 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   setGestures(patch: Partial<GesturePrefs>): void;
   /** Shallow-patch the trainer HUD pref (e.g. setTrainerHud({ show: false })). */
   setTrainerHud(patch: Partial<TrainerHudParams>): void;
+  /** Shallow-patch the per-device audio pref (#240; e.g. setAudioPrefs({ lowLatency: true })). */
+  setAudioPrefs(patch: Partial<AudioPrefs>): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
   applySettings(s: Settings): void;
 }
@@ -589,9 +596,18 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       gestures = current.gestures;
     }
   }
+  // Heal the per-device audio pref (#240): a pre-#240 blob has none → the default hint.
+  let audioPrefs = current.audioPrefs;
+  if (p.audioPrefs) {
+    try {
+      audioPrefs = AudioPrefsSchema.parse({ ...current.audioPrefs, ...p.audioPrefs });
+    } catch {
+      audioPrefs = current.audioPrefs;
+    }
+  }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, hands, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, ...keptTransients(current) };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, hands, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, audioPrefs, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, ...keptTransients(current) };
 }
 
 /** The extensions' transient fields as they are now: a rehydrated blob never carries them
@@ -646,6 +662,7 @@ export const useControls = create<ControlState>()(
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
       trainerHud: TrainerHudParamsSchema.parse({}),
+      audioPrefs: { ...DEFAULT_AUDIO_PREFS },
       setVoice: (side, patch) =>
         set((s) => {
           const next = { ...s[side], ...patch };
@@ -696,6 +713,7 @@ export const useControls = create<ControlState>()(
       setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
       setGestures: (patch) => set((s) => ({ gestures: { ...s.gestures, ...patch } })),
       setTrainerHud: (patch) => set((s) => ({ trainerHud: { ...s.trainerHud, ...patch } })),
+      setAudioPrefs: (patch) => set((s) => ({ audioPrefs: { ...s.audioPrefs, ...patch } })),
       // Restore exactly the schema fields (the setters are left untouched). Derived
       // from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) =>
@@ -770,7 +788,10 @@ export const useControls = create<ControlState>()(
       // v23 (#168 Q3): `midi.muteFollowsMaster` added (default true = the master mute
       // silences MIDI, as every earlier blob played). ADDITIVE, healed field by field by
       // mergeControls' healMidi; the bump marks the schema growth.
-      version: 23,
+      // v24 (#240): `audioPrefs` added, a per-device tooling pref (not a preset field):
+      // `lowLatency`, default off = the `interactive` hint every earlier blob ran with.
+      // ADDITIVE, healed by mergeControls' schema parse; the bump marks the growth.
+      version: 24,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
@@ -782,6 +803,7 @@ export const useControls = create<ControlState>()(
         featureLab: s.featureLab,
         gestures: s.gestures,
         trainerHud: s.trainerHud,
+        audioPrefs: s.audioPrefs,
       }),
     },
   ),

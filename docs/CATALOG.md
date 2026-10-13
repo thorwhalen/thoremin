@@ -84,7 +84,7 @@ MediaPipe hand landmark detection from a webcam video element.
 - **roles:** source
 - **in:** —
 - **out:** hands:hands-frame
-- **params:** modelType (enum(lite | full)="full"), maxHands (number=2)
+- **params:** modelType (enum(lite | full)="full"), maxHands (number=2), delegate (enum(auto | GPU | CPU)="auto")
 
 #### `webcam-face` — Webcam Face
 MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).
@@ -92,7 +92,7 @@ MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by
 - **roles:** source
 - **in:** —
 - **out:** face:face-frame, status:face-status
-- **params:** delegate (enum(GPU | CPU)="GPU")
+- **params:** delegate (enum(auto | GPU | CPU)="auto")
 
 #### `webcam-body` — Webcam Body
 MediaPipe PoseLandmarker full-body pose (33 landmarks) from the shared webcam. Lazy-loaded, off by default.
@@ -100,7 +100,7 @@ MediaPipe PoseLandmarker full-body pose (33 landmarks) from the shared webcam. L
 - **roles:** source
 - **in:** —
 - **out:** body:body-frame, status:body-status
-- **params:** model (enum(lite | full)="lite"), delegate (enum(GPU | CPU)="GPU"), minTrackingConfidence (number=0.5)
+- **params:** model (enum(lite | full)="lite"), delegate (enum(auto | GPU | CPU)="auto"), minTrackingConfidence (number=0.5)
 
 #### `keyboard-source` — Keyboard Source
 Global keyboard input → held / pressed / released key events.

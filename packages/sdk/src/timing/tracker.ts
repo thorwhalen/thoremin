@@ -19,6 +19,7 @@
  * - the `audioEpoch`: bumped on an audio `statechange`, a `devicechange` or a sample-rate
  *   mismatch (an AirPods connect turns 16 ms into 150), which resets the pair smoothing
  *   so a stale number is never carried across a route change;
+ * - the output's GLITCHES (`glitches.ts`), the guard on the low-latency hint (#240);
  * - the processed frame period (inference-paced, not the camera's), the DELIVERED camera
  *   rate measured from the capture stamps (`getSettings().frameRate` reports the request,
  *   not the result; a rate under 24 fps is the low-light hint), the `tSource` mix (how
@@ -36,6 +37,7 @@
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
 import { frameTime, type FrameTiming } from '../nodes/domain';
+import { GlitchCounter, type GlitchReading } from './glitches';
 import { deriveOutputStage, knownOutputLatency, pairScheduleToSpeaker, OUTPUT_STAGE_PRIOR_S, type OutputStage, type OutputStageAudioLike } from './output_stage';
 
 /** The granted camera settings the host reports (`track.getSettings()`, ids removed). */
@@ -78,6 +80,9 @@ export interface TimingReading {
     /** The raw reported value, seconds; `outputLatencyKnown` says whether it is one. */
     outputLatency: number | null;
     outputLatencyKnown: boolean;
+    /** The output's dropouts while the instrument played (`glitches.ts`): the guard on
+     *  the low-latency hint. */
+    glitches: GlitchReading;
   };
   camera: CameraSettings | null;
   /** `frameAge.p95 + outputStage.value`, seconds (the output stage's prior when unknown;
@@ -139,6 +144,8 @@ export class TimingTracker implements Tap {
   private camera: CameraSettings | null = null;
   private strikeS = NaN;
   private cached: TimingReading | null = null;
+  private readonly glitches = new GlitchCounter();
+  private glitchKey = '';
 
   constructor(options: TimingTrackerOptions = {}) {
     this.sourceKey = options.sourceKey ?? 'cam.hands';
@@ -161,6 +168,7 @@ export class TimingTracker implements Tap {
   bumpEpoch(): void {
     this.epoch++;
     this.pairEw = NaN;
+    this.glitches.reset();
     this.cached = null;
   }
 
@@ -188,7 +196,16 @@ export class TimingTracker implements Tap {
       if (Number.isFinite(this.boundSampleRate) && ac.sampleRate !== this.boundSampleRate) this.bumpEpoch();
       this.boundSampleRate = ac.sampleRate;
     }
-    const pair = pairScheduleToSpeaker(ac, this.now());
+    const now = this.now();
+    this.glitches.observe(ac, now);
+    // A new glitch, or one ageing out of the last minute, changes the reading.
+    const g = this.glitches.reading();
+    const glitchKey = `${g.total}/${g.recent}`;
+    if (glitchKey !== this.glitchKey) {
+      this.glitchKey = glitchKey;
+      this.cached = null;
+    }
+    const pair = pairScheduleToSpeaker(ac, now);
     if (!Number.isFinite(pair)) return;
     this.pairEw = Number.isFinite(this.pairEw) ? this.pairEw + PAIR_EW_GAIN * (pair - this.pairEw) : pair;
     this.cached = null;
@@ -261,6 +278,7 @@ export class TimingTracker implements Tap {
         baseLatency: typeof ac?.baseLatency === 'number' ? ac.baseLatency : null,
         outputLatency: typeof rawLatency === 'number' ? rawLatency : null,
         outputLatencyKnown: latencyKnown,
+        glitches: this.glitches.reading(),
       },
       camera: this.camera,
       leadBudget: (Number.isFinite(p95) ? p95 : 0) + outputStage.value,

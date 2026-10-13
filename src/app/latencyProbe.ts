@@ -290,6 +290,8 @@ function mountPanel(handle: LatencyHandle): () => void {
     if (s.timing) {
       const d = describeTiming(s.timing);
       lines.push(`timing resource: ${d.line}  epoch ${s.timing.audioEpoch}  lead budget ${(s.timing.leadBudget * 1000).toFixed(1)} ms`);
+      const g = s.timing.audio.glitches;
+      if (g) lines.push(`audio glitches ${g.total} (${g.recent} in the last minute, from ${g.source}${Number.isFinite(g.underrunS) ? `, ${(g.underrunS * 1000).toFixed(1)} ms lost` : ''})`);
       for (const w of d.warnings) lines.push(`  ${w}`);
     }
     if (strikeText) lines.push(strikeText);

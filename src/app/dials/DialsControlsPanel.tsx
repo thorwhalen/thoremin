@@ -37,6 +37,7 @@ import { MidiControls } from './panels/midi';
 import { BodyControls } from './panels/body';
 import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
+import { LowLatencyAudioControl } from './panels/audio';
 import { EXTENSION_PANELS } from '@/app/extensions';
 import type { AirInstrumentId } from '@/app/library/category';
 
@@ -78,6 +79,7 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
         </label>
         <VoiceControls side="right" />
         {!syncHands && <VoiceControls side="left" />}
+        <LowLatencyAudioControl />
       </TopSection>
 
       <TopSection label="Hand">

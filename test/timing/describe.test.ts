@@ -20,7 +20,7 @@ function reading(over: Partial<TimingReading> = {}): TimingReading {
     skippedFrames: 0,
     frames: 300,
     scheduleToSpeaker: 0.0329,
-    audio: { state: 'running', sampleRate: 48000, baseLatency: 0.0058, outputLatency: 0.032, outputLatencyKnown: true },
+    audio: { state: 'running', sampleRate: 48000, baseLatency: 0.0058, outputLatency: 0.032, outputLatencyKnown: true, glitches: { total: 0, recent: 0, underrunS: NaN, source: 'none' } },
     camera: { frameRate: 30, width: 1280, height: 720 },
     leadBudget: 0.067,
     ...over,
@@ -60,6 +60,15 @@ describe('describeTiming', () => {
     const unstamped = reading({ deliveredFps: NaN, dominantSource: UNSTAMPED_SOURCE, stampSources: { [UNSTAMPED_SOURCE]: MIN_FRAMES_FOR_STAMP_HINT * 2 } });
     expect(describeTiming(unstamped).warnings).toEqual([]);
     expect(describeTiming(unstamped).line).toContain('capture stamps 0 %');
+  });
+
+  it('warns when the audio output glitched in the last minute, and names the low-latency box when it is on (#240)', () => {
+    const glitched = (recent: number) => reading({ audio: { ...reading().audio, glitches: { total: recent + 3, recent, underrunS: 0.01, source: 'playbackStats' } } });
+    expect(describeTiming(glitched(0)).warnings).toEqual([]);
+    expect(describeTiming(glitched(1)).warnings).toEqual(['audio glitched once in the last minute']);
+    expect(describeTiming(glitched(4)).warnings).toEqual(['audio glitched 4 times in the last minute']);
+    expect(describeTiming(glitched(2), { lowLatencyAudio: true }).warnings).toEqual(['audio glitched 2 times: turn off low-latency audio']);
+    expect(describeTiming(glitched(0), { lowLatencyAudio: true }).warnings).toEqual([]);
   });
 
   it('counts skipped frames in the line', () => {

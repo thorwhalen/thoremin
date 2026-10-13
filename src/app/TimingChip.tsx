@@ -2,7 +2,8 @@
  * TimingChip — the camera status line (step 0 of the 2026-10-05 timing plan): what the
  * timing resource measured, in one short line under the face chip, and the warnings a
  * player must act on ("audio interrupted: tap to resume", an output stage this browser
- * cannot report, a camera delivering under 24 fps, stamps that are not capture times).
+ * cannot report, an output that glitched in the last minute (#240), a camera delivering
+ * under 24 fps, stamps that are not capture times).
  *
  * The resource itself is not a shell feature; this line is, and it is the one place a
  * player learns that the instrument knows how old its frames are and how late its
@@ -11,11 +12,15 @@
  */
 import { useTimingStatus } from './timingStatus';
 import { describeTiming } from './timing/describe';
+import { useControls } from './store';
+import { lowLatencyHintInEffect } from './timing/audioPrefs';
 
 export default function TimingChip() {
   const reading = useTimingStatus((s) => s.reading);
+  // Re-render when the box flips; blame it only when the running context took the hint.
+  const boxTicked = useControls((s) => s.audioPrefs.lowLatency);
   if (!reading) return null;
-  const { line, warnings } = describeTiming(reading);
+  const { line, warnings } = describeTiming(reading, { lowLatencyAudio: boxTicked && lowLatencyHintInEffect() });
   if (!line && warnings.length === 0) return null;
   return (
     <div data-timing-chip className="pointer-events-none absolute left-3 top-[4.75rem] flex max-w-[min(90vw,32rem)] flex-col gap-1">
