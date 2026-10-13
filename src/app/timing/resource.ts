@@ -51,6 +51,9 @@ export interface TimingResourceOptions {
 
 /** How long the timer probe may spin, ms. */
 export const TIMER_PROBE_MS = 3;
+/** The most readings the probe takes: a backstop so a clock that never moves (a frozen
+ *  test clock, a coarsened timer) cannot spin past the budget forever. */
+export const TIMER_PROBE_MAX_READINGS = 2e5;
 
 /**
  * The resolution of a clock, seconds: the smallest nonzero step between successive
@@ -60,7 +63,7 @@ export function measureTimerResolution(now: () => number = () => performance.now
   const start = now();
   let last = start;
   let step = Infinity;
-  for (let i = 0; i < 2e5; i++) {
+  for (let i = 0; i < TIMER_PROBE_MAX_READINGS; i++) {
     const t = now();
     if (t > last) {
       step = Math.min(step, t - last);
