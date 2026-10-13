@@ -30,7 +30,7 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
-import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
+import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import { createEventBatchParser } from '../lib/event_batch';
 import { DRUM_SOUNDS, DrumHitSchema, type DrumSound } from './air_drum';
@@ -238,11 +238,11 @@ export const drumOutNode = defineNode<Params>({
         if (clock.state !== undefined && clock.state !== 'running') return {};
         const hits = batch.parse(raw, ctx.log);
         if (hits.length === 0) return {};
-        const outputStage = timingFrom(ctx.resources).outputStage.value;
+        const at: TickClock = { clock, nowEngine: ctx.time, stage: timingFrom(ctx.resources).outputStage.value };
         for (const hit of hits) {
           if (!DRUM_SOUNDS.includes(hit.sound)) continue;
           // Never in the past: a ghost note (or a late prediction) sounds at once.
-          const when = scheduleAt(clock, hit.t, ctx.time, outputStage);
+          const when = scheduleAt(hit.t, at);
           sink.play(hit.sound, hit.velocity, when, { radial: hit.radial ?? 0 });
         }
         return {};

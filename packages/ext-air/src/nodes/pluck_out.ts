@@ -24,7 +24,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
 import { createEventBatchParser } from '../lib/event_batch';
 import { NoteEventSchema, type NoteEvent } from './note_events';
-import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
+import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import { midiToFreq } from '@thoremin/sdk/music/theory';
 import type { AudioClockLike } from './drum_out';
@@ -183,10 +183,10 @@ export const pluckOutNode = defineNode<Params>({
         if (clock.state !== undefined && clock.state !== 'running') return {};
         const notes = batch.parse(raw, ctx.log);
         if (notes.length === 0) return {};
-        const outputStage = timingFrom(ctx.resources).outputStage.value;
+        const at: TickClock = { clock, nowEngine: ctx.time, stage: timingFrom(ctx.resources).outputStage.value };
         for (const note of notes) {
           // Never in the past: a late note sounds at once.
-          const when = scheduleAt(clock, note.t, ctx.time, outputStage);
+          const when = scheduleAt(note.t, at);
           sink.play(note.midi, note.velocity, when, note.voice);
         }
         return {};
