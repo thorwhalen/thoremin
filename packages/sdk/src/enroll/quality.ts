@@ -51,8 +51,11 @@ export const QUALITY_DEFAULTS = {
   /** A hold is suspect only when CLEARLY nearer elsewhere: its silhouette below this. A hold on
    *  the boundary (silhouette near 0) would otherwise flip with the jitter of a replay. */
   suspectBelow: -0.1,
-  /** The movements a hint names. */
+  /** The most movements a hint names. */
   hintMovements: 2,
+  /** A further movement is named only if at least this share of the first: a hint that adds
+   *  the noise to the difference teaches the wrong thing. */
+  hintShare: 0.5,
   /** A margin (`(d2 - d1) / (d2 + d1)`) below this is "on the edge". */
   edgeMargin: 0.15,
 } as const;
@@ -300,19 +303,22 @@ export function qualityHint(
     label,
     neutralName = 'your Neutral faces',
     movements = QUALITY_DEFAULTS.hintMovements,
+    share = QUALITY_DEFAULTS.hintShare,
   }: {
     describe: (featureId: string) => FeatureWords | undefined;
     label: (categoryId: string) => string;
     /** How the text names the Neutral neighbour (the modality's words). */
     neutralName?: string;
     movements?: number;
+    share?: number;
   },
 ): QualityHint | null {
   const self = model.categories.find((c) => c.id === id);
   if (!self) return null;
   const centre = other === NEUTRAL_TARGET ? nearestCentre(model, self.centroid, model.neutral ?? []) : (model.categories.find((c) => c.id === other)?.centroid ?? null);
   if (!centre) return null;
-  const top = distinguishingMovements(model, self.centroid, centre, describe).slice(0, Math.max(1, movements));
+  const ranked = distinguishingMovements(model, self.centroid, centre, describe);
+  const top = ranked.slice(0, Math.max(1, movements)).filter((m, i) => i === 0 || Math.abs(m.delta) >= share * Math.abs(ranked[0].delta));
   if (top.length === 0) return null;
   const me = `"${label(id)}"`;
   const them = other === NEUTRAL_TARGET ? neutralName : `"${label(other)}"`;

@@ -37,6 +37,8 @@ describe('carve quality: the acceptance (two overlapping faces)', () => {
     expect(hint.movements[0]).toMatchObject({ movement: 'mouth-open', name: 'mouth open', instruction: 'open your mouth wider' });
     expect(hint.movements[0].delta).toBeGreaterThan(0);
     expect(hint.text).toContain('They differ mostly in mouth open (+');
+    // The scripted faces differ in mouth open alone: nothing else is named (the noise is not).
+    expect(hint.movements).toHaveLength(1);
     expect(hint.text).toContain('open your mouth wider for "open smile", or merge them.');
     // And from the other side: less of it.
     const back = qualityHint(model, 'cat-1', 'cat-2', { describe: faceModality.describe, label: labelOf(model) })!;
