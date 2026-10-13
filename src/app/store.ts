@@ -330,12 +330,6 @@ function migrateInstrumentField(obj: unknown): void {
   }
 }
 
-/**
- * Persist migration. v1 → v2: the #64 face-mapping chooser replaced the boolean
- * `faceEnabled` with the tri-state `faceMapping`. v2 → v3: the per-hand / chord
- * timbre field was renamed `instrument` → `sound`; a returning player's saved
- * `instrument` becomes `sound` so they keep their sound. Exported for direct testing.
- */
 /** The MIDI block healed field by field against its schema: a field that parses is kept,
  *  one that is absent or corrupt takes `fallback`'s value (the shipped default on a first
  *  load). Never throws, never undefined. */
@@ -350,6 +344,12 @@ function healMidi(stored: unknown, fallback: MidiSettings): MidiSettings {
   return out as MidiSettings;
 }
 
+/**
+ * Persist migration. v1 → v2: the #64 face-mapping chooser replaced the boolean
+ * `faceEnabled` with the tri-state `faceMapping`. v2 → v3: the per-hand / chord
+ * timbre field was renamed `instrument` → `sound`; a returning player's saved
+ * `instrument` becomes `sound` so they keep their sound. Exported for direct testing.
+ */
 export function migrateControls(persisted: unknown, version: number): ControlState {
   const s = { ...(persisted as Record<string, unknown>) };
   if (version < 2) {
@@ -767,7 +767,10 @@ export const useControls = create<ControlState>()(
       // v22 (#148): `hands` added (the handedness dwell, default 0 = the raw per-frame
       // label every earlier blob played by). ADDITIVE, healed by mergeControls (which runs
       // after the v21 migrate); the bump marks the schema growth.
-      version: 22,
+      // v23 (#168 Q3): `midi.muteFollowsMaster` added (default true = the master mute
+      // silences MIDI, as every earlier blob played). ADDITIVE, healed field by field by
+      // mergeControls' healMidi; the bump marks the schema growth.
+      version: 23,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
