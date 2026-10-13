@@ -9,9 +9,12 @@
     "./app/aslStatus": "./src/app/aslStatus.ts",
     "./branches": "./src/branches.ts",
     "./dials": "./src/dials.ts",
+    "./lazy": "./src/lazy.ts",
+    "./lazy_ui": "./src/lazy_ui.tsx",
     "./nodes/asl_signs": "./src/nodes/asl_signs.ts",
     "./nodes/sign_chord": "./src/nodes/sign_chord.ts",
     "./panels/asl": "./src/panels/asl.tsx",
+    "./schema": "./src/schema.ts",
     "./ui": "./src/ui.tsx"
   },
   "dependencies": {

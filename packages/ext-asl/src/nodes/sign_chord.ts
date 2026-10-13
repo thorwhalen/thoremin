@@ -23,7 +23,7 @@ import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, renderGains, voiceTriad, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
 import type { VoiceParams } from '@thoremin/sdk/nodes/domain';
 import type { SignScores } from '@thoremin/asl';
-import { DEFAULT_ASL_DIAL, type AslDialParams } from './asl_signs';
+import { DEFAULT_ASL_DIAL, type AslDialParams } from '../schema';
 
 /** Sign-chord voices start here: far from every other producer's ids (the hands 0..1, the
  *  face and pose chords 2..10, the conducted score from 11 up by note, the flute's 1e6), so

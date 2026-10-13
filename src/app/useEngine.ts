@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
+import { branchIdsWithout, composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
 import { branchIdsFor } from '@/app/graph';
 import { branchSetKey } from '@/instruments/derive';
 import type { Composed } from '@/instruments/compose';
@@ -46,7 +46,9 @@ import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 import { useTimingStatus, makeTimingReporter } from './timingStatus';
 import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
 import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORCHESTRA_NODE_ID } from './orchestraStatus';
-import { EXTENSION_STATUS_HOOKS } from './extensions';
+import { extensionStatusHooks, makeExtensionSinks } from './extensions';
+import { ensureLazyTypes } from './extensionLoad';
+import { composeLoaded, makeLazyApplier, type LazyApplyDeps } from './lazyApply';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from './enroll/categoryDispatch';
@@ -114,9 +116,30 @@ function currentBranchKey(): string {
  * caller writes the composed overlay element set to the hot store when the graph commits
  * (`applyLive`), so the overlay reads it through `store-controls` and never as a param.
  */
-function liveGraph(selection: SlotSelection, registry: NodeRegistry): Composed {
-  return composeInstrumentGraph(liveBranchIds(useControls.getState()), selection, registry);
+function liveGraph(selection: SlotSelection, registry: NodeRegistry, without: ReadonlySet<string> = new Set()): Composed {
+  return composeInstrumentGraph(branchIdsWithout(liveBranchIds(useControls.getState()), without), selection, registry);
 }
+
+/**
+ * How the live graph is composed against a registry that may hold LAZY extension nodes
+ * (`docs/design/lazy-extensions.md`): what is pending is loaded first, and a load that fails
+ * leaves that extension's branches out and says so, so the instrument keeps playing.
+ */
+function lazyDeps(selection: () => SlotSelection, registry: NodeRegistry): Omit<LazyApplyDeps<Composed>, 'commit'> {
+  return {
+    compose: (without) => liveGraph(selection(), registry, without),
+    typesOf: (g) => g.spec.nodes.map((n) => n.type),
+    pending: (types) => registry.pending(types),
+    ensure: (types) => ensureLazyTypes(registry, types),
+    onLoadError: (types, err) => {
+      console.error(`[thoremin] could not load the code of ${types.join(', ')}; playing without it`, err);
+      useToasts.getState().push('An add-on could not load — check your connection and pick the instrument again', 6000, 'error');
+    },
+  };
+}
+
+/** One lazy applier per engine: only the latest request against an engine commits. */
+const appliers = new WeakMap<Engine, () => void | Promise<void>>();
 
 /**
  * Re-wire a RUNNING engine onto the live graph. The overlay's element set is written when
@@ -125,22 +148,32 @@ function liveGraph(selection: SlotSelection, registry: NodeRegistry): Composed {
  * leave the store describing the graph that is actually running). Nodes the apply removed
  * get their status stores reset, so a panel never shows a node that no longer exists.
  */
-function applyLive(engine: Engine, selection: SlotSelection, registry: NodeRegistry, live: Engine | null): void {
-  const next = liveGraph(selection, registry);
-  void engine
-    .applyGraph(next.spec, registry)
-    .then((change) => {
-      if (live !== null && live !== engine) return;
-      useControls.getState().setGraphElements(next.elements);
-      resetStatusesOf(change.removed);
-    })
-    .catch((err) => reportApplyFailure(engine, live, err));
+function applyLive(engine: Engine, selection: () => SlotSelection, registry: NodeRegistry, live: () => Engine | null): void {
+  let apply = appliers.get(engine);
+  if (!apply) {
+    apply = makeLazyApplier<Composed>({
+      ...lazyDeps(selection, registry),
+      commit: (next) => {
+        void engine
+          .applyGraph(next.spec, registry)
+          .then((change) => {
+            const now = live();
+            if (now !== null && now !== engine) return;
+            useControls.getState().setGraphElements(next.elements);
+            resetStatusesOf(change.removed);
+          })
+          .catch((err) => reportApplyFailure(engine, live(), err));
+      },
+    });
+    appliers.set(engine, apply);
+  }
+  void apply();
 }
 
 /** The status stores that mirror a branch node, by node id; reset when the node leaves. */
 function resetStatusesOf(removed: readonly string[]): void {
   for (const id of removed) {
-    for (const hook of EXTENSION_STATUS_HOOKS) if (hook.nodeId === id) hook.onRemoved();
+    for (const hook of extensionStatusHooks()) if (hook.nodeId === id) hook.onRemoved();
     if (id === GENERATIVE_NODE_ID) useGenerativeStatus.getState().report(ABSENT_GENERATIVE_STATUS);
     else if (id === CONDUCTOR_NODE_ID) useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE);
     else if (id === ORCHESTRA_NODE_ID) useOrchestraStatus.getState().report(ABSENT_ORCHESTRA_STATUS);
@@ -323,7 +356,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // contract, so a stale URL can never produce an unbuildable graph.
         let builtKey = slotSelectionKey(slotsRef.current);
         let builtBranchKey = currentBranchKey();
-        const live = liveGraph(slotsRef.current, registry);
+        // A lazy extension the restored instrument plays loads here, before the engine is
+        // built (its failure only leaves it out: never a dead start).
+        const live = await composeLoaded(lazyDeps(() => slotsRef.current, registry));
+        if (disposed || live === null) return;
         // The first graph has no predecessor, so its element set is written at once.
         useControls.getState().setGraphElements(live.elements);
         const engine = new Engine(live.spec, registry, { resources });
@@ -368,7 +404,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         if (slotSelectionKey(slotsRef.current) !== builtKey || currentBranchKey() !== builtBranchKey) {
           builtKey = slotSelectionKey(slotsRef.current);
           builtBranchKey = currentBranchKey();
-          applyLive(engine, slotsRef.current, registry, engineRef.current);
+          applyLive(engine, () => slotsRef.current, registry, () => engineRef.current);
         }
 
         // Bridge the face model's status + classified expression from the DAG
@@ -459,7 +495,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         const reportOrchestra = makeOrchestraReporter(engine);
         // The extensions' status hooks (the air instruments' readouts and live shapes):
         // built once per engine, run as sinks below, reset on removal and teardown.
-        const extensionSinks = EXTENSION_STATUS_HOOKS.map((hook) => hook.make(engine));
+        const extensionSinks = makeExtensionSinks(engine);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -503,7 +539,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportOrchestra), toMs(reportTiming), ...extensionSinks.map(toMs)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportOrchestra), toMs(reportTiming), toMs(extensionSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -540,7 +576,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useConductorStatus.getState().reset();
       useOrchestraStatus.getState().reset();
       useTimingStatus.getState().reset();
-      for (const hook of EXTENSION_STATUS_HOOKS) hook.reset();
+      for (const hook of extensionStatusHooks()) hook.reset();
       uninstallDebug();
       uninstallLatency();
       uninstallCategoryDemand();
@@ -586,7 +622,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const engine = engineRef.current;
     const registry = registryRef.current;
     if (!engine || !registry) return;
-    applyLive(engine, slotsRef.current, registry, engineRef.current);
+    applyLive(engine, () => slotsRef.current, registry, () => engineRef.current);
   }, [slotsKey]);
 
   // Re-wire the LIVE engine when the branch set changes (an instrument switch, a dial that
@@ -599,7 +635,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const engine = engineRef.current;
     const registry = registryRef.current;
     if (!engine || !registry) return;
-    applyLive(engine, slotsRef.current, registry, engineRef.current);
+    applyLive(engine, () => slotsRef.current, registry, () => engineRef.current);
   }, [branchKey]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.

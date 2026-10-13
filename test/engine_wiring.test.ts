@@ -67,10 +67,11 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // (`...latencySinks` is the #227 probe's tick-end stamp: empty unless ?probe=latency.)
     // (`reportTiming` is the timing resource's readout for the camera status line, step 0 of the timing plan.)
     // (`reportCategory` feeds the #160 category dispatcher, whose hold is in ms like the gestures'.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportOrchestra\),\s*toMs\(reportTiming\),\s*\.\.\.extensionSinks\.map\(toMs\)\s*\]/);
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportOrchestra\),\s*toMs\(reportTiming\),\s*toMs\(extensionSinks\)\s*\]/);
     // The extensions' sinks (the air instruments' readouts and shape taps, PR 5a) are built
-    // from the manifests and converted the same way, in one place.
-    expect(c).toMatch(/const extensionSinks = EXTENSION_STATUS_HOOKS\.map\(\(hook\) => hook\.make\(engine\)\)/);
+    // from the manifests and converted the same way, in one place: one sink over every status
+    // hook in hand, so a lazy extension that loads mid-session gets its readout.
+    expect(c).toMatch(/const extensionSinks = makeExtensionSinks\(engine\)/);
   });
 
   it('publishes the read-only debug handle when the engine is ready, and removes it on teardown (#209)', () => {
@@ -129,7 +130,9 @@ describe('the slot selection reaches the graph', () => {
     // ignores every selection and validates nothing.
     expect(c).not.toMatch(/defaultGraph\(\s*\)/);
     expect(c).not.toMatch(/liveGraph\(\s*\)/);
-    expect(c).toMatch(/const live = liveGraph\(slotsRef\.current,\s*registry\)/);
+    // (Composed through the lazy-extension loader: a restored instrument's lazy nodes load first.)
+    expect(c).toMatch(/const live = await composeLoaded\(lazyDeps\(\(\) => slotsRef\.current,\s*registry\)\)/);
+    expect(c).toMatch(/compose: \(without\) => liveGraph\(selection\(\),\s*registry,\s*without\)/);
     expect(c).toMatch(/new Engine\(\s*live\.spec,\s*registry/);
   });
 
@@ -139,11 +142,13 @@ describe('the slot selection reaches the graph', () => {
     const c = code(useEngine);
     // One helper does the re-wire: it composes the live graph for the CURRENT slots and
     // applies it; both effects call it, and so does the post-init reconcile.
-    expect(c).toMatch(/function applyLive\([^)]*\)[^{]*\{\s*const next = liveGraph\(selection,\s*registry\);\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
-    expect(c).toMatch(/applyLive\(engine, slotsRef\.current, registry, engineRef\.current\);\s*\}, \[\s*slotsKey\s*\]\)/);
+    // (Through one lazy applier per engine, `src/app/lazyApply.ts`: what the graph names but
+    // is not loaded yet loads first, and only the latest request commits.)
+    expect(c).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry\),\s*commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
+    expect(c).toMatch(/applyLive\(engine, \(\) => slotsRef\.current, registry, \(\) => engineRef\.current\);\s*\}, \[\s*slotsKey\s*\]\)/);
     // ...and on a change of the branch SET (an instrument switch, a dial that adds a
     // capability, a tool's feature demand): the instruments-as-graphs ADR, PR 3.
-    expect(c).toMatch(/applyLive\(engine, slotsRef\.current, registry, engineRef\.current\);\s*\}, \[\s*branchKey\s*\]\)/);
+    expect(c).toMatch(/applyLive\(engine, \(\) => slotsRef\.current, registry, \(\) => engineRef\.current\);\s*\}, \[\s*branchKey\s*\]\)/);
     // A change during the model load (no engine yet) is reconciled once after init, for
     // the branch set as for the slots.
     expect(c).toMatch(/currentBranchKey\(\) !== builtBranchKey/);

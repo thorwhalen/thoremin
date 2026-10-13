@@ -46,3 +46,18 @@ export interface ExtensionUi {
   statusHooks: readonly StatusHook[];
   onMount: readonly (() => void | (() => void))[];
 }
+
+/** An editor section a LAZY extension will contribute: where it goes and its label, with no
+ *  component (those load with the extension's deferred UI half). */
+export type ExtensionPanelDecl = Pick<ExtensionPanel, 'instrumentId' | 'section'>;
+
+/**
+ * The EAGER stub of a lazy extension's React half (`docs/design/lazy-extensions.md`): its
+ * sections, declared as data, so the shell can list them before anything loads. The full
+ * {@link ExtensionUi} (components, status hooks, mount effects) is the deferred half, which
+ * the host's build loads with a dynamic `import()`; its mount effects run when it loads.
+ */
+export interface ExtensionUiStub {
+  id: string;
+  panels: readonly ExtensionPanelDecl[];
+}

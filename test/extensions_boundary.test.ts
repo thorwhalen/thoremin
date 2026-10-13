@@ -62,6 +62,7 @@ const FOLD_POINTS = new Set([
   'src/app/dials/DialsControlsPanel.tsx', // the editor sections
   'src/app/dials/InstrumentsPanel.tsx', // the live readouts under the chosen row
   'src/app/useEngine.ts', // the status hooks
+  'src/app/extensionLoad.ts', // loads a lazy extension's halves when a graph names its nodes
   'src/app/App.tsx', // the mount effects
   'src/app/extensions/index.ts', // the React-side list itself
 ]);
@@ -137,7 +138,9 @@ describe('core reaches the extensions only through the lists, from the fold poin
     const pure = importSpecifiers(readFileSync('src/extensions/index.ts', 'utf8'));
     expect(pure.sort()).toEqual(['@thoremin/sdk/instruments/extension', 'virtual:thoremin/extensions']);
     const ui = importSpecifiers(readFileSync('src/app/extensions/index.ts', 'utf8'));
-    expect(ui.sort()).toEqual(['@thoremin/sdk-ui/types', 'virtual:thoremin/extensions-ui']);
+    // `./lazyPanel` is the host's placeholder for a LAZY extension's section (it renders the
+    // shared load readout until the extension's own component arrives): no extension code.
+    expect(ui.sort()).toEqual(['./lazyPanel', '@thoremin/sdk-ui/types', 'virtual:thoremin/extensions-ui']);
   });
 
   it('finds the shipped extensions (a guard over no files checks nothing)', () => {

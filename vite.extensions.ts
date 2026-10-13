@@ -17,6 +17,11 @@
  *
  * Set `THOREMIN_EXTENSIONS` to build from another manifest file (and run `npm run extensions`
  * with the same variable to typecheck against it).
+ *
+ * An entry may be LAZY (`docs/design/lazy-extensions.md`): `"lazy": { "module", "ui" }` names
+ * the deferred halves, and `module` / `ui` are then small eager stubs. The generated list
+ * gives each lazy entry a `load` that is a dynamic `import()` of its deferred half, so that
+ * half is its own chunk and only the host's build ever writes the `import()`.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -29,8 +34,11 @@ export interface ExtensionEntry {
   id: string;
   /** The pure manifest module (default export: an `Extension`). */
   module: string;
-  /** The React half (default export: an `ExtensionUi`). */
+  /** The React half (default export: an `ExtensionUi`, or an `ExtensionUiStub` when lazy). */
   ui: string;
+  /** The deferred halves of a lazy extension: `module` default-exports its `ExtensionNodes`,
+   *  `ui` its full `ExtensionUi`. Absent: the extension is eager (all of it in the stubs). */
+  lazy?: { module: string; ui: string };
 }
 
 /** An alias (`@/x`) or a package (`x`, `@scope/x`), with an optional subpath. */
@@ -51,16 +59,32 @@ export function readExtensionEntries(file: string): ExtensionEntry[] {
         throw new Error(`${file}: extensions[${i}].${key} ("${entry[key]}") must be a module specifier: an alias ("@/extensions/x") or a package ("@scope/x"), not a relative or absolute path`);
       }
     }
+    if (entry.lazy !== undefined) {
+      const lazy = entry.lazy as Partial<NonNullable<ExtensionEntry['lazy']>>;
+      for (const key of ['module', 'ui'] as const) {
+        const spec = lazy?.[key];
+        if (typeof spec !== 'string' || !SPECIFIER.test(spec)) {
+          throw new Error(`${file}: extensions[${i}].lazy.${key} must be a module specifier (an alias or a package), got ${JSON.stringify(spec)}`);
+        }
+      }
+    }
     if (seen.has(entry.id as string)) throw new Error(`${file}: duplicate extension id "${entry.id}"`);
     seen.add(entry.id as string);
     return entry as ExtensionEntry;
   });
 }
 
-/** The source of a virtual list module: one default import per entry, exported as an array. */
+/**
+ * The source of a virtual list module: one default import per entry (its stub, for a lazy
+ * one), exported as an array. A lazy entry's element also gets `load`, a dynamic `import()` of
+ * its deferred half's default export: the one place a lazy extension's chunk is split off.
+ */
 export function listModuleSource(entries: readonly ExtensionEntry[], key: 'module' | 'ui'): string {
   const imports = entries.map((e, i) => `import e${i} from ${JSON.stringify(e[key])};`).join('\n');
-  return `${imports}\nexport default [${entries.map((_, i) => `e${i}`).join(', ')}];\n`;
+  const items = entries.map((e, i) =>
+    e.lazy ? `{ ...e${i}, load: () => import(${JSON.stringify(e.lazy[key])}).then((m) => m.default) }` : `e${i}`,
+  );
+  return `${imports}\nexport default [${items.join(', ')}];\n`;
 }
 
 /** Where the generated declaration of the pure list lives (relative to the root). */

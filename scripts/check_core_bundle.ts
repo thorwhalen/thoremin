@@ -58,7 +58,8 @@ try {
     .map((f) => readFileSync(join(out, 'assets', f), 'utf8'))
     .join('\n');
   const needles = SHIPPED.flatMap((e) => [
-    ...e.nodes.map((n) => `"${n.type}"`),
+    // An eager extension's node types are its nodes'; a lazy one's are the types it `provides`.
+    ...[...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])].map((t) => `"${t}"`),
     ...e.branches.map((b) => `"${b.id}"`),
     ...e.dials.map((d) => `"${d.kind}"`),
   ]);

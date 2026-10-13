@@ -11,7 +11,7 @@ import { keyName, NOTE_LETTERS, NOTES, SCALE_TYPES, type ScaleTypeId } from '@th
 import { SOUNDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import { MOTION_SIGNS, signText } from '@thoremin/asl';
 import { letterChordName } from '../nodes/sign_chord';
-import { DEFAULT_ASL_DIAL, type AslDialParams } from '../nodes/asl_signs';
+import { DEFAULT_ASL_DIAL, type AslDialParams } from '../schema';
 import { useAslStatus } from '../app/aslStatus';
 
 /** What the reader sees right now. */

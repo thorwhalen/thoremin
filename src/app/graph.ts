@@ -44,6 +44,27 @@ import { assembleSpecWith, type InstrumentSpec, type SpecParts } from '@/instrum
 export const ALL_BRANCHES = [...BRANCHES, ...EXTENSION_BRANCHES];
 export const ALL_BRANCH_IDS: readonly string[] = ALL_BRANCHES.map((b) => b.id);
 
+/**
+ * `branchIds` without every branch that names a node of one of `types`, and without every branch
+ * that requires one of those (transitively, since the composer would add the required one back).
+ * How the app still plays when a lazy extension's code failed to load: the graph is composed
+ * without that extension's branches (`docs/design/lazy-extensions.md`).
+ */
+export function branchIdsWithout(branchIds: readonly string[], types: ReadonlySet<string>): string[] {
+  if (types.size === 0) return [...branchIds];
+  const dropped = new Set(ALL_BRANCHES.filter((b) => b.nodes.some((n) => n.type !== undefined && types.has(n.type))).map((b) => b.id));
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const b of ALL_BRANCHES) {
+      if (!dropped.has(b.id) && b.requires.some((r) => dropped.has(r))) {
+        dropped.add(b.id);
+        grew = true;
+      }
+    }
+  }
+  return branchIds.filter((id) => !dropped.has(id));
+}
+
 /** What the derivation knows in THIS build: every branch id, and each extension's derivation. */
 export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_BRANCH_IDS), extensions: EXTENSIONS };
 
