@@ -64,6 +64,8 @@ export function dejitterStamps(samples: Sample[], source: DejitterStampSource, o
   const dj = createStampDejitter(options);
   return samples.map((s) => {
     const r = dj.push(1000 * s.t, source);
-    return r.engaged ? { t: r.tMs / 1000, x: s.x, y: s.y } : s;
+    // The module's output whenever it differs from the input: a replaced stamp, or a
+    // pass-through it floored after one (so the stream never steps back).
+    return r.tMs !== 1000 * s.t ? { t: r.tMs / 1000, x: s.x, y: s.y } : s;
   });
 }
