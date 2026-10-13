@@ -39,6 +39,13 @@ export const DEFAULT_PIECE = 'beethoven-symphony-5-1';
  * (the node's `config` port strips it): the app's `ScoreLoader` watches it and hands the
  * loaded `ScoreDoc` to the graph.
  */
+/** What an instrument saved before the conductor dial had a `prior` field (#232) is
+ *  played by: the oscillator, which is what it was played by when it was saved. The
+ *  schema's default (`blend`) is for instruments made from now on; `normalizeLayer`
+ *  and the hot store's migration fill this one into a `conductor` object that lacks
+ *  the key, so adding the field changed no saved instrument's behaviour. */
+export const LEGACY_CONDUCTOR_PRIOR = 'oscillator' as const;
+
 export const ConductorSettingsSchema = ConductorDialSchema.extend({
   piece: z.string().default(DEFAULT_PIECE),
 });
