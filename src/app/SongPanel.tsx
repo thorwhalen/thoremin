@@ -34,6 +34,7 @@ import { toolById } from './tools';
 import { useTools } from './toolsStore';
 import { SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
 import { unlockSongPlayback, type SongHandle } from '@/nodes/output/song_player';
+import { songConducted, type DerivationSettings } from '@/instruments/derive';
 
 export const SONG_TOOL_ID = 'song';
 
@@ -107,6 +108,8 @@ export default function SongPanel() {
   const pace = useSongStatus((s) => s.pace);
   const prefs = useControls((s) => s.songPrefs);
   const setPrefs = useControls((s) => s.setSongPrefs);
+  // While the conductor leads the song (#187 PR 7) its transport and tempo are his.
+  const conducted = useControls((s) => songConducted(s as unknown as DerivationSettings));
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +166,7 @@ export default function SongPanel() {
                 {song.name} <span className="font-normal text-white/40">{formatTime(song.durationS)}</span>
               </div>
               <div className="text-white/60" data-testid="song-grid">{describeGrid(song)}</div>
+              {conducted && <div className="text-emerald-300/80" data-testid="song-conducted">The conductor leads this song: it plays, holds and keeps time with the beat.</div>}
             </div>
             <button
               onClick={() => {

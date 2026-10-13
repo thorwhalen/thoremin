@@ -47,7 +47,7 @@ export interface DerivationSettings {
   faceMapping?: string;
   body?: { enabled?: boolean };
   bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
-  conductor?: { enabled?: boolean; orchestra?: { enabled?: boolean } };
+  conductor?: { enabled?: boolean; conducts?: string; orchestra?: { enabled?: boolean } };
   midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
   /** The per-device song pref (#186 PR H): `follow` composes the pace branch. */
@@ -69,7 +69,7 @@ export interface StrictDerivationSettings {
   faceMapping: string;
   body: { enabled: boolean };
   bodyMap: { routes: Record<string, { target: string; feature: string }> };
-  conductor: { enabled: boolean; orchestra: { enabled: boolean } };
+  conductor: { enabled: boolean; conducts: string; orchestra: { enabled: boolean } };
   midi: { enabled: boolean };
   steer: { enabled: boolean };
   songPrefs: { follow: boolean };
@@ -104,6 +104,12 @@ export function songFollows(settings: Pick<DerivationSettings, 'songPrefs' | 'so
   return settings.songPrefs?.follow === true && settings.songHandle != null;
 }
 
+/** Whether the conductor leads the recording (#187 PR 7): conducting is on, it conducts
+ *  the recording, and a song is loaded. It replaces following the dancer meanwhile. */
+export function songConducted(settings: Pick<DerivationSettings, 'conductor' | 'songHandle'>): boolean {
+  return settings.conductor?.enabled === true && settings.conductor.conducts === 'recording' && settings.songHandle != null;
+}
+
 /**
  * The branch ids `settings` and `ctx` imply, in no particular order (the composer orders).
  * The trunk is implied by the composer and not listed here.
@@ -121,8 +127,12 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // the app down. `composeGraph` would refuse them; here they simply compose nothing.
     for (const id of ctx.explicit) add(id, table.knownBranchIds.has(id));
     add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
-    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || songFollows(settings));
-    add('song-pace', songFollows(settings));
+    // The conductor is the instrument's (an explicit set lists it); the recording it leads
+    // is the player's, like the dancer's song.
+    const conducted = songConducted(settings) && ids.includes('conductor');
+    const dancerLeads = songFollows(settings) && !conducted;
+    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || dancerLeads);
+    add('song-pace', dancerLeads || conducted);
     return ids;
   }
 
@@ -142,8 +152,11 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   const bodyWanted = on(settings.body) || labWantsBody(ctx.featureLab) || demandWantsBody(demanded);
   // Following the dancer (#186 PR H) needs the body; it does not make the body ROUTE
   // anything onto the voices, so `bodyWanted` (which gates the router) leaves it out.
-  add('body-source', bodyWanted || songFollows(settings));
-  add('song-pace', songFollows(settings));
+  // A conductor leading the song replaces the dancer (one leader for one song): the pace
+  // node prefers his time, and the body is not started for a dancer nobody follows.
+  const dancerLeads = songFollows(settings) && !songConducted(settings);
+  add('body-source', bodyWanted || dancerLeads);
+  add('song-pace', dancerLeads || songConducted(settings));
   // The router modulates the hand voices: it needs the body AND the voices.
   add('body-route', bodyWanted && fieldVoices && bodyMapRoutesAnything(settings.bodyMap));
 

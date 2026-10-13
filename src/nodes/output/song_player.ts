@@ -10,10 +10,12 @@
  * (PR H, on `followRate`, which replaces `rate` while the song follows the dancer) drive
  * it without a graph rebuild.
  *
- * Playback is behind the {@link Stretcher} seam: the browser's own media element
- * (`playbackRate` with `preservesPitch`, `./song_stretcher`) by default, loaded the first
- * time a song needs it, or a host's own through `ctx.resources.createStretcher` (the
- * tests; Signalsmith Stretch is the measured next candidate, research map §6.1). Like
+ * Playback is behind the {@link Stretcher} seam: Signalsmith Stretch (an AudioWorklet,
+ * `./song_stretcher_signalsmith`, #187 PR 7) by default, loaded the first time a song
+ * needs it, which falls back by itself to the browser's own media element (`playbackRate`
+ * with `preservesPitch`, `./song_stretcher`) where the worklet cannot start; the
+ * `stretcher` param picks the element outright; a host's own comes through
+ * `ctx.resources.createStretcher` (the tests). Like
  * every audio node it is a no-op without an `AudioContext` (created on the player's
  * first tap), and it says where it is on `status` in the shared lazy-loading vocabulary:
  * `off` with no song, `unavailable` before the audio starts, `loading` while the element
@@ -24,6 +26,11 @@
  * `songTime` is the song's {@link MusicalTime} read off its beat grid at the playback
  * position, with tempo and the next beat in ENGINE time (so a song at 1.1x has a 10 %
  * shorter period): what the pace controller (PR H) compares with the dancer's pulse.
+ *
+ * A conductor can lead the transport too (#187 PR 7): `followPlaying`, when present,
+ * replaces `playing` (the conductor's beat servo pauses the song while he waits or
+ * holds), and `cue` moves the song to a beat (seeking to its time on the grid) whenever
+ * its id changes.
  * A tool's claim (the Trainer) silences the song like every other voice; the player's
  * mute acts on the master gain the song is mixed into.
  */
@@ -31,7 +38,7 @@ import { z } from 'zod';
 import { defineNode, realtimeOutputAllowed } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import type { LoadStatus } from '@thoremin/lazy';
-import { songTimeAt, EMPTY_SONG_GRID, type MusicalTime, type SongGrid } from '@thoremin/ictus';
+import { songTimeAt, songTimeOfBeat, EMPTY_SONG_GRID, type MusicalTime, type SongGrid } from '@thoremin/ictus';
 
 /** The song as the instrument sees it: one stable object per loaded file. Never
  *  persisted (the object URL dies with the page; the grid is re-tracked on load). */
@@ -56,8 +63,10 @@ export interface Stretcher {
   /** Playback rate, pitch preserved; 1 = the song's own tempo. */
   setRate(rate: number): void;
   setVolume(volume: number): void;
-  /** Position on the SONG's timeline, seconds. */
+  /** Position on the SONG's timeline, seconds: the audio leaving the stretcher now. */
   position(): number;
+  /** Move to a position on the song's timeline, seconds (#187 PR 7: the conductor's cue). */
+  seek?(position: number): void;
   playing(): boolean;
   ended(): boolean;
   /** True after the browser refused the last `play()` (an autoplay policy: WebKit wants
@@ -90,10 +99,15 @@ export interface StretcherOptions {
 
 export type StretcherFactory = (opts: StretcherOptions) => Stretcher;
 
+export const STRETCHERS = ['signalsmith', 'element'] as const;
+
 const Params = z.object({
   /** The rate range a live input may set: the native element's quality range. */
   minRate: z.number().positive().default(0.5),
   maxRate: z.number().positive().default(2),
+  /** Which stretcher plays the song: Signalsmith Stretch (falls back to the element where
+   *  its worklet cannot start) or the media element outright. */
+  stretcher: z.enum(STRETCHERS).default('signalsmith'),
 });
 type Params = z.infer<typeof Params>;
 
@@ -126,6 +140,12 @@ export const songPlayerNode = defineNode<Params>({
       kind: 'number',
       description: 'The pace controller\'s rate while the song follows the dancer (PR H); replaces `rate` when present',
     },
+    {
+      name: 'followPlaying',
+      kind: 'boolean',
+      description: "The conductor's transport (#187 PR 7): replaces `playing` when present (paused while the conductor waits or holds)",
+    },
+    { name: 'cue', kind: 'song-cue', description: "Move the song to a beat (the conductor's cue): seeks whenever its id changes" },
     { name: 'volume', kind: 'number', default: 0.8 },
     { name: 'claimed', kind: 'boolean', default: false, description: 'A tool holds the instrument quiet (the Trainer)' },
   ],
@@ -150,6 +170,11 @@ export const songPlayerNode = defineNode<Params>({
     let applied = 1;
     let wasFollowed = false;
     let glide: { from: number; t0: number } | null = null;
+    /** The last cue acted on (by id). Forgotten while no cue arrives, so a new leader's
+     *  ids (a fresh servo counts from 1 again) are never mistaken for an old one's. */
+    let cuedId: number | null = null;
+    /** Whether a leader held the transport last tick. */
+    let wasLed = false;
 
     /** The stretcher, once there is one; starts the default loading on first need. */
     const stretcherFor = (ctx: NodeContext, audio: StretcherOptions, songId: string): Stretcher | null => {
@@ -162,11 +187,15 @@ export const songPlayerNode = defineNode<Params>({
       }
       // The default is browser-only (a DOM audio element): loaded once, on first need.
       starting = true;
-      void import('./song_stretcher')
-        .then(({ createMediaElementStretcher }) => {
+      const factory: Promise<StretcherFactory> =
+        p.stretcher === 'element'
+          ? import('./song_stretcher').then((m) => m.createMediaElementStretcher)
+          : import('./song_stretcher_signalsmith').then((m) => m.createSignalsmithStretcher);
+      void factory
+        .then((create) => {
           // A node disposed while the module loaded must not leave an element behind.
           if (disposed) return;
-          stretcher = createMediaElementStretcher(audio);
+          stretcher = create(audio);
           LIVE.add(stretcher);
         })
         .catch((e) => {
@@ -215,6 +244,9 @@ export const songPlayerNode = defineNode<Params>({
           s.pause();
           loadedId = song.id;
           wasPlaying = false;
+          // A cue standing from the previous song is not a request about this one.
+          const standing = inputs.cue as { id?: unknown } | undefined;
+          cuedId = typeof standing?.id === 'number' ? standing.id : null;
           status = { phase: 'loading', message: `Loading ${song.name}...` };
           const id = song.id;
           s.load(song.url).then(
@@ -226,7 +258,16 @@ export const songPlayerNode = defineNode<Params>({
             },
           );
         }
-        const playing = inputs.playing === true;
+        // The conductor's transport replaces the player's while he leads (#187 PR 7).
+        const led = typeof inputs.followPlaying === 'boolean';
+        // When the leader lets go, the song stops and waits for a fresh press of Play: the
+        // Song tool's transport may still read "playing" from before the leader took over.
+        if (wasLed && !led) {
+          s.pause();
+          wasPlaying = inputs.playing === true;
+        }
+        wasLed = led;
+        const playing = led ? (inputs.followPlaying as boolean) : inputs.playing === true;
         // While the song follows the dancer, the pace controller's rate replaces the
         // player's (which is then the controller's base, the centre of its clamp).
         const followed = typeof inputs.followRate === 'number' && Number.isFinite(inputs.followRate);
@@ -244,12 +285,24 @@ export const songPlayerNode = defineNode<Params>({
         const volume = inputs.claimed === true ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
         s.setVolume(volume);
         s.setRate(rate);
-        if (status.phase === 'ready' || status.phase === 'active' || status.reason === 'autoplay') {
+        const playable = status.phase === 'ready' || status.phase === 'active' || status.reason === 'autoplay';
+        // A cue moves the song to a beat; one that arrives while the song is still loading
+        // is acted on once it is playable.
+        const cue = inputs.cue as { id?: unknown; beat?: unknown } | undefined;
+        if (!cue) cuedId = null;
+        if (playable && cue && typeof cue.id === 'number' && cue.id !== cuedId && typeof cue.beat === 'number' && s.seek) {
+          const at = songTimeOfBeat(song.grid, cue.beat);
+          if (Number.isFinite(at)) s.seek(Math.max(0, Math.min(song.durationS, at)));
+          cuedId = cue.id;
+        }
+        if (playable) {
           // A rising edge plays (from the start when the song had ended); holding
           // `playing` after the end does not loop it.
           // A press made while the song was still loading is an edge here, once it is
           // ready (`wasPlaying` only moves while the song is playable).
-          if (playing && !wasPlaying) s.play();
+          // A leader cannot restart a song that has played to its end (a release cue past
+          // the end lands there): the song is over until the player presses Play.
+          if (playing && !wasPlaying && !(led && s.ended())) s.play();
           else if (!playing && s.playing()) s.pause();
           wasPlaying = playing;
           const sounding = s.playing();

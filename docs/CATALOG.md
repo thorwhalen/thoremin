@@ -369,8 +369,8 @@ The beating hand becomes musical time: ictus detection + a rhythm prior (package
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:conductor-config, doc:score-doc
-- **out:** time:musical-time, beat:number, bpm:number, velocityScale:number, phase:number, dynamics:number, articulation:number, confidence:number, enabled:boolean
-- **params:** enabled (boolean=false), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), mirrorX (boolean=true), mirrorHandedness (boolean=true), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), prior (enum(oscillator | trend | blend)="blend"), phaseGain (number=0.5), periodGain (number=0.4)
+- **out:** time:musical-time, beat:number, bpm:number, velocityScale:number, phase:number, dynamics:number, articulation:number, confidence:number, enabled:boolean, leadsScore:boolean, recordingTime:musical-time
+- **params:** enabled (boolean=false), conducts (enum(score | recording)="score"), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), mirrorX (boolean=true), mirrorHandedness (boolean=true), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), prior (enum(oscillator | trend | blend)="blend"), phaseGain (number=0.5), periodGain (number=0.4)
 
 #### `transport` — Transport
 Beat clock: integrates BPM over time into a running beat position.
@@ -473,17 +473,17 @@ _Play a song to dance or play along to: its beat tracked in the browser, its tem
 Plays the song loaded in the Song tool at a live rate with the pitch preserved, into the master bus, and publishes the song's beat as musical time.
 
 - **roles:** synth
-- **in:** song:song-handle, playing:boolean, rate:number, followRate:number, volume:number, claimed:boolean
+- **in:** song:song-handle, playing:boolean, rate:number, followRate:number, followPlaying:boolean, cue:song-cue, volume:number, claimed:boolean
 - **out:** status:load-status, position:number, rate:number, songTime:musical-time
-- **params:** minRate (number=0.5), maxRate (number=2)
+- **params:** minRate (number=0.5), maxRate (number=2), stretcher (enum(signalsmith | element)="signalsmith")
 
 #### `pace-controller` — Pace Controller
 Makes the song follow the dancer: relates the dancer's pulse to the song's beat by an integer ratio and sets the song's rate (clamped around the player's tempo, nudged into phase, held when the dancer stops).
 
 - **roles:** music, control
-- **in:** pulse:pulse-state, song:musical-time, rate:number, base:number, range:number
-- **out:** rate:number, pace:pace-state
-- **params:** persistS (number=3), smoothS (number=1), nudge (number=0.03), phaseThreshold (number=0.08333333333333333), maxRatio (number=8), phaseOffset (number=0), songPeriodS (number=8), minRate (number=0.5), maxRate (number=2)
+- **in:** pulse:pulse-state, song:musical-time, rate:number, base:number, range:number, lead:musical-time, offset:number
+- **out:** rate:number, pace:pace-state, playing:boolean, cue:song-cue, servo:servo-state
+- **params:** persistS (number=3), smoothS (number=1), nudge (number=0.03), phaseThreshold (number=0.08333333333333333), maxRatio (number=8), phaseOffset (number=0), songPeriodS (number=8), minRate (number=0.5), maxRate (number=2), horizonBeats (number=1), maxCorrection (number=0.25), seekBeyondBeats (number=2)
 
 ### Synthesis & generation
 _Make sound — direct synthesis, steered AI music, or an external MIDI instrument._

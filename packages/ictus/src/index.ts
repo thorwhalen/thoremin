@@ -39,6 +39,8 @@ export { createPulseFollower, acfPeaks, fitSine, refinePeriod, PULSE_DEFAULTS, P
 export type { PulseFollower, PulseLevel, PulseOptions, PulseState } from './pulse';
 export { createPaceController, relatePeriods, paceRatios, PACE_DEFAULTS } from './pace';
 export type { PaceController, PaceInput, PaceMode, PaceOptions, PaceState } from './pace';
+export { createBeatServo, servoRate, SERVO_DEFAULTS } from './servo';
+export type { BeatServo, ServoCue, ServoInput, ServoMode, ServoOptions, ServoState } from './servo';
 export { createScheduler, SCHEDULER_DEFAULTS } from './scheduler';
 export { trackSongGrid, songTimeAt, beatIndexAt, songTimeOfBeat, hasGrid, onsetEnvelopes, lsLine, toMono, EMPTY_SONG_GRID, SONG_GRID_DEFAULTS, SONG_GRID_SOURCE } from './song_grid';
 export type { SongGrid, SongGridOptions } from './song_grid';

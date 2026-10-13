@@ -61,7 +61,7 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'conductor', port: 'time' }, to: { node: 'orchestra', port: 'time' } },
   { from: { node: 'conductor', port: 'velocityScale' }, to: { node: 'orchestra', port: 'velocityScale' } },
   { from: { node: 'conductor', port: 'articulation' }, to: { node: 'orchestra', port: 'articulation' } },
-  { from: { node: 'conductor', port: 'enabled' }, to: { node: 'orchestra', port: 'conducting' } },
+  { from: { node: 'conductor', port: 'leadsScore' }, to: { node: 'orchestra', port: 'conducting' } },
   { from: { node: 'ui', port: 'scoreDoc' }, to: { node: 'orchestra', port: 'doc' } },
   { from: { node: 'ui', port: 'conductor' }, to: { node: 'orchestra', port: 'config' } },
   { from: { node: 'ui', port: 'claimed' }, to: { node: 'orchestra', port: 'claimed' } },
@@ -83,6 +83,12 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'songRate' }, to: { node: 'pace', port: 'base' } },
   { from: { node: 'ui', port: 'songFollowRange' }, to: { node: 'pace', port: 'range' } },
   { from: { node: 'pace', port: 'rate' }, to: { node: 'songPlayer', port: 'followRate' } },
+  // #187 PR 7: the conductor leads the recording through the same pace controller, and the
+  // score (and the orchestra) play only while he leads the score.
+  { from: { node: 'conductor', port: 'recordingTime' }, to: { node: 'pace', port: 'lead' } },
+  { from: { node: 'pace', port: 'playing' }, to: { node: 'songPlayer', port: 'followPlaying' } },
+  { from: { node: 'pace', port: 'cue' }, to: { node: 'songPlayer', port: 'cue' } },
+  { from: { node: 'conductor', port: 'leadsScore' }, to: { node: 'score', port: 'enabled' } },
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */
@@ -104,6 +110,8 @@ const REMOVED_SINCE_SNAPSHOT: EdgeSpec[] = [
   // #168 Q3: the mapping node no longer mutes at the source; the merge is the one place
   // the master mute applies (#91), so the hands' voices can reach MIDI through a mute.
   { from: { node: 'ui', port: 'mute' }, to: { node: 'map', port: 'mute' } },
+  // #187 PR 7: the score plays on `leadsScore` (not while the conductor leads a recording).
+  { from: { node: 'conductor', port: 'enabled' }, to: { node: 'score', port: 'enabled' } },
 ];
 
 /** Nodes of extensions added after the snapshot (the ASL reader and its chords): the golden

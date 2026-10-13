@@ -246,25 +246,35 @@ export const bodyRoute = defineBranch({
 });
 
 /**
- * The song follows the dancer (#186 PR H, research map §9.6): the pace controller reads
- * the dancer's pulse and the song's beat and sets the rate the song plays at. It closes a
- * loop through the song player, so the two edges back from the player are DELAYED (the
- * previous tick's song time and rate, extrapolated to now). Composed while following is
- * on and a song is loaded; it implies the body source (`requires`), since the dancer is
- * what it follows.
+ * The song follows a leader: the dancer (#186 PR H, research map §9.6) or the conductor
+ * (#187 PR 7, "Conduct a recording", the conducting map §6.7). One pace controller reads
+ * the leader and the song's beat and sets the rate the song plays at. It closes a loop
+ * through the song player, so the two edges back from the player are DELAYED (the
+ * previous tick's song time and rate, extrapolated to now).
+ *
+ * The leaders arrive on OPTIONAL edges, each present when its branch is composed: the
+ * dancer's pulse from the body source, the conductor's `recordingTime` from the conductor
+ * (a time only while he leads the recording, so a conductor leading the score never
+ * steers the song). With a conductor's time the node runs the beat servo and also drives
+ * the player's transport (`followPlaying`) and cue; with the dancer's pulse alone it runs
+ * the dancer's law and leaves the transport to the player. Composed while following is on
+ * or the conductor leads the recording, and a song is loaded; the derivation composes the
+ * leader's branch with it (the body source for the dancer, the conductor for himself).
  */
 export const songPace = defineBranch({
   id: 'song-pace',
-  description: "The song's tempo follows the dancer's pulse.",
-  requires: ['body-source'],
+  description: "The song's tempo follows a leader: the dancer's pulse or the conductor's beat.",
   nodes: [{ id: 'pace', type: 'pace-controller', params: {} }],
   edges: [
-    to({ node: 'bodyPulse', port: 'pulse' }, { node: 'pace', port: 'pulse' }),
+    to({ node: 'bodyPulse', port: 'pulse' }, { node: 'pace', port: 'pulse' }, true),
+    to({ node: 'conductor', port: 'recordingTime' }, { node: 'pace', port: 'lead' }, true),
     { from: { node: 'songPlayer', port: 'songTime' }, to: { node: 'pace', port: 'song' }, delayed: true },
     { from: { node: 'songPlayer', port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
     to(ui('songRate'), { node: 'pace', port: 'base' }),
     to(ui('songFollowRange'), { node: 'pace', port: 'range' }),
     to({ node: 'pace', port: 'rate' }, { node: 'songPlayer', port: 'followRate' }),
+    to({ node: 'pace', port: 'playing' }, { node: 'songPlayer', port: 'followPlaying' }),
+    to({ node: 'pace', port: 'cue' }, { node: 'songPlayer', port: 'cue' }),
   ],
 });
 
@@ -283,7 +293,7 @@ export const conductor = defineBranch({
     to(ui('conductor'), { node: 'conductor', port: 'config' }),
     to({ node: 'conductor', port: 'beat' }, { node: 'score', port: 'beat' }),
     to({ node: 'conductor', port: 'velocityScale' }, { node: 'score', port: 'velocityScale' }),
-    to({ node: 'conductor', port: 'enabled' }, { node: 'score', port: 'enabled' }),
+    to({ node: 'conductor', port: 'leadsScore' }, { node: 'score', port: 'enabled' }),
     to(ui('scoreDoc'), { node: 'score', port: 'doc' }),
     to(ui('scoreDoc'), { node: 'conductor', port: 'doc' }),
     to({ node: 'conductor', port: 'time' }, overlay('conductorTime')),
@@ -291,7 +301,7 @@ export const conductor = defineBranch({
     to({ node: 'conductor', port: 'time' }, { node: 'orchestra', port: 'time' }),
     to({ node: 'conductor', port: 'velocityScale' }, { node: 'orchestra', port: 'velocityScale' }),
     to({ node: 'conductor', port: 'articulation' }, { node: 'orchestra', port: 'articulation' }),
-    to({ node: 'conductor', port: 'enabled' }, { node: 'orchestra', port: 'conducting' }),
+    to({ node: 'conductor', port: 'leadsScore' }, { node: 'orchestra', port: 'conducting' }),
     to(ui('scoreDoc'), { node: 'orchestra', port: 'doc' }),
     to(ui('conductor'), { node: 'orchestra', port: 'config' }),
     to(ui('claimed'), { node: 'orchestra', port: 'claimed' }),
