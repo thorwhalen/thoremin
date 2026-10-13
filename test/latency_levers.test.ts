@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { CAPTURE, cameraConstraints } from '@/app/camera';
 import { isSoftwareRenderer, resolveDelegate, DelegateChoiceSchema } from '@/nodes/sources/delegate';
-import { latencyHintFor, honoursNumericLatencyHint, DEFAULT_AUDIO_PREFS, DEFAULT_LATENCY_HINT, noteLatencyHintInEffect, lowLatencyHintInEffect } from '@/app/timing/audioPrefs';
+import { latencyHintFor, honoursNumericLatencyHint, DEFAULT_AUDIO_PREFS, DEFAULT_LATENCY_HINT, noteLatencyHintInEffect, lowLatencyHintInEffect, latencyHintInForce, useLatencyHintInEffect } from '@/app/timing/audioPrefs';
 import { useControls, mergeControls } from '@/app/store';
 import { SettingsSchema } from '@/settings/schema';
 import { webcamHandsNode } from '@/nodes/sources/webcam_hands';
@@ -90,6 +90,18 @@ describe('the low-latency audio pref (per device, off by default)', () => {
     expect(lowLatencyHintInEffect(chrome)).toBe(true);
     expect(lowLatencyHintInEffect(firefox)).toBe(false);
     noteLatencyHintInEffect(null);
+  });
+
+  it('the hint in effect is a store React can observe (#392): a new context notifies its subscribers', () => {
+    const seen: unknown[] = [];
+    const unsubscribe = useLatencyHintInEffect.subscribe((s) => seen.push(s.hint));
+    noteLatencyHintInEffect(0);
+    noteLatencyHintInEffect('interactive');
+    unsubscribe();
+    noteLatencyHintInEffect(null);
+    expect(seen).toEqual([0, 'interactive']);
+    expect(latencyHintInForce(0, 'Chrome/140.0.0.0')).toBe(true);
+    expect(latencyHintInForce('interactive', 'Chrome/140.0.0.0')).toBe(false);
   });
 
   it('is a per-device tooling pref, not a preset field: persisted, healed, never saved with an instrument', () => {
