@@ -26,8 +26,8 @@
  *    so they hold at any camera distance. They are emitted as 0/1 so the trainer's
  *    noise-unit machinery and the Lab meters treat them like any other scalar.
  *
- *  - **Segment directions** (`body.dir`, #381) are each limb segment's unit direction in
- *    the torso's OWN frame (out, up, forward): invariant to where the player stands, how
+ *  - **Segment directions** (`body.dir`, #381) are each limb segment's elevation out of
+ *    the three planes of the torso's OWN frame (out, up, forward), in degrees: invariant to where the player stands, how
  *    far away they are and, on the world set, to a turn. They are what tells an arm held
  *    up from an arm held out at the same elbow and shoulder angle.
  *
@@ -294,8 +294,8 @@ function above(c: BodyCtx, i: number, j: number): number {
  *
  * On the image set only x and y are used: MediaPipe's image z is in normalised units
  * beside pixel x and y, so mixing it in would tilt the frame by a unit mismatch. The
- * image frame therefore has `fwd` along the camera axis and every direction's forward
- * component is 0 there; the out and up components are the segment as the camera sees it.
+ * image frame therefore has no forward reading (NaN); the out and up readings are the
+ * segment as the camera sees it.
  */
 interface TorsoFrame {
   left: Vec3;
@@ -336,15 +336,31 @@ const SEGMENTS = {
 } as const;
 type Segment = keyof typeof SEGMENTS;
 
-/** The three components of a direction in the torso frame. `out` is measured AWAY from
- *  the body's midline on the segment's own side, so the left/right mirror is a pure
- *  relabelling of sides (no sign flips) for every `body.dir` feature. */
+/**
+ * The three readings of a direction in the torso frame, each the segment's ELEVATION out of
+ * the plane normal to one torso axis, in degrees (-90..90): `asin` of the unit direction's
+ * component along that axis, which is 90 minus the angle between the segment and the axis.
+ *
+ * Angles rather than the raw components because the noise units need it: a component along
+ * the segment moves only to second order (a hanging arm's `up` component is -cos of a small
+ * angle), so at rest its jitter is some 70 times smaller than the others' and a carve would
+ * measure every pose by it alone. An elevation moves to first order in every direction. And
+ * three elevations rather than two spherical angles because every two-angle chart has a pole
+ * or a 360-degree wrap at some common pose (arms hanging, arms up), and the enrolment core has
+ * no circular distance.
+ *
+ * `out` is measured AWAY from the body's midline on the segment's own side, so the left/right
+ * mirror is a pure relabelling of sides (no sign flips) for every `body.dir` feature. `fwd`
+ * needs depth, so it is NaN (absent) on the image set: a 0 there would read as "in the
+ * frontal plane" to a categorizer trained with world landmarks.
+ */
 const DIR_AXES = ['out', 'up', 'fwd'] as const;
 type DirAxis = (typeof DIR_AXES)[number];
 
-/** One component of a segment's unit direction in the torso frame, -1..1 (NaN when a
- *  landmark is missing or the segment has no length). */
+/** One elevation of a segment in the torso frame, degrees (NaN when a landmark is missing,
+ *  the segment has no length, or `fwd` is asked of the image set). */
 function segmentDir(c: BodyCtx, side: Side, seg: Segment, axis: DirAxis): number {
+  if (axis === 'fwd' && !c.useWorld) return NaN;
   const f = torsoFrame(c);
   const [from, to] = SEGMENTS[seg];
   const a = framePt(c, J(side, from));
@@ -353,16 +369,15 @@ function segmentDir(c: BodyCtx, side: Side, seg: Segment, axis: DirAxis): number
   const d = sub(b, a);
   const n = length(d);
   if (!(n > 1e-9)) return NaN;
-  if (axis === 'up') return dot(d, f.up) / n;
-  if (axis === 'fwd') return dot(d, f.fwd) / n;
-  return ((side === 'left' ? 1 : -1) * dot(d, f.left)) / n;
+  const along = axis === 'up' ? dot(d, f.up) : axis === 'fwd' ? dot(d, f.fwd) : (side === 'left' ? 1 : -1) * dot(d, f.left);
+  return Math.asin(Math.max(-1, Math.min(1, along / n))) * DEG;
 }
 
 const SEGMENT_WORDS: Record<Segment, string> = { upperArm: 'upper arm', forearm: 'forearm', thigh: 'thigh', shank: 'shank (shin)' };
 const AXIS_WORDS: Record<DirAxis, string> = {
-  out: 'outward, away from the midline (-1..1)',
-  up: 'up along the torso (-1 = pointing down, 1 = up)',
-  fwd: 'forward, the way the torso faces (-1..1; world landmarks only, else 0)',
+  out: 'elevation outward, away from the midline (degrees; 90 = straight out to the side)',
+  up: 'elevation up along the torso (degrees; -90 = pointing down, 90 = up)',
+  fwd: 'elevation forward, the way the torso faces (degrees; needs world landmarks)',
 };
 
 // ---- Invariance labels ---------------------------------------------------------
@@ -419,7 +434,7 @@ function directionFeatures(): BodyFeature[] {
           id: `body.dir.${seg}.${s}.${axis}`,
           group: 'body.dir',
           source: 'body',
-          range: [-1, 1],
+          range: [-90, 90],
           controllability: 'easy',
           description: `${s} ${SEGMENT_WORDS[seg]} direction in the torso frame: ${AXIS_WORDS[axis]}`,
           compute: (c) => segmentDir(c, s, seg, axis),

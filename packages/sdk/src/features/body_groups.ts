@@ -61,7 +61,12 @@ export function featureCoverage(vector: FeatureVector, ids: readonly string[]): 
 /** {@link featureCoverage} over the whole pose space. */
 export const bodyPoseCoverage = (vector: FeatureVector): number => featureCoverage(vector, BODY_POSE_FEATURE_IDS);
 
-/** The design's proposed bar under which a pose reading should say "cannot see you" rather
- *  than guess (design §4.3, "say 80 %"). Exported for the body modality (B2) to adopt or
- *  replace; nothing in B1 enforces it. */
+/**
+ * The design's proposed bar under which a pose reading should say "cannot see you" rather
+ * than guess (design §4.3, "say 80 %"). Meant for {@link featureCoverage} over the features
+ * a categorizer was TRAINED on, never over the whole space: on the committed real clips the
+ * whole-space coverage is 0.52 to 0.71 for the waist-up conductors and 0.78 to 0.85 for the
+ * dancers, so a whole-space bar would refuse nearly every upper-body player. Exported for the
+ * body modality (B2) to adopt or replace; nothing in B1 enforces it.
+ */
 export const BODY_POSE_MIN_COVERAGE = 0.8;

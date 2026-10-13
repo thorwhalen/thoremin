@@ -78,6 +78,17 @@ const NUISANCE: Record<'scale' | 'position' | 'yaw', (f: BodyFrame) => BodyFrame
 
 const imageOnly = (f: BodyFrame): BodyFrame => ({ ...f, world: undefined });
 
+/** The synthetic world set is flat (z = 0), which would make a yaw trivially rigid in the
+ *  frontal plane. Reach the arms forward and bend the knees forward so the turn moves depth
+ *  into x and the torso frame's forward axis carries real weight. */
+function withDepth(f: BodyFrame): BodyFrame {
+  const depth: Partial<Record<number, number>> = {
+    [BLM.left_elbow]: -0.08, [BLM.left_wrist]: -0.2, [BLM.right_elbow]: -0.03, [BLM.right_wrist]: -0.12,
+    [BLM.left_knee]: -0.06, [BLM.right_knee]: -0.04,
+  };
+  return { ...f, world: f.world!.map((p, i) => ({ ...p, z: (p.z ?? 0) + (depth[i] ?? 0) })) };
+}
+
 /** A seeded Gaussian, so the noise estimate is the same every run. */
 function gaussian(seed: number): () => number {
   let s = seed >>> 0;
@@ -88,9 +99,8 @@ function gaussian(seed: number): () => number {
 /** Noise units for the pose space: a still player whose landmarks jitter by 1 % of the
  *  torso (about a pixel on a 100 px torso, 5 mm in the world set), measured the way the
  *  trainer measures them. */
-function poseNoise(withWorld: boolean): (id: string) => number {
+function poseNoise(withWorld: boolean, base = frameOf({ leftArm: 0.3, rightArm: 0.1, kneeBend: 0.1 })): (id: string) => number {
   const g = gaussian(381);
-  const base = frameOf({ leftArm: 0.3, rightArm: 0.1, kneeBend: 0.1 });
   const jitter = (pts: Keypoint[], sd: number) => pts.map((p) => ({ x: p.x + g() * sd, y: p.y + g() * sd, z: (p.z ?? 0) + g() * sd }));
   const frames = Array.from({ length: 90 }, () => {
     const f: BodyFrame = { ...base, landmarks: jitter(base.landmarks, 1), world: jitter(base.world!, 0.005) };
@@ -106,14 +116,15 @@ const invariantTo = (id: string, n: Invariance) => (FEATURE_BY_ID[id]?.invariant
 describe('body.dir: segment directions in the torso frame', () => {
   const v = (over: Parameters<typeof frameOf>[0]) => vectors([frameOf(over)])[0];
 
-  it('registers four segments x two sides x three components, unit length per segment', () => {
+  it('registers four segments x two sides x three elevations, which describe one unit direction', () => {
     const dir = BODY_FEATURES.filter((f) => f.group === 'body.dir');
     expect(dir).toHaveLength(24);
     const x = v({ leftArm: 0.37, rightArm: 0.8, kneeBend: 0.5, lean: 0.2 });
     for (const seg of ['upperArm', 'forearm', 'thigh', 'shank']) {
       for (const side of ['left', 'right']) {
         const k = `body.dir.${seg}.${side}`;
-        expect(Math.hypot(x[`${k}.out`], x[`${k}.up`], x[`${k}.fwd`])).toBeCloseTo(1, 9);
+        const sin = (deg: number) => Math.sin((deg * Math.PI) / 180);
+        expect(Math.hypot(sin(x[`${k}.out`]), sin(x[`${k}.up`]), sin(x[`${k}.fwd`]))).toBeCloseTo(1, 9);
       }
     }
   });
@@ -123,10 +134,10 @@ describe('body.dir: segment directions in the torso frame', () => {
     const out = v({ leftArm: 0.5, rightArm: 0.5 });
     const up = v({ leftArm: 1, rightArm: 1 });
     for (const side of ['left', 'right']) {
-      expect(hanging[`body.dir.upperArm.${side}.up`]).toBeCloseTo(-1, 6);
-      expect(out[`body.dir.upperArm.${side}.out`]).toBeCloseTo(1, 6);
-      expect(out[`body.dir.upperArm.${side}.up`]).toBeCloseTo(0, 6);
-      expect(up[`body.dir.upperArm.${side}.up`]).toBeCloseTo(1, 6);
+      expect(hanging[`body.dir.upperArm.${side}.up`]).toBeCloseTo(-90, 4);
+      expect(out[`body.dir.upperArm.${side}.out`]).toBeCloseTo(90, 4);
+      expect(out[`body.dir.upperArm.${side}.up`]).toBeCloseTo(0, 4);
+      expect(up[`body.dir.upperArm.${side}.up`]).toBeCloseTo(90, 4);
       // Straight arms in all three: the elbow angle alone cannot tell them apart.
       expect(hanging[`body.angle.elbow.${side}`]).toBeCloseTo(out[`body.angle.elbow.${side}`], 6);
     }
@@ -136,7 +147,7 @@ describe('body.dir: segment directions in the torso frame', () => {
     const leaning = v({ lean: 0.4 });
     // The synthetic arm hangs along the image vertical while the torso leans, so in the torso
     // frame it points down and a little toward the side the shoulders moved away from.
-    expect(leaning['body.dir.upperArm.left.up']).toBeCloseTo(-Math.cos(0.4), 6);
+    expect(leaning['body.dir.upperArm.left.up']).toBeCloseTo(-90 + (0.4 * 180) / Math.PI, 6);
   });
 
   it('turns forward with the body: an arm pointing at the camera reads forward', () => {
@@ -144,7 +155,27 @@ describe('body.dir: segment directions in the torso frame', () => {
     // Swing the left forearm toward the camera in the world set (MediaPipe: z away from the camera).
     const e = f.world![BLM.left_elbow];
     f.world![BLM.left_wrist] = { x: e.x, y: e.y, z: -0.25 };
-    expect(vectors([f])[0]['body.dir.forearm.left.fwd']).toBeCloseTo(1, 6);
+    expect(vectors([f])[0]['body.dir.forearm.left.fwd']).toBeCloseTo(90, 4);
+  });
+
+  it('has no forward reading without depth: absent on the image set, not 0', () => {
+    const [v] = vectors([{ ...frameOf({ leftArm: 0.5 }), world: undefined }]);
+    expect(v['body.dir.forearm.left.fwd']).toBeUndefined();
+    expect(v['body.dir.forearm.left.out']).toBeCloseTo(90, 4);
+  });
+
+  it('every elevation jitters to first order at a hanging rest, so no reading dominates a carve', () => {
+    // A component along the segment would move to second order (a hanging arm's up component
+    // is -cos of a small angle) and jitter ~70x less than the others at rest.
+    const sigma = poseNoise(true, frameOf());
+    for (const seg of ['upperArm', 'forearm']) {
+      const up = sigma(`body.dir.${seg}.left.up`);
+      for (const axis of ['out', 'fwd']) {
+        const r = up / sigma(`body.dir.${seg}.left.${axis}`);
+        expect(r, `${seg} up/${axis}`).toBeGreaterThan(1 / 3);
+        expect(r, `${seg} up/${axis}`).toBeLessThan(3);
+      }
+    }
   });
 });
 
@@ -176,12 +207,12 @@ describe('bodyPoseCollects(): the pose space', () => {
 
 describe('the pose space under nuisance: replays of synthetic-body', () => {
   const replay = syntheticReplay();
-  // Each nuisance on the set where its label applies: the world set (as the live camera
-  // supplies it) for all three; the image set alone (a source without world landmarks)
-  // for scale and position, which the labels promise there too.
+  // Each nuisance on the set where it is not invariant by construction: scale and position
+  // leave a metric, hip-centred world set untouched, so they are tested on the image set (a
+  // source without world landmarks), which the labels promise too; the yaw on the world set,
+  // with depth, as the live camera supplies it. (On the image set a yaw foreshortens the
+  // body, and body.dir and body.angle hold only approximately: #381's PR states it.)
   const cases: { set: 'world' | 'image'; nuisance: keyof typeof NUISANCE }[] = [
-    { set: 'world', nuisance: 'scale' },
-    { set: 'world', nuisance: 'position' },
     { set: 'world', nuisance: 'yaw' },
     { set: 'image', nuisance: 'scale' },
     { set: 'image', nuisance: 'position' },
@@ -189,13 +220,18 @@ describe('the pose space under nuisance: replays of synthetic-body', () => {
   for (const { set, nuisance } of cases) {
     it(`${nuisance} (${set} set): every pose feature labelled invariant moves less than one noise unit`, () => {
       const sigma = poseNoise(set === 'world');
-      const frames = set === 'world' ? replay : replay.map(imageOnly);
+      const frames = set === 'world' ? replay.map(withDepth) : replay.map(imageOnly);
       const a = vectors(frames);
       const b = vectors(frames.map(NUISANCE[nuisance]));
       let checked = 0;
       for (let k = 0; k < frames.length; k++) {
         for (const id of BODY_POSE_FEATURE_IDS) {
           if (!invariantTo(id, nuisance)) continue;
+          // The only reading a set may lack: forward, which needs depth.
+          if (set === 'image' && id.endsWith('.fwd')) {
+            expect(a[k][id], id).toBeUndefined();
+            continue;
+          }
           expect(Number.isFinite(a[k][id]), id).toBe(true);
           const s = sigma(id);
           // A feature that never jitters (the forward components on a flat skeleton) has
@@ -211,9 +247,9 @@ describe('the pose space under nuisance: replays of synthetic-body', () => {
   }
 
   it('the test has teeth: the omitted frame positions DO move by many noise units when the player steps aside', () => {
-    const sigma = poseNoise(true);
-    const a = vectors(replay.slice(0, 5));
-    const b = vectors(replay.slice(0, 5).map(NUISANCE.position));
+    const sigma = poseNoise(false);
+    const a = vectors(replay.slice(0, 5).map(imageOnly));
+    const b = vectors(replay.slice(0, 5).map(imageOnly).map(NUISANCE.position));
     expect(Math.abs(b[0]['body.pos.wrist.left.x'] - a[0]['body.pos.wrist.left.x']) / sigma('body.pos.wrist.left.x')).toBeGreaterThan(10);
   });
 });
@@ -258,7 +294,7 @@ describe('the visibility mask and coverage: legs out of frame', () => {
     const f = frameOf({ leftArm: 0.5 });
     for (const i of [BLM.left_hip, BLM.right_hip]) f.visibility[i] = 0.2;
     const [v] = vectors([f]);
-    expect(v['body.dir.upperArm.left.out']).toBeCloseTo(1, 6);
+    expect(v['body.dir.upperArm.left.out']).toBeCloseTo(90, 4);
   });
 
   it('masks geometry only: a blurred fast wrist keeps its speed, as motion blur is what lowers it', () => {
