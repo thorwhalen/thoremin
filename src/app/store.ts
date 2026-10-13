@@ -527,207 +527,158 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
 }
 
 /**
- * Merge a rehydrated blob over the current (initializer) state. Beyond zustand's
- * default shallow merge it HEALS two things so an older/corrupt blob can't crash
- * newer readers: it re-parses `overlay` through the schema (filling defaults for
- * overlay elements added since the blob was written — e.g. `chordGuide` in #64,
- * whose absence would otherwise throw in `overlay.chordGuide.show`), and clamps
- * `faceMapping` to a known mode (unknown values → derived from any legacy
- * `faceEnabled`, else `none`). Exported for direct testing.
+ * How one whole-object field of a rehydrated blob is healed: re-parsed through `schema`,
+ * after `complete` (when given) builds the parse input from the stored value (filling what
+ * an older blob lacks), and `finish` (when given) post-processes the parse. Typed per field,
+ * so a schema whose output is not that field's type fails the typecheck.
+ */
+interface HealRule<T> {
+  schema: { parse(input: unknown): T };
+  complete?: (stored: unknown, current: T) => unknown;
+  finish?: (parsed: T) => T;
+}
+
+/**
+ * Heal one stored field: a falsy stored value (absent from an older blob) keeps `current`;
+ * otherwise the rule's parse, and anything that throws on the way (a corrupt blob) falls
+ * back to `current` whole, so a newer reader never binds a control to undefined.
+ */
+function heal<T>(stored: unknown, current: T, rule: HealRule<T>): T {
+  if (!stored) return current;
+  try {
+    const parsed = rule.schema.parse(rule.complete ? rule.complete(stored, current) : stored);
+    return rule.finish ? rule.finish(parsed) : parsed;
+  } catch {
+    return current;
+  }
+}
+
+/** Complete a partial stored object from a shipped default before the parse. */
+const overDefaults =
+  (defaults: object) =>
+  (stored: unknown): unknown => ({ ...defaults, ...(stored as object) });
+
+/** Complete a partial stored object from the current (initializer) value before the parse. */
+const overCurrent = (stored: unknown, current: unknown): unknown => ({ ...(current as object), ...(stored as object) });
+
+/**
+ * The core fields {@link mergeControls} heals, one rule each. Three completions are in use
+ * and they are NOT interchangeable: a raw parse (the schema's own `.default`s complete a
+ * partial blob), the shipped default spread under the blob, or the current value spread
+ * under it. On a real rehydrate `current` is the initializer, which equals the defaults; the
+ * difference shows only when `mergeControls` is called with some other `current`, and each
+ * rule keeps the completion its field has always had.
+ */
+type CoreHealRules = { [K in keyof ControlState]?: HealRule<ControlState[K]> };
+const HEAL_RULES: CoreHealRules = {
+  // Fills defaults for overlay elements added since the blob was written (e.g. `chordGuide`
+  // in #64, whose absence would otherwise throw in `overlay.chordGuide.show`).
+  overlay: { schema: OverlayDialSchema },
+  // An older blob has no lab config → the default meters.
+  featureLab: { schema: FeatureLabSchema },
+  // The trainer HUD pref (#163).
+  trainerHud: { schema: TrainerHudParamsSchema },
+  // Completed from the defaults, then validated, so a UI control never binds to an
+  // undefined/corrupt field (parity with overlay).
+  faceChord: { schema: FaceChordSchema, complete: overDefaults(DEFAULT_FACE_CHORD) },
+  // The sensitivity/degrees maps are filled from the defaults key by key, so a returning
+  // user's older blob can't leave an emotion's slider unbound.
+  faceExpr: {
+    schema: FaceExprSchema,
+    complete: (stored) => {
+      const pe = stored as Partial<FaceExpr>;
+      return {
+        sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity, ...(pe.sensitivity ?? {}) },
+        degrees: { ...DEFAULT_FACE_EXPR.degrees, ...(pe.degrees ?? {}) },
+      };
+    },
+  },
+  // Older blobs lack it entirely → the default index-source, no-routing map, so a returning
+  // user can never leave a finger route or knob unbound.
+  handMap: { schema: HandMapSchema },
+  // The hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
+  hands: { schema: HandsSettingsSchema, complete: overDefaults(DEFAULT_HANDS) },
+  // The body settings (#186): a pre-body blob has none → off, lite.
+  body: { schema: BodySettingsSchema, complete: overDefaults(DEFAULT_BODY) },
+  // The per-device song pref (#186 PR G): a pre-song blob has none → the defaults.
+  songPrefs: { schema: SongSettingsSchema, complete: overDefaults(DEFAULT_SONG) },
+  // The body map (#186): a pre-routing blob has none → no routes.
+  bodyMap: { schema: BodyMapSchema },
+  // The generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter strains; a
+  // partial one is completed; a corrupt one falls back whole.
+  steer: {
+    schema: SteerSettingsSchema,
+    complete: overDefaults(DEFAULT_STEER),
+    // A PARTIAL config (the shape #202 persisted: smoothing + cadence, no arrays) is
+    // completed from the default. Absent arrays already meant "the starter strains" to the
+    // node, so this is sound-identical; it exists so the working layer and a saved
+    // instrument (which `normalizeLayer` completes the same way) can never differ by a key
+    // nobody edited and flag a phantom "unsaved edits".
+    finish: (parsed) => ({ ...parsed, config: { ...defaultSteerConfig(), ...parsed.config } }),
+  },
+  // The face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning; a
+  // partial one is completed; a corrupt one falls back whole rather than leaving the panel to
+  // dereference an undefined into a NaN slider.
+  //
+  // Parsed RAW, unlike the `faceChord` rule above which pre-spreads its defaults. That is not
+  // an inconsistency to tidy up later: EVERY field of this schema carries a `.default(...)`,
+  // so `parse` already completes a partial blob, and the spread would be dead code that a
+  // reader would mistake for load-bearing. The invariant it relies on is enforced at import
+  // time, not by convention — `DEFAULT_FACE_CONTROLS_DIAL` is built by
+  // `FaceControlsDialSchema.parse({})`, which throws on the day someone adds a field without
+  // a default. (A mutation test caught the spread: removing it left the suite fully green,
+  // which is the definition of a guard that guards nothing.)
+  faceControls: { schema: FaceControlsDialSchema },
+  // The conductor dial (#187): a pre-conductor blob has none → off; completed over the
+  // current value (which is how `conductor.orchestra`, #336, reaches an older blob).
+  conductor: { schema: ConductorSettingsSchema, complete: overCurrent },
+  // The gesture prefs (#129), completed over the current (default) prefs. The blob's
+  // `bindings` record replaces the default wholesale (an unbound-by-the-user gesture must
+  // STAY unbound, not be re-seeded every load).
+  gestures: { schema: GesturePrefsSchema, complete: overCurrent },
+  // The per-device audio pref (#240): a pre-#240 blob has none → the default hint.
+  audioPrefs: { schema: AudioPrefsSchema, complete: overCurrent },
+};
+
+/** The extensions' whole-object dials (the air instruments' today), each healed through its
+ *  own slice schema over the current value, like the conductor. */
+const EXTENSION_HEAL_RULES: Readonly<Record<string, HealRule<unknown>>> = Object.fromEntries(
+  Object.entries(EXTENSION_DIAL_SCHEMAS).map(([key, schema]) => [key, { schema, complete: overCurrent }]),
+);
+
+/** Every rule of `rules` applied to `stored` over `current`: the healed fields only. */
+function healAll(stored: Record<string, unknown>, current: Record<string, unknown>, rules: Readonly<Record<string, HealRule<unknown> | undefined>>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [field, rule] of Object.entries(rules)) if (rule) out[field] = heal(stored[field], current[field], rule);
+  return out;
+}
+
+/**
+ * Merge a rehydrated blob over the current (initializer) state. Beyond zustand's default
+ * shallow merge it HEALS the whole-object fields so an older/corrupt blob can't crash newer
+ * readers: each field in {@link HEAL_RULES} (and each extension dial) is re-parsed through its
+ * schema, keeping the current value when absent or corrupt; `midi` is healed field by field
+ * ({@link healMidi}); and `faceMapping` is clamped to a known mode (unknown values → derived
+ * from any legacy `faceEnabled`, else `none`). Exported for direct testing.
  */
 export function mergeControls(persisted: unknown, current: ControlState): ControlState {
   const p = (persisted ?? {}) as Partial<ControlState> & { faceEnabled?: boolean };
-  let overlay = current.overlay;
-  if (p.overlay) {
-    try {
-      overlay = OverlayDialSchema.parse(p.overlay);
-    } catch {
-      overlay = current.overlay;
-    }
-  }
-  // Heal the lab config the same way (an older blob has none → the default meters).
-  let featureLab = current.featureLab;
-  if (p.featureLab) {
-    try {
-      featureLab = FeatureLabSchema.parse(p.featureLab);
-    } catch {
-      featureLab = current.featureLab;
-    }
-  }
-  // And the trainer HUD pref (#163), the same way.
-  let trainerHud = current.trainerHud;
-  if (p.trainerHud) {
-    try {
-      trainerHud = TrainerHudParamsSchema.parse(p.trainerHud);
-    } catch {
-      trainerHud = current.trainerHud;
-    }
-  }
-  // Re-parse faceChord: complete a partial blob from the defaults, then validate,
-  // so a UI control never binds to an undefined/corrupt field (parity with overlay).
-  let faceChord = current.faceChord;
-  if (p.faceChord) {
-    try {
-      faceChord = FaceChordSchema.parse({ ...DEFAULT_FACE_CHORD, ...p.faceChord });
-    } catch {
-      faceChord = current.faceChord;
-    }
-  }
-  // Heal faceExpr the same way: fill the sensitivity/degrees maps from the defaults
-  // so a returning user's older blob can't leave an emotion's slider unbound.
-  let faceExpr = current.faceExpr;
-  if (p.faceExpr) {
-    try {
-      const pe = p.faceExpr as Partial<FaceExpr>;
-      faceExpr = FaceExprSchema.parse({
-        sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity, ...(pe.sensitivity ?? {}) },
-        degrees: { ...DEFAULT_FACE_EXPR.degrees, ...(pe.degrees ?? {}) },
-      });
-    } catch {
-      faceExpr = current.faceExpr;
-    }
-  }
+  const stored = p as Record<string, unknown>;
+  const cur = current as unknown as Record<string, unknown>;
+  const healed = {
+    ...healAll(stored, cur, HEAL_RULES as Readonly<Record<string, HealRule<unknown> | undefined>>),
+    ...healAll(stored, cur, EXTENSION_HEAL_RULES),
+  } as Partial<ControlState>;
   const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
     ? (p.faceMapping as FaceMapping)
     : legacyFaceToMapping(p.faceEnabled);
-  // Heal the hand map: re-parse through the schema (older blobs lack it entirely →
-  // fall back to the default index-source, no-routing map), so a returning user can
-  // never leave a finger route or knob unbound.
-  let handMap = current.handMap;
-  if (p.handMap) {
-    try {
-      handMap = HandMapSchema.parse(p.handMap);
-    } catch {
-      handMap = current.handMap;
-    }
-  }
-  // Heal the MIDI settings (#137): a pre-MIDI blob has none → off / first port. Field by
-  // field (#168 Q3): one corrupt field (a `muteFollowsMaster` of null or "yes" from a bad
-  // write) takes its default alone and must not reset the player's `enabled` and `port`.
+  // The MIDI settings (#137): a pre-MIDI blob has none → off / first port. Field by field
+  // (#168 Q3): one corrupt field (a `muteFollowsMaster` of null or "yes" from a bad write)
+  // takes its default alone and must not reset the player's `enabled` and `port`.
   const midi = healMidi(p.midi, current.midi);
-  // Heal the hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
-  let hands = current.hands;
-  if (p.hands) {
-    try {
-      hands = HandsSettingsSchema.parse({ ...DEFAULT_HANDS, ...p.hands });
-    } catch {
-      hands = current.hands;
-    }
-  }
-  // Heal the body settings (#186): a pre-body blob has none → off, lite.
-  // Heal the body map (#186): a pre-routing blob has none → no routes.
-  let bodyMap = current.bodyMap;
-  if (p.bodyMap) {
-    try {
-      bodyMap = BodyMapSchema.parse(p.bodyMap);
-    } catch {
-      bodyMap = current.bodyMap;
-    }
-  }
-  let body = current.body;
-  if (p.body) {
-    try {
-      body = BodySettingsSchema.parse({ ...DEFAULT_BODY, ...p.body });
-    } catch {
-      body = current.body;
-    }
-  }
-  // Heal the per-device song pref (#186 PR G): a pre-song blob has none → the defaults.
-  let songPrefs = current.songPrefs;
-  if (p.songPrefs) {
-    try {
-      songPrefs = SongSettingsSchema.parse({ ...DEFAULT_SONG, ...p.songPrefs });
-    } catch {
-      songPrefs = current.songPrefs;
-    }
-  }
-  // Heal the generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter
-  // strains; a partial one is completed; a corrupt one falls back whole.
-  let steer = current.steer;
-  if (p.steer) {
-    try {
-      const parsed = SteerSettingsSchema.parse({ ...DEFAULT_STEER, ...p.steer });
-      // A PARTIAL config (the shape #202 persisted: smoothing + cadence, no arrays) is
-      // completed from the default. Absent arrays already meant "the starter strains" to
-      // the node, so this is sound-identical; it exists so the working layer and a saved
-      // instrument (which `normalizeLayer` completes the same way) can never differ by a
-      // key nobody edited and flag a phantom "unsaved edits".
-      steer = { ...parsed, config: { ...defaultSteerConfig(), ...parsed.config } };
-    } catch {
-      steer = current.steer;
-    }
-  }
-  // Heal the face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning;
-  // a partial one is completed; a corrupt one falls back whole rather than leaving the
-  // panel to dereference an undefined into a NaN slider.
-  //
-  // Parsed RAW, unlike the `midi`/`faceChord` healers above which pre-spread their
-  // defaults. That is not an inconsistency to tidy up later: EVERY field of this schema
-  // carries a `.default(...)`, so `parse` already completes a partial blob, and the spread
-  // would be dead code that a reader would mistake for load-bearing. The invariant it
-  // relies on is enforced at import time, not by convention — `DEFAULT_FACE_CONTROLS_DIAL`
-  // is built by `FaceControlsDialSchema.parse({})`, which throws on the day someone adds a
-  // field without a default. (A mutation test caught the spread: removing it left the
-  // suite fully green, which is the definition of a guard that guards nothing.)
-  let faceControls = current.faceControls;
-  if (p.faceControls) {
-    try {
-      faceControls = FaceControlsDialSchema.parse(p.faceControls);
-    } catch {
-      faceControls = current.faceControls;
-    }
-  }
-  // Heal the gesture prefs (#129) the same way as the other tooling prefs: complete
-  // a partial blob from the current (default) prefs, then validate — a pre-#129 blob
-  // has none → the defaults; a corrupt blob falls back rather than crashing a newer
-  // reader. Note the blob's `bindings` record replaces the default wholesale (an
-  // unbound-by-the-user gesture must STAY unbound, not be re-seeded every load).
-  // Heal the conductor dial (#187) exactly like faceControls: a pre-conductor blob has
-  // none → off; a corrupt one falls back rather than crashing a newer reader.
-  let conductor = current.conductor;
-  if (p.conductor) {
-    try {
-      conductor = ConductorSettingsSchema.parse({ ...current.conductor, ...p.conductor });
-    } catch {
-      conductor = current.conductor;
-    }
-  }
-  // Heal the extensions' whole-object dials (the air instruments' today) the same way:
-  // each re-parsed through its own slice schema over the current value, kept on failure.
-  const extensionDials: Record<string, unknown> = {};
-  for (const [key, schema] of Object.entries(EXTENSION_DIAL_SCHEMAS)) {
-    const cur = (current as unknown as Record<string, unknown>)[key];
-    const patch = (p as Record<string, unknown>)[key];
-    if (!patch) {
-      extensionDials[key] = cur;
-      continue;
-    }
-    try {
-      extensionDials[key] = schema.parse({ ...(cur as object), ...(patch as object) });
-    } catch {
-      extensionDials[key] = cur;
-    }
-  }
-  let gestures = current.gestures;
-  if (p.gestures) {
-    try {
-      gestures = GesturePrefsSchema.parse({ ...current.gestures, ...p.gestures });
-    } catch {
-      gestures = current.gestures;
-    }
-  }
-  // Heal the per-device audio pref (#240): a pre-#240 blob has none → the default hint.
-  let audioPrefs = current.audioPrefs;
-  if (p.audioPrefs) {
-    try {
-      audioPrefs = AudioPrefsSchema.parse({ ...current.audioPrefs, ...p.audioPrefs });
-    } catch {
-      audioPrefs = current.audioPrefs;
-    }
-  }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, hands, body, songPrefs, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, audioPrefs, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, midi, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, ...keptTransients(current) };
 }
 
 /** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
