@@ -89,6 +89,8 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'pace', port: 'playing' }, to: { node: 'songPlayer', port: 'followPlaying' } },
   { from: { node: 'pace', port: 'cue' }, to: { node: 'songPlayer', port: 'cue' } },
   { from: { node: 'conductor', port: 'leadsScore' }, to: { node: 'score', port: 'enabled' } },
+  // #375: the body conductor reads the pose stream (present whenever the body source is).
+  { from: { node: 'camBody', port: 'body' }, to: { node: 'conductor', port: 'body' } },
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */

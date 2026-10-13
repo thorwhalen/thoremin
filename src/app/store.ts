@@ -445,6 +445,10 @@ type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>
  *   transient and never persisted.
  * - v26 (#186 PR H): `songPrefs` gained `follow` (default off: the song plays at its own
  *   tempo, as every earlier blob did) and `followRange` (0.1), healed over DEFAULT_SONG.
+ *   Then, WITHOUT a bump (#375): `conductor.source` (`hands`) and `conductor.bodyPoint`
+ *   (`impact`), additive in the conductor dial like `conductor.orchestra`; `hands` is what
+ *   every earlier blob conducted with, so the conductor heal fills both and no transform
+ *   is owed.
  *
  * Bump this and, if the change needs a transform, add `CONTROLS_MIGRATIONS[old]` together.
  */

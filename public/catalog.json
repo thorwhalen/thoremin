@@ -1024,7 +1024,7 @@
   {
     "type": "conductor",
     "title": "Conductor",
-    "description": "The beating hand becomes musical time: ictus detection + a rhythm prior (packages/ictus/src; the oscillator-trend blend by default) → beat, bpm, dynamics for the score. Off by default.",
+    "description": "The beating hand (or, with source = body, the body) becomes musical time: ictus detection + a rhythm prior (packages/ictus/src; the oscillator-trend blend by default) → beat, bpm, dynamics for the score. Off by default.",
     "roles": [
       "feature",
       "mapping"
@@ -1033,6 +1033,10 @@
       {
         "name": "hands",
         "kind": "hands-frame"
+      },
+      {
+        "name": "body",
+        "kind": "body-frame"
       },
       {
         "name": "config",
@@ -1103,6 +1107,11 @@
         "default": "score"
       },
       {
+        "name": "source",
+        "type": "enum(hands | body)",
+        "default": "hands"
+      },
+      {
         "name": "hand",
         "type": "enum(auto | right | left)",
         "default": "auto"
@@ -1111,6 +1120,11 @@
         "name": "point",
         "type": "enum(wrist | indexTip)",
         "default": "wrist"
+      },
+      {
+        "name": "bodyPoint",
+        "type": "enum(impact | wrist | head | hips | com)",
+        "default": "impact"
       },
       {
         "name": "mirrorX",
