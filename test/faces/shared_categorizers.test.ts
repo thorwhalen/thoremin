@@ -18,7 +18,12 @@ import {
   withSlotIds,
 } from '@thoremin/ext-faces/lib/shared';
 import { copyName, copySharedToMine, createSharedSource } from '@thoremin/ext-faces/app/sharedModels';
-import { startCategorizerPlay, useCategorizerPlay } from '@thoremin/ext-faces/app/categorizerPlay';
+import { retryCategorizerPlay, startCategorizerPlay, useCategorizerPlay } from '@thoremin/ext-faces/app/categorizerPlay';
+import { replayNode } from '@thoremin/dag';
+import type { ExpressionScores } from '@thoremin/sdk/music/expression';
+import { faceCategorizerNode } from '@thoremin/ext-faces/nodes/face_categorizer';
+import { DEFAULT_FACE_CATEGORIZER } from '@thoremin/ext-faces/schema';
+import { RECORDING_FPS, recordedFrames, SEGMENTS } from '../helpers/faceRecording';
 import type { FaceModelRecord, SavedFaceModel } from '@thoremin/ext-faces/app/models';
 import { categorizerPlay } from '@thoremin/ext-faces/lib/play';
 import type { FaceCategorizerPlay } from '@thoremin/ext-faces/lib/play';
@@ -101,6 +106,22 @@ describe('the shared index and files', () => {
     expect(play.live.model.categories.map((c) => c.label)).toEqual(['smile', 'open smile']);
     expect(new Set(play.standsFor).size).toBe(2);
   });
+
+  it('the committed demo file, played on the recording it was made from, reads its faces', async () => {
+    const r = readSharedFile(read(`${DEMO_ENTRY.name}.json`));
+    if (!r.ok) throw new Error(r.error);
+    const play = categorizerPlay({ id: sharedId(DEMO_ENTRY.name), name: DEMO_ENTRY.label, categorizer: r.categorizer });
+    const frames = recordedFrames();
+    const node = faceCategorizerNode.make(faceCategorizerNode.params.parse({}));
+    const read_ = await replayNode(node, { face: frames, model: frames.map(() => play), config: frames.map(() => ({ ...DEFAULT_FACE_CATEGORIZER, id: play.id })) }, { dt: 1 / RECORDING_FPS });
+    const names = read_.map((o) => (o.expression as ExpressionScores).personal?.name ?? null);
+    const settled = (a: number, b: number) => names.slice(a, b + 1);
+    // Well inside each segment (past the tracker's entry), the demo reads what was recorded.
+    const mostly = (xs: (string | null)[], name: string) => xs.filter((x) => x === name).length / xs.length;
+    expect(mostly(settled(SEGMENTS.smile[0] + 8, SEGMENTS.smile[1] - 4), 'smile')).toBeGreaterThan(0.9);
+    expect(mostly(settled(SEGMENTS.open[0] + 8, SEGMENTS.open[1] - 2), 'open smile')).toBeGreaterThan(0.9);
+    expect(settled(SEGMENTS.rest[0], SEGMENTS.rest[1]).every((x) => x === null)).toBe(true);
+  });
 });
 
 describe('the shared source', () => {
@@ -143,11 +164,36 @@ describe('the instrument loader plays a shared id', () => {
     await expect.poll(() => useCategorizerPlay.getState().phase).toBe('ready');
     expect(useCategorizerPlay.getState().categories.map((c) => c.id)).toEqual(['cat-1', 'cat-2']);
     expect(published.at(-1)?.id).toBe('shared:demo-smile');
+    // A failed fetch: missing, then playable on a retry once the file is back.
+    const flaky = new Set(['categorizers/index.json']);
+    const retried = shippedSource(flaky);
+    stop();
+    const stop2 = startCategorizerPlay({
+      load: (id) => retried.source.load(id),
+      dial: () => ({ id: dialId }),
+      subscribe: () => () => undefined,
+      onModelsChanged: () => () => undefined,
+      publish: () => undefined,
+    });
+    await expect.poll(() => useCategorizerPlay.getState().phase).toBe('missing');
+    flaky.clear();
+    retryCategorizerPlay();
+    await expect.poll(() => useCategorizerPlay.getState().phase).toBe('ready');
+    stop2();
+    retryCategorizerPlay(); // stopped: a no-op
+    const stop3 = startCategorizerPlay({
+      load: (id) => (isSharedId(id) ? source.load(id) : Promise.resolve(null)),
+      dial: () => ({ id: dialId }),
+      subscribe: (l) => (listeners.add(l), () => listeners.delete(l)),
+      onModelsChanged: () => () => undefined,
+      publish: (p) => published.push(p),
+    });
+    await expect.poll(() => useCategorizerPlay.getState().phase).toBe('ready');
     dialId = 'shared:gone';
     for (const l of listeners) l();
     await expect.poll(() => useCategorizerPlay.getState().phase).toBe('missing');
     expect(published.at(-1)).toBeNull();
-    stop();
+    stop3();
   });
 });
 
@@ -166,10 +212,23 @@ describe('copy to my categorizers', () => {
     };
   }
 
-  it('names the copy so that it replaces none of the player\'s', () => {
+  it('names the copy so that it replaces none of the player\'s, by name or by slug', () => {
+    const taken = (...names: string[]) => names.map((name) => ({ id: slugId(name, 'faces'), name }));
     expect(copyName('Demo', [])).toBe('Demo');
-    expect(copyName('Demo', ['demo'])).toBe('Demo (2)');
-    expect(copyName('Demo', ['Demo', 'Demo (2)'])).toBe('Demo (3)');
+    expect(copyName('Demo', taken('demo'))).toBe('Demo (2)');
+    expect(copyName('Demo', taken('Demo', 'Demo (2)'))).toBe('Demo (3)');
+    // Different names, one slug: the collection would replace the player's record.
+    expect(copyName('Demo: smile and open smile', taken('demo smile and open smile'))).toBe('Demo: smile and open smile (2)');
+    expect(copyName('Demo: a', taken('Demo - a', 'demo a 2'))).toBe('Demo: a (3)');
+  });
+
+  it('never replaces a player\'s record whose name slugs like the shared label', async () => {
+    const { source } = shippedSource();
+    const mine = memoryMine();
+    const own = await mine.save('demo smile and open smile', { categorizer: twoFaces as unknown as PersonalCategorizer, takeId: 'take-1' });
+    const copy = await copySharedToMine(sharedId(DEMO_ENTRY.name), source, mine);
+    expect(copy?.id).not.toBe(own.id);
+    expect(mine.records.get(own.id)?.model.takeId).toBe('take-1');
   });
 
   it('saves the same file among the player\'s own, with no stills and the default tuning', async () => {

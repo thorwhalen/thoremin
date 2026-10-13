@@ -76,6 +76,14 @@ export function browserPlayDeps(shared: SharedSource = sharedSource()): Categori
   };
 }
 
+let retryRunning: (() => void) | null = null;
+
+/** Resolve the dial's categorizer again (a shared file whose fetch failed: offline, a deploy in
+ *  flight). A no-op when nothing is running. */
+export function retryCategorizerPlay(): void {
+  retryRunning?.();
+}
+
 /** Start resolving; returns the stop. Resolves once at start. */
 export function startCategorizerPlay(deps: CategorizerPlayDeps = browserPlayDeps()): () => void {
   let wanted: string | null | undefined;
@@ -119,8 +127,11 @@ export function startCategorizerPlay(deps: CategorizerPlayDeps = browserPlayDeps
   const unsubscribe = deps.subscribe(() => void resolve(false));
   const unwatch = deps.onModelsChanged(() => void resolve(true));
   void resolve(true);
+  const retry = () => void resolve(true);
+  retryRunning = retry;
   return () => {
     stopped = true;
+    if (retryRunning === retry) retryRunning = null;
     unsubscribe();
     unwatch();
   };

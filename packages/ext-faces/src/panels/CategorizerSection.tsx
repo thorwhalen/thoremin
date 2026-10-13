@@ -19,12 +19,12 @@
  * Every write goes through the dial commands (the single write path, #87); the section reads the
  * resolved categorizer from {@link useCategorizerPlay}, which the extension's mount effect keeps.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE, type ExpressionLabel } from '@thoremin/sdk/music/expression';
 import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
-import { useCategorizerPlay } from '../app/categorizerPlay';
+import { retryCategorizerPlay, useCategorizerPlay } from '../app/categorizerPlay';
 import { createFaceModelStore, onFaceModelsChanged, withChangeNotice } from '../app/models';
 import { copySharedToMine, sharedSource, type SharedSource } from '../app/sharedModels';
 import { isSharedId, sharedId, sharedName, type SharedEntry } from '../lib/shared';
@@ -51,16 +51,17 @@ function useSavedCategorizers(): NamedSummary[] {
 }
 
 /** The shipped shared categorizers (an empty list until the index is read, or without one). */
-function useSharedCategorizers(source: SharedSource): readonly SharedEntry[] {
+function useSharedCategorizers(source: SharedSource): { entries: readonly SharedEntry[]; relist: () => void } {
   const [entries, setEntries] = useState<readonly SharedEntry[]>([]);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     void source.list().then((l) => live && setEntries(l.entries), () => undefined);
     return () => {
       live = false;
     };
-  }, [source]);
-  return entries;
+  }, [source, attempt]);
+  return { entries, relist: () => setAttempt((n) => n + 1) };
 }
 
 export interface CategorizerSectionProps {
@@ -75,12 +76,15 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
   const faceMapping = (v['face.mapping'] as string | undefined) ?? 'none';
   const expressionDegrees = (v['faceExpr.degrees'] as Record<string, number> | undefined) ?? {};
   const saved = useSavedCategorizers();
-  const shared = useSharedCategorizers(source);
+  const { entries: shared, relist } = useSharedCategorizers(source);
   const play = useCategorizerPlay();
   const [copying, setCopying] = useState(false);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
 
   const chosen = dial.id;
+  // The latest choice, for a copy that finishes after the player chose something else.
+  const latest = useRef(chosen);
+  latest.current = chosen;
   const chosenShared = isSharedId(chosen) ? shared.find((e) => sharedId(e.name) === chosen) ?? null : null;
   const known = chosen === GENERAL_CATEGORIZER || saved.some((s) => s.id === chosen) || chosenShared !== null;
 
@@ -94,7 +98,13 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
         return;
       }
       // Same categories in the same order: the chords chosen for the shared one still mean the same.
-      dispatchDialSetIn('faceCategorizer.id', copy.id);
+      // Only if the instrument still names the shared one: a choice made (or an instrument
+      // switched to) while the copy was saving is the player's and is kept.
+      if (latest.current === chosen) dispatchDialSetIn('faceCategorizer.id', copy.id);
+      else {
+        setCopyNotice(`Copied as "${copy.name}". It is in your categorizers.`);
+        return;
+      }
       setCopyNotice(`Copied as "${copy.name}". Tune it or retrain it on your face in Tools, then Your faces.`);
     } catch (err) {
       setCopyNotice(`Could not copy: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}`);
@@ -171,6 +181,18 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
           {isSharedId(chosen)
             ? 'This instrument names a shared categorizer this app could not read, so the general model plays.'
             : 'This instrument names a categorizer this device does not have, so the general model plays.'}
+          {isSharedId(chosen) && (
+            <button
+              type="button"
+              className="ml-2 rounded bg-white/10 px-2 py-0.5 text-[11px] text-white/80 hover:bg-white/20"
+              onClick={() => {
+                relist();
+                retryCategorizerPlay();
+              }}
+            >
+              Try again
+            </button>
+          )}
         </p>
       )}
 

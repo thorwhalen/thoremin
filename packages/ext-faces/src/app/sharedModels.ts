@@ -8,7 +8,8 @@
  * Every dependency is injected ({@link SharedSourceDeps}); {@link sharedSource} is the
  * browser's, one per page.
  */
-import type { NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
+import { slugId } from '@thoremin/sdk/util/ids';
 import { parseSharedIndex, readSharedFile, SHARED_DIR, SHARED_INDEX_FILE, sharedId, sharedName, type SharedEntry } from '../lib/shared';
 import type { FaceModelRecord, SavedFaceModel } from './models';
 
@@ -91,13 +92,23 @@ export function sharedSource(): SharedSource {
   return browserSource;
 }
 
-/** A name for the copy that replaces none of the player's: `label`, else `label (2)`, ... */
-export function copyName(label: string, taken: readonly string[]): string {
-  const used = new Set(taken.map((n) => n.trim().toLowerCase()));
-  if (!used.has(label.trim().toLowerCase())) return label;
+/** The fallback id of a name that slugs to nothing (the collection's `idFallback`). */
+const ID_FALLBACK = 'faces';
+
+/**
+ * A name for the copy that replaces none of the player's: `label`, else `label (2)`, ... The
+ * collection keys a record by the SLUG of its name and replaces a record with the same slug, so
+ * a candidate is free only when neither its name nor its slug is taken ("Demo: a & b" and
+ * "demo a b" are one record).
+ */
+export function copyName(label: string, taken: readonly Pick<NamedSummary, 'id' | 'name'>[]): string {
+  const names = new Set(taken.map((t) => t.name.trim().toLowerCase()));
+  const ids = new Set(taken.map((t) => t.id));
+  const free = (n: string) => !names.has(n.trim().toLowerCase()) && !ids.has(slugId(n, ID_FALLBACK));
+  if (free(label)) return label;
   for (let n = 2; ; n++) {
     const candidate = `${label} (${n})`;
-    if (!used.has(candidate.toLowerCase())) return candidate;
+    if (free(candidate)) return candidate;
   }
 }
 
@@ -114,6 +125,6 @@ export async function copySharedToMine(
 ): Promise<FaceModelRecord | null> {
   const shared = await source.load(id);
   if (!shared) return null;
-  const name = copyName(shared.name, (await mine.list()).map((s) => s.name));
+  const name = copyName(shared.name, await mine.list());
   return mine.save(name, { categorizer: { ...shared.model.categorizer, name }, takeId: null });
 }
