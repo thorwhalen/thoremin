@@ -17,7 +17,7 @@
  *   **suspect** ("looks more like smile"); the share of a category's holds that are not is its
  *   leave-one-out accuracy, and where the misses go is the pair it leaks to. This is the
  *   simplified (centroid) silhouette, `(b - a) / max(a, b)`, linear in the holds where the
- *   pairwise one is quadratic; negative is suspect.
+ *   pairwise one is quadratic; clearly negative ({@link QUALITY_DEFAULTS.suspectBelow}) is suspect.
  * - **Holds**: one hold is no spread and no evidence: "needs another hold".
  *
  * A hint names what separates a close pair, in the modality's words (`CarveModality.describe`,
@@ -43,8 +43,14 @@ export const QUALITY_DEFAULTS = {
   okRatio: 3,
   /** A category leaking more than this share of its holds is CLOSE whatever its separation. */
   closeLeak: 1 / 3,
+  /** The fewest holds tested before the leak alone can make a category CLOSE (with two, one
+   *  hold nearer a neighbour is a 50 % "leak" that says little). */
+  minLeakHolds: 3,
   /** Fewer holds than this: "needs another hold". */
   minHolds: 2,
+  /** A hold is suspect only when CLEARLY nearer elsewhere: its silhouette below this. A hold on
+   *  the boundary (silhouette near 0) would otherwise flip with the jitter of a replay. */
+  suspectBelow: -0.1,
   /** The movements a hint names. */
   hintMovements: 2,
   /** A margin (`(d2 - d1) / (d2 + d1)`) below this is "on the edge". */
@@ -193,7 +199,7 @@ export function carveQuality(model: TrainedModel, vectors: readonly FeatureVecto
         const b = nearestOf(model, x, targets, skip);
         if (b.id === null) continue;
         const s = (b.d - a) / Math.max(a, b.d, 1e-12);
-        if (s < 0) {
+        if (s < o.suspectBelow) {
           suspects.push({ index: j, from: owner, nearer: b.id, silhouette: s });
           misses.set(b.id, (misses.get(b.id) ?? 0) + 1);
         }
@@ -210,7 +216,7 @@ export function carveQuality(model: TrainedModel, vectors: readonly FeatureVecto
     const missed = [...misses.values()].reduce((a, b) => a + b, 0);
     const looAccuracy = tested === 0 ? null : (tested - missed) / tested;
     const leaksTo = [...misses.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? null;
-    const leak = tested === 0 ? 0 : missed / tested;
+    const leak = tested < o.minLeakHolds ? 0 : missed / tested;
     const grade: QualityGrade =
       c.size < o.minHolds ? 'thin' : ratio < o.closeRatio || leak > o.closeLeak ? 'close' : ratio < o.okRatio || missed > 0 ? 'ok' : 'distinct';
     const dots = grade === 'distinct' ? 3 : grade === 'ok' ? 2 : 1;
@@ -254,7 +260,9 @@ export function distinguishingMovements(
     const y = b[f];
     if (w === 0 || !Number.isFinite(x) || !Number.isFinite(y)) continue;
     const words = describe(f);
-    const raw = (x - y) * w;
+    // A signed feature's movement is its size: on one side of 0, the larger size has more of it;
+    // on opposite sides, `a` going further its own way moves it away from `b`.
+    const raw = words?.signed ? (Math.sign(x) === Math.sign(y) ? Math.abs(x) - Math.abs(y) : Math.abs(x - y)) * w : (x - y) * w;
     const delta = words?.invert ? -raw : raw;
     const movement = words ? (words.movement ?? words.name) : f;
     const cur = best.get(movement);
@@ -327,8 +335,13 @@ export interface LiveMargin {
   /** `d1 / rejectRadius` (only for a category, and only when strangers read as Neutral): past 1
    *  the face is none of these. Null otherwise. */
   reach: number | null;
-  /** `inside` (safely), `edge` (with `second`), or `outside` every category (beyond the radius). */
+  /** How deep inside, 0..1: the margin, or less when the reject radius is nearer than the
+   *  runner-up (`1 - reach`). */
+  depth: number;
+  /** `inside` (safely), `edge`, or `outside` every category (beyond the reject radius). */
   state: 'inside' | 'edge' | 'outside';
+  /** On the edge, of what: the runner-up (`second`) or the reject radius (`radius`); else null. */
+  edgeOf: 'second' | 'radius' | null;
 }
 
 /** The live margin of one (tuned) vector against a model, with Neutral as one neighbour. */
@@ -347,12 +360,16 @@ export function liveMargin(
   for (const p of model.neutral ?? []) see(NEUTRAL_TARGET, p.centroid);
   const ranked = [...near.entries()].sort((a, b) => a[1] - b[1]);
   const [first, runner] = ranked;
-  if (!first) return { nearest: null, second: null, d1: Infinity, d2: Infinity, margin: 0, reach: null, state: 'outside' };
+  if (!first) return { nearest: null, second: null, d1: Infinity, d2: Infinity, margin: 0, reach: null, depth: 0, state: 'outside', edgeOf: null };
   const d1 = first[1];
   const d2 = runner?.[1] ?? Infinity;
   const margin = Number.isFinite(d2) ? (d2 - d1) / Math.max(d2 + d1, 1e-12) : 1;
   const radius = model.rejectRadius;
   const reach = first[0] !== NEUTRAL_TARGET && radius < noRejectRadius && radius > 0 ? d1 / radius : null;
-  const state = reach !== null && reach > 1 ? 'outside' : margin < edgeMargin ? 'edge' : 'inside';
-  return { nearest: first[0], second: runner?.[0] ?? null, d1, d2, margin, reach, state };
+  // The classifier rejects strictly past the radius (`classify`): 1 - reach is how far is left.
+  const room = reach === null ? Infinity : 1 - reach;
+  const depth = Math.max(0, Math.min(margin, room));
+  const state = reach !== null && reach > 1 ? 'outside' : depth < edgeMargin ? 'edge' : 'inside';
+  const edgeOf = state !== 'edge' ? null : room < margin ? 'radius' : 'second';
+  return { nearest: first[0], second: runner?.[0] ?? null, d1, d2, margin, reach, depth, state, edgeOf };
 }

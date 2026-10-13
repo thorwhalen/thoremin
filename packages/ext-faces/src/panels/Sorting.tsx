@@ -72,8 +72,8 @@ interface HoldProps {
 function placeName(view: SortingView, place: string): string {
   if (place === NEUTRAL_TARGET) return 'Neutral';
   if (place === ASIDE_BIN) return 'Set aside';
-  const i = view.categories.findIndex((c) => c.id === place);
-  return view.categories[i]?.label || `${i + 1}`;
+  const c = view.categories.find((x) => x.id === place);
+  return c ? c.label || c.id : place;
 }
 
 function Hold({ index, id, url, label, first, pinned, selected, place, view, toggle, dragIds, send }: HoldProps) {

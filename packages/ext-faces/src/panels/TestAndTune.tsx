@@ -34,21 +34,28 @@ export const MERGE_TEXT: Record<MergeSeed, { button: string; says: string }> = {
 
 /**
  * The margin meter (#385 E6, design C.3.3): how deep inside its nearest category (or Neutral) this
- * frame is, from the distance to it against the runner-up's: full on the centre, empty on the
- * boundary. The live form of Sorting's quality chip: a face that only ever reaches "on the edge"
+ * frame is, from the distance to it against the runner-up's and against the reject radius
+ * (whichever is nearer): full on the centre, empty on the boundary. The live form of Sorting's quality chip: a face that only ever reaches "on the edge"
  * is one to make bigger, or to merge.
  */
 function MarginMeter({ r, live }: { r: LiveReading; live: LiveModel }) {
   const m = r.margin;
   if (m.nearest === null) return null;
-  const name = (id: string | null): string => (id === NEUTRAL_TARGET ? 'Neutral' : (live.model.categories.find((c) => c.id === id)?.label ?? id ?? ''));
-  const says = m.state === 'outside' ? 'outside every category' : m.state === 'edge' ? `on the edge with ${name(m.second)}` : `safely inside ${name(m.nearest)}`;
+  const name = (id: string | null): string => (id === NEUTRAL_TARGET ? 'Neutral' : live.model.categories.find((c) => c.id === id)?.label || id || '');
+  const says =
+    m.state === 'outside'
+      ? 'outside every category'
+      : m.state === 'edge'
+        ? m.edgeOf === 'radius'
+          ? `at the outer edge of ${name(m.nearest)}`
+          : `on the edge with ${name(m.second)}`
+        : `safely inside ${name(m.nearest)}`;
   const colour = m.state === 'inside' ? 'bg-emerald-400' : m.state === 'edge' ? 'bg-amber-400' : 'bg-white/25';
   return (
     <div className="flex items-center gap-2 text-[10px]" data-faces-margin={m.state}>
       <span className="w-24 shrink-0 text-white/60">margin</span>
       <span className="h-1.5 flex-1 overflow-hidden rounded bg-white/10" title={`Distance to ${name(m.nearest)}: ${m.d1.toFixed(1)}; to ${m.second ? name(m.second) : 'nothing else'}: ${Number.isFinite(m.d2) ? m.d2.toFixed(1) : '-'}`}>
-        <span className={`block h-full ${colour}`} style={{ width: `${Math.round(Math.max(0, Math.min(1, m.state === 'outside' ? 0 : m.margin)) * 100)}%` }} />
+        <span className={`block h-full ${colour}`} style={{ width: `${Math.round(Math.min(1, m.depth) * 100)}%` }} />
       </span>
       <span className="w-32 shrink-0 truncate text-right text-white/60">{says}</span>
     </div>

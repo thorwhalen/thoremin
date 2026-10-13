@@ -98,6 +98,20 @@ describe('distinguishing movements', () => {
     expect(ms[1].instruction).toBe('close your eyes more');
   });
 
+  it('a SIGNED feature (a head turn, an asymmetry) is its size either way', () => {
+    const model = { features: ['face.head.yaw', 'face.symmetry.eye'], weights: { 'face.head.yaw': 1, 'face.symmetry.eye': 100 } };
+    const yaw = (a: number, b: number) => distinguishingMovements({ ...model, features: ['face.head.yaw'] }, { 'face.head.yaw': a }, { 'face.head.yaw': b }, faceWords)[0];
+    // Further to the side it is already on: more of it.
+    expect(yaw(-20, -10)).toMatchObject({ delta: 10, instruction: 'turn your head further to that side' });
+    expect(yaw(20, 10).delta).toBe(10);
+    expect(yaw(-10, -20)).toMatchObject({ delta: -10, instruction: 'turn your head back toward the camera' });
+    // Opposite sides: going further its own way moves it away.
+    expect(yaw(15, -15)).toMatchObject({ delta: 30, instruction: 'turn your head further to that side' });
+    // A wink (right minus left, either sign) against two open eyes.
+    const wink = distinguishingMovements({ ...model, features: ['face.symmetry.eye'] }, { 'face.symmetry.eye': -0.1 }, { 'face.symmetry.eye': 0 }, faceWords)[0];
+    expect(wink.instruction).toBe('close one eye more than the other');
+  });
+
   it('names a feature the modality has no words for by its id', () => {
     const ms = distinguishingMovements({ features: ['x.y'], weights: {} }, { 'x.y': 1 }, { 'x.y': 3 }, () => undefined);
     expect(ms).toEqual([{ movement: 'x.y', name: 'x.y', delta: -2, instruction: 'less x.y', feature: 'x.y' }]);
@@ -130,6 +144,20 @@ describe('the live margin', () => {
     const m = liveMargin(model, mid);
     expect(m.state).toBe('edge');
     expect(new Set([m.nearest, m.second])).toEqual(new Set(['cat-1', 'cat-2']));
+  });
+
+  it('near the reject radius, before the runner-up: on the edge of the category, not safely inside', () => {
+    const c3 = model.categories[2];
+    const dir = Object.fromEntries(F.map((f) => [f, f === 'face.blendshape.cheek.puff' ? 1 : 0]));
+    // Walk out along a direction away from everything else until reach is 0.95.
+    const at = (s: number) => Object.fromEntries(F.map((f) => [f, c3.centroid[f] + dir[f] * s]));
+    const s95 = (0.95 * model.rejectRadius) / 100;
+    const m = liveMargin(model, at(s95));
+    expect(m.reach).toBeCloseTo(0.95, 2);
+    expect(m.margin).toBeGreaterThan(0.15);
+    expect(m).toMatchObject({ nearest: 'cat-3', state: 'edge', edgeOf: 'radius' });
+    expect(m.depth).toBeCloseTo(0.05, 2);
+    expect(liveMargin(model, at((1.01 * model.rejectRadius) / 100)).state).toBe('outside');
   });
 
   it('far from everything, past the reject radius: outside; on a Neutral face, Neutral is the nearest', () => {

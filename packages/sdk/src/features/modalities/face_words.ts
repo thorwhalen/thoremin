@@ -12,7 +12,14 @@
  * should have to know, and a one-sided difference is what the symmetry movements are for.
  *
  * Head turns are said without a direction ("further to one side"): the pose's sign convention is
- * the transform matrix's, and a hint that says "left" for the wrong side is worse than none.
+ * the transform matrix's, and a hint that says "left" for the wrong side is worse than none. The
+ * pose angles, the right-minus-left asymmetries and the jaw's lateral shift are SIGNED: their
+ * movement is their size either way (`signed`), so "more" means further from straight, on the
+ * side the face is already on.
+ *
+ * Directions were checked against the real recordings (`test/faces/face_words_direction.test.ts`):
+ * the geometry features measure distances in image coordinates (y down, z nearer the camera more
+ * negative), so several read their movement backwards and are listed under `down`.
  */
 import type { FeatureWords } from '../../enroll/modality';
 
@@ -23,6 +30,8 @@ interface Movement {
   up: readonly string[];
   /** Ids (after `face.`) that fall as the movement grows. */
   down?: readonly string[];
+  /** Ids (after `face.`) signed around 0, whose size is the movement (see the header). */
+  signed?: readonly string[];
 }
 
 const bs = (...ids: string[]): string[] => ids.map((id) => `blendshape.${id}`);
@@ -55,11 +64,22 @@ const MOVEMENTS: Readonly<Record<string, Movement>> = {
   },
   'mouth-side': {
     words: { name: 'mouth pulled to one side', more: 'pull your mouth further to one side', less: 'keep your mouth more centred' },
-    up: [...bs('mouth.left', 'mouth.right', 'jaw.left', 'jaw.right'), 'symmetry.mouthSideShift', 'geom.jaw.lateralShift'],
+    up: bs('mouth.left', 'mouth.right', 'jaw.left', 'jaw.right'),
+    signed: ['symmetry.mouthSideShift', 'geom.jaw.lateralShift'],
   },
-  'lips-rolled': {
-    words: { name: 'lips rolled in', more: 'roll your lips in more', less: 'roll your lips in less' },
-    up: [...bs('mouth.rollUpper', 'mouth.rollLower'), 'au.au28_lipSuck'],
+  // Upper and lower lip roll apart in a smile (the upper rolls in as the lower rolls out), so
+  // they are two movements, and AU28 (their mean) a third.
+  'upper-lip-rolled': {
+    words: { name: 'upper lip rolled in', more: 'roll your upper lip in more', less: 'roll your upper lip in less' },
+    up: bs('mouth.rollUpper'),
+  },
+  'lower-lip-rolled': {
+    words: { name: 'lower lip rolled in', more: 'roll your lower lip in more', less: 'roll your lower lip in less' },
+    up: bs('mouth.rollLower'),
+  },
+  'lips-sucked': {
+    words: { name: 'both lips rolled in', more: 'roll both lips in more', less: 'roll both lips in less' },
+    up: ['au.au28_lipSuck'],
   },
   'lips-pressed': {
     words: { name: 'lips pressed together', more: 'press your lips together harder', less: 'press your lips together less' },
@@ -79,7 +99,15 @@ const MOVEMENTS: Readonly<Record<string, Movement>> = {
   },
   'jaw-forward': {
     words: { name: 'jaw pushed forward', more: 'push your jaw forward more', less: 'push your jaw forward less' },
-    up: [...bs('jaw.forward'), 'geom.jaw.thrust'],
+    up: bs('jaw.forward'),
+  },
+  // Chin z minus glabella z. It should fall as the chin comes toward the camera, but an opening
+  // mouth moves the chin back too, and the recording cannot tell the two apart: so its own
+  // movement, said without a direction.
+  'jaw-depth': {
+    words: { name: 'jaw forward or back', more: 'move your jaw further forward or back', less: 'hold your jaw nearer where it rests' },
+    up: [],
+    signed: ['geom.jaw.thrust'],
   },
   'brows-up': {
     words: { name: 'eyebrows raised', more: 'raise your eyebrows higher', less: 'raise your eyebrows less' },
@@ -114,35 +142,45 @@ const MOVEMENTS: Readonly<Record<string, Movement>> = {
   },
   'cheeks-up': {
     words: { name: 'cheeks raised', more: 'raise your cheeks more, as in a real smile', less: 'raise your cheeks less' },
-    up: [...bs(...lr('cheek.squint')), 'geom.cheek.raiseLeft', 'geom.cheek.raiseRight', 'au.au6_cheekRaiser'],
+    up: [...bs(...lr('cheek.squint')), 'au.au6_cheekRaiser'],
+    // The cheek's distance below the eye (y down): it shrinks as the cheek rises.
+    down: ['geom.cheek.raiseLeft', 'geom.cheek.raiseRight'],
   },
   'nose-wrinkled': {
     words: { name: 'nose wrinkled', more: 'wrinkle your nose more', less: 'wrinkle your nose less' },
-    up: [...bs(...lr('nose.sneer')), 'geom.nose.wrinkle', 'au.au9_noseWrinkler'],
+    up: [...bs(...lr('nose.sneer')), 'au.au9_noseWrinkler'],
+    // The nose-to-inner-eye distance: it shrinks as the nose wrinkles.
+    down: ['geom.nose.wrinkle'],
   },
   'head-turn': {
     words: { name: 'head turned', more: 'turn your head further to that side', less: 'turn your head back toward the camera' },
-    up: ['head.yaw'],
+    up: [],
+    signed: ['head.yaw'],
   },
   'head-nod': {
     words: { name: 'head tipped up or down', more: 'tip your head further', less: 'hold your head more level' },
-    up: ['head.pitch'],
+    up: [],
+    signed: ['head.pitch'],
   },
   'head-tilt': {
     words: { name: 'head tilted toward a shoulder', more: 'tilt your head further', less: 'hold your head more upright' },
-    up: ['head.roll'],
+    up: [],
+    signed: ['head.roll'],
   },
   'lopsided-smile': {
     words: { name: 'a lopsided smile', more: 'make your smile more lopsided', less: 'smile more evenly' },
-    up: ['symmetry.smile', 'symmetry.mouthCorner'],
+    up: [],
+    signed: ['symmetry.smile', 'symmetry.mouthCorner'],
   },
   'one-brow': {
     words: { name: 'one eyebrow raised', more: 'raise one eyebrow more than the other', less: 'raise both eyebrows evenly' },
-    up: ['symmetry.browOuter'],
+    up: [],
+    signed: ['symmetry.browOuter'],
   },
   wink: {
     words: { name: 'a wink', more: 'close one eye more than the other', less: 'keep both eyes alike' },
-    up: ['symmetry.eye', 'symmetry.cheek'],
+    up: [],
+    signed: ['symmetry.eye', 'symmetry.cheek'],
   },
 };
 
@@ -152,6 +190,7 @@ const BY_ID: ReadonlyMap<string, FeatureWords> = (() => {
   for (const [movement, m] of Object.entries(MOVEMENTS)) {
     for (const id of m.up) out.set(`face.${id}`, { ...m.words, movement });
     for (const id of m.down ?? []) out.set(`face.${id}`, { ...m.words, movement, invert: true });
+    for (const id of m.signed ?? []) out.set(`face.${id}`, { ...m.words, movement, signed: true });
   }
   return out;
 })();

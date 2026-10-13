@@ -327,16 +327,15 @@ export function sortingView(
   const model = modelFromCategorizer(c);
   const vectors = c.samples.map((s) => s.vector);
   const quality = carveQuality(model, vectors);
-  const label = (id: string): string => {
-    const i = model.categories.findIndex((x) => x.id === id);
-    return model.categories[i]?.label || modality.words.fallback(Math.max(0, i));
-  };
+  // As the grid names a category with no label: its id.
+  const label = (id: string): string => model.categories.find((x) => x.id === id)?.label || id;
   const hints = new Map<string, QualityHint>();
   for (const q of quality.categories) {
     const hint = q.closeTo ? qualityHint(model, q.id, q.closeTo, { describe: (f) => modality.describe(f), label, neutralName: `your ${modality.words.neutral} ${modality.words.many}` }) : null;
     if (hint) hints.set(q.id, hint);
   }
   const at = new Map(c.samples.map((s, i) => [s.id, i]));
+  const pinned = new Set(Object.keys(c.pins ?? {}).flatMap((id) => (at.has(id) ? [at.get(id)!] : [])));
   const bin = (ids: readonly string[]): SortedBin => {
     const members = ids.map((id) => at.get(id)!);
     return { count: members.length, exemplars: ordered(model, vectors, members).map((e) => e.index) };
@@ -357,12 +356,13 @@ export function sortingView(
     }),
     neutral: bin(c.neutral),
     aside: bin(c.aside ?? []),
-    pinned: new Set(Object.keys(c.pins ?? {}).flatMap((id) => (at.has(id) ? [at.get(id)!] : []))),
+    pinned,
     ids: c.samples.map((s) => s.id),
     recutable: range.recutable ?? true,
     quality,
     hints,
-    suspects: new Map(quality.suspects.map((x) => [x.index, x.nearer])),
+    // A hold the player placed is where they want it: no "looks more like" on it.
+    suspects: new Map(quality.suspects.filter((x) => !pinned.has(x.index)).map((x) => [x.index, x.nearer])),
   };
 }
 

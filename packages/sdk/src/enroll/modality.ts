@@ -50,6 +50,9 @@ export interface FeatureWords {
   movement?: string;
   /** The feature falls as the movement grows (an eye aspect ratio as the eye closes). */
   invert?: boolean;
+  /** The feature is SIGNED around a rest of 0 and the movement is its size either way (a head
+   *  turn: -20 and +20 degrees are both 20 degrees of it; a right-minus-left asymmetry). */
+  signed?: boolean;
 }
 
 /** A general model as the matcher's inputs (P1's `matchLabels` options, minus the fallback). */

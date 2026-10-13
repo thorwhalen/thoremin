@@ -62,29 +62,37 @@ afterEach(() => {
 });
 
 describe('quality in the grid', () => {
-  it('a chip per category; a misfiled hold is suspect, and one click sends it back', async () => {
+  it('a chip per category on a fresh carve; none is close on the distinct synthetic faces', async () => {
     const store = await carved();
     const s = () => store.getState();
     render(<FaceSessionView store={store} test={faceTestStore()} />);
     const cats = s().working!.categories;
     expect(document.querySelectorAll('[data-face-quality]')).toHaveLength(cats.length);
-    // The synthetic faces are distinct expressions: none is close.
-    expect(s().view && 'quality' in s().view! && s().view!.quality.categories.every((q) => q.grade !== 'close')).toBe(true);
+    expect([...document.querySelectorAll('[data-face-quality]')].every((x) => x.getAttribute('data-face-quality') !== 'close')).toBe(true);
+  });
 
-    // File a hold of category 1 under category 2: it is suspect, looking like category 1.
-    const [first, second] = cats;
-    const hold = first.members[0];
-    act(() => {
-      expect(s().moveHolds([hold], second.id)).toBe(true);
-    });
+  it('a misfiled hold is suspect, and one click sends it where it looks like it belongs; a placed one is not', () => {
+    const store = createFaceSessionStore(deps());
+    const s = () => store.getState();
+    // The scripted carve with one surprise hold filed under smile (as a carve could leave it: no pin).
+    const c = scriptedCarve({ sd: 0.01 });
+    const hold = c.categories[2].members[0];
+    c.categories[2].members = c.categories[2].members.slice(1);
+    c.categories[0].members.push(hold);
+    expect(s().importFile(exportCategorizer(c))).toBe(true);
+    render(<FaceSessionView store={store} test={faceTestStore()} />);
     const card = () => document.querySelector(`[data-face-hold="${hold}"]`) as HTMLElement;
-    expect(card().querySelector('[data-face-suspect]')?.getAttribute('data-face-suspect')).toBe(first.id);
-    // Two holds of a face, one of another: the category is CLOSE to Neutral now, and says so.
-    expect(document.querySelector(`[data-face-category="${second.id}"] [data-face-quality]`)?.textContent).toMatch(/close to Neutral/);
+    expect(card().querySelector('[data-face-suspect]')?.getAttribute('data-face-suspect')).toBe('cat-3');
     fireEvent.click(card().querySelector('[data-face-accept]')!);
-    expect(placeOf(s().working!, hold)).toBe(first.id);
-    // Accepting is a move like any other: a pin, and undoable.
-    expect(s().working!.pins![hold]).toBe(first.id);
+    expect(placeOf(s().working!, hold)).toBe('cat-3');
+    // Accepting is a move like any other: a pin.
+    expect(s().working!.pins![hold]).toBe('cat-3');
+    expect(card().querySelector('[data-face-suspect]')).toBeNull();
+    // Put back on purpose (a pin): the player decided, so no mark.
+    act(() => {
+      expect(s().moveHolds([hold], 'cat-1')).toBe(true);
+    });
+    expect(placeOf(s().working!, hold)).toBe('cat-1');
     expect(card().querySelector('[data-face-suspect]')).toBeNull();
   });
 
@@ -108,34 +116,59 @@ describe('the chips on the REAL recording (video_head_pose)', () => {
   const FPS = 29.3;
   const vecAt = (i: number): FeatureVector => Object.fromEntries(Object.entries(BLENDSHAPE_NAME_BY_FEATURE).map(([id, name]) => [id, frames[i].blendshapes[name] ?? 0]));
 
+  /** A run differs from another the way two replays of one take would: the clock's phase and
+   *  measurement jitter far below a noise unit. (Shifting the REST window is a different take:
+   *  on this clip's handful of holds it changes the carve itself, upstream of the chips.) */
+  interface Variant {
+    offsetMs: number;
+    restShift: number;
+    jitter: number;
+    seed: number;
+  }
+  const BASE: Variant = { offsetMs: 0, restShift: 0, jitter: 0, seed: 1 };
+  const VARIANTS: Variant[] = [
+    { offsetMs: 11, restShift: 0, jitter: 1e-4, seed: 2 },
+    { offsetMs: 23, restShift: 0, jitter: 2e-4, seed: 3 },
+    { offsetMs: 5, restShift: 0, jitter: 5e-4, seed: 4 },
+  ];
+
   /** One run: a take over the whole clip (its rest looped to fill the take's), carved at k. */
-  function run(k: number) {
+  function run(k: number, v: Variant = BASE) {
+    let a = v.seed;
+    const noise = () => {
+      a = (a * 1103515245 + 12345) % 2147483648;
+      return (a / 2147483648 - 0.5) * 2 * v.jitter;
+    };
+    const vec = (i: number): FeatureVector => Object.fromEntries(Object.entries(vecAt(i)).map(([id, x]) => [id, x + noise()]));
     const take = createFaceTake({ restMs: 0 });
-    take.start(0);
+    take.start(v.offsetMs);
     const rest: number[] = [];
-    for (let i = Math.round(7.7 * FPS); i <= Math.round(8.5 * FPS); i++) rest.push(i);
-    let t = 0;
+    for (let i = Math.round(7.7 * FPS) + v.restShift; i <= Math.round(8.5 * FPS) + v.restShift; i++) rest.push(i);
+    let t = v.offsetMs;
     while (take.phase() === 'rest') {
-      take.push(vecAt(rest[Math.floor(t / 33) % rest.length]), t);
+      take.push(vec(rest[Math.floor(t / 33) % rest.length]), t);
       t += 33;
     }
-    for (let i = 0; i < frames.length; i++) take.push(vecAt(i), t + (i / FPS) * 1000);
+    for (let i = 0; i < frames.length; i++) take.push(vec(i), t + (i / FPS) * 1000);
     expect(take.stop()).toBe(true);
     const session = take.session();
     const view = carveView({ session, restVectors: take.restVectors(), carver: carverFor(session, take.restVectors(), 'reject'), k });
     const c = categorizerFromModel(view.model, session.points(), { name: 'head pose', mode: 'reject', modality: 'face' });
     const sorted = sortingView(c, { sources: new Map(), range: { minK: 1, maxK: 6, suggestedK: k } });
     return {
-      chips: sorted.quality.categories.map((q) => [q.id, q.grade, q.dots, q.closeTo, q.ratio.toFixed(6)]),
+      chips: sorted.quality.categories.map((q) => [q.id, q.grade, q.dots, q.closeTo]),
       suspects: [...sorted.suspects],
-      hints: [...sorted.hints.values()].map((h) => h.text),
+      hints: [...sorted.hints.values()].map((h) => h.movements.map((m) => m.movement)),
     };
   }
 
   for (const k of [2, 3]) {
-    it(`k = ${k}: the same chips, suspects and hints on every run`, () => {
+    it(`k = ${k}: the same chips, suspects and hint movements on every run (clock phase, jitter)`, () => {
       const a = run(k);
-      expect(run(k)).toEqual(a);
+      for (const v of VARIANTS) {
+        const b = run(k, v);
+        expect(b, JSON.stringify(v)).toEqual(a);
+      }
       expect(a.chips.length).toBe(k);
       // Not a vacuous agreement: the clip's few holds make at least one chip something to act on.
       expect(a.chips.some(([, grade]) => grade !== 'distinct')).toBe(true);
