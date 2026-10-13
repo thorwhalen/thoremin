@@ -223,6 +223,8 @@ export {
   CATEGORIZER_MODES,
   CATEGORIZER_VERSION,
   NO_REJECT_RADIUS,
+  MAX_CATEGORIZER_SAMPLES,
+  MAX_CATEGORIZER_FEATURES,
   PersonalCategorizerSchema,
   categorizerFromModel,
   exportCategorizer,

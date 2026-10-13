@@ -74,7 +74,7 @@ describe('webglRenderer', () => {
     expect(webglRenderer()).toBe('Apple M1 Max');
   });
 
-  it.fails('when getParameter throws, the throwaway context is still lost (#391 item 4; found: the release sits after the read inside the try)', async () => {
+  it('when getParameter throws, the throwaway context is still lost (#391 item 4)', async () => {
     const fake = fakeDocument({ throws: true });
     vi.stubGlobal('document', fake.document);
     const { webglRenderer } = await freshDelegate();

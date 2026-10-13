@@ -81,10 +81,10 @@ import type { NodeContext } from '@thoremin/dag';
 import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, fitLine, fitQuadratic, lagGate, magnetise, nearestExpectedBeat, type ImpactPredictor, type MusicalTime, type Quadratic } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
-import { frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type FallPath, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
-import { timingFrom, CAPTURE_LAG_PRIOR_S } from '@thoremin/sdk/timing/tracker';
+import { timingFrom, sampleTime, CAPTURE_LAG_PRIOR_S } from '@thoremin/sdk/timing/tracker';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };
@@ -848,11 +848,10 @@ export const airDrumNode = defineNode<Params>({
           const subframe = subframeAsks >= SUBFRAME_DWELL_FRAMES ? asked : status.subframe;
           if (subframe !== status.subframe) subframeAsks = 0;
           if (subframe !== status.subframe || !Object.is(stampNoise, status.stampNoise)) status = { ...status, subframe, stampNoise };
-          const stampT = frameTime(frame, ctx);
           // A `clock` stamp (honoured) is when the source noticed the frame: the camera
-          // took it the capture lag earlier (#318). An `estimated` stamp already is.
-          const clockLag = frame.tSource === 'clock' && stampT === frame.t ? (timing.captureLag?.value ?? CAPTURE_LAG_PRIOR_S) : 0;
-          const t = stampT - clockLag;
+          // took it the capture lag earlier (#318). An `estimated` stamp already is. The
+          // rule is the timing resource's own, so its frame age is this one (#393).
+          const t = sampleTime(frame, ctx, timing.captureLag?.value ?? CAPTURE_LAG_PRIOR_S);
           // The frame's age: the sample was captured `age` seconds before this decision
           // (the camera, inference and the tick), so the lead the predictor must leave
           // from the sample's time is the dial's lead plus that age.

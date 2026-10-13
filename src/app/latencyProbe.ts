@@ -114,12 +114,16 @@ function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext |
   /** A start in flight (the permission prompt, the worklet load): a second start waits
    *  for it instead of opening a second microphone. */
   let starting: Promise<void> | null = null;
+  /** Bumped by `abort()`. A start reads it after each await: one that was abandoned while
+   *  it waited (an engine rebuild during the permission prompt or the worklet load) gives
+   *  back what it opened instead of publishing a session nobody can stop (#328). */
+  let generation = 0;
 
   /** Release everything a session holds. Synchronous enough for a teardown. */
-  const release = (s: MicSession) => {
+  const release = (s: Pick<MicSession, 'stream' | 'stopFrames'> & { ac: AudioContext | null }) => {
     s.stopFrames();
     s.stream.getTracks().forEach((t) => t.stop());
-    void s.ac.close().catch(() => {});
+    if (s.ac) void s.ac.close().catch(() => {});
   };
 
   const answer = (ac: AudioContext) => {
@@ -142,29 +146,39 @@ function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext |
       if (starting) return starting;
       const appAc = getAppAudio();
       if (!appAc || appAc.state !== 'running') return Promise.reject(new Error('Tap to play first: the strike test answers through the instrument audio.'));
-      starting = (async () => {
+      const gen = generation;
+      const abandoned = () => {
+        if (gen !== generation) throw new Error('The strike test was stopped before it started.');
+      };
+      const pending: Promise<void> = (async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         });
-        const ac = new AudioContext({ latencyHint: 'interactive' });
-        const s: MicSession = { ac, stream, chunks: [], triggers: 0, stopFrames: () => {} };
+        // From here on the stream is ours to stop, whatever fails (the context itself can
+        // refuse to be made: too many contexts).
+        let ac: AudioContext | null = null;
+        const chunks: Float32Array[] = [];
         try {
+          abandoned();
+          ac = new AudioContext({ latencyHint: 'interactive' });
           const url = URL.createObjectURL(new Blob([RECORDER_WORKLET], { type: 'application/javascript' }));
           try {
             await ac.audioWorklet.addModule(url);
           } finally {
             URL.revokeObjectURL(url);
           }
+          abandoned();
           const src = ac.createMediaStreamSource(stream);
           const rec = new AudioWorkletNode(ac, 'thoremin-latency-recorder');
           const sink = ac.createGain();
           sink.gain.value = 0; // pulled by the graph, never heard
           src.connect(rec).connect(sink).connect(ac.destination);
-          rec.port.onmessage = (e: MessageEvent<Float32Array>) => s.chunks.push(e.data);
+          rec.port.onmessage = (e: MessageEvent<Float32Array>) => chunks.push(e.data);
         } catch (e) {
-          release(s);
+          release({ ac, stream, stopFrames: () => {} });
           throw e;
         }
+        const s: MicSession = { ac, stream, chunks, triggers: 0, stopFrames: () => {} };
         const trigger = createStrikeTrigger();
         s.stopFrames = probe.onFrame((f) => {
           if (trigger.push(f.frame.t ?? f.tickMs / 1000, palmY(f.frame))) {
@@ -174,13 +188,18 @@ function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext |
         });
         session = s;
       })().finally(() => {
-        starting = null;
+        if (starting === pending) starting = null;
       });
-      return starting;
+      starting = pending;
+      return pending;
     },
 
     /** Abandon a running session without analysing it (teardown). */
     abort(): void {
+      generation++;
+      // A start still in flight is abandoned (it releases what it opened); a later start
+      // is a new one, not a wait on the abandoned one.
+      starting = null;
       if (session) release(session);
       session = null;
     },

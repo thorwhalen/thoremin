@@ -54,7 +54,9 @@
  * period; `running` while anchors keep arriving; `hold` when the expected beat is
  * missed by `holdAfterPeriods` (a fermata, a stop, a lost hand): the beat freezes and
  * confidence decays. The next anchor in `hold` is a preparatory beat: it restarts the
- * phase at 0 with the kept period. A dropped beat (an anchor at about two periods)
+ * phase at 0 with the kept period. That is judged on the anchor's own time, not on
+ * when it is delivered: an anchor timed before the threshold that reaches `update`
+ * after an `advance` crossed it was on time, and resumes the lock (#393). A dropped beat (an anchor at about two periods)
  * stays below the hold threshold and free-runs through. If the conductor has really
  * halved the tempo, the hold restarts recur at the same long interval, and the second
  * one re-seeds the period from it.
@@ -188,6 +190,11 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
   let holdRestartIai = NaN;
   /** Re-seeds of the lock since reset (see {@link AdaptiveOscillator}). */
   let restarts = 0;
+  /** When the free-run froze into `hold` (the time of the advance that crossed the
+   *  threshold), and the ready count it dropped: an anchor timed before the threshold
+   *  but delivered after that advance resumes the lock from here. */
+  let holdAt = NaN;
+  let consecutiveAtHold = 0;
 
   const freeRun = (dt: number) => {
     const dBeats = dt / period;
@@ -211,6 +218,8 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
     }
     if (sinceAnchor > o.holdAfterPeriods * period) {
       state = 'hold';
+      holdAt = t;
+      consecutiveAtHold = consecutive;
       consecutive = 0;
     }
   };
@@ -277,7 +286,16 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
       // The end of `update` re-advances to where the caller had got to.
       if (a.t > t) advanceTo(a.t);
       else if (a.t < t) {
-        if (state === 'running') freeRun(a.t - t);
+        if (state === 'hold' && !(a.t - lastAnchorT > o.holdAfterPeriods * period)) {
+          // Delivered after an advance crossed the hold threshold, but timed before
+          // it: the beat was on time, so the hold never happened. Judge the anchor on
+          // its own time: resume the lock and rewind the frozen free-run to it, rather
+          // than restart from it as a preparatory beat (a restart would count a re-seed
+          // and wipe the blend's trend for a beat that was where it was expected).
+          state = 'running';
+          consecutive = consecutiveAtHold;
+          freeRun(a.t - holdAt);
+        } else if (state === 'running') freeRun(a.t - t);
         t = a.t;
       }
       anchors++;
@@ -379,6 +397,8 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
     restarts: () => restarts,
     reset() {
       restarts = 0;
+      holdAt = NaN;
+      consecutiveAtHold = 0;
       t = 0;
       phase = 0;
       period = 60 / o.initialTempo;

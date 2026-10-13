@@ -12,7 +12,8 @@
  *     load (the settings may have moved on) is the one committed. Meanwhile the running graph
  *     keeps playing, the rule `applyGraph` already follows while a model prepares.
  *  3. A failed load never stops the instrument: the graph is committed without the branches
- *     that name the missing types, and the failure is reported. The next request asks again
+ *     that name the types that FAILED (an extension that loaded alongside a failing one keeps
+ *     its branches, #393), and the failure is reported. The next request asks again
  *     (the registry forgets a failed load), which helps a host without a module map; a browser
  *     never refetches a failed `import()` in the same page, so the app offers a reload.
  *
@@ -26,11 +27,13 @@ export interface LazyApplyDeps<G> {
   typesOf: (graph: G) => readonly string[];
   /** The types among `types` the registry has declared but not loaded. */
   pending: (types: readonly string[]) => string[];
-  /** Load those types (rejects when the load fails). */
+  /** Load those types (rejects when a load fails). A rejection carrying `failedTypes` (the
+   *  registry's `LazyLoadError`) says which types failed, the rest having loaded; any other
+   *  rejection counts every requested type as failed. */
   ensure: (types: readonly string[]) => Promise<void>;
   /** Hand the graph to the engine. */
   commit: (graph: G) => void;
-  /** A load failed: the graph is committed without `types`. */
+  /** A load failed: the graph is committed without `types` (the ones that failed). */
   onLoadError?: (types: readonly string[], err: unknown) => void;
   /** Composing after a load threw (a composition error): nothing is committed. */
   onError?: (err: unknown) => void;
@@ -38,24 +41,49 @@ export interface LazyApplyDeps<G> {
 
 const NONE: ReadonlySet<string> = new Set();
 
+/** Load rounds before giving up: a few cover settings that moved to another lazy extension
+ *  mid-fetch; more means a loader that resolves without registering. */
+const MAX_LOAD_ROUNDS = 3;
+
+/** The types among `missing` that a rejected `ensure` says failed (all of them when it says
+ *  nothing more precise). */
+function failedAmong(missing: readonly string[], err: unknown): string[] {
+  const named = (err as { failedTypes?: unknown } | null)?.failedTypes;
+  if (!Array.isArray(named)) return [...missing];
+  const failed = missing.filter((t) => named.includes(t));
+  return failed.length > 0 ? failed : [...missing];
+}
+
 /**
  * A graph whose every node type is loaded: `compose`d as is when nothing is pending (returned
  * synchronously), else after `ensure` (recomposed, since the settings may have changed during
  * the fetch), or without the types that failed to load. Never rejects.
+ *
+ * @param without - the types already known to have failed in this request (left out of every
+ *   later round, so a partial failure recomposes with what did load).
  */
-export function composeLoaded<G>(deps: Omit<LazyApplyDeps<G>, 'commit'>, isCurrent: () => boolean = () => true, depth = 0): G | Promise<G | null> {
-  const first = deps.compose(NONE);
-  const missing = deps.pending(deps.typesOf(first));
-  if (missing.length === 0) return first;
-  // Each round loads what the CURRENT settings name; a few rounds cover settings that moved to
-  // another lazy extension mid-fetch. More means a loader that resolves without registering.
-  const load = depth < 3 ? deps.ensure(missing) : Promise.reject(new Error(`still not loaded after ${depth} loads: ${missing.join(', ')}`));
+export function composeLoaded<G>(
+  deps: Omit<LazyApplyDeps<G>, 'commit'>,
+  isCurrent: () => boolean = () => true,
+  depth = 0,
+  without: ReadonlySet<string> = NONE,
+): G | Promise<G | null> {
+  const graph = deps.compose(without);
+  const missing = deps.pending(deps.typesOf(graph));
+  if (missing.length === 0) return graph;
+  // Each round loads what the CURRENT settings name.
+  const exhausted = depth >= MAX_LOAD_ROUNDS;
+  const load = exhausted ? Promise.reject(new Error(`still not loaded after ${depth} loads: ${missing.join(', ')}`)) : deps.ensure(missing);
   return load.then(
-    () => (isCurrent() ? composeLoaded(deps, isCurrent, depth + 1) : null),
+    () => (isCurrent() ? composeLoaded(deps, isCurrent, depth + 1, without) : null),
     (err: unknown) => {
       if (!isCurrent()) return null;
-      deps.onLoadError?.(missing, err);
-      return deps.compose(new Set(missing));
+      const failed = exhausted ? [...missing] : failedAmong(missing, err);
+      deps.onLoadError?.(failed, err);
+      const next = new Set([...without, ...failed]);
+      // Out of rounds: leave out everything still missing. Otherwise recompose without only the
+      // failed types, and load whatever else that graph still names.
+      return exhausted ? deps.compose(new Set([...next, ...missing])) : composeLoaded(deps, isCurrent, depth + 1, next);
     },
   );
 }

@@ -209,6 +209,8 @@ export const conductorNode = defineNode<Params>({
      *  NEW stroke — one more anchor — releases it). */
     let fermataAt: number | null = null;
     let fermataAnchors = 0;
+    /** The fermata last released: the beat still sits on it, and must not stop there again. */
+    let fermataReleased: number | null = null;
     /** The hands frame seen on the previous tick: the same object again is not a new
      *  observation (#225). */
     let lastFrame: HandsFrame | undefined;
@@ -223,6 +225,7 @@ export const conductorNode = defineNode<Params>({
       fermatas = [];
       docMeter = null;
       fermataAt = null;
+      fermataReleased = null;
       if (!raw || typeof raw !== 'object') return;
       const parsed = ScoreDocSchema.safeParse(raw);
       if (!parsed.success) return;
@@ -287,6 +290,7 @@ export const conductorNode = defineNode<Params>({
             speedEnv = 0;
             beatOut = 0;
             fermataAt = null;
+            fermataReleased = null;
             wasEnabled = false;
           }
           return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
@@ -339,7 +343,10 @@ export const conductorNode = defineNode<Params>({
         const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
         let bpm: number;
         // A fermata releases on the NEXT stroke after it was reached.
-        if (fermataAt !== null && s.anchors > fermataAnchors) fermataAt = null;
+        if (fermataAt !== null && s.anchors > fermataAnchors) {
+          fermataReleased = fermataAt;
+          fermataAt = null;
+        }
         if (fermataAt !== null) {
           bpm = 0;
         } else if (s.state === 'hold' || s.anchors === 0) {
@@ -359,7 +366,8 @@ export const conductorNode = defineNode<Params>({
           let next = Math.max(beatOut, corrected);
           // 4. Fermatas: stop exactly on one the beat would cross, and hold there.
           for (const f of fermatas) {
-            if (f > beatOut && f <= next) {
+            // One the beat sits on counts too (a fermata at beat 0, #393), unless just released.
+            if ((f > beatOut || (f === beatOut && f !== fermataReleased)) && f <= next) {
               next = f;
               fermataAt = f;
               fermataAnchors = s.anchors;

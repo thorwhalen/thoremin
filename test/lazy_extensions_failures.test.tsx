@@ -139,7 +139,7 @@ describe('two lazy extensions pending, one loader rejecting (#393 item 1)', () =
     expect(w.loadErrors.flat()).toContain('lx-node');
   });
 
-  it.fails("the extension that loaded ends `ready` and its branches are committed (#393 item 1)", async () => {
+  it("the extension that loaded ends `ready` and its branches are committed (#393 item 1)", async () => {
     const x = gate<readonly NodeDef<any>[]>();
     const y = gate<readonly NodeDef<any>[]>();
     const w = liveApp({ lx: x.load, ly: y.load });
@@ -163,7 +163,7 @@ describe('two lazy extensions pending, one loader rejecting (#393 item 1)', () =
     expect(registry.get('b').type).toBe('b');
   });
 
-  it.fails("`ensure` waits for every group and says which failed, instead of rejecting on the first (#393 item 1)", async () => {
+  it("`ensure` waits for every group and says which failed, instead of rejecting on the first (#393 item 1)", async () => {
     const b = gate<readonly NodeDef<any>[]>();
     const registry = new NodeRegistry()
       .declareLazy(['a'], async () => {
@@ -228,12 +228,12 @@ describe('loadExtensionUi: a mount effect that throws (#393 item 2)', () => {
     expect(mountA.before).toHaveBeenCalledOnce();
   });
 
-  it.fails('the effects after the throwing one still run (#393 item 2)', async () => {
+  it('the effects after the throwing one still run (#393 item 2)', async () => {
     await app.loadExtensionUi('mount-a').catch(() => undefined);
     expect(mountA.after).toHaveBeenCalledOnce();
   });
 
-  it.fails('no half-mounted UI is handed out: a UI the cache returns has had every effect run (#393 item 2)', async () => {
+  it('no half-mounted UI is handed out: a UI the cache returns has had every effect run (#393 item 2)', async () => {
     const first = await app.loadExtensionUi('mount-b').then(
       () => 'resolved',
       () => 'rejected',
@@ -267,7 +267,7 @@ describe('makeExtensionSinks: a status hook whose `make` throws (#393 item 2)', 
     expect(goodMake).toHaveBeenCalled();
   });
 
-  it.fails('is built once and reported once, not rebuilt and rethrown on every tick (#393 item 2)', () => {
+  it('is built once and reported once, not rebuilt and rethrown on every tick (#393 item 2)', () => {
     brokenMake.mockClear();
     const sinks = app.makeExtensionSinks(engine);
     let thrown = 0;

@@ -27,6 +27,15 @@
  *
  * The handle store and the picker are keyword options so tests run the whole thing
  * with an in-memory store and a stubbed picker; the defaults are the real ones.
+ *
+ * What goes wrong in a browser, and what each verb does about it (#307, #393 item 6):
+ * an EXCEPTION while asking for permission (a `SecurityError` once the click's user
+ * activation has lapsed) is not a refusal, so the folder is kept and the take simply
+ * not started; a folder deleted or renamed on disk still reads `granted`, so the sink
+ * finds out from `getDirectoryHandle` and calls {@link forgetRecordingFolder} before
+ * asking again; and an IndexedDB that cannot keep the handle leaves it held for this
+ * page only, which the listeners are told (`remembered: false`), so a panel does not
+ * claim a folder the next reload will not have.
  */
 import { loadDirHandle, saveDirHandle, clearDirHandle } from './idb';
 
@@ -51,18 +60,49 @@ export type DirPicker = (opts?: {
   id?: string;
 }) => Promise<FsDirHandle>;
 
+/**
+ * Whether a saved handle will outlive the page: `remembered` (persisted);
+ * `page-only` (held for this page, the persistence tier failed to keep it); or
+ * `no-storage` (this runtime has no persistence tier at all, so nothing was expected
+ * to outlive the page and there is nothing to warn about).
+ */
+export type FolderPersistence = 'remembered' | 'page-only' | 'no-storage';
+
 /** Where a remembered handle lives: IndexedDB in the browser, memory in a test. */
 export interface FolderHandleStore {
   load(): Promise<FsDirHandle | null>;
-  save(handle: FsDirHandle): Promise<void>;
+  /** Keep the handle. A store that resolves with nothing kept it for good. */
+  save(handle: FsDirHandle): Promise<void | FolderPersistence>;
   clear(): Promise<void>;
 }
 
-/** The browser's store: the app's one IndexedDB record (`./idb`). */
+/**
+ * The page's own copy of the folder, the memory tier in front of IndexedDB.
+ * `undefined` defers to IndexedDB (nothing chosen or forgotten on this page yet, so
+ * a choice made in another tab is still seen); a handle or `null` is this page's
+ * own latest word, which IndexedDB may have failed to record.
+ */
+let held: FsDirHandle | null | undefined;
+
+/**
+ * The browser's store: memory first, then the app's one IndexedDB record (`./idb`)
+ * as the persistence tier. Holding the handle in memory is what keeps a folder the
+ * player just chose usable for the rest of the page when IndexedDB refuses to keep it
+ * (a full disk, a private window). Where IndexedDB is absent there is no tier to
+ * stand in front of, so nothing is held (no browser with a folder picker lacks it).
+ */
 export const IDB_FOLDER_STORE: FolderHandleStore = {
-  load: () => loadDirHandle<FsDirHandle>(),
-  save: (handle) => saveDirHandle(handle),
-  clear: () => clearDirHandle(),
+  load: async () => (held !== undefined ? held : loadDirHandle<FsDirHandle>()),
+  save: async (handle) => {
+    const outcome = await saveDirHandle(handle);
+    if (outcome === 'unavailable') return 'no-storage';
+    held = handle;
+    return outcome === 'saved' ? 'remembered' : 'page-only';
+  },
+  clear: async () => {
+    held = null;
+    await clearDirHandle();
+  },
 };
 
 /** The picker as the browser exposes it, or null where it does not (Safari, Firefox, Node). */
@@ -93,10 +133,16 @@ function nameOf(handle: FsDirHandle): string {
   return handle.name ?? '';
 }
 
-type FolderListener = (name: string | null) => void;
+/** What a listener is told beside the name: whether the folder will outlive the page. */
+export interface FolderChangeInfo {
+  persistence: FolderPersistence;
+}
+
+type FolderListener = (name: string | null, info: FolderChangeInfo) => void;
 const listeners = new Set<FolderListener>();
 
-/** Be told whenever the remembered folder changes (its name, or null once forgotten). */
+/** Be told whenever the remembered folder changes (its name, or null once forgotten),
+ *  and whether the browser kept it beyond this page. */
 export function onRecordingFolderChange(listener: FolderListener): () => void {
   listeners.add(listener);
   return () => {
@@ -105,13 +151,23 @@ export function onRecordingFolderChange(listener: FolderListener): () => void {
 }
 
 async function remember(store: FolderHandleStore, handle: FsDirHandle): Promise<void> {
-  await store.save(handle);
-  for (const l of listeners) l(nameOf(handle));
+  const persistence = (await store.save(handle)) ?? 'remembered';
+  for (const l of listeners) l(nameOf(handle), { persistence });
 }
 
 async function forget(store: FolderHandleStore): Promise<void> {
   await store.clear();
-  for (const l of listeners) l(null);
+  for (const l of listeners) l(null, { persistence: 'remembered' });
+}
+
+/**
+ * Forget the remembered folder, so the next {@link acquireRecordingFolder} offers the
+ * picker. What the sink calls when the folder turns out to be gone from disk
+ * (`NotFoundError`, `InvalidStateError`): its permission still reads `granted`, so
+ * only writing into it finds out, and keeping it would fail every later take too.
+ */
+export async function forgetRecordingFolder({ store = IDB_FOLDER_STORE }: Pick<FolderOptions, 'store'> = {}): Promise<void> {
+  await forget(store);
 }
 
 /**
@@ -119,15 +175,24 @@ async function forget(store: FolderHandleStore): Promise<void> {
  * player refused, the handle is dead); or `prompt`, which is what a DISMISSED
  * "allow edits?" prompt leaves behind. A dismissal is not a refusal: the folder is
  * still the player's choice and is kept, the take is simply not started.
+ *
+ * An exception that is the browser declining to ASK (a `SecurityError` or
+ * `NotAllowedError` once the click's user activation has lapsed) reads as `prompt`
+ * too, for the same reason: it is not the player declining the folder (#393 item 6),
+ * and the next click can ask again. Any other exception says nothing about a later
+ * click, so it reads `denied` and the folder is forgotten, rather than kept to fail
+ * every take after it.
  */
+const ASK_DECLINED_ERRORS: ReadonlySet<string> = new Set(['SecurityError', 'NotAllowedError']);
+
 async function permissionState(handle: FsDirHandle): Promise<PermissionState> {
   try {
     const opts = { mode: 'readwrite' as const };
     const queried = await handle.queryPermission?.(opts);
     if (queried === 'granted' || queried === 'denied') return queried;
     return (await handle.requestPermission?.(opts)) ?? 'denied';
-  } catch {
-    return 'denied';
+  } catch (e) {
+    return ASK_DECLINED_ERRORS.has((e as { name?: string })?.name ?? '') ? 'prompt' : 'denied';
   }
 }
 

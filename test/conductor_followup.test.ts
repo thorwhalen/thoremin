@@ -33,7 +33,7 @@ describe('a saved conductor with no orchestra (before #336)', () => {
     expect((merged.conductor as { orchestra?: unknown }).orchestra).toEqual(DEFAULT_CONDUCTOR.orchestra);
   });
 
-  it.fails('normalizeLayer(saved).conductor deep-equals what mergeControls makes of it (#393 lower: pre-#336 instruments read as edited)', () => {
+  it('normalizeLayer(saved).conductor deep-equals what mergeControls makes of it (#393 lower: pre-#336 instruments read as edited)', () => {
     const saved = preOrchestra();
     const healed = normalizeLayer({ conductor: structuredClone(saved) });
     const merged = mergeControls({ conductor: structuredClone(saved) }, useControls.getState());
@@ -77,7 +77,7 @@ describe('a fermata at beat 0', () => {
     expect(free[leaves].time.anchors).toBeGreaterThan(0);
   });
 
-  it.fails('is held: the beat stays at 0, reading hold, until a stroke after the one that would have moved it (#393 lower: fermata at beat 0)', async () => {
+  it('is held: the beat stays at 0, reading hold, until a stroke after the one that would have moved it (#393 lower: fermata at beat 0)', async () => {
     const free = await run([]);
     const held = await run([0]);
     const freeLeaves = free.findIndex((o) => o.beat > 0);

@@ -32,7 +32,8 @@ import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
 import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
-import { DRUM_SOUNDS, DrumHitsSchema, type DrumHit, type DrumSound } from './air_drum';
+import { createEventBatchParser } from '../lib/event_batch';
+import { DRUM_SOUNDS, DrumHitSchema, type DrumSound } from './air_drum';
 
 /** Per-hit shading of a voice beyond its loudness. */
 export interface DrumTouch {
@@ -204,6 +205,9 @@ export const drumOutNode = defineNode<Params>({
   make() {
     let sink: DrumSink | null = null;
     let sinkAc: AudioContext | null = null;
+    // Each hit parsed on its own: one malformed hit is skipped and counted, never the
+    // whole tick's batch (#393 item 8; `../lib/event_batch`).
+    const batch = createEventBatchParser(DrumHitSchema, 'drum-out');
     return {
       process(inputs, ctx: NodeContext) {
         if (inputs.mute === true) return {};
@@ -224,10 +228,10 @@ export const drumOutNode = defineNode<Params>({
         // A context that is not running (suspended, interrupted, not yet resumed) has a
         // frozen clock: hits scheduled against it would burst out on resume. Drop them.
         if (clock.state !== undefined && clock.state !== 'running') return {};
-        const parsed = DrumHitsSchema.safeParse(raw);
-        if (!parsed.success) return {};
+        const hits = batch.parse(raw, ctx.log);
+        if (hits.length === 0) return {};
         const outputStage = timingFrom(ctx.resources).outputStage.value;
-        for (const hit of parsed.data as DrumHit[]) {
+        for (const hit of hits) {
           if (!DRUM_SOUNDS.includes(hit.sound)) continue;
           // Never in the past: a ghost note (or a late prediction) sounds at once.
           const when = scheduleAt(clock, hit.t, ctx.time, outputStage);

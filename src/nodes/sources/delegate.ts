@@ -40,18 +40,26 @@ let cachedRenderer: string | undefined;
  */
 export function webglRenderer(): string | null {
   if (cachedRenderer !== undefined) return cachedRenderer;
+  let gl: WebGLRenderingContext | null = null;
   try {
     if (typeof document === 'undefined') return null;
     const canvas = document.createElement('canvas');
-    const gl = (canvas.getContext('webgl2') ?? canvas.getContext('webgl')) as WebGLRenderingContext | null;
+    gl = (canvas.getContext('webgl2') ?? canvas.getContext('webgl')) as WebGLRenderingContext | null;
     if (!gl) return null;
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
     const r = gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
     cachedRenderer = typeof r === 'string' ? r : '';
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
     return cachedRenderer;
   } catch {
     return null;
+  } finally {
+    // The throwaway context is given back whatever the read did: browsers cap live
+    // contexts, and the GPU delegate needs one.
+    try {
+      gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    } catch {
+      // A context that cannot even be lost is already gone.
+    }
   }
 }
 

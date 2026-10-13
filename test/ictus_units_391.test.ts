@@ -3,12 +3,13 @@
  * the oscillator's hold, the blend's gates, the scheduler's loop contract and a long
  * forward jump, and the lag gate on a degenerate window.
  *
- * Three cases pin defects listed in #393 and are written `it.fails` until they are
- * fixed: an anchor delivered after `advance` crossed the hold threshold but timed
- * before it restarts the lock; the blend's trend learns from an anchor the
- * oscillator's floor refused, and its `predict()` blends the trend's window even
- * while its state has fallen back to the oscillator alone; the scheduler accepts an
- * event at or past `loopBeats`.
+ * Four cases pin defects listed in #393, now fixed: an anchor delivered after
+ * `advance` crossed the hold threshold but timed before it no longer restarts the
+ * lock; the blend's trend no longer learns from an anchor the oscillator's floor
+ * refused, and its `predict()` no longer blends the trend's window while its state
+ * has fallen back to the oscillator alone; the scheduler rejects an event at or past
+ * `loopBeats`. The lag gate's all-zero case pins today's behaviour (gate 0), a
+ * judgement call rather than a defect: see the case.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -38,7 +39,7 @@ function accelerando(beats = 24, t0 = 1, start = 0.625, ratio = 0.985): number[]
 }
 
 describe('adaptive oscillator: an anchor delivered late (#391 item 6)', () => {
-  it.fails('an anchor timed before the hold threshold but delivered after advance crossed it keeps restarts() unchanged (#393 lower "anchor delivered late")', () => {
+  it('an anchor timed before the hold threshold but delivered after advance crossed it keeps restarts() unchanged (#393 lower "anchor delivered late")', () => {
     const osc = createAdaptiveOscillator();
     const period = 0.5;
     for (const t of [1, 1.5, 2, 2.5, 3]) {
@@ -84,7 +85,7 @@ describe('blend prior: the gates the oscillator owns (#391 item 6)', () => {
     return blend;
   }
 
-  it.fails('with oscillator.confidenceFloor 0.5, an on-beat anchor below the floor does not update the trend (#393 lower "blend\'s trend learns")', () => {
+  it('with oscillator.confidenceFloor 0.5, an on-beat anchor below the floor does not update the trend (#393 lower "blend\'s trend learns")', () => {
     const blend = locked(0.5);
     const oscAnchors = blend.oscillator.state().anchors;
     const trendAnchors = blend.trend.state().anchors;
@@ -105,7 +106,7 @@ describe('blend prior: the gates the oscillator owns (#391 item 6)', () => {
     expect(blend.trend.state().anchors).toBe(trendAnchors + 1);
   });
 
-  it.fails('when the two halves disagree (the state falls back to the oscillator), predict().window equals the oscillator\'s (#393 lower "blend\'s trend learns", predict)', () => {
+  it('when the two halves disagree (the state falls back to the oscillator), predict().window equals the oscillator\'s (#393 lower "blend\'s trend learns", predict)', () => {
     const blend = createBlendPrior();
     for (const t of accelerando()) {
       blend.advance(t);
@@ -131,7 +132,7 @@ describe('blend prior: the gates the oscillator owns (#391 item 6)', () => {
 });
 
 describe('scheduler: the loop contract and a long forward jump (#391 item 6)', () => {
-  it.fails('an event at start >= loopBeats is rejected (#393 lower "scheduler accepts events past the loop")', () => {
+  it('an event at start >= loopBeats is rejected (#393 lower "scheduler accepts events past the loop")', () => {
     expect(() => createScheduler([ev(60, 0), ev(62, 4)], { loopBeats: 4 })).toThrow();
     expect(() => createScheduler([ev(60, 0), ev(62, 5.5)], { loopBeats: 4 })).toThrow();
   });

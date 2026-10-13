@@ -4,8 +4,8 @@
  * overlap, a corrupt persisted hold, the Trainer's save-name warning, and a category id
  * that is a built-in object property, in the panel the player binds it in.
  *
- * The `it.fails` cases pin defects named in #393 ("#327: two category bindings and the
- * save name", item 7 for the `constructor` id); each flips to `it` when fixed.
+ * The cases named after #393 ("#327: two category bindings and the save name", item 7 for
+ * the `constructor` id) guard defects fixed in the sprint follow-up.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
@@ -70,7 +70,7 @@ describe('useCategoryBinding.activate: the one requested last wins', () => {
     expect(useCategoryBinding.getState().active?.name).toBe('B');
   });
 
-  it.fails('a slow activate(A) then a fast activate(B) ends on B (#393 lower: #327 two category bindings)', async () => {
+  it('a slow activate(A) then a fast activate(B) ends on B (#393 lower: #327 two category bindings)', async () => {
     const a = await useCategoryBinding.getState().saveModel('A', model());
     const b = await useCategoryBinding.getState().saveModel('B', model());
     const { store, release } = gatedStore(inner, [a.id]);
@@ -84,7 +84,7 @@ describe('useCategoryBinding.activate: the one requested last wins', () => {
     expect(useCategoryBinding.getState().active?.name).toBe('B');
   });
 
-  it.fails('a slow activate(A) then activate(null) ends on none (#393 lower: #327 two category bindings)', async () => {
+  it('a slow activate(A) then activate(null) ends on none (#393 lower: #327 two category bindings)', async () => {
     const a = await useCategoryBinding.getState().saveModel('A', model());
     useCategoryBinding.setState({ active: null, activeId: null });
     const { store, release } = gatedStore(inner, [a.id]);
@@ -120,7 +120,7 @@ describe('useCategoryBinding: the persisted hold is validated on rehydrate', () 
     ['negative', -400],
     ['not a number', 'soon'],
   ] as const) {
-    it.fails(`a corrupt persisted hold (${what}) is clamped to [0, MAX_CATEGORY_HOLD_MS] (#393 lower: #327 holdMs not re-validated)`, async () => {
+    it(`a corrupt persisted hold (${what}) is clamped to [0, MAX_CATEGORY_HOLD_MS] (#393 lower: #327 holdMs not re-validated)`, async () => {
       persisted(bad);
       await useCategoryBinding.persist.rehydrate();
       const h = useCategoryBinding.getState().holdMs;
@@ -150,7 +150,7 @@ describe('TrainerPanel: "Save and bind" warns before it replaces a saved set', (
     expect(await screen.findByText(/Replaces your saved .My categories./)).toBeTruthy();
   });
 
-  it.fails('a blank name, which saves as "My categories", shows the same warning (#393 lower: #327 the save name)', async () => {
+  it('a blank name, which saves as "My categories", shows the same warning (#393 lower: #327 the save name)', async () => {
     const input = await renderWithSaved();
     fireEvent.change(input, { target: { value: '   ' } });
     expect(await screen.findByText(/Replaces your saved .My categories./, {}, { timeout: 200 })).toBeTruthy();
@@ -183,7 +183,7 @@ describe('the Gestures panel: a category id that is a built-in property', () => 
     expect(within(section).queryByLabelText('Arguments for odd')).toBeNull();
   });
 
-  it.fails('an unbound category whose id is "constructor" reads as unbound, not as an unknown command (#393 item 7)', async () => {
+  it('an unbound category whose id is "constructor" reads as unbound, not as an unknown command (#393 item 7)', async () => {
     const section = await renderBindings(['constructor', 'cat-2']);
     const picker = within(section).getByLabelText('Command for odd') as HTMLSelectElement;
     expect(picker.value).toBe('');

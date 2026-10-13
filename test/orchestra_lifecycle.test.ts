@@ -3,7 +3,8 @@
  * synth in place of `spessasynth_lib` (the shape `test/orchestra_node.test.ts` uses):
  *
  *  - the written dynamics: `planPiece` must voice a score the way the `score` node's
- *    oscillators voice it, through `flattenNotes` (fails today: #393 item 3);
+ *    oscillators voice it, through `flattenNotes`, behind the `dynamics` param whose
+ *    default stays `raw` (#393 item 3);
  *  - a suspended `AudioContext`: nothing is committed onto its frozen clock, and on
  *    resume the notes the beat passed meanwhile are skipped rather than burst out;
  *  - the synth factory still pending when the node is disposed, or when the dial is
@@ -99,29 +100,64 @@ const doc = (over: Partial<ScoreDoc> = {}): ScoreDoc =>
     ...over,
   }) as ScoreDoc;
 
+/** A violin line under a `p` from the start and a part-scoped `ff` from beat 3. */
+const markedPiece = () =>
+  doc({
+    parts: [
+      {
+        id: 'v',
+        name: 'Violin',
+        program: 40,
+        percussion: false,
+        notes: [0, 1, 2, 3, 4, 5].map((i) => ({ midi: 60 + i, start: i, duration: 1, velocity: 0.8 })),
+      },
+    ],
+    dynamics: [
+      { beat: 0, value: 0.36, text: 'p' },
+      { beat: 3, value: 0.9, text: 'ff', part: 'v' },
+    ],
+  } as Partial<ScoreDoc>);
+const byNote = (xs: { key: number; start: number; velocity: number }[]) => xs.map((x) => [x.key, x.start, x.velocity]).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+
 describe('planPiece and the written dynamics', () => {
-  it.fails('voices a piece with dynamics marks the way flattenNotes does (#393 item 3)', () => {
-    const piece = doc({
-      parts: [
-        {
-          id: 'v',
-          name: 'Violin',
-          program: 40,
-          percussion: false,
-          notes: [0, 1, 2, 3, 4, 5].map((i) => ({ midi: 60 + i, start: i, duration: 1, velocity: 0.8 })),
-        },
-      ],
-      // A `p` from the start, a part-scoped `ff` from beat 3.
-      dynamics: [
-        { beat: 0, value: 0.36, text: 'p' },
-        { beat: 3, value: 0.9, text: 'ff', part: 'v' },
-      ],
-    } as Partial<ScoreDoc>);
+  it('with dynamics `written`, voices a piece with dynamics marks the way flattenNotes does (#393 item 3)', () => {
+    const piece = markedPiece();
     const flat = flattenNotes(piece);
     // The marks do change the velocities (the fixture is not vacuous).
     expect(flat.map((n) => n.velocity)).not.toEqual(piece.parts[0].notes.map((n) => n.velocity));
-    const byNote = (xs: { key: number; start: number; velocity: number }[]) => xs.map((x) => [x.key, x.start, x.velocity]).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-    expect(byNote(planPiece(piece).events)).toEqual(byNote(flat.map((n) => ({ key: n.midi, start: n.start, velocity: n.velocity }))));
+    expect(byNote(planPiece(piece, { dynamics: 'written' }).events)).toEqual(byNote(flat.map((n) => ({ key: n.midi, start: n.start, velocity: n.velocity }))));
+  });
+
+  it('the default is still the raw velocities: the written marks are opt-in', () => {
+    const piece = markedPiece();
+    const raw = piece.parts[0].notes.map((n) => ({ key: n.midi, start: n.start, velocity: n.velocity }));
+    expect(byNote(planPiece(piece).events)).toEqual(byNote(raw));
+    expect(byNote(planPiece(piece, { dynamics: 'raw' }).events)).toEqual(byNote(raw));
+    expect(orchestraNode.params.parse({}).dynamics).toBe('raw');
+  });
+
+  it('the node param reaches the plan: `written` plays the marked velocities, the default the raw ones', async () => {
+    const play = async (params: Record<string, unknown>) => {
+      const synth = new FakeSynth();
+      const ac = { currentTime: 100, state: 'running' };
+      const resources: Record<string, unknown> = { createOrchestraEngine: async () => ({ resource: synth }), audioContext: ac, masterGain: {} };
+      const h = orchestraNode.make(orchestraNode.params.parse(params));
+      const piece = markedPiece();
+      for (let i = 0; i < 120; i++) {
+        ac.currentTime = 100 + i * DT;
+        h.process({ config: ON, doc: piece, conducting: i > 0, time: time((i * DT * 120) / 60, 120) }, { tick: i, time: ENGINE0 + i * DT, dt: DT, resources });
+        if (i === 0) await flush();
+      }
+      return synth.ons().map((c) => [c.args[1], c.args[2]]);
+    };
+    const raw = await play({});
+    const written = await play({ dynamics: 'written' });
+    expect(raw.length).toBeGreaterThan(3);
+    expect(raw.map(([, v]) => v)).toEqual(raw.map(() => Math.round(0.8 * 127)));
+    const piece = markedPiece();
+    const want = new Map(flattenNotes(piece).map((n) => [n.midi, Math.max(1, Math.round(n.velocity * 127))]));
+    expect(written.length).toBe(raw.length);
+    for (const [key, v] of written) expect(v).toBe(want.get(key));
   });
 
   it('a piece with no marks keeps its velocities (the control case)', () => {

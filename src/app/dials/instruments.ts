@@ -25,7 +25,8 @@ import {
 } from '@zodal/dials-ui';
 import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
-import { defaultSteerConfig, EXTENSION_DIAL_SCHEMAS, LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
+import type { ZodTypeAny } from 'zod';
+import { ConductorSettingsSchema, defaultSteerConfig, EXTENSION_DIAL_SCHEMAS, LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import { SettingsSchema, type Settings } from '@/settings/schema';
 import { EXTENSION_INSTRUMENTS } from '@/extensions';
@@ -412,7 +413,14 @@ export function normalizeLayer(layer: Layer): Layer {
   // through the dial's own schema (folded over the manifests, so the next added key heals
   // with no edit here), as `overlay` is, so the default is filled the way the hot store
   // fills it. Only when a key is actually missing: a complete dial is left as saved.
-  for (const [key, schema] of Object.entries(EXTENSION_DIAL_SCHEMAS)) {
+  // The conductor dial drifts the same way (#336: `conductor.orchestra`, which
+  // `mergeControls` fills from its schema); its `prior` was healed to the legacy value
+  // above, so the re-parse cannot hand an old instrument the new default prior.
+  const wholeObjectDials: [string, ZodTypeAny][] = [
+    ['conductor', ConductorSettingsSchema],
+    ...Object.entries(EXTENSION_DIAL_SCHEMAS),
+  ];
+  for (const [key, schema] of wholeObjectDials) {
     const obj = out[key] as Record<string, unknown> | undefined;
     if (!obj || typeof obj !== 'object') continue;
     const parsed = schema.safeParse(obj);

@@ -7,9 +7,11 @@
  *   so only `getDirectoryHandle` finds out (`NotFoundError`, or `InvalidStateError`
  *   for a handle the browser has invalidated). The folder must be forgotten and the
  *   picker offered, or every take start fails while the Trainer still names it.
- * - Asking for permission THROWS (a `SecurityError` once the click's user activation
- *   has lapsed). That is not the player refusing: the folder is kept and the take is
- *   simply not started, exactly like a dismissed "allow edits?" prompt.
+ * - Asking for permission THROWS (a `SecurityError` or `NotAllowedError` once the
+ *   click's user activation has lapsed). That is not the player refusing: the folder is
+ *   kept and the take is simply not started, exactly like a dismissed "allow edits?"
+ *   prompt. Any other exception says nothing about a later click, so it reads as a
+ *   refusal: the folder is forgotten and the picker offered.
  * - IndexedDB could not keep the handle (a full disk, a private window). The folder
  *   is still the player's choice for this page: the next take uses it without asking
  *   again. (What the panel then says is `recording_folder_save_failed.test.tsx`.)
@@ -133,7 +135,7 @@ describe('the fake IndexedDB stands in for the browser (a control for the cases 
 });
 
 describe('a remembered folder deleted or renamed on disk (#393 item 6)', () => {
-  it.fails.each(['NotFoundError', 'InvalidStateError'] as const)(
+  it.each(['NotFoundError', 'InvalidStateError'] as const)(
     'getDirectoryHandle throwing %s: the take start forgets it, offers the picker, and writes into the new folder (#393 item 6)',
     async (errorName) => {
       const fresh = fakeDir('fresh');
@@ -148,7 +150,7 @@ describe('a remembered folder deleted or renamed on disk (#393 item 6)', () => {
     },
   );
 
-  it.fails('when the offered picker is dismissed, the vanished folder is still forgotten and the take is cancelled (#393 item 6)', async () => {
+  it('when the offered picker is dismissed, the vanished folder is still forgotten and the take is cancelled (#393 item 6)', async () => {
     const { picker, calls } = pickerOf(null);
     const { folder, sink } = await freshModules({ remembered: vanishedDir('gone', 'NotFoundError'), picker });
     await expect(sink.createRecordingSink('directory', 'take')).rejects.toBeInstanceOf(sink.SinkCancelled);
@@ -158,9 +160,9 @@ describe('a remembered folder deleted or renamed on disk (#393 item 6)', () => {
 });
 
 describe('asking for permission throws (#393 item 6)', () => {
-  const throwing = (where: 'query' | 'request'): FsDirHandle => {
+  const throwing = (where: 'query' | 'request', errorName = 'SecurityError'): FsDirHandle => {
     const securityError = async (): Promise<never> => {
-      throw new DOMException('user activation has lapsed', 'SecurityError');
+      throw new DOMException(`permission check threw ${errorName}`, errorName);
     };
     return {
       ...fakeDir('kept').dir,
@@ -169,7 +171,7 @@ describe('asking for permission throws (#393 item 6)', () => {
     };
   };
 
-  it.fails('requestPermission throwing SecurityError: the folder is kept, the picker is not opened, the take does not start (#393 item 6)', async () => {
+  it('requestPermission throwing SecurityError: the folder is kept, the picker is not opened, the take does not start (#393 item 6)', async () => {
     const store = memoryStore(throwing('request'));
     const { picker, calls } = pickerOf(fakeDir('fresh').dir);
     expect(await acquireRecordingFolder({ store, picker })).toBeNull();
@@ -177,17 +179,36 @@ describe('asking for permission throws (#393 item 6)', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it.fails('queryPermission throwing SecurityError: the folder is kept too (#393 item 6)', async () => {
+  it('queryPermission throwing SecurityError: the folder is kept too (#393 item 6)', async () => {
     const store = memoryStore(throwing('query'));
     const { picker, calls } = pickerOf(fakeDir('fresh').dir);
     expect(await acquireRecordingFolder({ store, picker })).toBeNull();
     expect(store.handle?.name).toBe('kept');
     expect(calls).toHaveLength(0);
   });
+
+  it('requestPermission throwing NotAllowedError (the other activation refusal): the folder is kept', async () => {
+    const store = memoryStore(throwing('request', 'NotAllowedError'));
+    const { picker, calls } = pickerOf(fakeDir('fresh').dir);
+    expect(await acquireRecordingFolder({ store, picker })).toBeNull();
+    expect(store.handle?.name).toBe('kept');
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each(['query', 'request'] as const)(
+    'a %sPermission exception that is not an activation refusal reads as denied: the folder is forgotten and the picker offered',
+    async (where) => {
+      const store = memoryStore(throwing(where, 'InvalidStateError'));
+      const { picker, calls } = pickerOf(fakeDir('fresh').dir);
+      expect((await acquireRecordingFolder({ store, picker }))?.name).toBe('fresh');
+      expect(calls).toHaveLength(1);
+      expect(store.handle?.name).toBe('fresh');
+    },
+  );
 });
 
 describe('IndexedDB could not keep the chosen folder (#393 item 6)', () => {
-  it.fails('the next take this session uses the chosen folder without asking again (#393 item 6)', async () => {
+  it('the next take this session uses the chosen folder without asking again (#393 item 6)', async () => {
     const takes = fakeDir('takes');
     const { picker, calls } = pickerOf(takes.dir);
     const { folder } = await freshModules({ picker, failWrites: true });

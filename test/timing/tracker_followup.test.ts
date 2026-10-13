@@ -30,7 +30,7 @@ function feed(tracker: TimingTracker, n: number, source: NonNullable<FrameTiming
 }
 
 describe('TimingTracker: the capture lag in a clock-stamped frame\'s age', () => {
-  it.fails('a clock stamp is read when the frame was delivered, so its age adds the capture lag (the prior until one is measured) (#393 item 4)', () => {
+  it('a clock stamp is read when the frame was delivered, so its age adds the capture lag (the prior until one is measured) (#393 item 4)', () => {
     const tracker = new TimingTracker({ now: () => 0 });
     // Clock stamps taken at the tick: the stamp itself says the frame is 0 s old.
     feed(tracker, 40, 'clock');
@@ -41,7 +41,7 @@ describe('TimingTracker: the capture lag in a clock-stamped frame\'s age', () =>
     expect(r.leadBudget).toBeCloseTo(CAPTURE_LAG_PRIOR_S + OUTPUT_STAGE_PRIOR_S, 6);
   });
 
-  it.fails('once capture stamps have taught a lag, a later clock-stamped frame adds the measured lag (#393 item 4)', () => {
+  it('once capture stamps have taught a lag, a later clock-stamped frame adds the measured lag (#393 item 4)', () => {
     const tracker = new TimingTracker({ now: () => 0 });
     const next = feed(tracker, 30, 'capture', { stampLag: 0.02, frameLag: 0.02 });
     expect(tracker.reading().captureLag.source).toBe('measured');
@@ -78,7 +78,7 @@ describe('TimingTracker: the reading follows the audio without a usable pair', (
     expect(tracker.reading().outputStage).toEqual({ value: 0.032, source: 'measured' });
   });
 
-  it.fails('an outputLatency change (an AirPods route, no pair) updates the reading on the next tick (#393 lower: the tracker\'s reading cache)', () => {
+  it('an outputLatency change (an AirPods route, no pair) updates the reading on the next tick (#393 lower: the tracker\'s reading cache)', () => {
     const ac = pairless();
     const tracker = new TimingTracker({ now: () => 0, audio: () => ac });
     tickOnly(tracker, 0);
@@ -90,7 +90,7 @@ describe('TimingTracker: the reading follows the audio without a usable pair', (
     expect(r.outputStage).toEqual({ value: 0.15, source: 'measured' });
   });
 
-  it.fails('a state change (running to suspended, no pair) updates the reading on the next tick (#393 lower: the tracker\'s reading cache)', () => {
+  it('a state change (running to suspended, no pair) updates the reading on the next tick (#393 lower: the tracker\'s reading cache)', () => {
     const ac = pairless();
     const tracker = new TimingTracker({ now: () => 0, audio: () => ac });
     tickOnly(tracker, 0);
@@ -102,7 +102,7 @@ describe('TimingTracker: the reading follows the audio without a usable pair', (
     expect(r.outputStage.source).toBe('prior');
   });
 
-  it.fails('a baseLatency change (no pair) updates the reading on the next tick (#393 lower: the tracker\'s reading cache)', () => {
+  it('a baseLatency change (no pair) updates the reading on the next tick (#393 lower: the tracker\'s reading cache)', () => {
     const ac = pairless();
     const tracker = new TimingTracker({ now: () => 0, audio: () => ac });
     tickOnly(tracker, 0);

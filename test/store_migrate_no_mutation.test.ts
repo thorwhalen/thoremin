@@ -4,9 +4,8 @@
  * shallow-copies it, so a step that edits a nested object in place edits theirs.
  *
  * The v<3 step (`migrateInstrumentField`, the `instrument` -> `sound` rename) and the v<5
- * step (the fearful / disgusted sensitivity retune) do so today; they are pinned with
- * `it.fails` (#392 item 2, which names both) and flip to `it` once they copy, as the v<7,
- * v<18 and v<21 steps already do.
+ * step (the fearful / disgusted sensitivity retune) used to (#392 item 2, which names
+ * both); they now copy, as the v<7, v<18 and v<21 steps do.
  */
 import { describe, it, expect } from 'vitest';
 import { migrateControls } from '@/app/store';
@@ -19,7 +18,7 @@ function migrate(blob: Record<string, unknown>, version: number) {
 }
 
 describe('migrateControls does not mutate its input', () => {
-  it.fails('v<3: the instrument -> sound rename copies the per-hand and chord objects (#392 item 2)', () => {
+  it('v<3: the instrument -> sound rename copies the per-hand and chord objects (#392 item 2)', () => {
     const blob = {
       right: { instrument: 'bell', octave: 4 },
       left: { instrument: 'reed' },
@@ -34,7 +33,7 @@ describe('migrateControls does not mutate its input', () => {
     expect(after).toEqual(before);
   });
 
-  it.fails('v<5: the fearful / disgusted retune copies faceExpr.sensitivity (#392 item 2)', () => {
+  it('v<5: the fearful / disgusted retune copies faceExpr.sensitivity (#392 item 2)', () => {
     const blob = { faceExpr: { sensitivity: { fearful: 0.5, disgusted: 0.5, happy: 0.5 } } };
     const { out, before, after } = migrate(blob, 4);
     expect((out.faceExpr as { sensitivity: Record<string, number> }).sensitivity).toEqual({ fearful: 0.7, disgusted: 0.7, happy: 0.5 });
@@ -62,7 +61,7 @@ describe('migrateControls does not mutate its input', () => {
     expect(after).toEqual(before);
   });
 
-  it.fails('a v1 blob through every step leaves the input untouched (#392 item 2)', () => {
+  it('a v1 blob through every step leaves the input untouched (#392 item 2)', () => {
     const blob = {
       faceEnabled: true,
       right: { instrument: 'bell' },

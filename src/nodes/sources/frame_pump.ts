@@ -277,6 +277,12 @@ export function createFramePump(
   const caf = options.cancelAnimationFrame ?? ((h) => cancelAnimationFrame(h));
 
   let running = false;
+  /** The live callback registration: bumped by every registration and every
+   *  unregistration. A callback belongs to the registration that made it; one the browser
+   *  could not cancel (an earlier run, an element since replaced, or the same element
+   *  replaced and then brought back) must not touch the live handle, or the next tick
+   *  registers a second chain (#319). An element check alone misses A, B, then A again. */
+  let registration = 0;
   let rafId: number | null = null;
   let vfcId: number | null = null;
   let vfcVideo: (HTMLVideoElement & VideoFrameCallbackTarget) | null = null;
@@ -370,6 +376,7 @@ export function createFramePump(
     if (vfcId !== null && vfcVideo && typeof vfcVideo.cancelVideoFrameCallback === 'function') vfcVideo.cancelVideoFrameCallback(vfcId);
     vfcId = null;
     vfcVideo = null;
+    registration++;
   };
 
   /** Forget everything that belongs to one source: the counter, the callback's liveness
@@ -442,9 +449,12 @@ export function createFramePump(
     if (vfcId !== null) return;
     vfcVideo = v;
     if (!Number.isFinite(vfcAliveMs)) vfcAliveMs = now();
+    const mine = ++registration;
     vfcId = v.requestVideoFrameCallback((_cbNow, meta) => {
+      // A stale callback returns before it touches `vfcId`: that handle is the live chain's.
+      if (mine !== registration) return;
       vfcId = null;
-      if (!running || vfcVideo !== v) return;
+      if (!running) return;
       onVideoFrame(v, meta);
       ensureVfc(v);
     });

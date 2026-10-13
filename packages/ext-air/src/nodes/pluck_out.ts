@@ -22,7 +22,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
-import { NoteEventsSchema, type NoteEvent } from './note_events';
+import { createEventBatchParser } from '../lib/event_batch';
+import { NoteEventSchema, type NoteEvent } from './note_events';
 import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import type { AudioClockLike } from './drum_out';
@@ -151,6 +152,9 @@ export const pluckOutNode = defineNode<Params>({
   make(p) {
     let sink: PluckSink | null = null;
     let sinkAc: AudioContext | null = null;
+    // Each note parsed on its own: one malformed note is skipped and counted, never the
+    // whole tick's batch (#393 item 8; `../lib/event_batch`).
+    const batch = createEventBatchParser(NoteEventSchema, 'pluck-out');
     return {
       process(inputs, ctx: NodeContext) {
         if (inputs.mute === true) return {};
@@ -170,10 +174,10 @@ export const pluckOutNode = defineNode<Params>({
         }
         const clock: AudioClockLike = ac ?? { currentTime: 0 };
         if (clock.state !== undefined && clock.state !== 'running') return {};
-        const parsed = NoteEventsSchema.safeParse(raw);
-        if (!parsed.success) return {};
+        const notes = batch.parse(raw, ctx.log);
+        if (notes.length === 0) return {};
         const outputStage = timingFrom(ctx.resources).outputStage.value;
-        for (const note of parsed.data as NoteEvent[]) {
+        for (const note of notes) {
           // Never in the past: a late note sounds at once.
           const when = scheduleAt(clock, note.t, ctx.time, outputStage);
           sink.play(note.midi, note.velocity, when, note.voice);

@@ -32,10 +32,18 @@ export const EXTENSION_UIS: readonly ExtensionUi[] = LISTED.filter((u): u is Ext
 const loadedUis = new Map<string, ExtensionUi>();
 const loadingUis = new Map<string, Promise<ExtensionUi>>();
 
+/** How an extension's mount effect that threw is reported (the console; a test may watch it). */
+const reportEffectError = (id: string, err: unknown): void => console.error(`[thoremin] a mount effect of the "${id}" extension failed`, err);
+
 /**
- * Load a lazy extension's React half (once per page; a failure is forgotten, so the next call
- * retries). Its status hooks join {@link extensionStatusHooks} and its mount effects run, once.
- * An eager extension's half resolves at once.
+ * Load a lazy extension's React half (once per page; a failed LOAD is forgotten, so the next
+ * call retries). Its status hooks join {@link extensionStatusHooks} and its mount effects run,
+ * once. An eager extension's half resolves at once.
+ *
+ * Each mount effect runs in its own try (#393): one that throws is reported and the later ones
+ * still run, and the half is cached only after every effect has had its turn, so no caller is
+ * ever handed a half-mounted UI. A throwing effect does not fail the load: the panels and the
+ * readouts work without it.
  */
 export function loadExtensionUi(id: string): Promise<ExtensionUi> {
   const eager = EXTENSION_UIS.find((u) => u.id === id);
@@ -48,11 +56,17 @@ export function loadExtensionUi(id: string): Promise<ExtensionUi> {
   if (!p) {
     p = stub.load().then(
       (ui) => {
-        loadingUis.delete(id);
-        loadedUis.set(id, ui);
         // Its mount effects run for the rest of the page's life, like an eager one's (whose
         // cleanup only runs when the whole shell unmounts).
-        for (const effect of ui.onMount) effect();
+        for (const effect of ui.onMount) {
+          try {
+            effect();
+          } catch (err) {
+            reportEffectError(id, err);
+          }
+        }
+        loadingUis.delete(id);
+        loadedUis.set(id, ui);
         return ui;
       },
       (err: unknown) => {
@@ -88,10 +102,17 @@ export function extensionStatusHooks(): readonly StatusHook[] {
   return [...EXTENSION_UIS, ...loadedUis.values()].flatMap((u) => u.statusHooks);
 }
 
+/** The sink a hook whose `make` threw is left with: it does nothing. */
+const NO_SINK = (): void => undefined;
+
 /**
  * One engine sink that runs every status hook in hand, building each hook's sink the first
  * time it sees it, so a lazy extension that loads while the engine runs gets its readout. Every
  * hook runs even when one throws; the first error is rethrown for the Applier to report.
+ *
+ * A hook whose `make` throws is tried once per engine (#393): its failure is rethrown on that
+ * tick only, and the hook keeps a no-op sink afterwards, instead of being rebuilt and rethrown
+ * at the frame rate.
  */
 export function makeExtensionSinks(engine: OutputReader): () => void {
   const made = new Map<StatusHook, () => void>();
@@ -100,7 +121,13 @@ export function makeExtensionSinks(engine: OutputReader): () => void {
     for (const hook of extensionStatusHooks()) {
       try {
         let sink = made.get(hook);
-        if (!sink) made.set(hook, (sink = hook.make(engine)));
+        if (!sink) {
+          try {
+            sink = hook.make(engine);
+          } finally {
+            made.set(hook, sink ?? NO_SINK);
+          }
+        }
         sink();
       } catch (err) {
         failure ??= err;

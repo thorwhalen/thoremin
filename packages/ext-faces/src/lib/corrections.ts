@@ -15,7 +15,7 @@
  * Retraining from new faces in bulk is P1's `mergeSession` (a new take merged in); the store
  * calls it directly.
  */
-import { PersonalCategorizerSchema, toSample, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { MAX_CATEGORIZER_SAMPLES, PersonalCategorizerSchema, toSample, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
@@ -36,6 +36,11 @@ export function addSample(
   { t = 0, modality = faceModality, cue = correctionCue(modality) }: { t?: number; cue?: string; modality?: CarveModality } = {},
 ): CorrectionResult {
   if (!named(categorizer, id)) return { ok: false, error: `no category "${id}"` };
+  // The import bound, kept here too: a categorizer grown past it could not be read back
+  // from its own exported file.
+  if (categorizer.samples.length >= MAX_CATEGORIZER_SAMPLES) {
+    return { ok: false, error: `this categorizer is full (${MAX_CATEGORIZER_SAMPLES} ${modality.words.many}); no more can be added` };
+  }
   const sample = toSample({ vector, t, cue });
   if (!categorizer.features.some((f) => Number.isFinite(sample.vector[f]))) return { ok: false, error: `no ${modality.words.one} in view` };
   const index = categorizer.samples.length;

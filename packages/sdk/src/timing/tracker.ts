@@ -19,9 +19,11 @@
  * - the `audioEpoch`: bumped on an audio `statechange`, a `devicechange` or a sample-rate
  *   mismatch (an AirPods connect turns 16 ms into 150), which resets the pair smoothing
  *   so a stale number is never carried across a route change;
- * - the CAPTURE LAG a clock-stamped frame's age leaves out (#318): learned from the
+ * - the CAPTURE LAG a clock-stamped frame's stamp leaves out (#318): learned from the
  *   capture-stamped frames' own `lag` (capture to delivery), else a stated prior, flagged;
- *   an `estimated` stamp already subtracts the pump's learned lag, a `clock` stamp does not;
+ *   an `estimated` stamp already subtracts the pump's learned lag, a `clock` stamp does not,
+ *   so the frame's age adds it back ({@link sampleTime}, the one rule the air drum shares:
+ *   the age the status line shows is the age the drum decides on, #393);
  * - the STAMP NOISE of clock-derived stamps (`clock`, `estimated`, after the pump's gated
  *   de-jitter): the spread of their intervals around the camera's lattice. Above a few ms
  *   a sub-frame estimate is worse than the frame-snapped one (`subframe-impact-prediction.md`
@@ -127,6 +129,19 @@ export interface RuntimeChecks {
  *  taught one, seconds: about one frame at 30 fps (exposure midpoint, readout and the
  *  transfer), a stated prior like the output stage's, never 0. */
 export const CAPTURE_LAG_PRIOR_S = 0.03;
+
+/**
+ * When the camera took a frame, seconds, on the tick's time base: the honoured stamp
+ * ({@link frameTime}), moved back by `captureLagS` when that stamp is a `clock` reading
+ * (the moment the source NOTICED the frame, not when it was taken; #318). An `estimated`
+ * stamp already has the pump's learned lag subtracted and a `capture` stamp is the capture,
+ * so neither moves; nor does a stamp that was not honoured (the tick's own time stands in).
+ * The tracker's frame age and the air drum's sample time both read it, so the two agree.
+ */
+export function sampleTime(frame: FrameTiming | undefined, ctx: { time: number; resources: Record<string, unknown> }, captureLagS: number = CAPTURE_LAG_PRIOR_S): number {
+  const stampT = frameTime(frame, ctx);
+  return frame?.tSource === 'clock' && stampT === frame.t ? stampT - captureLagS : stampT;
+}
 /** Gain of the exponentially weighted capture lag. */
 export const CAPTURE_LAG_EW_GAIN = 0.1;
 /** The stamp noise is judged once this many clock-derived frames are in the window. */
@@ -285,6 +300,9 @@ export class TimingTracker implements Tap {
   private captureTimeSeen = false;
   private honouredFrames = 0;
   private glitchKey = '';
+  /** The audio fields the reading shows, as last sampled: a change without a usable pair
+   *  (a suspend, a route that only moves `outputLatency`) must still refresh it. */
+  private audioKey = '';
 
   constructor(options: TimingTrackerOptions = {}) {
     this.sourceKey = options.sourceKey ?? 'cam.hands';
@@ -346,6 +364,11 @@ export class TimingTracker implements Tap {
       this.glitchKey = glitchKey;
       this.cached = null;
     }
+    const audioKey = `${ac.state}/${ac.outputLatency}/${ac.baseLatency}/${ac.sampleRate}`;
+    if (audioKey !== this.audioKey) {
+      this.audioKey = audioKey;
+      this.cached = null;
+    }
     const pair = pairScheduleToSpeaker(ac, now);
     if (!Number.isFinite(pair)) return;
     this.pairEw = Number.isFinite(this.pairEw) ? this.pairEw + PAIR_EW_GAIN * (pair - this.pairEw) : pair;
@@ -363,7 +386,10 @@ export class TimingTracker implements Tap {
     // The stamp was honoured (real time at speed 1, this document's origin): only then is
     // the frame's age a measurement rather than 0 by construction.
     const stamped = typeof frame.t === 'number' && frame.tSource !== undefined && t === frame.t;
-    const age = Math.max(0, ctx.time - t);
+    // The age is from the CAPTURE: a `clock` stamp's lag is added back (`sampleTime`).
+    // The stamp itself (`t`) stays the frame's time for the period and the stamp noise,
+    // whose intervals a slowly learned lag would only perturb.
+    const age = Math.max(0, ctx.time - sampleTime(frame, ctx, this.captureLag()));
     if (Number.isFinite(this.lastT)) {
       const period = t - this.lastT;
       if (period > 0) this.periodEw = Number.isFinite(this.periodEw) ? this.periodEw + AGE_EW_GAIN * (period - this.periodEw) : period;
@@ -386,6 +412,11 @@ export class TimingTracker implements Tap {
     this.recent.push({ t, age, source: stamped ? (frame.tSource ?? UNSTAMPED_SOURCE) : UNSTAMPED_SOURCE, stamped, skipped });
     if (this.recent.length > this.windowFrames) this.recent.shift();
     this.cached = null;
+  }
+
+  /** The capture lag a `clock` stamp leaves out, seconds: measured, else the prior. */
+  private captureLag(): number {
+    return Number.isFinite(this.captureLagEw) ? this.captureLagEw : this.captureLagPriorS;
   }
 
   private compute(): TimingReading {

@@ -5,9 +5,9 @@
  *
  * A label `constructor`, a cue `toString` or a category id `constructor` reads as PRESENT
  * on any plain `{}` (it is inherited), so a lookup written `out[name] ?? 0` returns a
- * function. The `it.fails` cases pin those defects (#393 item 7) and the import's missing
- * duplicate-features guard (#393, lower: "#338: imported categorizers have no size
- * limits"); each flips to `it` when the defect is fixed.
+ * function. The cases named after #393 item 7 guard those lookups, which now read own keys
+ * only; the ones named after #393's lower "#338: imported categorizers have no size
+ * limits" guard the import's bounds and its refusal of a feature listed twice.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ok, type Result } from 'acture';
@@ -15,6 +15,8 @@ import { createInMemoryProvider } from '@zodal/store';
 import {
   CATEGORIZER_FORMAT,
   CATEGORIZER_VERSION,
+  MAX_CATEGORIZER_FEATURES,
+  MAX_CATEGORIZER_SAMPLES,
   carryLabels,
   exportCategorizer,
   importCategorizer,
@@ -73,7 +75,7 @@ describe('carryLabels: an old name that is a built-in property', () => {
     expect(carryLabels(old, freshCarve()).map((m) => m.label)).toEqual(['up', 'rest']);
   });
 
-  it.fails('carries "constructor" and "toString" like any other name (#393 item 7)', () => {
+  it('carries "constructor" and "toString" like any other name (#393 item 7)', () => {
     const old = modelFromCategorizer(file({ labels: ['constructor', 'toString'] }));
     const matches = carryLabels(old, freshCarve());
     expect(matches.map((m) => [m.label, m.source])).toEqual([
@@ -85,7 +87,7 @@ describe('carryLabels: an old name that is a built-in property', () => {
 });
 
 describe('modelFromCategorizer: a cue that is a built-in property', () => {
-  it.fails('counts a cue "toString" as a number, so the derived model persists (#393 item 7)', () => {
+  it('counts a cue "toString" as a number, so the derived model persists (#393 item 7)', () => {
     const model = modelFromCategorizer(file({ cue: 'toString' }));
     expect(model.categories[0].cues).toEqual({ toString: 3 });
     expect(model.categories[1].cues).toEqual({ toString: 2 });
@@ -94,13 +96,27 @@ describe('modelFromCategorizer: a cue that is a built-in property', () => {
 });
 
 describe('importCategorizer: what a file may not carry', () => {
-  it.fails('refuses (or de-duplicates) duplicate `features` entries, which would double their weight (#393 lower: #338 no size limits)', () => {
+  it('refuses (or de-duplicates) duplicate `features` entries, which would double their weight (#393 lower: #338 no size limits)', () => {
     const c = file();
     const r = importCategorizer({ ...c, features: ['x', 'x', 'y'] });
     if (r.ok) expect(new Set(r.categorizer.features).size).toBe(r.categorizer.features.length);
     else expect(r.error).toMatch(/feature/i);
     // Either way the derived model cannot weigh x twice.
     if (r.ok) expect(modelFromCategorizer(r.categorizer).features).toEqual(['x', 'y']);
+  });
+
+  it('refuses a file over the size limits on samples and features (#393 lower: #338 no size limits)', () => {
+    const c = file();
+    const samples = Array.from({ length: MAX_CATEGORIZER_SAMPLES + 1 }, (_, i) => ({ ...c.samples[i % c.samples.length], t: i }));
+    const many = importCategorizer({ ...c, samples });
+    expect(many.ok).toBe(false);
+    if (!many.ok) expect(many.error).toMatch(/^invalid categorizer: samples:/);
+    const features = Array.from({ length: MAX_CATEGORIZER_FEATURES + 1 }, (_, i) => `f${i}`);
+    const wide = importCategorizer({ ...c, features });
+    expect(wide.ok).toBe(false);
+    if (!wide.ok) expect(wide.error).toMatch(/^invalid categorizer: features:/);
+    // At the limit it reads.
+    expect(importCategorizer({ ...c, samples: samples.slice(0, MAX_CATEGORIZER_SAMPLES) }).ok).toBe(true);
   });
 
   it('a migration that changes `format` is refused by the final validation, saying where', () => {
@@ -159,7 +175,7 @@ describe('the category dispatcher: a category id that is a built-in property', (
     expect(r).toEqual({ dispatched: [], notes: [] });
   });
 
-  it.fails('an unbound category whose id is "constructor" runs nothing and says nothing (#393 item 7)', async () => {
+  it('an unbound category whose id is "constructor" runs nothing and says nothing (#393 item 7)', async () => {
     const r = run(['constructor', 'cat-2']);
     await Promise.resolve();
     expect(r).toEqual({ dispatched: [], notes: [] });
@@ -182,7 +198,7 @@ describe('a categorizer with built-in names: import, save, load, bind (round tri
     expect(useCategoryBinding.getState().active?.categories.bindings).toEqual({ 'cat-1': { command: 'dial.a.set' } });
   });
 
-  it.fails('label "constructor", cue "toString", category id "constructor": saves, loads and binds (#393 item 7)', async () => {
+  it('label "constructor", cue "toString", category id "constructor": saves, loads and binds (#393 item 7)', async () => {
     const c = file({ ids: ['constructor', 'cat-2'], labels: ['constructor', 'up'], cue: 'toString' });
     const r = importCategorizer(exportCategorizer(c));
     expect(r.ok).toBe(true);

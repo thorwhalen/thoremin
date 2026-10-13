@@ -142,7 +142,7 @@ describe('installLatencyProbe: the strike test start', () => {
     expect(h.contexts[0].close).toHaveBeenCalled();
   });
 
-  it.fails('uninstall while the permission prompt is open releases the microphone once it is granted (#393 lower: #328 probe mic)', async () => {
+  it('uninstall while the permission prompt is open releases the microphone once it is granted (#393 lower: #328 probe mic)', async () => {
     const h = setup();
     const p = handle().strikeStart();
     p.catch(() => {});
@@ -156,7 +156,7 @@ describe('installLatencyProbe: the strike test start', () => {
     for (const ac of h.contexts) expect(ac.close).toHaveBeenCalled();
   });
 
-  it.fails('uninstall while the worklet loads releases the microphone and the context (#393 lower: #328 probe mic)', async () => {
+  it('uninstall while the worklet loads releases the microphone and the context (#393 lower: #328 probe mic)', async () => {
     const h = setup();
     const p = handle().strikeStart();
     p.catch(() => {});
@@ -172,7 +172,7 @@ describe('installLatencyProbe: the strike test start', () => {
     expect(h.contexts[0].close).toHaveBeenCalled();
   });
 
-  it.fails('a strike-test AudioContext that cannot be made still stops the stream, and the start rejects (#393 lower: #328 probe mic)', async () => {
+  it('a strike-test AudioContext that cannot be made still stops the stream, and the start rejects (#393 lower: #328 probe mic)', async () => {
     const h = setup({ ctorThrows: true });
     const p = handle().strikeStart();
     const { stream, track } = micStream();

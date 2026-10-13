@@ -2,9 +2,9 @@
 /**
  * A folder the browser could not remember (#391 item 3, #393 item 6, from #307).
  * The folder handle is persisted in IndexedDB; a full disk or a private window makes
- * that save fail. Today the failure is swallowed (`idb.ts`) and the Trainer says the
- * takes are saved to the folder exactly as if it had been kept, so the player learns
- * otherwise only after a reload, when the next take asks for a folder again. The
+ * that save fail. The failure used to be swallowed (`idb.ts`) and the Trainer said the
+ * takes were saved to the folder exactly as if it had been kept, so the player learned
+ * otherwise only after a reload, when the next take asked for a folder again. The
  * Trainer may still name the folder (this page holds it), but it must not claim the
  * folder was remembered.
  *
@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('the Trainer when IndexedDB cannot keep the chosen folder', () => {
-  it.fails('names the folder for this page but does not claim it was remembered (#393 item 6)', async () => {
+  it('names the folder for this page but does not claim it was remembered (#393 item 6)', async () => {
     render(
       <>
         <ToolsBar />

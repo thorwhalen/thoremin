@@ -149,7 +149,7 @@ export default function CategoryBindings() {
                     </div>
                     <CommandBindingFields
                       label={name}
-                      binding={active.categories.bindings[c.id]}
+                      binding={Object.hasOwn(active.categories.bindings, c.id) ? active.categories.bindings[c.id] : undefined}
                       onChange={(next) => void useCategoryBinding.getState().setBinding(c.id, next)}
                     />
                   </li>

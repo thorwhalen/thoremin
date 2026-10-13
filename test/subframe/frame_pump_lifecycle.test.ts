@@ -109,7 +109,7 @@ describe('createFramePump: stop then start leaves one callback chain', () => {
     expect(got.every((g) => g.source === 'capture')).toBe(true);
   });
 
-  it.fails('without cancelVideoFrameCallback, on the same element: the stale callback does not start a second chain (#393 lower: #319 stale video-frame callback)', () => {
+  it('without cancelVideoFrameCallback, on the same element: the stale callback does not start a second chain (#393 lower: #319 stale video-frame callback)', () => {
     const fake = vfcVideo({ cancel: false });
     const s = scheduler();
     const clock = { ms: 1000 };
@@ -126,7 +126,7 @@ describe('createFramePump: stop then start leaves one callback chain', () => {
     expect(got.length).toBe(6);
   });
 
-  it.fails('without cancelVideoFrameCallback, on a new element: the old element\'s callback does not clear the new handle (#393 lower: #319 stale video-frame callback)', () => {
+  it('without cancelVideoFrameCallback, on a new element: the old element\'s callback does not clear the new handle (#393 lower: #319 stale video-frame callback)', () => {
     const first = vfcVideo({ cancel: false });
     const second = vfcVideo({ cancel: false });
     let current = first;
@@ -149,6 +149,30 @@ describe('createFramePump: stop then start leaves one callback chain', () => {
     presentFrames(second, s, clock, 1, 4);
     expect(second.outstanding.size).toBe(1);
     expect(got.length).toBe(4);
+  });
+  it('without cancelVideoFrameCallback, element A then B then A in one run: A\'s first callback does not clear the new A chain\'s handle (#393 lower: #319 stale video-frame callback)', () => {
+    const a = vfcVideo({ cancel: false });
+    const b = vfcVideo({ cancel: false });
+    let current = a;
+    const s = scheduler();
+    const clock = { ms: 1000 };
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => current.video as unknown as HTMLVideoElement, (st) => void got.push(st), { now: () => clock.ms, requestAnimationFrame: s.raf, cancelAnimationFrame: s.caf });
+    pump.start();
+    s.tick(); // registers on A
+    current = b;
+    s.tick(); // replaces A by B: A's callback cannot be cancelled
+    current = a;
+    s.tick(); // A again: a new registration beside the stale one
+    expect(a.outstanding.size).toBe(2);
+    got.length = 0;
+    presentFrames(a, s, clock, 1, 6);
+    expect(a.outstanding.size).toBe(1);
+    expect(got.length).toBe(6);
+    // B's stale callback fires too, into a pump that has moved on.
+    b.present(clock.ms + 5, { presentedFrames: 1, captureTime: clock.ms - 15, mediaTime: 0 });
+    s.tick();
+    expect(a.outstanding.size).toBe(1);
   });
 });
 

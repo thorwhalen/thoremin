@@ -2113,6 +2113,11 @@
         "name": "ccInterval",
         "type": "number",
         "default": 0.05
+      },
+      {
+        "name": "dynamics",
+        "type": "enum(raw | written)",
+        "default": "raw"
       }
     ]
   },

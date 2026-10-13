@@ -50,6 +50,24 @@ export type CategorizerMode = (typeof CATEGORIZER_MODES)[number];
 /** The derived model's reject radius in partition mode: nothing is ever rejected. */
 export const NO_REJECT_RADIUS = Number.MAX_VALUE;
 
+/**
+ * The most samples an IMPORTED file may carry, and the most a correction may grow a
+ * categorizer to. An import is untrusted, and exemplar selection is quadratic per category
+ * on the main thread, so a size bound is a responsiveness bound: measured, the saved view of
+ * a reject-mode categorizer whose samples are mostly "none of these" takes about 2 s at 1000
+ * samples, 7 s at 2000 and 40 s at 5000. Generous for any real take, which holds tens to a
+ * few hundred still-points, so many merged takes still fit.
+ *
+ * The bound is enforced at the untrusted door ({@link importCategorizer}) and by the edits
+ * that grow a categorizer, NOT by {@link PersonalCategorizerSchema}: that schema also
+ * validates the player's saved records, and a record saved before the bound existed must
+ * still load rather than silently vanish.
+ */
+export const MAX_CATEGORIZER_SAMPLES = 2000;
+/** The most feature ids a file may name: well above the whole feature catalog (a few
+ *  hundred ids), of which a session model keeps only its most distinctive few. */
+export const MAX_CATEGORIZER_FEATURES = 1024;
+
 const SampleSchema = z.object({
   vector: z.record(z.string(), z.number()),
   t: z.number(),
@@ -89,6 +107,12 @@ export const PersonalCategorizerSchema = z
     const issue = (message: string, path: (string | number)[] = []) => ctx.addIssue({ code: 'custom', message, path });
     if (c.k !== c.categories.length) issue(`k is ${c.k} but there are ${c.categories.length} categories`, ['k']);
     if (c.mode === 'reject' && c.rejectRadius === undefined) issue('reject mode needs a rejectRadius', ['rejectRadius']);
+    // A feature listed twice would count twice in every distance (doubling its weight).
+    const features = new Set<string>();
+    c.features.forEach((f, i) => {
+      if (features.has(f)) issue(`feature "${f}" is listed twice`, ['features', i]);
+      features.add(f);
+    });
     const ids = new Set<string>();
     const seen = new Set<number>();
     c.categories.forEach((cat, i) => {
@@ -169,9 +193,10 @@ export function modelFromCategorizer(input: PersonalCategorizer): TrainedModel {
   );
   // No category is empty (the schema refuses it), so `trainModel` kept them all, in order.
   const categories = trained.categories.map((cat, i) => {
-    const cues: Record<string, number> = {};
-    for (const j of cat.members) cues[c.samples[j].cue] = (cues[c.samples[j].cue] ?? 0) + 1;
-    return { ...cat, id: c.categories[i].id, label: c.categories[i].label, cues };
+    // Counted in a Map: a cue named `toString` would read as present on a `{}` (#338).
+    const cues = new Map<string, number>();
+    for (const j of cat.members) cues.set(c.samples[j].cue, (cues.get(c.samples[j].cue) ?? 0) + 1);
+    return { ...cat, id: c.categories[i].id, label: c.categories[i].label, cues: Object.fromEntries(cues) };
   });
   return {
     ...trained,
@@ -234,6 +259,16 @@ export function importCategorizer(input: string | unknown, options: ImportOption
       return { ok: false, error: `migration from version ${v} failed (${e instanceof Error ? e.message : String(e)})` };
     }
     if (d.version !== v + 1) return { ok: false, error: `migration from version ${v} produced version ${JSON.stringify(d.version)}` };
+  }
+  // The size bounds, before any per-sample work (an untrusted file; see MAX_CATEGORIZER_SAMPLES).
+  for (const [key, max] of [
+    ['samples', MAX_CATEGORIZER_SAMPLES],
+    ['features', MAX_CATEGORIZER_FEATURES],
+  ] as const) {
+    const list = d[key];
+    if (Array.isArray(list) && list.length > max) {
+      return { ok: false, error: `invalid categorizer: ${key}: too many (${list.length}; at most ${max})` };
+    }
   }
   // Drop non-finite feature values a hand-edited file may carry as null.
   if (Array.isArray(d.samples)) {
