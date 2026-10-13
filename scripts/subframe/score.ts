@@ -49,8 +49,9 @@
  *                    else the confirmation, sounded at the confirming sample plus the
  *                    required lead — late, and scored as late.
  * - `grid:<prior>` — the rhythm prior's nearest expected beat at the prediction (the
- *                    pure intent estimate); priors: `osc` (the adaptive oscillator)
- *                    and `trend` (the least-squares tempo trend).
+ *                    pure intent estimate); priors: `osc` (the adaptive oscillator),
+ *                    `blend` (the shipped default since #232) and `trend*` (the
+ *                    least-squares tempo trend at several memories).
  * - `magnet<m>:<prior>` — the prediction pulled toward that grid by magnetism `m`: its
  *                    "vs grid" column is how close what the instrument SOUNDS lands to
  *                    the intended time, its actuality column what that cost.
@@ -66,6 +67,7 @@ import { createAdaptiveOscillator, createIctusDetector, type Anchor, type Rhythm
 import { createImpactPredictor, type ImpactEvent, type ImpactPredictorOptions } from '@thoremin/ictus/impact';
 import { magnetise } from '@thoremin/ictus/magnet';
 import { createTrendPrior } from '@thoremin/ictus/trend_prior';
+import { createBlendPrior } from '@thoremin/ictus/blend_prior';
 import { decimateByInference, decimateToFps } from './decimate';
 
 // ---- CLI ----------------------------------------------------------------------
@@ -88,10 +90,13 @@ const INFER = Number(arg('infer', '0'));
 const OUT = arg('out', join(SET, 'results.json'));
 /** An estimate further than this from every truth event is spurious (seconds). */
 const MATCH_WINDOW = 0.12;
-/** The rhythm priors scored on the intent axis: the shipped oscillator, the same with
- *  a faster period memory, and the trend prior at two memories and two orders. */
+/** The rhythm priors scored on the intent axis: the oscillator (the v1 prior), the
+ *  same with a faster period memory, the blend (the default since #232: the
+ *  oscillator until three innovations share a sign, then the trend), and the trend
+ *  prior at two memories and two orders. */
 const PRIORS: Record<string, () => RhythmPrior> = {
   osc: () => createAdaptiveOscillator({ initialTempo: 100 }),
+  blend: () => createBlendPrior({ initialTempo: 100 }),
   oscFast: () => createAdaptiveOscillator({ initialTempo: 100, periodMemory: 0.7, periodGain: 0.7 }),
   trend6q: () => createTrendPrior({ memory: 6, quadraticAfter: 4 }),
   trend12q: () => createTrendPrior({ memory: 12, quadraticAfter: 5 }),
