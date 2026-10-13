@@ -13,14 +13,18 @@
  * frame index over a short window recovers that grid from the jittered readings, and
  * only the frame INDEX has to be inferred: the gap over the period, rounded, so a frame
  * inference was too busy for — the 33 / 67 ms pacing of a slow laptop — costs one
- * index, not a bent line. The period itself is found by a small search: of the
- * candidate periods from a few periods per smallest gap up to the median gap, the one
- * whose index assignment leaves the smallest residual is the camera's lattice, ties to
- * the coarser (a seed taken from the first gap alone reads a 33 / 67 stream as a 50 ms
- * camera, and the bend then looks like jitter; a 60 fps camera paced by inference shows
- * gaps of two and three frames, so the lattice is finer than any gap). Once found, the
- * fitted slope carries the index forward, and the search runs again on every frame;
- * the carried lattice is kept unless it is bent or the search beats it clearly.
+ * index, not a bent line. The period itself is found by a small search: the seed is a
+ * low quantile of the run's gaps (a skipped frame only ever lengthens a gap, so a 33 /
+ * 67 stream seeds at 33, where a seed from the first gap alone read a 50 ms camera),
+ * tried over 1 to 4 frames per seed (a 60 fps camera paced by inference shows gaps of
+ * two and three frames, so the lattice is finer than any gap); a candidate counts only
+ * when its residual is a small fraction of its period (a lattice finer than the noise
+ * absorbs it into the indices and leaves about a quarter of a period), and of those the
+ * smallest residual wins, near-ties to the coarser. A handful of candidates, never a
+ * scan: among hundreds of periods finer than the noise one always fits by chance. Once
+ * found, the fitted slope carries the index forward; the search runs again on every
+ * frame, and the carried lattice is kept while it still counts and the search does not
+ * beat it clearly.
  *
  * WHY THE GATE EXISTS. A capture stamp (`tSource: 'capture'`) is the camera's own time
  * for THAT frame, and an irregular camera reported truthfully is what #225 / #226 made
