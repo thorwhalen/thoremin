@@ -30,6 +30,7 @@
  * | Save | `categorizer.ts` | the versioned file: samples as the SSOT, the model derived, migrations (#330) |
  * | Reuse | `from_model.ts` | merge a new session into a model; carry names to a fresh carve (#330) |
  * | Watch | `bars.ts` | live feature bars in noise units from the rest; the online carve's separating features (#385) |
+ * | Sort | `sorting.ts` | one editable carve: moves as pins, a re-cut honouring them, merge, split, delete (#385 E4) |
  *
  * ## The one architectural rule
  *
@@ -57,10 +58,16 @@ export {
   type ScaleOptions,
 } from './noise';
 export {
+  buildConstrainedForest,
   buildHierarchy,
   cutAt,
+  cutForest,
+  forestRange,
+  suggestForestK,
   suggestK,
   weightedDistance,
+  type ConstraintOptions,
+  type Forest,
   type Hierarchy,
   type TreeNode,
 } from './cluster';
@@ -268,3 +275,24 @@ export {
   type CarveOptions,
   type Carver,
 } from './carve';
+export {
+  NEW_CATEGORY,
+  deleteHolds,
+  freshCategoryId,
+  medoidOf,
+  mergeCategories,
+  moveHolds,
+  nameCategory,
+  pinnedCategories,
+  pinsHold,
+  placeOf,
+  recut,
+  recutRange,
+  sampleIds,
+  splitCategory,
+  type MoveOptions,
+  type Place,
+  type RecutOptions,
+  type RecutRange,
+  type SortResult,
+} from './sorting';
