@@ -26,7 +26,7 @@
 import { matchLabels } from '@thoremin/sdk/enroll/match';
 import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { generalFaceLabeling } from '@thoremin/sdk/features/face_labels';
-import { EMOTIONS, type Emotion, type ExpressionLabel, type ExpressionScores } from '@thoremin/sdk/music/expression';
+import { ABSENT_EXPRESSION, EMOTIONS, type Emotion, type ExpressionLabel, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { fullMean, NEUTRAL_LABEL } from './carving';
 import { liveModel, type LiveModel, type Tuning } from './live';
 
@@ -92,6 +92,22 @@ export function categorizerPlay(record: { id: string; name: string; categorizer:
 }
 
 /**
+ * No reading (no face, or too few of its features) from `play`'s categorizer: absent, and
+ * named as its own, so the readout says "none of these" rather than the general model's
+ * `neutral` (#330 P6).
+ */
+export function absentReading(play: FaceCategorizerPlay): ExpressionScores {
+  const cats = play.live.model.categories;
+  return {
+    ...ABSENT_EXPRESSION,
+    scores: cats.map(() => 0),
+    thresholds: cats.map(() => 0),
+    fired: cats.map(() => false),
+    personal: { categorizer: play.id, id: null, name: null, ids: cats.map((c) => c.id), names: cats.map((c) => c.label), standsFor: play.standsFor },
+  };
+}
+
+/**
  * One frame's reading as the renderer's `ExpressionScores`: `label` the expression the settled
  * category stands in for (`neutral` for none of these), `scores` each category's membership,
  * `fired` the settled one, and `personal` the player's categories.
@@ -109,6 +125,7 @@ export function toExpressionScores(
     thresholds: cats.map(() => 0),
     fired: cats.map((_, i) => i === index),
     personal: {
+      categorizer: play.id,
       id: index >= 0 ? cats[index].id : null,
       name: index >= 0 ? cats[index].label : null,
       ids: cats.map((c) => c.id),

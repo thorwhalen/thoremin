@@ -1,0 +1,18 @@
+{
+ "recording/default": {
+  "sha256": "2a97aee332efb0d7869f6bdce6367050e8bdadacfb4ec34eb6b97fcaa9dab906",
+  "runs": "neutral:-x17 happy:48,52,55x89 fearful:50,53,57x15"
+ },
+ "recording/custom": {
+  "sha256": "7f16f3d91185d75d5fb878e5723ade61d28989ad7f0bdad984458dd76f91eaa3",
+  "runs": "neutral:55,59,62x17 happy:-x89 fearful:50,53,57x15"
+ },
+ "prototypes/default": {
+  "sha256": "d67eb09c374b1d995c372cab41146923dc7ffd3a9d4e8a064336cf7ff6c2311b",
+  "runs": "neutral:-x11 happy:48,52,55x21 neutral:-x10 sad:57,60,64x19 neutral:-x11 angry:55,59,62x19 neutral:-x10 surprised:53,57,60x20 neutral:-x10 fearful:50,53,57x21 neutral:-x9 disgusted:52,55,59x21 neutral:-x10 kiss:59,62,65x19 neutral:-x14"
+ },
+ "prototypes/custom": {
+  "sha256": "ec47bc7e64ac87a2b4df85e54245f4d21a13f6d2691a3b533fef5d21bffad5f5",
+  "runs": "neutral:55,59,62x11 happy:-x21 neutral:55,59,62x10 sad:57,60,64x19 neutral:55,59,62x11 angry:55,59,62x19 neutral:55,59,62x10 surprised:48,52,55x20 neutral:55,59,62x10 fearful:50,53,57x21 neutral:55,59,62x9 disgusted:52,55,59x21 neutral:55,59,62x10 kiss:59,62,65x19 neutral:55,59,62x9 neutral:-x5"
+ }
+}

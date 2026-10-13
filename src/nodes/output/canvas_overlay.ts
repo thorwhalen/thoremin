@@ -37,7 +37,7 @@ import {
   scaleDegreeOf,
   scaleGuide,
 } from '@thoremin/sdk/music/theory';
-import { EMOTIONS, personalDegree, type ExpressionScores } from '@/music/expression';
+import { categorizerReading, personalDegree, readingName, type ExpressionScores } from '@/music/expression';
 import { clamp01 } from '@thoremin/sdk/features/math';
 import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
 import { pairIndex } from '@/features/labCorrelation';
@@ -996,16 +996,17 @@ const faceExpressionCue: OverlayElement = {
     const chordScale = view.inputs.chordScale ?? view.inputs.scale;
     const chordLabel = (deg: number): string => (deg >= 0 ? chordName(triadForDegree(chordScale, deg)) : '—');
     const degreeFor = (name: string): number => view.inputs.faceDegrees?.[name] ?? -1;
-    // A personal categorizer (#330 P4): a bar per category of the player's, named as they
-    // named it, its chord the one the renderer plays for it.
-    const personal = expr.personal;
+    // A bar per category of the categorizer that read the face (#330 P4, P6: the general
+    // model's are the seven expressions), named as it names them, its chord the one the
+    // renderer plays for it.
+    const reading = categorizerReading(expr);
     const bars: BarSpec[] = expr.scores.map((score, i) => {
-      const name = personal ? (personal.names[i] ?? '') : EMOTIONS[i];
-      const isWinner = personal ? personal.id !== null && personal.ids[i] === personal.id : name === expr.label;
+      const name = reading.names[i] ?? '';
+      const isWinner = reading.id !== null && reading.ids[i] === reading.id;
       const labels: string[] = [];
-      if (p.exprLabels) labels.push(name ?? '');
+      if (p.exprLabels) labels.push(name);
       if (p.chordLabels && chordMode) {
-        labels.push(chordLabel(personal ? personalDegree(personal, i, view.inputs.categoryDegrees, degreeFor) : degreeFor(name ?? '')));
+        labels.push(chordLabel(personalDegree(reading, i, view.inputs.categoryDegrees, degreeFor)));
       }
       return {
         value: clamp01(score),
@@ -1020,9 +1021,10 @@ const faceExpressionCue: OverlayElement = {
   },
 };
 
-/** The bar graph's title: the expression read, or the player's own category name (#330 P4). */
+/** The bar graph's title: the name of the category read, or its categorizer's "none of these"
+ *  (`neutral` for the general model; #330 P4, P6). */
 function faceExpressionTitle(expr: ExpressionScores): string {
-  return expr.personal ? (expr.personal.name ?? 'none of these') : expr.label;
+  return readingName(expr);
 }
 
 /** The category label's text, or null when nothing is named. */

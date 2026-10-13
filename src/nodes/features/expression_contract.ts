@@ -9,6 +9,11 @@
  * instead, by branch replacement (rule 5 of `composeGraph`), and emits this port's kind with the
  * player's categories on `ExpressionScores.personal`. So the slot keeps one candidate and no
  * dropdown, per the ">= 2 implementations" rule.
+ *
+ * Since #330 P6 the general model is itself a categorizer (`general`): `face-expression` emits
+ * its reading in the categorizer shape (`ExpressionScores.personal`, categories = the seven
+ * expressions, `neutral` its "none of these"), so everything downstream reads one shape. A
+ * candidate for this slot emits it too (`generalReading` in the SDK's `music/expression`).
  */
 import type { SlotContract } from '../slot_contract';
 
