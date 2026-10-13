@@ -50,18 +50,33 @@ describe('the panel placeholder of a lazy extension (src/app/extensions/lazyPane
     await waitFor(() => expect(screen.getByText('real controls')).toBeTruthy());
   });
 
-  it('a failed load says so and retries on demand, never throwing into the shell', async () => {
-    let attempts = 0;
-    const panel = lazyPanel({ instrumentId: 'x', section: 'X section' }, async () => {
-      attempts += 1;
-      if (attempts === 1) throw new Error('offline');
-      return ui('second');
-    });
+  it('a failed load says so and offers a Reload, never throwing into the shell', async () => {
+    let reloads = 0;
+    const panel = lazyPanel(
+      { instrumentId: 'x', section: 'X section' },
+      async () => {
+        throw new Error('offline');
+      },
+      'x',
+      () => (reloads += 1),
+    );
     render(<panel.Controls />);
-    await waitFor(() => expect(screen.getByText(/X section could not load: offline/)).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await waitFor(() => expect(screen.getByText('second controls')).toBeTruthy());
-    expect(attempts).toBe(2);
+    await waitFor(() => expect(screen.getByText(/X section could not load \(offline\)/)).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
+    expect(reloads).toBe(1);
+  });
+
+  it('under the instrument row, the Readout says the extension is loading, then why it failed (even once its UI is in), with a Reload', async () => {
+    const panel = lazyPanel({ instrumentId: 'x', section: 'X section' }, async () => ui('loaded'), 'x-ext', () => undefined);
+    act(() => useExtensionLoad.getState().report('x-ext', { phase: 'loading', message: 'Loading x-ext…' }));
+    render(<panel.Readout />);
+    expect(screen.getByText('Loading X section…')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('loaded readout')).toBeTruthy());
+    act(() => useExtensionLoad.getState().report('x-ext', { phase: 'error', message: 'offline' }));
+    await waitFor(() => expect(screen.getByText(/X section could not load \(offline\)/)).toBeTruthy());
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy();
+    act(() => useExtensionLoad.getState().report('x-ext', { phase: 'ready', message: 'Loaded' }));
+    await waitFor(() => expect(screen.getByText('loaded readout')).toBeTruthy());
   });
 
   it('inside a closed section it fetches nothing until the section opens', async () => {

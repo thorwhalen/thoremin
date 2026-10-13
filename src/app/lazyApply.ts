@@ -31,6 +31,8 @@ export interface LazyApplyDeps<G> {
   commit: (graph: G) => void;
   /** A load failed: the graph is committed without `types`. */
   onLoadError?: (types: readonly string[], err: unknown) => void;
+  /** Composing after a load threw (a composition error): nothing is committed. */
+  onError?: (err: unknown) => void;
 }
 
 const NONE: ReadonlySet<string> = new Set();
@@ -71,8 +73,12 @@ export function makeLazyApplier<G>(deps: LazyApplyDeps<G>): () => void | Promise
       deps.commit(graph);
       return;
     }
-    return graph.then((g) => {
-      if (g !== null && seq === latest) deps.commit(g);
-    });
+    return graph.then(
+      (g) => {
+        if (g !== null && seq === latest) deps.commit(g);
+      },
+      // The synchronous path throws to its caller; this one must not become an unhandled rejection.
+      (err: unknown) => (deps.onError ?? ((e: unknown) => console.error('[thoremin] could not compose the instrument graph', e)))(err),
+    );
   };
 }

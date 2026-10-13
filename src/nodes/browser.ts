@@ -59,6 +59,9 @@ export const BROWSER_NODES = [
 export function createAppRegistry(extensions: readonly Extension[] = EXTENSIONS): NodeRegistry {
   const registry = createRegistry([...CORE_NODES, ...BROWSER_NODES, makeStoreControlsNode(extensions)]);
   for (const e of extensions) {
+    if (e.provides && !e.load) {
+      throw new Error(`createAppRegistry: extension "${e.id}" is a lazy stub (it names \`provides\`) with no \`load\`: pass the list from '@/extensions', which the build gives a loader, not the package's own export`);
+    }
     // A lazy extension's nodes are registered at once when this page already loaded them (a
     // rebuilt registry stays synchronous); otherwise declared, for `registry.ensure` to load
     // when a graph names one (`docs/design/lazy-extensions.md`).

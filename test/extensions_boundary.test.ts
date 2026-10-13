@@ -80,6 +80,8 @@ const FOLD_POINTS = new Set([
 /** The PACKAGES a pure extension file may import: the pure SDK, thoremin's other pure
  *  workspace packages and the schema library. Its React side may import any package the app
  *  depends on, `@thoremin/sdk-ui` included. */
+/** The packages of thoremin's own that core itself may import: the SDK and the pure leaves. */
+const CORE_PACKAGES = ['@thoremin/dag', '@thoremin/ictus', '@thoremin/taglog', '@thoremin/lazy', '@thoremin/sdk', '@thoremin/sdk-ui'];
 const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', '@thoremin/asl', 'zod'];
 
 /** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
@@ -108,9 +110,13 @@ describe('core reaches the extensions only through the lists, from the fold poin
           if (FOLD_POINTS.has(file) && isList) continue;
           offenders.push(`${file} imports ${spec}`);
         }
-        // An extension that is a package is reached by its package name: never from core.
+        // An extension that is a package is reached by its package name: never from core. Nor is a
+        // library only an extension uses (`@thoremin/asl`, the recogniser): of thoremin's own
+        // packages core imports only the SDK and the pure leaves. For a lazy extension this is
+        // also what keeps its library out of the main chunk (`npm run check:lazy`).
         for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
           if (/^@thoremin\/ext-/.test(spec)) offenders.push(`${file} imports the extension package ${spec}`);
+          else if (/^@thoremin\//.test(spec) && !allows(CORE_PACKAGES, spec)) offenders.push(`${file} imports ${spec}, which is not a core or SDK package`);
         }
       }
     }

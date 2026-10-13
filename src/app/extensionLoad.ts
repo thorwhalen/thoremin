@@ -1,24 +1,14 @@
 /**
- * Loading a lazy extension when a graph names its nodes (`docs/design/lazy-extensions.md`), and
- * the status of each load, as a `LoadStatus` per extension id (`@thoremin/lazy`'s vocabulary):
- * `loading` while its chunk is fetched, `ready` once its nodes are registered, `error` when
- * the fetch failed (the next graph that names it retries).
+ * Loading a lazy extension when a graph names its nodes (`docs/design/lazy-extensions.md`): its
+ * nodes into the registry, its React half alongside, and the load reported per extension in
+ * {@link useExtensionLoad} (`./extensionLoadStatus`).
  */
-import { create } from 'zustand';
 import type { NodeRegistry } from '@thoremin/dag';
-import type { LoadStatus } from '@thoremin/lazy';
 import { lazyExtensionProviding } from '@/extensions';
 import { loadExtensionUi } from '@/app/extensions';
+import { useExtensionLoad } from './extensionLoadStatus';
 
-interface ExtensionLoadState {
-  status: Readonly<Record<string, LoadStatus>>;
-  report: (id: string, status: LoadStatus) => void;
-}
-
-export const useExtensionLoad = create<ExtensionLoadState>()((set) => ({
-  status: {},
-  report: (id, status) => set((s) => ({ status: { ...s.status, [id]: status } })),
-}));
+export { useExtensionLoad };
 
 /** The lazy extensions that provide `types`, by id, each once. */
 function providers(types: readonly string[]): string[] {

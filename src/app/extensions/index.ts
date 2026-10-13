@@ -67,7 +67,7 @@ export function loadExtensionUi(id: string): Promise<ExtensionUi> {
 
 /** Every extension's editor section: an eager one's components, a lazy one's placeholders. */
 export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
-  isLazy(u) ? u.panels.map((decl) => lazyPanel(decl, () => loadExtensionUi(u.id))) : u.panels,
+  isLazy(u) ? u.panels.map((decl) => lazyPanel(decl, () => loadExtensionUi(u.id), u.id)) : u.panels,
 );
 
 /** The status hooks in hand now: every eager extension's, and each lazy one's once it loaded. */

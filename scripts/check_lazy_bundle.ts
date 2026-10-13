@@ -11,13 +11,20 @@
  *     reaches is reached only through the extension (its package, and e.g. a recogniser it
  *     alone depends on, with that recogniser's weights); a package core imports too (the SDK,
  *     zod) is shared, not owned;
- *  3. what the stubs leave in the initial chunks stays under {@link STUB_BUDGET_BYTES}.
+ *  3. what the stubs leave in the initial chunks stays under {@link STUB_BUDGET_BYTES};
+ *  4. no node the deferred half defines is in the initial chunks, found by its own text (its
+ *     description). Rule 2 cannot see a node a stub imports statically (that node is then in
+ *     the stubs' closure, which rule 2 allows); this rule does, by content.
+ *
+ * A library only an extension uses must not be imported by core either; that is the boundary
+ * test's rule (`test/extensions_boundary.test.ts`: core imports only the SDK packages), since
+ * a core import would make the library look shared here.
  *
  * Generic: nothing here names an extension; it reads `extensions.json`. The cold-load half of
  * the same claim (no request for the chunk until the player asks) is the browser smoke,
  * `smoke/tests/lazy_extension.smoke.ts`.
  */
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { build, type Plugin } from 'vite';
@@ -165,6 +172,19 @@ try {
         continue;
       }
       failures.push(`${entry.id}: ${rel(id)} (${bytes} B) is in an initial chunk but only the extension needs it`);
+    }
+    // 4. No deferred node's code is initial, whatever imported it.
+    const deferred = (await import(/* @vite-ignore */ entry.lazy!.module)) as { default: { nodes: readonly { type: string; description?: string }[] } };
+    const initialJs = [...initial].map((f) => readFileSync(join(out, f), 'utf8')).join('\n');
+    for (const n of deferred.default.nodes) {
+      const text = n.description ?? '';
+      if (text.length < 24) {
+        failures.push(`${entry.id}: node "${n.type}" needs a description of at least 24 characters (it is how this check finds its code)`);
+        continue;
+      }
+      if (initialJs.includes(text) || initialJs.includes(JSON.stringify(text).slice(1, -1))) {
+        failures.push(`${entry.id}: the code of node "${n.type}" is in an initial chunk`);
+      }
     }
     // 3. The stubs stay small.
     if (stubBytes > STUB_BUDGET_BYTES) failures.push(`${entry.id}: its stubs put ${stubBytes} B in the initial chunks (budget ${STUB_BUDGET_BYTES} B)`);

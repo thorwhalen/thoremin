@@ -166,6 +166,9 @@ export function slotSelectionKey(selection: SlotSelection = NO_SLOTS): string {
 /** Why `type` cannot fill `slot`, or null when it can. Checked against the contract. */
 function slotFillReason(type: string, slot: SlotDef, registry: NodeRegistry): string | null {
   if (!registry.has(type)) return 'is not a registered node type';
+  // A lazy extension's type is known before its code is: its contract cannot be checked yet,
+  // and a slot never waits for a download, so it falls back like any other unfit candidate.
+  if (registry.pending([type]).length > 0) return 'is a lazy extension\'s node, not loaded';
   const def = registry.get(type);
   if (!def.roles?.includes(slot.role)) return `does not carry role "${slot.role}"`;
   const out = def.outputs.find((p) => p.name === slot.contract.output.name);

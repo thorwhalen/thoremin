@@ -125,15 +125,16 @@ function liveGraph(selection: SlotSelection, registry: NodeRegistry, without: Re
  * (`docs/design/lazy-extensions.md`): what is pending is loaded first, and a load that fails
  * leaves that extension's branches out and says so, so the instrument keeps playing.
  */
-function lazyDeps(selection: () => SlotSelection, registry: NodeRegistry): Omit<LazyApplyDeps<Composed>, 'commit'> {
+function lazyDeps(selection: () => SlotSelection, registry: NodeRegistry, isLive: () => boolean = () => true): Omit<LazyApplyDeps<Composed>, 'commit'> {
   return {
     compose: (without) => liveGraph(selection(), registry, without),
     typesOf: (g) => g.spec.nodes.map((n) => n.type),
     pending: (types) => registry.pending(types),
     ensure: (types) => ensureLazyTypes(registry, types),
     onLoadError: (types, err) => {
+      if (!isLive()) return; // a torn-down engine's late failure is nobody's news
       console.error(`[thoremin] could not load the code of ${types.join(', ')}; playing without it`, err);
-      useToasts.getState().push('An add-on could not load — check your connection and pick the instrument again', 6000, 'error');
+      useToasts.getState().push('An add-on could not load. Check your connection, then reload the page (your instrument is kept).', 6000, 'error');
     },
   };
 }
@@ -152,7 +153,10 @@ function applyLive(engine: Engine, selection: () => SlotSelection, registry: Nod
   let apply = appliers.get(engine);
   if (!apply) {
     apply = makeLazyApplier<Composed>({
-      ...lazyDeps(selection, registry),
+      ...lazyDeps(selection, registry, () => {
+        const now = live();
+        return now === null || now === engine;
+      }),
       commit: (next) => {
         void engine
           .applyGraph(next.spec, registry)
@@ -248,6 +252,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // ever constructed.
         const registry = createAppRegistry();
         registryRef.current = registry;
+        // A restored instrument that plays a lazy extension: start fetching its code now, beside
+        // the camera and the hand model; the build below awaits the same (shared) load.
+        const prefetch = registry.pending(liveGraph(slotsRef.current, registry).spec.nodes.map((n) => n.type));
+        if (prefetch.length) void ensureLazyTypes(registry, prefetch).catch(() => undefined);
         const needsVideo = sourceNeedsVideo(slotsRef.current, registry);
         if (!needsVideo && source.kind === 'camera') {
           // Camera-free: leave the <video> element empty. Every reader of
@@ -356,8 +364,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // contract, so a stale URL can never produce an unbuildable graph.
         let builtKey = slotSelectionKey(slotsRef.current);
         let builtBranchKey = currentBranchKey();
-        // A lazy extension the restored instrument plays loads here, before the engine is
-        // built (its failure only leaves it out: never a dead start).
+        // A lazy extension the restored instrument plays is loaded (prefetched above) before the
+        // engine is built; its failure only leaves it out: never a dead start.
         const live = await composeLoaded(lazyDeps(() => slotsRef.current, registry));
         if (disposed || live === null) return;
         // The first graph has no predecessor, so its element set is written at once.

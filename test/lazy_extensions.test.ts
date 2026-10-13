@@ -20,7 +20,7 @@ import { defineNode, NodeRegistry, type NodeDef } from '@thoremin/dag';
 import { defineExtension, type Extension, type ExtensionNodes } from '@thoremin/sdk/instruments/extension';
 import { createAppRegistry } from '@/nodes/browser';
 import { loadExtensionNodes, loadedExtensionNodes } from '@/extensions';
-import { branchIdsWithout } from '@/app/graph';
+import { branchIdsWithout, resolveSlot } from '@/app/graph';
 import { composeLoaded, makeLazyApplier, type LazyApplyDeps } from '@/app/lazyApply';
 import { listModuleSource, readExtensionEntries } from '../vite.extensions';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -129,6 +129,19 @@ describe('the app registry and a lazy extension', () => {
     expect(n).toBe(2);
   });
 
+  it('a slot URL naming a lazy type that is not loaded falls back to the default, never breaking the boot', () => {
+    const ext = lazyExt('lazy-slot', async () => ({ nodes: [node('lazy-slot-node')] }));
+    const registry = createAppRegistry([ext]);
+    const warnings: string[] = [];
+    expect(resolveSlot('source', { source: 'lazy-slot-node' }, registry, (m) => warnings.push(m))).not.toBe('lazy-slot-node');
+    expect(warnings.join()).toMatch(/lazy extension's node, not loaded/);
+  });
+
+  it('refuses a lazy stub passed without the loader the build gives it (its nodes would vanish)', () => {
+    const stub: Extension = { ...defineExtension({ id: 'raw-stub', branches: [], dials: [] as const, derive: () => [] }), provides: ['raw-stub-node'] };
+    expect(() => createAppRegistry([stub])).toThrow(/lazy stub .* no `load`/);
+  });
+
   it.runIf(ASL)('the shipped ASL extension is lazy: its stub names its node types and carries no node code', async () => {
     const { default: stub } = await import('@thoremin/ext-asl');
     expect(stub.nodes).toBeUndefined();
@@ -216,6 +229,29 @@ describe('the live applier (src/app/lazyApply.ts)', () => {
     w.g.release();
     await retry;
     expect(w.committed.at(-1)).toEqual(['core', 'asl']);
+  });
+
+  it('a composition error after a load is reported, never an unhandled rejection', async () => {
+    const onError = vi.fn();
+    let loaded = false;
+    const apply = makeLazyApplier<string[]>({
+      compose: () => {
+        if (loaded) throw new Error('compose failed');
+        return ['core', 'asl'];
+      },
+      typesOf: (g) => g,
+      pending: (types) => (loaded ? [] : types.filter((t) => t === 'asl')),
+      ensure: async () => {
+        loaded = true;
+      },
+      commit: () => {
+        throw new Error('must not commit');
+      },
+      onError,
+    });
+    await apply();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(String(onError.mock.calls[0][0])).toMatch('compose failed');
   });
 
   it('composeLoaded gives up (and reports) on a loader that resolves without loading', async () => {

@@ -144,7 +144,7 @@ describe('the slot selection reaches the graph', () => {
     // applies it; both effects call it, and so does the post-init reconcile.
     // (Through one lazy applier per engine, `src/app/lazyApply.ts`: what the graph names but
     // is not loaded yet loads first, and only the latest request commits.)
-    expect(c).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry\),\s*commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
+    expect(c).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry,[^]*?\),\s*commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
     expect(c).toMatch(/applyLive\(engine, \(\) => slotsRef\.current, registry, \(\) => engineRef\.current\);\s*\}, \[\s*slotsKey\s*\]\)/);
     // ...and on a change of the branch SET (an instrument switch, a dial that adds a
     // capability, a tool's feature demand): the instruments-as-graphs ADR, PR 3.
