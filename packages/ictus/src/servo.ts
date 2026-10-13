@@ -38,10 +38,13 @@
  * reads near 2 or 0.5, hits the clamp and drifts, with a seek about once a second. So
  * the conductor's beat `b` maps to the song's beat `k * b` (plus the offset), with `k` in
  * `ratios` ({1/2, 1, 2} by default) chosen by ictus's one level relation (`level.ts`):
- * the `k` whose `r0` is nearest 1 when the conductor starts, then held while its `r0`
- * stays within `ratioCapture` (a conductor at 70 % of the recording's tempo is slow, not
- * at half time), and changed only after another has persisted `persistS`. A change keeps
- * the song where it is: the map is re-anchored at the conductor's beat, so nothing seeks.
+ * 1 while its `r0` is within `ratioCapture` of 1 (a conductor at 70 % of the recording's
+ * tempo is slow, not at half time), else the `k` whose `r0` is nearest 1, chosen at his
+ * first RUNNING tempo (not the speed fallback a first stroke may still be on), then held
+ * while its `r0` stays in capture and changed only after another has persisted
+ * `persistS`. A change while the song plays re-anchors the map at the conductor's beat by
+ * a whole number of song beats (so his beats still land on the song's): the song is not
+ * sought, and the servo absorbs the rest (under half a beat) within its horizon.
  * The horizon and the seek threshold are in the CONDUCTOR's beats; the error stays in the
  * song's.
  *
@@ -174,7 +177,7 @@ export function createBeatServo(options: ServoOptions = {}): BeatServo {
   let lastCueT = -Infinity;
   let rate = 1;
   let last: ServoState = { t: 0, mode: 'idle', rate: 1, playing: false, cue: null, error: NaN, ratio: 1 };
-  const level = createLevelHold({ ratios: o.ratios, captureRange: o.ratioCapture, persistS: o.persistS, persistFirst: false, sticky: true });
+  const level = createLevelHold({ ratios: o.ratios, captureRange: o.ratioCapture, persistS: o.persistS, persistFirst: false, sticky: true, prefer: 1 });
   /** Song beats added to `k * b + offset`: what keeps the song in place when `k` changes. */
   let shift = 0;
 
@@ -207,13 +210,14 @@ export function createBeatServo(options: ServoOptions = {}): BeatServo {
       const leadBeat = beatAt(lead, t + L);
       const songOwnPeriod = song.period * songRate;
       // The level: chosen when he starts, then held (see the header).
-      const held = level.ratio();
-      const rel = level.step(t, lead.period, songOwnPeriod);
-      if (rel.adopted && rel.ratio !== null) {
-        // A change of a followed ratio re-anchors the map at his beat, so the song's
-        // target does not move; the first one is the map from the start.
-        if (held !== null) shift += (held - rel.ratio) * leadBeat;
-        k = rel.ratio;
+      if (lead.state === 'running') {
+        const rel = level.step(t, lead.period, songOwnPeriod);
+        if (rel.adopted && rel.ratio !== null && rel.ratio !== k) {
+          // While the song plays, re-anchor at his beat by whole song beats; before, the
+          // map starts here.
+          if (last.playing) shift = Math.round(shift + (k - rel.ratio) * leadBeat);
+          k = rel.ratio;
+        }
       }
       const target = k * leadBeat + shift + offset;
       if (!last.playing || (free && Math.abs(target - songBeat) > o.seekBeyondBeats * k)) {

@@ -20,6 +20,7 @@ import {
   type ServoOptions,
   type ServoState,
   type SongGrid,
+  wrapPhase,
 } from '@thoremin/ictus';
 
 const HZ = 60;
@@ -236,6 +237,16 @@ describe('when the recording starts', () => {
 
 /** The drifting song tracked at double time (a beat between every two) or at half time
  *  (every other beat): the beat tracker's octave errors (#364 item 2). */
+/** A conductor whose first strokes are on the speed fallback: `ready`, one anchor, at
+ *  `fallback` beats per second (the beat advancing at it), running at `v` from `runAt`. */
+function fallbackStart(fallback: number, v: number, start: number, runAt: number) {
+  const base = conductor((t) => (t < runAt ? fallback : v), start);
+  return (t: number): MusicalTime => {
+    const m = base(t);
+    return t > start && t < runAt ? { ...m, state: 'ready', confidence: 0.1 } : m;
+  };
+}
+
 function doubleTimeGrid(): SongGrid {
   const g = driftingGrid();
   const beats = g.beats.flatMap((b, i) => (i + 1 < g.beats.length ? [b, (b + g.beats[i + 1]) / 2] : [b]));
@@ -271,21 +282,38 @@ describe('the level: a song tracked at another level than the conductor beats (#
     expect(cuesAfterStart.size).toBeGreaterThan(1);
   });
 
+  it('a conductor at 70 % of the recording from his first stroke beats it slowly, not at half time', () => {
+    const r = run({ lead: conductor(() => 1.4, 1), seconds: 12, latency: L });
+    expect(r.states.filter((s) => s.mode === 'following').every((s) => s.ratio === 1)).toBe(true);
+    expect(maxAbsErr(r, 6, 12)).toBeLessThan(0.01);
+  });
+
+  it('the level is chosen at his first running tempo, not the speed fallback of a first stroke', () => {
+    // The fallback reads 160 bpm (2.67 beats/s, a fast half-time against the song's 2) for
+    // half a second; then he runs at the song's tempo.
+    const r = run({ lead: fallbackStart(8 / 3, 2, 1, 1.5), seconds: 10, latency: L });
+    expect(r.states.filter((s) => s.mode === 'following').every((s) => s.ratio === 1)).toBe(true);
+    expect(maxAbsErr(r, 5, 10)).toBeLessThan(0.01);
+  });
+
   it('a half-time grid: one song beat every two conducted beats', () => {
     const r = run({ lead: conductor(() => 1.8, 1), seconds: 14, latency: L, grid: halfTimeGrid(), k: 0.5 });
     expect(r.states.filter((s) => s.mode === 'following').every((s) => s.ratio === 0.5)).toBe(true);
     expect(maxAbsErr(r, 5, 14)).toBeLessThan(0.01);
   });
 
-  it('a held ratio changes only once another has persisted, and the song is not moved for it', () => {
+  it('a held ratio changes only once another has persisted, the song is not moved for it, and his beats land on its beats', () => {
     // He starts at half the recording's tempo (two song beats a beat), then doubles his
-    // tempo at 6 s and beats every song beat.
-    const r = run({ lead: conductor((t) => (t < 6 ? 1 : 2), 1), seconds: 16, latency: L });
+    // tempo at 6.25 s and beats every song beat; the switch falls between his beats.
+    const r = run({ lead: conductor((t) => (t < 6.25 ? 1 : 2), 1), seconds: 18, latency: L });
     const ratioAt = (t: number) => r.states[Math.round(t * HZ)].ratio;
     expect(ratioAt(5)).toBe(2);
     // Still 2 for the persistence after the change (the song is pushed to the clamp).
-    expect(ratioAt(8.5)).toBe(2);
-    expect(ratioAt(9.5)).toBe(1);
+    expect(ratioAt(8.75)).toBe(2);
+    expect(ratioAt(9.75)).toBe(1);
+    // Re-anchored by whole song beats: his beat sits on a song beat (the error is an
+    // integer), not a fraction of one off.
+    for (let t = 13; t <= 18; t += DT) expect(Math.abs(wrapPhase(r.errAt(t)))).toBeLessThan(0.01);
     const cuesAfterStart = new Set(r.states.filter((s) => s.t > 1.5).map((s) => s.cue?.id));
     expect(cuesAfterStart.size).toBe(1);
     expect(r.positions.filter((p) => p.t > 1.5).every((p) => p.playing)).toBe(true);

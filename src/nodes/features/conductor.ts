@@ -53,8 +53,10 @@
  * the piece's beats per mark `k`: `beat` (1, the default, strict like the hand), `half`
  * (2), `bar` (the meter's beats per bar at the position) or `auto`, ictus's level
  * relation (`relateLevel`, the conductor's ratio set {1/2, 1, 2, beats per bar}) against
- * the score's marked tempo at the position, held once chosen and changed only after
- * another ratio has persisted 3 s (the red-noise guard of #339). `k` is applied at the
+ * the score's marked tempo at the position: the beat, kept while the strokes' tempo is
+ * within 50 % of the marked one (a slow beat is not a fast half-time), and another ratio
+ * followed only once it has persisted 3 s (the red-noise guard of #339); a level held
+ * survives a change of source or side. `k` is applied at the
  * one seam between the follower's state and the integrated beat: the tempo is `k` times
  * the strokes' and the phase servo lands a stroke on a multiple of `k` beats (counted
  * from the current time signature's start), so the score, the orchestra and
@@ -322,7 +324,6 @@ export const conductorNode = defineNode<Params>({
     };
     const resetFollower = (): void => {
       ictus = null;
-      levelHold = null;
       lastPt = null;
       lastBody = null;
       seededBpm = null;
@@ -399,14 +400,19 @@ export const conductorNode = defineNode<Params>({
       if (c.markLevel === 'beat') return 1;
       if (c.markLevel === 'half') return 2;
       if (c.markLevel === 'bar') return bpb;
+      if (c.conducts !== 'score') {
+        levelHold = null;
+        return 1;
+      }
       if (!levelHold || levelBpb !== bpb) {
         // A new meter: a held bar stays a bar, a held beat stays a beat.
-        const held = levelHold?.ratio() ?? null;
+        // A conductor beats the beat until a different level persists.
+        const held = levelHold?.ratio() ?? 1;
         levelHold = createLevelHold({ ratios: conductorRatios(bpb), captureRange: MARK_LEVEL_CAPTURE, persistS: MARK_LEVEL_PERSIST_S, sticky: true });
-        if (held !== null) levelHold.set(held === levelBpb && held > 2 ? bpb : held);
+        levelHold.set(held === levelBpb && held > 2 ? bpb : held);
         levelBpb = bpb;
       }
-      const marked = c.conducts === 'score' && docTempo ? docTempo(beatOut) : null;
+      const marked = docTempo ? docTempo(beatOut) : null;
       if (s && marked !== null && marked > 0) {
         const trusted = s.state === 'running' && s.confidence >= c.fallbackBelowConfidence && Number.isFinite(s.period) && s.period > 0;
         levelHold.step(t, trusted ? s.period : NaN, 60 / marked);

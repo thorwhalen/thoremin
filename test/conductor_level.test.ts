@@ -83,10 +83,24 @@ describe(`markLevel on ${CLIP} (${grid.length} beats, ${clipBpm.toFixed(0)} bpm)
     }
   });
 
-  it('auto against a score at his own tempo stays on the beat, and so does one he takes 30 % slower', async () => {
-    for (const bpm of [clipBpm, clipBpm / 0.7]) {
+  it('auto against a score at his own tempo stays on the beat, and so does one marked 40 % faster than he beats', async () => {
+    for (const bpm of [clipBpm, clipBpm * 1.4]) {
       const r = await conduct('auto', bpm);
       expect(r.outs.every((o) => o.level === 1)).toBe(true);
     }
+  });
+
+  it('auto leading a recording stays on the beat (the song servo relates the levels), even after a level was found on the score', async () => {
+    const h = conductorNode.make(conductorNode.params.parse({ ...BODY, markLevel: 'auto' }));
+    const doc = score(2 * clipBpm);
+    const half = Math.floor(body.length / 2);
+    const levels: number[] = [];
+    for (let i = 0; i < body.length; i++) {
+      const config = i < half ? undefined : { conducts: 'recording' };
+      const o = (await h.process({ body: body[i], doc, config }, { time: i / FPS, dt: 1 / FPS, tick: i, resources: {} } as never)) as { level: number };
+      levels.push(o.level);
+    }
+    expect(levels.slice(0, half)).toContain(2);
+    expect(levels.slice(half).every((k) => k === 1)).toBe(true);
   });
 });

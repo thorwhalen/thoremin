@@ -69,6 +69,15 @@ describe('createLevelHold', () => {
     expect(h.step(2, 2 * P, P)).toMatchObject({ ratio: 2, adopted: true });
   });
 
+  it('prefer: while nothing is followed, the preferred ratio relates whenever it is in capture', () => {
+    const h = createLevelHold({ ratios: conductorRatios(), captureRange: 0.5, persistFirst: false, sticky: true, prefer: 1 });
+    // 70 % of the tempo from the start: 2 is nearer, 1 is in capture, 1 is chosen.
+    expect(h.step(0, P / 0.7, P)).toMatchObject({ ratio: 1, adopted: true });
+    // Out of capture for 1 from the start: the nearest.
+    const g = createLevelHold({ ratios: conductorRatios(), captureRange: 0.5, persistFirst: false, sticky: true, prefer: 1 });
+    expect(g.step(0, 2 * P, P)).toMatchObject({ ratio: 2, adopted: true });
+  });
+
   it('set states a ratio at once; reset forgets it', () => {
     const h = createLevelHold({ ratios: conductorRatios(4) });
     h.set(4);

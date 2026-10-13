@@ -100,6 +100,10 @@ export interface LevelHoldOptions extends RelateLevelOptions {
   persistFirst?: boolean;
   /** Keep the followed ratio while it is still in capture, even when another is nearer. */
   sticky?: boolean;
+  /** While nothing is followed, this ratio is the relation whenever it is in capture, even
+   *  when another is nearer: the level assumed until shown otherwise (a conductor beats
+   *  the beat, so 70 % of the tempo is a slow beat, not a fast half-time). */
+  prefer?: number;
 }
 
 /**
@@ -153,9 +157,10 @@ export function createLevelHold(options: LevelHoldOptions): LevelHold {
       const opts = { ratios: o.ratios, captureRange, base };
       let rel = relateLevel(leaderPeriod, targetPeriod, opts);
       if (!rel) return unrelated();
-      if (o.sticky && followed !== null && rel.ratio !== followed) {
-        const kept = (followed * targetPeriod) / leaderPeriod;
-        if (inCapture(kept, base, captureRange)) rel = { ratio: followed, rate: kept };
+      const keep = o.sticky && followed !== null ? followed : followed === null ? o.prefer : undefined;
+      if (keep !== undefined && rel.ratio !== keep) {
+        const kept = (keep * targetPeriod) / leaderPeriod;
+        if (inCapture(kept, base, captureRange)) rel = { ratio: keep, rate: kept };
       }
       if (rel.ratio === followed) {
         candidate = null;
