@@ -101,16 +101,24 @@ function project(merged: FeatureVector, options?: ModalityOptions): FeatureVecto
 
 const keep = (key: string): boolean => SHAPE.has(key);
 
-/** The thresholds of the hand's rule poses, on the catalog's own scales (openness: fingertip
- *  reach over palm span, about 2.6 open and 1.0 in a fist on the recorded hands; a thumb-index
- *  pinch distance over palm span, about 1.3 open and under 0.4 pinched). */
+/** The thresholds of the hand's rule poses, on the catalog's own scales. Openness is fingertip
+ *  reach over palm span (about 2.6 open and 1.0 in a fist on the recorded hands); a thumb-index
+ *  pinch distance over palm span (about 1.3 open, under 0.4 pinched); the index curl in radians
+ *  (a fist bends it past 2, a pointing hand keeps it under 1). Each score ramps from `*From` to
+ *  `*Full`. */
 export const HAND_POSE_RULES = {
   openFrom: 1.6,
   openFull: 2.4,
   fistFrom: 1.8,
   fistFull: 1.2,
+  /** A fist bends the index (what tells it from a pointing hand). */
+  indexBentFrom: 1.0,
+  indexBentFull: 2.0,
   pinchFrom: 0.6,
   pinchFull: 0.2,
+  /** A pinch keeps the other fingers out (what tells it from a fist, whose thumb is near too). */
+  pinchOpenFrom: 1.2,
+  pinchOpenFull: 1.6,
   minScore: 0.5,
 } as const;
 
@@ -128,10 +136,10 @@ export function generalHandLabeling(rules: typeof HAND_POSE_RULES = HAND_POSE_RU
   return {
     labels: HAND_POSES,
     score: (c) => {
-      const pinch = ramp(c['pinch.thumbIndex'], rules.pinchFrom, rules.pinchFull);
+      const pinch = ramp(c['pinch.thumbIndex'], rules.pinchFrom, rules.pinchFull) * ramp(c.openness, rules.pinchOpenFrom, rules.pinchOpenFull);
       return {
         open: ramp(c.openness, rules.openFrom, rules.openFull) * (1 - pinch),
-        fist: ramp(c.openness, rules.fistFrom, rules.fistFull) * (1 - pinch),
+        fist: ramp(c.openness, rules.fistFrom, rules.fistFull) * ramp(c['index.curl'], rules.indexBentFrom, rules.indexBentFull),
         pinch,
       };
     },
