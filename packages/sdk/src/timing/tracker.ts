@@ -50,7 +50,7 @@
 import type { NodeContext, Tap } from '@thoremin/dag';
 import { ewUpdate, quantile, quantileSorted } from '@thoremin/stats';
 import { frameTime, type FrameTiming } from '../nodes/domain';
-import { GlitchCounter, type GlitchReading } from './glitches';
+import { GlitchCounter, type GlitchCounterOptions, type GlitchReading } from './glitches';
 import { deriveOutputStage, knownOutputLatency, pairScheduleToSpeaker, OUTPUT_STAGE_PRIOR_S, type OutputStage, type OutputStageAudioLike } from './output_stage';
 
 /** The granted camera settings the host reports (`track.getSettings()`, ids removed). */
@@ -115,8 +115,14 @@ export interface TimingReading {
   /** The page's timer, from the host: `crossOriginIsolated` (null when unknown) and the
    *  measured resolution of `performance.now()`, seconds (NaN when not measured). */
   runtime: RuntimeChecks;
-  /** `frameAge.p95 + outputStage.value`, seconds (the output stage's prior when unknown;
-   *  the age alone before a stamped frame counts as 0). */
+  /**
+   * The lead a prediction would need to sound on time, seconds: `frameAge.p95 +
+   * outputStage.value` (a stroke seen in a p95-old frame, scheduled through the output
+   * stage). The output stage is never unknown (its prior stands in); before a stamped
+   * frame the age term is 0, so it is the output stage alone. A REPORT, not an input:
+   * no node reads it (each instrument times its own onsets from `outputStage` and its
+   * frame's stamp); the latency probe's panel prints it (`src/app/latencyProbe.ts`).
+   */
   leadBudget: number;
 }
 
@@ -260,7 +266,10 @@ export interface TimingTrackerOptions {
   runtime?: RuntimeChecks;
   /** The capture lag assumed for a `clock` stamp before one is measured. */
   captureLagPriorS?: number;
+  /** Frames in the recent window the ages, sources and rate are read over. */
   windowFrames?: number;
+  /** The output's glitch counter's thresholds (`glitches.ts`); its defaults otherwise. */
+  glitches?: GlitchCounterOptions;
 }
 
 interface FrameRecord {
@@ -298,7 +307,7 @@ export class TimingTracker implements Tap {
   private camera: CameraSettings | null = null;
   private strikeS = NaN;
   private cached: TimingReading | null = null;
-  private readonly glitches = new GlitchCounter();
+  private readonly glitches: GlitchCounter;
   private readonly runtime: RuntimeChecks;
   private readonly captureLagPriorS: number;
   private captureLagEw = NaN;
@@ -317,6 +326,7 @@ export class TimingTracker implements Tap {
     this.windowFrames = options.windowFrames ?? TIMING_WINDOW_FRAMES;
     this.runtime = options.runtime ?? { crossOriginIsolated: null, timerResolution: NaN };
     this.captureLagPriorS = options.captureLagPriorS ?? CAPTURE_LAG_PRIOR_S;
+    this.glitches = new GlitchCounter(options.glitches);
   }
 
   onValue(key: string, value: unknown, ctx: NodeContext): void {
@@ -487,7 +497,9 @@ export class TimingTracker implements Tap {
 /** The resource key the host installs the reader under. */
 export const TIMING_RESOURCE_KEY = 'timing';
 
-/** The slice of the reading a node reads through `ctx.resources`. */
+/** The slice of the reading a node reads through `ctx.resources`. `leadBudget` rides
+ *  along for a node that wants the one-number summary; today none does (see
+ *  {@link TimingReading.leadBudget}). */
 export type TimingView = Pick<TimingReading, 'outputStage' | 'audioEpoch' | 'leadBudget' | 'captureLag' | 'stampNoise' | 'dominantSource'>;
 
 /** What a node gets when no host installed the resource: the stated prior, flagged. */
