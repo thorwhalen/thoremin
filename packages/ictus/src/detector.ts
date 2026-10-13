@@ -87,6 +87,7 @@
  *
  * Pure state, no allocation per sample beyond the emitted anchor, no clock.
  */
+import { median3 } from '@thoremin/stats';
 import type { Anchor, Sample } from './types';
 import { fitQuadratic } from './impact';
 
@@ -272,10 +273,6 @@ export function parabolicOffset(a: number, b: number, c: number): number {
   if (denom === 0 || !Number.isFinite(denom)) return 0;
   const p = (0.5 * (a - c)) / denom;
   return Math.max(-0.5, Math.min(0.5, p));
-}
-
-function median3(a: number, b: number, c: number): number {
-  return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
 }
 
 /**
