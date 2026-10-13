@@ -17,8 +17,12 @@ import { loadSongFile } from '@/app/song/host';
 import { makeSongReporter, useSongStatus, PACE_NODE_ID } from '@/app/songStatus';
 import { createThoreminRegistry } from '@/app/commands/registry';
 import { branchIdsFor } from '@/app/graph';
+import type { DerivationSettings } from '@/instruments/derive';
 import { DEFAULT_SONG } from '@/settings/schema';
 import { renderClickTrack, SR } from './helpers/clicks';
+
+/** The branch set the engine derives from the live store (as `useEngine` does). */
+const derived = () => branchIdsFor(useControls.getState() as unknown as DerivationSettings);
 
 const Shell = () => (
   <>
@@ -61,17 +65,17 @@ describe('Follow the dancer', () => {
       await loadSongFile(file, opts);
     });
     expect(useControls.getState().songPrefs.follow).toBe(false);
-    expect(branchIdsFor(useControls.getState())).not.toContain('song-pace');
+    expect(derived()).not.toContain('song-pace');
 
     fireEvent.click(screen.getByLabelText('Follow the dancer'));
     await waitFor(() => expect(useControls.getState().songPrefs.follow).toBe(true));
     // The engine's derivation now composes the controller and the body it follows.
-    expect(branchIdsFor(useControls.getState())).toEqual(expect.arrayContaining(['song-pace', 'body-source']));
+    expect(derived()).toEqual(expect.arrayContaining(['song-pace', 'body-source']));
     expect(screen.getByTestId('song-pace').textContent).toMatch(/once the song plays/);
 
     // Unloading the song takes the branch (and the body camera) away again.
     act(() => useControls.getState().setSongHandle(null));
-    expect(branchIdsFor(useControls.getState())).not.toContain('song-pace');
+    expect(derived()).not.toContain('song-pace');
   });
 
   it('says what the controller is doing, from the engine through the reporter', async () => {
