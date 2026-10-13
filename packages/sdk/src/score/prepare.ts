@@ -29,8 +29,10 @@ export const SCORE_DYNAMICS = ['raw', 'written'] as const;
 export type ScoreDynamics = (typeof SCORE_DYNAMICS)[number];
 
 export interface PreparePieceOptions {
-  /** {@link ScoreDynamics}; `written` when absent. */
-  dynamics?: ScoreDynamics;
+  /** {@link ScoreDynamics}. Required, with no default: the two players default
+   *  differently (the `score` node plays `written`, the orchestra `raw`), so a caller
+   *  must say which, and none can change the other's velocities by omission. */
+  dynamics: ScoreDynamics;
 }
 
 /** One selected part and its notes, velocities per the chosen dynamics, in the part's
@@ -74,7 +76,7 @@ export function pieceFromNotes(notes: readonly ScoreNote[], loopBeats: number): 
  * each part is flattened on its own and the concatenation re-sorted stably, which keeps
  * the order a single flatten gives.
  */
-export function preparePiece(doc: ScoreDoc, partIds: readonly string[] = [], { dynamics = 'written' }: PreparePieceOptions = {}): PreparedPiece {
+export function preparePiece(doc: ScoreDoc, partIds: readonly string[], { dynamics }: PreparePieceOptions): PreparedPiece {
   const want = partIds.length ? new Set(partIds) : null;
   const parts: PreparedPart[] = [];
   for (const part of doc.parts) {

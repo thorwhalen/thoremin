@@ -20,9 +20,9 @@ const docs = async (): Promise<ScoreDoc[]> => Promise.all(DEMO_SCORES.map((d) =>
 describe('preparePiece', () => {
   it('under the written dynamics, its notes are exactly flattenNotes (all parts, and a selection)', async () => {
     for (const doc of await docs()) {
-      expect(preparePiece(doc).notes).toEqual(flattenNotes(doc));
+      expect(preparePiece(doc, [], { dynamics: 'written' }).notes).toEqual(flattenNotes(doc));
       const some = doc.parts.slice(0, 2).map((p) => p.id);
-      expect(preparePiece(doc, some).notes).toEqual(flattenNotes(doc, some));
+      expect(preparePiece(doc, some, { dynamics: 'written' }).notes).toEqual(flattenNotes(doc, some));
     }
   });
 

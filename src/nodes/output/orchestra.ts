@@ -34,7 +34,8 @@
  * voices give the piece up exactly when the orchestra can take it, and keep it while the
  * soundfont downloads (the music never stops for a load). A trainer's claim (`claimed`)
  * silences the orchestra like every other voice; the player's mute acts on the master
- * gain the orchestra is mixed into. *
+ * gain the orchestra is mixed into.
+ *
  * **The node is a shell.** It owns the lazy synth and reads the ports; what it does with
  * a loaded synth (plan, schedule, deliver in per-key order, levels, silence) is
  * {@link createOrchestraPlayer}, one per synth, driven and tested without the node.

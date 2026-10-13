@@ -139,7 +139,7 @@ export const scoreNode = defineNode<Params>({
       if (doc !== docRef) {
         docRef = doc;
         const parsed = readScoreDoc(doc);
-        docPiece = parsed ? preparePiece(parsed, p.parts) : null;
+        docPiece = parsed ? preparePiece(parsed, p.parts, { dynamics: 'written' }) : null;
       }
       return docPiece ?? builtin;
     };
