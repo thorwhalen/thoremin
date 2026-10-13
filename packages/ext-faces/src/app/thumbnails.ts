@@ -120,7 +120,10 @@ export const grabFrames: FrameGrabber = async (blob, seconds, options = {}) => {
       video.currentTime = 1e9;
       await once(video, 'seeked');
     }
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    // Still unknown: every seek would clamp to the first frame, so say "no picture" instead of
+    // showing the same frame for every face.
+    if (!Number.isFinite(video.duration)) return seconds.map(() => null);
+    const duration = video.duration;
     const w = o.width;
     const h = Math.max(1, Math.round((w * (video.videoHeight || 3)) / (video.videoWidth || 4)));
     const canvas = document.createElement('canvas');

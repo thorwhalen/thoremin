@@ -1,8 +1,8 @@
 /**
  * The face session's state (#330 P2): record a take, carve it, show it, name it, save it, and
  * open or delete a saved one. A zustand store the panel renders; the take, the carvers, the
- * video and the stills' object URLs live beside it (not in it: none of them is something a
- * component renders by value).
+ * video, the stills and the names the player typed live beside it (not in it: none of them is
+ * something a component renders by value).
  *
  * Every outside dependency is injected ({@link FaceSessionDeps}: the input source, the stills'
  * store and grabber, the saved-models collection, the clock, the claim on the face features),
@@ -11,13 +11,18 @@
  * The hot-path split the app follows: the poll pushes vectors into the take at frame rate, and
  * the store is told only what a person can see change (the phase, the count of held faces, a
  * coarse elapsed time).
+ *
+ * Every asynchronous step checks the store's `generation` when it resumes: `reset`, a new take
+ * and opening a saved categorizer each bump it, so a late result for a take no longer shown is
+ * dropped instead of landing on the new one.
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { categorizerFromModel, type CategorizerMode, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
-import { carveView, carverFor, relabelCategorizer, renameCategory, savedView, type CarveView } from '../lib/carving';
+import { carveView, carverFor, relabelCategorizer, renameCategory, savedView, withTypedName, type CarveView, type TypedName } from '../lib/carving';
 import { createFaceTake, type FaceTake } from '../lib/take';
 import type { Carver } from '@thoremin/sdk/enroll/carve';
+import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import type { FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
 import { thumbKey, type FrameGrabber, type ThumbStore } from './thumbnails';
@@ -30,12 +35,17 @@ export type FacePhase =
   | 'rest'
   /** Recording the player's faces. */
   | 'faces'
+  /** Stop was pressed: the video is being closed and the take carved. */
+  | 'stopping'
   /** A take carved: the grid, k, the mode, names, Save. */
   | 'carved'
   /** A take that held no face long enough to carve. */
   | 'empty'
   /** A saved categorizer opened: the grid and its names (k is fixed without the take). */
   | 'saved';
+
+/** Whether a phase is a recording in progress (closing the tool must end it). */
+export const isRecording = (phase: FacePhase): boolean => phase === 'rest' || phase === 'faces' || phase === 'stopping';
 
 export interface FaceSessionDeps {
   source: () => FaceSource;
@@ -58,8 +68,6 @@ export interface FaceSessionState {
   mode: CategorizerMode;
   k: number;
   view: CarveView | null;
-  /** Ids (in `view`) of the categories whose name the player typed. */
-  edited: readonly string[];
   /** Object URLs of the stills in hand, by sample index. */
   thumbs: Readonly<Record<number, string>>;
   /** Held faces captured so far (while recording). */
@@ -74,6 +82,8 @@ export interface FaceSessionState {
   openId: string | null;
   /** The name the Save field starts from. */
   name: string;
+  /** A save is in flight (Save is disabled meanwhile). */
+  saving: boolean;
 
   start(): void;
   stop(): Promise<void>;
@@ -88,7 +98,17 @@ export interface FaceSessionState {
   reset(): void;
 }
 
-export const FACE_SESSION_DEFAULTS = { pollMs: 33, exemplars: 4 } as const;
+export const FACE_SESSION_DEFAULTS = {
+  pollMs: 33,
+  exemplars: 4,
+  /** A still-point's `t` is when the hold BEGAN; its picture is taken this much later, half the
+   *  sampler's 220 ms dwell, so it shows the face held rather than the end of a transition. */
+  stillOffsetMs: 110,
+} as const;
+
+/** Only the face's keys: a saved sample keeps what a face categorizer can use, not the hands
+ *  and body that rode along in the live vector (it is stored in localStorage). */
+const faceOnly = (v: FeatureVector): FeatureVector => Object.fromEntries(Object.entries(v).filter(([k]) => k.startsWith('face.')));
 
 export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSessionState> {
   let take: FaceTake | null = null;
@@ -101,12 +121,17 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let openRecord: FaceModelRecord | null = null;
   /** Whether this store holds the face-feature claim (and the hush). */
   let claimed = false;
-  /** Bumped whenever the shown take changes, so a late still grab for an old one is dropped. */
+  /** Bumped whenever the shown take changes, so a late result for an old one is dropped. */
   let generation = 0;
+  /** The names the player typed for this take, carried onto every carve (see `TypedName`). */
+  let typed: TypedName[] = [];
   const urls = new Map<number, string>();
   /** The live take's stills, by sample index: in memory until a save files them in IndexedDB,
    *  so a take nobody saves leaves nothing behind. */
   const stills = new Map<number, Blob>();
+  /** Still grabs run one at a time, in order; `grabbing` holds the indices queued or running. */
+  let grabs: Promise<void> = Promise.resolve();
+  const grabbing = new Set<number>();
 
   const store = createStore<FaceSessionState>()((set, get) => {
     const dropUrls = () => {
@@ -124,26 +149,37 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       source?.dispose();
       source = null;
     };
-
     const show = (gen: number) => {
       if (gen === generation) set({ thumbs: Object.fromEntries(urls) });
     };
-    /** The live take's stills for `indices`: grabbed from its kept video, held in memory. */
-    const grabThumbs = async (indices: readonly number[]) => {
+
+    /** Queue the live take's stills for `indices` (those not in hand or queued), grabbed from its
+     *  kept video one batch at a time. */
+    const grabThumbs = (indices: readonly number[]): Promise<void> => {
       const gen = generation;
-      const missing = [...new Set(indices)].filter((i) => !urls.has(i));
-      if (missing.length === 0 || !blob || !take) return;
+      const want = [...new Set(indices)].filter((i) => !urls.has(i) && !grabbing.has(i));
+      if (want.length === 0 || !blob || !take) return grabs;
+      const video_ = blob;
       const points = take.session().points();
-      const t0 = video?.t0 ?? 0;
-      const got = await deps.grab(blob, missing.map((i) => (points[i].t - t0) / 1000)).catch(() => missing.map(() => null));
-      if (gen !== generation) return;
-      missing.forEach((i, j) => {
-        const still = got[j];
-        if (!still) return;
-        stills.set(i, still);
-        urls.set(i, URL.createObjectURL(still));
+      const t0 = video?.t0() ?? 0;
+      for (const i of want) grabbing.add(i);
+      grabs = grabs.then(async () => {
+        try {
+          if (gen !== generation) return;
+          const got = await deps.grab(video_, want.map((i) => (points[i].t + FACE_SESSION_DEFAULTS.stillOffsetMs - t0) / 1000)).catch(() => want.map(() => null));
+          if (gen !== generation) return;
+          want.forEach((i, j) => {
+            const still = got[j];
+            if (!still || urls.has(i)) return;
+            stills.set(i, still);
+            urls.set(i, URL.createObjectURL(still));
+          });
+          show(gen);
+        } finally {
+          for (const i of want) grabbing.delete(i);
+        }
       });
-      show(gen);
+      return grabs;
     };
     /** A saved categorizer's stills for `indices`, from IndexedDB. */
     const loadThumbs = async (indices: readonly number[], id: string | null) => {
@@ -153,29 +189,31 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (urls.has(i)) continue;
         const b = await deps.thumbs.get(thumbKey(id, i)).catch(() => null);
         if (gen !== generation) return;
-        if (b) urls.set(i, URL.createObjectURL(b));
+        if (b && !urls.has(i)) urls.set(i, URL.createObjectURL(b));
       }
       show(gen);
     };
     const shownIndices = (view: CarveView): number[] => [...view.categories.flatMap((c) => c.exemplars.map((e) => e.index)), ...view.neutral.exemplars];
 
-    /** Carve the take at (mode, k), carrying the player's names from the shown view. */
+    /** Carve the take at (mode, k), with the player's typed names. */
     const recarve = (mode: CategorizerMode, k: number) => {
       if (!take) return;
       const session = take.session();
       const carver = (carvers[mode] ??= carverFor(session, take.restVectors(), mode));
-      const prev = get().view;
-      const view = carveView({
-        session,
-        restVectors: take.restVectors(),
-        carver,
-        k,
-        previous: prev?.model ?? null,
-        edited: new Set(get().edited),
-        exemplarCount: FACE_SESSION_DEFAULTS.exemplars,
-      });
-      set({ mode, k: view.k, view, edited: view.categories.filter((c) => c.source === 'edited').map((c) => c.id) });
+      const view = carveView({ session, restVectors: take.restVectors(), carver, k, typed, exemplarCount: FACE_SESSION_DEFAULTS.exemplars });
+      const notice =
+        view.k === 0
+          ? 'Every held face was close to your resting face, so there is no expression to carve. Choose "Every face is a category", or record again with stronger faces.'
+          : null;
+      set({ mode, k: view.k, view, notice });
       void grabThumbs(shownIndices(view));
+    };
+
+    /** Delete a take's stills unless a saved record other than `except` still shows them. */
+    const dropStillsIfOrphaned = async (tid: string | null | undefined, except?: string) => {
+      if (!tid) return;
+      const others = await Promise.all((await deps.models.list()).filter((s) => s.id !== except).map((s) => deps.models.load(s.id)));
+      if (!others.some((r) => r?.model.takeId === tid)) await deps.thumbs.removePrefix(`${tid}:`).catch(() => undefined);
     };
 
     return {
@@ -183,7 +221,6 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       mode: 'reject',
       k: 0,
       view: null,
-      edited: [],
       thumbs: {},
       points: 0,
       elapsed: 0,
@@ -192,12 +229,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       saved: [],
       openId: null,
       name: '',
+      saving: false,
 
       start() {
-        const phase = get().phase;
-        if (phase === 'rest' || phase === 'faces') return;
+        if (isRecording(get().phase)) return;
         get().reset();
-        generation++;
         source = deps.source();
         take = createFaceTake();
         takeId = deps.newTakeId();
@@ -206,7 +242,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         video = startVideoTake(source.video(), deps.now);
         const t0 = deps.now();
         take.start(t0);
-        set({ phase: 'rest', points: 0, elapsed: 0, hasVideo: video !== null, notice: null, view: null, edited: [], thumbs: {}, openId: null });
+        set({ phase: 'rest', points: 0, elapsed: 0, hasVideo: video !== null, notice: null, view: null, thumbs: {}, openId: null, name: '' });
         let lastShown = -1;
         timer = setInterval(() => {
           if (!take || !source) return;
@@ -226,17 +262,35 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       async stop() {
         const phase = get().phase;
         if (phase !== 'rest' && phase !== 'faces') return;
-        stopPolling();
-        const built = take!.stop();
-        release();
-        blob = video ? await video.stop() : null;
+        // Synchronously out of the recording phases: a second Stop, or the panel's cleanup, now
+        // sees a take being stopped, not one to stop again.
+        set({ phase: 'stopping' });
+        const gen = generation;
+        const myTake = take!;
+        const myVideo = video;
+        let built = false;
+        try {
+          stopPolling();
+          built = myTake.stop();
+        } finally {
+          release();
+        }
+        const kept = myVideo ? await myVideo.stop().catch(() => null) : null;
+        if (gen !== generation) return;
+        blob = kept;
         if (!built) {
-          set({ phase: 'empty', notice: phase === 'rest' ? 'The take stopped during the rest, before any face was held. Record again and keep going after the rest.' : 'No face was held long enough to carve. Hold each face for a moment.' });
+          set({
+            phase: 'empty',
+            notice:
+              phase === 'rest'
+                ? 'The take stopped during the rest, before any face was held. Record again and keep going after the rest.'
+                : 'No face was held long enough to carve. Hold each face for a moment.',
+          });
           return;
         }
         carvers = {};
         const mode = get().mode;
-        const carver = (carvers[mode] = carverFor(take!.session(), take!.restVectors(), mode));
+        const carver = (carvers[mode] = carverFor(myTake.session(), myTake.restVectors(), mode));
         set({ phase: 'carved', hasVideo: blob !== null, name: '' });
         recarve(mode, carver.suggestedK());
       },
@@ -244,13 +298,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       setMode(mode) {
         const { phase, view } = get();
         if (phase !== 'carved' || !take) {
-          if (phase !== 'saved') set({ mode });
+          if (phase === 'idle' || phase === 'empty') set({ mode });
           return;
         }
-        // The k the new mode's carver suggests, unless the player chose one: moving neutral in
-        // or out of the categories changes k by one in the obvious direction.
+        // Moving neutral in or out of the categories changes k by one in the obvious direction.
         const carver = (carvers[mode] ??= carverFor(take.session(), take.restVectors(), mode));
-        const k = view ? Math.max(1, Math.min(carver.maxK(), view.k + (mode === 'partition' ? 1 : -1))) : carver.suggestedK();
+        const k = view && view.k > 0 ? Math.max(1, Math.min(carver.maxK(), view.k + (mode === 'partition' ? 1 : -1))) : carver.suggestedK();
         recarve(mode, k);
       },
 
@@ -260,48 +313,73 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       rename(id, label) {
-        const { view, phase, edited } = get();
-        if (!view || !label.trim()) return;
-        const model = renameCategory(view.model, id, label);
+        const { view, phase } = get();
+        const name = label.trim();
+        if (!view || !name) return;
+        const clash = view.categories.find((c) => c.id !== id && c.label.trim().toLowerCase() === name.toLowerCase());
         if (phase === 'saved') {
-          set({ view: { ...view, model, categories: view.categories.map((c) => (c.id === id ? { ...c, label: label.trim(), source: 'edited' } : c)) } });
+          if (clash) {
+            set({ notice: `Another category is already called "${clash.label}".` });
+            return;
+          }
+          const model = renameCategory(view.model, id, name);
+          set({ notice: null, view: { ...view, model, categories: view.categories.map((c) => (c.id === id ? { ...c, label: name, source: 'edited' } : c)) } });
           return;
         }
-        const ids = new Set(edited);
-        ids.add(id);
-        // Re-name the rest one-to-one around the player's names: a typed "happy" leaves the pool.
-        set({ view: { ...view, model }, edited: [...ids] });
+        if (phase !== 'carved') return;
+        // A default name the player takes yields (it is proposed elsewhere); another typed name does not.
+        const next = withTypedName(typed, view, id, name);
+        if (!next) {
+          set({ notice: `Another category is already called "${clash?.label ?? name}".` });
+          return;
+        }
+        typed = next;
         recarve(get().mode, view.k);
       },
 
       async save(name) {
-        const { view, phase, mode } = get();
+        const { view, phase, mode, saving } = get();
         const trimmed = name.trim();
-        if (!view || !trimmed) return false;
-        let categorizer: PersonalCategorizer;
-        let id: string | null = takeId;
-        if (phase === 'saved' && openRecord) {
-          categorizer = relabelCategorizer(openRecord.model.categorizer, view.model, trimmed);
-          id = openRecord.model.takeId;
-        } else if (phase === 'carved' && take) {
-          categorizer = categorizerFromModel(view.model, take.session().points(), { name: trimmed, mode, modality: 'face', createdAt: deps.isoNow() });
-        } else return false;
+        if (!view || !trimmed || saving || view.k === 0) return false;
+        if (phase !== 'carved' && phase !== 'saved') return false;
+        const gen = generation;
+        set({ saving: true });
         try {
-          // File the shown stills under the take first, so the saved record never points at
-          // pictures that are not there yet.
-          if (phase === 'carved' && id) {
-            for (const i of shownIndices(view)) {
+          let categorizer: PersonalCategorizer;
+          let tid: string | null;
+          if (phase === 'saved' && openRecord) {
+            categorizer = relabelCategorizer(openRecord.model.categorizer, view.model, trimmed);
+            tid = openRecord.model.takeId;
+          } else if (phase === 'carved' && take) {
+            const points = take.session().points().map((p) => ({ ...p, vector: faceOnly(p.vector) }));
+            categorizer = categorizerFromModel(view.model, points, { name: trimmed, mode, modality: 'face', createdAt: deps.isoNow() });
+            tid = blob ? takeId : null;
+            // The shown stills, grabbed in full first (a Save right after a re-cut must not file a
+            // categorizer whose pictures were still being taken), then filed under the take.
+            await grabThumbs(shownIndices(view));
+            if (gen !== generation) return false;
+            if (tid) for (const i of shownIndices(view)) {
               const still = stills.get(i);
-              if (still) await deps.thumbs.put(thumbKey(id, i), still).catch(() => undefined);
+              if (still) await deps.thumbs.put(thumbKey(tid, i), still).catch(() => undefined);
             }
+          } else return false;
+          // Saving under a name that already exists replaces that record: its take's stills go
+          // too, unless another record (or this one) still shows them.
+          const before = new Map((await Promise.all((await deps.models.list()).map((s) => deps.models.load(s.id)))).filter((r): r is FaceModelRecord => r !== null).map((r) => [r.id, r.model.takeId]));
+          const record = await deps.models.save(trimmed, { categorizer, takeId: tid });
+          const replaced = before.get(record.id);
+          if (replaced && replaced !== tid) await dropStillsIfOrphaned(replaced);
+          if (gen === generation) {
+            set({ notice: `Saved "${record.name}".`, name: record.name, ...(phase === 'saved' ? { openId: record.id } : {}) });
+            if (phase === 'saved') openRecord = record;
           }
-          const record = await deps.models.save(trimmed, { categorizer, takeId: phase === 'carved' && !get().hasVideo ? null : id });
-          set({ notice: `Saved "${record.name}".`, name: record.name });
           await get().refreshSaved();
           return true;
         } catch (err) {
-          set({ notice: `Could not save: ${err instanceof Error ? err.message : String(err)}` });
+          set({ notice: `Could not save: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
           return false;
+        } finally {
+          set({ saving: false });
         }
       },
 
@@ -317,22 +395,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return;
         }
         get().reset();
-        generation++;
         openRecord = record;
         const view = savedView(record.model.categorizer, { exemplarCount: FACE_SESSION_DEFAULTS.exemplars });
-        set({ phase: 'saved', openId: id, view, mode: view.mode, k: view.k, name: record.name, hasVideo: record.model.takeId !== null, edited: [] });
+        set({ phase: 'saved', openId: id, view, mode: view.mode, k: view.k, name: record.name, hasVideo: record.model.takeId !== null });
         void loadThumbs(shownIndices(view), record.model.takeId);
       },
 
       async remove(id) {
         const record = await deps.models.load(id);
         await deps.models.remove(id);
-        // Its stills go too, unless another saved categorizer came from the same take.
-        const tid = record?.model.takeId;
-        if (tid) {
-          const others = await Promise.all((await deps.models.list()).map((s) => deps.models.load(s.id)));
-          if (!others.some((r) => r?.model.takeId === tid)) await deps.thumbs.removePrefix(`${tid}:`).catch(() => undefined);
-        }
+        await dropStillsIfOrphaned(record?.model.takeId);
         if (get().openId === id) get().reset();
         await get().refreshSaved();
       },
@@ -346,9 +418,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         blob = null;
         carvers = {};
         openRecord = null;
+        typed = [];
         stills.clear();
+        grabbing.clear();
+        grabs = Promise.resolve();
         dropUrls();
-        set({ phase: 'idle', view: null, edited: [], thumbs: {}, points: 0, elapsed: 0, hasVideo: false, openId: null, k: 0 });
+        set({ phase: 'idle', view: null, thumbs: {}, points: 0, elapsed: 0, hasVideo: false, openId: null, k: 0, notice: null });
       },
     };
   });

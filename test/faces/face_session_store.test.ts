@@ -50,6 +50,42 @@ async function run(ms: number) {
   }
 }
 
+
+/** A MediaRecorder and MediaStream for Node: the take keeps a one-chunk video, and `stop` ends
+ *  on a later microtask, as a real recorder's does (so a Stop has something to wait for). */
+function stubRecorder() {
+  const blob = new Blob(['video']);
+  class FakeRecorder {
+    state = 'inactive';
+    mimeType = 'video/webm';
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
+    onstart: (() => void) | null = null;
+    start() {
+      this.state = 'recording';
+      this.onstart?.();
+    }
+    stop() {
+      this.state = 'inactive';
+      queueMicrotask(() => {
+        this.ondataavailable?.({ data: blob });
+        this.onstop?.();
+      });
+    }
+  }
+  vi.stubGlobal('MediaRecorder', FakeRecorder);
+  vi.stubGlobal(
+    'MediaStream',
+    class {
+      constructor(private tracks: unknown[] = []) {}
+      getVideoTracks() {
+        return this.tracks;
+      }
+    },
+  );
+}
+const withVideo = () => ({ ...syntheticSource(() => clock), video: () => new (globalThis.MediaStream as unknown as new (t: unknown[]) => MediaStream)([{}]) });
+
 const TAKE_MS = SYNTHETIC_TIMELINE.restMs + 12 * (SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs);
 
 beforeEach(() => {
@@ -101,7 +137,12 @@ describe('the face session store', () => {
     const labels = s().view!.categories.map((c) => c.label);
     expect(labels).toContain('grin');
     expect(labels.filter((l) => l === 'happy')).toHaveLength(1);
-    expect(s().edited).toHaveLength(2);
+    expect(s().view!.categories.filter((c) => c.source === 'edited')).toHaveLength(2);
+    // A second category may not take a name the player already gave: refused, with a notice.
+    const third = s().view!.categories.find((c) => c.source !== 'edited')!;
+    s().rename(third.id, 'Grin');
+    expect(s().notice).toMatch(/already called/);
+    expect(s().view!.categories.find((c) => c.id === third.id)!.label).not.toBe('Grin');
 
     // Save two models from the take.
     expect(await s().save('Mine, three')).toBe(true);
@@ -128,33 +169,31 @@ describe('the face session store', () => {
     expect(s().phase).toBe('idle');
   });
 
+  it('a double Stop carves once, and closing the tool while it stops drops the take cleanly', async () => {
+    stubRecorder();
+    const store = createFaceSessionStore(deps({ source: withVideo }));
+    const s = () => store.getState();
+    s().start();
+    await run(TAKE_MS);
+    const a = s().stop();
+    expect(s().phase).toBe('stopping');
+    const b = s().stop(); // ignored
+    await Promise.all([a, b]);
+    expect(s().phase).toBe('carved');
+
+    s().start();
+    await run(TAKE_MS);
+    const c = s().stop();
+    s().reset(); // the panel unmounted mid-stop
+    await expect(c).resolves.toBeUndefined();
+    expect(s().phase).toBe('idle');
+    expect(s().view).toBeNull();
+    expect(claims.at(-1)).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
   it('stills: grabbed from the kept video at each exemplar time, filed under the take only on save, deleted with the last model of the take', async () => {
-    const blob = new Blob(['video']);
-    // A source whose take keeps a video: stub MediaRecorder for this test.
-    class FakeRecorder {
-      state = 'inactive';
-      mimeType = 'video/webm';
-      ondataavailable: ((e: { data: Blob }) => void) | null = null;
-      onstop: (() => void) | null = null;
-      start() {
-        this.state = 'recording';
-      }
-      stop() {
-        this.state = 'inactive';
-        this.ondataavailable?.({ data: blob });
-        this.onstop?.();
-      }
-    }
-    vi.stubGlobal('MediaRecorder', FakeRecorder);
-    vi.stubGlobal(
-      'MediaStream',
-      class {
-        constructor(private tracks: unknown[] = []) {}
-        getVideoTracks() {
-          return this.tracks;
-        }
-      },
-    );
+    stubRecorder();
     const MS = globalThis.MediaStream as unknown as new (t: unknown[]) => MediaStream;
     const store = createFaceSessionStore(
       deps({
@@ -183,6 +222,30 @@ describe('the face session store', () => {
     expect(Object.keys(s().thumbs).length).toBeGreaterThan(0);
     await s().remove(id);
     expect(await thumbs.get(`take-1:${shown[0]}`)).toBeNull();
+
+    // Save right after a re-cut: the new exemplars' stills are grabbed before the record is filed.
+    let n = 0;
+    const store2 = createFaceSessionStore(
+      deps({
+        source: () => ({ ...syntheticSource(() => clock), video: () => new MS([{}]) }),
+        newTakeId: () => `take-${++n + 1}`,
+      }),
+    );
+    const s2 = () => store2.getState();
+    s2().start();
+    await run(TAKE_MS);
+    await s2().stop();
+    s2().setK(1);
+    await s2().save('Right away');
+    for (const i of s2().view!.categories.flatMap((c) => c.exemplars.map((e) => e.index))) expect(await thumbs.get(`take-2:${i}`)).not.toBeNull();
+    // Overwriting it by name from another take drops the first take's stills.
+    s2().start();
+    await run(TAKE_MS);
+    await s2().stop();
+    await s2().save('right away');
+    expect(s2().saved).toHaveLength(1);
+    const anyOld = s2().saved.length && (await thumbs.get(`take-2:${shown[0]}`));
+    expect(anyOld).toBeNull();
     vi.unstubAllGlobals();
   });
 

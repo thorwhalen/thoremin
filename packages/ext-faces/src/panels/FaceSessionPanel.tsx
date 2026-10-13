@@ -12,7 +12,7 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
 import type { CategorizerMode } from '@thoremin/sdk/enroll/categorizer';
 import { faceSessionStore } from '../app/faceSession';
-import type { FaceSessionState } from '../app/sessionStore';
+import { isRecording, type FaceSessionState } from '../app/sessionStore';
 import { FACE_REST_CUE, FACE_VOCABULARY_CUE } from '../lib/take';
 import type { CarveView, CarvedCategory } from '../lib/carving';
 
@@ -120,6 +120,7 @@ function KControl({ s }: { s: FaceSessionState }) {
   const view = s.view!;
   const max = Math.max(1, Math.min(view.maxK, 12));
   if (s.phase === 'saved') return <p className={hint}>{`k = ${view.k}. Changing k re-divides a take, so it needs a new recording.`}</p>;
+  if (view.maxK === 0) return null;
   return (
     <div className="space-y-1">
       <label className="flex items-center gap-2 text-[11px] text-white/80">
@@ -189,7 +190,7 @@ function Grid({ s }: { s: FaceSessionState }) {
           onChange={(e) => setName(e.target.value)}
           className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs text-white outline-none focus:bg-white/20"
         />
-        <button type="submit" className={primary} disabled={!name.trim()}>
+        <button type="submit" className={primary} disabled={!name.trim() || s.saving || view.k === 0}>
           Save
         </button>
       </form>
@@ -205,10 +206,17 @@ function SavedList({ s }: { s: FaceSessionState }) {
         <li key={m.id} className={`flex items-center gap-2 rounded px-1.5 py-1 text-[11px] ${s.openId === m.id ? 'bg-emerald-500/10' : ''}`}>
           <span className="min-w-0 flex-1 truncate text-white/85">{m.name}</span>
           <span className="shrink-0 text-[10px] text-white/40">{new Date(m.createdAt).toLocaleDateString()}</span>
-          <button type="button" className={btn} onClick={() => void s.open(m.id)}>
+          <button type="button" className={btn} aria-label={`Open ${m.name}`} onClick={() => void s.open(m.id)}>
             Open
           </button>
-          <button type="button" className={btn} aria-label={`Delete ${m.name}`} onClick={() => void s.remove(m.id)}>
+          <button
+            type="button"
+            className={btn}
+            aria-label={`Delete ${m.name}`}
+            onClick={() => {
+              if (window.confirm(`Delete "${m.name}"? This cannot be undone.`)) void s.remove(m.id);
+            }}
+          >
             Delete
           </button>
         </li>
@@ -224,17 +232,24 @@ export function FaceSessionView({ store }: { store: StoreApi<FaceSessionState> }
     // Closing the tool stops a recording: nothing keeps sampling with no panel to say so.
     return () => {
       const { phase, reset } = store.getState();
-      if (phase === 'rest' || phase === 'faces') reset();
+      if (isRecording(phase)) reset();
     };
   }, [store]);
 
+  if (s.phase === 'stopping') {
+    return (
+      <p className="text-sm text-white/80" role="status" aria-live="polite" data-faces-recording="stopping">
+        Carving your faces…
+      </p>
+    );
+  }
   if (s.phase === 'rest' || s.phase === 'faces') {
     const cue = s.phase === 'rest' ? FACE_REST_CUE : FACE_VOCABULARY_CUE;
     return (
       <div className="space-y-2" data-faces-recording={s.phase}>
         <p className="text-sm font-semibold text-white">{cue.instruction}</p>
         <p className={hint}>{cue.rationale}</p>
-        <p className="text-[11px] text-white/70">
+        <p className="text-[11px] text-white/70" role="status" aria-live="polite">
           {`${s.elapsed.toFixed(0)} s`}
           {s.phase === 'faces' && ` · ${s.points} held face${s.points === 1 ? '' : 's'}`}
           {s.hasVideo ? ' · video kept in this page only' : ' · no video'}
@@ -254,7 +269,11 @@ export function FaceSessionView({ store }: { store: StoreApi<FaceSessionState> }
           name and keep. Everything stays in this browser.
         </p>
       )}
-      {s.notice && <p className="text-[11px] text-amber-200/90">{s.notice}</p>}
+      {s.notice && (
+        <p className="text-[11px] text-amber-200/90" role="status" aria-live="polite">
+          {s.notice}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         <button type="button" className={primary} onClick={() => s.start()}>
           {s.phase === 'idle' ? 'Record my faces' : 'Record a new take'}
