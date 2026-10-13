@@ -231,6 +231,8 @@ describe('the production wiring (source guard — useEngine is outside the stric
     const { resolve } = await import('node:path');
     const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
     const engine = read('src/app/useEngine.ts');
+    // The live branch set moved out of the hook with the live graph (#392).
+    const liveApply = read('src/app/liveApply.ts');
     // The install. Deleting this line leaves every unit test green (the nodes are always
     // handed a hand-built getter in tests) — which is exactly how v1 shipped blind.
     expect(engine).toMatch(/resources\.featureDemand\s*=\s*featureDemandResource/);
@@ -241,8 +243,8 @@ describe('the production wiring (source guard — useEngine is outside the stric
     // The face MODEL is gated by composition now: the host derives the branch set from the
     // same demand (the ADR, PR 3), so a claim adds the face source instead of waking it.
     // (PR 4 routes it through `liveBranchIds`, whose demand defaults to the live resource.)
-    expect(engine).toMatch(/demanded = featureDemandResource\(\)/);
-    expect(engine).toMatch(/branchIdsFor\(controls, \{ demanded/);
+    expect(liveApply).toMatch(/demanded = featureDemandResource\(\)/);
+    expect(liveApply).toMatch(/branchIdsFor\(controls, \{ demanded/);
     expect(read('src/instruments/derive.ts')).toMatch(/demandWantsFace\(/);
   });
 });

@@ -17,10 +17,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { branchIdsWithout, composeInstrumentGraph, slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
-import { branchIdsFor } from '@/app/graph';
+import { slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
 import { branchSetKey } from '@/instruments/derive';
-import type { Composed } from '@/instruments/compose';
 import { useDemandedGroups } from './useDemandedGroups';
 import type { NodeRegistry } from '@thoremin/dag';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
@@ -30,15 +28,10 @@ import { provideCamera } from '@thoremin/sdk-ui/host';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { trainerHudResource } from './enroll/hud';
 import { useToasts } from './toasts';
-import { SessionRecorder, activeStreamLabels } from './recording/session';
-import { registerRecordingController, type StartTakeOptions } from './recording/controller';
-import { SinkCancelled } from './recording/sink';
-import { type RecordingSession } from './recording/schema';
-import { useRecordingConfig } from './recording/configStore';
-import { prefillName } from './recording/naming';
-import { tagStreamSource, tagOverlayResource } from './tagging/runtime';
-import { useFaceStatus } from './faceStatus';
-import { useMidiStatus } from './midiStatus';
+import { useRecordingController } from './recording/useRecordingController';
+import { tagOverlayResource } from './tagging/runtime';
+import { useFaceStatus, makeFaceReporter } from './faceStatus';
+import { useMidiStatus, makeMidiReporter } from './midiStatus';
 import { useGenerativeStatus, makeGenerativeReporter, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
@@ -50,26 +43,16 @@ import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORC
 import { useSongStatus, makeSongReporter } from './songStatus';
 import { extensionStatusHooks, makeExtensionSinks } from './extensions';
 import { ensureLazyTypes } from './extensionLoad';
-import { composeLoaded, makeLazyApplier, type LazyApplyDeps } from './lazyApply';
-import { useGestureStatus, type HandPoses } from './gestureStatus';
+import { composeLoaded } from './lazyApply';
+import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph } from './liveApply';
+import { useGestureStatus, makeGestureReporter } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from './enroll/categoryDispatch';
 import { installCategoryDemand, useCategoryBinding } from './enroll/categoryBinding';
-import type { FaceStatus } from '@/nodes';
-import type { MidiStatus } from '@/nodes/browser';
-import { readingName, type ExpressionScores } from '@/music/expression';
 import { cameraConstraints } from './camera';
 import { latencyHintFor, noteLatencyHintInEffect } from './timing/audioPrefs';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
-
-/** Min interval (ms) between face-status reports to React (throttle the readout). */
-const FACE_REPORT_MS = 100;
-
-/** Min interval (ms) between MIDI-status reports while notes are moving (#137).
- *  Phase / port-list changes always report immediately; this only paces the
- *  `activeNotes` counter so held-note changes don't re-render the panel 60×/s. */
-const MIDI_REPORT_MS = 250;
 
 /**
  * Max wait (ms) for a file source to deliver metadata before we give up. A URL
@@ -80,107 +63,8 @@ const MIDI_REPORT_MS = 250;
  */
 const VIDEO_LOAD_TIMEOUT_MS = 15000;
 
-/** Which phase the recording UI is in: the idle button, the settings sheet, an
- * active take (HUD), or the brief save/convert step after Stop. */
-export type RecordingPhase = 'idle' | 'settings' | 'recording' | 'saving';
-
-/**
- * Report a failed re-wire — unless the engine was torn down while the swap was
- * still preparing. `applyGraph` rejects that case by design (it releases what it
- * built rather than committing onto a dead engine), and it is the ordinary
- * unmount / StrictMode remount path, so logging it would cry wolf on every
- * teardown that happens to overlap a swap. `live` is the hook's engine ref: it is
- * nulled by the same cleanup that disposes, so a mismatch means "we were torn
- * down", which is exactly the case to stay quiet about.
- */
-function reportApplyFailure(engine: Engine, live: Engine | null, err: unknown): void {
-  if (live !== engine) return;
-  console.error('[thoremin] could not apply the instrument graph', err);
-}
-
-/**
- * The branch set the live state implies: the dials plus what a tool demands (the
- * instruments-as-graphs ADR, PR 3). A spec's EXPLICIT branch set (PR 4) is persisted and
- * assembled but not read here yet: honouring it at runtime needs a writer, and that writer
- * must be a dial or a command (a command changes sound only by writing a dial), restored on
- * undo and on reload. The PR that adds the writer wires `ctx.explicit` here.
- */
-function liveBranchIds(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): string[] {
-  return branchIdsFor(controls, { demanded, featureLab: controls.featureLab });
-}
-
-function currentBranchKey(): string {
-  return branchSetKey(liveBranchIds(useControls.getState()));
-}
-
-/**
- * The graph the LIVE instrument needs right now, composed for the slot selection. The
- * caller writes the composed overlay element set to the hot store when the graph commits
- * (`applyLive`), so the overlay reads it through `store-controls` and never as a param.
- */
-function liveGraph(selection: SlotSelection, registry: NodeRegistry, without: ReadonlySet<string> = new Set()): Composed {
-  return composeInstrumentGraph(branchIdsWithout(liveBranchIds(useControls.getState()), without), selection, registry);
-}
-
-/**
- * How the live graph is composed against a registry that may hold LAZY extension nodes
- * (`docs/design/lazy-extensions.md`): what is pending is loaded first, and a load that fails
- * leaves that extension's branches out and says so, so the instrument keeps playing.
- */
-function lazyDeps(selection: () => SlotSelection, registry: NodeRegistry, isLive: () => boolean = () => true): Omit<LazyApplyDeps<Composed>, 'commit'> {
-  return {
-    compose: (without) => liveGraph(selection(), registry, without),
-    typesOf: (g) => g.spec.nodes.map((n) => n.type),
-    pending: (types) => registry.pending(types),
-    ensure: (types) => ensureLazyTypes(registry, types),
-    onLoadError: (types, err) => {
-      if (!isLive()) return; // a torn-down engine's late failure is nobody's news
-      console.error(`[thoremin] could not load the code of ${types.join(', ')}; playing without it`, err);
-      // Once per page: a failed import() is never refetched before a reload, so every later
-      // graph change that still names these types fails again, and says nothing new.
-      const fresh = types.filter((t) => !toastedLoadFailures.has(t));
-      if (fresh.length === 0) return;
-      for (const t of fresh) toastedLoadFailures.add(t);
-      useToasts.getState().push('An add-on could not load. Check your connection, then reload the page (your instrument is kept).', 6000, 'error');
-    },
-  };
-}
-
-/** The lazy node types whose failed load has already been toasted in this page. */
-const toastedLoadFailures = new Set<string>();
-
-/** One lazy applier per engine: only the latest request against an engine commits. */
-const appliers = new WeakMap<Engine, () => void | Promise<void>>();
-
-/**
- * Re-wire a RUNNING engine onto the live graph. The overlay's element set is written when
- * the apply COMMITS (never at plan time: during the seconds a face or body model prepares,
- * the old graph is still playing and must keep its own elements; and a rejected apply must
- * leave the store describing the graph that is actually running). Nodes the apply removed
- * get their status stores reset, so a panel never shows a node that no longer exists.
- */
-function applyLive(engine: Engine, selection: () => SlotSelection, registry: NodeRegistry, live: () => Engine | null): void {
-  let apply = appliers.get(engine);
-  if (!apply) {
-    apply = makeLazyApplier<Composed>({
-      // `applyLive` only runs once the engine is live, so a null ref means it was torn down.
-      ...lazyDeps(selection, registry, () => live() === engine),
-      commit: (next) => {
-        void engine
-          .applyGraph(next.spec, registry)
-          .then((change) => {
-            const now = live();
-            if (now !== null && now !== engine) return;
-            useControls.getState().setGraphElements(next.elements);
-            resetStatusesOf(change.removed);
-          })
-          .catch((err) => reportApplyFailure(engine, live(), err));
-      },
-    });
-    appliers.set(engine, apply);
-  }
-  void apply();
-}
+/** The recording phase, re-exported from its owner for existing importers. */
+export type { RecordingPhase } from './recording/useRecordingController';
 
 /** The status stores that mirror a branch node, by node id; reset when the node leaves. */
 function resetStatusesOf(removed: readonly string[]): void {
@@ -209,10 +93,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     provideCamera({ stream: () => cameraStreamRef.current });
     return () => provideCamera(null);
   }, []);
-  const sessionRecRef = useRef<SessionRecorder | null>(null);
-  const activeSessionRef = useRef<RecordingSession | null>(null);
-  const recInstrumentRef = useRef<string>('thoremin');
-  const recBusyRef = useRef(false);
   // The registry the live engine was built against — `applyGraph` must resolve
   // node types against the SAME one, or a swap would compare against a different
   // set of definitions than the running graph was validated with.
@@ -221,11 +101,16 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const [status, setStatus] = useState<EngineStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [audioOn, setAudioOn] = useState(false);
-  const [recPhase, setRecPhase] = useState<RecordingPhase>('idle');
-  const [recElapsedMs, setRecElapsedMs] = useState(0);
-  // The config lives in its own store (#257) so the trainer's folder control, a command
-  // or the palette can change it and the sheet shows the change without a reload.
-  const recSession = useRecordingConfig((s) => s.session);
+  // The take's lifecycle (#88, #163): the Record button's and the trainer's one start/stop,
+  // reading the host resources below through their refs when a take starts.
+  const { recording, releaseTake } = useRecordingController({
+    resources: resourcesRef,
+    masterGain: masterGainRef,
+    canvas: canvasRef,
+    video: videoRef,
+    engine: engineRef,
+    cameraStream: cameraStreamRef,
+  });
 
   const masterVolume = useControls((s) => s.masterVolume);
   const muted = useControls((s) => s.muted);
@@ -241,6 +126,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // Unrelated dial edits leave it alone, so the re-apply effect below never fires for them.
   const demanded = useDemandedGroups();
   const branchKey = useControls((s) => branchSetKey(liveBranchIds(s, demanded)));
+
+  /** Re-wire the LIVE engine onto the current slots and branch set (`./liveApply`). The refs
+   *  are read when the graph is composed and committed, so every caller passes the same ones. */
+  const rewire = (engine: Engine, registry: NodeRegistry) =>
+    applyLive(engine, { selection: () => slotsRef.current, registry, live: () => engineRef.current, onRemoved: resetStatusesOf });
 
   useEffect(() => {
     let disposed = false;
@@ -426,81 +316,22 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         if (slotSelectionKey(slotsRef.current) !== builtKey || currentBranchKey() !== builtBranchKey) {
           builtKey = slotSelectionKey(slotsRef.current);
           builtBranchKey = currentBranchKey();
-          applyLive(engine, () => slotsRef.current, registry, () => engineRef.current);
+          rewire(engine, registry);
         }
 
         // Bridge the face model's status + classified expression from the DAG
-        // back to React for the indicator/readout (#65), throttled so the bars
-        // don't re-render 60×/s. A transition into 'error' surfaces a toast once.
-        let lastFaceReport = 0;
-        let lastPhase: FaceStatus['phase'] | null = null;
-        let lastDetected = false;
-        const reportFace = (now: number) => {
-          const fs = engine.getOutput('camFace', 'status') as FaceStatus | undefined;
-          if (!fs) return;
-          const phaseChanged = fs.phase !== lastPhase;
-          const detectedChanged = fs.faceDetected !== lastDetected;
-          // The 10/s cadence is only needed while a face is being read (for the
-          // live label); when idle/loading/error we report only on transitions, so
-          // an off/idle face control doesn't re-render the UI every 100ms.
-          const live = fs.phase === 'ready' && fs.faceDetected;
-          if (!phaseChanged && !detectedChanged && (!live || now - lastFaceReport < FACE_REPORT_MS)) {
-            return;
-          }
-          if (fs.phase === 'error' && lastPhase !== null && lastPhase !== 'error') {
-            useToasts.getState().push(
-              'Face model failed to load — check your connection and re-pick a face mode',
-              6000,
-              'error',
-            );
-          }
-          const expr = engine.getOutput('faceExpr', 'expression') as ExpressionScores | undefined;
-          const detected = fs.phase === 'ready' && fs.faceDetected && expr?.present;
-          // The label is what the chord PLAYED: the name of the category its categorizer read
-          // (the general model's is an expression or `neutral`; #330 P4, P6); the scores stay
-          // the general model's (the calibration wizard meters them per emotion).
-          const played = engine.getOutput('exprChord', 'played') as ExpressionScores | undefined;
-          const label = played ? readingName(played) : expr?.label;
-          useFaceStatus.getState().report(fs, detected ? (label ?? null) : null, detected ? expr!.scores : null);
-          lastFaceReport = now;
-          lastPhase = fs.phase;
-          lastDetected = fs.faceDetected;
-        };
-
+        // back to React for the indicator/readout (#65), throttled; a transition into
+        // 'error' surfaces a toast once.
+        const reportFace = makeFaceReporter(engine);
         // Bridge the midi-out node's status to React the same way (#137): the
         // settings panel renders the live device list + connection phase from it.
-        // Transitions (phase / resolved port / device list) report immediately;
-        // the activeNotes counter is paced so it can't re-render the panel 60×/s.
-        let lastMidiReport = 0;
-        let lastMidiKey = '';
-        const reportMidi = (now: number) => {
-          const ms = engine.getOutput('midiOut', 'status') as MidiStatus | undefined;
-          if (!ms) return;
-          const key = `${ms.phase}|${ms.portName ?? ''}|${ms.ports.join(',')}|${ms.message}`;
-          const notesChanged = ms.activeNotes !== useMidiStatus.getState().status.activeNotes;
-          if (key === lastMidiKey && (!notesChanged || now - lastMidiReport < MIDI_REPORT_MS)) return;
-          useMidiStatus.getState().report(ms);
-          lastMidiReport = now;
-          lastMidiKey = key;
-        };
-
-        // Gesture dispatch (#129): the classifier's per-hand poses are read off the
-        // DAG each frame — the dispatcher (fresh timing state per engine run) turns
-        // held-pose TRANSITIONS into command dispatches per the user's binding map,
-        // and the status store is written only when a pose CHANGES (transition-
-        // gated, like reportFace/reportMidi), so the Gestures panel's live
-        // indicators never re-render at frame rate.
+        const reportMidi = makeMidiReporter(engine);
+        // Gesture dispatch (#129): the classifier's per-hand poses feed the dispatcher
+        // (fresh timing state per engine run) every frame, which turns held-pose
+        // TRANSITIONS into command dispatches; the status store is written only when a
+        // pose CHANGES, so the Gestures panel never re-renders at frame rate.
         const gestureDispatcher = createGestureDispatcher();
-        let lastPosesKey = '';
-        const reportGesture = (now: number) => {
-          const poses = engine.getOutput('gesture', 'poses') as HandPoses | undefined;
-          if (!poses) return;
-          gestureDispatcher.tick(poses, now);
-          const key = `${poses.left}|${poses.right}`;
-          if (key === lastPosesKey) return;
-          useGestureStatus.getState().report(poses);
-          lastPosesKey = key;
-        };
+        const reportGesture = makeGestureReporter(engine, gestureDispatcher);
 
         // Category dispatch (#160): the player's saved categories, classified over the
         // live feature vector (kept current by the LiveVectorTap above), fire their bound
@@ -621,8 +452,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       // Nor start the song by itself on the next tap (#186 PR G): the new player has no
       // memory of the press that started the old one.
       useControls.getState().setSongPlaying(false);
-      sessionRecRef.current?.dispose();
-      sessionRecRef.current = null;
+      releaseTake();
       cameraStreamRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());
       // Symmetric to stopping camera tracks: pause a file clip so an aborted
@@ -658,7 +488,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const engine = engineRef.current;
     const registry = registryRef.current;
     if (!engine || !registry) return;
-    applyLive(engine, () => slotsRef.current, registry, () => engineRef.current);
+    rewire(engine, registry);
   }, [slotsKey]);
 
   // Re-wire the LIVE engine when the branch set changes (an instrument switch, a dial that
@@ -671,7 +501,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const engine = engineRef.current;
     const registry = registryRef.current;
     if (!engine || !registry) return;
-    applyLive(engine, () => slotsRef.current, registry, () => engineRef.current);
+    rewire(engine, registry);
   }, [branchKey]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.
@@ -710,174 +540,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     setAudioOn(true);
   }, []);
 
-  // ---- Recording session (#88): out-of-instrument multi-stream recorder --------
-
-  /** Update the working session config and persist it (auto-save — the sheet is a
-   * settings surface, not a form to submit). The store's setter is stable. */
-  const setRecSession = useCallback(
-    (next: RecordingSession | ((prev: RecordingSession) => RecordingSession)) => useRecordingConfig.getState().setSession(next),
-    [],
-  );
-
-  /** Click Record → the settings sheet. Prefills a fresh, overwritable name (a new
-   * timestamp each open, since a recording name is inherently per-take). */
-  const openRecording = useCallback(
-    (instrument?: string) => {
-      recInstrumentRef.current = instrument || 'thoremin';
-      setRecSession((prev) => ({
-        ...prev,
-        name: prefillName({ instrument: recInstrumentRef.current, date: new Date() }),
-      }));
-      setRecPhase('settings');
-    },
-    [setRecSession],
-  );
-
-  /** Close the sheet without recording (config already auto-saved on every edit). */
-  const closeRecording = useCallback(() => setRecPhase('idle'), []);
-
-  /** Start a take: build the session recorder from the live host resources and start
-   * capture. Shared by the Record button ("Rec now") and the recording controller
-   * (#163: the trainer records its take with its own annotation source). Resolves
-   * true once recording; false (with a toast) if audio isn't running yet, a stream
-   * fails to start, or a take is already running. */
-  const startTake = useCallback(
-    async (session: RecordingSession, opts: StartTakeOptions = {}): Promise<boolean> => {
-      if (recBusyRef.current || sessionRecRef.current) {
-        // The seam is used by more than one surface (the Record button and the trainer);
-        // an honest "why not" beats a silent false (its own doc promised a toast).
-        useToasts.getState().push(
-          sessionRecRef.current ? 'Already recording — stop the current take first' : 'Still saving the last take — try again in a moment',
-          4000,
-          'error',
-        );
-        return false;
-      }
-      // `fromSheet` is the Record-button flow: only it drives the settings sheet. A
-      // controller-started take (the trainer) must never pop the button's sheet.
-      const fromSheet = opts.fromSheet ?? false;
-      const ac = resourcesRef.current.audioContext as AudioContext | undefined;
-      const master = masterGainRef.current;
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      const engine = engineRef.current;
-      // Audio is only needed when the take actually records the master bus. A camera +
-      // features take (the trainer's) must not demand the player start audio first.
-      const needsAudio = session.streams.audio;
-      if (!canvas || !video || !engine || (needsAudio && (!ac || !master))) {
-        useToasts.getState().push(needsAudio ? 'Start audio before recording' : 'The camera is not ready yet', 4000, 'error');
-        return false;
-      }
-      recBusyRef.current = true;
-      const rec = new SessionRecorder(
-        {
-          audioContext: ac as AudioContext,
-          masterGain: master as AudioNode,
-          canvas,
-          video,
-          cameraStream: cameraStreamRef.current,
-          engine,
-          resources: resourcesRef.current,
-          instrument: opts.instrument ?? recInstrumentRef.current,
-          // If annotation mode is on, annotations.jsonl rides in the folder on the shared t0 (#92).
-          tagSource: opts.tagSource ?? tagStreamSource,
-          meta: opts.meta,
-        },
-        session,
-      );
-      sessionRecRef.current = rec;
-      activeSessionRef.current = session;
-      try {
-        await rec.start();
-        setRecElapsedMs(0);
-        setRecPhase('recording');
-        return true;
-      } catch (e) {
-        rec.dispose();
-        sessionRecRef.current = null;
-        if (fromSheet) setRecPhase('settings');
-        // A dismissed folder picker is a deliberate cancel (nothing recorded yet),
-        // not an error — return to the sheet quietly.
-        if (e instanceof SinkCancelled) {
-          useToasts.getState().push('Recording cancelled', 3000);
-        } else {
-          console.error('[thoremin] could not start recording', e);
-          useToasts.getState().push("Couldn't start recording", 6000, 'error');
-        }
-        return false;
-      } finally {
-        recBusyRef.current = false;
-      }
-    },
-    [],
-  );
-
-  /** "Rec now": the button's take, with the sheet's session config. */
-  const recNow = useCallback(async () => {
-    await startTake(recSession, { fromSheet: true });
-  }, [recSession, startTake]);
-
-  /** Stop the take: convert audio, write every file + the manifest, toast the
-   * result. `saving` covers the convert/write window (honest UI while it works). */
-  const stopRecording = useCallback(async () => {
-    if (recBusyRef.current) return;
-    const rec = sessionRecRef.current;
-    if (!rec) return;
-    recBusyRef.current = true;
-    setRecPhase('saving');
-    try {
-      const res = await rec.stop();
-      // An output format whose encoder failed to load/run wrote NO file (#143).
-      // Name it: the rest of the take was still saved, but the player must not
-      // believe they have a FLAC they don't have.
-      if (res.failedFormats.length) {
-        const names = res.failedFormats.map((f) => f.toUpperCase()).join(', ');
-        useToasts.getState().push(`Couldn't encode ${names} — that file was not saved`, 7000, 'error');
-      }
-      if (res.cancelled) {
-        // The take recorded fine but the user dismissed the Save-As dialog — be
-        // honest that nothing was written rather than toasting a false "Saved".
-        useToasts.getState().push('Recording not saved (save cancelled)', 5000, 'error');
-      } else if (res.streamCount > 0) {
-        // streamCount, not count: the manifest is always written, so `count` is >= 1 even
-        // on a take where every audio format failed to encode and nothing else was
-        // selected. "Saved" must mean a stream actually landed.
-        const suffix = res.count > 1 ? ` (${res.count} files)` : '';
-        useToasts.getState().push(`Saved ${res.label}${suffix}`);
-      } else if (!res.failedFormats.length) {
-        useToasts.getState().push('Nothing was recorded — no streams were saved', 6000, 'error');
-      }
-    } catch (e) {
-      console.error('[thoremin] recording save failed', e);
-      useToasts.getState().push("Couldn't save the recording", 6000, 'error');
-    } finally {
-      rec.dispose();
-      sessionRecRef.current = null;
-      activeSessionRef.current = null;
-      recBusyRef.current = false;
-      setRecPhase('idle');
-    }
-  }, []);
-
-  // The recording controller (#163): the same start/stop the button uses, reachable
-  // from a store. Registered for the hook's life.
-  useEffect(
-    () =>
-      registerRecordingController({
-        start: startTake,
-        stop: stopRecording,
-        isRecording: () => sessionRecRef.current !== null,
-      }),
-    [startTake, stopRecording],
-  );
-
-  // Tick the elapsed-time readout for the HUD while a take is running.
-  useEffect(() => {
-    if (recPhase !== 'recording') return;
-    const id = setInterval(() => setRecElapsedMs(sessionRecRef.current?.elapsedMs ?? 0), 250);
-    return () => clearInterval(id);
-  }, [recPhase]);
-
   return {
     videoRef,
     canvasRef,
@@ -885,18 +547,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     error,
     audioOn,
     startAudio,
-    recording: {
-      phase: recPhase,
-      session: recSession,
-      setSession: setRecSession,
-      open: openRecording,
-      close: closeRecording,
-      recNow,
-      stop: stopRecording,
-      elapsedMs: recElapsedMs,
-      // While a take records, the chips reflect THAT take (the trainer's camera+features),
-      // not the button sheet's config; the sheet's config otherwise.
-      activeStreams: activeStreamLabels(recPhase === 'recording' ? activeSessionRef.current ?? recSession : recSession),
-    },
+    recording,
   };
 }
