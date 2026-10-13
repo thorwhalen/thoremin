@@ -48,7 +48,10 @@ describe('category binding is reachable from the shell (#160)', () => {
       fireEvent.click(row.closest('button, a')!);
     });
     const section = screen.getByRole('region', { name: 'Your categories' });
-    fireEvent.click(within(section).getByRole('button', { name: 'Trainer' }));
+    // At the TOP of the panel, above the hand poses: no scroll between the click and it.
+    const poses = screen.getByRole('heading', { name: 'Hand poses' });
+    expect(section.compareDocumentPosition(poses) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(await within(section).findByRole('button', { name: 'Trainer' }));
     expect(useTools.getState().open).toBe('trainer');
   });
 

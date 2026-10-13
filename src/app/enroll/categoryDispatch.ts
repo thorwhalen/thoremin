@@ -10,11 +10,16 @@
  * plus a cooldown). The firing rules are `createCategoryEdge`'s (`@thoremin/sdk/enroll`).
  *
  * Further rules (pinned by `test/category_dispatch.test.ts`):
- * - **Off, no set, or hushed: nothing runs.** While a trainer holds a hush claim the player
- *   cannot hear a change, and a trainer run must never re-voice the instrument under them;
- *   so the edge is reset and the next commit after the hush is a fresh entry.
- * - **A new model is a fresh edge**; a binding EDIT is not (the store keeps the model
- *   object), so binding a category while holding it does not fire it until re-entry.
+ * - **No set, or hushed: nothing runs.** While a trainer holds a hush claim the player
+ *   cannot hear a change, and a trainer run must never re-voice the instrument under them.
+ *   The edge is reset, and a reset edge ADOPTS the category the player is in rather than
+ *   firing it (`createCategoryEdge` rule 5): closing the trainer, enabling, switching sets
+ *   or an engine rebuild arm only future entries.
+ * - **Off but previewing**: with binding off and the bindings panel open, the edge still
+ *   classifies (the readout works) and every entry is spent, so turning binding on while
+ *   holding a category does not fire it.
+ * - **A binding EDIT does not reset the edge** (the store keeps the model object), so
+ *   binding a category while holding it does not fire it until re-entry.
  * - **An entry with no binding is spent**, as an unbound gesture is.
  * - **Unknown or confirmation-gated commands are refused with a toast**, never dispatched
  *   ({@link isGestureBindable} is the one rule for any hands-free trigger).
@@ -38,13 +43,16 @@ import { isGestureBindable } from '../gestureDispatch';
 import { useControls } from '../store';
 import { useToasts } from '../toasts';
 import { readLiveVector } from './liveVector';
-import { useCategoryBinding, type SavedCategories } from './categoryBinding';
+import { useTools } from '../toolsStore';
+import { CATEGORY_PANEL_TOOL, useCategoryBinding, type SavedCategories } from './categoryBinding';
 
 const FIRE_TOAST_MS = 2500;
 const ERROR_TOAST_MS = 5000;
 
-/** What the panel shows: the reading as CategoryScores, and the committed category id. */
+/** What the panel shows: the reading as CategoryScores, the category the player is in, and
+ *  the model it was read with (so a panel that just switched sets can ignore an old one). */
 export interface CategoryLive {
+  model: TrainedModel;
   scores: CategoryScores;
   committed: string | null;
 }
@@ -59,6 +67,8 @@ export function readCategoryLive(): CategoryLive | null {
 export interface CategoryDispatcherDeps {
   getActive(): SavedCategories | null;
   isEnabled(): boolean;
+  /** True while the bindings panel is open: classify for its readout, even with binding off. */
+  isPreviewing(): boolean;
   holdMs(): number;
   /** True while something (a trainer) has the instrument hushed. */
   isHushed(): boolean;
@@ -74,6 +84,7 @@ function defaultDeps(): CategoryDispatcherDeps {
   return {
     getActive: () => useCategoryBinding.getState().active,
     isEnabled: () => useCategoryBinding.getState().enabled,
+    isPreviewing: () => useTools.getState().open === CATEGORY_PANEL_TOOL,
     holdMs: () => useCategoryBinding.getState().holdMs,
     isHushed: () => useControls.getState().hushedBy.length > 0,
     readVector: () => readLiveVector()?.vector ?? null,
@@ -121,7 +132,8 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
   return {
     tick(nowMs) {
       const set = deps.getActive();
-      if (!set || !deps.isEnabled() || deps.isHushed()) {
+      const enabled = deps.isEnabled();
+      if (!set || deps.isHushed() || !(enabled || deps.isPreviewing())) {
         edge?.reset();
         live = null;
         return;
@@ -132,8 +144,9 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       }
       edge.setHoldMs(deps.holdMs());
       const step = edge.push(deps.readVector(), nowMs);
-      live = { scores: toCategoryScores(model, step.reading), committed: edge.current() };
-      if (step.entered) fire(set, step.entered);
+      live = { model, scores: toCategoryScores(model, step.reading), committed: edge.current() };
+      // An entry that completes while binding is off (a preview) is spent, not deferred.
+      if (step.entered && enabled) fire(set, step.entered);
     },
   };
 }

@@ -8,9 +8,10 @@
  * recognised thing, hands-free, firing a command through the same picker
  * ({@link CommandBindingFields}). The Trainer's "Save and bind" button lands here.
  *
+ * The section sits at the TOP of the panel, so *Save and bind* lands on it with no scroll.
  * The live readout polls `readCategoryLive()` at UI rate while the section is mounted,
- * like the trainer polls the live vector: the dispatcher computes it per tick, and nothing
- * here needs frame-rate fidelity.
+ * like the trainer polls the live vector: the dispatcher computes it per tick (with binding
+ * off too, while this panel is open), and nothing here needs frame-rate fidelity.
  */
 import { useEffect, useState } from 'react';
 import { categoryName } from '@thoremin/sdk/enroll';
@@ -36,19 +37,29 @@ export default function CategoryBindings() {
   const active = useCategoryBinding((s) => s.active);
   const enabled = useCategoryBinding((s) => s.enabled);
   const holdMs = useCategoryBinding((s) => s.holdMs);
-  const live = useCategoryLive();
+  const polled = useCategoryLive();
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    void useCategoryBinding.getState().load();
+    let alive = true;
+    void useCategoryBinding
+      .getState()
+      .load()
+      .finally(() => alive && setLoaded(true));
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const openTrainer = () => useTools.getState().openTool('trainer');
   const model = active?.categories.model;
+  // A reading taken with another set's model (the poll lags a switch) is not this set's.
+  const live = polled && polled.model === model ? polled : null;
 
   return (
-    <section aria-label="Your categories" className="space-y-2 border-t border-white/10 pt-3">
+    <section aria-label="Your categories" className="space-y-2">
       <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/70">Your categories</h3>
-      {saved.length === 0 ? (
+      {!loaded && saved.length === 0 ? null : saved.length === 0 ? (
         <p className="text-[11px] leading-relaxed text-white/60">
           Nothing trained yet. Teach the instrument your own expressions or hand shapes in the{' '}
           <button type="button" onClick={openTrainer} className="underline decoration-white/30 hover:text-white">
@@ -60,7 +71,8 @@ export default function CategoryBindings() {
         <>
           <p className="text-[11px] leading-relaxed text-white/60">
             Moving into a category runs its command once, after the hold. It runs again when you
-            move into it from another category. Nothing runs while a trainer is open.
+            come back to it from another category or from rest. Nothing runs while a trainer is
+            open, and the category you are already in when you turn this on does not fire.
           </p>
           <div className="flex items-center gap-2">
             <select

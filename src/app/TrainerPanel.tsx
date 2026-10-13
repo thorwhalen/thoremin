@@ -54,7 +54,7 @@ import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
 import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enroll';
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
-import { useCategoryBinding } from './enroll/categoryBinding';
+import { savedCategoriesId, useCategoryBinding } from './enroll/categoryBinding';
 import RoutinePicker from './enroll/RoutinePicker';
 import ProjectionView from './enroll/ProjectionView';
 import { installVoice, unlockVoice, useVoice } from './enroll/voiceRuntime';
@@ -116,17 +116,26 @@ function labelledModel(model: TrainedModel, labels: Record<string, string>, cueN
   };
 }
 
+const DEFAULT_CATEGORIES_NAME = 'My categories';
+
 /** Keep the categories (#160): save the model under a name and go bind it. The binding
  *  itself happens in the Gestures tool, where the instrument is audible again. */
 function KeepCategories({ model, labels, cueNames }: { model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
-  const [name, setName] = useState('My categories');
+  // Default to the active set's name: retraining the same vocabulary is the common case,
+  // and a re-save under its name carries its bindings over by category name.
+  const [name, setName] = useState(() => useCategoryBinding.getState().active?.name ?? DEFAULT_CATEGORIES_NAME);
+  const saved = useCategoryBinding((s) => s.saved);
+  const replaces = saved.find((s) => s.id === savedCategoriesId(name));
+  useEffect(() => {
+    void useCategoryBinding.getState().load();
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      await useCategoryBinding.getState().saveModel(name.trim() || 'My categories', labelledModel(model, labels, cueNames));
+      await useCategoryBinding.getState().saveModel(name.trim() || DEFAULT_CATEGORIES_NAME, labelledModel(model, labels, cueNames));
       useTools.getState().openTool('gestures');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -155,6 +164,11 @@ function KeepCategories({ model, labels, cueNames }: { model: TrainedModel; labe
           Save and bind
         </button>
       </div>
+      {replaces && (
+        <p className="text-[10px] text-white/45">
+          Replaces your saved &ldquo;{replaces.name}&rdquo;; its bindings move to the categories with the same names.
+        </p>
+      )}
       {error && <p className="text-[10px] text-rose-300/80">{error}</p>}
     </div>
   );

@@ -41,29 +41,60 @@ function run(edge: ReturnType<typeof createCategoryEdge>, frames: (FeatureVector
 }
 const repeat = (v: FeatureVector | null, n: number) => Array.from({ length: n }, () => v);
 
+/** The rest pose: far from both categories (no-man's-land, as the baseline cue makes it). */
+const REST: FeatureVector = { x: 50 };
+
 describe('createCategoryEdge: a category entry fires once, after the hold', () => {
   it('fires on entry after the tracker commits and the hold elapses, and never again while held', () => {
-    const model = twoCategoryModel();
-    const edge = createCategoryEdge(model, { holdMs: 100 });
-    const fired = run(edge, repeat({ x: 0 }, 60));
+    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 100 });
+    const fired = run(edge, [...repeat(REST, 10), ...repeat({ x: 0 }, 60)]);
     expect(fired.map((f) => f.id)).toEqual(['cat-1']);
-    // enterFrames (3) to commit, then >= 100 ms of hold: not on the first frame.
-    expect(fired[0].t).toBeGreaterThanOrEqual(2 * 33 + 100);
+    // enterFrames (3) to commit, then >= 100 ms ON it: not on the first frame of the pose.
+    expect(fired[0].t).toBeGreaterThanOrEqual(10 * 33 + 2 * 33 + 100);
   });
 
   it('A -> B -> A fires A twice; a flicker shorter than the tracker entry fires nothing', () => {
-    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 0 });
-    const frames = [...repeat({ x: 0 }, 10), { x: 1 }, { x: 1 }, ...repeat({ x: 0 }, 5), ...repeat({ x: 1 }, 10), ...repeat({ x: 0 }, 10)];
+    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 0, cooldownMs: 0 });
+    const frames = [REST, ...repeat({ x: 0 }, 10), { x: 1 }, { x: 1 }, ...repeat({ x: 0 }, 5), ...repeat({ x: 1 }, 10), ...repeat({ x: 0 }, 10)];
     expect(run(edge, frames).map((f) => f.id)).toEqual(['cat-1', 'cat-2', 'cat-1']);
   });
 
-  it('an excursion into no-man\'s-land does not re-fire the category it returns to', () => {
+  it('A -> rest -> A fires A twice (the rest pose is no-man\'s-land); a blink shorter than the exit hysteresis does not', () => {
+    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 0, cooldownMs: 0 });
+    const blink = [REST, ...repeat({ x: 0 }, 10), ...repeat(REST, 3), ...repeat({ x: 0 }, 10)];
+    expect(run(edge, blink).map((f) => f.id)).toEqual(['cat-1']);
+    edge.reset();
+    const rest = [REST, ...repeat({ x: 0 }, 10), ...repeat(REST, 20), ...repeat({ x: 0 }, 10)];
+    expect(run(edge, rest).map((f) => f.id)).toEqual(['cat-1', 'cat-1']);
+  });
+
+  it('the hold is time ON the category: three frames of A and away again fire nothing', () => {
+    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 150 });
+    expect(run(edge, [REST, ...repeat({ x: 0 }, 3), ...repeat(REST, 30)])).toEqual([]);
+  });
+
+  it('a gap with no reading breaks the hold: A, the face lost, then B never fires A late', () => {
+    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 150 });
+    const fired = run(edge, [REST, ...repeat({ x: 0 }, 3), ...repeat(null, 20), ...repeat({ x: 1 }, 20)]);
+    expect(fired.map((f) => f.id)).toEqual(['cat-2']);
+  });
+
+  it('a fresh or reset edge ADOPTS the category the player is already in (enabling arms future entries)', () => {
     const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 0 });
-    const frames = [...repeat({ x: 0 }, 10), ...repeat({ x: 50 }, 20), ...repeat({ x: 0 }, 10)];
+    expect(run(edge, repeat({ x: 1 }, 20))).toEqual([]);
+    expect(edge.current()).toBe('cat-2');
+    expect(run(edge, repeat({ x: 0 }, 20)).map((f) => f.id)).toEqual(['cat-1']);
+    edge.reset();
+    expect(run(edge, repeat({ x: 0 }, 20))).toEqual([]);
+  });
+
+  it('a re-entry of the same category inside the cooldown is spent silently', () => {
+    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 0, cooldownMs: 2000 });
+    const frames = [REST, ...repeat({ x: 0 }, 5), ...repeat(REST, 12), ...repeat({ x: 0 }, 5)];
     expect(run(edge, frames).map((f) => f.id)).toEqual(['cat-1']);
   });
 
-  it('a frame with no reading is not classified (an empty vector would sit at distance 0 from everything)', () => {
+  it('a frame with no reading is not classified (a sparse vector would sit close to everything)', () => {
     const model = twoCategoryModel();
     expect(hasReading(model, {}, 0.5)).toBe(false);
     expect(hasReading(model, { other: 1 }, 0.5)).toBe(false);
@@ -76,16 +107,9 @@ describe('createCategoryEdge: a category entry fires once, after the hold', () =
 
   it('changing the hold does not reset what is committed (a slider drag must not re-fire)', () => {
     const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 0 });
-    expect(run(edge, repeat({ x: 0 }, 10)).length).toBe(1);
+    expect(run(edge, [REST, ...repeat({ x: 0 }, 10)]).length).toBe(1);
     edge.setHoldMs(500);
     expect(run(edge, repeat({ x: 0 }, 30), 1000)).toEqual([]);
-  });
-
-  it('reset makes the held category a fresh entry', () => {
-    const edge = createCategoryEdge(twoCategoryModel(), { holdMs: 0 });
-    run(edge, repeat({ x: 1 }, 10));
-    edge.reset();
-    expect(run(edge, repeat({ x: 1 }, 10)).map((f) => f.id)).toEqual(['cat-2']);
   });
 });
 
@@ -122,6 +146,17 @@ describe('carryBindings: a retrain keeps bindings by NAME, never by position', (
     ];
     expect(carryBindings({ model: old, bindings }, next)).toEqual({ 'cat-2': { command: 'a' } });
     expect(carryBindings(null, next)).toEqual({});
+  });
+
+  it('a name two categories share is ambiguous and carries nothing', () => {
+    const old = twoCategoryModel();
+    old.categories[1].label = 'low';
+    const next = twoCategoryModel();
+    expect(carryBindings({ model: old, bindings: { 'cat-1': { command: 'a' } } }, next)).toEqual({});
+    const fresh = twoCategoryModel();
+    const dup = twoCategoryModel();
+    dup.categories[1].label = 'low';
+    expect(carryBindings({ model: fresh, bindings: { 'cat-1': { command: 'a' } } }, dup)).toEqual({});
   });
 });
 

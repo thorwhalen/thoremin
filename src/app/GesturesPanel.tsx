@@ -16,7 +16,7 @@
  * longer has is surfaced as a visible warning on its row (and refused with an
  * error toast if it ever fires).
  *
- * Below the gestures, the player's OWN categories (#160, `enroll/CategoryBindings.tsx`):
+ * Above the gestures, the player's OWN categories (#160, `enroll/CategoryBindings.tsx`):
  * a category saved from the Trainer binds to a command the same way, through the same
  * picker (`CommandBindingFields`).
  *
@@ -129,6 +129,8 @@ export default function GesturesPanel() {
       </div>
       <div className="space-y-3 overflow-auto p-4">
         {tool && <p className="text-[10px] uppercase tracking-widest text-emerald-500/70">{tool.description}</p>}
+        <CategoryBindings />
+        <h3 className="border-t border-white/10 pt-3 text-[11px] font-bold uppercase tracking-widest text-white/70">Hand poses</h3>
         <p className="text-[11px] leading-relaxed text-white/60">
           Hold a pose for the hold time to fire its command once; it will not fire again until you
           release, re-enter the pose, and the cooldown has passed. Either hand can trigger a binding.
@@ -163,7 +165,7 @@ export default function GesturesPanel() {
           Instrument load/save/create are not offered: they need a confirmation you cannot give
           hands-free. Commands run with the fixed args shown; an empty args field dispatches none.
         </p>
-        <CategoryBindings />
+
       </div>
     </div>
   );

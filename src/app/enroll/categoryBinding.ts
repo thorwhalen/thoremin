@@ -33,6 +33,8 @@ import { z } from 'zod';
 import { createNamedCollectionStore, type NamedCollectionStore, type NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
+import { slugId } from '@thoremin/sdk/util/ids';
+import { useTools } from '../toolsStore';
 import {
   BoundCategoriesSchema,
   CATEGORY_EDGE_DEFAULTS,
@@ -55,11 +57,16 @@ export type SavedCategoriesStore = NamedCollectionStore<SavedCategories, BoundCa
 export const SAVED_CATEGORIES_STORAGE_KEY = 'thoremin-categories';
 export const CATEGORY_PREFS_STORAGE_KEY = 'thoremin-category-binding';
 
+const CATEGORIES_ID_FALLBACK = 'categories';
+
+/** The id a set saved under `name` gets (the collection slugs names into ids). */
+export const savedCategoriesId = (name: string): string => slugId(name, CATEGORIES_ID_FALLBACK);
+
 export const createSavedCategoriesStore = createNamedCollectionStore<SavedCategories, 'categories'>({
   schema: SavedCategoriesSchema,
   storageKey: SAVED_CATEGORIES_STORAGE_KEY,
   payloadKey: 'categories',
-  idFallback: 'categories',
+  idFallback: CATEGORIES_ID_FALLBACK,
 });
 
 let collection: SavedCategoriesStore | null = null;
@@ -69,6 +76,8 @@ export function setSavedCategoriesStore(store: SavedCategoriesStore | null): voi
   collection = store;
 }
 
+/** The tool whose panel holds the bindings (the readout runs while it is open). */
+export const CATEGORY_PANEL_TOOL = 'gestures';
 /** The longest hold the panel offers. */
 export const MAX_CATEGORY_HOLD_MS = 1000;
 /** The feature-demand owner while binding is live. */
@@ -121,12 +130,17 @@ export const useCategoryBinding = create<CategoryBindingState>()(
           }
           if (get().active?.id === id) return;
           const rec = await getCollection().load(id);
+          // A save or a switch that landed while this read was in flight wins.
+          if (get().activeId !== id || get().active?.id === id) return;
           set(rec ? { active: rec } : { active: null, activeId: null });
         },
 
         async saveModel(name, model) {
           const store = getCollection();
-          const slugTwin = (await store.list()).find((s) => s.name === name.trim());
+          // The record this save overwrites is the one with the same SLUG (the collection's
+          // id), not the same spelling: "faces" replaces "Faces".
+          const id = savedCategoriesId(name);
+          const slugTwin = (await store.list()).find((s) => s.id === id);
           const previous = (slugTwin ? await store.load(slugTwin.id) : null) ?? get().active;
           const rec = await store.save(name, { model, bindings: carryBindings(previous?.categories, model) });
           set({ active: rec, activeId: rec.id });
@@ -187,24 +201,29 @@ export function modelGroups(model: Pick<TrainedModel, 'features'>): string[] {
 }
 
 /**
- * Keep the feature demand in step with binding: while a set is active and binding is on,
- * claim its groups, so the vector nodes (and the face model) compute them with the Lab and
- * the trainer closed. Returns the uninstaller (which releases the claim).
+ * Keep the feature demand in step with binding: claim the active set's groups (so the
+ * vector nodes, and the face model, compute them with the Lab and the trainer closed) only
+ * while something will use them: binding is on AND at least one category is bound, or the
+ * bindings panel is open (its readout). An active set with nothing bound costs nothing.
+ * Returns the uninstaller (which releases the claim).
  */
 export function installCategoryDemand(): () => void {
   let key = '';
-  const sync = (s: CategoryBindingState) => {
-    const groups = s.enabled && s.active ? modelGroups(s.active.categories.model) : [];
+  const sync = () => {
+    const s = useCategoryBinding.getState();
+    const bound = !!s.active && Object.keys(s.active.categories.bindings).length > 0;
+    const wanted = !!s.active && ((s.enabled && bound) || useTools.getState().open === CATEGORY_PANEL_TOOL);
+    const groups = wanted ? modelGroups(s.active!.categories.model) : [];
     const next = groups.join(',');
     if (next === key) return;
     key = next;
     if (groups.length) appFeatureDemand.claim(CATEGORY_DEMAND_OWNER, groups);
     else appFeatureDemand.release(CATEGORY_DEMAND_OWNER);
   };
-  sync(useCategoryBinding.getState());
-  const unsubscribe = useCategoryBinding.subscribe(sync);
+  sync();
+  const unsubscribers = [useCategoryBinding.subscribe(sync), useTools.subscribe(sync)];
   return () => {
-    unsubscribe();
+    for (const u of unsubscribers) u();
     appFeatureDemand.release(CATEGORY_DEMAND_OWNER);
   };
 }
