@@ -16,7 +16,7 @@
  *   and two records sharing a hold share its still. A v1 record's samples are given its old
  *   keys as ids on migration (`models.ts`), so its stills are found where they are.
  */
-import type { PixelBox } from '@thoremin/sdk-ui/enroll/modality';
+import type { PixelBox, PixelPoint } from '@thoremin/sdk-ui/enroll/modality';
 
 export interface ThumbStore {
   get(key: string): Promise<Blob | null>;
@@ -91,13 +91,14 @@ export interface GrabOptions {
   mirror?: boolean;
 }
 
-export const GRAB_DEFAULTS = { width: 120, quality: 0.8, mirror: true } as const;
+export const GRAB_DEFAULTS = { width: 120, quality: 0.8, mirror: true, overlayColor: 'rgba(120, 220, 255, 0.9)', overlayWidth: 1.5 } as const;
 
 /** A live stream's frames, drawn on demand. */
 export interface LiveFrames {
-  /** The current frame as a still, cropped to `crop(size)` (null: the whole frame), or null
-   *  when no frame is showing yet. */
-  grab(crop?: ((size: { width: number; height: number }) => PixelBox | null) | null): Promise<Blob | null>;
+  /** The current frame as a still, cropped to `crop(size)` (null: the whole frame), with
+   *  `overlay(size)`'s polylines (video pixels) drawn over it (#385 E8: a hand skeleton), or
+   *  null when no frame is showing yet. */
+  grab(crop?: ((size: { width: number; height: number }) => PixelBox | null) | null, overlay?: ((size: { width: number; height: number }) => readonly (readonly PixelPoint[])[] | null) | null): Promise<Blob | null>;
   /** Stop drawing and let the stream go (never stops its tracks: the instrument owns the camera). */
   close(): void;
 }
@@ -125,7 +126,7 @@ export const openLiveFrames: FrameOpener = (stream, options = {}) => {
   void video.play().catch(() => undefined);
   const canvas = document.createElement('canvas');
   return {
-    async grab(crop) {
+    async grab(crop, overlay) {
       const vw = video.videoWidth;
       const vh = video.videoHeight;
       // HAVE_CURRENT_DATA: a frame to draw.
@@ -144,6 +145,8 @@ export const openLiveFrames: FrameOpener = (stream, options = {}) => {
         ctx.scale(-1, 1);
       }
       ctx.drawImage(video, box.x, box.y, box.w, box.h, 0, 0, w, h);
+      const lines = overlay?.({ width: vw, height: vh }) ?? null;
+      if (lines && lines.length > 0) drawPolylines(ctx, lines, box, w / box.w, o);
       ctx.restore();
       return new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', o.quality));
     },
@@ -153,3 +156,23 @@ export const openLiveFrames: FrameOpener = (stream, options = {}) => {
     },
   };
 };
+
+/** `lines` (video pixels) drawn over a still whose crop is `box`, drawn at `scale` (still pixels
+ *  per video pixel), in the still's own (possibly mirrored) transform. */
+function drawPolylines(ctx: CanvasRenderingContext2D, lines: readonly (readonly PixelPoint[])[], box: PixelBox, scale: number, o: { overlayColor: string; overlayWidth: number }): void {
+  ctx.strokeStyle = o.overlayColor;
+  ctx.lineWidth = o.overlayWidth;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (const line of lines) {
+    if (line.length < 2) continue;
+    ctx.beginPath();
+    line.forEach((p, i) => {
+      const x = (p.x - box.x) * scale;
+      const y = (p.y - box.y) * scale;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}

@@ -8,10 +8,10 @@
  */
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { useDialsSettings } from '@thoremin/sdk-ui/dials';
-import FaceSessionPanel from './panels/FaceSessionPanel';
+import FaceSessionPanel, { HandSessionPanel } from './panels/FaceSessionPanel';
 import CategorizerSection from './panels/CategorizerSection';
 import { startCategorizerPlay, useCategorizerPlay } from './app/categorizerPlay';
-import { FACES_TOOL } from './ui';
+import { FACES_TOOL, HANDS_TOOL } from './ui';
 
 /** One line: which categorizer the face chords read right now. */
 function CategorizerReadout() {
@@ -50,7 +50,10 @@ export const FACES_UI: ExtensionUi = {
       }
     },
   ],
-  tools: [{ ...FACES_TOOL, Panel: FaceSessionPanel }],
+  tools: [
+    { ...FACES_TOOL, Panel: FaceSessionPanel },
+    { ...HANDS_TOOL, Panel: HandSessionPanel },
+  ],
 };
 
 export default FACES_UI;

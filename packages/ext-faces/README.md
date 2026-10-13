@@ -87,6 +87,24 @@ The general (shipped) expression model is a categorizer like the others, with th
 
 `?faces.source=synthetic` runs the session on a scripted face with a canvas video: no camera and no face model. It is a verification affordance, and the browser smoke drives it.
 
+### Your hand shapes (#385 E8)
+
+The same tool over one hand's SHAPE: Tools, then **Your hand shapes**, then **Record my hand shapes**, then **Start capturing** (four clicks from a cold load, as for faces). Everything above (Explore, the bars and the ring, pause, bursts, the carve, Neutral, sorting, quality, the quiz, the everyday check, test and tune, import and export) is the same code, in the hand's words.
+
+- **What it reads** (#387 C4): one hand, side-relative, so a shape made with either hand is the same category. **Which hand** (above the take, and in the grid of a carve or a saved one) says *Either hand* (the default; the right one when both are in view), *My left hand only* or *My right hand only*; it is kept on the file (`hand`) and the live test and the bindings read that hand. Only the shape counts: the features are the hand's flexion, spread, pinch and openness that the catalog declares invariant to where the hand is and how it is turned, the same space as the air guitar's chord shapes (`handShapeFeatureIds` in the SDK), so a carved hand sample is an air guitar vocabulary vector.
+- **The rest** is a relaxed hand held up to the camera; it seeds Neutral as the resting face does.
+- **Names**: the general model is the hand's three rule poses (*open*, *fist*, *pinch*: openness, the index finger's bend and the thumb-index distance), matched one-to-one; the others are `shape n`.
+- **Pictures**: each held shape's still is cropped to the hand (a square around the wrist and the five fingertips) with a skeleton drawn over it (the wrist through the palm to each fingertip), so it shows what the camera read.
+- **Play it: Bind to commands**. A saved hand categorizer's row has **Bind to commands** (no *Play it*: the face chords read faces). It hands the saved version to the host's category bindings (the Gestures tool's *Your categories*, through the SDK-UI seam `categoryBinder()`), as a set that reads the live vector through the hand (`read: { modality: 'hand', hand }`), and opens the Gestures tool on it, where each category gets a command. Three clicks from a cold load: Tools, Your hand shapes, Bind to commands. Binding again under the same name replaces the set and keeps its commands by category name. The bound set is a copy: re-bind after an edit (#385 E10 keys bindings by categorizer id).
+
+`?carve.source=synthetic` runs it on a scripted hand (`src/lib/synthetic_hand.ts`: an articulated right hand going through open, fist, point and pinch with a relaxed hand between), with no camera and no hand model; `?faces.source=synthetic` is still read as the same switch.
+
+### One collection for every categorizer (#385 E8, #387 C5)
+
+Every saved categorizer, face or hand, is a record of ONE zodal named collection, `thoremin.categorizers`, carrying its file's `modality` (`src/app/categorizers.ts`). Each tool, the editor section and the instrument's resolver read a view of one modality. A face categorizer keeps the id it had (the slug of its name, which an instrument's `faceCategorizer` dial names); another modality's ids are prefixed (`hand:fist`), so a hand shape and a face may share a name.
+
+This is the EXPAND step: the first time a view is used on a device, the old face collection (`thoremin.faceCategorizers`) is copied in (migrated as a saved record always is) and a flag (`thoremin.categorizers.migrated`) says so, so a categorizer deleted later is never copied back. The old key is left untouched for a rollback; #385 E10 removes it. Stills stay in the IndexedDB store they were in (`thoremin-faces`), keyed by hold id, which every modality shares.
+
 ## Shape
 
 A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-extensions.md)). The eager stubs are `index.ts` (the dial, the branch as data, the transient, the derivation; its node type named in `provides`) and `ui.tsx` (the tool and the editor section, as data). The node is `lazy.ts`, loaded the first time a composed graph names it; the React half is `lazy_ui.tsx`, loaded with it or the first time the tool or the section opens.
@@ -94,6 +112,11 @@ A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-
 | Path | What |
 |---|---|
 | `src/app/modality.ts` | which modality the tool carves: `faceModality` and its app half (#385 E1) |
+| `src/app/handModality.ts` | the hand's app half (#385 E8): the crop and the skeleton drawn on a still |
+| `src/app/handSession.ts` | the hand-shape session and test stores over the browser's dependencies |
+| `src/app/categorizers.ts` | the one collection of every modality's categorizers, its per-modality views and the one-time copy of the old face collection |
+| `src/lib/synthetic_hand.ts` | the scripted hand |
+| `src/panels/words.tsx` | the modality's words for the panels (a React context) |
 | `src/lib/take.ts` | the take as a pure state machine (rest, then faces, then a built session); the cue factories `restCue` / `vocabularyCue` |
 | `src/lib/carving.ts` | the grid for one carve: model at k in a mode, names, exemplars; a saved categorizer's grid |
 | `src/lib/synthetic.ts` | the scripted face |

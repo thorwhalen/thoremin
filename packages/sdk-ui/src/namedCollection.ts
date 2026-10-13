@@ -19,6 +19,7 @@
  * and edits debounce-save back here — never `await` in the tick loop.
  */
 import type { DataProvider } from '@zodal/store';
+export type { DataProvider } from '@zodal/store';
 import { createLocalStorageProvider } from '@zodal/store-localstorage';
 import { slugId } from '@thoremin/sdk/util/ids';
 
@@ -68,6 +69,12 @@ export interface NamedCollectionSpec<T extends NamedRecord, K extends keyof T & 
   idFallback: string;
 }
 
+/** The browser default target of a collection: localStorage under `storageKey`, searchable by
+ *  name (what {@link createNamedCollectionStore} uses when given no provider). */
+export function localStorageCollectionProvider<T extends NamedRecord>(storageKey: string): DataProvider<T> {
+  return createLocalStorageProvider<T & Record<string, unknown>>({ storageKey, searchFields: ['name'] }) as DataProvider<T>;
+}
+
 /**
  * Build a collection's store FACTORY: `createXStore(provider?)`. The returned factory
  * defaults to a localStorage-backed provider; pass any `DataProvider<T>` (e.g.
@@ -80,11 +87,7 @@ export function createNamedCollectionStore<T extends NamedRecord, K extends keyo
   payloadKey,
   idFallback,
 }: NamedCollectionSpec<T, K>): (provider?: DataProvider<T>) => NamedCollectionStore<T, T[K]> {
-  const localStorageProvider = (): DataProvider<T> =>
-    createLocalStorageProvider<T & Record<string, unknown>>({
-      storageKey,
-      searchFields: ['name'],
-    }) as DataProvider<T>;
+  const localStorageProvider = (): DataProvider<T> => localStorageCollectionProvider<T>(storageKey);
 
   return (provider: DataProvider<T> = localStorageProvider()): NamedCollectionStore<T, T[K]> => {
     const all = async (): Promise<T[]> => (await provider.getList({})).data;

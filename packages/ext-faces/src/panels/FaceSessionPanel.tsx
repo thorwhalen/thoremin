@@ -32,7 +32,11 @@ import { dispatchDialPatch, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isLive, type FaceSessionState } from '../app/sessionStore';
-import { faceModalityUi } from '../app/modality';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { HAND_CHOICES, type HandChoice, type ModalityWords } from '@thoremin/sdk/enroll/modality';
+import { categoryBinder } from '@thoremin/sdk-ui/enroll/binder';
+import { handSessionStore, handTestStore } from '../app/handSession';
+import { WordsContext } from './words';
 import type { FaceTestState } from '../app/testStore';
 import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
 import { restCue, vocabularyCue } from '../lib/take';
@@ -45,43 +49,50 @@ const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11p
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
 const hint = 'text-[11px] leading-relaxed text-white/60';
 
-/** The strangers switch (#385 E5), stated plainly: what a face nobody taught reads as. Neutral
- *  itself is taught by example (the Neutral bin) in both settings. */
-export const STRANGERS_TEXT: Record<CategorizerStrangers, { title: string; says: string }> = {
-  neutral: {
-    title: 'Neutral',
-    says: 'A face far from every category you made reads as none of these, as your Neutral faces do.',
-  },
-  nearest: {
-    title: 'The nearest face',
-    says: 'A face you never taught reads as whichever of your categories it is closest to (or Neutral, when it is closer to your Neutral faces).',
-  },
-};
+/** The strangers switch (#385 E5), stated plainly: what a face nobody taught reads as, in the
+ *  modality's words (`one`: `face`, `hand shape`). Neutral itself is taught by example (the
+ *  Neutral bin) in both settings. */
+export function strangersText({ one, many }: Pick<ModalityWords, 'one' | 'many'>): Record<CategorizerStrangers, { title: string; says: string }> {
+  return {
+    neutral: {
+      title: 'Neutral',
+      says: `A ${one} far from every category you made reads as none of these, as your Neutral ${many} do.`,
+    },
+    nearest: {
+      title: `The nearest ${one}`,
+      says: `A ${one} you never taught reads as whichever of your categories it is closest to (or Neutral, when it is closer to your Neutral ${many}).`,
+    },
+  };
+}
+
+/** The face's (#385 E5). */
+export const STRANGERS_TEXT = strangersText(faceModality.words);
 
 /** One line saying how many categories there are and what Neutral holds. */
-export function strangersSummary(view: SortingView): string {
-  const held = view.neutral.count === 1 ? '1 held face' : `${view.neutral.count} held faces`;
+export function strangersSummary(view: SortingView, { one, many }: Pick<ModalityWords, 'one' | 'many'> = faceModality.words): string {
+  const held = view.neutral.count === 1 ? `1 held ${one}` : `${view.neutral.count} held ${many}`;
   const neutral =
     view.neutral.count === 0
       ? view.neutralKnown
-        ? 'Neutral is empty: drag the faces that should mean nothing into it.'
-        : 'There was no rest to tell neutral by, so Neutral is empty: drag your resting faces into it.'
+        ? `Neutral is empty: drag the ${many} that should mean nothing into it.`
+        : `There was no rest to tell neutral by, so Neutral is empty: drag your resting ${many} into it.`
       : view.neutralTrained
         ? `Neutral (${held}) plays nothing.`
         : `Neutral (${held}) is not trained on: this categorizer was made before Neutral was taught.`;
   return `${view.k} ${view.k === 1 ? 'category' : 'categories'}. ${neutral}`;
 }
 
-function StrangersSwitch({ strangers, setStrangers }: { strangers: CategorizerStrangers; setStrangers: (m: CategorizerStrangers) => void }) {
+function StrangersSwitch({ strangers, setStrangers, words }: { strangers: CategorizerStrangers; setStrangers: (m: CategorizerStrangers) => void; words: ModalityWords }) {
+  const text = strangersText(words);
   return (
     <fieldset className="space-y-1" data-faces-strangers>
-      <legend className="text-[10px] font-bold uppercase tracking-widest text-white/50">A face I never taught reads as</legend>
+      <legend className="text-[10px] font-bold uppercase tracking-widest text-white/50">{`A ${words.one} I never taught reads as`}</legend>
       {(['neutral', 'nearest'] as const).map((m) => (
         <label key={m} className={`flex cursor-pointer gap-2 rounded-md border p-1.5 ${strangers === m ? 'border-emerald-400/40 bg-emerald-500/10' : 'border-white/10'}`}>
           <input type="radio" name="faces-strangers" value={m} checked={strangers === m} onChange={() => setStrangers(m)} className="mt-0.5" />
           <span>
-            <span className="block text-[11px] font-semibold text-white/90">{STRANGERS_TEXT[m].title}</span>
-            <span className="block text-[10px] leading-snug text-white/55">{STRANGERS_TEXT[m].says}</span>
+            <span className="block text-[11px] font-semibold text-white/90">{text[m].title}</span>
+            <span className="block text-[10px] leading-snug text-white/55">{text[m].says}</span>
           </span>
         </label>
       ))}
@@ -91,13 +102,15 @@ function StrangersSwitch({ strangers, setStrangers }: { strangers: CategorizerSt
 
 function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
   const view = s.view!;
+  const words = s.modality.words;
   const [name, setName] = useState(s.name);
   useEffect(() => setName(s.name), [s.name]);
   return (
     <div className="space-y-3">
-      <StrangersSwitch strangers={view.strangers} setStrangers={s.setStrangers} />
+      <StrangersSwitch strangers={view.strangers} setStrangers={s.setStrangers} words={words} />
+      {s.modality.id === 'hand' && <HandChoiceSelect value={s.hand} onChange={s.setHand} />}
       <p data-faces-summary className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/80">
-        <span className="font-semibold text-emerald-200">A face you never taught reads as: {STRANGERS_TEXT[view.strangers].title.toLowerCase()}.</span> {strangersSummary(view)}
+        <span className="font-semibold text-emerald-200">{`A ${words.one} you never taught reads as: ${strangersText(words)[view.strangers].title.toLowerCase()}.`}</span> {strangersSummary(view, words)}
       </p>
       {!s.hasStills && <p className={hint}>No pictures were taken, so the categories have none.</p>}
       <Sorting s={s} />
@@ -188,7 +201,7 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
           <button type="button" className={btn} aria-label={`Open ${m.name}`} onClick={() => confirmDiscard() && void s.open(m.id)}>
             Open
           </button>
-          <PlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
+          {s.modality.id === 'face' ? <PlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} /> : <BindButton s={s} id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />}
           <button type="button" className={btn} aria-label={`Export ${m.name} as a file`} title="Save it as a file, as saved (no pictures)" onClick={() => void s.exportSaved(m.id).then(downloadCategorizer)}>
             Export
           </button>
@@ -208,11 +221,8 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
   );
 }
 
-const { modality } = faceModalityUi;
-
 /** The hold ring's words, per phase: what a hold does now. */
-function ringWords(phase: 'explore' | 'faces' | 'paused'): Record<HoldRingState, string> {
-  const { one } = modality.words;
+function ringWords(phase: 'explore' | 'faces' | 'paused', { one }: Pick<ModalityWords, 'one'>): Record<HoldRingState, string> {
   const latched = `Move to a new ${one} first.`;
   if (phase === 'faces') return { open: `Hold a ${one} until the ring closes.`, settling: 'Holding…', taken: `Taken. Move to a new ${one}.`, latched };
   if (phase === 'paused') return { open: 'Paused: a hold now is not taken.', settling: 'Holding… (paused)', taken: 'Held: it would have been taken, if not paused.', latched };
@@ -240,7 +250,7 @@ export const BURST_KEY = 'b';
  * is one held face. A name typed first puts it straight into the category of that name.
  */
 function BurstControls({ s }: { s: FaceSessionState }) {
-  const { one } = modality.words;
+  const { one } = s.modality.words;
   const { beginBurst, endBurst } = s;
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -311,6 +321,7 @@ function BurstControls({ s }: { s: FaceSessionState }) {
 /** Explore, the rest, Capturing and Paused: one screen (design C.3.1). */
 function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessionState> }) {
   const phase = s.phase as 'explore' | 'rest' | 'faces' | 'paused';
+  const { modality } = s;
   const { one, many } = modality.words;
   const read = useCallback((o: { count: number }) => store.getState().live(o), [store]);
   const cue = phase === 'rest' ? restCue(modality) : vocabularyCue(modality);
@@ -360,13 +371,23 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
         </button>
       </div>
       {(phase === 'faces' || phase === 'paused') && <BurstControls s={s} />}
-      {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase)} />}
+      {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase, modality.words)} />}
       <FeatureBars read={read} part={modality.words.part} one={one} />
     </div>
   );
 }
 
+/** The tool's view over a session store and its test store, in the store's modality's words. */
 export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
+  const words = useStore(store, (s) => s.modality.words);
+  return (
+    <WordsContext.Provider value={words}>
+      <SessionView store={store} test={test} />
+    </WordsContext.Provider>
+  );
+}
+
+function SessionView({ store, test }: { store: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
   const s = useStore(store);
   /** Whether to go on when that drops something unsaved (a carve, a correction, an import). */
   const confirmDiscard = () => !s.dirty || window.confirm('What is shown is not saved. Drop it?');
@@ -382,7 +403,7 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
   if (s.phase === 'stopping') {
     return (
       <p className="text-sm text-white/80" role="status" aria-live="polite" data-faces-recording="stopping">
-        Carving your faces…
+        {`Carving your ${s.modality.words.many}…`}
       </p>
     );
   }
@@ -390,12 +411,7 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
 
   return (
     <div className="space-y-3">
-      {s.phase === 'idle' && (
-        <p className={hint}>
-          Record a minute of your own faces: a few seconds of rest, then each face you want the instrument to know. They are carved into categories you can
-          name and keep. First you see what the camera reads; nothing is recorded until you start. Everything stays in this browser.
-        </p>
-      )}
+      {s.phase === 'idle' && <Intro s={s} />}
       {s.notice && (
         <p className="text-[11px] text-amber-200/90" role="status" aria-live="polite">
           {s.notice}
@@ -403,7 +419,7 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
       )}
       <div className="flex flex-wrap gap-2">
         <button type="button" className={primary} onClick={() => confirmDiscard() && s.explore()}>
-          {s.phase === 'idle' ? 'Record my faces' : 'Record a new take'}
+          {s.phase === 'idle' ? `Record my ${s.modality.words.many}` : 'Record a new take'}
         </button>
         {s.phase !== 'idle' && (
           <button type="button" className={btn} onClick={() => confirmDiscard() && s.reset()}>
@@ -423,7 +439,74 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
   );
 }
 
+/** What the tool does, before anything is recorded. */
+function Intro({ s }: { s: FaceSessionState }) {
+  if (s.modality.id === 'hand') {
+    return (
+      <div className="space-y-2">
+        <p className={hint}>
+          Record a minute of your own hand shapes: a few seconds of a relaxed hand, then each shape you want to use (a fist, a point, a pinch, any shape you
+          like). They are carved into categories you can name and keep, and each one can fire a command. Only the shape counts, not where your hand is or how
+          it is turned. First you see what the camera reads; nothing is recorded until you start. Everything stays in this browser.
+        </p>
+        <HandChoiceSelect value={s.hand} onChange={s.setHand} />
+      </div>
+    );
+  }
+  return (
+    <p className={hint}>
+      Record a minute of your own faces: a few seconds of rest, then each face you want the instrument to know. They are carved into categories you can
+      name and keep. First you see what the camera reads; nothing is recorded until you start. Everything stays in this browser.
+    </p>
+  );
+}
+
+const HAND_CHOICE_TEXT: Record<HandChoice, string> = {
+  either: 'Either hand (whichever is in view; the right one when both are)',
+  left: 'My left hand only',
+  right: 'My right hand only',
+};
+
+/** Which hand a hand categorizer reads (#387 C4): kept with it; the live test and the bindings
+ *  read that hand. */
+function HandChoiceSelect({ value, onChange }: { value: HandChoice; onChange: (h: HandChoice) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-[11px] text-white/80" data-hands-choice>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">Reads</span>
+      <select aria-label="Which hand" value={value} onChange={(e) => onChange(e.target.value as HandChoice)} className="rounded bg-white/10 px-1.5 py-0.5 text-[11px] text-white">
+        {HAND_CHOICES.map((h) => (
+          <option key={h} value={h}>
+            {HAND_CHOICE_TEXT[h]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * "Bind to commands" (#385 E8): a hand categorizer's categories each fire a command, through the
+ * host's category bindings (the Gestures tool's "Your categories"). The saved version is bound
+ * (its derived model, with the hand it reads), replacing a bound set of the same name and keeping
+ * its bindings by category name; the Gestures tool opens on it.
+ */
+function BindButton({ s, id, name, unsaved }: { s: FaceSessionState; id: string; name: string; unsaved: boolean }) {
+  const binder = categoryBinder();
+  if (!binder) return null;
+  const note = unsaved ? ' (the saved version)' : '';
+  return (
+    <button type="button" className={btn} aria-label={`Bind ${name} to commands`} title={`Give each of its categories a command${note}, in the Gestures tool`} onClick={() => void s.bindSaved(id, binder)}>
+      Bind to commands
+    </button>
+  );
+}
+
 /** The tool's panel: the view over the page's session store (the host's frame closes it). */
 export default function FaceSessionPanel(_props: ExtensionToolPanelProps) {
   return <FaceSessionView store={faceSessionStore()} test={faceTestStore()} />;
+}
+
+/** "Your hand shapes" (#385 E8): the same view over the page's hand-shape stores. */
+export function HandSessionPanel(_props: ExtensionToolPanelProps) {
+  return <FaceSessionView store={handSessionStore()} test={handTestStore()} />;
 }

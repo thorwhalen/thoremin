@@ -56,6 +56,7 @@
  * in: JSON cannot carry NaN, and a missing key is exactly how every distance in `enroll/`
  * already treats a non-finite value.
  */
+import { HAND_CHOICES, type HandChoice } from './modality';
 import { z } from 'zod';
 import { trainModel, trainNeutral } from './classify';
 import type { FeatureVector, StillPoint, TrainedModel } from './types';
@@ -137,8 +138,12 @@ export const PersonalCategorizerSchema = z
     format: z.literal(CATEGORIZER_FORMAT),
     version: z.literal(CATEGORIZER_VERSION),
     name: z.string(),
-    /** What the features describe (`face`, `hands`, ...). Informational. */
+    /** What the features describe (`face`, `hand`, ...): the tool that carves it and plays it. */
     modality: z.string().min(1).optional(),
+    /** Which hand a `hand` categorizer reads (#385 E8): `either` (absent) makes the same category
+     *  with whichever hand is in view; `left` / `right` read only that one. Ignored otherwise.
+     *  Optional and additive: a build before it ignores the field and reads either hand. */
+    hand: z.enum(HAND_CHOICES).optional(),
     /** ISO time of creation. Informational. */
     createdAt: z.string().optional(),
     /** The feature space: the ids distances use, in order. */
@@ -253,6 +258,8 @@ export interface CategorizerMeta {
   /** Whether the Neutral holds are trained as a null class (default true). */
   neutralTrained?: boolean;
   modality?: string;
+  /** Which hand (a hand categorizer only; `either` is written as absent). */
+  hand?: HandChoice;
   createdAt?: string;
 }
 
@@ -278,6 +285,7 @@ export function categorizerFromModel(
     version: CATEGORIZER_VERSION,
     name: meta.name,
     ...(meta.modality ? { modality: meta.modality } : {}),
+    ...(meta.hand && meta.hand !== 'either' ? { hand: meta.hand } : {}),
     ...(meta.createdAt ? { createdAt: meta.createdAt } : {}),
     features: [...model.features],
     weights: { ...model.weights },

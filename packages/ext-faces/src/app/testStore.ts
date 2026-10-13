@@ -121,7 +121,9 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
   return createStore<FaceTestState>()((set, get) => {
     const tick = () => {
       if (!source || !reader) return;
-      const live = source.read();
+      const read = source.read();
+      // As the categorizer reads it (#385 E8: a hand categorizer's one hand, side-relative).
+      const live = read ? { ...read, vector: reader.live.project(read.vector) } : null;
       const features = reader.live.model.features;
       const now = deps.now();
       if (!live || !hasFace(live.vector, features)) {

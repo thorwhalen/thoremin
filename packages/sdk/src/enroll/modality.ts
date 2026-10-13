@@ -33,6 +33,8 @@ export interface ModalityWords {
   neutral: string;
   /** The name of the category at `index` (0-based) that nothing else names. */
   fallback(index: number): string;
+  /** What the rest asks for, when "relax your <part>" is not it (a hand is held up, relaxed). */
+  rest?: string;
 }
 
 /**
@@ -58,11 +60,27 @@ export interface FeatureWords {
 /** A general model as the matcher's inputs (P1's `matchLabels` options, minus the fallback). */
 export type GeneralLabeling = Omit<LabelMatchOptions, 'fallback' | 'keepExisting'>;
 
+/** Which hand a hand categorizer reads (#385 E8, #387 C4): one hand's shape, side-relative, so
+ *  `either` makes the same category with whichever hand is in view. Stored on the categorizer. */
+export const HAND_CHOICES = ['either', 'left', 'right'] as const;
+export type HandChoice = (typeof HAND_CHOICES)[number];
+
 /** Per-read options a modality may honour (hands: which hand). */
 export interface ModalityOptions {
-  /** A hand modality's side: `left`, `right`, `either`, or `both` as one joint vector (ignored
-   *  by the face). */
-  hand?: 'left' | 'right' | 'either' | 'both';
+  /** A hand modality's side: `left`, `right`, `either` (ignored by the face). `both` (one joint
+   *  vector, two-hand shapes) is reserved for later. */
+  hand?: HandChoice | 'both';
+}
+
+/**
+ * The feature registry a modality's OWN keys resolve against (#385 E8): a modality whose
+ * {@link CarveModality.project} renames the merged vector's keys (a side-relative hand:
+ * `hand.left.index.curl` -> `index.curl`) says which ids exist and which group each is in, so a
+ * session resolves its cues' groups against them instead of the catalog's ids.
+ */
+export interface FeatureSpace {
+  readonly ids: readonly string[];
+  groupOf(id: string): string | undefined;
 }
 
 /** One body part a player can carve categories from. Pure: no React, no DOM. */
@@ -74,11 +92,22 @@ export interface CarveModality {
   readonly groups: readonly string[];
   /** A cue's `collects`: the groups and the ids left out (where you sit is not what you do). */
   collects(): { groups: string[]; omit: string[] };
-  /** The modality's vector from the merged live vector, or null when the part is not in view. */
+  /**
+   * The vector the carve works in, from the merged live vector (#385 E8), when it is not the
+   * merged vector itself: a side-relative hand renames one hand's keys here (and keeps its
+   * positions, which crop the still). Applied once, where a tool reads its source; everything
+   * after it (the take, the session, the live test) sees only projected vectors. Idempotent: a
+   * projected vector projects to itself. Absent: the merged vector as is (the face).
+   */
+  project?(merged: FeatureVector, options?: ModalityOptions): FeatureVector;
+  /** The registry a projected vector's keys resolve against; absent: the catalog's. */
+  readonly space?: FeatureSpace;
+  /** The modality's vector (its kept keys) from a merged or projected vector, or null when the
+   *  part is not in view. */
   read(merged: FeatureVector, options?: ModalityOptions): FeatureVector | null;
-  /** Whether a merged-vector key belongs to this modality (what a stored sample keeps, and
-   *  what an imported file's features must include). Keys are the merged vector's: a modality
-   *  whose `read` renames keys (a side-relative hand) must say so before E8 stores them. */
+  /** Whether a key of the vector the carve works in belongs to this modality (what a stored
+   *  sample keeps, and what an imported file's features must include). For a modality with
+   *  {@link project}, the keys are the projected ones. */
   keep(key: string): boolean;
   /** The general model that proposes names, if the modality has one. */
   general?(): GeneralLabeling;
@@ -87,6 +116,18 @@ export interface CarveModality {
   /** A feature in plain words, for the quality hints (#385 E6): undefined for a feature the
    *  modality has no words for (the hint then names the id). */
   describe(featureId: string): FeatureWords | undefined;
+}
+
+/** The vector the carve works in: the modality's projection, or the merged vector as is. */
+export function projectVector(modality: Pick<CarveModality, 'project'>, merged: FeatureVector, options?: ModalityOptions): FeatureVector {
+  return modality.project ? modality.project(merged, options) : merged;
+}
+
+/** A session's registry options for the modality (`createSession`'s `groupOf` and
+ *  `allFeatureIds`): its own space when it has one, else nothing (the catalog). */
+export function sessionSpace(modality: Pick<CarveModality, 'space'>): { groupOf?: (id: string) => string | undefined; allFeatureIds?: readonly string[] } {
+  const space = modality.space;
+  return space ? { groupOf: (id) => space.groupOf(id), allFeatureIds: space.ids } : {};
 }
 
 /** The vector with only the modality's keys (what a stored sample carries). */

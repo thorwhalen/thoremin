@@ -10,11 +10,12 @@
  */
 import type { StoreApi } from 'zustand/vanilla';
 import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
-import { carveOwners, claimCarve } from '@thoremin/sdk-ui/enroll/modality';
+import { carveOwners, claimCarve, type CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
 import { faceModalityUi } from './modality';
-import { createFaceModelStore, withChangeNotice } from './models';
+import { createCategorizerStore } from './categorizers';
+import { withChangeNotice } from './models';
 import { createFaceSessionStore, FACE_SESSION_DEFAULTS, type FaceSessionDeps, type FaceSessionState } from './sessionStore';
-import { sourceFromUrl } from './sources';
+import { FACE_SCRIPT, sourceFromUrl, type SyntheticScript } from './sources';
 import { createFaceTestStore, FACE_TEST_DEFAULTS, type FaceTestState } from './testStore';
 import { idbThumbStore, openLiveFrames } from './thumbnails';
 
@@ -27,21 +28,41 @@ export const FACES_CLAIMER = OWNERS.carve;
  *  releases a recording's. */
 export const FACES_TEST_CLAIMER = OWNERS.test;
 
-export function browserDeps(): FaceSessionDeps {
+/** A carve tool's session dependencies in the browser, for one modality (#385 E8): its view of the
+ *  one categorizer collection, its crop and overlay, its claim owner, its scripted source. */
+export function browserDepsFor(ui: CarveModalityUi, script: SyntheticScript): FaceSessionDeps {
+  const owner = carveOwners(ui.modality).carve;
   return {
-    source: () => sourceFromUrl(),
+    source: () => sourceFromUrl(undefined, script),
     thumbs: idbThumbStore(),
     frames: openLiveFrames,
-    region: faceModalityUi.region,
-    models: withChangeNotice(createFaceModelStore()),
-    modality,
+    region: ui.region,
+    ...(ui.overlay ? { overlay: ui.overlay } : {}),
+    models: withChangeNotice(createCategorizerStore(ui.modality)),
+    modality: ui.modality,
     now: () => performance.now(),
     pollMs: FACE_SESSION_DEFAULTS.pollMs,
-    claim: (on) => claimCarve(FACES_CLAIMER, modality, on),
+    claim: (on) => claimCarve(owner, ui.modality, on),
     capture: provideCarveCapture,
     newTakeId: () => `take-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     isoNow: () => new Date().toISOString(),
   };
+}
+
+/** A carve tool's live test store in the browser, for one modality. */
+export function browserTestStoreFor(ui: CarveModalityUi, script: SyntheticScript): StoreApi<FaceTestState> {
+  const owner = carveOwners(ui.modality).test;
+  return createFaceTestStore({
+    source: () => sourceFromUrl(undefined, script),
+    claim: (on) => claimCarve(owner, ui.modality, on),
+    now: () => performance.now(),
+    pollMs: FACE_TEST_DEFAULTS.pollMs,
+    publishMs: FACE_TEST_DEFAULTS.publishMs,
+  });
+}
+
+export function browserDeps(): FaceSessionDeps {
+  return browserDepsFor(faceModalityUi, FACE_SCRIPT);
 }
 
 let store: StoreApi<FaceSessionState> | null = null;
@@ -55,11 +76,5 @@ let testStore: StoreApi<FaceTestState> | null = null;
 
 /** The page's live test store (#330 P3). */
 export function faceTestStore(): StoreApi<FaceTestState> {
-  return (testStore ??= createFaceTestStore({
-    source: () => sourceFromUrl(),
-    claim: (on) => claimCarve(FACES_TEST_CLAIMER, modality, on),
-    now: () => performance.now(),
-    pollMs: FACE_TEST_DEFAULTS.pollMs,
-    publishMs: FACE_TEST_DEFAULTS.publishMs,
-  }));
+  return (testStore ??= browserTestStoreFor(faceModalityUi, FACE_SCRIPT));
 }

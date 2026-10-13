@@ -34,6 +34,8 @@ import { createNamedCollectionStore, type NamedCollectionStore, type NamedSummar
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
 import { slugId } from '@thoremin/sdk/util/ids';
+import { modalityById } from '@thoremin/sdk/features/modalities';
+import { provideCategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import { useTools } from '../toolsStore';
 import {
   BoundCategoriesSchema,
@@ -41,8 +43,11 @@ import {
   carryBindings,
   type BoundCategories,
   type CategoryBinding,
+  type CategoryRead,
   type TrainedModel,
+  type FeatureVector,
 } from '@thoremin/sdk/enroll';
+import { projectVector } from '@thoremin/sdk/enroll/modality';
 
 export const SavedCategoriesSchema = z.object({
   id: z.string(),
@@ -120,8 +125,9 @@ interface CategoryBindingState {
 
   /** Read the collection and the active set (idempotent; the panel and the engine call it). */
   load(): Promise<void>;
-  /** Save a trained model under `name`, carry bindings over by category name, make it active. */
-  saveModel(name: string, model: TrainedModel): Promise<SavedCategories>;
+  /** Save a trained model under `name`, carry bindings over by category name, make it active.
+   *  `read`: how it reads the live vector (a carved categorizer's modality, #385 E8). */
+  saveModel(name: string, model: TrainedModel, read?: CategoryRead): Promise<SavedCategories>;
   /** Make a saved set active (null: none). */
   activate(id: string | null): Promise<void>;
   remove(id: string): Promise<void>;
@@ -162,7 +168,7 @@ export const useCategoryBinding = create<CategoryBindingState>()(
           set(rec ? { active: rec } : { active: null, activeId: null });
         },
 
-        async saveModel(name, model) {
+        async saveModel(name, model, read) {
           const store = getCollection();
           // The record this save overwrites is the one with the same SLUG (the collection's
           // id), not the same spelling: "faces" replaces "Faces".
@@ -170,7 +176,7 @@ export const useCategoryBinding = create<CategoryBindingState>()(
           const id = savedCategoriesId(name);
           const slugTwin = (await store.list()).find((s) => s.id === id);
           const previous = (slugTwin ? await store.load(slugTwin.id) : null) ?? get().active;
-          const rec = await store.save(name, { model, bindings: carryBindings(previous?.categories, model) });
+          const rec = await store.save(name, { model, bindings: carryBindings(previous?.categories, model), ...(read ? { read } : {}) });
           // Saved either way; it becomes active only if no newer switch was asked for.
           if (mine === ticket) set({ active: rec, activeId: rec.id });
           await refreshList();
@@ -222,8 +228,12 @@ export const useCategoryBinding = create<CategoryBindingState>()(
   ),
 );
 
-/** The catalog groups a model's features belong to (what must be computed to classify). */
-export function modelGroups(model: Pick<TrainedModel, 'features'>): string[] {
+/** The catalog groups a model's features belong to (what must be computed to classify). A set
+ *  read through a carve modality (#385 E8) claims that modality's groups: its features are the
+ *  modality's own keys (a hand's side-relative ids), which the catalog does not name. */
+export function modelGroups(model: Pick<TrainedModel, 'features'>, read?: CategoryRead): string[] {
+  const modality = read ? modalityById(read.modality) : undefined;
+  if (modality) return [...modality.groups];
   const out: string[] = [];
   for (const f of model.features) {
     const g = FEATURE_BY_ID[f]?.group;
@@ -245,7 +255,7 @@ export function installCategoryDemand(): () => void {
     const s = useCategoryBinding.getState();
     const bound = !!s.active && Object.keys(s.active.categories.bindings).length > 0;
     const wanted = !!s.active && ((s.enabled && bound) || useTools.getState().open === CATEGORY_PANEL_TOOL);
-    const groups = wanted ? modelGroups(s.active!.categories.model) : [];
+    const groups = wanted ? modelGroups(s.active!.categories.model, s.active!.categories.read) : [];
     const next = groups.join(',');
     if (next === key) return;
     key = next;
@@ -259,3 +269,20 @@ export function installCategoryDemand(): () => void {
     appFeatureDemand.release(CATEGORY_DEMAND_OWNER);
   };
 }
+
+/** The live vector as `read` says (#385 E8: a carved hand categorizer's one hand, side-relative);
+ *  as is without one, or for a modality this build does not know. */
+export function readFor(read: CategoryRead | undefined): (vector: FeatureVector) => FeatureVector {
+  const modality = read ? modalityById(read.modality) : undefined;
+  if (!modality) return (v) => v;
+  return (v) => projectVector(modality, v, { hand: read!.hand ?? 'either' });
+}
+
+// The host's binder (#385 E8): an extension's carve tool binds its categorizer here, and the
+// Gestures tool shows the set for the player to give each category a command.
+provideCategoryBinder({
+  async bind({ name, model, read }) {
+    await useCategoryBinding.getState().saveModel(name, model, read);
+    useTools.getState().openTool(CATEGORY_PANEL_TOOL);
+  },
+});

@@ -43,6 +43,7 @@
  * Pure: no DAG, no React, no registry. The host (`src/app/enroll/categoryDispatch.ts`)
  * feeds it the live vector and owns what an entry dispatches.
  */
+import { HAND_CHOICES } from './modality';
 import { z } from 'zod';
 import type { CategoryScores } from '../nodes/domain';
 import { createCategoryTracker, type TrackerOptions } from './classify';
@@ -64,6 +65,9 @@ const CategorySchema = z.object({
   radius: z.number(),
   members: z.array(z.number()),
   cues: z.record(z.string(), z.number()).optional(),
+  /** A per-category size (#385 E7: every distance to it multiplied before any comparison), kept
+   *  so a carved categorizer bound to commands reads as its live test does (#385 E8). */
+  scale: z.number().positive().optional(),
 });
 
 /** A {@link TrainedModel} as persisted data (it is plain numbers by construction). */
@@ -77,10 +81,23 @@ export const TrainedModelSchema = z.object({
 });
 
 /** What a saved set of categories carries: the model, and what each category does. */
+/**
+ * How a bound set reads the live vector (#385 E8): the carve modality its model was made in (its
+ * features are that modality's keys, e.g. a hand categorizer's side-relative `index.curl`) and,
+ * for a hand, which one. Absent: the merged vector as is (the trainer's models, the face's).
+ */
+export const CategoryReadSchema = z.object({
+  modality: z.string().min(1),
+  hand: z.enum(HAND_CHOICES).optional(),
+});
+export type CategoryRead = z.infer<typeof CategoryReadSchema>;
+
 export const BoundCategoriesSchema = z.object({
   model: TrainedModelSchema,
   /** Category id -> binding. A category with no entry is recognised but does nothing. */
   bindings: z.record(z.string(), CategoryBindingSchema).default({}),
+  /** How the live vector is read (a carved categorizer's modality); absent: as is. */
+  read: CategoryReadSchema.optional(),
 });
 export type BoundCategories = z.infer<typeof BoundCategoriesSchema>;
 

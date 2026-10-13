@@ -13,6 +13,9 @@
  * store's (`../app/testStore.ts`); what a tuning means is `../lib/live.ts`.
  */
 import { useEffect, useMemo, useRef } from 'react';
+import type { ModalityWords } from '@thoremin/sdk/enroll/modality';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { useWords } from './words';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import type { FaceSessionState, MergeSeed } from '../app/sessionStore';
@@ -27,17 +30,22 @@ const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.
 const hint = 'text-[11px] leading-relaxed text-white/60';
 const heading = 'text-[10px] font-bold uppercase tracking-widest text-white/50';
 
-/** What each merge seed does, in the player's words. */
-export const MERGE_TEXT: Record<MergeSeed, { button: string; says: string }> = {
-  samples: {
-    button: 'Add more of my faces',
-    says: 'Record a short take; each new face joins its nearest category and the categories move toward it. Everything already here stays.',
-  },
-  centroids: {
-    button: 'Retrain on my face',
-    says: 'For a categorizer made by someone else: keeps only which category is which, and learns every category again from your take.',
-  },
-};
+/** What each merge seed does, in the player's words (the modality's nouns). */
+export function mergeText({ one, many, part }: Pick<ModalityWords, 'one' | 'many' | 'part'>): Record<MergeSeed, { button: string; says: string }> {
+  return {
+    samples: {
+      button: `Add more of my ${many}`,
+      says: `Record a short take; each new ${one} joins its nearest category and the categories move toward it. Everything already here stays.`,
+    },
+    centroids: {
+      button: `Retrain on my ${part}`,
+      says: 'For a categorizer made by someone else: keeps only which category is which, and learns every category again from your take.',
+    },
+  };
+}
+
+/** The face's. */
+export const MERGE_TEXT = mergeText(faceModality.words);
 
 /**
  * The margin meter (#385 E6, design C.3.3): how deep inside its nearest category (or Neutral) this
@@ -70,9 +78,10 @@ function MarginMeter({ r, live }: { r: LiveReading; live: LiveModel }) {
 }
 
 function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
+  const w = useWords();
   const r = test.reading;
   const none = r !== null && (r.rejected || r.neutral);
-  const headline = test.noFace ? 'No face in view' : !r ? 'Reading...' : r.label ? r.label : none ? 'None of these' : 'Settling...';
+  const headline = test.noFace ? `No ${w.part} in view` : !r ? 'Reading...' : r.label ? r.label : none ? 'None of these' : 'Settling...';
   const taught = (live.model.neutral?.length ?? 0) > 0;
   return (
     <div className="space-y-1.5" data-faces-readout>
@@ -107,8 +116,8 @@ function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
       {r && (
         <p className="text-[10px] text-white/40">
           {r.radius === null
-            ? `Distance to the nearest category: ${r.distance.toFixed(1)}. A face you never taught reads as its nearest face${taught ? ', or none of these when it is nearer your Neutral faces' : ''}.`
-            : `Distance to the nearest category: ${r.distance.toFixed(1)}; beyond ${r.radius.toFixed(1)} a face is none of these${taught ? ', as is one nearer your Neutral faces' : ''}.`}
+            ? `Distance to the nearest category: ${r.distance.toFixed(1)}. A ${w.one} you never taught reads as its nearest ${w.one}${taught ? `, or none of these when it is nearer your Neutral ${w.many}` : ''}.`
+            : `Distance to the nearest category: ${r.distance.toFixed(1)}; beyond ${r.radius.toFixed(1)} a ${w.one} is none of these${taught ? `, as is one nearer your Neutral ${w.many}` : ''}.`}
         </p>
       )}
     </div>
@@ -143,6 +152,7 @@ function Dial({ label, value, k, disabled, says, onChange }: { key?: string; lab
 }
 
 function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
+  const w = useWords();
   const t = s.tuning;
   const partition = s.working?.strangers === 'nearest';
   return (
@@ -156,8 +166,8 @@ function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
         onChange={(v) => s.setTuning({ sensitivity: v })}
         says={
           live.rest
-            ? 'Above 1, a smaller face reaches its category; below 1, it takes a bigger one. Measured from your resting face.'
-            : 'This categorizer has no resting face to measure from (no neutral faces), so sensitivity does nothing.'
+            ? `Above 1, a smaller ${w.one} reaches its category; below 1, it takes a bigger one. Measured from your resting ${w.one}.`
+            : `This categorizer has no resting ${w.one} to measure from (no neutral ${w.many}), so sensitivity does nothing.`
         }
       />
       <Dial
@@ -168,8 +178,8 @@ function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
         onChange={(v) => s.setTuning({ rejectScale: v })}
         says={
           partition
-            ? 'A face you never taught reads as its nearest face here, so there is no radius to set (switch it to Neutral above to have one).'
-            : 'How far from every category a face may be and still count. Larger: fewer faces read as none of these. At x1 it accepts at least nine in ten of your own faces.'
+            ? `A ${w.one} you never taught reads as its nearest ${w.one} here, so there is no radius to set (switch it to Neutral above to have one).`
+            : `How far from every category a ${w.one} may be and still count. Larger: fewer ${w.many} read as none of these. At x1 it accepts at least nine in ten of your own ${w.many}.`
         }
       />
       <Dial
@@ -180,15 +190,15 @@ function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
         onChange={(v) => s.setTuning({ distance: v })}
         says={
           live.distance.learned
-            ? 'Takes out what moving toward or away from the camera does to your faces, as your own take showed it.'
+            ? `Takes out what moving toward or away from the camera does to your ${w.many}, as your own take showed it.`
             : live.distance.proxy
-              ? 'Your take stayed at one distance from the camera, so it shows nothing about distance to take out. Record more faces at another distance to teach it.'
+              ? `Your take stayed at one distance from the camera, so it shows nothing about distance to take out. Record more ${w.many} at another distance to teach it.`
               : 'This categorizer carries no camera-distance measure, so there is nothing to take out.'
         }
       />
       <div className="space-y-1.5" data-faces-sizes>
-        <p className="text-[11px] text-white/80">Size of each face</p>
-        <p className="text-[10px] leading-snug text-white/45">How big a face it takes to count as each one. Below 1 a smaller face reaches it (for a face you can only make small); above 1 it takes a bigger one (for a face that fires by accident). The margin meter shows where you are.</p>
+        <p className="text-[11px] text-white/80">{`Size of each ${w.one}`}</p>
+        <p className="text-[10px] leading-snug text-white/45">{`How big a ${w.one} it takes to count as each one. Below 1 a smaller ${w.one} reaches it (for a ${w.one} you can only make small); above 1 it takes a bigger one (for a ${w.one} that fires by accident). The margin meter shows where you are.`}</p>
         {live.model.categories.map((c) => (
           <Dial
             key={c.id}
@@ -212,6 +222,7 @@ const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
  * is kept with the categorizer (Save), beside each category's quality chip.
  */
 function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState>; live: LiveModel }) {
+  const w = useWords();
   const t = useStore(test);
   const s = useStore(session);
   const q = t.quiz;
@@ -226,7 +237,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
         <button type="button" className={btn} onClick={start} disabled={live.model.categories.length === 0}>
           Quiz me
         </button>
-        <p className="text-[10px] leading-snug text-white/45">{`Names your faces in a random order, each twice, with a rest between: make each within ${QUIZ_DEFAULTS.hitMs / 1000} s and hold it for ${QUIZ_DEFAULTS.holdMs / 1000} s. Shows which faces you can find again.`}</p>
+        <p className="text-[10px] leading-snug text-white/45">{`Names your ${w.many} in a random order, each twice, with a rest between: make each within ${QUIZ_DEFAULTS.hitMs / 1000} s and hold it for ${QUIZ_DEFAULTS.holdMs / 1000} s. Shows which ${w.many} you can find again.`}</p>
       </div>
     );
   }
@@ -283,7 +294,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
           );
         })}
       </ul>
-      <p className={hint}>Kept with this categorizer when you save. A face you missed: record more of it (hold B with its name), make it bigger, or merge it.</p>
+      <p className={hint}>{`Kept with this categorizer when you save. A ${w.one} you missed: record more of it (hold B with its name), make it bigger, or merge it.`}</p>
       <div className="flex flex-wrap gap-2">
         {hits.length > 0 && (
           <button
@@ -294,7 +305,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
               t.stopCheck();
             }}
           >
-            {`Keep the ${hits.length} found faces as samples`}
+            {`Keep the ${hits.length} found ${w.many} as samples`}
           </button>
         )}
         <button type="button" className={btn} onClick={start}>
@@ -313,6 +324,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
  * by accident. The result is kept with the categorizer (Save).
  */
 function EverydayBox({ session, test, live }: { session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState>; live: LiveModel }) {
+  const w = useWords();
   const t = useStore(test);
   const s = useStore(session);
   const e = t.everyday;
@@ -326,7 +338,7 @@ function EverydayBox({ session, test, live }: { session: StoreApi<FaceSessionSta
         <button type="button" className={btn} onClick={start}>
           Everyday check
         </button>
-        <p className="text-[10px] leading-snug text-white/45">Talk, look around and play normally for a minute, making none of your faces on purpose. Counts which faces fire by accident.</p>
+        <p className="text-[10px] leading-snug text-white/45">{`Talk, look around and play normally for a minute, making none of your ${w.many} on purpose. Counts which ${w.many} fire by accident.`}</p>
       </div>
     );
   }
@@ -371,9 +383,10 @@ function EverydayBox({ session, test, live }: { session: StoreApi<FaceSessionSta
 
 /** Try it, correct it, tune it, file it: the open categorizer's live half. */
 export function TestAndTune({ session, test }: { session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
+  const w = useWords();
   const s = useStore(session);
   const t = useStore(test);
-  const live = useMemo(() => (s.working ? liveModel(s.working, s.tuning) : null), [s.working, s.tuning]);
+  const live = useMemo(() => (s.working ? liveModel(s.working, s.tuning, { modality: s.modality }) : null), [s.working, s.tuning]);
 
   // A corrected or re-tuned categorizer reads the next frame; leaving it stops the test.
   useEffect(() => {
@@ -393,17 +406,17 @@ export function TestAndTune({ session, test }: { session: StoreApi<FaceSessionSt
         <div className="flex items-center gap-2">
           <h4 className={heading}>Try it</h4>
           <button type="button" className={t.running ? btn : primary} onClick={() => (t.running ? t.stop() : t.start(live))}>
-            {t.running ? 'Stop' : 'Test with my face'}
+            {t.running ? 'Stop' : `Test with my ${w.part}`}
           </button>
         </div>
         {t.running ? (
           <>
             <Readout test={t} live={live} />
             <div className="space-y-1">
-              <p className={hint}>Read wrong? Hold the face you meant and tell it which one it is:</p>
+              <p className={hint}>{`Read wrong? Hold the ${w.one} you meant and tell it which one it is:`}</p>
               <div className="flex flex-wrap gap-1.5">
                 {live.model.categories.map((c) => (
-                  <button key={c.id} type="button" className={btn} disabled={t.noFace || !t.reading} onClick={() => correct(c.id)} aria-label={`This face is ${c.label || c.id}`}>
+                  <button key={c.id} type="button" className={btn} disabled={t.noFace || !t.reading} onClick={() => correct(c.id)} aria-label={`This ${w.one} is ${c.label || c.id}`}>
                     This is {c.label || c.id}
                   </button>
                 ))}
@@ -411,7 +424,7 @@ export function TestAndTune({ session, test }: { session: StoreApi<FaceSessionSt
             </div>
           </>
         ) : (
-          <p className={hint}>Make your faces at the camera and see what this categorizer reads. The instrument stays quiet meanwhile.</p>
+          <p className={hint}>{`Make your ${w.many} at the camera and see what this categorizer reads. The instrument stays quiet meanwhile.`}</p>
         )}
       </div>
       <div className="space-y-1.5" data-faces-checks>
@@ -421,7 +434,7 @@ export function TestAndTune({ session, test }: { session: StoreApi<FaceSessionSt
       </div>
       <TuningDials s={s} live={live} />
       <div className="space-y-1.5">
-        <h4 className={heading}>Add faces</h4>
+        <h4 className={heading}>{`Add ${w.many}`}</h4>
         {(['samples', 'centroids'] as const).map((seed) => (
           <div key={seed} className="flex items-start gap-2">
             <button
@@ -432,9 +445,9 @@ export function TestAndTune({ session, test }: { session: StoreApi<FaceSessionSt
                 s.startMerge(seed);
               }}
             >
-              {MERGE_TEXT[seed].button}
+              {mergeText(w)[seed].button}
             </button>
-            <p className="text-[10px] leading-snug text-white/45">{MERGE_TEXT[seed].says}</p>
+            <p className="text-[10px] leading-snug text-white/45">{mergeText(w)[seed].says}</p>
           </div>
         ))}
       </div>
@@ -445,6 +458,7 @@ export function TestAndTune({ session, test }: { session: StoreApi<FaceSessionSt
 
 /** Save the open categorizer as a file (P1's versioned format; no pictures, no tuning). */
 function ExportButton({ s }: { s: FaceSessionState }) {
+  const w = useWords();
   return (
     <div className="flex items-center gap-2">
       <button
@@ -454,7 +468,7 @@ function ExportButton({ s }: { s: FaceSessionState }) {
       >
         Export file
       </button>
-      <p className="text-[10px] leading-snug text-white/45">Your faces as numbers and names, to keep or move to another browser. No pictures.</p>
+      <p className="text-[10px] leading-snug text-white/45">{`Your ${w.many} as numbers and names, to keep or move to another browser. No pictures.`}</p>
     </div>
   );
 }

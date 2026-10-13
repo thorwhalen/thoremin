@@ -15,6 +15,7 @@
  *
  * Rendering only: every edit is the session store's, and every move is a pin there.
  */
+import { useWords } from './words';
 import { useEffect, useState } from 'react';
 import { ASIDE_BIN, NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
 import { NEW_CATEGORY } from '@thoremin/sdk/enroll/sorting';
@@ -43,11 +44,14 @@ const DRAG_CATEGORY = 'application/x-thoremin-category';
 /** What the menu under a hold offers besides the categories. */
 const DELETE = '+delete';
 
-const sourceText = (c: CarvedCategory): string =>
+/** `text` with its first letter in capitals. */
+const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+const sourceText = (c: CarvedCategory, one: string): string =>
   c.source === 'edited'
     ? 'your name'
     : c.source === 'neutral'
-      ? 'mostly your resting face'
+      ? `mostly your resting ${one}`
       : c.source === 'matched'
         ? `the general model reads "${c.matched}"`
         : c.source === 'kept'
@@ -241,6 +245,7 @@ function ChecksChip({ c, s }: { c: CarvedCategory; s: FaceSessionState }) {
 }
 
 function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: number; grid: GridApi }) {
+  const w = useWords();
   const [text, setText] = useState(c.label);
   useEffect(() => setText(c.label), [c.label]);
   const commit = () => {
@@ -296,7 +301,7 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
           ))}
         </select>
       </div>
-      <p className="text-[10px] text-white/40">{sourceText(c)}</p>
+      <p className="text-[10px] text-white/40">{sourceText(c, w.one)}</p>
       {hint && (
         <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100" data-face-hint={c.id}>
           <span className="min-w-0 flex-1">{hint.text}</span>
@@ -313,16 +318,17 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
 }
 
 function Bin({ which, grid }: { which: typeof NEUTRAL_BIN | typeof ASIDE_BIN; grid: GridApi }) {
+  const w = useWords();
   const neutral = which === NEUTRAL_BIN;
   const bin = neutral ? grid.view.neutral : grid.view.aside;
   const taught = grid.view.neutralTrained;
   const title = neutral ? `Neutral: ${taught ? 'plays nothing' : 'not trained on'}` : 'Set aside: not used, not sure yet';
   const says = neutral
     ? taught
-      ? 'Faces that mean nothing (your resting face, and any you put here). A face like these reads as none of these.'
+      ? `${cap(w.many)} that mean nothing (your resting ${w.one}, and any you put here). A ${w.one} like these reads as none of these.`
       : grid.view.strangers === 'neutral'
-        ? 'Not trained on (this categorizer was made before Neutral was taught): only a face far from every category reads as none of these.'
-        : 'Not trained on (this categorizer was made before Neutral was taught): a face like these still reads as its nearest category.'
+        ? `Not trained on (this categorizer was made before Neutral was taught): only a ${w.one} far from every category reads as none of these.`
+        : `Not trained on (this categorizer was made before Neutral was taught): a ${w.one} like these still reads as its nearest category.`
     : 'Kept in the categorizer, not trained on. Move them back any time.';
   return (
     <div {...(neutral ? { 'data-face-neutral': true } : { 'data-face-aside': true })} className="space-y-1.5 rounded-lg border border-dashed border-white/15 p-2" {...dropTarget(grid, which)}>
@@ -352,6 +358,7 @@ interface GridApi {
 }
 
 function KControl({ s, view }: { s: FaceSessionState; view: SortingView }) {
+  const w = useWords();
   if (view.maxK === 0) return null;
   if (!view.recutable) {
     return (
@@ -395,7 +402,7 @@ function KControl({ s, view }: { s: FaceSessionState; view: SortingView }) {
         </button>
       </div>
       <p className={hint}>
-        {`Suggested: ${view.suggestedK}. A suggestion from how the faces group, not a rule. `}
+        {`Suggested: ${view.suggestedK}. A suggestion from how the ${w.many} group, not a rule. `}
         {view.minK > 1 && `At least ${view.minK}: you placed holds in ${view.minK} categories, and a re-cut keeps them. `}
         {view.k !== view.suggestedK && view.suggestedK > 0 && (
           <button type="button" className="underline hover:text-white" onClick={() => s.setK(view.suggestedK)}>
