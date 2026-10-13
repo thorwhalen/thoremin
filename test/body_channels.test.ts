@@ -44,7 +44,7 @@ describe('the method, on the synthetic control (bounce at the beat, steps at the
   });
 });
 
-describe('a conductor: the trunk marks the beat the conductor's baton hand gives', () => {
+describe("a conductor: the trunk marks the beat the conductor's baton hand gives", () => {
   // The grid is the conductor's own right-wrist strokes (the clips' choir is legato and
   // carries no beat), so the wrist is the reference here, not a finding.
   for (const name of ['video_body_conducting_44', 'video_body_conducting_24']) {
