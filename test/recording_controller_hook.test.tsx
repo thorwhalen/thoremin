@@ -189,6 +189,34 @@ describe('the engine teardown', () => {
     expect(recordingController().isRecording()).toBe(false);
   });
 
+  it('unmounting mid-take unregisters the controller and stops the HUD ticker; releaseTake disposes the take', async () => {
+    vi.useFakeTimers();
+    try {
+      let reads = 0;
+      const rec = { ...fakeRecorder(), get elapsedMs() {
+        reads += 1;
+        return 1234;
+      } };
+      const { result, unmount } = mount(rec);
+      await act(async () => void (await recordingController().start(DEFAULT_RECORDING_SESSION)));
+      expect(recordingController().isRecording()).toBe(true);
+      await act(async () => void vi.advanceTimersByTime(600));
+      expect(reads).toBeGreaterThan(0);
+      expect(result.current.recording.elapsedMs).toBe(1234);
+      const { releaseTake } = result.current;
+      unmount();
+      expect(recordingController().isRecording()).toBe(false);
+      reads = 0;
+      vi.advanceTimersByTime(2000);
+      expect(reads).toBe(0);
+      // The engine's teardown (useEngine's build-effect cleanup) drops the take it was recording.
+      releaseTake();
+      expect(rec.dispose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('unmounting unregisters the controller: a later start builds nothing', async () => {
     const { unmount, createRecorder } = mount(fakeRecorder());
     unmount();

@@ -32,7 +32,6 @@ import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
 import { provideCamera } from '@thoremin/sdk-ui/host';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { trainerHudResource } from './enroll/hud';
-import { useToasts } from './toasts';
 import { useRecordingController } from './recording/useRecordingController';
 import { tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus, makeFaceReporter } from './faceStatus';

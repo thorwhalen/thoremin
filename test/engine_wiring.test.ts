@@ -147,7 +147,7 @@ describe('the slot selection reaches the graph', () => {
     // (Through one lazy applier per engine, `src/app/lazyApply.ts`: what the graph names but
     // is not loaded yet loads first, and only the latest request commits.)
     // (`src/app/liveApply.ts` since #392; the hook's `rewire` binds it to the hook's refs.)
-    expect(code(liveApply)).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry,[^]*?\),[^]*?commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
+    expect(code(liveApply)).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry,\s*\(\) => live\(\) === engine\),\s*\.\.\.\(compose \? \{ compose \} : \{\}\),\s*commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
     expect(c).toMatch(/const rewire = \(engine: Engine, registry: NodeRegistry\) =>\s*applyLive\(engine, \{ selection: \(\) => slotsRef\.current, registry, live: \(\) => engineRef\.current/);
     expect(c).toMatch(/rewire\(engine, registry\);\s*\}, \[\s*slotsKey\s*\]\)/);
     // ...and on a change of the branch SET (an instrument switch, a dial that adds a
