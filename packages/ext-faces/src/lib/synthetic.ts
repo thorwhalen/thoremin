@@ -70,6 +70,18 @@ function jitterOf(frame: number, feature: number): number {
 /** The face's feature vector (catalog ids) at `ms` after the start; `frame` seeds the jitter. */
 export function syntheticFaceVector(ms: number, frame: number): FeatureVector {
   const { from, to, mix } = syntheticPhase(ms);
+  return blendVector(from, to, mix, frame);
+}
+
+/** One expression held (by name, or index into {@link SYNTHETIC_EXPRESSIONS}), with the same
+ *  jitter: a scripted face a test drives on its own schedule (#385 E7: the quiz). */
+export function syntheticExpressionVector(expression: string | number, frame: number): FeatureVector {
+  const i = typeof expression === 'number' ? expression : SYNTHETIC_EXPRESSIONS.findIndex((e) => e.name === expression);
+  if (i < 0 || i >= SYNTHETIC_EXPRESSIONS.length) throw new Error(`no synthetic expression "${expression}"`);
+  return blendVector(i, i, 1, frame);
+}
+
+function blendVector(from: number, to: number, mix: number, frame: number): FeatureVector {
   const a = SYNTHETIC_EXPRESSIONS[from].blendshapes;
   const b = SYNTHETIC_EXPRESSIONS[to].blendshapes;
   const out: FeatureVector = {};

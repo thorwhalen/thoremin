@@ -773,7 +773,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // Back to the categorizer the take was adding to, its edit history and all.
           restoreEdits(merge.edits);
           showDoc(merge.working, { phase: 'saved', ...restore, dirty: merge.dirty });
-          if (!built) {
+          // A merge needs no carve of its own, so one hold (a single burst: "Record more frown")
+          // is enough; a fresh take needs two to carve.
+          if (!built && myTake.pointCount() === 0) {
             set({ notice: 'No face was held long enough to add. Nothing was merged.' });
             return;
           }
