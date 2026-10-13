@@ -37,6 +37,7 @@ import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
 import ScoreLoader from './ScoreLoader';
 import ConductorPanel from './ConductorPanel';
 import VersionBadge from './VersionBadge';
+import TimingChip from './TimingChip';
 
 /** A compact face-status chip, visible even when the controls panel is collapsed
  * (issue #65): shown whenever the face model is running — whether because a face
@@ -165,6 +166,10 @@ export default function App({
         </div>
       </div>
       <FaceChip />
+      {/* The camera status line (the timing resource's readout, step 0 of the timing
+          plan): delivered fps, capture stamps, the frame's age, the audio output stage,
+          and the warnings that need the player ("audio interrupted: tap to resume"). */}
+      <TimingChip />
 
       {/* Top-center: unmissable "muted" cue (audio silenced by the m key). */}
       <MutedBadge />

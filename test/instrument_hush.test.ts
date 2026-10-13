@@ -110,7 +110,7 @@ describe('the struck instruments drop their events while hushed', () => {
     const sink: DrumSink = { play: (...a) => void played.push(a), close: () => {} };
     const h = drumOutNode.make({});
     const ctx = { tick: 1, time: 100, dt: 1 / 60, resources: { audioContext: ac, masterGain: {}, createDrumSink: () => sink, timeScale: 1 } };
-    const hit: DrumHit = { t: 100.05, velocity: 0.7, hand: 'right', sound: 'kick', predicted: true, lead: 0.05, pull: 0 };
+    const hit: DrumHit = { t: 100.05, impactT: 100.05, velocity: 0.7, hand: 'right', sound: 'kick', predicted: true, onTime: 'yes', lead: 0.05, lateBy: 0, pull: 0 };
     h.process({ hits: [hit], mute: true }, ctx as never);
     expect(played).toHaveLength(0);
     h.process({ hits: [hit], mute: false }, ctx as never);

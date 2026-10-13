@@ -7,10 +7,15 @@
  * sound, in engine seconds and possibly in the future; this node maps that instant
  * onto `AudioContext` time and schedules a short percussive voice there, so the
  * prediction's lead becomes a sound at the impact rather than a sound one frame
- * after it. Engine time is `performance.now()/1000` at speed 1; the context's
- * `getOutputTimestamp()` pairs a context time with a performance time, which is the
- * exact map (it already accounts for the output latency). Where the API is absent the
- * map is `currentTime + (t - ctx.time)`, which is right to within the tick.
+ * after it. Engine time is `performance.now()/1000` at speed 1. The map is the ONE
+ * shared by every scheduler (`@thoremin/sdk/timing/clock_map`): `currentTime + (t -
+ * now) - outputStage`, the output stage coming from the host's `timing` resource
+ * (`@thoremin/sdk/timing/tracker`). This node used to read the context's
+ * `getOutputTimestamp()` pair itself as "the exact map"; measured in WebKit, that pair
+ * stops at the I/O callback, before the device, so every hit sounded `outputLatency`
+ * late on Safari (16 ms built-in, 150 ms or more on AirPods). The resource applies the
+ * rule that tells a pre-latency pair from a true one, smooths Chrome's bouncing readings,
+ * and never answers 0.
  *
  * The audio itself sits behind a small {@link DrumSink} facade, like `midi-out`'s
  * sink: the browser implementation builds the drum voices from oscillators and noise
@@ -25,6 +30,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
+import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
+import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import { DRUM_SOUNDS, DrumHitsSchema, type DrumHit, type DrumSound } from './air_drum';
 
 /** Per-hit shading of a voice beyond its loudness. */
@@ -108,42 +115,10 @@ export function drumVoice(sound: DrumSound, velocity: number, touch: DrumTouch =
   };
 }
 
-/** The slice of `AudioContext` the clock map reads. */
+/** The slice of `AudioContext` this node reads. */
 export interface AudioClockLike {
   currentTime: number;
   state?: string;
-  /** Seconds between the context's time and the sound leaving the device; the exact
-   *  map legitimately leads the plain one by this much. */
-  outputLatency?: number;
-  getOutputTimestamp?: () => { contextTime?: number; performanceTime?: number };
-}
-
-/** The output timestamp pair is trusted only when it agrees with the plain map to
- *  within this (seconds): before the context has rendered a frame Chromium reports
- *  zeros, and a suspended context reports a frozen pair. */
-export const MAX_STAMP_DISAGREEMENT_S = 0.25;
-
-/**
- * Map an engine time to a context time. With a live `getOutputTimestamp` pair the map
- * is exact (the pair describes the same instant on both clocks); without one, or with
- * a stale or zero one, offset from now by the distance from the tick.
- */
-export function engineToContextTime(ac: AudioClockLike, tEngine: number, tTick: number): number {
-  const plain = ac.currentTime + (tEngine - tTick);
-  const stamp = typeof ac.getOutputTimestamp === 'function' ? ac.getOutputTimestamp() : undefined;
-  if (
-    stamp &&
-    typeof stamp.contextTime === 'number' &&
-    typeof stamp.performanceTime === 'number' &&
-    Number.isFinite(stamp.contextTime) &&
-    Number.isFinite(stamp.performanceTime) &&
-    stamp.performanceTime > 0
-  ) {
-    const exact = stamp.contextTime + (tEngine - stamp.performanceTime / 1000);
-    const slack = MAX_STAMP_DISAGREEMENT_S + (typeof ac.outputLatency === 'number' && Number.isFinite(ac.outputLatency) ? ac.outputLatency : 0);
-    if (Math.abs(exact - plain) <= slack) return exact;
-  }
-  return plain;
 }
 
 /** How a sink is made: injected through `ctx.resources.createDrumSink` (tests, custom
@@ -251,10 +226,11 @@ export const drumOutNode = defineNode<Params>({
         if (clock.state !== undefined && clock.state !== 'running') return {};
         const parsed = DrumHitsSchema.safeParse(raw);
         if (!parsed.success) return {};
+        const outputStage = timingFrom(ctx.resources).outputStage.value;
         for (const hit of parsed.data as DrumHit[]) {
           if (!DRUM_SOUNDS.includes(hit.sound)) continue;
           // Never in the past: a ghost note (or a late prediction) sounds at once.
-          const when = Math.max(clock.currentTime + 0.001, engineToContextTime(clock, hit.t, ctx.time));
+          const when = scheduleAt(clock, hit.t, ctx.time, outputStage);
           sink.play(hit.sound, hit.velocity, when, { radial: hit.radial ?? 0 });
         }
         return {};

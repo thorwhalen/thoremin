@@ -40,6 +40,19 @@
  * nearest expected beat (`packages/ictus/src/magnet.ts`): the actuality ↔ intent dial of the
  * research map, in the player's hands.
  *
+ * Honest timing (step 0 of the 2026-10-05 timing plan, #239). A hit says where it
+ * really stands against the pipeline: `impactT` is the impact the stroke is heading for
+ * (or, for a ghost note, the one it confirmed), `lead` is that intended sounding time
+ * minus the decision time BEFORE any clamp (a pull toward a beat already past used to be
+ * truncated to "now" first, so `lead` was never negative and every pulled hit reported
+ * itself predicted: the artefact behind the 15-of-16 at 100 ms of delay), and `predicted`
+ * means the sound can land at its intended time: the lead covers the OUTPUT STAGE, read
+ * from the `timing` resource (`@thoremin/sdk/timing/tracker`): the audio output's own
+ * latency, which a lead of 10 ms cannot beat. Where that stage is unknown (Safari before
+ * the first tap, or under fingerprinting protection) the resource supplies a stated
+ * prior and `onTime` says `unknown-output` rather than `yes`; `lateBy` is how far the
+ * sound lands after the intended time, 0 when on time.
+ *
  * The dial. {@link AirDrumDialSchema} IS this node's params (the conductor pattern):
  * the `airDrum` dial re-exports it, the `config` input overrides the build-time
  * params live per tick, so the panel, the palette, a keybinding and the assistant can
@@ -58,6 +71,7 @@ import { DRUM_SOUND } from '../lib/gm_drums';
 import { frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type FallPath, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
+import { timingFrom } from '@thoremin/sdk/timing/tracker';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };
@@ -132,11 +146,23 @@ export const AirDrumDialSchema = Params;
 export type AirDrumDialParams = Params;
 export const DEFAULT_AIR_DRUM_DIAL: AirDrumDialParams = AirDrumDialSchema.parse({});
 
+/** Whether a hit's sound lands at its intended time: `yes` (the lead covers the audio
+ *  output stage), `late` (it does not: the sound lands `lateBy` after the intended time),
+ *  or `unknown-output` (the lead is not negative, but the output stage of this browser
+ *  is not known: Safari before the first tap, fingerprinting protection; whether the
+ *  lead covers it cannot be said, so neither `yes` nor `late` is). */
+export const HIT_ON_TIME = ['yes', 'late', 'unknown-output'] as const;
+export type HitOnTime = (typeof HIT_ON_TIME)[number];
+
 /** One hit to sound. */
 export interface DrumHit {
   /** When it should SOUND, engine seconds (in the future for a predicted hit; the
-   *  confirming sample's time for a ghost note). */
+   *  confirming sample's time for a ghost note). Never before the decision. */
   t: number;
+  /** The impact itself, engine seconds: the predicted impact for a predicted hit (before
+   *  any pull), the confirmed one for a ghost note (whose `t` is the sounding time). What
+   *  a beat follower may be fed; never `t`, which carries the pull and the clamp. */
+  impactT: number;
   /** 0..1: how hard the stroke was (`velocityOf`) times the volume
    *  dial. The sink reads it for loudness AND tone (a harder hit is brighter). */
   velocity: number;
@@ -153,22 +179,37 @@ export interface DrumHit {
   speed?: number;
   /** The stroke's size relative to the player's recent strokes, 0..1 (the predictor's). */
   strength?: number;
-  /** Predicted ahead of the impact (true) or sounded late on confirmation (false). */
+  /** The sound can land at its intended time: the lead covers the output stage (true),
+   *  or it cannot (false: a ghost note, or a prediction whose lead the audio output
+   *  eats). Equivalent to `onTime !== 'late'`. */
   predicted: boolean;
-  /** `t` minus the engine time at which it was decided, seconds: the lead a scheduler
-   *  really gets (negative = a late ghost note: how far behind the strike it sounds). */
+  /** The three-valued form of `predicted`: see {@link HitOnTime}. */
+  onTime: HitOnTime;
+  /** The INTENDED sounding time (the impact, pulled) minus the engine time at which it
+   *  was decided, seconds, unclamped: negative when the intended time was already past at
+   *  the decision (a ghost note, a pull toward a beat gone by). */
   lead: number;
-  /** The magnet's pull, seconds (0 without a running conductor or with magnetism 0). */
+  /** How far the sound lands after its intended time, seconds: 0 when on time; the
+   *  shortfall of `lead` against the output stage otherwise. With an unknown stage
+   *  (`unknown-output`, or `late` under the prior) only the certain part: how far the
+   *  intended time was already past at the decision. */
+  lateBy: number;
+  /** The move actually made from the impact to the sounding time, seconds: the magnet's
+   *  pull (or the pattern's snap), after the clamp to the decision time (0 without a
+   *  running conductor or with magnetism 0). */
   pull: number;
 }
 
 export const DrumHitSchema = z.object({
   t: z.number(),
+  impactT: z.number(),
   velocity: z.number(),
   hand: z.enum(['right', 'left']),
   sound: z.enum(DRUM_SOUNDS),
   predicted: z.boolean(),
+  onTime: z.enum(HIT_ON_TIME),
   lead: z.number(),
+  lateBy: z.number(),
   pull: z.number(),
   pad: z.enum(PAD_IDS).nullable().optional(),
   radial: z.number().optional(),
@@ -195,11 +236,14 @@ export interface AirDrumStatus {
   /** The last hit's lead in seconds (negative = a late ghost note). */
   lastLead: number;
   lastPull: number;
+  /** The last hit's standing against the output stage, and how late its sound lands. */
+  lastOnTime: HitOnTime;
+  lastLateBy: number;
   /** Whether each hand's floor has been learned (a first stroke has been seen). */
   ready: { right: boolean; left: boolean };
 }
 
-export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, frameAspect: 0, lastLead: 0, lastPull: 0, ready: { right: false, left: false } };
+export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, frameAspect: 0, lastLead: 0, lastPull: 0, lastOnTime: 'yes', lastLateBy: 0, ready: { right: false, left: false } };
 
 /** Ghost-note velocity for a stroke sounded on confirmation instead of prediction. */
 const GHOST_VELOCITY = 0.6;
@@ -218,6 +262,26 @@ const FALL_JITTER = 0.25;
 const MIN_SAMPLE_SPACING = 0.004;
 /** The displayed frame's bottom edge, display fractions: as far as a landing path runs. */
 const FRAME_BOTTOM = 1;
+
+/**
+ * A hit's standing against the pipeline (step 0b, #239): its lead from the decision
+ * (unclamped), whether its sound can land at the intended time, and by how much it
+ * cannot. The earliest a sound decided at `decisionT` can leave the device is
+ * `decisionT + outputStage.value`, so the lead must cover the stage. When the stage is
+ * only the stated prior (its source says so) that comparison is not a measurement: a
+ * lead at or above zero is `unknown-output`, never a definite `late` with a `lateBy`
+ * read off a guess, and a negative lead is late by at least its own size.
+ */
+export function standing(intendedT: number, decisionT: number, outputStage: { value: number; source: string }): Pick<DrumHit, 'lead' | 'lateBy' | 'predicted' | 'onTime'> {
+  const lead = intendedT - decisionT;
+  if (outputStage.source === 'prior') {
+    const onTime: HitOnTime = lead >= 0 ? 'unknown-output' : 'late';
+    return { lead, lateBy: Math.max(0, -lead), predicted: onTime !== 'late', onTime };
+  }
+  const lateBy = Math.max(0, outputStage.value - lead);
+  const onTime: HitOnTime = lateBy > 0 ? 'late' : 'yes';
+  return { lead, lateBy, predicted: onTime !== 'late', onTime };
+}
 
 /** MediaPipe's label for the player's hand, given the mirror convention. */
 function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness'] {
@@ -618,6 +682,9 @@ export const airDrumNode = defineNode<Params>({
           if (follower && play?.startAt !== undefined) follower.start(play.startAt);
         }
         if (frame && fresh && frame.height > 0) {
+          // The output stage (how long after the decision the earliest sound can leave the
+          // device), from the host's timing resource; a stated prior, flagged, when unknown.
+          const outputStage = timingFrom(ctx.resources).outputStage;
           const aspect = frame.width / frame.height;
           if (Math.abs(aspect - status.frameAspect) > 1e-3) status = { ...status, frameAspect: aspect };
           const t = frameTime(frame, ctx);
@@ -685,31 +752,32 @@ export const airDrumNode = defineNode<Params>({
                 if (carried(e.t, predictor.level())) continue;
                 const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect }), e.strength);
                 if (s.silent) continue;
-                let at = e.t;
-                let pull = 0;
+                /** The INTENDED sounding time: the impact, pulled toward the grid. */
+                let intended = e.t;
                 let sound = s.sound;
+                /** Whether a snap or the magnet moved the sounding time: only then is the
+                 *  move a `pull`; the clamp alone (an impact already past at the decision,
+                 *  a lastChance commit on a slow pipeline) is not one. */
+                let pulled = false;
                 if (follower) {
                   // Pattern mode: the first hit is the one when no count-in said where it falls.
                   if (follower.beat(e.t) === null) follower.start(e.t);
                   const snap = follower.snap(e.t, { sound: s.sound, pad: s.pad });
                   if (snap.event !== null) {
-                    at = Math.max(ctx.time, snap.at);
-                    pull = at - e.t;
+                    intended = snap.at;
+                    pulled = true;
                     if (snap.drum) sound = DRUM_SOUND[snap.drum];
                   }
                 } else if (time && c.magnetism > 0) {
-                  const m = magnetise(e.t, time, c.magnetism);
-                  // Never behind the decision: a pull toward a beat already past is
-                  // truncated to "now", and reported as what it really moved.
-                  at = Math.max(ctx.time, m.t);
-                  pull = at - e.t;
+                  intended = magnetise(e.t, time, c.magnetism).t;
+                  pulled = true;
                 }
-                // The lead a scheduler really gets: from NOW, not from the sample. A camera
-                // pipeline older than the stroke's fall leaves none: that hit is honest
-                // about being late (it is not "predicted"), and sounds as soon as it can.
-                const lead = at - ctx.time;
+                // Never behind the decision: a pull toward a beat already past is truncated
+                // to "now" for the SOUND; the lead and the pull report what really happened.
+                const at = Math.max(ctx.time, intended);
                 hits.push({
-                  t: Math.max(at, ctx.time),
+                  t: at,
+                  impactT: e.t,
                   velocity: s.hardness * c.volume,
                   hand: which,
                   sound,
@@ -719,9 +787,8 @@ export const airDrumNode = defineNode<Params>({
                   y: s.y,
                   speed: s.speed,
                   strength: clamp01(e.strength),
-                  predicted: lead >= 0,
-                  lead,
-                  pull,
+                  ...standing(intended, ctx.time, outputStage),
+                  pull: pulled ? at - e.t : 0,
                 });
               } else if (e.predicted === null) {
                 // Unpredicted: a ghost note, now; its lead is how late that is. It landed
@@ -731,6 +798,7 @@ export const airDrumNode = defineNode<Params>({
                 if (s.silent) continue;
                 hits.push({
                   t: ctx.time,
+                  impactT: e.t,
                   velocity: s.hardness * c.volume * GHOST_VELOCITY,
                   hand: which,
                   sound: s.sound,
@@ -740,8 +808,7 @@ export const airDrumNode = defineNode<Params>({
                   y: s.y,
                   speed: s.speed,
                   strength: clamp01(e.strength),
-                  predicted: false,
-                  lead: e.t - ctx.time,
+                  ...standing(e.t, ctx.time, outputStage),
                   pull: 0,
                 });
               }
@@ -759,6 +826,8 @@ export const airDrumNode = defineNode<Params>({
             lastPad: last.pad ?? null,
             lastLead: last.lead,
             lastPull: last.pull,
+            lastOnTime: last.onTime,
+            lastLateBy: last.lateBy,
           };
         }
         return { hits, status, enabled: true };

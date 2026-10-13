@@ -11,6 +11,12 @@
  * running conductor with magnetism pulls the hits toward its grid; the config input
  * overrides the params live.
  *
+ * Step 0 of the timing plan (#239): `predicted` means the sound can land at its intended
+ * time, i.e. the lead from the decision covers the OUTPUT STAGE read from the `timing`
+ * resource. The runs that pin the predictor pass a known stage of 0 (a headless replay
+ * has no loudspeaker); the honest-timing tests below pass a real one, or none, and read
+ * `impactT`, `lateBy` and the three-valued `onTime`.
+ *
  * Every hand here is ONE point (all 21 keypoints on it) standing in for the wrist, so
  * these tests pin `point: 'wrist'`: a single point has no grip for a stick tip to lever
  * (#246 made the stick tip the default; its geometry, its lever-scaled gates and its
@@ -21,9 +27,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type HandsFrame } from '@/nodes';
-import { airDrumNode, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
+import { airDrumNode, standing, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
 import type { MusicalTime } from '@thoremin/ictus';
 import { FIXTURES } from '../helpers/fixtures';
+import { NO_OUTPUT_STAGE, knownOutputStage } from '../helpers/timing';
 
 interface Truth {
   spec: { fps: number };
@@ -55,7 +62,7 @@ describe.each(['subframe_stick_air_30', 'subframe_ball_air_60'])('air-drum node 
   const fps = air.truth.spec.fps;
   it('predicts every stroke after the first, within 25 ms of the turn, ahead of it', async () => {
     const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
-    const outs = await replayNode(h, { hands: air.frames }, { dt: 1 / fps });
+    const outs = await replayNode(h, { hands: air.frames }, { dt: 1 / fps, resources: NO_OUTPUT_STAGE });
     const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
     expect(hits).toHaveLength(air.truth.events.length);
     for (const hit of hits.slice(1)) {
@@ -71,7 +78,7 @@ const nearest = (t: number) => truth.events.reduce((b, e) => (Math.abs(e.t_impac
 
 async function run(params: Record<string, unknown>, extra: Record<string, unknown[]> = {}) {
   const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', ...params }));
-  const outs = await replayNode(h, { hands: frames, ...extra }, { dt: 1 / FPS });
+  const outs = await replayNode(h, { hands: frames, ...extra }, { dt: 1 / FPS, resources: NO_OUTPUT_STAGE });
   const hits: (DrumHit & { tick: number })[] = [];
   outs.forEach((o, i) => {
     for (const hit of o.hits as DrumHit[]) hits.push({ ...hit, tick: i });
@@ -159,7 +166,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
     const origin = performance.timeOrigin;
     const stamped = frames.map((f, i) => ({ ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: origin, lag: age }));
     const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
-    const outs = await replayNode(h, { hands: stamped }, { dt: 1 / FPS, resources: { timeScale: 1 } });
+    const outs = await replayNode(h, { hands: stamped }, { dt: 1 / FPS, resources: { timeScale: 1, ...NO_OUTPUT_STAGE } });
     const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
     const predicted = hits.filter((x) => x.predicted);
     expect(predicted.length).toBeGreaterThanOrEqual(truth.events.length - 2);
@@ -183,12 +190,13 @@ describe('air-drum node on the synthetic surface fixture', () => {
       doubled.push(stamped, stamped);
     });
     const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.05 }));
-    const outs = await replayNode(h, { hands: doubled }, { dt: 1 / (2 * FPS), resources: { timeScale: 1 } });
+    const outs = await replayNode(h, { hands: doubled }, { dt: 1 / (2 * FPS), resources: { timeScale: 1, ...NO_OUTPUT_STAGE } });
     const hits = outs.flatMap((o, i) => (o.hits as DrumHit[]).map((hit) => ({ ...hit, tick: i })));
     expect(hits.length).toBe(truth.events.length);
     for (const hit of hits) {
       // Never labelled predicted with no lead; never scheduled behind the decision.
       expect(hit.predicted).toBe(hit.lead >= 0);
+      expect(hit.onTime).toBe(hit.lead >= 0 ? 'yes' : 'late');
       expect(hit.t).toBeGreaterThanOrEqual(hit.tick / (2 * FPS) - 1e-9);
       // A predicted hit still lands near the strike (in the stamped base the strike is
       // `age` behind the tick clock; compare in the stamped base); a late one sounds as
@@ -208,7 +216,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
   it('a changed lead takes effect live, without toggling the dial', async () => {
     const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
     const config = frames.map((_, i) => ({ enabled: true, minLead: i < 90 ? 0.03 : 0.1 }));
-    const outs = await replayNode(h, { hands: frames, config }, { dt: 1 / FPS });
+    const outs = await replayNode(h, { hands: frames, config }, { dt: 1 / FPS, resources: NO_OUTPUT_STAGE });
     const late = outs.slice(90).flatMap((o) => o.hits as DrumHit[]).filter((x) => x.predicted);
     expect(late.length).toBeGreaterThan(2);
     for (const hit of late) expect(hit.lead).toBeGreaterThanOrEqual(0.1 - 0.012);
@@ -246,6 +254,104 @@ describe('air-drum node on the synthetic surface fixture', () => {
     const h2 = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true }));
     const outs2 = await replayNode(h2, { hands: sway }, { dt: 1 / FPS });
     expect(outs2.flatMap((o) => o.hits as DrumHit[])).toHaveLength(0);
+  });
+
+  describe('honest timing against the output stage (step 0, #239)', () => {
+    it('every hit carries the impact it is heading for, and a ghost note the one it confirmed', async () => {
+      const { hits } = await run({ enabled: true, minLead: 0.03 });
+      for (const hit of hits) {
+        const e = nearest(hit.impactT);
+        expect(Math.abs(hit.impactT - e.t_impact)).toBeLessThan(0.02);
+        // A ghost note's `t` is the sounding time (now), its `impactT` the confirmed impact.
+        if (!hit.predicted) expect(hit.impactT).toBeLessThan(hit.t);
+        else expect(hit.t).toBeCloseTo(hit.impactT, 9);
+      }
+    });
+
+    it('predicted means the lead covers the output stage: a 60 ms stage turns short leads into late hits that say by how much', async () => {
+      const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
+      const stage = 0.06;
+      const outs = await replayNode(h, { hands: frames }, { dt: 1 / FPS, resources: knownOutputStage(stage) });
+      const hits = outs.flatMap((o) => o.hits as DrumHit[]);
+      expect(hits).toHaveLength(truth.events.length);
+      const late = hits.filter((x) => x.onTime === 'late');
+      expect(late.length).toBeGreaterThan(1);
+      for (const hit of hits) {
+        expect(hit.predicted).toBe(hit.lead >= stage);
+        expect(hit.onTime).toBe(hit.lead >= stage ? 'yes' : 'late');
+        expect(hit.lateBy).toBeCloseTo(Math.max(0, stage - hit.lead), 9);
+        // The sound is still scheduled no earlier than the decision, pull untouched by the stage.
+        expect(hit.lead <= 0 || hit.t - hit.impactT === hit.pull).toBe(true);
+      }
+      const last = outs[outs.length - 1].status as AirDrumStatus;
+      expect(last.lastOnTime).toBe(hits[hits.length - 1].onTime);
+      expect(last.lastLateBy).toBeCloseTo(hits[hits.length - 1].lateBy, 9);
+    });
+
+    it('a predicted impact already past at the decision is clamped to now, and that clamp is not a pull', async () => {
+      // Stamped frames 100 ms old (a slow pipeline, sampled at the stamp in real time):
+      // the predictor's last-chance commits land behind the decision and the sound is
+      // truncated to now. With no conductor and no pattern the move is the clamp alone,
+      // which `pull` must not report (it used to report `t - impactT`, a pull from nowhere).
+      const age = 0.1;
+      const aged = frames.map((f, i) => ({ ...f, t: i / FPS - age, tSource: 'capture' as const, tOrigin: performance.timeOrigin, lag: age }));
+      const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
+      const outs = await replayNode(h, { hands: aged }, { dt: 1 / FPS, resources: { timeScale: 1, ...NO_OUTPUT_STAGE } });
+      const hits = outs.flatMap((o) => o.hits as DrumHit[]);
+      expect(hits).toHaveLength(truth.events.length);
+      const behind = hits.slice(1).filter((x) => x.lead < 0);
+      expect(behind.length).toBeGreaterThan(1);
+      for (const hit of hits) {
+        expect(hit.pull).toBe(0);
+        expect(hit.t).toBeGreaterThanOrEqual(hit.impactT);
+      }
+    });
+
+    it('under the prior, standing() says only what is certain: unknown-output for any lead at or above 0, late by its own size below', () => {
+      const prior = { value: 0.02, source: 'prior' };
+      // A lead under the prior is NOT a definite late with a lateBy read off a guess.
+      expect(standing(0.01, 0, prior)).toEqual({ lead: 0.01, lateBy: 0, predicted: true, onTime: 'unknown-output' });
+      expect(standing(0, 0, prior)).toEqual({ lead: 0, lateBy: 0, predicted: true, onTime: 'unknown-output' });
+      expect(standing(0.05, 0, prior)).toEqual({ lead: 0.05, lateBy: 0, predicted: true, onTime: 'unknown-output' });
+      expect(standing(-0.01, 0, prior)).toEqual({ lead: -0.01, lateBy: 0.01, predicted: false, onTime: 'late' });
+      // A measured stage is a measurement: late by the shortfall.
+      expect(standing(0.01, 0, { value: 0.02, source: 'measured' })).toEqual({ lead: 0.01, lateBy: 0.01, predicted: false, onTime: 'late' });
+      expect(standing(0.02, 0, { value: 0.02, source: 'measured' })).toEqual({ lead: 0.02, lateBy: 0, predicted: true, onTime: 'yes' });
+    });
+
+    it('with no timing resource the stage is the stated prior and a predicted hit says unknown-output, never yes', async () => {
+      const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03 }));
+      const outs = await replayNode(h, { hands: frames }, { dt: 1 / FPS });
+      const hits = outs.flatMap((o) => o.hits as DrumHit[]);
+      expect(hits.some((x) => x.onTime === 'unknown-output')).toBe(true);
+      expect(hits.every((x) => x.onTime !== 'yes')).toBe(true);
+      for (const hit of hits) expect(hit.predicted).toBe(hit.onTime !== 'late');
+    });
+
+    it('the lead is unclamped: a pull toward a beat already past reports a negative lead and a late hit, not a prediction', async () => {
+      // A follower whose expected beats sit 80 ms BEFORE each impact: the magnet pulls every
+      // prediction behind the decision, which used to be truncated to "now" and then
+      // reported as predicted with a lead of 0.
+      const offset = -0.08;
+      const period = 60 / 100;
+      const time: MusicalTime[] = frames.map((_, i) => {
+        const t = i / FPS;
+        const e = nearest(t + 0.1);
+        const beatT = e.t_impact + offset;
+        const beat = 4 + (t - beatT) / period;
+        return { t, beat, phase: beat - Math.floor(beat), tempo: 100, period, confidence: 1, nextBeatAt: beatT > t ? beatT : beatT + period, beatsPerBar: 4, beatInBar: 0, state: 'running', anchors: 8 };
+      });
+      const { hits } = await run({ enabled: true, magnetism: 1, minLead: 0.03 }, { time });
+      const pulledBack = hits.filter((x) => x.pull < 0 && x.lead < 0);
+      expect(pulledBack.length).toBeGreaterThan(2);
+      for (const hit of pulledBack) {
+        expect(hit.predicted).toBe(false);
+        expect(hit.onTime).toBe('late');
+        expect(hit.lateBy).toBeCloseTo(-hit.lead, 9);
+        // The sound is never behind the decision, and `impactT` is the stroke's own impact.
+        expect(hit.t).toBeGreaterThanOrEqual(hit.impactT + hit.pull - 1e-9);
+      }
+    });
   });
 
   it('the config input overrides the params live: enabling mid-stream starts drumming', async () => {

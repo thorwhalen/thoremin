@@ -40,6 +40,8 @@ import { formatSummary, summarize, type Summary } from '@/latency/stats';
 import { pairStrikes, strikeOnsets, toneOnsets, TONE_DEFAULTS, type StrikePair } from '@/latency/onsets';
 import { createStrikeTrigger } from '@/latency/strike';
 import type { Tap } from '@thoremin/dag';
+import type { TimingReading } from '@thoremin/sdk/timing/tracker';
+import { describeTiming } from './timing/describe';
 
 export const LATENCY_HANDLE_KEY = 'thoreminLatency';
 
@@ -285,6 +287,11 @@ function mountPanel(handle: LatencyHandle): () => void {
     const ms = (x: number | null) => (x === null ? 'n/a' : `${x.toFixed(1)} ms`);
     lines.push(`audio ${a.state ?? 'off'}  base ${ms(a.baseLatencyMs)}  output ${ms(a.outputLatencyMs)}  ${a.sampleRate ?? ''} Hz`);
     lines.push(`frames ${s.frames} (hand in ${s.framesWithHand})  stamps ${JSON.stringify(s.stampSources)}`);
+    if (s.timing) {
+      const d = describeTiming(s.timing);
+      lines.push(`timing resource: ${d.line}  epoch ${s.timing.audioEpoch}  lead budget ${(s.timing.leadBudget * 1000).toFixed(1)} ms`);
+      for (const w of d.warnings) lines.push(`  ${w}`);
+    }
     if (strikeText) lines.push(strikeText);
     text.textContent = `latency probe (#227)\n${lines.join('\n')}`;
   };
@@ -303,10 +310,15 @@ export interface InstalledLatencyProbe {
   uninstall: () => void;
 }
 
-/** Attach the probe to a live engine and publish its handle and panel. */
-export function installLatencyProbe(engine: { addTap(tap: Tap): () => void }, resources: Record<string, unknown>): InstalledLatencyProbe {
+/** Attach the probe to a live engine and publish its handle and panel. `timing` is the
+ *  always-on resource's reader, so the report carries the lead budget the instruments see. */
+export function installLatencyProbe(
+  engine: { addTap(tap: Tap): () => void },
+  resources: Record<string, unknown>,
+  options: { timing?: () => TimingReading | undefined } = {},
+): InstalledLatencyProbe {
   const getAudio = () => resources.audioContext as AudioContext | undefined;
-  const probe = new LatencyProbe({ audio: () => getAudio() as AudioLike | undefined });
+  const probe = new LatencyProbe({ audio: () => getAudio() as AudioLike | undefined, timing: options.timing });
   const detach = engine.addTap(probe);
   const strike = createStrikeTest(probe, getAudio);
   const handle: LatencyHandle = Object.freeze({

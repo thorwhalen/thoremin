@@ -65,7 +65,8 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     expect(c).toMatch(/\* 1000/);
     // Each bridge goes through the converter rather than being passed raw.
     // (`...latencySinks` is the #227 probe's tick-end stamp: empty unless ?probe=latency.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*\.\.\.extensionSinks\.map\(toMs\)\s*\]/);
+    // (`reportTiming` is the timing resource's readout for the camera status line, step 0 of the timing plan.)
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportTiming\),\s*\.\.\.extensionSinks\.map\(toMs\)\s*\]/);
     // The extensions' sinks (the air instruments' readouts and shape taps, PR 5a) are built
     // from the manifests and converted the same way, in one place.
     expect(c).toMatch(/const extensionSinks = EXTENSION_STATUS_HOOKS\.map\(\(hook\) => hook\.make\(engine\)\)/);
@@ -90,6 +91,17 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // The tick-end stamp must be the FIRST sink, or it would time the bridges too.
     expect(c).toMatch(/const latencySinks = latencyTickEnd \? \[latencyTickEnd\] : \[\]/);
     expect(c).toMatch(/sinks: \[\.\.\.latencySinks, toMs\(reportFace\)/);
+  });
+
+  it('installs the timing resource and its tap on EVERY run, and disposes it (step 0 of the timing plan)', () => {
+    // The resource is what makes `outputStage` a measured number instead of the flagged
+    // prior: drop the install and every instrument silently reads the prior while the
+    // whole suite stays green (the replays pass their own); drop the tap and the
+    // reading never sees a frame. Neither is behind a flag, unlike the probe.
+    const c = code(useEngine);
+    expect(c).toMatch(/resources\[TIMING_RESOURCE_KEY\] = \(\) => timing!\.reading\(\)/);
+    expect(c).toMatch(/engine\.addTap\(timing\.tap\)/);
+    expect(c).toMatch(/timing\?\.dispose\(\)/);
   });
 
   it('releases the Applier on unmount, so its taps do not outlive the run', () => {

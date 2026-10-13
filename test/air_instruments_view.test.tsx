@@ -200,5 +200,13 @@ describe('the air drum readout (moved from the retired tool panel)', () => {
   it('describeLive covers every state', () => {
     expect(describeLive(ABSENT_AIR_DRUM_LIVE)).toMatch(/Off/);
     expect(describeLive({ ...ABSENT_AIR_DRUM_LIVE, enabled: true, ready: { right: true, left: false } })).toMatch(/Ready/);
+    const playing = { ...ABSENT_AIR_DRUM_LIVE, enabled: true, hits: 5, predicted: 3, lastHand: 'right' as const, ready: { right: true, left: true } };
+    // A negative lead has two causes with different words: a stroke too fast to get
+    // ahead of, and a predicted one the magnet pulled toward a beat already past.
+    expect(describeLive({ ...playing, lastLead: -0.033, lastPull: 0 })).toBe('Right: sounded 33 ms after the strike (too fast to predict).');
+    expect(describeLive({ ...playing, lastLead: -0.04, lastPull: -0.06, lastOnTime: 'late', lastLateBy: 0.04 })).toBe('Right: pulled 60 ms toward a beat already past; sounds 40 ms late.');
+    expect(describeLive({ ...playing, lastLead: 0.05, lastPull: 0, lastOnTime: 'yes', lastLateBy: 0 })).toBe('Right: predicted 50 ms before the strike.');
+    expect(describeLive({ ...playing, lastLead: 0.01, lastPull: 0, lastOnTime: 'late', lastLateBy: 0.022 })).toMatch(/sounds 22 ms late/);
+    expect(describeLive({ ...playing, lastLead: 0.01, lastPull: 0, lastOnTime: 'unknown-output', lastLateBy: 0 })).toMatch(/latency unknown/);
   });
 });

@@ -16,6 +16,7 @@ import { compilePattern } from '@thoremin/ext-air/lib/drum_patterns';
 import type { PatternModel } from '@thoremin/ext-air/lib/pattern_fit';
 import type { PatternPlay } from '@thoremin/ext-air/lib/pattern_play';
 import { FIXTURES } from '../helpers/fixtures';
+import { NO_OUTPUT_STAGE } from '../helpers/timing';
 
 interface Truth {
   spec: { fps: number };
@@ -56,7 +57,7 @@ const MODEL: PatternModel = {
 
 async function run(play: PatternPlay | null) {
   const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true, minLead: 0.03, rightSound: 'snare' }));
-  const outs = await replayNode(h, { hands: frames, pattern: frames.map(() => play) }, { dt: 1 / FPS });
+  const outs = await replayNode(h, { hands: frames, pattern: frames.map(() => play) }, { dt: 1 / FPS, resources: NO_OUTPUT_STAGE });
   return outs.flatMap((o) => o.hits as DrumHit[]);
 }
 

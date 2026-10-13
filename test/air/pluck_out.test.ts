@@ -1,17 +1,18 @@
 /**
- * `pluck-out` (#249): schedules each note on the audio clock at its engine time (the
- * clock map `drum-out` owns), never in the past, drops notes while the context is not
- * running, builds its sink with the node's timbre and mono setting, and sounds nothing
- * outside real time (boundary B).
+ * `pluck-out` (#249): schedules each note on the audio clock at its engine time (the one
+ * shared clock map, one output stage early), never in the past, drops notes while the
+ * context is not running, builds its sink with the node's timbre and mono setting, and
+ * sounds nothing outside real time (boundary B).
  */
 import { describe, it, expect } from 'vitest';
 import { pluckOutNode, type PluckSinkOptions } from '@thoremin/ext-air/nodes/pluck_out';
 import type { NoteEvent } from '@thoremin/ext-air/nodes/air_bass';
 import { TIME_SCALE_KEY } from '@thoremin/dag';
+import { NO_OUTPUT_STAGE, knownOutputStage } from '../helpers/timing';
 
 const note = (t: number, midi = 40): NoteEvent => ({ t, midi, velocity: 0.8, predicted: true, lead: 0.05 });
 
-function harness(params: Record<string, unknown> = {}, state = 'running', timeScale?: number) {
+function harness(params: Record<string, unknown> = {}, state = 'running', timeScale?: number, timing: Record<string, unknown> = NO_OUTPUT_STAGE) {
   const played: { midi: number; when: number }[] = [];
   let opts: PluckSinkOptions | undefined;
   const ac = { currentTime: 10, state };
@@ -23,6 +24,7 @@ function harness(params: Record<string, unknown> = {}, state = 'running', timeSc
       tick: 0,
       resources: {
         ...(timeScale === undefined ? {} : { [TIME_SCALE_KEY]: timeScale }),
+        ...timing,
         audioContext: ac,
         masterGain: {},
         createPluckSink: (_ac: unknown, _dest: unknown, o: PluckSinkOptions) => {
@@ -42,6 +44,12 @@ describe('pluck-out', () => {
     expect(played[1].midi).toBe(43);
     expect(played[1].when).toBeGreaterThan(10);
     expect(played[1].when).toBeLessThan(10.01);
+  });
+
+  it('writes a note one output stage early on the context clock (the shared map)', () => {
+    const { played, tick } = harness({}, 'running', undefined, knownOutputStage(0.032));
+    tick(5, [note(5.05, 40)]);
+    expect(played[0]).toEqual({ midi: 40, when: expect.closeTo(10.05 - 0.032, 6) });
   });
 
   it('builds its sink with the timbre and mono setting', () => {

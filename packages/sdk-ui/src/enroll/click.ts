@@ -22,8 +22,19 @@
  * steady delay is part of the lag the real half measures and the air half inherits
  * (`scripts/cue/lib_pair_take.ts`, `gridLag`). The times written into the take stay the
  * scheduled ones: nothing here can know the headphones' delay, and nothing needs to.
+ *
+ * The engine-to-context map is the one every scheduler shares
+ * (`@thoremin/sdk/timing/clock_map`), with the output stage read from THIS context by the
+ * shared rule (`output_stage.ts`): on WebKit the `getOutputTimestamp` pair stops before
+ * the device, so the pair branch this module used to carry and its `outputLatency`
+ * fallback disagreed by exactly the output latency. A click whose time is already past
+ * on the context clock is dropped and COUNTED (`dropped()`): on Safari 17 the pair was
+ * off by the sample rate, which silently dropped every click while the take's
+ * annotations said they sounded; a take with a non-zero count is not to be trusted.
  */
 import type { Click } from '@thoremin/sdk/enroll';
+import { engineToContextTime } from '@thoremin/sdk/timing/clock_map';
+import { readOutputStage } from '@thoremin/sdk/timing/output_stage';
 
 export interface ClickPlayer {
   /** Schedule these clicks (times in ms on the engine clock, `performance.now()`). */
@@ -32,6 +43,9 @@ export interface ClickPlayer {
   stop(): void;
   /** Called inside the Start gesture, so the context may start. Optional. */
   unlock?(): void;
+  /** Clicks dropped because their time was already past on the audio clock, in total.
+   *  Optional (a mock may not count). */
+  dropped?(): number;
 }
 
 /** Click pitches (Hz) and shape. The count-in sits a fifth below the beats. */
@@ -43,6 +57,7 @@ const CLICK_GAIN = 0.5;
 export function createWebAudioClickPlayer(): ClickPlayer {
   let ctx: AudioContext | null = null;
   let voices: OscillatorNode[] = [];
+  let dropped = 0;
 
   const context = (): AudioContext | null => {
     if (ctx) return ctx;
@@ -52,17 +67,11 @@ export function createWebAudioClickPlayer(): ClickPlayer {
     return ctx;
   };
 
-  /** Engine-clock ms → this context's time. `getOutputTimestamp` pairs the two clocks
-   *  at the output, which is where a click is heard; `currentTime` is the fallback. */
+  /** Engine-clock ms → this context's time, through the shared map: `currentTime` is
+   *  what the context is RENDERING now, which reaches the ear one output stage later. */
   const toContextTime = (c: AudioContext, tMs: number): number => {
-    const ts = c.getOutputTimestamp?.();
-    if (ts && typeof ts.contextTime === 'number' && typeof ts.performanceTime === 'number' && ts.performanceTime > 0) {
-      return ts.contextTime + (tMs - ts.performanceTime) / 1000;
-    }
-    // Without the pairing, `currentTime` is what the context is RENDERING now, which
-    // reaches the ear `outputLatency` later: schedule that much earlier.
-    const outLatency = (c as AudioContext & { outputLatency?: number }).outputLatency ?? c.baseLatency ?? 0;
-    return c.currentTime + (tMs - performance.now()) / 1000 - outLatency;
+    const nowMs = performance.now();
+    return engineToContextTime(c, tMs / 1000, nowMs / 1000, readOutputStage(c, nowMs).value);
   };
 
   return {
@@ -76,7 +85,10 @@ export function createWebAudioClickPlayer(): ClickPlayer {
       if (c.state === 'suspended') void c.resume();
       for (const click of clicks) {
         const at = toContextTime(c, click.t);
-        if (at < c.currentTime) continue;
+        if (at < c.currentTime) {
+          dropped++;
+          continue;
+        }
         const osc = c.createOscillator();
         const gain = c.createGain();
         osc.frequency.value = click.kind === 'count' ? CLICK_HZ.count : click.accent ? CLICK_HZ.accent : CLICK_HZ.beat;
@@ -91,6 +103,9 @@ export function createWebAudioClickPlayer(): ClickPlayer {
         };
         voices.push(osc);
       }
+    },
+    dropped() {
+      return dropped;
     },
     stop() {
       for (const osc of voices) {

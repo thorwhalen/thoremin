@@ -41,6 +41,9 @@ import { useMidiStatus } from './midiStatus';
 import { useGenerativeStatus, makeGenerativeReporter, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
+import { createTimingResource } from './timing/resource';
+import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
+import { useTimingStatus, makeTimingReporter } from './timingStatus';
 import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
 import { EXTENSION_STATUS_HOOKS } from './extensions';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
@@ -186,6 +189,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     let disposed = false;
     let uninstallDebug: () => void = () => {};
     let uninstallLatency: () => void = () => {};
+    let timing: ReturnType<typeof createTimingResource> | null = null;
     // The acquired stream is held here (not read back off video.srcObject) so
     // cleanup can always stop the exact stream this run acquired. Under React
     // StrictMode the effect runs mount→cleanup→mount; an aborted run must stop
@@ -308,6 +312,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Feature demand (#163): the vector nodes compute whatever a host consumer
         // (the trainer, while a cue runs) has claimed, even with the Lab closed.
         resources.featureDemand = featureDemandResource;
+        // The timing resource (step 0 of the timing plan): the always-on lead budget the
+        // instruments read each tick (the frame's age, the audio output stage with its
+        // source, the audio epoch, the stamp mix). One owner: this host; nodes only read.
+        timing = createTimingResource({ audio: () => resources.audioContext as AudioContext | undefined });
+        timing.noteCamera(stream);
+        resources[TIMING_RESOURCE_KEY] = () => timing!.reading();
 
         // `defaultGraph` validates the selection against the registry and falls
         // back (with a warning) on anything that would not satisfy the slot
@@ -326,6 +336,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // still exist, so renaming a vector node fails the build rather than silently
         // starving the trainer.
         engine.addTap(new LiveVectorTap());
+        engine.addTap(timing.tap);
 
         await engine.init(); // loads the MediaPipe model
         if (disposed) {
@@ -344,7 +355,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         if (latencyProbeRequested()) {
           const { installLatencyProbe } = await import('./latencyProbe');
           if (disposed) return;
-          const probe = installLatencyProbe(engine, resources);
+          const probe = installLatencyProbe(engine, resources, { timing: () => timing?.reading() });
           uninstallLatency = probe.uninstall;
           latencyTickEnd = probe.tickEnd;
         }
@@ -472,6 +483,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         const toMs = (report: (nowMs: number) => void) => (t: number | undefined) =>
           report((t ?? performance.now() / 1000) * 1000);
 
+        // The timing resource's readout for the camera status line, paced and change-gated.
+        const reportTiming = makeTimingReporter(() => timing!.reading());
         // The latency probe's tick-end stamp (if any) goes FIRST, before the bridges.
         const latencySinks = latencyTickEnd ? [latencyTickEnd] : [];
         const applier = new Applier({
@@ -480,7 +493,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), ...extensionSinks.map(toMs)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportTiming), ...extensionSinks.map(toMs)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -515,9 +528,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useGestureStatus.getState().reset();
       useGenerativeStatus.getState().reset();
       useConductorStatus.getState().reset();
+      useTimingStatus.getState().reset();
       for (const hook of EXTENSION_STATUS_HOOKS) hook.reset();
       uninstallDebug();
       uninstallLatency();
+      timing?.dispose();
+      timing = null;
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
       useControls.getState().setSteerPlaying(false);
       sessionRecRef.current?.dispose();
