@@ -244,6 +244,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** The stills still being encoded, so Save waits for them. */
   const pending = new Set<Promise<void>>();
 
+  /** A take id none of `samples`' ids is under (ids are random in the app; a test's clock-made
+   *  ones could repeat), so a new hold never takes an old hold's id, or its still. */
+  const freshTakeId = (samples: readonly { id: string }[]): string => {
+    const used = new Set(samples.map((x) => x.id.slice(0, x.id.lastIndexOf(':'))));
+    let tid = deps.newTakeId();
+    for (let n = 2; used.has(tid); n++) tid = `${deps.newTakeId()}-${n}`;
+    return tid;
+  };
+
   const store = createStore<FaceSessionState>()((set, get) => {
     const dropUrls = () => {
       for (const u of urls.values()) URL.revokeObjectURL(u);
@@ -483,7 +492,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           source!.dispose();
           source = deps.source();
         }
-        takeId = deps.newTakeId();
+        takeId = freshTakeId(merge?.working.samples ?? []);
         stilled = 0;
         const stream = source!.video();
         frames = stream ? deps.frames(stream) : null;
@@ -546,7 +555,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // radius would set every new face aside); not with the dial's scale, which stays a live
           // setting rather than being written into the samples' radius.
           const base = merge.working.strangers === 'neutral' ? { ...merge.working, rejectRadius: flooredRejectRadius(merge.working) } : merge.working;
-          const result = mergeSession(base, fresh, { seed: merge.seed });
+          let result: ReturnType<typeof mergeSession>;
+          try {
+            result = mergeSession(base, fresh, { seed: merge.seed });
+          } catch (err) {
+            // A working copy the merge cannot read (it validates): the base kept, said plainly.
+            showWorking(merge.working, { ...restore, dirty: merge.dirty, notice: `Nothing was merged: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
+            return;
+          }
           // The import bound (addSample keeps it too): a categorizer merged past it could not
           // be read back from its own exported file. Refused as a notice, the base kept.
           if (result.categorizer.samples.length > MAX_CATEGORIZER_SAMPLES) {
@@ -754,7 +770,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       correct(id, vector) {
         const working = get().working;
         if (get().phase !== 'saved' || !working) return false;
-        return applyCorrection(addSample(working, id, modalityOnly(vector), { sampleId: holdId(deps.newTakeId(), 0), t: deps.now(), modality }));
+        return applyCorrection(addSample(working, id, modalityOnly(vector), { sampleId: holdId(freshTakeId(working.samples), 0), t: deps.now(), modality }));
       },
 
       move(index, to) {

@@ -168,7 +168,7 @@ function deps(over: Partial<FaceSessionDeps> = {}): FaceSessionDeps {
   return {
     source: () => ({ ...syntheticSource(() => clock), video: () => null }),
     thumbs: memoryThumbStore(),
-    grab: async (_b, seconds) => seconds.map(() => null),
+    frames: () => null,
     models: createFaceModelStore(createInMemoryProvider<FaceModelRecord>([], { idField: 'id', searchFields: ['name'] })),
     now: () => clock,
     pollMs: 33,

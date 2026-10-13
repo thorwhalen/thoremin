@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { BLENDSHAPE_NAME_BY_FEATURE } from '@thoremin/sdk/features/face_catalog';
-import { categorizerFromModel, classify, modelFromCategorizer, NO_REJECT_RADIUS, type FeatureVector } from '@thoremin/sdk/enroll';
+import { categorizerFromModel, categorizerMode, classify, modelFromCategorizer, NO_REJECT_RADIUS, type FeatureVector } from '@thoremin/sdk/enroll';
 import { createFaceTake, FACE_TAKE_DEFAULTS } from '@thoremin/ext-faces/lib/take';
 import { carveView, carverFor, NEUTRAL_LABEL, withTypedName, type TypedName } from '@thoremin/ext-faces/lib/carving';
 import { SYNTHETIC_EXPRESSIONS, SYNTHETIC_TIMELINE, syntheticExpressionAt, syntheticFaceVector } from '@thoremin/ext-faces/lib/synthetic';
@@ -170,7 +170,7 @@ describe('carving the synthetic take', () => {
       const carver = carverFor(session, take.restVectors(), mode);
       const view = carveView({ session, restVectors: take.restVectors(), carver, k: carver.suggestedK() });
       const saved = categorizerFromModel(view.model, points, { name: `mine ${mode}`, mode, modality: 'face' });
-      expect(saved.mode).toBe(mode);
+      expect(categorizerMode(saved)).toBe(mode);
       const back = modelFromCategorizer(saved);
       expect(back.categories.map((c) => c.label)).toEqual(view.model.categories.map((c) => c.label));
       if (mode === 'partition') expect(back.rejectRadius).toBe(NO_REJECT_RADIUS);

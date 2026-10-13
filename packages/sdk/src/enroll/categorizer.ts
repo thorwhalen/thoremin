@@ -228,12 +228,17 @@ export interface CategorizerMeta {
 }
 
 /**
- * Capture a trained model as a categorizer. `samples` is the pool the model's `members`
- * index (the session's `points()`, each with its hold id). A sample no category claims is
+ * Capture a trained model as a categorizer. `points` is the pool the model's `members`
+ * index (the session's `points()`, each with its hold id; a point without one is `s-<index>`). A sample no category claims is
  * neutral in `reject` mode (it is "none of these") and set aside in `partition` mode. Throws
  * if the result does not validate.
  */
-export function categorizerFromModel(model: TrainedModel, samples: readonly SampleInput[], meta: CategorizerMeta): PersonalCategorizer {
+export function categorizerFromModel(
+  model: TrainedModel,
+  points: readonly (Omit<SampleInput, 'id'> & { id?: string })[],
+  meta: CategorizerMeta,
+): PersonalCategorizer {
+  const samples: SampleInput[] = points.map((p, i) => ({ ...p, id: p.id ?? v1SampleId(i) }));
   const claimed = new Set(model.categories.flatMap((c) => c.members));
   const unclaimed = samples.flatMap((s, i) => (claimed.has(i) ? [] : [s.id]));
   return PersonalCategorizerSchema.parse({

@@ -7,7 +7,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { exportCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { exportCategorizer, importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import {
   isSharedId,
   parseSharedIndex,
@@ -29,7 +29,12 @@ import { categorizerPlay } from '@thoremin/ext-faces/lib/play';
 import type { FaceCategorizerPlay } from '@thoremin/ext-faces/lib/play';
 import { slugId } from '@thoremin/sdk/util/ids';
 import { buildDemoCategorizer, DEMO_ENTRY, SHARED_PUBLIC_DIR, toJson } from '../../scripts/faces/lib_demo_categorizer';
-import twoFaces from './fixtures/two_faces.categorizer.json';
+import twoFacesV1 from './fixtures/two_faces.categorizer.json';
+
+/** The version-1 fixture, read as this build reads a file (migrated to the current version). */
+const twoFacesRead = importCategorizer(twoFacesV1);
+if (!twoFacesRead.ok) throw new Error(twoFacesRead.error);
+const twoFaces: PersonalCategorizer = twoFacesRead.categorizer;
 
 const read = (file: string): unknown => JSON.parse(readFileSync(join(SHARED_PUBLIC_DIR, file), 'utf8'));
 
@@ -68,13 +73,13 @@ describe('the shared index and files', () => {
   });
 
   it('gives a file the dial slot ids in order, and refuses a non-face one or one with too many categories', () => {
-    const file = twoFaces as unknown as PersonalCategorizer;
+    const file = twoFaces;
     const renamed = { ...file, categories: file.categories.map((c, i) => ({ ...c, id: `x${i}` })) };
     const r = readSharedFile(exportCategorizer(renamed));
     expect(r.ok && r.categorizer.categories.map((c) => c.id)).toEqual(['cat-1', 'cat-2']);
     expect(withSlotIds(renamed).categories.map((c) => c.label)).toEqual(file.categories.map((c) => c.label));
     expect(readSharedFile({ ...file, modality: 'hand' })).toMatchObject({ ok: false });
-    const many = { ...file, k: 13, samples: Array.from({ length: 13 }, () => file.samples[0]), categories: Array.from({ length: 13 }, (_, i) => ({ id: `c${i}`, label: `face ${i}`, members: [i] })) };
+    const many = { ...file, samples: Array.from({ length: 13 }, (_, i) => ({ ...file.samples[0], id: `m-${i}` })), categories: Array.from({ length: 13 }, (_, i) => ({ id: `c${i}`, label: `face ${i}`, members: [`m-${i}`] })), neutral: [] };
     expect(readSharedFile(many)).toMatchObject({ ok: false, error: expect.stringMatching(/more than the 12/) });
   });
 
@@ -130,7 +135,8 @@ describe('the shared source', () => {
     const a = await source.load(sharedId(DEMO_ENTRY.name));
     const b = await source.load(sharedId(DEMO_ENTRY.name));
     expect(a).toBe(b);
-    expect(a).toMatchObject({ id: 'shared:demo-smile', name: DEMO_ENTRY.label, model: { takeId: null } });
+    expect(a).toMatchObject({ id: 'shared:demo-smile', name: DEMO_ENTRY.label });
+    expect(a?.model).not.toHaveProperty('tuning');
     expect(a?.model.tuning).toBeUndefined();
     expect(fetched).toEqual(['categorizers/index.json', 'categorizers/demo-smile.json']);
     expect(await source.load('shared:not-listed')).toBeNull();
@@ -225,10 +231,10 @@ describe('copy to my categorizers', () => {
   it('never replaces a player\'s record whose name slugs like the shared label', async () => {
     const { source } = shippedSource();
     const mine = memoryMine();
-    const own = await mine.save('demo smile and open smile', { categorizer: twoFaces as unknown as PersonalCategorizer, takeId: 'take-1' });
+    const own = await mine.save('demo smile and open smile', { categorizer: { ...twoFaces, name: 'mine' } });
     const copy = await copySharedToMine(sharedId(DEMO_ENTRY.name), source, mine);
     expect(copy?.id).not.toBe(own.id);
-    expect(mine.records.get(own.id)?.model.takeId).toBe('take-1');
+    expect(mine.records.get(own.id)?.model.categorizer.name).toBe('mine');
   });
 
   it('saves the same file among the player\'s own, with no stills and the default tuning', async () => {
@@ -241,7 +247,7 @@ describe('copy to my categorizers', () => {
     expect(first?.id).not.toBe(second?.id);
     expect(isSharedId(first!.id)).toBe(false);
     const shared = (await source.load(sharedId(DEMO_ENTRY.name)))!.model.categorizer;
-    expect(first?.model).toEqual({ categorizer: { ...shared, name: DEMO_ENTRY.label }, takeId: null });
+    expect(first?.model).toEqual({ categorizer: { ...shared, name: DEMO_ENTRY.label } });
     expect(await copySharedToMine('shared:gone', source, mine)).toBeNull();
   });
 });

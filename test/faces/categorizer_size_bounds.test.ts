@@ -27,23 +27,24 @@ const models = () => createFaceModelStore(createInMemoryProvider<FaceModelRecord
 /** A two-category categorizer padded with free samples (in no category) to `total`. */
 function sized(total: number): PersonalCategorizer {
   const core = [
-    { vector: { x: 0, y: 0 }, t: 0, cue: 'faces' },
-    { vector: { x: 1, y: 1 }, t: 1, cue: 'faces' },
+    { id: 's-0', vector: { x: 0, y: 0 }, t: 0, cue: 'faces' },
+    { id: 's-1', vector: { x: 1, y: 1 }, t: 1, cue: 'faces' },
   ];
-  const free = Array.from({ length: total - core.length }, (_, i) => ({ vector: { x: 0.5, y: 0.5 }, t: i + 2, cue: 'faces' }));
+  const free = Array.from({ length: total - core.length }, (_, i) => ({ id: `s-${i + 2}`, vector: { x: 0.5, y: 0.5 }, t: i + 2, cue: 'faces' }));
   return {
     format: CATEGORIZER_FORMAT,
     version: CATEGORIZER_VERSION,
     name: 'big',
     features: ['x', 'y'],
     weights: { x: 1, y: 1 },
-    mode: 'partition',
-    k: 2,
+    strangers: 'nearest',
     samples: [...core, ...free],
     categories: [
-      { id: 'cat-1', label: 'low', members: [0] },
-      { id: 'cat-2', label: 'high', members: [1] },
+      { id: 'cat-1', label: 'low', members: ['s-0'] },
+      { id: 'cat-2', label: 'high', members: ['s-1'] },
     ],
+    neutral: [],
+    aside: free.map((x) => x.id),
   };
 }
 
@@ -57,7 +58,7 @@ describe('the size bound: refused at the door, never by the saved-record schema'
   it('a saved record over the bound (saved before it existed) still loads', async () => {
     const store = models();
     const big = sized(MAX_CATEGORIZER_SAMPLES + 10);
-    const rec = await store.save('Big', { categorizer: big, takeId: null });
+    const rec = await store.save('Big', { categorizer: big });
     const back = await store.load(rec.id);
     expect(back).not.toBeNull();
     expect(back!.model.categorizer.samples).toHaveLength(MAX_CATEGORIZER_SAMPLES + 10);
@@ -65,11 +66,11 @@ describe('the size bound: refused at the door, never by the saved-record schema'
 
   it('a live face added at the bound is refused with a message, not thrown', () => {
     const full = sized(MAX_CATEGORIZER_SAMPLES);
-    const r = addSample(full, 'cat-1', { x: 0.1, y: 0 });
+    const r = addSample(full, 'cat-1', { x: 0.1, y: 0 }, { sampleId: 'live:0' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/full/);
     // One under the bound, it is added.
-    const room = addSample(sized(MAX_CATEGORIZER_SAMPLES - 1), 'cat-1', { x: 0.1, y: 0 });
+    const room = addSample(sized(MAX_CATEGORIZER_SAMPLES - 1), 'cat-1', { x: 0.1, y: 0 }, { sampleId: 'live:0' });
     expect(room.ok).toBe(true);
     if (room.ok) expect(room.categorizer.samples).toHaveLength(MAX_CATEGORIZER_SAMPLES);
   });
@@ -86,7 +87,7 @@ describe('merging a take into a categorizer at the bound', () => {
   const deps = (): FaceSessionDeps => ({
     source: () => ({ ...syntheticSource(() => clock), video: () => null }),
     thumbs: memoryThumbStore(),
-    grab: async (_b, seconds) => seconds.map(() => null),
+    frames: () => null,
     models: models(),
     now: () => clock,
     pollMs: 33,
@@ -113,10 +114,10 @@ describe('merging a take into a categorizer at the bound', () => {
     await s().stop();
     expect(await s().save('Mine')).toBe(true);
     await s().open(s().saved[0].id);
-    // Pad what is open to the bound with copies of its own first face, in no category.
+    // Pad what is open to the bound with copies of its own first face, set aside.
     const open = s().working!;
-    const pad = Array.from({ length: MAX_CATEGORIZER_SAMPLES - open.samples.length }, (_, i) => ({ ...open.samples[0], t: i }));
-    const full: PersonalCategorizer = { ...open, samples: [...open.samples, ...pad] };
+    const pad = Array.from({ length: MAX_CATEGORIZER_SAMPLES - open.samples.length }, (_, i) => ({ ...open.samples[0], id: `pad-${i}`, t: i }));
+    const full: PersonalCategorizer = { ...open, samples: [...open.samples, ...pad], aside: [...(open.aside ?? []), ...pad.map((x) => x.id)] };
     store.setState({ working: full });
 
     s().startMerge('samples');

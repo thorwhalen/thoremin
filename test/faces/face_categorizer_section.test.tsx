@@ -60,7 +60,7 @@ async function saveSynthetic(name: string): Promise<string> {
   const carver = carverFor(session, take.restVectors(), 'reject');
   const view = carveView({ session, restVectors: take.restVectors(), carver, k: carver.suggestedK() });
   const categorizer = categorizerFromModel(view.model, session.points(), { name, mode: 'reject', modality: 'face' });
-  return (await createFaceModelStore().save(name, { categorizer, takeId: null })).id;
+  return (await createFaceModelStore().save(name, { categorizer })).id;
 }
 
 /** Open the editor's "Face categorizer" section (a closed `<details>`). */

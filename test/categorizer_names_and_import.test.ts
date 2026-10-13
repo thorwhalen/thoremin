@@ -41,20 +41,20 @@ function file(over: { ids?: [string, string]; labels?: [string, string]; cue?: s
     name: 'odd names',
     features: ['x', 'y'],
     weights: { x: 1, y: 1 },
-    mode: 'reject',
-    k: 2,
+    strangers: 'neutral',
     rejectRadius: 0.5,
     samples: [
-      { vector: { x: 0, y: 0 }, t: 0, cue },
-      { vector: { x: 0.1, y: 0 }, t: 1, cue },
-      { vector: { x: 0, y: 0.1 }, t: 2, cue },
-      { vector: { x: 1, y: 1 }, t: 3, cue },
-      { vector: { x: 1.1, y: 0.9 }, t: 4, cue },
+      { id: 's-0', vector: { x: 0, y: 0 }, t: 0, cue },
+      { id: 's-1', vector: { x: 0.1, y: 0 }, t: 1, cue },
+      { id: 's-2', vector: { x: 0, y: 0.1 }, t: 2, cue },
+      { id: 's-3', vector: { x: 1, y: 1 }, t: 3, cue },
+      { id: 's-4', vector: { x: 1.1, y: 0.9 }, t: 4, cue },
     ],
     categories: [
-      { id: id1, label: l1, members: [0, 1, 2] },
-      { id: id2, label: l2, members: [3, 4] },
+      { id: id1, label: l1, members: ['s-0', 's-1', 's-2'] },
+      { id: id2, label: l2, members: ['s-3', 's-4'] },
     ],
+    neutral: [],
   };
 }
 
@@ -107,8 +107,10 @@ describe('importCategorizer: what a file may not carry', () => {
 
   it('refuses a file over the size limits on samples and features (#393 lower: #338 no size limits)', () => {
     const c = file();
-    const samples = Array.from({ length: MAX_CATEGORIZER_SAMPLES + 1 }, (_, i) => ({ ...c.samples[i % c.samples.length], t: i }));
-    const many = importCategorizer({ ...c, samples });
+    const samples = Array.from({ length: MAX_CATEGORIZER_SAMPLES + 1 }, (_, i) => ({ ...c.samples[i % c.samples.length], id: i < c.samples.length ? c.samples[i].id : `x-${i}`, t: i }));
+    // The extra holds are set aside (every sample is somewhere).
+    const aside = (n: number) => samples.slice(c.samples.length, n).map((x) => x.id);
+    const many = importCategorizer({ ...c, samples, aside: aside(samples.length) });
     expect(many.ok).toBe(false);
     if (!many.ok) expect(many.error).toMatch(/^invalid categorizer: samples:/);
     const features = Array.from({ length: MAX_CATEGORIZER_FEATURES + 1 }, (_, i) => `f${i}`);
@@ -116,20 +118,20 @@ describe('importCategorizer: what a file may not carry', () => {
     expect(wide.ok).toBe(false);
     if (!wide.ok) expect(wide.error).toMatch(/^invalid categorizer: features:/);
     // At the limit it reads.
-    expect(importCategorizer({ ...c, samples: samples.slice(0, MAX_CATEGORIZER_SAMPLES) }).ok).toBe(true);
+    expect(importCategorizer({ ...c, samples: samples.slice(0, MAX_CATEGORIZER_SAMPLES), aside: aside(MAX_CATEGORIZER_SAMPLES) }).ok).toBe(true);
   });
 
   it('a migration that changes `format` is refused by the final validation, saying where', () => {
-    const { k: _k, ...rest } = file();
-    const v0 = { ...rest, version: 0 };
+    const v0 = { ...file(), version: 0 };
     const migrations = {
-      0: (d: Record<string, unknown>) => ({ ...d, version: 1, k: 2, format: 'thoremin.categorizer.v2' }),
+      0: (d: Record<string, unknown>) => ({ ...d, version: 1 }),
+      1: (d: Record<string, unknown>) => ({ ...d, version: 2, format: 'thoremin.categorizer.v2' }),
     };
     const r = importCategorizer(v0, { migrations });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/^invalid categorizer: format:/);
     // The same chain with the format kept reads the file.
-    const keep = importCategorizer(v0, { migrations: { 0: (d: Record<string, unknown>) => ({ ...d, version: 1, k: 2 }) } });
+    const keep = importCategorizer(v0, { migrations: { 0: migrations[0], 1: (d: Record<string, unknown>) => ({ ...d, version: 2 }) } });
     expect(keep).toEqual({ ok: true, categorizer: file(), migratedFrom: 0 });
   });
 });

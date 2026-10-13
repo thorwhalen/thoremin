@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CATEGORIZER_FORMAT,
   CATEGORIZER_VERSION,
+  MAX_SAMPLE_SUPPORT,
   NO_REJECT_RADIUS,
   SEED_CUE,
   applyLabels,
@@ -23,12 +24,14 @@ import {
   importCategorizer,
   matchLabels,
   mergeSession,
+  migrateCategorizerV1,
   modelFromCategorizer,
   selectExemplars,
   trainModel,
   TrainedModelSchema,
   type FeatureVector,
   type PersonalCategorizer,
+  type SampleInput,
   type StillPoint,
   type TrainedModel,
 } from '@thoremin/sdk/enroll';
@@ -261,7 +264,10 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
   it('round-trips through export and import unchanged, and derives the same model', () => {
     const { points, model } = toyTake();
     const c = categorizerFromModel(model, points, { name: 'mine', mode: 'reject', modality: 'face', createdAt: '2026-10-13T00:00:00Z' });
-    expect(c).toMatchObject({ format: CATEGORIZER_FORMAT, version: CATEGORIZER_VERSION, k: 2, mode: 'reject' });
+    expect(c).toMatchObject({ format: CATEGORIZER_FORMAT, version: CATEGORIZER_VERSION, strangers: 'neutral' });
+    expect(c.categories.map((x) => x.members)).toEqual([['s-0', 's-1', 's-2'], ['s-3', 's-4']]);
+    // The stray sample no category claims is "none of these" (reject mode).
+    expect(c.neutral).toEqual(['s-5']);
     expect(c.samples[2].vector).toEqual({ x: 0, y: 0.1 }); // the NaN was dropped
     const back = importCategorizer(exportCategorizer(c));
     expect(back).toEqual({ ok: true, categorizer: c, migratedFrom: null });
@@ -280,6 +286,8 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
     const { points, model } = toyTake();
     const c = categorizerFromModel(model, points, { name: 'all', mode: 'partition' });
     expect(c.rejectRadius).toBeUndefined();
+    // Nothing is neutral in partition mode: a sample no category claims is set aside.
+    expect(c).toMatchObject({ strangers: 'nearest', neutral: [], aside: ['s-5'] });
     const derived = modelFromCategorizer(c);
     expect(derived.rejectRadius).toBe(NO_REJECT_RADIUS);
     expect(classify(derived, { x: 100, y: 100 }).rejected).toBe(false);
@@ -299,12 +307,20 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
     expect(err({ ...c, format: 'other' })).toMatch(/not a categorizer/);
     expect(err({ ...c, version: CATEGORIZER_VERSION + 1 })).toMatch(/newer thoremin/);
     expect(err({ ...c, version: 1.5 })).toMatch(/bad version/);
-    expect(err({ ...c, k: 3 })).toMatch(/k is 3/);
     expect(err({ ...c, rejectRadius: undefined })).toMatch(/rejectRadius/);
-    expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: [2, 3] }] })).toMatch(/two categories/);
-    expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: [99] }] })).toMatch(/out of range/);
+    expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: ['s-2', 's-3', 's-4'] }] })).toMatch(/s-2" is in category "cat-1" and in category "cat-2/);
+    expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: ['s-3', 's-4', 's-99'] }] })).toMatch(/not in samples/);
     expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], id: c.categories[0].id }] })).toMatch(/duplicate category id/);
-    expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: [3, 3] }] })).toMatch(/listed twice/);
+    expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: ['s-3', 's-3', 's-4'] }] })).toMatch(/s-3" is in category "cat-2" and in category "cat-2/);
+    // Every sample is in exactly one place, and ids are unique.
+    expect(err({ ...c, neutral: [] })).toMatch(/s-5" is in no category, neutral or aside/);
+    expect(err({ ...c, aside: ['s-5'] })).toMatch(/s-5" is in neutral and in aside/);
+    expect(err({ ...c, samples: c.samples.map((x, i) => (i === 1 ? { ...x, id: 's-0' } : x)) })).toMatch(/used twice/);
+    expect(err({ ...c, categories: [{ ...c.categories[0], id: 'neutral' }, c.categories[1]] })).toMatch(/a bin's name/);
+    // A pin names a sample and a category or a bin.
+    expect(err({ ...c, pins: { 's-0': 'cat-9' } })).toMatch(/no category or bin/);
+    expect(err({ ...c, pins: { 's-9': 'neutral' } })).toMatch(/pin names sample "s-9"/);
+    expect(importCategorizer({ ...c, pins: { 's-0': 'cat-2', 's-5': 'aside' } }).ok).toBe(true);
     expect(err({ ...c, categories: [] })).toMatch(/categories/);
     // modelFromCategorizer validates too: an empty category must not shift ids onto members.
     expect(() => modelFromCategorizer({ ...c, categories: [{ ...c.categories[0], members: [] }, c.categories[1]] })).toThrow();
@@ -322,32 +338,92 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
   it('migrates an older version through the hook, and refuses a gap in the chain', () => {
     const { points, model } = toyTake();
     const c = categorizerFromModel(model, points, { name: 'mine', mode: 'reject' });
-    // A hypothetical version 0 that named the mode "open" and had no k.
-    const { k: _k, ...rest } = c;
-    const v0 = { ...rest, version: 0, mode: 'open' };
+    // A hypothetical version 0 that named the strangers setting "open".
+    const v0 = { ...c, version: 0, strangers: 'open' };
     const migrations = {
-      0: (d: Record<string, unknown>) => ({
-        ...d,
-        version: 1,
-        mode: d.mode === 'open' ? 'reject' : d.mode,
-        k: (d.categories as unknown[]).length,
-      }),
+      0: (d: Record<string, unknown>) => ({ ...d, version: 1 }),
+      1: (d: Record<string, unknown>) => ({ ...d, version: 2, strangers: d.strangers === 'open' ? 'neutral' : d.strangers }),
     };
     expect(importCategorizer(v0, { migrations })).toEqual({ ok: true, categorizer: c, migratedFrom: 0 });
-    const missing = importCategorizer(v0, { migrations: {} });
+    const missing = importCategorizer(v0, { migrations: { 1: migrations[1] } });
     expect(missing).toEqual({ ok: false, error: 'no migration from version 0' });
-    const stuck = importCategorizer(v0, { migrations: { 0: (d) => d } });
+    const stuck = importCategorizer(v0, { migrations: { 0: (d) => d, 1: migrations[1] } });
     expect(stuck.ok).toBe(false);
     const throws = importCategorizer(v0, {
       migrations: {
         0: () => {
           throw new Error('boom');
         },
+        1: migrations[1],
       },
     });
     expect(throws).toEqual({ ok: false, error: 'migration from version 0 failed (boom)' });
-    const empty = importCategorizer(v0, { migrations: { 0: () => null as unknown as Record<string, unknown> } });
+    const empty = importCategorizer(v0, { migrations: { 0: () => null as unknown as Record<string, unknown>, 1: migrations[1] } });
     expect(empty).toEqual({ ok: false, error: 'migration from version 0 returned no document' });
+  });
+});
+
+describe('version 1 to version 2 (#385 E3)', () => {
+  /** A version-1 file as this build wrote it before E3: positions, `mode`, `k`. */
+  const v1Of = (c: PersonalCategorizer, mode: 'reject' | 'partition'): Record<string, unknown> => {
+    const at = new Map(c.samples.map((x, i) => [x.id, i]));
+    const { strangers: _s, neutral: _n, aside: _a, pins: _p, ...rest } = c;
+    void [_s, _n, _a, _p];
+    return {
+      ...rest,
+      version: 1,
+      mode,
+      k: c.categories.length,
+      samples: c.samples.map(({ id: _id, ...x }) => x),
+      categories: c.categories.map((cat) => ({ ...cat, members: cat.members.map((id) => at.get(id)) })),
+    };
+  };
+
+  for (const mode of ['reject', 'partition'] as const) {
+    it(`migrates a ${mode} file to the same model, and back to the same file`, () => {
+      const { points, model } = toyTake();
+      const v2 = categorizerFromModel(model, points, { name: 'mine', mode });
+      const v1 = v1Of(v2, mode);
+      const r = importCategorizer(JSON.stringify(v1));
+      expect(r).toEqual({ ok: true, categorizer: v2, migratedFrom: 1 });
+      // Byte-identical derived model, and lossless back to version 1.
+      if (r.ok) {
+        expect(JSON.stringify(modelFromCategorizer(r.categorizer))).toBe(JSON.stringify(modelFromCategorizer(v2)));
+        expect(v1Of(r.categorizer, mode)).toEqual(v1);
+      }
+    });
+  }
+
+  it('keeps member order as stored (a centroid sums in that order), and takes ids from the caller', () => {
+    const { points, model } = toyTake();
+    const v1 = { ...v1Of(categorizerFromModel(model, points, { name: 'mine', mode: 'reject' }), 'reject'), categories: [
+      { id: 'cat-1', label: 'rest', members: [2, 0, 1] },
+      { id: 'cat-2', label: 'up', members: [4, 3] },
+    ] };
+    const out = migrateCategorizerV1(v1, { idFor: (i) => `take-1:${i}` });
+    expect(out).toMatchObject({ version: 2, strangers: 'neutral', neutral: ['take-1:5'] });
+    expect((out.categories as { members: string[] }[]).map((c) => c.members)).toEqual([['take-1:2', 'take-1:0', 'take-1:1'], ['take-1:4', 'take-1:3']]);
+    expect(out).not.toHaveProperty('k');
+    expect(out).not.toHaveProperty('mode');
+  });
+
+  it('passes a malformed version 1 through for validation to name what is wrong', () => {
+    const r = importCategorizer({ format: CATEGORIZER_FORMAT, version: 1, name: 'x', mode: 'reject', k: 1, features: ['x'], weights: {}, rejectRadius: 1, samples: 'nope', categories: [] });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/invalid categorizer: samples/);
+  });
+
+  it('keeps a sample\'s supporting frames over the model\'s features only, and at most a few', () => {
+    const { points, model } = toyTake();
+    const frames = Array.from({ length: 12 }, (_, i) => ({ x: i, y: 1 - i, z: 7, w: NaN }));
+    const c = categorizerFromModel(model, points.map((p, i) => ({ ...p, id: `t:${i}`, support: i === 0 ? frames : [] })), { name: 'mine', mode: 'reject' });
+    expect(c.samples[0].support).toHaveLength(MAX_SAMPLE_SUPPORT);
+    expect(c.samples[0].support![1]).toEqual({ x: 1, y: 0 });
+    expect(c.samples[1]).not.toHaveProperty('support');
+    expect(importCategorizer(exportCategorizer(c))).toEqual({ ok: true, categorizer: c, migratedFrom: null });
+    // An imported file may carry no more than the bound.
+    const tooMany = { ...c, samples: c.samples.map((x, i) => (i === 0 ? { ...x, support: [...frames, ...frames] } : x)) };
+    expect(importCategorizer(tooMany).ok).toBe(false);
   });
 });
 
@@ -357,11 +433,11 @@ describe('a model from a model', () => {
     return categorizerFromModel(model, points, { name: 'theirs', mode: 'reject' });
   };
   // Someone else's face: the same two poses, shifted by 0.3 on x.
-  const shifted: StillPoint[] = [
-    { vector: { x: 0.3, y: 0 }, t: 10, cue: 'faces' },
-    { vector: { x: 0.35, y: 0.05 }, t: 11, cue: 'faces' },
-    { vector: { x: 1.3, y: 1 }, t: 12, cue: 'faces' },
-    { vector: { x: 40, y: 40 }, t: 13, cue: 'faces' },
+  const shifted: SampleInput[] = [
+    { id: 'take-2:0', vector: { x: 0.3, y: 0 }, t: 10, cue: 'faces' },
+    { id: 'take-2:1', vector: { x: 0.35, y: 0.05 }, t: 11, cue: 'faces' },
+    { id: 'take-2:2', vector: { x: 1.3, y: 1 }, t: 12, cue: 'faces' },
+    { id: 'take-2:3', vector: { x: 40, y: 40 }, t: 13, cue: 'faces' },
   ];
 
   it('merge keeps ids and labels, joins each new pose to its nearest category, and keeps a far one as a free sample', () => {
@@ -373,7 +449,10 @@ describe('a model from a model', () => {
     const c = r.categorizer;
     expect(c.categories.map((x) => [x.id, x.label])).toEqual(b.categories.map((x) => [x.id, x.label]));
     expect(c.samples).toHaveLength(b.samples.length + shifted.length);
-    expect(c.categories[0].members).toEqual([0, 1, 2, 6, 7]);
+    // Members by id: the base's keep theirs, the new ones bring their own.
+    expect(c.categories[0].members).toEqual(['s-0', 's-1', 's-2', 'take-2:0', 'take-2:1']);
+    // The far one is "none of these", beside the base's stray.
+    expect(c.neutral).toEqual(['s-5', 'take-2:3']);
     expect(c.rejectRadius).toBeGreaterThanOrEqual(b.rejectRadius!); // never lowered
     expect(b.samples).toHaveLength(6); // the base is not modified
     // Bindings keyed by id carry with no work at all.
@@ -390,7 +469,9 @@ describe('a model from a model', () => {
     expect(fromCentroids.categories[0].centroid.x).toBeGreaterThan(fromSamples.categories[0].centroid.x);
     expect(fromCentroids.categories[0].centroid.x).toBeGreaterThan(0.2);
     expect(r.untouched).toEqual([b.categories[1].id]);
-    expect(r.categorizer.samples.filter((s) => s.cue === SEED_CUE)).toHaveLength(2);
+    expect(r.categorizer.samples.filter((s) => s.cue === SEED_CUE).map((s) => s.id)).toEqual(['seed:cat-1', 'seed:cat-2']);
+    // The base's samples are gone, and so is its neutral.
+    expect(r.categorizer.neutral).toEqual([]);
     expect(fromCentroids.categories[1].label).toBe('up');
     // A seed centroid stores only features its members had (no invented 0 for `z`).
     const noZ = mergeSession({ ...b, features: ['x', 'y', 'z'] }, [], { seed: 'centroids' });
@@ -503,7 +584,7 @@ describe('end to end over the REAL recordings (acceptance)', () => {
     // in and out, the README's dolly), sampled the way a session samples.
     const sampler = createStillPointSampler({ noise: session.noise(), features: session.features(), cue: 'your-faces' });
     for (const { v, t } of range(10.9, 13.6)) sampler.push(v, t);
-    const fresh = sampler.points();
+    const fresh = sampler.points().map((p, i) => ({ ...p, id: `take-2:${i}` }));
     expect(fresh.length).toBeGreaterThan(0);
 
     const merged = mergeSession(saved, fresh);
