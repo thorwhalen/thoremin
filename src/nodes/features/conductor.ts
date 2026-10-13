@@ -1,5 +1,5 @@
 /**
- * `conductor` node — the conductor's beating hand becomes musical time (#187).
+ * `conductor` node — the conductor's beating hand, or body, becomes musical time (#187, #375).
  *
  * Wraps `packages/ictus/src` (the pure core: ictus detector → rhythm prior →
  * `MusicalTime`) as a DAG node over the hands frame the rest of the graph already
@@ -35,6 +35,18 @@
  * shipped system (§6.3). Without a document the dial's `beatsPerBar` is used and there
  * are no fermatas.
  *
+ * The body (#375, body-movement A3). With `source` = `body` the anchors come from the pose
+ * stream on the `body` input instead of the hands: the body's impact detector (A2,
+ * `createImpactDetector`) over the channels `conductor_body.ts` builds (the beating arm
+ * and the trunk centroid by default, or one point: wrist, head, hips, com), behind the
+ * same `AnchorDetector` seam, so the prior, the integrated beat, the servo, the fermatas,
+ * the score, the orchestra and `recordingTime` are the hand conductor's, unchanged. The
+ * speed fallback reads the body's quantity of motion where the hand reads its point's
+ * speed. Which law follows is the conductor's (strict); which level the body marks is
+ * the beat, seeded from the score's marked tempo where a score is loaded (the detector's
+ * level confirms itself from the first joint it follows, A2's note 5 on #386). The pose
+ * branch is composed only while the source is `body` (`src/instruments/derive.ts`).
+ *
  * The dial. {@link ConductorDialSchema} IS this node's params (the `faceControls`
  * pattern): the `conductor` dial re-exports it, the `config` input overrides the
  * build-time params live per tick, and `commands/paths.ts` derives a `dial.setIn`
@@ -54,8 +66,10 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, createIctus, wrapPhase, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
-import { LM, frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { beatAt, createIctus, createImpactDetector, wrapPhase, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
+import { LM, frameTime, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, CONDUCTOR_BODY_POINTS } from './conductor_body';
 import { beatsPerBarAt } from '@thoremin/sdk/score/schema';
 import { readScoreDoc } from '@thoremin/sdk/score/prepare';
 
@@ -67,6 +81,11 @@ export type ConductorPoint = (typeof CONDUCTOR_POINTS)[number];
  *  loaded in the Song tool ("Conduct a recording"). */
 export const CONDUCTOR_TARGETS = ['score', 'recording'] as const;
 export type ConductorTarget = (typeof CONDUCTOR_TARGETS)[number];
+/** What the conductor reads (#375): the beating hand (the hand model), or the body (the
+ *  pose model, a second camera branch the derivation composes while this is `body`). */
+export const CONDUCTOR_SOURCES = ['hands', 'body'] as const;
+export type ConductorSource = (typeof CONDUCTOR_SOURCES)[number];
+export { CONDUCTOR_BODY_POINTS, type ConductorBodyPoint } from './conductor_body';
 
 const Params = z.object({
   /** Off by default: conducting replaces the score's fixed tempo, and a player who
@@ -76,12 +95,22 @@ const Params = z.object({
    *  tempo then follows the beat through the song's pacer (#187 PR 7). While it leads the
    *  recording the score and the orchestra stay silent. */
   conducts: z.enum(CONDUCTOR_TARGETS).default('score'),
-  /** Which of the player's hands beats time. `auto` takes whichever is in frame,
-   *  preferring the right. */
+  /** What beats time (#375): the hand (the hand model's wrist or fingertip) or the body
+   *  (the pose model: an arm, the trunk, the head, the hips). Everything after the
+   *  anchors (the prior, the beat, the score, the orchestra, a recording) is the same. */
+  source: z.enum(CONDUCTOR_SOURCES).default('hands'),
+  /** Which of the player's hands (or, reading the body, arms) beats time. `auto` takes
+   *  whichever hand is in frame, preferring the right; reading the body, whichever arm
+   *  shows a rhythm. */
   hand: z.enum(CONDUCTOR_HANDS).default('auto'),
   /** The tracked point: the wrist (steady) or the index fingertip (livelier, like a
-   *  baton tip). */
+   *  baton tip). Reading the hands only. */
   point: z.enum(CONDUCTOR_POINTS).default('wrist'),
+  /** What the body conductor follows (#375): `impact`, the multi-joint detector over the
+   *  beating arm and the trunk (A1's measured set: the arm while it beats, the trunk's
+   *  bounce otherwise), or one point: the beating `wrist`, the `head`, the `hips`
+   *  (bounce) or the trunk centroid `com`. Reading the body only. */
+  bodyPoint: z.enum(CONDUCTOR_BODY_POINTS).default('impact'),
   /** Selfie mirror: the webcam view is mirrored, so lateral direction is flipped to the
    *  player's frame. Off for a recorded third-person video. */
   mirrorX: z.boolean().default(true),
@@ -163,6 +192,13 @@ function pickHand(frame: HandsFrame, cfg: Params): Hand | undefined {
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+/** The score's first marked tempo (bpm), if it marks one. */
+function firstTempo(doc: ScoreDoc): number | null {
+  let first: { beat: number; bpm: number } | null = null;
+  for (const m of doc.tempoMap) if (!first || m.beat < first.beat) first = m;
+  return first ? first.bpm : null;
+}
+
 /** Two samples closer than this (seconds) are not two camera frames: a stamp-source
  *  switch (a clock stamp followed by an estimated one, pushed forward to stay
  *  increasing) can put them a millisecond apart, and a backward difference over that
@@ -174,9 +210,12 @@ export const conductorNode = defineNode<Params>({
   roles: ['feature', 'mapping'],
   title: 'Conductor',
   description:
-    'The beating hand becomes musical time: ictus detection + a rhythm prior (packages/ictus/src; the oscillator-trend blend by default) → beat, bpm, dynamics for the score. Off by default.',
+    'The beating hand (or, with source = body, the body) becomes musical time: ictus detection + a rhythm prior (packages/ictus/src; the oscillator-trend blend by default) → beat, bpm, dynamics for the score. Off by default.',
   inputs: [
     { name: 'hands', kind: 'hands-frame' },
+    // The pose stream (#375): read while `source` is `body`; composed (the body source
+    // branch) only then, so an unconnected port is the hand conductor's normal case.
+    { name: 'body', kind: 'body-frame' },
     { name: 'config', kind: 'conductor-config' },
     // The loaded piece (#187 PR 3/4): its time signature and fermatas. Optional.
     { name: 'doc', kind: 'score-doc' },
@@ -206,6 +245,8 @@ export const conductorNode = defineNode<Params>({
     let docRef: unknown = null;
     let fermatas: number[] = [];
     let docMeter: ((beat: number) => number) | null = null;
+    /** The document's first tempo mark (bpm), seeding the body detector's period. */
+    let docBpm: number | null = null;
     /** Fermata hold: the beat we stopped at, and the anchor count when we stopped (a
      *  NEW stroke — one more anchor — releases it). */
     let fermataAt: number | null = null;
@@ -215,22 +256,42 @@ export const conductorNode = defineNode<Params>({
     /** The hands frame seen on the previous tick: the same object again is not a new
      *  observation (#225). */
     let lastFrame: HandsFrame | undefined;
-    // Speed-based fallback: EW speed of the tracked point and a decaying envelope of it.
+    /** The body frame seen on the previous tick, and the last one fed (with its time). */
+    let lastBodyFrame: BodyFrame | undefined;
+    let lastBody: { t: number; frame: BodyFrame } | null = null;
+    /** What the follower was built for: a change re-creates it (the body's joints are
+     *  fixed at construction), keeping the beat where it is. */
+    let coreKey = '';
+    // Speed-based fallback: EW speed of the tracked point (or the body's quantity of
+    // motion) and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
     let speedEw = 0;
     let speedEnv = 0;
+    const noteSpeed = (speed: number, dtS: number): void => {
+      speedEw += 0.3 * (speed - speedEw);
+      speedEnv = Math.max(speedEnv * Math.pow(0.85, dtS), speedEw);
+    };
+    const resetFollower = (): void => {
+      ictus = null;
+      lastPt = null;
+      lastBody = null;
+      speedEw = 0;
+      speedEnv = 0;
+    };
 
     const resolveDoc = (raw: unknown): void => {
       if (raw === docRef) return;
       docRef = raw;
       fermatas = [];
       docMeter = null;
+      docBpm = null;
       fermataAt = null;
       fermataReleased = null;
       const doc = readScoreDoc(raw);
       if (!doc) return;
       fermatas = [...doc.fermatas].sort((a, b) => a - b);
       docMeter = (beat) => beatsPerBarAt(doc, beat);
+      docBpm = firstTempo(doc);
     };
 
     const resolveConfig = (raw: unknown): Params => {
@@ -283,10 +344,7 @@ export const conductorNode = defineNode<Params>({
         const beatsPerBar = docMeter ? docMeter(beatOut) : c.beatsPerBar;
         if (!c.enabled) {
           if (wasEnabled) {
-            ictus = null;
-            lastPt = null;
-            speedEw = 0;
-            speedEnv = 0;
+            resetFollower();
             beatOut = 0;
             fermataAt = null;
             fermataReleased = null;
@@ -294,9 +352,24 @@ export const conductorNode = defineNode<Params>({
           }
           return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
         }
+        // The hand's follower reads `hand` and `point` live; the body's detector fixes its
+        // joints when built, so a change of side or point (or of source) re-creates it.
+        // The beat stays where it is: the new follower waits for its first stroke.
+        const key = c.source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : 'hands';
+        if (ictus && key !== coreKey) resetFollower();
         if (!wasEnabled || !ictus) {
+          coreKey = key;
           ictus = createIctus({
-            detector: { mirrorX: c.mirrorX },
+            detector:
+              c.source === 'body'
+                ? createImpactDetector({
+                    joints: conductorBodyJoints(c.bodyPoint, c.hand),
+                    mirrorX: c.mirrorX,
+                    // The level confirms itself from the first joint followed (A2, note 5):
+                    // a score's marked tempo seeds it at the beat.
+                    ...(docBpm ? { initialPeriod: 60 / docBpm } : {}),
+                  })
+                : { mirrorX: c.mirrorX },
             prior: c.prior,
             oscillator: { beatsPerBar: c.beatsPerBar, phaseGain: c.phaseGain, periodGain: c.periodGain },
             trend: { beatsPerBar: c.beatsPerBar },
@@ -310,32 +383,48 @@ export const conductorNode = defineNode<Params>({
         //    tick times flattens the detector's parabolic fit and biases the ictus. The
         //    sample time is the frame's capture time when the source stamped one
         //    (#226), else the tick time.
-        const frame = inputs.hands as HandsFrame | undefined;
         // The same object again, or a distinct copy carrying the same stamp (a replayed
         // recording stores every tick, so a camera frame comes back as two parsed
         // copies), is not a new observation.
-        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
-        const fresh = frame !== lastFrame && !sameStamp;
-        lastFrame = frame;
-        const hand = frame && fresh ? pickHand(frame, c) : undefined;
+        const isFresh = (f: { t?: number } | undefined, prev: { t?: number } | undefined): boolean =>
+          f !== prev && !(!!f && !!prev && f.t !== undefined && f.t === prev.t);
         let s: IctusState;
-        // The sample time: the frame's capture stamp in real time at speed 1, else the
-        // tick. A sample that would not advance the detector (a stamped frame arriving
-        // behind the last tick-timed one, right after a slot swap) is skipped rather
-        // than given an invented time.
-        const t = frameTime(frame, ctx);
-        if (hand && frame && frame.height > 0 && !(lastPt && t < lastPt.t + MIN_SAMPLE_SPACING)) {
-          const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
-          const pt = { t, x: kp.x / frame.height, y: kp.y / frame.height };
-          if (lastPt && pt.t > lastPt.t) {
-            const speed = Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) / (pt.t - lastPt.t);
-            speedEw += 0.3 * (speed - speedEw);
-            speedEnv = Math.max(speedEnv * Math.pow(0.85, pt.t - lastPt.t), speedEw);
+        if (c.source === 'body') {
+          const body = inputs.body as BodyFrame | undefined;
+          const fresh = isFresh(body, lastBodyFrame);
+          lastBodyFrame = body;
+          const t = frameTime(body, ctx);
+          if (body && fresh && !(lastBody && t < lastBody.t + MIN_SAMPLE_SPACING)) {
+            // A frame with nobody in it is fed too (no channels): the detector needs to
+            // see the time pass to call a joint lost.
+            if (lastBody) {
+              const qom = bodyQuantityOfMotion(lastBody.frame, body, t - lastBody.t);
+              if (qom !== undefined) noteSpeed(qom, t - lastBody.t);
+            }
+            lastBody = { t, frame: body };
+            s = ictus.feedFrame(bodyChannelFrame(body, t, c.hand));
+          } else {
+            s = ictus.advance(ctx.time);
           }
-          lastPt = pt;
-          s = ictus.feed(pt);
         } else {
-          s = ictus.advance(ctx.time);
+          const frame = inputs.hands as HandsFrame | undefined;
+          const fresh = isFresh(frame, lastFrame);
+          lastFrame = frame;
+          const hand = frame && fresh ? pickHand(frame, c) : undefined;
+          // The sample time: the frame's capture stamp in real time at speed 1, else the
+          // tick. A sample that would not advance the detector (a stamped frame arriving
+          // behind the last tick-timed one, right after a slot swap) is skipped rather
+          // than given an invented time.
+          const t = frameTime(frame, ctx);
+          if (hand && frame && frame.height > 0 && !(lastPt && t < lastPt.t + MIN_SAMPLE_SPACING)) {
+            const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
+            const pt = { t, x: kp.x / frame.height, y: kp.y / frame.height };
+            if (lastPt && pt.t > lastPt.t) noteSpeed(Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) / (pt.t - lastPt.t), pt.t - lastPt.t);
+            lastPt = pt;
+            s = ictus.feed(pt);
+          } else {
+            s = ictus.advance(ctx.time);
+          }
         }
 
         // 2. Blend the inferred tempo with the speed fallback by confidence; integrate.

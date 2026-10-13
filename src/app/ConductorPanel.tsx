@@ -18,6 +18,10 @@
  * beat grid and pace-controller node the dancer's "Follow the dancer" uses (#186). The
  * song is chosen right here (the Song tool's own loader), so a cold load is four clicks:
  * Conductor, Conduct a recording, Choose a recording, Start conducting.
+ *
+ * "Conduct with" (#375): hands or body, the `conductor.source` dial. Body composes the
+ * pose camera branch and the conductor reads it; from a cold load that is three clicks:
+ * Conductor, Conduct with body, Start conducting.
  */
 import { useRef, useState } from 'react';
 import { Music2, X } from 'lucide-react';
@@ -25,7 +29,8 @@ import { unlockSongPlayback } from '@/nodes/output/song_player';
 import { loadSongFile } from './song/host';
 import { useControls } from './store';
 import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
-import { ConductorControls } from './dials/panels/conductor';
+import { ConductorControls, SOURCE_LABEL } from './dials/panels/conductor';
+import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
 import { toolById } from './tools';
@@ -34,9 +39,9 @@ import type { ConductorSettings } from '@/settings/schema';
 
 export const CONDUCTOR_TOOL_ID = 'conductor';
 
-/** What to tell the player, per follower state. */
-export function describeLive(live: ConductorLive): string {
-  if (!live.enabled) return 'Off. Press Start, then beat time with your hand.';
+/** What to tell the player, per follower state (and what they conduct with, #375). */
+export function describeLive(live: ConductorLive, source: ConductorSettings['source'] = 'hands'): string {
+  if (!live.enabled) return source === 'body' ? 'Off. Press Start, then beat time with your arm or a bounce.' : 'Off. Press Start, then beat time with your hand.';
   if (live.state === 'hold') return live.anchors === 0 ? 'Waiting for your first beat.' : 'Holding. Beat once to go on.';
   if (live.state === 'ready') return live.anchors === 0 ? 'Waiting for your first beat.' : 'Finding your tempo...';
   return `Following at ${Math.round(live.tempo)} bpm.`;
@@ -93,12 +98,12 @@ function RecordingChooser({ live }: { live: ConductorLive }) {
   );
 }
 
-function LiveReadout({ live }: { live: ConductorLive }) {
+function LiveReadout({ live, source }: { live: ConductorLive; source: ConductorSettings['source'] }) {
   const beat = live.beatInBar + 1;
   return (
     <div className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2 text-xs" data-testid="conductor-live" data-state={live.enabled ? live.state : 'off'}>
       <div className="flex items-center justify-between">
-        <span className="text-white/80">{describeLive(live)}</span>
+        <span className="text-white/80">{describeLive(live, source)}</span>
         {live.enabled && live.state === 'running' && (
           <span className="font-mono text-emerald-300">
             {beat}/{live.beatsPerBar}
@@ -135,6 +140,7 @@ export default function ConductorPanel() {
   const conductorDial = (state.effective.conductor ?? {}) as Partial<ConductorSettings>;
   const enabled = conductorDial.enabled === true;
   const recording = conductorDial.conducts === 'recording';
+  const source = conductorDial.source === 'body' ? 'body' : 'hands';
 
   return (
     <div className="shell-tool-panel absolute left-3 z-40 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur">
@@ -169,6 +175,19 @@ export default function ConductorPanel() {
             </button>
           ))}
         </div>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-white/5 p-1 text-xs" role="radiogroup" aria-label="Conduct with">
+          {CONDUCTOR_SOURCES.map((value) => (
+            <button
+              key={value}
+              role="radio"
+              aria-checked={value === source}
+              onClick={() => void dispatchDialSetIn('conductor.source', value)}
+              className={`rounded px-2 py-1 font-semibold transition ${value === source ? 'bg-emerald-500 text-black' : 'text-white/70 hover:bg-white/10'}`}
+            >
+              Conduct with {SOURCE_LABEL[value].toLowerCase()}
+            </button>
+          ))}
+        </div>
         {recording && <RecordingChooser live={live} />}
         <button
           onClick={() => {
@@ -186,13 +205,14 @@ export default function ConductorPanel() {
         >
           {enabled ? 'Stop conducting' : 'Start conducting'}
         </button>
-        <LiveReadout live={live} />
+        <LiveReadout live={live} source={source} />
         <p className="text-[10px] leading-relaxed text-white/50">
-          Beat time in front of the camera: the bottom of each stroke is a beat, bigger strokes
-          are louder. The score waits for your first stroke, follows your tempo, and holds when
-          you stop.
+          {source === 'body'
+            ? 'Stand back so the camera sees you from head to hips, and beat time with an arm or bounce with the trunk: the bottom of each bounce is a beat, bigger ones are louder.'
+            : 'Beat time in front of the camera: the bottom of each stroke is a beat, bigger strokes are louder.'}{' '}
+          The score waits for your first stroke, follows your tempo, and holds when you stop.
         </p>
-        <ConductorControls />
+        <ConductorControls sourceChooser={false} />
       </div>
     </div>
   );

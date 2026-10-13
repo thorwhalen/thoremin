@@ -1,5 +1,6 @@
 /**
- * The CONDUCTOR section of the settings panel (#187): conduct a score with a hand.
+ * The CONDUCTOR section of the settings panel (#187): conduct a score with a hand, or
+ * with the body (#375: `conductor.source`, the arm and point choosers following it).
  * Off by default; the toggle, the piece chooser, the hand and point choosers and the
  * follow-tightness slider all write leaves of the structured `conductor` dial through
  * `dispatchDialSetIn` (the single write path). The catch-up slider dispatches on every
@@ -26,7 +27,7 @@ import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { OrchestraControls } from './orchestra';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
-import { CONDUCTOR_HANDS, CONDUCTOR_POINTS, type ConductorDialParams } from '@/nodes/features/conductor';
+import { CONDUCTOR_BODY_POINTS, CONDUCTOR_HANDS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
 import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
 import { BUILTIN_PIECE, type ConductorSettings } from '@/settings/schema';
 import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type NamedSummary, type ScoreStore } from '@/score';
@@ -36,9 +37,26 @@ const HAND_LABEL: Record<ConductorDialParams['hand'], string> = {
   right: 'right hand',
   left: 'left hand',
 };
+/** Reading the body (#375) the same dial names the beating ARM. */
+const ARM_LABEL: Record<ConductorDialParams['hand'], string> = {
+  auto: 'either (whichever beats)',
+  right: 'right arm',
+  left: 'left arm',
+};
 const POINT_LABEL: Record<ConductorDialParams['point'], string> = {
   wrist: 'wrist (steady)',
   indexTip: 'index fingertip (like a baton)',
+};
+const BODY_POINT_LABEL: Record<ConductorDialParams['bodyPoint'], string> = {
+  impact: 'arm and trunk (default)',
+  wrist: 'the beating wrist',
+  com: 'trunk bounce',
+  hips: 'hips bounce',
+  head: 'head nod',
+};
+export const SOURCE_LABEL: Record<ConductorDialParams['source'], string> = {
+  hands: 'Hands',
+  body: 'Body',
 };
 /** The rhythm prior (#232), in the player's terms: what kind of tempo it follows best. */
 const PRIOR_LABEL: Record<RhythmPriorKind, string> = {
@@ -50,12 +68,16 @@ const PRIOR_LABEL: Record<RhythmPriorKind, string> = {
 let sharedStore: ScoreStore | null = null;
 const scoreStore = (): ScoreStore => (sharedStore ??= createScoreStore());
 
-export function ConductorControls() {
+/** `sourceChooser`: the Conductor tool shows its own "Conduct with" choice above this
+ *  section, so it leaves this one out; the settings editor keeps it. */
+export function ConductorControls({ sourceChooser = true }: { sourceChooser?: boolean } = {}) {
   const { state } = useDialsSettings();
   const c = (state.effective.conductor ?? {}) as Partial<ConductorSettings>;
   const enabled = c.enabled === true;
+  const body = c.source === 'body';
   const hand = c.hand ?? 'auto';
   const point = c.point ?? 'wrist';
+  const bodyPoint = c.bodyPoint ?? 'impact';
   const servo = c.servoBeats ?? 1;
   const prior = (c.prior ?? DEFAULT_RHYTHM_PRIOR) as RhythmPriorKind;
   const piece = c.piece ?? BUILTIN_PIECE;
@@ -129,8 +151,24 @@ export function ConductorControls() {
       </label>
       <LoadStatusReadout status={status} enabled={enabled} offMessage="Turn conducting on to load the piece" />
       <OrchestraControls />
+      {sourceChooser && (
+        <label className="flex items-center justify-between gap-2 text-xs">
+          Conduct with
+          <select
+            className={selectCls}
+            value={body ? 'body' : 'hands'}
+            onChange={(e) => dispatchDialSetIn('conductor.source', e.target.value)}
+          >
+            {CONDUCTOR_SOURCES.map((s) => (
+              <option key={s} value={s}>
+                {SOURCE_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="flex items-center justify-between gap-2 text-xs">
-        Beating hand
+        {body ? 'Beating arm' : 'Beating hand'}
         <select
           className={selectCls}
           value={hand}
@@ -139,26 +177,45 @@ export function ConductorControls() {
         >
           {CONDUCTOR_HANDS.map((h) => (
             <option key={h} value={h}>
-              {HAND_LABEL[h]}
+              {(body ? ARM_LABEL : HAND_LABEL)[h]}
             </option>
           ))}
         </select>
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs">
-        Follow
-        <select
-          className={selectCls}
-          value={point}
-          disabled={!enabled}
-          onChange={(e) => dispatchDialSetIn('conductor.point', e.target.value)}
-        >
-          {CONDUCTOR_POINTS.map((p) => (
-            <option key={p} value={p}>
-              {POINT_LABEL[p]}
-            </option>
-          ))}
-        </select>
-      </label>
+      {body ? (
+        <label className="flex items-center justify-between gap-2 text-xs">
+          Follow
+          <select
+            className={selectCls}
+            value={bodyPoint}
+            disabled={!enabled}
+            data-testid="conductor-body-point"
+            onChange={(e) => dispatchDialSetIn('conductor.bodyPoint', e.target.value)}
+          >
+            {CONDUCTOR_BODY_POINTS.map((p) => (
+              <option key={p} value={p}>
+                {BODY_POINT_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <label className="flex items-center justify-between gap-2 text-xs">
+          Follow
+          <select
+            className={selectCls}
+            value={point}
+            disabled={!enabled}
+            onChange={(e) => dispatchDialSetIn('conductor.point', e.target.value)}
+          >
+            {CONDUCTOR_POINTS.map((p) => (
+              <option key={p} value={p}>
+                {POINT_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="flex items-center justify-between gap-2 text-xs">
         <span>
           Catch-up <span className="text-white/40">({servo.toFixed(2)} beats)</span>
@@ -189,8 +246,9 @@ export function ConductorControls() {
         </select>
       </label>
       <p className="text-[10px] leading-relaxed text-white/40">
-        Beat time with your hand: the bottom of each stroke is a beat, stroke size is
-        loudness, and the score follows your tempo. Stop beating and it holds. A short
+        Beat time with your hand (or, conducting with the body, your arm or a bounce of
+        the trunk, with the camera seeing you from head to hips): the bottom of each
+        stroke is a beat, stroke size is loudness, and the score follows your tempo. Stop beating and it holds. A short
         catch-up follows a conductor closely; a long one forgives a shaky beat. The
         tempo sense takes effect the next time conducting is switched on. The demo
         pieces are public domain or CC0 (see scores/LICENSES.md); a file you load stays
