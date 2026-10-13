@@ -9,8 +9,8 @@
  * Clicks from a cold load: Tools (1), "Your faces" (2), "Record my faces" (3). Testing a saved
  * categorizer (P3): Tools, "Your faces", Open, "Test with my face" (4).
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
 import ToolsLauncher from '@/app/ToolsLauncher';
 import ExtensionToolPanels from '@/app/ExtensionToolPanels';
@@ -21,6 +21,11 @@ import { EXTENSION_TOOL_DECLS } from '@/app/extensions';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { faceSessionStore } from '@thoremin/ext-faces/app/faceSession';
 import { FACES } from '../helpers/extensions';
+// The dial write path's host (the app installs it when these load).
+import { dialsStore } from '@/app/dials/settingsStore';
+import { dispatchDialPatch } from '@/app/dispatchDial';
+import '@/app/dials/useDialsSettings';
+import { registry } from '@/app/commands/registry';
 
 const Shell = () => (
   <>
@@ -117,5 +122,43 @@ describe.runIf(FACES)('testing and correcting a saved categorizer is reachable (
     expect(faceTestStore().getState().running).toBe(false);
     expect(appFeatureDemand.owners()).not.toContain('faces-test');
     for (const s of await saved.list()) await saved.remove(s.id);
+  });
+});
+
+describe.runIf(FACES)('playing a saved categorizer from the tool (#357)', () => {
+  /** One click from the tool: Tools (1), "Your faces" (2), "Play it" (3). */
+  it('"Play it" points the current instrument at it through the dial commands, and then says Playing', async () => {
+    const { createFaceModelStore } = await import('@thoremin/ext-faces/app/models');
+    const { importCategorizer } = await import('@thoremin/sdk/enroll/categorizer');
+    const { GENERAL_CATEGORIZER, AUTO_DEGREE } = await import('@thoremin/ext-faces/schema');
+    const file = await import('./fixtures/two_faces.categorizer.json');
+    const parsed = importCategorizer(file.default);
+    if (!parsed.ok) throw new Error('fixture');
+    const saved = createFaceModelStore();
+    const { id } = await saved.save('Play test', { categorizer: parsed.categorizer, takeId: null });
+    // An instrument whose face plays nothing, with a chord chosen for a category of another one.
+    dispatchDialPatch([['faceCategorizer.id', GENERAL_CATEGORIZER], ['face.mapping', 'none'], ['faceCategorizer.degrees.cat-1', 3]]);
+    const effective = () => dialsStore.getState().effective as Record<string, unknown>;
+    const dispatch = vi.spyOn(registry, 'dispatch');
+
+    render(<Shell />);
+    act(() => useTools.getState().toggleTool('faces'));
+    const play = await screen.findByRole('button', { name: 'Play Play test' });
+    act(() => {
+      fireEvent.click(play);
+    });
+    await waitFor(() => expect((effective().faceCategorizer as { id: string }).id).toBe(id));
+    // The section's own writes: the face chords on, every category's chord back to Auto.
+    expect(effective()['face.mapping']).toBe('chord');
+    expect((effective().faceCategorizer as { degrees: Record<string, number> }).degrees['cat-1']).toBe(AUTO_DEGREE);
+    // Chosen now: no second click to put the chords back to Auto.
+    expect(await screen.findByText('Playing')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Play Play test' })).toBeNull();
+    // Through the command registry, as one `dial.patch` (one undoable step).
+    const patches = dispatch.mock.calls.filter(([cmd]) => cmd === 'dial.patch');
+    expect(patches).toHaveLength(1);
+    dispatch.mockRestore();
+    dispatchDialPatch([['faceCategorizer.id', GENERAL_CATEGORIZER], ['face.mapping', 'none']]);
+    for (const m of await saved.list()) await saved.remove(m.id);
   });
 });

@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
+import { dispatchDialPatch, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { CategorizerMode } from '@thoremin/sdk/enroll/categorizer';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isRecording, type FaceSessionState } from '../app/sessionStore';
@@ -20,6 +21,7 @@ import { categoryOf } from '../lib/corrections';
 import { ImportButton, TestAndTune } from './TestAndTune';
 import { FACE_REST_CUE, FACE_VOCABULARY_CUE } from '../lib/take';
 import type { CarveView, CarvedCategory } from '../lib/carving';
+import { chooseCategorizerWrites } from '../schema';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -246,6 +248,38 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
   );
 }
 
+/**
+ * "Play it" (#357): the current instrument reads this categorizer, the same one `dial.patch` the
+ * editor's Face categorizer section dispatches (every category's chord back to Auto, the face
+ * chords on if the face played nothing). The instrument is left unsaved, as with any edit. Once
+ * the instrument names it, the button says so instead: choosing it again would only put the
+ * chords the player picked back to Auto.
+ */
+function PlayButton({ id, name }: { id: string; name: string }) {
+  const { state } = useDialsSettings();
+  const v = state.effective as Record<string, unknown>;
+  const faceMapping = String(v['face.mapping'] ?? 'none');
+  const chosen = (v.faceCategorizer as { id?: string } | undefined)?.id === id;
+  if (chosen) {
+    return (
+      <span className="shrink-0 text-[10px] text-emerald-300/80" data-faces-playing={id}>
+        {faceMapping === 'chord' ? 'Playing' : 'Chosen (face chords off)'}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={btn}
+      aria-label={`Play ${name}`}
+      title="The current instrument's face chords read this one (unsaved, like any edit)"
+      onClick={() => dispatchDialPatch(chooseCategorizerWrites(id, faceMapping))}
+    >
+      Play it
+    </button>
+  );
+}
+
 function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard: () => boolean }) {
   if (s.saved.length === 0) return <p className={hint}>No saved categorizers yet.</p>;
   return (
@@ -257,6 +291,7 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
           <button type="button" className={btn} aria-label={`Open ${m.name}`} onClick={() => confirmDiscard() && void s.open(m.id)}>
             Open
           </button>
+          <PlayButton id={m.id} name={m.name} />
           <button
             type="button"
             className={btn}
