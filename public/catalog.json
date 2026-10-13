@@ -1895,6 +1895,87 @@
     ]
   },
   {
+    "type": "orchestra",
+    "title": "Orchestra",
+    "description": "The conducted score played by a sampled orchestra (spessasynth_lib + a cut MuseScore_General SF3): a pending-event scheduler on the conductor’s time, dynamics as CC11/CC74 on sounding notes. Off by default; loads only when switched on.",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "time",
+        "kind": "musical-time",
+        "description": "The conductor’s musical time (beat, tempo)."
+      },
+      {
+        "name": "velocityScale",
+        "kind": "number",
+        "description": "The conductor’s dynamics, 0..1: CC11 + CC74 on every channel.",
+        "default": 1
+      },
+      {
+        "name": "articulation",
+        "kind": "number",
+        "description": "The conductor’s articulation, 0 legato .. 1 staccato: shortens the next notes.",
+        "default": 0.5
+      },
+      {
+        "name": "conducting",
+        "kind": "boolean",
+        "description": "The conductor is on: the orchestra plays.",
+        "default": false
+      },
+      {
+        "name": "doc",
+        "kind": "score-doc",
+        "description": "The loaded piece; none = the built-in demo scale."
+      },
+      {
+        "name": "config",
+        "kind": "conductor-config",
+        "description": "The conductor dial; its `orchestra` field switches the orchestra on and sets the levels."
+      },
+      {
+        "name": "claimed",
+        "kind": "boolean",
+        "description": "A tool (the Trainer) has claimed silence.",
+        "default": false
+      }
+    ],
+    "outputs": [
+      {
+        "name": "status",
+        "kind": "load-status"
+      },
+      {
+        "name": "playing",
+        "kind": "boolean"
+      }
+    ],
+    "params": [
+      {
+        "name": "lookaheadTicks",
+        "type": "number",
+        "default": 2
+      },
+      {
+        "name": "staccatoDepth",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "brightnessDepth",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "ccInterval",
+        "type": "number",
+        "default": 0.05
+      }
+    ]
+  },
+  {
     "type": "performance",
     "title": "Performance",
     "description": "Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.",
@@ -2283,6 +2364,11 @@
       {
         "name": "doc",
         "kind": "score-doc"
+      },
+      {
+        "name": "replaced",
+        "kind": "boolean",
+        "default": false
       }
     ],
     "outputs": [

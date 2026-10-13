@@ -15,12 +15,16 @@
  * status through the shared readout. What the follower is doing right now (ready /
  * running / hold, tempo, confidence) is the graph's business and is read off the
  * overlay and the Conductor tool panel (PR 4), not here.
+ *
+ * The orchestra (PR 5): `OrchestraControls` sits under the piece, so both surfaces that
+ * mount this section offer the sampled orchestra and its levels.
  */
 import { useEffect, useState } from 'react';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
+import { OrchestraControls } from './orchestra';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
 import { CONDUCTOR_HANDS, CONDUCTOR_POINTS, type ConductorDialParams } from '@/nodes/features/conductor';
 import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
@@ -124,6 +128,7 @@ export function ConductorControls() {
         />
       </label>
       <LoadStatusReadout status={status} enabled={enabled} offMessage="Turn conducting on to load the piece" />
+      <OrchestraControls />
       <label className="flex items-center justify-between gap-2 text-xs">
         Beating hand
         <select

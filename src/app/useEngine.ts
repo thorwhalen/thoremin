@@ -45,6 +45,7 @@ import { createTimingResource } from './timing/resource';
 import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 import { useTimingStatus, makeTimingReporter } from './timingStatus';
 import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
+import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORCHESTRA_NODE_ID } from './orchestraStatus';
 import { EXTENSION_STATUS_HOOKS } from './extensions';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
@@ -142,6 +143,7 @@ function resetStatusesOf(removed: readonly string[]): void {
     for (const hook of EXTENSION_STATUS_HOOKS) if (hook.nodeId === id) hook.onRemoved();
     if (id === GENERATIVE_NODE_ID) useGenerativeStatus.getState().report(ABSENT_GENERATIVE_STATUS);
     else if (id === CONDUCTOR_NODE_ID) useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE);
+    else if (id === ORCHESTRA_NODE_ID) useOrchestraStatus.getState().report(ABSENT_ORCHESTRA_STATUS);
   }
 }
 
@@ -453,6 +455,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Bridge the `conductor` node's musical time to React (#187), for the Conductor
         // tool panel's live readout. Change-gated inside the reporter, like the others.
         const reportConductor = makeConductorReporter(engine);
+        // The orchestra's load status (#187 PR 5), for the orchestra controls' readout.
+        const reportOrchestra = makeOrchestraReporter(engine);
         // The extensions' status hooks (the air instruments' readouts and live shapes):
         // built once per engine, run as sinks below, reset on removal and teardown.
         const extensionSinks = EXTENSION_STATUS_HOOKS.map((hook) => hook.make(engine));
@@ -499,7 +503,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportTiming), ...extensionSinks.map(toMs)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportOrchestra), toMs(reportTiming), ...extensionSinks.map(toMs)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -534,6 +538,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useGestureStatus.getState().reset();
       useGenerativeStatus.getState().reset();
       useConductorStatus.getState().reset();
+      useOrchestraStatus.getState().reset();
       useTimingStatus.getState().reset();
       for (const hook of EXTENSION_STATUS_HOOKS) hook.reset();
       uninstallDebug();

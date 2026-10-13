@@ -47,7 +47,7 @@ export interface DerivationSettings {
   faceMapping?: string;
   body?: { enabled?: boolean };
   bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
-  conductor?: { enabled?: boolean };
+  conductor?: { enabled?: boolean; orchestra?: { enabled?: boolean } };
   midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
   /** Extension dial slices (`airDrum`, …): read by each extension's own `derive`. */
@@ -65,7 +65,7 @@ export interface StrictDerivationSettings {
   faceMapping: string;
   body: { enabled: boolean };
   bodyMap: { routes: Record<string, { target: string; feature: string }> };
-  conductor: { enabled: boolean };
+  conductor: { enabled: boolean; orchestra: { enabled: boolean } };
   midi: { enabled: boolean };
   steer: { enabled: boolean };
 }
@@ -131,7 +131,9 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   // The router modulates the hand voices: it needs the body AND the voices.
   add('body-route', bodyWanted && fieldVoices && bodyMapRoutesAnything(settings.bodyMap));
 
-  add('conductor', on(settings.conductor));
+  // The orchestra (#187 PR 5) lives in the conductor branch: switching it on composes the
+  // branch (the conductor idles until Start), so the soundfont loads before the first beat.
+  add('conductor', on(settings.conductor) || on(settings.conductor?.orchestra));
   add('midi-out', on(settings.midi));
   add('generative', on(settings.steer));
   // The extensions' branches: each manifest says which of its branches its dials imply.

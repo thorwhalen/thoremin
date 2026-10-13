@@ -33,6 +33,7 @@ import { pickNode } from './mapping/pick';
 import { oneEuroNode } from './mapping/one_euro';
 import { delayNode } from './mapping/delay';
 import { lyriaNode } from './output/lyria';
+import { orchestraNode } from './output/orchestra';
 import { chordNode } from './music/chord';
 import { expressionChordNode } from './music/expression_chord';
 import { poseChordNode } from './music/pose_chord';
@@ -94,6 +95,8 @@ export { pickNode } from './mapping/pick';
 export { oneEuroNode } from './mapping/one_euro';
 export { delayNode } from './mapping/delay';
 export { lyriaNode } from './output/lyria';
+export { orchestraNode, OrchestraSettingsSchema, DEFAULT_ORCHESTRA } from './output/orchestra';
+export type { OrchestraSettings, OrchestraSynth, OrchestraEngineFactory, OrchestraEngineOpts } from './output/orchestra';
 export { chordNode, voiceChord } from './music/chord';
 export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './music/expression_chord';
 export { poseChordNode, POSE_VOICE_ID_BASE, MAX_POSE_VOICES, yawToDegree } from './music/pose_chord';
@@ -132,6 +135,7 @@ export const CORE_NODES = [
   oneEuroNode,
   delayNode,
   lyriaNode,
+  orchestraNode,
   chordNode,
   expressionChordNode,
   poseChordNode,

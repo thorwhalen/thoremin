@@ -90,6 +90,13 @@ describe('branchIdsFor: the dials imply the branches', () => {
     expect(branchIdsFor(all).sort()).toEqual(['conductor', 'field-voices', 'generative', 'midi-out']);
   });
 
+  it('switching the orchestra on composes the conductor branch before conducting starts (#187 PR 5)', () => {
+    const s = seedSettings('Pentatonic');
+    expect(branchIdsFor(s)).not.toContain('conductor');
+    const withOrchestra = { ...s, conductor: { ...s.conductor, enabled: false, orchestra: { ...s.conductor.orchestra, enabled: true } } };
+    expect(branchIdsFor(withOrchestra)).toContain('conductor');
+  });
+
   it('a partial settings object (mid-migration of an older persisted state) derives without throwing', () => {
     expect(branchIdsFor({})).toEqual(['field-voices']);
     expect(branchIdsFor({ faceMapping: 'chord' } as never).sort()).toEqual(['face-chord', 'face-source', 'field-voices']);

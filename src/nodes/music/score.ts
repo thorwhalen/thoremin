@@ -30,6 +30,10 @@
  * sounding voice is released and nothing new starts, so the merge passes the hand
  * voices through untouched. A jump backwards in the beat (the conductor re-enabled
  * from the top) releases everything that was sounding.
+ *
+ * `replaced` (#187 PR 5): true while the `orchestra` node plays the piece; the score then
+ * behaves as disabled, so the oscillator voices hand the piece over exactly when the
+ * orchestra can take it (and keep it while the soundfont downloads).
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
@@ -122,6 +126,9 @@ export const scoreNode = defineNode<Params>({
     { name: 'velocityScale', kind: 'number', default: 1 },
     { name: 'enabled', kind: 'boolean', default: true },
     { name: 'doc', kind: 'score-doc' },
+    // Another output plays the piece (the `orchestra` node, #187 PR 5): release every
+    // voice and start none, exactly as when disabled.
+    { name: 'replaced', kind: 'boolean', default: false },
   ],
   outputs: [{ name: 'params', kind: 'synth-params' }],
   params: Params,
@@ -150,7 +157,7 @@ export const scoreNode = defineNode<Params>({
 
     return {
       process(inputs) {
-        const enabled = inputs.enabled !== false;
+        const enabled = inputs.enabled !== false && inputs.replaced !== true;
         const rawBeat = typeof inputs.beat === 'number' ? inputs.beat : 0;
         const vScale = typeof inputs.velocityScale === 'number' ? inputs.velocityScale : 1;
         const piece = pieceFor(inputs.doc);

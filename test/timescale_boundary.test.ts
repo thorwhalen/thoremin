@@ -147,6 +147,7 @@ describe('every node that makes real-time output honours the boundary', () => {
       'drum-out': join(airDir, 'nodes/drum_out.ts'),
       'pluck-out': join(airDir, 'nodes/pluck_out.ts'),
       lyria: 'src/nodes/output/lyria.ts',
+      orchestra: 'src/nodes/output/orchestra.ts',
     };
     const missingFile = synthNodes.map((d) => d.type).filter((t) => !(t in files));
     expect(

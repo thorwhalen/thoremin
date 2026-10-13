@@ -71,13 +71,13 @@ describe('production app graph', () => {
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
     // source, its vector tap and the body-route (#186 PR E) + the #141/#188 generative
-    // pair (indirect-map + lyria) + the #187 conductor and score + the #249 air bass and
+    // pair (indirect-map + lyria) + the #187 conductor, score and orchestra + the #249 air bass and
     // its pluck scheduler + the air guitar and its pluck scheduler + the air flute.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    // Without the air extension: the 25 core nodes (the 7 air nodes come with it).
+    // Without the air extension: the 26 core nodes (the 7 air nodes come with it).
     // The ASL extension adds its reader and its chord node.
-    expect(order).toHaveLength((AIR ? 32 : 25) + (ASL ? 2 : 0));
+    expect(order).toHaveLength((AIR ? 33 : 26) + (ASL ? 2 : 0));
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
@@ -252,6 +252,22 @@ describe('production app graph', () => {
     expect(edges.filter((e) => e.to.node === 'score' && e.to.port === 'beat')).toHaveLength(1);
     // The conducted score joins the other producers at the merge (mute + taps cover it).
     expect(has('score', 'params', 'merge', 'score1')).toBe(true);
+  });
+
+  it('wires the orchestra live from the dial and the conductor, and hands it the piece — the #187 PR 5 guard', () => {
+    const edges = defaultGraph().edges;
+    const has = (fn: string, fp: string, tn: string, tp: string) =>
+      edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
+    // The #147 template: the enable lives in the conductor dial's `orchestra` field, so
+    // `config` left unconnected would make the orchestra impossible to switch on.
+    expect(has('ui', 'conductor', 'orchestra', 'config')).toBe(true);
+    expect(has('conductor', 'time', 'orchestra', 'time')).toBe(true);
+    expect(has('conductor', 'enabled', 'orchestra', 'conducting')).toBe(true);
+    expect(has('conductor', 'velocityScale', 'orchestra', 'velocityScale')).toBe(true);
+    expect(has('ui', 'scoreDoc', 'orchestra', 'doc')).toBe(true);
+    expect(has('ui', 'claimed', 'orchestra', 'claimed')).toBe(true);
+    // The handover: without it the oscillators and the orchestra would play the piece twice.
+    expect(has('orchestra', 'playing', 'score', 'replaced')).toBe(true);
     // The loaded piece reaches the score live from the store (PR 3): a ScoreDoc that
     // could be loaded but never played is the #120 failure mode again.
     expect(has('ui', 'scoreDoc', 'score', 'doc')).toBe(true);

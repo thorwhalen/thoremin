@@ -4,12 +4,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 import {thoreminExtensions} from './vite.extensions';
+import {lazyGuard} from './vite.lazy-guard';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     base: process.env.VITE_PUBLIC_BASE || '/thoremin/',
-    plugins: [react(), tailwindcss(), thoreminExtensions(__dirname)],
+    plugins: [react(), tailwindcss(), thoreminExtensions(__dirname), lazyGuard()],
     build: {
       outDir: 'frontend',
       emptyOutDir: true,
