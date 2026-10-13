@@ -28,6 +28,12 @@
  *   teaches no slope, and the dial says so ({@link DistanceFit.learned}); a feature distance
  *   explains poorly (r² under {@link LIVE_DEFAULTS.minR2}) keeps no slope. See
  *   `docs/research/face-categorizer-lighting-and-distance.md` for what was measured.
+ * - **Size**, one per category (#385 E7: Project Gameface's "gesture size", Apple's
+ *   per-expression level): how big a face it takes to count as that category. The category's
+ *   every distance is multiplied by it (`Category.scale`, read by `classify` and the margin
+ *   meter), so above 1 the face must go further, below 1 a smaller one reaches it: the fix for "I
+ *   can make frown, but only a small one" without recording again. Keyed by category id; a size
+ *   for an id the categorizer no longer has is ignored.
  *
  * Pure: no timers, no React. The test store polls a source and feeds {@link LiveReader.push}.
  */
@@ -52,6 +58,7 @@ export const TUNING_BOUNDS = {
   sensitivity: { min: 0.5, max: 2 },
   rejectScale: { min: 0.5, max: 3 },
   distance: { min: 0, max: 1 },
+  size: { min: 0.5, max: 2 },
 } as const;
 
 /** A categorizer's live tuning; every default leaves the saved model as it was. */
@@ -59,18 +66,39 @@ export const TuningSchema = z.object({
   sensitivity: z.number().min(TUNING_BOUNDS.sensitivity.min).max(TUNING_BOUNDS.sensitivity.max).default(1),
   rejectScale: z.number().min(TUNING_BOUNDS.rejectScale.min).max(TUNING_BOUNDS.rejectScale.max).default(1),
   distance: z.number().min(TUNING_BOUNDS.distance.min).max(TUNING_BOUNDS.distance.max).default(0),
+  /** Per category id, its size (#385 E7); absent = 1. */
+  sizes: z.record(z.string(), z.number().min(TUNING_BOUNDS.size.min).max(TUNING_BOUNDS.size.max)).default({}),
 });
 export type Tuning = z.infer<typeof TuningSchema>;
 export const DEFAULT_TUNING: Tuning = TuningSchema.parse({});
 
 /** A tuning value pulled into its dial's range (a stored or hand-edited value never escapes it). */
 export function clampTuning(t: Partial<Tuning>): Tuning {
-  const c = (k: keyof Tuning) => {
-    const x = t[k];
-    const { min, max } = TUNING_BOUNDS[k];
-    return typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : DEFAULT_TUNING[k];
+  const within = (x: unknown, { min, max }: { min: number; max: number }, fallback: number) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : fallback);
+  const sizes: Record<string, number> = {};
+  for (const [id, x] of Object.entries(t.sizes ?? {})) {
+    const v = within(x, TUNING_BOUNDS.size, 1);
+    // A size of 1 is no size: dropped, so a tuning set back to neutral equals the default.
+    if (v !== 1) sizes[id] = v;
+  }
+  return {
+    sensitivity: within(t.sensitivity, TUNING_BOUNDS.sensitivity, DEFAULT_TUNING.sensitivity),
+    rejectScale: within(t.rejectScale, TUNING_BOUNDS.rejectScale, DEFAULT_TUNING.rejectScale),
+    distance: within(t.distance, TUNING_BOUNDS.distance, DEFAULT_TUNING.distance),
+    sizes,
   };
-  return { sensitivity: c('sensitivity'), rejectScale: c('rejectScale'), distance: c('distance') };
+}
+
+/** Whether two tunings set every dial alike. */
+export function sameTuning(a: Tuning, b: Tuning): boolean {
+  const ka = Object.keys(a.sizes);
+  return (
+    a.sensitivity === b.sensitivity &&
+    a.rejectScale === b.rejectScale &&
+    a.distance === b.distance &&
+    ka.length === Object.keys(b.sizes).length &&
+    ka.every((id) => a.sizes[id] === b.sizes[id])
+  );
 }
 
 export const LIVE_DEFAULTS = {
@@ -236,7 +264,8 @@ export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuni
   const t = clampTuning(tuning);
   const derived = modelFromCategorizer(categorizer);
   const baseRadius = flooredRejectRadius(categorizer, derived);
-  const model: TrainedModel = { ...derived, rejectRadius: tunedRejectRadius(baseRadius, categorizer.strangers, t.rejectScale) };
+  const sized = derived.categories.map((c) => (t.sizes[c.id] !== undefined ? { ...c, scale: t.sizes[c.id] } : c));
+  const model: TrainedModel = { ...derived, categories: sized, rejectRadius: tunedRejectRadius(baseRadius, categorizer.strangers, t.rejectScale) };
   const meanRadius = derived.categories.reduce((a, c) => a + c.radius, 0) / Math.max(1, derived.categories.length);
   return {
     model,

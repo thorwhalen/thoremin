@@ -11,14 +11,27 @@
 import { z } from 'zod';
 import { PersonalCategorizerSchema, migrateCategorizerV1, migrateCategorizerV2, v1SampleId } from '@thoremin/sdk/enroll/categorizer';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import { QuizResultSchema } from '@thoremin/sdk/enroll/quiz';
+import { EverydayResultSchema } from '@thoremin/sdk/enroll/everyday';
 import { TuningSchema } from '../lib/live';
 import { holdId } from './thumbnails';
+
+/** What the player's checks found (#385 E7), kept with the record on this device like the
+ *  tuning (local only: nothing is sent anywhere): the last quiz (per-category reproducibility)
+ *  and the last everyday check (accidental fires). Not part of the exported file. */
+export const CategorizerChecksSchema = z.object({
+  quiz: QuizResultSchema.optional(),
+  everyday: EverydayResultSchema.optional(),
+});
+export type CategorizerChecks = z.infer<typeof CategorizerChecksSchema>;
 
 const SavedFaceModelShape = z.object({
   categorizer: PersonalCategorizerSchema,
   /** The live tuning set while testing (#330 P3): about this player's room and camera, so it is
    *  kept with the record on this device and is NOT part of the exported file. Absent = defaults. */
   tuning: TuningSchema.optional(),
+  /** The quiz's and the everyday check's last results (#385 E7). Absent = never run. */
+  checks: CategorizerChecksSchema.optional(),
 });
 
 /**
