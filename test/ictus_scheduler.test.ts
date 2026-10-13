@@ -166,4 +166,15 @@ describe('createScheduler', () => {
     expect(s.skipped).toBe(0);
     expect(out.filter((c) => c.type === 'noteOn').length).toBeGreaterThan(0);
   });
+
+  it('ignores a tick whose clock is not finite, instead of looping forever (#355)', () => {
+    const s = createScheduler([ev(60, 0), ev(62, 1)], { loopBeats: 2 });
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      expect(s.tick({ now: 0, beat: bad, bpm: 60, horizon: 0.1 })).toEqual([]);
+      expect(s.tick({ now: bad, beat: 0, bpm: 60, horizon: 0.1 })).toEqual([]);
+      expect(s.tick({ now: 0, beat: 0, bpm: 60, horizon: bad })).toEqual([]);
+    }
+    // ... and the position it never took leaves a later finite tick working.
+    expect(s.tick({ now: 0, beat: 0, bpm: 60, horizon: 0.1 }).filter((c) => c.type === 'noteOn').map((c) => c.key)).toEqual([60]);
+  });
 });

@@ -17,7 +17,7 @@ import { replayNode, type NodeContext } from '@thoremin/dag';
 import type { HandsFrame } from '@/nodes';
 import { airDrumNode, subframeStanding, deepestSampleTime, SUBFRAME_MAX_STAMP_NOISE_S, SUBFRAME_DWELL_FRAMES, type DrumHit, type AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
 import { describeSubframe } from '@thoremin/ext-air/app/airDrumStatus';
-import { TimingTracker, stampNoise, CAPTURE_LAG_PRIOR_S, MIN_FRAMES_FOR_NOISE } from '@thoremin/sdk/timing/tracker';
+import { TimingTracker, stampNoise, stampPeriod, noiseLattice, CAPTURE_LAG_PRIOR_S, MIN_FRAMES_FOR_NOISE } from '@thoremin/sdk/timing/tracker';
 import { describeTiming } from '@/app/timing/describe';
 import { measureTimerResolution } from '@/app/timing/resource';
 import { FIXTURES } from '../helpers/fixtures';
@@ -153,8 +153,8 @@ describe('a clock stamp is moved back by the capture lag, as the pump moves an e
 describe('the tracker: capture lag, stamp noise, the first stamp, the runtime checks', () => {
   const ctx = (tick: number, time: number) => ({ tick, time, resources: { timeScale: 1 } }) as unknown as NodeContext;
   const origin = performance.timeOrigin;
-  function feed(tracker: TimingTracker, stamps: { t: number; tSource: 'capture' | 'estimated' | 'clock'; lag?: number }[]) {
-    stamps.forEach((s, i) => tracker.onValue('cam.hands', { width: 1, height: 1, hands: [], t: s.t, tSource: s.tSource, tOrigin: origin, lag: s.lag }, ctx(i, s.t + 0.02)));
+  function feed(tracker: TimingTracker, stamps: { t: number; tSource: 'capture' | 'estimated' | 'clock'; lag?: number; skipped?: number }[]) {
+    stamps.forEach((s, i) => tracker.onValue('cam.hands', { width: 1, height: 1, hands: [], t: s.t, tSource: s.tSource, tOrigin: origin, lag: s.lag, skipped: s.skipped }, ctx(i, s.t + 0.02)));
   }
 
   it('learns the capture lag from capture stamps, else reports the stated prior', () => {
@@ -213,6 +213,28 @@ describe('the tracker: capture lag, stamp noise, the first stamp, the runtime ch
     const truthful = new TimingTracker({ now: () => 0 });
     feed(truthful, noisy.map((t) => ({ t, tSource: 'capture' as const, lag: 0.01 })));
     expect(Number.isNaN(truthful.reading().stampNoise)).toBe(true);
+  });
+
+  it('measures the noise against the rate the camera delivers, not the one it reports (#355)', () => {
+    // Firefox and Safari report the requested 60 fps while delivering 25: regular stamps are quiet.
+    const slow = new TimingTracker({ now: () => 0 });
+    slow.setCamera({ frameRate: 60, width: 1280, height: 720 });
+    feed(slow, Array.from({ length: 60 }, (_, i) => ({ t: 1 + i / 25, tSource: 'clock' as const })));
+    expect(slow.reading().stampNoise).toBeLessThan(1e-6);
+    // ... and a camera that drops a frame now and then still keeps its reported lattice.
+    const grid = Array.from({ length: 80 }, (_, i) => 1 + i / 30).filter((_, i) => i % 7 !== 3);
+    expect(stampPeriod(grid)).toBeCloseTo(1 / 30, 9);
+    expect(noiseLattice(1 / 30, grid, 0)).toBe(1 / 30);
+    // A 50 ms inference off a 30 fps camera that counts its skipped frames: still noise.
+    const paced = new TimingTracker({ now: () => 0 });
+    paced.setCamera({ frameRate: 30, width: 1280, height: 720 });
+    feed(paced, Array.from({ length: 60 }, (_, i) => ({ t: 1 + i * 0.05, tSource: 'clock' as const, skipped: i % 2 })));
+    expect(paced.reading().stampNoise).toBeGreaterThan(SUBFRAME_MAX_STAMP_NOISE_S);
+    // The delivered rate counts those skipped frames: the camera is not slow, inference is.
+    const cpu = new TimingTracker({ now: () => 0 });
+    feed(cpu, Array.from({ length: 40 }, (_, i) => ({ t: 1 + (2 * i) / 30, tSource: 'capture' as const, lag: 0.01, skipped: i > 0 ? 1 : 0 })));
+    expect(cpu.reading().deliveredFps).toBeCloseTo(30, 6);
+    expect(cpu.reading().framePeriod).toBeCloseTo(2 / 30, 6);
   });
 
   it('carries the host runtime checks, and the status line names a coarse timer and a missing captureTime', () => {

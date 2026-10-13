@@ -198,6 +198,30 @@ describe('a pad along the path (#261)', () => {
     expect(hitPad(pads, { x: 0.9, y: 0.9 }, 'hand', { yFrom: 0.8, yTo: 0.9, xAt: () => 0.9 })).toBeNull();
     expect(hitPad(pads, { x: 0.9, y: 0.9 }, 'nearest', { yFrom: 0.8, yTo: 0.9, xAt: () => 0.9 })?.id).toBe('p2');
   });
+
+  it('a stroke stopped in the air above a pad does not reach it; one heading for a lower pad still does (#355)', () => {
+    const snareOnly: Pads = { ...DEFAULT_PADS_SET, p2: pad({ x: 0.5, y: 0.7, sound: 'snare' }) };
+    /** A straight fall at x = 0.5 from `top` at t = 0, `dy` per 20 ms frame, for `n` frames. */
+    const fall = (top: number, dy: number, n: number): TrackSample[] => Array.from({ length: n }, (_, i) => ({ t: 0.02 * i, x: 0.5, y: top + dy * i }));
+    // Strokes from 0.3 to a floor learned at 0.4, in empty air above the snare (0.6 to 0.8).
+    const air = fall(0.3, 0.02, 4);
+    const tEnd = air[air.length - 1].t + 0.04;
+    const committed = landingAt(air, tEnd, 0.005, { floor: 0.4, pathFloor: 0.4 });
+    expect(committed.path.yTo).toBeCloseTo(0.5, 9); // the floor, plus the 0.1 stroke
+    expect(hitPad(snareOnly, committed, 'silent', committed.path)).toBeNull();
+    // Without a learned floor the path runs to the frame's bottom and plays the snare.
+    const unlearned = landingAt(air, tEnd, 0.005);
+    expect(hitPad(snareOnly, unlearned, 'silent', unlearned.path)?.id).toBe('p2');
+    // A stroke that turned ends where it stopped.
+    const stopped = landingAt(air, air[air.length - 1].t, 0.005, { turned: true });
+    expect(stopped.path.yTo).toBeCloseTo(air[air.length - 1].y, 9);
+    expect(hitPad(snareOnly, stopped, 'silent', stopped.path)).toBeNull();
+    // A big stroke from 0.1 against a floor learned on a high pad (0.3), already past it:
+    // the snare below is on its way.
+    const big = fall(0.1, 0.07, 6);
+    const toLow = landingAt(big, big[big.length - 1].t + 0.04, 0.005, { floor: 0.3, pathFloor: 0.3 });
+    expect(hitPad(snareOnly, toLow, 'silent', toLow.path)?.id).toBe('p2');
+  });
 });
 
 describe('a carried stick is not a stroke (#261)', () => {

@@ -35,9 +35,17 @@ function memoryStore(initial: FsDirHandle | null = null): FolderHandleStore & { 
 /** A fake directory: files written into it are kept by name; permission is scripted. */
 function fakeDir(name: string, permission: PermissionState = 'granted') {
   const files: Record<string, (Blob | string)[]> = {};
+  const subs = new Map<string, FsDirHandle>();
   const dir: FsDirHandle = {
     name,
-    getDirectoryHandle: async (sub) => fakeDir(`${name}/${sub}`, permission).dir,
+    getDirectoryHandle: async (sub, opts) => {
+      const known = subs.get(sub);
+      if (known) return known;
+      if (!opts?.create) throw new DOMException(`no ${sub}`, 'NotFoundError');
+      const made = fakeDir(`${name}/${sub}`, permission).dir;
+      subs.set(sub, made);
+      return made;
+    },
     getFileHandle: async (file) => ({
       createWritable: async () => ({
         write: async (data: Blob | string | BufferSource) => {
@@ -49,7 +57,7 @@ function fakeDir(name: string, permission: PermissionState = 'granted') {
     queryPermission: async () => permission,
     requestPermission: async () => permission,
   };
-  return { dir, files };
+  return { dir, files, subs };
 }
 
 const pickerOf = (handle: FsDirHandle | null) => {
@@ -176,6 +184,20 @@ describe('the directory sink over the shared mechanism', () => {
       await sink.add('manifest.json', '{}');
       const result = await sink.close();
       expect(result).toMatchObject({ label: 'take-1', count: 1, viaPicker: true });
+    });
+  });
+
+  it('never reopens an earlier take: a reused name gets -2, -3 (#355)', async () => {
+    const base = fakeDir('takes');
+    await withPicker(pickerOf(base.dir).picker, async () => {
+      const labels: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const sink = await createRecordingSink('directory', 'take');
+        await sink.add('manifest.json', '{}');
+        labels.push((await sink.close()).label);
+      }
+      expect(labels).toEqual(['take', 'take-2', 'take-3']);
+      expect([...base.subs.keys()]).toEqual(['take', 'take-2', 'take-3']);
     });
   });
 });

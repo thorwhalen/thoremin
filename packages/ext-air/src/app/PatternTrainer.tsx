@@ -42,7 +42,7 @@ export interface PatternTrainerProps {
   now?: () => number;
 }
 
-type Phase = { kind: 'idle' } | { kind: 'count-in'; startMs: number } | { kind: 'playing'; startMs: number; patternStartMs: number } | { kind: 'fitting' } | { kind: 'done'; model: PatternModel | null };
+type Phase = { kind: 'idle' } | { kind: 'count-in'; startMs: number } | { kind: 'playing'; startMs: number; patternStartMs: number } | { kind: 'fitting' } | { kind: 'done'; model: PatternModel | null; droppedClicks: number };
 
 /** The click schedule for a take: a count-in bar, then a click on every beat of the
  *  first `clickPasses` passes, the first beat of each bar accented. */
@@ -68,6 +68,8 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
   const [saved, setSaved] = useState<PatternModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** The click player's dropped count when the take started: the take's own is the rise. */
+  const droppedBefore = useRef(0);
   const pattern = useMemo(() => patternById(patternId) ?? DRUM_PATTERNS[0] ?? null, [patternId]);
 
   const stopTimer = () => {
@@ -115,7 +117,10 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     }
     // The pattern mode comes back (with the new model, if it plays this pattern).
     refreshPatternPlay();
-    setPhase({ kind: 'done', model });
+    // Clicks whose time was already past on the audio clock never sounded (#355): the
+    // player heard a broken count-in, so the take's tempo is not to be trusted.
+    const droppedClicks = Math.max(0, (clickPlayer().dropped?.() ?? 0) - droppedBefore.current);
+    setPhase({ kind: 'done', model, droppedClicks });
   };
 
   const start = () => {
@@ -126,6 +131,7 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
     airControls.setTransient('airDrumPattern', null);
     const player = clickPlayer();
     player.unlock?.();
+    droppedBefore.current = player.dropped?.() ?? 0;
     const startMs = now() + 200;
     const plan = takeClicks(pattern, passes, clickThroughout ? passes : 1, startMs);
     player.play(plan.clicks);
@@ -219,6 +225,11 @@ export function PatternTrainer({ enabled, now = () => performance.now() }: Patte
         )}
       </div>
       {!enabled && <p className="text-[10px] text-white/50">Turn the air drum on to train a pattern (it listens to its hits).</p>}
+      {phase.kind === 'done' && phase.droppedClicks > 0 && (
+        <p className="text-[10px] text-amber-300" data-testid="dropped-clicks">
+          {phase.droppedClicks === 1 ? '1 click' : `${phase.droppedClicks} clicks`} never sounded (the audio clock was behind): the tempo this take learned may be off.
+        </p>
+      )}
       {phase.kind === 'done' && !phase.model && (
         <p className="text-[10px] text-amber-300" role="status">
           Not enough hits matched the pattern. Play along with the count-in, and check the pads are on.

@@ -16,7 +16,7 @@
  * naming contract can't drift between them.
  */
 import { saveBlob } from './save';
-import { acquireRecordingFolder } from './folder';
+import { acquireRecordingFolder, type FsDirHandle } from './folder';
 import type { SinkKind } from './caps';
 
 /** A recording session was cancelled by the user (e.g. dismissed the folder
@@ -54,18 +54,40 @@ function toBytes(data: Blob | string): Promise<Uint8Array> {
   return data.arrayBuffer().then((b) => new Uint8Array(b));
 }
 
+/** How many `-2`, `-3`, ... suffixes to try before giving up on a free name. */
+const MAX_TAKE_SUFFIX = 999;
+
+/**
+ * Create a subfolder that did not exist before: `name`, else `name-2`, `name-3`, ...
+ * A take name typed in the Record sheet is remembered and reused, and reopening its
+ * folder would truncate the files the new take writes and keep the ones it doesn't,
+ * mixing two takes (#355). Only a NotFoundError means the name is free.
+ */
+async function freshSubfolder(base: FsDirHandle, name: string): Promise<{ dir: FsDirHandle; name: string }> {
+  for (let n = 1; n <= MAX_TAKE_SUFFIX; n++) {
+    const candidate = n === 1 ? name : `${name}-${n}`;
+    try {
+      await base.getDirectoryHandle(candidate);
+    } catch (e) {
+      if ((e as { name?: string })?.name !== 'NotFoundError') throw e;
+      return { dir: await base.getDirectoryHandle(candidate, { create: true }), name: candidate };
+    }
+  }
+  throw new Error(`No free folder name for "${name}" (tried up to -${MAX_TAKE_SUFFIX})`);
+}
+
 /**
  * Directory sink: acquire the base folder (`./folder`: the remembered one, else the
  * picker), create the recording subfolder, and stream each file into it. Acquires
  * the handle up-front (at construction) so the folder prompt appears when recording
- * starts, not on stop. Throws {@link SinkCancelled} if the user dismisses the picker
+ * starts, not on stop. A name already taken gets a `-2`, `-3`, ... suffix. Throws {@link SinkCancelled} if the user dismisses the picker
  * (or no picker exists) so the caller can fall back to a zip.
  */
 async function createDirectorySink(folderName: string): Promise<RecordingSink> {
   const base = await acquireRecordingFolder();
   if (!base) throw new SinkCancelled();
 
-  const dir = await base.getDirectoryHandle(folderName, { create: true });
+  const { dir, name: label } = await freshSubfolder(base, folderName);
   let count = 0;
   return {
     kind: 'directory',
@@ -77,7 +99,7 @@ async function createDirectorySink(folderName: string): Promise<RecordingSink> {
       count++;
     },
     async close() {
-      return { label: folderName, count, viaPicker: true };
+      return { label, count, viaPicker: true };
     },
   };
 }

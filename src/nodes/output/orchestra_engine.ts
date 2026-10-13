@@ -90,6 +90,7 @@ export async function createOrchestraEngine(opts: OrchestraEngineOpts): Promise<
     throw err;
   }
   if (signal.aborted) {
+    synth.disconnect();
     synth.destroy();
     return { resource: null, reason: 'aborted' };
   }

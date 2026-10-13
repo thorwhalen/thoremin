@@ -8,7 +8,8 @@
  *
  * {@link makeTimingReporter} is the per-frame sink the host loop registers beside the
  * other bridges in `useEngine.ts`: paced to {@link TIMING_REPORT_MS} and change-gated
- * on what the line shows, so the chip never re-renders at frame rate.
+ * on what the line shows, so the chip never re-renders at frame rate, and the line is
+ * rebuilt to compare at most every {@link TIMING_CHECK_MS}.
  */
 import { create } from 'zustand';
 import type { TimingReading } from '@thoremin/sdk/timing/tracker';
@@ -16,6 +17,8 @@ import { describeTiming } from './timing/describe';
 
 /** How often the readout may change, ms. */
 export const TIMING_REPORT_MS = 500;
+/** How often an unchanged readout is looked at again, ms: not every frame (#355). */
+export const TIMING_CHECK_MS = 100;
 
 export interface TimingStatusState {
   reading: TimingReading | null;
@@ -38,8 +41,10 @@ export function timingStatusKey(r: TimingReading): string {
 export function makeTimingReporter(reading: () => TimingReading, store: Pick<TimingStatusState, 'report'> = useTimingStatus.getState()): (nowMs: number) => void {
   let lastKey = '';
   let lastReport = -Infinity;
+  let lastCheck = -Infinity;
   return (nowMs) => {
-    if (nowMs - lastReport < TIMING_REPORT_MS) return;
+    if (nowMs - lastReport < TIMING_REPORT_MS || nowMs - lastCheck < TIMING_CHECK_MS) return;
+    lastCheck = nowMs;
     const r = reading();
     const key = timingStatusKey(r);
     if (key === lastKey) return;

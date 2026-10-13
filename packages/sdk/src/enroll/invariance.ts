@@ -189,7 +189,7 @@ export function rankFeatures(
 ): string[] {
   const signal = nuisanceProfile(vectors).spread;
   return Object.keys(signal)
-    .map((id) => ({ id, score: signal[id] * (weights[id] ?? 1) }))
+    .map((id) => ({ id, score: signal[id] * (Object.hasOwn(weights, id) ? weights[id] : 1) }))
     .filter((x) => Number.isFinite(x.score) && x.score > 0)
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
     .slice(0, limit)
