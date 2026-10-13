@@ -42,6 +42,7 @@
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
 import type { FrameTiming, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { pairScheduleToSpeaker } from '@thoremin/sdk/timing/output_stage';
 import type { TimingReading } from '@thoremin/sdk/timing/tracker';
 import { RingSamples, type Summary } from './stats';
 
@@ -191,10 +192,11 @@ export class LatencyProbe implements Tap {
 
   private sampleAudio(): void {
     const ac = this.audio();
-    if (!ac || ac.state !== 'running' || typeof ac.getOutputTimestamp !== 'function') return;
-    const ts = ac.getOutputTimestamp();
-    if (typeof ts.contextTime !== 'number' || typeof ts.performanceTime !== 'number' || !(ts.performanceTime > 0)) return;
-    this.samples.scheduleToSpeaker.push(ts.performanceTime + (ac.currentTime - ts.contextTime) * 1000 - this.now());
+    // A running context only; the pair itself is the timing resource's reading (seconds), so
+    // the probe and the instruments measure this stage the same way. NaN (no pair yet) is
+    // dropped by the ring.
+    if (!ac || ac.state !== 'running') return;
+    this.samples.scheduleToSpeaker.push(pairScheduleToSpeaker(ac, this.now()) * 1000);
   }
 
   private onSource(frame: HandsFrame & FrameTiming, ctx: NodeContext): void {
