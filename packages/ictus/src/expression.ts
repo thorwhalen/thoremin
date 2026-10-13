@@ -15,8 +15,10 @@
  * bottom. A spread floor (`minRelSpread`, relative to the median) keeps a player who never
  * varies at 0.5 instead of magnifying their jitter into dynamics.
  *
- * Articulation reads the stroke's braking sharpness by default (`dynamics.ts`, as for the
- * hand); `flow` reads Laban flow instead: the beating wrist's mean jerk, normalised the same
+ * Articulation reads the strokes' braking sharpness by default (`Anchor.sharpness`, as
+ * `dynamics.ts` does for the hand), its log against the same 20 s window: `dynamics.ts`
+ * re-centres its sharpness reference within about five strokes, so a phrase played legato
+ * would read as the player's usual stroke before it ended. `flow` reads Laban flow instead: the beating wrist's mean jerk, normalised the same
  * way, low (smooth, free) toward legato, high (bound, abrupt) toward staccato. The e-baton
  * found acceleration alone misses slow fluid gestures and jerk fixes it (design ref [21]).
  *
@@ -34,8 +36,10 @@ export interface RangeNormalizerOptions {
   /** The quantiles that span the range (their distance is the spread). */
   lo?: number;
   hi?: number;
-  /** The spread is at least this fraction of the median's magnitude. */
+  /** The spread is at least this fraction of the median's magnitude, and at least
+   *  `minSpread` (for a channel read in logs, whose median may be near 0). */
   minRelSpread?: number;
+  minSpread?: number;
   /** Below this much history (seconds) the normaliser reads 0.5. */
   warmupS?: number;
 }
@@ -46,6 +50,7 @@ export const RANGE_NORMALIZER_DEFAULTS: Required<RangeNormalizerOptions> = {
   lo: 0.1,
   hi: 0.9,
   minRelSpread: 0.25,
+  minSpread: 0,
   warmupS: 1,
 };
 
@@ -74,7 +79,7 @@ export function createRangeNormalizer(options: RangeNormalizerOptions = {}): Ran
     }
     const sorted = bins.map((b) => b.v).sort((a, b) => a - b);
     median = quantileSorted(sorted, 0.5);
-    spread = Math.max(quantileSorted(sorted, o.hi) - quantileSorted(sorted, o.lo), o.minRelSpread * Math.abs(median), 1e-12);
+    spread = Math.max(quantileSorted(sorted, o.hi) - quantileSorted(sorted, o.lo), o.minRelSpread * Math.abs(median), o.minSpread, 1e-12);
   };
   const normalize = (x: number): number => {
     if (!Number.isFinite(median) || !Number.isFinite(x)) return 0.5;
@@ -148,6 +153,8 @@ export interface ExpressionBlend {
   /** The blended estimate, given the strokes' own (`dynamics.ts`; null when no stroke
    *  source is followed, and the excursion drops out). */
   read(strokes: DynamicsEstimate | null): DynamicsEstimate;
+  /** Fold one stroke in (its time and braking sharpness; NaN = unmeasurable, ignored). */
+  pushStroke(stroke: { t: number; sharpness: number }): void;
   /** The normalised channels, for a readout (0.5 = the player's median, NaN = not seen). */
   channels(): { motion: number; extension: number; flow: number };
   setArticulation(source: ArticulationSource): void;
@@ -163,7 +170,13 @@ export function createExpressionBlend(options: ExpressionBlendOptions = {}): Exp
   const norm = Object.fromEntries(names.map((n) => [n, createRangeNormalizer(options.range)])) as Record<Name, RangeNormalizer>;
   let smooth: Record<Name, { t: number; v: number } | null> = { motion: null, extension: null, jerk: null };
   let read: Record<Name, number> = { motion: NaN, extension: NaN, jerk: NaN };
+  // Sharpness is a ratio: its log, with a spread of at least a doubling either side.
+  const sharpNorm = createRangeNormalizer({ ...options.range, minSpread: Math.max(options.range?.minSpread ?? 0, 2 * Math.LN2) });
+  let sharp = NaN;
   return {
+    pushStroke({ t, sharpness }) {
+      if (Number.isFinite(sharpness) && sharpness > 0) sharp = sharpNorm.push(t, Math.log(sharpness));
+    },
     push(f) {
       for (const n of names) {
         const x = f[n];
@@ -195,7 +208,7 @@ export function createExpressionBlend(options: ExpressionBlendOptions = {}): Exp
       add(weights.motion, read.motion);
       add(weights.extension, read.extension);
       const dynamics = den > 0 ? num / den : (strokes?.dynamics ?? 0.5);
-      const art = articulation === 'flow' ? read.jerk : (strokes?.articulation ?? NaN);
+      const art = articulation === 'flow' ? read.jerk : Number.isFinite(sharp) ? sharp : (strokes?.articulation ?? NaN);
       return { dynamics: clamp01(dynamics), articulation: Number.isFinite(art) ? clamp01(art) : (strokes?.articulation ?? 0.5) };
     },
     channels: () => ({ motion: read.motion, extension: read.extension, flow: read.jerk }),
@@ -204,6 +217,8 @@ export function createExpressionBlend(options: ExpressionBlendOptions = {}): Exp
     },
     reset() {
       for (const n of names) norm[n].reset();
+      sharpNorm.reset();
+      sharp = NaN;
       smooth = { motion: null, extension: null, jerk: null };
       read = { motion: NaN, extension: NaN, jerk: NaN };
     },

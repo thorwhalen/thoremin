@@ -630,8 +630,13 @@ export const conductorNode = defineNode<Params>({
       if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
         lastExprBodyT = t;
         blend.push(exprMeter.push(body, t, c.hand));
-        if (exprIctus) exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand));
+        if (exprIctus) {
+          const a = exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand)).anchor;
+          if (a) blend.pushStroke(a);
+        }
       }
+      // The beat's own stroke this tick, when the body both beats and shapes.
+      if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
       if (exprIctus) strokes = exprIctus.state();
       return blend.read(strokes);
     };

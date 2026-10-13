@@ -18,8 +18,11 @@ export type Gesture =
   | { kind: 'ready'; s: number }
   /** The preparatory beat: up from the ready height, then down onto the first ictus (its end). */
   | { kind: 'upbeat'; s: number }
-  /** Strokes at `bpm`; each starts and ends on an ictus (the first is the previous gesture's end). */
-  | { kind: 'beat'; bpm: number; beats: number }
+  /** Strokes at `bpm`; each starts and ends on an ictus (the first is the previous gesture's end).
+   *  `size` scales the stroke (1 = the default height, and the wrist reaches out further from
+   *  the body as it grows, #378); `shape` is a `sharp` bottom (an |sin| cusp, the default) or a
+   *  `smooth` one (a rounded, legato turn). */
+  | { kind: 'beat'; bpm: number; beats: number; size?: number; shape?: 'sharp' | 'smooth' }
   /** Stays where it is (raised after a stroke), still: a fermata. */
   | { kind: 'hold'; s: number }
   /** A short flick, the arm dropped to the side, then still. */
@@ -38,6 +41,8 @@ export const STROKE_BOTTOM = 0.55;
 export const STROKE_TOP = 1.1;
 export const READY_RAISE = 0.9;
 export const HANGING = -0.05;
+/** How far out from the shoulder the wrist is, torso lengths. */
+export const REACH = 0.25;
 
 export interface ConductScript {
   frames: BodyFrame[];
@@ -52,16 +57,18 @@ export interface ConductScript {
 export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso = 150, seed = 377 } = {}): ConductScript {
   const rnd = seeded(seed);
   // The wrist's height as a function of time, piecewise.
-  type Piece = { t0: number; t1: number; raise: (u: number) => number; dip?: (u: number) => number; shake?: number; absent?: boolean };
+  type Piece = { t0: number; t1: number; raise: (u: number) => number; dip?: (u: number) => number; shake?: number; absent?: boolean; reach?: number; reach0?: number };
   const pieces: Piece[] = [];
   const ictus: number[] = [];
   const starts: number[] = [];
   let t = 0;
   let r = HANGING;
+  let reach = REACH;
   const add = (s: number, f: (u: number) => number, extra: Partial<Piece> = {}) => {
-    pieces.push({ t0: t, t1: t + s, raise: f, ...extra });
+    pieces.push({ t0: t, t1: t + s, raise: f, reach0: reach, ...extra });
     t += s;
     r = f(1);
+    reach = extra.reach ?? REACH;
   };
   for (const g of gestures) {
     starts.push(t);
@@ -80,7 +87,9 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
         break;
       case 'beat': {
         const p = 60 / g.bpm;
-        add(g.beats * p, (u) => STROKE_BOTTOM + (STROKE_TOP - STROKE_BOTTOM) * Math.abs(Math.sin(Math.PI * u * g.beats)));
+        const size = g.size ?? 1;
+        const wave = g.shape === 'smooth' ? (x: number) => (1 - Math.cos(2 * Math.PI * x)) / 2 : (x: number) => Math.abs(Math.sin(Math.PI * x));
+        add(g.beats * p, (u) => STROKE_BOTTOM + size * (STROKE_TOP - STROKE_BOTTOM) * wave(u * g.beats), { reach: REACH * size });
         for (let i = 1; i <= g.beats; i++) ictus.push(starts[starts.length - 1] + i * p);
         break;
       }
@@ -150,7 +159,9 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
     const { landmarks, world } = makeBodyKeypoints({ width, height, cx: 0.5, cy: 0.7 + dip / height, torso, leftArm: 0, rightArm: 0, kneeBend: 0, lean: 0 });
     const sh = landmarks[BLM.right_shoulder];
     const hipY = (landmarks[BLM.left_hip].y + landmarks[BLM.right_hip].y) / 2;
-    const wrist = { x: sh.x - 0.25 * torso, y: hipY - raiseAt(ft) * torso };
+    // The reach moves to a new gesture's over its first 0.3 s (no jump).
+    const reachNow = piece ? (piece.reach0 ?? REACH) + ((piece.reach ?? REACH) - (piece.reach0 ?? REACH)) * smooth((ft - piece.t0) / 0.3) : reach;
+    const wrist = { x: sh.x - reachNow * torso, y: hipY - raiseAt(ft) * torso };
     const elbow = { x: (sh.x + wrist.x) / 2 - 0.15 * torso, y: (sh.y + wrist.y) / 2 + 0.1 * torso };
     landmarks[BLM.right_wrist] = wrist;
     landmarks[BLM.right_elbow] = elbow;
