@@ -31,7 +31,7 @@ export interface LineOptions {
 
 /**
  * Least-squares line of `ys` on `xs`. Null with fewer than two points, arrays of different
- * lengths, or no spread in x; a non-finite `ys` gives a non-finite fit, for the caller's
+ * lengths, or no spread in x (or one whose square overflows); a non-finite `ys` gives a non-finite fit, for the caller's
  * own rule to refuse.
  */
 export function olsLine(xs: readonly number[], ys: readonly number[], options: LineOptions = {}): LineFit | null {
@@ -53,7 +53,8 @@ export function olsLine(xs: readonly number[], ys: readonly number[], options: L
     sxx += dx * dx;
     sxy += dx * (ys[k] - my);
   }
-  if (!(sxx > 0)) return null;
+  // No spread, or one so large its square overflows: either way no line to fit.
+  if (!(sxx > 0) || !Number.isFinite(sxx)) return null;
   const slope = sxy / sxx;
   const intercept = my - slope * mx;
   let rss = 0;

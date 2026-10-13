@@ -42,6 +42,15 @@ describe('fitQuadratic / fitLine / crossingTau / intersectionTau', () => {
     expect(l.a).toBeCloseTo(5, 9);
   });
 
+  it('a line fit over no time spread is null, wherever its origin', () => {
+    // Constant times away from t0: the raw-sums fit once returned a ~1e16 slope from rounding.
+    expect(fitLine([0.1, 0.1, 0.1], [1, 2, 3], 0)).toBeNull();
+    expect(fitLine([0.7, 0.7], [1, 2], 0.2)).toBeNull();
+    expect(fitLine([123.456, 123.456, 123.456], [1, 2, 3], 100)).toBeNull();
+    // Times so large their spread's square overflows: null, never a NaN or zero slope.
+    expect(fitLine([1e200, 2e200, 3e200], [1, 2, 3], 0)).toBeNull();
+  });
+
   it('crossingTau looks ahead for the prediction and around the origin for the refinement', () => {
     // Falling at 100 units/s, accelerating at 400 units/s², 5 units above the floor.
     const fit = { a: 0, b: 100, c: 200 };

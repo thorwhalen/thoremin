@@ -78,6 +78,8 @@ describe('olsLine', () => {
     expect(olsLine([1], [1])).toBeNull();
     expect(olsLine([1, 1, 1], [1, 2, 3])).toBeNull();
     expect(olsLine([1, 2], [1])).toBeNull();
+    // A spread whose square overflows is no fit, not a NaN or zero slope.
+    expect(olsLine([1e200, 2e200, 3e200], [1, 2, 3])).toBeNull();
   });
 });
 
