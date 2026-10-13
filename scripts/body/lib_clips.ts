@@ -13,6 +13,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { parseRecords } from '@thoremin/dag';
+import { createIctusDetector } from '@thoremin/ictus';
+import { BLM } from '@thoremin/sdk/nodes/domain';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const FIXTURES = join(HERE, '..', '..', 'test', 'fixtures');
@@ -46,6 +48,47 @@ export function loadClip(name: string): BodyClip {
   const p = 60 / meta.music.bpm;
   const grid = Array.from({ length: Math.floor(dur / p) + 1 }, (_, i) => i * p);
   return { name, frames, fps: meta.fps, grid, beatsPerBar: meta.grid?.beatsPerBar ?? 4, phaseKnown: false };
+}
+
+/** A clip from a pose stream and a beats JSON (`audio_beats.py`), before it is a fixture. */
+export function adHocClip(posePath: string, beatsPath: string, beatsPerBar: number): BodyClip {
+  // `--beats stroke` takes the grid from the beating wrist (see strokeGrid).
+  const raw = readFileSync(posePath);
+  const text = posePath.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8');
+  const recs = parseRecords(text);
+  const fps = recs.length > 1 ? Math.round((1 / (recs[1].t - recs[0].t)) * 1000) / 1000 : 30;
+  const frames = recs.map((r) => r.value) as BodyFrame[];
+  const beats = beatsPath === 'stroke' ? strokeGrid(frames, fps) : (JSON.parse(readFileSync(beatsPath, 'utf8')) as { beats: number[] }).beats;
+  return { name: posePath, frames, fps, grid: beats, beatsPerBar, phaseKnown: true };
+}
+
+/** Which wrist beats: the one with the larger vertical travel (5th to 95th percentile,
+ *  pixels) over the frames where it is seen. */
+export function beatingWrist(frames: readonly BodyFrame[]): 'left' | 'right' {
+  const travel = (j: number): number => {
+    const ys = frames.filter((f) => f.present && (f.visibility[j] ?? 1) >= 0.5).map((f) => f.landmarks[j].y).sort((a, b) => a - b);
+    return ys.length < 10 ? 0 : ys[Math.floor(ys.length * 0.95)] - ys[Math.floor(ys.length * 0.05)];
+  };
+  return travel(BLM.right_wrist) >= travel(BLM.left_wrist) ? 'right' : 'left';
+}
+
+/**
+ * A conductor's beat grid from the conductor's own baton hand: ictus's stroke detector
+ * (the one the hand conductor plays through, measured on `test/fixtures/conducting_*`)
+ * over the beating wrist, in image pixels. For a clip whose soundtrack carries no grid
+ * (a legato choir), the gesture IS the beat; the wrist channels are then the
+ * reference, not a result, and the write-up says so.
+ */
+export function strokeGrid(frames: readonly BodyFrame[], fps: number, wrist: 'left' | 'right' = beatingWrist(frames)): number[] {
+  const j = wrist === 'right' ? BLM.right_wrist : BLM.left_wrist;
+  const det = createIctusDetector({ yDown: true });
+  const beats: number[] = [];
+  frames.forEach((f, i) => {
+    if (!f.present || (f.visibility[j] ?? 1) < 0.5) return;
+    const a = det.push({ t: i / fps, x: f.landmarks[j].x, y: f.landmarks[j].y });
+    if (a) beats.push(a.t);
+  });
+  return beats;
 }
 
 /** The control's beat period (120 bpm) and bar. */

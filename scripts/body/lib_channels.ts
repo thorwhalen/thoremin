@@ -12,12 +12,14 @@
  *   the design proposes for the visual-impact detector (§3.3). Positions are image
  *   coordinates over a running torso length, as the kinematic features and `body-pulse`
  *   measure them (the world set is re-centred on the hips and cannot see a bounce).
- * - An **event** is what an anchor is: `decel` (a peak of deceleration, the dance
- *   literature's visual beat and the conductor's stroke), `accel` (a peak of the
- *   acceleration magnitude, where observers place a conductor's beat) or `extremum`
- *   (the turning point of the channel's own axis, e.g. the bottom of a bounce; its
- *   polarity is chosen per channel, since which end of the bounce lands on the beat
- *   differs between people).
+ * - An **event** is what an anchor is: `decel` (a peak of deceleration of the speed,
+ *   the dance literature's visual beat; it has no direction, so a bounce fires it at
+ *   both ends), `accel` (a peak of the acceleration magnitude, where observers place a
+ *   conductor's beat), `impact` (the DIRECTIONAL deceleration of §3.3's vertical
+ *   option: acceleration along the channel's axis toward one end, peaking as the
+ *   movement brakes into the bottom, or the top) or `extremum` (the turning point of the
+ *   channel's own axis). `impact` and `extremum` are scored at both polarities and the
+ *   better kept, since which end of a bounce lands on the beat differs between people.
  * - A **level** is the beat, the half-bar or the bar. Anchors are picked once per level
  *   (at most one per half a level period, the impact detector told the level), and
  *   scored against every L-th grid beat at the best of the L downbeat phases.
@@ -51,7 +53,7 @@ export const MIN_SEPARATION = 0.5;
 /** An envelope peak must clear the envelope's median plus this many MADs. */
 export const PEAK_MADS = 1;
 
-export const EVENTS = ['decel', 'accel', 'extremum'] as const;
+export const EVENTS = ['decel', 'accel', 'impact', 'extremum'] as const;
 export type AnchorEvent = (typeof EVENTS)[number];
 
 export interface Level {
@@ -236,9 +238,12 @@ function speedOf(ch: Channel, dt: number): number[] {
 }
 
 /** The envelope whose peaks are the anchors of `event` on `ch`; `polarity` picks which
- *  turning point an `extremum` is (+1: the largest image y, the bottom). */
+ *  end an `extremum` or an `impact` is (+1: toward the largest value, for a height the
+ *  bottom of the travel, image y growing downward). */
 export function envelope(ch: Channel, event: AnchorEvent, dt: number, polarity: 1 | -1 = 1): number[] {
   if (event === 'extremum') return ch.y.map((v) => polarity * v);
+  // Braking into the +polarity end is acceleration toward the -polarity side.
+  if (event === 'impact') return derivative(derivative(ch.y, dt), dt).map((a) => (Number.isFinite(a) ? Math.max(0, -polarity * a) : NaN));
   if (event === 'decel') return derivative(speedOf(ch, dt), dt).map((a) => (Number.isFinite(a) ? Math.max(0, -a) : NaN));
   const ay = derivative(derivative(ch.y, dt), dt);
   if (!ch.x) return ay.map(Math.abs);
@@ -246,7 +251,8 @@ export function envelope(ch: Channel, event: AnchorEvent, dt: number, polarity: 
   return ay.map((a, i) => Math.hypot(a, ax[i]));
 }
 
-/** §3.3's multi-joint envelope: each joint's deceleration envelope over its own median
+/** §3.3's multi-joint envelope: each joint's vertical impact envelope (braking into the
+ *  bottom; the speed-only deceleration fires at both ends of a bounce) over its own median
  *  (so a big arm does not drown a small bounce), weighted by `weights` (the joint's
  *  periodicity at the followed level; equal weights if omitted), averaged over the
  *  joints observed at each frame. */
@@ -254,7 +260,7 @@ export function multiJointEnvelope(chans: readonly Channel[], dt: number, weight
   const parts = chans
     .filter((c) => (ENVELOPE_JOINTS as readonly string[]).includes(c.id))
     .map((c) => {
-      const e = envelope(c, 'decel', dt);
+      const e = envelope({ id: c.id, label: c.label, y: c.y }, 'impact', dt, 1);
       const scale = median(e.filter((v) => v > 0)) || 1;
       return { w: weights?.[c.id] ?? 1, e: e.map((v) => v / scale) };
     });
@@ -334,6 +340,8 @@ function bas(anchors: readonly number[], ref: readonly number[]): number {
 }
 
 export interface LevelScore {
+  /** Anchors scored. */
+  n: number;
   /** Anchors per cycle of the level (1 is one per cycle). */
   rate: number;
   f: number;
@@ -342,14 +350,45 @@ export interface LevelScore {
   /** The anchors' circular-mean lag behind the level's grid, seconds (negative: ahead). */
   lagS: number;
   r: number;
+  /** Rayleigh test p-value of R (Zar's approximation): the chance of an R this large
+   *  from as many anchors at random phases. */
+  p: number;
   bas: number;
   cemgil: number;
 }
 
+/** Rayleigh p for a resultant length `r` of `n` unit vectors (Zar, Biostatistical
+ *  Analysis, eq. 27.4). */
+export function rayleighP(r: number, n: number): number {
+  if (n < 2) return 1;
+  const R = n * r;
+  return Math.min(1, Math.exp(Math.sqrt(1 + 4 * n + 4 * (n * n - R * R)) - (1 + 2 * n)));
+}
+
+/** A grid interval longer than this many median intervals is a hold (a conductor
+ *  between verses), not a beat: the grid's continuous runs are scored, holds are not. */
+export const GRID_GAP = 1.6;
+
+/** The grid's continuous runs as [start, end] spans, each padded by the F window. */
+export function gridRuns(grid: readonly number[]): Array<[number, number]> {
+  const ibis = grid.slice(1).map((g, i) => g - grid[i]);
+  const limit = GRID_GAP * median(ibis);
+  const runs: Array<[number, number]> = [];
+  let start = grid[0];
+  for (let i = 1; i < grid.length; i++) {
+    if (grid[i] - grid[i - 1] > limit) {
+      runs.push([start - F_WINDOW_S, grid[i - 1] + F_WINDOW_S]);
+      start = grid[i];
+    }
+  }
+  runs.push([start - F_WINDOW_S, grid[grid.length - 1] + F_WINDOW_S]);
+  return runs;
+}
+
 /** Score anchors at a level: references are every `beats`-th grid beat at the best of
- *  the downbeat phases, restricted to the span the anchors could cover. */
-export function scoreLevel(anchors: readonly number[], grid: readonly number[], beats: number, span: readonly [number, number]): LevelScore {
-  const inSpan = (x: number) => x >= span[0] && x <= span[1];
+ *  the downbeat phases, restricted to the spans (the grid's runs) the anchors could cover. */
+export function scoreLevel(anchors: readonly number[], grid: readonly number[], beats: number, spans: ReadonlyArray<readonly [number, number]>): LevelScore {
+  const inSpan = (x: number) => spans.some(([a, b]) => x >= a && x <= b);
   const A = anchors.filter(inSpan);
   const G = grid.filter(inSpan);
   const cycles = Math.max(1, G.length / beats);
@@ -386,11 +425,13 @@ export function scoreLevel(anchors: readonly number[], grid: readonly number[], 
   for (let k = 0; k < Math.max(1, Math.round(beats)); k++) fLag = Math.max(fLag, fMeasure(refsFor(k), shifted, F_WINDOW_S));
   const ref = refsFor(best.k);
   return {
+    n: A.length,
     rate: A.length / cycles,
     f: best.f,
     fLag,
     lagS,
     r,
+    p: rayleighP(r, A.length),
     bas: bas(A, ref),
     cemgil: cemgil(ref, A),
   };
@@ -454,29 +495,32 @@ export function measureClip(frames: readonly BodyFrame[], fps: number, grid: rea
   const t = frames.map((_, i) => i * dt);
   const chans = extractChannels(frames, fps);
   const beatS = median(grid.slice(1).map((g, i) => g - grid[i]));
-  const span: [number, number] = [Math.max(grid[0], t[0]) - F_WINDOW_S, Math.min(grid[grid.length - 1], t[t.length - 1]) + F_WINDOW_S];
+  const span = gridRuns(grid).map(([a, b]): [number, number] => [Math.max(a, t[0]), Math.min(b, t[t.length - 1])]).filter(([a, b]) => b > a);
   const out: CellResult[] = [];
   for (const level of levelsFor(beatsPerBar)) {
     const sep = MIN_SEPARATION * level.beats * beatS;
     for (const ch of chans) {
       for (const event of EVENTS) {
-        // An extremum is scored at both polarities and the better R kept (the phase of
+        // An extremum or impact is scored at both polarities and the more significant
+        // lock (Rayleigh p) kept (the phase of
         // a bounce is the player's own).
-        const pols: Array<1 | -1> = event === 'extremum' ? [1, -1] : [1];
+        const pols: Array<1 | -1> = event === 'extremum' || event === 'impact' ? [1, -1] : [1];
         let best: CellResult | null = null;
         for (const pol of pols) {
           const anchors = pickAnchors(envelope(ch, event, dt, pol), t, sep);
           const score = scoreLevel(anchors, grid, level.beats, span);
-          if (!best || score.r > best.score.r) best = { channel: ch.id, event, polarity: pol, level: level.name, score };
+          if (!best || score.p < best.score.p) best = { channel: ch.id, event, polarity: pol, level: level.name, score };
         }
         out.push(best!);
       }
     }
-    // The multi-joint envelope: equal weights, and weights from each joint's own
-    // pulse strength (the matched weighting of §3.3 step 3).
+    // The multi-joint envelope: equal weights, and the matched weighting of §3.3 step 3
+    // (each joint's own periodicity AT THIS LEVEL: its autocorrelation at the level's
+    // period, which needs a tempo but no grid phase, as the impact detector will have).
+    const lag = Math.round((level.beats * beatS) / dt);
     for (const weighted of [false, true]) {
       const weights = weighted
-        ? Object.fromEntries(chans.filter((c) => (ENVELOPE_JOINTS as readonly string[]).includes(c.id)).map((c) => [c.id, pulseStrengthOf(c, t, beatS)]))
+        ? Object.fromEntries(chans.filter((c) => (ENVELOPE_JOINTS as readonly string[]).includes(c.id)).map((c) => [c.id, Math.max(0, acfAt(c.y, lag))]))
         : undefined;
       const anchors = pickAnchors(multiJointEnvelope(chans, dt, weights), t, sep);
       out.push({ channel: weighted ? 'multi.weighted' : 'multi', event: 'multi', polarity: 1, level: level.name, score: scoreLevel(anchors, grid, level.beats, span) });
@@ -485,8 +529,27 @@ export function measureClip(frames: readonly BodyFrame[], fps: number, grid: rea
   return out;
 }
 
-/** A point's periodicity for the envelope weights: the pulse strength of its vertical. */
-function pulseStrengthOf(ch: Channel, t: readonly number[], beatS: number): number {
-  const s = pulseSummary(ch.y, t, beatS);
-  return Number.isFinite(s.strength) ? s.strength * s.trusted : 0;
+/** Normalised autocorrelation of `y` at a lag of `lag` samples, over the pairs both
+ *  observed (each side's mean removed). */
+export function acfAt(y: readonly number[], lag: number): number {
+  const a: number[] = [];
+  const b: number[] = [];
+  for (let i = 0; i + lag < y.length; i++) {
+    if (Number.isFinite(y[i]) && Number.isFinite(y[i + lag])) {
+      a.push(y[i]);
+      b.push(y[i + lag]);
+    }
+  }
+  if (a.length < 3) return 0;
+  const ma = a.reduce((s, v) => s + v, 0) / a.length;
+  const mb = b.reduce((s, v) => s + v, 0) / b.length;
+  let num = 0;
+  let da = 0;
+  let db = 0;
+  for (let i = 0; i < a.length; i++) {
+    num += (a[i] - ma) * (b[i] - mb);
+    da += (a[i] - ma) ** 2;
+    db += (b[i] - mb) ** 2;
+  }
+  return da > 0 && db > 0 ? num / Math.sqrt(da * db) : 0;
 }
