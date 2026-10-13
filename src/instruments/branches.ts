@@ -209,10 +209,13 @@ export const bodyRoute = defineBranch({
 
 export const conductor = defineBranch({
   id: 'conductor',
-  description: 'Conducting: the ictus detector and the conducted score it drives.',
+  description: 'Conducting: the ictus detector, the conducted score it drives, and the sampled orchestra that can play it.',
   nodes: [
     { id: 'conductor', type: 'conductor', params: {} },
     { id: 'score', type: 'score', params: { notes: DEMO_SCALE_NOTES, loopBeats: 8, baseGain: 0.4, sound: 'triangle' } },
+    // The sampled orchestra (#187 PR 5): off until `conductor.orchestra.enabled`, and
+    // loads nothing until then; takes the piece over from `score` once it is ready.
+    { id: 'orchestra', type: 'orchestra', params: {} },
   ],
   edges: [
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'conductor', port: 'hands' }),
@@ -224,6 +227,14 @@ export const conductor = defineBranch({
     to(ui('scoreDoc'), { node: 'conductor', port: 'doc' }),
     to({ node: 'conductor', port: 'time' }, overlay('conductorTime')),
     to({ node: 'conductor', port: 'enabled' }, overlay('conductorEnabled')),
+    to({ node: 'conductor', port: 'time' }, { node: 'orchestra', port: 'time' }),
+    to({ node: 'conductor', port: 'velocityScale' }, { node: 'orchestra', port: 'velocityScale' }),
+    to({ node: 'conductor', port: 'articulation' }, { node: 'orchestra', port: 'articulation' }),
+    to({ node: 'conductor', port: 'enabled' }, { node: 'orchestra', port: 'conducting' }),
+    to(ui('scoreDoc'), { node: 'orchestra', port: 'doc' }),
+    to(ui('conductor'), { node: 'orchestra', port: 'config' }),
+    to(ui('claimed'), { node: 'orchestra', port: 'claimed' }),
+    to({ node: 'orchestra', port: 'playing' }, { node: 'score', port: 'replaced' }),
   ],
   voices: [{ from: { node: 'score', port: 'params' }, role: 'score' }],
   overlay: ['conductorHud'],

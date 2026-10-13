@@ -37,6 +37,8 @@ export { createTrendPrior } from './trend_prior';
 export type { TrendPriorOptions } from './trend_prior';
 export { createBlendPrior, TREND_DEFAULTS } from './blend_prior';
 export type { BlendPrior, BlendPriorOptions } from './blend_prior';
+export { createScheduler, SCHEDULER_DEFAULTS } from './scheduler';
+export type { Scheduler, SchedulerOptions, ScheduleCommand, ScheduleTick, ScoreEvent } from './scheduler';
 
 /** The priors a consumer selects by name: the adaptive oscillator (the v1 prior,
  *  robust to a stray anchor, 65 to 75 ms late under an accelerando), the trend prior

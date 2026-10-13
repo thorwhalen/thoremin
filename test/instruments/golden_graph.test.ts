@@ -56,6 +56,22 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'mute' }, to: { node: 'midiOut', port: 'mute' } },
   { from: { node: 'ui', port: 'claimed' }, to: { node: 'midiOut', port: 'claimed' } },
   { from: { node: 'ui', port: 'midiMuteFollowsMaster' }, to: { node: 'midiOut', port: 'muteFollowsMaster' } },
+  // #187 PR 5: the sampled orchestra reads the conductor and the dial, and takes the
+  // piece over from the score's oscillator voices once it is loaded.
+  { from: { node: 'conductor', port: 'time' }, to: { node: 'orchestra', port: 'time' } },
+  { from: { node: 'conductor', port: 'velocityScale' }, to: { node: 'orchestra', port: 'velocityScale' } },
+  { from: { node: 'conductor', port: 'articulation' }, to: { node: 'orchestra', port: 'articulation' } },
+  { from: { node: 'conductor', port: 'enabled' }, to: { node: 'orchestra', port: 'conducting' } },
+  { from: { node: 'ui', port: 'scoreDoc' }, to: { node: 'orchestra', port: 'doc' } },
+  { from: { node: 'ui', port: 'conductor' }, to: { node: 'orchestra', port: 'config' } },
+  { from: { node: 'ui', port: 'claimed' }, to: { node: 'orchestra', port: 'claimed' } },
+  { from: { node: 'orchestra', port: 'playing' }, to: { node: 'score', port: 'replaced' } },
+];
+
+/** Nodes the branch table gained after the snapshot, named for the same reason. */
+const NODES_ADDED_SINCE_SNAPSHOT: NodeSpec[] = [
+  // #187 PR 5: the sampled orchestra, in the conductor branch.
+  { id: 'orchestra', type: 'orchestra', params: {} },
 ];
 
 /** Edges the branch table LOST after the snapshot, each named here for the same reason. */
@@ -85,8 +101,9 @@ describe.runIf(AIR)('composed graph == the hand-listed graph (golden)', () => {
       const golden = JSON.parse(readFileSync(join(FIXTURES, `default_graph.${name}.json`), 'utf8')) as GraphSpec;
       const composed = withoutLaterExtensions(defaultGraph(selection, registry));
 
-      expect(composed.nodes).toHaveLength(golden.nodes.length);
-      expect(sorted(composed.nodes.map(nodeKey))).toEqual(sorted(golden.nodes.map(nodeKey)));
+      const expectedNodes = [...golden.nodes, ...NODES_ADDED_SINCE_SNAPSHOT];
+      expect(composed.nodes).toHaveLength(expectedNodes.length);
+      expect(sorted(composed.nodes.map(nodeKey))).toEqual(sorted(expectedNodes.map(nodeKey)));
 
       const removed = new Set(REMOVED_SINCE_SNAPSHOT.map(edgeKey));
       const expected = [...golden.edges.filter((e) => !removed.has(edgeKey(e))), ...ADDED_SINCE_SNAPSHOT];

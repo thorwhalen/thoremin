@@ -94,11 +94,12 @@ Three idioms the existing sites need, stated so they are not re-derived:
 | `webcam-body` (`src/nodes/sources/webcam_body.ts`) | **adopted (#186 PR B)** | `createBodyLandmarker` seam on `ctx.resources`; default lazily imports tasks-vision. Keyed by the `body.model` dial (release on change); `gate` reports `unavailable` / `no-camera` until the shared `<video>` has frames, and the node releases-and-retries when they arrive. `active` while a body is detected. |
 | `webcam-face`, `webcam-hands` | reference site, not migrated | Same family as `webcam-body`; migrate when a change touches them. |
 | recording formats | reference site | Already a registry of `load()` thunks; the status here is per conversion, not per node. |
-| conductor assets (#187) | asked to adopt | Any score / model / sample fetched on first use. |
+| `orchestra` (`src/nodes/output/orchestra.ts`, #187 PR 5) | **adopted** | `createOrchestraEngine` seam; default lazily imports `orchestra_engine.ts` (`spessasynth_lib`, its AudioWorklet processor, the self-hosted 3.7 MB SF3, with download progress). `unavailable` / `no-audio` (retrying) until the audio graph exists. |
+| conductor assets (#187) | asked to adopt | Any other score / model / sample fetched on first use. |
 | an in-browser generator (`generative-instruments.md` §3b) | must adopt | ~300 kB gzip of library and 12–18 MB of checkpoint, with a progress bar. |
 
 ## What this is not
 
 - Not a plugin or discovery mechanism; the registry stays a hand-listed array (`component-model.md`, correction 2).
-- Not a replacement for Vite's code splitting; it is what makes the split *reach* the node (the seam) and *visible* to the player (the status).
+- Not a replacement for Vite's code splitting; it is what makes the split *reach* the node (the seam) and *visible* to the player (the status). The split itself is a build gate: `vite.lazy-guard.ts` fails every `vite build` in which a package on its `LAZY_PACKAGES` list is in the entry chunk's static closure.
 - Not a cache: whether a model is cached across sessions is the browser's business (HTTP cache, or the Cache API in a later step), not this module's.

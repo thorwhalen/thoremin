@@ -24,6 +24,7 @@ import { SteerConfigSchema, defaultSteerConfig } from '@/nodes/mapping/indirect_
 export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map';
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
 import { ConductorDialSchema } from '@/nodes/features/conductor';
+import { DEFAULT_ORCHESTRA, OrchestraSettingsSchema } from '@/nodes/output/orchestra';
 // The extensions' dials (today the air instruments') are folded in from the manifests:
 // the runtime shape from the injected list, the TYPE from its generated declaration
 // (`src/extensions/virtual.d.ts`), so core never imports an extension to know its keys.
@@ -49,6 +50,10 @@ export const LEGACY_CONDUCTOR_PRIOR = 'oscillator' as const;
 
 export const ConductorSettingsSchema = ConductorDialSchema.extend({
   piece: z.string().default(DEFAULT_PIECE),
+  /** The sampled orchestra (#187 PR 5): on/off, overall and per-section level. Like
+   *  `piece`, the conductor node never sees it (its `config` port strips it); the
+   *  `orchestra` node reads it from the same dial. */
+  orchestra: OrchestraSettingsSchema.default(() => structuredClone(DEFAULT_ORCHESTRA)),
 });
 export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
 export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});

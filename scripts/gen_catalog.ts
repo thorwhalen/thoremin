@@ -26,7 +26,7 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Conductor mode', blurb: 'Direct a fixed piece with gesture (tempo + dynamics).', types: ['conductor', 'transport', 'score', 'performance'] },
   { name: 'Air instruments', blurb: 'Strike, pluck or blow at nothing — hits and plucks predicted before the frame that shows them (#233, #249).', types: ['air-drum', 'drum-out', 'air-bass', 'air-guitar', 'air-flute', 'pluck-out'] },
   { name: 'Sign language', blurb: 'Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key.', types: ['asl-signs', 'sign-chord'] },
-  { name: 'Synthesis & generation', blurb: 'Make sound — direct synthesis, steered AI music, or an external MIDI instrument.', types: ['webaudio-synth', 'lyria', 'midi-out'] },
+  { name: 'Synthesis & generation', blurb: 'Make sound — direct synthesis, steered AI music, or an external MIDI instrument.', types: ['webaudio-synth', 'orchestra', 'lyria', 'midi-out'] },
   { name: 'Output', blurb: 'Audio + the captured video with overlaid guides.', types: ['canvas-overlay'] },
 ];
 
@@ -65,6 +65,7 @@ const EXAMPLES: Array<{ title: string; chain: string; note: string }> = [
   { title: 'Theremin (direct)', chain: 'webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)', note: 'Hand x → scale-snapped pitch, y → volume. Two hands = two voices.' },
   { title: 'Gesture → harmony', chain: "hand-features → pick('right.x') → progression → chord → webaudio-synth", note: 'Hand position walks an in-key chord progression.' },
   { title: 'Conductor', chain: 'webcam-hands → conductor → score → synth-merge → webaudio-synth', note: 'The beating hand becomes musical time (packages/ictus/src): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece\'s tempo + dynamics, directed live. Behind the Conductor dial.' },
+  { title: 'Conductor with the orchestra', chain: 'conductor → orchestra (spessasynth_lib, a cut General MIDI soundfont)', note: 'The same conducted piece played by sampled instruments: notes committed just ahead of the conductor\'s beat, stroke size as expression on sounding notes. Loads only when switched on in the Conductor panel.' },
   { title: 'Indirect / AI (gesture or expression)', chain: 'hand-features / face-features → indirect-map → lyria', note: 'Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.' },
   { title: 'Discrete triggers', chain: 'hand-features → gesture-classifier → (events)', note: 'Fist/open/pinch poses emit enter/exit events to trigger scale changes, stabs, mutes.' },
 ];

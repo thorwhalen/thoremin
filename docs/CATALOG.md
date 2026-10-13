@@ -20,6 +20,8 @@ This page catalogs the engine's building blocks — every node, its ports and it
   Hand position walks an in-key chord progression.
 - **Conductor** — `webcam-hands → conductor → score → synth-merge → webaudio-synth`  
   The beating hand becomes musical time (packages/ictus/src): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece's tempo + dynamics, directed live. Behind the Conductor dial.
+- **Conductor with the orchestra** — `conductor → orchestra (spessasynth_lib, a cut General MIDI soundfont)`  
+  The same conducted piece played by sampled instruments: notes committed just ahead of the conductor's beat, stroke size as expression on sounding notes. Loads only when switched on in the Conductor panel.
 - **Indirect / AI (gesture or expression)** — `hand-features / face-features → indirect-map → lyria`  
   Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.
 - **Discrete triggers** — `hand-features → gesture-classifier → (events)`  
@@ -73,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (48)
+## Nodes (49)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -366,7 +368,7 @@ Beat clock: integrates BPM over time into a running beat position.
 An immutable piece performed live: beat + velocityScale → the sounding synth voices. Plays a loaded ScoreDoc (MIDI / MusicXML) or the built-in demo scale.
 
 - **roles:** music
-- **in:** beat:number, velocityScale:number, enabled:boolean, doc:score-doc
+- **in:** beat:number, velocityScale:number, enabled:boolean, doc:score-doc, replaced:boolean
 - **out:** params:synth-params
 - **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), parts (array=[])
 
@@ -458,6 +460,14 @@ Renders synth params to sound-preset voices (browser only).
 - **in:** params:synth-params
 - **out:** —
 - **params:** freqGlide (number=0.03), gainGlide (number=0.08)
+
+#### `orchestra` — Orchestra
+The conducted score played by a sampled orchestra (spessasynth_lib + a cut MuseScore_General SF3): a pending-event scheduler on the conductor’s time, dynamics as CC11/CC74 on sounding notes. Off by default; loads only when switched on.
+
+- **roles:** synth
+- **in:** time:musical-time, velocityScale:number, articulation:number, conducting:boolean, doc:score-doc, config:conductor-config, claimed:boolean
+- **out:** status:load-status, playing:boolean
+- **params:** lookaheadTicks (number=2), staccatoDepth (number=0.5), brightnessDepth (number=0.5), ccInterval (number=0.05)
 
 #### `lyria` — Lyria Generative
 Steers a generative engine (Lyria RealTime) from weighted prompts + config dials. Off by default; loads its SDK only when enabled, and needs a Gemini API key.
