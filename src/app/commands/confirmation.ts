@@ -23,6 +23,10 @@ export interface RiskMeta {
   sideEffect?: SideEffect;
   /** Force (or waive) confirmation regardless of `sideEffect`. */
   requiresConfirmation?: boolean;
+  /** False when ⌘Z cannot take the write back: it lands outside the dials layer the undo
+   *  history snapshots (`history.ts`), so the history records no entry for it. Absent
+   *  means undoable for a write. Informational: the gate and the history do not read it. */
+  undoable?: boolean;
 }
 
 /** The thoremin commands that mutate SAVED state (not just the live working layer),
@@ -32,16 +36,23 @@ export interface RiskMeta {
  *   - instrument.create commits under a name (a collision clobbers a saved instrument) */
 const DESTRUCTIVE_COMMANDS = new Set<string>(['instrument.load', 'instrument.save', 'instrument.create']);
 
-/** The command-id prefixes whose commands WRITE, reversibly: the generic dial verbs,
- *  the per-dial ones, the `steer.*` verbs that write the steering dial (#188) and the
- *  `recording.*` verbs that write the recording config (#257). */
-const ADDITIVE_PREFIXES = ['dial.', 'steer.', 'recording.'] as const;
+/** The command-id prefixes whose commands WRITE the dials, so undo takes them back: the
+ *  generic dial verbs, the per-dial ones and the `steer.*` verbs that write the steering
+ *  dial (#188). */
+const UNDOABLE_WRITE_PREFIXES = ['dial.', 'steer.'] as const;
+
+/** The command-id prefixes whose commands write OUTSIDE the dials, so undo cannot take
+ *  them back: the `recording.*` verbs write the recording config (#257). Still additive
+ *  (nothing saved is lost, the player sets it again), so not confirmation-gated. */
+const NOT_UNDOABLE_WRITE_PREFIXES = ['recording.'] as const;
 
 /** The default thoremin risk map: destructive for the instrument mutations above,
- *  additive for the reversible writes, query for everything else. */
+ *  additive for the other writes (marked `undoable: false` where undo cannot reach
+ *  them), query for everything else. */
 export function defaultGetRisk(id: string): RiskMeta {
   if (DESTRUCTIVE_COMMANDS.has(id)) return { sideEffect: 'destructive' };
-  return { sideEffect: ADDITIVE_PREFIXES.some((p) => id.startsWith(p)) ? 'additive' : 'query' };
+  if (NOT_UNDOABLE_WRITE_PREFIXES.some((p) => id.startsWith(p))) return { sideEffect: 'additive', undoable: false };
+  return { sideEffect: UNDOABLE_WRITE_PREFIXES.some((p) => id.startsWith(p)) ? 'additive' : 'query' };
 }
 
 /**

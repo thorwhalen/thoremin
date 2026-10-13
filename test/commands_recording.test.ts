@@ -85,6 +85,11 @@ describe('recording commands (#257)', () => {
     expect(defaultGetRisk('recording.folder.choose').sideEffect).toBe('additive');
     expect(needsUserActivation('recording.folder.choose')).toBe(true);
     expect(needsUserActivation('recording.location.set')).toBe(false);
+    // Undo snapshots only the dials; a recording write lands in the recording config,
+    // so it is marked not undoable (#392). Still additive: no confirmation prompt.
+    expect(defaultGetRisk('recording.location.set').undoable).toBe(false);
+    expect(defaultGetRisk('recording.folder.choose').undoable).toBe(false);
+    expect(defaultGetRisk('dial.set').undoable).not.toBe(false);
     expect(isGestureBindable('recording.folder.choose')).toBe(false);
     expect(isGestureBindable('recording.location.set')).toBe(true);
   });
