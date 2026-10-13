@@ -244,7 +244,7 @@ describe('the production wiring (source guard — useEngine is outside the stric
     // same demand (the ADR, PR 3), so a claim adds the face source instead of waking it.
     // (PR 4 routes it through `liveBranchIds`, whose demand defaults to the live resource.)
     expect(liveApply).toMatch(/demanded = featureDemandResource\(\)/);
-    expect(liveApply).toMatch(/branchIdsFor\(controls, \{ demanded/);
+    expect(liveApply).toMatch(/branchIdsFor\(\{ \.\.\.controls \}, \{ demanded/);
     expect(read('src/instruments/derive.ts')).toMatch(/demandWantsFace\(/);
   });
 });
