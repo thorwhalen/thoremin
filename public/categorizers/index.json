@@ -1,0 +1,12 @@
+{
+ "format": "thoremin.categorizer-index",
+ "version": 1,
+ "categorizers": [
+  {
+   "name": "demo-smile",
+   "label": "Demo: smile and open smile",
+   "description": "Made from the app's own three-second test recording of one face: a rest, a smile, a smile with the mouth open. Two faces; a face near the rest is none of these.",
+   "demo": true
+  }
+ ]
+}

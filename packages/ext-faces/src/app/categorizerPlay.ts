@@ -12,14 +12,17 @@
  *
  * Every dependency is injected ({@link CategorizerPlayDeps}); {@link startCategorizerPlay} with
  * no argument binds the browser's (the hot store through the SDK's controls host, the
- * localStorage collection).
+ * localStorage collection, and for a `shared:` id the shipped shared categorizers, #330 P5,
+ * which play with no tuning).
  */
 import { create } from 'zustand';
 import { controls } from '@thoremin/sdk-ui/host';
 import type { ExpressionLabel } from '@thoremin/sdk/music/expression';
 import { categorizerPlay, type FaceCategorizerPlay } from '../lib/play';
 import { isPersonal, type FaceCategorizerDial } from '../schema';
+import { isSharedId } from '../lib/shared';
 import { createFaceModelStore, onFaceModelsChanged, type FaceModelRecord } from './models';
+import { sharedSource, type SharedSource } from './sharedModels';
 
 /** The transient field the node reads (declared by the manifest, `../index.ts`). */
 export const FACE_CATEGORIZER_MODEL_FIELD = 'faceCategorizerModel';
@@ -60,11 +63,12 @@ export interface CategorizerPlayDeps {
   publish(play: FaceCategorizerPlay | null): void;
 }
 
-/** The browser's dependencies: the hot store through the SDK host, the localStorage collection. */
-export function browserPlayDeps(): CategorizerPlayDeps {
+/** The browser's dependencies: the hot store through the SDK host, the localStorage collection,
+ *  and the shipped shared categorizers (#330 P5) for a `shared:` id. */
+export function browserPlayDeps(shared: SharedSource = sharedSource()): CategorizerPlayDeps {
   const models = createFaceModelStore();
   return {
-    load: (id) => models.load(id),
+    load: (id) => (isSharedId(id) ? shared.load(id) : models.load(id)),
     dial: () => controls().get().faceCategorizer as Partial<FaceCategorizerDial> | undefined,
     subscribe: (l) => controls().subscribe(l),
     onModelsChanged: onFaceModelsChanged,
