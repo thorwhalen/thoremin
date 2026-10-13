@@ -13,8 +13,9 @@
  * precedent (`packages/ext-air/src/app/vocabularyStore.ts`). The one tuned number that is
  * not derivable from the samples, the reject radius, is stored as data.
  *
- * A sample may belong to no category: a held pose outside every category in `reject` mode
- * is still evidence the player gave, and re-carving the samples may use it.
+ * A sample may belong to no category, in either mode: a held pose the player left out (or
+ * one outside every category in `reject` mode) is still evidence they gave, and re-carving
+ * the samples may use it. The mode is about LIVE vectors, below, not about the samples.
  *
  * ## Partition or reject: stated, not inferred
  *
@@ -93,9 +94,12 @@ export const PersonalCategorizerSchema = z
     c.categories.forEach((cat, i) => {
       if (ids.has(cat.id)) issue(`duplicate category id "${cat.id}"`, ['categories', i, 'id']);
       ids.add(cat.id);
+      const own = new Set<number>();
       for (const j of cat.members) {
         if (j >= c.samples.length) issue(`member ${j} is out of range (${c.samples.length} samples)`, ['categories', i, 'members']);
+        else if (own.has(j)) issue(`sample ${j} is listed twice in category "${cat.id}"`, ['categories', i, 'members']);
         else if (seen.has(j)) issue(`sample ${j} belongs to two categories`, ['categories', i, 'members']);
+        own.add(j);
         seen.add(j);
       }
     });
@@ -150,9 +154,12 @@ export function categorizerFromModel(
 
 /**
  * The live model a categorizer describes: centroids and radii recomputed from its samples,
- * its ids and labels kept, its cue counts filled, its reject radius from its mode.
+ * its ids and labels kept, its cue counts filled, its reject radius from its mode. The input
+ * is validated first (throws if invalid): an unvalidated empty category would otherwise
+ * shift every later category's id and label onto its neighbour's members.
  */
-export function modelFromCategorizer(c: PersonalCategorizer): TrainedModel {
+export function modelFromCategorizer(input: PersonalCategorizer): TrainedModel {
+  const c = PersonalCategorizerSchema.parse(input);
   const vectors = c.samples.map((s) => s.vector);
   const trained = trainModel(
     vectors,
@@ -218,7 +225,11 @@ export function importCategorizer(input: string | unknown, options: ImportOption
     const step = migrations[v];
     if (!step) return { ok: false, error: `no migration from version ${v}` };
     try {
-      d = step(d);
+      const next: unknown = step(d);
+      if (typeof next !== 'object' || next === null || Array.isArray(next)) {
+        return { ok: false, error: `migration from version ${v} returned no document` };
+      }
+      d = next as Record<string, unknown>;
     } catch (e) {
       return { ok: false, error: `migration from version ${v} failed (${e instanceof Error ? e.message : String(e)})` };
     }

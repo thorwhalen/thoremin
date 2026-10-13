@@ -38,15 +38,19 @@ import type { Category, FeatureVector, TrainedModel } from './types';
  * The maximum-total-score assignment of rows to columns of a rectangular matrix, each row
  * and each column used at most once. Returns, per row, its column (or -1 when there are
  * more rows than columns and the row got none). Exact (Hungarian algorithm with
- * potentials, O(n^2 m)); deterministic for a given matrix. Non-finite entries count as 0.
+ * potentials, O(n^2 m)); deterministic for a given matrix. Non-finite entries count as 0,
+ * and finite ones are clamped to +/-{@link SCORE_LIMIT} so no cost can overflow.
  */
+/** The magnitude scores are clamped to: far beyond any real score, far below overflow. */
+export const SCORE_LIMIT = 1e150;
+
 export function assignMax(score: readonly (readonly number[])[]): number[] {
   const rows = score.length;
   const cols = rows === 0 ? 0 : Math.max(...score.map((r) => r.length));
   if (rows === 0 || cols === 0) return new Array(rows).fill(-1);
   const at = (i: number, j: number): number => {
     const x = score[i][j];
-    return Number.isFinite(x) ? x : 0;
+    return Number.isFinite(x) ? Math.max(-SCORE_LIMIT, Math.min(SCORE_LIMIT, x)) : 0;
   };
   // The algorithm below needs n <= m; transpose otherwise and invert the answer.
   const transposed = rows > cols;
@@ -83,6 +87,8 @@ export function assignMax(score: readonly (readonly number[])[]): number[] {
           j1 = j;
         }
       }
+      // Unreachable with finite, clamped costs; a guard so a bad input cannot spin forever.
+      if (!Number.isFinite(delta) || j1 === 0) break;
       for (let j = 0; j <= m; j++) {
         if (used[j]) {
           u[p[j]] += delta;
@@ -147,8 +153,10 @@ const norm = (s: string) => s.trim().toLowerCase();
 
 /**
  * Propose a name for every category: kept, matched one-to-one from the label pool, or a
- * fallback. Names come back unique (case-insensitively): a fallback that would collide
- * with a kept or matched name gets a numeric suffix. Order follows `categories`.
+ * fallback. Every matched or fallback name is unique (case-insensitively, ignoring
+ * surrounding space) and differs from every kept name: the pool is de-duplicated, and a
+ * fallback that would collide gets a numeric suffix. Kept names are the player's and are
+ * returned as they are, even two the player made equal. Order follows `categories`.
  */
 export function matchLabels<L extends string>(
   categories: readonly MatchableCategory[],
@@ -163,15 +171,20 @@ export function matchLabels<L extends string>(
     keep && c.label.trim() ? { id: c.id, label: c.label, source: 'kept', matched: null, score: null } : null,
   );
   const taken = new Set(out.filter((x): x is LabelMatch<L> => x !== null).map((x) => norm(x.label)));
-  const pool = [...new Set(options.labels)].filter((l) => !taken.has(norm(l)));
+  const pool: L[] = [];
+  for (const l of options.labels) {
+    if (!l.trim() || taken.has(norm(l)) || pool.some((p) => norm(p) === norm(l))) continue;
+    pool.push(l);
+  }
   const open = categories.map((_, i) => i).filter((i) => out[i] === null);
 
-  // Scores below the bar are inadmissible: zeroed before the assignment.
+  // Scores below the bar are inadmissible: zeroed before the assignment. A score at or over
+  // the bar but not positive (a negative bar) is zeroed too: it could never be given.
   const raw = open.map((i) => options.score(categories[i].centroid, categories[i]));
   const matrix = raw.map((s) =>
     pool.map((l) => {
       const x = s[l] ?? 0;
-      return Number.isFinite(x) && x >= bar(l) ? x : 0;
+      return Number.isFinite(x) && x >= bar(l) ? Math.max(0, x) : 0;
     }),
   );
   const assignment = assignMax(matrix);

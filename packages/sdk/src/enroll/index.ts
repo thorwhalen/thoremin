@@ -202,6 +202,7 @@ export type {
 } from './types';
 export {
   LABEL_MATCH_DEFAULTS,
+  SCORE_LIMIT,
   applyLabels,
   assignMax,
   matchLabels,

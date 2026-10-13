@@ -54,8 +54,9 @@ export function selectExemplars(
   vectors: readonly FeatureVector[],
   options: ExemplarOptions = {},
 ): Exemplar[] {
-  const count = Math.max(0, Math.floor(options.count ?? EXEMPLAR_DEFAULTS.count));
-  const edge = Math.min(1, Math.max(0, options.edge ?? EXEMPLAR_DEFAULTS.edge));
+  const finiteOr = (x: number | undefined, d: number) => (x !== undefined && Number.isFinite(x) ? x : d);
+  const count = Math.max(0, Math.floor(finiteOr(options.count, EXEMPLAR_DEFAULTS.count)));
+  const edge = Math.min(1, Math.max(0, finiteOr(options.edge, EXEMPLAR_DEFAULTS.edge)));
   const members = category.members.filter((j) => vectors[j] !== undefined);
   if (count === 0 || members.length === 0) return [];
   const dist = (a: FeatureVector, b: FeatureVector) => weightedDistance(a, b, model.features, model.weights);

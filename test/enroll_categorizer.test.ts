@@ -97,6 +97,8 @@ describe('assignMax: the rectangular assignment (Hungarian)', () => {
     expect(assignMax([])).toEqual([]);
     expect(assignMax([[], []])).toEqual([-1, -1]);
     expect(assignMax([[NaN, 1], [Infinity, 0]])).toEqual([1, 0]); // non-finite counts as 0
+    // Scores near the double range are clamped, so no cost overflows (this used to spin).
+    expect(assignMax([[1e308, 1e308], [-1e308, -1e308]]).sort()).toEqual([0, 1]);
   });
 
   it('prefers the global optimum over the greedy one', () => {
@@ -129,11 +131,31 @@ describe('matchLabels: one-to-one default names', () => {
     expect(perLabel[1].label).toBe('down');
   });
 
-  it('a weak pair cannot steal a label from a category that earned it', () => {
-    // Unbarred, the optimum would give "up" to b (0.25 + 0.9 > 0.9 + 0.2). Under the bar,
-    // b's 0.25 is inadmissible, so a keeps "up" and b falls back.
-    const m = matchLabels([cat('a', { x: 0.9, y: 0.2 }), cat('b', { x: 0.25 })], { labels: ['up', 'down'], score: (c) => ({ up: c.x ?? 0, down: c.y ?? 0 }), minScore: 0.3 });
-    expect(m.map((x) => x.label)).toEqual(['up', 'category 2']);
+  it('scores under the bar are zeroed BEFORE the assignment, so they cannot bend it', () => {
+    // a {up .9, down .31}, b {up .6, down .29}, bar .3. Unbarred, the optimum is a=up,
+    // b=down (.9 + .29 = 1.19), and dropping b's sub-bar "down" AFTER the assignment would
+    // leave b with nothing. Zeroed first, b's .29 counts for nothing, so a=up/b=down is worth
+    // .9 and a=down/b=up is worth .91: both categories get an earned label.
+    const score = (c: FeatureVector) => ({ up: c.x ?? 0, down: c.y ?? 0 });
+    const m = matchLabels([cat('a', { x: 0.9, y: 0.31 }), cat('b', { x: 0.6, y: 0.29 })], { labels: ['up', 'down'], score, minScore: 0.3 });
+    expect(m.map((x) => x.label)).toEqual(['down', 'up']);
+    // With b's "up" weak too, a keeps "up" and b falls back rather than taking a sub-bar label.
+    const weak = matchLabels([cat('a', { x: 0.9, y: 0.31 }), cat('b', { x: 0.25, y: 0.29 })], { labels: ['up', 'down'], score, minScore: 0.3 });
+    expect(weak.map((x) => x.label)).toEqual(['up', 'category 2']);
+  });
+
+  it('a negative bar cannot make a negative score win a label', () => {
+    const m = matchLabels([cat('a', { x: 1, y: -10 }), cat('b', { x: 0.9, y: -100 })], {
+      labels: ['x', 'y'],
+      score: (c) => ({ x: c.x ?? 0, y: c.y ?? 0 }),
+      minScore: -1000,
+    });
+    expect(m.map((x) => x.label)).toEqual(['x', 'category 2']);
+  });
+
+  it('the pool is de-duplicated (case and space), so a matched name is never given twice', () => {
+    const m = matchLabels([cat('a', { x: 0.9 }), cat('b', { x: 0.8 })], { labels: ['Up', 'up', ' up ', ''], score: (c) => ({ Up: c.x ?? 0, up: c.x ?? 0, ' up ': c.x ?? 0 }), minScore: 0.1 });
+    expect(m.map((x) => x.label)).toEqual(['Up', 'category 2']);
   });
 
   it("keeps the player's names and takes them out of the pool", () => {
@@ -206,6 +228,10 @@ describe('selectExemplars: medoid first, then a spread toward the edge', () => {
     const two = { centroid: { x: 0 }, members: [0, 1] };
     expect(selectExemplars({ features, weights }, two, vectors, { count: 9 })).toHaveLength(2);
     expect(selectExemplars({ features, weights }, { centroid: {}, members: [] }, vectors)).toEqual([]);
+    // A non-finite option falls back to its default rather than producing holes.
+    const odd = selectExemplars({ features, weights }, category, vectors, { count: NaN, edge: NaN });
+    expect(odd).toHaveLength(4);
+    expect(odd.every((e) => Number.isInteger(e.index) && Number.isFinite(e.distance))).toBe(true);
     for (let n = 1; n <= 9; n++) {
       const ex = selectExemplars({ features, weights }, category, vectors, { count: n });
       expect(new Set(ex.map((e) => e.index)).size).toBe(ex.length);
@@ -278,7 +304,10 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
     expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: [2, 3] }] })).toMatch(/two categories/);
     expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: [99] }] })).toMatch(/out of range/);
     expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], id: c.categories[0].id }] })).toMatch(/duplicate category id/);
+    expect(err({ ...c, categories: [c.categories[0], { ...c.categories[1], members: [3, 3] }] })).toMatch(/listed twice/);
     expect(err({ ...c, categories: [] })).toMatch(/categories/);
+    // modelFromCategorizer validates too: an empty category must not shift ids onto members.
+    expect(() => modelFromCategorizer({ ...c, categories: [{ ...c.categories[0], members: [] }, c.categories[1]] })).toThrow();
   });
 
   it('reads a hand-edited file whose feature values include null (a NaN written out)', () => {
@@ -317,6 +346,8 @@ describe('the categorizer file: versioned, samples as the SSOT', () => {
       },
     });
     expect(throws).toEqual({ ok: false, error: 'migration from version 0 failed (boom)' });
+    const empty = importCategorizer(v0, { migrations: { 0: () => null as unknown as Record<string, unknown> } });
+    expect(empty).toEqual({ ok: false, error: 'migration from version 0 returned no document' });
   });
 });
 
@@ -338,6 +369,7 @@ describe('a model from a model', () => {
     const r = mergeSession(b, shifted);
     expect(r.assigned).toEqual([0, 0, 1, -1]);
     expect(r.untouched).toEqual([]);
+    expect(r.converged).toBe(true);
     const c = r.categorizer;
     expect(c.categories.map((x) => [x.id, x.label])).toEqual(b.categories.map((x) => [x.id, x.label]));
     expect(c.samples).toHaveLength(b.samples.length + shifted.length);
@@ -360,6 +392,9 @@ describe('a model from a model', () => {
     expect(r.untouched).toEqual([b.categories[1].id]);
     expect(r.categorizer.samples.filter((s) => s.cue === SEED_CUE)).toHaveLength(2);
     expect(fromCentroids.categories[1].label).toBe('up');
+    // A seed centroid stores only features its members had (no invented 0 for `z`).
+    const noZ = mergeSession({ ...b, features: ['x', 'y', 'z'] }, [], { seed: 'centroids' });
+    expect(noZ.categorizer.samples.every((s) => !('z' in s.vector))).toBe(true);
   });
 
   it('carryLabels names a fresh model after the old one, one-to-one by nearest centroid', () => {
@@ -456,7 +491,7 @@ describe('end to end over the REAL recordings (acceptance)', () => {
     expect(carried.categories.find((c) => c.members.includes(smileIdx))!.label).toBe('happy');
   });
 
-  it('a new session merges into the saved model: each held pose joins the category the saved model reads it as', () => {
+  it('a new session merges into the saved model: ids and labels kept, each new pose in its nearest merged category', () => {
     const session = trained();
     const points = session.points();
     const model = session.retrain(3);
@@ -472,12 +507,13 @@ describe('end to end over the REAL recordings (acceptance)', () => {
     expect(fresh.length).toBeGreaterThan(0);
 
     const merged = mergeSession(saved, fresh);
+    expect(merged.converged).toBe(true);
     expect(merged.categorizer.categories.map((c) => [c.id, c.label])).toEqual(saved.categories.map((c) => [c.id, c.label]));
     expect(merged.categorizer.samples).toHaveLength(points.length + fresh.length);
     const after = modelFromCategorizer(merged.categorizer);
-    // The merge is a fixed point: each new pose sits in the category whose MOVED centroid
-    // is nearest, or outside the saved reject radius of every one. (Not necessarily where
-    // the saved model first read it: other new poses move the centroids, which is the point.)
+    // Converged, the merge is a fixed point: each new pose sits in the category whose MOVED
+    // centroid is nearest, or beyond the saved reject radius of every one. (Not necessarily
+    // where the saved model first read it: other new poses move the centroids, the point.)
     fresh.forEach((p, i) => {
       const joined = merged.assigned[i];
       const read = classify(after, p.vector);

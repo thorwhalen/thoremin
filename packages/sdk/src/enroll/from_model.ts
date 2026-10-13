@@ -17,7 +17,8 @@
  *     cue {@link SEED_CUE}. Right when the model came from SOMEONE ELSE and does not transfer
  *     (the case #330 names): the new player's poses dominate within a pass, and the old
  *     model only says which category is which. A category the new session never reached
- *     keeps its seed centroid, so it is not lost.
+ *     keeps its seed centroid, so it is not lost. Every other stored sample is dropped,
+ *     including ones in no category: a someone-else model's evidence is not the player's.
  * - **From scratch, names carried** ({@link carryLabels}): the player re-records and
  *   re-carves, and the new categories are named after the old ones by a one-to-one
  *   assignment on centroid distance (the label matcher, `match.ts`, with the old names as
@@ -33,7 +34,6 @@ import { weightedDistance } from './cluster';
 import {
   NO_REJECT_RADIUS,
   PersonalCategorizerSchema,
-  modelFromCategorizer,
   toSample,
   type CategorizerSample,
   type PersonalCategorizer,
@@ -47,7 +47,7 @@ export const SEED_CUE = 'seed';
 export interface MergeOptions {
   /** What the existing categorizer contributes; see the module doc. */
   seed?: 'samples' | 'centroids';
-  /** Assign-and-move passes at most (stops early once nothing moves). */
+  /** Assignment passes at most (stops early once nothing moves). */
   iterations?: number;
   /** The merged categorizer's name (default: the base's). */
   name?: string;
@@ -61,6 +61,12 @@ export interface MergeResult {
   assigned: number[];
   /** Ids of the categories no new point joined. */
   untouched: string[];
+  /** Assignment passes run. */
+  passes: number;
+  /** True when the last pass moved nothing: every new pose sits in the category whose
+   *  merged centroid is nearest (or beyond the reject radius of all). False when the
+   *  `iterations` cap stopped it first. */
+  converged: boolean;
 }
 
 /** Mean over `features` of the finite values of `vectors`; a feature with none is left out. */
@@ -91,20 +97,26 @@ export function mergeSession(
 ): MergeResult {
   const seed = options.seed ?? MERGE_DEFAULTS.seed;
   const iterations = Math.max(1, Math.floor(options.iterations ?? MERGE_DEFAULTS.iterations));
-  const model = modelFromCategorizer(base);
-  const { features, weights } = base;
+  const valid = PersonalCategorizerSchema.parse(base);
+  const { features, weights } = valid;
   const dist = (a: FeatureVector, b: FeatureVector) => weightedDistance(a, b, features, weights);
 
+  // One centroid convention throughout (a feature no member has is left OUT, not filled
+  // with 0), so the first pass and the later ones measure the same way, and a seed
+  // centroid never stores a 0 the player never showed.
+  const baseCentroids = valid.categories.map((c) => centroidOf(c.members.map((j) => valid.samples[j].vector), features));
   // The fixed part of each category: its stored samples, or its centroid as one sample.
   const baseSamples: CategorizerSample[] =
-    seed === 'samples' ? base.samples.map((s) => ({ ...s, vector: { ...s.vector } })) : model.categories.map((c) => toSample({ vector: c.centroid, t: 0, cue: SEED_CUE }));
-  const anchors: number[][] = seed === 'samples' ? base.categories.map((c) => [...c.members]) : base.categories.map((_, i) => [i]);
+    seed === 'samples' ? valid.samples.map((s) => ({ ...s, vector: { ...s.vector } })) : baseCentroids.map((c) => toSample({ vector: c, t: 0, cue: SEED_CUE }));
+  const anchors: number[][] = seed === 'samples' ? valid.categories.map((c) => [...c.members]) : valid.categories.map((_, i) => [i]);
   const fresh = points.map(toSample);
-  const reject = base.mode === 'reject' ? base.rejectRadius! : Infinity;
+  const reject = valid.mode === 'reject' ? valid.rejectRadius! : Infinity;
 
-  let centroids = model.categories.map((c) => c.centroid);
+  let centroids = baseCentroids;
   let assigned = fresh.map(() => -1);
-  for (let pass = 0; pass < iterations; pass++) {
+  let passes = 0;
+  let converged = false;
+  while (passes < iterations) {
     const next = fresh.map((p) => {
       let best = -1;
       let bestD = Infinity;
@@ -117,38 +129,42 @@ export function mergeSession(
       });
       return bestD <= reject ? best : -1;
     });
-    const moved = next.some((a, i) => a !== assigned[i]);
+    const moved = passes === 0 || next.some((a, i) => a !== assigned[i]);
+    passes += 1;
+    if (!moved) {
+      converged = true; // the centroids below are already those of this assignment
+      break;
+    }
     assigned = next;
     centroids = anchors.map((idx, i) =>
       centroidOf([...idx.map((j) => baseSamples[j].vector), ...fresh.filter((_, p) => assigned[p] === i).map((p) => p.vector)], features),
     );
-    if (!moved && pass > 0) break;
   }
 
   const offset = baseSamples.length;
   const members = anchors.map((idx, i) => [...idx, ...assigned.flatMap((a, p) => (a === i ? [offset + p] : []))].sort((a, b) => a - b));
   const samples = [...baseSamples, ...fresh];
   let rejectRadius: number | undefined;
-  if (base.mode === 'reject') {
+  if (valid.mode === 'reject') {
     // Never lower the tuned radius; raise it if the merged members need it (the floor).
     const floor = trainModel(
       samples.map((s) => s.vector),
       members,
       features,
       weights,
-      { defaultRejectRadius: base.rejectRadius },
+      { defaultRejectRadius: valid.rejectRadius },
     ).rejectRadius;
-    rejectRadius = Math.max(base.rejectRadius!, floor);
+    rejectRadius = Math.max(valid.rejectRadius!, floor);
   }
   const categorizer = PersonalCategorizerSchema.parse({
-    ...base,
-    name: options.name ?? base.name,
+    ...valid,
+    name: options.name ?? valid.name,
     samples,
-    categories: base.categories.map((c, i) => ({ ...c, members: members[i] })),
+    categories: valid.categories.map((c, i) => ({ ...c, members: members[i] })),
     ...(rejectRadius !== undefined ? { rejectRadius } : {}),
   });
-  const untouched = base.categories.filter((_, i) => !assigned.includes(i)).map((c) => c.id);
-  return { categorizer, assigned, untouched };
+  const untouched = valid.categories.filter((_, i) => !assigned.includes(i)).map((c) => c.id);
+  return { categorizer, assigned, untouched, passes, converged };
 }
 
 export interface CarryLabelsOptions {
