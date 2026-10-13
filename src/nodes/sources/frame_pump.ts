@@ -60,6 +60,21 @@
  * {@link DEFAULT_SPACING_LAPSE_MS} (a hidden video on a browser that never fires it),
  * since it would otherwise cap a 60 fps camera at 30 on the pre-#226 path for ever.
  *
+ * A second stamp producer sits behind the first (step 9 of the 2026-10-05 timing plan):
+ * `@thoremin/sdk/timing/stamp_dejitter`, a gated causal de-jitter. Where the stamp is a
+ * clock reading (`clock`, `estimated`) and a run of them shows the pipeline's jitter, it
+ * replaces each with a least-squares line of stamp against frame index over the last
+ * thirty, which recovers the camera's grid from the jittered readings (on the bench's
+ * stamp-noise regime the prediction spread falls by about a quarter). It is a
+ * pass-through, byte for byte, for a `capture` or `presentation` stamp — a de-jittered
+ * capture stamp would undo #226 — and for a run that already sits on a grid (the
+ * sample-and-hold stamps of a display-rate poll, a 1 ms-rounded capture time), so none
+ * of the tests below that stamp from a regular clock see it. It is fitted on the clock
+ * readings themselves, and the learned lag is subtracted again afterwards: the lag is a
+ * slowly moving offset, not jitter, and while it converges it must not bend the line.
+ * The source it reports is the input's: a smoothed clock reading is still a clock
+ * reading.
+ *
  * {@link pickFrameStamp} is the pure decision and is unit-tested. A stamp says which
  * source it came from (`FrameTiming.tSource`), is strictly increasing by at least a
  * millisecond (MediaPipe's `detectForVideo` requires increasing timestamps and works
@@ -70,6 +85,7 @@
  * keeps it. A capture time in the future, or more than a second old, is not trusted.
  */
 import type { FrameTiming } from '@thoremin/sdk/nodes/domain';
+import { createStampDejitter } from '@thoremin/sdk/timing/stamp_dejitter';
 
 /** The subset of `VideoFrameCallbackMetadata` this module reads. */
 export interface VideoFrameMetadataLike {
@@ -218,6 +234,9 @@ export function vfcSilenceMs(periodMs: number): number {
 export interface FramePumpOptions {
   /** Register the video frame callback when the element has it (default true). */
   useVideoFrameCallback?: boolean;
+  /** Smooth runs of clock-derived stamps with the gated de-jitter (default true). A
+   *  capture stamp is never smoothed either way. */
+  dejitter?: boolean;
   /** Injectable for tests. */
   now?: () => number;
   requestAnimationFrame?: (cb: () => void) => number;
@@ -252,6 +271,7 @@ export function createFramePump(
   options: FramePumpOptions = {},
 ): FramePump {
   const useVfc = options.useVideoFrameCallback ?? true;
+  const dejitter = (options.dejitter ?? true) ? createStampDejitter({ minStepMs: MIN_STAMP_STEP_MS }) : null;
   const now = options.now ?? (() => performance.now());
   const raf = options.requestAnimationFrame ?? ((cb) => requestAnimationFrame(cb));
   const caf = options.cancelAnimationFrame ?? ((h) => cancelAnimationFrame(h));
@@ -308,8 +328,25 @@ export function createFramePump(
     // The learned lag describes the pipeline, not the channel: once known it is used
     // even after the callbacks go quiet (a hidden tab), so a return does not start
     // again from a clock stamp.
-    const stamp: FrameStamp = { ...pickFrameStamp(nowMs, meta, lastMs, lagEw), skipped };
-    if (onFrame(stamp, v) === false) return false;
+    const picked = pickFrameStamp(nowMs, meta, lastMs, lagEw);
+    // The de-jitter is the second producer. It is fitted on the CLOCK READINGS of a run
+    // of clock-derived stamps (the learned lag, which the picker subtracted, is put back
+    // afterwards: a lag still converging would otherwise read as a bent line), and hands
+    // back the reading moved onto the camera's grid, or the reading itself, byte for
+    // byte. A capture or presentation stamp is never touched; it ends the run.
+    let tMs = picked.tMs;
+    if (dejitter) {
+      const clockDerived = picked.source === 'clock' || picked.source === 'estimated';
+      const smoothed = dejitter.push(clockDerived ? nowMs : picked.tMs, picked.source);
+      if (smoothed.engaged) tMs = Math.max(smoothed.tMs - (nowMs - picked.tMs), lastMs + MIN_STAMP_STEP_MS);
+    }
+    const stamp: FrameStamp = { tMs, source: picked.source, lagMs: nowMs - tMs, skipped };
+    if (onFrame(stamp, v) === false) {
+      // Offered again later with a later clock reading: that is the same frame, not
+      // the next one on the grid.
+      dejitter?.retract();
+      return false;
+    }
     lastMs = stamp.tMs;
     lastVideoTime = v.currentTime;
     lastDeliveryMs = nowMs;
@@ -345,6 +382,7 @@ export function createFramePump(
     vfcAliveMs = NaN;
     vfcCounted = null;
     pending = null;
+    dejitter?.reset();
   };
 
   /** The callback: the driver where it reports `presentedFrames`, a side channel elsewhere. */

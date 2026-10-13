@@ -39,6 +39,7 @@
     "./score/schema": "./src/score/schema.ts",
     "./timing/clock_map": "./src/timing/clock_map.ts",
     "./timing/output_stage": "./src/timing/output_stage.ts",
+    "./timing/stamp_dejitter": "./src/timing/stamp_dejitter.ts",
     "./timing/tracker": "./src/timing/tracker.ts",
     "./util/ids": "./src/util/ids.ts"
   },
