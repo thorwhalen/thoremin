@@ -105,6 +105,7 @@ via the provider. Never `await` a provider in the tick/audio loop.
   `packages/dag/src`, `src/nodes`, `src/music`, `src/app/graph.ts`, tests, scripts). The
   React layer (`src/app/*.tsx`, `src/components`) is **not** strict-typechecked
   (the repo ships no `@types/react`); it is verified by `npm run build`.
+- `npm run typecheck:react` — the React layer's **type-error ratchet** (#201; CI-only, its own job): `tsc` over `tsconfig.react.json` (what the strict config leaves out) compared with the committed baseline `tsconfig.react.baseline.json`; a NEW error (a `packages/dag` or SDK API change that breaks a React caller, a red new file) fails it and is printed; fewer errors pass and ask for `npm run typecheck:react -- --update`. Never re-baseline upward. It costs ~30 s locally, so run it when you touch a React file or a DAG/SDK export the React layer imports.
 - `npm test` — vitest (the suite grows with every PR; `npx vitest run 2>&1 | tail -4` prints the current file and test counts). **Test against the real fixtures**
   (`test/fixtures/`, recorded hand/face videos, NDJSON intermediate streams). New
   behaviour gets a fixture-replay test, not just a unit test.

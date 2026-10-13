@@ -9,8 +9,8 @@
 # Its own job on purpose: it installs a browser and takes longer than the whole
 # vitest suite, so it must never slow the gate down or be skipped to keep the gate
 # fast. Like ci.yml it is advisory to the deploy — a red verdict beside the PR, not
-# a precondition. Whether it should gate anything (and whether #201's React-layer
-# type ratchet should live here) is the maintainer's call, not this file's.
+# a precondition. Whether it should gate anything is the maintainer's call, not this
+# file's. (#201's React-layer type ratchet lives in ci.yml: it needs no browser.)
 #
 # The harness is a self-contained sub-project (`smoke/`): its Playwright dependency
 # never enters the app's package.json or node_modules. Locally: `npm run smoke`.

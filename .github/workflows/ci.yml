@@ -85,3 +85,29 @@ jobs:
 
       - name: Typecheck, test and build with no extensions
         run: npm run test:core
+
+  # The React layer's type-error ratchet (#201). The gate above cannot see a type error in
+  # the React layer: `npm run typecheck` excludes it (the repo ships no @types/react) and the
+  # vite build type-erases, which is how #192 shipped a packages/dag API change that broke
+  # `useEngine` with every gate green. This job runs tsc over that layer
+  # (tsconfig.react.json) and fails only when the error set GROWS past its committed baseline
+  # (tsconfig.react.baseline.json): a known-red check nobody reads becomes a red X that names
+  # the new error. Its own job, like core, so its verdict is visible beside the gate's and
+  # never hides it. See docs/TESTING.md.
+  react-types:
+    name: React layer type ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install (lockfile-exact)
+        run: npm ci
+
+      - name: Typecheck the React layer against its baseline
+        run: npm run typecheck:react
