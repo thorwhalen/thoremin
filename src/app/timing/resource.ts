@@ -15,13 +15,17 @@
  *   sample-rate mismatch (checked by the tracker each tick). The context is created
  *   lazily on the first tap, so the listeners bind when it first appears;
  * - the granted camera settings (`track.getSettings()`, device ids removed), reported
- *   once the stream is live; the DELIVERED rate is measured by the tracker.
+ *   once the stream is live; the DELIVERED rate is measured by the tracker;
+ * - the page's timer (#318): `crossOriginIsolated` and the resolution of
+ *   `performance.now()`, measured once at creation (1 ms on Firefox and Safari without
+ *   isolation, 100 us or finer on Chromium): no stamp is more precise than the clock
+ *   that made it.
  *
  * Nothing here is a shell feature; the readout is the camera status line
  * (`TimingChip.tsx`), fed through `timingStatus.ts` by a change-gated sink.
  */
 import type { Tap } from '@thoremin/dag';
-import { TimingTracker, type CameraSettings, type TimingReading } from '@thoremin/sdk/timing/tracker';
+import { TimingTracker, type CameraSettings, type RuntimeChecks, type TimingReading } from '@thoremin/sdk/timing/tracker';
 import type { OutputStageAudioLike } from '@thoremin/sdk/timing/output_stage';
 
 export interface TimingResource {
@@ -41,6 +45,37 @@ export interface TimingResourceOptions {
   now?: () => number;
   /** The tap key of the hands source output. */
   sourceKey?: string;
+  /** The page's timer checks (default: measured now, {@link runtimeChecks}). */
+  runtime?: RuntimeChecks;
+}
+
+/** How long the timer probe may spin, ms. */
+export const TIMER_PROBE_MS = 3;
+
+/**
+ * The resolution of a clock, seconds: the smallest nonzero step between successive
+ * readings over a short spin (`budgetMs`). NaN when the clock never moved.
+ */
+export function measureTimerResolution(now: () => number = () => performance.now(), budgetMs: number = TIMER_PROBE_MS): number {
+  const start = now();
+  let last = start;
+  let step = Infinity;
+  for (let i = 0; i < 2e5; i++) {
+    const t = now();
+    if (t > last) {
+      step = Math.min(step, t - last);
+      last = t;
+    }
+    if (t - start >= budgetMs) break;
+  }
+  return Number.isFinite(step) ? step / 1000 : NaN;
+}
+
+/** The page's timer checks, in a browser. */
+export function runtimeChecks(): RuntimeChecks {
+  const isolated = typeof globalThis.crossOriginIsolated === 'boolean' ? globalThis.crossOriginIsolated : null;
+  const timerResolution = typeof performance !== 'undefined' ? measureTimerResolution() : NaN;
+  return { crossOriginIsolated: isolated, timerResolution };
 }
 
 /** `track.getSettings()` minus the per-device identifiers. */
@@ -52,7 +87,7 @@ export function cameraSettingsOf(stream: MediaStream | null): CameraSettings | n
 }
 
 export function createTimingResource(options: TimingResourceOptions): TimingResource {
-  const tracker = new TimingTracker({ audio: options.audio, now: options.now, sourceKey: options.sourceKey });
+  const tracker = new TimingTracker({ audio: options.audio, now: options.now, sourceKey: options.sourceKey, runtime: options.runtime ?? runtimeChecks() });
   const bump = () => tracker.bumpEpoch();
   let boundAc: AudioContext | null = null;
   const devices = typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined;

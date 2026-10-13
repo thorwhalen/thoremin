@@ -53,6 +53,19 @@
  * prior and `onTime` says `unknown-output` rather than `yes`; `lateBy` is how far the
  * sound lands after the intended time, 0 when on time.
  *
+ * Stamps that cannot carry a sub-frame estimate (#318, timing plan step 9). A `clock`
+ * stamp is when the source noticed the frame, not when the camera took it: the sample
+ * time is moved back by the timing resource's capture lag (measured from capture-stamped
+ * frames, else a stated prior), as an `estimated` stamp already is, so both the impact
+ * time and the frame's age (the lead the predictor must leave) count it. And where the
+ * clock-derived stamps are noisy (the resource's `stampNoise` over
+ * {@link SUBFRAME_MAX_STAMP_NOISE_S}, after the pump's de-jitter), a sub-frame fit is
+ * worse than the frame it came from (`subframe-impact-prediction.md` §3.4: 4 ms of stamp
+ * noise doubles the known-plane spread and puts the learned-plane one at the
+ * frame-snapped detector's): the drum stops predicting and sounds each stroke when the
+ * camera shows it, at the deepest sample's own time (the frame-snapped onset), until
+ * the noise falls under {@link SUBFRAME_RESUME_STAMP_NOISE_S}. Its status says so.
+ *
  * The dial. {@link AirDrumDialSchema} IS this node's params (the conductor pattern):
  * the `airDrum` dial re-exports it, the `config` input overrides the build-time
  * params live per tick, so the panel, the palette, a keybinding and the assistant can
@@ -71,7 +84,7 @@ import { DRUM_SOUND } from '../lib/gm_drums';
 import { frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type FallPath, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
-import { timingFrom } from '@thoremin/sdk/timing/tracker';
+import { timingFrom, CAPTURE_LAG_PRIOR_S } from '@thoremin/sdk/timing/tracker';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };
@@ -249,9 +262,40 @@ export interface AirDrumStatus {
   magnetGate: number;
   /** Whether each hand's floor has been learned (a first stroke has been seen). */
   ready: { right: boolean; left: boolean };
+  /** Sub-frame prediction (#318): `on`, or `off-stamps` when the frame stamps are too
+   *  noisy to carry it (strokes then sound when the camera shows them). */
+  subframe: SubframeStanding;
+  /** The stamp noise the standing was decided on, seconds (NaN when unknown). */
+  stampNoise: number;
 }
 
-export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, frameAspect: 0, lastLead: 0, lastPull: 0, lastOnTime: 'yes', lastLateBy: 0, magnet: 'off', magnetLag: NaN, magnetGate: 0, ready: { right: false, left: false } };
+export const SUBFRAME_STANDINGS = ['on', 'off-stamps'] as const;
+export type SubframeStanding = (typeof SUBFRAME_STANDINGS)[number];
+/** Clock-derived stamps noisier than this (seconds) switch sub-frame prediction off: the
+ *  bench's 4 ms, where the learned-plane prediction is no better than the frame-snapped
+ *  detector (`subframe-impact-prediction.md` §3.4). */
+export const SUBFRAME_MAX_STAMP_NOISE_S = 0.004;
+/** ...and under this, back on (hysteresis, so a noise near the bound does not flap). */
+export const SUBFRAME_RESUME_STAMP_NOISE_S = 0.003;
+/** A new standing is taken only after this many consecutive frames ask for it. */
+export const SUBFRAME_DWELL_FRAMES = 15;
+/** The status reports the stamp noise to this step (seconds), so it is not rebuilt per frame. */
+const STAMP_NOISE_STEP_S = 0.0001;
+const CLOCK_DERIVED_SOURCES = new Set(['clock', 'estimated']);
+
+/** The sub-frame standing after this frame: `off-stamps` once the dominant stamps are
+ *  clock-derived and noisier than the bound, `on` again once they are not, unchanged
+ *  while the noise is unknown or between the two bounds. */
+export function subframeStanding(prev: SubframeStanding, dominantSource: string | null, stampNoise: number): SubframeStanding {
+  const derived = dominantSource !== null && CLOCK_DERIVED_SOURCES.has(dominantSource);
+  if (!derived) return dominantSource === null ? prev : 'on';
+  if (!Number.isFinite(stampNoise)) return prev;
+  if (stampNoise > SUBFRAME_MAX_STAMP_NOISE_S) return 'off-stamps';
+  if (stampNoise < SUBFRAME_RESUME_STAMP_NOISE_S) return 'on';
+  return prev;
+}
+
+export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 0, lastHand: null, lastPad: null, frameAspect: 0, lastLead: 0, lastPull: 0, lastOnTime: 'yes', lastLateBy: 0, magnet: 'off', magnetLag: NaN, magnetGate: 0, ready: { right: false, left: false }, subframe: 'on', stampNoise: NaN };
 
 /**
  * Where the timing magnet stands over the last {@link LAG_STROKES} strokes it was engaged
@@ -347,6 +391,25 @@ export interface TrackSample {
    *  in it the hand's rotation, and the tip's path an arc about it. Absent for a point
    *  with no lever (the wrist, a fingertip). */
   grip?: { x: number; y: number };
+}
+
+/**
+ * The frame-snapped onset of a stroke confirmed at about `near` (#318): the time of the
+ * deepest sample (largest display `y`) within one and a half frame periods of it (the
+ * period read from the samples' own spacing), so a fast roll's previous, deeper stroke is
+ * never taken; `near` itself when no sample is there.
+ */
+export function deepestSampleTime(recent: readonly TrackSample[], near: number): number {
+  const gaps: number[] = [];
+  for (let i = 1; i < recent.length; i++) if (recent[i].t > recent[i - 1].t) gaps.push(recent[i].t - recent[i - 1].t);
+  const frame = gaps.length ? [...gaps].sort((a, b) => a - b)[gaps.length >> 1] : 0;
+  const reach = 1.5 * frame + 1e-9;
+  let best: TrackSample | null = null;
+  for (const s of recent) {
+    if (Math.abs(s.t - near) > reach) continue;
+    if (!best || s.y > best.y) best = s;
+  }
+  return best ? best.t : near;
 }
 
 /**
@@ -604,6 +667,11 @@ interface Stick {
    *  the commit (null with no running grid or nothing committed): the confirmation OF
    *  THAT prediction measures the grid's lag (#239). */
   committed: { t: number; grid: number } | null;
+  /** The predicted impact this stick last DECIDED on while predicting (sounded, or
+   *  skipped as carried or off-pad), or null: a confirmation sounds only when its
+   *  prediction was not decided, so a standing that changes mid-stroke (#318) neither
+   *  loses the stroke nor plays it twice. */
+  handled: number | null;
 }
 
 /** The reach is smoothed over this long (seconds): a stroke's own foreshortening
@@ -643,6 +711,8 @@ export const airDrumNode = defineNode<Params>({
     let sticks: Record<PlayerHand, Stick> | null = null;
     let lastFrame: HandsFrame | undefined;
     let status: AirDrumStatus = { ...IDLE_STATUS, ready: { right: false, left: false } };
+    /** Consecutive frames asking for the other sub-frame standing (#318). */
+    let subframeAsks = 0;
     /** #269: the pattern in play and its follower. */
     let playFor: PatternPlay | null = null;
     let follower: PatternFollower | null = null;
@@ -677,6 +747,7 @@ export const airDrumNode = defineNode<Params>({
       lastGripT: -Infinity,
       recent: [],
       committed: null,
+      handled: null,
     });
     /** Keep a grip-gated stick's predictor set for the hand's current size. */
     const regate = (stick: Stick, c: Params, gripFh: number, t: number) => {
@@ -757,10 +828,23 @@ export const airDrumNode = defineNode<Params>({
         if (frame && fresh && frame.height > 0) {
           // The output stage (how long after the decision the earliest sound can leave the
           // device), from the host's timing resource; a stated prior, flagged, when unknown.
-          const outputStage = timingFrom(ctx.resources).outputStage;
+          const timing = timingFrom(ctx.resources);
+          const outputStage = timing.outputStage;
           const aspect = frame.width / frame.height;
           if (Math.abs(aspect - status.frameAspect) > 1e-3) status = { ...status, frameAspect: aspect };
-          const t = frameTime(frame, ctx);
+          // A sub-frame fit only where the stamps can carry it (#318; see the header).
+          const rawNoise = timing.stampNoise ?? NaN;
+          const stampNoise = Number.isFinite(rawNoise) ? Math.round(rawNoise / STAMP_NOISE_STEP_S) * STAMP_NOISE_STEP_S : NaN;
+          const asked = subframeStanding(status.subframe, timing.dominantSource ?? null, rawNoise);
+          subframeAsks = asked === status.subframe ? 0 : subframeAsks + 1;
+          const subframe = subframeAsks >= SUBFRAME_DWELL_FRAMES ? asked : status.subframe;
+          if (subframe !== status.subframe) subframeAsks = 0;
+          if (subframe !== status.subframe || !Object.is(stampNoise, status.stampNoise)) status = { ...status, subframe, stampNoise };
+          const stampT = frameTime(frame, ctx);
+          // A `clock` stamp (honoured) is when the source noticed the frame: the camera
+          // took it the capture lag earlier (#318). An `estimated` stamp already is.
+          const clockLag = frame.tSource === 'clock' && stampT === frame.t ? (timing.captureLag?.value ?? CAPTURE_LAG_PRIOR_S) : 0;
+          const t = stampT - clockLag;
           // The frame's age: the sample was captured `age` seconds before this decision
           // (the camera, inference and the tick), so the lead the predictor must leave
           // from the sample's time is the dial's lead plus that age.
@@ -821,11 +905,56 @@ export const airDrumNode = defineNode<Params>({
               return true;
             };
             for (const e of predictor.push({ t, x: anchor.x / frame.height, y: anchor.y / frame.height })) {
+              if (e.kind === 'predict' && subframe === 'off-stamps') {
+                // The stamps cannot carry the fit: no prediction is sounded (the stroke
+                // sounds at its confirmation, frame-snapped, below).
+                stick.committed = null;
+                continue;
+              }
+              /** A confirmation whose prediction was already decided (while predicting). */
+              const decided = e.kind !== 'predict' && e.predicted !== null && stick.handled === e.predicted;
+              if (e.kind !== 'predict' && subframe === 'off-stamps') {
+                stick.committed = null;
+                stick.handled = null;
+                if (decided) continue;
+                // The frame-snapped onset (#318): the deepest sample's own time, sounded
+                // now. A full hit, not a ghost: every stroke is reactive here, and it is the
+                // stamps, not the stroke, that ruled prediction out. No magnet outcome: the
+                // magnet can pull nothing it was never offered, and the status says why.
+                if (carried(e.t, NaN)) continue;
+                const snappedT = deepestSampleTime(stick.recent, e.t);
+                const s = strike(landingAt(stick.recent, snappedT, gates.minAmplitude * FALL_JITTER, { aspect }), e.strength);
+                if (s.silent) continue;
+                // Pattern mode keeps following (its drum names the sound); the time stays now.
+                let sound = s.sound;
+                if (follower) {
+                  if (follower.beat(snappedT) === null) follower.start(snappedT);
+                  const snap = follower.snap(snappedT, { sound: s.sound, pad: s.pad });
+                  if (snap.event !== null && snap.drum) sound = DRUM_SOUND[snap.drum];
+                }
+                hits.push({
+                  t: ctx.time,
+                  impactT: snappedT,
+                  velocity: s.hardness * c.volume,
+                  hand: which,
+                  sound,
+                  pad: s.pad,
+                  radial: s.radial,
+                  x: s.x,
+                  y: s.y,
+                  speed: s.speed,
+                  strength: clamp01(e.strength),
+                  ...standing(snappedT, ctx.time, outputStage),
+                  pull: 0,
+                });
+                continue;
+              }
               if (e.kind === 'predict') {
                 // The grid this stroke is committed against, before anything can skip it:
                 // its confirmation measures the grid's lag (rule a), whether or not the
                 // magnet is on, so the gate is warm when the player turns it up.
                 stick.committed = running ? { t: e.t, grid: nearestExpectedBeat(time!, e.t) } : null;
+                stick.handled = e.t;
                 if (carried(e.t, predictor.level())) continue;
                 const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect }), e.strength);
                 if (s.silent) continue;
@@ -891,7 +1020,7 @@ export const airDrumNode = defineNode<Params>({
                   ...standing(intended, ctx.time, outputStage),
                   pull,
                 });
-              } else if (e.predicted !== null) {
+              } else if (decided) {
                 // Rule (a): a predicted stroke confirmed: how far the impact landed from the
                 // grid used at its commit. The confirmed impact, never what was sounded
                 // (rule c: nothing pulled or truncated is ever fed back).
@@ -901,9 +1030,12 @@ export const airDrumNode = defineNode<Params>({
                   if (lags.length > LAG_STROKES) lags.shift();
                 }
                 stick.committed = null;
-              } else if (e.predicted === null) {
-                // Unpredicted: a ghost note, now; its lead is how late that is. It landed
-                // where the deepest sample was.
+                stick.handled = null;
+              } else {
+                // Unpredicted (or predicted while prediction was off, #318): a ghost note,
+                // now; its lead is how late that is. It landed where the deepest sample was.
+                stick.committed = null;
+                stick.handled = null;
                 if (carried(e.t, NaN)) continue;
                 const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { aspect }), e.strength);
                 if (s.silent) continue;

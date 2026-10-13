@@ -14,7 +14,9 @@
  * stamps that are not capture stamps (a sub-frame estimate then claims a precision the
  * stamp cannot carry). That last hint is about a BROWSER's stamps: frames with no stamp
  * at all (a synthetic source) or whose stamp was not used (a replay) earn no hint, since
- * there is nothing the player or the browser could do about them.
+ * there is nothing the player or the browser could do about them. The line also carries
+ * the runtime checks of #318 when they matter: a timer coarser than half a millisecond,
+ * and a browser whose frames never carry the camera's `captureTime`.
  */
 import { UNSTAMPED_SOURCE, type TimingReading } from '@thoremin/sdk/timing/tracker';
 
@@ -23,6 +25,10 @@ import { UNSTAMPED_SOURCE, type TimingReading } from '@thoremin/sdk/timing/track
 export const LOW_LIGHT_FPS = 24;
 /** The stamp mix is judged only once this many frames have been seen. */
 export const MIN_FRAMES_FOR_STAMP_HINT = 30;
+/** A timer coarser than this (seconds) is named in the line: Firefox and Safari round
+ *  `performance.now()` to 1 ms without cross-origin isolation (#318). */
+export const COARSE_TIMER_S = 0.0005;
+
 /** An output stage above this (seconds) is far beyond a wired or built-in output
  *  (Bluetooth adds 100 to 200 ms): worth a line of its own. */
 export const HIGH_OUTPUT_STAGE_S = 0.1;
@@ -58,6 +64,11 @@ export function describeTiming(r: TimingReading, { lowLatencyAudio = false }: De
   if (Number.isFinite(r.frameAge.mean)) parts.push(`age ${ms(r.frameAge.mean)}`);
   if (r.skippedFrames > 0) parts.push(`${r.skippedFrames} skipped`);
   parts.push(`out ${ms(r.outputStage.value)} ${SOURCE_WORD[r.outputStage.source] ?? r.outputStage.source}`);
+  // The runtime checks (#318): what bounds every stamp's precision. Named only when it
+  // matters: a timer at 1 ms, and a browser that never hands over a capture time.
+  const timer = r.runtime?.timerResolution;
+  if (typeof timer === 'number' && Number.isFinite(timer) && timer >= COARSE_TIMER_S) parts.push(`timer ${ms(timer)}${r.runtime.crossOriginIsolated === false ? ' (not isolated)' : ''}`);
+  if (r.captureTimeAvailable === false) parts.push('no captureTime');
 
   if (r.audio.state === 'interrupted') warnings.push('audio interrupted: tap to resume');
   if (r.audio.state === 'running' && r.outputStage.source === 'prior') warnings.push('audio output latency unknown on this browser: run the strike test (?probe=latency)');
