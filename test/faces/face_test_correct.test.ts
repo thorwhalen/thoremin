@@ -94,7 +94,8 @@ describe('testing a categorizer live', () => {
       if (!r || now.mix < 1 || earlier.mix < 1 || earlier.to !== now.to || clock - started < 500) continue;
       const key = SYNTHETIC_EXPRESSIONS[now.to].name;
       if (!seen.has(key)) seen.set(key, new Set());
-      seen.get(key)!.add(r.label ?? (r.rejected ? 'none' : '?'));
+      // None of these: by the taught Neutral class (#385 E5), or beyond the reject radius.
+      seen.get(key)!.add(r.label ?? (r.rejected || r.neutral ? 'none' : '?'));
     }
     expect(seen.get('rest')).toEqual(new Set(['none']));
     const expressions = [...seen.keys()].filter((k) => k !== 'rest');
