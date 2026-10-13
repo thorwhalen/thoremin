@@ -1098,6 +1098,11 @@
         "name": "recordingTime",
         "kind": "musical-time",
         "description": "`time`, only while the conductor leads the recording (#187 PR 7): the song's pace controller follows it"
+      },
+      {
+        "name": "level",
+        "kind": "number",
+        "description": "The piece's beats per stroke (#376): 1 marking beats, 2 every other beat, the bar's beats marking bars"
       }
     ],
     "params": [
@@ -1140,6 +1145,11 @@
         "name": "mirrorHandedness",
         "type": "boolean",
         "default": true
+      },
+      {
+        "name": "markLevel",
+        "type": "enum(beat | half | bar | auto)",
+        "default": "beat"
       },
       {
         "name": "beatsPerBar",

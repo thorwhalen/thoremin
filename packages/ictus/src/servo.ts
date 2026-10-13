@@ -207,10 +207,12 @@ export function createBeatServo(options: ServoOptions = {}): BeatServo {
       const leadBeat = beatAt(lead, t + L);
       const songOwnPeriod = song.period * songRate;
       // The level: chosen when he starts, then held (see the header).
+      const held = level.ratio();
       const rel = level.step(t, lead.period, songOwnPeriod);
-      if (rel.adopted && rel.ratio !== null && rel.ratio !== k) {
-        // Re-anchor at his beat, so the song's target does not move.
-        shift += (k - rel.ratio) * leadBeat;
+      if (rel.adopted && rel.ratio !== null) {
+        // A change of a followed ratio re-anchors the map at his beat, so the song's
+        // target does not move; the first one is the map from the start.
+        if (held !== null) shift += (held - rel.ratio) * leadBeat;
         k = rel.ratio;
       }
       const target = k * leadBeat + shift + offset;

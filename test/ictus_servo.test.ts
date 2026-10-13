@@ -75,8 +75,13 @@ function run(opts: {
   toldLatency?: number;
   offset?: number;
   servo?: ServoOptions;
+  /** The song's tracked grid (default {@link driftingGrid}). */
+  grid?: SongGrid;
+  /** Song beats per conductor beat, for the error (#376; default 1). */
+  k?: number;
 }): Run {
-  const grid = driftingGrid();
+  const grid = opts.grid ?? driftingGrid();
+  const k = opts.k ?? 1;
   const servo = createBeatServo(opts.servo);
   const offset = opts.offset ?? 0;
   let a = 0;
@@ -109,7 +114,7 @@ function run(opts: {
     const i = Math.round(t * HZ);
     const j = Math.round((t - opts.latency) * HZ);
     const heard = positions[Math.max(0, j)];
-    return leads[i].beat - (beatIndexAt(grid, heard.a) - offset);
+    return leads[i].beat - (beatIndexAt(grid, heard.a) - offset) / k;
   };
   return { errAt, states, positions };
 }
@@ -226,5 +231,66 @@ describe('when the recording starts', () => {
     // Before the first stroke, or holding: not.
     expect(createBeatServo().step({ t: 0, lead: { ...lead, anchors: 0, period: Infinity }, song, rate: 1, latency: 0 }).playing).toBe(false);
     expect(createBeatServo().step({ t: 0, lead: { ...lead, state: 'hold' }, song, rate: 1, latency: 0 }).playing).toBe(false);
+  });
+});
+
+/** The drifting song tracked at double time (a beat between every two) or at half time
+ *  (every other beat): the beat tracker's octave errors (#364 item 2). */
+function doubleTimeGrid(): SongGrid {
+  const g = driftingGrid();
+  const beats = g.beats.flatMap((b, i) => (i + 1 < g.beats.length ? [b, (b + g.beats[i + 1]) / 2] : [b]));
+  return { ...g, beats, periodS: 0.25, bpm: 240 };
+}
+function halfTimeGrid(): SongGrid {
+  const g = driftingGrid();
+  return { ...g, beats: g.beats.filter((_, i) => i % 2 === 0), periodS: 1, bpm: 60 };
+}
+
+describe('the level: a song tracked at another level than the conductor beats (#376, #364 item 2)', () => {
+  const L = 0.05;
+
+  it('a double-time grid: two song beats a conducted beat, followed as tightly as a 1:1 grid, never sought', () => {
+    const r = run({ lead: conductor(() => 1.8, 1), seconds: 14, latency: L, grid: doubleTimeGrid(), k: 2 });
+    const following = r.states.filter((s) => s.mode === 'following');
+    expect(following.length).toBeGreaterThan(0);
+    expect(following.every((s) => s.ratio === 2)).toBe(true);
+    expect(maxAbsErr(r, 5, 14)).toBeLessThan(0.01);
+    // The audio plays at about the recording's own tempo (1.8 / 2), not clamped at 0.5.
+    expect(r.states.at(-1)!.rate).toBeGreaterThan(0.8);
+    expect(r.states.at(-1)!.rate).toBeLessThan(1);
+    // Cued while waiting and at the start: no seek after it.
+    const cuesAfterStart = new Set(r.states.filter((s) => s.t > 1.5).map((s) => s.cue?.id));
+    expect(cuesAfterStart.size).toBe(1);
+  });
+
+  it('the 1:1 law alone on that grid (the #364 failure): pinned at the slowest rate, drifting, sought', () => {
+    const r = run({ lead: conductor(() => 1.8, 1), seconds: 14, latency: L, grid: doubleTimeGrid(), servo: { ratios: [1] } });
+    expect(r.states.filter((s) => s.t > 1.5).every((s) => s.rate === SERVO_DEFAULTS.minRate)).toBe(true);
+    expect(maxAbsErr(r, 5, 14)).toBeGreaterThan(1);
+    const cuesAfterStart = new Set(r.states.filter((s) => s.t > 1.5).map((s) => s.cue?.id));
+    expect(cuesAfterStart.size).toBeGreaterThan(1);
+  });
+
+  it('a half-time grid: one song beat every two conducted beats', () => {
+    const r = run({ lead: conductor(() => 1.8, 1), seconds: 14, latency: L, grid: halfTimeGrid(), k: 0.5 });
+    expect(r.states.filter((s) => s.mode === 'following').every((s) => s.ratio === 0.5)).toBe(true);
+    expect(maxAbsErr(r, 5, 14)).toBeLessThan(0.01);
+  });
+
+  it('a held ratio changes only once another has persisted, and the song is not moved for it', () => {
+    // He starts at half the recording's tempo (two song beats a beat), then doubles his
+    // tempo at 6 s and beats every song beat.
+    const r = run({ lead: conductor((t) => (t < 6 ? 1 : 2), 1), seconds: 16, latency: L });
+    const ratioAt = (t: number) => r.states[Math.round(t * HZ)].ratio;
+    expect(ratioAt(5)).toBe(2);
+    // Still 2 for the persistence after the change (the song is pushed to the clamp).
+    expect(ratioAt(8.5)).toBe(2);
+    expect(ratioAt(9.5)).toBe(1);
+    const cuesAfterStart = new Set(r.states.filter((s) => s.t > 1.5).map((s) => s.cue?.id));
+    expect(cuesAfterStart.size).toBe(1);
+    expect(r.positions.filter((p) => p.t > 1.5).every((p) => p.playing)).toBe(true);
+    // Settled again on 1:1 near the recording's own tempo.
+    expect(r.states.at(-1)!.rate).toBeGreaterThan(0.9);
+    expect(r.states.at(-1)!.rate).toBeLessThan(1.1);
   });
 });

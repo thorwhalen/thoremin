@@ -27,7 +27,7 @@ import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { OrchestraControls } from './orchestra';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
-import { CONDUCTOR_BODY_POINTS, CONDUCTOR_HANDS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
+import { CONDUCTOR_BODY_POINTS, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
 import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
 import { BUILTIN_PIECE, type ConductorSettings } from '@/settings/schema';
 import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type NamedSummary, type ScoreStore } from '@/score';
@@ -54,6 +54,13 @@ const BODY_POINT_LABEL: Record<ConductorDialParams['bodyPoint'], string> = {
   hips: 'hips bounce',
   head: 'head nod',
 };
+/** Which level a stroke marks (#376), in the player's terms. */
+const MARK_LEVEL_LABEL: Record<ConductorDialParams['markLevel'], string> = {
+  beat: 'a beat (default)',
+  half: 'every other beat',
+  bar: 'a bar',
+  auto: 'whatever fits the score',
+};
 const SOURCE_LABEL: Record<ConductorDialParams['source'], string> = {
   hands: 'a beating hand',
   body: 'the body (an arm, or a bounce)',
@@ -78,6 +85,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
   const hand = c.hand ?? 'auto';
   const point = c.point ?? 'wrist';
   const bodyPoint = c.bodyPoint ?? 'impact';
+  const markLevel = c.markLevel ?? 'beat';
   const servo = c.servoBeats ?? 1;
   const prior = (c.prior ?? DEFAULT_RHYTHM_PRIOR) as RhythmPriorKind;
   const piece = c.piece ?? BUILTIN_PIECE;
@@ -216,6 +224,22 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           </select>
         </label>
       )}
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Each stroke marks
+        <select
+          className={selectCls}
+          value={markLevel}
+          disabled={!enabled}
+          data-testid="conductor-mark-level"
+          onChange={(e) => dispatchDialSetIn('conductor.markLevel', e.target.value)}
+        >
+          {CONDUCTOR_MARK_LEVELS.map((m) => (
+            <option key={m} value={m}>
+              {MARK_LEVEL_LABEL[m]}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="flex items-center justify-between gap-2 text-xs">
         <span>
           Catch-up <span className="text-white/40">({servo.toFixed(2)} beats)</span>

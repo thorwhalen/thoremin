@@ -448,7 +448,8 @@ type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>
  *   Then, WITHOUT a bump (#375): `conductor.source` (`hands`) and `conductor.bodyPoint`
  *   (`impact`), additive in the conductor dial like `conductor.orchestra`; `hands` is what
  *   every earlier blob conducted with, so the conductor heal fills both and no transform
- *   is owed.
+ *   is owed. And, WITHOUT a bump (#376): `conductor.markLevel` (`beat`), additive in the
+ *   same way; `beat` is what every earlier blob marked.
  *
  * Bump this and, if the change needs a transform, add `CONTROLS_MIGRATIONS[old]` together.
  */
