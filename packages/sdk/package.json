@@ -41,6 +41,7 @@
     "./features/landmarks": "./src/features/landmarks.ts",
     "./features/math": "./src/features/math.ts",
     "./features/modalities/face": "./src/features/modalities/face.ts",
+    "./features/modalities/face_words": "./src/features/modalities/face_words.ts",
     "./features/types": "./src/features/types.ts",
     "./instruments/branch": "./src/instruments/branch.ts",
     "./instruments/extension": "./src/instruments/extension.ts",
