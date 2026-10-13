@@ -29,11 +29,13 @@
  *    held for `dwellFrames` consecutive DETECTED single-hand frames and the assignment
  *    switches on the next one. Dropouts within the dwell window between those frames do
  *    not reset the count — detection confidence dips at exactly the moments labels flicker.
- *  - No hand: a dropout no longer than the dwell window keeps the assignment; a longer
- *    absence clears the tracker, so a genuinely new hand commits to its own label at once.
+ *  - No hand: a dropout no longer than the dwell window (N + 1 frames: the N held and the
+ *    one a switch lands on, which is what the Lab's #144 dwell tolerated) keeps the
+ *    assignment; a longer absence clears the tracker, so a genuinely new hand commits to
+ *    its own label at once.
  *  - Two or more hands: raw labels pass through untouched (a sustained two-hand regime
  *    means MediaPipe disambiguated two real hands), and the single-hand tracker is cleared
- *    only after a FULL dwell window of consecutive multi-hand frames: a one-frame "second
+ *    only after more than N consecutive multi-hand frames (so at dwell 1, two): a one-frame "second
  *    hand" is often a phantom duplicate of the same hand mid-turn, exactly the regime that
  *    flickers, and letting it wipe the tracker would reopen the bug through a rarer door.
  *
@@ -107,7 +109,7 @@ export function createHandednessDwell(options: HandednessDwellOptions = {}): Han
         return [...raw];
       }
       if (raw.length === 0) {
-        if (++absentCount > dwellFrames) {
+        if (++absentCount > dwellFrames + 1) {
           committedSide = null;
           switchCount = 0;
         }
@@ -119,7 +121,7 @@ export function createHandednessDwell(options: HandednessDwellOptions = {}): Han
         multiCount = 0;
         return [commit(raw[0], dwellFrames)];
       }
-      if (++multiCount >= dwellFrames) {
+      if (++multiCount > dwellFrames) {
         // A sustained (not phantom) multi-hand regime — see the module header.
         committedSide = null;
         switchCount = 0;

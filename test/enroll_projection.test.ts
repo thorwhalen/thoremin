@@ -169,3 +169,11 @@ describe('over the REAL recording', () => {
     }
   });
 });
+
+describe('feature weights are own keys (#355)', () => {
+  it('a feature named like an Object.prototype member weighs 1, not NaN', () => {
+    const a: FeatureVector = { toString: 0, constructor: 0, x: 0 };
+    const b: FeatureVector = { toString: 3, constructor: 0, x: 4 };
+    expect(weightedDistance(a, b, ['toString', 'constructor', 'x'], {})).toBeCloseTo(5, 9);
+  });
+});

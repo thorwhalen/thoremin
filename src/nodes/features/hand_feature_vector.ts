@@ -66,10 +66,11 @@ const Params = z.object({
   /** Single-hand only: DETECTED single-hand frames a NEW handedness label is held
    *  before the `hand.{side}.*` namespace switches, on the next frame (brief
    *  dropouts within the dwell window between them don't reset the count).
-   *  Absorbs MediaPipe's Left/Right relabel flicker when a hand turns; also the
-   *  window of consecutive multi-hand frames required before the single-hand
-   *  tracker is cleared (a one-frame phantom second hand must not strip the
-   *  dwell protection). 0 = no hysteresis. */
+   *  Absorbs MediaPipe's Left/Right relabel flicker when a hand turns; the
+   *  single-hand tracker is cleared only after MORE than this many consecutive
+   *  multi-hand frames (a one-frame phantom second hand must not strip the
+   *  dwell protection), or more than this plus one frames with no hand.
+   *  0 = no hysteresis. */
   handednessDwellFrames: z.number().int().min(0).max(MAX_HANDEDNESS_DWELL_FRAMES).default(LAB_HANDEDNESS_DWELL_FRAMES),
 });
 type Params = z.infer<typeof Params>;

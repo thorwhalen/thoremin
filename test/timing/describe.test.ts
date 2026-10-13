@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { UNSTAMPED_SOURCE, type TimingReading } from '@thoremin/sdk/timing/tracker';
 import { describeTiming, LOW_LIGHT_FPS, MIN_FRAMES_FOR_STAMP_HINT } from '@/app/timing/describe';
-import { makeTimingReporter, timingStatusKey } from '@/app/timingStatus';
+import { makeTimingReporter, timingStatusKey, TIMING_CHECK_MS } from '@/app/timingStatus';
 
 function reading(over: Partial<TimingReading> = {}): TimingReading {
   return {
@@ -98,6 +98,11 @@ describe('makeTimingReporter', () => {
     expect(reports).toHaveLength(2); // changed, but under the pacing since the last report
     report(1300);
     expect(reports).toHaveLength(3);
+    // An unchanged line is not rebuilt on every frame (#355): one look per check interval.
+    let reads = 0;
+    const counted = makeTimingReporter(() => (reads++, r), { report: () => undefined });
+    for (let t = 0; t < 2000; t += 1000 / 60) counted(t);
+    expect(reads).toBeLessThanOrEqual(Math.ceil(2000 / TIMING_CHECK_MS) + 1);
     r = reading({ deliveredFps: 16, audioEpoch: 1 });
     report(2000);
     expect(reports).toHaveLength(4); // an epoch bump is a change

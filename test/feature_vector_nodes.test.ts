@@ -215,6 +215,11 @@ describe('hand-feature-vector (handedness hysteresis, #144)', () => {
     run(handlers, noHands());
     expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
     expect(run(handlers, oneHand('Left'))).toEqual({ left: true, right: false });
+    // A three-frame dropout (the held frames plus the switch frame) still keeps it, as the
+    // Lab's #144 dwell did (#355).
+    for (let i = 0; i < 3; i++) run(handlers, noHands());
+    expect(run(handlers, oneHand('Right'))).toEqual({ left: true, right: false });
+    expect(run(handlers, oneHand('Left'))).toEqual({ left: true, right: false });
     // Sustained absence (> dwell): a genuinely new hand commits at once.
     for (let i = 0; i < 5; i++) run(handlers, noHands());
     expect(run(handlers, oneHand('Right'))).toEqual({ left: false, right: true });

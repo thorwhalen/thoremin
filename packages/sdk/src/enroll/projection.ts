@@ -98,7 +98,7 @@ export function seededRandom(seed: number): () => number {
 export function toMetricRow(vector: FeatureVector, features: readonly string[], weights: FeatureWeights): number[] {
   return features.map((f) => {
     const x = vector[f];
-    return Number.isFinite(x) ? x * (weights[f] ?? 1) : 0;
+    return Number.isFinite(x) ? x * (Object.hasOwn(weights, f) ? weights[f] : 1) : 0;
   });
 }
 

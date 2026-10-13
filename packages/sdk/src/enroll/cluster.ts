@@ -66,7 +66,8 @@ export function weightedDistance(
 ): number {
   let sum = 0;
   for (const f of features) {
-    const w = weights[f] ?? 1;
+    // Own keys only: a feature named `toString` must not read Object.prototype (#355).
+    const w = Object.hasOwn(weights, f) ? weights[f] : 1;
     if (w === 0) continue;
     const x = a[f];
     const y = b[f];

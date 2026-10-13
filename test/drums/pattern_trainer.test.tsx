@@ -151,6 +151,18 @@ describe.runIf(AIR)('the pattern trainer', () => {
     expect(screen.getByTestId('pattern-trainer').getAttribute('data-phase')).toBe('idle');
   });
 
+  it('says when the click player dropped clicks during the take (#355)', async () => {
+    let dropped = 5; // from an earlier take: not this one's
+    setClickPlayer({ play: (c) => void ((played.push([...c]), (dropped += 2))), stop: () => void (stops += 1), dropped: () => dropped });
+    render(<PatternTrainer enabled now={now} />);
+    await settle();
+    fireEvent.click(screen.getByText('Start'));
+    const plan = takeClicks(ROCK, 4, 1, clock + 200);
+    advance(plan.endMs - clock + 600);
+    await settle();
+    expect(screen.getByTestId('dropped-clicks').textContent).toMatch(/^2 clicks never sounded/);
+  });
+
   it('is blocked while the instrument is off', async () => {
     render(<PatternTrainer enabled={false} now={now} />);
     await settle();

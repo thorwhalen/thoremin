@@ -63,6 +63,17 @@ describe('createHandednessDwell', () => {
     expect(dwell.step(['right'])).toEqual(['right']); // ...the fourth is the switch
   });
 
+  it('at dwell 1, a one-frame phantom second hand does not reset the tracker; two frames do (#355)', () => {
+    const dwell = createHandednessDwell({ dwellFrames: 1 });
+    dwell.step(['left']);
+    expect(dwell.step(['left', 'right'])).toEqual(['left', 'right']); // the phantom
+    expect(dwell.step(['right'])).toEqual(['left']); // its flicker is still absorbed
+    expect(dwell.step(['left'])).toEqual(['left']);
+    dwell.step(['left', 'right']);
+    dwell.step(['left', 'right']); // a sustained two-hand regime
+    expect(dwell.step(['right'])).toEqual(['right']); // clears: the next hand commits at once
+  });
+
   it('a non-finite dwell reads as 0 rather than pinning the first label forever', () => {
     const dwell = createHandednessDwell({ dwellFrames: NaN });
     dwell.step(['left']);

@@ -252,7 +252,7 @@ export function scaleWeights(snapshot: NoiseSnapshot, options: ScaleOptions = {}
 export function applyWeights(vector: FeatureVector, weights: FeatureWeights): FeatureVector {
   const out: FeatureVector = {};
   for (const id of Object.keys(vector)) {
-    const w = weights[id];
+    const w = Object.hasOwn(weights, id) ? weights[id] : undefined;
     const x = vector[id];
     if (w === undefined || !Number.isFinite(x)) continue;
     out[id] = x * w;

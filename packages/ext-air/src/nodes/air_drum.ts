@@ -567,6 +567,9 @@ export interface LandingOptions {
   /** The learned floor (the impact predictor's plane, display depth): the landing point is
    *  never below it. Default none. */
   floor?: number;
+  /** The stroke has already turned (a confirmed or frame-snapped impact): its path ends
+   *  where it stopped. Default false. */
+  turned?: boolean;
   /** The frame's width over its height, which makes display fractions isotropic for the
    *  stick's arc. Default 1. */
   aspect?: number;
@@ -579,13 +582,14 @@ export interface LandingOptions {
  * (the impact predictor's plane, where a surface stroke meets it by definition); x is
  * read off the fall's shape at that depth (#261: the arc about the heel for a stick tip,
  * {@link arcShape}; #245's line in time for a point with no lever, {@link timeShape}). The
- * `path` carries the shape from the latest sample to the depth the fit reaches, floor or
- * not: a pad above the floor is still on the stroke's way. The speed is the fall's mean
+ * `path` carries the shape from the latest sample on down, past the depth the fit reaches
+ * (a pad above the floor is still on the stroke's way), to the frame's bottom, or, once
+ * the stroke has `turned`, only to where it stopped. The speed is the fall's mean
  * speed so far, departure to the latest sample, not a fitted derivative extrapolated to
  * the impact: that one is mostly landmark jitter. With a single falling sample, the last
  * sample and no speed.
  */
-export function landingAt(samples: readonly TrackSample[], t: number, eps: number, { floor = Infinity, aspect = 1 }: LandingOptions = {}): Landing {
+export function landingAt(samples: readonly TrackSample[], t: number, eps: number, { floor = Infinity, turned = false, aspect = 1 }: LandingOptions = {}): Landing {
   const seg = fallingSegment(samples, t, eps);
   const last = seg[seg.length - 1] ?? samples[samples.length - 1];
   const at = Math.min(t, last.t + MAX_EXTRAPOLATION);
@@ -610,11 +614,15 @@ export function landingAt(samples: readonly TrackSample[], t: number, eps: numbe
   // ahead makes the speed mostly jitter (an adversarial review measured it).
   const span = seg.length >= 2 ? last.t - seg[0].t : 0;
   const speed = span > 0 ? Math.max(0, (last.y - seg[0].y) / span) : 0;
-  // The path runs to the frame's bottom: it is consulted only when the landing point is
-  // on no pad, and then the pad is wherever the stroke's way meets one, not where the
-  // fit's horizon ends (a stroke from a high pad to a low one commits against the high
-  // pad's floor, well short of the low pad).
-  return { x: xAt(y), y, speed, path: { yFrom: last.y, yTo: FRAME_BOTTOM, xAt } };
+  // The path runs past the fit's horizon: it is consulted only when the landing point is
+  // on no pad, and then the pad is wherever the stroke's way meets one (a stroke from a
+  // high pad to a low one commits against the high pad's floor, well short of the low
+  // pad), so a falling stroke's runs to the frame's bottom. A stroke that turned ends
+  // where it stopped (#355): one stopped in the air above a pad does not play it. A
+  // predicted stroke cannot be told from one about to stop until it has (both are still
+  // falling near a floor learned on another pad); per-pad floors (#353) are its fix.
+  const yTo = turned ? Math.max(last.y, y) : FRAME_BOTTOM;
+  return { x: xAt(y), y, speed, path: { yFrom: last.y, yTo, xAt } };
 }
 
 /** How fast, 0..1: `ratio` is the stroke's speed over the slowest stroke's, `hardHit`
@@ -923,7 +931,7 @@ export const airDrumNode = defineNode<Params>({
                 // magnet can pull nothing it was never offered, and the status says why.
                 if (carried(e.t, NaN)) continue;
                 const snappedT = deepestSampleTime(stick.recent, e.t);
-                const s = strike(landingAt(stick.recent, snappedT, gates.minAmplitude * FALL_JITTER, { aspect }), e.strength);
+                const s = strike(landingAt(stick.recent, snappedT, gates.minAmplitude * FALL_JITTER, { turned: true, aspect }), e.strength);
                 if (s.silent) continue;
                 // Pattern mode keeps following (its drum names the sound); the time stays now.
                 let sound = s.sound;
@@ -1037,7 +1045,7 @@ export const airDrumNode = defineNode<Params>({
                 stick.committed = null;
                 stick.handled = null;
                 if (carried(e.t, NaN)) continue;
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { aspect }), e.strength);
+                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { turned: true, aspect }), e.strength);
                 if (s.silent) continue;
                 // A stroke the pipeline could not predict cannot be pulled.
                 if (engaged) noteOutcome('pipeline');

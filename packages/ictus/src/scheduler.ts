@@ -180,6 +180,10 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
   return {
     tick({ now, beat, bpm, horizon, durationScale = 1 }) {
       const out: ScheduleCommand[] = [];
+      // A non-finite clock would never satisfy the not-yet-due test below, so a looped
+      // score would emit onsets forever (NaN, or an infinite tempo making every onset due
+      // now) or throw (±Infinity): do nothing instead. A NaN tempo reads as held.
+      if (!Number.isFinite(now) || !Number.isFinite(beat) || !Number.isFinite(horizon) || bpm === Infinity) return out;
       const scale = durationScale > 0 && durationScale <= 1 ? durationScale : 1;
       const secPerBeat = bpm > 0 ? 60 / bpm : Infinity;
       /** Predicted time of beat `b`, or Infinity while held and `b` is ahead. */

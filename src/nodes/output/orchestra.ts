@@ -345,7 +345,7 @@ export const orchestraNode = defineNode<Params>({
         // would burst out on resume. Hold the scheduler until it runs.
         const running = !ac || ac.state === undefined || ac.state === 'running';
         const time = inputs.time as MusicalTime | undefined;
-        if (playing && running && time && scheduler) {
+        if (playing && running && time && Number.isFinite(time.beat) && scheduler) {
           const tick = Math.min(0.1, Math.max(1 / 240, ctx.dt || 1 / 60));
           const art = typeof inputs.articulation === 'number' ? inputs.articulation : 0.5;
           const cmds = scheduler.tick({

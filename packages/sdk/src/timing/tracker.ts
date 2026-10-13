@@ -67,8 +67,9 @@ export interface TimingReading {
   frameAge: { mean: number; p95: number };
   /** The processed frame period, seconds (exponentially weighted); NaN before two frames. */
   framePeriod: number;
-  /** Camera frames per second as delivered, from the capture stamps over the window; NaN
-   *  until enough capture-stamped frames. */
+  /** Camera frames per second as delivered, from the capture stamps over the window,
+   *  counting the frames the camera presented that inference skipped (a slow inference
+   *  is not a slow camera); NaN until enough capture-stamped frames. */
   deliveredFps: number;
   /** How many of the recent frames were stamped from each source (`capture` is the one
    *  to trust), counted only where the stamp was HONOURED (real time at speed 1, this
@@ -141,8 +142,9 @@ export const STAMP_NOISE_TRIM = 0.05;
  * a multiple, not noise), as a trimmed RMS over the square root of two (an interval is
  * the difference of two noisy stamps).
  *
- * The period must be the CAMERA's (`getSettings().frameRate`, which the host reports),
- * never one read off the stamps themselves: clock stamps quantised to a 60 Hz display
+ * The period must be the CAMERA's (the tracker passes {@link noiseLattice}: the rate the
+ * host reports from `getSettings().frameRate`, unless the stamps show the camera delivering
+ * another), never the smallest gap read off the stamps: clock stamps quantised to a 60 Hz display
  * from a 24 fps camera alternate 33 / 50 ms, and a lattice taken from those intervals
  * calls half of them perfect; stamps paced by a slow inference every 50 ms off a 30 fps
  * camera are perfectly regular, and the frames behind them are up to a period old. Against
@@ -164,6 +166,54 @@ export function stampNoise(times: readonly number[], period: number = NaN): numb
   const sq = d.map((x) => (x - Math.max(1, Math.round(x / p)) * p) ** 2).sort((a, b) => a - b);
   const kept = sq.slice(0, Math.max(1, Math.ceil(sq.length * (1 - STAMP_NOISE_TRIM))));
   return Math.sqrt(kept.reduce((a, b) => a + b, 0) / kept.length) / Math.SQRT2;
+}
+
+/** How far the period the stamps show may differ from the one the camera reports before
+ *  the report is disbelieved (relative): `getSettings().frameRate` is the request, and
+ *  Firefox and Safari report 60 while delivering 20 to 25 fps (#355). */
+export const CAMERA_PERIOD_TOLERANCE = 0.1;
+/** The gap {@link stampPeriod} anchors on: this quantile of the gaps (a dropped frame only
+ *  ever lengthens a gap, so a low quantile is one period even when most frames drop). */
+export const STAMP_PERIOD_QUANTILE = 0.2;
+/** The gaps {@link stampPeriod} averages: from the anchor up to this factor of it. */
+export const STAMP_PERIOD_SPREAD = 1.6;
+/** The share of the window's intervals that must hide a skipped frame before the stamps
+ *  are read as paced by inference rather than by the camera (one stall is not a pace). */
+export const INFERENCE_PACED_SKIP_SHARE = 0.2;
+
+/**
+ * The frame period the stamps show, seconds: the mean of the gaps from the
+ * {@link STAMP_PERIOD_QUANTILE} gap up to {@link STAMP_PERIOD_SPREAD} times it. A mean, so
+ * stamps quantised to a 60 Hz display from a 24 fps camera (33 / 50 ms) give the camera's
+ * 41.7 ms; anchored low, so skipped or dropped frames (multiples) do not stretch it even
+ * when they are most of the gaps. NaN under three gaps.
+ */
+export function stampPeriod(times: readonly number[]): number {
+  const d: number[] = [];
+  for (let i = 1; i < times.length; i++) if (times[i] > times[i - 1]) d.push(times[i] - times[i - 1]);
+  if (d.length < 3) return NaN;
+  const anchor = [...d].sort((a, b) => a - b)[Math.floor(STAMP_PERIOD_QUANTILE * (d.length - 1))];
+  const kept = d.filter((x) => x >= anchor && x <= anchor * STAMP_PERIOD_SPREAD);
+  return kept.reduce((a, b) => a + b, 0) / kept.length;
+}
+
+/**
+ * The lattice the stamp noise is measured against: the camera's reported period, unless
+ * the stamps show the camera delivering at another rate (beyond
+ * {@link CAMERA_PERIOD_TOLERANCE}) while inference did not pace them, in which case the
+ * period the stamps show. Inference that skips frames regularly ({@link
+ * INFERENCE_PACED_SKIP_SHARE} of the intervals; the 50 ms inference off a 30 fps camera
+ * skips every other one) paces the stamps itself, so there the report stands; a stall
+ * now and then does not. One case stays blind: stamps paced by a slow inference whose
+ * skips are not counted (the pump's animation-frame path) read as a slower camera, and
+ * quiet.
+ */
+export function noiseLattice(reportedPeriod: number, times: readonly number[], skipped: number): number {
+  const seen = stampPeriod(times);
+  if (!(reportedPeriod > 0)) return seen;
+  const paced = skipped >= INFERENCE_PACED_SKIP_SHARE * Math.max(1, times.length - 1);
+  if (!(seen > 0) || paced) return reportedPeriod;
+  return Math.abs(seen / reportedPeriod - 1) <= CAMERA_PERIOD_TOLERANCE ? reportedPeriod : seen;
 }
 
 /** Frames the window statistics (age p95, stamp mix, delivered rate) are taken over. */
@@ -199,6 +249,8 @@ interface FrameRecord {
   age: number;
   source: string;
   stamped: boolean;
+  /** Camera frames presented since the previous processed frame and never processed. */
+  skipped: number;
 }
 
 const CLOCK_DERIVED = new Set(['clock', 'estimated']);
@@ -326,11 +378,12 @@ export class TimingTracker implements Tap {
       this.captureLagEw = Number.isFinite(this.captureLagEw) ? this.captureLagEw + CAPTURE_LAG_EW_GAIN * (frame.lag - this.captureLagEw) : frame.lag;
     }
     this.frames++;
-    if (typeof frame.skipped === 'number' && frame.skipped > 0) this.skipped += frame.skipped;
+    const skipped = typeof frame.skipped === 'number' && frame.skipped > 0 ? frame.skipped : 0;
+    this.skipped += skipped;
     // A stamp that was not honoured says nothing about the pipeline: it is counted as no
     // stamp at all, so a replayed recording never reads as a camera delivering capture
     // times, and a synthetic source never reads as a browser without them.
-    this.recent.push({ t, age, source: stamped ? (frame.tSource ?? UNSTAMPED_SOURCE) : UNSTAMPED_SOURCE, stamped });
+    this.recent.push({ t, age, source: stamped ? (frame.tSource ?? UNSTAMPED_SOURCE) : UNSTAMPED_SOURCE, stamped, skipped });
     if (this.recent.length > this.windowFrames) this.recent.shift();
     this.cached = null;
   }
@@ -356,10 +409,15 @@ export class TimingTracker implements Tap {
     const p95 = ages.length ? ages[Math.min(ages.length - 1, Math.floor(0.95 * (ages.length - 1) + 0.5))] : NaN;
     const captured = this.recent.filter((r) => r.source === 'capture');
     const span = captured.length >= MIN_FRAMES_FOR_RATE ? captured[captured.length - 1].t - captured[0].t : 0;
-    const deliveredFps = span > 0 ? (captured.length - 1) / span : NaN;
+    const skippedAfterFirst = (rs: readonly FrameRecord[]) => rs.slice(1).reduce((a, r) => a + r.skipped, 0);
+    const deliveredFps = span > 0 ? (captured.length - 1 + skippedAfterFirst(captured)) / span : NaN;
     const derived = this.recent.filter((r) => CLOCK_DERIVED.has(r.source));
     const cameraPeriod = this.camera?.frameRate && this.camera.frameRate > 0 ? 1 / this.camera.frameRate : NaN;
-    const noise = derived.length >= MIN_FRAMES_FOR_NOISE ? stampNoise(derived.map((r) => r.t), cameraPeriod) : NaN;
+    let noise = NaN;
+    if (derived.length >= MIN_FRAMES_FOR_NOISE) {
+      const times = derived.map((r) => r.t);
+      noise = stampNoise(times, noiseLattice(cameraPeriod, times, skippedAfterFirst(derived)));
+    }
     return {
       outputStage,
       audioEpoch: this.epoch,

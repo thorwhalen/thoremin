@@ -198,6 +198,25 @@ describe('a pad along the path (#261)', () => {
     expect(hitPad(pads, { x: 0.9, y: 0.9 }, 'hand', { yFrom: 0.8, yTo: 0.9, xAt: () => 0.9 })).toBeNull();
     expect(hitPad(pads, { x: 0.9, y: 0.9 }, 'nearest', { yFrom: 0.8, yTo: 0.9, xAt: () => 0.9 })?.id).toBe('p2');
   });
+
+  it('a stroke that turned in the air above a pad does not reach it; a predicted one still runs on to the pad below (#355, #261)', () => {
+    const snareOnly: Pads = { ...DEFAULT_PADS_SET, p2: pad({ x: 0.5, y: 0.7, sound: 'snare' }) };
+    /** A straight fall at x = 0.5 from `top` at t = 0, `dy` per 20 ms frame, for `n` frames. */
+    const fall = (top: number, dy: number, n: number): TrackSample[] => Array.from({ length: n }, (_, i) => ({ t: 0.02 * i, x: 0.5, y: top + dy * i }));
+    // A stroke that stopped at 0.36, in empty air above the snare (0.6 to 0.8): confirmed
+    // there, its path ends where it stopped.
+    const air = fall(0.3, 0.02, 4);
+    const stopped = landingAt(air, air[air.length - 1].t, 0.005, { turned: true });
+    expect(stopped.path.yTo).toBeCloseTo(air[air.length - 1].y, 9);
+    expect(hitPad(snareOnly, stopped, 'silent', stopped.path)).toBeNull();
+    // Committed 60 ms before it reaches a floor learned on a high pad (0.3), still above
+    // it: the snare below is on its way.
+    const big = fall(0.05, 0.04, 5);
+    const toLow = landingAt(big, big[big.length - 1].t + 0.06, 0.005, { floor: 0.3 });
+    expect(big[big.length - 1].y).toBeLessThan(0.3);
+    expect(toLow.path.yTo).toBe(1);
+    expect(hitPad(snareOnly, toLow, 'silent', toLow.path)?.id).toBe('p2');
+  });
 });
 
 describe('a carried stick is not a stroke (#261)', () => {

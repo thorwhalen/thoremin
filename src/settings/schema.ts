@@ -189,7 +189,7 @@ export const MidiSettingsSchema = z.object({
   /** Whether the master mute (M) silences the MIDI stream too (#168 Q3). On is what the
    *  instrument always did; off keeps the notes flowing to a DAW while the local monitor
    *  is quiet. `.default(true)` heals pre-dial presets to the behaviour they were played
-   *  with (through the existing `midi` heal in the store: no persist-version bump). */
+   *  with (through the existing `midi` heal in the store; the store's v23 bump records it). */
   muteFollowsMaster: z.boolean().default(true),
 });
 export type MidiSettings = z.infer<typeof MidiSettingsSchema>;

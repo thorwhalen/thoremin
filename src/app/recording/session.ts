@@ -244,14 +244,16 @@ export class SessionRecorder {
     // `.annotations.jsonl` (which also forces folder mode — an annotation log needs the manifest).
     this.annotationsActive = this.deps.tagSource?.active() === true;
 
-    this.plan = planRecording({
-      session: this.session,
-      stem: this.stem,
-      audioMime: this.audioMime,
-      videoMime: this.videoMime,
-      alphaMime: this.alphaMime ?? undefined,
-      includeAnnotations: this.annotationsActive,
-    });
+    const plan = (stem: string) =>
+      planRecording({
+        session: this.session,
+        stem,
+        audioMime: this.audioMime,
+        videoMime: this.videoMime,
+        alphaMime: this.alphaMime ?? undefined,
+        includeAnnotations: this.annotationsActive,
+      });
+    this.plan = plan(this.stem);
 
     // A folder take goes through a sink (dir/zip); the single-file escape hatch
     // saves one bare blob directly on stop, so it needs no sink (and no folder
@@ -259,6 +261,13 @@ export class SessionRecorder {
     if (this.plan.useFolder) {
       const kind = chooseSinkKind(this.session.location, detectCaps());
       this.sink = await createRecordingSink(kind, this.plan.folderName);
+      // A folder already holding an earlier take gets a new name (`-2`, `-3`, #355): the
+      // files and the manifest take it too, so nothing downstream keyed on the stem mixes
+      // the two takes.
+      if (this.sink.folderName !== this.plan.folderName) {
+        this.stem = this.sink.folderName;
+        this.plan = plan(this.stem);
+      }
     }
 
     // Shared audio tap: needed by the audio stream and by overlay-video (which
