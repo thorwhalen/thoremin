@@ -497,6 +497,23 @@ for (const axis of ['fps', 'exposure', 'timing', 'object'] as Axis[]) {
   for (const est of ['lowest', 'parabola', 'parabolaMedian', 'predict', 'predictKnown', 'sounded']) for (const [k, s] of byAxis(est, NOISES[0], ML, axis)) rows.set(`${est} / ${k}`, s);
   md.push(table(`By ${axis} — noise ${NOISES[0]} px, minLead ${ML} s`, rows, `estimator / ${axis}`));
 }
+// 4. The priors on the same events. A `grid:` row's n differs by prior (a prior not
+//    yet running has no grid at that stroke: the oscillator at 404 strokes against the
+//    blend's 351), so the rows above compare each prior on its own events; here every
+//    prior is scored on the strokes ALL of them scored.
+{
+  const gridEstimators = Object.keys(PRIORS).map((p) => `grid:${p}`);
+  const inFamily = (r: Record_) => gridEstimators.includes(r.estimator) && r.noise === NOISES[0] && r.minLead === ML;
+  const eventKey = (r: Record_) => `${r.clip}#${r.event}`;
+  const seenBy = new Map<string, number>();
+  for (const r of records) if (inFamily(r)) seenBy.set(eventKey(r), (seenBy.get(eventKey(r)) ?? 0) + 1);
+  const common = new Set([...seenBy].filter(([, n]) => n === gridEstimators.length).map(([k]) => k));
+  const rows = new Map<string, CellStats>();
+  for (const est of gridEstimators) {
+    for (const [k, st] of aggregate((r) => r.estimator === est && inFamily(r) && common.has(eventKey(r)), (r) => String(axesOf(r.clip).kind))) rows.set(`${est} / ${k}`, st);
+  }
+  md.push(table(`The priors on the same events (${common.size} strokes every prior scored) — noise ${NOISES[0]} px, minLead ${ML} s`, rows, 'estimator / kind'));
+}
 md.push(`Stroke kind classified correctly by the predictor (auto mode, noise ${NOISES[0]} px): ${kindHits.right}/${kindHits.total}.`, '');
 md.push(`Predictions committed with less lead than required (noise ${NOISES[0]} px): ${[...shortLeads.entries()].map(([ml, s]) => `minLead ${ml}: ${s.short}/${s.total}`).join('; ')}.`, '');
 md.push(`Predictions committed on their first usable fit, no second fit agreeing (the stability check's bypass; noise ${NOISES[0]} px): ${[...shortLeads.entries()].map(([ml, s]) => `minLead ${ml}: ${s.provisional}/${s.total}`).join('; ')}.`, '');
