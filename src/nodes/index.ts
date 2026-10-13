@@ -109,7 +109,7 @@ export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './mu
 export { poseChordNode, POSE_VOICE_ID_BASE, MAX_POSE_VOICES, yawToDegree } from './music/pose_chord';
 export { progressionNode } from './music/progression';
 export { transportNode } from './music/transport';
-export { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES } from './music/score';
+export { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES, DEMO_LOOP_BEATS } from './music/score';
 export { performanceNode } from './music/performance';
 export { paceControllerNode } from './music/pace_controller';
 export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt, GenerativeEngineFactory, GenerativeEngineOpts } from './output/generative';

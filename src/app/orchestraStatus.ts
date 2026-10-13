@@ -7,13 +7,15 @@
  */
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
+import { ORCHESTRA_NODE_ID } from '@/instruments/branches';
 import { makeGenerativeReporter, type OutputReader } from './generativeStatus';
 
 /** The status before the engine has reported anything (or after teardown). */
 export const ABSENT_ORCHESTRA_STATUS: LoadStatus = { phase: 'off', message: 'Orchestra off' };
 
-/** The node id the reporter reads: the `orchestra` node in the conductor branch. */
-export const ORCHESTRA_NODE_ID = 'orchestra';
+/** The node id the reporter reads: the `orchestra` node in the conductor branch, defined
+ *  with the branch and re-exported here for the engine loop. */
+export { ORCHESTRA_NODE_ID };
 
 export interface OrchestraStatusState {
   status: LoadStatus;

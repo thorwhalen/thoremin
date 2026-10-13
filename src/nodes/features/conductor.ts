@@ -56,7 +56,8 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { beatAt, createIctus, wrapPhase, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
 import { LM, frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
+import { beatsPerBarAt } from '@thoremin/sdk/score/schema';
+import { readScoreDoc } from '@thoremin/sdk/score/prepare';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
 export type ConductorHand = (typeof CONDUCTOR_HANDS)[number];
@@ -226,10 +227,8 @@ export const conductorNode = defineNode<Params>({
       docMeter = null;
       fermataAt = null;
       fermataReleased = null;
-      if (!raw || typeof raw !== 'object') return;
-      const parsed = ScoreDocSchema.safeParse(raw);
-      if (!parsed.success) return;
-      const doc = parsed.data as ScoreDoc;
+      const doc = readScoreDoc(raw);
+      if (!doc) return;
       fermatas = [...doc.fermatas].sort((a, b) => a - b);
       docMeter = (beat) => beatsPerBarAt(doc, beat);
     };
