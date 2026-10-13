@@ -92,21 +92,24 @@ test('the face session loads only when opened, and records, carves, names and sa
   await page.waitForTimeout(7_000);
   await panel.getByRole('button', { name: 'Stop and carve' }).click();
 
-  // The grid: neutral is "none of these" by default, the expressions carved, with pictures.
+  // The grid: a face never taught reads as Neutral by default, the rest is in Neutral, the
+  // expressions carved, with pictures.
   const summary = panel.locator('[data-faces-summary]');
-  await expect(summary).toContainText('Neutral means "none of these"', { timeout: 15_000 });
+  await expect(summary).toContainText('A face you never taught reads as: neutral', { timeout: 15_000 });
   const cats = panel.locator('[data-face-category]');
   await expect.poll(() => cats.count()).toBeGreaterThanOrEqual(2);
   const k = await cats.count();
   await expect(panel.locator('[data-face-neutral]')).toBeVisible();
   await expect.poll(() => panel.locator('img[data-face-still]').count(), { timeout: 20_000 }).toBeGreaterThan(k);
 
-  // Neutral in: one more category, one of them "neutral"; and back.
-  await panel.getByRole('radio', { name: /Every face is a category/ }).check();
-  await expect(summary).toContainText('Every face is a category');
-  await expect(cats).toHaveCount(k + 1);
-  await expect(panel.locator('[data-face-category] input[value="neutral"]')).toHaveCount(1);
-  await panel.getByRole('radio', { name: /Neutral means/ }).check();
+  // The strangers switch (#385 E5): the nearest face, and back; Neutral is taught either way,
+  // so no category comes or goes.
+  await panel.getByRole('radio', { name: /The nearest face/ }).check();
+  await expect(summary).toContainText('reads as: the nearest face');
+  await expect(cats).toHaveCount(k);
+  await expect(panel.locator('[data-face-neutral]')).toContainText('plays nothing');
+  await panel.getByRole('radio', { name: /^Neutral/ }).check();
+  await expect(summary).toContainText('reads as: neutral');
   await expect(cats).toHaveCount(k);
 
   // Re-divide without recording again: one fewer.
