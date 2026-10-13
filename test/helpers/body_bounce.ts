@@ -18,6 +18,10 @@ export interface BounceOptions {
   noisePx?: number;
   torsoPx?: number;
   seed?: number;
+  /** The trunk's bounce, pixels (bottom to top). */
+  trunkPx?: number;
+  /** Every coordinate multiplied by this (a closer camera). */
+  zoom?: number;
   /** Visibility of a channel at time t (default 0.99 everywhere). */
   visibility?: (channel: string, t: number) => number;
 }
@@ -27,7 +31,7 @@ export interface Bounce {
   beats: number[];
 }
 
-export function bounce({ seconds = 20, fps = 30, bpm = () => 100, firstBeat = 0.4, noisePx = 1, torsoPx = 150, seed = 374, visibility = () => 0.99 }: BounceOptions = {}): Bounce {
+export function bounce({ seconds = 20, fps = 30, bpm = () => 100, firstBeat = 0.4, noisePx = 1, torsoPx = 150, seed = 374, trunkPx = 10, zoom = 1, visibility = () => 0.99 }: BounceOptions = {}): Bounce {
   const rnd = seeded(seed);
   const n = () => noisePx * gaussian(rnd);
   const frames: ChannelFrame[] = [];
@@ -35,7 +39,6 @@ export function bounce({ seconds = 20, fps = 30, bpm = () => 100, firstBeat = 0.
   // The beat position by integration on a fine step (so a tempo ramp is exact enough).
   const h = 1e-4;
   let phi = -firstBeat * (bpm(0) / 60);
-  let tPrev = 0;
   let nextFrame = 0;
   for (let t = 0; t <= seconds + 1e-9; t += h) {
     const before = phi;
@@ -43,20 +46,18 @@ export function bounce({ seconds = 20, fps = 30, bpm = () => 100, firstBeat = 0.
     if (Math.floor(phi) > Math.floor(before) && phi >= 0) beats.push(t + h * ((Math.floor(phi) - phi) / (phi - before)) + h);
     if (t + 1e-12 >= nextFrame / fps) {
       const u = 2 * Math.PI * phi;
-      const ch = (name: string, x: number, y: number) => ({ x: x + n(), y: y + n(), visibility: visibility(name, t) });
+      const ch = (name: string, x: number, y: number) => ({ x: zoom * (x + n()), y: zoom * (y + n()), visibility: visibility(name, t) });
       frames.push({
         t: nextFrame / fps,
-        scale: torsoPx * (1 + 0.01 * gaussian(rnd)),
+        scale: zoom * torsoPx * (1 + 0.01 * gaussian(rnd)),
         channels: {
-          wrist: ch('wrist', 400 + 30 * Math.sin(u / 2), 300 + 60 * (Math.cos(u) + 1) / 2),
-          elbow: ch('elbow', 380 + 15 * Math.sin(u / 2), 330 + 30 * (Math.cos(u - 0.2) + 1) / 2),
-          trunk: ch('trunk', 320, 420 + 10 * (1 - Math.abs(Math.sin(Math.PI * phi)))),
+          wrist: ch('wrist', 400 + 30 * Math.cos(u / 2), 300 + 60 * (Math.cos(u) + 1) / 2),
+          elbow: ch('elbow', 380 + 15 * Math.cos(u / 2), 330 + 30 * (Math.cos(u - 0.2) + 1) / 2),
+          trunk: ch('trunk', 320, 420 + trunkPx * (1 - Math.abs(Math.sin(Math.PI * phi)))),
         },
       });
       nextFrame++;
     }
-    tPrev = t;
   }
-  void tPrev;
   return { frames, beats };
 }

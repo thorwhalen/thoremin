@@ -223,7 +223,11 @@ function createPeakPicker(windowS: number, peakMads: number, confirmMads: number
   const restat = () => {
     const vs = window.map((p) => p.v);
     med = median(vs);
-    mad = median(vs.map((v) => Math.abs(v - med)));
+    const dev = vs.map((v) => Math.abs(v - med));
+    mad = median(dev);
+    // A sparse envelope (a deceleration that is zero most of the time) has a zero MAD;
+    // its mean absolute deviation is the scale then.
+    if (!(mad > 0) && dev.length) mad = dev.reduce((a, d) => a + d, 0) / dev.length;
     jitter = d3.length ? median(d3.map((p) => p.v)) / JITTER_FROM_THIRD_DIFFERENCE : NaN;
   };
   /** The last four values, for the third difference. */
