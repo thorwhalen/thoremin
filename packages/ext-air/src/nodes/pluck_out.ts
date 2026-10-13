@@ -24,8 +24,9 @@ import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
 import { createEventBatchParser } from '../lib/event_batch';
 import { NoteEventSchema, type NoteEvent } from './note_events';
-import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
+import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
+import { midiToFreq } from '@thoremin/sdk/music/theory';
 import type { AudioClockLike } from './drum_out';
 
 /** The plucked timbres: the attack's brightness and where it settles (multiples of the
@@ -61,8 +62,14 @@ const SETTLE_S = 0.25;
 const OSC_MIX = 0.5;
 /** The voice key every note of a mono sink shares. */
 const MONO_VOICE = -1;
-
-const midiToFreq = (m: number) => 440 * 2 ** ((m - 69) / 12);
+/** The highest the low-pass may open, as a fraction of Nyquist (above it a biquad misbehaves). */
+const MAX_CUTOFF_OF_NYQUIST = 0.9;
+/** The silence an exponential envelope starts from and falls to (it cannot reach 0): -80 dB. */
+const ENVELOPE_FLOOR_GAIN = 0.0001;
+/** The attack: how long the envelope takes to reach its peak, seconds (a pick, no click). */
+const ATTACK_S = 0.005;
+/** Seconds the oscillators keep running after the decay ends, so the ramp is never cut. */
+const STOP_MARGIN_S = 0.05;
 
 /**
  * A subtractive pluck from primitives: a sawtooth and a triangle at the note's pitch
@@ -88,7 +95,7 @@ export function createWebAudioPluckSink(ac: AudioContext, destination: AudioNode
       // A zero-velocity note is only a damp (a muted string): nothing new sounds.
       if (v <= 0) return;
       const f = midiToFreq(midi);
-      const cutoff = (m: number) => Math.min(nyquist * 0.9, f * m);
+      const cutoff = (m: number) => Math.min(nyquist * MAX_CUTOFF_OF_NYQUIST, f * m);
       const oscs = (['sawtooth', 'triangle'] as const).map((type) => {
         const o = ac.createOscillator();
         o.type = type;
@@ -102,16 +109,16 @@ export function createWebAudioPluckSink(ac: AudioContext, destination: AudioNode
       filter.frequency.setValueAtTime(cutoff(tone.brightness), when);
       filter.frequency.exponentialRampToValueAtTime(cutoff(tone.settled), when + SETTLE_S);
       const env = ac.createGain();
-      env.gain.setValueAtTime(0.0001, when);
-      env.gain.exponentialRampToValueAtTime(tone.gain * v, when + 0.005);
-      env.gain.exponentialRampToValueAtTime(0.0001, when + tone.decay);
+      env.gain.setValueAtTime(ENVELOPE_FLOOR_GAIN, when);
+      env.gain.exponentialRampToValueAtTime(tone.gain * v, when + ATTACK_S);
+      env.gain.exponentialRampToValueAtTime(ENVELOPE_FLOOR_GAIN, when + tone.decay);
       const damp = ac.createGain();
       for (const o of oscs) o.connect(mix);
       mix.connect(filter);
       filter.connect(env);
       env.connect(damp);
       damp.connect(destination);
-      const stopAt = when + tone.decay + 0.05;
+      const stopAt = when + tone.decay + STOP_MARGIN_S;
       for (const o of oscs) {
         o.start(when);
         o.stop(stopAt);
@@ -176,10 +183,10 @@ export const pluckOutNode = defineNode<Params>({
         if (clock.state !== undefined && clock.state !== 'running') return {};
         const notes = batch.parse(raw, ctx.log);
         if (notes.length === 0) return {};
-        const outputStage = timingFrom(ctx.resources).outputStage.value;
+        const at: TickClock = { clock, nowEngine: ctx.time, stage: timingFrom(ctx.resources).outputStage.value };
         for (const note of notes) {
           // Never in the past: a late note sounds at once.
-          const when = scheduleAt(clock, note.t, ctx.time, outputStage);
+          const when = scheduleAt(note.t, at);
           sink.play(note.midi, note.velocity, when, note.voice);
         }
         return {};

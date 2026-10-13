@@ -18,7 +18,7 @@ import TrainerPanel from '@/app/TrainerPanel';
 import { useTools } from '@/app/toolsStore';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { useRecordingConfig } from '@/app/recording/configStore';
+import { installRecording, useRecordingConfig } from '@/app/recording/configStore';
 import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
 import type { FsDirHandle } from '@/app/recording/folder';
 import { installFakeIndexedDb, type FakeIndexedDb } from './helpers/fakeIndexedDb';
@@ -33,7 +33,10 @@ const takesFolder: FsDirHandle = {
 
 let idb: FakeIndexedDb;
 
+// App installs the recording host on mount (#392); these tests render the panel alone.
+let uninstallRecording: () => void = () => {};
 beforeEach(() => {
+  uninstallRecording = installRecording();
   useTools.setState({ open: null });
   useTrainer.getState().reset();
   useTrainerPrefs.setState({ recordTake: true, manualAdvance: false });
@@ -42,6 +45,7 @@ beforeEach(() => {
   idb = installFakeIndexedDb({ failWrites: true });
 });
 afterEach(() => {
+  uninstallRecording();
   cleanup();
   idb.uninstall();
   delete g.showDirectoryPicker;

@@ -35,7 +35,7 @@
  * look-ahead is measured separately (offline, by the headless script) and added in
  * the report, not hidden in this number.
  */
-import { LatencyProbe, STAGES, type AudioLike, type LatencySnapshot, type ProbeFrame } from '@/latency/probe';
+import { LatencyProbe, STAGES, type LatencySnapshot, type ProbeFrame } from '@/latency/probe';
 import { formatSummary, summarize, type Summary } from '@/latency/stats';
 import { pairStrikes, strikeOnsets, toneOnsets, TONE_DEFAULTS, type StrikePair } from '@/latency/onsets';
 import { createStrikeTrigger } from '@/latency/strike';
@@ -241,8 +241,23 @@ function withoutDeviceIds(settings: MediaTrackSettings): Record<string, unknown>
   return rest;
 }
 
+const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
+
+/** The instrument's audio context, from the engine resources: undefined until the host's
+ *  first tap creates it (the host fills `resources` as it goes, so read it each time). */
+function resourceAudioContext(resources: Record<string, unknown>): AudioContext | undefined {
+  const ac = resources.audioContext;
+  return isObject(ac) && typeof ac.currentTime === 'number' ? (ac as unknown as AudioContext) : undefined;
+}
+
+/** The camera's video element, from the engine resources; undefined before it exists. */
+function resourceVideo(resources: Record<string, unknown>): HTMLVideoElement | undefined {
+  const video = resources.video;
+  return isObject(video) && 'srcObject' in video ? (video as unknown as HTMLVideoElement) : undefined;
+}
+
 function environment(resources: Record<string, unknown>): Record<string, unknown> {
-  const video = resources.video as HTMLVideoElement | undefined;
+  const video = resourceVideo(resources);
   const track = (video?.srcObject as MediaStream | null | undefined)?.getVideoTracks?.()[0];
   return {
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
@@ -338,8 +353,8 @@ export function installLatencyProbe(
   resources: Record<string, unknown>,
   options: { timing?: () => TimingReading | undefined } = {},
 ): InstalledLatencyProbe {
-  const getAudio = () => resources.audioContext as AudioContext | undefined;
-  const probe = new LatencyProbe({ audio: () => getAudio() as AudioLike | undefined, timing: options.timing });
+  const getAudio = () => resourceAudioContext(resources);
+  const probe = new LatencyProbe({ audio: getAudio, timing: options.timing });
   const detach = engine.addTap(probe);
   const strike = createStrikeTest(probe, getAudio);
   const handle: LatencyHandle = Object.freeze({

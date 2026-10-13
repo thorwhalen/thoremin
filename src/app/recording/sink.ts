@@ -138,6 +138,10 @@ async function createDirectorySink(folderName: string): Promise<RecordingSink> {
   };
 }
 
+/** The zip's DEFLATE level (fflate's 0-9): its balanced default. A take is mostly
+ *  already-compressed media, so a higher level buys little and costs time on close. */
+const ZIP_LEVEL = 6;
+
 /** Zip sink: accumulate `{folderName/name: bytes}` and, on close, lazily zip
  * (fflate) into one download. The zip preserves the one-folder mental model. */
 function createZipSink(folderName: string): RecordingSink {
@@ -152,7 +156,7 @@ function createZipSink(folderName: string): RecordingSink {
     },
     async close() {
       const { zipSync } = await import('fflate');
-      const zipped = zipSync(files, { level: 6 });
+      const zipped = zipSync(files, { level: ZIP_LEVEL });
       // Copy into a fresh ArrayBuffer so the Blob owns contiguous bytes (avoids a
       // SharedArrayBuffer/subarray-view type mismatch across TS lib versions).
       const buf = new Uint8Array(zipped.length);

@@ -397,8 +397,8 @@ function relationFeatures(): BodyFeature[] {
 const PULSE_GATE = 0.15;
 /** The pulse confidence below which the gate stays shut (a still body's jitter has a
  *  period too, a weak one). ictus's `PULSE_TRUSTED_CONFIDENCE`, restated: the SDK does
- *  not depend on the inference package. */
-const PULSE_GATE_CONFIDENCE = 0.2;
+ *  not depend on the inference package (a test pins the two equal). */
+export const PULSE_GATE_CONFIDENCE = 0.2;
 
 /** The dancer's pulse (#186 PR F), read from `body-pulse` through the context. The
  *  period is the level the body repeats at, never folded to a beat, so the tempo is

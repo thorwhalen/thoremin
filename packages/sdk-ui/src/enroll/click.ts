@@ -84,7 +84,7 @@ export function createWebAudioClickPlayer(): ClickPlayer {
    *  what the context is RENDERING now, which reaches the ear one output stage later. */
   const toContextTime = (c: AudioContext, tMs: number): number => {
     const nowMs = performance.now();
-    return engineToContextTime(c, tMs / 1000, nowMs / 1000, readOutputStage(c, nowMs).value);
+    return engineToContextTime(tMs / 1000, { clock: c, nowEngine: nowMs / 1000, stage: readOutputStage(c, nowMs).value });
   };
 
   /** Bumped by `stop()`, so clicks waiting on a resume from before it never play. */

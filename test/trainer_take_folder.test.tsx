@@ -20,7 +20,7 @@ import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { STARTER_ROUTINES } from '@/app/enroll/realVsAirCues';
 import { createInMemoryProvider } from '@zodal/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { useRecordingConfig } from '@/app/recording/configStore';
+import { installRecording, useRecordingConfig } from '@/app/recording/configStore';
 import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
 import { journal } from '@/app/commands/registry';
 import type { FsDirHandle } from '@/app/recording/folder';
@@ -42,7 +42,10 @@ const takesFolder: FsDirHandle = {
   getFileHandle: async () => ({ createWritable: async () => ({ write: async () => undefined, close: async () => undefined }) }),
 };
 
+// App installs the recording host on mount (#392); these tests render the panel alone.
+let uninstallRecording: () => void = () => {};
 beforeEach(() => {
+  uninstallRecording = installRecording();
   useTools.setState({ open: null });
   useTrainer.getState().reset();
   useTrainerPrefs.setState({ recordTake: true, manualAdvance: false });
@@ -52,6 +55,7 @@ beforeEach(() => {
   delete g.showDirectoryPicker;
 });
 afterEach(() => {
+  uninstallRecording();
   cleanup();
   delete g.showDirectoryPicker;
 });

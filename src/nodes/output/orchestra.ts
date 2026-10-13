@@ -45,7 +45,7 @@ import { defineNode, realtimeOutputAllowed } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { lazyResource, withActive, type LoadResult, type LoadStatus } from '@thoremin/lazy';
 import { createScheduler, type MusicalTime, type ScheduleCommand, type Scheduler, type ScoreEvent } from '@thoremin/ictus';
-import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
+import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { pieceFromNotes, preparePiece, readScoreDoc, SCORE_DYNAMICS, type PreparedPiece, type ScoreDynamics } from '@thoremin/sdk/score/prepare';
@@ -207,14 +207,9 @@ export function planPiece(doc: ScoreDoc | null, { dynamics = DEFAULT_ORCHESTRA_D
   return { events, loopBeats: piece.loopBeats, channels: [...channels.values()].sort((a, b) => a.channel - b.channel) };
 }
 
-/** Where one tick sits on the two clocks: the `AudioContext` clock commands land on (or
- *  a stand-in with the engine's time, headless), the engine time now, and the output
- *  stage the clock map adds (seconds). Every command the player sends is placed by it. */
-export interface TickClock {
-  clock: { currentTime: number };
-  nowEngine: number;
-  stage: number;
-}
+/** Where one tick sits on the two clocks (the clock map's own type, re-exported): every
+ *  command the player sends is placed by it. */
+export type { TickClock };
 
 /** The levels a tick asks for: the player's settings and the conductor's dynamics. */
 export interface OrchestraLevels {
@@ -272,10 +267,10 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
   const lastOnCtx = new Map<string, number>();
   const lastOffCtx = new Map<string, number>();
 
-  const deliver = (cmds: readonly ScheduleCommand[], { clock, nowEngine, stage }: TickClock): void => {
+  const deliver = (cmds: readonly ScheduleCommand[], at: TickClock): void => {
     for (const c of cmds) {
       const k = `${c.channel}:${c.key}`;
-      let when = scheduleAt(clock, c.time, nowEngine, stage);
+      let when = scheduleAt(c.time, at);
       if (c.type === 'noteOn') {
         when = Math.max(when, (lastOffCtx.get(k) ?? -Infinity) + ORDER_GAP);
         lastOnCtx.set(k, when);

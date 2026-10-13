@@ -18,6 +18,7 @@
  * Turning it on by default is the maintainer's call (#168), not this module's.
  */
 import { z } from 'zod';
+import { create } from 'zustand';
 
 export const AudioPrefsSchema = z.object({
   /** Ask for `latencyHint: 0` when the audio context is created. */
@@ -47,12 +48,26 @@ export function honoursNumericLatencyHint(userAgent: string): boolean {
   return /Chrom(e|ium)\/|Edg\//.test(userAgent);
 }
 
-let hintInEffect: AudioContextLatencyCategory | number | null = null;
+/** A latency hint as the context was given it; null before a context exists. */
+export type LatencyHintInEffect = AudioContextLatencyCategory | number | null;
+
+/** The hint the instrument's context was created with, as a store: the status line
+ *  re-renders when a context is created (or re-created) with a different hint, which a
+ *  module variable could not tell React. Transient, per page: never persisted. */
+export const useLatencyHintInEffect = create<{ hint: LatencyHintInEffect }>()(() => ({ hint: null }));
 
 /** The host records the hint the instrument's context was created with (once, when it
  *  creates it), so the status line blames the low-latency box only when it is in force. */
-export function noteLatencyHintInEffect(hint: AudioContextLatencyCategory | number | null): void {
-  hintInEffect = hint;
+export function noteLatencyHintInEffect(hint: LatencyHintInEffect): void {
+  useLatencyHintInEffect.setState({ hint });
+}
+
+const currentUserAgent = (): string => (typeof navigator === 'undefined' ? '' : navigator.userAgent);
+
+/** Whether `hint` puts the low-latency buffer in force on this browser: it is the low
+ *  hint and the browser honours a numeric one. Pure, for a component's selector. */
+export function latencyHintInForce(hint: LatencyHintInEffect, userAgent: string = currentUserAgent()): boolean {
+  return hint === LOW_LATENCY_HINT && honoursNumericLatencyHint(userAgent);
 }
 
 /**
@@ -60,6 +75,6 @@ export function noteLatencyHintInEffect(hint: AudioContextLatencyCategory | numb
  * this browser honours it. Ticking the box without a reload, or on Firefox or Safari,
  * changes nothing, so a glitch there must not be blamed on it.
  */
-export function lowLatencyHintInEffect(userAgent: string = typeof navigator === 'undefined' ? '' : navigator.userAgent): boolean {
-  return hintInEffect === LOW_LATENCY_HINT && honoursNumericLatencyHint(userAgent);
+export function lowLatencyHintInEffect(userAgent: string = currentUserAgent()): boolean {
+  return latencyHintInForce(useLatencyHintInEffect.getState().hint, userAgent);
 }

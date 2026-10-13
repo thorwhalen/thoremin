@@ -101,9 +101,11 @@ export interface MusicalTime {
   lastAnchorAt?: number;
   /** The player's own lead, seconds: how far ahead of the sound their beat lands
    *  (the research map's per-person conductor lead; a conductor's ictus precedes the
-   *  orchestra's onset by a constant that differs by person and by piece). A
-   *  scheduler sounds a beat at `nextBeatAt + leadOffset`. Absent or 0 until a
-   *  trainer cue has measured it (#232 adds the field; nothing sets it yet). */
+   *  orchestra's onset by a constant that differs by person and by piece). RESERVED:
+   *  no prior sets it and no scheduler reads it yet (`scheduler.ts` places notes by the
+   *  beat alone). When a trainer cue measures it (#232 added the field), the intended
+   *  rule is that a beat sounds at `nextBeatAt + leadOffset`; until a scheduler applies
+   *  it, setting it changes nothing. */
   leadOffset?: number;
 }
 

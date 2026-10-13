@@ -18,12 +18,14 @@
  * handle forgotten), with whether the browser kept it beyond this page
  * (`folderRemembered`). The name is derived, never persisted here; the handle is the SSOT.
  *
- * This module also installs the recording host the commands act on
+ * This module also provides the recording host the commands act on
  * (`@/app/commands/recordingHost`), because it owns both things a recording command
- * touches: the config and the folder.
+ * touches: the config and the folder. It installs it only when asked
+ * ({@link installRecording}, called by App on mount), never as a side effect of being
+ * imported: importing the store for its config must not rewire the command registry.
  */
 import { create } from 'zustand';
-import { provideRecordingHost } from '@/app/commands/recordingHost';
+import { provideRecordingHost, type RecordingHost } from '@/app/commands/recordingHost';
 import { DEFAULT_RECORDING_SESSION, parseSession, RECORDING_SESSION_KEY, type RecordingSession } from './schema';
 import { chooseRecordingFolder, onRecordingFolderChange, rememberedRecordingFolder } from './folder';
 
@@ -84,7 +86,25 @@ onRecordingFolderChange((folder, { persistence }) =>
   useRecordingConfig.setState({ folder, folderRemembered: persistence !== 'page-only' }),
 );
 
-provideRecordingHost({
+/** What a recording command acts on: this store's config and the folder module. */
+const RECORDING_HOST: RecordingHost = {
   setLocation: (location) => useRecordingConfig.getState().setSession((prev) => ({ ...prev, location })),
   chooseFolder: () => chooseRecordingFolder(),
-});
+};
+
+/**
+ * Install the recording host, so the `recording.*` commands (the Record sheet, the
+ * trainer's folder control, the palette, the assistant) act on this store. App calls it
+ * in a mount effect; a test that dispatches a recording command through the registry
+ * calls it too. Returns the uninstall, which puts back whatever host was there before,
+ * but only while this host is still the installed one (two uninstalls out of order, as in
+ * an HMR overlap, must not leave a stale host). React runs a child's effects before App's,
+ * so a child must not dispatch a `recording.*` command from its own mount effect.
+ */
+export function installRecording(): () => void {
+  const previous = provideRecordingHost(RECORDING_HOST);
+  return () => {
+    const current = provideRecordingHost(previous);
+    if (current !== RECORDING_HOST) provideRecordingHost(current);
+  };
+}

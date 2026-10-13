@@ -13,14 +13,16 @@
 import { useTimingStatus } from './timingStatus';
 import { describeTiming } from './timing/describe';
 import { useControls } from './store';
-import { lowLatencyHintInEffect } from './timing/audioPrefs';
+import { latencyHintInForce, useLatencyHintInEffect } from './timing/audioPrefs';
 
 export default function TimingChip() {
   const reading = useTimingStatus((s) => s.reading);
-  // Re-render when the box flips; blame it only when the running context took the hint.
+  // Re-render when the box flips or a context is created with another hint; blame the box
+  // only when the running context took the hint.
   const boxTicked = useControls((s) => s.audioPrefs.lowLatency);
+  const hintInForce = useLatencyHintInEffect((s) => latencyHintInForce(s.hint));
   if (!reading) return null;
-  const { line, warnings } = describeTiming(reading, { lowLatencyAudio: boxTicked && lowLatencyHintInEffect() });
+  const { line, warnings } = describeTiming(reading, { lowLatencyAudio: boxTicked && hintInForce });
   if (!line && warnings.length === 0) return null;
   return (
     <div data-timing-chip className="pointer-events-none absolute left-3 top-[4.75rem] flex max-w-[min(90vw,32rem)] flex-col gap-1">

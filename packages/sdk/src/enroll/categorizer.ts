@@ -44,7 +44,7 @@ import type { FeatureVector, StillPoint, TrainedModel } from './types';
 export const CATEGORIZER_FORMAT = 'thoremin.categorizer';
 /** The version this build writes. */
 export const CATEGORIZER_VERSION = 1;
-export const CATEGORIZER_MODES = ['partition', 'reject'] as const;
+const CATEGORIZER_MODES = ['partition', 'reject'] as const;
 export type CategorizerMode = (typeof CATEGORIZER_MODES)[number];
 
 /** The derived model's reject radius in partition mode: nothing is ever rejected. */

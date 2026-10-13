@@ -29,13 +29,16 @@ export interface RecordingHost {
 
 let host: RecordingHost | null = null;
 
-/** Installed by the recording config store when it loads. */
-export function provideRecordingHost(next: RecordingHost | null): void {
+/** Installed by `installRecording()` (the recording config store), which App calls on
+ *  mount. Returns the host it replaced, so an installer can put that one back. */
+export function provideRecordingHost(next: RecordingHost | null): RecordingHost | null {
+  const previous = host;
   host = next;
+  return previous;
 }
 
 /** The installed host; throws, naming the seam, when none is. */
 export function recordingHost(): RecordingHost {
-  if (!host) throw new Error('recording host not installed: load src/app/recording/configStore before dispatching a recording command');
+  if (!host) throw new Error('recording host not installed: call installRecording() (src/app/recording/configStore) before dispatching a recording command');
   return host;
 }

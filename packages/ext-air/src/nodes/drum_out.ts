@@ -30,7 +30,7 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
-import { scheduleAt } from '@thoremin/sdk/timing/clock_map';
+import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import { createEventBatchParser } from '../lib/event_batch';
 import { DRUM_SOUNDS, DrumHitSchema, type DrumSound } from './air_drum';
@@ -93,6 +93,8 @@ const BRIGHTNESS_SPAN = 0.4;
 /** How much the rim raises pitch and filter (fraction) and shortens decay (fraction). */
 const RIM_PITCH = 0.3;
 const RIM_DECAY = 0.35;
+/** How much louder the rim makes the noise part (fraction at the rim): the edge rattles. */
+const RIM_NOISE_GAIN = 0.3;
 
 /**
  * The voice for one hit (#245): the drum's base voice, with loudness scaled by the
@@ -112,7 +114,7 @@ export function drumVoice(sound: DrumSound, velocity: number, touch: DrumTouch =
     // Both ends of a sweep move together, so a hard hit is brighter without a sustained
     // partial (the ride's) gliding in pitch.
     tones: base.tones.map((t) => ({ ...t, from: t.from * pitch * bright, to: t.to * pitch * bright, decay: t.decay * decay, gain: t.gain * v })),
-    noises: base.noises.map((n) => ({ ...n, freq: n.freq * pitch * bright, decay: n.decay * decay, gain: n.gain * v * (1 + 0.3 * r) })),
+    noises: base.noises.map((n) => ({ ...n, freq: n.freq * pitch * bright, decay: n.decay * decay, gain: n.gain * v * (1 + RIM_NOISE_GAIN * r) })),
   };
 }
 
@@ -126,6 +128,12 @@ export interface AudioClockLike {
  *  hosts; may be called without WebAudio resources), else the WebAudio one below over
  *  `audioContext` / `masterGain`. */
 export type DrumSinkFactory = (ac: AudioContext | undefined, destination: AudioNode | undefined) => DrumSink;
+
+/** The gain an exponential decay ramps to: an exponential ramp cannot reach 0, and this
+ *  is inaudible (-60 dB). */
+const DECAY_FLOOR_GAIN = 0.001;
+/** Seconds a voice keeps running after its decay ends, so the ramp is never cut. */
+const STOP_MARGIN_S = 0.02;
 
 /** Build a noise buffer once per context (a second of white noise). */
 function noiseBuffer(ac: AudioContext): AudioBuffer {
@@ -141,44 +149,44 @@ function noiseBuffer(ac: AudioContext): AudioBuffer {
  *  pair of inharmonic partials over noise (ride); each hit's voice from {@link drumVoice}. */
 export function createWebAudioDrumSink(ac: AudioContext, destination: AudioNode): DrumSink {
   let noise: AudioBuffer | null = null;
-  const tone = (freqFrom: number, freqTo: number, drop: number, decay: number, gain: number, when: number) => {
+  const tone = ({ from, to, drop, decay, gain }: ToneVoice, when: number) => {
     if (gain <= 0) return;
     const osc = ac.createOscillator();
     const g = ac.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(freqFrom, when);
-    osc.frequency.exponentialRampToValueAtTime(freqTo, when + drop);
+    osc.frequency.setValueAtTime(from, when);
+    osc.frequency.exponentialRampToValueAtTime(to, when + drop);
     g.gain.setValueAtTime(gain, when);
-    g.gain.exponentialRampToValueAtTime(0.001, when + decay);
+    g.gain.exponentialRampToValueAtTime(DECAY_FLOOR_GAIN, when + decay);
     osc.connect(g);
     g.connect(destination);
     osc.start(when);
-    osc.stop(when + decay + 0.02);
+    osc.stop(when + decay + STOP_MARGIN_S);
   };
-  const burst = (filterType: BiquadFilterType, freq: number, q: number, decay: number, gain: number, when: number) => {
+  const burst = ({ filter, freq, q, decay, gain }: NoiseVoice, when: number) => {
     if (gain <= 0) return;
     noise ??= noiseBuffer(ac);
     const src = ac.createBufferSource();
     src.buffer = noise;
     const f = ac.createBiquadFilter();
-    f.type = filterType;
+    f.type = filter;
     f.frequency.setValueAtTime(freq, when);
     f.Q.setValueAtTime(q, when);
     const g = ac.createGain();
     g.gain.setValueAtTime(gain, when);
-    g.gain.exponentialRampToValueAtTime(0.001, when + decay);
+    g.gain.exponentialRampToValueAtTime(DECAY_FLOOR_GAIN, when + decay);
     src.connect(f);
     f.connect(g);
     g.connect(destination);
     src.start(when);
-    src.stop(when + decay + 0.02);
+    src.stop(when + decay + STOP_MARGIN_S);
   };
   return {
     play(sound, velocity, when, touch) {
       if (!(velocity > 0)) return;
       const voice = drumVoice(sound, velocity, touch);
-      for (const t of voice.tones) tone(t.from, t.to, t.drop, t.decay, t.gain, when);
-      for (const n of voice.noises) burst(n.filter, n.freq, n.q, n.decay, n.gain, when);
+      for (const t of voice.tones) tone(t, when);
+      for (const n of voice.noises) burst(n, when);
     },
     close() {
       noise = null;
@@ -230,11 +238,11 @@ export const drumOutNode = defineNode<Params>({
         if (clock.state !== undefined && clock.state !== 'running') return {};
         const hits = batch.parse(raw, ctx.log);
         if (hits.length === 0) return {};
-        const outputStage = timingFrom(ctx.resources).outputStage.value;
+        const at: TickClock = { clock, nowEngine: ctx.time, stage: timingFrom(ctx.resources).outputStage.value };
         for (const hit of hits) {
           if (!DRUM_SOUNDS.includes(hit.sound)) continue;
           // Never in the past: a ghost note (or a late prediction) sounds at once.
-          const when = scheduleAt(clock, hit.t, ctx.time, outputStage);
+          const when = scheduleAt(hit.t, at);
           sink.play(hit.sound, hit.velocity, when, { radial: hit.radial ?? 0 });
         }
         return {};

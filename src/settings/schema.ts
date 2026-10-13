@@ -34,13 +34,6 @@ import { EXTENSION_SETTINGS_SHAPE, EXTENSION_TRANSIENT_FIELDS, type ExtensionTra
 export const BUILTIN_PIECE = 'builtin';
 /** The default piece: the shipped Beethoven 5 opening (see `src/score/library.ts`). */
 export const DEFAULT_PIECE = 'beethoven-symphony-5-1';
-/**
- * The conductor settings (#187): the node's own params (lifted 1:1, the `faceControls`
- * pattern) plus `piece` — WHICH score to conduct (a shipped demo's id, a saved score's
- * id, or {@link BUILTIN_PIECE}). `piece` is an app-level selection the node never sees
- * (the node's `config` port strips it): the app's `ScoreLoader` watches it and hands the
- * loaded `ScoreDoc` to the graph.
- */
 /** What an instrument saved before the conductor dial had a `prior` field (#232) is
  *  played by: the oscillator, which is what it was played by when it was saved. The
  *  schema's default (`blend`) is for instruments made from now on; `normalizeLayer`
@@ -48,6 +41,13 @@ export const DEFAULT_PIECE = 'beethoven-symphony-5-1';
  *  the key, so adding the field changed no saved instrument's behaviour. */
 export const LEGACY_CONDUCTOR_PRIOR = 'oscillator' as const;
 
+/**
+ * The conductor settings (#187): the node's own params (lifted 1:1, the `faceControls`
+ * pattern) plus `piece` — WHICH score to conduct (a shipped demo's id, a saved score's
+ * id, or {@link BUILTIN_PIECE}). `piece` is an app-level selection the node never sees
+ * (the node's `config` port strips it): the app's `ScoreLoader` watches it and hands the
+ * loaded `ScoreDoc` to the graph.
+ */
 export const ConductorSettingsSchema = ConductorDialSchema.extend({
   piece: z.string().default(DEFAULT_PIECE),
   /** The sampled orchestra (#187 PR 5): on/off, overall and per-section level. Like
