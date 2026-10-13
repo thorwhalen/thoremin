@@ -35,6 +35,7 @@ Lighting gets no dial: [`docs/research/face-categorizer-lighting-and-distance.md
 In the instrument editor (**Edit** an instrument), the **Face categorizer** section:
 
 - **Reads your face with**: *The general model* (the default, so nothing changes for an existing instrument) or one of your saved categorizers. Choosing one turns the face chords on if the face played nothing yet, and puts every category's chord back to Auto. Three clicks from a cold load: Edit, the section, the categorizer.
+- **Under the section**, one line says what the face chords read with right now: *Reading with* your categorizer, *Loading…*, *Not on this device: the general model plays*, or *The general model*. (The host shows extension readouts under an instrument's row only for the air and sign instruments, so the section is where this one lives; #367.)
 - **The chord each of your faces plays**: *Auto* plays the chord this instrument gives the expression the face stands in for (its one-to-one match with the general model, the same match that named it; a face the general model does not recognise takes an expression no other face took). Or pick a degree, or *Silence*.
 
 What plays:

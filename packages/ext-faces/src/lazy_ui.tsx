@@ -13,18 +13,30 @@ import CategorizerSection from './panels/CategorizerSection';
 import { startCategorizerPlay, useCategorizerPlay } from './app/categorizerPlay';
 import { FACES_TOOL } from './ui';
 
-/** One line under the section: which categorizer the face chords read right now. */
+/** One line: which categorizer the face chords read right now. */
 function CategorizerReadout() {
   const play = useCategorizerPlay();
   const { state } = useDialsSettings();
   const chords = (state.effective as Record<string, unknown>)['face.mapping'] === 'chord';
   const text = play.phase === 'ready' ? (chords ? `Reading with ${play.name}` : `${play.name}, for the face chords (off)`) : play.phase === 'loading' ? 'Loading…' : play.phase === 'missing' ? 'Not on this device: the general model plays' : 'The general model';
-  return <span className="text-[10px] text-white/50">{text}</span>;
+  return <span className="text-[10px] text-white/50" data-faces-readout>{text}</span>;
+}
+
+/** The section, with the readout under it: the host renders an extension's `Readout` only under
+ *  an air or sign instrument's row (`AIR_INSTRUMENTS`), which a categorizer is not, so the
+ *  section is where the player sees what the face chords read with (#359). */
+function CategorizerControls() {
+  return (
+    <div className="space-y-1">
+      <CategorizerSection />
+      <CategorizerReadout />
+    </div>
+  );
 }
 
 export const FACES_UI: ExtensionUi = {
   id: 'faces',
-  panels: [{ instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerSection, Readout: CategorizerReadout }],
+  panels: [{ instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerControls, Readout: CategorizerReadout }],
   statusHooks: [],
   // Resolve the categorizer the instrument names and hand it to the DAG, for the app's lifetime.
   // A host with no hot store (a headless test that loads this half) has nothing to resolve.

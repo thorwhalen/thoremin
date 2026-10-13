@@ -309,7 +309,9 @@ export default function InstrumentsPanel() {
 
   const openEditor = (name: string) => {
     setEditorLead(library.summaryOf(name)?.air ?? []);
-    select(name);
+    // Editing the instrument already chosen keeps its unsaved edits: selecting reloads the saved
+    // layer, which is a revert, and the gear means "edit", not "revert" (#359).
+    if (name !== selected) select(name);
     setConfirming(false);
     setView('editor');
   };
