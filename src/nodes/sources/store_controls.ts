@@ -165,6 +165,9 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     { name: 'hushVoices', kind: 'boolean' },
     { name: 'muteAll', kind: 'boolean' },
     { name: 'muteStrikes', kind: 'boolean' },
+    // A tool holds the room (`hushOf`'s claim) — what MIDI out silences on regardless of
+    // the `midi.muteFollowsMaster` dial, which governs only the player's `mute` (#168 Q3).
+    { name: 'claimed', kind: 'boolean' },
     { name: 'overlay', kind: 'overlay-config' },
     // The right voice's melody scale spec (kept for reference/back-compat).
     { name: 'rightSpec', kind: 'scale-spec' },
@@ -250,6 +253,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
           hushVoices: hush.hushVoices,
           muteAll: hush.muteAll,
           muteStrikes: hush.muteStrikes,
+          claimed: hush.claimed,
           midiEnabled: c.midi?.enabled ?? false,
           midiPort: c.midi?.port ?? '',
           midiMuteFollowsMaster: c.midi?.muteFollowsMaster ?? true,

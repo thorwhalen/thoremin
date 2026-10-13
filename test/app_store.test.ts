@@ -277,11 +277,24 @@ describe('persist migration (v1 → v2, returning users)', () => {
     // played with — through this same heal, so no persist-version bump was needed.
     expect(mergeControls({ midi: { enabled: true, port: 'IAC' } as never }, initial).midi.muteFollowsMaster).toBe(true);
     expect(mergeControls({ midi: { enabled: true, port: 'IAC', muteFollowsMaster: false } }, initial).midi.muteFollowsMaster).toBe(false);
-    // A corrupt value falls back to the default whole (never a crash, never undefined).
+    // A corrupt value falls back to the default (never a crash, never undefined)...
     expect(mergeControls({ midi: { enabled: 'yes', port: 3 } as never }, initial).midi).toEqual({
       enabled: false,
       port: '',
       muteFollowsMaster: true,
+    });
+    // ...FIELD BY FIELD: one bad field must not reset the player's other MIDI choices.
+    for (const bad of [null, 'yes', 1]) {
+      expect(mergeControls({ midi: { enabled: true, port: 'IAC', muteFollowsMaster: bad } as never }, initial).midi).toEqual({
+        enabled: true,
+        port: 'IAC',
+        muteFollowsMaster: true,
+      });
+    }
+    expect(mergeControls({ midi: { enabled: true, port: 3, muteFollowsMaster: false } as never }, initial).midi).toEqual({
+      enabled: true,
+      port: '',
+      muteFollowsMaster: false,
     });
   });
 

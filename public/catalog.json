@@ -1795,6 +1795,11 @@
         "name": "muteFollowsMaster",
         "kind": "boolean",
         "default": true
+      },
+      {
+        "name": "claimed",
+        "kind": "boolean",
+        "default": false
       }
     ],
     "outputs": [
@@ -2424,6 +2429,10 @@
       },
       {
         "name": "muteStrikes",
+        "kind": "boolean"
+      },
+      {
+        "name": "claimed",
         "kind": "boolean"
       },
       {

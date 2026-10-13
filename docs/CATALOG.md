@@ -115,7 +115,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -471,7 +471,7 @@ Steers a generative engine (Lyria RealTime) from weighted prompts + config dials
 Sends the merged voices to a Web MIDI output as note-on/off + CC (WEBMIDI.js). Off by default; gracefully disabled where Web MIDI is unsupported (Safari/iOS).
 
 - **roles:** synth
-- **in:** params:synth-params, enabled:boolean, port:string, mute:boolean, muteFollowsMaster:boolean
+- **in:** params:synth-params, enabled:boolean, port:string, mute:boolean, muteFollowsMaster:boolean, claimed:boolean
 - **out:** status:midi-status
 - **params:** channel (number=1), fullVelocityGain (number=0.5), minVelocity (number=1), noteHysteresis (number=0.1), cc (object={"expression":11,"brightness":74,"vibrato":1,"pan":10})
 

@@ -76,7 +76,8 @@ function spec(wiring: Wiring): GraphSpec {
         ? [e('ui', 'mute', 'map', 'mute'), e('merge', 'params', 'midiOut', 'params')]
         : [
             e('merge', 'unmuted', 'midiOut', 'params'),
-            e('ui', 'muteAll', 'midiOut', 'mute'),
+            e('ui', 'mute', 'midiOut', 'mute'),
+            e('ui', 'claimed', 'midiOut', 'claimed'),
             e('ui', 'midiMuteFollowsMaster', 'midiOut', 'muteFollowsMaster'),
           ]),
     ],
@@ -87,7 +88,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 /** Run the sweep with a mute window (or none) and return the per-tick MIDI event log as
  *  NDJSON — one line per tick, so a diff reads as "what changed at tick N". */
-async function run(wiring: Wiring, opts: { mute: boolean; muteFollowsMaster?: boolean }): Promise<string> {
+async function run(wiring: Wiring, opts: { mute: boolean; muteFollowsMaster?: boolean; claim?: boolean }): Promise<string> {
   const sink = new LogSink();
   const factory: MidiSinkFactory = async () => ({ sink, ports: [sink.portName] });
   useControls.setState({
@@ -102,8 +103,9 @@ async function run(wiring: Wiring, opts: { mute: boolean; muteFollowsMaster?: bo
   });
   const lines: string[] = [];
   for (let tick = 0; tick < TICKS; tick++) {
-    if (opts.mute && tick === MUTE_AT) useControls.getState().setMuted(true);
-    if (opts.mute && tick === UNMUTE_AT) useControls.getState().setMuted(false);
+    // The mute window is the player's M, or (a claim) the Trainer holding the room.
+    if (opts.mute && tick === MUTE_AT) (opts.claim ? useControls.getState().setHush('trainer', true) : useControls.getState().setMuted(true));
+    if (opts.mute && tick === UNMUTE_AT) (opts.claim ? useControls.getState().setHush('trainer', false) : useControls.getState().setMuted(false));
     eng.tick();
     if (tick === 0) await flush(); // the port opens asynchronously; from tick 1 on it is attached
     lines.push(JSON.stringify({ tick, events: sink.events }));
@@ -154,6 +156,21 @@ describe.skipIf(process.env.THOREMIN_WRITE_MIDI_BASELINE)('midi.muteFollowsMaste
     const unmuted = await run('dial', { mute: false });
     expect(await run('dial', { mute: true, muteFollowsMaster: false })).toBe(unmuted);
     expect(unmuted).not.toBe(readFileSync(BASELINE, 'utf8'));
+  });
+
+  it('dial OFF: the player\'s M alone — note-ons continue through the mute window', async () => {
+    const log = parse(await run('dial', { mute: true, muteFollowsMaster: false }));
+    expect(log.slice(MUTE_AT, UNMUTE_AT).some((l) => l.events.some((ev) => ev[0] === 'on'))).toBe(true);
+  });
+
+  it('dial OFF: a tool claim (the Trainer) still silences MIDI — the dial governs only the player\'s M', async () => {
+    const log = parse(await run('dial', { mute: true, muteFollowsMaster: false, claim: true }));
+    const at = (tick: number) => log[tick].events;
+    expect(at(MUTE_AT).some((ev) => ev[0] === 'off')).toBe(true);
+    for (let t = MUTE_AT; t < UNMUTE_AT; t++) expect(at(t).filter((ev) => ev[0] === 'on'), `tick ${t}`).toEqual([]);
+    expect(at(UNMUTE_AT).some((ev) => ev[0] === 'on')).toBe(true);
+    // And with the dial on, a claim is exactly the player's mute: the baseline bytes.
+    expect(await run('dial', { mute: true, muteFollowsMaster: true, claim: true })).toBe(readFileSync(BASELINE, 'utf8'));
   });
 
   it('the legacy wiring still produces the baseline (the dump is reproducible)', async () => {

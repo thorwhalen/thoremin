@@ -50,10 +50,11 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'graphElements' }, to: { node: 'overlay', port: 'elements' } },
   // #148: the handedness dwell dial reaches the sound path's hand reader live.
   { from: { node: 'ui', port: 'handednessDwell' }, to: { node: 'feat', port: 'handednessDwell' } },
-  // #168 Q3: MIDI out reads the merge before the master mute, and takes the mute and the
-  // `midi.muteFollowsMaster` dial as live inputs.
+  // #168 Q3: MIDI out reads the merge before the master mute, and takes the player's
+  // mute, a tool's claim and the `midi.muteFollowsMaster` dial as live inputs.
   { from: { node: 'merge', port: 'unmuted' }, to: { node: 'midiOut', port: 'params' } },
-  { from: { node: 'ui', port: 'muteAll' }, to: { node: 'midiOut', port: 'mute' } },
+  { from: { node: 'ui', port: 'mute' }, to: { node: 'midiOut', port: 'mute' } },
+  { from: { node: 'ui', port: 'claimed' }, to: { node: 'midiOut', port: 'claimed' } },
   { from: { node: 'ui', port: 'midiMuteFollowsMaster' }, to: { node: 'midiOut', port: 'muteFollowsMaster' } },
 ];
 

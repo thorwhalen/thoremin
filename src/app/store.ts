@@ -336,6 +336,20 @@ function migrateInstrumentField(obj: unknown): void {
  * timbre field was renamed `instrument` → `sound`; a returning player's saved
  * `instrument` becomes `sound` so they keep their sound. Exported for direct testing.
  */
+/** The MIDI block healed field by field against its schema: a field that parses is kept,
+ *  one that is absent or corrupt takes `fallback`'s value (the shipped default on a first
+ *  load). Never throws, never undefined. */
+function healMidi(stored: unknown, fallback: MidiSettings): MidiSettings {
+  const raw = stored && typeof stored === 'object' ? (stored as Record<string, unknown>) : {};
+  const out: Record<string, unknown> = { ...DEFAULT_MIDI, ...fallback };
+  for (const [key, field] of Object.entries(MidiSettingsSchema.shape)) {
+    if (!(key in raw)) continue;
+    const r = field.safeParse(raw[key]);
+    if (r.success) out[key] = r.data;
+  }
+  return out as MidiSettings;
+}
+
 export function migrateControls(persisted: unknown, version: number): ControlState {
   const s = { ...(persisted as Record<string, unknown>) };
   if (version < 2) {
@@ -469,15 +483,10 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       handMap = current.handMap;
     }
   }
-  // Heal the MIDI settings (#137): a pre-MIDI blob has none → off / first port.
-  let midi = current.midi;
-  if (p.midi) {
-    try {
-      midi = MidiSettingsSchema.parse({ ...DEFAULT_MIDI, ...p.midi });
-    } catch {
-      midi = current.midi;
-    }
-  }
+  // Heal the MIDI settings (#137): a pre-MIDI blob has none → off / first port. Field by
+  // field (#168 Q3): one corrupt field (a `muteFollowsMaster` of null or "yes" from a bad
+  // write) takes its default alone and must not reset the player's `enabled` and `port`.
+  const midi = healMidi(p.midi, current.midi);
   // Heal the hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
   let hands = current.hands;
   if (p.hands) {

@@ -234,10 +234,12 @@ export const midiOut = defineBranch({
   description: 'The merged voices as MIDI, when enabled.',
   nodes: [{ id: 'midiOut', type: 'midi-out', params: {} }],
   edges: [
-    // The merge BEFORE the master mute, plus the mute itself and the dial that says
-    // whether it applies to MIDI (#168 Q3): `midi.muteFollowsMaster`, on by default.
+    // The merge BEFORE the master mute, plus the player's mute and the dial that says
+    // whether it applies to MIDI (#168 Q3): `midi.muteFollowsMaster`, on by default. A
+    // tool's claim (the Trainer) is its own port and always silences.
     to({ node: TRUNK.merge, port: 'unmuted' }, { node: 'midiOut', port: 'params' }),
-    to(ui('muteAll'), { node: 'midiOut', port: 'mute' }),
+    to(ui('mute'), { node: 'midiOut', port: 'mute' }),
+    to(ui('claimed'), { node: 'midiOut', port: 'claimed' }),
     to(ui('midiMuteFollowsMaster'), { node: 'midiOut', port: 'muteFollowsMaster' }),
     to(ui('midiEnabled'), { node: 'midiOut', port: 'enabled' }),
     to(ui('midiPort'), { node: 'midiOut', port: 'port' }),

@@ -92,7 +92,10 @@ export function MidiControls() {
       <MidiStatusReadout enabled={enabled} />
       {/* #168 Q3: what the master mute means once a DAW is the instrument. On (the
           default) is what the instrument always did; off mutes only the local monitor. */}
-      <label className="flex items-center gap-2 text-xs">
+      <label
+        className="flex items-center gap-2 text-xs"
+        title="On: the M key mutes the sound here and stops the MIDI notes. Off: M mutes only the sound here; the notes keep flowing to your DAW (the muted badge then says so)."
+      >
         <input
           type="checkbox"
           checked={muteFollowsMaster}

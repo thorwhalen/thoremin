@@ -148,7 +148,11 @@ describe('production app graph', () => {
     // the dial could never keep notes flowing through a mute; with either of the two
     // ports unconnected the dial would be a switch nothing reads (#120 again).
     expect(has('merge', 'unmuted', 'midiOut', 'params')).toBe(true);
-    expect(has('ui', 'muteAll', 'midiOut', 'mute')).toBe(true);
+    // The PLAYER's mute (not `muteAll`: a tool's claim must not be switchable off by the
+    // dial), and the claim on its own port.
+    expect(has('ui', 'mute', 'midiOut', 'mute')).toBe(true);
+    expect(has('ui', 'claimed', 'midiOut', 'claimed')).toBe(true);
+    expect(has('ui', 'muteAll', 'midiOut', 'mute')).toBe(false);
     expect(has('ui', 'midiMuteFollowsMaster', 'midiOut', 'muteFollowsMaster')).toBe(true);
     expect(has('merge', 'params', 'midiOut', 'params')).toBe(false);
     // And the mapping node no longer mutes at the source: the merge is the one place the
@@ -164,6 +168,7 @@ describe('production app graph', () => {
     expect(inbound).toContain('params');
     expect(inbound).toContain('mute');
     expect(inbound).toContain('muteFollowsMaster');
+    expect(inbound).toContain('claimed');
   });
 
   it('wires the face CONTROL axis tuning live from the store — the #76 regression guard', () => {
