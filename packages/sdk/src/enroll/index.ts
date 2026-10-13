@@ -297,6 +297,8 @@ export {
   recutBounds,
   recutRange,
   sampleIds,
+  setNeutralTrained,
+  setStrangers,
   splitCategory,
   type MoveOptions,
   type Place,

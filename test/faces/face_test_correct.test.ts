@@ -54,7 +54,7 @@ const TAKE_MS = SYNTHETIC_TIMELINE.restMs + 12 * (SYNTHETIC_TIMELINE.holdMs + SY
 async function savedAndOpen(mode: 'reject' | 'partition' = 'reject') {
   const store = createFaceSessionStore(sessionDeps());
   const s = () => store.getState();
-  s().setMode(mode);
+  s().setStrangers(mode === 'reject' ? 'neutral' : 'nearest');
   s().start();
   await run(TAKE_MS);
   await s().stop();

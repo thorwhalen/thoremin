@@ -222,12 +222,14 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
 function Bin({ which, grid }: { which: typeof NEUTRAL_BIN | typeof ASIDE_BIN; grid: GridApi }) {
   const neutral = which === NEUTRAL_BIN;
   const bin = neutral ? grid.view.neutral : grid.view.aside;
-  const plays = grid.view.mode === 'reject';
-  const title = neutral ? `Neutral: ${plays ? 'plays nothing' : 'not trained on'}` : 'Set aside: not used, not sure yet';
+  const taught = grid.view.neutralTrained;
+  const title = neutral ? `Neutral: ${taught ? 'plays nothing' : 'not trained on'}` : 'Set aside: not used, not sure yet';
   const says = neutral
-    ? plays
-      ? 'Holds like your resting face. They read as none of these.'
-      : 'Not trained on. With every face a category, a face like these still reads as its nearest category.'
+    ? taught
+      ? 'Faces that mean nothing (your resting face, and any you put here). A face like these reads as none of these.'
+      : grid.view.strangers === 'neutral'
+        ? 'Not trained on (this categorizer was made before Neutral was taught): only a face far from every category reads as none of these.'
+        : 'Not trained on (this categorizer was made before Neutral was taught): a face like these still reads as its nearest category.'
     : 'Kept in the categorizer, not trained on. Move them back any time.';
   return (
     <div {...(neutral ? { 'data-face-neutral': true } : { 'data-face-aside': true })} className="space-y-1.5 rounded-lg border border-dashed border-white/15 p-2" {...dropTarget(grid, which)}>
@@ -235,6 +237,11 @@ function Bin({ which, grid }: { which: typeof NEUTRAL_BIN | typeof ASIDE_BIN; gr
         {title} <span className="font-normal text-white/40">{`(${bin.count}${neutral ? ', key N' : ', key S'})`}</span>
       </p>
       <p className="text-[10px] text-white/40">{bin.count === 0 ? `Empty. Drag holds here, or select them and press ${neutral ? 'N' : 'S'}.` : says}</p>
+      {neutral && !taught && bin.count > 0 && (
+        <button type="button" data-faces-teach-neutral className="rounded-md border border-sky-400/40 bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold text-sky-100 hover:bg-sky-500/25" onClick={() => grid.s.teachNeutral()}>
+          Teach Neutral from these
+        </button>
+      )}
       {bin.count > 0 && <Strip holds={bin.exemplars} label={neutral ? 'neutral' : 'set aside'} place={which} grid={grid} />}
     </div>
   );

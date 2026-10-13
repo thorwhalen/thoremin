@@ -8,10 +8,10 @@
  * - **Sensitivity** scales how far a live face is from the player's resting face before it is
  *   classified: `rest + s (v - rest)`. Above 1 a smaller face reaches its category (a tired
  *   evening, a face that is smaller than it was in the take); below 1 it takes a bigger one.
- *   The rest is the categorizer's own neutral: the samples no category claims in `reject` mode
- *   (the faces the take set aside as neutral), the category named `neutral` in `partition`
- *   mode. A categorizer with neither has no rest to scale from, and the dial says so
- *   ({@link LiveModel.rest} is null).
+ *   The rest is the categorizer's own neutral: its Neutral holds when strangers read as Neutral
+ *   or Neutral is taught (#385 E5), else the category named `neutral` (an older file whose
+ *   every face was a category). A categorizer with neither has no rest to scale from, and the
+ *   dial says so ({@link LiveModel.rest} is null).
  * - **Reject radius** (`reject` mode only) scales the distance beyond which a face is "none of
  *   these". It scales a FLOORED base: the stored radius, raised to the distance that accepts
  *   {@link LIVE_DEFAULTS.acceptQuantile} of the categorizer's own samples (the `trainModel`
@@ -132,12 +132,13 @@ function meanOver(vectors: readonly FeatureVector[], features: readonly string[]
   return out;
 }
 
-/** The categorizer's resting face: its neutral samples (strangers read as neutral), or its
- *  `neutral` category (strangers read as the nearest); null when it has neither. */
+/** The categorizer's resting face: its Neutral samples (strangers read as Neutral, or Neutral is
+ *  taught and has holds), or its `neutral` category (an older file whose every face was a
+ *  category); null when it has neither. */
 export function restOf(categorizer: PersonalCategorizer, features: readonly string[], { modality = faceModality }: ModalityOption = {}): FeatureVector | null {
   const vectors = categorizer.samples.map((s) => s.vector);
   let idx: number[];
-  if (categorizer.strangers === 'neutral') {
+  if (categorizer.strangers === 'neutral' || (categorizer.neutralTrained && categorizer.neutral.length > 0)) {
     idx = neutralSampleIndices(categorizer);
   } else {
     const at = memberIndices(categorizer);
@@ -276,6 +277,10 @@ export interface LiveReading {
   label: string | null;
   /** This frame is beyond the reject radius of every category. */
   rejected: boolean;
+  /** This frame is nearest the taught Neutral class (#385 E5): none of these, by example. */
+  neutral: boolean;
+  /** The taught Neutral class's share of this frame's memberships (0 without one). */
+  neutralMembership: number;
   /** This frame's soft memberships, in the categorizer's order. */
   memberships: readonly { id: string; label: string; value: number }[];
   /** This frame's distance to the nearest category (noise units). */
@@ -304,11 +309,14 @@ export function createLiveReader(live: LiveModel): LiveReader {
     live,
     push(vector) {
       const r = tracker.push(tuneVector(live, vector));
-      const rejected = radius !== null && r.distance > radius;
+      const neutral = r.neutral === true;
+      const rejected = !neutral && radius !== null && r.distance > radius;
       return {
         categoryId: r.categoryId,
         label: r.categoryId ? (labels.get(r.categoryId) ?? null) : null,
         rejected,
+        neutral,
+        neutralMembership: r.neutralMembership ?? 0,
         memberships: live.model.categories.map((c) => ({ id: c.id, label: c.label, value: r.memberships[c.id] ?? 0 })),
         distance: r.distance,
         radius,

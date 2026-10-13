@@ -148,20 +148,20 @@ describe('one editable carve: the store', () => {
 });
 
 describe('one editable carve: what the adversarial review broke', () => {
-  it('a mode switch with nothing to carve keeps the edits, and switching back carves them', async () => {
+  it('the strangers switch keeps every edit: it moves no hold and re-cuts nothing (#385 E5)', async () => {
     const store = await carved();
     const s = () => store.getState();
-    const cloud = new Set(s().working!.neutral);
-    expect(cloud.size).toBeGreaterThan(0);
-    s().setMode('partition');
-    const notCloud = s().working!.samples.map((x) => x.id).filter((id) => !cloud.has(id));
-    expect(s().deleteHolds(notCloud)).toBe(true);
-    const left = s().working!.samples.length;
-    s().setMode('reject');
-    expect(s().working).toBeNull();
-    expect(s().view!.neutral.count).toBe(left);
-    s().setMode('partition');
-    expect(s().working!.samples).toHaveLength(left);
+    const w = s().working!;
+    expect(s().moveHolds([w.categories[0].members[0]], ASIDE_BIN)).toBe(true);
+    expect(s().deleteHolds([w.categories[1].members[0]])).toBe(true);
+    const edited = s().working!;
+    const placed = (c: typeof edited) => ({ samples: c.samples, categories: c.categories, neutral: c.neutral, aside: c.aside, pins: c.pins });
+    s().setStrangers('nearest');
+    expect(s().working!.strangers).toBe('nearest');
+    expect(placed(s().working!)).toEqual(placed(edited));
+    s().setStrangers('neutral');
+    expect(placed(s().working!)).toEqual(placed(edited));
+    expect(s().working!.rejectRadius).toBeGreaterThan(0);
   });
 
   it('names saved without pins (an older file) survive a re-cut', async () => {

@@ -82,19 +82,28 @@ describe('the face session store', () => {
     await s().stop();
     expect(claims).toEqual([true, false]);
     expect(s().phase).toBe('carved');
-    // Default mode: neutral is "none of these"; three expressions.
-    expect(s().mode).toBe('reject');
+    // By default a face nobody taught reads as Neutral; the rest seeds Neutral; three expressions.
+    expect(s().strangers).toBe('neutral');
     expect(s().view!.k).toBe(3);
     expect(s().view!.neutral.count).toBeGreaterThan(0);
+    expect(s().working!.neutralTrained).toBe(true);
     expect(s().hasStills).toBe(false);
 
-    // Neutral in: k grows by one, a category is "neutral".
-    s().setMode('partition');
-    expect(s().view!.mode).toBe('partition');
-    expect(s().view!.k).toBe(4);
-    expect(s().view!.categories.map((c) => c.label)).toContain('neutral');
-    s().setMode('reject');
-    expect(s().view!.k).toBe(3);
+    // The strangers switch (#385 E5): no hold moves and nothing is re-cut; only the reject
+    // radius goes (the nearest face) and comes back (Neutral), as one undoable edit each.
+    const before = s().working!;
+    s().setStrangers('nearest');
+    expect(s().strangers).toBe('nearest');
+    expect(s().working!.rejectRadius).toBeUndefined();
+    expect(s().working!.neutral).toEqual(before.neutral);
+    expect(s().working!.categories).toEqual(before.categories);
+    s().setStrangers('neutral');
+    expect(s().working!.rejectRadius).toBeGreaterThan(0);
+    expect(s().working!.categories).toEqual(before.categories);
+    s().undo();
+    expect(s().working!.strangers).toBe('nearest');
+    s().redo();
+    expect(s().working!.strangers).toBe('neutral');
 
     // Re-cut k without recording again.
     s().setK(2);

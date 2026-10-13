@@ -21,8 +21,9 @@
 // (umap-js), which this extension does not use.
 import { applyLabels, matchLabels, type LabelMatch } from '@thoremin/sdk/enroll/match';
 import { createCarver, neutralIndices, type Carver } from '@thoremin/sdk/enroll/carve';
-import { categorizerMode, modelFromCategorizer, type CategorizerMode, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { categorizerMode, modelFromCategorizer, type CategorizerMode, type CategorizerStrangers, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { carryLabels } from '@thoremin/sdk/enroll/from_model';
+import { recut, recutRange, type SortResult } from '@thoremin/sdk/enroll/sorting';
 import { weightedDistance } from '@thoremin/sdk/enroll/cluster';
 import { exemplarsByCategory, selectExemplars, type Exemplar } from '@thoremin/sdk/enroll/exemplars';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
@@ -264,6 +265,10 @@ export interface SortedBin {
 
 /** The sorting view (#385 E4): every hold shown, the bins, the pins and the range of k. */
 export interface SortingView extends CarveView {
+  /** What a face nobody taught reads as (#385 E5): the strangers switch. */
+  strangers: CategorizerStrangers;
+  /** Whether the Neutral holds are trained as the null class (false: an older file, migrated). */
+  neutralTrained: boolean;
   /** The smallest k a re-cut allows (the pinned categories). */
   minK: number;
   aside: SortedBin;
@@ -309,6 +314,8 @@ export function sortingView(
   };
   return {
     mode: categorizerMode(c),
+    strangers: c.strangers,
+    neutralTrained: c.neutralTrained,
     k: model.categories.length,
     minK: range.minK,
     suggestedK: range.suggestedK,
@@ -325,4 +332,33 @@ export function sortingView(
     ids: c.samples.map((s) => s.id),
     recutable: range.recutable ?? true,
   };
+}
+
+/** What {@link carveTake} needs besides the take's categorizer. */
+export interface CarveTakeInput {
+  /** The rest cloud (hold ids): what seeds Neutral. Null when there was too little rest to say. */
+  cloud: ReadonlySet<string> | null;
+  /** The rest take's frames: what the reject radius is trained from. */
+  rest: readonly FeatureVector[];
+  /** The reject radius when there is no rest to train it from. */
+  baseRejectRadius?: number;
+  /** The most categories the carve makes. */
+  maxCategories: number;
+}
+
+/**
+ * A fresh take carved at the suggested k (#385 E4, E5): the rest cloud seeds Neutral, in either
+ * setting of the strangers switch (Neutral is taught by example; the switch says only what a face
+ * nobody taught reads as), and every other hold is carved. When every hold is close to the rest
+ * there is nothing else to carve: then every hold is carved (`allNearRest`), for the player to
+ * move their resting faces to Neutral, rather than an empty grid.
+ */
+export function carveTake(base: PersonalCategorizer, input: CarveTakeInput): { result: SortResult; allNearRest: boolean } {
+  const carve = (neutral: ReadonlySet<string>): SortResult => {
+    const options = { rest: input.rest, baseRejectRadius: input.baseRejectRadius, neutral };
+    return recut(base, Math.min(recutRange(base, options).suggestedK, input.maxCategories), options);
+  };
+  const seeded = carve(input.cloud ?? new Set<string>());
+  if (seeded.ok || !input.cloud || input.cloud.size === 0) return { result: seeded, allNearRest: false };
+  return { result: carve(new Set<string>()), allNearRest: true };
 }

@@ -35,6 +35,7 @@ import {
   NO_REJECT_RADIUS,
   PersonalCategorizerSchema,
   memberIndices,
+  modelFromCategorizer,
   toSample,
   type CategorizerSample,
   type PersonalCategorizer,
@@ -119,6 +120,9 @@ export function mergeSession(
   const fresh = points.map((p) => toSample(p, features));
   const rejecting = valid.strangers === 'neutral';
   const reject = rejecting ? valid.rejectRadius! : Infinity;
+  // The base's taught Neutral class (#385 E5): a new face nearest it is Neutral too. Fixed, as
+  // the base's samples are; a `centroids` seed keeps none of the base's Neutral holds.
+  const nullClass = seed === 'samples' ? (modelFromCategorizer(valid).neutral ?? []) : [];
 
   let centroids = baseCentroids;
   let assigned = fresh.map(() => -1);
@@ -135,6 +139,7 @@ export function mergeSession(
           best = i;
         }
       });
+      if (nullClass.some((c) => dist(p.vector, c.centroid) < bestD)) return -1;
       return bestD <= reject ? best : -1;
     });
     const moved = passes === 0 || next.some((a, i) => a !== assigned[i]);
