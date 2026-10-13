@@ -47,7 +47,7 @@ export interface DerivationSettings {
   faceMapping?: string;
   body?: { enabled?: boolean };
   bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
-  conductor?: { enabled?: boolean; conducts?: string; source?: string; orchestra?: { enabled?: boolean } };
+  conductor?: { enabled?: boolean; conducts?: string; source?: string; expression?: string; orchestra?: { enabled?: boolean } };
   midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
   /** The per-device song pref (#186 PR H): `follow` composes the pace branch. */
@@ -69,7 +69,7 @@ export interface StrictDerivationSettings {
   faceMapping: string;
   body: { enabled: boolean };
   bodyMap: { routes: Record<string, { target: string; feature: string }> };
-  conductor: { enabled: boolean; conducts: string; source: string; orchestra: { enabled: boolean } };
+  conductor: { enabled: boolean; conducts: string; source: string; expression: string; orchestra: { enabled: boolean } };
   midi: { enabled: boolean };
   steer: { enabled: boolean };
   songPrefs: { follow: boolean };
@@ -110,11 +110,12 @@ export function songConducted(settings: Pick<DerivationSettings, 'conductor' | '
   return settings.conductor?.enabled === true && settings.conductor.conducts === 'recording' && settings.songHandle != null;
 }
 
-/** Whether the conductor reads the body (#375): its source is `body`. The body source is
+/** Whether the conductor reads the body (#375): its source is `body`, or the body shapes its
+ *  expression (#378, `expression: body` while a hand beats). The body source is
  *  then composed with the conductor branch, whenever that branch is (so the pose model
  *  loads before the first beat, as the orchestra's soundfont does). */
 export function conductorReadsBody(settings: Pick<DerivationSettings, 'conductor'>): boolean {
-  return settings.conductor?.source === 'body';
+  return settings.conductor?.source === 'body' || settings.conductor?.expression === 'body';
 }
 
 /**

@@ -284,3 +284,75 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
     },
   };
 }
+
+/**
+ * What the body says about expression, per pose frame (#378, body-movement A6): the
+ * channels `createExpressionBlend` (ictus) normalises per player and blends with the
+ * strokes' own dynamics.
+ *
+ * - `motion`: the quantity of motion ({@link bodyQuantityOfMotion}, torso lengths per second).
+ * - `extension`: how straight the beating arm is, the shoulder-to-wrist distance over the
+ *   upper arm plus the forearm (0 folded .. 1 straight). The arm's own segments are the
+ *   unit, so neither the camera's distance nor the player's size enters. The catalog's
+ *   `body.shape.extension` (head, hands and feet from the hips) is not used: a waist-up
+ *   conductor has no feet in frame, and the arm is what reaches out on a loud beat.
+ * - `jerk`: the beating wrist's third difference over the frame times cubed, in torso
+ *   lengths (Laban flow, the catalog's `body.effort.flow` idea on the one point that beats).
+ *
+ * The beating arm is the named side, or with `auto` the arm whose wrist is higher (the
+ * transport's choice). A landmark below `minVisibility` is unseen; an unseen channel is
+ * absent rather than zero.
+ */
+export interface BodyExpressionMeter {
+  push(f: BodyFrame, t: number, side: BodySide): { t: number; motion?: number; extension?: number; jerk?: number };
+  reset(): void;
+}
+
+export function createBodyExpressionMeter({ minVisibility = BODY_MOTION_DEFAULTS.minVisibility } = {}): BodyExpressionMeter {
+  let prev: { t: number; f: BodyFrame } | null = null;
+  /** The beating wrist's last positions (torso lengths) and times, newest last. */
+  let wrists: { t: number; x: number; y: number; side: 'left' | 'right' }[] = [];
+  return {
+    reset() {
+      prev = null;
+      wrists = [];
+    },
+    push(f, t, side) {
+      if (!f.present) {
+        prev = null;
+        wrists = [];
+        return { t };
+      }
+      const motion = prev ? bodyQuantityOfMotion(prev.f, f, t - prev.t) : undefined;
+      prev = { t, f };
+      const torso = torsoPx(f);
+      let beating: 'left' | 'right' = side === 'auto' ? 'right' : side;
+      if (side === 'auto') {
+        const r = armRaise(f, 'right', minVisibility);
+        const l = armRaise(f, 'left', minVisibility);
+        if (r === undefined || (l !== undefined && l > r)) beating = 'left';
+      }
+      const [sh, el, wr] = beating === 'right' ? [BLM.right_shoulder, BLM.right_elbow, BLM.right_wrist] : [BLM.left_shoulder, BLM.left_elbow, BLM.left_wrist];
+      const seen = (j: number) => !!f.landmarks[j] && (f.visibility[j] ?? 1) >= minVisibility;
+      const d = (a: number, b: number) => Math.hypot(f.landmarks[a].x - f.landmarks[b].x, f.landmarks[a].y - f.landmarks[b].y);
+      let extension: number | undefined;
+      if (seen(sh) && seen(el) && seen(wr)) {
+        const limb = d(sh, el) + d(el, wr);
+        if (limb > 1e-9) extension = Math.min(1, d(sh, wr) / limb);
+      }
+      let jerk: number | undefined;
+      if (torso && seen(wr)) {
+        const w = f.landmarks[wr];
+        if (wrists.length && wrists[wrists.length - 1].side !== beating) wrists = [];
+        wrists.push({ t, x: w.x / torso, y: w.y / torso, side: beating });
+        if (wrists.length > 4) wrists.shift();
+        if (wrists.length === 4) {
+          const [a, b, c, e] = wrists;
+          const dt = (e.t - a.t) / 3;
+          if (dt > 0) jerk = Math.hypot(e.x - 3 * c.x + 3 * b.x - a.x, e.y - 3 * c.y + 3 * b.y - a.y) / dt ** 3;
+        }
+      } else wrists = [];
+      return { t, motion, extension, jerk };
+    },
+  };
+}

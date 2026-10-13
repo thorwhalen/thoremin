@@ -1,6 +1,8 @@
 /**
  * The CONDUCTOR section of the settings panel (#187): conduct a score with a hand, or
  * with the body (#375: `conductor.source`, the arm and point choosers following it).
+ * Where the loudness comes from (#378: `conductor.expression`, the split role) and, while the
+ * body shapes it, the staccato (`conductor.articulationFrom`).
  * Off by default; the toggle, the piece chooser, the hand and point choosers and the
  * follow-tightness slider all write leaves of the structured `conductor` dial through
  * `dispatchDialSetIn` (the single write path). The catch-up slider dispatches on every
@@ -27,7 +29,7 @@ import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { OrchestraControls } from './orchestra';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
-import { CONDUCTOR_BODY_POINTS, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
+import { ARTICULATION_SOURCES, CONDUCTOR_BODY_POINTS, CONDUCTOR_EXPRESSION_SOURCES, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
 import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
 import { BUILTIN_PIECE, type ConductorSettings } from '@/settings/schema';
 import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type NamedSummary, type ScoreStore } from '@/score';
@@ -61,6 +63,16 @@ const MARK_LEVEL_LABEL: Record<ConductorDialParams['markLevel'], string> = {
   bar: 'a bar',
   auto: 'whatever fits the score',
 };
+/** Where the dynamics come from (#378), in the player's terms. */
+const EXPRESSION_LABEL: Record<ConductorDialParams['expression'], string> = {
+  same: 'the beat (default)',
+  hands: 'a hand',
+  body: 'the body (strokes, motion, reach)',
+};
+const ARTICULATION_LABEL: Record<ConductorDialParams['articulationFrom'], string> = {
+  sharpness: 'how sharply each stroke stops (default)',
+  flow: 'how smoothly the arm moves',
+};
 const SOURCE_LABEL: Record<ConductorDialParams['source'], string> = {
   hands: 'a beating hand',
   body: 'the body (an arm, or a bounce)',
@@ -86,6 +98,10 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
   const point = c.point ?? 'wrist';
   const bodyPoint = c.bodyPoint ?? 'impact';
   const markLevel = c.markLevel ?? 'beat';
+  const expression = c.expression ?? 'same';
+  const articulationFrom = c.articulationFrom ?? 'sharpness';
+  // Articulation has a choice only while the body shapes the expression (#378).
+  const bodyShapes = expression === 'body' || (expression === 'same' && body);
   const transportRules = c.transport?.rules ?? true;
   const servo = c.servoBeats ?? 1;
   const prior = (c.prior ?? DEFAULT_RHYTHM_PRIOR) as RhythmPriorKind;
@@ -257,6 +273,40 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           ))}
         </select>
       </label>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Loudness from
+        <select
+          className={selectCls}
+          value={expression}
+          disabled={!enabled}
+          data-testid="conductor-expression"
+          onChange={(e) => dispatchDialSetIn('conductor.expression', e.target.value)}
+        >
+          {CONDUCTOR_EXPRESSION_SOURCES.map((m) => (
+            <option key={m} value={m}>
+              {EXPRESSION_LABEL[m]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {bodyShapes && (
+        <label className="flex items-center justify-between gap-2 text-xs">
+          Staccato from
+          <select
+            className={selectCls}
+            value={articulationFrom}
+            disabled={!enabled}
+            data-testid="conductor-articulation-from"
+            onChange={(e) => dispatchDialSetIn('conductor.articulationFrom', e.target.value)}
+          >
+            {ARTICULATION_SOURCES.map((m) => (
+              <option key={m} value={m}>
+                {ARTICULATION_LABEL[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="flex items-center justify-between gap-2 text-xs">
         <span>
           Catch-up <span className="text-white/40">({servo.toFixed(2)} beats)</span>

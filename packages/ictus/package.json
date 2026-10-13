@@ -9,6 +9,7 @@
     "./blend_prior": "./src/blend_prior.ts",
     "./detector": "./src/detector.ts",
     "./dynamics": "./src/dynamics.ts",
+    "./expression": "./src/expression.ts",
     "./impact": "./src/impact.ts",
     "./level": "./src/level.ts",
     "./magnet": "./src/magnet.ts",
