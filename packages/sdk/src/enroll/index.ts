@@ -203,7 +203,6 @@ export type {
 } from './types';
 export {
   LABEL_MATCH_DEFAULTS,
-  SCORE_LIMIT,
   applyLabels,
   assignMax,
   matchLabels,
@@ -221,7 +220,6 @@ export {
 export {
   CATEGORIZER_FORMAT,
   CATEGORIZER_MIGRATIONS,
-  CATEGORIZER_MODES,
   CATEGORIZER_VERSION,
   NO_REJECT_RADIUS,
   MAX_CATEGORIZER_SAMPLES,

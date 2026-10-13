@@ -34,6 +34,9 @@
  */
 import type { Category, FeatureVector, TrainedModel } from './types';
 
+/** The magnitude scores are clamped to: far beyond any real score, far below overflow. */
+const SCORE_LIMIT = 1e150;
+
 /**
  * The maximum-total-score assignment of rows to columns of a rectangular matrix, each row
  * and each column used at most once. Returns, per row, its column (or -1 when there are
@@ -41,9 +44,6 @@ import type { Category, FeatureVector, TrainedModel } from './types';
  * potentials, O(n^2 m)); deterministic for a given matrix. Non-finite entries count as 0,
  * and finite ones are clamped to +/-{@link SCORE_LIMIT} so no cost can overflow.
  */
-/** The magnitude scores are clamped to: far beyond any real score, far below overflow. */
-export const SCORE_LIMIT = 1e150;
-
 export function assignMax(score: readonly (readonly number[])[]): number[] {
   const rows = score.length;
   const cols = rows === 0 ? 0 : Math.max(...score.map((r) => r.length));

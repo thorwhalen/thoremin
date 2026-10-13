@@ -67,12 +67,13 @@ export interface HandednessDwell {
   reset(): void;
 }
 
-/** Build a handedness dwell tracker (stateful: a dwell is temporal). */
-/** A dwell as given, or 0 for anything that is not a finite number (NaN would otherwise
- *  pin the first label forever: no count ever reaches it). */
+/** A dwell as given, or {@link DEFAULT_HANDEDNESS_DWELL_FRAMES} for anything that is not
+ *  a finite number (NaN would otherwise pin the first label forever: no count ever
+ *  reaches it). */
 const finiteDwell = (dwellFrames: number | undefined): number =>
   typeof dwellFrames === 'number' && Number.isFinite(dwellFrames) ? dwellFrames : DEFAULT_HANDEDNESS_DWELL_FRAMES;
 
+/** Build a handedness dwell tracker (stateful: a dwell is temporal). */
 export function createHandednessDwell(options: HandednessDwellOptions = {}): HandednessDwell {
   const defaultDwell = finiteDwell(options.dwellFrames);
   let committedSide: HandSide | null = null;

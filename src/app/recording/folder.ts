@@ -91,7 +91,7 @@ let held: FsDirHandle | null | undefined;
  * (a full disk, a private window). Where IndexedDB is absent there is no tier to
  * stand in front of, so nothing is held (no browser with a folder picker lacks it).
  */
-export const IDB_FOLDER_STORE: FolderHandleStore = {
+const IDB_FOLDER_STORE: FolderHandleStore = {
   load: async () => (held !== undefined ? held : loadDirHandle<FsDirHandle>()),
   save: async (handle) => {
     const outcome = await saveDirHandle(handle);
@@ -106,7 +106,7 @@ export const IDB_FOLDER_STORE: FolderHandleStore = {
 };
 
 /** The picker as the browser exposes it, or null where it does not (Safari, Firefox, Node). */
-export function browserDirectoryPicker(): DirPicker | null {
+function browserDirectoryPicker(): DirPicker | null {
   const picker = (globalThis as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker;
   return typeof picker === 'function' ? (picker as DirPicker) : null;
 }
