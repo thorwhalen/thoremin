@@ -96,11 +96,15 @@ const RECORDING_HOST: RecordingHost = {
  * Install the recording host, so the `recording.*` commands (the Record sheet, the
  * trainer's folder control, the palette, the assistant) act on this store. App calls it
  * in a mount effect; a test that dispatches a recording command through the registry
- * calls it too. Returns the uninstall, which puts back whatever host was there before.
+ * calls it too. Returns the uninstall, which puts back whatever host was there before,
+ * but only while this host is still the installed one (two uninstalls out of order, as in
+ * an HMR overlap, must not leave a stale host). React runs a child's effects before App's,
+ * so a child must not dispatch a `recording.*` command from its own mount effect.
  */
 export function installRecording(): () => void {
   const previous = provideRecordingHost(RECORDING_HOST);
   return () => {
-    provideRecordingHost(previous);
+    const current = provideRecordingHost(previous);
+    if (current !== RECORDING_HOST) provideRecordingHost(current);
   };
 }
