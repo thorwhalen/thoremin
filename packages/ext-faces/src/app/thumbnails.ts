@@ -1,35 +1,40 @@
 /**
- * Exemplar frames (#330 P2): grabbed by seeking the take's kept video to each exemplar's time,
- * drawn small, and stored in IndexedDB so a saved categorizer shows its faces after a reload
- * (the video itself is not kept: the stills are what the grid needs).
+ * The stills of a hold (#385 E3): taken AT CAPTURE, from the live camera, cropped to the
+ * modality's region (the face box), the moment the take sees a hold emitted; kept in memory
+ * until a save files them in IndexedDB, so a saved categorizer shows its faces after a reload.
+ * No video is recorded and nothing is seeked: a pause, a synthetic source and a merge work the
+ * same way, and the raw video of the player's face never exists in memory.
  *
- * Two pieces, each a seam:
- * - {@link grabFrames}: seek a video blob and draw the frames at the given times (the browser's
- *   `<video>` + canvas; a test passes its own grabber).
+ * Three pieces, each a seam:
+ * - {@link openLiveFrames}: a hidden `<video>` over the source's stream, a frame drawn from it
+ *   on demand (a test passes its own opener).
  * - {@link ThumbStore}: a key-value store for the stills, IndexedDB by default
  *   ({@link idbThumbStore}, the precedent is the recorder's folder handle store), an in-memory
  *   one where IndexedDB is absent (a test, a private window that refuses it).
- *
- * Keys are `<takeId>:<sample index>`; a categorizer's samples keep the take's order, so a saved
- * model finds its stills by its take id and its exemplar indices.
+ * - Keys are HOLD IDS ({@link holdId}: `<takeId>:<n>`), the sample ids of the categorizer
+ *   file: unique across takes, so a still is filed once, a merge or a move never re-files one,
+ *   and two records sharing a hold share its still. A v1 record's samples are given its old
+ *   keys as ids on migration (`models.ts`), so its stills are found where they are.
  */
+import type { PixelBox } from '@thoremin/sdk-ui/enroll/modality';
 
 export interface ThumbStore {
   get(key: string): Promise<Blob | null>;
   put(key: string, blob: Blob): Promise<void>;
-  /** Remove every key that starts with `prefix`. */
-  removePrefix(prefix: string): Promise<void>;
+  /** Remove these keys (absent ones are ignored). */
+  remove(keys: readonly string[]): Promise<void>;
 }
 
-export const thumbKey = (takeId: string, index: number): string => `${takeId}:${index}`;
+/** Hold `n` of take `takeId`: its sample id, and its still's key. */
+export const holdId = (takeId: string, n: number): string => `${takeId}:${n}`;
 
 export function memoryThumbStore(): ThumbStore {
   const m = new Map<string, Blob>();
   return {
     get: async (k) => m.get(k) ?? null,
     put: async (k, b) => void m.set(k, b),
-    removePrefix: async (p) => {
-      for (const k of [...m.keys()]) if (k.startsWith(p)) m.delete(k);
+    remove: async (keys) => {
+      for (const k of keys) m.delete(k);
     },
   };
 }
@@ -66,91 +71,85 @@ export function idbThumbStore(): ThumbStore {
   return {
     get: async (k) => ((await run<unknown>('readonly', (s) => s.get(k), (m) => m.get(k))) as Blob | undefined) ?? null,
     put: (k, b) => run<void>('readwrite', (s) => void s.put(b, k), (m) => m.put(k, b)),
-    removePrefix: (p) =>
+    remove: (keys) =>
       run<void>(
         'readwrite',
-        (s) => void s.delete(IDBKeyRange.bound(p, `${p}￿`)),
-        (m) => m.removePrefix(p),
+        (s) => {
+          for (const k of keys) s.delete(k);
+        },
+        (m) => m.remove(keys),
       ),
   };
 }
 
 export interface GrabOptions {
-  /** The still's width in pixels (height keeps the video's aspect). */
+  /** The still's width in pixels (height keeps the crop's aspect). */
   width?: number;
   /** JPEG quality, 0..1. */
   quality?: number;
-  /** Mirror the frame, as the instrument's view is mirrored. */
+  /** Mirror the still, as the instrument's view is mirrored. */
   mirror?: boolean;
 }
 
 export const GRAB_DEFAULTS = { width: 120, quality: 0.8, mirror: true } as const;
 
-/** What turns (blob, times in seconds) into stills, in the same order (null where a frame failed). */
-export type FrameGrabber = (video: Blob, seconds: readonly number[], options?: GrabOptions) => Promise<(Blob | null)[]>;
+/** A live stream's frames, drawn on demand. */
+export interface LiveFrames {
+  /** The current frame as a still, cropped to `crop(size)` (null: the whole frame), or null
+   *  when no frame is showing yet. */
+  grab(crop?: ((size: { width: number; height: number }) => PixelBox | null) | null): Promise<Blob | null>;
+  /** Stop drawing and let the stream go (never stops its tracks: the instrument owns the camera). */
+  close(): void;
+}
 
-const once = (el: HTMLElement, event: string, ms = 4000): Promise<boolean> =>
-  new Promise((resolve) => {
-    const done = (ok: boolean) => {
-      el.removeEventListener(event, on);
-      clearTimeout(timer);
-      resolve(ok);
-    };
-    const on = () => done(true);
-    const timer = setTimeout(() => done(false), ms);
-    el.addEventListener(event, on);
-  });
+/** What opens a stream for stills (null: it cannot be read here). */
+export type FrameOpener = (stream: MediaStream, options?: GrabOptions) => LiveFrames | null;
 
-/**
- * The browser grabber: a hidden `<video>` over the blob, seeked to each time in turn. A recorded
- * WebM often reports an infinite duration until it has been read to the end, so it is first
- * seeked far past the end, which makes the browser find the real one.
- */
-export const grabFrames: FrameGrabber = async (blob, seconds, options = {}) => {
+/** `box` clamped into a `width` x `height` frame, or null when nothing of it is inside. */
+export function clampBox(box: PixelBox, width: number, height: number): PixelBox | null {
+  const x0 = Math.max(0, box.x);
+  const y0 = Math.max(0, box.y);
+  const x1 = Math.min(width, box.x + box.w);
+  const y1 = Math.min(height, box.y + box.h);
+  return x1 - x0 >= 1 && y1 - y0 >= 1 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+}
+
+/** The browser opener: a hidden, muted `<video>` playing the stream, drawn into a canvas. */
+export const openLiveFrames: FrameOpener = (stream, options = {}) => {
+  if (typeof document === 'undefined') return null;
   const o = { ...GRAB_DEFAULTS, ...options };
-  const url = URL.createObjectURL(blob);
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
-  video.preload = 'auto';
-  video.src = url;
-  try {
-    if (video.readyState < 1 && !(await once(video, 'loadedmetadata'))) return seconds.map(() => null);
-    if (!Number.isFinite(video.duration)) {
-      video.currentTime = 1e9;
-      await once(video, 'seeked');
-    }
-    // Still unknown: every seek would clamp to the first frame, so say "no picture" instead of
-    // showing the same frame for every face.
-    if (!Number.isFinite(video.duration)) return seconds.map(() => null);
-    const duration = video.duration;
-    const w = o.width;
-    const h = Math.max(1, Math.round((w * (video.videoHeight || 3)) / (video.videoWidth || 4)));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return seconds.map(() => null);
-    const out: (Blob | null)[] = [];
-    for (const s of seconds) {
-      video.currentTime = Math.min(Math.max(0, s), Math.max(0, duration - 0.05));
-      if (!(await once(video, 'seeked'))) {
-        out.push(null);
-        continue;
-      }
+  video.srcObject = stream;
+  void video.play().catch(() => undefined);
+  const canvas = document.createElement('canvas');
+  return {
+    async grab(crop) {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      // HAVE_CURRENT_DATA: a frame to draw.
+      if (video.readyState < 2 || !vw || !vh) return null;
+      const asked = crop?.({ width: vw, height: vh }) ?? null;
+      const box = (asked && clampBox(asked, vw, vh)) ?? { x: 0, y: 0, w: vw, h: vh };
+      const w = o.width;
+      const h = Math.max(1, Math.round((w * box.h) / box.w));
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
       ctx.save();
       if (o.mirror) {
         ctx.translate(w, 0);
         ctx.scale(-1, 1);
       }
-      ctx.drawImage(video, 0, 0, w, h);
+      ctx.drawImage(video, box.x, box.y, box.w, box.h, 0, 0, w, h);
       ctx.restore();
-      out.push(await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', o.quality)));
-    }
-    return out;
-  } finally {
-    video.removeAttribute('src');
-    video.load();
-    URL.revokeObjectURL(url);
-  }
+      return new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', o.quality));
+    },
+    close() {
+      video.pause();
+      video.srcObject = null;
+    },
+  };
 };

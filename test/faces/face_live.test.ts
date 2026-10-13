@@ -29,9 +29,12 @@ function syntheticCategorizer(mode: 'reject' | 'partition'): PersonalCategorizer
   return categorizerFromModel(view.model, session.points(), { name: `synthetic ${mode}`, mode, modality: 'face' });
 }
 
+/** Sample `id`'s index in `c`. */
+const at = (c: PersonalCategorizer, id: string): number => c.samples.findIndex((x) => x.id === id);
+
 const ownAcceptance = (c: PersonalCategorizer, model = liveModel(c).model) => {
   const members = c.categories.flatMap((cat) => cat.members);
-  return members.filter((j) => !classify(model, c.samples[j].vector).rejected).length / members.length;
+  return members.filter((j) => !classify(model, c.samples[at(c, j)].vector).rejected).length / members.length;
 };
 
 describe('the reject radius dial', () => {
@@ -65,8 +68,8 @@ describe('the reject radius dial', () => {
       expect(Number.isFinite(m.rejectRadius)).toBe(true);
       expect(TrainedModelSchema.safeParse(m).success).toBe(true);
     }
-    expect(tunedRejectRadius(NO_REJECT_RADIUS, 'reject', 3)).toBe(NO_REJECT_RADIUS);
-    expect(tunedRejectRadius(5, 'partition', 3)).toBe(NO_REJECT_RADIUS);
+    expect(tunedRejectRadius(NO_REJECT_RADIUS, 'neutral', 3)).toBe(NO_REJECT_RADIUS);
+    expect(tunedRejectRadius(5, 'nearest', 3)).toBe(NO_REJECT_RADIUS);
   });
 });
 
@@ -103,13 +106,13 @@ describe('sensitivity', () => {
 
 /** Two categories on feature `f` (0 and 1), which also rises with log scale at `slope`. */
 function distanceCategorizer({ slope, spread }: { slope: number; spread: number }): PersonalCategorizer {
-  const samples: { vector: FeatureVector; t: number; cue: string }[] = [];
-  const members: number[][] = [[], []];
+  const samples: { id: string; vector: FeatureVector; t: number; cue: string }[] = [];
+  const members: string[][] = [[], []];
   for (let cat = 0; cat < 2; cat++)
     for (let i = 0; i < 8; i++) {
       const logScale = Math.log(0.2) + spread * Math.sin(i * 1.7 + cat);
-      members[cat].push(samples.length);
-      samples.push({ vector: { 'face.f': cat + slope * (logScale - Math.log(0.2)) + 0.01 * Math.cos(i), 'face.g': 0.5 + 0.01 * Math.sin(i), 'face.head.scale': Math.exp(logScale) }, t: i, cue: 'x' });
+      members[cat].push(`s-${samples.length}`);
+      samples.push({ id: `s-${samples.length}`, vector: { 'face.f': cat + slope * (logScale - Math.log(0.2)) + 0.01 * Math.cos(i), 'face.g': 0.5 + 0.01 * Math.sin(i), 'face.head.scale': Math.exp(logScale) }, t: i, cue: 'x' });
     }
   return PersonalCategorizerSchema.parse({
     format: CATEGORIZER_FORMAT,
@@ -117,13 +120,13 @@ function distanceCategorizer({ slope, spread }: { slope: number; spread: number 
     name: 'distance',
     features: ['face.f', 'face.g'],
     weights: { 'face.f': 10, 'face.g': 10 },
-    mode: 'partition',
-    k: 2,
+    strangers: 'nearest',
     samples,
     categories: [
       { id: 'cat-1', label: 'a', members: members[0] },
       { id: 'cat-2', label: 'b', members: members[1] },
     ],
+    neutral: [],
   });
 }
 
@@ -174,29 +177,43 @@ describe('corrections', () => {
   it('"this face is X" adds the live face to X as a sample, and the model is derived again', () => {
     const c = syntheticCategorizer('reject');
     const target = c.categories[0];
-    const face = { ...c.samples[target.members[0]].vector, 'hand.right.x': 0.5 };
-    const r = addSample(c, target.id, face, { t: 42 });
+    const face = { ...c.samples[at(c, target.members[0])].vector, 'hand.right.x': 0.5 };
+    const r = addSample(c, target.id, face, { sampleId: 'live:0', t: 42 });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.categorizer.samples).toHaveLength(c.samples.length + 1);
     expect(r.categorizer.samples.at(-1)!.cue).toBe(CORRECTION_CUE);
     expect(categoryOf(r.categorizer, c.samples.length)).toBe(target.id);
     expect(modelFromCategorizer(r.categorizer).categories[0].size).toBe(target.members.length + 1);
-    expect(addSample(c, 'nope', face).ok).toBe(false);
-    expect(addSample(c, target.id, { 'hand.right.x': 0.5 })).toEqual({ ok: false, error: 'no face in view' });
+    expect(r.categorizer.samples.at(-1)!.id).toBe('live:0');
+    expect(addSample(c, 'nope', face, { sampleId: 'live:1' }).ok).toBe(false);
+    expect(addSample(c, target.id, { 'hand.right.x': 0.5 }, { sampleId: 'live:1' })).toEqual({ ok: false, error: 'no face in view' });
+    // A sample id already in use is refused: it would take another hold's still.
+    expect(addSample(r.categorizer, target.id, face, { sampleId: 'live:0' }).ok).toBe(false);
   });
 
   it('moves a sample between categories or out of them, and never empties one', () => {
     const c = syntheticCategorizer('reject');
     const [a, b] = c.categories;
-    const j = a.members[0];
+    const j = at(c, a.members[0]);
     const moved = moveSample(c, j, b.id);
     expect(moved.ok && categoryOf(moved.categorizer, j)).toBe(b.id);
     const out = moveSample(c, j, null);
     expect(out.ok && categoryOf(out.categorizer, j)).toBeNull();
     // Out of every category in reject mode, it joins the neutral faces the rest is measured from.
+    if (out.ok) expect(out.categorizer.neutral).toContain(c.samples[j].id);
     if (out.ok) expect(restOf(out.categorizer, c.features)).not.toEqual(restOf(c, c.features));
-    const lonely = PersonalCategorizerSchema.parse({ ...c, categories: c.categories.map((x) => (x.id === a.id ? { ...x, members: [j] } : { ...x, members: x.members.filter((m) => m !== j) })) });
+    // Back into a category, it leaves neutral.
+    if (out.ok) {
+      const back = moveSample(out.categorizer, j, a.id);
+      expect(back.ok && back.categorizer.neutral).not.toContain(c.samples[j].id);
+    }
+    const jid = c.samples[j].id;
+    const lonely = PersonalCategorizerSchema.parse({
+      ...c,
+      categories: c.categories.map((x) => (x.id === a.id ? { ...x, members: [jid] } : x)),
+      neutral: c.samples.flatMap((x) => (x.id !== jid && a.members.includes(x.id)) || c.neutral.includes(x.id) ? [x.id] : []),
+    });
     const refused = moveSample(lonely, j, b.id);
     expect(refused.ok).toBe(false);
     expect(moveSample(c, c.samples.length + 3, b.id).ok).toBe(false);

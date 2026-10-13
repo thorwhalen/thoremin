@@ -134,7 +134,7 @@ describe.runIf(FACES)('testing and correcting a saved categorizer is reachable (
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const saved = createFaceModelStore();
-    await saved.save('Shell test', { categorizer: parsed.categorizer, takeId: null });
+    await saved.save('Shell test', { categorizer: parsed.categorizer });
 
     render(<Shell />);
     act(() => useTools.getState().toggleTool('faces'));
@@ -173,7 +173,7 @@ describe.runIf(FACES)('playing a saved categorizer from the tool (#357)', () => 
     const parsed = importCategorizer(file.default);
     if (!parsed.ok) throw new Error('fixture');
     const saved = createFaceModelStore();
-    const { id } = await saved.save('Play test', { categorizer: parsed.categorizer, takeId: null });
+    const { id } = await saved.save('Play test', { categorizer: parsed.categorizer });
     // An instrument whose face plays nothing, with a chord chosen for a category of another one.
     dispatchDialPatch([['faceCategorizer.id', GENERAL_CATEGORIZER], ['face.mapping', 'none'], ['faceCategorizer.degrees.cat-1', 3]]);
     const effective = () => dialsStore.getState().effective as Record<string, unknown>;

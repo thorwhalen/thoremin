@@ -16,7 +16,7 @@ import { createFaceModelStore, withChangeNotice } from './models';
 import { createFaceSessionStore, FACE_SESSION_DEFAULTS, type FaceSessionDeps, type FaceSessionState } from './sessionStore';
 import { sourceFromUrl } from './sources';
 import { createFaceTestStore, FACE_TEST_DEFAULTS, type FaceTestState } from './testStore';
-import { grabFrames, idbThumbStore } from './thumbnails';
+import { idbThumbStore, openLiveFrames } from './thumbnails';
 
 const { modality } = faceModalityUi;
 const OWNERS = carveOwners(modality);
@@ -31,7 +31,8 @@ export function browserDeps(): FaceSessionDeps {
   return {
     source: () => sourceFromUrl(),
     thumbs: idbThumbStore(),
-    grab: grabFrames,
+    frames: openLiveFrames,
+    region: faceModalityUi.region,
     models: withChangeNotice(createFaceModelStore()),
     modality,
     now: () => performance.now(),

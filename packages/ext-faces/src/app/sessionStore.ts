@@ -4,8 +4,13 @@
  * categorizer takes the player's corrections (a live face added to a category, a sample moved,
  * a new take merged in with P1's `mergeSession`) and the live tuning, until Save; and a
  * categorizer is imported from or exported to P1's versioned file. A zustand store the panel renders; the take, the carvers, the
- * video, the stills and the names the player typed live beside it (not in it: none of them is
- * something a component renders by value).
+ * stills and the names the player typed live beside it (not in it: none of them is something a
+ * component renders by value).
+ *
+ * #385 E3: a hold's still is taken the moment the take emits it, from the live frame, cropped to
+ * the modality's region, and kept by its HOLD ID (`<takeId>:<n>`, the sample's id in the file);
+ * Save files every hold's still under that id. So a merge, a correction or a re-cut never
+ * re-files a still, and a still is deleted only when no saved record names its hold.
  *
  * Every outside dependency is injected ({@link FaceSessionDeps}: the input source, the stills'
  * store and grabber, the saved-models collection, the clock, the claim on the face features),
@@ -35,6 +40,7 @@ import {
   importCategorizer,
   type CategorizerMode,
   type PersonalCategorizer,
+  type SampleInput,
 } from '@thoremin/sdk/enroll/categorizer';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
@@ -48,10 +54,10 @@ import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
 import type { CaptureState, CarveCaptureControl } from '@thoremin/sdk-ui/enroll/capture';
+import type { CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
 import type { FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
-import { thumbKey, type FrameGrabber, type ThumbStore } from './thumbnails';
-import { startVideoTake, type VideoTake } from './videoTake';
+import { holdId, type FrameOpener, type LiveFrames, type ThumbStore } from './thumbnails';
 
 export type FacePhase =
   /** Nothing recorded; the saved list and Record. */
@@ -64,7 +70,7 @@ export type FacePhase =
   | 'faces'
   /** The capture paused: the camera still read, nothing collected (#385 E2). */
   | 'paused'
-  /** Stop was pressed: the video is being closed and the take carved. */
+  /** Stop was pressed: the take is being carved. */
   | 'stopping'
   /** A take carved: the grid, k, the mode, names, Save. */
   | 'carved'
@@ -89,7 +95,10 @@ export const isLive = (phase: FacePhase): boolean => phase === 'explore' || isRe
 export interface FaceSessionDeps {
   source: () => FaceSource;
   thumbs: ThumbStore;
-  grab: FrameGrabber;
+  /** Opens the source's stream for stills, taken at capture (#385 E3). */
+  frames: FrameOpener;
+  /** The crop for a still (the modality's region; the whole frame by default). */
+  region?: CarveModalityUi['region'];
   models: NamedCollectionStore<FaceModelRecord, SavedFaceModel>;
   /** Engine-clock ms. */
   now: () => number;
@@ -97,6 +106,8 @@ export interface FaceSessionDeps {
   pollMs: number;
   /** Claim (true) or release the face features and the instrument's quiet while recording. */
   claim: (on: boolean) => void;
+  /** A fresh take id: a take's holds are `<takeId>:<n>` (and a correction's own sample id is
+   *  a fresh take's first). */
   newTakeId: () => string;
   /** Wall-clock ISO time, for the saved file. */
   isoNow: () => string;
@@ -114,7 +125,8 @@ export interface FaceSessionState {
   mode: CategorizerMode;
   k: number;
   view: CarveView | null;
-  /** Object URLs of the stills in hand, by sample index. */
+  /** Object URLs of the stills in hand, by index into the shown samples (the take's holds, or
+   *  the open categorizer's samples). */
   thumbs: Readonly<Record<number, string>>;
   /** Held faces captured so far (while recording). */
   points: number;
@@ -122,8 +134,9 @@ export interface FaceSessionState {
   hold: HoldState;
   /** Seconds since Record (while recording). */
   elapsed: number;
-  /** Whether this take's video is being / was kept (false: no pictures in the grid). */
-  hasVideo: boolean;
+  /** Whether pictures are taken (recording) or found (an open categorizer); false: the grid
+   *  has none. */
+  hasStills: boolean;
   notice: string | null;
   saved: readonly NamedSummary[];
   /** The saved categorizer open in the grid (phase `saved`), by record id. */
@@ -170,7 +183,7 @@ export interface FaceSessionState {
   setTuning(tuning: Partial<Tuning>): void;
   /** "This face is `id`": add a live face to a category of the open categorizer. */
   correct(id: string, vector: FeatureVector): boolean;
-  /** Move sample `index` of the open categorizer to category `to` (null: to no category). */
+  /** Move sample `index` of the open categorizer to category `to` (null: out of every one). */
   move(index: number, to: string | null): boolean;
   /** Record a new take and merge it into the open categorizer (P1's `mergeSession`). */
   startMerge(seed: MergeSeed): void;
@@ -190,9 +203,6 @@ export const FACE_SESSION_DEFAULTS = {
   exportName: 'My faces',
   pollMs: 33,
   exemplars: 4,
-  /** A still-point's `t` is when the hold BEGAN; its picture is taken this much later, half the
-   *  sampler's 220 ms dwell, so it shows the face held rather than the end of a transition. */
-  stillOffsetMs: 110,
 } as const;
 
 export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSessionState> {
@@ -206,36 +216,42 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** Withdraws the capture control this store provided. */
   let withdraw: (() => void) | null = null;
   let source: FaceSource | null = null;
-  let video: VideoTake | null = null;
-  let blob: Blob | null = null;
+  /** The source's stream, open for stills while recording (null: no pictures this take). */
+  let frames: LiveFrames | null = null;
   let takeId: string | null = null;
+  /** Holds of the take whose still was asked for (the take's point count, as last seen). */
+  let stilled = 0;
   let timer: ReturnType<typeof setInterval> | null = null;
   let carvers: Partial<Record<CategorizerMode, Carver>> = {};
   let openRecord: FaceModelRecord | null = null;
   /** The categorizer a recording is being merged into, and what to restore if it is empty. */
   let mergeBase: { seed: MergeSeed; working: PersonalCategorizer; record: FaceModelRecord | null; openId: string | null; name: string; tuning: Tuning; dirty: boolean } | null = null;
-  /** A `samples` merge's base stills, copied on Save from the base's take id into the merge's own
-   *  (never filed under the base's id: another record may share it, with other faces at the new
-   *  indices). */
-  let copyBase: { from: string; count: number } | null = null;
-  /** Which of the take's points a sample index's still comes from (null: not from this take).
-   *  The identity for a carve; offset past the base's samples for a merge. */
-  let pointOf: (index: number) => number | null = (i) => i;
-  /** The take id the shown in-memory stills are filed under on Save (null: none to file). */
-  let stillsTakeId: string | null = null;
+  /** The hold ids of the samples shown, by index (the take's holds, or the open categorizer's
+   *  samples): what `thumbs` is keyed by. */
+  let shownIds: readonly string[] = [];
   /** Whether this store holds the face-feature claim (and the hush). */
   let claimed = false;
   /** Bumped whenever the shown take changes, so a late result for an old one is dropped. */
   let generation = 0;
   /** The names the player typed for this take, carried onto every carve (see `TypedName`). */
   let typed: TypedName[] = [];
-  const urls = new Map<number, string>();
-  /** The live take's stills, by sample index: in memory until a save files them in IndexedDB,
-   *  so a take nobody saves leaves nothing behind. */
-  const stills = new Map<number, Blob>();
-  /** Still grabs run one at a time, in order; `grabbing` holds the indices queued or running. */
-  let grabs: Promise<void> = Promise.resolve();
-  const grabbing = new Set<number>();
+  /** Object URLs of the stills in hand, by hold id. */
+  const urls = new Map<string, string>();
+  /** The stills taken this session, by hold id: in memory until a save files them in
+   *  IndexedDB, so a take nobody saves leaves nothing behind. Kept across a merge's take (the
+   *  base's in-memory stills stay shown) until `reset`. */
+  const stills = new Map<string, Blob>();
+  /** The stills still being encoded, so Save waits for them. */
+  const pending = new Set<Promise<void>>();
+
+  /** A take id none of `samples`' ids is under (ids are random in the app; a test's clock-made
+   *  ones could repeat), so a new hold never takes an old hold's id, or its still. */
+  const freshTakeId = (samples: readonly { id: string }[]): string => {
+    const used = new Set(samples.flatMap((x) => (x.id.includes(':') ? [x.id.slice(0, x.id.lastIndexOf(':'))] : [])));
+    let tid = deps.newTakeId();
+    for (let n = 2; used.has(tid); n++) tid = `${deps.newTakeId()}-${n}`;
+    return tid;
+  };
 
   const store = createStore<FaceSessionState>()((set, get) => {
     const dropUrls = () => {
@@ -248,6 +264,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     };
     const release = () => {
       stopPolling();
+      frames?.close();
+      frames = null;
       if (claimed) deps.claim(false);
       claimed = false;
       source?.dispose();
@@ -255,6 +273,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       bars = null;
       withdraw?.();
       withdraw = null;
+    };
+
+    /** `reset`, keeping the stills taken this session: a merge's take (or its cancel) returns to
+     *  a working categorizer whose earlier merged holds have their pictures only in memory. */
+    const resetKeepingStills = () => {
+      const kept = [...stills];
+      get().reset();
+      for (const [id, b] of kept) stills.set(id, b);
     };
 
     /** The capture state the host's command sees (null when nothing is live). */
@@ -296,6 +322,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (live) {
           take.push(live.vector, live.t);
           bars?.push(modality.read(live.vector), live.t);
+          stillNewHolds(live.vector);
         }
         const tp = take.phase();
         const phaseNow: FacePhase = tp === 'explore' || tp === 'rest' || tp === 'faces' || tp === 'paused' ? tp : get().phase;
@@ -310,56 +337,77 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       }, deps.pollMs);
     };
     const show = (gen: number) => {
-      if (gen === generation) set({ thumbs: Object.fromEntries(urls) });
+      if (gen !== generation) return;
+      const thumbs: Record<number, string> = {};
+      shownIds.forEach((id, i) => {
+        let url = urls.get(id);
+        const still = url ? undefined : stills.get(id);
+        if (still) urls.set(id, (url = URL.createObjectURL(still)));
+        if (url) thumbs[i] = url;
+      });
+      set({ thumbs });
     };
 
-    /** Queue the live take's stills for `indices` (those not in hand or queued), grabbed from its
-     *  kept video one batch at a time. */
-    const grabThumbs = (indices: readonly number[]): Promise<void> => {
-      const gen = generation;
-      const points = take?.session().points() ?? [];
-      const want = [...new Set(indices)].filter((i) => !urls.has(i) && !grabbing.has(i) && points[pointOf(i) ?? -1] !== undefined);
-      if (want.length === 0 || !blob || !take) return grabs;
-      const video_ = blob;
-      const t0 = video?.t0() ?? 0;
-      for (const i of want) grabbing.add(i);
-      grabs = grabs.then(async () => {
-        try {
-          if (gen !== generation) return;
-          const got = await deps.grab(video_, want.map((i) => (points[pointOf(i)!].t + FACE_SESSION_DEFAULTS.stillOffsetMs - t0) / 1000)).catch(() => want.map(() => null));
-          if (gen !== generation) return;
-          want.forEach((i, j) => {
-            const still = got[j];
-            if (!still || urls.has(i)) return;
-            stills.set(i, still);
-            urls.set(i, URL.createObjectURL(still));
-          });
-          show(gen);
-        } finally {
-          for (const i of want) grabbing.delete(i);
-        }
-      });
-      return grabs;
+    /** Take a still for each hold the take emitted since the last poll, from the frame showing
+     *  now (the hold was just taken, so the face is still held), cropped to the region the live
+     *  vector places the part in. */
+    const stillNewHolds = (vector: FeatureVector) => {
+      if (!take || !takeId) return;
+      const n = take.pointCount();
+      const tid = takeId;
+      for (; stilled < n; stilled++) {
+        const id = holdId(tid, stilled);
+        if (!frames) continue;
+        const gen = generation;
+        const job = frames
+          .grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null)
+          .catch(() => null)
+          .then((still) => {
+            // Kept even if the take is no longer shown: the id is this hold's alone, and a merge
+            // that ended a moment ago may be saved with it.
+            if (!still || stills.has(id)) return;
+            stills.set(id, still);
+            show(gen);
+          })
+          .finally(() => pending.delete(job));
+        pending.add(job);
+      }
     };
-    /** A saved categorizer's stills for `indices`, from IndexedDB. */
-    const loadThumbs = async (indices: readonly number[], id: string | null) => {
+    /** Every still being encoded, done. */
+    const stillsTaken = () => Promise.all([...pending]);
+    /** Stills for `ids` filed in IndexedDB (those not in hand). Returns whether any was found. */
+    const loadThumbs = async (ids: readonly string[]): Promise<boolean> => {
       const gen = generation;
-      if (!id) return;
-      for (const i of new Set(indices)) {
-        if (urls.has(i)) continue;
-        const b = await deps.thumbs.get(thumbKey(id, i)).catch(() => null);
-        if (gen !== generation) return;
-        if (b && !urls.has(i)) urls.set(i, URL.createObjectURL(b));
+      let found = false;
+      for (const id of new Set(ids)) {
+        if (urls.has(id)) {
+          found = true;
+          continue;
+        }
+        if (stills.has(id)) {
+          found = true;
+          continue;
+        }
+        const b = await deps.thumbs.get(id).catch(() => null);
+        if (gen !== generation) return found;
+        if (b && !urls.has(id)) urls.set(id, URL.createObjectURL(b));
+        found ||= b !== null;
       }
       show(gen);
+      return found;
     };
     const shownIndices = (view: CarveView): number[] => [...view.categories.flatMap((c) => c.exemplars.map((e) => e.index)), ...view.neutral.exemplars];
+    /** The take's holds, as the samples a categorizer is made of: their ids, the modality's
+     *  keys only, and their supporting frames. */
+    const takeSamples = (t: FaceTake, tid: string): SampleInput[] =>
+      t
+        .session()
+        .points()
+        .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i) }));
 
     /** The take in hand as a categorizer, carved as shown (what Save files and Export writes). */
-    const carvedCategorizer = (view: CarveView, mode: CategorizerMode, name: string): PersonalCategorizer => {
-      const points = take!.session().points().map((p) => ({ ...p, vector: modalityOnly(p.vector) }));
-      return categorizerFromModel(view.model, points, { name, mode, modality: modality.id, createdAt: deps.isoNow() });
-    };
+    const carvedCategorizer = (view: CarveView, mode: CategorizerMode, name: string): PersonalCategorizer =>
+      categorizerFromModel(view.model, takeSamples(take!, takeId!), { name, mode, modality: modality.id, createdAt: deps.isoNow() });
 
     /** Carve the take at (mode, k), with the player's typed names. */
     const recarve = (mode: CategorizerMode, k: number) => {
@@ -371,18 +419,21 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         view.k === 0
           ? 'Every held face was close to your resting face, so there is no expression to carve. Choose "Every face is a category", or record again with stronger faces.'
           : null;
+      shownIds = take.session().points().map((_, i) => holdId(takeId!, i));
       set({ mode, k: view.k, view, notice, dirty: true });
-      void grabThumbs(shownIndices(view));
+      show(generation);
     };
 
-    /** Show the working categorizer (phase `saved`): its grid, its stills (in memory from a merged
-     *  take first, then the saved record's in IndexedDB). */
+    /** Show the working categorizer (phase `saved`): its grid, its stills by sample id (in
+     *  memory from this session's takes first, then filed in IndexedDB). */
     const showWorking = (working: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
       const view = savedView(working, { exemplarCount: FACE_SESSION_DEFAULTS.exemplars });
+      shownIds = working.samples.map((x) => x.id);
       set({ phase: 'saved', working, view, mode: view.mode, k: view.k, ...patch });
-      const shown = shownIndices(view);
-      void grabThumbs(shown);
-      void loadThumbs(shown.filter((i) => pointOf(i) === null), openRecord?.model.takeId ?? null);
+      const gen = generation;
+      void loadThumbs(shownIndices(view).map((i) => shownIds[i])).then((found) => {
+        if (gen === generation && get().working === working) set({ hasStills: found });
+      });
     };
     /** Apply a correction to the working categorizer. */
     const applyCorrection = (r: CorrectionResult): boolean => {
@@ -394,11 +445,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       return true;
     };
 
-    /** Delete a take's stills unless a saved record other than `except` still shows them. */
-    const dropStillsIfOrphaned = async (tid: string | null | undefined, except?: string) => {
-      if (!tid) return;
-      const others = await Promise.all((await deps.models.list()).filter((s) => s.id !== except).map((s) => deps.models.load(s.id)));
-      if (!others.some((r) => r?.model.takeId === tid)) await deps.thumbs.removePrefix(`${tid}:`).catch(() => undefined);
+    /** Delete the stills of `ids` that no saved record's samples name any more. */
+    const dropStillsIfOrphaned = async (ids: readonly string[]) => {
+      if (ids.length === 0) return;
+      const records = await Promise.all((await deps.models.list()).map((x) => deps.models.load(x.id).catch(() => null)));
+      // A record that cannot be read may name these holds: then nothing is deleted.
+      if (records.some((r) => r === null)) return;
+      const named = new Set(records.flatMap((r) => r!.model.categorizer.samples.map((x) => x.id)));
+      const orphans = ids.filter((id) => !named.has(id));
+      if (orphans.length > 0) await deps.thumbs.remove(orphans).catch(() => undefined);
     };
 
     return {
@@ -410,7 +465,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       points: 0,
       hold: 'open',
       elapsed: 0,
-      hasVideo: false,
+      hasStills: false,
       notice: null,
       saved: [],
       openId: null,
@@ -440,7 +495,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (isRecording(get().phase)) return;
         const merge = mergeBase;
         if (!exploring) {
-          get().reset();
+          if (merge) resetKeepingStills();
+          else get().reset();
           mergeBase = merge;
           source = deps.source();
           take = createFaceTake({ modality });
@@ -454,11 +510,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           source!.dispose();
           source = deps.source();
         }
-        takeId = deps.newTakeId();
-        video = startVideoTake(source!.video(), deps.now);
+        takeId = freshTakeId(merge?.working.samples ?? []);
+        stilled = 0;
+        const stream = source!.video();
+        frames = stream ? deps.frames(stream) : null;
         const t0 = deps.now();
         take!.start(t0);
-        set({ phase: 'rest', points: 0, elapsed: 0, hold: 'open', hasVideo: video !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
+        set({ phase: 'rest', points: 0, elapsed: 0, hold: 'open', hasStills: frames !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
         provideCapture();
         poll(t0);
       },
@@ -492,9 +550,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // Synchronously out of the recording phases: a second Stop, or the panel's cleanup, now
         // sees a take being stopped, not one to stop again.
         set({ phase: 'stopping' });
-        const gen = generation;
         const myTake = take!;
-        const myVideo = video;
+        const hadStills = frames !== null;
         let built = false;
         try {
           stopPolling();
@@ -502,29 +559,31 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         } finally {
           release();
         }
-        const kept = myVideo ? await myVideo.stop().catch(() => null) : null;
-        if (gen !== generation) return;
-        blob = kept;
         const merge = mergeBase;
         mergeBase = null;
         if (merge) {
           openRecord = merge.record;
-          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, merging: null, hasVideo: merge.record?.model.takeId != null };
+          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, merging: null };
           if (!built) {
-            pointOf = () => null;
             showWorking(merge.working, { ...restore, dirty: merge.dirty, notice: 'No face was held long enough to add. Nothing was merged.' });
             return;
           }
-          const fresh = myTake.session().points().map((p) => ({ ...p, vector: modalityOnly(p.vector) }));
+          const fresh = takeSamples(myTake, takeId!);
           // New faces are sorted with the FLOORED radius the readout uses (a file's tiny stored
           // radius would set every new face aside); not with the dial's scale, which stays a live
           // setting rather than being written into the samples' radius.
-          const base = merge.working.mode === 'reject' ? { ...merge.working, rejectRadius: flooredRejectRadius(merge.working) } : merge.working;
-          const result = mergeSession(base, fresh, { seed: merge.seed });
+          const base = merge.working.strangers === 'neutral' ? { ...merge.working, rejectRadius: flooredRejectRadius(merge.working) } : merge.working;
+          let result: ReturnType<typeof mergeSession>;
+          try {
+            result = mergeSession(base, fresh, { seed: merge.seed });
+          } catch (err) {
+            // A working copy the merge cannot read (it validates): the base kept, said plainly.
+            showWorking(merge.working, { ...restore, dirty: merge.dirty, notice: `Nothing was merged: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
+            return;
+          }
           // The import bound (addSample keeps it too): a categorizer merged past it could not
           // be read back from its own exported file. Refused as a notice, the base kept.
           if (result.categorizer.samples.length > MAX_CATEGORIZER_SAMPLES) {
-            pointOf = () => null;
             showWorking(merge.working, {
               ...restore,
               dirty: merge.dirty,
@@ -532,21 +591,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
             });
             return;
           }
-          const offset = result.categorizer.samples.length - fresh.length;
-          pointOf = (i) => (i >= offset ? i - offset : null);
-          // The base's stills still show (from its take id) unless its samples were replaced by
-          // its centroids (seed `centroids`). On Save they are copied under this take's id with
-          // the new ones, so the record never shares a take id whose indices mean other faces.
-          const baseTake = merge.seed === 'samples' ? (merge.record?.model.takeId ?? null) : null;
-          copyBase = baseTake ? { from: baseTake, count: offset } : null;
-          stillsTakeId = blob || baseTake ? takeId : null;
-          if (!baseTake) openRecord = merge.record ? { ...merge.record, model: { ...merge.record.model, takeId: null } } : null;
-          const keepsBase = baseTake !== null;
+          // Every sample keeps its id (the base's, and the new holds' `<takeId>:<n>`), so every
+          // still stays filed where it is: the new ones are filed on Save, nothing is re-filed.
           const joined = result.assigned.filter((a) => a >= 0).length;
           const untouched = result.untouched.map((id) => result.categorizer.categories.find((c) => c.id === id)?.label || id);
           showWorking(result.categorizer, {
             ...restore,
-            hasVideo: blob !== null || Boolean(keepsBase),
             dirty: true,
             notice:
               `Merged: ${joined} of ${fresh.length} new faces joined a category` +
@@ -570,9 +620,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         carvers = {};
         const mode = get().mode;
         const carver = (carvers[mode] = carverFor(myTake.session(), myTake.restVectors(), mode));
-        pointOf = (i) => i;
-        stillsTakeId = blob ? takeId : null;
-        set({ phase: 'carved', hasVideo: blob !== null, name: '', dirty: true });
+        set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true });
         recarve(mode, carver.suggestedK());
       },
 
@@ -626,58 +674,47 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (phase !== 'carved' && phase !== 'saved') return false;
         const gen = generation;
         set({ saving: true });
+        /** The stills this save filed (removed again if the record is not saved). */
+        const filed: string[] = [];
         try {
           let categorizer: PersonalCategorizer;
-          let tid: string | null;
           const working = get().working;
           const tuningAtStart = get().tuning;
-          if (phase === 'saved' && working) {
-            categorizer = { ...working, name: trimmed };
-            tid = stillsTakeId ?? openRecord?.model.takeId ?? null;
-          } else if (phase === 'carved' && take) {
-            categorizer = carvedCategorizer(view, mode, trimmed);
-            tid = stillsTakeId;
-          } else return false;
-          // The shown stills of the take in hand (a carve's, or a merged take's), grabbed in full
-          // first (a Save right after a re-cut must not file a categorizer whose pictures were
-          // still being taken), then filed under the take.
-          if (copyBase && tid && copyBase.from !== tid) {
-            const { from, count } = copyBase;
-            for (let i = 0; i < count; i++) {
-              const b = await deps.thumbs.get(thumbKey(from, i)).catch(() => null);
-              if (b) await deps.thumbs.put(thumbKey(tid, i), b).catch(() => undefined);
-            }
-            if (gen !== generation) return false;
+          if (phase === 'saved' && working) categorizer = { ...working, name: trimmed };
+          else if (phase === 'carved' && take) categorizer = carvedCategorizer(view, mode, trimmed);
+          else return false;
+          // Every hold's still taken this session, filed under its id once it is encoded (a Save
+          // right after Stop must not file a categorizer whose pictures were still being taken).
+          // Stills already filed (a saved base's) stay where they are.
+          await stillsTaken();
+          if (gen !== generation) return false;
+          for (const x of categorizer.samples) {
+            const still = stills.get(x.id);
+            if (still && (await deps.thumbs.put(x.id, still).then(() => true, () => false))) filed.push(x.id);
           }
-          if (blob && tid) {
-            await grabThumbs(shownIndices(view));
-            if (gen !== generation) return false;
-            for (const i of shownIndices(view)) {
-              const still = stills.get(i);
-              if (still) await deps.thumbs.put(thumbKey(tid, i), still).catch(() => undefined);
-            }
-          }
-          // Saving under a name that already exists replaces that record: its take's stills go
-          // too, unless another record (or this one) still shows them.
-          const before = new Map((await Promise.all((await deps.models.list()).map((s) => deps.models.load(s.id)))).filter((r): r is FaceModelRecord => r !== null).map((r) => [r.id, r.model.takeId]));
+          // Saving under a name that already exists replaces that record: its stills go too,
+          // unless another record (or this one) still names their holds.
+          const before = new Map(
+            (await Promise.all((await deps.models.list()).map((x) => deps.models.load(x.id))))
+              .filter((r): r is FaceModelRecord => r !== null)
+              .map((r) => [r.id, r.model.categorizer.samples.map((x) => x.id)]),
+          );
           const tuning = get().tuning;
-          const record = await deps.models.save(trimmed, { categorizer, takeId: tid, ...(phase === 'saved' ? { tuning } : {}) });
+          const record = await deps.models.save(trimmed, { categorizer, ...(phase === 'saved' ? { tuning } : {}) });
           const replaced = before.get(record.id);
-          if (replaced && replaced !== tid) await dropStillsIfOrphaned(replaced);
+          if (replaced) await dropStillsIfOrphaned(replaced);
           if (gen === generation) {
             // An edit made while the save was in flight (a correction, a tuning, a re-cut) is kept,
             // and still unsaved: what was saved is the state when Save was pressed.
             const changed = get().view !== view || get().tuning !== tuningAtStart;
             set({ notice: `Saved "${record.name}".${changed ? ' Changes made since are not saved yet.' : ''}`, name: record.name, dirty: changed, ...(phase === 'saved' ? { openId: record.id, working: changed && get().working ? { ...get().working!, name: record.name } : record.model.categorizer } : {}) });
-            if (phase === 'saved') {
-              openRecord = record;
-              copyBase = null;
-              stillsTakeId = record.model.takeId;
-            }
+            if (phase === 'saved') openRecord = record;
           }
           await get().refreshSaved();
           return true;
         } catch (err) {
+          // The record was not saved: the stills filed for it go again, unless a record names them.
+          await dropStillsIfOrphaned(filed).catch(() => undefined);
           set({ notice: `Could not save: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
           return false;
         } finally {
@@ -698,14 +735,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         get().reset();
         openRecord = record;
-        pointOf = () => null;
-        showWorking(record.model.categorizer, { openId: id, name: record.name, hasVideo: record.model.takeId !== null, tuning: clampTuning(record.model.tuning ?? {}), dirty: false });
+        showWorking(record.model.categorizer, { openId: id, name: record.name, hasStills: true, tuning: clampTuning(record.model.tuning ?? {}), dirty: false });
       },
 
       async remove(id) {
         const record = await deps.models.load(id);
         await deps.models.remove(id);
-        await dropStillsIfOrphaned(record?.model.takeId);
+        await dropStillsIfOrphaned(record?.model.categorizer.samples.map((x) => x.id) ?? []);
         if (get().openId === id) get().reset();
         await get().refreshSaved();
       },
@@ -713,22 +749,18 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       reset() {
         generation++;
         release();
-        video?.cancel();
-        video = null;
         take = null;
-        blob = null;
+        takeId = null;
+        stilled = 0;
         carvers = {};
         openRecord = null;
         mergeBase = null;
-        copyBase = null;
-        pointOf = (i) => i;
-        stillsTakeId = null;
+        shownIds = [];
         typed = [];
         stills.clear();
-        grabbing.clear();
-        grabs = Promise.resolve();
+        pending.clear();
         dropUrls();
-        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasVideo: false, openId: null, k: 0, notice: null, working: null, tuning: DEFAULT_TUNING, dirty: false, merging: null });
+        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, tuning: DEFAULT_TUNING, dirty: false, merging: null });
       },
 
       cancelRecording() {
@@ -738,15 +770,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return;
         }
         // A merge take abandoned: back to the categorizer it was adding to, unsaved work and all.
-        get().reset();
+        resetKeepingStills();
         openRecord = merge.record;
-        pointOf = () => null;
         showWorking(merge.working, {
           openId: merge.openId,
           name: merge.name,
           tuning: merge.tuning,
           dirty: merge.dirty,
-          hasVideo: merge.record?.model.takeId != null,
           notice: 'The take was stopped before it finished. Nothing was merged.',
         });
       },
@@ -762,7 +792,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       correct(id, vector) {
         const working = get().working;
         if (get().phase !== 'saved' || !working) return false;
-        return applyCorrection(addSample(working, id, modalityOnly(vector), { t: deps.now(), modality }));
+        return applyCorrection(addSample(working, id, modalityOnly(vector), { sampleId: holdId(freshTakeId(working.samples), 0), t: deps.now(), modality }));
       },
 
       move(index, to) {
@@ -790,16 +820,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return false;
         }
         get().reset();
-        pointOf = () => null;
         const taken = get().saved.some((s) => s.name.trim().toLowerCase() === r.categorizer.name.trim().toLowerCase());
         showWorking(r.categorizer, {
           openId: null,
           name: r.categorizer.name,
-          hasVideo: false,
           tuning: DEFAULT_TUNING,
           dirty: true,
           notice:
-            `Imported "${r.categorizer.name}"${r.migratedFrom !== null ? ` (from file version ${r.migratedFrom})` : ''}. It has no pictures. Save to keep it` +
+            `Imported "${r.categorizer.name}"${r.migratedFrom !== null ? ` (from file version ${r.migratedFrom})` : ''}. A file carries no pictures. Save to keep it` +
             (taken ? '; saving under the same name replaces the one you have.' : '.'),
         });
         return true;

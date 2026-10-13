@@ -92,7 +92,7 @@ function Dial({ label, value, k, disabled, says, onChange }: { label: string; va
 
 function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
   const t = s.tuning;
-  const partition = s.working?.mode === 'partition';
+  const partition = s.working?.strangers === 'nearest';
   return (
     <div className="space-y-2" data-faces-tuning>
       <h4 className={heading}>Tune (no retraining)</h4>

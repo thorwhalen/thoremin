@@ -81,7 +81,7 @@ function savedRecord(id: string): FaceModelRecord {
   const carver = carverFor(session, take.restVectors(), 'reject');
   const view = carveView({ session, restVectors: take.restVectors(), carver, k: carver.suggestedK() });
   const categorizer: PersonalCategorizer = categorizerFromModel(view.model, session.points(), { name: id, mode: 'reject', modality: 'face' });
-  return { id, name: id.toUpperCase(), createdAt: 0, model: { categorizer, takeId: null } };
+  return { id, name: id.toUpperCase(), createdAt: 0, model: { categorizer } };
 }
 
 /** In-memory dependencies: a dial, a records map, and what was published. */

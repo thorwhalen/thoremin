@@ -9,6 +9,7 @@
  *   making faces at the camera does not play the instrument. Each owner releases only its own.
  */
 import type { CarveModality } from '@thoremin/sdk/enroll/modality';
+import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { appFeatureDemand } from '../featureDemand';
 import { controls } from '../host';
 
@@ -33,8 +34,10 @@ export interface CarveTarget {
 
 export interface CarveModalityUi {
   readonly modality: CarveModality;
-  /** The crop box for a still at the current frame, or null for the whole frame. */
-  region(): PixelBox | null;
+  /** The crop box for a still taken now (#385 E3), from the live vector the frame was read
+   *  with and the frame's size in video pixels; null for the whole frame (the part's position
+   *  is not in the vector, as with a synthetic source). Unmirrored: the still is mirrored after. */
+  region(live: { vector: FeatureVector; width: number; height: number }): PixelBox | null;
   /** An overlay drawn on a still, or as the picture when there is none (a hand skeleton, a
    *  stick figure), from the sidecar kept with the still. */
   drawPreview?(ctx: CanvasRenderingContext2D, sidecar: unknown, box: { w: number; h: number }): void;
