@@ -1,12 +1,17 @@
 {
-  "//": "The React layer, for the type-error RATCHET (#201; scripts/react_type_ratchet.ts, `npm run typecheck:react`). It covers exactly what tsconfig.dag.json leaves out because the repo ships no @types/react: the app shell and its panels (src/app, src/components, src/plugins, src/hooks, src/App.tsx, src/main.tsx), the extensions' React halves (packages/sdk-ui, packages/ext-*), and the jsdom shell tests. The virtual extension modules are declared the way the build sees them (src/extensions/virtual.d.ts, src/app/extensions/virtual.d.ts), so a React file that imports the list typechecks against this build's manifest. It is NOT a green gate: with React untyped it is red by construction (JSX and `react` resolve to `any` under noImplicitAny: false, the rest of strict applies). The ratchet holds the error set at its committed baseline (tsconfig.react.baseline.json) so a packages/dag or SDK API change that breaks a React caller turns the job red the day it lands, instead of shipping behind a type-erasing build. Adopting @types/react (the issue's option 1) would make this config a plain gate; nothing else needs to change.",
+  "//": "The React layer, for the type-error RATCHET (#201; scripts/react_type_ratchet.ts, `npm run typecheck:react`). It covers exactly what tsconfig.dag.json leaves out because the repo ships no @types/react: the app shell and its panels (src/app, src/components, src/plugins, src/hooks, src/App.tsx, src/main.tsx), the extensions' React halves (packages/sdk-ui, packages/ext-*), and the jsdom shell tests. The virtual extension modules are declared the way the build sees them (src/extensions/virtual.d.ts, src/app/extensions/virtual.d.ts), so a React file that imports the list typechecks against this build's manifest. It is NOT a green gate: with React untyped it is red by construction (JSX and `react` resolve to `any` under noImplicitAny: false, the rest of strict applies). The include globs (every .tsx under src and under any workspace package) plus the named directories mean a new src/<dir> or packages/ext-* is covered the day it appears. The ratchet holds the error set at its committed baseline (tsconfig.react.baseline.json), exactly, so a packages/dag or SDK API change that breaks a React caller turns the job red the day it lands, instead of shipping behind a type-erasing build. Adopting @types/react (the issue's option 1) would make this config a plain gate; nothing else needs to change.",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": false,
-    "types": ["node", "vite/client"]
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
   "include": [
+    "src/**/*.tsx",
+    "packages/*/src/**/*.tsx",
     "src/main.tsx",
     "src/App.tsx",
     "src/app",
