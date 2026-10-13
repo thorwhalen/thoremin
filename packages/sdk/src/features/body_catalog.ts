@@ -109,7 +109,7 @@ interface KinSample {
 
 /** The history plus the current frame, oldest first, all in IMAGE coordinates. */
 function kinSamples(c: BodyCtx): KinSample[] {
-  return [...c.history, { pt: c.P, torso: c.torsoImg, dtS: NaN }];
+  return [...c.history, { pt: c.Pmotion, torso: c.torsoImg, dtS: NaN }];
 }
 
 /** Speed of joint `i` across two consecutive samples, in torso lengths per second:
@@ -127,7 +127,7 @@ function sampleSpeed(older: KinSample, newer: KinSample, i: number): number {
 function speedOf(c: BodyCtx, i: number): number {
   const prev = c.history[c.history.length - 1];
   if (!prev) return NaN;
-  return sampleSpeed(prev, { pt: c.P, torso: c.torsoImg, dtS: NaN }, i);
+  return sampleSpeed(prev, { pt: c.Pmotion, torso: c.torsoImg, dtS: NaN }, i);
 }
 
 /** A value with the time span it was measured over, so a derivative across samples of
@@ -181,7 +181,7 @@ function quantityOfMotion(c: BodyCtx): number {
   let den = 0;
   for (let i = 0; i < 33; i++) {
     const a = prev.pt(i);
-    const b = c.P(i);
+    const b = c.Pmotion(i);
     if (!a || !b) continue;
     const w = Math.min(c.vis(i), prev.vis(i));
     if (w < 0.2) continue;

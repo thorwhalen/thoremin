@@ -238,8 +238,8 @@ export interface BodyCtxOptions {
   pulse?: BodyPulseReading;
   /**
    * The visibility mask (#381): a landmark below this visibility reads as absent, so
-   * every feature that needs it is NaN (dropped) rather than computed from the pose
-   * model's guess at an off-screen joint. The torso anchors (shoulders, hips) are
+   * every GEOMETRIC feature that needs it is NaN (dropped) rather than computed from the
+   * pose model's guess at an off-screen joint. The kinematics read `Pmotion`, unmasked. The torso anchors (shoulders, hips) are
    * exempt: they define the frame every other feature is measured in, and a seated
    * player's hips are often just below the frame while the arms are what they pose
    * with. 0 (the default) masks nothing.
@@ -271,6 +271,7 @@ export function buildBodyCtx(frame: BodyFrame, opts: BodyCtxOptions): BodyCtx {
   const vis = (i: number): number => frame.visibility[i] ?? 1;
   const minVis = opts.minVisibility ?? 0;
   const seen = (i: number): boolean => minVis <= 0 || vis(i) >= minVis || BODY_TORSO_ANCHORS.includes(i);
+  const Pmotion = (i: number): Vec3 | undefined => frame.landmarks[i];
   const P = (i: number): Vec3 | undefined => (seen(i) ? frame.landmarks[i] : undefined);
   const W = (i: number): Vec3 | undefined => (seen(i) ? world?.[i] : undefined);
   return {
@@ -280,6 +281,7 @@ export function buildBodyCtx(frame: BodyFrame, opts: BodyCtxOptions): BodyCtx {
     useWorld,
     torso: torsoLength(useWorld ? W : P),
     torsoImg: torsoLength(P),
+    Pmotion,
     vis,
     mirrorX: opts.mirrorX,
     width: frame.width,

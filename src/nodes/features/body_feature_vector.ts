@@ -115,7 +115,7 @@ export const bodyFeatureVectorNode = defineNode<Params>({
           : undefined;
         // Kinematics read the IMAGE set (see the catalog header): the world set is
         // hip-centred per frame and cannot see the body move through the frame.
-        history.push({ pt: bctx.P, vis: bctx.vis, torso: bctx.torsoImg, dtS: NaN, com });
+        history.push({ pt: bctx.Pmotion, vis: bctx.vis, torso: bctx.torsoImg, dtS: NaN, com });
         lastTime = ctx.time;
         lastFrame = frame;
         lastVector = vector;

@@ -261,6 +261,18 @@ describe('the visibility mask and coverage: legs out of frame', () => {
     expect(v['body.dir.upperArm.left.out']).toBeCloseTo(1, 6);
   });
 
+  it('masks geometry only: a blurred fast wrist keeps its speed, as motion blur is what lowers it', () => {
+    const blurred = (f: BodyFrame): BodyFrame => {
+      const visibility = [...f.visibility];
+      visibility[BLM.left_wrist] = 0.2;
+      return { ...f, visibility };
+    };
+    const [, v] = vectors([frameOf(), blurred(frameOf({ leftArm: 0.2 }))]);
+    expect(v['body.dir.forearm.left.up']).toBeUndefined();
+    expect(v['body.angle.elbow.left']).toBeUndefined();
+    expect(v['body.kin.speed.wrist.left']).toBeGreaterThan(0);
+  });
+
   it('featureCoverage counts finite values over the given ids', () => {
     expect(featureCoverage({ a: 1, b: NaN }, ['a', 'b', 'c', 'd'])).toBe(0.25);
     expect(featureCoverage({}, [])).toBe(1);
