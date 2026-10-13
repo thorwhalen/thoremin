@@ -82,7 +82,7 @@ const FOLD_POINTS = new Set([
  *  depends on, `@thoremin/sdk-ui` included. */
 /** The packages of thoremin's own that core itself may import: the SDK and the pure leaves. */
 const CORE_PACKAGES = ['@thoremin/dag', '@thoremin/ictus', '@thoremin/taglog', '@thoremin/lazy', '@thoremin/sdk', '@thoremin/sdk-ui'];
-const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', '@thoremin/asl', 'zod'];
+const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', 'zod'];
 
 /** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
 /** A file of an extension's PURE side, by its path below the extension's source directory: a
@@ -111,7 +111,7 @@ describe('core reaches the extensions only through the lists, from the fold poin
           offenders.push(`${file} imports ${spec}`);
         }
         // An extension that is a package is reached by its package name: never from core. Nor is a
-        // library only an extension uses (`@thoremin/asl`, the recogniser): of thoremin's own
+        // library only an extension uses (an extension's own `@thoremin/*` package): of thoremin's own
         // packages core imports only the SDK and the pure leaves. For a lazy extension this is
         // also what keeps its library out of the main chunk (`npm run check:lazy`).
         for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
@@ -179,10 +179,11 @@ describe('core reaches the extensions only through the lists, from the fold poin
           }
           if (!pure) continue;
           // Resolve to the FILE the import reaches (an explicit `.tsx`, an extensionless path, a
-          // directory's index): a pure file may reach only a pure `.ts` file of its own extension.
+          // directory's index): a pure file may reach only a pure `.ts` (or `.json` data) file of its own extension.
           const reached = [target, `${target}.ts`, `${target}.tsx`, join(target, 'index.ts'), join(target, 'index.tsx')].find((f) => existsSync(f) && !statSync(f).isDirectory());
           const reachedRel = reached ? relative(dir, reached) : rel;
-          if (!reached || !reached.endsWith('.ts') || !isPureExtensionPath(reachedRel)) offenders.push(`${file} (pure) imports its own app or React side: ${spec}`);
+          // A `.json` under a pure path is data (a library's trained weights), as pure as a `.ts` there.
+          if (!reached || !/\.(ts|json)$/.test(reached) || !isPureExtensionPath(reachedRel)) offenders.push(`${file} (pure) imports its own app or React side: ${spec}`);
         }
       }
     }

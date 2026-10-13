@@ -21,7 +21,7 @@
     "src/extensions/virtual.d.ts",
     "packages/sdk-ui/src",
     "packages/ext-air/src",
-    "packages/ext-asl/src",
+    "node_modules/@thoremin/ext-asl/src",
     "test/**/*.test.tsx"
   ]
 }

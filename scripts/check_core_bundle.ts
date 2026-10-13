@@ -2,8 +2,8 @@
  * Core alone ships no extension code: build the app from `extensions.core.json` (no
  * extensions) into a temporary directory and fail if
  *
- *  1. any module of an extension (under `src/extensions/` other than the list module, or under
- *     `packages/ext-*`) is in the build's module graph (read from the bundle itself, so a core file importing an extension's library
+ *  1. any module of an extension (under `src/extensions/` other than the list module, under
+ *     `packages/ext-*`, or an installed `node_modules/@thoremin/ext-*`) is in the build's module graph (read from the bundle itself, so a core file importing an extension's library
  *     helper is caught even when nothing of it survives as a string), or
  *  2. any node type, branch id or dial kind of a shipped extension appears in the JS (a copy
  *     of an extension's identifiers living in core).
@@ -44,6 +44,9 @@ try {
           if (inTree !== undefined && inTree !== 'index.ts') extensionModules.add(`src/extensions/${inTree}`);
           const pkg = path.match(/\/packages\/(ext-[^/]+\/.*)$/);
           if (pkg) extensionModules.add(`packages/${pkg[1]}`);
+          // An extension that is its own repository, installed as a dependency.
+          const installed = path.match(/\/node_modules\/(@thoremin\/ext-[^/]+\/.*)$/);
+          if (installed) extensionModules.add(`node_modules/${installed[1]}`);
         }
       }
     },

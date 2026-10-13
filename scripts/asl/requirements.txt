@@ -1,9 +1,0 @@
-# The ASL training pipeline (scripts/asl/). mediapipe 0.10.21: the CPU wheel that runs
-# headless on a server; 1.x needs GL libraries. numpy < 2 is what it pins.
-mediapipe==0.10.21
-numpy<2
-scikit-learn>=1.5
-opencv-python-headless
-huggingface_hub
-pyarrow==17.0.0
-pillow
