@@ -83,8 +83,8 @@ const FOLD_POINTS = new Set([
  *  workspace packages and the schema library. Its React side may import any package the app
  *  depends on, `@thoremin/sdk-ui` included. */
 /** The packages of thoremin's own that core itself may import: the SDK and the pure leaves. */
-const CORE_PACKAGES = ['@thoremin/dag', '@thoremin/ictus', '@thoremin/taglog', '@thoremin/lazy', '@thoremin/sdk', '@thoremin/sdk-ui'];
-const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', 'zod'];
+const CORE_PACKAGES = ['@thoremin/dag', '@thoremin/ictus', '@thoremin/taglog', '@thoremin/lazy', '@thoremin/stats', '@thoremin/sdk', '@thoremin/sdk-ui'];
+const PURE_PACKAGES = ['@thoremin/sdk', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', '@thoremin/stats', 'zod'];
 
 /** A file of the extension's PURE side: a node, a library, or a pure manifest file at its root. */
 /** A file of an extension's PURE side, by its path below the extension's source directory: a

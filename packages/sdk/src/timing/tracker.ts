@@ -48,6 +48,7 @@
  * audio reader; replayable over fixtures in Node.
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
+import { ewUpdate, quantile, quantileSorted } from '@thoremin/stats';
 import { frameTime, type FrameTiming } from '../nodes/domain';
 import { GlitchCounter, type GlitchReading } from './glitches';
 import { deriveOutputStage, knownOutputLatency, pairScheduleToSpeaker, OUTPUT_STAGE_PRIOR_S, type OutputStage, type OutputStageAudioLike } from './output_stage';
@@ -150,6 +151,11 @@ export const MIN_FRAMES_FOR_NOISE = 20;
 export const CAPTURE_TIME_VERDICT_FRAMES = 30;
 /** The share of the largest residuals {@link stampNoise} leaves out (a stalled frame). */
 export const STAMP_NOISE_TRIM = 0.05;
+/** Without a camera period, {@link stampNoise}'s lattice is this quantile of the gaps (the
+ *  smallest common interval), read at the real gap below it. */
+export const STAMP_NOISE_FALLBACK_QUANTILE = 0.2;
+/** The frame-age quantile the reading reports as `p95`. */
+export const FRAME_AGE_QUANTILE = 0.95;
 
 /**
  * The noise of a run of stamps against a camera of frame period `period` (seconds):
@@ -174,8 +180,7 @@ export function stampNoise(times: readonly number[], period: number = NaN): numb
   if (d.length < 3) return NaN;
   let p = period;
   if (!(p > 0)) {
-    const sorted = [...d].sort((a, b) => a - b);
-    p = sorted[Math.floor(0.2 * (sorted.length - 1))];
+    p = quantile(d, STAMP_NOISE_FALLBACK_QUANTILE, { index: 'floor' });
   }
   if (!(p > 0)) return NaN;
   const sq = d.map((x) => (x - Math.max(1, Math.round(x / p)) * p) ** 2).sort((a, b) => a - b);
@@ -207,7 +212,7 @@ export function stampPeriod(times: readonly number[]): number {
   const d: number[] = [];
   for (let i = 1; i < times.length; i++) if (times[i] > times[i - 1]) d.push(times[i] - times[i - 1]);
   if (d.length < 3) return NaN;
-  const anchor = [...d].sort((a, b) => a - b)[Math.floor(STAMP_PERIOD_QUANTILE * (d.length - 1))];
+  const anchor = quantile(d, STAMP_PERIOD_QUANTILE, { index: 'floor' });
   const kept = d.filter((x) => x >= anchor && x <= anchor * STAMP_PERIOD_SPREAD);
   return kept.reduce((a, b) => a + b, 0) / kept.length;
 }
@@ -371,7 +376,7 @@ export class TimingTracker implements Tap {
     }
     const pair = pairScheduleToSpeaker(ac, now);
     if (!Number.isFinite(pair)) return;
-    this.pairEw = Number.isFinite(this.pairEw) ? this.pairEw + PAIR_EW_GAIN * (pair - this.pairEw) : pair;
+    this.pairEw = ewUpdate(this.pairEw, pair, PAIR_EW_GAIN);
     this.cached = null;
   }
 
@@ -392,16 +397,16 @@ export class TimingTracker implements Tap {
     const age = Math.max(0, ctx.time - sampleTime(frame, ctx, this.captureLag()));
     if (Number.isFinite(this.lastT)) {
       const period = t - this.lastT;
-      if (period > 0) this.periodEw = Number.isFinite(this.periodEw) ? this.periodEw + AGE_EW_GAIN * (period - this.periodEw) : period;
+      if (period > 0) this.periodEw = ewUpdate(this.periodEw, period, AGE_EW_GAIN);
     }
     this.lastT = t;
-    if (stamped) this.ageEw = Number.isFinite(this.ageEw) ? this.ageEw + AGE_EW_GAIN * (age - this.ageEw) : age;
+    if (stamped) this.ageEw = ewUpdate(this.ageEw, age, AGE_EW_GAIN);
     if (stamped) {
       this.honouredFrames++;
       if (frame.tSource === 'capture') this.captureTimeSeen = true;
     }
     if (stamped && frame.tSource === 'capture' && typeof frame.lag === 'number' && Number.isFinite(frame.lag) && frame.lag >= 0) {
-      this.captureLagEw = Number.isFinite(this.captureLagEw) ? this.captureLagEw + CAPTURE_LAG_EW_GAIN * (frame.lag - this.captureLagEw) : frame.lag;
+      this.captureLagEw = ewUpdate(this.captureLagEw, frame.lag, CAPTURE_LAG_EW_GAIN);
     }
     this.frames++;
     const skipped = typeof frame.skipped === 'number' && frame.skipped > 0 ? frame.skipped : 0;
@@ -437,7 +442,8 @@ export class TimingTracker implements Tap {
     let dominantSource: string | null = null;
     for (const [source, n] of Object.entries(stampSources)) if (dominantSource === null || n > stampSources[dominantSource]) dominantSource = source;
     const ages = this.recent.filter((r) => r.stamped).map((r) => r.age).sort((a, b) => a - b);
-    const p95 = ages.length ? ages[Math.min(ages.length - 1, Math.floor(0.95 * (ages.length - 1) + 0.5))] : NaN;
+    // The nearest real sample (`round`), NaN with none.
+    const p95 = quantileSorted(ages, FRAME_AGE_QUANTILE, { index: 'round' });
     const captured = this.recent.filter((r) => r.source === 'capture');
     const span = captured.length >= MIN_FRAMES_FOR_RATE ? captured[captured.length - 1].t - captured[0].t : 0;
     const skippedAfterFirst = (rs: readonly FrameRecord[]) => rs.slice(1).reduce((a, r) => a + r.skipped, 0);

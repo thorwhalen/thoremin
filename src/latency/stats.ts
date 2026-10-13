@@ -10,6 +10,7 @@
  * Pure, no DOM, no clock: shared by the in-app probe, the strike test and the
  * headless measurement script, and unit-tested in Node.
  */
+import { quantileSorted as quantileBy } from '@thoremin/stats';
 
 /** One stage's samples, summarised. All values in the samples' own unit (ms here). */
 export interface Summary {
@@ -26,13 +27,10 @@ export interface Summary {
 
 const EMPTY: Summary = { n: 0, mean: NaN, sd: NaN, min: NaN, p5: NaN, p50: NaN, p95: NaN, max: NaN };
 
-/** Linear-interpolated quantile of an ascending-sorted array, q in [0, 1]. */
+/** Linear-interpolated quantile of an ascending-sorted array, q in [0, 1] (the report
+ *  interpolates: its percentiles are summaries, not samples). */
 export function quantileSorted(sorted: readonly number[], q: number): number {
-  if (sorted.length === 0) return NaN;
-  const pos = Math.min(1, Math.max(0, q)) * (sorted.length - 1);
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+  return quantileBy(sorted, q, { index: 'interpolate' });
 }
 
 /** Summarise finite samples; non-finite values are dropped, not counted. */
