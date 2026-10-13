@@ -6,6 +6,7 @@
   "description": "thoremin's extension SDK, the pure half: what an extension's nodes, libraries and manifest may import (TypeScript source, consumed through the workspace).",
   "exports": {
     "./enroll": "./src/enroll/index.ts",
+    "./enroll/bind": "./src/enroll/bind.ts",
     "./enroll/classify": "./src/enroll/classify.ts",
     "./enroll/cluster": "./src/enroll/cluster.ts",
     "./enroll/cue": "./src/enroll/cue.ts",

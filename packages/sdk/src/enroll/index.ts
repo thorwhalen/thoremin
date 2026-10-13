@@ -19,6 +19,7 @@
  * | Condition | `invariance.ts` | down-weight what moved during a nuisance demo; consume #131's declarations |
  * | Carve | `cluster.ts` | agglomerative hierarchy; cut at k — **before or after** |
  * | Reject | `classify.ts` | no-man's-land by demonstration, hysteretic, holds rather than silences |
+ * | Bind | `bind.ts` | a category's entry fires its command; the saved model + bindings schema |
  * | Units | `noise.ts` | every distance in multiples of a feature's own jitter — unit-free |
  * | Cues | `cue.ts` | what the player is asked to do, as a Zod-schema'd collection (#163) |
  * | Sufficiency | `sufficiency.ts` | the strategy seam that says when a cue has ENOUGH |
@@ -168,6 +169,23 @@ export {
   type ProjectionOptions,
   type Representative,
 } from './projection';
+export {
+  BoundCategoriesSchema,
+  CATEGORY_EDGE_DEFAULTS,
+  CategoryBindingSchema,
+  TrainedModelSchema,
+  carryBindings,
+  categoryName,
+  createCategoryEdge,
+  hasReading,
+  toCategoryScores,
+  type BoundCategories,
+  type CategoryBinding,
+  type CategoryEdge,
+  type CategoryEdgeOptions,
+  type CategoryReading,
+  type CategoryStep,
+} from './bind';
 export { categoryKey } from './types';
 export type {
   Category,

@@ -48,6 +48,8 @@ import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDU
 import { EXTENSION_STATUS_HOOKS } from './extensions';
 import { useGestureStatus, type HandPoses } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
+import { createCategoryDispatcher, resetCategoryLive } from './enroll/categoryDispatch';
+import { installCategoryDemand, useCategoryBinding } from './enroll/categoryBinding';
 import type { FaceStatus } from '@/nodes';
 import type { MidiStatus } from '@/nodes/browser';
 import type { ExpressionScores } from '@/music/expression';
@@ -189,6 +191,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     let disposed = false;
     let uninstallDebug: () => void = () => {};
     let uninstallLatency: () => void = () => {};
+    let uninstallCategoryDemand: () => void = () => {};
     let timing: ReturnType<typeof createTimingResource> | null = null;
     // The acquired stream is held here (not read back off video.srcObject) so
     // cleanup can always stop the exact stream this run acquired. Under React
@@ -440,6 +443,15 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           lastPosesKey = key;
         };
 
+        // Category dispatch (#160): the player's saved categories, classified over the
+        // live feature vector (kept current by the LiveVectorTap above), fire their bound
+        // commands on ENTRY. The demand claim keeps the model's feature groups computed
+        // while binding is on; it is released on teardown.
+        const categoryDispatcher = createCategoryDispatcher();
+        uninstallCategoryDemand = installCategoryDemand();
+        void useCategoryBinding.getState().load();
+        const reportCategory = (now: number) => categoryDispatcher.tick(now);
+
         // Bridge the `lyria` node's status to React (#188), so the Generative settings
         // section can render an honest readout (loading / ready / playing / needs a
         // key). Change-gated inside the reporter, like the others.
@@ -493,7 +505,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportGenerative), toMs(reportConductor), toMs(reportTiming), ...extensionSinks.map(toMs)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportTiming), ...extensionSinks.map(toMs)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -532,6 +544,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       for (const hook of EXTENSION_STATUS_HOOKS) hook.reset();
       uninstallDebug();
       uninstallLatency();
+      uninstallCategoryDemand();
+      resetCategoryLive();
       timing?.dispose();
       timing = null;
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.

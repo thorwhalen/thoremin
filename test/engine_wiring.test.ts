@@ -66,7 +66,8 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // Each bridge goes through the converter rather than being passed raw.
     // (`...latencySinks` is the #227 probe's tick-end stamp: empty unless ?probe=latency.)
     // (`reportTiming` is the timing resource's readout for the camera status line, step 0 of the timing plan.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportTiming\),\s*\.\.\.extensionSinks\.map\(toMs\)\s*\]/);
+    // (`reportCategory` feeds the #160 category dispatcher, whose hold is in ms like the gestures'.)
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportMidi\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportTiming\),\s*\.\.\.extensionSinks\.map\(toMs\)\s*\]/);
     // The extensions' sinks (the air instruments' readouts and shape taps, PR 5a) are built
     // from the manifests and converted the same way, in one place.
     expect(c).toMatch(/const extensionSinks = EXTENSION_STATUS_HOOKS\.map\(\(hook\) => hook\.make\(engine\)\)/);
