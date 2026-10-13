@@ -9,9 +9,10 @@
  * Where a node lives is decided by who needs it, not by what it does:
  *
  *  - The TRUNK holds what every instrument shares: the hand source and its features, the UI
- *    bridge, the merge, the synth, the overlay, and the two shell-level readers of the hands
+ *    bridge, the merge, the synth, the overlay, the two shell-level readers of the hands
  *    (the gesture classifier that drives command dispatch, and the hand feature vector that
- *    the Lab and the Trainer read). They cost an early return per tick when idle and are
+ *    the Lab and the Trainer read), and the song player (#186 PR G: the Song tool's song
+ *    plays under any instrument). They cost an early return per tick when idle and are
  *    gated by their own tools, so they are not worth a branch each.
  *  - `face-source` holds the face model AND the two cheap nodes every face consumer wants
  *    (smoothed features, the chord selector), so a consumer's edges into them never dangle.
@@ -53,6 +54,9 @@ export const trunk = defineBranch({
     { id: TRUNK.merge, type: 'synth-merge', params: {} },
     { id: TRUNK.synth, type: 'webaudio-synth' },
     { id: TRUNK.overlay, type: 'canvas-overlay', params: {} },
+    // The song the player loaded in the Song tool (#186 PR G): idle (an early return)
+    // until there is one.
+    { id: 'songPlayer', type: 'song-player', params: {} },
   ],
   edges: [
     to({ node: TRUNK.cam, port: 'hands' }, { node: TRUNK.feat, port: 'hands' }),
@@ -77,6 +81,13 @@ export const trunk = defineBranch({
     // The composed element set (the ADR, §3.2 rule 4): the host writes it to the hot store,
     // `store-controls` emits it, the overlay draws only these. Data on a port, not a param.
     to(ui('graphElements'), overlay('elements')),
+    // The song (#186 PR G): the loaded song by identity, its transport, level and rate, and
+    // a tool's claim, which silences it like every other voice.
+    to(ui('songHandle'), { node: 'songPlayer', port: 'song' }),
+    to(ui('songPlaying'), { node: 'songPlayer', port: 'playing' }),
+    to(ui('songRate'), { node: 'songPlayer', port: 'rate' }),
+    to(ui('songVolume'), { node: 'songPlayer', port: 'volume' }),
+    to(ui('claimed'), { node: 'songPlayer', port: 'claimed' }),
   ],
   overlay: ['video', 'landmarks', 'featureLab', 'featureCorrelation', 'tagHud', 'trainerHud'],
 });

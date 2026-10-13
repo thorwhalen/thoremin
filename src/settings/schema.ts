@@ -219,6 +219,25 @@ export type BodySettings = z.infer<typeof BodySettingsSchema>;
 
 /** The shipped body defaults: off (the model is the most expensive in the graph), lite. */
 export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
+
+/** The song's rate range: the native media element's quality range (research map §6.1),
+ *  and the `song-player` node's default clamp. */
+export const SONG_RATE_MIN = 0.5;
+export const SONG_RATE_MAX = 2;
+/**
+ * The song the player dances to (#186 PR G): its level and the rate it plays at, pitch
+ * preserved. Scalar dials, so the Song tool's sliders, the palette and the assistant
+ * reach them. The song ITSELF is not here: a decoded song is transient hot-store state
+ * (`songHandle`), never a preset field, and so is the transport (`songPlaying`), for the
+ * reason the generative transport is not one (a saved instrument must not start playing
+ * on load).
+ */
+export const SongSettingsSchema = z.object({
+  volume: z.number().min(0).max(1),
+  rate: z.number().min(SONG_RATE_MIN).max(SONG_RATE_MAX),
+});
+export type SongSettings = z.infer<typeof SongSettingsSchema>;
+export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1 };
 /**
  * The generative layer (#141 / #188): gesture features steering a cloud generative
  * engine (Lyria RealTime) through the `indirect-map → lyria` branch. A preset field:
@@ -291,6 +310,8 @@ export const CoreSettingsSchema = z.object({
   hands: HandsSettingsSchema.default(DEFAULT_HANDS),
   // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
   body: BodySettingsSchema.default(DEFAULT_BODY),
+  // The song's level and rate (#186 PR G). `.default(...)` keeps pre-song presets valid.
+  song: SongSettingsSchema.default(DEFAULT_SONG),
   // The body→sound routing (#186 PR E): four route slots over the catalog. `.default`
   // keeps pre-routing presets valid (no routes = byte-identical sound).
   bodyMap: BodyMapSchema.default(() => structuredClone(DEFAULT_BODY_MAP)),

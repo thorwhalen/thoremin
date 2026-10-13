@@ -25,6 +25,7 @@ const SURFACES: Record<string, string> = {
   gestures: 'GesturesPanel',
   trainer: 'TrainerPanel',
   conductor: 'ConductorPanel',
+  song: 'SongPanel',
   assistant: 'AssistantOverlay',
 };
 

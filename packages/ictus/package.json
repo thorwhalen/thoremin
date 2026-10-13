@@ -16,6 +16,7 @@
     "./priors": "./src/priors.ts",
     "./pulse": "./src/pulse.ts",
     "./scheduler": "./src/scheduler.ts",
+    "./song_grid": "./src/song_grid.ts",
     "./trend_prior": "./src/trend_prior.ts",
     "./types": "./src/types.ts"
   },

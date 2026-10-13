@@ -45,6 +45,9 @@ import {
   type FaceExpr,
   type MidiSettings,
   type SteerSettings,
+  SongSettingsSchema,
+  DEFAULT_SONG,
+  type SongSettings,
 } from '@/settings/schema';
 import { BodyMapSchema, DEFAULT_BODY_MAP, type BodyMap } from '@/nodes/mapping/body_map';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
@@ -55,6 +58,7 @@ import {
 } from '@/nodes/features/face_controls';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, LEGACY_CONDUCTOR_PRIOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import type { SongHandle } from '@/nodes/output/song_player';
 import { AudioPrefsSchema, DEFAULT_AUDIO_PREFS, type AudioPrefs } from './timing/audioPrefs';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
@@ -182,6 +186,21 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** The body→sound routing (#186 PR E). A preset field; flows to `body-route` through
    *  `store-controls` as the `bodyMap` port, so a route edit is live without a rebuild. */
   bodyMap: BodyMap;
+  /** The song's level and rate (#186 PR G). A preset field; flows to `song-player`'s
+   *  `volume` / `rate` inputs through `store-controls`. */
+  song: SongSettings;
+  /**
+   * The loaded song (#186 PR G, research map §9.5): the stable {@link SongHandle} the
+   * Song tool writes after decoding a file and tracking its beats. TRANSIENT, like
+   * {@link scoreDoc}: never persisted (its object URL dies with the page, and a beat grid
+   * has no place in a saved instrument). `store-controls` emits the SAME object every
+   * tick until another song loads, so `song-player` detects a new song by identity.
+   */
+  songHandle: SongHandle | null;
+  /** The song's TRANSPORT, transient like {@link steerPlaying}: a saved instrument must
+   *  never start playing on load. Written by the `song.play` / `song.pause` commands
+   *  (through the song host), and back to false when the song plays to its end. */
+  songPlaying: boolean;
   /** The generative layer (#141 / #188): on/off, level, and what the gestures mean
    *  (`config`). A preset field (in {@link SETTINGS_KEYS}); read live by `indirect-map`
    *  / `lyria` via `store-controls` → their `steerConfig` / `enabled` / `volume` inputs. */
@@ -260,6 +279,11 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   toggleMuted(): void;
   /** Take (`on`) or release a hush claim (see {@link hushedBy}). Idempotent per claimer. */
   setHush(claimer: string, on: boolean): void;
+  /** Replace the loaded song (transient, see {@link songHandle}); releases the previous
+   *  song's object URL and stops the transport. */
+  setSongHandle(song: SongHandle | null): void;
+  /** Start or stop the song (transient, see {@link songPlaying}). */
+  setSongPlaying(v: boolean): void;
   /** Replace the loaded score (transient, see {@link scoreDoc}). */
   setScoreDoc: (doc: ScoreDoc | null) => void;
   /** Replace the composed graph's overlay element set (transient, see {@link graphElements}). */
@@ -521,6 +545,15 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
       body = current.body;
     }
   }
+  // Heal the song settings (#186 PR G): a pre-song blob has none → the defaults.
+  let song = current.song;
+  if (p.song) {
+    try {
+      song = SongSettingsSchema.parse({ ...DEFAULT_SONG, ...p.song });
+    } catch {
+      song = current.song;
+    }
+  }
   // Heal the generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter
   // strains; a partial one is completed; a corrupt one falls back whole.
   let steer = current.steer;
@@ -607,7 +640,12 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, hands, body, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, audioPrefs, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, ...keptTransients(current) };
+  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, hands, body, song, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, audioPrefs, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, ...keptTransients(current) };
+}
+
+/** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
+function releaseSongUrl(song: SongHandle | null): void {
+  if (song?.url.startsWith('blob:') && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(song.url);
 }
 
 /** The extensions' transient fields as they are now: a rehydrated blob never carries them
@@ -650,6 +688,9 @@ export const useControls = create<ControlState>()(
       midi: { ...DEFAULT_MIDI },
       hands: { ...DEFAULT_HANDS },
       body: { ...DEFAULT_BODY },
+      song: { ...DEFAULT_SONG },
+      songHandle: null,
+      songPlaying: false,
       bodyMap: structuredClone(DEFAULT_BODY_MAP),
       steer: defaultSteer(),
       steerPlaying: false,
@@ -689,6 +730,13 @@ export const useControls = create<ControlState>()(
           return { hushedBy: on ? [...s.hushedBy, claimer] : s.hushedBy.filter((c) => c !== claimer) };
         }),
       setSteerPlaying: (v) => set({ steerPlaying: v }),
+      setSongHandle: (song) =>
+        set((s) => {
+          if (s.songHandle === song) return s;
+          releaseSongUrl(s.songHandle);
+          return { songHandle: song, songPlaying: false };
+        }),
+      setSongPlaying: (v) => set({ songPlaying: v }),
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
       setGraphElements: (elements) => set({ graphElements: elements }),
 
@@ -791,7 +839,10 @@ export const useControls = create<ControlState>()(
       // v24 (#240): `audioPrefs` added, a per-device tooling pref (not a preset field):
       // `lowLatency`, default off = the `interactive` hint every earlier blob ran with.
       // ADDITIVE, healed by mergeControls' schema parse; the bump marks the growth.
-      version: 24,
+      // v25 (#186 PR G): `song` added (the song's level and rate, defaults 0.8 / 1).
+      // ADDITIVE, healed by mergeControls' schema parse; the bump marks the growth. The
+      // song itself and its transport are transient and never persisted.
+      version: 25,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

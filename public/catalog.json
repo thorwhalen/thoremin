@@ -2534,6 +2534,72 @@
     ]
   },
   {
+    "type": "song-player",
+    "title": "Song Player",
+    "description": "Plays the song loaded in the Song tool at a live rate with the pitch preserved, into the master bus, and publishes the song's beat as musical time.",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "song",
+        "kind": "song-handle",
+        "description": "The loaded song (the Song tool, through the store); absent = nothing to play"
+      },
+      {
+        "name": "playing",
+        "kind": "boolean",
+        "description": "The transport: song.play / song.pause",
+        "default": false
+      },
+      {
+        "name": "rate",
+        "kind": "number",
+        "description": "Playback rate, pitch preserved (clamped to minRate..maxRate)",
+        "default": 1
+      },
+      {
+        "name": "volume",
+        "kind": "number",
+        "default": 0.8
+      },
+      {
+        "name": "claimed",
+        "kind": "boolean",
+        "description": "A tool holds the instrument quiet (the Trainer)",
+        "default": false
+      }
+    ],
+    "outputs": [
+      {
+        "name": "status",
+        "kind": "load-status"
+      },
+      {
+        "name": "position",
+        "kind": "number",
+        "description": "Seconds into the song, on its own timeline"
+      },
+      {
+        "name": "songTime",
+        "kind": "musical-time",
+        "description": "The song's beat at the playback position, tempo in engine time"
+      }
+    ],
+    "params": [
+      {
+        "name": "minRate",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "maxRate",
+        "type": "number",
+        "default": 2
+      }
+    ]
+  },
+  {
     "type": "store-controls",
     "title": "UI Controls",
     "description": "Reads the live UI control store → scale + sound + overlay port values.",
@@ -2666,6 +2732,22 @@
       {
         "name": "scoreDoc",
         "kind": "score-doc"
+      },
+      {
+        "name": "songHandle",
+        "kind": "song-handle"
+      },
+      {
+        "name": "songPlaying",
+        "kind": "boolean"
+      },
+      {
+        "name": "songVolume",
+        "kind": "number"
+      },
+      {
+        "name": "songRate",
+        "kind": "number"
       },
       {
         "name": "graphElements",

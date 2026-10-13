@@ -3,7 +3,7 @@
  * registry stays React-free and importable from plain Node tests. A tool with no icon
  * still renders — label-only is fine, an icon-only button is not.
  */
-import { FlaskConical, Command, BookOpen, Hand, Music2, GraduationCap, Bot, type LucideIcon } from 'lucide-react';
+import { FlaskConical, Command, BookOpen, Hand, Music2, GraduationCap, Bot, Disc3, type LucideIcon } from 'lucide-react';
 
 export const TOOL_ICONS: Record<string, LucideIcon> = {
   lab: FlaskConical,
@@ -11,6 +11,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   gestures: Hand,
   conductor: Music2,
   trainer: GraduationCap,
+  song: Disc3,
   assistant: Bot,
   manual: BookOpen,
 };

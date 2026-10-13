@@ -112,6 +112,8 @@ export type Tool = z.infer<typeof ToolSchema>;
  *  - Conductor and Trainer each take over a whole session, and are what a player comes
  *    to the app to try, so they get a button;
  *  - Commands reaches every setting by name, and its pill teaches the ⌘K hotkey;
+ *  - Song is used between sessions to pick music, and its stop control shows in the bar
+ *    whenever a song plays, pinned or not;
  *  - Feature Lab and Gestures are setup and diagnosis, used rarely (the Lab still shows
  *    itself in the bar whenever it is running); the Assistant needs a key before it can
  *    do anything, and a player who sets one up can pin it; the Manual is reference.
@@ -135,6 +137,18 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     kind: 'panel',
     group: 'mode',
     defaultPinned: true,
+  },
+  {
+    // #186 PR G: the song the player dances to. A tool, not a mode: it does not take the
+    // instrument over (the song plays under whatever instrument is loaded). It plays on
+    // with its panel closed, so it runs detached and the bar carries its stop control.
+    id: 'song',
+    label: 'Song',
+    description: 'Load a song to dance or play along to: its beat is tracked in the browser, and it plays at any tempo without changing pitch.',
+    kind: 'panel',
+    group: 'tool',
+    defaultPinned: false,
+    runsDetached: true,
   },
   {
     id: 'commands',

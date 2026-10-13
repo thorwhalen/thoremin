@@ -20,6 +20,8 @@ export { DIAL_FIELD_COMMANDS, generateDialCommands, setCommandIdFor } from './pe
 export { INSTRUMENT_COMMANDS, loadInstrumentCmd, saveInstrumentCmd, createInstrumentCmd } from './instruments';
 export { RECORDING_COMMANDS, setRecordingLocationCmd, chooseRecordingFolderCmd } from './recording';
 export { provideRecordingHost, recordingHost, type RecordingHost, type ChosenFolder } from './recordingHost';
+export { SONG_COMMANDS, playSongCmd, pauseSongCmd } from './song';
+export { provideSongHost, songHost, type SongHost } from './songHost';
 export {
   installConfirmationGate,
   createApprovalStore,

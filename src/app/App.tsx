@@ -32,6 +32,10 @@ import ToolsBar from './ToolsBar';
 import ToolsLauncher from './ToolsLauncher';
 import { publishHeight, TAKE_CLUSTER_HEIGHT_VAR } from './shellLayout';
 import LabPanel from './LabPanel';
+import SongPanel from './SongPanel';
+// Installs the song commands' host (#186 PR G), so `song.play` works from the palette
+// before the Song tool was ever opened.
+import './song/host';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
 import ScoreLoader from './ScoreLoader';
@@ -195,6 +199,8 @@ export default function App({
       <TrainerPanel />
       {/* Conductor mode (#187) — renders when its tool is the open one. */}
       <ConductorPanel />
+      {/* The Song tool (#186 PR G) — renders when its tool is the open one. */}
+      <SongPanel />
       {/* The conductor's score (#187 PR 3): loads the selected piece when conducting is on. */}
       <ScoreLoader />
 
