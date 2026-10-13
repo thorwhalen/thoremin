@@ -299,8 +299,9 @@ export interface RecutRange {
   suggestedK: number;
 }
 
-/** The pool a re-cut carves, its must-link groups (one per pinned category), and the bins. */
-function recutPlan(c: PersonalCategorizer, options: RecutOptions) {
+/** Which holds a re-cut carves (indices into `samples`), its must-link groups (pool positions,
+ *  by pinned category), and where the others stay. */
+function recutPool(c: PersonalCategorizer, options: RecutOptions) {
   const pins = c.pins ?? {};
   const now = placement(c);
   const bins = new Map<string, Place>();
@@ -325,6 +326,12 @@ function recutPlan(c: PersonalCategorizer, options: RecutOptions) {
     }
     pool.push(i);
   });
+  return { pool, bins, groups };
+}
+
+/** The forest a re-cut cuts: quadratic to cubic in the pool, so built only to cut or suggest. */
+function recutPlan(c: PersonalCategorizer, options: RecutOptions) {
+  const { pool, bins, groups } = recutPool(c, options);
   const order = [...groups.keys()];
   const forest = buildConstrainedForest(
     pool.map((i) => c.samples[i].vector),
@@ -335,7 +342,19 @@ function recutPlan(c: PersonalCategorizer, options: RecutOptions) {
   return { pool, bins, forest, groupIds: order, groups };
 }
 
-/** What k a re-cut of `c` (with `options`) can take, and suggests. */
+/**
+ * What k a re-cut of `c` can take, without building the forest (cheap: a host shows it on every
+ * edit): one category per pinned category (at least one), up to one per free hold plus one per
+ * pinned category. `pool` is how many holds a re-cut would carve.
+ */
+export function recutBounds(c: PersonalCategorizer, options: RecutOptions = {}): { minK: number; maxK: number; pool: number } {
+  const { pool, groups } = recutPool(c, options);
+  if (pool.length === 0) return { minK: 0, maxK: 0, pool: 0 };
+  const grouped = [...groups.values()].reduce((n, g) => n + g.length, 0);
+  return { minK: Math.max(1, groups.size), maxK: pool.length - grouped + groups.size, pool: pool.length };
+}
+
+/** What k a re-cut of `c` (with `options`) can take, and suggests (this builds the forest). */
 export function recutRange(c: PersonalCategorizer, options: RecutOptions = {}): RecutRange {
   const { forest } = recutPlan(c, options);
   return { ...forestRange(forest), suggestedK: suggestForestK(forest) };

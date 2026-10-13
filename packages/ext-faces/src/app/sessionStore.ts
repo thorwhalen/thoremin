@@ -3,9 +3,15 @@
  * open or delete a saved one; then (P3) test it and correct it: a WORKING copy of the open
  * categorizer takes the player's corrections (a live face added to a category, a sample moved,
  * a new take merged in with P1's `mergeSession`) and the live tuning, until Save; and a
- * categorizer is imported from or exported to P1's versioned file. A zustand store the panel renders; the take, the carvers, the
- * stills and the names the player typed live beside it (not in it: none of them is something a
- * component renders by value).
+ * categorizer is imported from or exported to P1's versioned file. A zustand store the panel renders; the take, the
+ * stills, the edit history and where the names came from live beside it (not in it: none of them
+ * is something a component renders by value).
+ *
+ * #385 E4, one editable carve: from Stop on, a take IS a categorizer (`working`, every hold under
+ * its id), so a fresh carve and an opened one are edited the same way: re-cut k (honouring the
+ * player's pins, from the samples, so an opened one re-cuts too), move holds (a pin each), name
+ * (a pin), merge, split, delete; every edit is one step of an undo history that restores the
+ * exact previous document.
  *
  * #385 E3: a hold's still is taken the moment the take emits it, from the live frame, cropped to
  * the modality's region, and kept by its HOLD ID (`<takeId>:<n>`, the sample's id in the file);
@@ -38,17 +44,32 @@ import {
   categorizerFromModel,
   exportCategorizer,
   importCategorizer,
+  strangersFor,
   type CategorizerMode,
   type PersonalCategorizer,
   type SampleInput,
 } from '@thoremin/sdk/enroll/categorizer';
+import { neutralIndices } from '@thoremin/sdk/enroll/carve';
+import { TRAIN_DEFAULTS } from '@thoremin/sdk/enroll/classify';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
+import {
+  deleteHolds as deleteHoldsFrom,
+  mergeCategories,
+  moveHolds as moveHoldsIn,
+  nameCategory,
+  recut,
+  recutBounds,
+  recutRange,
+  splitCategory,
+  type Place,
+  type RecutOptions,
+  type SortResult,
+} from '@thoremin/sdk/enroll/sorting';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
-import { carveView, carverFor, savedView, withTypedName, type CarveView, type TypedName } from '../lib/carving';
+import { nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, type Tuning } from '../lib/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
-import type { Carver } from '@thoremin/sdk/enroll/carve';
 import { foreignModality, keepOnly, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
@@ -72,12 +93,13 @@ export type FacePhase =
   | 'paused'
   /** Stop was pressed: the take is being carved. */
   | 'stopping'
-  /** A take carved: the grid, k, the mode, names, Save. */
+  /** A take carved: its working categorizer in the sorting grid (k, the mode, moves, names,
+   *  merge, split, undo), Save. */
   | 'carved'
   /** A take that held no face long enough to carve. */
   | 'empty'
-  /** A categorizer open (saved, imported or merged): the grid and its names (k is fixed without
-   *  the take), the live test, corrections and the tuning. */
+  /** A categorizer open (saved, imported or merged): the same sorting grid (a re-cut of k too,
+   *  from its samples), the live test, corrections and the tuning. */
   | 'saved';
 
 /** What a new take merged into the open categorizer keeps of it (P1's `mergeSession` seed):
@@ -124,7 +146,8 @@ export interface FaceSessionState {
   phase: FacePhase;
   mode: CategorizerMode;
   k: number;
-  view: CarveView | null;
+  /** The sorting grid over {@link FaceSessionState.working} (#385 E4). */
+  view: SortingView | null;
   /** Object URLs of the stills in hand, by index into the shown samples (the take's holds, or
    *  the open categorizer's samples). */
   thumbs: Readonly<Record<number, string>>;
@@ -145,8 +168,11 @@ export interface FaceSessionState {
   name: string;
   /** A save is in flight (Save is disabled meanwhile). */
   saving: boolean;
-  /** The open categorizer with its unsaved corrections (phase `saved`), or null. */
+  /** The ONE editable carve (#385 E4): a fresh take's categorizer (phase `carved`) or the open
+   *  one (phase `saved`), with its unsaved edits; null otherwise. */
   working: PersonalCategorizer | null;
+  /** How many edits undo and redo can step through. */
+  history: { undo: number; redo: number };
   /** The open categorizer's live tuning (phase `saved`). */
   tuning: Tuning;
   /** Something shown is not saved: a fresh carve, a correction, a merge, an import, a tuning. */
@@ -183,8 +209,20 @@ export interface FaceSessionState {
   setTuning(tuning: Partial<Tuning>): void;
   /** "This face is `id`": add a live face to a category of the open categorizer. */
   correct(id: string, vector: FeatureVector): boolean;
-  /** Move sample `index` of the open categorizer to category `to` (null: out of every one). */
+  /** Move sample `index` of the working categorizer to category `to` (null: out of every one,
+   *  into neutral or set aside as its strangers say). A pin, as every move. */
   move(index: number, to: string | null): boolean;
+  /** Move holds (by sample id) to a category, `neutral`, `aside` or `NEW_CATEGORY`; pinned there. */
+  moveHolds(ids: readonly string[], to: Place): boolean;
+  /** Delete holds (by sample id); a category they empty goes too. Undoable. */
+  deleteHolds(ids: readonly string[]): boolean;
+  /** Merge category `from` into `into` (both's holds pinned to `into`). */
+  merge(from: string, into: string): boolean;
+  /** Split a category in two (its own sub-hierarchy cut at 2, both halves pinned). */
+  split(id: string): boolean;
+  /** Step the working categorizer back to before the last edit (exactly), or forward again. */
+  undo(): void;
+  redo(): void;
   /** Record a new take and merge it into the open categorizer (P1's `mergeSession`). */
   startMerge(seed: MergeSeed): void;
   /** Open a categorizer from a file's text (validated, older versions migrated); not saved yet. */
@@ -203,7 +241,17 @@ export const FACE_SESSION_DEFAULTS = {
   exportName: 'My faces',
   pollMs: 33,
   exemplars: 4,
+  /** How many edits undo keeps. */
+  undoDepth: 100,
+  /** The most holds a suggested k is computed over on every edit (the forest is cubic). */
+  suggestUpTo: 400,
 } as const;
+
+/** One step of the edit history: the working categorizer and how its names came about. */
+interface Snapshot {
+  working: PersonalCategorizer;
+  sources: NameSources;
+}
 
 export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSessionState> {
   const modality = deps.modality ?? faceModality;
@@ -222,10 +270,31 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** Holds of the take whose still was asked for (the take's point count, as last seen). */
   let stilled = 0;
   let timer: ReturnType<typeof setInterval> | null = null;
-  let carvers: Partial<Record<CategorizerMode, Carver>> = {};
+  /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
+   *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
+   *  say), which is neutral in `reject` mode. */
+  let fresh: { rest: readonly FeatureVector[]; cloud: ReadonlySet<string> | null; base: PersonalCategorizer } | null = null;
+  /** The open categorizer's reject radius as opened: a re-cut floors from it, so k up and down
+   *  does not drift. */
+  let baseRadius: number | undefined;
+  /** How the working categorizer's names came about, by category id. */
+  let sources: NameSources = new Map();
+  /** The edit history: what undo and redo step through. */
+  let undoStack: Snapshot[] = [];
+  let redoStack: Snapshot[] = [];
   let openRecord: FaceModelRecord | null = null;
   /** The categorizer a recording is being merged into, and what to restore if it is empty. */
-  let mergeBase: { seed: MergeSeed; working: PersonalCategorizer; record: FaceModelRecord | null; openId: string | null; name: string; tuning: Tuning; dirty: boolean } | null = null;
+  let mergeBase: {
+    seed: MergeSeed;
+    working: PersonalCategorizer;
+    record: FaceModelRecord | null;
+    openId: string | null;
+    name: string;
+    tuning: Tuning;
+    dirty: boolean;
+    /** The edit state the merge returns to (its history: the merge itself is one undoable edit). */
+    edits: { sources: NameSources; undo: Snapshot[]; redo: Snapshot[]; baseRadius: number | undefined };
+  } | null = null;
   /** The hold ids of the samples shown, by index (the take's holds, or the open categorizer's
    *  samples): what `thumbs` is keyed by. */
   let shownIds: readonly string[] = [];
@@ -233,8 +302,6 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let claimed = false;
   /** Bumped whenever the shown take changes, so a late result for an old one is dropped. */
   let generation = 0;
-  /** The names the player typed for this take, carried onto every carve (see `TypedName`). */
-  let typed: TypedName[] = [];
   /** Object URLs of the stills in hand, by hold id. */
   const urls = new Map<string, string>();
   /** The stills taken this session, by hold id: in memory until a save files them in
@@ -396,7 +463,6 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       show(gen);
       return found;
     };
-    const shownIndices = (view: CarveView): number[] => [...view.categories.flatMap((c) => c.exemplars.map((e) => e.index)), ...view.neutral.exemplars];
     /** The take's holds, as the samples a categorizer is made of: their ids, the modality's
      *  keys only, and their supporting frames. */
     const takeSamples = (t: FaceTake, tid: string): SampleInput[] =>
@@ -405,44 +471,112 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         .points()
         .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i) }));
 
-    /** The take in hand as a categorizer, carved as shown (what Save files and Export writes). */
-    const carvedCategorizer = (view: CarveView, mode: CategorizerMode, name: string): PersonalCategorizer =>
-      categorizerFromModel(view.model, takeSamples(take!, takeId!), { name, mode, modality: modality.id, createdAt: deps.isoNow() });
+    /** What a re-cut of the working categorizer trains its reject radius from. */
+    const recutOptions = (): RecutOptions =>
+      fresh ? { rest: fresh.rest, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius } : { baseRejectRadius: baseRadius };
 
-    /** Carve the take at (mode, k), with the player's typed names. */
-    const recarve = (mode: CategorizerMode, k: number) => {
-      if (!take) return;
-      const session = take.session();
-      const carver = (carvers[mode] ??= carverFor(session, take.restVectors(), mode));
-      const view = carveView({ session, restVectors: take.restVectors(), carver, k, typed, exemplarCount: FACE_SESSION_DEFAULTS.exemplars, modality });
-      const notice =
-        view.k === 0
-          ? 'Every held face was close to your resting face, so there is no expression to carve. Choose "Every face is a category", or record again with stronger faces.'
-          : null;
-      shownIds = take.session().points().map((_, i) => holdId(takeId!, i));
-      set({ mode, k: view.k, view, notice, dirty: true });
-      show(generation);
-    };
-
-    /** Show the working categorizer (phase `saved`): its grid, its stills by sample id (in
-     *  memory from this session's takes first, then filed in IndexedDB). */
-    const showWorking = (working: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
-      const view = savedView(working, { exemplarCount: FACE_SESSION_DEFAULTS.exemplars });
+    /** Show `working` in the sorting grid: its view, its stills by sample id (in memory from this
+     *  session's takes first, then filed in IndexedDB). An open categorizer learns whether it has
+     *  pictures from what is found; a fresh take's are still being encoded. */
+    const showDoc = (working: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
+      // The bounds on every show; the suggestion (which builds the forest) only for a pool a
+      // person can wait for.
+      const bounds = recutBounds(working, recutOptions());
+      const range = { ...bounds, suggestedK: bounds.pool <= FACE_SESSION_DEFAULTS.suggestUpTo ? recutRange(working, recutOptions()).suggestedK : working.categories.length };
+      const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true });
       shownIds = working.samples.map((x) => x.id);
-      set({ phase: 'saved', working, view, mode: view.mode, k: view.k, ...patch });
+      set({ working, view, mode: view.mode, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
       const gen = generation;
-      void loadThumbs(shownIndices(view).map((i) => shownIds[i])).then((found) => {
-        if (gen === generation && get().working === working) set({ hasStills: found });
+      void loadThumbs(shownIds).then((found) => {
+        if (gen === generation && get().working === working && get().phase === 'saved') set({ hasStills: found });
       });
     };
-    /** Apply a correction to the working categorizer. */
-    const applyCorrection = (r: CorrectionResult): boolean => {
+    /** Show an opened categorizer (phase `saved`): a fresh history, its names as saved. */
+    const showOpened = (working: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
+      fresh = null;
+      baseRadius = working.rejectRadius;
+      sources = new Map();
+      undoStack = [];
+      redoStack = [];
+      showDoc(working, { phase: 'saved', ...patch });
+    };
+    /** Put back the edit state a merge take left (its history, names and radius). */
+    const restoreEdits = (e: NonNullable<typeof mergeBase>['edits']) => {
+      fresh = null;
+      sources = e.sources;
+      undoStack = e.undo;
+      redoStack = e.redo;
+      baseRadius = e.baseRadius;
+    };
+    /** Make `next` the working categorizer, as one undoable edit: its unnamed categories named. */
+    const commit = (next: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
+      const cur = get().working;
+      if (cur) {
+        undoStack = [...undoStack, { working: cur, sources }].slice(-FACE_SESSION_DEFAULTS.undoDepth);
+        redoStack = [];
+      }
+      const named = nameCarve(next, { modality, sources, restCloud: fresh?.cloud ?? undefined });
+      sources = named.sources;
+      showDoc(named.categorizer, { dirty: true, notice: null, ...patch });
+    };
+    /** Apply an edit of the working categorizer (in either phase), or say why not. */
+    const edit = (run: (working: PersonalCategorizer) => SortResult | CorrectionResult): boolean => {
+      const { working, phase } = get();
+      if (!working || (phase !== 'carved' && phase !== 'saved')) return false;
+      const r = run(working);
       if (!r.ok) {
         set({ notice: `Not changed: ${r.error}.` });
         return false;
       }
-      showWorking(r.categorizer, { dirty: true, notice: null });
+      commit(r.categorizer);
       return true;
+    };
+
+    /** A grid with nothing carved: every hold is close to the rest (`reject`), so they are all
+     *  shown as neutral and the mode can still be changed. */
+    const emptyView = (base: PersonalCategorizer, mode: CategorizerMode): SortingView => ({
+      mode,
+      k: 0,
+      minK: 0,
+      suggestedK: 0,
+      maxK: 0,
+      neutralKnown: fresh?.cloud !== null,
+      model: { categories: [], features: [...base.features], weights: { ...base.weights }, rejectRadius: 1 },
+      categories: [],
+      neutral: { count: base.samples.length, exemplars: base.samples.map((_, i) => i) },
+      aside: { count: 0, exemplars: [] },
+      pinned: new Set(),
+    });
+
+    /** Carve the fresh take in `mode` at `k` (the suggestion when absent), its pins kept. */
+    const carveFresh = (mode: CategorizerMode, k?: number) => {
+      if (!fresh) return;
+      const cur = get().working ?? fresh.base;
+      const { rejectRadius, ...rest } = cur;
+      const doc: PersonalCategorizer =
+        mode === 'reject' ? { ...rest, strangers: strangersFor(mode), rejectRadius: rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius } : { ...rest, strangers: strangersFor(mode) };
+      const neutral = mode === 'reject' ? (fresh.cloud ?? new Set<string>()) : new Set<string>();
+      const options = { ...recutOptions(), neutral };
+      const r = recut(doc, k ?? recutRange(doc, options).suggestedK, options);
+      if (!r.ok) {
+        const { one, many } = modality.words;
+        shownIds = fresh.base.samples.map((x) => x.id);
+        set({
+          mode,
+          k: 0,
+          working: null,
+          view: emptyView(fresh.base, mode),
+          notice: `Every held ${one} was close to your resting ${one}, so there is nothing to carve. Choose "Every ${one} is a category", or record again with stronger ${many}.`,
+        });
+        show(generation);
+        return;
+      }
+      if (get().working) commit(r.categorizer);
+      else {
+        const named = nameCarve(r.categorizer, { modality, sources, restCloud: fresh.cloud ?? undefined });
+        sources = named.sources;
+        showDoc(named.categorizer, { dirty: true, notice: null });
+      }
     };
 
     /** Delete the stills of `ids` that no saved record's samples name any more. */
@@ -472,6 +606,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       name: '',
       saving: false,
       working: null,
+      history: { undo: 0, redo: 0 },
       tuning: DEFAULT_TUNING,
       dirty: false,
       merging: null,
@@ -564,43 +699,41 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (merge) {
           openRecord = merge.record;
           const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, merging: null };
+          // Back to the categorizer the take was adding to, its edit history and all.
+          restoreEdits(merge.edits);
+          showDoc(merge.working, { phase: 'saved', ...restore, dirty: merge.dirty });
           if (!built) {
-            showWorking(merge.working, { ...restore, dirty: merge.dirty, notice: 'No face was held long enough to add. Nothing was merged.' });
+            set({ notice: 'No face was held long enough to add. Nothing was merged.' });
             return;
           }
-          const fresh = takeSamples(myTake, takeId!);
+          const added = takeSamples(myTake, takeId!);
           // New faces are sorted with the FLOORED radius the readout uses (a file's tiny stored
           // radius would set every new face aside); not with the dial's scale, which stays a live
           // setting rather than being written into the samples' radius.
           const base = merge.working.strangers === 'neutral' ? { ...merge.working, rejectRadius: flooredRejectRadius(merge.working) } : merge.working;
           let result: ReturnType<typeof mergeSession>;
           try {
-            result = mergeSession(base, fresh, { seed: merge.seed });
+            result = mergeSession(base, added, { seed: merge.seed });
           } catch (err) {
             // A working copy the merge cannot read (it validates): the base kept, said plainly.
-            showWorking(merge.working, { ...restore, dirty: merge.dirty, notice: `Nothing was merged: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
+            set({ notice: `Nothing was merged: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
             return;
           }
           // The import bound (addSample keeps it too): a categorizer merged past it could not
           // be read back from its own exported file. Refused as a notice, the base kept.
           if (result.categorizer.samples.length > MAX_CATEGORIZER_SAMPLES) {
-            showWorking(merge.working, {
-              ...restore,
-              dirty: merge.dirty,
-              notice: `Nothing was merged: the result would hold ${result.categorizer.samples.length} faces, more than the ${MAX_CATEGORIZER_SAMPLES} a categorizer keeps.`,
-            });
+            set({ notice: `Nothing was merged: the result would hold ${result.categorizer.samples.length} ${modality.words.many}, more than the ${MAX_CATEGORIZER_SAMPLES} a categorizer keeps.` });
             return;
           }
           // Every sample keeps its id (the base's, and the new holds' `<takeId>:<n>`), so every
           // still stays filed where it is: the new ones are filed on Save, nothing is re-filed.
           const joined = result.assigned.filter((a) => a >= 0).length;
           const untouched = result.untouched.map((id) => result.categorizer.categories.find((c) => c.id === id)?.label || id);
-          showWorking(result.categorizer, {
-            ...restore,
-            dirty: true,
+          // One undoable edit: undo returns to the categorizer before the merge.
+          commit(result.categorizer, {
             notice:
-              `Merged: ${joined} of ${fresh.length} new faces joined a category` +
-              (fresh.length > joined ? ` (${fresh.length - joined} read as none of these)` : '') +
+              `Merged: ${joined} of ${added.length} new faces joined a category` +
+              (added.length > joined ? ` (${added.length - joined} read as none of these)` : '') +
               (untouched.length > 0 ? `; no new face for ${untouched.map((l) => `"${l}"`).join(', ')}` : '') +
               '. Save to keep it.',
           });
@@ -617,58 +750,94 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           });
           return;
         }
-        carvers = {};
+        // The take becomes the working categorizer at once (#385 E4): every hold with its id, all
+        // in one category, then carved at the suggested k, the rest cloud neutral in `reject`.
+        const session = myTake.session();
+        const samples = takeSamples(myTake, takeId!);
+        const rest = myTake.restVectors();
+        const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const mode = get().mode;
-        const carver = (carvers[mode] = carverFor(myTake.session(), myTake.restVectors(), mode));
+        const base = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', mode, modality: modality.id, createdAt: deps.isoNow() });
+        fresh = { rest, cloud: cloud ? new Set(cloud.map((i) => samples[i].id)) : null, base };
         set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true });
-        recarve(mode, carver.suggestedK());
+        carveFresh(mode);
       },
 
       setMode(mode) {
         const { phase, view } = get();
-        if (phase !== 'carved' || !take) {
+        if (phase !== 'carved' || !fresh) {
           if (phase === 'idle' || phase === 'empty') set({ mode });
           return;
         }
+        if (mode === get().mode) return;
         // Moving neutral in or out of the categories changes k by one in the obvious direction.
-        const carver = (carvers[mode] ??= carverFor(take.session(), take.restVectors(), mode));
-        const k = view && view.k > 0 ? Math.max(1, Math.min(carver.maxK(), view.k + (mode === 'partition' ? 1 : -1))) : carver.suggestedK();
-        recarve(mode, k);
+        carveFresh(mode, view && view.k > 0 ? view.k + (mode === 'partition' ? 1 : -1) : undefined);
       },
 
       setK(k) {
-        if (get().phase !== 'carved') return;
-        recarve(get().mode, k);
+        const { working, view } = get();
+        if (!working || !view || Math.round(k) === view.k) return;
+        edit((w) => recut(w, k, recutOptions()));
       },
 
       rename(id, label) {
-        const { view, phase } = get();
         const name = label.trim();
-        if (!view || !name) return;
-        const clash = view.categories.find((c) => c.id !== id && c.label.trim().toLowerCase() === name.toLowerCase());
-        if (phase === 'saved') {
-          if (clash) {
-            set({ notice: `Another category is already called "${clash.label}".` });
-            return;
-          }
-          const working = get().working;
-          if (!working) return;
-          showWorking({ ...working, categories: working.categories.map((c) => (c.id === id ? { ...c, label: name } : c)) }, { notice: null, dirty: true });
+        const working = get().working;
+        if (!working || !name) return;
+        const same = (x: string) => x.trim().toLowerCase() === name.toLowerCase();
+        const clash = working.categories.find((c) => c.id !== id && same(c.label));
+        const yields = clash && !['edited', 'kept'].includes(sources.get(clash.id)?.source ?? 'kept');
+        if (clash && !yields) {
+          set({ notice: `Another category is already called "${clash.label}".` });
           return;
         }
-        if (phase !== 'carved') return;
-        // A default name the player takes yields (it is proposed elsewhere); another typed name does not.
-        const next = withTypedName(typed, view, id, name);
-        if (!next) {
-          set({ notice: `Another category is already called "${clash?.label ?? name}".` });
-          return;
+        // A default name the player takes yields (it is proposed again elsewhere); the player's
+        // own names, and an opened categorizer's, do not.
+        const cleared = yields ? { ...working, categories: working.categories.map((c) => (c.id === clash.id ? { ...c, label: '' } : c)) } : working;
+        if (edit(() => nameCategory(cleared, id, name))) {
+          sources = new Map(sources).set(id, { source: 'edited', matched: null });
+          showDoc(get().working!);
         }
-        typed = next;
-        recarve(get().mode, view.k);
+      },
+
+      moveHolds(ids, to) {
+        return edit((w) => moveHoldsIn(w, ids, to));
+      },
+
+      deleteHolds(ids) {
+        return edit((w) => deleteHoldsFrom(w, ids));
+      },
+
+      merge(from, into) {
+        return edit((w) => mergeCategories(w, from, into));
+      },
+
+      split(id) {
+        return edit((w) => splitCategory(w, id));
+      },
+
+      undo() {
+        const cur = get().working;
+        const prev = undoStack.at(-1);
+        if (!cur || !prev) return;
+        undoStack = undoStack.slice(0, -1);
+        redoStack = [...redoStack, { working: cur, sources }];
+        sources = prev.sources;
+        showDoc(prev.working, { dirty: true, notice: null });
+      },
+
+      redo() {
+        const cur = get().working;
+        const next = redoStack.at(-1);
+        if (!cur || !next) return;
+        redoStack = redoStack.slice(0, -1);
+        undoStack = [...undoStack, { working: cur, sources }];
+        sources = next.sources;
+        showDoc(next.working, { dirty: true, notice: null });
       },
 
       async save(name) {
-        const { view, phase, mode, saving } = get();
+        const { view, phase, saving } = get();
         const trimmed = name.trim();
         if (!view || !trimmed || saving || view.k === 0) return false;
         if (phase !== 'carved' && phase !== 'saved') return false;
@@ -680,8 +849,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           let categorizer: PersonalCategorizer;
           const working = get().working;
           const tuningAtStart = get().tuning;
-          if (phase === 'saved' && working) categorizer = { ...working, name: trimmed };
-          else if (phase === 'carved' && take) categorizer = carvedCategorizer(view, mode, trimmed);
+          if (working) categorizer = { ...working, name: trimmed };
           else return false;
           // Every hold's still taken this session, filed under its id once it is encoded (a Save
           // right after Stop must not file a categorizer whose pictures were still being taken).
@@ -735,7 +903,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         get().reset();
         openRecord = record;
-        showWorking(record.model.categorizer, { openId: id, name: record.name, hasStills: true, tuning: clampTuning(record.model.tuning ?? {}), dirty: false });
+        showOpened(record.model.categorizer, { openId: id, name: record.name, hasStills: true, tuning: clampTuning(record.model.tuning ?? {}), dirty: false });
       },
 
       async remove(id) {
@@ -752,15 +920,18 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         take = null;
         takeId = null;
         stilled = 0;
-        carvers = {};
+        fresh = null;
+        baseRadius = undefined;
+        sources = new Map();
+        undoStack = [];
+        redoStack = [];
         openRecord = null;
         mergeBase = null;
         shownIds = [];
-        typed = [];
         stills.clear();
         pending.clear();
         dropUrls();
-        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, tuning: DEFAULT_TUNING, dirty: false, merging: null });
+        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, dirty: false, merging: null });
       },
 
       cancelRecording() {
@@ -772,7 +943,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // A merge take abandoned: back to the categorizer it was adding to, unsaved work and all.
         resetKeepingStills();
         openRecord = merge.record;
-        showWorking(merge.working, {
+        restoreEdits(merge.edits);
+        showDoc(merge.working, {
+          phase: 'saved',
           openId: merge.openId,
           name: merge.name,
           tuning: merge.tuning,
@@ -792,19 +965,17 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       correct(id, vector) {
         const working = get().working;
         if (get().phase !== 'saved' || !working) return false;
-        return applyCorrection(addSample(working, id, modalityOnly(vector), { sampleId: holdId(freshTakeId(working.samples), 0), t: deps.now(), modality }));
+        return edit((w) => addSample(w, id, modalityOnly(vector), { sampleId: holdId(freshTakeId(w.samples), 0), t: deps.now(), modality }));
       },
 
       move(index, to) {
-        const working = get().working;
-        if (get().phase !== 'saved' || !working) return false;
-        return applyCorrection(moveSample(working, index, to));
+        return edit((w) => moveSample(w, index, to));
       },
 
       startMerge(seed) {
         const { phase, working, openId, name, tuning } = get();
         if (phase !== 'saved' || !working) return;
-        mergeBase = { seed, working, record: openRecord, openId, name, tuning, dirty: get().dirty };
+        mergeBase = { seed, working, record: openRecord, openId, name, tuning, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius } };
         get().start();
       },
 
@@ -821,7 +992,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         get().reset();
         const taken = get().saved.some((s) => s.name.trim().toLowerCase() === r.categorizer.name.trim().toLowerCase());
-        showWorking(r.categorizer, {
+        showOpened(r.categorizer, {
           openId: null,
           name: r.categorizer.name,
           tuning: DEFAULT_TUNING,
@@ -834,17 +1005,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       exportFile(asked) {
-        const { phase, working, view, mode } = get();
+        const { phase, working } = get();
         const given = asked?.trim() || get().name.trim();
-        if (phase === 'saved' && working) {
-          const name = given || working.name;
-          return { name, text: exportCategorizer({ ...working, name }) };
-        }
-        if (phase === 'carved' && take && view && view.k > 0) {
-          const name = given || FACE_SESSION_DEFAULTS.exportName;
-          return { name, text: exportCategorizer(carvedCategorizer(view, mode, name)) };
-        }
-        return null;
+        if ((phase !== 'saved' && phase !== 'carved') || !working) return null;
+        const name = given || working.name || FACE_SESSION_DEFAULTS.exportName;
+        return { name, text: exportCategorizer({ ...working, name }) };
       },
 
       async exportSaved(id) {

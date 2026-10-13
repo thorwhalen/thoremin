@@ -287,6 +287,7 @@ export {
   pinsHold,
   placeOf,
   recut,
+  recutBounds,
   recutRange,
   sampleIds,
   splitCategory,

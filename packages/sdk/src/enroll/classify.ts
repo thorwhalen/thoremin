@@ -71,7 +71,9 @@ export interface TrainOptions {
   acceptQuantile?: number;
 }
 
-const TRAIN_DEFAULTS = { rejectScale: 2.5, defaultRejectRadius: 0.6, acceptQuantile: 0.9 };
+/** What `trainModel` uses when not told otherwise (a re-cut with no rest take starts from the
+ *  same default reject radius, #385 E4). */
+export const TRAIN_DEFAULTS = { rejectScale: 2.5, defaultRejectRadius: 0.6, acceptQuantile: 0.9 };
 
 /**
  * Build a {@link TrainedModel} from clustered still-points.

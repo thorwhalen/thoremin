@@ -21,8 +21,9 @@
 // (umap-js), which this extension does not use.
 import { applyLabels, matchLabels, type LabelMatch } from '@thoremin/sdk/enroll/match';
 import { createCarver, neutralIndices, type Carver } from '@thoremin/sdk/enroll/carve';
-import { categorizerMode, modelFromCategorizer, neutralSampleIndices, type CategorizerMode, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { categorizerMode, modelFromCategorizer, type CategorizerMode, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { carryLabels } from '@thoremin/sdk/enroll/from_model';
+import { weightedDistance } from '@thoremin/sdk/enroll/cluster';
 import { exemplarsByCategory, selectExemplars, type Exemplar } from '@thoremin/sdk/enroll/exemplars';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
 import type { Session } from '@thoremin/sdk/enroll/session';
@@ -205,29 +206,117 @@ export function withTypedName(typed: readonly TypedName[], view: Pick<CarveView,
   ];
 }
 
+/** How each category of the working categorizer got its name (by category id), for the grid. */
+export type NameSources = ReadonlyMap<string, { source: NameSource; matched: string | null }>;
+
+export interface NameCarveInput {
+  /** What was carved (the face by default). */
+  modality?: CarveModality;
+  /** The sources known so far: a category keeps its entry while its label is kept. */
+  sources?: NameSources;
+  /** A fresh take's rest cloud (hold ids): under `strangers: nearest` the unnamed category that
+   *  is mostly these is called neutral, as `carveView` does. */
+  restCloud?: ReadonlySet<string>;
+}
+
 /**
- * The grid for a SAVED categorizer (no take to re-cut): its derived model, its names as saved,
- * its exemplars from its samples, and in `reject` mode its neutral holds as the neutral row.
+ * Name the UNNAMED categories of a working categorizer (#385 E4: a re-cut, a split or a new
+ * category leaves its new categories with an empty label): the neutral rule, then the modality's
+ * general model one-to-one on full-space means, then the fallback, never a name another category
+ * has. A named category keeps its name and its source (`kept` when none is known).
  */
-export function savedView(categorizer: PersonalCategorizer, { exemplarCount }: { exemplarCount?: number } = {}): CarveView {
-  const model = modelFromCategorizer(categorizer);
-  const vectors = categorizer.samples.map((s) => s.vector);
-  const exemplars = exemplarsByCategory(model, vectors, { count: exemplarCount });
-  const members = neutralSampleIndices(categorizer);
-  const mode = categorizerMode(categorizer);
-  let neutral: CarveView['neutral'] = { count: 0, exemplars: [] };
-  if (mode === 'reject' && members.length > 0) {
-    const ex = selectExemplars(model, { centroid: fullMean(vectors, members), members }, vectors, { count: exemplarCount });
-    neutral = { count: members.length, exemplars: ex.map((e) => e.index) };
+export function nameCarve(c: PersonalCategorizer, input: NameCarveInput = {}): { categorizer: PersonalCategorizer; sources: Map<string, { source: NameSource; matched: string | null }> } {
+  const modality = input.modality ?? faceModality;
+  const known = input.sources ?? new Map();
+  const sources = new Map<string, { source: NameSource; matched: string | null }>();
+  for (const cat of c.categories) if (cat.label.trim()) sources.set(cat.id, known.get(cat.id) ?? { source: 'kept', matched: null });
+  if (sources.size === c.categories.length) return { categorizer: c, sources };
+  const vectors = c.samples.map((s) => s.vector);
+  const at = new Map(c.samples.map((s, i) => [s.id, i]));
+  const labels = new Map(c.categories.map((cat) => [cat.id, cat.label]));
+  if (c.strangers === 'nearest' && input.restCloud && input.restCloud.size > 0 && !c.categories.some((cat) => isNeutralLabel(modality, cat.label))) {
+    let best: { id: string; share: number } | null = null;
+    for (const cat of c.categories) {
+      if (cat.label.trim()) continue;
+      const share = cat.members.filter((m) => input.restCloud!.has(m)).length / cat.members.length;
+      if (share >= 0.5 && (!best || share > best.share)) best = { id: cat.id, share };
+    }
+    if (best) {
+      labels.set(best.id, modality.words.neutral);
+      sources.set(best.id, { source: 'neutral', matched: null });
+    }
   }
+  const labeling = modality.general?.() ?? NO_GENERAL;
+  const scored = c.categories.map((cat) => ({ id: cat.id, label: labels.get(cat.id)!, centroid: fullMean(vectors, cat.members.map((m) => at.get(m)!)) }));
+  for (const m of matchLabels(scored, { ...labeling, fallback: modality.words.fallback })) {
+    if (sources.has(m.id)) continue;
+    labels.set(m.id, m.label);
+    sources.set(m.id, { source: m.source, matched: m.matched });
+  }
+  return { categorizer: { ...c, categories: c.categories.map((cat) => ({ ...cat, label: labels.get(cat.id)! })) }, sources };
+}
+
+/** One bin of the sorting view: its holds (indices into the samples), most typical first. */
+export interface SortedBin {
+  count: number;
+  exemplars: readonly number[];
+}
+
+/** The sorting view (#385 E4): every hold shown, the bins, the pins and the range of k. */
+export interface SortingView extends CarveView {
+  /** The smallest k a re-cut allows (the pinned categories). */
+  minK: number;
+  aside: SortedBin;
+  /** Sample indices the player placed (pinned). */
+  pinned: ReadonlySet<number>;
+}
+
+/** Above this many holds a bin or category is ordered by distance from its centre alone: the
+ *  medoid is quadratic in its size, and a bin can hold a categorizer's whole bound. */
+export const MEDOID_LIMIT = 200;
+
+/** The holds of a bin or category, medoid first (up to {@link MEDOID_LIMIT}), then by distance
+ *  from its centre. */
+function ordered(model: Pick<TrainedModel, 'features' | 'weights'>, vectors: readonly FeatureVector[], members: readonly number[]): Exemplar[] {
+  if (members.length === 0) return [];
+  const centroid = fullMean(vectors, members);
+  if (members.length <= MEDOID_LIMIT) return selectExemplars(model, { centroid, members: [...members] }, vectors, { count: members.length });
+  return members
+    .map((index) => ({ index, distance: weightedDistance(vectors[index], centroid, model.features, model.weights as Record<string, number>), role: 'spread' as const }))
+    .sort((a, b) => a.distance - b.distance || a.index - b.index);
+}
+
+/**
+ * The grid for the working categorizer: its derived model, every category's holds in order
+ * (medoid first), the Neutral and Set-aside bins likewise, which holds are pinned, and the range
+ * a re-cut allows. `range` comes from the caller (`recutRange`), which knows whether a take is
+ * in hand.
+ */
+export function sortingView(
+  c: PersonalCategorizer,
+  { sources, range, neutralKnown = true }: { sources: NameSources; range: { minK: number; maxK: number; suggestedK: number }; neutralKnown?: boolean },
+): SortingView {
+  const model = modelFromCategorizer(c);
+  const vectors = c.samples.map((s) => s.vector);
+  const at = new Map(c.samples.map((s, i) => [s.id, i]));
+  const bin = (ids: readonly string[]): SortedBin => {
+    const members = ids.map((id) => at.get(id)!);
+    return { count: members.length, exemplars: ordered(model, vectors, members).map((e) => e.index) };
+  };
   return {
-    mode,
+    mode: categorizerMode(c),
     k: model.categories.length,
-    suggestedK: model.categories.length,
-    maxK: model.categories.length,
-    neutralKnown: true,
+    minK: range.minK,
+    suggestedK: range.suggestedK,
+    maxK: range.maxK,
+    neutralKnown,
     model,
-    categories: model.categories.map((c) => ({ id: c.id, label: c.label, source: 'kept', matched: null, size: c.size, exemplars: exemplars[c.id] ?? [] })),
-    neutral,
+    categories: model.categories.map((cat) => {
+      const s = sources.get(cat.id);
+      return { id: cat.id, label: cat.label, source: s?.source ?? 'kept', matched: s?.matched ?? null, size: cat.size, exemplars: ordered(model, vectors, cat.members) };
+    }),
+    neutral: bin(c.neutral),
+    aside: bin(c.aside ?? []),
+    pinned: new Set(Object.keys(c.pins ?? {}).flatMap((id) => (at.has(id) ? [at.get(id)!] : []))),
   };
 }
