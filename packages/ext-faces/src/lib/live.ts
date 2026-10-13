@@ -35,10 +35,17 @@ import { z } from 'zod';
 import { createCategoryTracker, trainModel, type CategoryTracker } from '@thoremin/sdk/enroll/classify';
 import { modelFromCategorizer, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
-import { NEUTRAL_LABEL } from './carving';
+import { isNeutralLabel, type CarveModality } from '@thoremin/sdk/enroll/modality';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
-/** The proxies of camera distance, in order of preference (both bigger when closer). */
-export const DISTANCE_PROXIES = ['face.head.scale', 'face.head.distanceProxy'] as const;
+/** The face's proxies of camera distance, in order of preference (both bigger when closer). */
+export const DISTANCE_PROXIES: readonly string[] = faceModality.nuisance.distance ?? [];
+
+/** Which modality a categorizer is read as (the face by default): its neutral name and its
+ *  distance proxies. */
+export interface ModalityOption {
+  modality?: CarveModality;
+}
 
 export const TUNING_BOUNDS = {
   sensitivity: { min: 0.5, max: 2 },
@@ -127,14 +134,14 @@ function meanOver(vectors: readonly FeatureVector[], features: readonly string[]
 
 /** The categorizer's resting face: its unclaimed samples (`reject`), or its `neutral` category
  *  (`partition`); null when it has neither. */
-export function restOf(categorizer: PersonalCategorizer, features: readonly string[]): FeatureVector | null {
+export function restOf(categorizer: PersonalCategorizer, features: readonly string[], { modality = faceModality }: ModalityOption = {}): FeatureVector | null {
   const vectors = categorizer.samples.map((s) => s.vector);
   let idx: number[];
   if (categorizer.mode === 'reject') {
     const claimed = new Set(categorizer.categories.flatMap((c) => c.members));
     idx = vectors.map((_, i) => i).filter((i) => !claimed.has(i));
   } else {
-    idx = categorizer.categories.find((c) => c.label.trim().toLowerCase() === NEUTRAL_LABEL)?.members ?? [];
+    idx = categorizer.categories.find((c) => isNeutralLabel(modality, c.label))?.members ?? [];
   }
   if (idx.length === 0) return null;
   return meanOver(idx.map((i) => vectors[i]), features);
@@ -156,10 +163,10 @@ export interface DistanceFit {
 }
 
 /** Fit, per feature, the pooled within-category slope against log distance proxy. */
-export function fitDistance(categorizer: PersonalCategorizer, features: readonly string[]): DistanceFit {
+export function fitDistance(categorizer: PersonalCategorizer, features: readonly string[], { modality = faceModality }: ModalityOption = {}): DistanceFit {
   const none = (proxy: string | null): DistanceFit => ({ proxy, learned: false, reference: 0, spread: 0, slopes: {} });
   const samples = categorizer.samples;
-  const proxy = DISTANCE_PROXIES.find((p) => samples.filter((s) => (s.vector[p] ?? 0) > 0).length >= LIVE_DEFAULTS.minDistanceSamples) ?? null;
+  const proxy = (modality.nuisance.distance ?? []).find((p) => samples.filter((s) => (s.vector[p] ?? 0) > 0).length >= LIVE_DEFAULTS.minDistanceSamples) ?? null;
   if (!proxy) return none(null);
   const z = (i: number) => {
     const x = samples[i].vector[proxy];
@@ -221,7 +228,7 @@ export interface LiveModel {
   temperature: number;
 }
 
-export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuning> = {}): LiveModel {
+export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuning> = {}, options: ModalityOption = {}): LiveModel {
   const t = clampTuning(tuning);
   const derived = modelFromCategorizer(categorizer);
   const baseRadius = flooredRejectRadius(categorizer, derived);
@@ -231,8 +238,8 @@ export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuni
     model,
     tuning: t,
     baseRadius,
-    rest: restOf(categorizer, derived.features),
-    distance: fitDistance(categorizer, derived.features),
+    rest: restOf(categorizer, derived.features, options),
+    distance: fitDistance(categorizer, derived.features, options),
     temperature: Math.max(LIVE_DEFAULTS.minRadius, LIVE_DEFAULTS.softness * meanRadius),
   };
 }

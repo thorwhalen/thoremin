@@ -77,7 +77,8 @@ A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-
 
 | Path | What |
 |---|---|
-| `src/lib/take.ts` | the take as a pure state machine (rest, then faces, then a built session) |
+| `src/app/modality.ts` | which modality the tool carves: `faceModality` and its app half (#385 E1) |
+| `src/lib/take.ts` | the take as a pure state machine (rest, then faces, then a built session); the cue factories `restCue` / `vocabularyCue` |
 | `src/lib/carving.ts` | the grid for one carve: model at k in a mode, names, exemplars; a saved categorizer's grid |
 | `src/lib/synthetic.ts` | the scripted face |
 | `src/app/sessionStore.ts` | the session's state, every dependency injected |
@@ -99,3 +100,5 @@ A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-
 | `src/lib/shared.ts`, `src/app/sharedModels.ts` | the shared categorizers (P5): ids, the index, the source that fetches them, copy to mine |
 
 The pure pieces that hands will want too are in the SDK. `@thoremin/sdk/enroll/carve` holds `createCarver` and `neutralIndices`. P1 provides the matcher, the exemplars and the file.
+
+**The modality seam (#385 E1).** Everything face-specific the take, the carve, the live tuning and the session store need is read through one `CarveModality` (`@thoremin/sdk/enroll/modality`): the groups to claim, how to read the modality's vector from the merged live vector, which keys a sample keeps, the general model, the distance proxies and the words. The face is `faceModality` (`@thoremin/sdk/features/modalities/face`); the app half (crop region, preview, play targets, the claim and hush) is `@thoremin/sdk-ui/enroll/modality`. Each shared module takes the modality as an option defaulting to the face, so hands and body (E8, E9) pass theirs and fork nothing. `test/faces/carve_modality.test.ts` guards both sides: the shared modules import no `features/face_*` module, and the face through the seam is the face as it was (cues word for word, the same keys, names and import refusals).

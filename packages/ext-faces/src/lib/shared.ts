@@ -20,6 +20,8 @@
  */
 import { z } from 'zod';
 import { importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { foreignModality } from '@thoremin/sdk/enroll/modality';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { categorySlot, MAX_CATEGORY_SLOTS } from '../schema';
 
 /** The id prefix of a shared categorizer. */
@@ -84,7 +86,8 @@ export function readSharedFile(input: string | unknown): { ok: true; categorizer
   const r = importCategorizer(input);
   if (!r.ok) return { ok: false, error: r.error };
   const c = r.categorizer;
-  if ((c.modality && c.modality !== 'face') || !c.features.some((f) => f.startsWith('face.'))) return { ok: false, error: `a ${c.modality ?? 'non-face'} categorizer, not a face one` };
+  const foreign = foreignModality(faceModality, c);
+  if (foreign) return { ok: false, error: foreign };
   if (c.categories.length > MAX_CATEGORY_SLOTS) return { ok: false, error: `${c.categories.length} categories, more than the ${MAX_CATEGORY_SLOTS} an instrument can give chords to` };
   return { ok: true, categorizer: withSlotIds(c) };
 }

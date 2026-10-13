@@ -28,7 +28,9 @@ import { addSample, moveSample, type CorrectionResult } from '../lib/corrections
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, type Tuning } from '../lib/live';
 import { createFaceTake, type FaceTake } from '../lib/take';
 import type { Carver } from '@thoremin/sdk/enroll/carve';
+import { foreignModality, keepOnly, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import type { FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
 import { thumbKey, type FrameGrabber, type ThumbStore } from './thumbnails';
@@ -73,6 +75,9 @@ export interface FaceSessionDeps {
   newTakeId: () => string;
   /** Wall-clock ISO time, for the saved file. */
   isoNow: () => string;
+  /** What is carved (the face by default): the keys a sample keeps, the cues, the names, the
+   *  modality a file must be to import. */
+  modality?: CarveModality;
 }
 
 export interface FaceSessionState {
@@ -148,11 +153,11 @@ export const FACE_SESSION_DEFAULTS = {
   stillOffsetMs: 110,
 } as const;
 
-/** Only the face's keys: a saved sample keeps what a face categorizer can use, not the hands
- *  and body that rode along in the live vector (it is stored in localStorage). */
-export const faceOnly = (v: FeatureVector): FeatureVector => Object.fromEntries(Object.entries(v).filter(([k]) => k.startsWith('face.')));
-
 export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSessionState> {
+  const modality = deps.modality ?? faceModality;
+  /** Only the modality's keys: a saved sample keeps what its categorizer can use, not the hands
+   *  and body that rode along in the live vector (it is stored in localStorage). */
+  const modalityOnly = (v: FeatureVector): FeatureVector => keepOnly(modality, v);
   let take: FaceTake | null = null;
   let source: FaceSource | null = null;
   let video: VideoTake | null = null;
@@ -250,8 +255,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
     /** The take in hand as a categorizer, carved as shown (what Save files and Export writes). */
     const carvedCategorizer = (view: CarveView, mode: CategorizerMode, name: string): PersonalCategorizer => {
-      const points = take!.session().points().map((p) => ({ ...p, vector: faceOnly(p.vector) }));
-      return categorizerFromModel(view.model, points, { name, mode, modality: 'face', createdAt: deps.isoNow() });
+      const points = take!.session().points().map((p) => ({ ...p, vector: modalityOnly(p.vector) }));
+      return categorizerFromModel(view.model, points, { name, mode, modality: modality.id, createdAt: deps.isoNow() });
     };
 
     /** Carve the take at (mode, k), with the player's typed names. */
@@ -259,7 +264,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       if (!take) return;
       const session = take.session();
       const carver = (carvers[mode] ??= carverFor(session, take.restVectors(), mode));
-      const view = carveView({ session, restVectors: take.restVectors(), carver, k, typed, exemplarCount: FACE_SESSION_DEFAULTS.exemplars });
+      const view = carveView({ session, restVectors: take.restVectors(), carver, k, typed, exemplarCount: FACE_SESSION_DEFAULTS.exemplars, modality });
       const notice =
         view.k === 0
           ? 'Every held face was close to your resting face, so there is no expression to carve. Choose "Every face is a category", or record again with stronger faces.'
@@ -319,7 +324,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         get().reset();
         mergeBase = merge;
         source = deps.source();
-        take = createFaceTake();
+        take = createFaceTake({ modality });
         takeId = deps.newTakeId();
         deps.claim(true);
         claimed = true;
@@ -372,7 +377,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
             showWorking(merge.working, { ...restore, dirty: merge.dirty, notice: 'No face was held long enough to add. Nothing was merged.' });
             return;
           }
-          const fresh = myTake.session().points().map((p) => ({ ...p, vector: faceOnly(p.vector) }));
+          const fresh = myTake.session().points().map((p) => ({ ...p, vector: modalityOnly(p.vector) }));
           // New faces are sorted with the FLOORED radius the readout uses (a file's tiny stored
           // radius would set every new face aside); not with the dial's scale, which stays a live
           // setting rather than being written into the samples' radius.
@@ -607,7 +612,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       correct(id, vector) {
         const working = get().working;
         if (get().phase !== 'saved' || !working) return false;
-        return applyCorrection(addSample(working, id, faceOnly(vector), { t: deps.now() }));
+        return applyCorrection(addSample(working, id, modalityOnly(vector), { t: deps.now() }));
       },
 
       move(index, to) {
@@ -629,9 +634,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           set({ notice: `Could not import: ${r.error}.` });
           return false;
         }
-        const modality = r.categorizer.modality;
-        if ((modality && modality !== 'face') || !r.categorizer.features.some((f) => f.startsWith('face.'))) {
-          set({ notice: `Could not import: this is a ${modality ?? 'non-face'} categorizer, not a face one.` });
+        const foreign = foreignModality(modality, r.categorizer);
+        if (foreign) {
+          set({ notice: `Could not import: this is ${foreign}.` });
           return false;
         }
         get().reset();
