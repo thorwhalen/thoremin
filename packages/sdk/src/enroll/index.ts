@@ -276,7 +276,10 @@ export {
   type Carver,
 } from './carve';
 export {
+  FOREST_CACHE_SIZE,
   NEW_CATEGORY,
+  anchorNames,
+  consistentPins,
   deleteHolds,
   freshCategoryId,
   medoidOf,

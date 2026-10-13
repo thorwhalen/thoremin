@@ -235,7 +235,7 @@ function Bin({ which, grid }: { which: typeof NEUTRAL_BIN | typeof ASIDE_BIN; gr
         {title} <span className="font-normal text-white/40">{`(${bin.count}${neutral ? ', key N' : ', key S'})`}</span>
       </p>
       <p className="text-[10px] text-white/40">{bin.count === 0 ? `Empty. Drag holds here, or select them and press ${neutral ? 'N' : 'S'}.` : says}</p>
-      {bin.count > 0 && grid.ids.length > 0 && <Strip holds={bin.exemplars} label={neutral ? 'neutral' : 'set aside'} place={which} grid={grid} />}
+      {bin.count > 0 && <Strip holds={bin.exemplars} label={neutral ? 'neutral' : 'set aside'} place={which} grid={grid} />}
     </div>
   );
 }
@@ -253,6 +253,19 @@ interface GridApi {
 
 function KControl({ s, view }: { s: FaceSessionState; view: SortingView }) {
   if (view.maxK === 0) return null;
+  if (!view.recutable) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-white/80">
+        <span className="flex-1">{`How many: ${view.k}. Too many holds to re-cut here: merge, split or move instead.`}</span>
+        <button type="button" className={btn} aria-label="Undo" disabled={s.history.undo === 0} onClick={() => s.undo()}>
+          Undo
+        </button>
+        <button type="button" className={btn} aria-label="Redo" disabled={s.history.redo === 0} onClick={() => s.redo()}>
+          Redo
+        </button>
+      </div>
+    );
+  }
   const max = Math.max(view.minK, Math.min(view.maxK, SORTING_DEFAULTS.maxSliderK));
   return (
     <div className="space-y-1">
@@ -297,11 +310,11 @@ function KControl({ s, view }: { s: FaceSessionState; view: SortingView }) {
 /** The sorting grid over the working categorizer (or, with nothing carved, its neutral holds). */
 export function Sorting({ s }: { s: FaceSessionState }) {
   const view = s.view as SortingView;
-  const ids = s.working?.samples.map((x) => x.id) ?? [];
+  const ids = view.ids;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // A selection names holds by id: drop the ones an edit removed.
   useEffect(() => {
-    const have = new Set(ids);
+    const have = new Set(s.working?.samples.map((x) => x.id) ?? []);
     setSelected((cur) => (([...cur].every((id) => have.has(id)) ? cur : new Set([...cur].filter((id) => have.has(id))))));
   }, [s.working]);
   const editable = s.working !== null;
@@ -327,15 +340,19 @@ export function Sorting({ s }: { s: FaceSessionState }) {
     send,
   };
   const onKeyDown = (e: KeyboardEvent) => {
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    const t = e.target as HTMLInputElement | null;
+    // Typing in a name or a menu is not sorting; the k slider is (Cmd-Z after a drag undoes it).
+    const typing = t && (t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type !== 'range'));
+    if (typing) return;
     const mod = e.metaKey || e.ctrlKey;
     let handled = true;
     if (mod && (e.key === 'z' || e.key === 'Z')) {
       if (e.shiftKey) s.redo();
       else s.undo();
-    } else if (mod) handled = false;
-    else if (e.key === 'Escape') setSelected(new Set());
+    } else if (mod && (e.key === 'y' || e.key === 'Y')) s.redo();
+    else if (mod) handled = false;
+    else if (t && t.tagName === 'INPUT') handled = false;
+    else if (e.key === 'Escape' && selected.size > 0) setSelected(new Set());
     else if (selected.size === 0) handled = false;
     else if (/^[1-9]$/.test(e.key) && view.categories[Number(e.key) - 1]) send([...selected], view.categories[Number(e.key) - 1].id);
     else if (e.key === 'n' || e.key === 'N') send([...selected], NEUTRAL_BIN);

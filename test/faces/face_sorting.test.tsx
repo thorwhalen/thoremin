@@ -4,7 +4,8 @@
  * a fresh carve IS a categorizer (hold ids from the start); every move is a pin that survives a
  * re-cut of k; merge, split and delete; undo restores the exact previous document, redo the
  * next; a saved categorizer reopened re-cuts with its pins; and in the grid a hold moves by key,
- * by menu and by drag, Cmd/Ctrl-Z undoes inside the grid, and both bins are shown.
+ * by menu and by drag, Cmd/Ctrl-Z undoes inside the grid, and both bins are shown. Plus a
+ * regression test per finding of the adversarial review.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -18,6 +19,7 @@ import { faceTestStore } from '@thoremin/ext-faces/app/faceSession';
 import { FaceSessionView } from '@thoremin/ext-faces/panels/FaceSessionPanel';
 import { ASIDE_BIN, NEUTRAL_BIN, PersonalCategorizerSchema } from '@thoremin/sdk/enroll/categorizer';
 import { NEW_CATEGORY, pinsHold, placeOf } from '@thoremin/sdk/enroll/sorting';
+import { MAX_CATEGORY_SLOTS } from '@thoremin/ext-faces/schema';
 import '@/app/dials/useDialsSettings'; // the dials host the panel's "Play it" reads
 
 const TAKE_MS = SYNTHETIC_TIMELINE.restMs + 12 * (SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs);
@@ -145,6 +147,64 @@ describe('one editable carve: the store', () => {
   });
 });
 
+describe('one editable carve: what the adversarial review broke', () => {
+  it('a mode switch with nothing to carve keeps the edits, and switching back carves them', async () => {
+    const store = await carved();
+    const s = () => store.getState();
+    const cloud = new Set(s().working!.neutral);
+    expect(cloud.size).toBeGreaterThan(0);
+    s().setMode('partition');
+    const notCloud = s().working!.samples.map((x) => x.id).filter((id) => !cloud.has(id));
+    expect(s().deleteHolds(notCloud)).toBe(true);
+    const left = s().working!.samples.length;
+    s().setMode('reject');
+    expect(s().working).toBeNull();
+    expect(s().view!.neutral.count).toBe(left);
+    s().setMode('partition');
+    expect(s().working!.samples).toHaveLength(left);
+  });
+
+  it('names saved without pins (an older file) survive a re-cut', async () => {
+    const store = await carved();
+    const s = () => store.getState();
+    const w = s().working!;
+    const names = w.categories.map((_, i) => `mine ${i + 1}`);
+    const file = { ...w, name: 'Old', categories: w.categories.map((c, i) => ({ ...c, label: names[i] })) };
+    delete (file as { pins?: unknown }).pins;
+    expect(s().importFile(JSON.stringify(file))).toBe(true);
+    const k = s().view!.k;
+    s().setK(k + 1);
+    s().setK(k);
+    expect(s().view!.categories.map((c) => c.label)).toEqual(expect.arrayContaining(names));
+  });
+
+  it('k never passes the chord slots; k changes in a row are one undo step', async () => {
+    const store = await carved();
+    const s = () => store.getState();
+    const before = s().working;
+    const k = s().view!.k;
+    s().setK(k + 1);
+    s().setK(k + 2);
+    expect(s().history.undo).toBe(1);
+    s().undo();
+    expect(s().working).toBe(before);
+    s().setK(50);
+    expect(s().view!.k).toBeLessThanOrEqual(MAX_CATEGORY_SLOTS);
+    expect(s().view!.maxK).toBeLessThanOrEqual(MAX_CATEGORY_SLOTS);
+  });
+
+  it('pins that disagree with their hold are dropped on import', async () => {
+    const store = await carved();
+    const s = () => store.getState();
+    const w = s().working!;
+    const [a, b] = w.categories;
+    const file = { ...w, name: 'Odd', pins: { [a.members[0]]: b.id, [b.members[0]]: b.id } };
+    expect(s().importFile(JSON.stringify(file))).toBe(true);
+    expect(s().working!.pins).toEqual({ [b.members[0]]: b.id });
+    expect(pinsHold(s().working!)).toBe(true);
+  });
+});
+
 describe('one editable carve: the grid', () => {
   it('shows every hold and both bins; a key, the menu and a drag move holds; Cmd-Z undoes', async () => {
     const store = await carved();
@@ -191,9 +251,14 @@ describe('one editable carve: the grid', () => {
     fireEvent.drop(document.querySelector('[data-face-neutral]')!, { dataTransfer });
     expect(placeOf(s().working!, hold)).toBe(NEUTRAL_BIN);
 
-    // The Undo button goes back a step.
+    // The Undo button goes back a step; Ctrl-Y in the grid redoes (and stays in the grid).
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(placeOf(s().working!, hold)).toBe(ASIDE_BIN);
+    window.addEventListener('keydown', outside);
+    fireEvent.keyDown(grid, { key: 'y', ctrlKey: true });
+    window.removeEventListener('keydown', outside);
+    expect(placeOf(s().working!, hold)).toBe(NEUTRAL_BIN);
+    expect(outside).not.toHaveBeenCalled();
   });
 
   it('a category header dropped on another merges them; its menu splits', async () => {

@@ -57,6 +57,9 @@ import {
   mergeCategories,
   moveHolds as moveHoldsIn,
   nameCategory,
+  NEW_CATEGORY,
+  anchorNames,
+  consistentPins,
   recut,
   recutBounds,
   recutRange,
@@ -79,6 +82,7 @@ import type { CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
 import type { FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
 import { holdId, type FrameOpener, type LiveFrames, type ThumbStore } from './thumbnails';
+import { MAX_CATEGORY_SLOTS } from '../schema';
 
 export type FacePhase =
   /** Nothing recorded; the saved list and Record. */
@@ -243,8 +247,13 @@ export const FACE_SESSION_DEFAULTS = {
   exemplars: 4,
   /** How many edits undo keeps. */
   undoDepth: 100,
-  /** The most holds a suggested k is computed over on every edit (the forest is cubic). */
-  suggestUpTo: 400,
+  /** The most holds a suggested k is computed over on every edit (the forest is cubic: about
+   *  0.15 s at 250 holds over 52 features). */
+  suggestUpTo: 250,
+  /** The most holds a re-cut carves at once on the main thread (about 1.5 s at 600). */
+  recutUpTo: 600,
+  /** The most categories a carve makes: one per chord slot an instrument has. */
+  maxCategories: MAX_CATEGORY_SLOTS,
 } as const;
 
 /** One step of the edit history: the working categorizer and how its names came about. */
@@ -273,7 +282,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
    *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
    *  say), which is neutral in `reject` mode. */
-  let fresh: { rest: readonly FeatureVector[]; cloud: ReadonlySet<string> | null; base: PersonalCategorizer } | null = null;
+  let fresh: { rest: readonly FeatureVector[]; cloud: ReadonlySet<string> | null; base: PersonalCategorizer; held: PersonalCategorizer | null } | null = null;
   /** The open categorizer's reject radius as opened: a re-cut floors from it, so k up and down
    *  does not drift. */
   let baseRadius: number | undefined;
@@ -282,6 +291,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** The edit history: what undo and redo step through. */
   let undoStack: Snapshot[] = [];
   let redoStack: Snapshot[] = [];
+  /** The last edit was a change of k: the next one joins its undo step (a slider drag, or
+   *  several +, is one step). */
+  let lastWasK = false;
   let openRecord: FaceModelRecord | null = null;
   /** The categorizer a recording is being merged into, and what to restore if it is empty. */
   let mergeBase: {
@@ -482,7 +494,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       // The bounds on every show; the suggestion (which builds the forest) only for a pool a
       // person can wait for.
       const bounds = recutBounds(working, recutOptions());
-      const range = { ...bounds, suggestedK: bounds.pool <= FACE_SESSION_DEFAULTS.suggestUpTo ? recutRange(working, recutOptions()).suggestedK : working.categories.length };
+      const recutable = bounds.pool <= FACE_SESSION_DEFAULTS.recutUpTo;
+      const maxK = Math.min(bounds.maxK, FACE_SESSION_DEFAULTS.maxCategories);
+      const suggested = recutable && bounds.pool <= FACE_SESSION_DEFAULTS.suggestUpTo ? recutRange(working, recutOptions()).suggestedK : working.categories.length;
+      const range = recutable ? { minK: bounds.minK, maxK, suggestedK: Math.min(suggested, maxK), recutable } : { minK: working.categories.length, maxK: working.categories.length, suggestedK: working.categories.length, recutable };
       const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true });
       shownIds = working.samples.map((x) => x.id);
       set({ working, view, mode: view.mode, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
@@ -492,8 +507,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       });
     };
     /** Show an opened categorizer (phase `saved`): a fresh history, its names as saved. */
-    const showOpened = (working: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
+    const showOpened = (opened: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
+      const working = consistentPins(opened);
       fresh = null;
+      lastWasK = false;
       baseRadius = working.rejectRadius;
       sources = new Map();
       undoStack = [];
@@ -507,11 +524,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       undoStack = e.undo;
       redoStack = e.redo;
       baseRadius = e.baseRadius;
+      lastWasK = false;
     };
     /** Make `next` the working categorizer, as one undoable edit: its unnamed categories named. */
-    const commit = (next: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
+    const commit = (next: PersonalCategorizer, patch: Partial<FaceSessionState> = {}, { k = false }: { k?: boolean } = {}) => {
       const cur = get().working;
-      if (cur) {
+      const joins = k && lastWasK && undoStack.length > 0;
+      lastWasK = k;
+      if (cur && !joins) {
         undoStack = [...undoStack, { working: cur, sources }].slice(-FACE_SESSION_DEFAULTS.undoDepth);
         redoStack = [];
       }
@@ -520,7 +540,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       showDoc(named.categorizer, { dirty: true, notice: null, ...patch });
     };
     /** Apply an edit of the working categorizer (in either phase), or say why not. */
-    const edit = (run: (working: PersonalCategorizer) => SortResult | CorrectionResult): boolean => {
+    const edit = (run: (working: PersonalCategorizer) => SortResult | CorrectionResult, options: { k?: boolean } = {}): boolean => {
       const { working, phase } = get();
       if (!working || (phase !== 'carved' && phase !== 'saved')) return false;
       const r = run(working);
@@ -528,9 +548,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         set({ notice: `Not changed: ${r.error}.` });
         return false;
       }
-      commit(r.categorizer);
+      commit(r.categorizer, {}, options);
       return true;
     };
+    /** Refused when the edit would make more categories than an instrument has chords for. */
+    const roomFor = (working: PersonalCategorizer): SortResult | null =>
+      working.categories.length >= FACE_SESSION_DEFAULTS.maxCategories
+        ? { ok: false, error: `${FACE_SESSION_DEFAULTS.maxCategories} categories is the most (one per chord an instrument has); merge two first` }
+        : null;
 
     /** A grid with nothing carved: every hold is close to the rest (`reject`), so they are all
      *  shown as neutral and the mode can still be changed. */
@@ -546,31 +571,46 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       neutral: { count: base.samples.length, exemplars: base.samples.map((_, i) => i) },
       aside: { count: 0, exemplars: [] },
       pinned: new Set(),
+      ids: base.samples.map((x) => x.id),
+      recutable: false,
     });
 
     /** Carve the fresh take in `mode` at `k` (the suggestion when absent), its pins kept. */
     const carveFresh = (mode: CategorizerMode, k?: number) => {
       if (!fresh) return;
-      const cur = get().working ?? fresh.base;
+      // The document to carve from: the one shown, else the one held while nothing could be
+      // carved (its edits kept), else the take as it came.
+      const cur = get().working ?? fresh.held ?? fresh.base;
       const { rejectRadius, ...rest } = cur;
       const doc: PersonalCategorizer =
         mode === 'reject' ? { ...rest, strangers: strangersFor(mode), rejectRadius: rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius } : { ...rest, strangers: strangersFor(mode) };
       const neutral = mode === 'reject' ? (fresh.cloud ?? new Set<string>()) : new Set<string>();
       const options = { ...recutOptions(), neutral };
-      const r = recut(doc, k ?? recutRange(doc, options).suggestedK, options);
+      const r = recut(doc, Math.min(k ?? recutRange(doc, options).suggestedK, FACE_SESSION_DEFAULTS.maxCategories), options);
       if (!r.ok) {
         const { one, many } = modality.words;
-        shownIds = fresh.base.samples.map((x) => x.id);
+        // Nothing to carve: the document is held (and the one shown kept for undo), so a mode
+        // switch back carves it again with every edit in it.
+        const shown = get().working;
+        if (shown) {
+          undoStack = [...undoStack, { working: shown, sources }].slice(-FACE_SESSION_DEFAULTS.undoDepth);
+          redoStack = [];
+        }
+        lastWasK = false;
+        fresh.held = cur;
+        shownIds = cur.samples.map((x) => x.id);
         set({
           mode,
           k: 0,
           working: null,
-          view: emptyView(fresh.base, mode),
+          history: { undo: undoStack.length, redo: redoStack.length },
+          view: emptyView(cur, mode),
           notice: `Every held ${one} was close to your resting ${one}, so there is nothing to carve. Choose "Every ${one} is a category", or record again with stronger ${many}.`,
         });
         show(generation);
         return;
       }
+      fresh.held = null;
       if (get().working) commit(r.categorizer);
       else {
         const named = nameCarve(r.categorizer, { modality, sources, restCloud: fresh.cloud ?? undefined });
@@ -758,7 +798,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const mode = get().mode;
         const base = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', mode, modality: modality.id, createdAt: deps.isoNow() });
-        fresh = { rest, cloud: cloud ? new Set(cloud.map((i) => samples[i].id)) : null, base };
+        fresh = { rest, cloud: cloud ? new Set(cloud.map((i) => samples[i].id)) : null, base, held: null };
         set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true });
         carveFresh(mode);
       },
@@ -776,8 +816,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       setK(k) {
         const { working, view } = get();
-        if (!working || !view || Math.round(k) === view.k) return;
-        edit((w) => recut(w, k, recutOptions()));
+        const want = Math.min(Math.round(k), FACE_SESSION_DEFAULTS.maxCategories);
+        if (!working || !view || want === view.k) return;
+        if (!view.recutable) {
+          set({ notice: `Not changed: ${working.samples.length} ${modality.words.many} are too many to re-cut here; merge categories or delete some instead.` });
+          return;
+        }
+        // A name saved before pins existed (or kept from the file) is the player's: anchored
+        // first, so the re-cut keeps it (the general model's proposals are not).
+        const kept = (cat: PersonalCategorizer['categories'][number]) => ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '';
+        edit((w) => recut(anchorNames(w, kept), want, recutOptions()), { k: true });
       },
 
       rename(id, label) {
@@ -801,7 +849,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       moveHolds(ids, to) {
-        return edit((w) => moveHoldsIn(w, ids, to));
+        return edit((w) => (to === NEW_CATEGORY && roomFor(w)) || moveHoldsIn(w, ids, to));
       },
 
       deleteHolds(ids) {
@@ -813,7 +861,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       split(id) {
-        return edit((w) => splitCategory(w, id));
+        return edit((w) => roomFor(w) ?? splitCategory(w, id));
       },
 
       undo() {
@@ -822,6 +870,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (!cur || !prev) return;
         undoStack = undoStack.slice(0, -1);
         redoStack = [...redoStack, { working: cur, sources }];
+        lastWasK = false;
         sources = prev.sources;
         showDoc(prev.working, { dirty: true, notice: null });
       },
@@ -832,6 +881,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (!cur || !next) return;
         redoStack = redoStack.slice(0, -1);
         undoStack = [...undoStack, { working: cur, sources }];
+        lastWasK = false;
         sources = next.sources;
         showDoc(next.working, { dirty: true, notice: null });
       },
@@ -925,6 +975,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         sources = new Map();
         undoStack = [];
         redoStack = [];
+        lastWasK = false;
         openRecord = null;
         mergeBase = null;
         shownIds = [];

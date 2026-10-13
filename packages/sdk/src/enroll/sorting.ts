@@ -15,7 +15,8 @@
  *
  * A re-cut is a function of the samples, the bins and the pins only (never of the previous
  * cut's unpinned categories), so going from k = 3 to 5 and back to 3 gives the k = 3 document
- * again. Pinned categories keep their id and label; the others get `cat-n` ids (skipping the
+ * again, given the same `baseRejectRadius` (without one, the reject radius floors from the
+ * categorizer's own, which a re-cut may have raised). Pinned categories keep their id and label; the others get `cat-n` ids (skipping the
  * pinned ones) and an EMPTY label, for the host to name (the face host's names are the general
  * model's, one-to-one).
  *
@@ -28,7 +29,7 @@
  *
  * Modality-free: nothing here knows what a feature is.
  */
-import { buildConstrainedForest, buildHierarchy, cutAt, cutForest, forestRange, suggestForestK } from './cluster';
+import { buildConstrainedForest, buildHierarchy, cutAt, cutForest, forestRange, suggestForestK, type Forest } from './cluster';
 import { trainModel } from './classify';
 import { selectExemplars } from './exemplars';
 import {
@@ -329,16 +330,25 @@ function recutPool(c: PersonalCategorizer, options: RecutOptions) {
   return { pool, bins, groups };
 }
 
-/** The forest a re-cut cuts: quadratic to cubic in the pool, so built only to cut or suggest. */
+/** How many forests are kept (a host asks for the range, then cuts the same pool). */
+export const FOREST_CACHE_SIZE = 8;
+const forests = new Map<string, Forest>();
+
+/**
+ * The forest a re-cut cuts. Building it is cubic in the pool, and it depends on the pool's
+ * vectors, the must-link groups and the feature space only (never on k), so it is cached on
+ * exactly that: the range shown after an edit and the cut that follows share one build.
+ */
 function recutPlan(c: PersonalCategorizer, options: RecutOptions) {
   const { pool, bins, groups } = recutPool(c, options);
   const order = [...groups.keys()];
-  const forest = buildConstrainedForest(
-    pool.map((i) => c.samples[i].vector),
-    c.features,
-    c.weights,
-    { mustLink: order.map((k) => groups.get(k)!) },
-  );
+  const mustLink = order.map((k) => groups.get(k)!);
+  const key = JSON.stringify([c.features, c.features.map((f) => c.weights[f] ?? 1), pool.map((i) => c.features.map((f) => c.samples[i].vector[f] ?? null)), mustLink]);
+  let forest = forests.get(key);
+  if (forest) forests.delete(key);
+  else forest = buildConstrainedForest(pool.map((i) => c.samples[i].vector), c.features, c.weights, { mustLink });
+  forests.set(key, forest);
+  while (forests.size > FOREST_CACHE_SIZE) forests.delete(forests.keys().next().value!);
   return { pool, bins, forest, groupIds: order, groups };
 }
 
@@ -405,6 +415,37 @@ export function recut(c: PersonalCategorizer, k: number, options: RecutOptions =
 
 /** The ids of the samples at `indices` (for a host that addresses holds by position). */
 export const sampleIds = (c: PersonalCategorizer, indices: readonly number[]): string[] => indices.flatMap((i) => (c.samples[i] ? [c.samples[i].id] : []));
+
+/** `c` with the pins that disagree with where their hold is dropped (a hand-edited or older file
+ *  may carry some; a re-cut would otherwise move those holds without a word). */
+export function consistentPins(c: PersonalCategorizer): PersonalCategorizer {
+  if (!c.pins) return c;
+  const kept = Object.fromEntries(Object.entries(c.pins).filter(([id, to]) => placeOf(c, id) === to));
+  if (Object.keys(kept).length === Object.keys(c.pins).length) return c;
+  const { pins: _p, ...rest } = c;
+  void _p;
+  return Object.keys(kept).length > 0 ? { ...rest, pins: kept } : rest;
+}
+
+/**
+ * `c` with every NAMED category that holds no pinned hold anchored (its most typical hold pinned
+ * to it), so a re-cut keeps its name: what a categorizer saved before pins existed needs, since
+ * its names are the player's but nothing pins them. `named` picks which categories count
+ * (every category with a label by default).
+ */
+export function anchorNames(c: PersonalCategorizer, named: (category: PersonalCategorizer['categories'][number]) => boolean = (x) => x.label.trim() !== ''): PersonalCategorizer {
+  const pins = { ...(c.pins ?? {}) };
+  let changed = false;
+  for (const cat of c.categories) {
+    if (!named(cat) || cat.members.some((m) => pins[m] === cat.id)) continue;
+    const anchor = medoidOf(c, cat.id);
+    if (anchor) {
+      pins[anchor] = cat.id;
+      changed = true;
+    }
+  }
+  return changed ? { ...c, pins } : c;
+}
 
 /** Whether `c` keeps the E4 invariant: every pinned hold is where its pin says. */
 export function pinsHold(c: PersonalCategorizer): boolean {

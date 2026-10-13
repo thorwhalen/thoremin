@@ -180,6 +180,18 @@ describe('re-cut honouring pins', () => {
   });
 });
 
+describe('the forest cache', () => {
+  it('is keyed on the vectors, not the ids: same ids, other faces, another cut', () => {
+    const one = doc(vectors(rng(12)), 3);
+    const other = PersonalCategorizerSchema.parse({ ...one, samples: one.samples.map((x, i) => ({ ...x, vector: { x: (i % 3) * 10, y: 0 } })) });
+    const cut = ok(recut(other, 3));
+    for (const cat of cut.categories) {
+      const xs = new Set(cat.members.map((m) => other.samples.find((x) => x.id === m)!.vector.x));
+      expect(xs.size).toBe(1);
+    }
+  });
+});
+
 describe('the edits', () => {
   it('moves pin, and a move that would empty a category is refused', () => {
     const c = doc(vectors(rng(6)), 3);

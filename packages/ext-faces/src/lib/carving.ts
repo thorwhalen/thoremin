@@ -269,6 +269,10 @@ export interface SortingView extends CarveView {
   aside: SortedBin;
   /** Sample indices the player placed (pinned). */
   pinned: ReadonlySet<number>;
+  /** Every sample's id, by index (what the indices above, and the stills, are keyed by). */
+  ids: readonly string[];
+  /** Whether k can be re-cut here (false when the pool is too large to re-cut at once). */
+  recutable: boolean;
 }
 
 /** Above this many holds a bin or category is ordered by distance from its centre alone: the
@@ -294,7 +298,7 @@ function ordered(model: Pick<TrainedModel, 'features' | 'weights'>, vectors: rea
  */
 export function sortingView(
   c: PersonalCategorizer,
-  { sources, range, neutralKnown = true }: { sources: NameSources; range: { minK: number; maxK: number; suggestedK: number }; neutralKnown?: boolean },
+  { sources, range, neutralKnown = true }: { sources: NameSources; range: { minK: number; maxK: number; suggestedK: number; recutable?: boolean }; neutralKnown?: boolean },
 ): SortingView {
   const model = modelFromCategorizer(c);
   const vectors = c.samples.map((s) => s.vector);
@@ -318,5 +322,7 @@ export function sortingView(
     neutral: bin(c.neutral),
     aside: bin(c.aside ?? []),
     pinned: new Set(Object.keys(c.pins ?? {}).flatMap((id) => (at.has(id) ? [at.get(id)!] : []))),
+    ids: c.samples.map((s) => s.id),
+    recutable: range.recutable ?? true,
   };
 }
