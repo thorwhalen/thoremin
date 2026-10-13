@@ -75,6 +75,14 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'songRate' }, to: { node: 'songPlayer', port: 'rate' } },
   { from: { node: 'ui', port: 'songVolume' }, to: { node: 'songPlayer', port: 'volume' } },
   { from: { node: 'ui', port: 'claimed' }, to: { node: 'songPlayer', port: 'claimed' } },
+  // #186 PR H: the song follows the dancer; the pace controller reads the player back on
+  // delayed edges and feeds its rate in.
+  { from: { node: 'bodyPulse', port: 'pulse' }, to: { node: 'pace', port: 'pulse' } },
+  { from: { node: 'songPlayer', port: 'songTime' }, to: { node: 'pace', port: 'song' }, delayed: true },
+  { from: { node: 'songPlayer', port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
+  { from: { node: 'ui', port: 'songRate' }, to: { node: 'pace', port: 'base' } },
+  { from: { node: 'ui', port: 'songFollowRange' }, to: { node: 'pace', port: 'range' } },
+  { from: { node: 'pace', port: 'rate' }, to: { node: 'songPlayer', port: 'followRate' } },
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */
@@ -85,6 +93,8 @@ const NODES_ADDED_SINCE_SNAPSHOT: NodeSpec[] = [
   { id: 'bodyPulse', type: 'body-pulse', params: {} },
   // #186 PR G: the song player, in the trunk.
   { id: 'songPlayer', type: 'song-player', params: {} },
+  // #186 PR H: the pace controller, in the song-pace branch.
+  { id: 'pace', type: 'pace-controller', params: {} },
 ];
 
 /** Edges the branch table LOST after the snapshot, each named here for the same reason. */

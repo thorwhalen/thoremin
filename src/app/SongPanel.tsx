@@ -13,6 +13,13 @@
  * (Decision B: a slider drag is the one place latency is audible) and reachable from the
  * palette and the assistant as `song.volume.set` / `song.rate.set`.
  *
+ * "Follow the dancer" (#186 PR H) makes the song's tempo follow the dancer's pulse (the
+ * `song.follow.set` command; a per-device pref like the tempo, so loading an instrument
+ * never changes it): the body camera starts while a song is loaded, and the panel says
+ * what the pace controller is doing, from waiting for the dancer to following at a
+ * ratio. The follow range slider is dragged directly (Decision B) and is
+ * `song.followRange.set` on the palette.
+ *
  * The song keeps playing with the panel closed, so the tool runs detached and the bar
  * carries its stop control (`ToolsBar`).
  */
@@ -21,11 +28,11 @@ import { Disc3, X } from 'lucide-react';
 import { LoadStatusReadout } from './LoadStatusReadout';
 import { dispatchCommand } from './dispatchDial';
 import { useControls } from './store';
-import { useSongStatus, type SongLive } from './songStatus';
+import { useSongStatus, type PaceReadout, type SongLive } from './songStatus';
 import { loadSongFile, unloadSong } from './song/host';
 import { toolById } from './tools';
 import { useTools } from './toolsStore';
-import { SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
+import { SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
 import { unlockSongPlayback, type SongHandle } from '@/nodes/output/song_player';
 
 export const SONG_TOOL_ID = 'song';
@@ -44,6 +51,34 @@ export function describeGrid(song: SongHandle): string {
   if (!(g.periodS > 0)) return 'No steady beat found in this file.';
   const sure = g.confidence >= 0.5 ? 'a clear beat' : g.confidence >= 0.25 ? 'a fair beat' : 'a faint beat';
   return `${g.bpm.toFixed(1)} bpm, ${sure} (${g.beats.length} beats tracked).`;
+}
+
+/** "4 song beats per cycle", or "2 cycles per beat" for a dancer quicker than the beat. */
+export function describeRatio(ratio: number): string {
+  if (!Number.isFinite(ratio) || ratio <= 0) return '';
+  if (ratio >= 1) return ratio === 1 ? 'one song beat per step' : `${Math.round(ratio)} song beats per step`;
+  return `${Math.round(1 / ratio)} steps per song beat`;
+}
+
+/** What following is doing, in words. `playing` = the song is sounding. */
+export function describePace(pace: PaceReadout | null, playing: boolean): string {
+  if (!playing) return 'Follows the dancer once the song plays.';
+  if (!pace) return 'Starting the body camera...';
+  const at = `${Math.round(pace.rate * 100)}%`;
+  switch (pace.mode) {
+    case 'idle':
+      return 'Follows the dancer once the song plays.';
+    case 'waiting':
+      return "Waiting for the dancer's pulse: dance in front of the camera, feet in view.";
+    case 'locking':
+      return `Found the dancer (${describeRatio(pace.ratio)}), locking on...`;
+    case 'following':
+      return `Following: ${describeRatio(pace.ratio)}, tempo ${at}${pace.nudge !== 0 ? ', bringing the beat into step' : ', in step'}.`;
+    case 'switching':
+      return `The dancer changed step (${describeRatio(pace.ratio)}): holding ${at} until it settles...`;
+    case 'holding':
+      return `Holding the tempo at ${at}: the dancer's pulse is unclear.`;
+  }
 }
 
 function BeatTracker({ live, playing }: { live: SongLive; playing: boolean }) {
@@ -69,6 +104,7 @@ export default function SongPanel() {
   const playing = useControls((s) => s.songPlaying);
   const status = useSongStatus((s) => s.status);
   const live = useSongStatus((s) => s.live);
+  const pace = useSongStatus((s) => s.pace);
   const prefs = useControls((s) => s.songPrefs);
   const setPrefs = useControls((s) => s.setSongPrefs);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -77,7 +113,7 @@ export default function SongPanel() {
   if (!open) return null;
 
   const tool = toolById(SONG_TOOL_ID);
-  const { volume, rate } = prefs;
+  const { volume, rate, follow, followRange } = prefs;
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -159,6 +195,37 @@ export default function SongPanel() {
                 onChange={(e) => setPrefs({ rate: Number(e.target.value) })}
               />
             </label>
+            <div className="space-y-2 rounded-lg border border-white/10 p-2" data-testid="song-follow">
+              <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                Follow the dancer
+                <input
+                  type="checkbox"
+                  checked={follow}
+                  aria-label="Follow the dancer"
+                  onChange={(e) => void dispatchCommand('song.follow.set', { follow: e.target.checked })}
+                />
+              </label>
+              {follow && (
+                <>
+                  <p className="text-[11px] text-white/60" data-testid="song-pace">
+                    {describePace(pace, playing && status.phase === 'active')}
+                  </p>
+                  <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                    <span>
+                      Range <span className="font-mono text-white/50">+-{Math.round(followRange * 100)}%</span>
+                    </span>
+                    <input
+                      type="range"
+                      min={SONG_FOLLOW_RANGE_MIN}
+                      max={SONG_FOLLOW_RANGE_MAX}
+                      step={0.01}
+                      value={followRange}
+                      onChange={(e) => setPrefs({ followRange: Number(e.target.value) })}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
             <button onClick={unloadSong} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white/70">
               Unload the song
             </button>
@@ -166,7 +233,8 @@ export default function SongPanel() {
         )}
         <p className="text-[10px] leading-relaxed text-white/50">
           The song stays on this device: it is decoded and its beat tracked in the browser, and it is never saved with an
-          instrument. The tempo slider changes the speed without changing the pitch.
+          instrument. The tempo slider changes the speed without changing the pitch; following the dancer pulls it around
+          that tempo, never further than the range.
         </p>
       </div>
     </div>

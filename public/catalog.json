@@ -2032,6 +2032,104 @@
     ]
   },
   {
+    "type": "pace-controller",
+    "title": "Pace Controller",
+    "description": "Makes the song follow the dancer: relates the dancer's pulse to the song's beat by an integer ratio and sets the song's rate (clamped around the player's tempo, nudged into phase, held when the dancer stops).",
+    "roles": [
+      "music",
+      "control"
+    ],
+    "inputs": [
+      {
+        "name": "pulse",
+        "kind": "pulse-state",
+        "description": "The dancer's pulse (body-pulse)"
+      },
+      {
+        "name": "song",
+        "kind": "musical-time",
+        "description": "The song's beat at the playback position (song-player's songTime, a tick old)"
+      },
+      {
+        "name": "rate",
+        "kind": "number",
+        "description": "The rate the song was played at (song-player's rate, a tick old)",
+        "default": 1
+      },
+      {
+        "name": "base",
+        "kind": "number",
+        "description": "The player's own tempo (the Song tool's slider): the centre of the clamp",
+        "default": 1
+      },
+      {
+        "name": "range",
+        "kind": "number",
+        "description": "How far from the player's tempo the song may be pulled, a fraction",
+        "default": 0.1
+      }
+    ],
+    "outputs": [
+      {
+        "name": "rate",
+        "kind": "number",
+        "description": "The rate to play the song at"
+      },
+      {
+        "name": "pace",
+        "kind": "pace-state",
+        "description": "What the controller is doing: waiting, locking, following or holding, the ratio, the phase error"
+      }
+    ],
+    "params": [
+      {
+        "name": "persistS",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "smoothS",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "nudge",
+        "type": "number",
+        "default": 0.03
+      },
+      {
+        "name": "phaseThreshold",
+        "type": "number",
+        "default": 0.08333333333333333
+      },
+      {
+        "name": "maxRatio",
+        "type": "number",
+        "default": 8
+      },
+      {
+        "name": "phaseOffset",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "songPeriodS",
+        "type": "number",
+        "default": 8
+      },
+      {
+        "name": "minRate",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "maxRate",
+        "type": "number",
+        "default": 2
+      }
+    ]
+  },
+  {
     "type": "performance",
     "title": "Performance",
     "description": "Control signal → tempo (bpm) + dynamics (velocityScale), with optional humanization.",
@@ -2559,6 +2657,11 @@
         "default": 1
       },
       {
+        "name": "followRate",
+        "kind": "number",
+        "description": "The pace controller's rate while the song follows the dancer (PR H); replaces `rate` when present"
+      },
+      {
         "name": "volume",
         "kind": "number",
         "default": 0.8
@@ -2579,6 +2682,11 @@
         "name": "position",
         "kind": "number",
         "description": "Seconds into the song, on its own timeline"
+      },
+      {
+        "name": "rate",
+        "kind": "number",
+        "description": "The rate the song is played at, after the clamp (what the pace controller reads back)"
       },
       {
         "name": "songTime",
@@ -2747,6 +2855,10 @@
       },
       {
         "name": "songRate",
+        "kind": "number"
+      },
+      {
+        "name": "songFollowRange",
         "kind": "number"
       },
       {

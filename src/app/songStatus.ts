@@ -6,16 +6,22 @@
  * `orchestraStatus`; the reporter is change-gated (a new beat, a new status), so it
  * writes a few times a second rather than every frame.
  *
+ * While the song follows the dancer (#186 PR H), it also reports what the pace controller
+ * is doing (waiting for the dancer, locking on, following at a ratio and rate, holding),
+ * read off the `pace` node when the `song-pace` branch is composed.
+ *
  * It also closes the transport's loop: a song that plays to its end, or that the browser
  * refused to start (`reason: 'autoplay'`), turns `songPlaying` back off, so the next press
  * of Play is a fresh start rather than a no-op.
  */
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
-import type { MusicalTime } from '@thoremin/ictus';
+import type { MusicalTime, PaceMode, PaceState } from '@thoremin/ictus';
 import type { OutputReader } from './generativeStatus';
 
 export const SONG_NODE_ID = 'songPlayer';
+/** The pace controller's id in the `song-pace` branch. */
+export const PACE_NODE_ID = 'pace';
 
 export const ABSENT_SONG_STATUS: LoadStatus = { phase: 'off', message: 'No song loaded' };
 
@@ -31,19 +37,38 @@ export interface SongLive {
 
 export const ABSENT_SONG_LIVE: SongLive = { beat: 0, bpm: 0, positionS: 0 };
 
+/** What the Song tool shows of the song following the dancer; null while it does not. */
+export interface PaceReadout {
+  mode: PaceMode;
+  /** Song beats per dancer cycle (NaN without a relation). */
+  ratio: number;
+  /** The rate the song plays at, rounded to a percent. */
+  rate: number;
+  /** -1 slowing into phase, +1 speeding, 0 in phase. */
+  nudge: -1 | 0 | 1;
+}
+
 export interface SongStatusState {
   status: LoadStatus;
   live: SongLive;
-  report(status: LoadStatus, live: SongLive): void;
+  pace: PaceReadout | null;
+  report(status: LoadStatus, live: SongLive, pace?: PaceReadout | null): void;
   reset(): void;
 }
 
 export const useSongStatus = create<SongStatusState>((set) => ({
   status: ABSENT_SONG_STATUS,
   live: ABSENT_SONG_LIVE,
-  report: (status, live) => set({ status, live }),
-  reset: () => set({ status: ABSENT_SONG_STATUS, live: ABSENT_SONG_LIVE }),
+  pace: null,
+  report: (status, live, pace = null) => set({ status, live, pace }),
+  reset: () => set({ status: ABSENT_SONG_STATUS, live: ABSENT_SONG_LIVE, pace: null }),
 }));
+
+/** The pace controller's state as the Song tool shows it. */
+export function paceReadout(p: PaceState | undefined): PaceReadout | null {
+  if (!p) return null;
+  return { mode: p.mode, ratio: p.ratio, rate: Math.round(p.rate * 100) / 100, nudge: p.nudge };
+}
 
 /**
  * The per-frame sink: report the player's status and beat when either changed, and call
@@ -61,6 +86,7 @@ export function makeSongReporter(
     if (!s) return;
     const time = engine.getOutput(SONG_NODE_ID, 'songTime') as MusicalTime | undefined;
     const position = engine.getOutput(SONG_NODE_ID, 'position') as number | undefined;
+    const pace = paceReadout(engine.getOutput(PACE_NODE_ID, 'pace') as PaceState | undefined);
     const live: SongLive = {
       beat: time && time.state !== 'ready' ? Math.floor(time.beat) : 0,
       bpm: time && time.state !== 'ready' ? Math.round(time.tempo * 10) / 10 : 0,
@@ -74,9 +100,10 @@ export function makeSongReporter(
     if (stop && stop !== lastStop) onEnded();
     lastStop = stop;
     // Whole seconds of position are enough for the readout; the beat drives the flash.
-    const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${live.beat}|${live.bpm}|${Math.floor(live.positionS)}`;
+    const paceKey = pace ? `${pace.mode}|${pace.ratio}|${pace.rate}|${pace.nudge}` : '';
+    const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${live.beat}|${live.bpm}|${Math.floor(live.positionS)}|${paceKey}`;
     if (key === lastKey) return;
     lastKey = key;
-    store.report(s, live);
+    store.report(s, live, pace);
   };
 }

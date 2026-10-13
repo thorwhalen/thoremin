@@ -109,7 +109,7 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   graphElements?: string[] | null;
   /** The song's level and rate (#186 PR G, a per-device pref) → `song-player`'s
    *  `volume` / `rate`. */
-  songPrefs?: { volume: number; rate: number };
+  songPrefs?: { volume: number; rate: number; followRange?: number };
   /** The loaded song (transient), emitted as the SAME object until another loads, so
    *  `song-player` tells a new song by identity. */
   songHandle?: SongHandle | null;
@@ -223,6 +223,9 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     { name: 'songPlaying', kind: 'boolean' },
     { name: 'songVolume', kind: 'number' },
     { name: 'songRate', kind: 'number' },
+    // How far the pace controller may pull the song (#186 PR H; `follow` itself composes
+    // the `song-pace` branch, so it needs no port).
+    { name: 'songFollowRange', kind: 'number' },
     // The composed graph's overlay element set (the instruments-as-graphs ADR, §3.2 rule
     // 4): data on a port, never an overlay param, so a switch keeps the overlay instance.
     { name: 'graphElements', kind: 'string[]' },
@@ -305,6 +308,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         out.songPlaying = c.songPlaying ?? false;
         out.songVolume = c.songPrefs?.volume ?? DEFAULT_SONG.volume;
         out.songRate = c.songPrefs?.rate ?? DEFAULT_SONG.rate;
+        out.songFollowRange = c.songPrefs?.followRange ?? DEFAULT_SONG.followRange;
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {
           out.chordConfig = {

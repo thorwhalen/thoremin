@@ -223,6 +223,29 @@ export const bodyRoute = defineBranch({
   ],
 });
 
+/**
+ * The song follows the dancer (#186 PR H, research map §9.6): the pace controller reads
+ * the dancer's pulse and the song's beat and sets the rate the song plays at. It closes a
+ * loop through the song player, so the two edges back from the player are DELAYED (the
+ * previous tick's song time and rate, extrapolated to now). Composed while following is
+ * on and a song is loaded; it implies the body source (`requires`), since the dancer is
+ * what it follows.
+ */
+export const songPace = defineBranch({
+  id: 'song-pace',
+  description: "The song's tempo follows the dancer's pulse.",
+  requires: ['body-source'],
+  nodes: [{ id: 'pace', type: 'pace-controller', params: {} }],
+  edges: [
+    to({ node: 'bodyPulse', port: 'pulse' }, { node: 'pace', port: 'pulse' }),
+    { from: { node: 'songPlayer', port: 'songTime' }, to: { node: 'pace', port: 'song' }, delayed: true },
+    { from: { node: 'songPlayer', port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
+    to(ui('songRate'), { node: 'pace', port: 'base' }),
+    to(ui('songFollowRange'), { node: 'pace', port: 'range' }),
+    to({ node: 'pace', port: 'rate' }, { node: 'songPlayer', port: 'followRate' }),
+  ],
+});
+
 export const conductor = defineBranch({
   id: 'conductor',
   description: 'Conducting: the ictus detector, the conducted score it drives, and the sampled orchestra that can play it.',
@@ -305,6 +328,7 @@ export const BRANCHES: readonly GraphBranch[] = [
   faceControls,
   bodySource,
   bodyRoute,
+  songPace,
   conductor,
   midiOut,
   generative,

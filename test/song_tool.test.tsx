@@ -104,7 +104,7 @@ describe('the Song tool', () => {
     for (const k of ['songHandle', 'songPlaying', 'songPrefs', 'song']) expect(settings[k], k).toBeUndefined();
     const persist = (useControls as unknown as { persist: { getOptions(): { partialize(s: unknown): Record<string, unknown> } } }).persist.getOptions();
     const saved = persist.partialize(useControls.getState());
-    expect(saved.songPrefs).toEqual({ volume: 0.8, rate: 1 });
+    expect(saved.songPrefs).toEqual({ volume: 0.8, rate: 1, follow: false, followRange: 0.1 });
     expect(saved.songHandle).toBeUndefined();
     expect(saved.songPlaying).toBeUndefined();
     // A hand-edited blob is healed; the transients never come back from storage.
@@ -117,7 +117,7 @@ describe('the Song tool', () => {
     const r = createThoreminRegistry();
     expect((await r.dispatch('song.rate.set', { rate: 0.9 })).ok).toBe(true);
     expect((await r.dispatch('song.volume.set', { volume: 0.5 })).ok).toBe(true);
-    expect(useControls.getState().songPrefs).toEqual({ volume: 0.5, rate: 0.9 });
+    expect(useControls.getState().songPrefs).toMatchObject({ volume: 0.5, rate: 0.9 });
     expect((await r.dispatch('song.rate.set', { rate: 5 })).ok).toBe(false);
     useControls.getState().setSongPrefs({ volume: 0.8, rate: 1 });
   });

@@ -37,6 +37,8 @@ export { createBlendPrior, TREND_DEFAULTS } from './blend_prior';
 export type { BlendPrior, BlendPriorOptions } from './blend_prior';
 export { createPulseFollower, acfPeaks, fitSine, refinePeriod, PULSE_DEFAULTS, PULSE_TRUSTED_CONFIDENCE, UNKNOWN_PULSE } from './pulse';
 export type { PulseFollower, PulseLevel, PulseOptions, PulseState } from './pulse';
+export { createPaceController, relatePeriods, paceRatios, PACE_DEFAULTS } from './pace';
+export type { PaceController, PaceInput, PaceMode, PaceOptions, PaceState } from './pace';
 export { createScheduler, SCHEDULER_DEFAULTS } from './scheduler';
 export { trackSongGrid, songTimeAt, beatIndexAt, songTimeOfBeat, hasGrid, onsetEnvelopes, lsLine, toMono, EMPTY_SONG_GRID, SONG_GRID_DEFAULTS, SONG_GRID_SOURCE } from './song_grid';
 export type { SongGrid, SongGridOptions } from './song_grid';

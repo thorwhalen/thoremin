@@ -233,12 +233,22 @@ export const SONG_RATE_MAX = 2;
  * `song.volume.set` / `song.rate.set` commands. The song ITSELF (`songHandle`) and its
  * transport (`songPlaying`) are transient and never persisted.
  */
+export const SONG_FOLLOW_RANGE_MIN = 0.02;
+export const SONG_FOLLOW_RANGE_MAX = 0.3;
 export const SongSettingsSchema = z.object({
   volume: z.number().min(0).max(1),
   rate: z.number().min(SONG_RATE_MIN).max(SONG_RATE_MAX),
+  /** The song follows the dancer (#186 PR H): its tempo is pulled toward the dancer's
+   *  pulse by the pace controller, around `rate`. Per device, like the rest: an
+   *  instrument load must not change how the song follows. Off by default; turning it on
+   *  starts the body camera while a song is loaded. */
+  follow: z.boolean().default(false),
+  /** How far from `rate` following may pull the song, a fraction (0.1 = +-10 %, the
+   *  D-Jogger default; the native element sounds clean well past it). */
+  followRange: z.number().min(SONG_FOLLOW_RANGE_MIN).max(SONG_FOLLOW_RANGE_MAX).default(0.1),
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;
-export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1 };
+export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1 };
 /**
  * The generative layer (#141 / #188): gesture features steering a cloud generative
  * engine (Lyria RealTime) through the `indirect-map → lyria` branch. A preset field:

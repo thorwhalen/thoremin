@@ -14,6 +14,7 @@
     "./metrics": "./src/metrics.ts",
     "./oscillator": "./src/oscillator.ts",
     "./priors": "./src/priors.ts",
+    "./pace": "./src/pace.ts",
     "./pulse": "./src/pulse.ts",
     "./scheduler": "./src/scheduler.ts",
     "./song_grid": "./src/song_grid.ts",

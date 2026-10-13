@@ -50,6 +50,10 @@ export interface DerivationSettings {
   conductor?: { enabled?: boolean; orchestra?: { enabled?: boolean } };
   midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
+  /** The per-device song pref (#186 PR H): `follow` composes the pace branch. */
+  songPrefs?: { follow?: boolean };
+  /** The loaded song (transient): following needs one. Only its presence is read. */
+  songHandle?: unknown;
   /** Extension dial slices (`airDrum`, …): read by each extension's own `derive`. */
   [extensionKey: string]: unknown;
 }
@@ -68,6 +72,7 @@ export interface StrictDerivationSettings {
   conductor: { enabled: boolean; orchestra: { enabled: boolean } };
   midi: { enabled: boolean };
   steer: { enabled: boolean };
+  songPrefs: { follow: boolean };
 }
 
 export interface DerivationContext {
@@ -92,6 +97,13 @@ export function bodyMapRoutesAnything(bodyMap: DerivationSettings['bodyMap']): b
 
 const on = (x: { enabled?: boolean } | undefined): boolean => x?.enabled === true;
 
+/** Whether the song follows the dancer: following is on and a song is loaded. A tool's
+ *  need like the Lab's (a per-device pref, not the instrument's), so an explicit branch
+ *  set does not veto it. */
+export function songFollows(settings: Pick<DerivationSettings, 'songPrefs' | 'songHandle'>): boolean {
+  return settings.songPrefs?.follow === true && settings.songHandle != null;
+}
+
 /**
  * The branch ids `settings` and `ctx` imply, in no particular order (the composer orders).
  * The trunk is implied by the composer and not listed here.
@@ -109,7 +121,8 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // the app down. `composeGraph` would refuse them; here they simply compose nothing.
     for (const id of ctx.explicit) add(id, table.knownBranchIds.has(id));
     add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
-    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded));
+    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || songFollows(settings));
+    add('song-pace', songFollows(settings));
     return ids;
   }
 
@@ -127,7 +140,10 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   add('face-controls', faceMapping === 'controls');
 
   const bodyWanted = on(settings.body) || labWantsBody(ctx.featureLab) || demandWantsBody(demanded);
-  add('body-source', bodyWanted);
+  // Following the dancer (#186 PR H) needs the body; it does not make the body ROUTE
+  // anything onto the voices, so `bodyWanted` (which gates the router) leaves it out.
+  add('body-source', bodyWanted || songFollows(settings));
+  add('song-pace', songFollows(settings));
   // The router modulates the hand voices: it needs the body AND the voices.
   add('body-route', bodyWanted && fieldVoices && bodyMapRoutesAnything(settings.bodyMap));
 

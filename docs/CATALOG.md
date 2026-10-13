@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (51)
+## Nodes (52)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -117,7 +117,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, handednessDwell:number, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, songHandle:song-handle, songPlaying:boolean, songVolume:number, songRate:number, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, handednessDwell:number, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, songHandle:song-handle, songPlaying:boolean, songVolume:number, songRate:number, songFollowRange:number, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, asl:asl-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -465,9 +465,17 @@ _Play a song to dance or play along to: its beat tracked in the browser, its tem
 Plays the song loaded in the Song tool at a live rate with the pitch preserved, into the master bus, and publishes the song's beat as musical time.
 
 - **roles:** synth
-- **in:** song:song-handle, playing:boolean, rate:number, volume:number, claimed:boolean
-- **out:** status:load-status, position:number, songTime:musical-time
+- **in:** song:song-handle, playing:boolean, rate:number, followRate:number, volume:number, claimed:boolean
+- **out:** status:load-status, position:number, rate:number, songTime:musical-time
 - **params:** minRate (number=0.5), maxRate (number=2)
+
+#### `pace-controller` — Pace Controller
+Makes the song follow the dancer: relates the dancer's pulse to the song's beat by an integer ratio and sets the song's rate (clamped around the player's tempo, nudged into phase, held when the dancer stops).
+
+- **roles:** music, control
+- **in:** pulse:pulse-state, song:musical-time, rate:number, base:number, range:number
+- **out:** rate:number, pace:pace-state
+- **params:** persistS (number=3), smoothS (number=1), nudge (number=0.03), phaseThreshold (number=0.08333333333333333), maxRatio (number=8), phaseOffset (number=0), songPeriodS (number=8), minRate (number=0.5), maxRate (number=2)
 
 ### Synthesis & generation
 _Make sound — direct synthesis, steered AI music, or an external MIDI instrument._
