@@ -10,8 +10,14 @@
  * Clicks from a cold load, with a saved categorizer: "Edit <instrument>" (1), the "Face
  * categorizer" section (2), the categorizer in "Reads your face with" (3). A category's chord is
  * a fourth.
+ *
+ * Shared categorizers (#330 P5) are listed under "Shared" in the same select, read from the
+ * committed `public/categorizers/` (`fetch` is served from there): the same three clicks play
+ * one, and "Copy to my categorizers" is a fourth.
  */
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import DialsControlsPanel from '@/app/dials/DialsControlsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
@@ -27,6 +33,18 @@ import { createFaceModelStore, FACE_MODELS_STORAGE_KEY } from '@thoremin/ext-fac
 import { useCategorizerPlay } from '@thoremin/ext-faces/app/categorizerPlay';
 import { AUTO_DEGREE, CATEGORY_SLOTS, GENERAL_CATEGORIZER, type FaceCategorizerDial } from '@thoremin/ext-faces/schema';
 import { FACES } from '../helpers/extensions';
+import { SHARED_PUBLIC_DIR } from '../../scripts/faces/lib_demo_categorizer';
+
+const DEMO = 'shared:demo-smile';
+
+/** `fetch` as the app's static server answers it, for the shared categorizers. */
+function serveShared(): void {
+  vi.stubGlobal('fetch', async (url: string) => {
+    const m = /categorizers\/([a-z0-9-]+\.json)$/.exec(String(url));
+    if (!m) return new Response('not found', { status: 404 });
+    return new Response(readFileSync(join(SHARED_PUBLIC_DIR, m[1]), 'utf8'), { status: 200 });
+  });
+}
 
 /** The lazy panel's first import (cold, under a loaded CI runner) can take seconds. */
 const LOAD_MS = 15000;
@@ -57,18 +75,24 @@ function openSection(): void {
 }
 
 beforeEach(() => {
+  serveShared();
   localStorage.removeItem(FACE_MODELS_STORAGE_KEY);
   dispatchDialPatch([['faceCategorizer.id', GENERAL_CATEGORIZER], ['face.mapping', 'none']]);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe.runIf(FACES)('the face categorizer section of the instrument editor', () => {
-  it('is a section of the editor, closed until opened, offering the general model', async () => {
+  it('is a section of the editor, closed until opened, offering the general model and the shared ones', async () => {
     render(<DialsControlsPanel />);
     expect(screen.getByText('Face categorizer')).toBeTruthy();
     openSection();
     const select = (await screen.findByLabelText('Face categorizer', {}, { timeout: LOAD_MS })) as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => o.value)).toEqual([GENERAL_CATEGORIZER]);
+    await waitFor(() => expect(Array.from(select.options).map((o) => o.value)).toEqual([GENERAL_CATEGORIZER, DEMO]));
+    const group = select.querySelector('optgroup[label="Shared"]');
+    expect(group?.textContent).toContain('(demo)');
     expect(screen.getByText(/Make your own in Tools, then Your faces/)).toBeTruthy();
   });
 
@@ -107,5 +131,41 @@ describe.runIf(FACES)('the face categorizer section of the instrument editor', (
     const select = (await screen.findByLabelText('Face categorizer', {}, { timeout: LOAD_MS })) as HTMLSelectElement;
     expect(select.value).toBe('from-elsewhere');
     expect(await screen.findByText(/does not have, so the general model plays/)).toBeTruthy();
+  });
+
+  it('a shared categorizer plays from the same select, and copying it points the instrument at the copy', async () => {
+    render(<DialsControlsPanel />);
+    openSection();
+    const select = (await screen.findByLabelText('Face categorizer', {}, { timeout: LOAD_MS })) as HTMLSelectElement;
+    await waitFor(() => expect(Array.from(select.options).map((o) => o.value)).toContain(DEMO));
+    act(() => {
+      fireEvent.change(select, { target: { value: DEMO } });
+    });
+    await waitFor(() => expect(dial().id).toBe(DEMO));
+    expect(dialsStore.getState().effective['face.mapping']).toBe('chord');
+    await waitFor(() => expect(useCategorizerPlay.getState()).toMatchObject({ phase: 'ready', id: DEMO }));
+    expect(branchIdsFor(useControls.getState() as unknown as DerivationSettings)).toContain('face-categorizer');
+    const panel = await screen.findByTestId('face-categorizer-shared');
+    expect(panel.textContent).toMatch(/not a model made to fit your face/);
+    // Each of its categories gets a chord of its own: the shared file's ids are the dial's slots.
+    const chord = screen.getByLabelText('Chord for open smile') as HTMLSelectElement;
+    expect(chord.disabled).toBe(false);
+    act(() => {
+      fireEvent.change(chord, { target: { value: '3' } });
+    });
+    await waitFor(() => expect(dial().degrees['cat-2']).toBe(3));
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy to my categorizers' }));
+    });
+    await waitFor(() => expect(dial().id).not.toBe(DEMO));
+    const copyId = dial().id;
+    const saved = await createFaceModelStore().list();
+    expect(saved.map((x) => x.id)).toEqual([copyId]);
+    expect(saved[0].name).toMatch(/^Demo/);
+    // The chords chosen for the shared one are kept: the copy has the same categories in the same order.
+    expect(dial().degrees['cat-2']).toBe(3);
+    await waitFor(() => expect(useCategorizerPlay.getState()).toMatchObject({ phase: 'ready', id: copyId }));
+    expect(await screen.findByText(/Copied as/)).toBeTruthy();
   });
 });

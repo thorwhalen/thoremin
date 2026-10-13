@@ -2,7 +2,7 @@
 
 Personal facial-expression categorizers for thoremin ([#330](https://github.com/thorwhalen/thoremin/issues/330)). A player records a take of their own faces; the take is carved into categories (as many as they choose); each category is shown by its faces and named, with defaults from the general expression model matched one-to-one; several categorizers are saved, and an instrument's face chords read one in place of the general model.
 
-This package is phases P2 (the session), P3 (test, correct, tune, import and export) and P4 (an instrument chooses its categorizer and the chord each category plays) of #330.
+This package is phases P2 (the session), P3 (test, correct, tune, import and export), P4 (an instrument chooses its categorizer and the chord each category plays) and P5 (shared categorizers) of #330.
 
 ## In the app
 
@@ -47,6 +47,16 @@ What plays:
 
 How it is built: the dial `faceCategorizer` (`src/schema.ts`: `id`, and a degree per category slot `cat-1`..`cat-12`, Auto by default) composes the branch `face-categorizer`, which **replaces** core's `face-chord` (rule 5 of `composeGraph`) and feeds core's chord renderer (`expression-chord`) the same `face-expression` kind with the player's categories on it (`ExpressionScores.personal`). The node computes the face vector itself from the face frame (no feature claim), and the model arrives on the transient `faceCategorizerModel`, resolved off the tick by the React half's mount effect (`src/app/categorizerPlay.ts`). The node's code loads the first time a composed graph names it.
 
+### Shared categorizers (P5)
+
+Categorizers shipped with the app for every player, listed under **Shared** in *Reads your face with* (the same three clicks from a cold load).
+
+- Each is P1's file, `public/categorizers/<name>.json`, listed in `public/categorizers/index.json` (a label, a line on what it is, and `demo` for a demonstration). The id is `shared:<name>`; a saved categorizer's id is a slug of its name, so the two never collide. The files are fetched the first time the section opens or an instrument names one, so none is in any bundle chunk.
+- A shared file that cannot be fetched (offline, a deploy in flight) plays the general model, and the section says so with a **Try again**; a failed fetch is never kept.
+- A shared file's categories are given the dial's slot ids (`cat-1`, ...) in order on load, so each one can have its own chord.
+- A shared categorizer plays **untuned**: the P3 tuning is about one player's room and camera. **Copy to my categorizers** saves it among your own (under a name none of yours has, by name or by the id the name slugs to, so nothing is replaced) and points the instrument at the copy, keeping the chords you chose. Open the copy in Tools, then Your faces, to tune it or *Retrain on my face*. A copy, not a per-device tuning keyed by the shared id: the tuning dials only make sense next to the live test, which is in the tool, and a model that does not transfer from one face to another needs the retrain anyway, which needs a copy.
+- The one shipped today is a **demo** (`demo-smile`), built by `npm run faces:demo` from the repo's own three-second test recording (`test/fixtures/video_face_expressions`) and checked against it by a test. The real shared categorizers are recorded and exported in the app (Tools, Your faces, Export file) and added beside it with an index entry.
+
 `?faces.source=synthetic` runs the session on a scripted face with a canvas video: no camera and no face model. It is a verification affordance, and the browser smoke drives it.
 
 ## Shape
@@ -73,6 +83,7 @@ A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-
 | `src/lib/play.ts` | a saved categorizer resolved to play: what each category stands in for, the reading the renderer consumes |
 | `src/nodes/face_categorizer.ts` | the node: the face vector, tuned, tracked, read; the general reading passed through without a model |
 | `src/app/categorizerPlay.ts` | the dial's id resolved to a model off the tick, published on the transient |
-| `src/panels/CategorizerSection.tsx` | the editor section |
+| `src/panels/CategorizerSection.tsx` | the editor section (yours and the shared ones; copy a shared one to your own) |
+| `src/lib/shared.ts`, `src/app/sharedModels.ts` | the shared categorizers (P5): ids, the index, the source that fetches them, copy to mine |
 
 The pure pieces that hands will want too are in the SDK. `@thoremin/sdk/enroll/carve` holds `createCarver` and `neutralIndices`. P1 provides the matcher, the exemplars and the file.
