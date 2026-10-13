@@ -4,6 +4,11 @@
  * them in), tune it (sensitivity, reject radius, distance; at classification time, no
  * retraining), and carry it as a file (export; import is beside the saved list).
  *
+ * #385 E7 adds the checks: the **quiz** (each category asked twice in a random order: found in
+ * time, slowly, or missed; kept with the categorizer, a miss offering "Record more" with the
+ * burst named for it) and the **everyday check** (a minute of doing nothing in particular,
+ * counting accidental fires); and one **size** dial per category.
+ *
  * Rendering only: the actions are the session store's (`../app/sessionStore.ts`) and the test
  * store's (`../app/testStore.ts`); what a tuning means is `../lib/live.ts`.
  */
@@ -13,7 +18,9 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { FaceSessionState, MergeSeed } from '../app/sessionStore';
 import type { FaceTestState } from '../app/testStore';
 import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
-import { liveModel, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '../lib/live';
+import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
+import { everydayFlags, everydayResult } from '@thoremin/sdk/enroll/everyday';
+import { liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '../lib/live';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -108,7 +115,9 @@ function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
   );
 }
 
-function Dial({ label, value, k, disabled, says, onChange }: { label: string; value: number; k: keyof Tuning; disabled?: boolean; says: string; onChange: (v: number) => void }) {
+type DialKey = Exclude<keyof Tuning, 'sizes'> | 'size';
+
+function Dial({ label, value, k, disabled, says, onChange }: { key?: string; label: string; value: number; k: DialKey; disabled?: boolean; says: string; onChange: (v: number) => void }) {
   const b = TUNING_BOUNDS[k];
   return (
     <div className="space-y-0.5">
@@ -128,7 +137,7 @@ function Dial({ label, value, k, disabled, says, onChange }: { label: string; va
           className="flex-1 disabled:opacity-40"
         />
       </label>
-      <p className="text-[10px] leading-snug text-white/45">{says}</p>
+      {says && <p className="text-[10px] leading-snug text-white/45">{says}</p>}
     </div>
   );
 }
@@ -177,6 +186,185 @@ function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
               : 'This categorizer carries no camera-distance measure, so there is nothing to take out.'
         }
       />
+      <div className="space-y-1.5" data-faces-sizes>
+        <p className="text-[11px] text-white/80">Size of each face</p>
+        <p className="text-[10px] leading-snug text-white/45">How big a face it takes to count as each one. Below 1 a smaller face reaches it (for a face you can only make small); above 1 it takes a bigger one (for a face that fires by accident). The margin meter shows where you are.</p>
+        {live.model.categories.map((c) => (
+          <Dial
+            key={c.id}
+            label={`Size of ${c.label || c.id}`}
+            k="size"
+            value={sizeOf(t, c)}
+            onChange={(v) => s.setTuning({ sizes: { ...t.sizes, [c.id]: { scale: v, label: c.label } } })}
+            says=""
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
+
+/**
+ * The quiz (#385 E7, design C.4.9): each category named twice in a random order, with a relax
+ * between; found within 2 s and held for 1 s is found, later is slow, never is missed. The result
+ * is kept with the categorizer (Save), beside each category's quality chip.
+ */
+function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState>; live: LiveModel }) {
+  const t = useStore(test);
+  const s = useStore(session);
+  const q = t.quiz;
+  const label = (id: string | null) => (id ? live.model.categories.find((c) => c.id === id)?.label || id : '');
+  const start = () =>
+    t.startQuiz(live, {
+      onDone: (trials) => session.getState().setChecks({ quiz: summarizeQuiz(trials, new Map(live.model.categories.map((c) => [c.id, c.label])), new Date().toISOString()) }),
+    });
+  if (!q) {
+    return (
+      <div className="flex items-start gap-2">
+        <button type="button" className={btn} onClick={start} disabled={live.model.categories.length === 0}>
+          Quiz me
+        </button>
+        <p className="text-[10px] leading-snug text-white/45">{`Names your faces in a random order, each twice, with a rest between: make each within ${QUIZ_DEFAULTS.hitMs / 1000} s and hold it for ${QUIZ_DEFAULTS.holdMs / 1000} s. Shows which faces you can find again.`}</p>
+      </div>
+    );
+  }
+  const step = q.step;
+  if (step.kind !== 'done') {
+    return (
+      <div className="space-y-1" data-faces-quiz={step.kind}>
+        <p className="text-base font-bold text-white" role="status" aria-live="polite">
+          {step.kind === 'ask' ? `Make: ${label(step.categoryId)}` : step.kind === 'relax' ? 'Relax...' : 'Starting...'}
+        </p>
+        {step.kind === 'ask' && (
+          <span className="block h-1.5 overflow-hidden rounded bg-white/10" title="Held so far">
+            <span className="block h-full bg-emerald-400" style={{ width: `${Math.round(Math.min(1, step.heldMs / QUIZ_DEFAULTS.holdMs) * 100)}%` }} />
+          </span>
+        )}
+        <p className="text-[10px] text-white/50">{'index' in step ? `${step.index + 1} of ${step.total}` : ''}</p>
+        <button type="button" className={btn} onClick={() => t.stopCheck()}>
+          Stop the quiz
+        </button>
+      </div>
+    );
+  }
+  const result = s.checks.quiz;
+  const hits = q.trials.filter((x): x is QuizTrial & { vector: NonNullable<QuizTrial['vector']> } => x.outcome !== 'miss' && x.vector !== undefined);
+  return (
+    <div className="space-y-1.5" data-faces-quiz="done">
+      <h4 className={heading}>Quiz result</h4>
+      <ul className="space-y-1">
+        {live.model.categories.map((c) => {
+          const r = result?.categories[c.id];
+          if (!r) return null;
+          return (
+            <li key={c.id} className="flex flex-wrap items-center gap-2 text-[11px] text-white/80" data-faces-quiz-result={c.id}>
+              <span className="w-24 shrink-0 truncate font-semibold">{c.label || c.id}</span>
+              <span className={r.hits === r.asked ? 'text-emerald-300' : r.misses > 0 ? 'text-amber-300' : 'text-white/70'}>
+                {`found ${r.hits} of ${r.asked} in time`}
+                {r.slow ? `, ${r.slow} slowly` : ''}
+                {r.misses ? `, missed ${r.misses}${r.confusedWith ? ` (read as ${label(r.confusedWith)})` : ''}` : ''}
+                {r.medianTimeMs !== null ? `; typically ${seconds(r.medianTimeMs)}` : ''}
+              </span>
+              {r.misses + r.slow > 0 && (
+                <button
+                  type="button"
+                  className={btn}
+                  onClick={() => {
+                    t.stop();
+                    s.startMerge('samples', { burstName: c.label });
+                  }}
+                >
+                  {`Record more ${c.label || c.id}`}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className={hint}>Kept with this categorizer when you save. A face you missed: record more of it (hold B with its name), make it bigger, or merge it.</p>
+      <div className="flex flex-wrap gap-2">
+        {hits.length > 0 && (
+          <button
+            type="button"
+            className={btn}
+            onClick={() => {
+              for (const h of hits) s.correct(h.categoryId, h.vector);
+              t.stopCheck();
+            }}
+          >
+            {`Keep the ${hits.length} found faces as samples`}
+          </button>
+        )}
+        <button type="button" className={btn} onClick={start}>
+          Again
+        </button>
+        <button type="button" className={btn} onClick={() => t.stopCheck()}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The everyday check (#385 E7): a minute of talking and looking around, counting which faces fire
+ * by accident. The result is kept with the categorizer (Save).
+ */
+function EverydayBox({ session, test, live }: { session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState>; live: LiveModel }) {
+  const t = useStore(test);
+  const s = useStore(session);
+  const e = t.everyday;
+  const start = () =>
+    t.startEveryday(live, {
+      onDone: (check, at) => session.getState().setChecks({ everyday: everydayResult(check, at, new Map(live.model.categories.map((c) => [c.id, c.label])), new Date().toISOString()) }),
+    });
+  if (!e) {
+    return (
+      <div className="flex items-start gap-2">
+        <button type="button" className={btn} onClick={start}>
+          Everyday check
+        </button>
+        <p className="text-[10px] leading-snug text-white/45">Talk, look around and play normally for a minute, making none of your faces on purpose. Counts which faces fire by accident.</p>
+      </div>
+    );
+  }
+  if (!e.done) {
+    const fired = Object.entries(e.fires).filter(([, n]) => n > 0);
+    return (
+      <div className="space-y-1" data-faces-everyday="running">
+        <p className="text-sm font-semibold text-white" role="status" aria-live="polite">{`Talk, look around, play normally: ${Math.floor(e.elapsedMs / 1000)} s of ${Math.round(e.durationMs / 1000)} s`}</p>
+        <p className="text-[10px] text-white/50">{fired.length === 0 ? 'Nothing has fired yet.' : `Fired so far: ${fired.map(([id, n]) => `${live.model.categories.find((c) => c.id === id)?.label || id} ${n}`).join(', ')}`}</p>
+        <button type="button" className={btn} onClick={() => t.stopCheck()}>
+          Stop the check
+        </button>
+      </div>
+    );
+  }
+  const flags = s.checks.everyday ? everydayFlags(s.checks.everyday) : [];
+  return (
+    <div className="space-y-1" data-faces-everyday="done">
+      <h4 className={heading}>Everyday check</h4>
+      {flags.length === 0 ? (
+        <p className={hint}>Nothing fired by accident often enough to worry about.</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {flags.map((f) => (
+            <li key={f.categoryId} className="text-[11px] text-amber-200" data-faces-everyday-flag={f.categoryId}>
+              {`"${f.label}" fired ${f.fires} ${f.fires === 1 ? 'time' : 'times'} while you did other things (${f.perMinute.toFixed(1)} a minute): make it bigger, set its size above 1, or merge it.`}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <button type="button" className={btn} onClick={start}>
+          Again
+        </button>
+        <button type="button" className={btn} onClick={() => t.stopCheck()}>
+          Close
+        </button>
+      </div>
     </div>
   );
 }
@@ -225,6 +413,11 @@ export function TestAndTune({ session, test }: { session: StoreApi<FaceSessionSt
         ) : (
           <p className={hint}>Make your faces at the camera and see what this categorizer reads. The instrument stays quiet meanwhile.</p>
         )}
+      </div>
+      <div className="space-y-1.5" data-faces-checks>
+        <h4 className={heading}>Check it</h4>
+        <QuizBox session={session} test={test} live={live} />
+        <EverydayBox session={session} test={test} live={live} />
       </div>
       <TuningDials s={s} live={live} />
       <div className="space-y-1.5">

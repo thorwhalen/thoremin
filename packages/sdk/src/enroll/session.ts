@@ -82,6 +82,9 @@ export interface Session {
   push(vector: FeatureVector, tMs: number): void;
   /** Finish the active cue. */
   endCue(): void;
+  /** Add a still-point taken outside the sampler (#385 E7: a burst, every frame of it one hold)
+   *  to the active still-points cue. Returns false (and adds nothing) without one. */
+  addPoint(point: StillPoint): boolean;
   /** The active cue, or null. */
   activeCue(): Cue | null;
   /** Still-points captured for a cue. */
@@ -271,6 +274,13 @@ export function createSession(options: SessionOptions = {}): Session {
       active = null;
       sampler = null;
       activeFeatures = [];
+    },
+
+    addPoint(point) {
+      const list = active ? points.get(active.id) : undefined;
+      if (!active || !list) return false;
+      list.push({ ...point, cue: active.id });
+      return true;
     },
 
     activeCue: () => active,

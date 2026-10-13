@@ -153,7 +153,7 @@ describe('correcting and tuning', () => {
       expect(s().notice).toMatch(/at least one/);
     }
     s().setTuning({ sensitivity: 1.5, rejectScale: 2, distance: 0.5 });
-    expect(s().tuning).toEqual({ sensitivity: 1.5, rejectScale: 2, distance: 0.5 });
+    expect(s().tuning).toEqual({ sensitivity: 1.5, rejectScale: 2, distance: 0.5, sizes: {} });
     s().setTuning({ sensitivity: 99 });
     expect(s().tuning.sensitivity).toBe(2);
     const id = s().openId!;
@@ -163,7 +163,7 @@ describe('correcting and tuning', () => {
     await s().open(id);
     expect(s().working!.samples).toHaveLength(before.samples.length + 1);
     expect(categoryOf(s().working!, j)).toBe(a.id);
-    expect(s().tuning).toEqual({ sensitivity: 2, rejectScale: 2, distance: 0.5 });
+    expect(s().tuning).toEqual({ sensitivity: 2, rejectScale: 2, distance: 0.5, sizes: {} });
     expect(s().saved).toHaveLength(1);
   });
 });

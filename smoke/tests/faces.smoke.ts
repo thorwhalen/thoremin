@@ -87,6 +87,16 @@ test('the face session loads only when opened, and records, carves, names and sa
   await page.waitForTimeout(2_000);
   expect(await heldCount()).toBe(held);
   await expect(panel.locator('[data-feature-bar-tick]').first()).toBeVisible();
+  // A burst while paused (#385 E7): named "grin", the button held; one more held face, which the
+  // carve puts in a category called grin.
+  await panel.getByRole('textbox', { name: 'Name for the next burst' }).fill('grin');
+  await panel.getByRole('button', { name: 'Hold to record a burst (B)' }).hover();
+  await page.mouse.down();
+  await expect(panel.locator('[data-faces-burst="on"]')).toBeVisible();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await expect(panel.locator('[data-faces-burst="off"]')).toBeVisible();
+  await expect.poll(heldCount).toBe(held + 1);
   await page.keyboard.press('Space');
   await expect(panel.locator('[data-faces-recording="faces"]')).toBeVisible();
   await page.waitForTimeout(7_000);
@@ -98,6 +108,7 @@ test('the face session loads only when opened, and records, carves, names and sa
   await expect(summary).toContainText('A face you never taught reads as: neutral', { timeout: 15_000 });
   const cats = panel.locator('[data-face-category]');
   await expect.poll(() => cats.count()).toBeGreaterThanOrEqual(2);
+  await expect(panel.getByRole('textbox', { name: 'Name of grin' })).toBeVisible();
   const k = await cats.count();
   await expect(panel.locator('[data-face-neutral]')).toBeVisible();
   await expect.poll(() => panel.locator('img[data-face-still]').count(), { timeout: 20_000 }).toBeGreaterThan(k);
@@ -185,6 +196,13 @@ test('a categorizer file is imported, tested live, tuned, corrected, saved and e
 
   // The margin meter (#385 E6): a held face is safely inside its category.
   await expect.poll(() => panel.locator('[data-faces-margin]').getAttribute('data-faces-margin'), { timeout: 15_000, intervals: [100] }).toBe('inside');
+
+  // The quiz (#385 E7) starts with a relax and names a face to make; stopped here.
+  await panel.getByRole('button', { name: 'Quiz me' }).click();
+  await expect(panel.locator('[data-faces-quiz]')).toBeVisible();
+  await expect(panel.locator('[data-faces-quiz]')).toContainText(/Relax|Make:/);
+  await panel.getByRole('button', { name: 'Stop the quiz' }).click();
+  await expect(panel.locator('[data-faces-quiz]')).toHaveCount(0);
 
   // Tune and correct: both unsaved until Save.
   await panel.getByRole('slider', { name: 'Reject radius' }).fill('2');

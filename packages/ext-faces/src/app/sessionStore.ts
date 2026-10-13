@@ -58,6 +58,8 @@ import {
   nameCategory,
   NEW_CATEGORY,
   anchorNames,
+  placeLabelled,
+  type LabelledHolds,
   consistentPins,
   recut,
   recutBounds,
@@ -72,7 +74,7 @@ import {
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { carveTake, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
-import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, type Tuning } from '../lib/live';
+import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '../lib/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
 import { foreignModality, keepOnly, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
@@ -80,7 +82,7 @@ import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
 import type { CaptureState, CarveCaptureControl } from '@thoremin/sdk-ui/enroll/capture';
 import type { CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
-import type { FaceModelRecord, SavedFaceModel } from './models';
+import type { CategorizerChecks, FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
 import { holdId, type FrameOpener, type LiveFrames, type ThumbStore } from './thumbnails';
 import { MAX_CATEGORY_SLOTS } from '../schema';
@@ -186,6 +188,12 @@ export interface FaceSessionState {
   dirty: boolean;
   /** The take being recorded is merged into the open categorizer, with this seed. */
   merging: MergeSeed | null;
+  /** The name the next burst's hold is given (#385 E7): '' for none (the carve decides). */
+  burstName: string;
+  /** The burst under way (its name and frames so far, coarsely), or null. */
+  burst: { label: string; frames: number } | null;
+  /** The open categorizer's quiz and everyday-check results (#385 E7), kept with it on Save. */
+  checks: CategorizerChecks;
 
   /** Read the camera without recording (#385 E2): the bars and the ring run; Start captures. */
   explore(): void;
@@ -197,6 +205,13 @@ export interface FaceSessionState {
   resume(): void;
   /** Space: Explore starts, capturing pauses, paused resumes (the rest is left to end). */
   toggleCapture(): void;
+  /** The name the next burst is given ('' for none). */
+  setBurstName(name: string): void;
+  /** Begin a burst (#385 E7: a key or button held): every frame is collected until
+   *  {@link FaceSessionState.endBurst}, then one hold, named {@link FaceSessionState.burstName}. */
+  beginBurst(): void;
+  /** End the burst; a burst too short to take says so. */
+  endBurst(): void;
   /** The live feature bars now, or null when nothing is read. Not reactive: a panel polls it. */
   live(options?: { count?: number }): LiveBars | null;
   stop(): Promise<void>;
@@ -218,6 +233,8 @@ export interface FaceSessionState {
   cancelRecording(): void;
   /** Set the open categorizer's live tuning (kept with it on Save). */
   setTuning(tuning: Partial<Tuning>): void;
+  /** Keep a quiz's or an everyday check's result with the open categorizer (on Save). */
+  setChecks(checks: Partial<CategorizerChecks>): void;
   /** "This face is `id`": add a live face to a category of the open categorizer. */
   correct(id: string, vector: FeatureVector): boolean;
   /** Move sample `index` of the working categorizer to category `to` (null: out of every one,
@@ -234,8 +251,9 @@ export interface FaceSessionState {
   /** Step the working categorizer back to before the last edit (exactly), or forward again. */
   undo(): void;
   redo(): void;
-  /** Record a new take and merge it into the open categorizer (P1's `mergeSession`). */
-  startMerge(seed: MergeSeed): void;
+  /** Record a new take and merge it into the open categorizer (P1's `mergeSession`); `burstName`
+   *  names its bursts ("Record more frown"). */
+  startMerge(seed: MergeSeed, options?: { burstName?: string }): void;
   /** Open a categorizer from a file's text (validated, older versions migrated); not saved yet. */
   importFile(text: string): boolean;
   /** The categorizer shown, as a file's text (P1's versioned format): an open one, or a fresh
@@ -261,6 +279,10 @@ export const FACE_SESSION_DEFAULTS = {
   recutUpTo: 600,
   /** The most categories a carve makes: one per chord slot an instrument has. */
   maxCategories: MAX_CATEGORY_SLOTS,
+  /** A burst's frame count is shown in steps of this many. */
+  burstShowStep: 5,
+  /** Frames into a burst its still is taken. */
+  burstStillAfter: 3,
 } as const;
 
 /** One step of the edit history: the working categorizer and how its names came about. */
@@ -285,6 +307,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let takeId: string | null = null;
   /** Holds of the take whose still was asked for (the take's point count, as last seen). */
   let stilled = 0;
+  /** The still of the burst under way (#385 E7), grabbed while the face is still being made (a
+   *  release is often the moment it changes); filed under the burst's hold id if it takes one. */
+  let burstStill: Promise<Blob | null> | null = null;
+  /** The latest live vector (where a still is cropped). */
+  let lastVector: FeatureVector | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
   /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
    *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
@@ -310,6 +337,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     openId: string | null;
     name: string;
     tuning: Tuning;
+    checks: CategorizerChecks;
     dirty: boolean;
     /** The edit state the merge returns to (its history: the merge itself is one undoable edit). */
     edits: { sources: NameSources; undo: Snapshot[]; redo: Snapshot[]; baseRadius: number | undefined };
@@ -408,6 +436,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (live) {
           take.push(live.vector, live.t);
           bars?.push(modality.read(live.vector), live.t);
+          lastVector = live.vector;
+          // A burst's still: once a few frames in, from the frame showing now.
+          const b = take.burst();
+          if (b && !burstStill && frames && b.frames >= FACE_SESSION_DEFAULTS.burstStillAfter) burstStill = frames.grab(deps.region ? (size) => deps.region!({ vector: live.vector, ...size }) : null).catch(() => null);
           stillNewHolds(live.vector);
         }
         const tp = take.phase();
@@ -415,10 +447,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const elapsed = phaseNow === 'explore' ? 0 : Math.floor((deps.now() - t0) / 250) / 4;
         const points = take.pointCount();
         const hold = take.hold();
+        const b = take.burst();
+        // The burst's frames coarsely (a person sees it grow, not every frame).
+        const burst = b ? { label: b.label, frames: b.frames - (b.frames % FACE_SESSION_DEFAULTS.burstShowStep) } : null;
         const s = get();
-        if (s.phase !== phaseNow || s.points !== points || elapsed !== lastShown || s.hold !== hold) {
+        const burstChanged = (s.burst === null) !== (burst === null) || (burst !== null && (s.burst!.frames !== burst.frames || s.burst!.label !== burst.label));
+        if (s.phase !== phaseNow || s.points !== points || elapsed !== lastShown || s.hold !== hold || burstChanged) {
           lastShown = elapsed;
-          set({ phase: phaseNow, points, elapsed, hold });
+          set({ phase: phaseNow, points, elapsed, hold, ...(burstChanged ? { burst } : {}) });
         }
       }, deps.pollMs);
     };
@@ -445,9 +481,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const id = holdId(tid, stilled);
         if (!frames) continue;
         const gen = generation;
-        const job = frames
-          .grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null)
-          .catch(() => null)
+        // A burst's hold has its still already (taken mid-burst); any other is taken now.
+        const grabbed = burstStill ?? frames.grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null).catch(() => null);
+        burstStill = null;
+        const job = grabbed
           .then((still) => {
             // Kept even if the take is no longer shown: the id is this hold's alone, and a merge
             // that ended a moment ago may be saved with it.
@@ -458,6 +495,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           .finally(() => pending.delete(job));
         pending.add(job);
       }
+    };
+    /** A burst just ended (released, or ended by a pause, a resume or Stop): its hold's still
+     *  filed under its id, or dropped when it took no hold. */
+    const afterBurst = () => {
+      if (!take || take.burst()) return;
+      if (lastVector) stillNewHolds(lastVector);
+      burstStill = null;
     };
     /** Every still being encoded, done. */
     const stillsTaken = () => Promise.all([...pending]);
@@ -489,6 +533,32 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         .session()
         .points()
         .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i) }));
+
+    /** The take's labelled holds (#385 E7: bursts under a typed name), by name, as sample ids. */
+    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => {
+      const by = new Map<string, { label: string; ids: string[] }>();
+      for (const [i, label] of t.labels()) {
+        const key = label.toLowerCase();
+        const g = by.get(key) ?? { label, ids: [] };
+        g.ids.push(holdId(tid, i));
+        by.set(key, g);
+      }
+      return [...by.values()];
+    };
+    /** `c` with the take's labelled holds placed and pinned (unchanged when there are none). A
+     *  failure is said, and the holds are carved like any other. */
+    const withLabels = (c: PersonalCategorizer, groups: readonly LabelledHolds[]): { categorizer: PersonalCategorizer; named: string[]; error: string | null } => {
+      if (groups.length === 0) return { categorizer: c, named: [], error: null };
+      const r = placeLabelled(c, groups, { neutralLabel: modality.words.neutral });
+      if (!r.ok) return { categorizer: c, named: [], error: r.error };
+      // A name that is new makes a category: never past the most an instrument has chords for.
+      const grown = r.categorizer.categories.length > c.categories.length;
+      if (grown && r.categorizer.categories.length > FACE_SESSION_DEFAULTS.maxCategories) {
+        return { categorizer: c, named: [], error: `a new name would make more than ${FACE_SESSION_DEFAULTS.maxCategories} categories, the most an instrument has chords for` };
+      }
+      const named = r.categorizer.categories.filter((cat) => groups.some((g) => g.label.toLowerCase() === cat.label.trim().toLowerCase())).map((cat) => cat.id);
+      return { categorizer: r.categorizer, named, error: null };
+    };
 
     /** What a re-cut of the working categorizer trains its reject radius from. */
     const recutOptions = (): RecutOptions =>
@@ -612,6 +682,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       tuning: DEFAULT_TUNING,
       dirty: false,
       merging: null,
+      burstName: '',
+      burst: null,
+      checks: {},
 
       explore() {
         if (isLive(get().phase)) return;
@@ -661,13 +734,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       pause() {
         if (get().phase !== 'faces' || !take) return;
         take.pause(deps.now());
-        set({ phase: 'paused', hold: take.hold() });
+        afterBurst();
+        set({ phase: 'paused', hold: take.hold(), burst: null, points: take.pointCount() });
       },
 
       resume() {
         if (get().phase !== 'paused' || !take) return;
         take.resume(deps.now());
-        set({ phase: 'faces', hold: take.hold() });
+        afterBurst();
+        set({ phase: 'faces', hold: take.hold(), burst: null, points: take.pointCount() });
       },
 
       toggleCapture() {
@@ -675,6 +750,28 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (phase === 'explore') get().start();
         else if (phase === 'faces') get().pause();
         else if (phase === 'paused') get().resume();
+      },
+
+      setBurstName(name) {
+        set({ burstName: name });
+      },
+
+      beginBurst() {
+        const phase = get().phase;
+        if (!take || (phase !== 'faces' && phase !== 'paused')) return;
+        if (take.beginBurst(deps.now(), get().burstName)) set({ burst: { label: get().burstName.trim(), frames: 0 }, hold: take.hold(), notice: null });
+      },
+
+      endBurst() {
+        if (!take || !take.burst()) return;
+        const took = take.endBurst(deps.now());
+        afterBurst();
+        set({
+          burst: null,
+          hold: take.hold(),
+          points: take.pointCount(),
+          ...(took ? {} : { notice: `That burst was too short to take: hold the key for a moment while you make the ${modality.words.one}.` }),
+        });
       },
 
       live(options) {
@@ -691,6 +788,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const hadStills = frames !== null;
         let built = false;
         try {
+          // A burst held through Stop is a hold like a released one, with its still.
+          if (myTake.burst()) {
+            myTake.endBurst(deps.now());
+            afterBurst();
+          }
           stopPolling();
           built = myTake.stop();
         } finally {
@@ -700,11 +802,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         mergeBase = null;
         if (merge) {
           openRecord = merge.record;
-          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, merging: null };
+          // The name a "Record more X" gave the bursts belongs to that take only.
+          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, burst: null, burstName: '' };
           // Back to the categorizer the take was adding to, its edit history and all.
           restoreEdits(merge.edits);
           showDoc(merge.working, { phase: 'saved', ...restore, dirty: merge.dirty });
-          if (!built) {
+          // A merge needs no carve of its own, so one hold (a single burst: "Record more frown")
+          // is enough; a fresh take needs two to carve.
+          if (!built && myTake.pointCount() === 0) {
             set({ notice: 'No face was held long enough to add. Nothing was merged.' });
             return;
           }
@@ -727,13 +832,18 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
             set({ notice: `Nothing was merged: the result would hold ${result.categorizer.samples.length} ${modality.words.many}, more than the ${MAX_CATEGORIZER_SAMPLES} a categorizer keeps.` });
             return;
           }
+          // Bursts recorded under a name go to the category of that name (or a new one), pinned
+          // (#385 E7): "Record more frown" lands in frown, whatever is nearest.
+          const labelled = withLabels(result.categorizer, labelledHolds(myTake, takeId!));
+          for (const id of labelled.named) if (!sources.has(id)) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
           // Every sample keeps its id (the base's, and the new holds' `<takeId>:<n>`), so every
           // still stays filed where it is: the new ones are filed on Save, nothing is re-filed.
           const joined = result.assigned.filter((a) => a >= 0).length;
           const untouched = result.untouched.map((id) => result.categorizer.categories.find((c) => c.id === id)?.label || id);
           // One undoable edit: undo returns to the categorizer before the merge.
-          commit(result.categorizer, {
+          commit(labelled.categorizer, {
             notice:
+              (labelled.error ? `The named faces were sorted like the others (${labelled.error}). ` : '') +
               `Merged: ${joined} of ${added.length} new faces joined a category` +
               (added.length > joined ? ` (${added.length - joined} read as none of these)` : '') +
               (untouched.length > 0 ? `; no new face for ${untouched.map((l) => `"${l}"`).join(', ')}` : '') +
@@ -759,10 +869,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const rest = myTake.restVectors();
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const strangers = get().strangers;
-        const base = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, createdAt: deps.isoNow() });
+        const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, createdAt: deps.isoNow() });
+        // Bursts recorded under a name are pinned to a category of that name before the carve, so
+        // the re-cut keeps them together (must-link) at every k (#385 E7).
+        const labelled = withLabels(unlabelled, labelledHolds(myTake, takeId!));
         fresh = { rest, cloud: cloud ? new Set(cloud.map((i) => samples[i].id)) : null };
-        set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true });
-        carveFresh(base);
+        // The typed names are the player's: kept as theirs (the general model never renames them).
+        for (const id of labelled.named) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
+        set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true, burst: null });
+        carveFresh(labelled.categorizer);
+        if (labelled.error) set({ notice: `The named holds were carved like the others: ${labelled.error}.` });
       },
 
       setStrangers(strangers) {
@@ -866,6 +982,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           let categorizer: PersonalCategorizer;
           const working = get().working;
           const tuningAtStart = get().tuning;
+          const checksAtStart = get().checks;
           if (working) categorizer = { ...working, name: trimmed };
           else return false;
           // Every hold's still taken this session, filed under its id once it is encoded (a Save
@@ -885,13 +1002,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
               .map((r) => [r.id, r.model.categorizer.samples.map((x) => x.id)]),
           );
           const tuning = get().tuning;
-          const record = await deps.models.save(trimmed, { categorizer, ...(phase === 'saved' ? { tuning } : {}) });
+          const checks = get().checks;
+          const hasChecks = checks.quiz !== undefined || checks.everyday !== undefined;
+          const record = await deps.models.save(trimmed, { categorizer, ...(phase === 'saved' ? { tuning, ...(hasChecks ? { checks } : {}) } : {}) });
           const replaced = before.get(record.id);
           if (replaced) await dropStillsIfOrphaned(replaced);
           if (gen === generation) {
             // An edit made while the save was in flight (a correction, a tuning, a re-cut) is kept,
             // and still unsaved: what was saved is the state when Save was pressed.
-            const changed = get().view !== view || get().tuning !== tuningAtStart;
+            const changed = get().view !== view || get().tuning !== tuningAtStart || get().checks !== checksAtStart;
             set({ notice: `Saved "${record.name}".${changed ? ' Changes made since are not saved yet.' : ''}`, name: record.name, dirty: changed, ...(phase === 'saved' ? { openId: record.id, working: changed && get().working ? { ...get().working!, name: record.name } : record.model.categorizer } : {}) });
             if (phase === 'saved') openRecord = record;
           }
@@ -920,7 +1039,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         get().reset();
         openRecord = record;
-        showOpened(record.model.categorizer, { openId: id, name: record.name, hasStills: true, tuning: clampTuning(record.model.tuning ?? {}), dirty: false });
+        showOpened(record.model.categorizer, { openId: id, name: record.name, hasStills: true, tuning: clampTuning(record.model.tuning ?? {}), checks: record.model.checks ?? {}, dirty: false });
       },
 
       async remove(id) {
@@ -937,6 +1056,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         take = null;
         takeId = null;
         stilled = 0;
+        burstStill = null;
+        lastVector = null;
         fresh = null;
         baseRadius = undefined;
         sources = new Map();
@@ -949,7 +1070,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         stills.clear();
         pending.clear();
         dropUrls();
-        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, dirty: false, merging: null });
+        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
       },
 
       cancelRecording() {
@@ -967,6 +1088,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           openId: merge.openId,
           name: merge.name,
           tuning: merge.tuning,
+          checks: merge.checks,
+          burstName: '',
           dirty: merge.dirty,
           notice: 'The take was stopped before it finished. Nothing was merged.',
         });
@@ -976,8 +1099,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (get().phase !== 'saved') return;
         const next = clampTuning({ ...get().tuning, ...tuning });
         const cur = get().tuning;
-        if (next.sensitivity === cur.sensitivity && next.rejectScale === cur.rejectScale && next.distance === cur.distance) return;
+        if (sameTuning(next, cur)) return;
         set({ tuning: next, dirty: true });
+      },
+
+      setChecks(checks) {
+        if (get().phase !== 'saved') return;
+        set({ checks: { ...get().checks, ...checks }, dirty: true });
       },
 
       correct(id, vector) {
@@ -990,11 +1118,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         return edit((w) => moveSample(w, index, to));
       },
 
-      startMerge(seed) {
-        const { phase, working, openId, name, tuning } = get();
+      startMerge(seed, options = {}) {
+        const { phase, working, openId, name, tuning, checks } = get();
         if (phase !== 'saved' || !working) return;
-        mergeBase = { seed, working, record: openRecord, openId, name, tuning, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius } };
+        mergeBase = { seed, working, record: openRecord, openId, name, tuning, checks, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius } };
         get().start();
+        // After the start (which resets): the take's bursts carry this name.
+        set({ burstName: options.burstName ?? '' });
       },
 
       importFile(text) {

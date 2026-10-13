@@ -239,6 +239,13 @@ export function trainNeutral(
     });
 }
 
+/** A category's distance under its size (#385 E7): `d x scale`; untouched without one, so a
+ *  model with no sizes classifies bit for bit as before. */
+export function scaledDistance(category: Pick<Category, 'scale'>, d: number): number {
+  const s = category.scale;
+  return s === undefined || s === 1 || !(s > 0) ? d : d * s;
+}
+
 export interface ClassifyOptions {
   /**
    * Softness of the membership distribution. Smaller = sharper (closer to one-hot),
@@ -264,9 +271,7 @@ export function classify(
     return { categoryId: null, memberships, distance: Infinity, rejected: true };
   }
 
-  const dists = model.categories.map((c) =>
-    weightedDistance(vector, c.centroid, model.features, model.weights),
-  );
+  const dists = model.categories.map((c) => scaledDistance(c, weightedDistance(vector, c.centroid, model.features, model.weights)));
   let best = 0;
   for (let i = 1; i < dists.length; i++) if (dists[i] < dists[best]) best = i;
   const minD = dists[best];
