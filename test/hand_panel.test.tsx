@@ -39,6 +39,9 @@ describe('HandControls: the handedness dwell select', () => {
     const values = Array.from(select.options).map((o) => o.value);
     expect(values).toContain('3');
     expect(select.options[0].textContent).toMatch(/^Off/);
+    // The labels state the cost honestly: a dwell of N delays a real swap by N frames.
+    expect(Array.from(select.options).find((o) => o.value === '3')?.textContent).toMatch(/100 ms/);
+    expect(Array.from(select.options).find((o) => o.value === '2')?.textContent).toMatch(/67 ms/);
   });
 
   it('dispatches the dial: the dials store and the hot store both read the new value', async () => {

@@ -8,10 +8,11 @@
  *     `voice-mapping` streams over the four real hand fixtures are digested and compared
  *     against sha256s captured from the stateless node as it stood before this change
  *     (main `a13282d`). If this fails, the default moved — do not re-baseline, decide.
- *  2. A non-zero dwell does what it says on the real flicker clip: `video_hand_sweep`
- *     relabels its one hand for 2 frames (61-62) and for 8 frames (35-42). Dwell 3 holds
- *     the first and re-routes the second after three frames — and those are the ONLY
- *     frames whose features change, so nothing else in the pipeline moved.
+ *  2. A non-zero dwell does what its name says on the real flicker clip: `video_hand_sweep`
+ *     relabels its one hand for 2 frames (61-62) and for 8 frames (35-42). A dwell of N
+ *     holds a new label for N frames: dwell 2 already absorbs the flicker, dwell 3
+ *     re-routes the sustained relabel on its fourth frame (38) and the way back on 46 —
+ *     and those are the ONLY frames whose features change, so nothing else moved.
  *  3. The dial reaches the node: a live port on `hand-features`, emitted by
  *     `store-controls`, wired in the trunk, with a generated per-dial command. A dial
  *     whose port is left unconnected is a dial that silently does nothing (#137).
@@ -24,7 +25,8 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { createHandednessDwell, DEFAULT_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
-import { createCoreRegistry, handFeaturesNode, type HandFeatures, type HandsFrame } from '@/nodes';
+import { createCoreRegistry, handFeaturesNode, handFeatureVectorNode, type HandFeatures, type HandsFrame } from '@/nodes';
+import { LAB_HANDEDNESS_DWELL_FRAMES } from '@/nodes/features/hand_feature_vector';
 import { storeControlsNode } from '@/nodes/sources/store_controls';
 import type { NodeContext } from '@thoremin/dag';
 import { defaultGraph } from '@/app/graph';
@@ -48,15 +50,28 @@ describe('createHandednessDwell', () => {
     expect(dwell.step(['right'], { dwellFrames: 3 })).toEqual(['right']);
   });
 
-  it('holds a flickered label for the dwell and switches on a sustained one', () => {
+  it('dwell N holds a new label for N frames and switches on the next', () => {
     const dwell = createHandednessDwell({ dwellFrames: 3 });
     for (let i = 0; i < 4; i++) expect(dwell.step(['left'])).toEqual(['left']);
     expect(dwell.step(['right'])).toEqual(['left']);
     expect(dwell.step(['right'])).toEqual(['left']);
-    expect(dwell.step(['left'])).toEqual(['left']); // a 2-frame flicker never surfaced
+    expect(dwell.step(['right'])).toEqual(['left']);
+    expect(dwell.step(['left'])).toEqual(['left']); // a 3-frame flicker never surfaced
     expect(dwell.step(['right'])).toEqual(['left']);
     expect(dwell.step(['right'])).toEqual(['left']);
-    expect(dwell.step(['right'])).toEqual(['right']); // the third consecutive frame commits
+    expect(dwell.step(['right'])).toEqual(['left']); // held for exactly three frames...
+    expect(dwell.step(['right'])).toEqual(['right']); // ...the fourth is the switch
+  });
+
+  it('a non-finite dwell reads as 0 rather than pinning the first label forever', () => {
+    const dwell = createHandednessDwell({ dwellFrames: NaN });
+    dwell.step(['left']);
+    expect(dwell.step(['right'])).toEqual(['right']);
+    expect(dwell.step(['left'], { dwellFrames: Number.POSITIVE_INFINITY })).toEqual(['left']);
+  });
+
+  it('the Lab vector node parses its default dwell to LAB_HANDEDNESS_DWELL_FRAMES', () => {
+    expect(handFeatureVectorNode.params.parse({}).handednessDwellFrames).toBe(LAB_HANDEDNESS_DWELL_FRAMES);
   });
 
   it('the per-step dwell is live: lowering it to 0 mid-stream releases the hold at once', () => {
@@ -146,25 +161,30 @@ describe('hand-features with a dwell holds the measured flicker (video_hand_swee
     expect(sides[35]).toBe('left');
   });
 
-  it('dwell 3 holds the 2-frame flicker and re-routes the 8-frame relabel after 3 frames', async () => {
+  it('dwell 2 already absorbs the 2-frame flicker (a dwell of N holds N frames)', async () => {
+    const sides = await sidesAt(2);
+    expect(sides.slice(59, 66)).toEqual(['right', 'right', 'right', 'right', 'right', 'right', 'right']);
+  });
+
+  it('dwell 3 holds the 2-frame flicker and re-routes the 8-frame relabel on its fourth frame', async () => {
     const sides = await sidesAt(3);
     // The flicker (61-62) never reaches the voice.
     expect(sides.slice(59, 66)).toEqual(['right', 'right', 'right', 'right', 'right', 'right', 'right']);
-    // The sustained relabel: held for two frames, committed on the third; and the way
-    // back (43 onward) costs the same three frames.
-    expect(sides.slice(34, 46)).toEqual([
-      'right', 'right', 'right', 'left', 'left', 'left', 'left', 'left', 'left', 'left', 'left', 'right',
+    // The sustained relabel from 35: held on 35, 36, 37 (three frames, 100 ms), switched
+    // on 38; the way back from 43 costs the same three frames and lands on 46.
+    expect(sides.slice(34, 47)).toEqual([
+      'right', 'right', 'right', 'right', 'left', 'left', 'left', 'left', 'left', 'left', 'left', 'left', 'right',
     ]);
   });
 
-  it('those six frames are the ONLY ones where dwell 3 differs from dwell 0', async () => {
+  it('those eight frames are the ONLY ones where dwell 3 differs from dwell 0', async () => {
     const run = async (dwell: number) => {
       const node = handFeaturesNode.make(handFeaturesNode.params.parse({ handednessDwellFrames: dwell }));
       return (await replayNode(node, { hands: frames }, { dt: 1 / 30 })).map((o) => JSON.stringify(o.features));
     };
     const [raw, held] = await Promise.all([run(0), run(3)]);
     const differing = raw.map((line, i) => (line === held[i] ? -1 : i)).filter((i) => i >= 0);
-    expect(differing).toEqual([35, 36, 43, 44, 61, 62]);
+    expect(differing).toEqual([35, 36, 37, 43, 44, 45, 61, 62]);
   });
 
   it('the live port overrides the build-time param, frame by frame', async () => {

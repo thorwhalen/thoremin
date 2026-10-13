@@ -27,7 +27,8 @@
  * sustained two-hand reset). Since #148 the sound path (`hand-features`) runs
  * the same tracker, with its dwell on the `hands.handednessDwell` dial — default
  * 0, the raw label, because the re-route latency is audible there; this Lab
- * default stays at {@link LAB_HANDEDNESS_DWELL_FRAMES} so the meters stay steady.
+ * default stays at {@link LAB_HANDEDNESS_DWELL_FRAMES} (the #144 behaviour, in
+ * frames held) so the meters stay steady.
  *
  * Group + activity resolution mirrors `face-feature-vector`: live lab config
  * first, then the static `groups` param, then all hand groups; inactive (lab
@@ -50,8 +51,10 @@ import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { createHandednessDwell, MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
 
-/** The Lab's dwell: three frames absorbs the measured 1-2 frame flicker (#144). */
-export const LAB_HANDEDNESS_DWELL_FRAMES = 3;
+/** The Lab's dwell, in frames HELD: a new label is held for two frames and takes over on
+ *  the third — exactly the behaviour #144 shipped (then counted as "3 frames", the switch
+ *  frame included). Absorbs the measured 1-2 frame flicker. */
+export const LAB_HANDEDNESS_DWELL_FRAMES = 2;
 
 const Params = z.object({
   /** Mirror image-x so moving right increases x (selfie view), matching hand-features. */
@@ -60,14 +63,14 @@ const Params = z.object({
   mirrorHandedness: z.boolean().default(true),
   /** Which feature groups to compute (default: all hand groups). Live lab config overrides. */
   groups: z.array(z.string()).optional(),
-  /** Single-hand only: consecutive DETECTED single-hand frames a NEW handedness
-   *  label must persist before the `hand.{side}.*` namespace switches (brief
+  /** Single-hand only: DETECTED single-hand frames a NEW handedness label is held
+   *  before the `hand.{side}.*` namespace switches, on the next frame (brief
    *  dropouts within the dwell window between them don't reset the count).
    *  Absorbs MediaPipe's Left/Right relabel flicker when a hand turns; also the
    *  window of consecutive multi-hand frames required before the single-hand
    *  tracker is cleared (a one-frame phantom second hand must not strip the
-   *  dwell protection). 1 = no hysteresis. */
-  handednessDwellFrames: z.number().int().min(1).max(MAX_HANDEDNESS_DWELL_FRAMES).default(LAB_HANDEDNESS_DWELL_FRAMES),
+   *  dwell protection). 0 = no hysteresis. */
+  handednessDwellFrames: z.number().int().min(0).max(MAX_HANDEDNESS_DWELL_FRAMES).default(LAB_HANDEDNESS_DWELL_FRAMES),
 });
 type Params = z.infer<typeof Params>;
 

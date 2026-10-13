@@ -187,10 +187,11 @@ export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
 /** The shipped MIDI defaults: off, first available port. */
 export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '' };
 
-/** The hands source's reading (#148): how many consecutive frames a new Left/Right label
- *  must persist before a hand's voice re-routes. 0 (the default) = the raw per-frame
- *  label, exactly what the instrument played before the dial existed; the Lab keeps its
- *  own dwell. Rides the instrument (a preset field): the trade-off is musical. */
+/** The hands source's reading (#148): how many frames a new Left/Right label is held
+ *  before a field instrument's hand voice re-routes (the switch lands on the next frame).
+ *  0 (the default) = the raw per-frame label, exactly what the instrument played before
+ *  the dial existed; the Lab keeps its own dwell. Rides the instrument (a preset field):
+ *  the trade-off is musical. */
 export const HandsSettingsSchema = z.object({
   handednessDwell: z.number().int().min(0).max(MAX_HANDEDNESS_DWELL_FRAMES),
 });

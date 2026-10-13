@@ -12,10 +12,12 @@
  * `@thoremin/sdk/features/handedness`): with `handednessDwellFrames` 0 — the
  * build-time default and the `hands.handednessDwell` dial's — the raw per-frame
  * label routes the voice, exactly as it always has (the feature math is pure, and
- * the node is byte-identical to its stateless self at dwell 0). A non-zero dwell
- * holds a flickered Left/Right relabel for that many frames at the cost of the
- * same latency on a genuine hand swap; the dial reaches the node live on the
- * `handednessDwell` input port, so the player can decide by ear without a rebuild.
+ * the node is byte-identical to its stateless self at dwell 0). A dwell of N holds
+ * a flickered Left/Right relabel for N frames (so a flicker of up to N frames never
+ * reaches the voice) at the cost of exactly N frames of latency on a genuine hand
+ * swap; the dial reaches the node live on the `handednessDwell` input port, so the
+ * player can decide by ear without a rebuild. Only the field instruments read these
+ * features: the air instruments read the raw labels from the camera frame themselves.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
@@ -68,10 +70,11 @@ const Params = z.object({
   fingerTouch: z.number().default(0.3),
   fingerApart: z.number().default(1.8),
   /**
-   * Consecutive detected single-hand frames a NEW Left/Right label must persist
-   * before the hand's features move to the other side (#148). 0 = the raw per-frame
-   * label (today's instrument). Build-time default; the `handednessDwell` input port
-   * (fed by the `hands.handednessDwell` dial) overrides it live.
+   * Frames a NEW Left/Right label is held before the hand's features move to the
+   * other side, on the next frame (#148): a dwell of N absorbs a relabel of up to N
+   * frames and delays a real hand swap by N frames. 0 = the raw per-frame label
+   * (today's instrument). Build-time default; the `handednessDwell` input port (fed by
+   * the `hands.handednessDwell` dial) overrides it live.
    */
   handednessDwellFrames: z.number().int().min(0).max(MAX_HANDEDNESS_DWELL_FRAMES).default(DEFAULT_HANDEDNESS_DWELL_FRAMES),
 })

@@ -14,13 +14,15 @@ import { CollapsibleSection, Toggle, selectCls } from '@thoremin/sdk-ui/primitiv
 type FingerField = keyof FingerRoute;
 
 /** The handedness dwell choices (#148): off, and a few frame counts around the measured
- *  1-2 frame flicker, each labelled with the delay it costs a real hand swap at 30 fps. */
+ *  1-2 frame flicker. A dwell of N holds a new label for N frames, so it absorbs a flicker
+ *  of up to N frames and delays a real hand swap by exactly N frames: the label says what
+ *  that costs at 30 fps. */
 const HANDEDNESS_DWELL_CHOICES: ReadonlyArray<{ frames: number; label: string }> = [
   { frames: DEFAULT_HANDEDNESS_DWELL_FRAMES, label: 'Off (follow the label at once)' },
-  { frames: 2, label: '2 frames (~70 ms)' },
-  { frames: 3, label: '3 frames (~100 ms)' },
-  { frames: 5, label: '5 frames (~170 ms)' },
-  { frames: 8, label: '8 frames (~270 ms)' },
+  { frames: 2, label: '2 frames (swap delayed ~67 ms)' },
+  { frames: 3, label: '3 frames (swap delayed ~100 ms)' },
+  { frames: 5, label: '5 frames (swap delayed ~167 ms)' },
+  { frames: 8, label: '8 frames (swap delayed ~267 ms)' },
 ];
 
 /**
@@ -91,7 +93,7 @@ export function HandControls() {
           onChange={(e) => patchLive({ maxGain: Number(e.target.value) })}
         />
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="The camera sometimes relabels a turning hand Left/Right for a frame or two; a dwell holds the voice on its side for that long, and delays a real hand swap by the same amount.">
+      <label className="flex items-center justify-between gap-2 text-xs" title="Field instruments only (the air instruments label hands themselves). The camera sometimes relabels a turning hand Left/Right for a frame or two; a dwell of N frames holds the voice on its side through any relabel of up to N frames, and delays a real hand swap by exactly N frames.">
         Handedness dwell
         <select
           className={selectCls}

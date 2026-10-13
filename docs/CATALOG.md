@@ -223,7 +223,7 @@ Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand cat
 - **roles:** feature
 - **in:** hands:hands-frame
 - **out:** vector:feature-vector
-- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array), handednessDwellFrames (number=3)
+- **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array), handednessDwellFrames (number=2)
 
 #### `body-feature-vector` — Body Feature Vector
 Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).

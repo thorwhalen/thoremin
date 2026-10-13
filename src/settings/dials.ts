@@ -117,8 +117,10 @@ export const thoreminDials = defineDials(
 
     // The hands reading (#148): the handedness dwell the sound path's `hand-features`
     // applies, live through `store-controls`. 0 = the raw per-frame label (the instrument
-    // as it always played); a few frames absorb MediaPipe's Left/Right flicker at the
-    // cost of the same delay on a real hand swap. Whether to raise the default is #168.
+    // as it always played); a dwell of N frames absorbs a Left/Right flicker of up to N
+    // frames at the cost of N frames of delay on a real hand swap. Only the field
+    // instruments read `hand-features`; the air instruments label hands themselves.
+    // Whether to raise the default is #168.
     'hands.handednessDwell': z
       .number()
       .int()
@@ -128,7 +130,7 @@ export const thoreminDials = defineDials(
       .meta({
         facets: ['Hand', 'advanced'],
         title: 'Handedness dwell',
-        description: 'Frames a new Left/Right label must persist before a hand\'s voice moves to the other side (0 = follow the label at once; 3 absorbs a flicker at ~100 ms delay)',
+        description: 'Field instruments: frames a new Left/Right label is held before a hand\'s voice moves to the other side (0 = follow the label at once; 3 absorbs a flicker of up to 3 frames and delays a real hand swap by ~100 ms)',
       }),
 
     // The body source (#186): the most expensive model in the graph, so it is a dial
