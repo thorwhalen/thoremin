@@ -26,8 +26,12 @@
  *    recent peak intervals lock to the follower's period: their mean cosine in that
  *    period (one period or two is in phase, a doubled peak at half a period is out),
  *    times the share of them under 1.5 periods (an arm at the half-bar locks in phase
- *    but on every other beat, so it loses to a trunk at the beat). Before any joint has
- *    shown a rhythm, the stated `weight`s order them.
+ *    but on every other beat, so it loses to a trunk at the beat, AS LONG AS the
+ *    follower's period is the beat). The period is the follower's, and the followed
+ *    joint's anchors set it, so a level confirms itself: a wrist at the half-bar that is
+ *    followed first keeps the follower at the half-bar. Telling the follower the beat
+ *    from elsewhere (the score's tempo, A3) is what makes the level match bite. Before
+ *    any joint has shown a rhythm, the stated `weight`s order them.
  * 5. **Select, do not sum (by default).** A1 found the summed envelope below the best
  *    single channel on every clip: joints in one body move at different levels and
  *    lags, so a sum mixes them. `combine: 'select'` follows the joint with the best
@@ -138,8 +142,8 @@ export interface ImpactDetectorOptions {
    *  joints that both show no rhythm (a pause, a slow hymn) do not trade the beat on
    *  noise: the stated weights decide between them. */
   switchPeriodicityGain?: number;
-  /** A joint with a larger stated weight takes the beat back when its periodicity is
-   *  within this of the current one's. */
+  /** A joint with a larger stated weight (seen this frame) takes the beat back when its
+   *  periodicity is within this of the current one's. */
   switchPeriodicityTie?: number;
   /** The amplitude envelope (the `strength` reference) decays by this factor per
    *  second, as the stroke detector's. */
@@ -385,14 +389,35 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
   });
   type Joint = ReturnType<typeof newJoint>;
   let state: Joint[] = joints.map(newJoint);
+  const restartJoint = (j: Joint): void => {
+    j.trail = [];
+    j.trailX = 0;
+    j.trailY = 0;
+    j.pts = [];
+    j.vels = [];
+    j.history = [];
+    j.picker.reset();
+    j.envelope = 0;
+    j.envelopeT = NaN;
+    j.lastAnchorX = NaN;
+  };
 
   /** The last body unit known: a frame without a `scale` (the shoulders or hips
    *  untracked) keeps it rather than falling back to 1, which would jump every position
    *  by the torso's size in pixels. 1 only before any scale has been seen. */
   let unit = 1;
+  let unitKnown = false;
   const bodyUnit = (): number => {
     const m = median(scales.map((s) => s.v));
-    if (m > 0) unit = m;
+    if (m > 0) {
+      unit = m;
+      if (!unitKnown) {
+        unitKnown = true;
+        // The first scale changes the unit from 1 to the torso's size: every joint's
+        // trail and envelope so far is in the old unit, so each starts over.
+        for (const j of state) restartJoint(j);
+      }
+    }
     return unit;
   };
 
@@ -573,7 +598,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
             if (i === selected || !(w[i] > 0)) continue;
             const p = periodicity(state[i], t);
             const betterRhythm = w[i] > o.switchMargin * curW && p - curP >= o.switchPeriodicityGain;
-            const preferred = state[i].vis * state[i].weight > o.switchMargin * cur.lastVis * cur.weight && p >= curP - o.switchPeriodicityTie;
+            const preferred = state[i].weight > cur.weight && p >= curP - o.switchPeriodicityTie;
             if (betterRhythm || preferred) {
               selected = i;
               break;
@@ -620,6 +645,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
       period = o.initialPeriod;
       scales = [];
       unit = 1;
+      unitKnown = false;
       lastAnchorT = -Infinity;
       selected = null;
       combined.reset();

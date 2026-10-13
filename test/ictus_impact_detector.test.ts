@@ -249,6 +249,28 @@ describe('createImpactDetector (synthetic multi-joint bounces)', () => {
     }
   });
 
+  it('a preferred joint takes the beat back from the trunk once its rhythm is as good', () => {
+    const lost = (c: string, t: number) => (c !== 'trunk' && t > 6 && t < 10 ? 0 : 0.99);
+    const b = bounce({ seconds: 20, trunkPx: 20, visibility: lost });
+    const det = createImpactDetector();
+    const followed: string[] = [];
+    const ictus = createIctus({ detector: det });
+    for (const f of b.frames) {
+      ictus.feedFrame(f);
+      if (f.t > 7 && f.t < 9.5) followed.push(det.selected()!);
+    }
+    expect(new Set(followed)).toEqual(new Set(['trunk']));
+    expect(det.selected()).toBe('wrist');
+  });
+
+  it('a scale first seen late starts the joints over in the new unit', () => {
+    const b = bounce();
+    const late = b.frames.map((f) => (f.t < 4 ? { ...f, scale: undefined } : f));
+    const after = (x: number) => x > 4.5;
+    const times = run(late, createImpactDetector()).times;
+    expect(fMeasure(times.filter(after), b.beats.filter(after), F_WINDOW)).toBeGreaterThan(0.95);
+  });
+
   it('a frame without a scale keeps the last body unit', () => {
     const b = bounce();
     const gap = b.frames.map((f) => (f.t > 8 && f.t < 10 ? { ...f, scale: undefined } : f));
