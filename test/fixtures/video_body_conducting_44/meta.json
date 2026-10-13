@@ -12,7 +12,7 @@
   "licence": "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)",
   "author": "OrthodoxMusicOnline (OMIO), with David Drillock",
   "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Allelulias.webm",
-  "description": "David Drillock conducts a choir through three alleluia verses in a simple 4 pattern, filmed three-quarter front, waist to head with the knees in frame; the choir is legato and carries no usable beat (librosa's grid ran at 123 bpm against his 87), so the grid is his own baton hand",
+  "description": "David Drillock conducts a choir through three alleluia verses in a simple 4 pattern, filmed three-quarter front, waist to head with the knees in frame; the choir is legato and carries no usable beat (librosa's grid ran at 123 bpm against the conductor's 87), so the grid is the conductor's own baton hand",
   "pose": "MediaPipe PoseLandmarker full (Python Tasks API, mediapipe 0.10.14), scripts/video_to_pose.py",
   "excerpt": {
     "fromS": 12.5,

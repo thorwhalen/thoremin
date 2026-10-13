@@ -12,7 +12,7 @@
   "licence": "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)",
   "author": "OrthodoxMusicOnline (OMIO), with David Drillock",
   "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Bortniansky_Cherubic_Hymn.webm",
-  "description": "David Drillock conducts Bortniansky's Cherubic Hymn with a small choir in a 3 pattern; the grid is his own baton hand",
+  "description": "David Drillock conducts Bortniansky's Cherubic Hymn with a small choir in a 3 pattern; the grid is the conductor's own baton hand",
   "pose": "MediaPipe PoseLandmarker full (Python Tasks API, mediapipe 0.10.14), scripts/video_to_pose.py",
   "excerpt": {
     "fromS": 37,

@@ -12,7 +12,7 @@
   "licence": "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)",
   "author": "OrthodoxMusicOnline (OMIO), with David Drillock",
   "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Trisagion_(Greek).webm",
-  "description": "David Drillock demonstrates the 2 beat pattern with the Greek Trisagion hymn, sung; the grid is his own baton hand",
+  "description": "David Drillock demonstrates the 2 beat pattern with the Greek Trisagion hymn, sung; the grid is the conductor's own baton hand",
   "pose": "MediaPipe PoseLandmarker full (Python Tasks API, mediapipe 0.10.14), scripts/video_to_pose.py",
   "excerpt": {
     "fromS": 24,

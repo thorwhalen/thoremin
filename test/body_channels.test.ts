@@ -8,7 +8,7 @@
  *   no number it gives on a real clip would mean anything.
  * - The FINDINGS are pinned on the committed fixtures, with margins (the write-up's
  *   tables are `scripts/body/measure_channels.ts`; these are the claims the defaults
- *   rest on): a conductor's trunk marks the beat his hand gives (on the 4- and 2-pattern
+ *   rest on): a conductor's trunk marks the beat the conductor's hand gives (on the 4- and 2-pattern
  *   clips, not the slow 3-pattern one); the torso's rotation marks the bar; the dancer's
  *   stride marks the bar; and two levels at once give the conductor's meter but cannot by
  *   themselves tell a half-bar from a bar.
@@ -44,7 +44,7 @@ describe('the method, on the synthetic control (bounce at the beat, steps at the
   });
 });
 
-describe('a conductor: the trunk marks the beat his baton hand gives', () => {
+describe('a conductor: the trunk marks the beat the conductor's baton hand gives', () => {
   // The grid is the conductor's own right-wrist strokes (the clips' choir is legato and
   // carries no beat), so the wrist is the reference here, not a finding.
   for (const name of ['video_body_conducting_44', 'video_body_conducting_24']) {
