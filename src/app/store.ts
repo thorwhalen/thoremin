@@ -379,70 +379,150 @@ function healMidi(stored: unknown, fallback: MidiSettings): MidiSettings {
 }
 
 /**
- * Persist migration. v1 → v2: the #64 face-mapping chooser replaced the boolean
- * `faceEnabled` with the tri-state `faceMapping`. v2 → v3: the per-hand / chord
- * timbre field was renamed `instrument` → `sound`; a returning player's saved
- * `instrument` becomes `sound` so they keep their sound. Exported for direct testing.
+ * One step of the persist migration: a blob written at version `n` becomes a version `n + 1`
+ * blob. A step returns a NEW blob and never edits its argument or anything nested in it: the
+ * blob belongs to the caller (zustand's rehydrated value), and `migrateControls` is tested
+ * directly for exactly that (test/store_migrate_no_mutation.test.ts).
  */
-export function migrateControls(persisted: unknown, version: number): ControlState {
-  const s = { ...(persisted as Record<string, unknown>) };
-  if (version < 2) {
-    if (s.faceMapping === undefined) {
-      s.faceMapping = legacyFaceToMapping(s.faceEnabled as boolean | undefined);
-    }
-    delete s.faceEnabled;
-  }
-  if (version < 3) {
+type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>;
+
+/**
+ * The persist version this build writes, and its history. Only some versions carry a data
+ * transform (they are the steps in {@link CONTROLS_MIGRATIONS}, which repeat the reason
+ * beside the code); the rest are ADDITIVE schema growth that {@link mergeControls} heals
+ * (a field an older blob lacks takes its default), so the bump is only the version marker.
+ *
+ * - v2 (#64): the face-mapping chooser replaced the boolean `faceEnabled` with the
+ *   tri-state `faceMapping`. Step.
+ * - v3: the per-hand / chord timbre field was renamed `instrument` → `sound`. Step.
+ * - v4: added the `handMap`.
+ * - v5: the abstention retune raised the fearful/disgusted sensitivity default 0.5 → 0.7,
+ *   delivered to a returning player who never customized it. Step.
+ * - v6: #75 (decoupled chord-source scale — faceChord.chordSource/chordRoot/chordType) +
+ *   #63 (per-voice octave RANGE — right/left.rangeLow/rangeHigh). Both ADDITIVE with
+ *   defaults: mergeControls re-parses faceChord through FaceChordSchema (filling
+ *   chordSource='auto' etc. for returning users → identical sound on their seven-note
+ *   melodies), and the range fields are optional (absent → the legacy `octaves` scale path,
+ *   byte-identical).
+ * - v7 (#136): the Feature Lab moved out of the `overlay` dial onto its own per-device
+ *   `featureLab` field (a tooling pref, like `faceCalibration`). Step.
+ * - v8 (#137): the `midi` preset field (enabled/port), default off / first available port.
+ * - v9 (#129): the `gestures` per-device tooling pref (enable flag, hold/cooldown timing,
+ *   gesture → command bindings), defaults disabled; fist → silence, pinch → restore
+ *   volume, open unbound.
+ * - v10 (#76): the `faceControls` preset field (per-axis gain / deadzone / neutral zero /
+ *   smoothing for the head-pose control mode). Its default is the shipped tuning, which is
+ *   byte-identical to the build-time params the node used before the dial existed, so a
+ *   returning player's `controls` mode sounds and feels exactly as it did.
+ * - v11 (#188): the `steer` preset field (the generative layer: enabled / volume /
+ *   config), default off. The transport (`steerPlaying`) is transient and not persisted,
+ *   like `muted`.
+ * - v12 (#187): the `conductor` preset field (the conductor node's params: off by default,
+ *   hand/point, servo horizon, fallback + dynamics ranges).
+ * - v13 (#186): `body` + `bodyMap` (a pre-#186 blob reads as off / no routes).
+ * - v14 (#233): `airDrum` (the air-drum node's params, off by default).
+ * - v15 (#249): `airBass`, the same way. v16: `airGuitar`. v17: `airFlute`.
+ * - v18: the trainer HUD pref's default flipped to off (the Trainer's banner is the
+ *   on-screen instruction now). Step.
+ * - v19 (#263): `airFlute.prior` (the fingering-chart prior: on, the flute chart, strength
+ *   10, C4..C#6).
+ * - v20 (#269): `airDrum.pattern` (the trained pattern in play, '' for none).
+ * - v21 (#232): the conductor dial gained `prior`; a returning player's conductor stays on
+ *   the oscillator (LEGACY_CONDUCTOR_PRIOR). Step.
+ * - v22 (#148): `hands` (the handedness dwell, default 0 = the raw per-frame label every
+ *   earlier blob played by); healed after the v21 step runs.
+ * - v23 (#168 Q3): `midi.muteFollowsMaster` (default true = the master mute silences MIDI,
+ *   as every earlier blob played), healed field by field by healMidi.
+ * - v24 (#240): `audioPrefs`, a per-device tooling pref (not a preset field): `lowLatency`,
+ *   default off = the `interactive` hint every earlier blob ran with.
+ *   Then, WITHOUT a bump (#336, #187 PR 5): `conductor.orchestra` (the sampled orchestra:
+ *   on/off, overall and per-section level), default DEFAULT_ORCHESTRA. ADDITIVE and nested
+ *   in the conductor dial, so the conductor heal (the schema parse over the current
+ *   conductor) fills it for any earlier blob; no transform was ever needed, and this line
+ *   is its history entry. A later bump is not owed for it.
+ * - v25 (#186 PR G): `songPrefs`, a per-device tooling pref (not a preset field): the
+ *   song's level and rate, defaults 0.8 / 1. The song itself and its transport are
+ *   transient and never persisted.
+ * - v26 (#186 PR H): `songPrefs` gained `follow` (default off: the song plays at its own
+ *   tempo, as every earlier blob did) and `followRange` (0.1), healed over DEFAULT_SONG.
+ *
+ * Bump this and, if the change needs a transform, add `CONTROLS_MIGRATIONS[old]` together.
+ */
+const CONTROLS_VERSION = 26;
+
+/**
+ * The persist migration steps, keyed by the version they READ (like
+ * `CATEGORIZER_MIGRATIONS`): `CONTROLS_MIGRATIONS[n]` takes a version-n blob to n + 1. A
+ * version with no entry needs no transform (see {@link CONTROLS_VERSION}'s history).
+ */
+const CONTROLS_MIGRATIONS: Readonly<Record<number, ControlsMigration>> = {
+  // → v2 (#64): `faceEnabled` (boolean) → `faceMapping` (tri-state); an explicit
+  // `faceMapping` wins over the legacy flag.
+  1: ({ faceEnabled, ...rest }) =>
+    rest.faceMapping === undefined ? { ...rest, faceMapping: legacyFaceToMapping(faceEnabled as boolean | undefined) } : rest,
+  // → v3: the timbre field `instrument` → `sound`, so a returning player keeps their sound.
+  2: (s) => {
+    const out = { ...s };
     for (const key of ['right', 'left', 'faceChord'] as const) {
       const sub = s[key];
-      if (sub && typeof sub === 'object') s[key] = migrateInstrumentField(sub as Record<string, unknown>);
+      if (sub && typeof sub === 'object') out[key] = migrateInstrumentField(sub as Record<string, unknown>);
     }
-  }
-  if (version < 5) {
-    // The abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
-    // Deliver it to a returning player who never customized those two (persisted value
-    // still === the OLD default), while preserving any value they DID set.
-    // Copied, not edited in place: `faceExpr` is the caller's object (see v7 below).
+    return out;
+  },
+  // → v5: the abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
+  // Deliver it to a returning player who never customized those two (persisted value
+  // still === the OLD default), while preserving any value they DID set.
+  4: (s) => {
     const fe = s.faceExpr as { sensitivity?: Record<string, number> } | undefined;
-    if (fe?.sensitivity) {
-      const sensitivity = { ...fe.sensitivity };
-      for (const e of ['fearful', 'disgusted'] as const) {
-        if (sensitivity[e] === 0.5) sensitivity[e] = 0.7;
-      }
-      s.faceExpr = { ...fe, sensitivity };
+    if (!fe?.sensitivity) return s;
+    const sensitivity = { ...fe.sensitivity };
+    for (const e of ['fearful', 'disgusted'] as const) {
+      if (sensitivity[e] === 0.5) sensitivity[e] = 0.7;
     }
-  }
-  if (version < 7) {
-    // #136: the Feature Lab moved OUT of the `overlay` dial (an instrument parameter)
-    // and onto its own per-device tooling field. Carry a returning player's lab config
-    // across rather than dropping it on the floor — `overlay` is re-parsed through the
-    // lab-free OverlayDialSchema in mergeControls, which would strip it silently.
+    return { ...s, faceExpr: { ...fe, sensitivity } };
+  },
+  // → v7 (#136): the Feature Lab moved OUT of the `overlay` dial (an instrument parameter)
+  // and onto its own per-device tooling field. Carry a returning player's lab config across
+  // rather than dropping it on the floor: `overlay` is re-parsed through the lab-free
+  // OverlayDialSchema in mergeControls, which would strip it silently (and drop the key
+  // anyway; removing it here keeps the directly-tested migrate honest).
+  6: (s) => {
     const ov = s.overlay as Record<string, unknown> | undefined;
-    if (ov?.featureLab !== undefined) {
-      if (s.featureLab === undefined) s.featureLab = ov.featureLab;
-      // Copy rather than `delete` on the caller's object: `persisted` is only shallow-
-      // copied above, so `s.overlay` IS their object. (mergeControls re-parses `overlay`
-      // through the lab-free schema and would drop the key anyway — this keeps the
-      // directly-tested migrate honest about not mutating its input.)
-      const { featureLab: _lifted, ...rest } = ov;
-      s.overlay = rest;
-    }
-  }
-  if (version < 18) {
-    // The Trainer's running banner moved above every panel (it is now the on-screen
-    // instruction), so painting the same words into the video is opt-in. A returning
-    // player's persisted `show: true` is the OLD default, not a choice (nothing ever
-    // asked), so it follows the new default once; re-ticking it in the panel sticks.
+    if (ov?.featureLab === undefined) return s;
+    const { featureLab: lifted, ...overlay } = ov;
+    return { ...s, featureLab: s.featureLab === undefined ? lifted : s.featureLab, overlay };
+  },
+  // → v18: the Trainer's running banner moved above every panel (it is now the on-screen
+  // instruction), so painting the same words into the video is opt-in. A returning
+  // player's persisted `show: true` is the OLD default, not a choice (nothing ever asked),
+  // so it follows the new default once; re-ticking it in the panel sticks.
+  17: (s) => {
     const hud = s.trainerHud as Record<string, unknown> | undefined;
-    if (hud && hud.show === true) s.trainerHud = { ...hud, show: false };
-  }
-  if (version < 21) {
-    // #232: the conductor dial gained `prior`, whose default (`blend`) is a behaviour
-    // change. A returning player's conductor was the oscillator; it stays so (as a saved
-    // instrument's does in `normalizeLayer`), and the panel's chooser is how they move.
+    return hud && hud.show === true ? { ...s, trainerHud: { ...hud, show: false } } : s;
+  },
+  // → v21 (#232): the conductor dial gained `prior`, whose default (`blend`) is a behaviour
+  // change. A returning player's conductor was the oscillator; it stays so (as a saved
+  // instrument's does in `normalizeLayer`), and the panel's chooser is how they move.
+  20: (s) => {
     const cond = s.conductor as Record<string, unknown> | undefined;
-    if (cond && typeof cond === 'object' && cond.prior === undefined) s.conductor = { ...cond, prior: LEGACY_CONDUCTOR_PRIOR };
-  }
+    return cond && typeof cond === 'object' && cond.prior === undefined ? { ...s, conductor: { ...cond, prior: LEGACY_CONDUCTOR_PRIOR } } : s;
+  },
+};
+
+/** The steps as `[readVersion, step]`, oldest first: the order a chain must run in. */
+const MIGRATION_CHAIN = Object.entries(CONTROLS_MIGRATIONS)
+  .map(([from, step]) => [Number(from), step] as const)
+  .sort((a, b) => a[0] - b[0]);
+
+/**
+ * Persist migration: run every step whose read version is at or above the blob's (a
+ * version-`version` blob needs each step from `version` up), oldest first. The result is a
+ * new object even when no step runs; the caller's blob is never edited. Exported for
+ * direct testing.
+ */
+export function migrateControls(persisted: unknown, version: number): ControlState {
+  let s = { ...(persisted as Record<string, unknown>) };
+  for (const [from, step] of MIGRATION_CHAIN) if (version <= from) s = step(s);
   return s as unknown as ControlState;
 }
 
@@ -788,77 +868,8 @@ export const useControls = create<ControlState>()(
     }),
     {
       name: 'thoremin-controls',
-      // Version 6: #75 (decoupled chord-source scale — faceChord.chordSource/chordRoot/
-      // chordType) + #63 (per-voice octave RANGE — right/left.rangeLow/rangeHigh). Both are
-      // ADDITIVE with defaults, so no data transform is needed: mergeControls re-parses
-      // faceChord through FaceChordSchema (filling chordSource='auto' etc. for returning
-      // users → identical sound on their seven-note melodies), and the range fields are
-      // optional (absent → the legacy `octaves` scale path, byte-identical). The bump is the
-      // version marker for the schema growth.
-      // Version 5: the abstention retune — deliver the raised fearful/disgusted
-      // sensitivity default (0.5 → 0.7) to a returning player who never customized it.
-      // v4: added the `handMap`. v3: `instrument` → `sound` rename. v2: the face-mapping
-      // chooser (#64). See migrateControls (field renames/bumps) and mergeControls (heals
-      // stale nested `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
-      // Version 7: #136 lifted the Feature Lab out of the `overlay` dial onto its own
-      // per-device `featureLab` field (a tooling pref, like `faceCalibration`). The
-      // migrate carries a returning player's lab config across before mergeControls
-      // re-parses `overlay` through the now lab-free OverlayDialSchema.
-      // Version 8: #137 added the `midi` preset field (enabled/port). ADDITIVE with a
-      // default (off / first available port), healed by mergeControls, so no data
-      // transform is needed — the bump is the version marker for the schema growth.
-      // Version 9: #129 added the `gestures` per-device tooling pref (enable flag,
-      // hold/cooldown timing, gesture → command bindings). ADDITIVE with defaults
-      // (disabled; fist → silence, pinch → restore volume, open unbound), healed by
-      // mergeControls like featureLab, so no data transform is needed — the bump is
-      // the version marker for the schema growth.
-      // Version 10: #76 added the `faceControls` preset field (per-axis gain / deadzone /
-      // neutral zero / smoothing for the head-pose control mode). ADDITIVE with the
-      // shipped tuning as its default — which is byte-identical to the build-time params
-      // the node used before the dial existed, so a returning player's `controls` mode
-      // sounds and feels exactly as it did. Healed by mergeControls, so no data transform
-      // is needed; the bump is the version marker for the schema growth.
-      // Version 11: #188 added the `steer` preset field (the generative layer: enabled /
-      // volume / config). ADDITIVE with a default (off), healed by mergeControls, so no
-      // data transform is needed — the bump is the version marker for the schema growth.
-      // The transport (`steerPlaying`) is transient and not persisted, like `muted`.
-      // Version 12: #187 added the `conductor` preset field (the conductor node's params:
-      // off by default, hand/point, servo horizon, fallback + dynamics ranges). ADDITIVE
-      // with a default, healed by mergeControls; the bump marks the schema growth.
-      // v13 (#186): `body` + `bodyMap` added to the preset fields; both heal in mergeControls
-      // (a pre-#186 blob reads as off / no routes), so no data transform is needed — the
-      // bump is the version marker for the schema growth.
-      // v14 (#233): `airDrum` added to the preset fields (the air-drum node's params, off
-      // by default); heals in mergeControls, so no data transform is needed.
-      // v15 (#249): `airBass` added the same way (off by default, healed in mergeControls).
-      // v16 (#249): `airGuitar` added the same way.
-      // v17 (#249): `airFlute` added the same way.
-      // v18: the trainer HUD pref's default flipped to off (the Trainer's banner is the
-      // on-screen instruction now); migrateControls carries a returning player across.
-      // v19 (#263): `airFlute.prior` added (the fingering-chart prior: on, the flute
-      // chart, strength 10, C4..C#6). ADDITIVE with a default, healed by mergeControls'
-      // schema parse, so no data transform is needed; the bump marks the schema growth.
-      // v20 (#269): `airDrum.pattern` added (the trained pattern in play, '' for none).
-      // ADDITIVE with a default, healed by mergeControls' schema parse; the bump marks it.
-      // v21 (#232): the conductor dial gained `prior`; migrateControls keeps a returning
-      // player's conductor on the oscillator (LEGACY_CONDUCTOR_PRIOR).
-      // v22 (#148): `hands` added (the handedness dwell, default 0 = the raw per-frame
-      // label every earlier blob played by). ADDITIVE, healed by mergeControls (which runs
-      // after the v21 migrate); the bump marks the schema growth.
-      // v23 (#168 Q3): `midi.muteFollowsMaster` added (default true = the master mute
-      // silences MIDI, as every earlier blob played). ADDITIVE, healed field by field by
-      // mergeControls' healMidi; the bump marks the schema growth.
-      // v24 (#240): `audioPrefs` added, a per-device tooling pref (not a preset field):
-      // `lowLatency`, default off = the `interactive` hint every earlier blob ran with.
-      // ADDITIVE, healed by mergeControls' schema parse; the bump marks the growth.
-      // v25 (#186 PR G): `songPrefs` added, a per-device tooling pref (not a preset
-      // field): the song's level and rate, defaults 0.8 / 1. ADDITIVE, healed by
-      // mergeControls' schema parse; the bump marks the growth. The song itself and its
-      // transport are transient and never persisted.
-      // v26 (#186 PR H): `songPrefs` gained `follow` (default off: the song plays at its
-      // own tempo, as every earlier blob did) and `followRange` (0.1). ADDITIVE, healed
-      // by mergeControls' schema parse over DEFAULT_SONG; the bump marks the growth.
-      version: 26,
+      // The version and its history live beside the migration steps (CONTROLS_VERSION).
+      version: CONTROLS_VERSION,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
