@@ -40,7 +40,8 @@ import { defineNode } from '@thoremin/dag';
 import { midiToFreq } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { MAX_POSE_VOICES, POSE_VOICE_ID_BASE } from './pose_chord';
-import { flattenNotes, ScoreDocSchema, type ScoreDoc, type ScoreNote } from '@thoremin/sdk/score/schema';
+import type { ScoreNote } from '@thoremin/sdk/score/schema';
+import { pieceFromNotes, preparePiece, readScoreDoc, type PreparedPiece } from '@thoremin/sdk/score/prepare';
 import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 const Note = z.object({
@@ -53,12 +54,21 @@ const Note = z.object({
   velocity: z.number().min(0).max(1).default(1),
 });
 
+/** The built-in demo piece: one octave of a C major scale, one note per beat over an
+ *  eight-beat loop — the same piece `scripts/gen_conductor_demo.ts` renders, so a
+ *  conductor with no score loaded still hears the scale follow the hand. */
+export const DEMO_SCALE_NOTES = [60, 62, 64, 65, 67, 69, 71, 72].map((midi, i) => ({ midi, start: i, duration: 0.9, velocity: 1 }));
+
+/** The demo piece's loop length in beats: every player of the demo (the `score` node's
+ *  default, the default graph's score params, the orchestra's demo plan) loops it here. */
+export const DEMO_LOOP_BEATS = 8;
+
 const Params = z.object({
   /** The built-in piece, played (looping) when no document is loaded. */
   notes: z.array(Note).default([]),
   /** Loop length in beats for the built-in piece; the beat position wraps modulo this.
    *  0 = no loop. A loaded document never loops. */
-  loopBeats: z.number().min(0).default(8),
+  loopBeats: z.number().min(0).default(DEMO_LOOP_BEATS),
   /** Base output gain multiplier. */
   baseGain: z.number().min(0).max(1).default(0.4),
   sound: SoundSchema.default('triangle'),
@@ -70,26 +80,6 @@ type Params = z.infer<typeof Params>;
 /** First voice id of the score's voices: right after the pose chord's block, derived so
  *  a change to either chord's voice count cannot silently reintroduce a collision. */
 export const SCORE_VOICE_ID_BASE = POSE_VOICE_ID_BASE + MAX_POSE_VOICES;
-
-/** The built-in demo piece: one octave of a C major scale, one note per beat over an
- *  eight-beat loop — the same piece `scripts/gen_conductor_demo.ts` renders, so a
- *  conductor with no score loaded still hears the scale follow the hand. */
-export const DEMO_SCALE_NOTES = [60, 62, 64, 65, 67, 69, 71, 72].map((midi, i) => ({ midi, start: i, duration: 0.9, velocity: 1 }));
-
-/** A piece prepared for playback: notes sorted by onset, plus the longest duration
- *  (the look-back bound of the sounding-window search). */
-interface Piece {
-  notes: ScoreNote[];
-  maxDuration: number;
-  loopBeats: number;
-}
-
-function preparePiece(notes: readonly ScoreNote[], loopBeats: number): Piece {
-  const sorted = [...notes].sort((a, b) => a.start - b.start || a.midi - b.midi);
-  let maxDuration = 0;
-  for (const n of sorted) maxDuration = Math.max(maxDuration, n.duration);
-  return { notes: sorted, maxDuration, loopBeats };
-}
 
 /** Index of the first note whose onset is >= `beat` (binary search). */
 function lowerBound(notes: readonly ScoreNote[], beat: number): number {
@@ -105,7 +95,7 @@ function lowerBound(notes: readonly ScoreNote[], beat: number): number {
 
 /** The indices of the notes sounding at `pos`: onset in (pos − maxDuration, pos] and
  *  still held. */
-function soundingAt(piece: Piece, pos: number, out: number[]): void {
+function soundingAt(piece: PreparedPiece, pos: number, out: number[]): void {
   out.length = 0;
   const from = lowerBound(piece.notes, pos - piece.maxDuration);
   for (let i = from; i < piece.notes.length; i++) {
@@ -133,15 +123,14 @@ export const scoreNode = defineNode<Params>({
   outputs: [{ name: 'params', kind: 'synth-params' }],
   params: Params,
   make(p) {
-    const builtin = preparePiece(p.notes, p.loopBeats);
+    const builtin = pieceFromNotes(p.notes, p.loopBeats);
     let docRef: unknown = null;
-    let docPiece: Piece | null = null;
+    let docPiece: PreparedPiece | null = null;
     /** Voice ids (note indices) sounding on the previous tick. */
     let lastSounding = new Set<number>();
-    let lastPos = -Infinity;
     const sounding: number[] = [];
 
-    const pieceFor = (doc: unknown): Piece => {
+    const pieceFor = (doc: unknown): PreparedPiece => {
       if (!doc || typeof doc !== 'object') {
         docRef = null;
         docPiece = null;
@@ -149,8 +138,8 @@ export const scoreNode = defineNode<Params>({
       }
       if (doc !== docRef) {
         docRef = doc;
-        const parsed = ScoreDocSchema.safeParse(doc);
-        docPiece = parsed.success ? preparePiece(flattenNotes(parsed.data as ScoreDoc, p.parts), 0) : null;
+        const parsed = readScoreDoc(doc);
+        docPiece = parsed ? preparePiece(parsed, p.parts) : null;
       }
       return docPiece ?? builtin;
     };
@@ -188,8 +177,6 @@ export const scoreNode = defineNode<Params>({
           voices.push({ id: SCORE_VOICE_ID_BASE + i, present: false, freq: n ? midiToFreq(n.midi) : 440, gain: 0, sound: p.sound });
         }
         lastSounding = now;
-        lastPos = pos;
-        void lastPos;
         const out: SynthParams = { voices };
         return { params: out };
       },

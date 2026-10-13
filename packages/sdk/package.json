@@ -47,6 +47,7 @@
     "./nodes/domain": "./src/nodes/domain.ts",
     "./nodes/music/drum_anchor": "./src/nodes/music/drum_anchor.ts",
     "./nodes/music/drum_pads": "./src/nodes/music/drum_pads.ts",
+    "./score/prepare": "./src/score/prepare.ts",
     "./score/schema": "./src/score/schema.ts",
     "./timing/clock_map": "./src/timing/clock_map.ts",
     "./timing/glitches": "./src/timing/glitches.ts",

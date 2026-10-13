@@ -4,7 +4,7 @@ The pure half of thoremin's extension SDK: everything an extension's nodes, libr
 
 - `instruments/{extension,branch,trunk}`: the `Extension` manifest (`defineExtension`, `dialSlice`, `transientPort`), `GraphBranch` (`defineBranch`), and the trunk's node names to wire to.
 - `nodes/domain`: the port kinds and the stream types (hands, faces, voices); `nodes/music/drum_{pads,anchor}`: the drum geometry the overlay also draws.
-- `features/*`: the feature catalog and feature demand; `enroll/*`: the trainer's pure core (cues, noise units, sampling, sufficiency, classification); `music/{theory,sounds}`; `score/schema`: the `ScoreDoc`.
+- `features/*`: the feature catalog and feature demand; `enroll/*`: the trainer's pure core (cues, noise units, sampling, sufficiency, classification); `music/{theory,sounds}`; `score/schema`: the `ScoreDoc`; `score/prepare`: a document made ready to play (`preparePiece`, shared by every player of a piece) and the memoised port read `readScoreDoc`.
 
 What is NOT here, on purpose: a library only one extension uses lives in that extension (the drum patterns, the fingering charts and note names are the air extension's), and core's own machinery stays in the app (the branch derivation, the Feature Lab config). A module joins the SDK when an extension and core both need it.
 
