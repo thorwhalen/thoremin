@@ -28,11 +28,15 @@ export interface BodyClip {
   /** False when the grid's phase is not known (a stated tempo only): raw F, BAS and
    *  Cemgil are then meaningless, and only R and the lag-free F are reported. */
   phaseKnown: boolean;
+  /** Set when the grid IS this wrist's strokes (a conductor): that wrist is the
+   *  reference, not a result, and its elbow moves with it. */
+  referenceWrist?: 'left' | 'right';
 }
 
 interface GridMeta {
   beats?: number[];
   beatsPerBar?: number;
+  wrist?: 'left' | 'right';
 }
 
 export function loadClip(name: string): BodyClip {
@@ -42,7 +46,7 @@ export function loadClip(name: string): BodyClip {
   const frames = parseRecords(gunzipSync(raw).toString('utf8')).map((r) => r.value) as BodyFrame[];
   const dur = frames.length / meta.fps;
   if (meta.grid?.beats?.length) {
-    return { name, frames, fps: meta.fps, grid: meta.grid.beats, beatsPerBar: meta.grid.beatsPerBar ?? 4, phaseKnown: true };
+    return { name, frames, fps: meta.fps, grid: meta.grid.beats, beatsPerBar: meta.grid.beatsPerBar ?? 4, phaseKnown: true, referenceWrist: meta.grid.wrist };
   }
   if (!meta.music?.bpm) throw new Error(`${name}: meta.json has neither grid.beats nor music.bpm`);
   const p = 60 / meta.music.bpm;
@@ -59,7 +63,7 @@ export function adHocClip(posePath: string, beatsPath: string, beatsPerBar: numb
   const fps = recs.length > 1 ? Math.round((1 / (recs[1].t - recs[0].t)) * 1000) / 1000 : 30;
   const frames = recs.map((r) => r.value) as BodyFrame[];
   const beats = beatsPath === 'stroke' ? strokeGrid(frames, fps) : (JSON.parse(readFileSync(beatsPath, 'utf8')) as { beats: number[] }).beats;
-  return { name: posePath, frames, fps, grid: beats, beatsPerBar, phaseKnown: true };
+  return { name: posePath, frames, fps, grid: beats, beatsPerBar, phaseKnown: true, referenceWrist: beatsPath === 'stroke' ? beatingWrist(frames) : undefined };
 }
 
 /** Which wrist beats: the one with the larger vertical travel (5th to 95th percentile,

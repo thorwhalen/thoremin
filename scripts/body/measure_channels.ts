@@ -39,7 +39,9 @@ function table(clip: BodyClip, cells: readonly CellResult[]): string {
       const sig = best.score.p < 0.001 ? '**' : best.score.p < 0.01 ? '*' : '';
       return `${clip.phaseKnown ? f2(best.score.f) : '-'} | ${f2(best.score.fLag)} | ${f2(best.score.r)}${sig} (${best.score.n})${tag}`;
     });
-    lines.push(`| ${ch} | ${row.join(' | ')} |`);
+    const side = clip.referenceWrist === 'left' ? 'l' : 'r';
+    const note = !clip.referenceWrist ? '' : ch === `wrist.${side}` ? ' (the grid)' : ch === `elbow.${side}` ? ' (same arm)' : '';
+    lines.push(`| ${ch}${note} | ${row.join(' | ')} |`);
   }
   return lines.join('\n');
 }

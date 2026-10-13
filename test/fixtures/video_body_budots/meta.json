@@ -1,0 +1,60 @@
+{
+  "scenario": "video_body_budots",
+  "source": "video",
+  "clip": "Budots Dance Video (Commons), the uncut shot 8.8 s to 22.25 s, 1280x720 scaled to 640x360, 30 fps; pose_landmarker_full",
+  "frames": 404,
+  "fps": 30,
+  "bodyDetectedFrames": 401,
+  "detectionRate": 99,
+  "music": {
+    "bpm": 143.55,
+    "originS": 8.8
+  },
+  "srcHash": "31b431c6e375",
+  "recorderVersion": 1,
+  "licence": "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)",
+  "author": "Sherwin Tuna (DJ Love)",
+  "sourceUrl": "https://commons.wikimedia.org/wiki/File:Budots_Dance_Video.ogg",
+  "description": "A Budots dance video (a bouncing street dance from Davao), the longest uncut shot: three dancers in front of the camera, the single most confident pose per frame (it may switch dancer now and then: 4 hip jumps over 40 px in 401 frames); the music is a steady electronic track",
+  "excerpt": {
+    "fromS": 8.8,
+    "toS": 22.25
+  },
+  "grid": {
+    "source": "librosa 1.0.0 beat_track (Ellis 2007 DP; start_bpm 120, tightness 100)",
+    "beatsPerBar": 4,
+    "beats": [
+      0.279,
+      0.697,
+      1.1149,
+      1.5561,
+      1.9973,
+      2.4152,
+      2.8332,
+      3.2744,
+      3.6923,
+      4.1335,
+      4.5515,
+      4.9927,
+      5.4106,
+      5.8518,
+      6.2698,
+      6.6877,
+      7.1289,
+      7.5468,
+      7.988,
+      8.406,
+      8.8472,
+      9.2883,
+      9.7063,
+      10.1243,
+      10.5422,
+      10.9834,
+      11.4014,
+      11.8425,
+      12.2605,
+      12.7017,
+      13.1196
+    ]
+  }
+}
