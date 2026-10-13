@@ -59,6 +59,7 @@
   "dependencies": {
     "@thoremin/dag": "*",
     "@thoremin/lazy": "*",
+    "@thoremin/stats": "*",
     "umap-js": "^1.4.0",
     "zod": "^4.4.3"
   }
