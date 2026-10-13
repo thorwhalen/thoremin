@@ -52,6 +52,7 @@ const fakeAc = (offset = 100) => {
   return ac;
 };
 const ON = { orchestra: { enabled: true } };
+const ENGINE0 = 1000;
 
 function harness(synth = new FakeSynth()) {
   let loads = 0;
@@ -65,13 +66,15 @@ function harness(synth = new FakeSynth()) {
   const h = orchestraNode.make(orchestraNode.params.parse({}));
   let tick = 0;
   const dt = 1 / 30;
-  const step = (inputs: Record<string, unknown>) => {
-    const ctx: NodeContext = { tick, time: tick * dt, dt, resources };
-    ac.currentTime = 100 + tick * dt;
+  // As in the app, engine time (performance.now) runs AHEAD of the context's clock (the
+  // context starts at the first tap): engine 1000 s + t, context 100 s + t.
+  const step = (inputs: Record<string, unknown>, acStep?: (t: number) => number) => {
+    const ctx: NodeContext = { tick, time: ENGINE0 + tick * dt, dt, resources };
+    ac.currentTime = acStep ? acStep(tick * dt) : 100 + tick * dt;
     tick++;
     return h.process(inputs, ctx) as { status: LoadStatus; playing: boolean };
   };
-  return { h, synth, step, loads: () => loads, resources };
+  return { h, synth, step, loads: () => loads, resources, ac };
 }
 
 const time = (beat: number, tempo: number) => ({ t: 0, beat, phase: beat % 1, tempo, period: 60 / tempo, confidence: 1, nextBeatAt: 0, beatsPerBar: 4, beatInBar: 0, state: 'running', anchors: 3 });
@@ -180,6 +183,83 @@ describe('orchestra node: playing the piece', () => {
     expect(offs).toHaveLength(1);
     expect(synth.calls.at(-1)?.op).not.toBe('noteOn');
     expect(synth.calls.some((c) => c.op === 'allNotesOff')).toBe(true);
+  });
+});
+
+/** Replay a synth's calls the way spessasynth does: timed events in time order, a hard
+ *  stop acting only on what has started by then. Returns the keys left sounding. */
+function soundingAfter(calls: Call[], stops: number[]): string[] {
+  const events = calls
+    .filter((c) => c.op === 'noteOn' || c.op === 'noteOff')
+    .map((c, i) => ({ op: c.op, key: `${c.args[0]}:${c.args[1]}`, time: c.op === 'noteOn' ? c.args[3] : c.args[2], i }));
+  const timeline = [...events.map((e) => ({ ...e, stop: false })), ...stops.map((t, i) => ({ op: 'stop', key: '', time: t, i: 1e9 + i, stop: true }))];
+  timeline.sort((a, b) => a.time - b.time || a.i - b.i);
+  const on = new Set<string>();
+  for (const e of timeline) {
+    if (e.stop) on.clear();
+    else if (e.op === 'noteOn') on.add(e.key);
+    else on.delete(e.key);
+  }
+  return [...on];
+}
+
+describe('orchestra node: stopping on the context clock', () => {
+  it('a stop releases on the context clock, cancelling an onset committed ahead (review blocker)', async () => {
+    const { step, synth, ac } = harness();
+    step({ config: ON });
+    await flush();
+    const dt = 1 / 30;
+    let stopAt = 0;
+    for (let i = 0; i < 200; i++) {
+      const beat = (i * dt * 120) / 60;
+      // Stop on a tick right after an onset was committed ahead of the context clock.
+      const committedAhead = synth.ons().some((c) => c.args[3] > ac.currentTime);
+      if (i > 20 && committedAhead) {
+        step({ config: ON, conducting: false, time: time(0, 0) });
+        stopAt = ac.currentTime;
+        break;
+      }
+      step({ config: ON, conducting: true, time: time(beat, 120) });
+    }
+    expect(stopAt).toBeGreaterThan(0);
+    const offs = synth.calls.filter((c) => c.op === 'noteOff');
+    // Every release lands within a horizon of the stop, never seconds away on the engine clock.
+    for (const c of offs) expect(c.args[2]).toBeLessThan(stopAt + 0.2);
+    expect(soundingAfter(synth.calls, [stopAt])).toEqual([]);
+  });
+
+  it('keeps each key alternating on the context clock when that clock advances in large steps', async () => {
+    const doc = {
+      v: 1, title: 'repeated', source: 'midi',
+      parts: [{ id: 'a', name: 'a', program: 40, percussion: false, notes: Array.from({ length: 16 }, (_, i) => ({ midi: 60, start: i * 0.5, duration: 0.5, velocity: 0.8 })) }],
+      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], lengthBeats: 8,
+    } as ScoreDoc;
+    const { step, synth } = harness();
+    step({ config: ON });
+    await flush();
+    const dt = 1 / 30;
+    // The context clock moves in 4-tick (133 ms) jumps, like a large audio buffer.
+    const chunky = (t: number) => 100 + Math.floor(t / (4 * dt)) * 4 * dt;
+    for (let i = 0; i < 150; i++) step({ config: ON, doc, conducting: true, time: time((i * dt * 120) / 60, 120) }, chunky);
+    const seq = synth.calls
+      .filter((c) => (c.op === 'noteOn' || c.op === 'noteOff') && c.args[1] === 60)
+      .map((c, i) => ({ op: c.op, time: c.op === 'noteOn' ? c.args[3] : c.args[2], i }))
+      .sort((a, b) => a.time - b.time || a.i - b.i);
+    expect(seq.length).toBeGreaterThan(10);
+    seq.forEach((e, i) => expect(e.op, `event ${i}`).toBe(i % 2 === 0 ? 'noteOn' : 'noteOff'));
+  });
+
+  it('leaves a percussion part out: the cut bank has no drum kit', () => {
+    const plan = planPiece({
+      v: 1, title: 't', source: 'midi',
+      parts: [
+        { id: 'v', name: 'Violin', program: 40, percussion: false, notes: [{ midi: 67, start: 0, duration: 1, velocity: 0.8 }] },
+        { id: 'd', name: 'Drums', program: 0, percussion: true, notes: [{ midi: 36, start: 0, duration: 0.1, velocity: 0.8 }] },
+      ],
+      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], lengthBeats: 1,
+    } as ScoreDoc);
+    expect(plan.events.map((e) => e.key)).toEqual([67]);
+    expect(plan.channels.map((c) => c.channel)).toEqual([0]);
   });
 });
 

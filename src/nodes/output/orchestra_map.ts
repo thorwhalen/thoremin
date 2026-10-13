@@ -9,7 +9,9 @@
  * keeps exactly {@link BANK_PROGRAMS} when it trims MuseScore_General. A part whose
  * program the cut bank does not hold is played by the nearest program it does hold in
  * the same GM family, else by {@link DEFAULT_PROGRAM}, so a player's own MIDI file
- * never plays silence or a piano where a horn was written.
+ * never plays a piano where a horn was written. (Percussion parts are the exception: the
+ * cut bank has no drum kit, so the node leaves them out rather than play drum keys on a
+ * violin; #334.)
  *
  * Pure and Node-safe: no audio, no DOM.
  */

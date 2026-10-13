@@ -210,7 +210,9 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
         const end = start + e.duration * scale;
         if (start > beat && !(timeOf(start) < now + horizon)) break; // not yet due (or held)
         next++;
-        if (end <= beat && e.duration > 0) {
+        // Entirely behind the beat: skipped. A zero-length note (a grace note) is behind
+        // once the beat is past its onset; exactly on the beat it still plays.
+        if (end <= beat && (e.duration > 0 || start < beat)) {
           skipped++;
           continue;
         }

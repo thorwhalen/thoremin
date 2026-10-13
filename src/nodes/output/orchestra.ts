@@ -156,6 +156,10 @@ export function planPiece(doc: ScoreDoc | null): OrchestraPlan {
   const channels = new Map<number, { channel: number; program: number; section: Section }>();
   doc.parts.forEach((part, i) => {
     const a = alloc[i];
+    // The cut bank holds no drum kit: a GM drum channel would fall back to the bank's
+    // first preset and play the drum keys as violin notes. A percussion part is left out
+    // (#334 tracks a kit); timpani is a pitched program and plays.
+    if (part.percussion) return;
     if (!channels.has(a.channel)) channels.set(a.channel, { channel: a.channel, program: a.program, section: a.section });
     for (const n of part.notes) events.push({ key: n.midi, channel: a.channel, start: n.start, duration: n.duration, velocity: n.velocity });
   });
@@ -233,20 +237,53 @@ export const orchestraNode = defineNode<Params>({
       s.controllerChange(channel, cc, value, time);
     };
 
-    /** Stop what is sounding (the scheduler's releases, then a hard stop for safety). */
-    const silence = (s: OrchestraSynth | null, now: number): void => {
-      const offs = scheduler?.stop(now) ?? [];
-      if (!s) return;
-      // A release at its own (possibly future) onset time cancels a note committed but
-      // not yet started; the hard stop catches anything else.
-      for (const c of offs) if (c.type === 'noteOff') s.noteOff(c.channel, c.key, c.time);
+    /** The context time each key's last onset / release was sent at. The scheduler keeps
+     *  on and off alternating per key in ENGINE time; each tick maps engine time to the
+     *  context afresh (`scheduleAt`), and a context clock that advances in large steps
+     *  (big audio buffers) could otherwise land a release after the next onset it was
+     *  meant to precede, or an onset after the release meant to cancel it. */
+    const lastOnCtx = new Map<string, number>();
+    const lastOffCtx = new Map<string, number>();
+    /** The smallest gap kept between a key's onset and release on the context clock, s. */
+    const ORDER_GAP = 0.001;
+
+    /** Send scheduler commands (engine times) on the context clock, keeping per-key order. */
+    const deliver = (s: OrchestraSynth, cmds: readonly ScheduleCommand[], clock: { currentTime: number }, nowEngine: number, stage: number): void => {
+      for (const c of cmds) {
+        const k = `${c.channel}:${c.key}`;
+        let when = scheduleAt(clock, c.time, nowEngine, stage);
+        if (c.type === 'noteOn') {
+          when = Math.max(when, (lastOffCtx.get(k) ?? -Infinity) + ORDER_GAP);
+          lastOnCtx.set(k, when);
+          s.noteOn(c.channel, c.key, Math.max(1, to7bit(c.velocity)), when);
+        } else {
+          when = Math.max(when, (lastOnCtx.get(k) ?? -Infinity) + ORDER_GAP);
+          lastOffCtx.set(k, when);
+          s.noteOff(c.channel, c.key, when);
+        }
+      }
+    };
+
+    /**
+     * Stop what is sounding. The scheduler's releases are engine-timed like every other
+     * command and go through the same map: a release at (just after) a committed but not
+     * yet started onset cancels it, which `allNotesOff` cannot do (spessasynth's stop
+     * does not clear its queue of timed events).
+     */
+    const silence = (s: OrchestraSynth, clock: { currentTime: number }, nowEngine: number, stage: number): void => {
+      const offs = scheduler?.stop(nowEngine) ?? [];
+      deliver(s, offs, clock, nowEngine, stage);
       s.allNotesOff();
     };
 
     /** (Re)build the plan when the piece or the synth changed; send programs. */
-    const ensurePlan = (s: OrchestraSynth, rawDoc: unknown, now: number): void => {
+    const ensurePlan = (s: OrchestraSynth, rawDoc: unknown, clock: { currentTime: number }, nowEngine: number, stage: number): void => {
       if (rawDoc === docRef && s === attached && plan) return;
-      silence(s, now);
+      if (s !== attached) {
+        lastOnCtx.clear();
+        lastOffCtx.clear();
+      }
+      silence(s, clock, nowEngine, stage);
       if (rawDoc !== docRef || !plan) {
         docRef = rawDoc;
         const parsed = rawDoc && typeof rawDoc === 'object' ? ScoreDocSchema.safeParse(rawDoc) : null;
@@ -257,11 +294,6 @@ export const orchestraNode = defineNode<Params>({
       sentCC.clear();
       lastDynamicsAt = -Infinity;
       for (const ch of plan.channels) s.programChange(ch.channel, ch.program);
-    };
-
-    const send = (s: OrchestraSynth, c: ScheduleCommand, when: number): void => {
-      if (c.type === 'noteOn') s.noteOn(c.channel, c.key, Math.max(1, to7bit(c.velocity)), when);
-      else s.noteOff(c.channel, c.key, when);
     };
 
     return {
@@ -286,13 +318,14 @@ export const orchestraNode = defineNode<Params>({
 
         const ac = resources.audioContext as (AudioContext & { state?: string }) | undefined;
         const clock = ac ?? { currentTime: ctx.time };
-        ensurePlan(s, inputs.doc, clock.currentTime);
+        const stage = timingFrom(resources).outputStage.value;
+        ensurePlan(s, inputs.doc, clock, ctx.time, stage);
 
         const conducting = inputs.conducting === true;
         const playing = conducting && inputs.claimed !== true;
         // Stopping releases everything; the levels below still go out, so the first
         // note after Start is already at the right level.
-        if (!playing && wasPlaying) silence(s, clock.currentTime);
+        if (!playing && wasPlaying) silence(s, clock, ctx.time, stage);
         wasPlaying = playing;
 
         // ---- levels: per-section volume (CC7), dynamics (CC11 + CC74), rate-limited ----
@@ -313,7 +346,6 @@ export const orchestraNode = defineNode<Params>({
         const running = !ac || ac.state === undefined || ac.state === 'running';
         const time = inputs.time as MusicalTime | undefined;
         if (playing && running && time && scheduler) {
-          const stage = timingFrom(resources).outputStage.value;
           const tick = Math.min(0.1, Math.max(1 / 240, ctx.dt || 1 / 60));
           const art = typeof inputs.articulation === 'number' ? inputs.articulation : 0.5;
           const cmds = scheduler.tick({
@@ -323,13 +355,13 @@ export const orchestraNode = defineNode<Params>({
             horizon: stage + p.lookaheadTicks * tick,
             durationScale: durationScaleFor(art, p.staccatoDepth),
           });
-          for (const c of cmds) send(s, c, scheduleAt(clock, c.time, ctx.time, stage));
+          deliver(s, cmds, clock, ctx.time, stage);
         }
 
         return { status: withActive(status, playing, 'Playing'), playing };
       },
       dispose() {
-        silence(attached, 0);
+        // Unloading closes the synth, which destroys it with whatever it had queued.
         synth.dispose();
         attached = null;
         scheduler = null;

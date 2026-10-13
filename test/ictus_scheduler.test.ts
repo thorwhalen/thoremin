@@ -81,6 +81,18 @@ describe('createScheduler', () => {
     expect(s.skipped).toBe(2);
   });
 
+  it('a zero-length (grace) note behind the beat is skipped too; on the beat it plays (review)', () => {
+    const s = createScheduler([ev(60, 1, 0), ev(62, 3, 0)]);
+    // A forward jump from beat 0.5 to 2 passes the grace note at 1.
+    s.tick({ now: 0, beat: 0.5, bpm: 60, horizon: 0.1 });
+    expect(s.tick({ now: 0.1, beat: 2, bpm: 60, horizon: 0.1 })).toEqual([]);
+    expect(s.skipped).toBe(1);
+    expect(s.tick({ now: 1, beat: 3, bpm: 60, horizon: 0.1 }).map((c) => c.key)).toEqual([62]);
+    // A restart (stop, then a tick) inside the look-back window does not replay it.
+    s.stop(2);
+    expect(s.tick({ now: 3, beat: 3.5, bpm: 60, horizon: 0.1 }).filter((c) => c.type === 'noteOn')).toEqual([]);
+  });
+
   it('two parts in unison on one channel are one voice that ends with the longer note', () => {
     const { out } = run([ev(67, 1, 1), ev(67, 1, 2)], { seconds: 5 });
     expect(out.map((c) => `${c.type}@${c.time.toFixed(2)}`)).toEqual(['noteOn@1.00', 'noteOff@3.00']);

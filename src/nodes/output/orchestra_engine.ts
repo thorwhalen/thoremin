@@ -8,8 +8,8 @@
  * This module statically imports `spessasynth_lib` and the URL of its AudioWorklet
  * processor, so it must only ever be reached through the node's dynamic
  * `import('./orchestra_engine')`, which fires the first time the player switches the
- * orchestra on. Nothing re-exports it (`test/orchestra_bundle.test.ts` and the smoke's
- * orchestra test pin that the synth is not in the main chunk and is not fetched before
+ * orchestra on. Nothing re-exports it (the build gate `vite.lazy-guard.ts`, its test
+ * `test/lazy_bundle_guard.test.ts`, and `smoke/tests/orchestra.smoke.ts` pin that the synth is not in the main chunk and is not fetched before
  * then).
  *
  * The load, in order, each step abortable: the worklet module, then the soundfont (the
@@ -17,7 +17,7 @@
  * the app's own static files with its licence beside it, and cached by the browser's
  * HTTP cache like any static file), with download progress for the readout, then the
  * synth and the bank. Every event method passes `{ time }` in `AudioContext` seconds, so
- * the scheduler's commands land sample-accurately.
+ * the scheduler's commands land on the synth's render quantum (128 samples).
  */
 import { WorkletSynthesizer } from 'spessasynth_lib';
 import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
@@ -29,7 +29,9 @@ export const SOUNDFONT_PATH = 'soundfonts/orchestra.sf3';
 
 /** Read a response body, reporting progress against its Content-Length when known. */
 async function readWithProgress(res: Response, progress: (f: number) => void, signal: AbortSignal): Promise<ArrayBuffer> {
-  const total = Number(res.headers.get('content-length')) || 0;
+  // A compressed response's Content-Length counts the encoded bytes, not the ones read:
+  // no honest fraction then, so no progress (the readout shows a plain "loading").
+  const total = res.headers.get('content-encoding') ? 0 : Number(res.headers.get('content-length')) || 0;
   if (!res.body || !total) return res.arrayBuffer();
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -79,8 +81,14 @@ export async function createOrchestraEngine(opts: OrchestraEngineOpts): Promise<
 
   const synth = new WorkletSynthesizer(ac);
   synth.connect(destination);
-  await synth.soundBankManager.addSoundBank(bank, 'orchestra');
-  await synth.isReady;
+  try {
+    await synth.soundBankManager.addSoundBank(bank, 'orchestra');
+    await synth.isReady;
+  } catch (err) {
+    synth.disconnect();
+    synth.destroy();
+    throw err;
+  }
   if (signal.aborted) {
     synth.destroy();
     return { resource: null, reason: 'aborted' };
