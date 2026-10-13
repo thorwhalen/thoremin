@@ -53,8 +53,12 @@
  * {@link MAX_VFC_CALLBACKS_WITHOUT_RISE} of them in a row the animation loop is handed
  * delivery outright. On that loop a wall-clock `currentTime` makes every animation frame
  * look new, so it delivers no closer than {@link RAF_SPACING_FRACTION} of the camera
- * period the callbacks taught it (the default period while a registered callback has not
- * spoken yet): one frame per camera frame, not per animation frame.
+ * period the callbacks taught it: one frame per camera frame, not per animation frame.
+ * Before a period is learned (startup; a counter frozen from its first callback) a
+ * registered callback that carries a counter, or has not fired yet, stands for a camera
+ * at the default period; that assumption lapses once the callback has been silent for
+ * {@link DEFAULT_SPACING_LAPSE_MS} (a hidden video on a browser that never fires it),
+ * since it would otherwise cap a 60 fps camera at 30 on the pre-#226 path for ever.
  *
  * {@link pickFrameStamp} is the pure decision and is unit-tested. A stamp says which
  * source it came from (`FrameTiming.tSource`), is strictly increasing by at least a
@@ -147,6 +151,10 @@ export const MAX_VFC_CALLBACKS_WITHOUT_RISE = 3;
  *  (floating point, vsync jitter) and so halve the rate; three quarters lets the first
  *  animation frame at or past the period through and none nearer. */
 export const RAF_SPACING_FRACTION = 0.75;
+/** How long (ms) a registered callback may stay silent before the animation loop stops
+ *  assuming the default camera period and delivers every change of `currentTime`: the
+ *  silence floor, the same patience the callback gets as a driver. */
+export const DEFAULT_SPACING_LAPSE_MS = MIN_VFC_SILENCE_MS;
 
 const plausible = (candidate: number | undefined, nowMs: number): candidate is number =>
   typeof candidate === 'number' &&
@@ -268,8 +276,11 @@ export function createFramePump(
   let lastPresented = NaN;
   /** Callbacks in a row that reported `lastPresented` again (a frozen counter). */
   let callbacksWithoutRise = 0;
-  /** Whether any callback has fired for the current element (the startup spacing ends). */
-  let vfcSpoke = false;
+  /** The clock at the callback's registration on this source, then at each callback: how
+   *  recently it showed any sign of being wired at all (a frozen counter included). */
+  let vfcAliveMs = NaN;
+  /** Whether the last callback carried `presentedFrames`; null before any callback. */
+  let vfcCounted: boolean | null = null;
   /** A callback-path frame the consumer refused, offered again on the next animation frame. */
   let pending: { meta: VideoFrameMetadataLike; skipped: number } | null = null;
 
@@ -280,15 +291,16 @@ export function createFramePump(
   };
   const vfcDriving = (nowMs: number) => Number.isFinite(lastVfcMs) && nowMs - lastVfcMs <= vfcSilenceMs(vfcPeriodEw);
   /** How close two animation-frame deliveries may be (ms): a fraction of the camera
-   *  period the callbacks taught, the default period while a registered callback has not
-   *  spoken yet, and none at all where the callback is absent or reports no counter (the
-   *  pre-#226 path: every change of `currentTime` is a frame). */
-  const rafSpacingMs = () => {
+   *  period the callbacks taught; of the default period while a registered callback that
+   *  carries a counter (or has not fired yet) has taught none and was heard from within
+   *  the lapse; none at all where the callback is absent, reports no counter, or has gone
+   *  quiet past the lapse (the pre-#226 path: every change of `currentTime` is a frame). */
+  const rafSpacingMs = (nowMs: number) => {
     if (Number.isFinite(vfcPeriodEw)) return RAF_SPACING_FRACTION * vfcPeriodEw;
-    if (vfcId !== null && !vfcSpoke) return RAF_SPACING_FRACTION * DEFAULT_FRAME_PERIOD_MS;
-    return 0;
+    const wired = vfcId !== null && vfcCounted !== false && nowMs - vfcAliveMs <= DEFAULT_SPACING_LAPSE_MS;
+    return wired ? RAF_SPACING_FRACTION * DEFAULT_FRAME_PERIOD_MS : 0;
   };
-  const rafMayDeliver = (nowMs: number) => !Number.isFinite(lastDeliveryMs) || nowMs - lastDeliveryMs >= rafSpacingMs();
+  const rafMayDeliver = (nowMs: number) => !Number.isFinite(lastDeliveryMs) || nowMs - lastDeliveryMs >= rafSpacingMs(nowMs);
 
   /** Hand a frame to inference; false when the consumer refused it. */
   const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined, skipped: number): boolean => {
@@ -330,20 +342,22 @@ export function createFramePump(
     vfcPeriodEw = NaN;
     lastPresented = NaN;
     callbacksWithoutRise = 0;
-    vfcSpoke = false;
+    vfcAliveMs = NaN;
+    vfcCounted = null;
     pending = null;
   };
 
   /** The callback: the driver where it reports `presentedFrames`, a side channel elsewhere. */
   const onVideoFrame = (v: HTMLVideoElement & VideoFrameCallbackTarget, meta: VideoFrameMetadataLike) => {
     latestMeta = meta;
-    vfcSpoke = true;
+    vfcAliveMs = now();
     const presented = typeof meta.presentedFrames === 'number' && Number.isFinite(meta.presentedFrames) ? meta.presentedFrames : NaN;
-    if (!Number.isFinite(presented)) {
+    vfcCounted = Number.isFinite(presented);
+    if (!vfcCounted) {
       learnFromLate(meta);
       return;
     }
-    const nowMs = now();
+    const nowMs = vfcAliveMs;
     const rise = Number.isFinite(lastPresented) ? presented - lastPresented : 1;
     if (rise === 0) {
       // A frozen counter: the callback fired and counted nothing. It is not a sign of
@@ -385,6 +399,7 @@ export function createFramePump(
     }
     if (vfcId !== null) return;
     vfcVideo = v;
+    if (!Number.isFinite(vfcAliveMs)) vfcAliveMs = now();
     vfcId = v.requestVideoFrameCallback((_cbNow, meta) => {
       vfcId = null;
       if (!running || vfcVideo !== v) return;

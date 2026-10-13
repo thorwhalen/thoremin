@@ -20,6 +20,7 @@ import {
   MIN_STAMP_STEP_MS,
   MIN_VFC_SILENCE_MS,
   MAX_VFC_CALLBACKS_WITHOUT_RISE,
+  DEFAULT_SPACING_LAPSE_MS,
   vfcSilenceMs,
   type FrameStamp,
   type VideoFrameMetadataLike,
@@ -562,6 +563,46 @@ describe('createFramePump on WebKit-shaped metadata', () => {
     v.video.currentTime += RAF_MS / 1000;
     s.tick();
     expect(got).toHaveLength(before + 1);
+    pump.stop();
+  });
+
+  it('a counter frozen from its first callback still yields at most one delivery per camera frame', () => {
+    // `presentedFrames` never rises (0 on every callback). No period is ever learned,
+    // so the loop can only assume a camera at the default period: it used to assume
+    // nothing once the callback had spoken and delivered on every animation frame (114
+    // for 60 camera frames).
+    const { got, pump } = webkitRun({ frames: 60, freezeCounterFrom: 1 });
+    expect(got.length).toBeLessThanOrEqual(60);
+    expect(got.length).toBeGreaterThanOrEqual(60 - MAX_VFC_CALLBACKS_WITHOUT_RISE - 1);
+    expect(got.filter((g) => g.source === 'capture')).toHaveLength(1);
+    for (let i = 2; i < got.length; i++) expect(got[i].tMs - got[i - 1].tMs).toBeGreaterThanOrEqual(0.75 * CAM_MS - 0.01);
+    expect(pump.driver).toBe('raf');
+    pump.stop();
+  });
+
+  it('a registered callback that never fires stops spacing the loop after the silence floor: a 60 fps camera delivers 60', () => {
+    // A hidden video on a browser that never fires the callback for it, with no counter
+    // ever seen: the default-period spacing used to hold for ever and capped a 60 fps
+    // camera at 30 (59 delivered for 120).
+    const video: FakeVideo = { readyState: 4, videoWidth: 640, currentTime: 0, requestVideoFrameCallback: () => 1, cancelVideoFrameCallback: () => {} };
+    const s = scheduler();
+    let clock = 1000;
+    const got: FrameStamp[] = [];
+    const pump = createFramePump(() => video as unknown as HTMLVideoElement, (stamp) => void got.push(stamp), {
+      now: () => clock,
+      requestAnimationFrame: s.raf,
+      cancelAnimationFrame: s.caf,
+    });
+    pump.start();
+    for (let i = 0; i < 120; i++) {
+      video.currentTime = i / 60;
+      clock = 1000 + i * RAF_MS;
+      s.tick();
+    }
+    // Only the frames within the lapse after registration are spaced at the default period.
+    expect(got.length).toBeGreaterThanOrEqual(120 - Math.ceil(DEFAULT_SPACING_LAPSE_MS / RAF_MS) / 2 - 1);
+    expect(got.length).toBeLessThanOrEqual(120);
+    expect(got.every((g) => g.source === 'clock')).toBe(true);
     pump.stop();
   });
 
