@@ -19,8 +19,8 @@
  * the coarser (a seed taken from the first gap alone reads a 33 / 67 stream as a 50 ms
  * camera, and the bend then looks like jitter; a 60 fps camera paced by inference shows
  * gaps of two and three frames, so the lattice is finer than any gap). Once found, the
- * fitted slope carries the index forward, and the
- * search runs again only when the residual says the line is bent.
+ * fitted slope carries the index forward, and the search runs again on every frame;
+ * the carried lattice is kept unless it is bent or the search beats it clearly.
  *
  * WHY THE GATE EXISTS. A capture stamp (`tSource: 'capture'`) is the camera's own time
  * for THAT frame, and an irregular camera reported truthfully is what #225 / #226 made
@@ -76,26 +76,27 @@ export const DEJITTER_MIN_JITTER_MS = 1;
 /** The smallest step between two output stamps (ms): MediaPipe works in whole
  *  milliseconds and requires them to increase. The same as the pump's step. */
 export const DEJITTER_MIN_STEP_MS = 1;
-/** The smallest gap of a run may itself be several periods: a 60 fps camera paced by a
- *  45 ms inference shows gaps of two and three frames and never one. The lattice search
- *  reaches down to this many periods per smallest gap. */
+/** The lattice search seeds the camera's period from this quantile of the run's gaps: a
+ *  low one, because a skipped frame only ever makes a gap LONGER (a 33 / 67 ms pacing
+ *  has its 20th percentile at 33), while noise spreads the gaps both ways. */
+export const LATTICE_SEED_QUANTILE = 0.2;
+/** The seed may itself be several camera periods: a 60 fps camera paced by a 45 ms
+ *  inference shows gaps of two and three frames and never one. The search tries the seed
+ *  divided by 1, 2, ... up to this, coarsest first. */
 export const LATTICE_MAX_FRAMES_PER_GAP = 4;
-/** Candidate periods run from this fraction of the smallest gap over the frames per gap
- *  (noise makes the smallest gap read short) up to this much above the median gap (the
- *  camera's period is never above it). */
-export const LATTICE_SPAN = { belowMin: 0.8, aboveMedian: 1.1 };
-/** Consecutive candidate periods differ by this ratio: a 4 % step keeps every gap's
- *  index right at the true lattice's neighbours (a gap of four periods tolerates 12 %),
- *  so the fitted slope then lands on the period exactly. */
-export const LATTICE_STEP_RATIO = 1.04;
-/** Two lattices whose residuals are within this fraction of each other are a tie, and
- *  the coarser one (the larger period) wins: a half-period lattice fits any stream as
- *  well as the true one, with every index doubled. */
+/** Re-index against the fitted period at most this many times per candidate. */
+export const LATTICE_REFINE_PASSES = 3;
+/** A fit whose residual exceeds this fraction of its period is not the camera's lattice:
+ *  either the indices are wrong (a 33 / 50 ms pacing read on a 33 ms lattice, where every
+ *  50 ms gap rounds to one step or two at random), or the period is finer than the noise
+ *  and the indices absorbed it (that leaves about a quarter of a period). 4 ms of noise
+ *  on a 33 ms camera is 0.12, 2 ms on a 17 ms one the same. With no candidate under it
+ *  the run passes through unchanged: 4 ms of noise on a 60 fps camera cannot be told from
+ *  the camera's own grid. */
+export const LATTICE_MAX_RELATIVE_RESIDUAL = 0.15;
+/** The carried lattice is replaced when a fresh search explains the run with a residual
+ *  this much smaller (ms): a fraction, so a near-tie keeps the lattice in hand. */
 export const LATTICE_TIE_FRACTION = 0.1;
-/** A fit whose residual sd exceeds this fraction of its period is BENT (indices wrong,
- *  or the camera changed): the lattice is searched again. 4 ms of noise on a 33 ms
- *  camera is 0.12; a 33 / 67 stream indexed as one step each leaves 0.34. */
-export const BENT_FRACTION = 0.25;
 /** The sources the de-jitter may engage on: clock readings, not the camera's time. A
  *  `presentation` stamp is the compositor's own time for that frame (a measurement,
  *  jittered or not), so it passes through like a capture stamp. */
@@ -187,28 +188,51 @@ function fitLine(indices: readonly number[], stamps: readonly number[]): Fit | n
 }
 
 /** The index of every stamp on a lattice of `periodMs`: each gap over the period,
- *  rounded, never less than one step. */
+ *  rounded, never less than one step. Gap by gap, so a candidate a little off the camera's
+ *  period never drifts by a whole period over the window. */
 function indexOnLattice(stamps: readonly number[], periodMs: number): number[] {
   const out = [0];
   for (let k = 1; k < stamps.length; k++) out.push(out[k - 1] + Math.max(1, Math.round((stamps[k] - stamps[k - 1]) / periodMs)));
   return out;
 }
 
-/** The lattice that explains the run best: the candidate period whose indexing leaves
- *  the smallest residual, ties going to the coarser lattice. */
+/** A candidate period's lattice: index the run, fit, and re-index on the fitted period
+ *  (which corrects the candidate's own error) until the indices settle. */
+function latticeFit(stamps: readonly number[], periodMs: number): { indices: number[]; fit: Fit } | null {
+  let indices = indexOnLattice(stamps, periodMs);
+  let fit = fitLine(indices, stamps);
+  for (let pass = 0; fit && pass < LATTICE_REFINE_PASSES; pass++) {
+    const next = indexOnLattice(stamps, fit.slope);
+    if (next.every((v, k) => v === indices[k])) break;
+    indices = next;
+    fit = fitLine(indices, stamps);
+  }
+  return fit ? { indices, fit } : null;
+}
+
+/** Whether `a` explains the run clearly better than `b`, in ms; see {@link LATTICE_TIE_FRACTION}.
+ *  The exact term keeps floating-point dust from separating two exact fits. */
+const clearlyBetter = (a: Fit, b: Fit) => a.residualSd < (1 - LATTICE_TIE_FRACTION) * b.residualSd - 1e-9 * b.slope;
+
+/** Whether a fit is the camera's lattice; see {@link LATTICE_MAX_RELATIVE_RESIDUAL}. */
+const admissible = (f: Fit) => f.residualSd <= LATTICE_MAX_RELATIVE_RESIDUAL * f.slope;
+
+/** The camera's lattice under the run: the seed period (a low quantile of the gaps) over
+ *  1, 2, ... frames per seed; of the admissible ones, the smallest residual, a near-tie
+ *  keeping the coarser (a sub-multiple of the camera's lattice fits as well as the lattice
+ *  itself, every index doubled; and a 33 / 50 ms pacing read as one and two steps of 28 ms
+ *  leaves a small sawtooth that only the 17 ms lattice removes). A handful of candidates, not a
+ *  scan of periods: over a short window, among hundreds of periods finer than the noise,
+ *  one always fits by chance. Null when none is admissible. */
 function searchLattice(stamps: readonly number[]): { indices: number[]; fit: Fit } | null {
   const gaps = stamps.slice(1).map((t, k) => t - stamps[k]).filter((g) => g > 0);
   if (gaps.length < 2) return null;
   const sorted = gaps.slice().sort((a, b) => a - b);
-  const lo = (LATTICE_SPAN.belowMin * sorted[0]) / LATTICE_MAX_FRAMES_PER_GAP;
-  const hi = LATTICE_SPAN.aboveMedian * sorted[Math.floor(sorted.length / 2)];
+  const seed = sorted[Math.floor(LATTICE_SEED_QUANTILE * (sorted.length - 1))];
   let best: { indices: number[]; fit: Fit } | null = null;
-  // Coarsest first, so a tie keeps the larger period.
-  for (let period = hi; period >= lo; period /= LATTICE_STEP_RATIO) {
-    const indices = indexOnLattice(stamps, period);
-    const fit = fitLine(indices, stamps);
-    if (!fit) continue;
-    if (!best || fit.residualSd < (1 - LATTICE_TIE_FRACTION) * best.fit.residualSd) best = { indices, fit };
+  for (let frames = 1; frames <= LATTICE_MAX_FRAMES_PER_GAP; frames++) {
+    const cand = latticeFit(stamps, seed / frames);
+    if (cand && admissible(cand.fit) && (!best || clearlyBetter(cand.fit, best.fit))) best = cand;
   }
   return best;
 }
@@ -235,25 +259,25 @@ export function createStampDejitter(options: StampDejitterOptions = {}): StampDe
   let undo: { stamps: number[]; indices: number[]; runSource: DejitterStampSource | null; fit: Fit | null; lastOut: number; lastEngaged: boolean } | null = null;
 
   const snapshot = () => ({ stamps: stamps.slice(), indices: indices.slice(), runSource, fit, lastOut, lastEngaged });
-  const bent = (f: Fit) => f.residualSd > BENT_FRACTION * f.slope;
 
-  /** Fit the run: carry the index forward on the known lattice, or search for one. */
+  /** Fit the run: carry the index forward on the lattice in hand, and search afresh too;
+   *  the carried lattice stays while it is admissible and the search does not explain the
+   *  run clearly better (the first frames of a run can settle on a lattice the rest of it
+   *  refutes). The search is a handful of candidates over the window. */
   const refit = () => {
     if (stamps.length < minFrames) {
       fit = null;
       return;
     }
-    if (fit && !bent(fit)) {
+    let carried: Fit | null = null;
+    if (fit) {
       const n = stamps.length;
       indices[n - 1] = indices[n - 2] + Math.max(1, Math.round((stamps[n - 1] - stamps[n - 2]) / fit.slope));
-      const carried = fitLine(indices, stamps);
-      if (carried && !bent(carried)) {
-        fit = carried;
-        return;
-      }
+      carried = fitLine(indices, stamps);
     }
     const found = searchLattice(stamps);
-    if (found) ({ indices, fit } = found);
+    if (carried && admissible(carried) && !(found && clearlyBetter(found.fit, carried))) fit = carried;
+    else if (found) ({ indices, fit } = found);
     else fit = null;
   };
 
