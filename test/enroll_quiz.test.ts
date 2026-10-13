@@ -28,6 +28,13 @@ describe('quizOrder', () => {
       for (let i = 1; i < order.length; i++) expect(order[i]).not.toBe(order[i - 1]);
     }
     expect(quizOrder(['solo'])).toEqual(['solo', 'solo']);
+    // Any repeat count and size: never twice in a row when an order without it exists (review:
+    // the swap-based fix-up left some).
+    for (let run = 0; run < 3000; run++) {
+      const n = 2 + (run % 6);
+      const order = quizOrder(Array.from({ length: n }, (_, i) => `c${i}`), { repeats: 1 + (run % 4), random });
+      for (let i = 1; i < order.length; i++) expect(order[i]).not.toBe(order[i - 1]);
+    }
   });
 });
 
@@ -61,6 +68,19 @@ describe('createQuiz', () => {
     expect(b.timeToHitMs!).toBeGreaterThan(hitMs);
     expect(c).toMatchObject({ categoryId: 'wow', outcome: 'miss', timeToHitMs: null, confusedWith: 'smile' });
     expect(quiz.step()).toEqual({ kind: 'done', total: 3 });
+  });
+
+  it('a face already held when the prompt comes must be let go and found again (review)', () => {
+    const quiz = createQuiz(['smile', 'b']);
+    quiz.start(0);
+    // Smile made during the relax and held into the prompt: not a hit.
+    feed(quiz, 0, relaxMs + 1500, 'smile');
+    expect(quiz.trials()).toHaveLength(0);
+    // Let go, then made: found, timed from the prompt.
+    feed(quiz, relaxMs + 1500, relaxMs + 1700, null);
+    feed(quiz, relaxMs + 1700, relaxMs + 1700 + holdMs + 66, 'smile');
+    expect(quiz.trials()[0]).toMatchObject({ outcome: 'hit' });
+    expect(quiz.trials()[0].timeToHitMs!).toBeGreaterThan(1500);
   });
 
   it('a hold broken before a second is not a hit; a run begun before the deadline may finish', () => {
@@ -97,6 +117,13 @@ describe('createQuiz', () => {
 });
 
 describe('the everyday check', () => {
+  it('the face held as the check begins is not an accidental fire (review)', () => {
+    const check = createEverydayCheck({ durationMs: 60_000 });
+    check.start(0);
+    for (let t = 0; t < 60_000; t += 1000) check.push({ categoryId: 'smile' }, t);
+    expect(check.fires()).toEqual({});
+  });
+
   it('counts entries, never Neutral, only within its time, and flags the frequent ones', () => {
     const check = createEverydayCheck({ durationMs: 60_000 });
     const seq: (string | null)[] = [null, 'a', 'a', null, 'a', 'b', 'b', null, null, 'a'];

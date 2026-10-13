@@ -170,7 +170,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   const minRestFrames = options.minRestFrames ?? FACE_TAKE_DEFAULTS.minRestFrames;
   const minBurstFrames = Math.max(1, Math.floor(options.minBurstFrames ?? FACE_TAKE_DEFAULTS.minBurstFrames));
   /** The burst under way: where it came from, its name, its frames (the modality in view). */
-  let bursting: { from: 'faces' | 'paused'; label: string; t: number; frames: FeatureVector[] } | null = null;
+  let bursting: { label: string; t: number; frames: FeatureVector[] } | null = null;
   const labels = new Map<number, string>();
   const session = options.session ?? createSession();
   const modality = options.modality ?? faceModality;
@@ -214,14 +214,15 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       supports[index] = thin(b.frames.map((f) => keepOnly(modality, f)), supportFrames);
       if (b.label) labels.set(index, b.label);
       justTaken = true;
-      if (b.from === 'paused') session.endCue();
-    } else if (b.from === 'faces') {
+      if (phase === 'paused') session.endCue();
+    } else if (phase === 'faces') {
       segment++;
       const last = session.points().at(-1);
       session.beginCue(segmentCue(modality, segment), last ? { after: last.vector } : {});
     }
-    // Back where it began: capturing goes on in a new segment; paused stays paused, watching.
-    if (b.from === 'paused') watch = watching(false);
+    // Back where it is (a burst never outlives a pause or a resume, which end it first):
+    // capturing goes on in a new segment; paused stays paused, watching.
+    if (phase === 'paused') watch = watching(false);
     return took;
   };
 
@@ -253,6 +254,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       justTaken = false;
     },
     resume() {
+      if (bursting) endBurst();
       if (phase !== 'paused') return;
       watch = null;
       segment++;
@@ -328,7 +330,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       if (phase === 'faces') session.endCue();
       watch = null;
       justTaken = false;
-      bursting = { from: phase, label: label.trim(), t: tMs, frames: [] };
+      bursting = { label: label.trim(), t: tMs, frames: [] };
       return true;
     },
     endBurst: () => endBurst(),

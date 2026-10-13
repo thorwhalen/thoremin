@@ -233,17 +233,65 @@ describe('the quiz on a scripted synthetic face (#385 E7)', () => {
     const { s } = await savedCategorizer();
     const live = liveModel(s().working!, s().tuning);
     const smile = categoryFor(live, 'smile')!;
-    s().setTuning({ sizes: { [smile]: 2 } });
-    expect(s().tuning.sizes).toEqual({ [smile]: 2 });
+    const label = live.model.categories.find((c) => c.id === smile)!.label;
+    const size = (scale: number) => ({ sizes: { [smile]: { scale, label } } });
+    s().setTuning(size(2));
+    expect(s().tuning.sizes).toEqual({ [smile]: { scale: 2, label } });
     expect(liveModel(s().working!, s().tuning).model.categories.find((c) => c.id === smile)?.scale).toBe(2);
     // Back to 1 is no size at all (the default).
-    s().setTuning({ sizes: { [smile]: 1 } });
+    s().setTuning(size(1));
     expect(s().tuning.sizes).toEqual({});
-    s().setTuning({ sizes: { [smile]: 0.5 } });
+    s().setTuning(size(0.5));
     expect(await s().save('Mine')).toBe(true);
     const id = s().openId!;
     s().reset();
     await s().open(id);
-    expect(s().tuning.sizes).toEqual({ [smile]: 0.5 });
+    expect(s().tuning.sizes).toEqual({ [smile]: { scale: 0.5, label } });
+    // A renamed category is another category: the size no longer applies to it.
+    s().rename(smile, 'something else');
+    expect(liveModel(s().working!, s().tuning).model.categories.find((c) => c.id === smile)?.scale).toBeUndefined();
+  });
+});
+
+describe('a burst across a pause or a resume (review)', () => {
+  it('Resume while a burst from Pause is held: one hold for the burst, and capture goes on', async () => {
+    const store = createFaceSessionStore(sessionDeps());
+    const s = () => store.getState();
+    s().start();
+    const t0 = clock;
+    await until(t0, smileAt(0) - 300);
+    s().pause();
+    await until(t0, smileAt(0));
+    s().beginBurst();
+    await run(400);
+    const before = s().points;
+    // Space (Resume) with B still down: the burst ends as one hold, then capture resumes.
+    s().toggleCapture();
+    expect(s().phase).toBe('faces');
+    expect(s().burst).toBeNull();
+    expect(s().points).toBe(before + 1);
+    s().endBurst(); // the key's release, now a no-op
+    expect(s().points).toBe(before + 1);
+    // The next faces are still taken.
+    await until(t0, smileAt(1));
+    expect(s().points).toBeGreaterThan(before + 2);
+    await s().stop();
+    expect(s().phase).toBe('carved');
+  });
+
+  it('Stop with a burst held keeps it as a hold', async () => {
+    const store = createFaceSessionStore(sessionDeps());
+    const s = () => store.getState();
+    s().start();
+    s().setBurstName('held');
+    const t0 = clock;
+    await until(t0, restMs + 2 * CYCLE);
+    s().beginBurst();
+    await run(400);
+    await s().stop();
+    expect(s().working!.categories.some((c) => c.label === 'held')).toBe(true);
+    // A new take starts with no name for its bursts.
+    s().reset();
+    expect(s().burstName).toBe('');
   });
 });

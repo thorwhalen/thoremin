@@ -121,7 +121,7 @@ describe("an open categorizer's checks", () => {
     });
     expect(test.getState().running).toBe(true);
     await run(200);
-    expect(document.querySelector('[data-faces-quiz="relax"]')?.textContent).toContain('Relax... next:');
+    expect(document.querySelector('[data-faces-quiz="relax"]')?.textContent).toContain('Relax...');
     act(() => {
       fireEvent.click(button('Stop the quiz')!);
     });
@@ -140,7 +140,7 @@ describe("an open categorizer's checks", () => {
     act(() => {
       fireEvent.change(document.querySelector('input[aria-label="Size of surprise"]')!, { target: { value: '1.5' } });
     });
-    expect(s().tuning.sizes).toEqual({ 'cat-3': 1.5 });
+    expect(s().tuning.sizes).toEqual({ 'cat-3': { scale: 1.5, label: 'surprise' } });
     act(() => test.getState().stop());
   });
 

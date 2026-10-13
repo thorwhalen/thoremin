@@ -223,6 +223,10 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
 
       retune(live) {
         if (!get().running) return;
+        // A check asks for categories by id and name: one whose categories changed (a re-cut, a
+        // rename, a merge) would ask for ids that can no longer be read, so it ends.
+        const key = (m: LiveModel) => m.model.categories.map((c) => `${c.id}\u0000${c.label}`).join('\u0001');
+        if ((quiz || everyday) && reader && key(reader.live) !== key(live)) get().stopCheck();
         reader = createLiveReader(live);
         lastPublish = -Infinity;
       },

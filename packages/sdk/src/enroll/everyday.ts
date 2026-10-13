@@ -6,7 +6,8 @@
  * bigger (a larger per-category size), to record bigger, or to merge.
  *
  * A fire is an ENTRY: the settled reading changing to a category it was not on (the tracker's
- * hysteresis already filters a one-frame flicker). Neutral and "none of these" never count.
+ * hysteresis already filters a one-frame flicker). Neutral and "none of these" never count, and
+ * neither does the category the first reading is already on (the face held as the check began).
  *
  * Pure and modality-free, on the caller's clock, like the quiz.
  */
@@ -33,18 +34,21 @@ export interface EverydayCheck {
 export function createEverydayCheck({ durationMs = EVERYDAY_DEFAULTS.durationMs }: { durationMs?: number } = {}): EverydayCheck {
   let t0: number | null = null;
   let current: string | null = null;
+  let primed = false;
   const fires: Record<string, number> = {};
   const over = (tMs: number) => t0 !== null && tMs - t0 >= durationMs;
   return {
     start(tMs) {
       t0 = tMs;
       current = null;
+      primed = false;
       for (const k of Object.keys(fires)) delete fires[k];
     },
     push(reading, tMs) {
       if (t0 === null || over(tMs)) return;
       const id = reading.categoryId;
-      if (id !== null && id !== current) fires[id] = (fires[id] ?? 0) + 1;
+      if (primed && id !== null && id !== current) fires[id] = (fires[id] ?? 0) + 1;
+      primed = true;
       current = id;
     },
     elapsedMs: (tMs) => (t0 === null ? 0 : Math.min(durationMs, Math.max(0, tMs - t0))),

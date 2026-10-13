@@ -251,8 +251,9 @@ export interface FaceSessionState {
   /** Step the working categorizer back to before the last edit (exactly), or forward again. */
   undo(): void;
   redo(): void;
-  /** Record a new take and merge it into the open categorizer (P1's `mergeSession`). */
-  startMerge(seed: MergeSeed): void;
+  /** Record a new take and merge it into the open categorizer (P1's `mergeSession`); `burstName`
+   *  names its bursts ("Record more frown"). */
+  startMerge(seed: MergeSeed, options?: { burstName?: string }): void;
   /** Open a categorizer from a file's text (validated, older versions migrated); not saved yet. */
   importFile(text: string): boolean;
   /** The categorizer shown, as a file's text (P1's versioned format): an open one, or a fresh
@@ -280,6 +281,8 @@ export const FACE_SESSION_DEFAULTS = {
   maxCategories: MAX_CATEGORY_SLOTS,
   /** A burst's frame count is shown in steps of this many. */
   burstShowStep: 5,
+  /** Frames into a burst its still is taken. */
+  burstStillAfter: 3,
 } as const;
 
 /** One step of the edit history: the working categorizer and how its names came about. */
@@ -304,6 +307,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let takeId: string | null = null;
   /** Holds of the take whose still was asked for (the take's point count, as last seen). */
   let stilled = 0;
+  /** The still of the burst under way (#385 E7), grabbed while the face is still being made (a
+   *  release is often the moment it changes); filed under the burst's hold id if it takes one. */
+  let burstStill: Promise<Blob | null> | null = null;
+  /** The latest live vector (where a still is cropped). */
+  let lastVector: FeatureVector | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
   /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
    *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
@@ -428,6 +436,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (live) {
           take.push(live.vector, live.t);
           bars?.push(modality.read(live.vector), live.t);
+          lastVector = live.vector;
+          // A burst's still: once a few frames in, from the frame showing now.
+          const b = take.burst();
+          if (b && !burstStill && frames && b.frames >= FACE_SESSION_DEFAULTS.burstStillAfter) burstStill = frames.grab(deps.region ? (size) => deps.region!({ vector: live.vector, ...size }) : null).catch(() => null);
           stillNewHolds(live.vector);
         }
         const tp = take.phase();
@@ -469,9 +481,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const id = holdId(tid, stilled);
         if (!frames) continue;
         const gen = generation;
-        const job = frames
-          .grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null)
-          .catch(() => null)
+        // A burst's hold has its still already (taken mid-burst); any other is taken now.
+        const grabbed = burstStill ?? frames.grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null).catch(() => null);
+        burstStill = null;
+        const job = grabbed
           .then((still) => {
             // Kept even if the take is no longer shown: the id is this hold's alone, and a merge
             // that ended a moment ago may be saved with it.
@@ -482,6 +495,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           .finally(() => pending.delete(job));
         pending.add(job);
       }
+    };
+    /** A burst just ended (released, or ended by a pause, a resume or Stop): its hold's still
+     *  filed under its id, or dropped when it took no hold. */
+    const afterBurst = () => {
+      if (!take || take.burst()) return;
+      if (lastVector) stillNewHolds(lastVector);
+      burstStill = null;
     };
     /** Every still being encoded, done. */
     const stillsTaken = () => Promise.all([...pending]);
@@ -531,6 +551,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       if (groups.length === 0) return { categorizer: c, named: [], error: null };
       const r = placeLabelled(c, groups, { neutralLabel: modality.words.neutral });
       if (!r.ok) return { categorizer: c, named: [], error: r.error };
+      // A name that is new makes a category: never past the most an instrument has chords for.
+      const grown = r.categorizer.categories.length > c.categories.length;
+      if (grown && r.categorizer.categories.length > FACE_SESSION_DEFAULTS.maxCategories) {
+        return { categorizer: c, named: [], error: `a new name would make more than ${FACE_SESSION_DEFAULTS.maxCategories} categories, the most an instrument has chords for` };
+      }
       const named = r.categorizer.categories.filter((cat) => groups.some((g) => g.label.toLowerCase() === cat.label.trim().toLowerCase())).map((cat) => cat.id);
       return { categorizer: r.categorizer, named, error: null };
     };
@@ -709,13 +734,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       pause() {
         if (get().phase !== 'faces' || !take) return;
         take.pause(deps.now());
-        set({ phase: 'paused', hold: take.hold() });
+        afterBurst();
+        set({ phase: 'paused', hold: take.hold(), burst: null, points: take.pointCount() });
       },
 
       resume() {
         if (get().phase !== 'paused' || !take) return;
         take.resume(deps.now());
-        set({ phase: 'faces', hold: take.hold() });
+        afterBurst();
+        set({ phase: 'faces', hold: take.hold(), burst: null, points: take.pointCount() });
       },
 
       toggleCapture() {
@@ -738,6 +765,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       endBurst() {
         if (!take || !take.burst()) return;
         const took = take.endBurst(deps.now());
+        afterBurst();
         set({
           burst: null,
           hold: take.hold(),
@@ -760,6 +788,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const hadStills = frames !== null;
         let built = false;
         try {
+          // A burst held through Stop is a hold like a released one, with its still.
+          if (myTake.burst()) {
+            myTake.endBurst(deps.now());
+            afterBurst();
+          }
           stopPolling();
           built = myTake.stop();
         } finally {
@@ -769,7 +802,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         mergeBase = null;
         if (merge) {
           openRecord = merge.record;
-          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, burst: null };
+          // The name a "Record more X" gave the bursts belongs to that take only.
+          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, burst: null, burstName: '' };
           // Back to the categorizer the take was adding to, its edit history and all.
           restoreEdits(merge.edits);
           showDoc(merge.working, { phase: 'saved', ...restore, dirty: merge.dirty });
@@ -1022,6 +1056,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         take = null;
         takeId = null;
         stilled = 0;
+        burstStill = null;
+        lastVector = null;
         fresh = null;
         baseRadius = undefined;
         sources = new Map();
@@ -1034,7 +1070,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         stills.clear();
         pending.clear();
         dropUrls();
-        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null });
+        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
       },
 
       cancelRecording() {
@@ -1053,6 +1089,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           name: merge.name,
           tuning: merge.tuning,
           checks: merge.checks,
+          burstName: '',
           dirty: merge.dirty,
           notice: 'The take was stopped before it finished. Nothing was merged.',
         });
@@ -1081,11 +1118,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         return edit((w) => moveSample(w, index, to));
       },
 
-      startMerge(seed) {
+      startMerge(seed, options = {}) {
         const { phase, working, openId, name, tuning, checks } = get();
         if (phase !== 'saved' || !working) return;
         mergeBase = { seed, working, record: openRecord, openId, name, tuning, checks, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius } };
         get().start();
+        // After the start (which resets): the take's bursts carry this name.
+        set({ burstName: options.burstName ?? '' });
       },
 
       importFile(text) {

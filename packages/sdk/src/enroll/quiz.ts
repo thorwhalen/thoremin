@@ -3,7 +3,9 @@
  * again, on demand? The tool names the categories in a random order, each a few times, with a
  * relax between, and watches the settled reading: a category entered within `hitMs` and held for
  * `holdMs` is a **hit**, one entered later (before `timeoutMs`) is **slow**, and one never held
- * is a **miss** (with what it read instead, the confusion a hint can act on).
+ * is a **miss** (with what it read instead, the confusion a hint can act on). The face must be
+ * FOUND: a run counts only once the reading has left the target since the prompt, so a face
+ * already held when the prompt comes is not a hit until it is let go and made again.
  *
  * Reproducibility is what the separation chips cannot see: two categories can be far apart in
  * the take and still be a face the player cannot find again tomorrow. MAGIC measured the same
@@ -67,27 +69,39 @@ export interface Quiz {
 }
 
 /**
- * The order: each id `repeats` times, shuffled by `random` (Fisher-Yates), then nudged so no id
- * is asked twice in a row where another order allows it (a repeat in a row tests holding, not
- * finding).
+ * The order: each id `repeats` times, in a random order (by `random`) with no id asked twice in
+ * a row whenever such an order exists (a repeat in a row tests holding, not finding). Built
+ * greedily: each step draws among the ids left (but the last), weighted by how many times each is
+ * left, except when one id is left so often that it must come now for the rest to be spaced.
  */
 export function quizOrder(ids: readonly string[], { repeats = QUIZ_DEFAULTS.repeats, random = Math.random }: { repeats?: number; random?: () => number } = {}): string[] {
+  const left = new Map<string, number>([...new Set(ids)].map((id) => [id, Math.max(1, Math.floor(repeats))]));
   const out: string[] = [];
-  for (let r = 0; r < Math.max(1, Math.floor(repeats)); r++) out.push(...ids);
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  const clashAt = (k: number) => (k > 0 && out[k] === out[k - 1]) || (k + 1 < out.length && out[k] === out[k + 1]);
-  for (let i = 1; i < out.length; i++) {
-    if (out[i] !== out[i - 1]) continue;
-    // Swap with the first later or earlier place that leaves neither spot next to its twin.
-    for (let j = 0; j < out.length; j++) {
-      if (out[j] === out[i]) continue;
-      [out[i], out[j]] = [out[j], out[i]];
-      if (!clashAt(i) && !clashAt(j)) break;
-      [out[i], out[j]] = [out[j], out[i]];
+  let rest = [...left.values()].reduce((a, b) => a + b, 0);
+  while (rest > 0) {
+    const last = out.at(-1);
+    const open = [...left.entries()].filter(([id, n]) => n > 0 && id !== last);
+    let pick: string;
+    if (open.length === 0) pick = last!;
+    else {
+      // An id left more than half of what remains must go now (else two of it end up adjacent).
+      const forced = open.find(([, n]) => 2 * n > rest);
+      if (forced) pick = forced[0];
+      else {
+        const total = open.reduce((a, [, n]) => a + n, 0);
+        let r = random() * total;
+        pick = open[open.length - 1][0];
+        for (const [id, n] of open) {
+          if ((r -= n) < 0) {
+            pick = id;
+            break;
+          }
+        }
+      }
     }
+    out.push(pick);
+    left.set(pick, left.get(pick)! - 1);
+    rest -= 1;
   }
   return out;
 }
@@ -117,6 +131,9 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
   let since = 0;
   let asking = false;
   let runStart: number | null = null;
+  /** Whether the reading has been off the target since this prompt began: a run may start only
+   *  then, so a face already held when the prompt came (made during the relax) is not a hit. */
+  let armed = false;
   let runVectors: FeatureVector[] = [];
   let others = new Map<string, number>();
   let lastT = 0;
@@ -128,6 +145,7 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
     asking = false;
     since = tMs;
     runStart = null;
+    armed = false;
     runVectors = [];
     others = new Map();
   };
@@ -151,9 +169,10 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
         if (tMs - since < o.relaxMs) return;
         asking = true;
         since = tMs;
+        armed = false;
       }
       const target = order[index];
-      if (reading.categoryId === target) {
+      if (reading.categoryId === target && armed) {
         if (runStart === null) {
           // A run must begin before the deadline; one under way may finish after it.
           if (tMs - since >= o.timeoutMs) return finish('miss', tMs, null);
@@ -167,9 +186,10 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
         }
         return;
       }
+      if (reading.categoryId !== target) armed = true;
       runStart = null;
       runVectors = [];
-      if (reading.categoryId !== null) others.set(reading.categoryId, (others.get(reading.categoryId) ?? 0) + 1);
+      if (reading.categoryId !== null && reading.categoryId !== target) others.set(reading.categoryId, (others.get(reading.categoryId) ?? 0) + 1);
       if (tMs - since >= o.timeoutMs) finish('miss', tMs, null);
     },
     step(tMs = lastT) {

@@ -20,7 +20,7 @@ import type { FaceTestState } from '../app/testStore';
 import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
 import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags, everydayResult } from '@thoremin/sdk/enroll/everyday';
-import { liveModel, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '../lib/live';
+import { liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '../lib/live';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -194,8 +194,8 @@ function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
             key={c.id}
             label={`Size of ${c.label || c.id}`}
             k="size"
-            value={t.sizes[c.id] ?? 1}
-            onChange={(v) => s.setTuning({ sizes: { ...t.sizes, [c.id]: v } })}
+            value={sizeOf(t, c)}
+            onChange={(v) => s.setTuning({ sizes: { ...t.sizes, [c.id]: { scale: v, label: c.label } } })}
             says=""
           />
         ))}
@@ -235,7 +235,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
     return (
       <div className="space-y-1" data-faces-quiz={step.kind}>
         <p className="text-base font-bold text-white" role="status" aria-live="polite">
-          {step.kind === 'ask' ? `Make: ${label(step.categoryId)}` : step.kind === 'relax' ? `Relax... next: ${label(step.next)}` : 'Starting...'}
+          {step.kind === 'ask' ? `Make: ${label(step.categoryId)}` : step.kind === 'relax' ? 'Relax...' : 'Starting...'}
         </p>
         {step.kind === 'ask' && (
           <span className="block h-1.5 overflow-hidden rounded bg-white/10" title="Held so far">
@@ -273,8 +273,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
                   className={btn}
                   onClick={() => {
                     t.stop();
-                    s.setBurstName(c.label);
-                    s.startMerge('samples');
+                    s.startMerge('samples', { burstName: c.label });
                   }}
                 >
                   {`Record more ${c.label || c.id}`}
