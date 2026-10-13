@@ -25,7 +25,7 @@ function deps(): FaceSessionDeps {
   return {
     source: () => ({ ...syntheticSource(() => clock), video: () => null }),
     thumbs: memoryThumbStore(),
-    grab: async (_blob, seconds) => seconds.map(() => new Blob(['still'], { type: 'image/jpeg' })),
+    frames: () => null,
     models: createFaceModelStore(createInMemoryProvider<FaceModelRecord>([], { idField: 'id', searchFields: ['name'] })),
     now: () => clock,
     pollMs: 33,

@@ -89,6 +89,8 @@ export const MAX_CATEGORIZER_SAMPLES = 2000;
 export const MAX_CATEGORIZER_FEATURES = 1024;
 /** The most supporting frames one sample may carry (#385 E3: a hold's dwell window, thinned). */
 export const MAX_SAMPLE_SUPPORT = 8;
+/** Decimal places a supporting frame keeps (blendshapes are 0..1, their jitter about 1e-3). */
+export const SUPPORT_DECIMALS = 5;
 
 const VectorSchema = z.record(z.string(), z.number());
 
@@ -99,10 +101,13 @@ const SampleSchema = z.object({
   vector: VectorSchema,
   t: z.number(),
   cue: z.string(),
-  /** Frames from the hold's dwell window (thinned), over the categorizer's features: more than
-   *  one vector per hold for a radius or a spread, while the carve still clusters one point per
-   *  hold. Evidence only: the derived model does not read them yet. */
-  support: z.array(VectorSchema).max(MAX_SAMPLE_SUPPORT).optional(),
+  /** Frames from the hold's dwell window (thinned): more than one vector per hold for a radius
+   *  or a spread, while the carve still clusters one point per hold. Each frame is a ROW aligned
+   *  with `features` (null where the feature was not measurable), rounded to
+   *  {@link SUPPORT_DECIMALS} places: keyed vectors would repeat every feature's name per frame
+   *  and multiply a saved record's size for evidence. An edit that changes `features` must
+   *  re-project or drop them. Evidence only: the derived model does not read them yet. */
+  support: z.array(z.array(z.number().nullable())).max(MAX_SAMPLE_SUPPORT).optional(),
 });
 
 const CategorizerCategorySchema = z.object({
@@ -158,6 +163,7 @@ export const PersonalCategorizerSchema = z
     c.samples.forEach((s, i) => {
       if (sampleIds.has(s.id)) issue(`sample id "${s.id}" is used twice`, ['samples', i, 'id']);
       sampleIds.add(s.id);
+      if (s.support?.some((row) => row.length !== c.features.length)) issue(`sample "${s.id}" has a supporting frame that is not one value per feature`, ['samples', i, 'support']);
     });
     // Every sample is in exactly one place: a category, neutral or aside.
     const placed = new Map<string, string>();
@@ -212,11 +218,13 @@ function finiteOnly(v: FeatureVector): FeatureVector {
 /** What a sample is made from: a still-point with its id, and its supporting frames. */
 export type SampleInput = Pick<StillPoint, 'vector' | 't' | 'cue'> & { id: string; support?: readonly FeatureVector[] };
 
-/** A still-point as a stored sample. `features`, when given, is what its support is kept over
- *  (a stored sample keeps every key of its own vector, but a few frames of every key would
- *  multiply the file for evidence only the distance features use). */
+const roundSupport = (x: number | undefined): number | null => (x !== undefined && Number.isFinite(x) ? Number(x.toFixed(SUPPORT_DECIMALS)) : null);
+
+/** A still-point as a stored sample. Its supporting frames are kept only given the
+ *  categorizer's `features` (they are stored as rows over them), at most
+ *  {@link MAX_SAMPLE_SUPPORT}. */
 export function toSample(p: SampleInput, features?: readonly string[]): CategorizerSample {
-  const support = p.support?.slice(0, MAX_SAMPLE_SUPPORT).map((f) => finiteOnly(features ? Object.fromEntries(features.filter((k) => k in f).map((k) => [k, f[k]])) : f));
+  const support = features ? p.support?.slice(0, MAX_SAMPLE_SUPPORT).map((f) => features.map((k) => roundSupport(f[k]))) : undefined;
   return { id: p.id, vector: finiteOnly(p.vector), t: Number.isFinite(p.t) ? p.t : 0, cue: p.cue, ...(support && support.length > 0 ? { support } : {}) };
 }
 
@@ -310,8 +318,21 @@ export function migrateCategorizerV1(doc: Record<string, unknown>, options: Migr
   void _k;
   const samples = Array.isArray(doc.samples) ? doc.samples : [];
   const idAt = (j: unknown): unknown => (typeof j === 'number' && Number.isInteger(j) && j >= 0 && j < samples.length ? idFor(j) : j);
+  // Version 1 allowed a category id that version 2 keeps for a bin: such a category is renamed.
+  const ids = new Set(Array.isArray(doc.categories) ? doc.categories.map((c) => (c && typeof c === 'object' ? (c as { id?: unknown }).id : undefined)) : []);
+  const unbinned = (id: unknown): unknown => {
+    if (id !== NEUTRAL_BIN && id !== ASIDE_BIN) return id;
+    let n = 1;
+    while (ids.has(`${id}-${n}`)) n++;
+    ids.add(`${id}-${n}`);
+    return `${id}-${n}`;
+  };
   const categories = Array.isArray(doc.categories)
-    ? doc.categories.map((c) => (c && typeof c === 'object' && Array.isArray((c as { members?: unknown }).members) ? { ...c, members: (c as { members: unknown[] }).members.map(idAt) } : c))
+    ? doc.categories.map((c) =>
+        c && typeof c === 'object' && Array.isArray((c as { members?: unknown }).members)
+          ? { ...c, id: unbinned((c as { id?: unknown }).id), members: (c as { members: unknown[] }).members.map(idAt) }
+          : c,
+      )
     : doc.categories;
   const claimed = new Set<number>();
   if (Array.isArray(doc.categories)) {
@@ -326,7 +347,7 @@ export function migrateCategorizerV1(doc: Record<string, unknown>, options: Migr
     ...rest,
     version: 2,
     strangers: reject ? 'neutral' : mode === 'partition' ? 'nearest' : mode,
-    samples: Array.isArray(doc.samples) ? samples.map((s, i) => (s && typeof s === 'object' ? { id: idFor(i), ...s } : s)) : doc.samples,
+    samples: Array.isArray(doc.samples) ? samples.map((s, i) => (s && typeof s === 'object' ? { ...s, id: idFor(i) } : s)) : doc.samples,
     categories,
     neutral: reject ? unclaimed : [],
     ...(!reject && unclaimed.length > 0 ? { aside: unclaimed } : {}),
@@ -407,11 +428,7 @@ export function importCategorizer(input: string | unknown, options: ImportOption
       ...d,
       samples: d.samples.map((s) =>
         s && typeof s === 'object' && 'vector' in s && s.vector && typeof s.vector === 'object'
-          ? {
-              ...s,
-              vector: finiteEntries(s.vector),
-              ...('support' in s && Array.isArray(s.support) ? { support: s.support.map((f: unknown) => (f && typeof f === 'object' ? finiteEntries(f) : f)) } : {}),
-            }
+          ? { ...s, vector: finiteEntries(s.vector) }
           : s,
       ),
     };

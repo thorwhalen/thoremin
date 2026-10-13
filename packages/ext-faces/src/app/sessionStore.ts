@@ -247,7 +247,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** A take id none of `samples`' ids is under (ids are random in the app; a test's clock-made
    *  ones could repeat), so a new hold never takes an old hold's id, or its still. */
   const freshTakeId = (samples: readonly { id: string }[]): string => {
-    const used = new Set(samples.map((x) => x.id.slice(0, x.id.lastIndexOf(':'))));
+    const used = new Set(samples.flatMap((x) => (x.id.includes(':') ? [x.id.slice(0, x.id.lastIndexOf(':'))] : [])));
     let tid = deps.newTakeId();
     for (let n = 2; used.has(tid); n++) tid = `${deps.newTakeId()}-${n}`;
     return tid;
@@ -273,6 +273,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       bars = null;
       withdraw?.();
       withdraw = null;
+    };
+
+    /** `reset`, keeping the stills taken this session: a merge's take (or its cancel) returns to
+     *  a working categorizer whose earlier merged holds have their pictures only in memory. */
+    const resetKeepingStills = () => {
+      const kept = [...stills];
+      get().reset();
+      for (const [id, b] of kept) stills.set(id, b);
     };
 
     /** The capture state the host's command sees (null when nothing is live). */
@@ -332,7 +340,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       if (gen !== generation) return;
       const thumbs: Record<number, string> = {};
       shownIds.forEach((id, i) => {
-        const url = urls.get(id);
+        let url = urls.get(id);
+        const still = url ? undefined : stills.get(id);
+        if (still) urls.set(id, (url = URL.createObjectURL(still)));
         if (url) thumbs[i] = url;
       });
       set({ thumbs });
@@ -353,9 +363,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           .grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null)
           .catch(() => null)
           .then((still) => {
-            if (gen !== generation || !still || stills.has(id)) return;
+            // Kept even if the take is no longer shown: the id is this hold's alone, and a merge
+            // that ended a moment ago may be saved with it.
+            if (!still || stills.has(id)) return;
             stills.set(id, still);
-            urls.set(id, URL.createObjectURL(still));
             show(gen);
           })
           .finally(() => pending.delete(job));
@@ -370,6 +381,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       let found = false;
       for (const id of new Set(ids)) {
         if (urls.has(id)) {
+          found = true;
+          continue;
+        }
+        if (stills.has(id)) {
           found = true;
           continue;
         }
@@ -433,8 +448,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     /** Delete the stills of `ids` that no saved record's samples name any more. */
     const dropStillsIfOrphaned = async (ids: readonly string[]) => {
       if (ids.length === 0) return;
-      const records = await Promise.all((await deps.models.list()).map((x) => deps.models.load(x.id)));
-      const named = new Set(records.flatMap((r) => r?.model.categorizer.samples.map((x) => x.id) ?? []));
+      const records = await Promise.all((await deps.models.list()).map((x) => deps.models.load(x.id).catch(() => null)));
+      // A record that cannot be read may name these holds: then nothing is deleted.
+      if (records.some((r) => r === null)) return;
+      const named = new Set(records.flatMap((r) => r!.model.categorizer.samples.map((x) => x.id)));
       const orphans = ids.filter((id) => !named.has(id));
       if (orphans.length > 0) await deps.thumbs.remove(orphans).catch(() => undefined);
     };
@@ -478,7 +495,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (isRecording(get().phase)) return;
         const merge = mergeBase;
         if (!exploring) {
-          get().reset();
+          if (merge) resetKeepingStills();
+          else get().reset();
           mergeBase = merge;
           source = deps.source();
           take = createFaceTake({ modality });
@@ -656,6 +674,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (phase !== 'carved' && phase !== 'saved') return false;
         const gen = generation;
         set({ saving: true });
+        /** The stills this save filed (removed again if the record is not saved). */
+        const filed: string[] = [];
         try {
           let categorizer: PersonalCategorizer;
           const working = get().working;
@@ -670,7 +690,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           if (gen !== generation) return false;
           for (const x of categorizer.samples) {
             const still = stills.get(x.id);
-            if (still) await deps.thumbs.put(x.id, still).catch(() => undefined);
+            if (still && (await deps.thumbs.put(x.id, still).then(() => true, () => false))) filed.push(x.id);
           }
           // Saving under a name that already exists replaces that record: its stills go too,
           // unless another record (or this one) still names their holds.
@@ -693,6 +713,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           await get().refreshSaved();
           return true;
         } catch (err) {
+          // The record was not saved: the stills filed for it go again, unless a record names them.
+          await dropStillsIfOrphaned(filed).catch(() => undefined);
           set({ notice: `Could not save: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
           return false;
         } finally {
@@ -713,7 +735,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         get().reset();
         openRecord = record;
-        showWorking(record.model.categorizer, { openId: id, name: record.name, tuning: clampTuning(record.model.tuning ?? {}), dirty: false });
+        showWorking(record.model.categorizer, { openId: id, name: record.name, hasStills: true, tuning: clampTuning(record.model.tuning ?? {}), dirty: false });
       },
 
       async remove(id) {
@@ -748,7 +770,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return;
         }
         // A merge take abandoned: back to the categorizer it was adding to, unsaved work and all.
-        get().reset();
+        resetKeepingStills();
         openRecord = merge.record;
         showWorking(merge.working, {
           openId: merge.openId,

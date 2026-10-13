@@ -318,6 +318,40 @@ describe('the adversarial review (#330 P3)', () => {
     for (const id of fresh) expect(await store_.get(id)).toBeNull();
   });
 
+  for (const second of ['merged', 'cancelled', 'empty'] as const) {
+    it(`two merges before Save (the second ${second}): every merged hold keeps its picture (#385 E3 review)`, async () => {
+      const store_ = memoryThumbStore();
+      const saved = models();
+      const frames = () => ({ grab: async () => new Blob(['still']), close: () => {} });
+      const store = createFaceSessionStore(sessionDeps({ thumbs: store_, models: saved, frames, source: () => ({ ...syntheticSource(() => clock), video: () => ({}) as MediaStream }) }));
+      const s = () => store.getState();
+      s().start();
+      await run(TAKE_MS);
+      await s().stop();
+      expect(await s().save('Mine')).toBe(true);
+      await s().open(s().saved[0].id);
+      s().startMerge('samples');
+      await run(TAKE_MS);
+      await s().stop();
+      const afterFirst = s().working!.samples.map((x) => x.id);
+      s().startMerge('samples');
+      if (second === 'merged') await run(TAKE_MS);
+      if (second === 'empty') await run(300);
+      if (second === 'cancelled') {
+        await run(500);
+        s().cancelRecording();
+      } else await s().stop();
+      expect(s().phase).toBe('saved');
+      // The first merge's holds still show their pictures, from memory.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(Object.keys(s().thumbs).length).toBeGreaterThan(0);
+      expect(await s().save('Mine')).toBe(true);
+      const ids = (await saved.load(s().openId!))!.model.categorizer.samples.map((x) => x.id);
+      expect(ids.slice(0, afterFirst.length)).toEqual(afterFirst);
+      for (const id of ids) expect(await store_.get(id), id).not.toBeNull();
+    });
+  }
+
   it('a record saved before #385 E3 (a version-1 file and a take id) opens with its stills where they were filed', async () => {
     const thumbs = memoryThumbStore();
     const provider = createInMemoryProvider<FaceModelRecord>([], { idField: 'id', searchFields: ['name'] });

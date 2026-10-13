@@ -407,18 +407,41 @@ describe('version 1 to version 2 (#385 E3)', () => {
     expect(out).not.toHaveProperty('mode');
   });
 
+  it('renames a version-1 category whose id is a bin\'s name, and ignores a stray sample id', () => {
+    const { points, model } = toyTake();
+    const v1 = v1Of(categorizerFromModel(model, points, { name: 'mine', mode: 'reject' }), 'reject');
+    const odd = {
+      ...v1,
+      samples: (v1.samples as object[]).map((x) => ({ ...x, id: 'stray' })),
+      categories: [
+        { id: 'neutral', label: 'rest', members: [0, 1, 2] },
+        { id: 'neutral-1', label: 'up', members: [3, 4] },
+      ],
+    };
+    const r = importCategorizer(odd);
+    expect(r.ok, r.ok ? '' : r.error).toBe(true);
+    if (r.ok) {
+      expect(r.categorizer.categories.map((c) => c.id)).toEqual(['neutral-2', 'neutral-1']);
+      expect(r.categorizer.samples.map((x) => x.id)).toEqual(['s-0', 's-1', 's-2', 's-3', 's-4', 's-5']);
+    }
+  });
+
   it('passes a malformed version 1 through for validation to name what is wrong', () => {
     const r = importCategorizer({ format: CATEGORIZER_FORMAT, version: 1, name: 'x', mode: 'reject', k: 1, features: ['x'], weights: {}, rejectRadius: 1, samples: 'nope', categories: [] });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/invalid categorizer: samples/);
   });
 
-  it('keeps a sample\'s supporting frames over the model\'s features only, and at most a few', () => {
+  it('keeps a sample\'s supporting frames as rows over the model\'s features, rounded, and at most a few', () => {
     const { points, model } = toyTake();
-    const frames = Array.from({ length: 12 }, (_, i) => ({ x: i, y: 1 - i, z: 7, w: NaN }));
+    const frames = Array.from({ length: 12 }, (_, i) => ({ x: i + 1 / 3, y: i === 1 ? NaN : 1 - i, z: 7 }));
     const c = categorizerFromModel(model, points.map((p, i) => ({ ...p, id: `t:${i}`, support: i === 0 ? frames : [] })), { name: 'mine', mode: 'reject' });
     expect(c.samples[0].support).toHaveLength(MAX_SAMPLE_SUPPORT);
-    expect(c.samples[0].support![1]).toEqual({ x: 1, y: 0 });
+    // [x, y] in the model's feature order; a value not measurable is null.
+    expect(c.samples[0].support![0]).toEqual([0.33333, 1]);
+    expect(c.samples[0].support![1]).toEqual([1.33333, null]);
+    // A row that is not one value per feature is refused.
+    expect(importCategorizer({ ...c, samples: c.samples.map((x, i) => (i === 0 ? { ...x, support: [[1]] } : x)) }).ok).toBe(false);
     expect(c.samples[1]).not.toHaveProperty('support');
     expect(importCategorizer(exportCategorizer(c))).toEqual({ ok: true, categorizer: c, migratedFrom: null });
     // An imported file may carry no more than the bound.

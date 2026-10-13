@@ -5,7 +5,8 @@
  * positions), the migration is lossless (version 2 maps back to the same version-1 document),
  * and a version-2 file round-trips through export and import unchanged. The shipped demo,
  * kept at version 1 as `fixtures/demo_smile.v1.categorizer.json`, migrates to exactly the
- * version-2 file the builder now ships.
+ * version-2 file the builder now ships. `fixtures/synthetic_partition.v1.categorizer.json` is a
+ * partition-mode version-1 file carved from the scripted face (made once, kept as data).
  */
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
