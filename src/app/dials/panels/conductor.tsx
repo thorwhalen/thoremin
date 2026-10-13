@@ -23,6 +23,7 @@ import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
 import { CONDUCTOR_HANDS, CONDUCTOR_POINTS, type ConductorDialParams } from '@/nodes/features/conductor';
+import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
 import { BUILTIN_PIECE, type ConductorSettings } from '@/settings/schema';
 import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type NamedSummary, type ScoreStore } from '@/score';
 
@@ -35,6 +36,12 @@ const POINT_LABEL: Record<ConductorDialParams['point'], string> = {
   wrist: 'wrist (steady)',
   indexTip: 'index fingertip (like a baton)',
 };
+/** The rhythm prior (#232), in the player's terms: what kind of tempo it follows best. */
+const PRIOR_LABEL: Record<RhythmPriorKind, string> = {
+  blend: 'steady and changing (default)',
+  oscillator: 'a steady beat (ignores strays)',
+  trend: 'a changing tempo (follows strays)',
+};
 
 let sharedStore: ScoreStore | null = null;
 const scoreStore = (): ScoreStore => (sharedStore ??= createScoreStore());
@@ -46,6 +53,7 @@ export function ConductorControls() {
   const hand = c.hand ?? 'auto';
   const point = c.point ?? 'wrist';
   const servo = c.servoBeats ?? 1;
+  const prior = (c.prior ?? DEFAULT_RHYTHM_PRIOR) as RhythmPriorKind;
   const piece = c.piece ?? BUILTIN_PIECE;
   const status = useScoreStatus();
   const [saved, setSaved] = useState<NamedSummary[]>([]);
@@ -160,12 +168,28 @@ export function ConductorControls() {
           onChange={(e) => dispatchDialSetIn('conductor.servoBeats', Number(e.target.value))}
         />
       </label>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Tempo sense
+        <select
+          className={selectCls}
+          value={prior}
+          disabled={!enabled}
+          onChange={(e) => dispatchDialSetIn('conductor.prior', e.target.value)}
+        >
+          {RHYTHM_PRIOR_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {PRIOR_LABEL[k]}
+            </option>
+          ))}
+        </select>
+      </label>
       <p className="text-[10px] leading-relaxed text-white/40">
         Beat time with your hand: the bottom of each stroke is a beat, stroke size is
         loudness, and the score follows your tempo. Stop beating and it holds. A short
         catch-up follows a conductor closely; a long one forgives a shaky beat. The
-        demo pieces are public domain or CC0 (see scores/LICENSES.md); a file you load
-        stays in this browser.
+        tempo sense takes effect the next time conducting is switched on. The demo
+        pieces are public domain or CC0 (see scores/LICENSES.md); a file you load stays
+        in this browser.
       </p>
     </div>
   );

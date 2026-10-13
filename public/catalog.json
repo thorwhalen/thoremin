@@ -964,7 +964,7 @@
   {
     "type": "conductor",
     "title": "Conductor",
-    "description": "The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.",
+    "description": "The beating hand becomes musical time: ictus detection + a rhythm prior (packages/ictus/src; the oscillator-trend blend by default) → beat, bpm, dynamics for the score. Off by default.",
     "roles": [
       "feature",
       "mapping"
@@ -1081,6 +1081,11 @@
         "name": "dynMax",
         "type": "number",
         "default": 1
+      },
+      {
+        "name": "prior",
+        "type": "enum(oscillator | trend | blend)",
+        "default": "blend"
       },
       {
         "name": "phaseGain",

@@ -38,6 +38,11 @@ describe('ConductorControls', () => {
     expect(hand.disabled).toBe(true);
     const point = screen.getByLabelText('Follow') as HTMLSelectElement;
     expect(point.disabled).toBe(true);
+    // The rhythm prior (#232): a chooser, the blend by default, disabled until on.
+    const prior = screen.getByLabelText('Tempo sense') as HTMLSelectElement;
+    expect(prior.disabled).toBe(true);
+    expect(prior.value).toBe('blend');
+    expect(Array.from(prior.options).map((o) => o.value)).toEqual(['oscillator', 'trend', 'blend']);
     // The copy says what happens when you stop beating (the hold state).
     expect(screen.getByText(/Stop beating and it holds/)).toBeTruthy();
   });
