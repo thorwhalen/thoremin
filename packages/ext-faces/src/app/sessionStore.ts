@@ -612,7 +612,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       correct(id, vector) {
         const working = get().working;
         if (get().phase !== 'saved' || !working) return false;
-        return applyCorrection(addSample(working, id, modalityOnly(vector), { t: deps.now() }));
+        return applyCorrection(addSample(working, id, modalityOnly(vector), { t: deps.now(), modality }));
       },
 
       move(index, to) {

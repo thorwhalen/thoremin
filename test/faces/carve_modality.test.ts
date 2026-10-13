@@ -26,7 +26,8 @@ describe('the seam: shared modules read no face module directly', () => {
   for (const file of SHARED) {
     it(`${file} imports no features/face_* module`, () => {
       const src = readFileSync(join(EXT, file), 'utf8');
-      const specifiers = [...src.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]);
+      // Static (`from '…'`, `import type`), side-effect (`import '…'`) and dynamic (`import('…')`), either quote.
+      const specifiers = [...src.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
       expect(specifiers.length).toBeGreaterThan(0);
       expect(specifiers.filter((s) => /features\/face_/.test(s))).toEqual([]);
     });

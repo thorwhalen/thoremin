@@ -47,7 +47,8 @@ export interface CarveModalityUi {
 }
 
 /** The claim owners of a modality's tool: the take's, and the live test's (its own, so ending a
- *  test never releases a recording's). */
+ *  test never releases a recording's). From `words.slug`, so the face keeps the owners it had
+ *  (`faces`, `faces-test`); design D.5's `carve:<modality>` naming would rename them. */
 export function carveOwners(modality: Pick<CarveModality, 'words'>): { carve: string; test: string } {
   const slug = modality.words.slug;
   return { carve: slug, test: `${slug}-test` };

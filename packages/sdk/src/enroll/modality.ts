@@ -40,7 +40,8 @@ export type GeneralLabeling = Omit<LabelMatchOptions, 'fallback' | 'keepExisting
 
 /** Per-read options a modality may honour (hands: which hand). */
 export interface ModalityOptions {
-  /** A hand modality's side: `left`, `right`, `either` (ignored by the face). */
+  /** A hand modality's side: `left`, `right`, `either`, or `both` as one joint vector (ignored
+   *  by the face). */
   hand?: 'left' | 'right' | 'either' | 'both';
 }
 
@@ -55,7 +56,9 @@ export interface CarveModality {
   collects(): { groups: string[]; omit: string[] };
   /** The modality's vector from the merged live vector, or null when the part is not in view. */
   read(merged: FeatureVector, options?: ModalityOptions): FeatureVector | null;
-  /** Whether a key belongs to this modality (what a stored sample keeps). */
+  /** Whether a merged-vector key belongs to this modality (what a stored sample keeps, and
+   *  what an imported file's features must include). Keys are the merged vector's: a modality
+   *  whose `read` renames keys (a side-relative hand) must say so before E8 stores them. */
   keep(key: string): boolean;
   /** The general model that proposes names, if the modality has one. */
   general?(): GeneralLabeling;
@@ -72,7 +75,7 @@ export function keepOnly(modality: Pick<CarveModality, 'keep'>, vector: FeatureV
 
 /** A category label that names the modality's rest (case and spaces ignored). */
 export function isNeutralLabel(modality: Pick<CarveModality, 'words'>, label: string): boolean {
-  return label.trim().toLowerCase() === modality.words.neutral;
+  return label.trim().toLowerCase() === modality.words.neutral.trim().toLowerCase();
 }
 
 /**
