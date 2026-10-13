@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { replayNode } from '@thoremin/dag';
 import { categorizerFromModel, type PersonalCategorizer } from '@thoremin/sdk/enroll';
-import { ABSENT_EXPRESSION, DEFAULT_EXPRESSION_TO_DEGREE, EMOTIONS, type ExpressionScores } from '@thoremin/sdk/music/expression';
+import { ABSENT_EXPRESSION, DEFAULT_EXPRESSION_TO_DEGREE, EMOTIONS, readingName, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { diatonicTriad, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import type { FaceFrame } from '@thoremin/sdk/nodes/domain';
 import { createFaceTake } from '@thoremin/ext-faces/lib/take';
@@ -81,6 +81,17 @@ describe('a saved personal categorizer drives the face chords (the recorded face
     expect(smileChord).not.toBe(openChord);
     // Every reading carries the player's categories, by id and name.
     expect(read[SMILE[0]].personal?.ids).toEqual(categorizer.categories.map((c) => c.id));
+  });
+
+  it('a lost face reads as this categorizer\'s none of these, not the general model\'s neutral (#330 P6)', async () => {
+    const lost = [...frames.slice(0, 30), ...frames.slice(0, 5).map((f) => ({ ...f, present: false }))];
+    const { read, triads } = await playThrough(lost, play, dial('mine'));
+    for (const i of [30, 34]) {
+      expect(read[i].present).toBe(false);
+      expect(read[i].personal?.categorizer).toBe('mine');
+      expect(readingName(read[i])).toBe('none of these');
+      expect(triads[i]).toEqual([]);
+    }
   });
 
   it('the resting face is none of these, and plays silence (what neutral plays)', async () => {

@@ -26,7 +26,7 @@
 import { matchLabels } from '@thoremin/sdk/enroll/match';
 import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { generalFaceLabeling } from '@thoremin/sdk/features/face_labels';
-import { EMOTIONS, type Emotion, type ExpressionLabel, type ExpressionScores } from '@thoremin/sdk/music/expression';
+import { ABSENT_EXPRESSION, EMOTIONS, type Emotion, type ExpressionLabel, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { fullMean, NEUTRAL_LABEL } from './carving';
 import { liveModel, type LiveModel, type Tuning } from './live';
 
@@ -89,6 +89,22 @@ export function standsForOf(categorizer: PersonalCategorizer): ExpressionLabel[]
 export function categorizerPlay(record: { id: string; name: string; categorizer: PersonalCategorizer; tuning?: Partial<Tuning> }): FaceCategorizerPlay {
   const live = liveModel(record.categorizer, record.tuning ?? {});
   return { id: record.id, name: record.name, live, standsFor: standsForOf(record.categorizer) };
+}
+
+/**
+ * No reading (no face, or too few of its features) from `play`'s categorizer: absent, and
+ * named as its own, so the readout says "none of these" rather than the general model's
+ * `neutral` (#330 P6).
+ */
+export function absentReading(play: FaceCategorizerPlay): ExpressionScores {
+  const cats = play.live.model.categories;
+  return {
+    ...ABSENT_EXPRESSION,
+    scores: cats.map(() => 0),
+    thresholds: cats.map(() => 0),
+    fired: cats.map(() => false),
+    personal: { categorizer: play.id, id: null, name: null, ids: cats.map((c) => c.id), names: cats.map((c) => c.label), standsFor: play.standsFor },
+  };
 }
 
 /**

@@ -169,6 +169,10 @@ describe('the general model is one categorizer', () => {
     expect(categorizerReading(legacy)).toEqual(generalReading('sad'));
     expect(readingName({ label: 'neutral' })).toBe('neutral');
     expect(readingName(ABSENT_EXPRESSION)).toBe('neutral');
+    // An absent reading carries no categorizer of its own, so a producer spreading it and
+    // setting a label is read by that label.
+    expect(ABSENT_EXPRESSION.personal).toBeUndefined();
+    expect(readingName({ ...ABSENT_EXPRESSION, label: 'sad' })).toBe('sad');
     // A player's categorizer keeps its own "none of these".
     expect(readingName({ label: 'neutral', personal: { id: null, name: null, ids: ['cat-1'], names: ['smile'], standsFor: ['happy'] } })).toBe('none of these');
   });

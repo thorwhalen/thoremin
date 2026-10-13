@@ -428,7 +428,6 @@ export const ABSENT_EXPRESSION: ExpressionScores = {
   scores: EMOTIONS.map(() => 0),
   thresholds: EMOTIONS.map(() => 0),
   fired: EMOTIONS.map(() => false),
-  personal: generalReading('neutral'),
 };
 
 // ---- Confusion-aware expression → scale-degree assignment -----------------

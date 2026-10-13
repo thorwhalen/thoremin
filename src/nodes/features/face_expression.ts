@@ -115,7 +115,7 @@ export const faceExpressionNode = defineNode<Params>({
           ema(zeroActivations());
           committed = 'neutral';
           leaveCount = 0;
-          return { expression: { ...ABSENT_EXPRESSION } };
+          return { expression: { ...ABSENT_EXPRESSION, personal: generalReading('neutral') } };
         }
 
         ema(expressionActivations(face.blendshapes));

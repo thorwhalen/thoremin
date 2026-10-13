@@ -29,7 +29,7 @@ import { hasReading } from '@thoremin/sdk/enroll/bind';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { ABSENT_EXPRESSION, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { DISTANCE_PROXIES, LIVE_DEFAULTS, tuneVector } from '../lib/live';
-import { toExpressionScores, type FaceCategorizerPlay } from '../lib/play';
+import { absentReading, toExpressionScores, type FaceCategorizerPlay } from '../lib/play';
 import { ownDegrees, type FaceCategorizerDial } from '../schema';
 
 const Params = z.object({
@@ -86,7 +86,7 @@ export const faceCategorizerNode = defineNode<Params>({
       if (play === current) return;
       current = play;
       lastFrame = undefined;
-      lastExpression = ABSENT_EXPRESSION;
+      lastExpression = play ? absentReading(play) : ABSENT_EXPRESSION;
       tracker = play
         ? createCategoryTracker(play.live.model, {
             temperature: play.live.temperature,
@@ -100,14 +100,15 @@ export const faceCategorizerNode = defineNode<Params>({
 
     /** One camera frame read by the current model: absent without a face or its features. */
     const read = (frame: FaceFrame | undefined): ExpressionScores => {
-      if (!current || !tracker || !frame || !frame.present) return ABSENT_EXPRESSION;
+      if (!current || !tracker) return ABSENT_EXPRESSION;
+      if (!frame || !frame.present) return absentReading(current);
       const fctx = buildFaceCtx(frame);
       const vector: FeatureVector = {};
       for (const f of features) {
         const v = f.compute(fctx);
         if (Number.isFinite(v)) vector[f.id] = v;
       }
-      if (!hasReading(current.live.model, vector, p.minPresent)) return ABSENT_EXPRESSION;
+      if (!hasReading(current.live.model, vector, p.minPresent)) return absentReading(current);
       return toExpressionScores(current, tracker.push(tuneVector(current.live, vector)));
     };
 
