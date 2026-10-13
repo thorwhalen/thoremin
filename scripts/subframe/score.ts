@@ -4,6 +4,7 @@
  *   npx vite-node scripts/subframe/score.ts [--set DIR] [--noise 0,1,2] [--min-lead 0,0.03,0.06]
  *                                           [--magnetism 0.5,1] [--out results.json] [--limit N]
  *                                           [--fps 15] [--infer 0.045] [--poll 60] [--dejitter line]
+ *                                           [--predict-opts '{"airReference":"vertex"}']
  *
  * For every clip (see `gen_clip_sets.py`) the impact keypoint's observation stream is
  * read from `keypoints.ndjson`, optionally corrupted with seeded Gaussian tracker
@@ -104,6 +105,9 @@ const POLL = Number(arg('poll', '0'));
 const DEJITTER = arg('dejitter', 'off') as 'off' | 'clamp' | 'line';
 if (!['off', 'clamp', 'line'].includes(DEJITTER)) throw new Error(`--dejitter must be off, clamp or line, got ${DEJITTER}`);
 const OUT = arg('out', join(SET, 'results.json'));
+/** Extra `createImpactPredictor` options for every predictor run (JSON), so a variant
+ *  is scored against the shipped defaults without editing them. */
+const PREDICT_OPTS = JSON.parse(arg('predict-opts', '{}')) as ImpactPredictorOptions;
 /** An estimate further than this from every truth event is spurious (seconds). */
 const MATCH_WINDOW = 0.12;
 /** The rhythm priors scored on the intent axis: the oscillator (the v1 prior), the
@@ -258,7 +262,7 @@ interface PredictorRun {
 }
 
 function runPredictor(samples: Sample[], opts: ImpactPredictorOptions, magnetisms: number[], priors: Record<string, () => RhythmPrior>): PredictorRun {
-  const pred = createImpactPredictor({ minAmplitude: 12, ...opts });
+  const pred = createImpactPredictor({ minAmplitude: 12, ...PREDICT_OPTS, ...opts });
   const minLead = opts.minLead ?? 0.03;
   const live = Object.fromEntries(Object.entries(priors).map(([k, mk]) => [k, mk()]));
   const names = Object.keys(live);
@@ -502,7 +506,7 @@ const byAxis = (estimator: string, noise: number, minLead: number, axis: Axis) =
   aggregate((r) => r.estimator === estimator && r.noise === noise && r.minLead === minLeadOf(estimator, minLead), (r) => String(axesOf(r.clip)[axis]));
 const ML = MIN_LEADS[Math.min(1, MIN_LEADS.length - 1)];
 
-const slow = [FPS > 0 ? `decimated to ${FPS} fps` : '', INFER > 0 ? `inference-paced at ${Math.round(1000 * INFER)} ms` : '', POLL > 0 ? `polled at ${POLL} Hz` : '', DEJITTER !== 'off' ? `de-jitter ${DEJITTER}` : ''].filter(Boolean).join(', ');
+const slow = [FPS > 0 ? `decimated to ${FPS} fps` : '', INFER > 0 ? `inference-paced at ${Math.round(1000 * INFER)} ms` : '', POLL > 0 ? `polled at ${POLL} Hz` : '', DEJITTER !== 'off' ? `de-jitter ${DEJITTER}` : '', Object.keys(PREDICT_OPTS).length ? `predictor ${JSON.stringify(PREDICT_OPTS)}` : ''].filter(Boolean).join(', ');
 const md: string[] = [`# Sub-frame impact estimators on \`${SET.split('/').pop()}\`${slow ? ` (${slow})` : ''}`, '', `${clips.length} clips; noise ${NOISES.join('/')} px; minLead ${MIN_LEADS.join('/')} s; magnetism ${MAGNETISMS.join('/')}. Errors are estimate minus truth in ms (negative = early); "vs grid" is against the INTENDED grid time; lead is impact minus commit time (negative = after the fact).`, ''];
 
 // 1. Headline: every estimator by kind, at each noise level, one minLead.
@@ -549,7 +553,7 @@ md.push(`Predictions committed on their first usable fit, no second fit agreeing
 const summary = md.join('\n');
 const cells: Record<string, CellStats> = {};
 for (const noise of NOISES) for (const est of [...BASELINES, ...PREDICTOR_FAMILY, ...PRIOR_FAMILY]) for (const ml of MIN_LEADS) for (const axis of ['kind', 'fps', 'exposure', 'timing', 'object'] as Axis[]) for (const [k, s] of byAxis(est, noise, ml, axis)) cells[`${est}|noise=${noise}|minLead=${minLeadOf(est, ml)}|${axis}=${k}`] = s;
-writeFileSync(OUT, JSON.stringify({ set: SET, noises: NOISES, minLeads: MIN_LEADS, magnetisms: MAGNETISMS, fps: FPS, infer: INFER, poll: POLL, dejitter: DEJITTER, clips: clips.map((c) => ({ name: c.name, axes: c.axes })), kindHits, cells, records }, null, 0));
+writeFileSync(OUT, JSON.stringify({ set: SET, predictOpts: PREDICT_OPTS, noises: NOISES, minLeads: MIN_LEADS, magnetisms: MAGNETISMS, fps: FPS, infer: INFER, poll: POLL, dejitter: DEJITTER, clips: clips.map((c) => ({ name: c.name, axes: c.axes })), kindHits, cells, records }, null, 0));
 writeFileSync(OUT.replace(/\.json$/, '.md'), summary);
 console.log(summary);
 console.error(`wrote ${OUT}`);

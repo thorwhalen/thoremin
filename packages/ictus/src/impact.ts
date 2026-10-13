@@ -90,10 +90,15 @@ export interface ImpactPredictorOptions {
    *  from rest. The kind in force is the majority of the last three strokes. */
   airBelowRebound?: number;
   /** The post-hoc reference an air stroke's floor and lag are learned from: the
-   *  vertex of the quadratic through the DEPARTURE samples (its velocity is zero at
-   *  the turn, so its vertex IS the turn; `departure`, default) or the vertex of the
-   *  three-sample parabola around the bottom (`vertex`, the shipped ictus detector's
-   *  estimate, biased late on a sharp-arrival slow-departure turn). */
+   *  vertex of the three-sample parabola around the bottom (`vertex`, default; the
+   *  shipped ictus detector's estimate, 2 to 4 ms late on a sharp-arrival
+   *  slow-departure turn) or the vertex of the quadratic through the DEPARTURE samples
+   *  (`departure`: its velocity is zero at the turn, so its vertex is the turn when
+   *  the samples are dense). At 24 and 30 fps three departure samples span 70 to
+   *  125 ms, past where a departure is still one quadratic: where its fit is accepted
+   *  it lands 10 to 35 ms early with a 21 to 28 ms spread, against the parabola's 5
+   *  to 7, and the lag learned from it carried that spread into every prediction
+   *  (#234, `docs/research/subframe-impact-prediction.md` §2.2 and §3.1.1). */
   airReference?: 'departure' | 'vertex';
   /** The lead the consumer needs, seconds, measured from the SAMPLE's time: a
    *  prediction is committed at the last sample that still leaves at least this
@@ -164,7 +169,7 @@ const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
   yDown: true,
   mode: 'auto',
   airBelowRebound: 0.5,
-  airReference: 'departure',
+  airReference: 'vertex',
   minLead: 0.03,
   minApproachSpeed: 0,
   minApproachSamples: 3,
