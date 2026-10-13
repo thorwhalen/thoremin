@@ -205,7 +205,7 @@ interface Fit {
  *  spread or a non-positive slope. */
 function fitLine(indices: readonly number[], stamps: readonly number[]): Fit | null {
   const line = olsLine(indices, stamps);
-  if (!line || !(line.slope > 0)) return null;
+  if (!line || !Number.isFinite(line.slope) || !(line.slope > 0)) return null;
   // Two parameters were fitted; the residual sd is over the remaining freedom.
   return { intercept: line.intercept, slope: line.slope, residualSd: Math.sqrt(line.rss / Math.max(1, line.n - 2)) };
 }

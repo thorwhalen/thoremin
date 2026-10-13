@@ -71,6 +71,7 @@
  * the caller's: every gate is relative to the player's own recent strokes and to the
  * online jitter estimate, as in `detector.ts`. Pure, causal, no clock.
  */
+import { clamp01, median, median3, olsLine, quantile } from '@thoremin/stats';
 import type { Sample } from './types';
 
 export type ImpactMode = 'surface' | 'air' | 'auto';
@@ -276,6 +277,10 @@ export interface Quadratic {
   rms: number;
 }
 
+/** Below this the normal equations' determinant is singular: the sample times have no
+ *  spread to fit a curve over. */
+const MIN_NORMAL_DET = 1e-18;
+
 /**
  * Least-squares quadratic `d(τ) = a + b τ + c τ²`, `τ = t - t0` (the origin is the
  * caller's choice, for conditioning). Null for fewer than three points or a
@@ -299,7 +304,7 @@ export function fitQuadratic(ts: readonly number[], ds: readonly number[], t0: n
   }
   const s0 = n;
   const det = s0 * (s2 * s4 - s3 * s3) - s1 * (s1 * s4 - s3 * s2) + s2 * (s1 * s3 - s2 * s2);
-  if (!Number.isFinite(det) || Math.abs(det) < 1e-18) return null;
+  if (!Number.isFinite(det) || Math.abs(det) < MIN_NORMAL_DET) return null;
   const a = (r0 * (s2 * s4 - s3 * s3) - s1 * (r1 * s4 - s3 * r2) + s2 * (r1 * s3 - s2 * r2)) / det;
   const b = (s0 * (r1 * s4 - s3 * r2) - r0 * (s1 * s4 - s3 * s2) + s2 * (s1 * r2 - r1 * s2)) / det;
   const c = (s0 * (s2 * r2 - r1 * s3) - s1 * (s1 * r2 - r1 * s2) + r0 * (s1 * s3 - s2 * s2)) / det;
@@ -312,28 +317,13 @@ export function fitQuadratic(ts: readonly number[], ds: readonly number[], t0: n
   return { a, b, c, rms: Math.sqrt(ss / n) };
 }
 
-/** Least-squares line `d(τ) = a + b τ` (as a degenerate {@link Quadratic}, c = 0). */
+/** Least-squares line `d(τ) = a + b τ` (as a degenerate {@link Quadratic}, c = 0): the
+ *  centred fit of `@thoremin/stats`, null when the times have no spread (its normal
+ *  determinant `n Σx² - (Σx)²` is `n` times the centred spread). */
 export function fitLine(ts: readonly number[], ds: readonly number[], t0: number): Quadratic | null {
-  const n = ts.length;
-  if (n < 2 || ds.length !== n) return null;
-  let sx = 0, sy = 0, sxx = 0, sxy = 0;
-  for (let i = 0; i < n; i++) {
-    const x = ts[i] - t0;
-    sx += x;
-    sy += ds[i];
-    sxx += x * x;
-    sxy += x * ds[i];
-  }
-  const det = n * sxx - sx * sx;
-  if (!Number.isFinite(det) || Math.abs(det) < 1e-18) return null;
-  const b = (n * sxy - sx * sy) / det;
-  const a = (sy - b * sx) / n;
-  let ss = 0;
-  for (let i = 0; i < n; i++) {
-    const e = ds[i] - (a + b * (ts[i] - t0));
-    ss += e * e;
-  }
-  return { a, b, c: 0, rms: Math.sqrt(ss / n) };
+  const line = olsLine(ts, ds, { origin: t0 });
+  if (!line || !(line.n * line.sxx >= MIN_NORMAL_DET)) return null;
+  return { a: line.intercept, b: line.slope, c: 0, rms: Math.sqrt(line.rss / line.n) };
 }
 
 const evalQ = (f: Quadratic, tau: number) => f.a + f.b * tau + f.c * tau * tau;
@@ -406,9 +396,6 @@ function vertexOf(t0: number, d0: number, t1: number, d1: number, t2: number, d2
   return { t: t1 + tau, d: evalQ(f, tau) };
 }
 
-const median3 = (a: number, b: number, c: number) => Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-
 /** Residuals kept for the jitter estimate. */
 const JITTER_WINDOW = 16;
 /** Recent sample gaps the commit deadline is read from, and the quantile it reads: the
@@ -418,11 +405,10 @@ const GAP_QUANTILE = 0.9;
 /** The fewest departure samples a floor can be learned from (a line fit). */
 const MIN_DEPARTURE_SAMPLES = 2;
 
-/** The `q` quantile of the recent gaps (NaN with none). */
+/** The `q` quantile of the recent gaps by nearest rank (a real gap, rounding the rank up),
+ *  NaN with none. */
 function gapQuantile(gaps: readonly number[], q: number): number {
-  if (!gaps.length) return NaN;
-  const sorted = [...gaps].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(q * sorted.length) - 1))];
+  return quantile(gaps, q, { index: 'nearestRank' });
 }
 
 /** The expected next gap: the `GAP_QUANTILE` quantile of the last `GAP_WINDOW` gaps
@@ -456,10 +442,7 @@ class JitterEstimator {
   }
   /** NaN until the first residual. */
   value(): number {
-    if (!this.ring.length) return NaN;
-    const s = [...this.ring].sort((a, b) => a - b);
-    const m = s.length >> 1;
-    return s.length % 2 ? s[m] : 0.5 * (s[m - 1] + s[m]);
+    return median(this.ring, { even: 'mean' });
   }
   reset(): void {
     this.ring.length = 0;
