@@ -251,6 +251,9 @@ function pickHand(frame: HandsFrame, cfg: Params): Hand | undefined {
   return frame.hands.find((h) => h.handedness === label);
 }
 
+/** The release of a fermata is a stroke at least this many periods after it was reached. */
+const FERMATA_RELEASE_PERIODS = 0.5;
+
 /** The body's start (#377): the tempo before the second stroke when the score marks none
  *  (the priors' initial tempo), and how far short of a whole beat the start waits. */
 const START_BPM = 100;
@@ -353,6 +356,12 @@ export const conductorNode = defineNode<Params>({
      *  NEW stroke — one more anchor — releases it). */
     let fermataAt: number | null = null;
     let fermataAnchors = 0;
+    /** When the fermata was reached, and the stroke period then: the release is a stroke
+     *  whose own time is at least half a period later. The stroke that LANDS on the fermata
+     *  is often confirmed after the beat got there (a stroke that ends in a stop is
+     *  confirmed late, #377); counting it as the release would play straight through. */
+    let fermataT = -Infinity;
+    let fermataPeriod = 0;
     /** The fermata last released: the beat still sits on it, and must not stop there again. */
     let fermataReleased: number | null = null;
     /** The hands frame seen on the previous tick: the same object again is not a new
@@ -381,10 +390,16 @@ export const conductorNode = defineNode<Params>({
      *  period: meanwhile the beat moves at the marked tempo and waits just short of the
      *  next stroke's beat for the second stroke (see `process`). */
     let startBeat: number | null = null;
+    /** The tempo of that interval when it is a release (the tempo before the hold); null at
+     *  a start (the marked tempo then). */
+    let startBpm: number | null = null;
     /** The beat at the last stroke the body's transport accepted, and whether the
      *  transport says the next stroke is overdue with the body still (`waiting`). */
     let strokeBeat: number | null = null;
     let waiting = false;
+    /** The tempo the beat last advanced at: the body's hold runs up to its stop at it, and
+     *  the release moves at it until the next stroke. */
+    let holdBpm = 0;
     // Speed-based fallback: EW speed of the tracked point (or the body's quantity of
     // motion) and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
@@ -500,7 +515,12 @@ export const conductorNode = defineNode<Params>({
     /** The tempo the body follower is seeded at: the score's first mark, at the stated
      *  level (null without a score, or reading the hands). */
     const bodySeed = (c: Params): number | null => {
-      if (c.source !== 'body' || docBpm === null) return null;
+      // With the transport rules the start is the ready pose and the upbeat, and the beat
+      // moves at the marked tempo until the second stroke (`startBeat`); seeding the prior
+      // too would hand the detector the marked period at the downbeat, and a piece marked
+      // at twice the conductor's tempo then has it take each stroke's rebound for a stroke
+      // (measured on A1's fixture against a score at 160 bpm).
+      if (c.source !== 'body' || docBpm === null || c.transport.rules) return null;
       const k = c.markLevel === 'half' ? 2 : c.markLevel === 'bar' ? (docMeter ? docMeter(0) : c.beatsPerBar) : 1;
       return docBpm / k;
     };
@@ -593,6 +613,7 @@ export const conductorNode = defineNode<Params>({
         let s: IctusState;
         let stopped = false;
         let started = false;
+        let released = false;
         if (c.source === 'body') {
           const body = inputs.body as BodyFrame | undefined;
           const fresh = isFresh(body, lastBodyFrame);
@@ -612,6 +633,7 @@ export const conductorNode = defineNode<Params>({
             let accept = a !== null;
             const cues = meter ? meter.push(body, t, c.hand) : {};
             if (transport) {
+              const wasHolding = transport.phase() === 'holding';
               const now = ictus.state();
               const tr = transport.step({
                 t,
@@ -625,6 +647,16 @@ export const conductorNode = defineNode<Params>({
               stopped = tr.stopped;
               started = tr.started;
               waiting = tr.waiting;
+              // The stroke that releases the body's hold restarts the prior, like a start:
+              // the release and the stroke after it set the tempo again (a conductor's
+              // tempo after a fermata is a new one), and the beat moves at the old tempo
+              // in between. Feeding it to a prior whose confidence decayed through the hold
+              // would hand the beat to the speed fallback for a few strokes.
+              if (wasHolding && tr.accept) {
+                ictus.prior.reset();
+                fermataAnchors = 0;
+                released = true;
+              }
             }
             s = a && accept ? ictus.feedAnchor(a) : ictus.advance(t);
           } else {
@@ -667,41 +699,66 @@ export const conductorNode = defineNode<Params>({
             fermataReleased = null;
           }
         }
+        // The strokes' tempo and phase are scaled to the piece's beats by the level `k`.
+        const k = markRatio(c, s, ctx.time, beatsPerBar);
+        /** The beat at or after `b` (`ceil`) or nearest it (`round`) that a stroke lands on: a
+         *  multiple of `k`, counted from the time signature's start (the servo's reference). */
+        const strokeGrid = (b: number, snap: (x: number) => number): number => {
+          const ref = k === 1 || !docSigStart ? 0 : docSigStart(b);
+          return ref + k * snap((b - ref) / k);
+        };
         const bodyHold = transport?.phase() === 'holding';
         // The downbeat (#377): the first stroke after the upbeat plays a whole beat (the next
         // one when a cut-off left the beat between two). Until the second stroke gives the
         // prior a period, the beat moves at the score's marked tempo (or the priors' initial
         // one) rather than the speed fallback, and never reaches the next stroke's beat on
         // its own: the second stroke plays it.
-        if (started) {
-          beatOut = Math.ceil(beatOut - START_EPS);
+        if (started || released) {
+          beatOut = strokeGrid(beatOut - START_EPS, Math.ceil);
           startBeat = beatOut;
+          startBpm = released && holdBpm > 0 ? holdBpm : null;
         }
         if (startBeat !== null && (!transport || s.state !== 'ready' || s.anchors === 0)) startBeat = null;
         if (!transport || stopped) {
           strokeBeat = null;
           waiting = false;
-        } else if (s.anchor) strokeBeat = Math.round(beatOut);
+        } else if (s.anchor) strokeBeat = strokeGrid(beatOut, Math.round);
 
-        // 2. Blend the inferred tempo with the speed fallback by confidence; integrate. The
-        //    strokes' tempo and phase are scaled to the piece's beats by the level `k`.
-        const k = markRatio(c, s, ctx.time, beatsPerBar);
+        // 2. Blend the inferred tempo with the speed fallback by confidence; integrate.
         const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
         let bpm: number;
         // A fermata releases on the NEXT stroke after it was reached.
-        if (fermataAt !== null && s.anchors > fermataAnchors) {
+        if (fermataAt !== null && s.anchors > fermataAnchors && !(s.lastAnchorAt !== undefined && s.lastAnchorAt < fermataT + FERMATA_RELEASE_PERIODS * fermataPeriod)) {
           fermataReleased = fermataAt;
           fermataAt = null;
         }
-        if (fermataAt !== null || bodyHold) {
-          // A fermata, or the body holding (raised and still, no stroke): frozen.
+        if (fermataAt !== null) {
           bpm = 0;
+        } else if (bodyHold) {
+          // The body holding (raised and still, no stroke): the beat goes on at the tempo it
+          // had, but no further than just short of the next stroke's beat, and holds there.
+          // Never frozen between two: a release from a fraction of a stroke has no right
+          // answer (the servo would pick a side by rounding), and the beat the conductor
+          // last gave is the one that sustains.
+          const cap = strokeGrid(beatOut, Math.ceil) - START_EPS;
+          let next = Math.min(beatOut + (holdBpm / 60) * ctx.dt, Math.max(beatOut, cap));
+          // A written fermata on the way stops it there, as when running.
+          const f = fermatas.find((x) => x > beatOut && x <= next);
+          if (f !== undefined) {
+            next = f;
+            fermataAt = f;
+            fermataAnchors = s.anchors;
+            fermataT = ctx.time;
+            fermataPeriod = Number.isFinite(s.period) && s.period > 0 ? s.period : 0;
+          }
+          bpm = next > beatOut && f === undefined ? holdBpm : 0;
+          beatOut = next;
         } else if (s.state === 'hold' || s.anchors === 0) {
           // Holding, or no stroke seen yet (the preparatory beat has not come): frozen.
           bpm = 0;
         } else {
           const w = s.state === 'running' && c.fallbackBelowConfidence > 0 ? clamp01(s.confidence / c.fallbackBelowConfidence) : s.state === 'running' ? 1 : 0;
-          bpm = startBeat !== null ? (docTempo?.(beatOut) ?? START_BPM) : w * s.tempo * k + (1 - w) * fallbackBpm;
+          bpm = startBeat !== null ? (startBpm ?? docTempo?.(beatOut) ?? START_BPM) : w * s.tempo * k + (1 - w) * fallbackBpm;
           const advanced = beatOut + (bpm / 60) * ctx.dt;
           // 3. Phase servo: converge onto the inferred beat over `servoBeats`, never
           //    below where the beat already was (a rewind would retrigger a note).
@@ -724,11 +781,14 @@ export const conductorNode = defineNode<Params>({
               next = f;
               fermataAt = f;
               fermataAnchors = s.anchors;
+              fermataT = ctx.time;
+              fermataPeriod = Number.isFinite(s.period) && s.period > 0 ? s.period : 0;
               bpm = 0;
               break;
             }
           }
           beatOut = next;
+          if (bpm > 0) holdBpm = bpm;
         }
 
         const wholeBeat = Math.floor(beatOut);

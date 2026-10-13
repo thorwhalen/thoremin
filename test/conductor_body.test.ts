@@ -105,7 +105,10 @@ describe(`the body conductor on ${CLIP} (${grid.length} beats in the grid)`, () 
 
   it('auto follows the arm that beats: the same anchors as naming the right arm', async () => {
     const anchorsFor = async (hand: 'auto' | 'right' | 'left') => {
-      const h = conductorNode.make(conductorNode.params.parse({ ...BODY, bodyPoint: 'wrist', hand }));
+      // The detector's arm choice, under the hand transport: the body's transport (#377)
+      // gates the anchors on the pose and restarts the count on a release, and its cues
+      // for `auto` read both arms by design (test/conductor_transport.test.ts).
+      const h = conductorNode.make(conductorNode.params.parse({ ...BODY, bodyPoint: 'wrist', hand, transport: { rules: false } }));
       const outs = await replayNode(h, { body }, { dt: 1 / FPS });
       return (outs[outs.length - 1].time as { anchors: number }).anchors;
     };
@@ -117,7 +120,10 @@ describe(`the body conductor on ${CLIP} (${grid.length} beats in the grid)`, () 
   it('auto follows a LEFT beating arm too (the clip with its sides swapped), as naming the left arm does', async () => {
     const swapped = swapSides(body);
     const run = async (hand: 'auto' | 'left' | 'right') => {
-      const h = conductorNode.make(conductorNode.params.parse({ ...BODY, bodyPoint: 'wrist', hand }));
+      // The detector's arm choice, under the hand transport: the body's transport (#377)
+      // gates the anchors on the pose and restarts the count on a release, and its cues
+      // for `auto` read both arms by design (test/conductor_transport.test.ts).
+      const h = conductorNode.make(conductorNode.params.parse({ ...BODY, bodyPoint: 'wrist', hand, transport: { rules: false } }));
       const outs = await replayNode(h, { body: swapped }, { dt: 1 / FPS });
       return outs.map((o) => o.beat as number);
     };
