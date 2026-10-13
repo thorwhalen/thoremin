@@ -37,10 +37,12 @@ const doc = { v: 1, title: 't', source: 'builtin', parts: [], tempoMap: [{ beat:
 const ctx = (i: number) => ({ time: i / FPS, dt: 1 / FPS, tick: i, resources: {} }) as never;
 type Seeded = { oscillator?: { initialTempo?: number }; trend?: { initialTempo?: number } };
 
-async function run(source: 'hands' | 'body', docFrom: number, ticks = 120) {
+async function run(source: 'hands' | 'body', docFrom: number, ticks = 120, rules = false) {
   calls.ictus.length = 0;
   calls.impact.length = 0;
-  const h = conductorNode.make(conductorNode.params.parse({ enabled: true, source, mirrorX: false, mirrorHandedness: false }));
+  // The seed is the hand transport's: with the body's transport rules (#377) the start is the
+  // ready pose and the upbeat, and nothing is seeded (the last test here).
+  const h = conductorNode.make(conductorNode.params.parse({ enabled: true, source, mirrorX: false, mirrorHandedness: false, transport: { rules } }));
   for (let i = 0; i < ticks; i++) await h.process({ body: body[i], doc: i >= docFrom ? doc : undefined }, ctx(i));
 }
 
@@ -71,5 +73,12 @@ describe("the body follower starts at the score's tempo", () => {
     expect(calls.ictus).toHaveLength(1);
     expect((calls.ictus[0] as Seeded).oscillator?.initialTempo).toBeUndefined();
     expect(calls.impact).toHaveLength(0);
+  });
+
+  it('with the body transport rules nothing is seeded: the beat moves at the marked tempo until the second stroke', async () => {
+    await run('body', 0, 120, true);
+    expect(calls.ictus).toHaveLength(1);
+    expect((calls.ictus[0] as Seeded).oscillator?.initialTempo).toBeUndefined();
+    expect((calls.impact[0] as { initialPeriod?: number }).initialPeriod).toBeUndefined();
   });
 });

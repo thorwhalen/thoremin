@@ -14,6 +14,7 @@
  */
 import { create } from 'zustand';
 import type { MusicalTime, ServoMode, ServoState } from '@thoremin/ictus';
+import type { ConductorTransportReading } from '@/nodes/features/conductor';
 
 export interface ConductorLive {
   enabled: boolean;
@@ -33,6 +34,8 @@ export interface ConductorLive {
   /** The recording the beat leads (#187 PR 7), while it leads one: what the song's servo
    *  is doing, the rate it plays at and how far it is from the beat (beats, + = ahead). */
   recording?: { mode: ServoMode; rate: number; error: number } | null;
+  /** The body's transport (#377): what the pose rules say (`off` reading the hands). */
+  transport?: ConductorTransportReading;
 }
 
 export const ABSENT_CONDUCTOR_LIVE: ConductorLive = {
@@ -46,6 +49,7 @@ export const ABSENT_CONDUCTOR_LIVE: ConductorLive = {
   dynamics: 0,
   anchors: 0,
   recording: null,
+  transport: 'off',
 };
 
 /** The node id the reporter reads — the `conductor` node in `graph.ts`. */
@@ -73,7 +77,7 @@ export interface OutputReader {
 
 /** Quantise what the panel shows, so the change gate compares what a player sees. */
 export function conductorLiveKey(l: ConductorLive): string {
-  return `${l.enabled ? 1 : 0}|${l.state}|${Math.round(l.tempo)}|${l.beat}|${l.beatInBar}|${l.beatsPerBar}|${Math.round(l.confidence * 20)}|${Math.round(l.dynamics * 20)}|${l.anchors}|${l.recording ? `${l.recording.mode}:${Math.round(l.recording.rate * 100)}:${Math.round(l.recording.error * 20)}` : '-'}`;
+  return `${l.enabled ? 1 : 0}|${l.state}|${Math.round(l.tempo)}|${l.beat}|${l.beatInBar}|${l.beatsPerBar}|${Math.round(l.confidence * 20)}|${Math.round(l.dynamics * 20)}|${l.anchors}|${l.recording ? `${l.recording.mode}:${Math.round(l.recording.rate * 100)}:${Math.round(l.recording.error * 20)}` : '-'}|${l.transport ?? 'off'}`;
 }
 
 /**
@@ -103,12 +107,19 @@ export function makeConductorReporter(
       dynamics: typeof dynamics === 'number' ? dynamics : 0,
       anchors: time.anchors,
       recording: recordingOf(engine.getOutput(SONG_LEAD_NODE_ID, 'servo')),
+      transport: transportOf(engine.getOutput(nodeId, 'transport')),
     };
     const key = conductorLiveKey(live);
     if (key === lastKey) return;
     lastKey = key;
     store.report(live);
   };
+}
+
+const TRANSPORT_READINGS: readonly ConductorTransportReading[] = ['idle', 'armed', 'prepared', 'running', 'holding', 'stopped', 'off'];
+/** The body transport's reading (`off` when absent or unknown). */
+function transportOf(raw: unknown): ConductorTransportReading {
+  return TRANSPORT_READINGS.includes(raw as ConductorTransportReading) ? (raw as ConductorTransportReading) : 'off';
 }
 
 /** The servo's reading, while the conductor leads the song. */

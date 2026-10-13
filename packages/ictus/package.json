@@ -20,6 +20,7 @@
     "./scheduler": "./src/scheduler.ts",
     "./servo": "./src/servo.ts",
     "./song_grid": "./src/song_grid.ts",
+    "./transport": "./src/transport.ts",
     "./trend_prior": "./src/trend_prior.ts",
     "./types": "./src/types.ts"
   },

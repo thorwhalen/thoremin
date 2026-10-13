@@ -1050,6 +1050,10 @@
       {
         "name": "doc",
         "kind": "score-doc"
+      },
+      {
+        "name": "transportPose",
+        "kind": "transport-pose"
       }
     ],
     "outputs": [
@@ -1103,6 +1107,11 @@
         "name": "level",
         "kind": "number",
         "description": "The piece's beats per stroke (#376): 1 marking beats, 2 every other beat, the bar's beats marking bars"
+      },
+      {
+        "name": "transport",
+        "kind": "transport-phase",
+        "description": "The body's transport (#377): idle, armed, prepared, running, holding, stopped on a cut-off's frame, or off (reading the hands, or the rules off)"
       }
     ],
     "params": [
@@ -1150,6 +1159,20 @@
         "name": "markLevel",
         "type": "enum(beat | half | bar | auto)",
         "default": "beat"
+      },
+      {
+        "name": "transport",
+        "type": "object",
+        "default": {
+          "rules": true,
+          "raisedAbove": 0.45,
+          "droppedBelow": 0.2,
+          "stillBelow": 8,
+          "moveAbove": 9,
+          "readyS": 0.4,
+          "holdAfterPeriods": 1.5,
+          "stopAfterPeriods": 1
+        }
       },
       {
         "name": "beatsPerBar",

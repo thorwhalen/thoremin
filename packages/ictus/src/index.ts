@@ -51,6 +51,8 @@ export type { PaceController, PaceInput, PaceMode, PaceOptions, PaceState } from
 export { createBeatServo, servoRate, SERVO_DEFAULTS } from './servo';
 export type { BeatServo, ServoCue, ServoInput, ServoMode, ServoOptions, ServoState } from './servo';
 export { createScheduler, SCHEDULER_DEFAULTS } from './scheduler';
+export { createTransport, TRANSPORT_DEFAULTS, TRANSPORT_PHASES } from './transport';
+export type { Transport, TransportInput, TransportOptions, TransportPhase, TransportPose, TransportStep } from './transport';
 export { trackSongGrid, songTimeAt, beatIndexAt, songTimeOfBeat, hasGrid, onsetEnvelopes, lsLine, toMono, EMPTY_SONG_GRID, SONG_GRID_DEFAULTS, SONG_GRID_SOURCE } from './song_grid';
 export type { SongGrid, SongGridOptions } from './song_grid';
 export type { Scheduler, SchedulerOptions, ScheduleCommand, ScheduleTick, ScoreEvent } from './scheduler';

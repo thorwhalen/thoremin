@@ -449,7 +449,10 @@ type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>
  *   (`impact`), additive in the conductor dial like `conductor.orchestra`; `hands` is what
  *   every earlier blob conducted with, so the conductor heal fills both and no transform
  *   is owed. And, WITHOUT a bump (#376): `conductor.markLevel` (`beat`), additive in the
- *   same way; `beat` is what every earlier blob marked.
+ *   same way; `beat` is what every earlier blob marked. And, WITHOUT a bump (#377):
+ *   `conductor.transport` (the body's start / hold / stop rules, `rules` on), additive and
+ *   nested like `conductor.orchestra`; it acts only while the source is `body` (#375, the
+ *   day before), so no earlier blob's hand conductor changes and no transform is owed.
  *
  * Bump this and, if the change needs a transform, add `CONTROLS_MIGRATIONS[old]` together.
  */

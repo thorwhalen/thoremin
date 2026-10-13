@@ -42,6 +42,18 @@ export const CONDUCTOR_TOOL_ID = 'conductor';
 /** What to tell the player, per follower state (and what they conduct with, #375). */
 export function describeLive(live: ConductorLive, source: ConductorSettings['source'] = 'hands'): string {
   if (!live.enabled) return source === 'body' ? 'Off. Press Start, then beat time with your arm or a bounce.' : 'Off. Press Start, then beat time with your hand.';
+  // The body's transport (#377): the pose decides when the piece starts, holds and stops.
+  switch (live.transport) {
+    case 'idle':
+    case 'stopped':
+      return 'Raise your beating arm and hold still to get ready.';
+    case 'armed':
+      return 'Ready. Give an upbeat, and the next beat starts the piece.';
+    case 'prepared':
+      return 'Upbeat seen: beat the first beat.';
+    case 'holding':
+      return 'Holding. Beat once to go on, or drop your arm to stop.';
+  }
   if (live.state === 'hold') return live.anchors === 0 ? 'Waiting for your first beat.' : 'Holding. Beat once to go on.';
   if (live.state === 'ready') return live.anchors === 0 ? 'Waiting for your first beat.' : 'Finding your tempo...';
   return `Following at ${Math.round(live.tempo)} bpm.`;
