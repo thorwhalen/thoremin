@@ -57,8 +57,7 @@ describe('the panel placeholder of a lazy extension (src/app/extensions/lazyPane
       async () => {
         throw new Error('offline');
       },
-      'x',
-      () => (reloads += 1),
+      { extensionId: 'x', reload: () => (reloads += 1) },
     );
     render(<panel.Controls />);
     await waitFor(() => expect(screen.getByText(/X section could not load \(offline\)/)).toBeTruthy());
@@ -67,7 +66,7 @@ describe('the panel placeholder of a lazy extension (src/app/extensions/lazyPane
   });
 
   it('under the instrument row, the Readout says the extension is loading, then why it failed (even once its UI is in), with a Reload', async () => {
-    const panel = lazyPanel({ instrumentId: 'x', section: 'X section' }, async () => ui('loaded'), 'x-ext', () => undefined);
+    const panel = lazyPanel({ instrumentId: 'x', section: 'X section' }, async () => ui('loaded'), { extensionId: 'x-ext', reload: () => undefined });
     act(() => useExtensionLoad.getState().report('x-ext', { phase: 'loading', message: 'Loading x-ext…' }));
     render(<panel.Readout />);
     expect(screen.getByText('Loading X section…')).toBeTruthy();

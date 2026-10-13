@@ -81,7 +81,7 @@ export function loadExtensionUi(id: string): Promise<ExtensionUi> {
 
 /** Every extension's editor section: an eager one's components, a lazy one's placeholders. */
 export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
-  isLazy(u) ? u.panels.map((decl) => lazyPanel(decl, () => loadExtensionUi(u.id), u.id)) : u.panels,
+  isLazy(u) ? u.panels.map((decl) => lazyPanel(decl, () => loadExtensionUi(u.id), { extensionId: u.id })) : u.panels,
 );
 
 /** Every extension's shell tools, as data (eager and lazy alike), in `extensions.json`'s order. */

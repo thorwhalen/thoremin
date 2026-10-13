@@ -83,7 +83,7 @@ const FORBIDDEN_FROM_ASSISTANT: RegExp[] = [
   /^\.{1,2}\/store(\.tsx?)?$/, // ../store / ./store (relative hot store) — RELATIVE only, so it can't
   //                              swallow the sanctioned `@zodal/store` package or `@/app/dials/settingsStore`
   /(^|\/)useControls(\/|$)/, // the hot store hook by name
-  /(^|\/)(useEngine|recorder|useAudioEngine)(\.tsx?)?$/, // the audio/engine host — BOTH the `@/` alias
+  /(^|\/)(useEngine|recorder|useAudioEngine|useRecordingController|liveApply)(\.tsx?)?$/, // the audio/engine host — BOTH the `@/` alias
   //                                                        AND a relative reach-out (`../../app/useEngine`)
 ];
 const isForbiddenFromAssistant = (spec: string): boolean => FORBIDDEN_FROM_ASSISTANT.some((re) => re.test(spec));
@@ -112,6 +112,8 @@ describe('command-dispatch import firewall (#87)', () => {
       '@/app/useEngine',
       '@/app/recorder',
       '@/hooks/useAudioEngine',
+      '@/app/liveApply',
+      '@/app/recording/useRecordingController',
       '@/nodes/output/webaudio_synth',
       '@/dag',
       '@thoremin/dag',
@@ -157,6 +159,8 @@ describe('command-dispatch import firewall (#87)', () => {
       '@/app/store', '@/app/store.ts', '../store', './store',
       '@/app/useEngine', '@/app/recorder', '@/hooks/useAudioEngine',
       '../../app/useEngine', '../../app/recorder', '../../hooks/useAudioEngine', // relative reach-outs
+      // ...and the pieces extracted from the engine host (#392): the live re-wire and the take's lifecycle.
+      '@/app/liveApply', '@/app/recording/useRecordingController', '../../app/liveApply', '../recording/useRecordingController',
       '@/dag', '@thoremin/dag', '@thoremin/dag/engine', '@/nodes/output/webaudio_synth',
     ]) {
       expect(isForbiddenFromAssistant(spec), `"${spec}" must be firewalled from the assistant`).toBe(true);

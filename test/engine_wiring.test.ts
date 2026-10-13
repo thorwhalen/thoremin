@@ -26,6 +26,8 @@ import { resolve } from 'node:path';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 const useEngine = read('src/app/useEngine.ts');
+// The live graph and its re-wire moved out of the hook (#392): `useEngine` binds it to its refs.
+const liveApply = read('src/app/liveApply.ts');
 const app = read('src/app/App.tsx');
 const main = read('src/main.tsx');
 
@@ -132,7 +134,7 @@ describe('the slot selection reaches the graph', () => {
     expect(c).not.toMatch(/liveGraph\(\s*\)/);
     // (Composed through the lazy-extension loader: a restored instrument's lazy nodes load first.)
     expect(c).toMatch(/const live = await composeLoaded\(lazyDeps\(\(\) => slotsRef\.current,\s*registry,\s*\(\) => !disposed\)\)/);
-    expect(c).toMatch(/compose: \(without\) => liveGraph\(selection\(\),\s*registry,\s*without\)/);
+    expect(code(liveApply)).toMatch(/compose: \(without\) => liveGraph\(selection\(\),\s*registry,\s*without\)/);
     expect(c).toMatch(/new Engine\(\s*live\.spec,\s*registry/);
   });
 
@@ -144,16 +146,18 @@ describe('the slot selection reaches the graph', () => {
     // applies it; both effects call it, and so does the post-init reconcile.
     // (Through one lazy applier per engine, `src/app/lazyApply.ts`: what the graph names but
     // is not loaded yet loads first, and only the latest request commits.)
-    expect(c).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry,[^]*?\),\s*commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
-    expect(c).toMatch(/applyLive\(engine, \(\) => slotsRef\.current, registry, \(\) => engineRef\.current\);\s*\}, \[\s*slotsKey\s*\]\)/);
+    // (`src/app/liveApply.ts` since #392; the hook's `rewire` binds it to the hook's refs.)
+    expect(code(liveApply)).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry,\s*\(\) => live\(\) === engine\),\s*\.\.\.\(compose \? \{ compose \} : \{\}\),\s*commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
+    expect(c).toMatch(/const rewire = \(engine: Engine, registry: NodeRegistry\) =>\s*applyLive\(engine, \{ selection: \(\) => slotsRef\.current, registry, live: \(\) => engineRef\.current/);
+    expect(c).toMatch(/rewire\(engine, registry\);\s*\}, \[\s*slotsKey\s*\]\)/);
     // ...and on a change of the branch SET (an instrument switch, a dial that adds a
     // capability, a tool's feature demand): the instruments-as-graphs ADR, PR 3.
-    expect(c).toMatch(/applyLive\(engine, \(\) => slotsRef\.current, registry, \(\) => engineRef\.current\);\s*\}, \[\s*branchKey\s*\]\)/);
+    expect(c).toMatch(/rewire\(engine, registry\);\s*\}, \[\s*branchKey\s*\]\)/);
     // A change during the model load (no engine yet) is reconciled once after init, for
     // the branch set as for the slots.
     expect(c).toMatch(/currentBranchKey\(\) !== builtBranchKey/);
     // The element set is written when the apply COMMITS, never at plan time.
-    expect(c).toMatch(/\.then\(\(change\) => \{[^}]*setGraphElements\(next\.elements\)/);
+    expect(code(liveApply)).toMatch(/\.then\(\(change\) => \{[^}]*setGraphElements\(next\.elements\)/);
     // ...and it is actually TRIGGERED by a selection change. An applyGraph call
     // sitting in an effect that never re-runs is the #137 shape exactly: present,
     // correct, and never reached.

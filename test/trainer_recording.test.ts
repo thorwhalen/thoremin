@@ -315,7 +315,9 @@ describe('the trainer store drives the recorder through the controller seam', ()
 
 describe('the production wiring (source guard)', () => {
   it('useEngine registers the controller with the same start/stop the Record button uses', () => {
-    const src = readFileSync(resolve(process.cwd(), 'src/app/useEngine.ts'), 'utf8');
+    // The take's lifecycle is `useRecordingController` since #392; the engine hook mounts it.
+    expect(readFileSync(resolve(process.cwd(), 'src/app/useEngine.ts'), 'utf8')).toMatch(/useRecordingController\(\{/);
+    const src = readFileSync(resolve(process.cwd(), 'src/app/recording/useRecordingController.ts'), 'utf8');
     expect(src).toMatch(/registerRecordingController\(/);
     expect(src).toMatch(/start:\s*startTake/);
     expect(src).toMatch(/stop:\s*stopRecording/);
