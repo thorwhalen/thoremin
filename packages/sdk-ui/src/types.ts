@@ -13,6 +13,9 @@
  *    down.
  *  - `onMount`: effects the app shell runs once on mount (a demand claim, a vocabulary
  *    load); each may return a cleanup.
+ *  - `tools` (optional): shell tools, listed in the Tools launcher beside the app's own
+ *    (#330: the face categorizer session is the first). The host draws the panel's frame and
+ *    mounts the content only while the tool is open.
  */
 import type { ComponentType } from 'react';
 
@@ -40,11 +43,28 @@ export interface StatusHook {
   reset: () => void;
 }
 
+/** A shell tool an extension contributes, as data (React-free, so a pure stub can name it). */
+export type { ExtensionToolDecl } from './tools';
+import type { ExtensionToolDecl } from './tools';
+
+/** What the host hands a tool's panel. */
+export interface ExtensionToolPanelProps {
+  /** Close the tool (the same as the frame's X). */
+  close: () => void;
+}
+
+export interface ExtensionTool extends ExtensionToolDecl {
+  /** The panel's content. The host draws the frame (title, strapline, close) and mounts this
+   *  only while the tool is open, so unmounting is the tool's "closed". */
+  Panel: ComponentType<ExtensionToolPanelProps>;
+}
+
 export interface ExtensionUi {
   id: string;
   panels: readonly ExtensionPanel[];
   statusHooks: readonly StatusHook[];
   onMount: readonly (() => void | (() => void))[];
+  tools?: readonly ExtensionTool[];
 }
 
 /** An editor section a LAZY extension will contribute: where it goes and its label, with no
@@ -60,4 +80,7 @@ export type ExtensionPanelDecl = Pick<ExtensionPanel, 'instrumentId' | 'section'
 export interface ExtensionUiStub {
   id: string;
   panels: readonly ExtensionPanelDecl[];
+  /** The shell tools it will contribute, as data; their panels load with the deferred half
+   *  the first time the player opens one. */
+  tools?: readonly ExtensionToolDecl[];
 }

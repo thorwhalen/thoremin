@@ -11,7 +11,7 @@
  * that section.
  */
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import type { ExtensionPanel, ExtensionPanelDecl, ExtensionUi } from '@thoremin/sdk-ui/types';
+import type { ExtensionPanel, ExtensionPanelDecl, ExtensionToolDecl, ExtensionToolPanelProps, ExtensionUi } from '@thoremin/sdk-ui/types';
 import { LoadStatusReadout } from '@/app/LoadStatusReadout';
 import { useExtensionLoad } from '@/app/extensionLoadStatus';
 
@@ -106,4 +106,62 @@ export function lazyPanel(
     return LazyExtensionPart;
   };
   return { instrumentId: decl.instrumentId, section: decl.section, Controls: part('Controls'), Readout: part('Readout') };
+}
+
+/**
+ * A lazy extension's TOOL panel before its code is here (#330): the content of the tool's frame,
+ * which loads the extension's React half the first time the tool opens (the host mounts it only
+ * while the tool is open, so a cold load fetches nothing), shows the shared readout while it
+ * loads and the real panel once loaded. A failed load says so with a Reload, like a section.
+ */
+export function lazyToolPanel(
+  decl: ExtensionToolDecl,
+  load: () => Promise<ExtensionUi>,
+  reload: () => void = () => window.location.reload(),
+): ComponentType<ExtensionToolPanelProps> {
+  let loaded: ComponentType<ExtensionToolPanelProps> | null = null;
+  function LazyExtensionTool(props: ExtensionToolPanelProps) {
+    const [Component, setComponent] = useState<ComponentType<ExtensionToolPanelProps> | null>(() => loaded);
+    const [error, setError] = useState<string | null>(null);
+    useEffect(() => {
+      if (Component) return;
+      let live = true;
+      load()
+        .then((ui) => {
+          const tool = ui.tools?.find((t) => t.id === decl.id);
+          if (!tool) throw new Error(`the extension's UI has no tool "${decl.id}"`);
+          return tool.Panel;
+        })
+        .then(
+          (c) => {
+            loaded = c;
+            if (live) setComponent(() => c);
+          },
+          (err: unknown) => {
+            if (live) setError(err instanceof Error ? err.message : String(err));
+          },
+        );
+      return () => {
+        live = false;
+      };
+    }, [Component]);
+    if (Component) return <Component {...props} />;
+    if (error) {
+      return (
+        <div className="space-y-1" data-lazy-extension={decl.id}>
+          <LoadStatusReadout status={{ phase: 'error', message: `${decl.label} could not load (${error}). Reload the page to try again.` }} enabled />
+          <button type="button" className="text-[11px] text-white/70 underline hover:text-white" onClick={reload}>
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div data-lazy-extension={decl.id}>
+        <LoadStatusReadout status={{ phase: 'loading', message: `Loading ${decl.label}…` }} enabled />
+      </div>
+    );
+  }
+  LazyExtensionTool.displayName = `LazyTool(${decl.id})`;
+  return LazyExtensionTool;
 }

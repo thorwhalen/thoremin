@@ -8,14 +8,17 @@
     "./dials": "./src/dials.ts",
     "./enroll/click": "./src/enroll/click.ts",
     "./enroll/guidance": "./src/enroll/guidance.ts",
+    "./enroll/liveVector": "./src/enroll/liveVector.ts",
     "./enroll/sequenceStore": "./src/enroll/sequenceStore.ts",
     "./featureDemand": "./src/featureDemand.ts",
     "./host": "./src/host.ts",
     "./namedCollection": "./src/namedCollection.ts",
     "./primitives": "./src/primitives.tsx",
+    "./tools": "./src/tools.ts",
     "./types": "./src/types.ts"
   },
   "dependencies": {
+    "@thoremin/dag": "*",
     "@thoremin/sdk": "*",
     "@zodal/dials-core": "^0.1.0",
     "@zodal/dials-ui": "^0.1.0",

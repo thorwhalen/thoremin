@@ -8,9 +8,9 @@
  * that load that half when first rendered ({@link lazyPanel}), its status hooks join
  * {@link extensionStatusHooks} once loaded, and its mount effects run when it loads.
  */
-import type { ExtensionPanel, ExtensionUi, ExtensionUiStub, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
+import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ExtensionUi, ExtensionUiStub, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
 import listed from 'virtual:thoremin/extensions-ui';
-import { lazyPanel } from './lazyPanel';
+import { lazyPanel, lazyToolPanel } from './lazyPanel';
 
 type Listed = ExtensionUi | (ExtensionUiStub & { load: () => Promise<ExtensionUi> });
 const isLazy = (u: Listed): u is ExtensionUiStub & { load: () => Promise<ExtensionUi> } => typeof (u as { load?: unknown }).load === 'function';
@@ -68,6 +68,19 @@ export function loadExtensionUi(id: string): Promise<ExtensionUi> {
 /** Every extension's editor section: an eager one's components, a lazy one's placeholders. */
 export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
   isLazy(u) ? u.panels.map((decl) => lazyPanel(decl, () => loadExtensionUi(u.id), u.id)) : u.panels,
+);
+
+/** Every extension's shell tools, as data (eager and lazy alike), in `extensions.json`'s order. */
+export const EXTENSION_TOOL_DECLS: readonly ExtensionToolDecl[] = LISTED.flatMap((u) =>
+  (u.tools ?? []).map(({ id, label, description, group, defaultPinned }) => ({ id, label, description, group, defaultPinned })),
+);
+
+/** Every extension tool's panel content, by tool id: an eager one's component, a lazy one's
+ *  placeholder that loads the extension's React half when the tool first opens. */
+export const EXTENSION_TOOL_PANELS: readonly { id: string; Panel: ExtensionTool['Panel'] }[] = LISTED.flatMap((u) =>
+  isLazy(u)
+    ? (u.tools ?? []).map((decl) => ({ id: decl.id, Panel: lazyToolPanel(decl, () => loadExtensionUi(u.id)) }))
+    : (u.tools ?? []).map((t) => ({ id: t.id, Panel: t.Panel })),
 );
 
 /** The status hooks in hand now: every eager extension's, and each lazy one's once it loaded. */

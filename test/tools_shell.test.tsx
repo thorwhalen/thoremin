@@ -20,6 +20,7 @@ import LabPanel from '@/app/LabPanel';
 import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
+import { SHELL_TOOLS } from '@/app/shellTools';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
@@ -79,14 +80,15 @@ describe('the tools bar and its launcher are the shell entry point for every too
     render(<Shell />);
     fireEvent.click(screen.getByText('Tools'));
     const sheet = await screen.findByRole('dialog', { name: 'Tools' });
-    for (const tool of TOOLS) {
+    // Every tool the shell lists: core's, and each extension's (#330).
+    for (const tool of SHELL_TOOLS) {
       // getByText, not getByLabelText: an icon with only an aria-label is how the
       // command palette stayed invisible. If a player cannot read it, it is not an
       // entry point.
       expect(sheet.querySelector(`[data-launcher-tool="${tool.id}"]`)?.textContent).toContain(tool.label);
       expect(sheet.textContent).toContain(tool.description);
     }
-    expect(sheet.querySelectorAll('[data-launcher-tool]')).toHaveLength(TOOLS.length);
+    expect(sheet.querySelectorAll('[data-launcher-tool]')).toHaveLength(SHELL_TOOLS.length);
   });
 
   it('the bar shows exactly the pinned tools, each with a visible label', () => {

@@ -58,6 +58,12 @@ A lazy extension's panels are host placeholders (`src/app/extensions/lazyPanel.t
 
 The load state of each lazy extension is a `LoadStatus` per id in `useExtensionLoad` (`src/app/extensionLoadStatus.ts`): `loading`, `ready`, `error`.
 
+### 6. A tool-only extension, and an extension's shell tools (#330)
+
+An extension may contribute **shell tools** (the Tools launcher's rows), not only editor sections. The eager UI stub declares each as data (`tools: [{ id, label, description, group, defaultPinned }]`, the React-free `ExtensionToolDecl` of `@thoremin/sdk-ui/tools`). The deferred `ExtensionUi` adds each tool's `Panel`. The shell folds them into its tool list after its own (`src/app/shellTools.ts`: validated against the same `ToolSchema`, always `kind: 'panel'`, an id clash fails at load). It draws the frame for the open one (`src/app/ExtensionToolPanels.tsx`), so an extension writes only the content. A lazy extension's tool content is a placeholder (`lazyToolPanel`) that loads the deferred half the first time the tool opens. A cold load fetches none of it, and a failed load says so with a Reload.
+
+Opening a tool is the second trigger, beside a graph naming a node type, and the only one a tool needs. A lazy extension may therefore provide **no node at all**: `provides: []` and a deferred node half of `{ nodes: [] }`. The face categorizer session (`@thoremin/ext-faces`) is the first. Its stubs are about 0.5 kB.
+
 ## Guards
 
 - **`npm run check:lazy`** (CI, the `gate` job): builds the app and reads the module graph from the bundle. For every lazy entry, the deferred halves are in no initial chunk (the entry and its static imports); no module of a package the extension *owns* is initial except its stubs' own closure (a package is owned when every importer of it the build reaches is the extension: its package, and a library only it uses, such as the recogniser and its weights; the SDK and Zod are shared); the stubs stay under 16 kB; and no node the deferred half defines is in an initial chunk, found by its own description (which catches a stub that imports a node directly, a module the closure rule would count as stub). Generic: it reads `extensions.json` and names no extension. Deliberate leaks fail it: the stub importing `asl-signs` (names the recogniser's modules), the stub importing `sign-chord` (names the node).

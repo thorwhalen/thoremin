@@ -35,8 +35,10 @@ function checked<Es extends readonly Extension[]>(es: Es): Es {
           : `extensions.json: "${e.id}" names \`provides\` (a lazy extension's stub) but has no "lazy" entry to load them from`,
       );
     }
-    if (lazy ? e.nodes !== undefined || e.provides!.length === 0 : !Array.isArray(e.nodes)) {
-      throw new Error(`extensions.json: "${e.id}" must have either \`nodes\` (eager) or a non-empty \`provides\` and no \`nodes\` (lazy)`);
+    // A lazy extension may provide no node at all: a TOOL-only extension (#330, the face
+    // categorizer session), whose deferred halves are its React tool and an empty node list.
+    if (lazy ? e.nodes !== undefined : !Array.isArray(e.nodes)) {
+      throw new Error(`extensions.json: "${e.id}" must have either \`nodes\` (eager) or \`provides\` and no \`nodes\` (lazy)`);
     }
   });
   return es;

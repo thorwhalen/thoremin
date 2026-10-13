@@ -7,6 +7,7 @@
   "exports": {
     "./enroll": "./src/enroll/index.ts",
     "./enroll/bind": "./src/enroll/bind.ts",
+    "./enroll/carve": "./src/enroll/carve.ts",
     "./enroll/categorizer": "./src/enroll/categorizer.ts",
     "./enroll/classify": "./src/enroll/classify.ts",
     "./enroll/cluster": "./src/enroll/cluster.ts",
@@ -27,6 +28,7 @@
     "./features/catalog": "./src/features/catalog.ts",
     "./features/demand": "./src/features/demand.ts",
     "./features/face_catalog": "./src/features/face_catalog.ts",
+    "./features/face_groups": "./src/features/face_groups.ts",
     "./features/face_labels": "./src/features/face_labels.ts",
     "./features/hand_catalog": "./src/features/hand_catalog.ts",
     "./features/handedness": "./src/features/handedness.ts",

@@ -246,3 +246,11 @@ export {
   type MergeOptions,
   type MergeResult,
 } from './from_model';
+export {
+  CARVE_DEFAULTS,
+  createCarver,
+  neutralIndices,
+  type CarvableSession,
+  type CarveOptions,
+  type Carver,
+} from './carve';

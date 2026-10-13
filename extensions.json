@@ -2,6 +2,7 @@
   "//": "The extensions this build ships, injected at build time (vite.extensions.ts). Point THOREMIN_EXTENSIONS at another file to build with a different set. `module` is the pure manifest (an Extension, default export); `ui` is its React half (an ExtensionUi, default export). An optional `lazy: { module, ui }` makes the extension LAZY: `module`/`ui` are then small eager stubs and `lazy.*` the deferred halves, loaded by dynamic import() only when a graph names its nodes or its section opens (docs/design/lazy-extensions.md).",
   "extensions": [
     { "id": "air", "module": "@thoremin/ext-air", "ui": "@thoremin/ext-air/ui" },
-    { "id": "asl", "module": "@thoremin/ext-asl", "ui": "@thoremin/ext-asl/ui", "lazy": { "module": "@thoremin/ext-asl/lazy", "ui": "@thoremin/ext-asl/lazy_ui" } }
+    { "id": "asl", "module": "@thoremin/ext-asl", "ui": "@thoremin/ext-asl/ui", "lazy": { "module": "@thoremin/ext-asl/lazy", "ui": "@thoremin/ext-asl/lazy_ui" } },
+    { "id": "faces", "module": "@thoremin/ext-faces", "ui": "@thoremin/ext-faces/ui", "lazy": { "module": "@thoremin/ext-faces/lazy", "ui": "@thoremin/ext-faces/lazy_ui" } }
   ]
 }

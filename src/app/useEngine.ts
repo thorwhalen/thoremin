@@ -26,6 +26,7 @@ import type { NodeRegistry } from '@thoremin/dag';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
 import { useControls } from './store';
 import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
+import { provideCamera } from '@thoremin/sdk-ui/host';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { trainerHudResource } from './enroll/hud';
 import { useToasts } from './toasts';
@@ -202,6 +203,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // The raw camera MediaStream (camera source only), kept reachable for the
   // pure-webcam recording stream (#88); null for a file source.
   const cameraStreamRef = useRef<MediaStream | null>(null);
+  // The extension SDK's camera seam (#330): a tool (the face categorizer session) records the
+  // same raw stream, read at use time, and never owns or stops it.
+  useEffect(() => {
+    provideCamera({ stream: () => cameraStreamRef.current });
+    return () => provideCamera(null);
+  }, []);
   const sessionRecRef = useRef<SessionRecorder | null>(null);
   const activeSessionRef = useRef<RecordingSession | null>(null);
   const recInstrumentRef = useRef<string>('thoremin');
