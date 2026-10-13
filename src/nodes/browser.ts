@@ -67,7 +67,8 @@ export function createAppRegistry(extensions: readonly Extension[] = EXTENSIONS)
     // when a graph names one (`docs/design/lazy-extensions.md`).
     const nodes = loadedExtensionNodes(e);
     if (nodes) registry.register(...(nodes as NodeDef<unknown>[]));
-    else registry.declareLazy(e.provides ?? [], () => loadExtensionNodes(e));
+    // A tool-only lazy extension (no node types) has nothing to declare.
+    else if (e.provides?.length) registry.declareLazy(e.provides, () => loadExtensionNodes(e));
   }
   return registry;
 }

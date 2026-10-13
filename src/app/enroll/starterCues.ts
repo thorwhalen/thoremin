@@ -33,30 +33,15 @@
  * the one the fixture proved swings the brow channel 0.43→0.89 on its own), and last
  * the free vocabulary — the part that is actually the player's.
  */
-import { FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
 import { CueSchema, type Cue, type CueSpecInput } from '@thoremin/sdk/enroll';
+import { FACE_OMIT, FACE_TRAINING_GROUPS, faceCollects } from '@thoremin/sdk/features/face_groups';
 
-/**
- * The face groups a training take records. Everything the catalog measures on a face
- * EXCEPT the two gaze families: eye-direction is mostly involuntary and noisy, and a
- * category the player cannot hold is not a category.
- */
-export const FACE_TRAINING_GROUPS: readonly string[] = FEATURE_GROUPS.filter(
-  (g) => g.source === 'face' && g.id !== 'derived' && !g.id.endsWith('.gaze') && g.id !== 'face.gaze',
-).map((g) => g.id);
+// The face groups and the omitted raw-position features live in the SDK
+// (`packages/sdk/src/features/face_groups.ts`), shared with the personal categorizer session
+// (#330); re-exported so this module stays where callers look for them.
+export { FACE_OMIT, FACE_TRAINING_GROUPS };
 
-/**
- * Raw frame position and size are where you SIT, not what you DO: left out of every
- * face cue, so a player who shifts in their chair between cues does not teach the
- * model that "a bit to the left" is an expression. (Camera distance is handled
- * separately, by demonstration — see the nuisance cue.)
- */
-export const FACE_OMIT: readonly string[] = ['face.head.x', 'face.head.y', 'face.head.scale', 'face.head.distanceProxy'];
-
-const face = (groups: readonly string[] = FACE_TRAINING_GROUPS) => ({
-  groups: [...groups],
-  omit: [...FACE_OMIT],
-});
+const face = faceCollects;
 
 /** The head-pose cue shape: one held position, far enough from rest. */
 const headMove = (

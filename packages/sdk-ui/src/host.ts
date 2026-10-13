@@ -44,9 +44,18 @@ export interface DialsFormHost {
   useSettings(): import('./dials').DialsSettings;
 }
 
+/** The camera, as an extension's tool uses it (the personal categorizer session records the
+ *  clean video, #330): the RAW camera stream the instrument plays from (no overlay, no text),
+ *  or null while there is none (before the camera starts, under a synthetic source). Never
+ *  stopped by the extension: the instrument owns the camera. */
+export interface CameraHost {
+  stream(): MediaStream | null;
+}
+
 let controlsHost: ControlsHost | null = null;
 let dialsHost: DialsHost | null = null;
 let dialsFormHost: DialsFormHost | null = null;
+let cameraHost: CameraHost | null = null;
 
 /** Installed by the app's hot store module. */
 export function provideControls(host: ControlsHost): void {
@@ -61,6 +70,11 @@ export function provideDials(host: DialsHost): void {
 /** Installed by the app's dials-form hook module. */
 export function provideDialsForm(host: DialsFormHost): void {
   dialsFormHost = host;
+}
+
+/** Installed by the engine hook while it owns a camera (`src/app/useEngine.ts`); null uninstalls. */
+export function provideCamera(host: CameraHost | null): void {
+  cameraHost = host;
 }
 
 const missing = (seam: string, owner: string): Error =>
@@ -94,6 +108,12 @@ export function controlsStore<S>(): { getState(): S; subscribe(listener: (state:
     getState: () => controls().get() as unknown as S,
     subscribe: (listener) => controls().subscribe(() => listener(controls().get() as unknown as S)),
   };
+}
+
+/** The camera. Unlike the other seams it never throws: with no engine (a test, a page before
+ *  the engine hook mounts) there is simply no stream. */
+export function camera(): CameraHost {
+  return cameraHost ?? { stream: () => null };
 }
 
 type DialsOf<E extends Extension> = {

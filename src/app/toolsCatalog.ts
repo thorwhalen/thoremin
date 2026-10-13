@@ -8,9 +8,10 @@ import { create } from 'zustand';
 import { createZustandStoreSlice, type ZustandCollectionState } from '@zodal/ui';
 import { toolsCollection, createToolsProvider } from './toolsCollection';
 import type { Tool } from './tools';
+import { SHELL_TOOLS } from './shellTools';
 
 export const useToolsCatalog = create<ZustandCollectionState<Tool>>()(
-  createZustandStoreSlice<Tool>(toolsCollection, createToolsProvider()),
+  createZustandStoreSlice<Tool>(toolsCollection, createToolsProvider(SHELL_TOOLS)),
 );
 
 /** Search the tools for `query` (empty = all of them), unpaginated. */

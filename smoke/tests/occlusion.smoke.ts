@@ -191,8 +191,11 @@ test.describe('the Tools launcher', () => {
     await barButton(page, 'conductor').click();
     await page.locator('[data-tools-launcher]').click();
     const rows = page.locator('[data-launcher-tool]');
-    await expect(rows).toHaveCount(TOOLS.length);
-    for (let i = 0; i < TOOLS.length; i++) {
+    // Every core tool, plus whatever the build's extensions declare (#330: the face session).
+    for (const tool of TOOLS) await expect(page.locator(`[data-launcher-tool="${tool.id}"]`)).toHaveCount(1);
+    const n = await rows.count();
+    expect(n).toBeGreaterThanOrEqual(TOOLS.length);
+    for (let i = 0; i < n; i++) {
       for (const el of [rows.nth(i).locator('a, button').first(), rows.nth(i).locator('button[aria-pressed]')]) {
         expect(await occluder(el), `launcher row ${i}`).toBeNull();
       }

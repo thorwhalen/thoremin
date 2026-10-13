@@ -65,6 +65,8 @@ const FOLD_POINTS = new Set([
   'src/app/extensionLoad.ts', // loads a lazy extension's halves when a graph names its nodes
   'src/app/App.tsx', // the mount effects
   'src/app/extensions/index.ts', // the React-side list itself
+  'src/app/shellTools.ts', // the shell's tools: core's, then the extensions' (#330)
+  'src/app/ExtensionToolPanels.tsx', // the extensions' tool panels, in the shell's frame (#330)
 ]);
 /**
  * THE SDK, AS PACKAGES. Both halves are workspace packages since the follow-ups to PR 6:

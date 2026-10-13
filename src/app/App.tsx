@@ -40,6 +40,7 @@ import GesturesPanel from './GesturesPanel';
 import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
 import ScoreLoader from './ScoreLoader';
 import ConductorPanel from './ConductorPanel';
+import ExtensionToolPanels from './ExtensionToolPanels';
 import VersionBadge from './VersionBadge';
 import TimingChip from './TimingChip';
 
@@ -201,6 +202,8 @@ export default function App({
       <ConductorPanel />
       {/* The Song tool (#186 PR G) — renders when its tool is the open one. */}
       <SongPanel />
+      {/* An extension's tools (#330): the shell's frame, the extension's content, loaded on open. */}
+      <ExtensionToolPanels />
       {/* The conductor's score (#187 PR 3): loads the selected piece when conducting is on. */}
       <ScoreLoader />
 

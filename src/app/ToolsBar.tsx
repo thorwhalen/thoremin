@@ -30,7 +30,8 @@
  */
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { LayoutGrid, X } from 'lucide-react';
-import { TOOLS, type Tool } from './tools';
+import type { Tool } from './tools';
+import { SHELL_TOOLS } from './shellTools';
 import { TOOL_ICONS } from './toolIcons';
 import { isPinned } from './toolsCollection';
 import { useToolPins } from './toolPins';
@@ -183,7 +184,7 @@ export default function ToolsBar() {
 
   // Pinned tools, plus any tool that is running whether pinned or not: a running tool's
   // way out must never depend on a pin (see `Tool.runsDetached`).
-  const shown = TOOLS.filter((t) => isPinned(t, choices) || isRunning(t));
+  const shown = SHELL_TOOLS.filter((t) => isPinned(t, choices) || isRunning(t));
 
   return (
     <div

@@ -20,6 +20,9 @@ export const AIR = hasExtension('air');
 /** True when the build ships the ASL sign reader and its instruments. */
 export const ASL = hasExtension('asl');
 
+/** True when the build ships the face categorizer session (#330). */
+export const FACES = hasExtension('faces');
+
 
 /** The repository root: the nearest directory at or above the working directory holding
  *  `extensions.json`, so running vitest from a subdirectory (`--root ..`) still finds it. (Not

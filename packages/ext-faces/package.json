@@ -1,0 +1,32 @@
+{
+  "name": "@thoremin/ext-faces",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's face categorizer extension (#330): record a session of your own faces, carve it into categories, name them (defaults from the general expression model, one-to-one), and save several. A LAZY, tool-only extension: imports only the SDK packages. TypeScript source, consumed through the workspace.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app/faceSession": "./src/app/faceSession.ts",
+    "./app/models": "./src/app/models.ts",
+    "./app/sessionStore": "./src/app/sessionStore.ts",
+    "./app/sources": "./src/app/sources.ts",
+    "./app/thumbnails": "./src/app/thumbnails.ts",
+    "./app/videoTake": "./src/app/videoTake.ts",
+    "./lazy": "./src/lazy.ts",
+    "./lazy_ui": "./src/lazy_ui.tsx",
+    "./lib/carving": "./src/lib/carving.ts",
+    "./lib/synthetic": "./src/lib/synthetic.ts",
+    "./lib/take": "./src/lib/take.ts",
+    "./panels/FaceSessionPanel": "./src/panels/FaceSessionPanel.tsx",
+    "./ui": "./src/ui.tsx"
+  },
+  "dependencies": {
+    "@thoremin/sdk": "*",
+    "@thoremin/sdk-ui": "*",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
+  },
+  "peerDependencies": {
+    "react": "*"
+  }
+}
