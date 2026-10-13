@@ -78,9 +78,10 @@ const HAND_GROUPS: [string, string][] = [
   ['hand.twohand.relational', 'Two-hand'],
 ];
 
-/** The body groups (#186): angles, positions, kinematics, shape, Laban effort, relations, pulse. */
+/** The body groups (#186): angles, segment directions (#381), positions, kinematics, shape, Laban effort, relations, pulse. */
 const BODY_GROUPS: [string, string][] = [
   ['body.angle', 'Joint angles'],
+  ['body.dir', 'Segment directions'],
   ['body.pos', 'Body positions'],
   ['body.kin', 'Body kinematics'],
   ['body.shape', 'Body shape'],
@@ -235,7 +236,19 @@ export interface BodyCtxOptions {
   history: readonly BodyHistorySample[];
   /** The dancer's pulse, when a `body-pulse` node feeds the vector (#186 PR F). */
   pulse?: BodyPulseReading;
+  /**
+   * The visibility mask (#381): a landmark below this visibility reads as absent, so
+   * every GEOMETRIC feature that needs it is NaN (dropped) rather than computed from the
+   * pose model's guess at an off-screen joint. The kinematics read `Pmotion`, unmasked. The torso anchors (shoulders, hips) are
+   * exempt: they define the frame every other feature is measured in, and a seated
+   * player's hips are often just below the frame while the arms are what they pose
+   * with. 0 (the default) masks nothing.
+   */
+  minVisibility?: number;
 }
+
+/** The landmarks the visibility mask never hides: the torso frame's four anchors. */
+export const BODY_TORSO_ANCHORS: readonly number[] = [BLM.left_shoulder, BLM.right_shoulder, BLM.left_hip, BLM.right_hip];
 
 /** The torso length (shoulder-mid to hip-mid) of a body frame in the given point set. */
 function torsoLength(get: (i: number) => Vec3 | undefined): number {
@@ -255,9 +268,12 @@ function torsoLength(get: (i: number) => Vec3 | undefined): number {
 export function buildBodyCtx(frame: BodyFrame, opts: BodyCtxOptions): BodyCtx {
   const world = frame.world;
   const useWorld = !!(world && world.length >= 33);
-  const P = (i: number): Vec3 | undefined => frame.landmarks[i];
-  const W = (i: number): Vec3 | undefined => world?.[i];
   const vis = (i: number): number => frame.visibility[i] ?? 1;
+  const minVis = opts.minVisibility ?? 0;
+  const seen = (i: number): boolean => minVis <= 0 || vis(i) >= minVis || BODY_TORSO_ANCHORS.includes(i);
+  const Pmotion = (i: number): Vec3 | undefined => frame.landmarks[i];
+  const P = (i: number): Vec3 | undefined => (seen(i) ? frame.landmarks[i] : undefined);
+  const W = (i: number): Vec3 | undefined => (seen(i) ? world?.[i] : undefined);
   return {
     present: frame.present,
     P,
@@ -265,6 +281,7 @@ export function buildBodyCtx(frame: BodyFrame, opts: BodyCtxOptions): BodyCtx {
     useWorld,
     torso: torsoLength(useWorld ? W : P),
     torsoImg: torsoLength(P),
+    Pmotion,
     vis,
     mirrorX: opts.mirrorX,
     width: frame.width,

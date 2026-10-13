@@ -184,6 +184,11 @@ export interface BodyCtx {
   torso: number;
   /** Torso length in IMAGE pixels — the scale for every kinematic/effort feature. */
   torsoImg: number;
+  /** The image landmarks WITHOUT the visibility mask (#381), for the kinematics and effort.
+   *  Motion blur lowers a fast limb's visibility, so a masked speed would go missing at its
+   *  peak; quantity of motion weights by visibility itself. Equal to `P` when nothing is
+   *  masked. */
+  Pmotion: (i: number) => Vec3 | undefined;
   vis: (i: number) => number;
   mirrorX: boolean;
   width: number;

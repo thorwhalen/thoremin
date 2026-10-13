@@ -26,12 +26,17 @@
  *    so they hold at any camera distance. They are emitted as 0/1 so the trainer's
  *    noise-unit machinery and the Lab meters treat them like any other scalar.
  *
+ *  - **Segment directions** (`body.dir`, #381) are each limb segment's elevation out of
+ *    the three planes of the torso's OWN frame (out, up, forward), in degrees: invariant to where the player stands, how
+ *    far away they are and, on the world set, to a turn. They are what tells an arm held
+ *    up from an arm held out at the same elbow and shoulder angle.
+ *
  * Angles use {@link angleAt} (acos of a clamped dot product) so a float overshoot
  * can never NaN a meter. A degenerate frame (no torso, missing landmark) yields
  * NaN, which the vector node drops.
  */
 import { BLM } from '../nodes/domain';
-import { angleAt, centroid, dist3, sub, type Vec3 } from './math';
+import { angleAt, centroid, cross, dist3, dot, length, normalize, sub, type Vec3 } from './math';
 import type { BodyCtx, FeatureDef, Invariance } from './types';
 
 type BodyFeature = FeatureDef<BodyCtx>;
@@ -104,7 +109,7 @@ interface KinSample {
 
 /** The history plus the current frame, oldest first, all in IMAGE coordinates. */
 function kinSamples(c: BodyCtx): KinSample[] {
-  return [...c.history, { pt: c.P, torso: c.torsoImg, dtS: NaN }];
+  return [...c.history, { pt: c.Pmotion, torso: c.torsoImg, dtS: NaN }];
 }
 
 /** Speed of joint `i` across two consecutive samples, in torso lengths per second:
@@ -122,7 +127,7 @@ function sampleSpeed(older: KinSample, newer: KinSample, i: number): number {
 function speedOf(c: BodyCtx, i: number): number {
   const prev = c.history[c.history.length - 1];
   if (!prev) return NaN;
-  return sampleSpeed(prev, { pt: c.P, torso: c.torsoImg, dtS: NaN }, i);
+  return sampleSpeed(prev, { pt: c.Pmotion, torso: c.torsoImg, dtS: NaN }, i);
 }
 
 /** A value with the time span it was measured over, so a derivative across samples of
@@ -176,7 +181,7 @@ function quantityOfMotion(c: BodyCtx): number {
   let den = 0;
   for (let i = 0; i < 33; i++) {
     const a = prev.pt(i);
-    const b = c.P(i);
+    const b = c.Pmotion(i);
     if (!a || !b) continue;
     const w = Math.min(c.vis(i), prev.vis(i));
     if (w < 0.2) continue;
@@ -230,12 +235,14 @@ function hipMid(c: BodyCtx): Vec3 | undefined {
   return mid(pt(c, BLM.left_hip), pt(c, BLM.right_hip));
 }
 
-/** Mean torso-ratio distance of the five extremities from the hip midpoint. */
+/** Mean torso-ratio distance of the five extremities from the hip midpoint. NaN unless
+ *  all five are present: a mean over whichever joints are in view would change meaning
+ *  when the feet leave the frame (#381's visibility mask) instead of going missing. */
 function extension(c: BodyCtx): number {
   const h = hipMid(c);
   if (!h) return NaN;
-  const ds = KEY_JOINTS.map((i) => torsoRatio(c, pt(c, i), h)).filter((v) => Number.isFinite(v));
-  return ds.length ? mean(ds) : NaN;
+  const ds = KEY_JOINTS.map((i) => torsoRatio(c, pt(c, i), h));
+  return ds.every((v) => Number.isFinite(v)) ? mean(ds) : NaN;
 }
 
 /** Centroid of the visible image landmarks, normalised 0..1 (x mirrored). */
@@ -276,6 +283,103 @@ function above(c: BodyCtx, i: number, j: number): number {
   return a && b ? bool(a.y < b.y) : NaN;
 }
 
+// ---- Segment directions in the torso frame (#381) -----------------------------
+
+/**
+ * The torso's own frame: `up` from the hip midpoint to the shoulder midpoint, `left`
+ * toward the subject's left (the hip line and the shoulder line summed, made
+ * orthogonal to `up`), `fwd` the way the subject faces (`left` x `up`; MediaPipe's
+ * world axes are x right, y down, z away from the camera, so a frontal player's
+ * forward is -z). Undefined when the torso is degenerate.
+ *
+ * On the image set only x and y are used: MediaPipe's image z is in normalised units
+ * beside pixel x and y, so mixing it in would tilt the frame by a unit mismatch. The
+ * image frame therefore has no forward reading (NaN); the out and up readings are the
+ * segment as the camera sees it.
+ */
+interface TorsoFrame {
+  left: Vec3;
+  up: Vec3;
+  fwd: Vec3;
+}
+
+/** A point of the active set, flattened to 2-D on the image set (see {@link TorsoFrame}). */
+function framePt(c: BodyCtx, i: number): Vec3 | undefined {
+  const p = pt(c, i);
+  if (!p || c.useWorld) return p;
+  return { x: p.x, y: p.y, z: 0 };
+}
+
+function torsoFrame(c: BodyCtx): TorsoFrame | undefined {
+  const ls = framePt(c, BLM.left_shoulder);
+  const rs = framePt(c, BLM.right_shoulder);
+  const lh = framePt(c, BLM.left_hip);
+  const rh = framePt(c, BLM.right_hip);
+  if (!ls || !rs || !lh || !rh) return undefined;
+  const upRaw = sub(centroid([ls, rs]), centroid([lh, rh]));
+  if (!(length(upRaw) > 1e-9)) return undefined;
+  const up = normalize(upRaw);
+  const across = sub(sub(ls, rs), sub(rh, lh)); // (ls - rs) + (lh - rh): both lines, toward the subject's left
+  const along = dot(across, up);
+  const ortho = { x: across.x - along * up.x, y: across.y - along * up.y, z: (across.z ?? 0) - along * (up.z ?? 0) };
+  if (!(length(ortho) > 1e-9)) return undefined;
+  const left = normalize(ortho);
+  return { left, up, fwd: cross(left, up) };
+}
+
+/** The four limb segments a pose is read from, each a (from, to) landmark pair per side. */
+const SEGMENTS = {
+  upperArm: ['shoulder', 'elbow'],
+  forearm: ['elbow', 'wrist'],
+  thigh: ['hip', 'knee'],
+  shank: ['knee', 'ankle'],
+} as const;
+type Segment = keyof typeof SEGMENTS;
+
+/**
+ * The three readings of a direction in the torso frame, each the segment's ELEVATION out of
+ * the plane normal to one torso axis, in degrees (-90..90): `asin` of the unit direction's
+ * component along that axis, which is 90 minus the angle between the segment and the axis.
+ *
+ * Angles rather than the raw components because the noise units need it: a component along
+ * the segment moves only to second order (a hanging arm's `up` component is -cos of a small
+ * angle), so at rest its jitter is some 70 times smaller than the others' and a carve would
+ * measure every pose by it alone. An elevation moves to first order in every direction. And
+ * three elevations rather than two spherical angles because every two-angle chart has a pole
+ * or a 360-degree wrap at some common pose (arms hanging, arms up), and the enrolment core has
+ * no circular distance.
+ *
+ * `out` is measured AWAY from the body's midline on the segment's own side, so the left/right
+ * mirror is a pure relabelling of sides (no sign flips) for every `body.dir` feature. `fwd`
+ * needs depth, so it is NaN (absent) on the image set: a 0 there would read as "in the
+ * frontal plane" to a categorizer trained with world landmarks.
+ */
+const DIR_AXES = ['out', 'up', 'fwd'] as const;
+type DirAxis = (typeof DIR_AXES)[number];
+
+/** One elevation of a segment in the torso frame, degrees (NaN when a landmark is missing,
+ *  the segment has no length, or `fwd` is asked of the image set). */
+function segmentDir(c: BodyCtx, side: Side, seg: Segment, axis: DirAxis): number {
+  if (axis === 'fwd' && !c.useWorld) return NaN;
+  const f = torsoFrame(c);
+  const [from, to] = SEGMENTS[seg];
+  const a = framePt(c, J(side, from));
+  const b = framePt(c, J(side, to));
+  if (!f || !a || !b) return NaN;
+  const d = sub(b, a);
+  const n = length(d);
+  if (!(n > 1e-9)) return NaN;
+  const along = axis === 'up' ? dot(d, f.up) : axis === 'fwd' ? dot(d, f.fwd) : (side === 'left' ? 1 : -1) * dot(d, f.left);
+  return Math.asin(Math.max(-1, Math.min(1, along / n))) * DEG;
+}
+
+const SEGMENT_WORDS: Record<Segment, string> = { upperArm: 'upper arm', forearm: 'forearm', thigh: 'thigh', shank: 'shank (shin)' };
+const AXIS_WORDS: Record<DirAxis, string> = {
+  out: 'elevation outward, away from the midline (degrees; 90 = straight out to the side)',
+  up: 'elevation up along the torso (degrees; -90 = pointing down, 90 = up)',
+  fwd: 'elevation forward, the way the torso faces (degrees; needs world landmarks)',
+};
+
 // ---- Invariance labels ---------------------------------------------------------
 
 const WORLD_GEOMETRY: readonly Invariance[] = ['scale', 'position', 'yaw', 'pitch', 'roll'];
@@ -283,6 +387,7 @@ const BODY_RELATIVE: readonly Invariance[] = ['scale', 'position'];
 
 const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
   'body.angle': WORLD_GEOMETRY,
+  'body.dir': WORLD_GEOMETRY,
   'body.pos': [],
   'body.kin': BODY_RELATIVE,
   'body.shape': BODY_RELATIVE,
@@ -317,6 +422,26 @@ function angleFeatures(): BodyFeature[] {
     { id: 'body.angle.torso.lean', group: 'body.angle', source: 'body', range: [-90, 90], invariantTo: BODY_RELATIVE, controllability: 'easy', description: 'Sideways lean of the torso from vertical (degrees, signed)', compute: torsoLeanDeg },
     { id: 'body.angle.head.tilt', group: 'body.angle', source: 'body', range: [-90, 90], invariantTo: BODY_RELATIVE, controllability: 'easy', description: 'Head tilt: ear-to-ear line from horizontal (degrees, signed)', compute: headTiltDeg },
   );
+  return out;
+}
+
+function directionFeatures(): BodyFeature[] {
+  const out: BodyFeature[] = [];
+  for (const seg of Object.keys(SEGMENTS) as Segment[]) {
+    for (const s of SIDES) {
+      for (const axis of DIR_AXES) {
+        out.push({
+          id: `body.dir.${seg}.${s}.${axis}`,
+          group: 'body.dir',
+          source: 'body',
+          range: [-90, 90],
+          controllability: 'easy',
+          description: `${s} ${SEGMENT_WORDS[seg]} direction in the torso frame: ${AXIS_WORDS[axis]}`,
+          compute: (c) => segmentDir(c, s, seg, axis),
+        });
+      }
+    }
+  }
   return out;
 }
 
@@ -417,6 +542,7 @@ function rhythmFeatures(): BodyFeature[] {
 /** The body catalog, in display order; ids are final (no per-side expansion). */
 export const BODY_FEATURES: readonly BodyFeature[] = [
   ...angleFeatures(),
+  ...directionFeatures(),
   ...positionFeatures(),
   ...kinematicFeatures(),
   ...shapeFeatures(),

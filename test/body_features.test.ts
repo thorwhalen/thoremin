@@ -30,8 +30,8 @@ const compute = (id: string, frame: BodyFrame) => {
 };
 
 describe('body catalog — registry', () => {
-  it('registers seven body groups and every body feature under one of them, ids unique', () => {
-    expect(BODY_GROUP_IDS).toEqual(['body.angle', 'body.pos', 'body.kin', 'body.shape', 'body.effort', 'body.rel', 'body.rhythm']);
+  it('registers eight body groups and every body feature under one of them, ids unique', () => {
+    expect(BODY_GROUP_IDS).toEqual(['body.angle', 'body.dir', 'body.pos', 'body.kin', 'body.shape', 'body.effort', 'body.rel', 'body.rhythm']);
     expect(FEATURE_GROUPS.filter((g) => g.source === 'body').map((g) => g.id)).toEqual(BODY_GROUP_IDS);
     const ids = BODY_FEATURES.map((f) => f.id);
     expect(new Set(ids).size).toBe(ids.length);
