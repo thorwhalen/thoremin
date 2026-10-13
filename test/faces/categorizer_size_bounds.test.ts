@@ -34,6 +34,7 @@ function sized(total: number): PersonalCategorizer {
   return {
     format: CATEGORIZER_FORMAT,
     version: CATEGORIZER_VERSION,
+    neutralTrained: true,
     name: 'big',
     features: ['x', 'y'],
     weights: { x: 1, y: 1 },
@@ -106,9 +107,9 @@ describe('merging a take into a categorizer at the bound', () => {
   it('a merge that would pass the bound merges nothing, says so, and keeps the categorizer', async () => {
     const store = createFaceSessionStore(deps());
     const s = () => store.getState();
-    // Partition mode: the padding is in no category, so no view selects exemplars over it
-    // (in reject mode it would be "none of these", whose exemplars cost seconds at the bound).
-    s().setMode('partition');
+    // Strangers read as the nearest face: the padding is set aside, in no category, so no view
+    // selects exemplars over it (in Neutral, its exemplars would cost seconds at the bound).
+    s().setStrangers('nearest');
     s().start();
     await run(TAKE_MS);
     await s().stop();

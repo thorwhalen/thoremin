@@ -54,7 +54,7 @@ const TAKE_MS = SYNTHETIC_TIMELINE.restMs + 12 * (SYNTHETIC_TIMELINE.holdMs + SY
 async function savedAndOpen(mode: 'reject' | 'partition' = 'reject') {
   const store = createFaceSessionStore(sessionDeps());
   const s = () => store.getState();
-  s().setMode(mode);
+  s().setStrangers(mode === 'reject' ? 'neutral' : 'nearest');
   s().start();
   await run(TAKE_MS);
   await s().stop();
@@ -75,6 +75,29 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+describe('the strangers switch on a take and on a saved categorizer (#385 E5)', () => {
+  it('a take recorded as "the nearest face" still puts the rest in Neutral, taught, with no radius', async () => {
+    const { s } = await savedAndOpen('partition');
+    const w = s().working!;
+    expect(w).toMatchObject({ strangers: 'nearest', neutralTrained: true });
+    expect(w.rejectRadius).toBeUndefined();
+    expect(w.neutral.length).toBeGreaterThan(0);
+  });
+
+  it('switching a saved one to Neutral trains a radius from its Neutral holds and moves nothing; undo puts it back', async () => {
+    const { s } = await savedAndOpen('partition');
+    const before = s().working!;
+    s().setStrangers('neutral');
+    const after = s().working!;
+    expect(after.strangers).toBe('neutral');
+    expect(after.rejectRadius).toBeGreaterThan(0);
+    expect({ c: after.categories, n: after.neutral, a: after.aside }).toEqual({ c: before.categories, n: before.neutral, a: before.aside });
+    expect(s().dirty).toBe(true);
+    s().undo();
+    expect(s().working).toEqual(before);
+  });
+});
+
 describe('testing a categorizer live', () => {
   it('reads each scripted expression as its category, and the rest as none of these', async () => {
     const { s } = await savedAndOpen('reject');
@@ -94,7 +117,8 @@ describe('testing a categorizer live', () => {
       if (!r || now.mix < 1 || earlier.mix < 1 || earlier.to !== now.to || clock - started < 500) continue;
       const key = SYNTHETIC_EXPRESSIONS[now.to].name;
       if (!seen.has(key)) seen.set(key, new Set());
-      seen.get(key)!.add(r.label ?? (r.rejected ? 'none' : '?'));
+      // None of these: by the taught Neutral class (#385 E5), or beyond the reject radius.
+      seen.get(key)!.add(r.label ?? (r.rejected || r.neutral ? 'none' : '?'));
     }
     expect(seen.get('rest')).toEqual(new Set(['none']));
     const expressions = [...seen.keys()].filter((k) => k !== 'rest');

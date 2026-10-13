@@ -9,7 +9,8 @@
  * - {@link addSample}: "this face is X". The live face (the raw vector, never the tuned one: the
  *   tuning is about the room, the sample is about the face) joins category X.
  * - {@link moveSample}: a sample in the wrong category moves to another, or out of every
- *   category (`null`: neutral, or set aside when strangers read as the nearest category). A
+ *   category (`null`: Neutral, or set aside in an older file that reads strangers as the
+ *   nearest category and does not train Neutral). A
  *   category keeps at least one face: moving its last one away is refused (merge it instead).
  *
  * Both are the player's placements, so both are PINS (#385 E4): a re-cut keeps them where they
@@ -71,7 +72,8 @@ export function addSample(
 
 /**
  * Move sample `index` to category `to`, or out of every category with `null`: into `neutral`
- * when strangers read as neutral (it is "none of these"), else set aside (kept, not trained).
+ * when that means "none of these" (Neutral is taught, #385 E5, or strangers read as Neutral),
+ * else set aside (kept, not trained).
  * A pin, as every move (#385 E4: `moveHolds`), so a re-cut keeps it there.
  */
 export function moveSample(categorizer: PersonalCategorizer, index: number, to: string | null): CorrectionResult {
@@ -80,7 +82,8 @@ export function moveSample(categorizer: PersonalCategorizer, index: number, to: 
   const id = categorizer.samples[index].id;
   const from = categorizer.categories.find((c) => c.members.includes(id));
   if (from?.id === to || (!from && to === null)) return { ok: true, categorizer };
-  return moveHolds(categorizer, [id], to ?? (categorizer.strangers === 'neutral' ? NEUTRAL_BIN : ASIDE_BIN));
+  const none = categorizer.neutralTrained || categorizer.strangers === 'neutral';
+  return moveHolds(categorizer, [id], to ?? (none ? NEUTRAL_BIN : ASIDE_BIN));
 }
 
 /** The category that claims sample `index`, or null. */

@@ -103,6 +103,15 @@ export interface TrainedModel {
    * boundary. Set by demonstration (the baseline cue) rather than by a magic number.
    */
   rejectRadius: number;
+  /**
+   * The taught null class (#385 E5): prototypes of the holds the player put in Neutral ("this
+   * face means nothing"). A vector nearest one of them reads as no category (`categoryId: null`,
+   * {@link Classification.neutral}), whatever the reject radius says. Several prototypes because a
+   * null class is heterogeneous (a resting face and a look at the keyboard are both "nothing");
+   * absent or empty, nothing is taught and only the reject radius says "none of these". Ids are
+   * `neutral-1..n`; `members` index the same pool as the categories'.
+   */
+  neutral?: Category[];
 }
 
 /** The stable key of a category across re-cuts: its member set. */
@@ -115,15 +124,21 @@ export interface Classification {
   /** The winning category id, or `null` for no-man's-land. */
   categoryId: string | null;
   /**
-   * Soft membership per category id, summing to 1 across categories.
+   * Soft membership per category id. Summing to 1 across the categories, less the share of the
+   * taught Neutral class ({@link Classification.neutralMembership}) when the model has one.
    *
    * The primary output, deliberately. A hard category is a step function, and step
    * functions are not expressive — both XMM and GVF output continuously for that
    * reason. Discrete triggers read `categoryId`; continuous mappings read this.
    */
   memberships: Record<string, number>;
-  /** Weighted distance to the winning centroid (before the reject test). */
+  /** Weighted distance to the nearest CATEGORY's centroid: what the reject test reads. */
   distance: number;
-  /** True when the vector fell outside `rejectRadius`. */
+  /** True when the vector fell outside `rejectRadius` (and Neutral was not nearer). */
   rejected: boolean;
+  /** True when the taught Neutral class is nearest: no category, by the player's own example
+   *  (#385 E5). Never true together with `rejected`. Absent for a model with no Neutral. */
+  neutral?: boolean;
+  /** The taught Neutral class's share of the soft memberships (0 without one). */
+  neutralMembership?: number;
 }

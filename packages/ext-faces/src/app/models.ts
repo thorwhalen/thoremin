@@ -9,7 +9,7 @@
  * Several per player, each named; saving under an existing name replaces that one.
  */
 import { z } from 'zod';
-import { PersonalCategorizerSchema, migrateCategorizerV1, v1SampleId } from '@thoremin/sdk/enroll/categorizer';
+import { PersonalCategorizerSchema, migrateCategorizerV1, migrateCategorizerV2, v1SampleId } from '@thoremin/sdk/enroll/categorizer';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import { TuningSchema } from '../lib/live';
 import { holdId } from './thumbnails';
@@ -25,15 +25,21 @@ const SavedFaceModelShape = z.object({
  * A record saved before #385 E3 carries a version-1 categorizer and the take id its stills are
  * filed under (`<takeId>:<index>`). Its samples are given exactly those keys as ids, so every
  * still is found where it is, never re-filed; without a take id they get the file migration's
- * ids. A record already at version 2 passes through (a leftover `takeId` is stripped).
+ * ids. A version-2 categorizer (before #385 E5) migrates to version 3 with its Neutral holds
+ * untrained, as they were. A record at the current version passes through (a leftover `takeId`
+ * is stripped).
  */
 export function migrateSavedModel(value: unknown): unknown {
   if (!value || typeof value !== 'object') return value;
   const { takeId, ...rest } = value as { takeId?: unknown; categorizer?: unknown };
-  const c = rest.categorizer;
-  if (!c || typeof c !== 'object' || (c as { version?: unknown }).version !== 1) return rest;
-  const idFor = typeof takeId === 'string' && takeId.length > 0 ? (i: number) => holdId(takeId, i) : v1SampleId;
-  return { ...rest, categorizer: migrateCategorizerV1(c as Record<string, unknown>, { idFor }) };
+  let c = rest.categorizer;
+  if (!c || typeof c !== 'object') return rest;
+  if ((c as { version?: unknown }).version === 1) {
+    const idFor = typeof takeId === 'string' && takeId.length > 0 ? (i: number) => holdId(takeId, i) : v1SampleId;
+    c = migrateCategorizerV1(c as Record<string, unknown>, { idFor });
+  }
+  if ((c as { version?: unknown }).version === 2) c = migrateCategorizerV2(c as Record<string, unknown>);
+  return { ...rest, categorizer: c };
 }
 
 export const SavedFaceModelSchema = z.preprocess(migrateSavedModel, SavedFaceModelShape);

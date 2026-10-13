@@ -5,7 +5,8 @@
  * file, resolved to play, and replayed frame by frame through the `face-categorizer` node and
  * the core `expression-chord` renderer. Plus the pure pieces: what each category stands in for,
  * the reading the renderer consumes, the general model passed through, and the per-category
- * degree a player chooses.
+ * degree a player chooses. And #385 E5's acceptance: a rest face reads null, by the taught
+ * Neutral class, whatever a face nobody taught reads as.
  */
 import { describe, expect, it } from 'vitest';
 import { replayNode } from '@thoremin/dag';
@@ -20,7 +21,10 @@ import { categorizerPlay, neutralCategoryIndex, standsForOf, toExpressionScores 
 import { faceCategorizerNode } from '@thoremin/ext-faces/nodes/face_categorizer';
 import { AUTO_DEGREE, CATEGORY_SLOTS, DEFAULT_FACE_CATEGORIZER, FaceCategorizerDialSchema, ownDegrees, type FaceCategorizerDial } from '@thoremin/ext-faces/schema';
 import { expressionChordNode } from '@/nodes/music/expression_chord';
-import { RECORDING_FPS, recordedCategorizer, recordedFrames, SEGMENTS } from '../helpers/faceRecording';
+import { RECORDING_FPS, recordedCategorizer, recordedFrames, SEGMENTS, vectorOf } from '../helpers/faceRecording';
+import { classify } from '@thoremin/sdk/enroll/classify';
+import { setStrangers } from '@thoremin/sdk/enroll/sorting';
+import { liveModel, tuneVector } from '@thoremin/ext-faces/lib/live';
 
 const FPS = RECORDING_FPS;
 const cMajor: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };
@@ -147,6 +151,43 @@ function syntheticCategorizer(mode: 'reject' | 'partition'): PersonalCategorizer
   const view = carveView({ session, restVectors: take.restVectors(), carver, k: carver.suggestedK() });
   return categorizerFromModel(view.model, session.points(), { name: `synthetic ${mode}`, mode, modality: 'face' });
 }
+
+describe('Neutral as a taught class, on the recorded faces (#385 E5)', () => {
+  const frames = recordedFrames();
+  const taught = recordedCategorizer(frames);
+  const nearest = (() => {
+    const r = setStrangers(taught, 'nearest');
+    if (!r.ok) throw new Error(r.error);
+    return r.categorizer;
+  })();
+  const REST = [0, 10] as const;
+  const SMILE = [SEGMENTS.smile[0] + 8, SEGMENTS.smile[1] - 4] as const;
+
+  for (const [setting, categorizer] of [['Neutral', taught], ['the nearest face', nearest]] as const) {
+    it(`strangers read as ${setting}: a rest face reads null, by the taught class, and plays silence`, async () => {
+      expect(categorizer.neutralTrained).toBe(true);
+      const live = liveModel(categorizer);
+      expect(live.model.neutral?.length).toBeGreaterThan(0);
+      for (let i = REST[0]; i <= REST[1]; i++) {
+        expect(classify(live.model, tuneVector(live, vectorOf(frames[i])), { temperature: live.temperature })).toMatchObject({ categoryId: null, neutral: true });
+      }
+      const play = categorizerPlay({ id: 'mine', name: 'Mine', categorizer });
+      const { read, triads } = await playThrough(frames, play, dial('mine'));
+      for (let i = REST[0]; i <= REST[1]; i++) {
+        expect(read[i].personal?.id ?? null).toBeNull();
+        expect(triads[i]).toEqual([]);
+      }
+      // The smile still plays its own category.
+      expect(mode(read.slice(SMILE[0], SMILE[1] + 1).map((r) => r.personal?.id ?? null))).toBe(categorizer.categories[0].id);
+    });
+  }
+
+  it('the class is what does it: as the nearest face with Neutral untrained (an older file), the rest reads a category', () => {
+    const live = liveModel({ ...nearest, neutralTrained: false });
+    const read = Array.from({ length: REST[1] + 1 }, (_, i) => classify(live.model, vectorOf(frames[i])).categoryId);
+    expect(read.every((x) => x !== null)).toBe(true);
+  });
+});
 
 describe('what each category stands in for', () => {
   it('partition mode: the resting category stands in for neutral, the others for distinct expressions', () => {

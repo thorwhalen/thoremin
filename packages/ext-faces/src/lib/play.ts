@@ -6,9 +6,10 @@
  * personal categorizer reaches it as the same `ExpressionScores`, with the player's own
  * categories alongside (`personal`), and each category STANDS IN for one expression:
  *
- *  1. in partition mode, the resting category (named `neutral`, as the carve names it) stands
- *     in for `neutral`, which plays silence by default, like a resting face on the general
- *     model; in reject mode "none of these" does;
+ *  1. "none of these" (a face nearest the taught Neutral, #385 E5, or beyond the reject radius)
+ *     stands in for `neutral`, which plays silence by default, like a resting face on the
+ *     general model; in an older file whose every face was a category, the resting category
+ *     (named `neutral`, as that carve named it) does;
  *  2. a category named after an expression (the carve's one-to-one match, or a player who chose
  *     that word) stands in for it; the others are matched one-to-one among the expressions left
  *     (the matcher of P1, `matchLabels` over `generalFaceLabeling`, scored exactly as the carve
@@ -44,7 +45,8 @@ export interface FaceCategorizerPlay {
 }
 
 /**
- * The partition-mode category that is the resting face, by index, or -1: the one named
+ * The resting category of a file whose every face is a category (strangers read as the nearest
+ * face; before #385 E5 the rest was carved as a category), by index, or -1: the one named
  * `neutral`, which the carve names it (by its faces) and P3's tuning reads it by. A saved file
  * keeps no resting faces of its own, so a player who renames it has made it a face like any
  * other: it then stands in for an expression, and they can silence it per category.

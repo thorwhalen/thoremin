@@ -44,8 +44,7 @@ import {
   categorizerFromModel,
   exportCategorizer,
   importCategorizer,
-  strangersFor,
-  type CategorizerMode,
+  type CategorizerStrangers,
   type PersonalCategorizer,
   type SampleInput,
 } from '@thoremin/sdk/enroll/categorizer';
@@ -63,13 +62,15 @@ import {
   recut,
   recutBounds,
   recutRange,
+  setNeutralTrained,
+  setStrangers as setStrangersOf,
   splitCategory,
   type Place,
   type RecutOptions,
   type SortResult,
 } from '@thoremin/sdk/enroll/sorting';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
-import { nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
+import { carveTake, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, type Tuning } from '../lib/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
@@ -97,8 +98,8 @@ export type FacePhase =
   | 'paused'
   /** Stop was pressed: the take is being carved. */
   | 'stopping'
-  /** A take carved: its working categorizer in the sorting grid (k, the mode, moves, names,
-   *  merge, split, undo), Save. */
+  /** A take carved: its working categorizer in the sorting grid (k, the strangers switch, moves,
+   *  names, merge, split, undo), Save. */
   | 'carved'
   /** A take that held no face long enough to carve. */
   | 'empty'
@@ -148,7 +149,9 @@ export interface FaceSessionDeps {
 
 export interface FaceSessionState {
   phase: FacePhase;
-  mode: CategorizerMode;
+  /** What a face nobody taught reads as (#385 E5): the working categorizer's, or the next take's
+   *  before there is one. */
+  strangers: CategorizerStrangers;
   k: number;
   /** The sorting grid over {@link FaceSessionState.working} (#385 E4). */
   view: SortingView | null;
@@ -197,7 +200,11 @@ export interface FaceSessionState {
   /** The live feature bars now, or null when nothing is read. Not reactive: a panel polls it. */
   live(options?: { count?: number }): LiveBars | null;
   stop(): Promise<void>;
-  setMode(mode: CategorizerMode): void;
+  /** The strangers switch: what a face nobody taught reads as, Neutral or the nearest face. An
+   *  edit of the working categorizer (undoable); before a take, the next take's setting. */
+  setStrangers(strangers: CategorizerStrangers): void;
+  /** Train the Neutral holds of an older categorizer (migrated with them untrained). Undoable. */
+  teachNeutral(): boolean;
   setK(k: number): void;
   rename(id: string, label: string): void;
   save(name: string): Promise<boolean>;
@@ -281,8 +288,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let timer: ReturnType<typeof setInterval> | null = null;
   /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
    *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
-   *  say), which is neutral in `reject` mode. */
-  let fresh: { rest: readonly FeatureVector[]; cloud: ReadonlySet<string> | null; base: PersonalCategorizer; held: PersonalCategorizer | null } | null = null;
+   *  say), which seeds Neutral in either setting of the strangers switch (#385 E5). */
+  let fresh: { rest: readonly FeatureVector[]; cloud: ReadonlySet<string> | null } | null = null;
   /** The open categorizer's reject radius as opened: a re-cut floors from it, so k up and down
    *  does not drift. */
   let baseRadius: number | undefined;
@@ -500,7 +507,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       const range = recutable ? { minK: bounds.minK, maxK, suggestedK: Math.min(suggested, maxK), recutable } : { minK: working.categories.length, maxK: working.categories.length, suggestedK: working.categories.length, recutable };
       const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true });
       shownIds = working.samples.map((x) => x.id);
-      set({ working, view, mode: view.mode, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
+      set({ working, view, strangers: working.strangers, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
       const gen = generation;
       void loadThumbs(shownIds).then((found) => {
         if (gen === generation && get().working === working && get().phase === 'saved') set({ hasStills: found });
@@ -557,66 +564,21 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         ? { ok: false, error: `${FACE_SESSION_DEFAULTS.maxCategories} categories is the most (one per chord an instrument has); merge two first` }
         : null;
 
-    /** A grid with nothing carved: every hold is close to the rest (`reject`), so they are all
-     *  shown as neutral and the mode can still be changed. */
-    const emptyView = (base: PersonalCategorizer, mode: CategorizerMode): SortingView => ({
-      mode,
-      k: 0,
-      minK: 0,
-      suggestedK: 0,
-      maxK: 0,
-      neutralKnown: fresh?.cloud !== null,
-      model: { categories: [], features: [...base.features], weights: { ...base.weights }, rejectRadius: 1 },
-      categories: [],
-      neutral: { count: base.samples.length, exemplars: base.samples.map((_, i) => i) },
-      aside: { count: 0, exemplars: [] },
-      pinned: new Set(),
-      ids: base.samples.map((x) => x.id),
-      recutable: false,
-    });
-
-    /** Carve the fresh take in `mode` at `k` (the suggestion when absent), its pins kept. */
-    const carveFresh = (mode: CategorizerMode, k?: number) => {
+    /** Carve the fresh take `base` (`carveTake`: the rest cloud in Neutral) and show it. */
+    const carveFresh = (base: PersonalCategorizer) => {
       if (!fresh) return;
-      // The document to carve from: the one shown, else the one held while nothing could be
-      // carved (its edits kept), else the take as it came.
-      const cur = get().working ?? fresh.held ?? fresh.base;
-      const { rejectRadius, ...rest } = cur;
-      const doc: PersonalCategorizer =
-        mode === 'reject' ? { ...rest, strangers: strangersFor(mode), rejectRadius: rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius } : { ...rest, strangers: strangersFor(mode) };
-      const neutral = mode === 'reject' ? (fresh.cloud ?? new Set<string>()) : new Set<string>();
-      const options = { ...recutOptions(), neutral };
-      const r = recut(doc, Math.min(k ?? recutRange(doc, options).suggestedK, FACE_SESSION_DEFAULTS.maxCategories), options);
-      if (!r.ok) {
-        const { one, many } = modality.words;
-        // Nothing to carve: the document is held (and the one shown kept for undo), so a mode
-        // switch back carves it again with every edit in it.
-        const shown = get().working;
-        if (shown) {
-          undoStack = [...undoStack, { working: shown, sources }].slice(-FACE_SESSION_DEFAULTS.undoDepth);
-          redoStack = [];
-        }
-        lastWasK = false;
-        fresh.held = cur;
-        shownIds = cur.samples.map((x) => x.id);
-        set({
-          mode,
-          k: 0,
-          working: null,
-          history: { undo: undoStack.length, redo: redoStack.length },
-          view: emptyView(cur, mode),
-          notice: `Every held ${one} was close to your resting ${one}, so there is nothing to carve. Choose "Every ${one} is a category", or record again with stronger ${many}.`,
-        });
-        show(generation);
+      const { result, allNearRest } = carveTake(base, { ...fresh, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius, maxCategories: FACE_SESSION_DEFAULTS.maxCategories });
+      if (!result.ok) {
+        set({ notice: `Nothing to carve: ${result.error}.` });
         return;
       }
-      fresh.held = null;
-      if (get().working) commit(r.categorizer);
-      else {
-        const named = nameCarve(r.categorizer, { modality, sources, restCloud: fresh.cloud ?? undefined });
-        sources = named.sources;
-        showDoc(named.categorizer, { dirty: true, notice: null });
-      }
+      const { one, many } = modality.words;
+      const notice = allNearRest
+        ? `Every held ${one} was close to your resting ${one}, so none was put in Neutral: all are carved. Move the resting ones to Neutral, or record again with stronger ${many}.`
+        : null;
+      const named = nameCarve(result.categorizer, { modality, sources, restCloud: fresh.cloud ?? undefined });
+      sources = named.sources;
+      showDoc(named.categorizer, { dirty: true, notice });
     };
 
     /** Delete the stills of `ids` that no saved record's samples name any more. */
@@ -632,7 +594,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
     return {
       phase: 'idle',
-      mode: 'reject',
+      strangers: 'neutral',
       k: 0,
       view: null,
       thumbs: {},
@@ -791,27 +753,32 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return;
         }
         // The take becomes the working categorizer at once (#385 E4): every hold with its id, all
-        // in one category, then carved at the suggested k, the rest cloud neutral in `reject`.
+        // in one category, then carved at the suggested k, the rest cloud in Neutral.
         const session = myTake.session();
         const samples = takeSamples(myTake, takeId!);
         const rest = myTake.restVectors();
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
-        const mode = get().mode;
-        const base = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', mode, modality: modality.id, createdAt: deps.isoNow() });
-        fresh = { rest, cloud: cloud ? new Set(cloud.map((i) => samples[i].id)) : null, base, held: null };
+        const strangers = get().strangers;
+        const base = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, createdAt: deps.isoNow() });
+        fresh = { rest, cloud: cloud ? new Set(cloud.map((i) => samples[i].id)) : null };
         set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true });
-        carveFresh(mode);
+        carveFresh(base);
       },
 
-      setMode(mode) {
-        const { phase, view } = get();
-        if (phase !== 'carved' || !fresh) {
-          if (phase === 'idle' || phase === 'empty') set({ mode });
+      setStrangers(strangers) {
+        const { phase, working } = get();
+        if (!working || (phase !== 'carved' && phase !== 'saved')) {
+          if (phase === 'idle' || phase === 'empty') set({ strangers });
           return;
         }
-        if (mode === get().mode) return;
-        // Moving neutral in or out of the categories changes k by one in the obvious direction.
-        carveFresh(mode, view && view.k > 0 ? view.k + (mode === 'partition' ? 1 : -1) : undefined);
+        if (strangers === working.strangers) return;
+        // Neutral is taught by example in both settings, so the switch moves no hold and re-cuts
+        // nothing: it says only what a face far from every category reads as.
+        edit((w) => setStrangersOf(w, strangers, recutOptions()));
+      },
+
+      teachNeutral() {
+        return edit((w) => setNeutralTrained(w, true));
       },
 
       setK(k) {
