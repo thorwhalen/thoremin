@@ -213,7 +213,7 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
         <span className="font-semibold text-emerald-200">In use: {MODE_TEXT[view.mode].title}.</span> {modeSummary(view)}
       </p>
       <KControl s={s} />
-      {!s.hasVideo && <p className={hint}>This take kept no video, so the categories have no pictures.</p>}
+      {!s.hasStills && <p className={hint}>No pictures were taken, so the categories have none.</p>}
       <ul className="space-y-2">
         {view.categories.map((c) => (
           <CategoryCard key={c.id} c={c} thumbs={s.thumbs} rename={s.rename} target={target} />
@@ -377,7 +377,7 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
         </span>
         {phase !== 'explore' && <span>{`${s.elapsed.toFixed(0)} s`}</span>}
         {(phase === 'faces' || phase === 'paused') && <span>{`${s.points} held ${s.points === 1 ? one : many}`}</span>}
-        {phase !== 'explore' && <span>{s.hasVideo ? 'video kept in this page only' : 'no video'}</span>}
+        {phase !== 'explore' && <span>{s.hasStills ? 'pictures kept in this page only' : 'no pictures'}</span>}
       </p>
       <p className="text-sm font-semibold text-white">{instruction}</p>
       {phase !== 'explore' && phase !== 'paused' && <p className={hint}>{cue.rationale}</p>}

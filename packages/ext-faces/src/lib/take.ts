@@ -10,8 +10,13 @@
  * (`createCarver`'s `reject` mode). The same take serves both modes: the player relaxes between
  * expressions anyway, and the switch only changes how the pool is carved.
  *
- * Times are engine-clock milliseconds (the live tap's `t`), the clock the kept video's start
- * is stamped on, so a still-point's `t - t0` seeks the video to it.
+ * Times are engine-clock milliseconds (the live tap's `t`).
+ *
+ * #385 E3: each hold keeps a few SUPPORTING frames (`support(i)`): the frames from when the
+ * hold began to when it was taken (its dwell window), thinned evenly, the modality's keys only.
+ * The carve still clusters one point per hold (no dwell-time bias); the frames are evidence a
+ * category's spread can later be measured from. The store takes the hold's still the moment
+ * the point count grows.
  *
  * #385 E2 adds two phases around the capture. **Explore** comes before the rest: the camera is
  * read (every frame feeds the session's noise estimate) and a watching sampler says when a pose
@@ -29,7 +34,7 @@ import { samplingFor } from '@thoremin/sdk/enroll/cue';
 import { createStillPointSampler, type StillPointSampler } from '@thoremin/sdk/enroll/sampler';
 import { createSession, type Session } from '@thoremin/sdk/enroll/session';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import type { CarveModality } from '@thoremin/sdk/enroll/modality';
+import { keepOnly, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 /** The rest: the baseline and the noise warm-up. */
@@ -81,6 +86,10 @@ export const FACE_TAKE_DEFAULTS = {
   /** Rest frames with a face in them needed before the faces begin (the session's noise
    *  warm-up is 30 frames; twice that leaves the estimate settled). */
   minRestFrames: 60,
+  /** Supporting frames kept per hold (#385 E3), thinned evenly from its dwell window. */
+  supportFrames: 4,
+  /** How far back the take remembers frames for a hold's support (the dwell is 220 ms). */
+  supportWindowMs: 1000,
 } as const;
 
 export type FaceTakePhase = 'idle' | 'explore' | 'rest' | 'faces' | 'paused' | 'done';
@@ -98,6 +107,8 @@ export interface FaceTakeOptions {
   session?: Session;
   /** What is carved (the face by default): its cues, and whether a frame shows it. */
   modality?: CarveModality;
+  /** Supporting frames kept per hold (0 keeps none). */
+  supportFrames?: number;
 }
 
 export interface FaceTake {
@@ -124,6 +135,9 @@ export interface FaceTake {
   restVectors(): readonly FeatureVector[];
   /** Still-points captured so far (each one a held face). */
   pointCount(): number;
+  /** Hold `index`'s supporting frames (the modality's keys only): frames from its dwell
+   *  window, from when the hold began to when it was taken, thinned evenly. */
+  support(index: number): readonly FeatureVector[];
   /** When the faces began (engine ms), or null before. */
   facesStartedAt(): number | null;
   session(): Session;
@@ -135,6 +149,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   const session = options.session ?? createSession();
   const modality = options.modality ?? faceModality;
   const cues = { rest: restCue(modality), vocabulary: vocabularyCue(modality) };
+  const supportFrames = Math.max(0, Math.floor(options.supportFrames ?? FACE_TAKE_DEFAULTS.supportFrames));
+  /** Recent frames (while capturing), trimmed to the support window. */
+  const recent: { vector: FeatureVector; t: number }[] = [];
+  const supports: FeatureVector[][] = [];
   let phase: FaceTakePhase = 'idle';
   let t0 = 0;
   let lastT = Number.NEGATIVE_INFINITY;
@@ -208,7 +226,13 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
         if (modality.read(vector) !== null && watch?.push(vector, tMs)) justTaken = true;
         return;
       }
-      if (session.points().length > before) justTaken = true;
+      if (supportFrames > 0) {
+        recent.push({ vector, t: tMs });
+        while (recent.length > 0 && tMs - recent[0].t > FACE_TAKE_DEFAULTS.supportWindowMs) recent.shift();
+      }
+      const points = session.points();
+      for (let i = before; i < points.length; i++) supports[i] = thin(recent.filter((f) => f.t >= points[i].t && modality.read(f.vector) !== null).map((f) => keepOnly(modality, f.vector)), supportFrames);
+      if (points.length > before) justTaken = true;
       if (phase === 'rest') {
         if (modality.read(vector) !== null) rest.push(vector);
         if (tMs - t0 >= restMs && rest.length >= minRestFrames) {
@@ -237,7 +261,15 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     },
     restVectors: () => rest,
     pointCount: () => session.points().length,
+    support: (index) => supports[index] ?? [],
     facesStartedAt: () => facesAt,
     session: () => session,
   };
+}
+
+/** At most `n` of `frames`, evenly spaced, first and last kept. */
+function thin<T>(frames: readonly T[], n: number): T[] {
+  if (frames.length <= n) return [...frames];
+  if (n <= 1) return n === 1 ? [frames[frames.length - 1]] : [];
+  return Array.from({ length: n }, (_, i) => frames[Math.round((i * (frames.length - 1)) / (n - 1))]);
 }

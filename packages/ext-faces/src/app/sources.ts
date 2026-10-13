@@ -1,6 +1,6 @@
 /**
  * Where the face session's input comes from, as one seam (#330 P2): the feature vectors to carve
- * and the video to take exemplar frames from.
+ * and the video a hold's still is taken from (#385 E3: at capture, never recorded).
  *
  * - **live** (the default): the trainer's own live-vector tap (`@thoremin/sdk-ui/enroll/liveVector`,
  *   the vectors the instrument computes each tick) and the RAW camera stream (the host's camera
@@ -10,7 +10,7 @@
  *   A verification affordance, like `?slot.source=synthetic-hands`, never an instrument.
  *
  * Times are engine-clock milliseconds (`performance.now()` at speed 1, the clock the live tap
- * converts to), the clock the video's start is stamped on.
+ * converts to).
  */
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
@@ -21,7 +21,7 @@ export interface FaceSource {
   readonly kind: 'live' | 'synthetic';
   /** The latest vector and its engine time (ms), or null when there is none. */
   read(): { vector: FeatureVector; t: number } | null;
-  /** A stream to record the take's video from, or null (then the grid has no pictures). */
+  /** A stream the holds' stills are taken from, or null (then the grid has no pictures). */
   video(): MediaStream | null;
   /** Release what the source opened (the synthetic canvas); never the camera. */
   dispose(): void;

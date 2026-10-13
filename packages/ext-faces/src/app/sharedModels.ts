@@ -53,7 +53,7 @@ export function createSharedSource(deps: SharedSourceDeps): SharedSource {
   const read = async (entry: SharedEntry): Promise<FaceModelRecord | null> => {
     const r = readSharedFile(await deps.fetchJson(`${SHARED_DIR}${entry.name}.json`));
     if (!r.ok) return null;
-    return { id: sharedId(entry.name), name: entry.label, createdAt: 0, model: { categorizer: r.categorizer, takeId: null } };
+    return { id: sharedId(entry.name), name: entry.label, createdAt: 0, model: { categorizer: r.categorizer } };
   };
 
   return {
@@ -126,5 +126,5 @@ export async function copySharedToMine(
   const shared = await source.load(id);
   if (!shared) return null;
   const name = copyName(shared.name, await mine.list());
-  return mine.save(name, { categorizer: { ...shared.model.categorizer, name }, takeId: null });
+  return mine.save(name, { categorizer: { ...shared.model.categorizer, name } });
 }

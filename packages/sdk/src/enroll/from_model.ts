@@ -34,15 +34,19 @@ import { weightedDistance } from './cluster';
 import {
   NO_REJECT_RADIUS,
   PersonalCategorizerSchema,
+  memberIndices,
   toSample,
   type CategorizerSample,
   type PersonalCategorizer,
+  type SampleInput,
 } from './categorizer';
 import { matchLabels, type LabelMatch } from './match';
-import type { FeatureVector, StillPoint, TrainedModel } from './types';
+import type { FeatureVector, TrainedModel } from './types';
 
 /** The cue of a sample that stands for a seed model's category centroid. */
 export const SEED_CUE = 'seed';
+/** The id of the sample that stands for category `categoryId`'s centroid. */
+export const seedSampleId = (categoryId: string): string => `${SEED_CUE}:${categoryId}`;
 
 export interface MergeOptions {
   /** What the existing categorizer contributes; see the module doc. */
@@ -92,7 +96,7 @@ function centroidOf(vectors: readonly FeatureVector[], features: readonly string
  */
 export function mergeSession(
   base: PersonalCategorizer,
-  points: readonly Pick<StillPoint, 'vector' | 't' | 'cue'>[],
+  points: readonly SampleInput[],
   options: MergeOptions = {},
 ): MergeResult {
   const seed = options.seed ?? MERGE_DEFAULTS.seed;
@@ -104,13 +108,17 @@ export function mergeSession(
   // One centroid convention throughout (a feature no member has is left OUT, not filled
   // with 0), so the first pass and the later ones measure the same way, and a seed
   // centroid never stores a 0 the player never showed.
-  const baseCentroids = valid.categories.map((c) => centroidOf(c.members.map((j) => valid.samples[j].vector), features));
+  const baseMembers = memberIndices(valid);
+  const baseCentroids = baseMembers.map((m) => centroidOf(m.map((j) => valid.samples[j].vector), features));
   // The fixed part of each category: its stored samples, or its centroid as one sample.
   const baseSamples: CategorizerSample[] =
-    seed === 'samples' ? valid.samples.map((s) => ({ ...s, vector: { ...s.vector } })) : baseCentroids.map((c) => toSample({ vector: c, t: 0, cue: SEED_CUE }));
-  const anchors: number[][] = seed === 'samples' ? valid.categories.map((c) => [...c.members]) : valid.categories.map((_, i) => [i]);
-  const fresh = points.map(toSample);
-  const reject = valid.mode === 'reject' ? valid.rejectRadius! : Infinity;
+    seed === 'samples'
+      ? valid.samples.map((s) => ({ ...s, vector: { ...s.vector } }))
+      : baseCentroids.map((c, i) => toSample({ id: seedSampleId(valid.categories[i].id), vector: c, t: 0, cue: SEED_CUE }));
+  const anchors: number[][] = seed === 'samples' ? baseMembers.map((m) => [...m]) : valid.categories.map((_, i) => [i]);
+  const fresh = points.map((p) => toSample(p, features));
+  const rejecting = valid.strangers === 'neutral';
+  const reject = rejecting ? valid.rejectRadius! : Infinity;
 
   let centroids = baseCentroids;
   let assigned = fresh.map(() => -1);
@@ -145,7 +153,7 @@ export function mergeSession(
   const members = anchors.map((idx, i) => [...idx, ...assigned.flatMap((a, p) => (a === i ? [offset + p] : []))].sort((a, b) => a - b));
   const samples = [...baseSamples, ...fresh];
   let rejectRadius: number | undefined;
-  if (valid.mode === 'reject') {
+  if (rejecting) {
     // Never lower the tuned radius; raise it if the merged members need it (the floor).
     const floor = trainModel(
       samples.map((s) => s.vector),
@@ -156,11 +164,17 @@ export function mergeSession(
     ).rejectRadius;
     rejectRadius = Math.max(valid.rejectRadius!, floor);
   }
+  const { aside, pins, ...kept } = valid;
   const categorizer = PersonalCategorizerSchema.parse({
-    ...valid,
+    ...kept,
+    ...(seed === 'samples' && aside ? { aside } : {}),
+    ...(seed === 'samples' && pins ? { pins } : {}),
     name: options.name ?? valid.name,
     samples,
-    categories: valid.categories.map((c, i) => ({ ...c, members: members[i] })),
+    categories: valid.categories.map((c, i) => ({ ...c, members: members[i].map((j) => samples[j].id) })),
+    // A new face beyond every category is "none of these". The base's bins and moves stay
+    // with its samples; a `centroids` seed keeps none of its samples, so none of them.
+    neutral: [...(seed === 'samples' ? valid.neutral : []), ...fresh.filter((_, p) => assigned[p] < 0).map((p) => p.id)],
     ...(rejectRadius !== undefined ? { rejectRadius } : {}),
   });
   const untouched = valid.categories.filter((_, i) => !assigned.includes(i)).map((c) => c.id);

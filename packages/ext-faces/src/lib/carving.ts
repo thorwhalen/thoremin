@@ -21,7 +21,7 @@
 // (umap-js), which this extension does not use.
 import { applyLabels, matchLabels, type LabelMatch } from '@thoremin/sdk/enroll/match';
 import { createCarver, neutralIndices, type Carver } from '@thoremin/sdk/enroll/carve';
-import { modelFromCategorizer, type CategorizerMode, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { categorizerMode, modelFromCategorizer, neutralSampleIndices, type CategorizerMode, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { carryLabels } from '@thoremin/sdk/enroll/from_model';
 import { exemplarsByCategory, selectExemplars, type Exemplar } from '@thoremin/sdk/enroll/exemplars';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
@@ -207,22 +207,21 @@ export function withTypedName(typed: readonly TypedName[], view: Pick<CarveView,
 
 /**
  * The grid for a SAVED categorizer (no take to re-cut): its derived model, its names as saved,
- * its exemplars from its samples, and in `reject` mode the samples no category claims as the
- * neutral row.
+ * its exemplars from its samples, and in `reject` mode its neutral holds as the neutral row.
  */
 export function savedView(categorizer: PersonalCategorizer, { exemplarCount }: { exemplarCount?: number } = {}): CarveView {
   const model = modelFromCategorizer(categorizer);
   const vectors = categorizer.samples.map((s) => s.vector);
   const exemplars = exemplarsByCategory(model, vectors, { count: exemplarCount });
-  const claimed = new Set(model.categories.flatMap((c) => c.members));
-  const members = vectors.map((_, i) => i).filter((i) => !claimed.has(i));
+  const members = neutralSampleIndices(categorizer);
+  const mode = categorizerMode(categorizer);
   let neutral: CarveView['neutral'] = { count: 0, exemplars: [] };
-  if (categorizer.mode === 'reject' && members.length > 0) {
+  if (mode === 'reject' && members.length > 0) {
     const ex = selectExemplars(model, { centroid: fullMean(vectors, members), members }, vectors, { count: exemplarCount });
     neutral = { count: members.length, exemplars: ex.map((e) => e.index) };
   }
   return {
-    mode: categorizer.mode,
+    mode,
     k: model.categories.length,
     suggestedK: model.categories.length,
     maxK: model.categories.length,

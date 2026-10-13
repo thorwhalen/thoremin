@@ -33,7 +33,7 @@
  */
 import { z } from 'zod';
 import { createCategoryTracker, trainModel, type CategoryTracker } from '@thoremin/sdk/enroll/classify';
-import { modelFromCategorizer, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
 import { isNeutralLabel, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
@@ -96,10 +96,10 @@ export const LIVE_DEFAULTS = {
 
 /** The categorizer's reject radius raised to the floor that accepts its own samples. */
 export function flooredRejectRadius(categorizer: PersonalCategorizer, model: TrainedModel = modelFromCategorizer(categorizer)): number {
-  if (categorizer.mode !== 'reject') return NO_REJECT_RADIUS;
+  if (categorizer.strangers !== 'neutral') return NO_REJECT_RADIUS;
   const floor = trainModel(
     categorizer.samples.map((s) => s.vector),
-    categorizer.categories.map((c) => c.members),
+    memberIndices(categorizer),
     model.features,
     model.weights,
     { defaultRejectRadius: LIVE_DEFAULTS.minRadius, acceptQuantile: LIVE_DEFAULTS.acceptQuantile },
@@ -108,8 +108,8 @@ export function flooredRejectRadius(categorizer: PersonalCategorizer, model: Tra
 }
 
 /** The radius the reject dial gives: a scale on the floored base; partition mode is clamped out. */
-export function tunedRejectRadius(base: number, mode: PersonalCategorizer['mode'], rejectScale: number): number {
-  if (mode !== 'reject' || base >= NO_REJECT_RADIUS) return NO_REJECT_RADIUS;
+export function tunedRejectRadius(base: number, strangers: PersonalCategorizer['strangers'], rejectScale: number): number {
+  if (strangers !== 'neutral' || base >= NO_REJECT_RADIUS) return NO_REJECT_RADIUS;
   const scale = clampTuning({ rejectScale }).rejectScale;
   return Math.min(NO_REJECT_RADIUS, Math.max(LIVE_DEFAULTS.minRadius, base * scale));
 }
@@ -132,16 +132,16 @@ function meanOver(vectors: readonly FeatureVector[], features: readonly string[]
   return out;
 }
 
-/** The categorizer's resting face: its unclaimed samples (`reject`), or its `neutral` category
- *  (`partition`); null when it has neither. */
+/** The categorizer's resting face: its neutral samples (strangers read as neutral), or its
+ *  `neutral` category (strangers read as the nearest); null when it has neither. */
 export function restOf(categorizer: PersonalCategorizer, features: readonly string[], { modality = faceModality }: ModalityOption = {}): FeatureVector | null {
   const vectors = categorizer.samples.map((s) => s.vector);
   let idx: number[];
-  if (categorizer.mode === 'reject') {
-    const claimed = new Set(categorizer.categories.flatMap((c) => c.members));
-    idx = vectors.map((_, i) => i).filter((i) => !claimed.has(i));
+  if (categorizer.strangers === 'neutral') {
+    idx = neutralSampleIndices(categorizer);
   } else {
-    idx = categorizer.categories.find((c) => isNeutralLabel(modality, c.label))?.members ?? [];
+    const at = memberIndices(categorizer);
+    idx = at[categorizer.categories.findIndex((c) => isNeutralLabel(modality, c.label))] ?? [];
   }
   if (idx.length === 0) return null;
   return meanOver(idx.map((i) => vectors[i]), features);
@@ -179,8 +179,8 @@ export function fitDistance(categorizer: PersonalCategorizer, features: readonly
   let zN = 0;
   const sxy: Record<string, number> = {};
   const syy: Record<string, number> = {};
-  for (const cat of categorizer.categories) {
-    const ms = cat.members.filter((i) => Number.isFinite(z(i)));
+  for (const members of memberIndices(categorizer)) {
+    const ms = members.filter((i) => Number.isFinite(z(i)));
     if (ms.length < 2) continue;
     const zMean = ms.reduce((a, i) => a + z(i), 0) / ms.length;
     const fMean = meanOver(ms.map((i) => samples[i].vector), features);
@@ -232,7 +232,7 @@ export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuni
   const t = clampTuning(tuning);
   const derived = modelFromCategorizer(categorizer);
   const baseRadius = flooredRejectRadius(categorizer, derived);
-  const model: TrainedModel = { ...derived, rejectRadius: tunedRejectRadius(baseRadius, categorizer.mode, t.rejectScale) };
+  const model: TrainedModel = { ...derived, rejectRadius: tunedRejectRadius(baseRadius, categorizer.strangers, t.rejectScale) };
   const meanRadius = derived.categories.reduce((a, c) => a + c.radius, 0) / Math.max(1, derived.categories.length);
   return {
     model,

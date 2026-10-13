@@ -24,7 +24,7 @@
  * Pure: no store, no DOM.
  */
 import { matchLabels } from '@thoremin/sdk/enroll/match';
-import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { memberIndices, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { generalFaceLabeling } from '@thoremin/sdk/features/face_labels';
 import { ABSENT_EXPRESSION, EMOTIONS, type Emotion, type ExpressionLabel, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { isNeutralLabel } from '@thoremin/sdk/enroll/modality';
@@ -50,7 +50,7 @@ export interface FaceCategorizerPlay {
  * other: it then stands in for an expression, and they can silence it per category.
  */
 export function neutralCategoryIndex(categorizer: PersonalCategorizer): number {
-  if (categorizer.mode !== 'partition') return -1;
+  if (categorizer.strangers !== 'nearest') return -1;
   return categorizer.categories.findIndex((c) => isNeutralLabel(faceModality, c.label));
 }
 
@@ -73,7 +73,8 @@ export function standsForOf(categorizer: PersonalCategorizer): ExpressionLabel[]
     }
   });
   const vectors = categorizer.samples.map((x) => x.vector);
-  const open = categorizer.categories.flatMap((c, i) => (out[i] === null ? [{ i, id: c.id, label: '', centroid: fullMean(vectors, c.members) }] : []));
+  const members = memberIndices(categorizer);
+  const open = categorizer.categories.flatMap((c, i) => (out[i] === null ? [{ i, id: c.id, label: '', centroid: fullMean(vectors, members[i]) }] : []));
   const labeling = generalFaceLabeling();
   const matches = matchLabels(open, { ...labeling, labels: EMOTIONS.filter((e) => !taken.has(e)), keepExisting: false });
   matches.forEach((m, r) => {

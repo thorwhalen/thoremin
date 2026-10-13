@@ -13,17 +13,24 @@
  * precedent (`packages/ext-air/src/app/vocabularyStore.ts`). The one tuned number that is
  * not derivable from the samples, the reject radius, is stored as data.
  *
- * A sample may belong to no category, in either mode: a held pose the player left out (or
- * one outside every category in `reject` mode) is still evidence they gave, and re-carving
- * the samples may use it. The mode is about LIVE vectors, below, not about the samples.
+ * ## Every hold has an id and a place (version 2, #385 E3)
  *
- * ## Partition or reject: stated, not inferred
+ * Each sample carries a stable `id` (a hold's is `<takeId>:<n>`), and everything that points
+ * at a sample names its id, never its position: a category's `members`, the `neutral` and
+ * `aside` bins, E4's `pins`, and the still a picture is filed under. So a merge, a move or a
+ * re-cut never renumbers anything, and a still is filed once. Every sample is in exactly one
+ * place: a category, `neutral` (the player's "none of these": the rest cloud, or a face moved
+ * out of every category) or `aside` (kept, not trained: "not sure yet"). Neither bin is
+ * trained on; a re-carve of the samples may still use them.
  *
- * `mode: 'partition'` means every vector belongs to some category (k counts the player's
- * neutral as a category); `mode: 'reject'` means a vector beyond `rejectRadius` belongs to
- * none (k counts only the expressions). The derived model's `rejectRadius` is
- * `Number.MAX_VALUE` in partition mode (finite, so the derived model still persists under
- * `TrainedModelSchema`, whose `z.number()` refuses `Infinity`).
+ * ## Strangers: stated, not inferred
+ *
+ * `strangers: 'nearest'` (the carve's `partition`) means every vector belongs to some
+ * category (k counts the player's neutral as a category); `strangers: 'neutral'` (the carve's
+ * `reject`) means a vector beyond `rejectRadius` belongs to none (k counts only the
+ * expressions). The derived model's `rejectRadius` is `Number.MAX_VALUE` for `nearest`
+ * (finite, so the derived model still persists under `TrainedModelSchema`, whose
+ * `z.number()` refuses `Infinity`).
  *
  * ## Versions and migration
  *
@@ -32,6 +39,8 @@
  * to version n+1), refuses a NEWER version with a message saying so (never a silent
  * partial read), and validates the result against the current schema. Bump
  * {@link CATEGORIZER_VERSION} and add `CATEGORIZER_MIGRATIONS[old]` together.
+ *
+ * Version 1 (positions, `mode`, `k`) migrates by {@link migrateCategorizerV1}.
  *
  * Non-finite feature values (a feature not measurable on that frame) are DROPPED on the way
  * in: JSON cannot carry NaN, and a missing key is exactly how every distance in `enroll/`
@@ -43,9 +52,20 @@ import type { FeatureVector, StillPoint, TrainedModel } from './types';
 
 export const CATEGORIZER_FORMAT = 'thoremin.categorizer';
 /** The version this build writes. */
-export const CATEGORIZER_VERSION = 1;
+export const CATEGORIZER_VERSION = 2;
+/** How a carve treats the player's resting face; the UI's two settings (the file says it as
+ *  {@link CategorizerStrangers}). */
 const CATEGORIZER_MODES = ['partition', 'reject'] as const;
 export type CategorizerMode = (typeof CATEGORIZER_MODES)[number];
+/** What a vector far from every category reads as: `neutral` ("none of these", beyond
+ *  `rejectRadius`), or the `nearest` category (nothing is ever rejected). */
+const CATEGORIZER_STRANGERS = ['neutral', 'nearest'] as const;
+export type CategorizerStrangers = (typeof CATEGORIZER_STRANGERS)[number];
+
+/** The file's `strangers` for a carve mode: `reject` reads strangers as neutral. */
+export const strangersFor = (mode: CategorizerMode): CategorizerStrangers => (mode === 'reject' ? 'neutral' : 'nearest');
+/** The carve mode a file's `strangers` stands for. */
+export const categorizerMode = (c: Pick<PersonalCategorizer, 'strangers'>): CategorizerMode => (c.strangers === 'neutral' ? 'reject' : 'partition');
 
 /** The derived model's reject radius in partition mode: nothing is ever rejected. */
 export const NO_REJECT_RADIUS = Number.MAX_VALUE;
@@ -67,20 +87,35 @@ export const MAX_CATEGORIZER_SAMPLES = 2000;
 /** The most feature ids a file may name: well above the whole feature catalog (a few
  *  hundred ids), of which a session model keeps only its most distinctive few. */
 export const MAX_CATEGORIZER_FEATURES = 1024;
+/** The most supporting frames one sample may carry (#385 E3: a hold's dwell window, thinned). */
+export const MAX_SAMPLE_SUPPORT = 8;
+
+const VectorSchema = z.record(z.string(), z.number());
 
 const SampleSchema = z.object({
-  vector: z.record(z.string(), z.number()),
+  /** Stable id (#385 E3): what a category, a bin, a pin and a still refer to. A hold's id is
+   *  `<takeId>:<n>`, unique across takes, so stills are keyed by it and never re-filed. */
+  id: z.string().min(1),
+  vector: VectorSchema,
   t: z.number(),
   cue: z.string(),
+  /** Frames from the hold's dwell window (thinned), over the categorizer's features: more than
+   *  one vector per hold for a radius or a spread, while the carve still clusters one point per
+   *  hold. Evidence only: the derived model does not read them yet. */
+  support: z.array(VectorSchema).max(MAX_SAMPLE_SUPPORT).optional(),
 });
 
 const CategorizerCategorySchema = z.object({
   /** Stable id: what a binding refers to. */
   id: z.string().min(1),
   label: z.string(),
-  /** Indices into `samples`, ascending. */
-  members: z.array(z.number().int().nonnegative()).min(1),
+  /** Sample ids, in sample order. */
+  members: z.array(z.string().min(1)).min(1),
 });
+
+/** The bins a sample can be in besides a category (E4's moves name them in `pins`). */
+export const NEUTRAL_BIN = 'neutral';
+export const ASIDE_BIN = 'aside';
 
 export const PersonalCategorizerSchema = z
   .object({
@@ -95,42 +130,77 @@ export const PersonalCategorizerSchema = z
     features: z.array(z.string().min(1)).min(1),
     /** Per-feature distance weight (1/sigma x nuisance for a session model). */
     weights: z.record(z.string(), z.number().nonnegative()),
-    mode: z.enum(CATEGORIZER_MODES),
-    /** The number of categories (equals `categories.length`). */
-    k: z.number().int().positive(),
-    /** Required in `reject` mode; ignored in `partition` mode. */
+    /** What a vector far from every category reads as (the carve's `reject` / `partition`). */
+    strangers: z.enum(CATEGORIZER_STRANGERS),
+    /** Required when `strangers` is `neutral`; ignored otherwise. */
     rejectRadius: z.number().positive().optional(),
     samples: z.array(SampleSchema),
     categories: z.array(CategorizerCategorySchema).min(1),
+    /** The player's "none of these" holds (the rest cloud, or a face moved out of every
+     *  category), by sample id. */
+    neutral: z.array(z.string().min(1)),
+    /** Holds kept but not trained on ("not sure yet"), by sample id. */
+    aside: z.array(z.string().min(1)).optional(),
+    /** The player's moves, kept so a re-cut honours them (#385 E4): sample id -> a category id,
+     *  `neutral` or `aside`. */
+    pins: z.record(z.string(), z.string().min(1)).optional(),
   })
   .superRefine((c, ctx) => {
     const issue = (message: string, path: (string | number)[] = []) => ctx.addIssue({ code: 'custom', message, path });
-    if (c.k !== c.categories.length) issue(`k is ${c.k} but there are ${c.categories.length} categories`, ['k']);
-    if (c.mode === 'reject' && c.rejectRadius === undefined) issue('reject mode needs a rejectRadius', ['rejectRadius']);
+    if (c.strangers === 'neutral' && c.rejectRadius === undefined) issue('strangers "neutral" needs a rejectRadius', ['rejectRadius']);
     // A feature listed twice would count twice in every distance (doubling its weight).
     const features = new Set<string>();
     c.features.forEach((f, i) => {
       if (features.has(f)) issue(`feature "${f}" is listed twice`, ['features', i]);
       features.add(f);
     });
+    const sampleIds = new Set<string>();
+    c.samples.forEach((s, i) => {
+      if (sampleIds.has(s.id)) issue(`sample id "${s.id}" is used twice`, ['samples', i, 'id']);
+      sampleIds.add(s.id);
+    });
+    // Every sample is in exactly one place: a category, neutral or aside.
+    const placed = new Map<string, string>();
+    const place = (id: string, where: string, path: (string | number)[]) => {
+      if (!sampleIds.has(id)) issue(`${where} names sample "${id}", which is not in samples`, path);
+      else if (placed.has(id)) issue(`sample "${id}" is in ${placed.get(id)} and in ${where}`, path);
+      else placed.set(id, where);
+    };
     const ids = new Set<string>();
-    const seen = new Set<number>();
     c.categories.forEach((cat, i) => {
       if (ids.has(cat.id)) issue(`duplicate category id "${cat.id}"`, ['categories', i, 'id']);
+      if (cat.id === NEUTRAL_BIN || cat.id === ASIDE_BIN) issue(`category id "${cat.id}" is a bin's name`, ['categories', i, 'id']);
       ids.add(cat.id);
-      const own = new Set<number>();
-      for (const j of cat.members) {
-        if (j >= c.samples.length) issue(`member ${j} is out of range (${c.samples.length} samples)`, ['categories', i, 'members']);
-        else if (own.has(j)) issue(`sample ${j} is listed twice in category "${cat.id}"`, ['categories', i, 'members']);
-        else if (seen.has(j)) issue(`sample ${j} belongs to two categories`, ['categories', i, 'members']);
-        own.add(j);
-        seen.add(j);
-      }
+      for (const j of cat.members) place(j, `category "${cat.id}"`, ['categories', i, 'members']);
     });
+    for (const j of c.neutral) place(j, NEUTRAL_BIN, [NEUTRAL_BIN]);
+    for (const j of c.aside ?? []) place(j, ASIDE_BIN, [ASIDE_BIN]);
+    for (const s of c.samples) if (!placed.has(s.id)) issue(`sample "${s.id}" is in no category, neutral or aside`, ['samples']);
+    for (const [j, to] of Object.entries(c.pins ?? {})) {
+      if (!sampleIds.has(j)) issue(`pin names sample "${j}", which is not in samples`, ['pins']);
+      if (to !== NEUTRAL_BIN && to !== ASIDE_BIN && !ids.has(to)) issue(`pin of "${j}" names "${to}", which is no category or bin`, ['pins']);
+    }
   });
 
 export type PersonalCategorizer = z.infer<typeof PersonalCategorizerSchema>;
 export type CategorizerSample = z.infer<typeof SampleSchema>;
+
+/** Sample id -> index into `samples`. */
+export function sampleIndex(c: Pick<PersonalCategorizer, 'samples'>): Map<string, number> {
+  return new Map(c.samples.map((s, i) => [s.id, i]));
+}
+
+/** Each category's members as indices into `samples`, in the order stored. */
+export function memberIndices(c: Pick<PersonalCategorizer, 'samples' | 'categories'>): number[][] {
+  const at = sampleIndex(c);
+  return c.categories.map((cat) => cat.members.map((id) => at.get(id)!));
+}
+
+/** The neutral holds as indices into `samples`, in sample order. */
+export function neutralSampleIndices(c: Pick<PersonalCategorizer, 'samples' | 'neutral'>): number[] {
+  const neutral = new Set(c.neutral);
+  return c.samples.flatMap((s, i) => (neutral.has(s.id) ? [i] : []));
+}
 
 /** A copy of `v` without its non-finite entries (JSON cannot carry them). */
 function finiteOnly(v: FeatureVector): FeatureVector {
@@ -139,9 +209,15 @@ function finiteOnly(v: FeatureVector): FeatureVector {
   return out;
 }
 
-/** A still-point as a stored sample. */
-export function toSample(p: Pick<StillPoint, 'vector' | 't' | 'cue'>): CategorizerSample {
-  return { vector: finiteOnly(p.vector), t: Number.isFinite(p.t) ? p.t : 0, cue: p.cue };
+/** What a sample is made from: a still-point with its id, and its supporting frames. */
+export type SampleInput = Pick<StillPoint, 'vector' | 't' | 'cue'> & { id: string; support?: readonly FeatureVector[] };
+
+/** A still-point as a stored sample. `features`, when given, is what its support is kept over
+ *  (a stored sample keeps every key of its own vector, but a few frames of every key would
+ *  multiply the file for evidence only the distance features use). */
+export function toSample(p: SampleInput, features?: readonly string[]): CategorizerSample {
+  const support = p.support?.slice(0, MAX_SAMPLE_SUPPORT).map((f) => finiteOnly(features ? Object.fromEntries(features.filter((k) => k in f).map((k) => [k, f[k]])) : f));
+  return { id: p.id, vector: finiteOnly(p.vector), t: Number.isFinite(p.t) ? p.t : 0, cue: p.cue, ...(support && support.length > 0 ? { support } : {}) };
 }
 
 export interface CategorizerMeta {
@@ -153,13 +229,13 @@ export interface CategorizerMeta {
 
 /**
  * Capture a trained model as a categorizer. `samples` is the pool the model's `members`
- * index (the session's `points()`). Throws if the result does not validate.
+ * index (the session's `points()`, each with its hold id). A sample no category claims is
+ * neutral in `reject` mode (it is "none of these") and set aside in `partition` mode. Throws
+ * if the result does not validate.
  */
-export function categorizerFromModel(
-  model: TrainedModel,
-  samples: readonly Pick<StillPoint, 'vector' | 't' | 'cue'>[],
-  meta: CategorizerMeta,
-): PersonalCategorizer {
+export function categorizerFromModel(model: TrainedModel, samples: readonly SampleInput[], meta: CategorizerMeta): PersonalCategorizer {
+  const claimed = new Set(model.categories.flatMap((c) => c.members));
+  const unclaimed = samples.flatMap((s, i) => (claimed.has(i) ? [] : [s.id]));
   return PersonalCategorizerSchema.parse({
     format: CATEGORIZER_FORMAT,
     version: CATEGORIZER_VERSION,
@@ -168,29 +244,27 @@ export function categorizerFromModel(
     ...(meta.createdAt ? { createdAt: meta.createdAt } : {}),
     features: [...model.features],
     weights: { ...model.weights },
-    mode: meta.mode,
-    k: model.categories.length,
+    strangers: strangersFor(meta.mode),
     ...(meta.mode === 'reject' ? { rejectRadius: model.rejectRadius } : {}),
-    samples: samples.map(toSample),
-    categories: model.categories.map((c) => ({ id: c.id, label: c.label, members: [...c.members].sort((a, b) => a - b) })),
+    samples: samples.map((s) => toSample(s, model.features)),
+    categories: model.categories.map((c) => ({ id: c.id, label: c.label, members: [...c.members].sort((a, b) => a - b).map((j) => samples[j].id) })),
+    neutral: meta.mode === 'reject' ? unclaimed : [],
+    ...(meta.mode === 'partition' && unclaimed.length > 0 ? { aside: unclaimed } : {}),
   });
 }
 
 /**
  * The live model a categorizer describes: centroids and radii recomputed from its samples,
- * its ids and labels kept, its cue counts filled, its reject radius from its mode. The input
- * is validated first (throws if invalid): an unvalidated empty category would otherwise
- * shift every later category's id and label onto its neighbour's members.
+ * its ids and labels kept, its cue counts filled, its reject radius from `strangers`. The
+ * model's `members` index `samples`. The input is validated first (throws if invalid): an
+ * unvalidated empty category would otherwise shift every later category's id and label onto
+ * its neighbour's members. Neutral and set-aside holds are not trained on.
  */
 export function modelFromCategorizer(input: PersonalCategorizer): TrainedModel {
   const c = PersonalCategorizerSchema.parse(input);
   const vectors = c.samples.map((s) => s.vector);
-  const trained = trainModel(
-    vectors,
-    c.categories.map((cat) => cat.members),
-    c.features,
-    c.weights,
-  );
+  const members = memberIndices(c);
+  const trained = trainModel(vectors, members, c.features, c.weights);
   // No category is empty (the schema refuses it), so `trainModel` kept them all, in order.
   const categories = trained.categories.map((cat, i) => {
     // Counted in a Map: a cue named `toString` would read as present on a `{}` (#338).
@@ -201,15 +275,63 @@ export function modelFromCategorizer(input: PersonalCategorizer): TrainedModel {
   return {
     ...trained,
     categories,
-    rejectRadius: c.mode === 'reject' ? c.rejectRadius! : NO_REJECT_RADIUS,
+    rejectRadius: c.strangers === 'neutral' ? c.rejectRadius! : NO_REJECT_RADIUS,
   };
 }
 
 /** Takes a version-n document to version n+1. */
 export type CategorizerMigration = (doc: Record<string, unknown>) => Record<string, unknown>;
 
-/** The shipped migrations, keyed by the version they read. Empty while v1 is the only one. */
-export const CATEGORIZER_MIGRATIONS: Readonly<Record<number, CategorizerMigration>> = {};
+export interface MigrateV1Options {
+  /** The id sample `index` gets (default `s-<index>`). A saved record passes its take's still
+   *  keys (`<takeId>:<index>`), so its stills are found under the new ids without re-filing. */
+  idFor?: (index: number) => string;
+}
+
+/** The ids a v1 file's samples get when nothing better is known. */
+export const v1SampleId = (index: number): string => `s-${index}`;
+
+/**
+ * Version 1 to version 2 (#385 E3): samples get ids, members name them, `mode` becomes
+ * `strangers`, `k` is dropped (it is `categories.length`), and the samples no category claims
+ * are placed: neutral under `reject` (they were "none of these"), set aside under `partition`
+ * (kept, not trained, as before). The derived model is unchanged: member order is kept, and
+ * neither bin is trained on. A malformed v1 document is passed through as far as it can be,
+ * for the v2 validation to name what is wrong.
+ */
+export function migrateCategorizerV1(doc: Record<string, unknown>, options: MigrateV1Options = {}): Record<string, unknown> {
+  const idFor = options.idFor ?? v1SampleId;
+  const { mode, k: _k, ...rest } = doc;
+  void _k;
+  const samples = Array.isArray(doc.samples) ? doc.samples : [];
+  const idAt = (j: unknown): unknown => (typeof j === 'number' && Number.isInteger(j) && j >= 0 && j < samples.length ? idFor(j) : j);
+  const categories = Array.isArray(doc.categories)
+    ? doc.categories.map((c) => (c && typeof c === 'object' && Array.isArray((c as { members?: unknown }).members) ? { ...c, members: (c as { members: unknown[] }).members.map(idAt) } : c))
+    : doc.categories;
+  const claimed = new Set<number>();
+  if (Array.isArray(doc.categories)) {
+    for (const c of doc.categories) {
+      const m = c && typeof c === 'object' ? (c as { members?: unknown }).members : undefined;
+      if (Array.isArray(m)) for (const j of m) if (typeof j === 'number') claimed.add(j);
+    }
+  }
+  const unclaimed = samples.flatMap((_, i) => (claimed.has(i) ? [] : [idFor(i)]));
+  const reject = mode === 'reject';
+  return {
+    ...rest,
+    version: 2,
+    strangers: reject ? 'neutral' : mode === 'partition' ? 'nearest' : mode,
+    samples: Array.isArray(doc.samples) ? samples.map((s, i) => (s && typeof s === 'object' ? { id: idFor(i), ...s } : s)) : doc.samples,
+    categories,
+    neutral: reject ? unclaimed : [],
+    ...(!reject && unclaimed.length > 0 ? { aside: unclaimed } : {}),
+  };
+}
+
+/** The shipped migrations, keyed by the version they read. */
+export const CATEGORIZER_MIGRATIONS: Readonly<Record<number, CategorizerMigration>> = {
+  1: (doc) => migrateCategorizerV1(doc),
+};
 
 export type ImportResult =
   | { ok: true; categorizer: PersonalCategorizer; migratedFrom: number | null }
@@ -218,6 +340,10 @@ export type ImportResult =
 export interface ImportOptions {
   migrations?: Readonly<Record<number, CategorizerMigration>>;
 }
+
+/** The finite numeric entries of a parsed object (a hand-edited file may carry null). */
+const finiteEntries = (v: object): Record<string, number> =>
+  Object.fromEntries(Object.entries(v as Record<string, unknown>).filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1])));
 
 /** The categorizer as a file's text (validated first; throws if it does not validate). */
 export function exportCategorizer(c: PersonalCategorizer): string {
@@ -276,7 +402,11 @@ export function importCategorizer(input: string | unknown, options: ImportOption
       ...d,
       samples: d.samples.map((s) =>
         s && typeof s === 'object' && 'vector' in s && s.vector && typeof s.vector === 'object'
-          ? { ...s, vector: Object.fromEntries(Object.entries(s.vector as Record<string, unknown>).filter(([, x]) => typeof x === 'number' && Number.isFinite(x))) }
+          ? {
+              ...s,
+              vector: finiteEntries(s.vector),
+              ...('support' in s && Array.isArray(s.support) ? { support: s.support.map((f: unknown) => (f && typeof f === 'object' ? finiteEntries(f) : f)) } : {}),
+            }
           : s,
       ),
     };
