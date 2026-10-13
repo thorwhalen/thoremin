@@ -44,7 +44,8 @@ test('Your hand shapes records, carves, saves and binds the scripted hand', asyn
   const cats = panel.locator('[data-face-category]');
   await expect.poll(() => cats.count()).toBeGreaterThanOrEqual(3);
   await expect(panel.locator('[data-face-still]').first()).toBeVisible();
-  await expect(panel.locator('[data-face-category]', { hasText: 'fist' })).toHaveCount(1);
+  // The rule poses name the scripted fist (other rows may mention it: "close to fist").
+  await expect(panel.locator('[data-face-category]', { hasText: 'fist' }).first()).toBeVisible();
 
   await panel.getByRole('textbox', { name: 'Categorizer name' }).fill('My shapes');
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
@@ -52,7 +53,8 @@ test('Your hand shapes records, carves, saves and binds the scripted hand', asyn
   await expect(bind).toBeVisible({ timeout: 10_000 });
   await bind.click();
   // The Gestures tool opens on the bound set: its categories, ready for a command each.
-  await expect(page.locator('[data-tool="gestures"]')).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('[data-tool="gestures"]')).toContainText('fist');
+  const yours = page.getByRole('region', { name: 'Your categories' });
+  await expect(yours).toBeVisible({ timeout: 10_000 });
+  await expect(yours.getByRole('combobox', { name: 'Command for fist' })).toBeVisible();
   expect(errors).toEqual([]);
 });
