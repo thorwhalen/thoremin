@@ -134,10 +134,18 @@ function lazyDeps(selection: () => SlotSelection, registry: NodeRegistry, isLive
     onLoadError: (types, err) => {
       if (!isLive()) return; // a torn-down engine's late failure is nobody's news
       console.error(`[thoremin] could not load the code of ${types.join(', ')}; playing without it`, err);
+      // Once per page: a failed import() is never refetched before a reload, so every later
+      // graph change that still names these types fails again, and says nothing new.
+      const fresh = types.filter((t) => !toastedLoadFailures.has(t));
+      if (fresh.length === 0) return;
+      for (const t of fresh) toastedLoadFailures.add(t);
       useToasts.getState().push('An add-on could not load. Check your connection, then reload the page (your instrument is kept).', 6000, 'error');
     },
   };
 }
+
+/** The lazy node types whose failed load has already been toasted in this page. */
+const toastedLoadFailures = new Set<string>();
 
 /** One lazy applier per engine: only the latest request against an engine commits. */
 const appliers = new WeakMap<Engine, () => void | Promise<void>>();
@@ -153,10 +161,8 @@ function applyLive(engine: Engine, selection: () => SlotSelection, registry: Nod
   let apply = appliers.get(engine);
   if (!apply) {
     apply = makeLazyApplier<Composed>({
-      ...lazyDeps(selection, registry, () => {
-        const now = live();
-        return now === null || now === engine;
-      }),
+      // `applyLive` only runs once the engine is live, so a null ref means it was torn down.
+      ...lazyDeps(selection, registry, () => live() === engine),
       commit: (next) => {
         void engine
           .applyGraph(next.spec, registry)
@@ -366,7 +372,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         let builtBranchKey = currentBranchKey();
         // A lazy extension the restored instrument plays is loaded (prefetched above) before the
         // engine is built; its failure only leaves it out: never a dead start.
-        const live = await composeLoaded(lazyDeps(() => slotsRef.current, registry));
+        const live = await composeLoaded(lazyDeps(() => slotsRef.current, registry, () => !disposed));
         if (disposed || live === null) return;
         // The first graph has no predecessor, so its element set is written at once.
         useControls.getState().setGraphElements(live.elements);

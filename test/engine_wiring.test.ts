@@ -131,7 +131,7 @@ describe('the slot selection reaches the graph', () => {
     expect(c).not.toMatch(/defaultGraph\(\s*\)/);
     expect(c).not.toMatch(/liveGraph\(\s*\)/);
     // (Composed through the lazy-extension loader: a restored instrument's lazy nodes load first.)
-    expect(c).toMatch(/const live = await composeLoaded\(lazyDeps\(\(\) => slotsRef\.current,\s*registry\)\)/);
+    expect(c).toMatch(/const live = await composeLoaded\(lazyDeps\(\(\) => slotsRef\.current,\s*registry,\s*\(\) => !disposed\)\)/);
     expect(c).toMatch(/compose: \(without\) => liveGraph\(selection\(\),\s*registry,\s*without\)/);
     expect(c).toMatch(/new Engine\(\s*live\.spec,\s*registry/);
   });

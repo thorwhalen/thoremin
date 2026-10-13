@@ -12,8 +12,9 @@
  *     load (the settings may have moved on) is the one committed. Meanwhile the running graph
  *     keeps playing, the rule `applyGraph` already follows while a model prepares.
  *  3. A failed load never stops the instrument: the graph is committed without the branches
- *     that name the missing types, the failure is reported, and the next request retries
- *     (the registry forgets a failed load).
+ *     that name the missing types, and the failure is reported. The next request asks again
+ *     (the registry forgets a failed load), which helps a host without a module map; a browser
+ *     never refetches a failed `import()` in the same page, so the app offers a reload.
  *
  * Pure: no React, no engine. `useEngine` binds it to the live engine and registry.
  */
