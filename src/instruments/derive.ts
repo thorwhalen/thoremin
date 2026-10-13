@@ -47,7 +47,7 @@ export interface DerivationSettings {
   faceMapping?: string;
   body?: { enabled?: boolean };
   bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
-  conductor?: { enabled?: boolean; conducts?: string; orchestra?: { enabled?: boolean } };
+  conductor?: { enabled?: boolean; conducts?: string; source?: string; orchestra?: { enabled?: boolean } };
   midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
   /** The per-device song pref (#186 PR H): `follow` composes the pace branch. */
@@ -69,7 +69,7 @@ export interface StrictDerivationSettings {
   faceMapping: string;
   body: { enabled: boolean };
   bodyMap: { routes: Record<string, { target: string; feature: string }> };
-  conductor: { enabled: boolean; conducts: string; orchestra: { enabled: boolean } };
+  conductor: { enabled: boolean; conducts: string; source: string; orchestra: { enabled: boolean } };
   midi: { enabled: boolean };
   steer: { enabled: boolean };
   songPrefs: { follow: boolean };
@@ -110,6 +110,13 @@ export function songConducted(settings: Pick<DerivationSettings, 'conductor' | '
   return settings.conductor?.enabled === true && settings.conductor.conducts === 'recording' && settings.songHandle != null;
 }
 
+/** Whether the conductor reads the body (#375): its source is `body`. The body source is
+ *  then composed with the conductor branch, whenever that branch is (so the pose model
+ *  loads before the first beat, as the orchestra's soundfont does). */
+export function conductorReadsBody(settings: Pick<DerivationSettings, 'conductor'>): boolean {
+  return settings.conductor?.source === 'body';
+}
+
 /**
  * The branch ids `settings` and `ctx` imply, in no particular order (the composer orders).
  * The trunk is implied by the composer and not listed here.
@@ -131,7 +138,10 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // is the player's, like the dancer's song.
     const conducted = songConducted(settings) && ids.includes('conductor');
     const dancerLeads = songFollows(settings) && !conducted;
-    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || dancerLeads);
+    // As below: only while the conductor (or its orchestra) is on, not for a saved set
+    // that merely lists an idle conductor.
+    const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor') && (on(settings.conductor) || on(settings.conductor?.orchestra));
+    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || dancerLeads || bodyConducts);
     add('song-pace', dancerLeads || conducted);
     return ids;
   }
@@ -162,7 +172,11 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
 
   // The orchestra (#187 PR 5) lives in the conductor branch: switching it on composes the
   // branch (the conductor idles until Start), so the soundfont loads before the first beat.
-  add('conductor', on(settings.conductor) || on(settings.conductor?.orchestra));
+  const conducting = on(settings.conductor) || on(settings.conductor?.orchestra);
+  add('conductor', conducting);
+  // The body conductor (#375) reads the pose stream: the body source comes with him. It
+  // routes nothing onto the voices (`bodyWanted` gates the router and leaves this out).
+  add('body-source', conducting && conductorReadsBody(settings));
   add('midi-out', on(settings.midi));
   add('generative', on(settings.steer));
   // The extensions' branches: each manifest says which of its branches its dials imply.

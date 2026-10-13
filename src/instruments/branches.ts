@@ -294,6 +294,9 @@ export const conductor = defineBranch({
   ],
   edges: [
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'conductor', port: 'hands' }),
+    // The body conductor (#375): the pose stream, present when the derivation composes the
+    // body source (it does while `conductor.source` is `body`; a structural test pins that).
+    to({ node: 'camBody', port: 'body' }, { node: 'conductor', port: 'body' }, true),
     to(ui('conductor'), { node: 'conductor', port: 'config' }),
     to({ node: 'conductor', port: 'beat' }, { node: 'score', port: 'beat' }),
     to({ node: 'conductor', port: 'velocityScale' }, { node: 'score', port: 'velocityScale' }),
