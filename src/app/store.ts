@@ -379,275 +379,308 @@ function healMidi(stored: unknown, fallback: MidiSettings): MidiSettings {
 }
 
 /**
- * Persist migration. v1 → v2: the #64 face-mapping chooser replaced the boolean
- * `faceEnabled` with the tri-state `faceMapping`. v2 → v3: the per-hand / chord
- * timbre field was renamed `instrument` → `sound`; a returning player's saved
- * `instrument` becomes `sound` so they keep their sound. Exported for direct testing.
+ * One step of the persist migration: a blob written at version `n` becomes a version `n + 1`
+ * blob. A step returns a NEW blob and never edits its argument or anything nested in it: the
+ * blob belongs to the caller (zustand's rehydrated value), and `migrateControls` is tested
+ * directly for exactly that (test/store_migrate_no_mutation.test.ts).
  */
-export function migrateControls(persisted: unknown, version: number): ControlState {
-  const s = { ...(persisted as Record<string, unknown>) };
-  if (version < 2) {
-    if (s.faceMapping === undefined) {
-      s.faceMapping = legacyFaceToMapping(s.faceEnabled as boolean | undefined);
-    }
-    delete s.faceEnabled;
-  }
-  if (version < 3) {
+type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>;
+
+/**
+ * The persist version this build writes, and its history. Only some versions carry a data
+ * transform (they are the steps in {@link CONTROLS_MIGRATIONS}, which repeat the reason
+ * beside the code); the rest are ADDITIVE schema growth that {@link mergeControls} heals
+ * (a field an older blob lacks takes its default), so the bump is only the version marker.
+ *
+ * - v2 (#64): the face-mapping chooser replaced the boolean `faceEnabled` with the
+ *   tri-state `faceMapping`. Step.
+ * - v3: the per-hand / chord timbre field was renamed `instrument` → `sound`. Step.
+ * - v4: added the `handMap`.
+ * - v5: the abstention retune raised the fearful/disgusted sensitivity default 0.5 → 0.7,
+ *   delivered to a returning player who never customized it. Step.
+ * - v6: #75 (decoupled chord-source scale — faceChord.chordSource/chordRoot/chordType) +
+ *   #63 (per-voice octave RANGE — right/left.rangeLow/rangeHigh). Both ADDITIVE with
+ *   defaults: mergeControls re-parses faceChord through FaceChordSchema (filling
+ *   chordSource='auto' etc. for returning users → identical sound on their seven-note
+ *   melodies), and the range fields are optional (absent → the legacy `octaves` scale path,
+ *   byte-identical).
+ * - v7 (#136): the Feature Lab moved out of the `overlay` dial onto its own per-device
+ *   `featureLab` field (a tooling pref, like `faceCalibration`). Step.
+ * - v8 (#137): the `midi` preset field (enabled/port), default off / first available port.
+ * - v9 (#129): the `gestures` per-device tooling pref (enable flag, hold/cooldown timing,
+ *   gesture → command bindings), defaults disabled; fist → silence, pinch → restore
+ *   volume, open unbound.
+ * - v10 (#76): the `faceControls` preset field (per-axis gain / deadzone / neutral zero /
+ *   smoothing for the head-pose control mode). Its default is the shipped tuning, which is
+ *   byte-identical to the build-time params the node used before the dial existed, so a
+ *   returning player's `controls` mode sounds and feels exactly as it did.
+ * - v11 (#188): the `steer` preset field (the generative layer: enabled / volume /
+ *   config), default off. The transport (`steerPlaying`) is transient and not persisted,
+ *   like `muted`.
+ * - v12 (#187): the `conductor` preset field (the conductor node's params: off by default,
+ *   hand/point, servo horizon, fallback + dynamics ranges).
+ * - v13 (#186): `body` + `bodyMap` (a pre-#186 blob reads as off / no routes).
+ * - v14 (#233): `airDrum` (the air-drum node's params, off by default).
+ * - v15 (#249): `airBass`, the same way. v16: `airGuitar`. v17: `airFlute`.
+ * - v18: the trainer HUD pref's default flipped to off (the Trainer's banner is the
+ *   on-screen instruction now). Step.
+ * - v19 (#263): `airFlute.prior` (the fingering-chart prior: on, the flute chart, strength
+ *   10, C4..C#6).
+ * - v20 (#269): `airDrum.pattern` (the trained pattern in play, '' for none).
+ * - v21 (#232): the conductor dial gained `prior`; a returning player's conductor stays on
+ *   the oscillator (LEGACY_CONDUCTOR_PRIOR). Step.
+ * - v22 (#148): `hands` (the handedness dwell, default 0 = the raw per-frame label every
+ *   earlier blob played by); healed after the v21 step runs.
+ * - v23 (#168 Q3): `midi.muteFollowsMaster` (default true = the master mute silences MIDI,
+ *   as every earlier blob played), healed field by field by healMidi.
+ * - v24 (#240): `audioPrefs`, a per-device tooling pref (not a preset field): `lowLatency`,
+ *   default off = the `interactive` hint every earlier blob ran with.
+ *   Then, WITHOUT a bump (#336, #187 PR 5): `conductor.orchestra` (the sampled orchestra:
+ *   on/off, overall and per-section level), default DEFAULT_ORCHESTRA. ADDITIVE and nested
+ *   in the conductor dial, so the conductor heal (the schema parse over the current
+ *   conductor) fills it for any earlier blob; no transform was ever needed, and this line
+ *   is its history entry. A later bump is not owed for it.
+ * - v25 (#186 PR G): `songPrefs`, a per-device tooling pref (not a preset field): the
+ *   song's level and rate, defaults 0.8 / 1. The song itself and its transport are
+ *   transient and never persisted.
+ * - v26 (#186 PR H): `songPrefs` gained `follow` (default off: the song plays at its own
+ *   tempo, as every earlier blob did) and `followRange` (0.1), healed over DEFAULT_SONG.
+ *
+ * Bump this and, if the change needs a transform, add `CONTROLS_MIGRATIONS[old]` together.
+ */
+const CONTROLS_VERSION = 26;
+
+/**
+ * The persist migration steps, keyed by the version they READ (like
+ * `CATEGORIZER_MIGRATIONS`): `CONTROLS_MIGRATIONS[n]` takes a version-n blob to n + 1. A
+ * version with no entry needs no transform (see {@link CONTROLS_VERSION}'s history).
+ */
+const CONTROLS_MIGRATIONS: Readonly<Record<number, ControlsMigration>> = {
+  // → v2 (#64): `faceEnabled` (boolean) → `faceMapping` (tri-state); an explicit
+  // `faceMapping` wins over the legacy flag.
+  1: ({ faceEnabled, ...rest }) =>
+    rest.faceMapping === undefined ? { ...rest, faceMapping: legacyFaceToMapping(faceEnabled as boolean | undefined) } : rest,
+  // → v3: the timbre field `instrument` → `sound`, so a returning player keeps their sound.
+  2: (s) => {
+    const out = { ...s };
     for (const key of ['right', 'left', 'faceChord'] as const) {
       const sub = s[key];
-      if (sub && typeof sub === 'object') s[key] = migrateInstrumentField(sub as Record<string, unknown>);
+      if (sub && typeof sub === 'object') out[key] = migrateInstrumentField(sub as Record<string, unknown>);
     }
-  }
-  if (version < 5) {
-    // The abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
-    // Deliver it to a returning player who never customized those two (persisted value
-    // still === the OLD default), while preserving any value they DID set.
-    // Copied, not edited in place: `faceExpr` is the caller's object (see v7 below).
+    return out;
+  },
+  // → v5: the abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
+  // Deliver it to a returning player who never customized those two (persisted value
+  // still === the OLD default), while preserving any value they DID set.
+  4: (s) => {
     const fe = s.faceExpr as { sensitivity?: Record<string, number> } | undefined;
-    if (fe?.sensitivity) {
-      const sensitivity = { ...fe.sensitivity };
-      for (const e of ['fearful', 'disgusted'] as const) {
-        if (sensitivity[e] === 0.5) sensitivity[e] = 0.7;
-      }
-      s.faceExpr = { ...fe, sensitivity };
+    if (!fe?.sensitivity) return s;
+    const sensitivity = { ...fe.sensitivity };
+    for (const e of ['fearful', 'disgusted'] as const) {
+      if (sensitivity[e] === 0.5) sensitivity[e] = 0.7;
     }
-  }
-  if (version < 7) {
-    // #136: the Feature Lab moved OUT of the `overlay` dial (an instrument parameter)
-    // and onto its own per-device tooling field. Carry a returning player's lab config
-    // across rather than dropping it on the floor — `overlay` is re-parsed through the
-    // lab-free OverlayDialSchema in mergeControls, which would strip it silently.
+    return { ...s, faceExpr: { ...fe, sensitivity } };
+  },
+  // → v7 (#136): the Feature Lab moved OUT of the `overlay` dial (an instrument parameter)
+  // and onto its own per-device tooling field. Carry a returning player's lab config across
+  // rather than dropping it on the floor: `overlay` is re-parsed through the lab-free
+  // OverlayDialSchema in mergeControls, which would strip it silently (and drop the key
+  // anyway; removing it here keeps the directly-tested migrate honest).
+  6: (s) => {
     const ov = s.overlay as Record<string, unknown> | undefined;
-    if (ov?.featureLab !== undefined) {
-      if (s.featureLab === undefined) s.featureLab = ov.featureLab;
-      // Copy rather than `delete` on the caller's object: `persisted` is only shallow-
-      // copied above, so `s.overlay` IS their object. (mergeControls re-parses `overlay`
-      // through the lab-free schema and would drop the key anyway — this keeps the
-      // directly-tested migrate honest about not mutating its input.)
-      const { featureLab: _lifted, ...rest } = ov;
-      s.overlay = rest;
-    }
-  }
-  if (version < 18) {
-    // The Trainer's running banner moved above every panel (it is now the on-screen
-    // instruction), so painting the same words into the video is opt-in. A returning
-    // player's persisted `show: true` is the OLD default, not a choice (nothing ever
-    // asked), so it follows the new default once; re-ticking it in the panel sticks.
+    if (ov?.featureLab === undefined) return s;
+    const { featureLab: lifted, ...overlay } = ov;
+    return { ...s, featureLab: s.featureLab === undefined ? lifted : s.featureLab, overlay };
+  },
+  // → v18: the Trainer's running banner moved above every panel (it is now the on-screen
+  // instruction), so painting the same words into the video is opt-in. A returning
+  // player's persisted `show: true` is the OLD default, not a choice (nothing ever asked),
+  // so it follows the new default once; re-ticking it in the panel sticks.
+  17: (s) => {
     const hud = s.trainerHud as Record<string, unknown> | undefined;
-    if (hud && hud.show === true) s.trainerHud = { ...hud, show: false };
-  }
-  if (version < 21) {
-    // #232: the conductor dial gained `prior`, whose default (`blend`) is a behaviour
-    // change. A returning player's conductor was the oscillator; it stays so (as a saved
-    // instrument's does in `normalizeLayer`), and the panel's chooser is how they move.
+    return hud && hud.show === true ? { ...s, trainerHud: { ...hud, show: false } } : s;
+  },
+  // → v21 (#232): the conductor dial gained `prior`, whose default (`blend`) is a behaviour
+  // change. A returning player's conductor was the oscillator; it stays so (as a saved
+  // instrument's does in `normalizeLayer`), and the panel's chooser is how they move.
+  20: (s) => {
     const cond = s.conductor as Record<string, unknown> | undefined;
-    if (cond && typeof cond === 'object' && cond.prior === undefined) s.conductor = { ...cond, prior: LEGACY_CONDUCTOR_PRIOR };
-  }
+    return cond && typeof cond === 'object' && cond.prior === undefined ? { ...s, conductor: { ...cond, prior: LEGACY_CONDUCTOR_PRIOR } } : s;
+  },
+};
+
+/** The steps as `[readVersion, step]`, oldest first: the order a chain must run in. */
+const MIGRATION_CHAIN = Object.entries(CONTROLS_MIGRATIONS)
+  .map(([from, step]) => [Number(from), step] as const)
+  .sort((a, b) => a[0] - b[0]);
+
+/**
+ * Persist migration: run every step whose target version (`from + 1`) is above the blob's
+ * (a version-`version` blob needs each step that produces a later version), oldest first.
+ * Written as `version < from + 1`, not `version <= from`, so a non-integer version (1.5)
+ * runs the same steps the original `version < n` chain did. The result is a new object
+ * even when no step runs; the caller's blob is never edited. Exported for direct testing.
+ */
+export function migrateControls(persisted: unknown, version: number): ControlState {
+  let s = { ...(persisted as Record<string, unknown>) };
+  for (const [from, step] of MIGRATION_CHAIN) if (version < from + 1) s = step(s);
   return s as unknown as ControlState;
 }
 
 /**
- * Merge a rehydrated blob over the current (initializer) state. Beyond zustand's
- * default shallow merge it HEALS two things so an older/corrupt blob can't crash
- * newer readers: it re-parses `overlay` through the schema (filling defaults for
- * overlay elements added since the blob was written — e.g. `chordGuide` in #64,
- * whose absence would otherwise throw in `overlay.chordGuide.show`), and clamps
- * `faceMapping` to a known mode (unknown values → derived from any legacy
- * `faceEnabled`, else `none`). Exported for direct testing.
+ * How one whole-object field of a rehydrated blob is healed: re-parsed through `schema`,
+ * after `complete` (when given) builds the parse input from the stored value (filling what
+ * an older blob lacks), and `finish` (when given) post-processes the parse. Typed per field,
+ * so a schema whose output is not that field's type fails the typecheck.
+ */
+interface HealRule<T> {
+  schema: { parse(input: unknown): T };
+  complete?: (stored: unknown, current: T) => unknown;
+  finish?: (parsed: T) => T;
+}
+
+/**
+ * Heal one stored field: a falsy stored value (absent from an older blob) keeps `current`;
+ * otherwise the rule's parse, and anything that throws on the way (a corrupt blob) falls
+ * back to `current` whole, so a newer reader never binds a control to undefined.
+ */
+function heal<T>(stored: unknown, current: T, rule: HealRule<T>): T {
+  if (!stored) return current;
+  try {
+    const parsed = rule.schema.parse(rule.complete ? rule.complete(stored, current) : stored);
+    return rule.finish ? rule.finish(parsed) : parsed;
+  } catch {
+    return current;
+  }
+}
+
+/** Complete a partial stored object from a shipped default before the parse. Generic in the
+ *  field's type, so a rule pointed at another field's default fails the typecheck. */
+const overDefaults =
+  <T>(defaults: T) =>
+  (stored: unknown, _current: T): unknown => ({ ...defaults, ...(stored as object) });
+
+/** Complete a partial stored object from the current (initializer) value before the parse. */
+const overCurrent = (stored: unknown, current: unknown): unknown => ({ ...(current as object), ...(stored as object) });
+
+/**
+ * The core fields {@link mergeControls} heals, one rule each. Three completions are in use
+ * and they are NOT interchangeable: a raw parse (the schema's own `.default`s complete a
+ * partial blob), the shipped default spread under the blob, or the current value spread
+ * under it. On a real rehydrate `current` is the initializer, which equals the defaults; the
+ * difference shows only when `mergeControls` is called with some other `current`, and each
+ * rule keeps the completion its field has always had.
+ */
+type CoreHealRules = { [K in keyof ControlState]?: HealRule<ControlState[K]> };
+export const HEAL_RULES: CoreHealRules = {
+  // Fills defaults for overlay elements added since the blob was written (e.g. `chordGuide`
+  // in #64, whose absence would otherwise throw in `overlay.chordGuide.show`).
+  overlay: { schema: OverlayDialSchema },
+  // An older blob has no lab config → the default meters.
+  featureLab: { schema: FeatureLabSchema },
+  // The trainer HUD pref (#163).
+  trainerHud: { schema: TrainerHudParamsSchema },
+  // Completed from the defaults, then validated, so a UI control never binds to an
+  // undefined/corrupt field (parity with overlay).
+  faceChord: { schema: FaceChordSchema, complete: overDefaults(DEFAULT_FACE_CHORD) },
+  // The sensitivity/degrees maps are filled from the defaults key by key, so a returning
+  // user's older blob can't leave an emotion's slider unbound.
+  faceExpr: {
+    schema: FaceExprSchema,
+    complete: (stored) => {
+      const pe = stored as Partial<FaceExpr>;
+      return {
+        sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity, ...(pe.sensitivity ?? {}) },
+        degrees: { ...DEFAULT_FACE_EXPR.degrees, ...(pe.degrees ?? {}) },
+      };
+    },
+  },
+  // Older blobs lack it entirely → the default index-source, no-routing map, so a returning
+  // user can never leave a finger route or knob unbound.
+  handMap: { schema: HandMapSchema },
+  // The hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
+  hands: { schema: HandsSettingsSchema, complete: overDefaults(DEFAULT_HANDS) },
+  // The body settings (#186): a pre-body blob has none → off, lite.
+  body: { schema: BodySettingsSchema, complete: overDefaults(DEFAULT_BODY) },
+  // The per-device song pref (#186 PR G): a pre-song blob has none → the defaults.
+  songPrefs: { schema: SongSettingsSchema, complete: overDefaults(DEFAULT_SONG) },
+  // The body map (#186): a pre-routing blob has none → no routes.
+  bodyMap: { schema: BodyMapSchema },
+  // The generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter strains; a
+  // partial one is completed; a corrupt one falls back whole.
+  steer: {
+    schema: SteerSettingsSchema,
+    complete: overDefaults(DEFAULT_STEER),
+    // A PARTIAL config (the shape #202 persisted: smoothing + cadence, no arrays) is
+    // completed from the default. Absent arrays already meant "the starter strains" to the
+    // node, so this is sound-identical; it exists so the working layer and a saved
+    // instrument (which `normalizeLayer` completes the same way) can never differ by a key
+    // nobody edited and flag a phantom "unsaved edits".
+    finish: (parsed) => ({ ...parsed, config: { ...defaultSteerConfig(), ...parsed.config } }),
+  },
+  // The face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning; a
+  // partial one is completed; a corrupt one falls back whole rather than leaving the panel to
+  // dereference an undefined into a NaN slider.
+  //
+  // Parsed RAW, unlike the `faceChord` rule above which pre-spreads its defaults. That is not
+  // an inconsistency to tidy up later: EVERY field of this schema carries a `.default(...)`,
+  // so `parse` already completes a partial blob, and the spread would be dead code that a
+  // reader would mistake for load-bearing. The invariant it relies on is enforced at import
+  // time, not by convention — `DEFAULT_FACE_CONTROLS_DIAL` is built by
+  // `FaceControlsDialSchema.parse({})`, which throws on the day someone adds a field without
+  // a default. (A mutation test caught the spread: removing it left the suite fully green,
+  // which is the definition of a guard that guards nothing.)
+  faceControls: { schema: FaceControlsDialSchema },
+  // The conductor dial (#187): a pre-conductor blob has none → off; completed over the
+  // current value (which is how `conductor.orchestra`, #336, reaches an older blob).
+  conductor: { schema: ConductorSettingsSchema, complete: overCurrent },
+  // The gesture prefs (#129), completed over the current (default) prefs. The blob's
+  // `bindings` record replaces the default wholesale (an unbound-by-the-user gesture must
+  // STAY unbound, not be re-seeded every load).
+  gestures: { schema: GesturePrefsSchema, complete: overCurrent },
+  // The per-device audio pref (#240): a pre-#240 blob has none → the default hint.
+  audioPrefs: { schema: AudioPrefsSchema, complete: overCurrent },
+};
+
+/** The extensions' whole-object dials (the air instruments' today), each healed through its
+ *  own slice schema over the current value, like the conductor. */
+const EXTENSION_HEAL_RULES: Readonly<Record<string, HealRule<unknown>>> = Object.fromEntries(
+  Object.entries(EXTENSION_DIAL_SCHEMAS).map(([key, schema]) => [key, { schema, complete: overCurrent }]),
+);
+
+/** Every rule of `rules` applied to `stored` over `current`: the healed fields only. */
+function healAll(stored: Record<string, unknown>, current: Record<string, unknown>, rules: Readonly<Record<string, HealRule<unknown> | undefined>>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [field, rule] of Object.entries(rules)) if (rule) out[field] = heal(stored[field], current[field], rule);
+  return out;
+}
+
+/**
+ * Merge a rehydrated blob over the current (initializer) state. Beyond zustand's default
+ * shallow merge it HEALS the whole-object fields so an older/corrupt blob can't crash newer
+ * readers: each field in {@link HEAL_RULES} (and each extension dial) is re-parsed through its
+ * schema, keeping the current value when absent or corrupt; `midi` is healed field by field
+ * ({@link healMidi}); and `faceMapping` is clamped to a known mode (unknown values → derived
+ * from any legacy `faceEnabled`, else `none`). Exported for direct testing.
  */
 export function mergeControls(persisted: unknown, current: ControlState): ControlState {
   const p = (persisted ?? {}) as Partial<ControlState> & { faceEnabled?: boolean };
-  let overlay = current.overlay;
-  if (p.overlay) {
-    try {
-      overlay = OverlayDialSchema.parse(p.overlay);
-    } catch {
-      overlay = current.overlay;
-    }
-  }
-  // Heal the lab config the same way (an older blob has none → the default meters).
-  let featureLab = current.featureLab;
-  if (p.featureLab) {
-    try {
-      featureLab = FeatureLabSchema.parse(p.featureLab);
-    } catch {
-      featureLab = current.featureLab;
-    }
-  }
-  // And the trainer HUD pref (#163), the same way.
-  let trainerHud = current.trainerHud;
-  if (p.trainerHud) {
-    try {
-      trainerHud = TrainerHudParamsSchema.parse(p.trainerHud);
-    } catch {
-      trainerHud = current.trainerHud;
-    }
-  }
-  // Re-parse faceChord: complete a partial blob from the defaults, then validate,
-  // so a UI control never binds to an undefined/corrupt field (parity with overlay).
-  let faceChord = current.faceChord;
-  if (p.faceChord) {
-    try {
-      faceChord = FaceChordSchema.parse({ ...DEFAULT_FACE_CHORD, ...p.faceChord });
-    } catch {
-      faceChord = current.faceChord;
-    }
-  }
-  // Heal faceExpr the same way: fill the sensitivity/degrees maps from the defaults
-  // so a returning user's older blob can't leave an emotion's slider unbound.
-  let faceExpr = current.faceExpr;
-  if (p.faceExpr) {
-    try {
-      const pe = p.faceExpr as Partial<FaceExpr>;
-      faceExpr = FaceExprSchema.parse({
-        sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity, ...(pe.sensitivity ?? {}) },
-        degrees: { ...DEFAULT_FACE_EXPR.degrees, ...(pe.degrees ?? {}) },
-      });
-    } catch {
-      faceExpr = current.faceExpr;
-    }
-  }
+  const stored = p as Record<string, unknown>;
+  const cur = current as unknown as Record<string, unknown>;
+  const healed = {
+    ...healAll(stored, cur, HEAL_RULES as Readonly<Record<string, HealRule<unknown> | undefined>>),
+    ...healAll(stored, cur, EXTENSION_HEAL_RULES),
+  } as Partial<ControlState>;
   const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
     ? (p.faceMapping as FaceMapping)
     : legacyFaceToMapping(p.faceEnabled);
-  // Heal the hand map: re-parse through the schema (older blobs lack it entirely →
-  // fall back to the default index-source, no-routing map), so a returning user can
-  // never leave a finger route or knob unbound.
-  let handMap = current.handMap;
-  if (p.handMap) {
-    try {
-      handMap = HandMapSchema.parse(p.handMap);
-    } catch {
-      handMap = current.handMap;
-    }
-  }
-  // Heal the MIDI settings (#137): a pre-MIDI blob has none → off / first port. Field by
-  // field (#168 Q3): one corrupt field (a `muteFollowsMaster` of null or "yes" from a bad
-  // write) takes its default alone and must not reset the player's `enabled` and `port`.
+  // The MIDI settings (#137): a pre-MIDI blob has none → off / first port. Field by field
+  // (#168 Q3): one corrupt field (a `muteFollowsMaster` of null or "yes" from a bad write)
+  // takes its default alone and must not reset the player's `enabled` and `port`.
   const midi = healMidi(p.midi, current.midi);
-  // Heal the hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
-  let hands = current.hands;
-  if (p.hands) {
-    try {
-      hands = HandsSettingsSchema.parse({ ...DEFAULT_HANDS, ...p.hands });
-    } catch {
-      hands = current.hands;
-    }
-  }
-  // Heal the body settings (#186): a pre-body blob has none → off, lite.
-  // Heal the body map (#186): a pre-routing blob has none → no routes.
-  let bodyMap = current.bodyMap;
-  if (p.bodyMap) {
-    try {
-      bodyMap = BodyMapSchema.parse(p.bodyMap);
-    } catch {
-      bodyMap = current.bodyMap;
-    }
-  }
-  let body = current.body;
-  if (p.body) {
-    try {
-      body = BodySettingsSchema.parse({ ...DEFAULT_BODY, ...p.body });
-    } catch {
-      body = current.body;
-    }
-  }
-  // Heal the per-device song pref (#186 PR G): a pre-song blob has none → the defaults.
-  let songPrefs = current.songPrefs;
-  if (p.songPrefs) {
-    try {
-      songPrefs = SongSettingsSchema.parse({ ...DEFAULT_SONG, ...p.songPrefs });
-    } catch {
-      songPrefs = current.songPrefs;
-    }
-  }
-  // Heal the generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter
-  // strains; a partial one is completed; a corrupt one falls back whole.
-  let steer = current.steer;
-  if (p.steer) {
-    try {
-      const parsed = SteerSettingsSchema.parse({ ...DEFAULT_STEER, ...p.steer });
-      // A PARTIAL config (the shape #202 persisted: smoothing + cadence, no arrays) is
-      // completed from the default. Absent arrays already meant "the starter strains" to
-      // the node, so this is sound-identical; it exists so the working layer and a saved
-      // instrument (which `normalizeLayer` completes the same way) can never differ by a
-      // key nobody edited and flag a phantom "unsaved edits".
-      steer = { ...parsed, config: { ...defaultSteerConfig(), ...parsed.config } };
-    } catch {
-      steer = current.steer;
-    }
-  }
-  // Heal the face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning;
-  // a partial one is completed; a corrupt one falls back whole rather than leaving the
-  // panel to dereference an undefined into a NaN slider.
-  //
-  // Parsed RAW, unlike the `midi`/`faceChord` healers above which pre-spread their
-  // defaults. That is not an inconsistency to tidy up later: EVERY field of this schema
-  // carries a `.default(...)`, so `parse` already completes a partial blob, and the spread
-  // would be dead code that a reader would mistake for load-bearing. The invariant it
-  // relies on is enforced at import time, not by convention — `DEFAULT_FACE_CONTROLS_DIAL`
-  // is built by `FaceControlsDialSchema.parse({})`, which throws on the day someone adds a
-  // field without a default. (A mutation test caught the spread: removing it left the
-  // suite fully green, which is the definition of a guard that guards nothing.)
-  let faceControls = current.faceControls;
-  if (p.faceControls) {
-    try {
-      faceControls = FaceControlsDialSchema.parse(p.faceControls);
-    } catch {
-      faceControls = current.faceControls;
-    }
-  }
-  // Heal the gesture prefs (#129) the same way as the other tooling prefs: complete
-  // a partial blob from the current (default) prefs, then validate — a pre-#129 blob
-  // has none → the defaults; a corrupt blob falls back rather than crashing a newer
-  // reader. Note the blob's `bindings` record replaces the default wholesale (an
-  // unbound-by-the-user gesture must STAY unbound, not be re-seeded every load).
-  // Heal the conductor dial (#187) exactly like faceControls: a pre-conductor blob has
-  // none → off; a corrupt one falls back rather than crashing a newer reader.
-  let conductor = current.conductor;
-  if (p.conductor) {
-    try {
-      conductor = ConductorSettingsSchema.parse({ ...current.conductor, ...p.conductor });
-    } catch {
-      conductor = current.conductor;
-    }
-  }
-  // Heal the extensions' whole-object dials (the air instruments' today) the same way:
-  // each re-parsed through its own slice schema over the current value, kept on failure.
-  const extensionDials: Record<string, unknown> = {};
-  for (const [key, schema] of Object.entries(EXTENSION_DIAL_SCHEMAS)) {
-    const cur = (current as unknown as Record<string, unknown>)[key];
-    const patch = (p as Record<string, unknown>)[key];
-    if (!patch) {
-      extensionDials[key] = cur;
-      continue;
-    }
-    try {
-      extensionDials[key] = schema.parse({ ...(cur as object), ...(patch as object) });
-    } catch {
-      extensionDials[key] = cur;
-    }
-  }
-  let gestures = current.gestures;
-  if (p.gestures) {
-    try {
-      gestures = GesturePrefsSchema.parse({ ...current.gestures, ...p.gestures });
-    } catch {
-      gestures = current.gestures;
-    }
-  }
-  // Heal the per-device audio pref (#240): a pre-#240 blob has none → the default hint.
-  let audioPrefs = current.audioPrefs;
-  if (p.audioPrefs) {
-    try {
-      audioPrefs = AudioPrefsSchema.parse({ ...current.audioPrefs, ...p.audioPrefs });
-    } catch {
-      audioPrefs = current.audioPrefs;
-    }
-  }
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, overlay, featureLab, trainerHud, faceMapping, faceChord, faceExpr, handMap, midi, hands, body, songPrefs, bodyMap, steer, faceControls, conductor, ...extensionDials, gestures, audioPrefs, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, midi, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, ...keptTransients(current) };
 }
 
 /** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
@@ -788,77 +821,8 @@ export const useControls = create<ControlState>()(
     }),
     {
       name: 'thoremin-controls',
-      // Version 6: #75 (decoupled chord-source scale — faceChord.chordSource/chordRoot/
-      // chordType) + #63 (per-voice octave RANGE — right/left.rangeLow/rangeHigh). Both are
-      // ADDITIVE with defaults, so no data transform is needed: mergeControls re-parses
-      // faceChord through FaceChordSchema (filling chordSource='auto' etc. for returning
-      // users → identical sound on their seven-note melodies), and the range fields are
-      // optional (absent → the legacy `octaves` scale path, byte-identical). The bump is the
-      // version marker for the schema growth.
-      // Version 5: the abstention retune — deliver the raised fearful/disgusted
-      // sensitivity default (0.5 → 0.7) to a returning player who never customized it.
-      // v4: added the `handMap`. v3: `instrument` → `sound` rename. v2: the face-mapping
-      // chooser (#64). See migrateControls (field renames/bumps) and mergeControls (heals
-      // stale nested `overlay`/`faceChord`/`faceExpr`/`handMap` + clamps `faceMapping`).
-      // Version 7: #136 lifted the Feature Lab out of the `overlay` dial onto its own
-      // per-device `featureLab` field (a tooling pref, like `faceCalibration`). The
-      // migrate carries a returning player's lab config across before mergeControls
-      // re-parses `overlay` through the now lab-free OverlayDialSchema.
-      // Version 8: #137 added the `midi` preset field (enabled/port). ADDITIVE with a
-      // default (off / first available port), healed by mergeControls, so no data
-      // transform is needed — the bump is the version marker for the schema growth.
-      // Version 9: #129 added the `gestures` per-device tooling pref (enable flag,
-      // hold/cooldown timing, gesture → command bindings). ADDITIVE with defaults
-      // (disabled; fist → silence, pinch → restore volume, open unbound), healed by
-      // mergeControls like featureLab, so no data transform is needed — the bump is
-      // the version marker for the schema growth.
-      // Version 10: #76 added the `faceControls` preset field (per-axis gain / deadzone /
-      // neutral zero / smoothing for the head-pose control mode). ADDITIVE with the
-      // shipped tuning as its default — which is byte-identical to the build-time params
-      // the node used before the dial existed, so a returning player's `controls` mode
-      // sounds and feels exactly as it did. Healed by mergeControls, so no data transform
-      // is needed; the bump is the version marker for the schema growth.
-      // Version 11: #188 added the `steer` preset field (the generative layer: enabled /
-      // volume / config). ADDITIVE with a default (off), healed by mergeControls, so no
-      // data transform is needed — the bump is the version marker for the schema growth.
-      // The transport (`steerPlaying`) is transient and not persisted, like `muted`.
-      // Version 12: #187 added the `conductor` preset field (the conductor node's params:
-      // off by default, hand/point, servo horizon, fallback + dynamics ranges). ADDITIVE
-      // with a default, healed by mergeControls; the bump marks the schema growth.
-      // v13 (#186): `body` + `bodyMap` added to the preset fields; both heal in mergeControls
-      // (a pre-#186 blob reads as off / no routes), so no data transform is needed — the
-      // bump is the version marker for the schema growth.
-      // v14 (#233): `airDrum` added to the preset fields (the air-drum node's params, off
-      // by default); heals in mergeControls, so no data transform is needed.
-      // v15 (#249): `airBass` added the same way (off by default, healed in mergeControls).
-      // v16 (#249): `airGuitar` added the same way.
-      // v17 (#249): `airFlute` added the same way.
-      // v18: the trainer HUD pref's default flipped to off (the Trainer's banner is the
-      // on-screen instruction now); migrateControls carries a returning player across.
-      // v19 (#263): `airFlute.prior` added (the fingering-chart prior: on, the flute
-      // chart, strength 10, C4..C#6). ADDITIVE with a default, healed by mergeControls'
-      // schema parse, so no data transform is needed; the bump marks the schema growth.
-      // v20 (#269): `airDrum.pattern` added (the trained pattern in play, '' for none).
-      // ADDITIVE with a default, healed by mergeControls' schema parse; the bump marks it.
-      // v21 (#232): the conductor dial gained `prior`; migrateControls keeps a returning
-      // player's conductor on the oscillator (LEGACY_CONDUCTOR_PRIOR).
-      // v22 (#148): `hands` added (the handedness dwell, default 0 = the raw per-frame
-      // label every earlier blob played by). ADDITIVE, healed by mergeControls (which runs
-      // after the v21 migrate); the bump marks the schema growth.
-      // v23 (#168 Q3): `midi.muteFollowsMaster` added (default true = the master mute
-      // silences MIDI, as every earlier blob played). ADDITIVE, healed field by field by
-      // mergeControls' healMidi; the bump marks the schema growth.
-      // v24 (#240): `audioPrefs` added, a per-device tooling pref (not a preset field):
-      // `lowLatency`, default off = the `interactive` hint every earlier blob ran with.
-      // ADDITIVE, healed by mergeControls' schema parse; the bump marks the growth.
-      // v25 (#186 PR G): `songPrefs` added, a per-device tooling pref (not a preset
-      // field): the song's level and rate, defaults 0.8 / 1. ADDITIVE, healed by
-      // mergeControls' schema parse; the bump marks the growth. The song itself and its
-      // transport are transient and never persisted.
-      // v26 (#186 PR H): `songPrefs` gained `follow` (default off: the song plays at its
-      // own tempo, as every earlier blob did) and `followRange` (0.1). ADDITIVE, healed
-      // by mergeControls' schema parse over DEFAULT_SONG; the bump marks the growth.
-      version: 26,
+      // The version and its history live beside the migration steps (CONTROLS_VERSION).
+      version: CONTROLS_VERSION,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
