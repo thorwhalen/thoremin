@@ -23,7 +23,7 @@ const FIXTURE = join(__dirname, '../../test/faces/fixtures/two_faces.categorizer
 
 const URL_PARAMS = '?slot.source=synthetic-hands&faces.source=synthetic';
 /** In the deferred panel only (`packages/ext-faces/src/panels/FaceSessionPanel.tsx`). */
-const DEFERRED_MARKER = 'Every face is a category';
+const DEFERRED_MARKER = 'A face I never taught reads as';
 
 function watchScripts(page: Page): { scripts: { url: string; body: string }[]; settled: () => Promise<unknown> } {
   const scripts: { url: string; body: string }[] = [];
