@@ -91,7 +91,8 @@ export default function CategorizerSection() {
       {play.phase === 'ready' && play.id === chosen && (
         <div className="space-y-1" data-testid="face-categorizer-degrees">
           <p className="text-[10px] leading-relaxed text-white/40">
-            The chord each of your faces plays. Auto plays what this instrument gives the expression the face stands in for.
+            The chord each of your faces plays. Auto plays what this instrument gives the expression the face stands in for. The choices follow the
+            category's place (first, second, ...): after re-carving this categorizer, check them again.
           </p>
           {play.categories.map((c) => {
             const slot = CATEGORY_SLOTS.includes(c.id) ? c.id : null;

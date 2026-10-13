@@ -9,9 +9,10 @@
  *  1. in partition mode, the resting category (named `neutral`, as the carve names it) stands
  *     in for `neutral`, which plays silence by default, like a resting face on the general
  *     model; in reject mode "none of these" does;
- *  2. the others are matched one-to-one with the general model's expressions (the matcher of
- *     P1, `matchLabels` over `generalFaceLabeling`, the player's names ignored: the match is
- *     about the faces, not what they were called);
+ *  2. a category named after an expression (the carve's one-to-one match, or a player who chose
+ *     that word) stands in for it; the others are matched one-to-one among the expressions left
+ *     (the matcher of P1, `matchLabels` over `generalFaceLabeling`, scored exactly as the carve
+ *     scores: full-space means of the saved faces);
  *  3. a category the general model does not recognise takes the next expression no other
  *     category took, in `EMOTIONS` order, so every category plays a different chord by default;
  *     past seven, `neutral`.
@@ -23,11 +24,10 @@
  * Pure: no store, no DOM.
  */
 import { matchLabels } from '@thoremin/sdk/enroll/match';
-import { modelFromCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
-import type { TrainedModel } from '@thoremin/sdk/enroll/types';
+import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { generalFaceLabeling } from '@thoremin/sdk/features/face_labels';
 import { EMOTIONS, type Emotion, type ExpressionLabel, type ExpressionScores } from '@thoremin/sdk/music/expression';
-import { NEUTRAL_LABEL } from './carving';
+import { fullMean, NEUTRAL_LABEL } from './carving';
 import { liveModel, type LiveModel, type Tuning } from './live';
 
 /** A categorizer resolved for the DAG: what the `face-categorizer` node reads (a transient). */
@@ -52,22 +52,32 @@ export function neutralCategoryIndex(categorizer: PersonalCategorizer): number {
   return categorizer.categories.findIndex((c) => c.label.trim().toLowerCase() === NEUTRAL_LABEL);
 }
 
-/** The expression each category stands in for (see the module header), in category order. */
-export function standsForOf(categorizer: PersonalCategorizer, model: TrainedModel = modelFromCategorizer(categorizer)): ExpressionLabel[] {
+/**
+ * The expression each category stands in for (see the module header), in category order. The
+ * same match that named the categories: a category NAMED after an expression (the carve's match,
+ * or the player's own choice of that word) stands in for it; the rest are matched one-to-one
+ * among the expressions left, on the same full-space means the carve scores
+ * (`fullMean` over the saved samples), so a face the carve called "angry" plays angry's chord.
+ */
+export function standsForOf(categorizer: PersonalCategorizer): ExpressionLabel[] {
   const neutral = neutralCategoryIndex(categorizer);
-  const out: (ExpressionLabel | null)[] = model.categories.map((_, i) => (i === neutral ? 'neutral' : null));
-  const open = model.categories.filter((_, i) => out[i] === null);
-  const matches = matchLabels(
-    open.map((c) => ({ id: c.id, label: '', centroid: c.centroid })),
-    { ...generalFaceLabeling(), keepExisting: false },
-  );
+  const out: (ExpressionLabel | null)[] = categorizer.categories.map((_, i) => (i === neutral ? 'neutral' : null));
   const taken = new Set<Emotion>();
-  const byId = new Map(matches.map((m) => [m.id, m.matched]));
-  model.categories.forEach((c, i) => {
-    const m = byId.get(c.id);
-    if (out[i] === null && m) {
-      out[i] = m;
-      taken.add(m);
+  categorizer.categories.forEach((c, i) => {
+    const named = EMOTIONS.find((e) => e === c.label.trim().toLowerCase());
+    if (out[i] === null && named && !taken.has(named)) {
+      out[i] = named;
+      taken.add(named);
+    }
+  });
+  const vectors = categorizer.samples.map((x) => x.vector);
+  const open = categorizer.categories.flatMap((c, i) => (out[i] === null ? [{ i, id: c.id, label: '', centroid: fullMean(vectors, c.members) }] : []));
+  const labeling = generalFaceLabeling();
+  const matches = matchLabels(open, { ...labeling, labels: EMOTIONS.filter((e) => !taken.has(e)), keepExisting: false });
+  matches.forEach((m, r) => {
+    if (m.matched) {
+      out[open[r].i] = m.matched;
+      taken.add(m.matched);
     }
   });
   const spare = EMOTIONS.filter((e) => !taken.has(e));
@@ -78,7 +88,7 @@ export function standsForOf(categorizer: PersonalCategorizer, model: TrainedMode
  *  category stands in for. */
 export function categorizerPlay(record: { id: string; name: string; categorizer: PersonalCategorizer; tuning?: Partial<Tuning> }): FaceCategorizerPlay {
   const live = liveModel(record.categorizer, record.tuning ?? {});
-  return { id: record.id, name: record.name, live, standsFor: standsForOf(record.categorizer, live.model) };
+  return { id: record.id, name: record.name, live, standsFor: standsForOf(record.categorizer) };
 }
 
 /**

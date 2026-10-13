@@ -77,10 +77,16 @@ export const faceCategorizerNode = defineNode<Params>({
     let current: FaceCategorizerPlay | null = null;
     let tracker: CategoryTracker | null = null;
     let features: ReturnType<typeof featuresFor> = [];
+    // The engine ticks faster than the camera: a face frame seen already is not a new reading
+    // (the tracker's hysteresis counts camera frames, as the tool's test readout does).
+    let lastFrame: FaceFrame | undefined;
+    let lastExpression: ExpressionScores = ABSENT_EXPRESSION;
 
     const bind = (play: FaceCategorizerPlay | null): void => {
       if (play === current) return;
       current = play;
+      lastFrame = undefined;
+      lastExpression = ABSENT_EXPRESSION;
       tracker = play
         ? createCategoryTracker(play.live.model, {
             temperature: play.live.temperature,
@@ -90,6 +96,19 @@ export const faceCategorizerNode = defineNode<Params>({
           })
         : null;
       features = play ? featuresFor(play) : [];
+    };
+
+    /** One camera frame read by the current model: absent without a face or its features. */
+    const read = (frame: FaceFrame | undefined): ExpressionScores => {
+      if (!current || !tracker || !frame || !frame.present) return ABSENT_EXPRESSION;
+      const fctx = buildFaceCtx(frame);
+      const vector: FeatureVector = {};
+      for (const f of features) {
+        const v = f.compute(fctx);
+        if (Number.isFinite(v)) vector[f.id] = v;
+      }
+      if (!hasReading(current.live.model, vector, p.minPresent)) return ABSENT_EXPRESSION;
+      return toExpressionScores(current, tracker.push(tuneVector(current.live, vector)));
     };
 
     return {
@@ -103,18 +122,12 @@ export const faceCategorizerNode = defineNode<Params>({
           const general = (inputs.general as ExpressionScores | undefined) ?? ABSENT_EXPRESSION;
           return { expression: general, degrees };
         }
-
         const frame = inputs.face as FaceFrame | undefined;
-        if (!frame || !frame.present) return { expression: ABSENT_EXPRESSION, degrees };
-        const fctx = buildFaceCtx(frame);
-        const vector: FeatureVector = {};
-        for (const f of features) {
-          const v = f.compute(fctx);
-          if (Number.isFinite(v)) vector[f.id] = v;
+        if (!frame || frame !== lastFrame) {
+          lastFrame = frame;
+          lastExpression = read(frame);
         }
-        if (!hasReading(current.live.model, vector, p.minPresent)) return { expression: ABSENT_EXPRESSION, degrees };
-        const reading = tracker.push(tuneVector(current.live, vector));
-        return { expression: toExpressionScores(current, reading), degrees };
+        return { expression: lastExpression, degrees };
       },
     };
   },

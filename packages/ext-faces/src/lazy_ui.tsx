@@ -7,6 +7,7 @@
  * the categorizer node, so none of it is in the main chunk (`docs/design/lazy-extensions.md`).
  */
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
 import FaceSessionPanel from './panels/FaceSessionPanel';
 import CategorizerSection from './panels/CategorizerSection';
 import { startCategorizerPlay, useCategorizerPlay } from './app/categorizerPlay';
@@ -15,7 +16,9 @@ import { FACES_TOOL } from './ui';
 /** One line under the section: which categorizer the face chords read right now. */
 function CategorizerReadout() {
   const play = useCategorizerPlay();
-  const text = play.phase === 'ready' ? `Reading with ${play.name}` : play.phase === 'loading' ? 'Loading…' : play.phase === 'missing' ? 'Not on this device: the general model plays' : 'The general model';
+  const { state } = useDialsSettings();
+  const chords = (state.effective as Record<string, unknown>)['face.mapping'] === 'chord';
+  const text = play.phase === 'ready' ? (chords ? `Reading with ${play.name}` : `${play.name}, for the face chords (off)`) : play.phase === 'loading' ? 'Loading…' : play.phase === 'missing' ? 'Not on this device: the general model plays' : 'The general model';
   return <span className="text-[10px] text-white/50">{text}</span>;
 }
 

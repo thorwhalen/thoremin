@@ -15,12 +15,12 @@ export interface FaceStatusState {
   /** Latest classified expression label (null when no face / model not ready). The
    *  per-emotion activations/thresholds live on the DAG `expression` output and are
    *  drawn by the overlay readout directly — this store only carries the label for
-   *  the text status line. */
-  label: ExpressionLabel | null;
+   *  the text status line. A personal categorizer's category name when one plays (#330 P4). */
+  label: ExpressionLabel | string | null;
   /** Latest per-emotion activation scores (EMOTIONS-aligned, 0..1), or null when no
    *  face. Used by the calibration wizard as its live meter (throttled with `label`). */
   scores: number[] | null;
-  report(status: FaceStatus, label: ExpressionLabel | null, scores: number[] | null): void;
+  report(status: FaceStatus, label: ExpressionLabel | string | null, scores: number[] | null): void;
   reset(): void;
 }
 

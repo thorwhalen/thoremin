@@ -456,7 +456,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           }
           const expr = engine.getOutput('faceExpr', 'expression') as ExpressionScores | undefined;
           const detected = fs.phase === 'ready' && fs.faceDetected && expr?.present;
-          useFaceStatus.getState().report(fs, detected ? expr!.label : null, detected ? expr!.scores : null);
+          // The label is what the chord PLAYED: a personal categorizer's category name when
+          // one reads the face (#330 P4); the scores stay the general model's (the calibration
+          // wizard meters them per emotion).
+          const played = engine.getOutput('exprChord', 'played') as ExpressionScores | undefined;
+          const label = played?.personal ? (played.personal.name ?? 'none of these') : expr?.label;
+          useFaceStatus.getState().report(fs, detected ? (label ?? null) : null, detected ? expr!.scores : null);
           lastFaceReport = now;
           lastPhase = fs.phase;
           lastDetected = fs.faceDetected;

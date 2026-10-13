@@ -101,6 +101,8 @@ export const expressionChordNode = defineNode<Params>({
     // The un-voiced scale triad (three tones), for the overlay to highlight the
     // chord's pitch classes on the pitch guide — independent of the voicing.
     { name: 'triad', kind: 'number[]' },
+    // The reading it played (whichever classifier made it, #330 P4), for the shell's readout.
+    { name: 'played', kind: 'face-expression' },
   ],
   params: Params,
   make(p) {
@@ -168,7 +170,7 @@ export const expressionChordNode = defineNode<Params>({
           timeSinceChange += dt;
         }
 
-        if (voiced.length === 0) return { params: { voices: silent() }, triad: [] };
+        if (voiced.length === 0) return { params: { voices: silent() }, triad: [], played: expr };
 
         const gains = renderGains(voiced.length, rendering, beat, timeSinceChange);
         const voices: VoiceParams[] = [];
@@ -184,7 +186,7 @@ export const expressionChordNode = defineNode<Params>({
             sound,
           });
         }
-        return { params: { voices }, triad };
+        return { params: { voices }, triad, played: expr };
       },
     };
   },

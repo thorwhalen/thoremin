@@ -32,7 +32,9 @@ const DegreeSchema = z.number().int().min(AUTO_DEGREE).max(6);
 
 export const FaceCategorizerDialSchema = z.object({
   id: z.string().min(1).default(GENERAL_CATEGORIZER),
-  degrees: z.object(Object.fromEntries(CATEGORY_SLOTS.map((s) => [s, DegreeSchema.default(AUTO_DEGREE)])) as Record<string, z.ZodDefault<typeof DegreeSchema>>),
+  // Defaulted as a whole too, so a partial value (`{ id }` alone: a hand-edited or older
+  // instrument) parses rather than failing the settings schema.
+  degrees: z.object(Object.fromEntries(CATEGORY_SLOTS.map((s) => [s, DegreeSchema.default(AUTO_DEGREE)])) as Record<string, z.ZodDefault<typeof DegreeSchema>>).prefault({}),
 });
 export type FaceCategorizerDial = z.infer<typeof FaceCategorizerDialSchema>;
 

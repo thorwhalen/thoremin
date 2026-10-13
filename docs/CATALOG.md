@@ -350,7 +350,7 @@ Facial expression → a voiced, rendered diatonic chord on the chord-source scal
 
 - **roles:** music
 - **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees
-- **out:** params:synth-params, triad:number[]
+- **out:** params:synth-params, triad:number[], played:face-expression
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
 #### `pose-chord` — Pose Chord

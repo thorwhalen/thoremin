@@ -1254,6 +1254,10 @@
       {
         "name": "triad",
         "kind": "number[]"
+      },
+      {
+        "name": "played",
+        "kind": "face-expression"
       }
     ],
     "params": [

@@ -20,7 +20,7 @@ import { carveView, carverFor } from '@thoremin/ext-faces/lib/carving';
 import { SYNTHETIC_TIMELINE, syntheticFaceVector } from '@thoremin/ext-faces/lib/synthetic';
 import { categorizerPlay, neutralCategoryIndex, standsForOf, toExpressionScores } from '@thoremin/ext-faces/lib/play';
 import { faceCategorizerNode } from '@thoremin/ext-faces/nodes/face_categorizer';
-import { AUTO_DEGREE, CATEGORY_SLOTS, DEFAULT_FACE_CATEGORIZER, ownDegrees, type FaceCategorizerDial } from '@thoremin/ext-faces/schema';
+import { AUTO_DEGREE, CATEGORY_SLOTS, DEFAULT_FACE_CATEGORIZER, FaceCategorizerDialSchema, ownDegrees, type FaceCategorizerDial } from '@thoremin/ext-faces/schema';
 import { expressionChordNode } from '@/nodes/music/expression_chord';
 import { matrixToHeadPose } from '@/nodes';
 import { loadStream } from '../helpers/fixtures';
@@ -170,6 +170,12 @@ describe('a saved personal categorizer drives the face chords (the recorded face
     expect(within(silenced.triads, SMILE).filter((t) => t.length > 0).length).toBeLessThan(3);
   });
 
+  it('reads each camera frame once: an engine ticking faster than the camera changes nothing', async () => {
+    const once = await playThrough(frames, play, dial('mine'));
+    const twice = await playThrough(frames.flatMap((f) => [f, f]), play, dial('mine'));
+    expect(twice.read.filter((_, i) => i % 2 === 1).map((r) => r.personal?.id ?? null)).toEqual(once.read.map((r) => r.personal?.id ?? null));
+  });
+
   it('plays the general model until the personal one is there, and whenever the dial names another', async () => {
     const general = frames.map((_, i): ExpressionScores => ({ ...ABSENT_EXPRESSION, present: true, label: i % 2 ? 'sad' : 'happy' }));
     const none = await playThrough(frames, null, dial('mine'), general);
@@ -222,9 +228,36 @@ describe('what each category stands in for', () => {
 
   it('a category the general model does not know takes an expression no other took', () => {
     const c = syntheticCategorizer('reject');
-    // Every centroid the same blank face: nothing matches, so the spare expressions go in order.
-    const blank: PersonalCategorizer = { ...c, samples: c.samples.map((s) => ({ ...s, vector: Object.fromEntries(Object.keys(s.vector).map((k) => [k, 0])) })) };
+    // Every centroid the same blank face and no expression's name: nothing matches, so the
+    // spare expressions go in order.
+    const blank: PersonalCategorizer = {
+      ...c,
+      samples: c.samples.map((s) => ({ ...s, vector: Object.fromEntries(Object.keys(s.vector).map((k) => [k, 0])) })),
+      categories: c.categories.map((cat, i) => ({ ...cat, label: `face ${i + 1}` })),
+    };
     expect(standsForOf(blank)).toEqual(EMOTIONS.slice(0, c.categories.length));
+  });
+});
+
+describe('a category plays the expression the carve named it after (the review of #356)', () => {
+  it('at every k, a face named after an expression stands in for that expression', () => {
+    const take = createFaceTake();
+    take.start(0);
+    const ms = SYNTHETIC_TIMELINE.restMs + 12 * (SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs);
+    for (let f = 0, t = 0; t <= ms; f++, t = (f * 1000) / 30) take.push(syntheticFaceVector(t, f), t);
+    take.stop();
+    const session = take.session();
+    const carver = carverFor(session, take.restVectors(), 'reject');
+    for (let k = 1; k <= Math.min(carver.maxK(), 12); k++) {
+      const view = carveView({ session, restVectors: take.restVectors(), carver, k });
+      const c = categorizerFromModel(view.model, session.points(), { name: `k${k}`, mode: 'reject', modality: 'face' });
+      const stands = standsForOf(c);
+      c.categories.forEach((cat, i) => {
+        if ((EMOTIONS as readonly string[]).includes(cat.label)) expect(stands[i], `k=${k} ${cat.id} "${cat.label}"`).toBe(cat.label);
+      });
+      // Up to seven faces, each plays a different expression's chord.
+      if (stands.length <= EMOTIONS.length) expect(new Set(stands).size).toBe(stands.length);
+    }
   });
 });
 
@@ -246,6 +279,12 @@ describe('the reading the renderer consumes', () => {
     expect(r.label).toBe('neutral');
     expect(r.personal?.id).toBeNull();
     expect(r.fired.every((f) => !f)).toBe(true);
+  });
+
+  it('a partial dial (an id alone) parses, every slot on Auto', () => {
+    const parsed = FaceCategorizerDialSchema.parse({ id: 'mine' });
+    expect(parsed.degrees['cat-1']).toBe(AUTO_DEGREE);
+    expect(ownDegrees(parsed)).toEqual({});
   });
 
   it('the dial\'s Auto slots are not degrees: only a player\'s choice reaches the renderer', () => {
