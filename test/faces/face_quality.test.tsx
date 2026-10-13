@@ -116,20 +116,21 @@ describe('the chips on the REAL recording (video_head_pose)', () => {
   const FPS = 29.3;
   const vecAt = (i: number): FeatureVector => Object.fromEntries(Object.entries(BLENDSHAPE_NAME_BY_FEATURE).map(([id, name]) => [id, frames[i].blendshapes[name] ?? 0]));
 
-  /** A run differs from another the way two replays of one take would: the clock's phase and
-   *  measurement jitter far below a noise unit. (Shifting the REST window is a different take:
-   *  on this clip's handful of holds it changes the carve itself, upstream of the chips.) */
+  /** A run differs from another the way two replays of one take would: the clock's phase, and
+   *  jitter on every hold far below a noise unit (`holdJitterNu`, in each feature's own unit).
+   *  The jitter goes on the carved holds, not the frames: this clip's rest is looped, so its
+   *  frames have no jitter at all and any added to them re-estimates the noise from scratch and
+   *  changes which holds the sampler finds, a different take upstream of the chips. */
   interface Variant {
     offsetMs: number;
-    restShift: number;
-    jitter: number;
+    holdJitterNu: number;
     seed: number;
   }
-  const BASE: Variant = { offsetMs: 0, restShift: 0, jitter: 0, seed: 1 };
+  const BASE: Variant = { offsetMs: 0, holdJitterNu: 0, seed: 1 };
   const VARIANTS: Variant[] = [
-    { offsetMs: 11, restShift: 0, jitter: 1e-4, seed: 2 },
-    { offsetMs: 23, restShift: 0, jitter: 2e-4, seed: 3 },
-    { offsetMs: 5, restShift: 0, jitter: 5e-4, seed: 4 },
+    { offsetMs: 11, holdJitterNu: 0, seed: 2 },
+    { offsetMs: 23, holdJitterNu: 0.05, seed: 3 },
+    { offsetMs: 5, holdJitterNu: 0.1, seed: 4 },
   ];
 
   /** One run: a take over the whole clip (its rest looped to fill the take's), carved at k. */
@@ -137,23 +138,26 @@ describe('the chips on the REAL recording (video_head_pose)', () => {
     let a = v.seed;
     const noise = () => {
       a = (a * 1103515245 + 12345) % 2147483648;
-      return (a / 2147483648 - 0.5) * 2 * v.jitter;
+      return (a / 2147483648 - 0.5) * 2;
     };
-    const vec = (i: number): FeatureVector => Object.fromEntries(Object.entries(vecAt(i)).map(([id, x]) => [id, x + noise()]));
     const take = createFaceTake({ restMs: 0 });
     take.start(v.offsetMs);
     const rest: number[] = [];
-    for (let i = Math.round(7.7 * FPS) + v.restShift; i <= Math.round(8.5 * FPS) + v.restShift; i++) rest.push(i);
+    for (let i = Math.round(7.7 * FPS); i <= Math.round(8.5 * FPS); i++) rest.push(i);
     let t = v.offsetMs;
     while (take.phase() === 'rest') {
-      take.push(vec(rest[Math.floor(t / 33) % rest.length]), t);
+      take.push(vecAt(rest[Math.floor(t / 33) % rest.length]), t);
       t += 33;
     }
-    for (let i = 0; i < frames.length; i++) take.push(vec(i), t + (i / FPS) * 1000);
+    for (let i = 0; i < frames.length; i++) take.push(vecAt(i), t + (i / FPS) * 1000);
     expect(take.stop()).toBe(true);
     const session = take.session();
     const view = carveView({ session, restVectors: take.restVectors(), carver: carverFor(session, take.restVectors(), 'reject'), k });
-    const c = categorizerFromModel(view.model, session.points(), { name: 'head pose', mode: 'reject', modality: 'face' });
+    const carved = categorizerFromModel(view.model, session.points(), { name: 'head pose', mode: 'reject', modality: 'face' });
+    const c = {
+      ...carved,
+      samples: carved.samples.map((x) => ({ ...x, vector: Object.fromEntries(Object.entries(x.vector).map(([f, y]) => [f, y + (v.holdJitterNu * noise()) / (carved.weights[f] || 1)])) })),
+    };
     const sorted = sortingView(c, { sources: new Map(), range: { minK: 1, maxK: 6, suggestedK: k } });
     return {
       chips: sorted.quality.categories.map((q) => [q.id, q.grade, q.dots, q.closeTo]),
@@ -163,7 +167,7 @@ describe('the chips on the REAL recording (video_head_pose)', () => {
   }
 
   for (const k of [2, 3]) {
-    it(`k = ${k}: the same chips, suspects and hint movements on every run (clock phase, jitter)`, () => {
+    it(`k = ${k}: the same chips, suspects and hint movements on every run (clock phase, sub-noise jitter)`, () => {
       const a = run(k);
       for (const v of VARIANTS) {
         const b = run(k, v);
