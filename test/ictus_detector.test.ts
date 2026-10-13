@@ -14,7 +14,8 @@
  * interval; the oscillator's locked tempo on the same stream is asserted too.
  */
 import { describe, it, expect } from 'vitest';
-import { createIctus, createIctusDetector, fMeasure, fitGrid, medianInterval, type Sample } from '@thoremin/ictus';
+import { createAdaptiveOscillator, createIctus, createIctusDetector, fMeasure, fitGrid, medianInterval, type Anchor, type OscillatorOptions, type Sample } from '@thoremin/ictus';
+import { gaussian, seeded } from './helpers/random';
 import type { HandsFrame } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
 
@@ -171,24 +172,27 @@ function detect(samples: Sample[]) {
    *  predictions, not just the detections). */
   const predicted: number[] = [];
   const statesAtAnchors: string[] = [];
+  /** The anchors themselves, with the detector's confidences. */
+  const anchors: Anchor[] = [];
   let last = ictus.state();
   let atLastAnchor = last;
   for (const s of samples) {
     last = ictus.feed(s);
     if (last.anchor) {
       times.push(last.anchor.t);
+      anchors.push(last.anchor);
       statesAtAnchors.push(last.state);
       if (Number.isFinite(last.nextBeatAt)) predicted.push(last.nextBeatAt);
       atLastAnchor = last;
     }
   }
-  return { times, last, atLastAnchor, predicted, statesAtAnchors };
+  return { times, anchors, last, atLastAnchor, predicted, statesAtAnchors };
 }
 
 describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 70 bpm)', (scenario) => {
   const { samples, meta } = loadFixture(scenario);
   const period = 60 / meta.statedBpm;
-  const { times, last, atLastAnchor, predicted, statesAtAnchors } = detect(samples);
+  const { times, anchors, last, atLastAnchor, predicted, statesAtAnchors } = detect(samples);
   // Score over the span the detector was beating: first anchor to last anchor.
   const first = times[0];
   const lastT = times[times.length - 1];
@@ -219,19 +223,14 @@ describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 7
     expect(fit.fMeasure).toBeGreaterThan(0.45);
   });
 
-  // KNOWN FAILURE on the 2/4 excerpt since #231, for #232 (the timing plan's step 2):
-  // the detections score the same as before (the F-measures above), but the raw-sample
-  // timing moved three anchors by 10 to 15 ms, and with this clip's alternating
-  // ~1.05 s / ~0.65 s beats that is enough for the oscillator's lost-lock rule
-  // (`lostAfterMisses` consecutive phase errors past `lostPhaseError`) to fire and
-  // re-seed at half tempo: it ends at 41.7 bpm, `running` (never `hold`), with the
-  // predictions' F-measure at 0.40 against 0.667 for the median-prefiltered anchors.
-  // Fed the same anchors with 5 ms of jitter, the old lock held 174 times in 200, the
-  // new one 0 — so this is the follower's fragility under uneven beats, not a boundary
-  // case, and it is left failing here so that #232's fix is measured against it.
-  const lock = scenario === 'conducting_24' ? it.fails : it;
-
-  lock('the oscillator is running at most anchors, reports the stated tempo within 10% at the last beat, and enters hold when she stops', () => {
+  // The 2/4 excerpt lost its lock between #231 and #232: the raw-sample timing moved
+  // three anchors by 10 to 15 ms, and with this clip's alternating ~1.05 s / ~0.65 s
+  // beats the oscillator's lost-lock rule (two consecutive phase errors past
+  // `lostPhaseError`) fired and re-seeded at half tempo (41.7 bpm, `running`, never
+  // `hold`, predictions F 0.40). #232 made a lost lock require misses at AGREEING
+  // intervals (a tempo jump repeats its new interval; a long-short pattern does not),
+  // which holds this lock in 200 of 200 runs under 10 ms of anchor jitter (below).
+  it('the oscillator is running at most anchors, reports the stated tempo within 10% at the last beat, and enters hold when she stops', () => {
     const runningFraction = statesAtAnchors.filter((st) => st === 'running').length / statesAtAnchors.length;
     expect(runningFraction).toBeGreaterThanOrEqual(0.75);
     expect(Math.abs(atLastAnchor.tempo - meta.statedBpm) / meta.statedBpm).toBeLessThan(0.1);
@@ -239,7 +238,7 @@ describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 7
     expect(last.state).toBe('hold');
   });
 
-  lock('the follower PREDICTS the next beat: predictions score against the grid too', () => {
+  it('the follower PREDICTS the next beat: predictions score against the grid too', () => {
     // The prediction made at each anchor for the beat after it, scored like the detections.
     // Looser than the detections by construction (a prediction carries the period error),
     // and the 2/4 clip's alternating long/short beats are the hardest case.
@@ -249,9 +248,41 @@ describe.each(['conducting_44', 'conducting_34', 'conducting_24'])('%s (stated 7
   });
 
   if (scenario === 'conducting_24') {
-    it('the 2/4 lock as it stands (the state #232 starts from): half tempo, never hold', () => {
-      expect(Math.abs(atLastAnchor.tempo - meta.statedBpm / 2) / (meta.statedBpm / 2)).toBeLessThan(0.25);
-      expect(last.state).toBe('running');
+    it('the 2/4 lock holds under 10 ms of anchor jitter with the interval-agreement rule, and is lost without it (#232)', () => {
+      // The fixture's own anchors (the detector's confidences included), jittered: the
+      // test the #231 review ran by hand (the old rule held 0 of 200 at 5 ms). Fed to
+      // the prior alone, so the detector cannot hide an oscillator change.
+      const held = (options: OscillatorOptions, jitter: number, runs: number, set: Anchor[] = anchors, last = lastT) => {
+        let ok = 0;
+        for (let run = 0; run < runs; run++) {
+          const next = seeded(run * 7919 + 1);
+          const osc = createAdaptiveOscillator(options);
+          for (const a of set) {
+            const t = a.t + jitter * gaussian(next);
+            osc.advance(t - 0.01);
+            osc.update({ ...a, t });
+          }
+          const tempo = osc.state().tempo;
+          osc.advance(last + 3);
+          if (Math.abs(tempo - meta.statedBpm) / meta.statedBpm < 0.1 && osc.state().state === 'hold') ok++;
+        }
+        return ok;
+      };
+      expect(held({}, 0.005, 100)).toBe(100);
+      expect(held({}, 0.01, 100)).toBe(100);
+      // The pre-#232 rule, selectable, is the fragile one (about three runs in four at
+      // 10 ms). The other half of the old loss, a re-seed from TWO intervals instead of
+      // the missed anchors' own (the half-tempo lock), was a bug and is not selectable.
+      // On this clip's anchors either half alone recovers the clean run (the review
+      // checked both), so the result rests on 8 anchors and both halves.
+      expect(held({ lostIfIntervalsAgree: false }, 0.01, 100)).toBeLessThan(90);
+      // At 15 fps (every other frame: 7 anchors, two of them moved by a frame) the lock
+      // is NOT robust: it holds in about half the runs at 5 ms of jitter (the review
+      // measured 108 of 200). Reported here as a floor, not claimed as a lock.
+      const fifteen = detect(samples.filter((s) => Math.round(s.t * meta.fps) % 2 === 0));
+      const held15 = held({}, 0.005, 100, fifteen.anchors, fifteen.times[fifteen.times.length - 1]);
+      expect(held15).toBeGreaterThanOrEqual(40);
+      expect(held15).toBeLessThan(100);
     });
   }
 });

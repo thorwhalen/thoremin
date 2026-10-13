@@ -1,7 +1,7 @@
 /**
  * `conductor` node — the conductor's beating hand becomes musical time (#187).
  *
- * Wraps `packages/ictus/src` (the pure core: ictus detector → adaptive oscillator →
+ * Wraps `packages/ictus/src` (the pure core: ictus detector → rhythm prior →
  * `MusicalTime`) as a DAG node over the hands frame the rest of the graph already
  * reads, and emits what the score player needs: a continuous `beat`, the `bpm` it is
  * advancing at, and a `velocityScale` from the size of the strokes — the two ports
@@ -39,10 +39,14 @@
  * pattern): the `conductor` dial re-exports it, the `config` input overrides the
  * build-time params live per tick, and `commands/paths.ts` derives a `dial.setIn`
  * leaf for every field here, so the panel, the palette, a keybinding and the AI
- * assistant can all turn the conductor on or retune it with no graph rebuild. Two
- * fields are build-time only because they shape the oscillator itself
- * (`phaseGain`, `periodGain`); a live change to them takes effect at the next
- * enable (the node re-creates its core when it is switched off and on).
+ * assistant can all turn the conductor on or retune it with no graph rebuild. Three
+ * fields are build-time only because they shape the prior itself: `prior` (which
+ * rhythm prior follows the beat, #232: the `blend` by default, the oscillator while
+ * the beat holds its tempo and the trend prior once the oscillator's grid is biased,
+ * which is what keeps the grid from running 65 to 75 ms late under an accelerando;
+ * `oscillator` is the pre-#232 follower, `trend` the tempo trend alone) and the
+ * oscillator's gains (`phaseGain`, `periodGain`); a live change to them takes effect
+ * at the next enable (the node re-creates its core when it is switched off and on).
  *
  * Pure and Node-safe: no DOM, no clock (it reads `ctx.time` / `ctx.dt`), and the
  * recorded conducting fixtures drive it headlessly.
@@ -50,7 +54,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, createIctus, wrapPhase, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
+import { beatAt, createIctus, wrapPhase, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type Ictus, type IctusState, type MusicalTime } from '@thoremin/ictus';
 import { LM, frameTime, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { beatsPerBarAt, ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
 
@@ -92,6 +96,8 @@ const Params = z.object({
    *  biggest at `dynMax`. */
   dynMin: z.number().min(0).max(1).default(0.35),
   dynMax: z.number().min(0).max(1).default(1),
+  /** Which rhythm prior follows the beat (build-time; see the header). */
+  prior: z.enum(RHYTHM_PRIOR_KINDS).default(DEFAULT_RHYTHM_PRIOR),
   /** Oscillator gains (build-time; see the header). */
   phaseGain: z.number().min(0).max(1).default(0.5),
   periodGain: z.number().min(0).max(1).default(0.4),
@@ -123,6 +129,7 @@ export const MusicalTimeSchema = z.object({
   state: z.enum(['ready', 'running', 'hold']),
   anchors: z.number(),
   lastAnchorAt: z.number().optional(),
+  leadOffset: z.number().optional(),
 });
 
 /** The live `config` port: a partial override of the params (the dial's value). */
@@ -158,7 +165,7 @@ export const conductorNode = defineNode<Params>({
   roles: ['feature', 'mapping'],
   title: 'Conductor',
   description:
-    'The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.',
+    'The beating hand becomes musical time: ictus detection + a rhythm prior (packages/ictus/src; the oscillator-trend blend by default) → beat, bpm, dynamics for the score. Off by default.',
   inputs: [
     { name: 'hands', kind: 'hands-frame' },
     { name: 'config', kind: 'conductor-config' },
@@ -275,7 +282,9 @@ export const conductorNode = defineNode<Params>({
         if (!wasEnabled || !ictus) {
           ictus = createIctus({
             detector: { mirrorX: c.mirrorX },
+            prior: c.prior,
             oscillator: { beatsPerBar: c.beatsPerBar, phaseGain: c.phaseGain, periodGain: c.periodGain },
+            trend: { beatsPerBar: c.beatsPerBar },
           });
           wasEnabled = true;
         }
@@ -365,6 +374,7 @@ export const conductorNode = defineNode<Params>({
           state: fermataAt !== null ? 'hold' : s.state,
           anchors: s.anchors,
           lastAnchorAt: s.lastAnchorAt,
+          leadOffset: s.leadOffset,
         };
         return emit(time, bpm, s.dynamics, s.articulation, true, c);
       },

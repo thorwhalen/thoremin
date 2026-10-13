@@ -49,8 +49,9 @@
  *                    else the confirmation, sounded at the confirming sample plus the
  *                    required lead — late, and scored as late.
  * - `grid:<prior>` — the rhythm prior's nearest expected beat at the prediction (the
- *                    pure intent estimate); priors: `osc` (the adaptive oscillator)
- *                    and `trend` (the least-squares tempo trend).
+ *                    pure intent estimate); priors: `osc` (the adaptive oscillator),
+ *                    `blend` (the shipped default since #232) and `trend*` (the
+ *                    least-squares tempo trend at several memories).
  * - `magnet<m>:<prior>` — the prediction pulled toward that grid by magnetism `m`: its
  *                    "vs grid" column is how close what the instrument SOUNDS lands to
  *                    the intended time, its actuality column what that cost.
@@ -66,6 +67,7 @@ import { createAdaptiveOscillator, createIctusDetector, type Anchor, type Rhythm
 import { createImpactPredictor, type ImpactEvent, type ImpactPredictorOptions } from '@thoremin/ictus/impact';
 import { magnetise } from '@thoremin/ictus/magnet';
 import { createTrendPrior } from '@thoremin/ictus/trend_prior';
+import { createBlendPrior } from '@thoremin/ictus/blend_prior';
 import { decimateByInference, decimateToFps } from './decimate';
 
 // ---- CLI ----------------------------------------------------------------------
@@ -88,10 +90,13 @@ const INFER = Number(arg('infer', '0'));
 const OUT = arg('out', join(SET, 'results.json'));
 /** An estimate further than this from every truth event is spurious (seconds). */
 const MATCH_WINDOW = 0.12;
-/** The rhythm priors scored on the intent axis: the shipped oscillator, the same with
- *  a faster period memory, and the trend prior at two memories and two orders. */
+/** The rhythm priors scored on the intent axis: the oscillator (the v1 prior), the
+ *  same with a faster period memory, the blend (the default since #232: the
+ *  oscillator until three innovations share a sign, then the trend), and the trend
+ *  prior at two memories and two orders. */
 const PRIORS: Record<string, () => RhythmPrior> = {
   osc: () => createAdaptiveOscillator({ initialTempo: 100 }),
+  blend: () => createBlendPrior({ initialTempo: 100 }),
   oscFast: () => createAdaptiveOscillator({ initialTempo: 100, periodMemory: 0.7, periodGain: 0.7 }),
   trend6q: () => createTrendPrior({ memory: 6, quadraticAfter: 4 }),
   trend12q: () => createTrendPrior({ memory: 12, quadraticAfter: 5 }),
@@ -491,6 +496,23 @@ for (const axis of ['fps', 'exposure', 'timing', 'object'] as Axis[]) {
   const rows = new Map<string, CellStats>();
   for (const est of ['lowest', 'parabola', 'parabolaMedian', 'predict', 'predictKnown', 'sounded']) for (const [k, s] of byAxis(est, NOISES[0], ML, axis)) rows.set(`${est} / ${k}`, s);
   md.push(table(`By ${axis} — noise ${NOISES[0]} px, minLead ${ML} s`, rows, `estimator / ${axis}`));
+}
+// 4. The priors on the same events. A `grid:` row's n differs by prior (a prior not
+//    yet running has no grid at that stroke: the oscillator at 404 strokes against the
+//    blend's 351), so the rows above compare each prior on its own events; here every
+//    prior is scored on the strokes ALL of them scored.
+{
+  const gridEstimators = Object.keys(PRIORS).map((p) => `grid:${p}`);
+  const inFamily = (r: Record_) => gridEstimators.includes(r.estimator) && r.noise === NOISES[0] && r.minLead === ML;
+  const eventKey = (r: Record_) => `${r.clip}#${r.event}`;
+  const seenBy = new Map<string, number>();
+  for (const r of records) if (inFamily(r)) seenBy.set(eventKey(r), (seenBy.get(eventKey(r)) ?? 0) + 1);
+  const common = new Set([...seenBy].filter(([, n]) => n === gridEstimators.length).map(([k]) => k));
+  const rows = new Map<string, CellStats>();
+  for (const est of gridEstimators) {
+    for (const [k, st] of aggregate((r) => r.estimator === est && inFamily(r) && common.has(eventKey(r)), (r) => String(axesOf(r.clip).kind))) rows.set(`${est} / ${k}`, st);
+  }
+  md.push(table(`The priors on the same events (${common.size} strokes every prior scored) — noise ${NOISES[0]} px, minLead ${ML} s`, rows, 'estimator / kind'));
 }
 md.push(`Stroke kind classified correctly by the predictor (auto mode, noise ${NOISES[0]} px): ${kindHits.right}/${kindHits.total}.`, '');
 md.push(`Predictions committed with less lead than required (noise ${NOISES[0]} px): ${[...shortLeads.entries()].map(([ml, s]) => `minLead ${ml}: ${s.short}/${s.total}`).join('; ')}.`, '');

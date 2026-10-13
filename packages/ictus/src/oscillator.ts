@@ -32,9 +32,16 @@
  *   all (Raphael: "better to remain silent than provide bad information"): it touches
  *   no state, not even the inter-anchor clock — a weak anchor that advanced the clock
  *   would make the next real beat's interval read short and drag the period down.
- * - **Lost lock.** Two consecutive anchors outside the attentional window drop the
- *   lock and re-seed from those two anchors (Pardo's single hypothesis never re-locks
- *   after a jump; this one does).
+ * - **Lost lock.** Two consecutive anchors outside the attentional window, arriving
+ *   at intervals that AGREE with each other, drop the lock and re-seed from their
+ *   interval (Pardo's single hypothesis never re-locks after a jump; this one does).
+ *   The agreement is what tells a tempo jump (the new interval repeats) from an
+ *   uneven beat pattern (a conductor's long downbeat and short upbeat alternate, 1.05
+ *   then 0.65 s at a bar-level 70 bpm on the 2/4 fixture): both put two anchors in a
+ *   row outside the window, but only the jump has a new tempo to seed, and dropping
+ *   the lock on the pattern seeded a half-tempo lock that never recovered (#231's
+ *   raw-sample timing exposed it; #232 fixed it). `lostIfIntervalsAgree: false` is
+ *   the pre-#232 rule.
  * - **Octave guard.** After a jump to double tempo every SECOND anchor still lands near
  *   a modelled beat, so the phase-error rule alone settles at half tempo. Three
  *   consecutive intervals near HALF or DOUBLE the period that agree with each other
@@ -94,6 +101,10 @@ export interface OscillatorOptions {
    *  `lostPhaseError`) that drop the lock and re-seed from those anchors. */
   lostAfterMisses?: number;
   lostPhaseError?: number;
+  /** The misses must also come at intervals that agree with each other (a new tempo,
+   *  not an uneven pattern) before the lock is dropped. Off: any two misses drop it
+   *  (the rule before #232, which loses a long-short 2/4 pattern to a half-tempo lock). */
+  lostIfIntervalsAgree?: boolean;
   /** An interval within this relative tolerance of half or double the period is
    *  "odd" (see the header). */
   octaveTolerance?: number;
@@ -117,6 +128,7 @@ const DEFAULTS: Required<OscillatorOptions> = {
   confidenceDecayPerPeriod: 0.5,
   lostAfterMisses: 2,
   lostPhaseError: 0.4,
+  lostIfIntervalsAgree: true,
   octaveTolerance: 0.15,
   initialTempo: 100,
   beatsPerBar: 4,
@@ -138,7 +150,15 @@ export function kappaFromResultant(r: number): number {
   return 1 / (r ** 3 - 4 * r ** 2 + 3 * r);
 }
 
-export function createAdaptiveOscillator(options: OscillatorOptions = {}): RhythmPrior {
+/** The oscillator's own surface beyond {@link RhythmPrior}: how many times it has
+ *  re-seeded its lock since the last reset (a lost lock, an octave re-seed, a restart
+ *  out of hold; not the first lock). The blend reads it to learn that the grid its
+ *  trend half was fitting no longer exists. */
+export interface AdaptiveOscillator extends RhythmPrior {
+  restarts(): number;
+}
+
+export function createAdaptiveOscillator(options: OscillatorOptions = {}): AdaptiveOscillator {
   const o = { ...DEFAULTS, ...options };
   let t = 0;
   let phase = 0;
@@ -152,7 +172,6 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
   let state: MusicalTime['state'] = 'ready';
   let anchors = 0;
   let lastAnchorT = NaN;
-  let prevAnchorT = NaN;
   let beatsPerBar = o.beatsPerBar;
   /** Anchors accepted since the last (re)start, for the ready → running transition. */
   let consecutive = 0;
@@ -161,10 +180,14 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
   /** Consecutive agreeing odd intervals, and the previous odd interval (octave guard). */
   let oddCount = 0;
   let lastOdd = NaN;
+  /** The interval the previous miss arrived at (the lost-lock agreement test). */
+  let lastMissIai = NaN;
   /** Consecutive hold restarts and the interval the previous one arrived at (the
    *  halved-tempo escape from hold). */
   let holdRestarts = 0;
   let holdRestartIai = NaN;
+  /** Re-seeds of the lock since reset (see {@link AdaptiveOscillator}). */
+  let restarts = 0;
 
   const freeRun = (dt: number) => {
     const dBeats = dt / period;
@@ -198,11 +221,13 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
   };
 
   const restartLock = (seedPeriod: number | null, conf: number) => {
+    restarts++;
     r = 0;
     kappa = o.kappaMin;
     misses = 0;
     oddCount = 0;
     lastOdd = NaN;
+    lastMissIai = NaN;
     phase = 0;
     beat = Math.round(beat);
     if (seedPeriod !== null && seedPeriod >= o.minPeriod && seedPeriod <= o.maxPeriod) {
@@ -258,7 +283,6 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       anchors++;
 
       if (state === 'ready' || state === 'hold') {
-        prevAnchorT = lastAnchorT;
         lastAnchorT = a.t;
         misses = 0;
         if (state === 'hold') {
@@ -301,13 +325,24 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       if (odd && agrees(iai, lastOdd)) oddCount++;
       else oddCount = odd ? 1 : 0;
       lastOdd = odd ? iai : NaN;
-      const lost = Math.abs(e) > o.lostPhaseError ? ++misses >= o.lostAfterMisses : ((misses = 0), false);
+      // A miss: the beat was not where the anchor is. Consecutive misses at agreeing
+      // intervals are a new tempo (lost lock); at disagreeing ones, an uneven pattern
+      // the running mean already averages, so the count restarts from this miss.
+      let lost = false;
+      if (Math.abs(e) > o.lostPhaseError) {
+        if (o.lostIfIntervalsAgree && misses > 0 && !agrees(iai, lastMissIai)) misses = 0;
+        lost = ++misses >= o.lostAfterMisses;
+        lastMissIai = iai;
+      } else {
+        misses = 0;
+        lastMissIai = NaN;
+      }
       const reseed = oddCount >= o.octaveAfterOdd && iai >= o.minPeriod && iai <= o.maxPeriod;
       if (lost || reseed) {
-        // Lost (two anchors in a row where the beat was not) or re-seeded (three odd
-        // intervals that agree): restart from the last two anchors.
-        restartLock(reseed ? iai : a.t - prevAnchorT, 0.3);
-        prevAnchorT = lastAnchorT;
+        // Lost (anchors in a row where the beat was not) or re-seeded (three odd
+        // intervals that agree): restart from the interval the last two anchors came
+        // at, which is the tempo the misses agree on.
+        restartLock(iai, 0.3);
         lastAnchorT = a.t;
         advanceTo(tNow);
         return;
@@ -328,7 +363,6 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       kappa = Math.max(o.kappaMin, Math.min(o.kappaMax, kappaFromResultant(Math.max(0, r))));
       // Confidence rises with agreement (r is the resultant length of recent errors).
       confidence = Math.max(0, Math.min(1, 0.5 * confidence + 0.5 * Math.max(0, r)));
-      prevAnchorT = lastAnchorT;
       lastAnchorT = a.t;
       consecutive++;
       advanceTo(tNow);
@@ -342,7 +376,9 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       return { expectedAt: s.nextBeatAt, window, phase };
     },
     state: snapshot,
+    restarts: () => restarts,
     reset() {
+      restarts = 0;
       t = 0;
       phase = 0;
       period = 60 / o.initialTempo;
@@ -354,11 +390,11 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Rhyth
       state = 'ready';
       anchors = 0;
       lastAnchorT = NaN;
-      prevAnchorT = NaN;
       consecutive = 0;
       misses = 0;
       oddCount = 0;
       lastOdd = NaN;
+      lastMissIai = NaN;
       holdRestarts = 0;
       holdRestartIai = NaN;
       beatsPerBar = o.beatsPerBar;

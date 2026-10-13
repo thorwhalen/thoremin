@@ -99,10 +99,18 @@ export interface MusicalTime {
    *  What a scheduler aligns to, and what a test reads to check the follower's
    *  timing without re-deriving it from the beat. */
   lastAnchorAt?: number;
+  /** The player's own lead, seconds: how far ahead of the sound their beat lands
+   *  (the research map's per-person conductor lead; a conductor's ictus precedes the
+   *  orchestra's onset by a constant that differs by person and by piece). A
+   *  scheduler sounds a beat at `nextBeatAt + leadOffset`. Absent or 0 until a
+   *  trainer cue has measured it (#232 adds the field; nothing sets it yet). */
+  leadOffset?: number;
 }
 
 /** A tempo/phase model over sparse anchors. Implementations: the adaptive oscillator
- *  (v1); a Kalman filter or a multi-agent tracker later, behind the same interface. */
+ *  (v1), the trend prior (a least-squares tempo trend), and the blend of the two
+ *  (`blend_prior.ts`, the default since #232); a Kalman filter or a multi-agent
+ *  tracker later, behind the same interface. */
 export interface RhythmPrior {
   /** Move the state forward to `t` without an observation (free-run). */
   advance(t: number): void;

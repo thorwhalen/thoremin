@@ -25,7 +25,7 @@ import {
 } from '@zodal/dials-ui';
 import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
-import { defaultSteerConfig, EXTENSION_DIAL_SCHEMAS } from '@/settings/schema';
+import { defaultSteerConfig, EXTENSION_DIAL_SCHEMAS, LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import { SettingsSchema, type Settings } from '@/settings/schema';
 import { EXTENSION_INSTRUMENTS } from '@/extensions';
@@ -397,6 +397,14 @@ export function normalizeLayer(layer: Layer): Layer {
   if (sc && typeof sc === 'object' && (sc.strains === undefined || sc.dials === undefined)) {
     if (out === layer) out = { ...layer };
     out.steerConfig = { ...defaultSteerConfig(), ...sc };
+  }
+  // The conductor's rhythm prior (#232) is a nested key whose default (`blend`) is a
+  // behaviour change: an instrument saved with a conductor but no `prior` was played by
+  // the oscillator, and keeps it; only an instrument made from now on takes the default.
+  const cond = out.conductor as Record<string, unknown> | undefined;
+  if (cond && typeof cond === 'object' && cond.prior === undefined) {
+    if (out === layer) out = { ...layer };
+    out.conductor = { ...cond, prior: LEGACY_CONDUCTOR_PRIOR };
   }
   // A nested key a later release added INSIDE an extension's whole-object dial (#263:
   // `airFlute.prior`; #269: `airDrum.pattern`) is the same drift one level down: the working

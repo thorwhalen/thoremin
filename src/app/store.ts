@@ -50,7 +50,7 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, LEGACY_CONDUCTOR_PRIOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
@@ -376,6 +376,13 @@ export function migrateControls(persisted: unknown, version: number): ControlSta
     // asked), so it follows the new default once; re-ticking it in the panel sticks.
     const hud = s.trainerHud as Record<string, unknown> | undefined;
     if (hud && hud.show === true) s.trainerHud = { ...hud, show: false };
+  }
+  if (version < 21) {
+    // #232: the conductor dial gained `prior`, whose default (`blend`) is a behaviour
+    // change. A returning player's conductor was the oscillator; it stays so (as a saved
+    // instrument's does in `normalizeLayer`), and the panel's chooser is how they move.
+    const cond = s.conductor as Record<string, unknown> | undefined;
+    if (cond && typeof cond === 'object' && cond.prior === undefined) s.conductor = { ...cond, prior: LEGACY_CONDUCTOR_PRIOR };
   }
   return s as unknown as ControlState;
 }
@@ -729,7 +736,7 @@ export const useControls = create<ControlState>()(
       // schema parse, so no data transform is needed; the bump marks the schema growth.
       // v20 (#269): `airDrum.pattern` added (the trained pattern in play, '' for none).
       // ADDITIVE with a default, healed by mergeControls' schema parse; the bump marks it.
-      version: 20,
+      version: 21,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),

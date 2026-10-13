@@ -347,12 +347,12 @@ Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pi
 _Direct a fixed piece with gesture (tempo + dynamics)._
 
 #### `conductor` — Conductor
-The beating hand becomes musical time: ictus detection + an adaptive oscillator (packages/ictus/src) → beat, bpm, dynamics for the score. Off by default.
+The beating hand becomes musical time: ictus detection + a rhythm prior (packages/ictus/src; the oscillator-trend blend by default) → beat, bpm, dynamics for the score. Off by default.
 
 - **roles:** feature, mapping
 - **in:** hands:hands-frame, config:conductor-config, doc:score-doc
 - **out:** time:musical-time, beat:number, bpm:number, velocityScale:number, phase:number, dynamics:number, articulation:number, confidence:number, enabled:boolean
-- **params:** enabled (boolean=false), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), mirrorX (boolean=true), mirrorHandedness (boolean=true), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), phaseGain (number=0.5), periodGain (number=0.4)
+- **params:** enabled (boolean=false), hand (enum(auto | right | left)="auto"), point (enum(wrist | indexTip)="wrist"), mirrorX (boolean=true), mirrorHandedness (boolean=true), beatsPerBar (number=4), servoBeats (number=1), fallbackBelowConfidence (number=0.3), fallbackBpmMin (number=50), fallbackBpmMax (number=160), dynMin (number=0.35), dynMax (number=1), prior (enum(oscillator | trend | blend)="blend"), phaseGain (number=0.5), periodGain (number=0.4)
 
 #### `transport` — Transport
 Beat clock: integrates BPM over time into a running beat position.
