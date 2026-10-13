@@ -563,7 +563,7 @@
   {
     "type": "body-feature-vector",
     "title": "Body Feature Vector",
-    "description": "Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).",
+    "description": "Body pose landmarks -> a flat vector of enabled body catalog features (angles, segment directions, kinematics, shape, effort, relations); landmarks below minVisibility are masked.",
     "roles": [
       "feature"
     ],
@@ -597,6 +597,11 @@
         "name": "windowSeconds",
         "type": "number",
         "default": 1
+      },
+      {
+        "name": "minVisibility",
+        "type": "number",
+        "default": 0.5
       }
     ]
   },

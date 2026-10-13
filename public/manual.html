@@ -278,12 +278,12 @@
     </div>
     <div class="node">
       <h4><code>body-feature-vector</code> <span class="title">Body Feature Vector</span></h4>
-      <p>Body pose landmarks -&gt; a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).</p>
+      <p>Body pose landmarks -&gt; a flat vector of enabled body catalog features (angles, segment directions, kinematics, shape, effort, relations); landmarks below minVisibility are masked.</p>
       <dl>
         <dt>roles</dt><dd>feature</dd>
         <dt>in</dt><dd>body:body-frame, pulse:pulse-state</dd>
         <dt>out</dt><dd>vector:feature-vector</dd>
-        <dt>params</dt><dd>mirrorX (boolean=true), groups (array), windowSeconds (number=1)</dd>
+        <dt>params</dt><dd>mirrorX (boolean=true), groups (array), windowSeconds (number=1), minVisibility (number=0.5)</dd>
       </dl>
     </div>
     <div class="node">

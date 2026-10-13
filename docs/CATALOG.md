@@ -236,12 +236,12 @@ Hand image + world landmarks -> a flat vector of enabled per-hand + two-hand cat
 - **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), groups (array), handednessDwellFrames (number=2)
 
 #### `body-feature-vector` — Body Feature Vector
-Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).
+Body pose landmarks -> a flat vector of enabled body catalog features (angles, segment directions, kinematics, shape, effort, relations); landmarks below minVisibility are masked.
 
 - **roles:** feature
 - **in:** body:body-frame, pulse:pulse-state
 - **out:** vector:feature-vector
-- **params:** mirrorX (boolean=true), groups (array), windowSeconds (number=1)
+- **params:** mirrorX (boolean=true), groups (array), windowSeconds (number=1), minVisibility (number=0.5)
 
 #### `body-pulse` — Body Pulse
 The dancer's pulse: the period, phase and confidence of the body's repeating movement (the stride by default), from ictus's octave-free pulse follower.

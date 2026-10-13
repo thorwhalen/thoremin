@@ -28,6 +28,8 @@
     "./enroll/sufficiency": "./src/enroll/sufficiency.ts",
     "./enroll/types": "./src/enroll/types.ts",
     "./features/body_catalog": "./src/features/body_catalog.ts",
+    "./features/body_groups": "./src/features/body_groups.ts",
+    "./features/body_mirror": "./src/features/body_mirror.ts",
     "./features/catalog": "./src/features/catalog.ts",
     "./features/demand": "./src/features/demand.ts",
     "./features/face_catalog": "./src/features/face_catalog.ts",

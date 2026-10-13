@@ -1,7 +1,7 @@
 /**
  * `body-feature-vector` node (#186) — turns a raw {@link BodyFrame} into a flat
  * `Record<string, number>` of the enabled body catalog features (angles,
- * positions, kinematics, shape, Laban effort, relations), emitted on a
+ * segment directions, positions, kinematics, shape, Laban effort, relations), emitted on a
  * `feature-vector` port for the Lab overlay, the trainer's live-vector tap and
  * the recorder — exactly what `hand-feature-vector` does for hands.
  *
@@ -39,6 +39,10 @@ const Params = z.object({
   groups: z.array(z.string()).optional(),
   /** Seconds of history the kinematic/effort features see (the Laban window). */
   windowSeconds: z.number().positive().max(5).default(1),
+  /** The visibility mask (#381): a landmark below this visibility counts as absent and
+   *  every feature that reads it is dropped (the torso anchors excepted). 0.5 is the
+   *  bar `body-pulse` already holds landmarks to; 0 turns the mask off. */
+  minVisibility: z.number().min(0).max(1).default(0.5),
 });
 type Params = z.infer<typeof Params>;
 
@@ -57,7 +61,7 @@ export const bodyFeatureVectorNode = defineNode<Params>({
   type: 'body-feature-vector',
   roles: ['feature'],
   title: 'Body Feature Vector',
-  description: 'Body pose landmarks -> a flat vector of enabled body catalog features (angles, kinematics, shape, effort, relations).',
+  description: 'Body pose landmarks -> a flat vector of enabled body catalog features (angles, segment directions, kinematics, shape, effort, relations); landmarks below minVisibility are masked.',
   inputs: [
     { name: 'body', kind: 'body-frame' },
     // The dancer's pulse (#186 PR F), folded into the same vector as `body.rhythm.*`.
@@ -99,7 +103,7 @@ export const bodyFeatureVectorNode = defineNode<Params>({
         if (frame === lastFrame) return { vector: lastVector };
         const dtS = lastTime === null ? NaN : ctx.time - lastTime;
         if (history.length) history[history.length - 1] = { ...history[history.length - 1], dtS };
-        const bctx = buildBodyCtx(frame, { mirrorX: p.mirrorX, dtS, history, pulse: inputs.pulse as BodyPulseReading | undefined });
+        const bctx = buildBodyCtx(frame, { mirrorX: p.mirrorX, dtS, history, minVisibility: p.minVisibility, pulse: inputs.pulse as BodyPulseReading | undefined });
         for (const feat of BODY_FEATURES) {
           if (!enabled(feat.group)) continue;
           const v = feat.compute(bctx);
