@@ -17,7 +17,7 @@ const chunk = (fileName: string, modules: string[], extra: Partial<ChunkLike> = 
 
 describe('the lazy bundle guard', () => {
   it('names the orchestra synth and the score parsers', () => {
-    expect(LAZY_PACKAGES).toEqual(expect.arrayContaining(['spessasynth_lib', 'spessasynth_core', '@tonejs/midi', 'musicxml-io']));
+    expect(LAZY_PACKAGES).toEqual(expect.arrayContaining(['spessasynth_lib', 'spessasynth_core', '@tonejs/midi', 'musicxml-io', 'signalsmith-stretch']));
   });
 
   it('reads the package of a module id, scoped or not, through nested node_modules', () => {

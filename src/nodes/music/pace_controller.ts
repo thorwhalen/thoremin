@@ -19,10 +19,21 @@
  *
  * It is composed only while following is on (the per-device `songPrefs.follow`) and a
  * song is loaded (the `song-pace` branch), so it costs nothing otherwise.
+ *
+ * **A conductor leads too (#187 PR 7, "Conduct a recording").** With the conductor's
+ * `recordingTime` on `lead`, the same node runs the other law ictus has for a song, the beat servo
+ * (`servo.ts`; the conducting research map §6.7): the conductor's beat IS the piece's
+ * beat, so the song is held to it beat for beat, its error evaluated at the output
+ * timestamp (`ctx.resources.timing`'s output stage), its transport paused while the
+ * conductor waits or holds (`playing`) and cued silently to his beat (`cue`), both wired
+ * onto the song player's `followPlaying` and `cue`; under the dancer they stay empty and
+ * the player's own transport plays. One transport, one beat grid, one node: the leader
+ * decides the law.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { createPaceController, PACE_DEFAULTS, UNKNOWN_PULSE, type MusicalTime, type PaceState, type PulseState } from '@thoremin/ictus';
+import { createBeatServo, createPaceController, PACE_DEFAULTS, SERVO_DEFAULTS, UNKNOWN_PULSE, type MusicalTime, type PaceState, type PulseState, type ServoState } from '@thoremin/ictus';
+import { timingFrom } from '@thoremin/sdk/timing/tracker';
 
 const Params = z.object({
   /** Seconds a ratio must persist before it is followed (the red-noise guard, #339). */
@@ -43,6 +54,12 @@ const Params = z.object({
   /** The song player's own rate limits (its `minRate` / `maxRate`): never asked past. */
   minRate: z.number().positive().default(PACE_DEFAULTS.minRate),
   maxRate: z.number().positive().default(PACE_DEFAULTS.maxRate),
+  /** The conductor's law (`lead` connected): the servo's horizon, conductor beats. */
+  horizonBeats: z.number().min(0.25).max(8).default(SERVO_DEFAULTS.horizonBeats),
+  /** The conductor's law: the largest correction, a fraction of the tempo-matched rate. */
+  maxCorrection: z.number().min(0).max(1).default(SERVO_DEFAULTS.maxCorrection),
+  /** The conductor's law: a song further adrift than this, in beats, is cued, not chased. */
+  seekBeyondBeats: z.number().positive().max(64).default(SERVO_DEFAULTS.seekBeyondBeats),
 });
 type Params = z.infer<typeof Params>;
 
@@ -60,18 +77,48 @@ export const paceControllerNode = defineNode<Params>({
     { name: 'rate', kind: 'number', default: 1, description: 'The rate the song was played at (song-player\'s rate, a tick old)' },
     { name: 'base', kind: 'number', default: 1, description: "The player's own tempo (the Song tool's slider): the centre of the clamp" },
     { name: 'range', kind: 'number', default: PACE_DEFAULTS.range, description: 'How far from the player\'s tempo the song may be pulled, a fraction' },
+    { name: 'lead', kind: 'musical-time', description: "A conductor's time (#187 PR 7): while present, the song follows it beat for beat (the beat servo) instead of the dancer" },
+    { name: 'offset', kind: 'number', default: 0, description: "The song's beat on which the conductor's first beat lands" },
   ],
   outputs: [
     { name: 'rate', kind: 'number', description: 'The rate to play the song at' },
     { name: 'pace', kind: 'pace-state', description: 'What the controller is doing: waiting, locking, following or holding, the ratio, the phase error' },
+    { name: 'playing', kind: 'boolean', description: "The conductor's law: whether the song plays (paused while the conductor waits or holds)" },
+    { name: 'cue', kind: 'song-cue', description: "The conductor's law: the beat the song is moved to (a fresh id per request)" },
+    { name: 'servo', kind: 'servo-state', description: "The conductor's law: cueing, following or holding, the rate and the error in beats" },
   ],
   params: Params,
   make(p) {
     const controller = createPaceController(p);
+    const servo = createBeatServo(p);
+    /** Which law ran last tick: a change of leader starts the other law afresh. */
+    let led = false;
     return {
       process(inputs, ctx) {
         const song = inputs.song as MusicalTime | undefined;
         const base = finite(inputs.base, 1);
+        const lead = inputs.lead as MusicalTime | undefined;
+        if (lead && !led) controller.reset();
+        if (!lead && led) servo.reset();
+        led = !!lead;
+        if (lead) {
+          // The conductor leads: the beat servo, evaluated at the output timestamp.
+          let s: ServoState;
+          if (!song) {
+            servo.reset();
+            s = { ...servo.state(), t: ctx.time };
+          } else {
+            s = servo.step({
+              t: ctx.time,
+              lead,
+              song,
+              rate: finite(inputs.rate, 1),
+              latency: timingFrom(ctx.resources).outputStage.value,
+              offset: finite(inputs.offset, 0),
+            });
+          }
+          return { rate: s.rate, pace: controller.state(), playing: s.playing, cue: s.cue ?? undefined, servo: s };
+        }
         let pace: PaceState;
         if (!song) {
           controller.reset();

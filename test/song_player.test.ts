@@ -21,6 +21,14 @@ vi.mock('@/nodes/output/song_stretcher', () => ({
     return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, position: () => 0, playing: () => false, ended: () => false, dispose() {} };
   },
 }));
+// The default (Signalsmith) stretcher, replaced the same way (#187 PR 7).
+const signalsmithStretcher = vi.hoisted(() => vi.fn());
+vi.mock('@/nodes/output/song_stretcher_signalsmith', () => ({
+  createSignalsmithStretcher: (...a: unknown[]) => {
+    signalsmithStretcher(...a);
+    return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, position: () => 0, playing: () => false, ended: () => false, dispose() {} };
+  },
+}));
 import type { NodeContext, NodeHandlers, PortValues } from '@thoremin/dag';
 import { trackSongGrid, PULSE_TRUSTED_CONFIDENCE, type MusicalTime, type PulseState, type SongGrid } from '@thoremin/ictus';
 import type { LoadStatus } from '@thoremin/lazy';
@@ -197,18 +205,26 @@ describe('song-player', () => {
 
   it('a node disposed while its default stretcher loads creates no player', async () => {
     defaultStretcher.mockClear();
+    signalsmithStretcher.mockClear();
     const h = make();
     // No injected factory: the default is imported lazily; dispose before it resolves.
     h.process({ song: song() }, { tick: 0, time: 0, dt: 0, resources: AUDIO });
     h.dispose?.();
     await new Promise((r) => setTimeout(r, 50));
-    expect(defaultStretcher).not.toHaveBeenCalled();
-    // A live node does create it once the import resolves.
+    expect(signalsmithStretcher).not.toHaveBeenCalled();
+    // A live node does create it once the import resolves: Signalsmith by default.
     const live = make();
     live.process({ song: song() }, { tick: 0, time: 0, dt: 0, resources: AUDIO });
     await new Promise((r) => setTimeout(r, 50));
-    expect(defaultStretcher).toHaveBeenCalledTimes(1);
+    expect(signalsmithStretcher).toHaveBeenCalledTimes(1);
+    expect(defaultStretcher).not.toHaveBeenCalled();
     live.dispose?.();
+    // The `stretcher` param picks the media element outright.
+    const element = songPlayerNode.make(songPlayerNode.params.parse({ stretcher: 'element' }));
+    element.process({ song: song() }, { tick: 0, time: 0, dt: 0, resources: AUDIO });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(defaultStretcher).toHaveBeenCalledTimes(1);
+    element.dispose?.();
   });
 
   it('plays nothing in a replay that is not real time', async () => {

@@ -62,11 +62,19 @@ export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
 export type ConductorHand = (typeof CONDUCTOR_HANDS)[number];
 export const CONDUCTOR_POINTS = ['wrist', 'indexTip'] as const;
 export type ConductorPoint = (typeof CONDUCTOR_POINTS)[number];
+/** What the conductor leads (#187 PR 7): the score (and the orchestra), or the song
+ *  loaded in the Song tool ("Conduct a recording"). */
+export const CONDUCTOR_TARGETS = ['score', 'recording'] as const;
+export type ConductorTarget = (typeof CONDUCTOR_TARGETS)[number];
 
 const Params = z.object({
   /** Off by default: conducting replaces the score's fixed tempo, and a player who
    *  never opens the Conductor panel should never have the score play. */
   enabled: z.boolean().default(false),
+  /** What the beat leads: the score (and the orchestra), or the loaded recording, whose
+   *  tempo then follows the beat through the song's pacer (#187 PR 7). While it leads the
+   *  recording the score and the orchestra stay silent. */
+  conducts: z.enum(CONDUCTOR_TARGETS).default('score'),
   /** Which of the player's hands beats time. `auto` takes whichever is in frame,
    *  preferring the right. */
   hand: z.enum(CONDUCTOR_HANDS).default('auto'),
@@ -182,6 +190,8 @@ export const conductorNode = defineNode<Params>({
     { name: 'articulation', kind: 'number' },
     { name: 'confidence', kind: 'number' },
     { name: 'enabled', kind: 'boolean' },
+    { name: 'leadsScore', kind: 'boolean', description: 'Conducting the score (enabled, and not leading a recording): what the score and the orchestra play on' },
+    { name: 'recordingTime', kind: 'musical-time', description: "`time`, only while the conductor leads the recording (#187 PR 7): the song's pace controller follows it" },
   ],
   params: Params,
   make(p) {
@@ -260,6 +270,8 @@ export const conductorNode = defineNode<Params>({
       articulation: art,
       confidence: time.confidence,
       enabled,
+      leadsScore: enabled && c.conducts === 'score',
+      recordingTime: enabled && c.conducts === 'recording' ? time : undefined,
     });
 
     return {

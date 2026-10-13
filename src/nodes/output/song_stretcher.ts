@@ -1,5 +1,6 @@
 /**
- * The default {@link Stretcher} for the `song-player` node (#186 PR G): the browser's own
+ * The fallback {@link Stretcher} for the `song-player` node (#186 PR G; the default until
+ * Signalsmith Stretch, #187 PR 7, which falls back to this one): the browser's own
  * `HTMLMediaElement.playbackRate` with `preservesPitch` (Baseline since December 2023:
  * Chrome 86, Firefox 101, Safari 17.2), routed into the instrument's master gain through
  * `createMediaElementSource`. No bytes, no dependency, and a rate change is immediate;
@@ -94,6 +95,9 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
       gain.gain.setTargetAtTime(v, audioContext.currentTime, 0.03);
     },
     position: () => el.currentTime,
+    seek(position) {
+      if (Number.isFinite(position) && position >= 0) el.currentTime = position;
+    },
     playing: () => !el.paused && !el.ended,
     ended: () => el.ended,
     dispose() {

@@ -1079,6 +1079,16 @@
       {
         "name": "enabled",
         "kind": "boolean"
+      },
+      {
+        "name": "leadsScore",
+        "kind": "boolean",
+        "description": "Conducting the score (enabled, and not leading a recording): what the score and the orchestra play on"
+      },
+      {
+        "name": "recordingTime",
+        "kind": "musical-time",
+        "description": "`time`, only while the conductor leads the recording (#187 PR 7): the song's pace controller follows it"
       }
     ],
     "params": [
@@ -1086,6 +1096,11 @@
         "name": "enabled",
         "type": "boolean",
         "default": false
+      },
+      {
+        "name": "conducts",
+        "type": "enum(score | recording)",
+        "default": "score"
       },
       {
         "name": "hand",
@@ -2137,6 +2152,17 @@
         "kind": "number",
         "description": "How far from the player's tempo the song may be pulled, a fraction",
         "default": 0.1
+      },
+      {
+        "name": "lead",
+        "kind": "musical-time",
+        "description": "A conductor's time (#187 PR 7): while present, the song follows it beat for beat (the beat servo) instead of the dancer"
+      },
+      {
+        "name": "offset",
+        "kind": "number",
+        "description": "The song's beat on which the conductor's first beat lands",
+        "default": 0
       }
     ],
     "outputs": [
@@ -2149,6 +2175,21 @@
         "name": "pace",
         "kind": "pace-state",
         "description": "What the controller is doing: waiting, locking, following or holding, the ratio, the phase error"
+      },
+      {
+        "name": "playing",
+        "kind": "boolean",
+        "description": "The conductor's law: whether the song plays (paused while the conductor waits or holds)"
+      },
+      {
+        "name": "cue",
+        "kind": "song-cue",
+        "description": "The conductor's law: the beat the song is moved to (a fresh id per request)"
+      },
+      {
+        "name": "servo",
+        "kind": "servo-state",
+        "description": "The conductor's law: cueing, following or holding, the rate and the error in beats"
       }
     ],
     "params": [
@@ -2194,6 +2235,21 @@
       },
       {
         "name": "maxRate",
+        "type": "number",
+        "default": 2
+      },
+      {
+        "name": "horizonBeats",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "maxCorrection",
+        "type": "number",
+        "default": 0.25
+      },
+      {
+        "name": "seekBeyondBeats",
         "type": "number",
         "default": 2
       }
@@ -2732,6 +2788,16 @@
         "description": "The pace controller's rate while the song follows the dancer (PR H); replaces `rate` when present"
       },
       {
+        "name": "followPlaying",
+        "kind": "boolean",
+        "description": "The conductor's transport (#187 PR 7): replaces `playing` when present (paused while the conductor waits or holds)"
+      },
+      {
+        "name": "cue",
+        "kind": "song-cue",
+        "description": "Move the song to a beat (the conductor's cue): seeks whenever its id changes"
+      },
+      {
         "name": "volume",
         "kind": "number",
         "default": 0.8
@@ -2774,6 +2840,11 @@
         "name": "maxRate",
         "type": "number",
         "default": 2
+      },
+      {
+        "name": "stretcher",
+        "type": "enum(signalsmith | element)",
+        "default": "signalsmith"
       }
     ]
   },
