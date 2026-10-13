@@ -33,10 +33,12 @@ export const MERGE_TEXT: Record<MergeSeed, { button: string; says: string }> = {
 
 function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
   const r = test.reading;
-  const headline = test.noFace ? 'No face in view' : !r ? 'Reading...' : r.label ? r.label : r.rejected ? 'None of these' : 'Settling...';
+  const none = r !== null && (r.rejected || r.neutral);
+  const headline = test.noFace ? 'No face in view' : !r ? 'Reading...' : r.label ? r.label : none ? 'None of these' : 'Settling...';
+  const taught = (live.model.neutral?.length ?? 0) > 0;
   return (
     <div className="space-y-1.5" data-faces-readout>
-      <p className="text-base font-bold text-white" role="status" aria-live="polite" data-faces-reading={r?.categoryId ?? (r?.rejected ? 'none' : '')}>
+      <p className="text-base font-bold text-white" role="status" aria-live="polite" data-faces-reading={r?.categoryId ?? (none ? 'none' : '')}>
         {headline}
       </p>
       <ul className="space-y-0.5">
@@ -47,18 +49,27 @@ function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
             <li key={c.id} className="flex items-center gap-2 text-[10px]">
               <span className={`w-24 shrink-0 truncate ${on ? 'font-semibold text-emerald-200' : 'text-white/60'}`}>{c.label || c.id}</span>
               <span className="h-1.5 flex-1 overflow-hidden rounded bg-white/10">
-                <span className={`block h-full ${r?.rejected ? 'bg-white/25' : on ? 'bg-emerald-400' : 'bg-white/50'}`} style={{ width: `${Math.round(m * 100)}%` }} />
+                <span className={`block h-full ${none ? 'bg-white/25' : on ? 'bg-emerald-400' : 'bg-white/50'}`} style={{ width: `${Math.round(m * 100)}%` }} />
               </span>
               <span className="w-8 shrink-0 text-right text-white/40">{Math.round(m * 100)}%</span>
             </li>
           );
         })}
+        {taught && (
+          <li className="flex items-center gap-2 text-[10px]" data-faces-neutral-bar>
+            <span className={`w-24 shrink-0 truncate ${r?.neutral ? 'font-semibold text-sky-200' : 'text-white/60'}`}>Neutral</span>
+            <span className="h-1.5 flex-1 overflow-hidden rounded bg-white/10">
+              <span className={`block h-full ${r?.neutral ? 'bg-sky-400' : 'bg-white/30'}`} style={{ width: `${Math.round((r?.neutralMembership ?? 0) * 100)}%` }} />
+            </span>
+            <span className="w-8 shrink-0 text-right text-white/40">{Math.round((r?.neutralMembership ?? 0) * 100)}%</span>
+          </li>
+        )}
       </ul>
       {r && (
         <p className="text-[10px] text-white/40">
           {r.radius === null
-            ? `Distance to the nearest category: ${r.distance.toFixed(1)}. Every face is a category, so nothing reads as none of these.`
-            : `Distance to the nearest category: ${r.distance.toFixed(1)}; beyond ${r.radius.toFixed(1)} a face is none of these.`}
+            ? `Distance to the nearest category: ${r.distance.toFixed(1)}. A face you never taught reads as its nearest face${taught ? ', or none of these when it is nearer your Neutral faces' : ''}.`
+            : `Distance to the nearest category: ${r.distance.toFixed(1)}; beyond ${r.radius.toFixed(1)} a face is none of these${taught ? ', as is one nearer your Neutral faces' : ''}.`}
         </p>
       )}
     </div>
@@ -116,7 +127,7 @@ function TuningDials({ s, live }: { s: FaceSessionState; live: LiveModel }) {
         onChange={(v) => s.setTuning({ rejectScale: v })}
         says={
           partition
-            ? 'Every face is a category here, so nothing is ever none of these: there is no radius to set.'
+            ? 'A face you never taught reads as its nearest face here, so there is no radius to set (switch it to Neutral above to have one).'
             : 'How far from every category a face may be and still count. Larger: fewer faces read as none of these. At x1 it accepts at least nine in ten of your own faces.'
         }
       />

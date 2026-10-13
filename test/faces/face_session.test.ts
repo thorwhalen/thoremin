@@ -150,7 +150,8 @@ describe('carving the synthetic take', () => {
     const carver = carverFor(session, take.restVectors(), 'reject');
     const view = carveView({ session, restVectors: take.restVectors(), carver, k: carver.suggestedK() });
     const back = modelFromCategorizer(categorizerFromModel(view.model, points, { name: 'n', mode: 'reject', modality: 'face' }));
-    const rejected = carver.neutral.filter((i) => classify(back, points[i].vector).rejected).length;
+    // None of these: by the taught Neutral class (#385 E5), or beyond the reject radius.
+    const rejected = carver.neutral.filter((i) => classify(back, points[i].vector).categoryId === null).length;
     expect(rejected / carver.neutral.length).toBeGreaterThanOrEqual(0.8);
   });
 

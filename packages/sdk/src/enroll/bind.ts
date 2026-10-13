@@ -55,22 +55,25 @@ export const CategoryBindingSchema = z.object({
 });
 export type CategoryBinding = z.infer<typeof CategoryBindingSchema>;
 
+/** One category of a persisted model. */
+const CategorySchema = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  centroid: z.record(z.string(), z.number()),
+  size: z.number(),
+  radius: z.number(),
+  members: z.array(z.number()),
+  cues: z.record(z.string(), z.number()).optional(),
+});
+
 /** A {@link TrainedModel} as persisted data (it is plain numbers by construction). */
 export const TrainedModelSchema = z.object({
-  categories: z.array(
-    z.object({
-      id: z.string().min(1),
-      label: z.string(),
-      centroid: z.record(z.string(), z.number()),
-      size: z.number(),
-      radius: z.number(),
-      members: z.array(z.number()),
-      cues: z.record(z.string(), z.number()).optional(),
-    }),
-  ),
+  categories: z.array(CategorySchema),
   weights: z.record(z.string(), z.number()),
   features: z.array(z.string()),
   rejectRadius: z.number(),
+  /** The taught Neutral class's prototypes (#385 E5), when there is one. */
+  neutral: z.array(CategorySchema).optional(),
 });
 
 /** What a saved set of categories carries: the model, and what each category does. */

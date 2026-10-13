@@ -25,14 +25,14 @@ import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
 import { FeatureBars } from '@thoremin/sdk-ui/enroll/FeatureBars';
 import { HoldRing, type HoldRingState } from '@thoremin/sdk-ui/enroll/HoldRing';
 import { dispatchDialPatch, useDialsSettings } from '@thoremin/sdk-ui/dials';
-import type { CategorizerMode } from '@thoremin/sdk/enroll/categorizer';
+import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isLive, type FaceSessionState } from '../app/sessionStore';
 import { faceModalityUi } from '../app/modality';
 import type { FaceTestState } from '../app/testStore';
 import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
 import { restCue, vocabularyCue } from '../lib/take';
-import type { CarveView } from '../lib/carving';
+import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
 import { chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
@@ -41,37 +41,43 @@ const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11p
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
 const hint = 'text-[11px] leading-relaxed text-white/60';
 
-/** The two modes, stated plainly: what k counts, and what a resting face reads as. */
-export const MODE_TEXT: Record<CategorizerMode, { title: string; says: string }> = {
-  partition: {
-    title: 'Every face is a category',
-    says: 'Your resting face is one of the categories, so k counts it too (your expressions + 1). Whatever your face does, the instrument reads some category.',
+/** The strangers switch (#385 E5), stated plainly: what a face nobody taught reads as. Neutral
+ *  itself is taught by example (the Neutral bin) in both settings. */
+export const STRANGERS_TEXT: Record<CategorizerStrangers, { title: string; says: string }> = {
+  neutral: {
+    title: 'Neutral',
+    says: 'A face far from every category you made reads as none of these, as your Neutral faces do.',
   },
-  reject: {
-    title: 'Neutral means "none of these"',
-    says: 'Faces close to your resting face are set aside and read as nothing, so k counts only your expressions.',
+  nearest: {
+    title: 'The nearest face',
+    says: 'A face you never taught reads as whichever of your categories it is closest to (or Neutral, when it is closer to your Neutral faces).',
   },
 };
 
-/** One line saying which mode is in use and what k means in it. */
-export function modeSummary(view: CarveView): string {
-  if (view.mode === 'partition') return `${view.k} categories, your neutral face included. Every face reads as one of them.`;
-  const aside = view.neutral.count === 1 ? '1 held face' : `${view.neutral.count} held faces`;
-  return view.neutralKnown
-    ? `${view.k} expressions. Neutral is "none of these" (${aside} set aside as neutral).`
-    : `${view.k} expressions. There was no rest to tell neutral by, so nothing was set aside.`;
+/** One line saying how many categories there are and what Neutral holds. */
+export function strangersSummary(view: SortingView): string {
+  const held = view.neutral.count === 1 ? '1 held face' : `${view.neutral.count} held faces`;
+  const neutral =
+    view.neutral.count === 0
+      ? view.neutralKnown
+        ? 'Neutral is empty: drag the faces that should mean nothing into it.'
+        : 'There was no rest to tell neutral by, so Neutral is empty: drag your resting faces into it.'
+      : view.neutralTrained
+        ? `Neutral (${held}) plays nothing.`
+        : `Neutral (${held}) is not trained on: this categorizer was made before Neutral was taught.`;
+  return `${view.k} ${view.k === 1 ? 'category' : 'categories'}. ${neutral}`;
 }
 
-function ModeSwitch({ mode, setMode, disabled }: { mode: CategorizerMode; setMode: (m: CategorizerMode) => void; disabled: boolean }) {
+function StrangersSwitch({ strangers, setStrangers }: { strangers: CategorizerStrangers; setStrangers: (m: CategorizerStrangers) => void }) {
   return (
-    <fieldset className="space-y-1" disabled={disabled}>
-      <legend className="text-[10px] font-bold uppercase tracking-widest text-white/50">Neutral</legend>
-      {(['reject', 'partition'] as const).map((m) => (
-        <label key={m} className={`flex cursor-pointer gap-2 rounded-md border p-1.5 ${mode === m ? 'border-emerald-400/40 bg-emerald-500/10' : 'border-white/10'}`}>
-          <input type="radio" name="faces-mode" value={m} checked={mode === m} onChange={() => setMode(m)} className="mt-0.5" />
+    <fieldset className="space-y-1" data-faces-strangers>
+      <legend className="text-[10px] font-bold uppercase tracking-widest text-white/50">A face I never taught reads as</legend>
+      {(['neutral', 'nearest'] as const).map((m) => (
+        <label key={m} className={`flex cursor-pointer gap-2 rounded-md border p-1.5 ${strangers === m ? 'border-emerald-400/40 bg-emerald-500/10' : 'border-white/10'}`}>
+          <input type="radio" name="faces-strangers" value={m} checked={strangers === m} onChange={() => setStrangers(m)} className="mt-0.5" />
           <span>
-            <span className="block text-[11px] font-semibold text-white/90">{MODE_TEXT[m].title}</span>
-            <span className="block text-[10px] leading-snug text-white/55">{MODE_TEXT[m].says}</span>
+            <span className="block text-[11px] font-semibold text-white/90">{STRANGERS_TEXT[m].title}</span>
+            <span className="block text-[10px] leading-snug text-white/55">{STRANGERS_TEXT[m].says}</span>
           </span>
         </label>
       ))}
@@ -85,9 +91,9 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
   useEffect(() => setName(s.name), [s.name]);
   return (
     <div className="space-y-3">
-      <ModeSwitch mode={view.mode} setMode={s.setMode} disabled={s.phase === 'saved'} />
+      <StrangersSwitch strangers={view.strangers} setStrangers={s.setStrangers} />
       <p data-faces-summary className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/80">
-        <span className="font-semibold text-emerald-200">In use: {MODE_TEXT[view.mode].title}.</span> {modeSummary(view)}
+        <span className="font-semibold text-emerald-200">A face you never taught reads as: {STRANGERS_TEXT[view.strangers].title.toLowerCase()}.</span> {strangersSummary(view)}
       </p>
       {!s.hasStills && <p className={hint}>No pictures were taken, so the categories have none.</p>}
       <Sorting s={s} />

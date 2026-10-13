@@ -30,13 +30,16 @@
  * Modality-free: nothing here knows what a feature is.
  */
 import { buildConstrainedForest, buildHierarchy, cutAt, cutForest, forestRange, suggestForestK, type Forest } from './cluster';
-import { trainModel } from './classify';
+import { TRAIN_DEFAULTS, trainModel } from './classify';
 import { selectExemplars } from './exemplars';
 import {
   ASIDE_BIN,
   NEUTRAL_BIN,
   PersonalCategorizerSchema,
+  memberIndices,
+  neutralSampleIndices,
   sampleIndex,
+  type CategorizerStrangers,
   type PersonalCategorizer,
 } from './categorizer';
 import type { FeatureVector } from './types';
@@ -411,6 +414,36 @@ export function recut(c: PersonalCategorizer, k: number, options: RecutOptions =
     }
     return rebuild(c, categories, place, c.pins ?? {}, extra);
   });
+}
+
+/**
+ * Say what a face nobody taught reads as (#385 E5): the one strangers switch. `nearest` (it
+ * reads as the nearest category, or Neutral when Neutral is nearer) drops the reject radius;
+ * `neutral` (a face far from every category reads as Neutral) trains one, as a re-cut does: the
+ * spread of `rest` (the rest take's frames), else of the Neutral holds, else `baseRejectRadius`
+ * or the categorizer's own, floored to accept the categories' holds. Nothing is re-cut and no hold
+ * moves: Neutral is taught by example in both settings.
+ */
+export function setStrangers(c: PersonalCategorizer, strangers: CategorizerStrangers, options: Pick<RecutOptions, 'rest' | 'baseRejectRadius'> = {}): SortResult {
+  if (c.strangers === strangers) return { ok: true, categorizer: c };
+  return done(() => {
+    const { rejectRadius: _r, ...rest } = c;
+    void _r;
+    if (strangers === 'nearest') return PersonalCategorizerSchema.parse({ ...rest, strangers });
+    const vectors = c.samples.map((x) => x.vector);
+    const restVectors = options.rest ?? neutralSampleIndices(c).map((i) => vectors[i]);
+    const trained = trainModel(vectors, memberIndices(c), c.features, c.weights, {
+      restVectors,
+      defaultRejectRadius: options.baseRejectRadius ?? c.rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius,
+    });
+    return PersonalCategorizerSchema.parse({ ...rest, strangers, rejectRadius: trained.rejectRadius });
+  });
+}
+
+/** Train (or stop training) the Neutral holds as the null class (#385 E5): what an older file,
+ *  migrated with them untrained, is offered. */
+export function setNeutralTrained(c: PersonalCategorizer, on: boolean): SortResult {
+  return c.neutralTrained === on ? { ok: true, categorizer: c } : done(() => PersonalCategorizerSchema.parse({ ...c, neutralTrained: on }));
 }
 
 /** The ids of the samples at `indices` (for a host that addresses holds by position). */
