@@ -131,6 +131,18 @@ The four regimes: `exact` (frames on time, reported truthfully); `capture-jitter
 
 The frame-snapped detector does not care (its error is dominated by the frame period). The predictor does: 4 ms of noise on the timestamps doubles the known-plane prediction's spread (4.3 → 8.5) and makes it *decline* to predict one stroke in fourteen (the stability check refuses a fit that keeps moving), while an irregular camera reported truthfully costs nothing. Honest timestamps are what a sub-frame estimator needs, and they are what #226 (landed as [PR #228](https://github.com/thorwhalen/thoremin/pull/228)) provides when the browser reports the capture time.
 
+#### 3.4.1 The gated de-jitter (timing plan step 9, measured 2026-10-13)
+
+Where the browser hands the frame pump no capture time, its stamps are clock readings (`clock`, `estimated`), the `stamp-noise` row's world. The gated de-jitter (`packages/sdk/src/timing/stamp_dejitter.ts`) fits a line of stamp against frame index over the last 30 frames of such a run and moves each stamp onto it; the frame index is inferred from a handful of candidate lattices (the seed period, a low quantile of the gaps, over 1 to 4 frames), and only a lattice whose residual is a small fraction of its period is believed. A capture stamp passes through byte for byte, and so does a run that already sits on a grid. The scorer runs it with `--dejitter line` (the shipped rule) or `--dejitter clamp` (each output capped at its raw reading), and `--poll 60` for the `raf-poll` regime (positions held from the latest frame, sampled and stamped at a 60 Hz vsync: Safari before the pump fix). Same 288 clips; today's baseline in the first column (it differs from the table above by up to 0.6 ms: the estimators have changed since that table was measured).
+
+| `stamp-noise`, sd / missed | off | `line` (shipped) | `clamp` |
+|---|---|---|---|
+| `lowest` | 11.3 / 0 | 10.9 / 0 | 11.2 / 0 |
+| `predict` | 11.0 / 168 | 7.8 / 72 | 8.4 / 98 |
+| `predictKnown` | 9.1 / 45 | **4.9 / 0** | 6.6 / 3 |
+
+The known-plane prediction gets back to within 0.6 ms of exact stamps (4.3), and stops declining strokes; the learned-plane prediction recovers most of the way (exact 7.7 / 74). The line as it is beats the capped line because capping keeps the late half of the noise. The gate holds where it must: `exact` and `capture-jitter-actual` come out byte-identical (the scorer refuses to run otherwise), `capture-jitter` (nominal, stamps on the nominal grid) is unchanged, and every `raf-poll` row is identical with and without the de-jitter (`predictKnown` sd 12.3 ms on `exact`, 14.4 on `capture-jitter`, 11.0 on `capture-jitter-actual`, 14.7 on `stamp-noise`, either way): no line is fitted to sample-and-hold stamps. In the browser the de-jitter only ever sees the pump's fallbacks (a browser with the video frame callback but no capture time, or one where the callback is absent or silent), so on Chrome, Firefox and Safari with a camera it changes nothing.
+
 ### 3.5 How early, and what it costs
 
 | required lead | `predict` mean lead (surface / air) | sd (surface / air) | strokes not predicted (surface / air) |
