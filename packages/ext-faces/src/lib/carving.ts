@@ -26,12 +26,16 @@ import { carryLabels } from '@thoremin/sdk/enroll/from_model';
 import { exemplarsByCategory, selectExemplars, type Exemplar } from '@thoremin/sdk/enroll/exemplars';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
 import type { Session } from '@thoremin/sdk/enroll/session';
-import { generalFaceLabeling } from '@thoremin/sdk/features/face_labels';
+import { isNeutralLabel, type CarveModality, type GeneralLabeling } from '@thoremin/sdk/enroll/modality';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 /** The default name of the category that is mostly the player's resting face (partition mode). */
-export const NEUTRAL_LABEL = 'neutral';
+export const NEUTRAL_LABEL = faceModality.words.neutral;
 /** The name nothing else fits: `expression 3`. */
-export const fallbackName = (i: number): string => `expression ${i + 1}`;
+export const fallbackName = (i: number): string => faceModality.words.fallback(i);
+
+/** No general model: every category the player did not name gets its fallback name. */
+const NO_GENERAL: GeneralLabeling = { labels: [], score: () => ({}) };
 
 /** How a category's name came about, for the grid (an edited name is the player's). */
 export type NameSource = 'edited' | 'neutral' | LabelMatch['source'];
@@ -77,6 +81,8 @@ export interface CarveInput {
   typed?: readonly TypedName[];
   /** Exemplars per category. */
   exemplarCount?: number;
+  /** What was carved (the face by default): its neutral name, general model and fallback names. */
+  modality?: CarveModality;
 }
 
 /** A carver for a built take, one per mode. */
@@ -106,6 +112,8 @@ export function carveView(input: CarveInput): CarveView {
   const vectors = points.map((p) => p.vector);
   const fresh = carver.modelAt(input.k);
   const typed = input.typed ?? [];
+  const modality = input.modality ?? faceModality;
+  const neutralLabel = modality.words.neutral;
 
   // 1. The player's names, carried onto the nearest category (one-to-one).
   const sources = new Map<string, NameSource>();
@@ -120,7 +128,7 @@ export function carveView(input: CarveInput): CarveView {
   }
 
   // 2. Partition mode: the category that is mostly resting face is "neutral" by default.
-  if (carver.mode === 'partition' && !model.categories.some((c) => c.label.trim().toLowerCase() === NEUTRAL_LABEL)) {
+  if (carver.mode === 'partition' && !model.categories.some((c) => isNeutralLabel(modality, c.label))) {
     const rest = neutralIndices(vectors, restVectors, session.features(), session.weights());
     if (rest && rest.length > 0) {
       const isRest = new Set(rest);
@@ -131,16 +139,16 @@ export function carveView(input: CarveInput): CarveView {
         if (share >= 0.5 && (!best || share > best.share)) best = { id: c.id, share };
       }
       if (best) {
-        model = applyLabels(model, [{ id: best.id, label: NEUTRAL_LABEL }]);
+        model = applyLabels(model, [{ id: best.id, label: neutralLabel }]);
         sources.set(best.id, 'neutral');
       }
     }
   }
 
-  // 3. The general model names the rest, one-to-one, on full-space means.
-  const labeling = generalFaceLabeling();
+  // 3. The modality's general model names the rest, one-to-one, on full-space means.
+  const labeling = modality.general?.() ?? NO_GENERAL;
   const scored = model.categories.map((c) => ({ id: c.id, label: c.label, centroid: fullMean(vectors, c.members) }));
-  const matches = matchLabels(scored, { ...labeling, fallback: fallbackName });
+  const matches = matchLabels(scored, { ...labeling, fallback: modality.words.fallback });
   model = applyLabels(model, matches);
   const byId = new Map(matches.map((m) => [m.id, m]));
 

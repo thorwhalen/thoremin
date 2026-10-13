@@ -16,31 +16,44 @@
 import { CueSchema, type Cue, type CueSpecInput } from '@thoremin/sdk/enroll/cue';
 import { createSession, type Session } from '@thoremin/sdk/enroll/session';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import { faceCollects } from '@thoremin/sdk/features/face_groups';
+import type { CarveModality } from '@thoremin/sdk/enroll/modality';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
+
+/** The rest: the baseline and the noise warm-up. */
+export function restCue(modality: CarveModality): Cue {
+  const { slug, part } = modality.words;
+  return CueSchema.parse({
+    id: `${slug}-rest`,
+    name: 'Rest',
+    instruction: `Look at the camera and relax your ${part}.`,
+    rationale: `Sets what "nothing" looks like, and how much your ${part} wanders when you are not asking for anything.`,
+    collects: modality.collects(),
+    produces: 'baseline',
+    sufficiency: { kind: 'frames', minFrames: 60 },
+    tags: [modality.id, 'setup'],
+  } satisfies CueSpecInput & { id: string; name: string });
+}
+
+/** The player's own categories in the making: the pool the categories are carved from. */
+export function vocabularyCue(modality: CarveModality): Cue {
+  const { slug, one, many, category } = modality.words;
+  return CueSchema.parse({
+    id: `${slug}-yours`,
+    name: `Your ${many}`,
+    instruction: `Make each ${one} you want the instrument to know. Hold each one for a moment, and relax in between.`,
+    rationale: 'These become your categories. You choose how many afterwards, so do not count as you go.',
+    collects: modality.collects(),
+    produces: 'vocabulary',
+    sufficiency: { kind: 'variety', minPoints: 6 },
+    tags: [modality.id, category],
+  } satisfies CueSpecInput & { id: string; name: string });
+}
 
 /** The resting face: the baseline and the noise warm-up. */
-export const FACE_REST_CUE: Cue = CueSchema.parse({
-  id: 'faces-rest',
-  name: 'Rest',
-  instruction: 'Look at the camera and relax your face.',
-  rationale: 'Sets what "nothing" looks like, and how much your face wanders when you are not asking for anything.',
-  collects: faceCollects(),
-  produces: 'baseline',
-  sufficiency: { kind: 'frames', minFrames: 60 },
-  tags: ['face', 'setup'],
-} satisfies CueSpecInput & { id: string; name: string });
+export const FACE_REST_CUE: Cue = restCue(faceModality);
 
 /** The player's own faces: the pool the categories are carved from. */
-export const FACE_VOCABULARY_CUE: Cue = CueSchema.parse({
-  id: 'faces-yours',
-  name: 'Your faces',
-  instruction: 'Make each face you want the instrument to know. Hold each one for a moment, and relax in between.',
-  rationale: 'These become your categories. You choose how many afterwards, so do not count as you go.',
-  collects: faceCollects(),
-  produces: 'vocabulary',
-  sufficiency: { kind: 'variety', minPoints: 6 },
-  tags: ['face', 'expression'],
-} satisfies CueSpecInput & { id: string; name: string });
+export const FACE_VOCABULARY_CUE: Cue = vocabularyCue(faceModality);
 
 export const FACE_TAKE_DEFAULTS = {
   /** How long the rest lasts, at least. */
@@ -57,6 +70,8 @@ export interface FaceTakeOptions {
   minRestFrames?: number;
   /** The session to feed (a fresh `createSession()` by default; a test injects options). */
   session?: Session;
+  /** What is carved (the face by default): its cues, and whether a frame shows it. */
+  modality?: CarveModality;
 }
 
 export interface FaceTake {
@@ -67,7 +82,7 @@ export interface FaceTake {
   push(vector: FeatureVector, tMs: number): void;
   /** End the take. Builds the session when there is anything to carve; returns whether it built. */
   stop(): boolean;
-  /** The rest frames that had a face in them (what "neutral" is, by demonstration). */
+  /** The rest frames that had the modality in view (a face) (what "neutral" is, by demonstration). */
   restVectors(): readonly FeatureVector[];
   /** Still-points captured so far (each one a held face). */
   pointCount(): number;
@@ -76,12 +91,12 @@ export interface FaceTake {
   session(): Session;
 }
 
-const hasFace = (v: FeatureVector): boolean => Object.keys(v).some((k) => k.startsWith('face.') && Number.isFinite(v[k]));
-
 export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   const restMs = options.restMs ?? FACE_TAKE_DEFAULTS.restMs;
   const minRestFrames = options.minRestFrames ?? FACE_TAKE_DEFAULTS.minRestFrames;
   const session = options.session ?? createSession();
+  const modality = options.modality ?? faceModality;
+  const cues = { rest: restCue(modality), vocabulary: vocabularyCue(modality) };
   let phase: FaceTakePhase = 'idle';
   let t0 = 0;
   let lastT = Number.NEGATIVE_INFINITY;
@@ -94,7 +109,7 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       if (phase !== 'idle') return;
       phase = 'rest';
       t0 = tMs;
-      session.beginCue(FACE_REST_CUE);
+      session.beginCue(cues.rest);
     },
     push(vector, tMs) {
       if (phase !== 'rest' && phase !== 'faces') return;
@@ -102,10 +117,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       lastT = tMs;
       session.push(vector, tMs);
       if (phase === 'rest') {
-        if (hasFace(vector)) rest.push(vector);
+        if (modality.read(vector) !== null) rest.push(vector);
         if (tMs - t0 >= restMs && rest.length >= minRestFrames) {
           session.endCue();
-          session.beginCue(FACE_VOCABULARY_CUE);
+          session.beginCue(cues.vocabulary);
           phase = 'faces';
           facesAt = tMs;
         }

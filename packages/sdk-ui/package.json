@@ -9,6 +9,7 @@
     "./enroll/click": "./src/enroll/click.ts",
     "./enroll/guidance": "./src/enroll/guidance.ts",
     "./enroll/liveVector": "./src/enroll/liveVector.ts",
+    "./enroll/modality": "./src/enroll/modality.ts",
     "./enroll/sequenceStore": "./src/enroll/sequenceStore.ts",
     "./featureDemand": "./src/featureDemand.ts",
     "./host": "./src/host.ts",

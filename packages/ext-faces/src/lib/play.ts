@@ -27,7 +27,9 @@ import { matchLabels } from '@thoremin/sdk/enroll/match';
 import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { generalFaceLabeling } from '@thoremin/sdk/features/face_labels';
 import { ABSENT_EXPRESSION, EMOTIONS, type Emotion, type ExpressionLabel, type ExpressionScores } from '@thoremin/sdk/music/expression';
-import { fullMean, NEUTRAL_LABEL } from './carving';
+import { isNeutralLabel } from '@thoremin/sdk/enroll/modality';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { fullMean } from './carving';
 import { liveModel, type LiveModel, type Tuning } from './live';
 
 /** A categorizer resolved for the DAG: what the `face-categorizer` node reads (a transient). */
@@ -49,7 +51,7 @@ export interface FaceCategorizerPlay {
  */
 export function neutralCategoryIndex(categorizer: PersonalCategorizer): number {
   if (categorizer.mode !== 'partition') return -1;
-  return categorizer.categories.findIndex((c) => c.label.trim().toLowerCase() === NEUTRAL_LABEL);
+  return categorizer.categories.findIndex((c) => isNeutralLabel(faceModality, c.label));
 }
 
 /**

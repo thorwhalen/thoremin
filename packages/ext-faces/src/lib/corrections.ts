@@ -16,20 +16,28 @@
  * calls it directly.
  */
 import { PersonalCategorizerSchema, toSample, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
-/** The cue a sample added from the live readout carries. */
-export const CORRECTION_CUE = 'faces-correction';
+/** The cue a sample added from the live readout carries: `faces-correction` for the face. */
+export const correctionCue = (modality: Pick<CarveModality, 'words'>): string => `${modality.words.slug}-correction`;
+export const CORRECTION_CUE = correctionCue(faceModality);
 
 export type CorrectionResult = { ok: true; categorizer: PersonalCategorizer } | { ok: false; error: string };
 
 const named = (c: PersonalCategorizer, id: string) => c.categories.find((x) => x.id === id);
 
-/** Add a live face to category `id` as a new sample. */
-export function addSample(categorizer: PersonalCategorizer, id: string, vector: FeatureVector, { t = 0, cue = CORRECTION_CUE }: { t?: number; cue?: string } = {}): CorrectionResult {
+/** Add a live face (or the modality's part) to category `id` as a new sample. */
+export function addSample(
+  categorizer: PersonalCategorizer,
+  id: string,
+  vector: FeatureVector,
+  { t = 0, modality = faceModality, cue = correctionCue(modality) }: { t?: number; cue?: string; modality?: CarveModality } = {},
+): CorrectionResult {
   if (!named(categorizer, id)) return { ok: false, error: `no category "${id}"` };
   const sample = toSample({ vector, t, cue });
-  if (!categorizer.features.some((f) => Number.isFinite(sample.vector[f]))) return { ok: false, error: 'no face in view' };
+  if (!categorizer.features.some((f) => Number.isFinite(sample.vector[f]))) return { ok: false, error: `no ${modality.words.one} in view` };
   const index = categorizer.samples.length;
   return {
     ok: true,

@@ -8,31 +8,22 @@
  * is not playing it).
  */
 import type { StoreApi } from 'zustand/vanilla';
-import { FACE_TRAINING_GROUPS } from '@thoremin/sdk/features/face_groups';
-import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
-import { controls } from '@thoremin/sdk-ui/host';
+import { carveOwners, claimCarve } from '@thoremin/sdk-ui/enroll/modality';
+import { faceModalityUi } from './modality';
 import { createFaceModelStore, withChangeNotice } from './models';
 import { createFaceSessionStore, FACE_SESSION_DEFAULTS, type FaceSessionDeps, type FaceSessionState } from './sessionStore';
 import { sourceFromUrl } from './sources';
 import { createFaceTestStore, FACE_TEST_DEFAULTS, type FaceTestState } from './testStore';
 import { grabFrames, idbThumbStore } from './thumbnails';
 
-/** The owner of the feature claim and of the hush. */
-export const FACES_CLAIMER = 'faces';
-/** The owner of the live test's claim and hush: its own, so ending a test never releases a
- *  recording's. */
-export const FACES_TEST_CLAIMER = 'faces-test';
+const { modality } = faceModalityUi;
+const OWNERS = carveOwners(modality);
 
-/** Claim (or release) the face feature groups and the instrument's quiet, as `owner`. */
-function claimFaces(owner: string, on: boolean): void {
-  if (on) appFeatureDemand.claim(owner, FACE_TRAINING_GROUPS);
-  else appFeatureDemand.release(owner);
-  try {
-    controls().setHush(owner, on);
-  } catch {
-    // No hot store in this host (a test): nothing to hush.
-  }
-}
+/** The owner of the feature claim and of the hush (`faces`). */
+export const FACES_CLAIMER = OWNERS.carve;
+/** The owner of the live test's claim and hush (`faces-test`): its own, so ending a test never
+ *  releases a recording's. */
+export const FACES_TEST_CLAIMER = OWNERS.test;
 
 export function browserDeps(): FaceSessionDeps {
   return {
@@ -40,9 +31,10 @@ export function browserDeps(): FaceSessionDeps {
     thumbs: idbThumbStore(),
     grab: grabFrames,
     models: withChangeNotice(createFaceModelStore()),
+    modality,
     now: () => performance.now(),
     pollMs: FACE_SESSION_DEFAULTS.pollMs,
-    claim: (on) => claimFaces(FACES_CLAIMER, on),
+    claim: (on) => claimCarve(FACES_CLAIMER, modality, on),
     newTakeId: () => `take-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     isoNow: () => new Date().toISOString(),
   };
@@ -61,7 +53,7 @@ let testStore: StoreApi<FaceTestState> | null = null;
 export function faceTestStore(): StoreApi<FaceTestState> {
   return (testStore ??= createFaceTestStore({
     source: () => sourceFromUrl(),
-    claim: (on) => claimFaces(FACES_TEST_CLAIMER, on),
+    claim: (on) => claimCarve(FACES_TEST_CLAIMER, modality, on),
     now: () => performance.now(),
     pollMs: FACE_TEST_DEFAULTS.pollMs,
     publishMs: FACE_TEST_DEFAULTS.publishMs,
