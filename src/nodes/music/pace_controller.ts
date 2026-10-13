@@ -35,6 +35,14 @@ const Params = z.object({
   phaseThreshold: z.number().positive().max(0.5).default(PACE_DEFAULTS.phaseThreshold),
   /** The largest integer ratio tried, both ways. */
   maxRatio: z.number().int().min(1).max(16).default(PACE_DEFAULTS.maxRatio),
+  /** Where the dancer's cycle start (the stride's widest point, for the default channel)
+   *  should land, in song beats after a beat. 0 = on the beat. */
+  phaseOffset: z.number().min(-0.5).max(0.5).default(PACE_DEFAULTS.phaseOffset),
+  /** Seconds the song's own beat period is averaged over. */
+  songPeriodS: z.number().positive().max(30).default(PACE_DEFAULTS.songPeriodS),
+  /** The song player's own rate limits (its `minRate` / `maxRate`): never asked past. */
+  minRate: z.number().positive().default(PACE_DEFAULTS.minRate),
+  maxRate: z.number().positive().default(PACE_DEFAULTS.maxRate),
 });
 type Params = z.infer<typeof Params>;
 

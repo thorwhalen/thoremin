@@ -475,7 +475,7 @@ Makes the song follow the dancer: relates the dancer's pulse to the song's beat 
 - **roles:** music, control
 - **in:** pulse:pulse-state, song:musical-time, rate:number, base:number, range:number
 - **out:** rate:number, pace:pace-state
-- **params:** persistS (number=3), smoothS (number=1), nudge (number=0.03), phaseThreshold (number=0.08333333333333333), maxRatio (number=8)
+- **params:** persistS (number=3), smoothS (number=1), nudge (number=0.03), phaseThreshold (number=0.08333333333333333), maxRatio (number=8), phaseOffset (number=0), songPeriodS (number=8), minRate (number=0.5), maxRate (number=2)
 
 ### Synthesis & generation
 _Make sound — direct synthesis, steered AI music, or an external MIDI instrument._

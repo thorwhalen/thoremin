@@ -23,7 +23,13 @@
  *    is the defence #339 asks for against a slow level faked by red noise, which reaches
  *    the follower's trust threshold for a second or two at a time.
  * 3. **The period**: the matching rate, smoothed by a first-order filter (`smoothS`,
- *    about 1 s) and clamped to `base * (1 +- range)` (10 % by default).
+ *    about 1 s) and clamped to `base * (1 +- range)` (10 % by default), inside the
+ *    player's own limits (`minRate..maxRate`). The song's own period is averaged over
+ *    the last `songPeriodS` seconds rather than read off the one beat interval at the
+ *    playhead: a tracked beat is snapped to an onset within a tenth of a period, so one
+ *    interval can be 20 % off, and a controller relating to it wobbles the tempo from
+ *    beat to beat (measured by the PR's adversarial review: +-10 % beat jitter gave a
+ *    rate wandering 0.96..1.10 for a dancer steady at 1.04).
  * 4. **The phase**: the dancer's cycle start (phase 0 of the pulse, plus `phaseOffset`
  *    song beats) should land on a song beat. When the error passes `phaseThreshold` (a
  *    twelfth of a beat, 30 degrees) the rate is nudged by `nudge` (3 %) toward closing
@@ -63,6 +69,12 @@ export interface PaceOptions {
   nudge?: number;
   /** Where the dancer's cycle start should land, in song beats after a beat. */
   phaseOffset?: number;
+  /** Seconds over which the song's own beat period is averaged. */
+  songPeriodS?: number;
+  /** The rates the song player can actually play (its own clamp): the controller's clamp
+   *  never asks past them. */
+  minRate?: number;
+  maxRate?: number;
 }
 
 export const PACE_DEFAULTS = {
@@ -76,6 +88,9 @@ export const PACE_DEFAULTS = {
   phaseRelease: 1 / 48,
   nudge: 0.03,
   phaseOffset: 0,
+  songPeriodS: 8,
+  minRate: 0.5,
+  maxRate: 2,
 } as const satisfies Required<PaceOptions>;
 
 /** One step's observation. */
@@ -101,9 +116,11 @@ export interface PaceInput {
  * - `waiting`: no trusted pulse, or none related to the song, and nothing followed yet.
  * - `locking`: a relation is persisting, not yet followed.
  * - `following`: the rate follows the dancer.
+ * - `switching`: following, and a DIFFERENT ratio is persisting (the dancer changed
+ *   step); the rate holds until it has.
  * - `holding`: was following; the pulse is untrusted or unrelated now, so the rate holds.
  */
-export type PaceMode = 'idle' | 'waiting' | 'locking' | 'following' | 'holding';
+export type PaceMode = 'idle' | 'waiting' | 'locking' | 'following' | 'switching' | 'holding';
 
 export interface PaceState {
   t: number;
@@ -172,6 +189,8 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
   let nudge: -1 | 0 | 1 = 0;
   let lastT = NaN;
   let last: PaceState = IDLE(0, 1);
+  /** The song's own beat period at recent steps, for the average. */
+  let periods: Array<{ t: number; p: number }> = [];
 
   const reset = () => {
     followed = null;
@@ -179,6 +198,7 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
     smoothed = NaN;
     nudge = 0;
     lastT = NaN;
+    periods = [];
   };
 
   return {
@@ -186,8 +206,8 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
       const dt = Number.isFinite(lastT) ? Math.max(0, t - lastT) : 0;
       lastT = t;
       const r = range !== undefined && range >= 0 && range < 1 ? range : o.range;
-      const lo = base * (1 - r);
-      const hi = base * (1 + r);
+      const lo = Math.max(o.minRate, base * (1 - r));
+      const hi = Math.min(o.maxRate, base * (1 + r));
       if (song.state !== 'running' || !(song.period > 0) || !(rate > 0) || !(base > 0)) {
         reset();
         lastT = t;
@@ -201,7 +221,11 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
       const trusted = pulse.state === 'running' && pulse.confidence >= o.trustedConfidence && pulse.period > 0;
       // The capture is never narrower than the clamp: a player who widens the range to
       // 30 % means a dancer 25 % off is followed.
-      const rel = trusted ? relatePeriods(pulse.period, song.period * rate, base, { maxRatio: o.maxRatio, captureRange: Math.max(o.captureRange, r) }) : null;
+      // The song's own period, averaged (see step 3 above).
+      periods.push({ t, p: song.period * rate });
+      while (periods.length > 1 && periods[0].t < t - o.songPeriodS) periods.shift();
+      const songPeriod = periods.reduce((a, x) => a + x.p, 0) / periods.length;
+      const rel = trusted ? relatePeriods(pulse.period, songPeriod, base, { maxRatio: o.maxRatio, captureRange: Math.max(o.captureRange, r) }) : null;
 
       if (!rel) {
         candidate = null;
@@ -215,7 +239,7 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
         if (candidate?.ratio !== rel.ratio) candidate = { ratio: rel.ratio, since: t };
         if (t - candidate.since < o.persistS) {
           nudge = 0;
-          last = { t, mode: followed === null ? 'locking' : 'holding', rate: followed === null ? base : held, ratio: rel.ratio, target: NaN, phaseError: NaN, nudge: 0 };
+          last = { t, mode: followed === null ? 'locking' : 'switching', rate: followed === null ? base : held, ratio: rel.ratio, target: NaN, phaseError: NaN, nudge: 0 };
           return last;
         }
         // Adopted: start from what plays now, so the change is smoothed, not stepped.

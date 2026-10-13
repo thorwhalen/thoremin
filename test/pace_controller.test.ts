@@ -20,7 +20,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { composeInstrumentGraph, branchIdsFor } from '@/app/graph';
 import { DEFAULT_SONG } from '@/settings/schema';
 import { useControls } from '@/app/store';
-import type { BodyFrame, SongHandle, Stretcher } from '@/nodes';
+import { songPlayerNode, type BodyFrame, type SongHandle, type Stretcher } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
 import { renderClickTrack, SR } from './helpers/clicks';
 
@@ -207,5 +207,29 @@ describe('when the song follows (the derivation)', () => {
     expect(branchIdsFor({ songPrefs: { follow: true }, songHandle: {} }, { explicit: ['field-voices'] })).toEqual(
       expect.arrayContaining(['song-pace', 'body-source']),
     );
+  });
+});
+
+describe('following stops mid-song', () => {
+  it('the player glides back to its own tempo over 2 s instead of jumping', async () => {
+    const st = clockStretcher();
+    const grid = trackSongGrid(renderClickTrack({ bpm: 120, seconds: 12 }).samples, { sampleRate: SR });
+    const song: SongHandle = { id: 'g', name: 'g.wav', url: 'blob:g', durationS: 12, grid };
+    const h = songPlayerNode.make(songPlayerNode.params.parse({}));
+    const rates: number[] = [];
+    for (let i = 0; i < 6 * HZ; i++) {
+      if (i > 0) st.advance(1 / HZ);
+      // Following at 1.1 for 2 s, then the branch goes (no followRate) with the slider at 1.
+      const inputs = { song, playing: true, rate: 1, ...(i < 2 * HZ ? { followRate: 1.1 } : {}) };
+      const out = h.process(inputs, { tick: i, time: i / HZ, dt: i ? 1 / HZ : 0, resources: { audioContext: {}, masterGain: {}, createStretcher: () => st } });
+      rates.push(out.rate as number);
+      await Promise.resolve();
+    }
+    expect(rates[2 * HZ - 1]).toBeCloseTo(1.1, 9);
+    const after = rates.slice(2 * HZ);
+    // No step bigger than a glide's: 0.1 over 60 ticks.
+    for (let i = 1; i < after.length; i++) expect(Math.abs(after[i] - after[i - 1])).toBeLessThan(0.0021);
+    expect(after[HZ]).toBeGreaterThan(1.04);
+    expect(after.at(-1)).toBeCloseTo(1, 9);
   });
 });

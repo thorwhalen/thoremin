@@ -114,5 +114,7 @@ describe('Follow the dancer', () => {
     expect(describePace({ mode: 'waiting', ratio: NaN, rate: 1, nudge: 0 }, true)).toMatch(/Waiting for the dancer/);
     expect(describePace({ mode: 'locking', ratio: 4, rate: 1, nudge: 0 }, true)).toMatch(/locking on/);
     expect(describePace({ mode: 'following', ratio: 4, rate: 0.95, nudge: -1 }, true)).toMatch(/bringing the beat into step/);
+    // A new step persisting is not an unclear pulse.
+    expect(describePace({ mode: 'switching', ratio: 2, rate: 1.02, nudge: 0 }, true)).toMatch(/changed step \(2 song beats per step\)/);
   });
 });

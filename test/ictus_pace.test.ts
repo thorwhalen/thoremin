@@ -41,10 +41,15 @@ function dancer(t: number, period: number, opts: { t0?: number; confidence?: num
   };
 }
 
-/** A song at native beat period `P0`, `pos` seconds in, played at `rate`, read at `t`. */
-function songAt(t: number, pos: number, rate: number, playing = true): MusicalTime {
+/** A song at native beat period `P0`, `pos` seconds in, played at `rate`, read at `t`.
+ *  `jitter` moves each TRACKED beat by up to that fraction of a period (the tracker snaps
+ *  a beat to an onset within a tenth of one), so the reported interval at the playhead,
+ *  the distance between two such beats, is off by up to twice that; the music is steady. */
+function songAt(t: number, pos: number, rate: number, playing = true, jitter = 0): MusicalTime {
   const beat = pos / P0;
-  const period = P0 / rate;
+  const k = Math.floor(beat);
+  const off = (i: number) => jitter * Math.sin(i * 12.9898 + 78.233 * Math.cos(i));
+  const period = (P0 * (1 + off(k + 1) - off(k))) / rate;
   return {
     t,
     beat,
@@ -64,13 +69,13 @@ function songAt(t: number, pos: number, rate: number, playing = true): MusicalTi
 function run(
   seconds: number,
   pulseAt: (t: number) => PulseState,
-  opts: { base?: number; range?: number; controller?: ReturnType<typeof createPaceController> } = {},
+  opts: { base?: number; range?: number; jitter?: number; controller?: ReturnType<typeof createPaceController> } = {},
 ): PaceState[] {
   const c = opts.controller ?? createPaceController();
   const base = opts.base ?? 1;
   let pos = 0;
   let rate = base;
-  let prevSong = songAt(0, 0, rate);
+  let prevSong = songAt(0, 0, rate, true, opts.jitter);
   const out: PaceState[] = [];
   for (let i = 0; i < seconds * HZ; i++) {
     const t = i / HZ;
@@ -79,7 +84,7 @@ function run(
     const s = c.step({ t, pulse: pulseAt(t), song: prevSong, rate, base, range: opts.range });
     out.push(s);
     rate = s.rate;
-    prevSong = songAt(t, pos, rate);
+    prevSong = songAt(t, pos, rate, true, opts.jitter);
   }
   return out;
 }
@@ -153,6 +158,25 @@ describe('the closed loop', () => {
     expect(far.every((x) => x.mode === 'waiting' && x.rate === 1)).toBe(true);
   });
 
+  it('a beat tracker\'s jitter in the song\'s period does not wobble the tempo (the averaged period)', () => {
+    // Each reported beat interval up to 10 % off: the review measured a rate wandering
+    // 0.96..1.10 when the controller read the one interval at the playhead.
+    const s = late(run(40, (t) => dancer(t, (4 * P0) / 1.04), { jitter: 0.1 }), 20);
+    expect(s.every((x) => x.mode === 'following')).toBe(true);
+    const target = s.map((x) => x.target);
+    const mean = target.reduce((a, x) => a + x, 0) / target.length;
+    expect(mean).toBeCloseTo(1.04, 2);
+    expect(Math.max(...target.map((x) => Math.abs(x - mean)))).toBeLessThan(0.015);
+  });
+
+  it('never asks past the player\'s own limits', () => {
+    // Tempo slider at 2, range 30 %, a dancer 12 % quick: 2.24 is unplayable; 2 is the most.
+    const s = run(20, (t) => dancer(t, (4 * P0) / 2.24), { base: 2, range: 0.3 });
+    expect(Math.max(...s.map((x) => x.rate))).toBeLessThanOrEqual(2);
+    const end = late(s, 12);
+    expect(end.every((x) => x.mode === 'following' && x.target === 2)).toBe(true);
+  });
+
   it('the follow range is live, and widens the capture with it', () => {
     // One song beat per step, 20 % quick (the half and double are much further).
     const D = P0 / 1.2;
@@ -181,7 +205,7 @@ describe('holding', () => {
     // The dancer's level reads as two beats for 2 s (shorter than persistS), then the bar.
     const s = run(25, (t) => dancer(t, t > 10 && t < 12 ? 2 * P0 : 4 * P0));
     const blip = s.slice(10 * HZ + 1, 12 * HZ);
-    expect(blip.every((x) => x.mode === 'holding' && x.ratio === 2)).toBe(true);
+    expect(blip.every((x) => x.mode === 'switching' && x.ratio === 2)).toBe(true);
     expect(s.slice(12 * HZ + 1).every((x) => x.ratio === 4)).toBe(true);
     // Held long enough, it is adopted.
     const switched = run(25, (t) => dancer(t, t > 10 ? 2 * P0 : 4 * P0));

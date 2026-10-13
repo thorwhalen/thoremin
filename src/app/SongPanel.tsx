@@ -74,6 +74,8 @@ export function describePace(pace: PaceReadout | null, playing: boolean): string
       return `Found the dancer (${describeRatio(pace.ratio)}), locking on...`;
     case 'following':
       return `Following: ${describeRatio(pace.ratio)}, tempo ${at}${pace.nudge !== 0 ? ', bringing the beat into step' : ', in step'}.`;
+    case 'switching':
+      return `The dancer changed step (${describeRatio(pace.ratio)}): holding ${at} until it settles...`;
     case 'holding':
       return `Holding the tempo at ${at}: the dancer's pulse is unclear.`;
   }

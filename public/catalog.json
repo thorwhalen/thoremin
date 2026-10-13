@@ -2106,6 +2106,26 @@
         "name": "maxRatio",
         "type": "number",
         "default": 8
+      },
+      {
+        "name": "phaseOffset",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "songPeriodS",
+        "type": "number",
+        "default": 8
+      },
+      {
+        "name": "minRate",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "maxRate",
+        "type": "number",
+        "default": 2
       }
     ]
   },

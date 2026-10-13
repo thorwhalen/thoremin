@@ -99,6 +99,10 @@ type Params = z.infer<typeof Params>;
 
 const OFF: LoadStatus = { phase: 'off', message: 'No song loaded' };
 
+/** Seconds over which the rate glides back to the player's own when following stops
+ *  mid-song (a jump of up to the follow range is audible; a glide is not). */
+const FOLLOW_RELEASE_S = 2;
+
 function audioOf(ctx: NodeContext): StretcherOptions | null {
   const audioContext = ctx.resources.audioContext as AudioContext | undefined;
   const destination = ctx.resources.masterGain as AudioNode | undefined;
@@ -141,6 +145,11 @@ export const songPlayerNode = defineNode<Params>({
     let wasPlaying = false;
     let disposed = false;
     let failedFor: string | null = null;
+    /** The rate applied last tick, whether the pace controller set it, and the glide back
+     *  to the player's own rate once it stops. */
+    let applied = 1;
+    let wasFollowed = false;
+    let glide: { from: number; t0: number } | null = null;
 
     /** The stretcher, once there is one; starts the default loading on first need. */
     const stretcherFor = (ctx: NodeContext, audio: StretcherOptions, songId: string): Stretcher | null => {
@@ -220,7 +229,18 @@ export const songPlayerNode = defineNode<Params>({
         const playing = inputs.playing === true;
         // While the song follows the dancer, the pace controller's rate replaces the
         // player's (which is then the controller's base, the centre of its clamp).
-        const rate = Math.max(p.minRate, Math.min(p.maxRate, finite(inputs.followRate, finite(inputs.rate, 1))));
+        const followed = typeof inputs.followRate === 'number' && Number.isFinite(inputs.followRate);
+        if (wasFollowed && !followed) glide = { from: applied, t0: ctx.time };
+        if (followed) glide = null;
+        wasFollowed = followed;
+        let wanted = followed ? (inputs.followRate as number) : finite(inputs.rate, 1);
+        if (glide) {
+          const k = Math.min(1, (ctx.time - glide.t0) / FOLLOW_RELEASE_S);
+          wanted = glide.from + (wanted - glide.from) * k;
+          if (k >= 1) glide = null;
+        }
+        const rate = Math.max(p.minRate, Math.min(p.maxRate, wanted));
+        applied = rate;
         const volume = inputs.claimed === true ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
         s.setVolume(volume);
         s.setRate(rate);
