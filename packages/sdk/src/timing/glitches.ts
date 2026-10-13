@@ -36,6 +36,7 @@
  * restarts either reading instead of counting what happened meanwhile. Pure apart from the context
  * it is handed; replayable in Node.
  */
+import { median, quantileSorted, sortedCopy } from '@thoremin/stats';
 
 /** A clock step under this (seconds) is jitter, not a dropout. One callback buffer at
  *  48 kHz is 2.7 to 10.7 ms; a median over {@link GLITCH_RECENT_SAMPLES} readings removes
@@ -93,16 +94,10 @@ export interface GlitchCounterOptions {
 
 const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 
-function median(xs: readonly number[]): number {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
-/** p95 - p5 of a sample. */
+/** p95 - p5 of a sample, each the nearest real sample (`round`). */
 function spread(xs: readonly number[]): number {
-  const s = [...xs].sort((a, b) => a - b);
-  const q = (p: number) => s[Math.min(s.length - 1, Math.round(p * (s.length - 1)))];
+  const s = sortedCopy(xs);
+  const q = (p: number) => quantileSorted(s, p, { index: 'round' });
   return q(0.95) - q(0.05);
 }
 
@@ -187,8 +182,8 @@ export class GlitchCounter {
     if (this.offsets.length < this.minReferenceSamples + this.recentSamples) return;
     const split = this.offsets.length - this.recentSamples;
     const reference = this.offsets.slice(0, split);
-    const before = median(reference);
-    const latest = median(this.offsets.slice(split));
+    const before = median(reference, { even: 'mean' });
+    const latest = median(this.offsets.slice(split), { even: 'mean' });
     const threshold = Math.max(this.stepS, this.spreadFactor * spread(reference));
     if (latest - before > threshold) {
       this.count(nowS);
