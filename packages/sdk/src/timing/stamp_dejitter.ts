@@ -65,6 +65,7 @@
  * `retract()` undoes the latest push for a frame the consumer refused (the pump offers
  * it again with a later clock reading, which would otherwise be a second frame).
  */
+import { olsLine, quantile } from '@thoremin/stats';
 import type { FrameTiming } from '../nodes/domain';
 
 export type DejitterStampSource = NonNullable<FrameTiming['tSource']>;
@@ -203,29 +204,10 @@ interface Fit {
 /** Ordinary least squares of stamp on frame index; null with a degenerate index
  *  spread or a non-positive slope. */
 function fitLine(indices: readonly number[], stamps: readonly number[]): Fit | null {
-  const n = stamps.length;
-  let sx = 0;
-  let sy = 0;
-  for (let k = 0; k < n; k++) {
-    sx += indices[k];
-    sy += stamps[k];
-  }
-  const mx = sx / n;
-  const my = sy / n;
-  let sxx = 0;
-  let sxy = 0;
-  for (let k = 0; k < n; k++) {
-    sxx += (indices[k] - mx) * (indices[k] - mx);
-    sxy += (indices[k] - mx) * (stamps[k] - my);
-  }
-  if (!(sxx > 0)) return null;
-  const slope = sxy / sxx;
-  const intercept = my - slope * mx;
-  let ss = 0;
-  for (let k = 0; k < n; k++) ss += (stamps[k] - (intercept + slope * indices[k])) ** 2;
+  const line = olsLine(indices, stamps);
+  if (!line || !(line.slope > 0)) return null;
   // Two parameters were fitted; the residual sd is over the remaining freedom.
-  const residualSd = Math.sqrt(ss / Math.max(1, n - 2));
-  return Number.isFinite(slope) && slope > 0 ? { intercept, slope, residualSd } : null;
+  return { intercept: line.intercept, slope: line.slope, residualSd: Math.sqrt(line.rss / Math.max(1, line.n - 2)) };
 }
 
 /** The index of every stamp on a lattice of `periodMs`: each gap over the period,
@@ -277,9 +259,8 @@ const admissible = (f: Fit) => f.residualSd <= LATTICE_MAX_RELATIVE_RESIDUAL * f
 function searchLattice(stamps: readonly number[]): { indices: number[]; fit: Fit } | null {
   const gaps = stamps.slice(1).map((t, k) => t - stamps[k]).filter((g) => g > 0);
   if (gaps.length < 2) return null;
-  const sorted = gaps.slice().sort((a, b) => a - b);
-  // The low quantile, and the mean gap (see LATTICE_SEED_QUANTILE).
-  const seeds = [sorted[Math.floor(LATTICE_SEED_QUANTILE * (sorted.length - 1))], (stamps[stamps.length - 1] - stamps[0]) / (stamps.length - 1)];
+  // The low quantile (the real gap at or below it), and the mean gap (see LATTICE_SEED_QUANTILE).
+  const seeds = [quantile(gaps, LATTICE_SEED_QUANTILE, { index: 'floor' }), (stamps[stamps.length - 1] - stamps[0]) / (stamps.length - 1)];
   let best: { indices: number[]; fit: Fit } | null = null;
   const minPeriod = (1000 / Math.max(...CAMERA_RATES_FPS)) * (1 - CAMERA_RATE_TOLERANCE);
   for (const seed of seeds)
