@@ -214,16 +214,18 @@ function ExportButton({ s }: { s: FaceSessionState }) {
       <button
         type="button"
         className={btn}
-        onClick={() => {
-          const file = s.exportFile();
-          if (file) downloadText(`${file.name.replace(/[^\w.-]+/g, '_') || 'faces'}.categorizer.json`, file.text);
-        }}
+        onClick={() => downloadCategorizer(s.exportFile())}
       >
         Export file
       </button>
       <p className="text-[10px] leading-snug text-white/45">Your faces as numbers and names, to keep or move to another browser. No pictures.</p>
     </div>
   );
+}
+
+/** Save an exported categorizer as `<name>.categorizer.json` (nothing when there is none). */
+export function downloadCategorizer(file: { name: string; text: string } | null): void {
+  if (file) downloadText(`${file.name.replace(/[^\w.-]+/g, '_') || 'faces'}.categorizer.json`, file.text);
 }
 
 function downloadText(filename: string, text: string): void {

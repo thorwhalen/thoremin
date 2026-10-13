@@ -18,7 +18,7 @@ import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isRecording, type FaceSessionState } from '../app/sessionStore';
 import type { FaceTestState } from '../app/testStore';
 import { categoryOf } from '../lib/corrections';
-import { ImportButton, TestAndTune } from './TestAndTune';
+import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
 import { FACE_REST_CUE, FACE_VOCABULARY_CUE } from '../lib/take';
 import type { CarveView, CarvedCategory } from '../lib/carving';
 import { chooseCategorizerWrites } from '../schema';
@@ -238,6 +238,17 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
         <button type="submit" className={primary} disabled={!name.trim() || s.saving || view.k === 0}>
           Save
         </button>
+        {s.phase === 'carved' && (
+          <button
+            type="button"
+            className={btn}
+            disabled={view.k === 0}
+            title="Save this carve as a file, before or without saving it here (no pictures)"
+            onClick={() => downloadCategorizer(s.exportFile(name))}
+          >
+            Export file
+          </button>
+        )}
       </form>
       {s.dirty && (
         <p className="text-[10px] text-amber-200/80" data-faces-unsaved>
@@ -298,6 +309,9 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
             Open
           </button>
           <PlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
+          <button type="button" className={btn} aria-label={`Export ${m.name} as a file`} title="Save it as a file, as saved (no pictures)" onClick={() => void s.exportSaved(m.id).then(downloadCategorizer)}>
+            Export
+          </button>
           <button
             type="button"
             className={btn}
