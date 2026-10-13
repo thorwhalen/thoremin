@@ -28,6 +28,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import { matrixToHeadPose, type FaceFrame, type FaceStatus } from '@thoremin/sdk/nodes/domain';
+import { DelegateChoiceSchema, resolveDelegate } from './delegate';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm
@@ -40,8 +41,9 @@ const MODEL_URL =
   `${MEDIAPIPE_MODELS_BASE}/face_landmarker/face_landmarker/float16/1/face_landmarker.task`;
 
 const Params = z.object({
-  /** Run inference on the GPU (WebGL) when available, else CPU. */
-  delegate: z.enum(['GPU', 'CPU']).default('GPU'),
+  /** Which delegate runs the model: `auto` (the default) picks the CPU on a software
+   *  WebGL renderer and the GPU otherwise (`delegate.ts`, #240); `GPU` / `CPU` force one. */
+  delegate: DelegateChoiceSchema.default('auto'),
 });
 type Params = z.infer<typeof Params>;
 
@@ -177,12 +179,13 @@ export const webcamFaceNode = defineNode<Params>({
           const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
           const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
           let lm: FaceLandmarkerLike;
+          const delegate = resolveDelegate(p.delegate);
           try {
-            lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor(p.delegate));
+            lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor(delegate));
           } catch (gpuErr) {
             // GPU/WebGL unavailable on this client → fall back to the CPU delegate
             // (the float16 model runs on CPU). If CPU was already chosen, give up.
-            if (p.delegate !== 'GPU') throw gpuErr;
+            if (delegate !== 'GPU') throw gpuErr;
             console.warn('[thoremin] face model GPU delegate failed; falling back to CPU', gpuErr);
             lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor('CPU'));
           }

@@ -2968,8 +2968,8 @@
       },
       {
         "name": "delegate",
-        "type": "enum(GPU | CPU)",
-        "default": "GPU"
+        "type": "enum(auto | GPU | CPU)",
+        "default": "auto"
       },
       {
         "name": "minTrackingConfidence",
@@ -2999,8 +2999,8 @@
     "params": [
       {
         "name": "delegate",
-        "type": "enum(GPU | CPU)",
-        "default": "GPU"
+        "type": "enum(auto | GPU | CPU)",
+        "default": "auto"
       }
     ]
   },
@@ -3028,6 +3028,11 @@
         "name": "maxHands",
         "type": "number",
         "default": 2
+      },
+      {
+        "name": "delegate",
+        "type": "enum(auto | GPU | CPU)",
+        "default": "auto"
       }
     ]
   }

@@ -92,7 +92,7 @@
         <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>hands:hands-frame</dd>
-        <dt>params</dt><dd>modelType (enum(lite | full)="full"), maxHands (number=2)</dd>
+        <dt>params</dt><dd>modelType (enum(lite | full)="full"), maxHands (number=2), delegate (enum(auto | GPU | CPU)="auto")</dd>
       </dl>
     </div>
     <div class="node">
@@ -102,7 +102,7 @@
         <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>face:face-frame, status:face-status</dd>
-        <dt>params</dt><dd>delegate (enum(GPU | CPU)="GPU")</dd>
+        <dt>params</dt><dd>delegate (enum(auto | GPU | CPU)="auto")</dd>
       </dl>
     </div>
     <div class="node">
@@ -112,7 +112,7 @@
         <dt>roles</dt><dd>source</dd>
         <dt>in</dt><dd>—</dd>
         <dt>out</dt><dd>body:body-frame, status:body-status</dd>
-        <dt>params</dt><dd>model (enum(lite | full)="lite"), delegate (enum(GPU | CPU)="GPU"), minTrackingConfidence (number=0.5)</dd>
+        <dt>params</dt><dd>model (enum(lite | full)="lite"), delegate (enum(auto | GPU | CPU)="auto"), minTrackingConfidence (number=0.5)</dd>
       </dl>
     </div>
     <div class="node">

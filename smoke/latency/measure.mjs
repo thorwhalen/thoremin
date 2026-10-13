@@ -16,9 +16,13 @@
  * 2. `inference` — the same MediaPipe hand model the app loads, timed per frame on
  *                  the GPU (WebGL) delegate and on the CPU (WebAssembly + SIMD)
  *                  delegate, over the same camera. This is the "would WASM help?"
- *                  measurement: the CPU delegate IS the WebAssembly path.
+ *                  measurement: the CPU delegate IS the WebAssembly path. Each
+ *                  delegate is timed at every capture of `--captures` and every
+ *                  `numHands` of `--num-hands` (#240: the app's 1280x720 against 640x360,
+ *                  one hand against two).
  * 3. `audio`     — what each `latencyHint` buys on this machine (`baseLatency`,
- *                  `outputLatency`), and, offline, the look-ahead of a
+ *                  `outputLatency`, and the output's underruns while a tone plays,
+ *                  where `playbackStats` exists), and, offline, the look-ahead of a
  *                  DynamicsCompressor configured like the synth's output bus and the
  *                  step response of the synth's 30 ms `setTargetAtTime` glide.
  * 4. `env`       — browser, GPU renderer, display refresh.
@@ -31,6 +35,11 @@
  * Usage (from the repo root, after `npm run build` and `npm run smoke:setup`):
  *
  *   node smoke/latency/measure.mjs [--video hands.y4m] [--seconds 20] [--headed] [--audible] [--out report.json]
+ *        [--cpu-throttle 4] [--captures 1280x720,640x360] [--num-hands 2,1] [--delegates GPU,CPU]
+ *
+ * `--cpu-throttle N` slows the page's CPU N times (Chromium's DevTools throttling), the
+ * "slow machine" column of #240's before/after: a 2018 laptop, not an M1. For the 15 fps
+ * column, give a 15 fps clip (`fps=15` in the ffmpeg line).
  *
  * The instrument is muted during the run unless `--audible` is given.
  *
@@ -50,12 +59,15 @@ const BASE_PATH = '/thoremin/';
 /** Must match `src/nodes/sources/tasks_vision.ts` and the hand node's model path. */
 const TASKS_VISION_VERSION = '0.10.35';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+/** Must match `CAPTURE` in `src/app/camera.ts` (what the app asks the camera for). */
+const APP_CAPTURE = '1280x720';
 /** Must match the synth's output bus (`ensureBus` in `src/nodes/output/webaudio_synth.ts`). */
 const SYNTH_COMPRESSOR = { threshold: -14, knee: 24, ratio: 3, attack: 0.005, release: 0.2 };
 const SYNTH_FREQ_GLIDE_S = 0.03;
 
 function parseArgs(argv) {
-  const a = { video: null, seconds: 20, warmup: 4, headed: false, audible: false, out: null, port: 4174, frames: 150 };
+  const a = { video: null, seconds: 20, warmup: 4, headed: false, audible: false, out: null, port: 4174, frames: 150, cpuThrottle: 1, captures: [APP_CAPTURE, '640x360'], numHands: [2, 1], delegates: ['GPU', 'CPU'], toneSeconds: 3 };
+  const list = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--video') a.video = resolve(argv[++i]);
@@ -66,6 +78,11 @@ function parseArgs(argv) {
     else if (k === '--audible') a.audible = true;
     else if (k === '--out') a.out = resolve(argv[++i]);
     else if (k === '--port') a.port = Number(argv[++i]);
+    else if (k === '--cpu-throttle') a.cpuThrottle = Number(argv[++i]);
+    else if (k === '--captures') a.captures = list(argv[++i]);
+    else if (k === '--num-hands') a.numHands = list(argv[++i]).map(Number);
+    else if (k === '--delegates') a.delegates = list(argv[++i]);
+    else if (k === '--tone-seconds') a.toneSeconds = Number(argv[++i]);
     else throw new Error(`unknown argument ${k}`);
   }
   return a;
@@ -104,24 +121,27 @@ async function measureApp(page, url, args) {
   return page.evaluate(() => window.thoreminLatency.report());
 }
 
-async function measureInference(page, frames) {
+async function measureInference(page, args) {
   return page.evaluate(
-    async ({ version, model, frames }) => {
+    async ({ version, model, frames, captures, numHandsList, delegates }) => {
       const vision = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${version}/vision_bundle.mjs`);
       const fileset = await vision.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${version}/wasm`);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const out = {};
+      for (const capture of captures) {
+      const [width, height] = capture.split('x').map(Number);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: width }, height: { ideal: height }, aspectRatio: { ideal: width / height } } });
       const video = document.createElement('video');
       video.muted = true;
       video.playsInline = true;
       video.srcObject = stream;
       await video.play();
-      const out = {};
-      for (const delegate of ['GPU', 'CPU']) {
+      for (const delegate of delegates) for (const numHands of numHandsList) {
+        const key = `${delegate} ${capture} numHands=${numHands}`;
         let lm;
         try {
-          lm = await vision.HandLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: model, delegate }, numHands: 2, runningMode: 'VIDEO' });
+          lm = await vision.HandLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: model, delegate }, numHands, runningMode: 'VIDEO' });
         } catch (e) {
-          out[delegate] = { error: String(e) };
+          out[key] = { error: String(e) };
           continue;
         }
         const ms = [];
@@ -140,24 +160,36 @@ async function measureInference(page, frames) {
           if (res.landmarks.length) withHands++;
         }
         lm.close();
-        out[delegate] = { samples: ms.slice(10), withHands, frames: ms.length };
+        out[key] = { samples: ms.slice(10), withHands, frames: ms.length, granted: `${video.videoWidth}x${video.videoHeight}` };
       }
       stream.getTracks().forEach((t) => t.stop());
+      }
       return out;
     },
-    { version: TASKS_VISION_VERSION, model: HAND_MODEL, frames },
+    { version: TASKS_VISION_VERSION, model: HAND_MODEL, frames: args.frames, captures: args.captures, numHandsList: args.numHands, delegates: args.delegates },
   );
 }
 
-async function measureAudio(page) {
+async function measureAudio(page, toneSeconds) {
   return page.evaluate(
-    async ({ comp, glide }) => {
+    async ({ comp, glide, toneSeconds }) => {
       const hints = {};
       for (const hint of ['interactive', 'balanced', 'playback', 0]) {
         const ac = new AudioContext({ latencyHint: hint });
         await ac.resume();
         await new Promise((r) => setTimeout(r, 300));
-        hints[String(hint)] = { baseLatencyMs: ac.baseLatency * 1000, outputLatencyMs: (ac.outputLatency ?? NaN) * 1000, sampleRate: ac.sampleRate };
+        // The guard on hint 0 (#240): underruns while a quiet tone plays, where the
+        // browser reports them (Chromium's playbackStats); null elsewhere.
+        const before = ac.playbackStats ? ac.playbackStats.underrunEvents : null;
+        const osc = ac.createOscillator();
+        const g = ac.createGain();
+        g.gain.value = 0.001;
+        osc.connect(g).connect(ac.destination);
+        osc.start();
+        await new Promise((r) => setTimeout(r, toneSeconds * 1000));
+        osc.stop();
+        const underruns = before === null ? null : ac.playbackStats.underrunEvents - before;
+        hints[String(hint)] = { baseLatencyMs: ac.baseLatency * 1000, outputLatencyMs: (ac.outputLatency ?? NaN) * 1000, sampleRate: ac.sampleRate, underruns, toneSeconds };
         await ac.close();
       }
       // The synth bus compressor's look-ahead: an impulse through it, offline.
@@ -195,7 +227,7 @@ async function measureAudio(page) {
         glide: { timeConstantMs: glide * 1000, to50pctMs: reach(0.5), to90pctMs: reach(0.9), to95pctMs: reach(0.95) },
       };
     },
-    { comp: SYNTH_COMPRESSOR, glide: SYNTH_FREQ_GLIDE_S },
+    { comp: SYNTH_COMPRESSOR, glide: SYNTH_FREQ_GLIDE_S, toneSeconds },
   );
 }
 
@@ -237,16 +269,20 @@ async function main() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     page.on('pageerror', (e) => console.error('[page error]', e.message));
+    if (args.cpuThrottle > 1) {
+      const cdp = await context.newCDPSession(page);
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: args.cpuThrottle });
+    }
     // No local paths in the report: it is meant to be shareable.
     const report = { measuredAt: new Date().toISOString(), options: { ...args, video: args.video ? '(local file)' : null, out: args.out ? '(local file)' : null } };
     report.app = await measureApp(page, url, args);
     await page.goto(url + 'manual.html'); // a light static page on the same origin
     report.env = await measureEnv(page);
-    report.audio = await measureAudio(page);
+    report.audio = await measureAudio(page, args.toneSeconds);
     if (args.video) {
-      const inf = await measureInference(page, args.frames);
+      const inf = await measureInference(page, args);
       report.inference = Object.fromEntries(
-        Object.entries(inf).map(([k, v]) => [k, v.samples ? { ...summarize(v.samples), withHands: v.withHands, frames: v.frames } : v]),
+        Object.entries(inf).map(([k, v]) => [k, v.samples ? { ...summarize(v.samples), withHands: v.withHands, frames: v.frames, granted: v.granted } : v]),
       );
     }
     const json = JSON.stringify(report, null, 2);

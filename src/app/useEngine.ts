@@ -53,6 +53,8 @@ import { installCategoryDemand, useCategoryBinding } from './enroll/categoryBind
 import type { FaceStatus } from '@/nodes';
 import type { MidiStatus } from '@/nodes/browser';
 import type { ExpressionScores } from '@/music/expression';
+import { cameraConstraints } from './camera';
+import { latencyHintFor } from './timing/audioPrefs';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -237,18 +239,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           video.muted = true;
           video.src = source.url;
         } else {
-          // Ask for HD 16:9 so the fullscreen video is crisp, and the front
-          // (user-facing) camera so the mirrored view shows your own hands on
-          // mobile. All are `ideal` soft constraints: the camera returns the
+          // 1280x720 16:9 at up to 60 fps, the front camera: why each, in
+          // `camera.ts` (#240). All `ideal` soft constraints: the camera returns the
           // closest mode it supports and never fails.
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: { ideal: 'user' },
-            },
-            audio: false,
-          });
+          stream = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints(), audio: false });
           if (disposed) {
             // Cleanup already ran (it saw stream === null), so stop it here.
             stream.getTracks().forEach((t) => t.stop());
@@ -620,7 +614,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     let ac = resources.audioContext as AudioContext | undefined;
     if (!ac) {
       const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      ac = new Ctor({ latencyHint: 'interactive' });
+      // The per-device low-latency pref (#240) asks for the smallest buffer; read once,
+      // here, because a context's hint is fixed at creation.
+      ac = new Ctor({ latencyHint: latencyHintFor(useControls.getState().audioPrefs) });
       const master = ac.createGain();
       const { masterVolume: v0, muted: muted0 } = useControls.getState();
       master.gain.setValueAtTime(muted0 ? 0 : v0, ac.currentTime);

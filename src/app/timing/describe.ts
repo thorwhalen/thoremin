@@ -8,7 +8,9 @@
  * the output stage with its source); a warning fires only for what the player can act
  * on or must know: an interrupted audio route ("tap to resume"), an output stage this
  * browser cannot report (so a predicted hit may still sound late: run the strike test),
- * a camera delivering under {@link LOW_LIGHT_FPS} (the usual cause is dim light), and
+ * a camera delivering under {@link LOW_LIGHT_FPS} (the usual cause is dim light), an
+ * audio output that ran dry in the last minute (with the low-latency dial on, the line
+ * names the dial, since the smaller buffer is the likely cause; #240), and
  * stamps that are not capture stamps (a sub-frame estimate then claims a precision the
  * stamp cannot carry). That last hint is about a BROWSER's stamps: frames with no stamp
  * at all (a synthetic source) or whose stamp was not used (a replay) earn no hint, since
@@ -35,7 +37,13 @@ const ms = (s: number) => `${Math.round(s * 1000)} ms`;
 
 const SOURCE_WORD: Record<string, string> = { measured: 'measured', pair: 'from the audio clock', prior: 'assumed', strike: 'from the strike test' };
 
-export function describeTiming(r: TimingReading): TimingDescription {
+/** What the host knows that the reading does not. */
+export interface DescribeOptions {
+  /** The low-latency audio dial (`master.lowLatencyAudio`) is on: a glitch then names it. */
+  lowLatencyAudio?: boolean;
+}
+
+export function describeTiming(r: TimingReading, { lowLatencyAudio = false }: DescribeOptions = {}): TimingDescription {
   const warnings: string[] = [];
   const parts: string[] = [];
   const total = Object.values(r.stampSources).reduce((n, c) => n + c, 0);
@@ -52,6 +60,11 @@ export function describeTiming(r: TimingReading): TimingDescription {
   if (r.audio.state === 'interrupted') warnings.push('audio interrupted: tap to resume');
   if (r.audio.state === 'running' && r.outputStage.source === 'prior') warnings.push('audio output latency unknown on this browser: run the strike test (?probe=latency)');
   if (r.outputStage.source !== 'prior' && r.outputStage.value >= HIGH_OUTPUT_STAGE_S) warnings.push(`your audio output adds ${ms(r.outputStage.value)}`);
+  const glitches = r.audio.glitches?.recent ?? 0;
+  if (glitches > 0) {
+    const times = glitches === 1 ? 'once' : `${glitches} times`;
+    warnings.push(lowLatencyAudio ? `audio glitched ${times}: turn off low-latency audio` : `audio glitched ${times} in the last minute`);
+  }
   if (Number.isFinite(r.deliveredFps) && r.deliveredFps < LOW_LIGHT_FPS) warnings.push(`camera delivers ${r.deliveredFps.toFixed(0)} fps (low light?)`);
   if (total >= MIN_FRAMES_FOR_STAMP_HINT && r.dominantSource !== null && r.dominantSource !== 'capture' && r.dominantSource !== UNSTAMPED_SOURCE) {
     warnings.push(`frames carry ${r.dominantSource} stamps, not capture times`);

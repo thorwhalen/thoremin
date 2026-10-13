@@ -23,6 +23,7 @@ import { createFramePump, stampToTiming } from './frame_pump';
 import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
+import { DelegateChoiceSchema, resolveDelegate } from './delegate';
 
 // tasks-vision assets, loaded from a CDN on demand. The wasm fileset is pinned to
 // the installed `@mediapipe/tasks-vision` version (shared with `webcam-face`), and
@@ -35,6 +36,9 @@ const Params = z.object({
   // float16 hand model, so this does not select a model variant today.
   modelType: z.enum(['lite', 'full']).default('full'),
   maxHands: z.number().int().min(1).max(4).default(2),
+  /** Which delegate runs the model: `auto` (the default) picks the CPU on a software
+   *  WebGL renderer and the GPU otherwise (`delegate.ts`, #240); `GPU` / `CPU` force one. */
+  delegate: DelegateChoiceSchema.default('auto'),
 });
 type Params = z.infer<typeof Params>;
 
@@ -137,10 +141,13 @@ export const webcamHandsNode = defineNode<Params>({
         video = ctx.resources.video as HTMLVideoElement | undefined;
         const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
         const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
+        const delegate = resolveDelegate(p.delegate);
         try {
-          landmarker = await vision.HandLandmarker.createFromOptions(fileset, optionsFor('GPU'));
+          landmarker = await vision.HandLandmarker.createFromOptions(fileset, optionsFor(delegate));
         } catch (gpuErr) {
-          // GPU/WebGL unavailable on this client → fall back to the CPU delegate.
+          // GPU/WebGL unavailable on this client → fall back to the CPU delegate. If CPU
+          // was already chosen, the failure stands.
+          if (delegate !== 'GPU') throw gpuErr;
           console.warn('[thoremin] hand model GPU delegate failed; falling back to CPU', gpuErr);
           landmarker = await vision.HandLandmarker.createFromOptions(fileset, optionsFor('CPU'));
         }

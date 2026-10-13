@@ -85,6 +85,27 @@ Audio-path items are proposals, tracked in an issue, not changes made here (this
 
 Items 1 and 3 together take about 20 ms off the time to reach half of a new pitch, and about 50 ms off the time to reach 90 %, without touching the camera; item 2 prevents the one case (Bluetooth) that would dwarf everything else. Everything below the camera pipeline can only be removed by producing the sound before the event is observed, which is `intent-and-subframe-timing.md` §5.2's argument, now with numbers under it.
 
+### 4.1 Step 4 of the timing plan, measured (#240, 2026-10-13)
+
+Step 4 shipped the levers that change no sound: the output-latency warning (step 0's timing line), `frameRate: {ideal: 60}` with a 16:9 `aspectRatio`, the model delegate chosen by the renderer, and a glitch counter guarding an opt-in `latencyHint: 0`. Items 1, 3 and 7-as-default change the sound and are decisions on #168. Before is main at 86cd79f, after is this step; same machine, headless Chromium 153 with SwiftShader WebGL (a machine without a usable GPU), a 1280x720 clip of two hands as the fake camera, `measure.mjs` 10 s runs.
+
+| | 30 fps | 30 fps, CPU throttled 4x | 15 fps |
+|---|---|---|---|
+| captureToTick mean (p95), before | 790 (892) ms | 780 (945) ms | 1331 (1527) ms |
+| captureToTick mean (p95), after | 112 (133) ms | 423 (479) ms | 122 (158) ms |
+| frames processed in 10 s, before / after | 13 / 85 | 13 / 22 | 8 / 100 |
+
+What moved it is the delegate. On a software renderer MediaPipe's GPU delegate is the CPU emulating a GPU: 713 ms a hand frame against 99 ms on the CPU delegate (WebAssembly + SIMD). The old rule only fell back to the CPU when the GPU delegate threw, and SwiftShader does not throw. The models now default to `auto` (`src/nodes/sources/delegate.ts`): the CPU on a software renderer or without WebGL, the GPU otherwise. On a machine with a real GPU nothing changes; the M1 Max numbers of §1 stand.
+
+Two proposals did not survive measurement:
+
+- **640x360 capture (item 5).** On the CPU delegate the per-frame cost is flat from 854x480 to 1280x720 (107 to 118 ms), and at 640x360 the CPU delegate finds no hands at all, on small hands and on hands filling the frame alike, while the GPU delegate finds them. The capture stays 1280x720; the finding is its own issue.
+- **The lite hand model.** It does not exist: tasks-vision ships one float16 hand model, and `modelType` is a retained no-op.
+
+One that did, not yet taken: `numHands: 1` cuts the hand model's cost by 40 % on the CPU delegate (98 → 59 ms at 1280x720) and by more than half on SwiftShader's GPU delegate, because with a second hand allowed the palm detector runs on every frame looking for it. It needs to know which instruments are played with one hand, so it is a follow-up issue rather than a silent change.
+
+The glitch counter reads Chromium's `AudioContext.playbackStats` (`underrunEvents`, present in Chromium 153) and, elsewhere, steps in the output timestamp pair's clock offset (`packages/sdk/src/timing/glitches.ts`). Headless Chromium's fake audio device reported no underruns under any hint, including 0 under 4x CPU throttling, so whether hint 0 glitches on real hardware is still a question for a real machine; the status line will say so when it does.
+
 ## 5. How to measure on your own machine
 
 ### 5.1 The probe, with your webcam
@@ -111,7 +132,7 @@ npm run build && npm run smoke:setup
 node smoke/latency/measure.mjs --headed --video ~/.local/share/thoremin/latency/hands.y4m --seconds 20 --out report.json
 ```
 
-It serves the built bundle, drives `?probe=latency` in Chromium (muted, unless `--audible`), times the hand model on both delegates, reads every `latencyHint`, and measures the compressor and the glide offline. The camera clip is data and stays out of the repository; the script's header shows how to make one with `ffmpeg`. Without `--video` the source is `synthetic-hands` and only the tick and audio stages are measured.
+It serves the built bundle, drives `?probe=latency` in Chromium (muted, unless `--audible`), times the hand model on both delegates (at each capture of `--captures` and each `--num-hands`), reads every `latencyHint` and counts its underruns while a tone plays, and measures the compressor and the glide offline. The camera clip is data and stays out of the repository; the script's header shows how to make one with `ffmpeg`. Without `--video` the source is `synthetic-hands` and only the tick and audio stages are measured. `--cpu-throttle 4` gives the slow-machine column; a 15 fps clip gives the dim-light one.
 
 ## 6. Caveats
 

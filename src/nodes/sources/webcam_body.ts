@@ -47,6 +47,7 @@ import {
 } from '@thoremin/sdk/nodes/domain';
 import { BODY_SLOT_OUTPUT } from './body_contract';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
+import { DelegateChoiceSchema, resolveDelegate } from './delegate';
 
 export function bodyModelUrl(model: BodyModel): string {
   return `${MEDIAPIPE_MODELS_BASE}/pose_landmarker/pose_landmarker_${model}/float16/latest/pose_landmarker_${model}.task`;
@@ -56,8 +57,9 @@ const Params = z.object({
   /** Which pose model to download when the dial does not say: `lite` (fast, 5.8 MB)
    *  or `full` (steadier on fast motion, 9.4 MB). The `body.model` dial overrides live. */
   model: z.enum(BODY_MODELS).default('lite'),
-  /** Run inference on the GPU (WebGL) when available, else CPU. */
-  delegate: z.enum(['GPU', 'CPU']).default('GPU'),
+  /** Which delegate runs the model: `auto` (the default) picks the CPU on a software
+   *  WebGL renderer and the GPU otherwise (`delegate.ts`, #240); `GPU` / `CPU` force one. */
+  delegate: DelegateChoiceSchema.default('auto'),
   /** Below this tracking confidence the detector re-runs person detection (costlier, steadier). */
   minTrackingConfidence: z.number().min(0).max(1).default(0.5),
 });
@@ -188,7 +190,7 @@ export const webcamBodyNode = defineNode<Params>({
     const resource = lazyResource<BodyLandmarkerHandle>({
       load: (lctx) =>
         (factory ?? defaultFactory)(
-          { model: requestedModel, delegate: p.delegate, minTrackingConfidence: p.minTrackingConfidence },
+          { model: requestedModel, delegate: resolveDelegate(p.delegate), minTrackingConfidence: p.minTrackingConfidence },
           lctx,
         ),
       unload: (h) => h.landmarker.close(),
