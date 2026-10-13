@@ -288,6 +288,7 @@ const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
   'body.shape': BODY_RELATIVE,
   'body.effort': BODY_RELATIVE,
   'body.rel': BODY_RELATIVE,
+  'body.rhythm': BODY_RELATIVE,
 };
 
 function withGroupInvariance(f: BodyFeature): BodyFeature {
@@ -392,6 +393,23 @@ function relationFeatures(): BodyFeature[] {
   return out;
 }
 
+/** The fraction of a pulse cycle after phase 0 during which `body.rhythm.gate` is 1. */
+const PULSE_GATE = 0.15;
+
+/** The dancer's pulse (#186 PR F), read from `body-pulse` through the context. The
+ *  period is the level the body repeats at, never folded to a beat, so the tempo is
+ *  the movement's cycles per minute and not the song's beats per minute. */
+function rhythmFeatures(): BodyFeature[] {
+  const read = (c: BodyCtx, k: 'period' | 'tempo' | 'phase' | 'confidence'): number => c.pulse?.[k] ?? NaN;
+  return [
+    { id: 'body.rhythm.period', group: 'body.rhythm', source: 'body', controllability: 'moderate', description: 'Seconds per cycle of the dancer\'s repeating movement (a step, a bar: the level the body repeats at)', compute: (c) => read(c, 'period') },
+    { id: 'body.rhythm.tempo', group: 'body.rhythm', source: 'body', controllability: 'moderate', description: 'Cycles of the dancer\'s movement per minute (not the song\'s beats per minute)', compute: (c) => read(c, 'tempo') },
+    { id: 'body.rhythm.phase', group: 'body.rhythm', source: 'body', range: [0, 1], circular: true, controllability: 'moderate', description: 'Position within the current cycle, 0 at its anchor .. 1', compute: (c) => read(c, 'phase') },
+    { id: 'body.rhythm.confidence', group: 'body.rhythm', source: 'body', range: [0, 1], controllability: 'involuntary', description: 'How much to trust the pulse (autocorrelation strength times the lock)', compute: (c) => read(c, 'confidence') },
+    { id: 'body.rhythm.gate', group: 'body.rhythm', source: 'body', range: [0, 1], controllability: 'moderate', description: `A pulse-synchronous gate: 1 for the first ${PULSE_GATE * 100} % of each cycle, else 0`, compute: (c) => { const ph = read(c, 'phase'); return Number.isFinite(ph) ? bool(ph < PULSE_GATE) : NaN; } },
+  ];
+}
+
 /** The body catalog, in display order; ids are final (no per-side expansion). */
 export const BODY_FEATURES: readonly BodyFeature[] = [
   ...angleFeatures(),
@@ -400,4 +418,5 @@ export const BODY_FEATURES: readonly BodyFeature[] = [
   ...shapeFeatures(),
   ...effortFeatures(),
   ...relationFeatures(),
+  ...rhythmFeatures(),
 ].map(withGroupInvariance);

@@ -66,12 +66,17 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'conductor' }, to: { node: 'orchestra', port: 'config' } },
   { from: { node: 'ui', port: 'claimed' }, to: { node: 'orchestra', port: 'claimed' } },
   { from: { node: 'orchestra', port: 'playing' }, to: { node: 'score', port: 'replaced' } },
+  // #186 PR F: the dancer's pulse reads the body frame and feeds the body vector.
+  { from: { node: 'camBody', port: 'body' }, to: { node: 'bodyPulse', port: 'body' } },
+  { from: { node: 'bodyPulse', port: 'pulse' }, to: { node: 'bodyVec', port: 'pulse' } },
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */
 const NODES_ADDED_SINCE_SNAPSHOT: NodeSpec[] = [
   // #187 PR 5: the sampled orchestra, in the conductor branch.
   { id: 'orchestra', type: 'orchestra', params: {} },
+  // #186 PR F: the dancer's pulse, in the body-source branch.
+  { id: 'bodyPulse', type: 'body-pulse', params: {} },
 ];
 
 /** Edges the branch table LOST after the snapshot, each named here for the same reason. */

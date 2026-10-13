@@ -184,11 +184,16 @@ export const bodySource = defineBranch({
   nodes: [
     { id: 'camBody', slot: 'body', params: {} },
     { id: 'bodyVec', type: 'body-feature-vector', params: {} },
+    // The dancer's pulse (#186 PR F): folded into the vector as body.rhythm.*; the
+    // pace controller (PR H) reads it too.
+    { id: 'bodyPulse', type: 'body-pulse', params: {} },
   ],
   edges: [
     to({ node: 'camBody', port: 'body' }, overlay('bodyFrame')),
     to({ node: 'camBody', port: 'status' }, overlay('bodyStatus')),
     to({ node: 'camBody', port: 'body' }, { node: 'bodyVec', port: 'body' }),
+    to({ node: 'camBody', port: 'body' }, { node: 'bodyPulse', port: 'body' }),
+    to({ node: 'bodyPulse', port: 'pulse' }, { node: 'bodyVec', port: 'pulse' }),
     to({ node: 'bodyVec', port: 'vector' }, overlay('bodyVector')),
   ],
   overlay: ['bodySkeleton'],

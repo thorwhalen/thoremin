@@ -154,6 +154,20 @@ export interface BodyHistorySample {
 }
 
 /**
+ * The dancer's pulse as the body catalog reads it (#186 PR F): the slice of ictus's
+ * `PulseState` the `body.rhythm` features need, declared structurally so the SDK does
+ * not depend on the inference package. `period` is seconds per cycle of the movement
+ * at the level the body repeats at (a step, a bar, six beats: never folded), `tempo`
+ * its cycles per minute, `phase` 0..1 (NaN before a lock), `confidence` 0..1.
+ */
+export interface BodyPulseReading {
+  period: number;
+  tempo: number;
+  phase: number;
+  confidence: number;
+}
+
+/**
  * Per-frame body context (#186). `P` is the 33 image landmarks (pixels), `W` the 33
  * world landmarks (metres, hip origin) when present; `useWorld` says which set the
  * geometric features read. `torso` is the shoulder-mid..hip-mid length in the active
@@ -176,4 +190,7 @@ export interface BodyCtx {
   height: number;
   dtS: number;
   history: readonly BodyHistorySample[];
+  /** The dancer's pulse when a `body-pulse` node feeds the vector; the `body.rhythm`
+   *  features read it and are NaN (dropped) without it. */
+  pulse?: BodyPulseReading;
 }

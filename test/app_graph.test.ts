@@ -68,6 +68,9 @@ describe('production app graph', () => {
     // The body vector tap (#186) sits between its source and the overlay.
     expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('bodyVec'));
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('overlay'));
+    // The dance pulse (#186 PR F) sits between the body source and the vector it feeds.
+    expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('bodyPulse'));
+    expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('bodyVec'));
     // 14 base nodes (#90 retired the kbd + kctrl nodes) + the two #119 feature-vector
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
     // source, its vector tap and the body-route (#186 PR E) + the #141/#188 generative
@@ -75,9 +78,10 @@ describe('production app graph', () => {
     // its pluck scheduler + the air guitar and its pluck scheduler + the air flute.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    // Without the air extension: the 26 core nodes (the 7 air nodes come with it).
-    // The ASL extension adds its reader and its chord node.
-    expect(order).toHaveLength((AIR ? 33 : 26) + (ASL ? 2 : 0));
+    // Without the air extension: the 27 core nodes (the 7 air nodes come with it); the
+    // dance pulse (#186 PR F) is the 27th. The ASL extension adds its reader and its
+    // chord node.
+    expect(order).toHaveLength((AIR ? 34 : 27) + (ASL ? 2 : 0));
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {

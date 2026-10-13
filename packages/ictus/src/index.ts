@@ -37,6 +37,8 @@ export { createTrendPrior } from './trend_prior';
 export type { TrendPriorOptions } from './trend_prior';
 export { createBlendPrior, TREND_DEFAULTS } from './blend_prior';
 export type { BlendPrior, BlendPriorOptions } from './blend_prior';
+export { createPulseFollower, acfPeaks, fitSine, refinePeriod, PULSE_DEFAULTS, UNKNOWN_PULSE } from './pulse';
+export type { PulseFollower, PulseLevel, PulseOptions, PulseState } from './pulse';
 export { createScheduler, SCHEDULER_DEFAULTS } from './scheduler';
 export type { Scheduler, SchedulerOptions, ScheduleCommand, ScheduleTick, ScoreEvent } from './scheduler';
 
