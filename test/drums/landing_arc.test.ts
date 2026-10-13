@@ -80,18 +80,22 @@ describe.runIf(AIR)('the pads demo take (#261): every stroke on its pad, no fals
   it('overlapping pads: the pad under the landing point wins, the later slot on top (kick over snare, floor tom over tom)', async () => {
     // p6 (kick) overlaps p1 (snare) and p7 (floor tom) overlaps p3 (tom): a stroke into
     // the later slot must not be read as the earlier one just because its path crossed
-    // that one's top edge first. Each pad is struck three times: a stroke after a change
+    // that one's top edge first. Each pad is struck four times: a stroke after a change
     // of pad is predicted against the previous pad's floor, which follows at half a stroke
     // per stroke, and the overlap here (the kick's centre 0.08 below the snare's) is
-    // within that depth error for two strokes, so what is pinned is the third stroke on
-    // each pad, and no false hit.
+    // within that depth error for up to three strokes (the snare after the kick: since
+    // #234 the prediction is no longer about 20 ms early, and the earlier, shallower
+    // reach used to favour the shallower pad; per-pad floors would make a change of pad
+    // immediate, #353). So what is pinned is the fourth stroke on each pad, at most four
+    // strokes off their pad in all (the pre-#234 reference: five), and no false hit.
     const pads = starterKitPads();
     for (const id of ['p6', 'p7'] as PadId[]) pads[id] = { ...pads[id], on: true };
     const order = ['p1', 'p6', 'p1', 'p7', 'p3', 'p6', 'p7', 'p5'] as PadId[];
     const stroke = (pad: PadId): DrumStroke => ({ pad, where: 'centre', force: 'hard' });
-    const script: DrumStroke[] = order.flatMap((pad) => [stroke(pad), stroke(pad), stroke(pad)]);
+    const script: DrumStroke[] = order.flatMap((pad) => [stroke(pad), stroke(pad), stroke(pad), stroke(pad)]);
     const { score } = await playTake(pads, { script });
-    expect(score.perStroke.filter((_, k) => k % 3 === 2).map(({ stroke: s, hit }) => `${s.pad}:${hit?.pad ?? 'none'}`)).toEqual(order.map((pad) => `${pad}:${pad}`));
+    expect(score.perStroke.filter((_, k) => k % 4 === 3).map(({ stroke: s, hit }) => `${s.pad}:${hit?.pad ?? 'none'}`)).toEqual(order.map((pad) => `${pad}:${pad}`));
+    expect(score.off).toBeLessThanOrEqual(4);
     expect(score.false).toBe(0);
     expect(score.missed).toBe(0);
   });
