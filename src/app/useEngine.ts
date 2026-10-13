@@ -13,6 +13,11 @@
  *  - **Which graph** comes from a {@link SlotSelection}. A change to it re-wires
  *    the LIVE engine via `Engine.applyGraph` — it does not rebuild the engine,
  *    so the camera is not re-acquired and the ML models are not reloaded.
+ *
+ * And three pieces it binds but no longer holds (#392), each testable without mounting it: what
+ * the live graph is and how a running engine is re-wired onto it (`./liveApply`), the per-frame
+ * status reporters (`makeFaceReporter` and its siblings, beside their stores), and the take's
+ * lifecycle (`./recording/useRecordingController`).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
