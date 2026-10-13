@@ -225,6 +225,13 @@ describe('the tracker: capture lag, stamp noise, the first stamp, the runtime ch
     const grid = Array.from({ length: 80 }, (_, i) => 1 + i / 30).filter((_, i) => i % 7 !== 3);
     expect(stampPeriod(grid)).toBeCloseTo(1 / 30, 9);
     expect(noiseLattice(1 / 30, grid, 0)).toBe(1 / 30);
+    // Even when most frames drop: a low anchor is still one period (the review's 50 %).
+    const halved = Array.from({ length: 90 }, (_, i) => 1 + i / 30).filter((_, i) => i % 4 === 0 || i % 4 === 1);
+    expect(stampPeriod(halved)).toBeCloseTo(1 / 30, 9);
+    expect(stampNoise(halved, noiseLattice(1 / 30, halved, 0))).toBeLessThan(1e-6);
+    // One inference stall in the window is not a pace: the slow camera stays quiet.
+    const slowTimes = Array.from({ length: 60 }, (_, i) => 1 + i / 25);
+    expect(noiseLattice(1 / 60, slowTimes, 1)).toBeCloseTo(1 / 25, 9);
     // A 50 ms inference off a 30 fps camera that counts its skipped frames: still noise.
     const paced = new TimingTracker({ now: () => 0 });
     paced.setCamera({ frameRate: 30, width: 1280, height: 720 });

@@ -43,6 +43,9 @@ export interface SinkResult {
 export interface RecordingSink {
   /** The concrete backend, for the manifest/HUD and tests. */
   readonly kind: SinkKind;
+  /** The folder the take is written into: the name asked for, or (directory sink) that
+   *  name with a `-2`, `-3` ... suffix when a folder of that name already exists. */
+  readonly folderName: string;
   /** Write one file into the recording folder. */
   add(name: string, data: Blob | string): Promise<void>;
   /** Finalize (flush/close/download) and return a toast label + file count. */
@@ -69,6 +72,8 @@ async function freshSubfolder(base: FsDirHandle, name: string): Promise<{ dir: F
     try {
       await base.getDirectoryHandle(candidate);
     } catch (e) {
+      // A FILE of that name (TypeMismatchError) is taken too: try the next suffix.
+      if ((e as { name?: string })?.name === 'TypeMismatchError') continue;
       if ((e as { name?: string })?.name !== 'NotFoundError') throw e;
       return { dir: await base.getDirectoryHandle(candidate, { create: true }), name: candidate };
     }
@@ -91,6 +96,7 @@ async function createDirectorySink(folderName: string): Promise<RecordingSink> {
   let count = 0;
   return {
     kind: 'directory',
+    folderName: label,
     async add(name, data) {
       const fh = await dir.getFileHandle(name, { create: true });
       const w = await fh.createWritable();
@@ -111,6 +117,7 @@ function createZipSink(folderName: string): RecordingSink {
   let count = 0;
   return {
     kind: 'zip',
+    folderName,
     async add(name, data) {
       files[`${folderName}/${name}`] = await toBytes(data);
       count++;
@@ -140,6 +147,7 @@ function createPerFileSink(folderName: string): RecordingSink {
   const pending: { name: string; data: Blob | string }[] = [];
   return {
     kind: 'perFile',
+    folderName,
     async add(name, data) {
       pending.push({ name, data });
     },

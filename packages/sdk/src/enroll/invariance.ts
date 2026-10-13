@@ -163,7 +163,7 @@ export function weightsFromNuisance(
 /** Multiply two weight maps (declared selection × demonstrated spread, say). */
 export function combineWeights(...maps: readonly FeatureWeights[]): FeatureWeights {
   const out: FeatureWeights = {};
-  for (const m of maps) for (const k of Object.keys(m)) out[k] = (out[k] ?? 1) * m[k];
+  for (const m of maps) for (const k of Object.keys(m)) out[k] = (Object.hasOwn(out, k) ? out[k] : 1) * m[k];
   return out;
 }
 

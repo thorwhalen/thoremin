@@ -174,6 +174,7 @@ describe('createScheduler', () => {
       expect(s.tick({ now: bad, beat: 0, bpm: 60, horizon: 0.1 })).toEqual([]);
       expect(s.tick({ now: 0, beat: 0, bpm: 60, horizon: bad })).toEqual([]);
     }
+    expect(s.tick({ now: 0, beat: 0, bpm: Infinity, horizon: 0.1 })).toEqual([]);
     // ... and the position it never took leaves a later finite tick working.
     expect(s.tick({ now: 0, beat: 0, bpm: 60, horizon: 0.1 }).filter((c) => c.type === 'noteOn').map((c) => c.key)).toEqual([60]);
   });

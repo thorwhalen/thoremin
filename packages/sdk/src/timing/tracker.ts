@@ -172,38 +172,47 @@ export function stampNoise(times: readonly number[], period: number = NaN): numb
  *  the report is disbelieved (relative): `getSettings().frameRate` is the request, and
  *  Firefox and Safari report 60 while delivering 20 to 25 fps (#355). */
 export const CAMERA_PERIOD_TOLERANCE = 0.1;
-/** The gaps {@link stampPeriod} averages: within this factor of the median gap either way. */
+/** The gap {@link stampPeriod} anchors on: this quantile of the gaps (a dropped frame only
+ *  ever lengthens a gap, so a low quantile is one period even when most frames drop). */
+export const STAMP_PERIOD_QUANTILE = 0.2;
+/** The gaps {@link stampPeriod} averages: from the anchor up to this factor of it. */
 export const STAMP_PERIOD_SPREAD = 1.6;
+/** The share of the window's intervals that must hide a skipped frame before the stamps
+ *  are read as paced by inference rather than by the camera (one stall is not a pace). */
+export const INFERENCE_PACED_SKIP_SHARE = 0.2;
 
 /**
- * The frame period the stamps show, seconds: the mean of the gaps within
- * {@link STAMP_PERIOD_SPREAD} of the median gap. A mean, so stamps quantised to a 60 Hz
- * display from a 24 fps camera (33 / 50 ms) give the camera's 41.7 ms, and only the
- * gaps near the median, so a skipped or dropped frame (a multiple) does not stretch it.
- * NaN under three gaps.
+ * The frame period the stamps show, seconds: the mean of the gaps from the
+ * {@link STAMP_PERIOD_QUANTILE} gap up to {@link STAMP_PERIOD_SPREAD} times it. A mean, so
+ * stamps quantised to a 60 Hz display from a 24 fps camera (33 / 50 ms) give the camera's
+ * 41.7 ms; anchored low, so skipped or dropped frames (multiples) do not stretch it even
+ * when they are most of the gaps. NaN under three gaps.
  */
 export function stampPeriod(times: readonly number[]): number {
   const d: number[] = [];
   for (let i = 1; i < times.length; i++) if (times[i] > times[i - 1]) d.push(times[i] - times[i - 1]);
   if (d.length < 3) return NaN;
-  const median = [...d].sort((a, b) => a - b)[Math.floor((d.length - 1) / 2)];
-  const kept = d.filter((x) => x >= median / STAMP_PERIOD_SPREAD && x <= median * STAMP_PERIOD_SPREAD);
+  const anchor = [...d].sort((a, b) => a - b)[Math.floor(STAMP_PERIOD_QUANTILE * (d.length - 1))];
+  const kept = d.filter((x) => x >= anchor && x <= anchor * STAMP_PERIOD_SPREAD);
   return kept.reduce((a, b) => a + b, 0) / kept.length;
 }
 
 /**
  * The lattice the stamp noise is measured against: the camera's reported period, unless
  * the stamps show the camera delivering at another rate (beyond
- * {@link CAMERA_PERIOD_TOLERANCE}) while inference skipped nothing, in which case the
- * period the stamps show. Inference that skipped frames paces the stamps itself (the
- * 50 ms inference off a 30 fps camera), so there the report stands. One case stays
- * blind: stamps paced by a slow inference whose skips are not counted read as a slower
- * camera, and quiet.
+ * {@link CAMERA_PERIOD_TOLERANCE}) while inference did not pace them, in which case the
+ * period the stamps show. Inference that skips frames regularly ({@link
+ * INFERENCE_PACED_SKIP_SHARE} of the intervals; the 50 ms inference off a 30 fps camera
+ * skips every other one) paces the stamps itself, so there the report stands; a stall
+ * now and then does not. One case stays blind: stamps paced by a slow inference whose
+ * skips are not counted (the pump's animation-frame path) read as a slower camera, and
+ * quiet.
  */
 export function noiseLattice(reportedPeriod: number, times: readonly number[], skipped: number): number {
   const seen = stampPeriod(times);
   if (!(reportedPeriod > 0)) return seen;
-  if (!(seen > 0) || skipped > 0) return reportedPeriod;
+  const paced = skipped >= INFERENCE_PACED_SKIP_SHARE * Math.max(1, times.length - 1);
+  if (!(seen > 0) || paced) return reportedPeriod;
   return Math.abs(seen / reportedPeriod - 1) <= CAMERA_PERIOD_TOLERANCE ? reportedPeriod : seen;
 }
 

@@ -194,7 +194,9 @@ describe('the directory sink over the shared mechanism', () => {
       for (let i = 0; i < 3; i++) {
         const sink = await createRecordingSink('directory', 'take');
         await sink.add('manifest.json', '{}');
-        labels.push((await sink.close()).label);
+        const { label } = await sink.close();
+        expect(sink.folderName).toBe(label); // the session renames the take's files to it
+        labels.push(label);
       }
       expect(labels).toEqual(['take', 'take-2', 'take-3']);
       expect([...base.subs.keys()]).toEqual(['take', 'take-2', 'take-3']);

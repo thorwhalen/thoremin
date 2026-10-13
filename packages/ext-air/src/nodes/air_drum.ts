@@ -567,10 +567,6 @@ export interface LandingOptions {
   /** The learned floor (the impact predictor's plane, display depth): the landing point is
    *  never below it. Default none. */
   floor?: number;
-  /** The floor the stick has learned (display depth): a falling stroke's path ends one
-   *  stroke amplitude below it, so a stroke stopped in the air above a pad does not reach
-   *  that pad (#355). Default none: the path runs to the frame's bottom. */
-  pathFloor?: number;
   /** The stroke has already turned (a confirmed or frame-snapped impact): its path ends
    *  where it stopped. Default false. */
   turned?: boolean;
@@ -587,14 +583,13 @@ export interface LandingOptions {
  * read off the fall's shape at that depth (#261: the arc about the heel for a stick tip,
  * {@link arcShape}; #245's line in time for a point with no lever, {@link timeShape}). The
  * `path` carries the shape from the latest sample on down, past the depth the fit reaches
- * (a pad above the floor is still on the stroke's way), to one stroke amplitude below
- * `pathFloor` (the frame's bottom without one), or, once the stroke has `turned`, only
- * to where it stopped. The speed is the fall's mean
+ * (a pad above the floor is still on the stroke's way), to the frame's bottom, or, once
+ * the stroke has `turned`, only to where it stopped. The speed is the fall's mean
  * speed so far, departure to the latest sample, not a fitted derivative extrapolated to
  * the impact: that one is mostly landmark jitter. With a single falling sample, the last
  * sample and no speed.
  */
-export function landingAt(samples: readonly TrackSample[], t: number, eps: number, { floor = Infinity, pathFloor = NaN, turned = false, aspect = 1 }: LandingOptions = {}): Landing {
+export function landingAt(samples: readonly TrackSample[], t: number, eps: number, { floor = Infinity, turned = false, aspect = 1 }: LandingOptions = {}): Landing {
   const seg = fallingSegment(samples, t, eps);
   const last = seg[seg.length - 1] ?? samples[samples.length - 1];
   const at = Math.min(t, last.t + MAX_EXTRAPOLATION);
@@ -622,14 +617,11 @@ export function landingAt(samples: readonly TrackSample[], t: number, eps: numbe
   // The path runs past the fit's horizon: it is consulted only when the landing point is
   // on no pad, and then the pad is wherever the stroke's way meets one (a stroke from a
   // high pad to a low one commits against the high pad's floor, well short of the low
-  // pad). But not to the frame's bottom (#355): a stroke that turned ends where it
-  // stopped, and a falling one, once a floor is learned, one stroke amplitude (the larger
-  // of the fall so far and its start's height over the floor) below that floor, so a
-  // stroke stopped in the air above a pad does not play it.
-  const top = seg[0] ?? last;
-  let yTo = FRAME_BOTTOM;
-  if (turned) yTo = Math.max(last.y, y);
-  else if (Number.isFinite(pathFloor)) yTo = Math.min(FRAME_BOTTOM, Math.max(last.y, pathFloor + Math.max(last.y - top.y, pathFloor - top.y)));
+  // pad), so a falling stroke's runs to the frame's bottom. A stroke that turned ends
+  // where it stopped (#355): one stopped in the air above a pad does not play it. A
+  // predicted stroke cannot be told from one about to stop until it has (both are still
+  // falling near a floor learned on another pad); per-pad floors (#353) are its fix.
+  const yTo = turned ? Math.max(last.y, y) : FRAME_BOTTOM;
   return { x: xAt(y), y, speed, path: { yFrom: last.y, yTo, xAt } };
 }
 
@@ -972,7 +964,7 @@ export const airDrumNode = defineNode<Params>({
                 stick.committed = running ? { t: e.t, grid: nearestExpectedBeat(time!, e.t) } : null;
                 stick.handled = e.t;
                 if (carried(e.t, predictor.level())) continue;
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), pathFloor: predictor.level(), aspect }), e.strength);
+                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect }), e.strength);
                 if (s.silent) continue;
                 /** The INTENDED sounding time: the impact, pulled toward the grid. */
                 let intended = e.t;
