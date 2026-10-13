@@ -25,7 +25,8 @@
  *   categories (an expression is held constant inside a category, so what co-varies with
  *   distance there is the nuisance). The live face is moved back to the samples' mean distance,
  *   by the dial's strength (0 = off). A take that hardly moved toward or away from the camera
- *   teaches no slope, and the dial says so ({@link DistanceFit.learned}). See
+ *   teaches no slope, and the dial says so ({@link DistanceFit.learned}); a feature distance
+ *   explains poorly (r² under {@link LIVE_DEFAULTS.minR2}) keeps no slope. See
  *   `docs/research/face-categorizer-lighting-and-distance.md` for what was measured.
  *
  * Pure: no timers, no React. The test store polls a source and feeds {@link LiveReader.push}.
@@ -76,6 +77,10 @@ export const LIVE_DEFAULTS = {
   minDistanceSamples: 6,
   /** Pooled within-category spread of log scale (about 5 %) needed before a slope is learned. */
   minLogScaleSpread: 0.05,
+  /** A feature's slope is kept only when distance explains at least this share of its
+   *  within-category variance: measured, distance moves about a dozen features cleanly and the
+   *  rest weakly or not at all, and subtracting a weak fit only adds its error. */
+  minR2: 0.5,
   /** The readout's hysteresis: the tracker's defaults, but rejection SHOWS (the player is
    *  checking what reads as neutral, so holding the last category would hide it). */
   enterFrames: 3,
@@ -145,7 +150,8 @@ export interface DistanceFit {
   reference: number;
   /** Pooled within-category standard deviation of log proxy (how much the take moved). */
   spread: number;
-  /** Per feature: the change per unit of log proxy. */
+  /** Per feature: the change per unit of log proxy, for the features distance explains (r² at
+   *  least {@link LIVE_DEFAULTS.minR2}); the others are left alone. */
   slopes: Readonly<Record<string, number>>;
 }
 
@@ -165,6 +171,7 @@ export function fitDistance(categorizer: PersonalCategorizer, features: readonly
   let zSum = 0;
   let zN = 0;
   const sxy: Record<string, number> = {};
+  const syy: Record<string, number> = {};
   for (const cat of categorizer.categories) {
     const ms = cat.members.filter((i) => Number.isFinite(z(i)));
     if (ms.length < 2) continue;
@@ -176,7 +183,9 @@ export function fitDistance(categorizer: PersonalCategorizer, features: readonly
       n += 1;
       for (const f of features) {
         const x = samples[i].vector[f];
-        if (Number.isFinite(x) && Number.isFinite(fMean[f])) sxy[f] = (sxy[f] ?? 0) + dz * (x - fMean[f]);
+        if (!Number.isFinite(x) || !Number.isFinite(fMean[f])) continue;
+        sxy[f] = (sxy[f] ?? 0) + dz * (x - fMean[f]);
+        syy[f] = (syy[f] ?? 0) + (x - fMean[f]) ** 2;
       }
     }
   }
@@ -190,7 +199,11 @@ export function fitDistance(categorizer: PersonalCategorizer, features: readonly
   const reference = zN > 0 ? zSum / zN : 0;
   if (n < LIVE_DEFAULTS.minDistanceSamples || spread < LIVE_DEFAULTS.minLogScaleSpread) return { proxy, learned: false, reference, spread, slopes: {} };
   const slopes: Record<string, number> = {};
-  for (const f of features) slopes[f] = (sxy[f] ?? 0) / sxx;
+  for (const f of features) {
+    const xy = sxy[f] ?? 0;
+    const yy = syy[f] ?? 0;
+    if (yy > 0 && (xy * xy) / (sxx * yy) >= LIVE_DEFAULTS.minR2) slopes[f] = xy / sxx;
+  }
   return { proxy, learned: true, reference, spread, slopes };
 }
 

@@ -25,7 +25,7 @@ import { mergeSession } from '@thoremin/sdk/enroll/from_model';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { carveView, carverFor, savedView, withTypedName, type CarveView, type TypedName } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
-import { clampTuning, DEFAULT_TUNING, type Tuning } from '../lib/live';
+import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, type Tuning } from '../lib/live';
 import { createFaceTake, type FaceTake } from '../lib/take';
 import type { Carver } from '@thoremin/sdk/enroll/carve';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
@@ -116,6 +116,9 @@ export interface FaceSessionState {
   remove(id: string): Promise<void>;
   /** Back to the list, dropping the take (and stopping a recording). */
   reset(): void;
+  /** End a recording without keeping it: a merge take returns to the categorizer it was adding
+   *  to (its unsaved changes kept); any other take is dropped, as `reset`. */
+  cancelRecording(): void;
   /** Set the open categorizer's live tuning (kept with it on Save). */
   setTuning(tuning: Partial<Tuning>): void;
   /** "This face is `id`": add a live face to a category of the open categorizer. */
@@ -152,7 +155,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let carvers: Partial<Record<CategorizerMode, Carver>> = {};
   let openRecord: FaceModelRecord | null = null;
   /** The categorizer a recording is being merged into, and what to restore if it is empty. */
-  let mergeBase: { seed: MergeSeed; working: PersonalCategorizer; record: FaceModelRecord | null; openId: string | null; name: string; tuning: Tuning } | null = null;
+  let mergeBase: { seed: MergeSeed; working: PersonalCategorizer; record: FaceModelRecord | null; openId: string | null; name: string; tuning: Tuning; dirty: boolean } | null = null;
+  /** A `samples` merge's base stills, copied on Save from the base's take id into the merge's own
+   *  (never filed under the base's id: another record may share it, with other faces at the new
+   *  indices). */
+  let copyBase: { from: string; count: number } | null = null;
   /** Which of the take's points a sample index's still comes from (null: not from this take).
    *  The identity for a carve; offset past the base's samples for a merge. */
   let pointOf: (index: number) => number | null = (i) => i;
@@ -306,7 +313,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         video = startVideoTake(source.video(), deps.now);
         const t0 = deps.now();
         take.start(t0);
-        set({ phase: 'rest', points: 0, elapsed: 0, hasVideo: video !== null, notice: null, view: null, thumbs: {}, openId: null, name: '', merging: merge?.seed ?? null });
+        set({ phase: 'rest', points: 0, elapsed: 0, hasVideo: video !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
         let lastShown = -1;
         timer = setInterval(() => {
           if (!take || !source) return;
@@ -349,18 +356,25 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, merging: null, hasVideo: merge.record?.model.takeId != null };
           if (!built) {
             pointOf = () => null;
-            showWorking(merge.working, { ...restore, dirty: get().dirty, notice: 'No face was held long enough to add. Nothing was merged.' });
+            showWorking(merge.working, { ...restore, dirty: merge.dirty, notice: 'No face was held long enough to add. Nothing was merged.' });
             return;
           }
           const fresh = myTake.session().points().map((p) => ({ ...p, vector: faceOnly(p.vector) }));
-          const result = mergeSession(merge.working, fresh, { seed: merge.seed });
+          // New faces are sorted with the FLOORED radius the readout uses (a file's tiny stored
+          // radius would set every new face aside); not with the dial's scale, which stays a live
+          // setting rather than being written into the samples' radius.
+          const base = merge.working.mode === 'reject' ? { ...merge.working, rejectRadius: flooredRejectRadius(merge.working) } : merge.working;
+          const result = mergeSession(base, fresh, { seed: merge.seed });
           const offset = result.categorizer.samples.length - fresh.length;
           pointOf = (i) => (i >= offset ? i - offset : null);
-          // The base's stills stay where they are unless the base's samples were replaced by
-          // its centroids (seed `centroids`): then only the new take's stills show anything.
-          const keepsBase = merge.seed === 'samples' && merge.record?.model.takeId;
-          stillsTakeId = keepsBase ? merge.record!.model.takeId : blob ? takeId : null;
-          if (!keepsBase) openRecord = merge.record ? { ...merge.record, model: { ...merge.record.model, takeId: null } } : null;
+          // The base's stills still show (from its take id) unless its samples were replaced by
+          // its centroids (seed `centroids`). On Save they are copied under this take's id with
+          // the new ones, so the record never shares a take id whose indices mean other faces.
+          const baseTake = merge.seed === 'samples' ? (merge.record?.model.takeId ?? null) : null;
+          copyBase = baseTake ? { from: baseTake, count: offset } : null;
+          stillsTakeId = blob || baseTake ? takeId : null;
+          if (!baseTake) openRecord = merge.record ? { ...merge.record, model: { ...merge.record.model, takeId: null } } : null;
+          const keepsBase = baseTake !== null;
           const joined = result.assigned.filter((a) => a >= 0).length;
           const untouched = result.untouched.map((id) => result.categorizer.categories.find((c) => c.id === id)?.label || id);
           showWorking(result.categorizer, {
@@ -448,6 +462,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           let categorizer: PersonalCategorizer;
           let tid: string | null;
           const working = get().working;
+          const tuningAtStart = get().tuning;
           if (phase === 'saved' && working) {
             categorizer = { ...working, name: trimmed };
             tid = stillsTakeId ?? openRecord?.model.takeId ?? null;
@@ -459,6 +474,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // The shown stills of the take in hand (a carve's, or a merged take's), grabbed in full
           // first (a Save right after a re-cut must not file a categorizer whose pictures were
           // still being taken), then filed under the take.
+          if (copyBase && tid && copyBase.from !== tid) {
+            const { from, count } = copyBase;
+            for (let i = 0; i < count; i++) {
+              const b = await deps.thumbs.get(thumbKey(from, i)).catch(() => null);
+              if (b) await deps.thumbs.put(thumbKey(tid, i), b).catch(() => undefined);
+            }
+            if (gen !== generation) return false;
+          }
           if (blob && tid) {
             await grabThumbs(shownIndices(view));
             if (gen !== generation) return false;
@@ -475,8 +498,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           const replaced = before.get(record.id);
           if (replaced && replaced !== tid) await dropStillsIfOrphaned(replaced);
           if (gen === generation) {
-            set({ notice: `Saved "${record.name}".`, name: record.name, dirty: false, ...(phase === 'saved' ? { openId: record.id, working: record.model.categorizer } : {}) });
-            if (phase === 'saved') openRecord = record;
+            // An edit made while the save was in flight (a correction, a tuning, a re-cut) is kept,
+            // and still unsaved: what was saved is the state when Save was pressed.
+            const changed = get().view !== view || get().tuning !== tuningAtStart;
+            set({ notice: `Saved "${record.name}".${changed ? ' Changes made since are not saved yet.' : ''}`, name: record.name, dirty: changed, ...(phase === 'saved' ? { openId: record.id, working: changed && get().working ? { ...get().working!, name: record.name } : record.model.categorizer } : {}) });
+            if (phase === 'saved') {
+              openRecord = record;
+              copyBase = null;
+              stillsTakeId = record.model.takeId;
+            }
           }
           await get().refreshSaved();
           return true;
@@ -523,6 +553,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         carvers = {};
         openRecord = null;
         mergeBase = null;
+        copyBase = null;
         pointOf = (i) => i;
         stillsTakeId = null;
         typed = [];
@@ -531,6 +562,26 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         grabs = Promise.resolve();
         dropUrls();
         set({ phase: 'idle', view: null, thumbs: {}, points: 0, elapsed: 0, hasVideo: false, openId: null, k: 0, notice: null, working: null, tuning: DEFAULT_TUNING, dirty: false, merging: null });
+      },
+
+      cancelRecording() {
+        const merge = mergeBase;
+        if (!isRecording(get().phase) || !merge) {
+          if (isRecording(get().phase)) get().reset();
+          return;
+        }
+        // A merge take abandoned: back to the categorizer it was adding to, unsaved work and all.
+        get().reset();
+        openRecord = merge.record;
+        pointOf = () => null;
+        showWorking(merge.working, {
+          openId: merge.openId,
+          name: merge.name,
+          tuning: merge.tuning,
+          dirty: merge.dirty,
+          hasVideo: merge.record?.model.takeId != null,
+          notice: 'The take was stopped before it finished. Nothing was merged.',
+        });
       },
 
       setTuning(tuning) {
@@ -556,7 +607,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       startMerge(seed) {
         const { phase, working, openId, name, tuning } = get();
         if (phase !== 'saved' || !working) return;
-        mergeBase = { seed, working, record: openRecord, openId, name, tuning };
+        mergeBase = { seed, working, record: openRecord, openId, name, tuning, dirty: get().dirty };
         get().start();
       },
 
@@ -564,6 +615,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const r = importCategorizer(text);
         if (!r.ok) {
           set({ notice: `Could not import: ${r.error}.` });
+          return false;
+        }
+        const modality = r.categorizer.modality;
+        if ((modality && modality !== 'face') || !r.categorizer.features.some((f) => f.startsWith('face.'))) {
+          set({ notice: `Could not import: this is a ${modality ?? 'non-face'} categorizer, not a face one.` });
           return false;
         }
         get().reset();

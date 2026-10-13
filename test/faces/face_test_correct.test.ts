@@ -217,3 +217,90 @@ describe('merging a new take (model from a model)', () => {
     expect(s().notice).toMatch(/Nothing was merged/);
   });
 });
+
+describe('the adversarial review (#330 P3)', () => {
+  it('a correction made while Save is in flight is kept, and still unsaved', async () => {
+    const { s } = await savedAndOpen('reject');
+    const [a, b] = s().working!.categories;
+    const j = b.members[0];
+    const saving = s().save('Mine');
+    expect(s().move(j, a.id)).toBe(true);
+    expect(await saving).toBe(true);
+    expect(categoryOf(s().working!, j)).toBe(a.id);
+    expect(s().dirty).toBe(true);
+    expect(s().notice).toMatch(/not saved yet/);
+  });
+
+  it('an empty merge take returns to the categorizer with its unsaved changes still marked', async () => {
+    const { s } = await savedAndOpen('reject');
+    s().rename(s().working!.categories[0].id, 'zzz');
+    expect(s().dirty).toBe(true);
+    s().startMerge('samples');
+    expect(s().name).toBe('Mine'); // the recording banner names what is being added to
+    await run(300);
+    await s().stop();
+    expect(s().working!.categories[0].label).toBe('zzz');
+    expect(s().dirty).toBe(true);
+  });
+
+  it('abandoning a merge take (closing the tool) keeps the categorizer and its unsaved changes', async () => {
+    const { s } = await savedAndOpen('reject');
+    s().rename(s().working!.categories[0].id, 'zzz');
+    s().startMerge('samples');
+    await run(1000);
+    s().cancelRecording();
+    expect(s().phase).toBe('saved');
+    expect(s().working!.categories[0].label).toBe('zzz');
+    expect(s().dirty).toBe(true);
+    expect(claims.at(-1)).toBe('session:false');
+  });
+
+  it('a merge sorts new faces with the floored radius, not a file\'s tiny one', async () => {
+    const { s } = await savedAndOpen('reject');
+    const file = JSON.parse(s().exportFile()!.text);
+    s().reset();
+    expect(s().importFile(JSON.stringify({ ...file, rejectRadius: 1e-3 }))).toBe(true);
+    s().startMerge('samples');
+    await run(TAKE_MS);
+    await s().stop();
+    expect(s().notice).toMatch(/^Merged/);
+    const joined = Number(/Merged: (\d+) of/.exec(s().notice!)![1]);
+    expect(joined).toBeGreaterThan(0);
+  });
+
+  it('refuses a categorizer of another modality', async () => {
+    const { s } = await savedAndOpen('reject');
+    const file = JSON.parse(s().exportFile()!.text);
+    expect(s().importFile(JSON.stringify({ ...file, modality: 'hands' }))).toBe(false);
+    expect(s().notice).toMatch(/hands categorizer/);
+  });
+
+  it('a samples merge files its stills under its own take id, the base stills copied there', async () => {
+    const thumbs = memoryThumbStore();
+    const saved = models();
+    const store = createFaceSessionStore(sessionDeps({ thumbs, models: saved }));
+    const s = () => store.getState();
+    s().start();
+    await run(TAKE_MS);
+    await s().stop();
+    expect(await s().save('Mine')).toBe(true);
+    // Two records sharing one take's stills (a "save as" copy), the base take's still at 0.
+    const mine = (await saved.load(s().saved[0].id))!;
+    await saved.save('Mine', { ...mine.model, takeId: 'take-base' });
+    await saved.save('Copy', { ...mine.model, takeId: 'take-base' });
+    await thumbs.put('take-base:0', new Blob(['base 0']));
+    await s().refreshSaved();
+    await s().open(s().saved.find((m) => m.name === 'Mine')!.id);
+    s().startMerge('samples');
+    await run(TAKE_MS);
+    await s().stop();
+    expect(await s().save('Mine')).toBe(true);
+    const after = (await saved.load(s().openId!))!;
+    expect(after.model.takeId).not.toBe('take-base');
+    expect(await thumbs.get(`${after.model.takeId}:0`)).not.toBeNull();
+    // The copy still shows its own stills: nothing was filed under, or dropped from, its take.
+    expect(await thumbs.get('take-base:0')).not.toBeNull();
+    const n = mine.model.categorizer.samples.length;
+    expect(await thumbs.get(`take-base:${n}`)).toBeNull();
+  });
+});

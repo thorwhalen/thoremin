@@ -281,8 +281,8 @@ export function FaceSessionView({ store, test }: { store: StoreApi<FaceSessionSt
     void store.getState().refreshSaved();
     // Closing the tool stops a recording: nothing keeps sampling with no panel to say so.
     return () => {
-      const { phase, reset } = store.getState();
-      if (isRecording(phase)) reset();
+      const { phase, cancelRecording } = store.getState();
+      if (isRecording(phase)) cancelRecording();
     };
   }, [store]);
 

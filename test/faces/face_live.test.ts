@@ -134,7 +134,8 @@ describe('the distance residual', () => {
     expect(fit.proxy).toBe('face.head.scale');
     expect(fit.learned).toBe(true);
     expect(fit.slopes['face.f']).toBeCloseTo(2, 1);
-    expect(Math.abs(fit.slopes['face.g'])).toBeLessThan(0.2);
+    // Distance explains nothing of g (noise only): no slope, it is left alone.
+    expect(fit.slopes['face.g']).toBeUndefined();
     // Category a, leaning in: scale x1.5 moves f by 2 * ln 1.5 = 0.81, nearer b than a.
     const leaning: FeatureVector = { 'face.f': 0 + 2 * Math.log(1.5), 'face.g': 0.5, 'face.head.scale': 0.2 * 1.5 };
     const off = liveModel(c);
