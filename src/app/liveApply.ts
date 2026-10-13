@@ -32,7 +32,10 @@ const LOAD_FAILURE_TOAST_MS = 6000;
  * undo and on reload. The PR that adds the writer wires `ctx.explicit` here.
  */
 export function liveBranchIds(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): string[] {
-  return branchIdsFor(controls, { demanded, featureLab: controls.featureLab });
+  // The spread gives the store's interface the index signature `DerivationSettings` declares
+  // for extension dial slices (an interface has none implicitly); a shallow copy of one
+  // object per store change.
+  return branchIdsFor({ ...controls }, { demanded, featureLab: controls.featureLab });
 }
 
 /** The live branch set as a key, for "did it change since the build?". */
