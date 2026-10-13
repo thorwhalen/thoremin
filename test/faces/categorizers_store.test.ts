@@ -26,6 +26,8 @@ import {
 import { createFaceModelStore } from '@thoremin/ext-faces/app/models';
 import { browserPlayDeps } from '@thoremin/ext-faces/app/categorizerPlay';
 import { categorizerPlay } from '@thoremin/ext-faces/lib/play';
+import { liveModel } from '@thoremin/ext-faces/lib/live';
+import { BoundCategoriesSchema } from '@thoremin/sdk/enroll/bind';
 
 const demo = (): PersonalCategorizer => {
   const r = importCategorizer(readFileSync(join(process.cwd(), 'public/categorizers/demo-smile.json'), 'utf8'));
@@ -102,5 +104,38 @@ describe('the one categorizer collection', () => {
     await createCategorizerStore(handModality).save('Fist', { categorizer: c });
     expect(await browserPlayDeps().load('hand:fist')).toBeNull();
     expect((await createFaceModelStore().list()).map((x) => x.id)).toEqual(['my-smile']);
+  });
+
+  it('copies once however many views ask at the same time (review finding 1)', async () => {
+    const c = demo();
+    const legacy = localStorageCollectionProvider<CategorizerRecord>(LEGACY_FACE_STORAGE_KEY);
+    await legacy.create({ id: 'my-smile', name: 'My smile', createdAt: 1, model: { categorizer: { ...c, modality: undefined } } } as CategorizerRecord);
+    await legacy.create({ id: 'other', name: 'Other', createdAt: 2, model: { categorizer: { ...c, modality: undefined } } } as CategorizerRecord);
+    // The tool, the editor section and the instrument's resolver, all on a cold start.
+    await Promise.all([createFaceModelStore().list(), browserPlayDeps().load('my-smile'), createCategorizerStore(handModality).list(), createFaceModelStore().load('other')]);
+    const ids = (await localStorageCollectionProvider<CategorizerRecord>(CATEGORIZERS_STORAGE_KEY).getList({})).data.map((r) => r.id).sort();
+    expect(ids).toEqual(['my-smile', 'other']);
+    await createFaceModelStore().remove('my-smile');
+    expect((await createFaceModelStore().list()).map((x) => x.id)).toEqual(['other']);
+  });
+
+  it('lists a record that no longer validates in its own view, so it can be deleted', async () => {
+    const provider = memory();
+    await provider.create({ id: 'broken', name: 'Broken', createdAt: 3, model: { categorizer: { nope: 1 } } } as unknown as CategorizerRecord);
+    const faces = createCategorizerStore(faceModality, { provider });
+    expect((await faces.list()).map((x) => x.id)).toEqual(['broken']);
+    expect(await faces.load('broken')).toBeNull();
+    expect(await createCategorizerStore(handModality, { provider }).list()).toEqual([]);
+    await faces.remove('broken');
+    expect(await faces.list()).toEqual([]);
+  });
+
+  it('a bound set keeps the per-category sizes of the live model (review finding 2)', () => {
+    const c = demo();
+    const id = c.categories[0].id;
+    const { model } = liveModel(c, { sizes: { [id]: { scale: 1.6, label: c.categories[0].label } } });
+    expect(model.categories[0].scale).toBe(1.6);
+    const bound = BoundCategoriesSchema.parse({ model, bindings: {}, read: { modality: 'hand' } });
+    expect(bound.model.categories[0].scale).toBe(1.6);
   });
 });

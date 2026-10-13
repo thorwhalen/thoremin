@@ -276,13 +276,15 @@ export interface FaceSessionState {
    *  unsaved edits on it while it is open. Null (and a notice) if it cannot be read. */
   exportSaved(id: string): Promise<{ name: string; text: string } | null>;
   /** Hand the SAVED categorizer `id` to the host's category bindings (#385 E8: a command per
-   *  category): its live model (the saved tuning's sizes and reject radius), read through this
+   *  category): its live model (the saved tuning's per-category sizes and reject radius; not the
+   *  sensitivity, which tunes the live vector, #453), read through this
    *  modality with its hand. Returns whether it was bound. */
   bindSaved(id: string, binder: CategoryBinder): Promise<boolean>;
 }
 
 export const FACE_SESSION_DEFAULTS = {
-  /** The name a fresh carve is exported under when it has none yet. */
+  /** The name a fresh face carve is exported under when it has none yet (another modality's:
+   *  "My <many>"). */
   exportName: 'My faces',
   pollMs: 33,
   exemplars: 4,
@@ -666,7 +668,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     /** Refused when the edit would make more categories than an instrument has chords for. */
     const roomFor = (working: PersonalCategorizer): SortResult | null =>
       working.categories.length >= FACE_SESSION_DEFAULTS.maxCategories
-        ? { ok: false, error: `${FACE_SESSION_DEFAULTS.maxCategories} categories is the most (one per chord an instrument has); merge two first` }
+        ? { ok: false, error: `${FACE_SESSION_DEFAULTS.maxCategories} categories is the most (one per chord slot an instrument has); merge two first` }
         : null;
 
     /** Carve the fresh take `base` (`carveTake`: the rest cloud in Neutral) and show it. */
@@ -847,7 +849,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // A merge needs no carve of its own, so one hold (a single burst: "Record more frown")
           // is enough; a fresh take needs two to carve.
           if (!built && myTake.pointCount() === 0) {
-            set({ notice: 'No face was held long enough to add. Nothing was merged.' });
+            set({ notice: `No ${modality.words.one} was held long enough to add. Nothing was merged.` });
             return;
           }
           const added = takeSamples(myTake, takeId!);
@@ -880,10 +882,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // One undoable edit: undo returns to the categorizer before the merge.
           commit(labelled.categorizer, {
             notice:
-              (labelled.error ? `The named faces were sorted like the others (${labelled.error}). ` : '') +
-              `Merged: ${joined} of ${added.length} new faces joined a category` +
+              (labelled.error ? `The named ${modality.words.many} were sorted like the others (${labelled.error}). ` : '') +
+              `Merged: ${joined} of ${added.length} new ${modality.words.many} joined a category` +
               (added.length > joined ? ` (${added.length - joined} read as none of these)` : '') +
-              (untouched.length > 0 ? `; no new face for ${untouched.map((l) => `"${l}"`).join(', ')}` : '') +
+              (untouched.length > 0 ? `; no new ${modality.words.one} for ${untouched.map((l) => `"${l}"`).join(', ')}` : '') +
               '. Save to keep it.',
           });
           return;
@@ -1203,7 +1205,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const { phase, working } = get();
         const given = asked?.trim() || get().name.trim();
         if ((phase !== 'saved' && phase !== 'carved') || !working) return null;
-        const name = given || working.name || FACE_SESSION_DEFAULTS.exportName;
+        const name = given || working.name || (modality.id === 'face' ? FACE_SESSION_DEFAULTS.exportName : `My ${modality.words.many}`);
         return { name, text: exportCategorizer({ ...working, name }) };
       },
 

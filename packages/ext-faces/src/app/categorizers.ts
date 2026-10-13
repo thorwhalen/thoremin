@@ -16,8 +16,11 @@
  * This is the EXPAND step (design D.4): the first time a view is used on a device, every record of
  * the old face collection (`thoremin.faceCategorizers`) is copied into this one, migrated as a
  * saved record always is, and a flag says it was done, so a categorizer the player deletes later
- * is not copied back. The old key is left as it was (a build from before reads it, and a rollback
- * loses nothing); the contract step (#385 E10) removes it. Stills are filed by hold id in the
+ * is not copied back. The old key is left as it was (a build from before still reads it on a
+ * rollback, though what that build saves after the copy is not copied again: the flag is set); the
+ * contract step (#385 E10) removes it. The copy runs once per collection per page however many
+ * views ask at once (the tool, the editor section and the instrument's resolver all do on a cold
+ * start), and checks the target by id right before each write. Stills are filed by hold id in the
  * existing IndexedDB store, which every modality shares, so nothing about them moves.
  */
 import { slugId } from '@thoremin/sdk/util/ids';
@@ -81,19 +84,23 @@ export function localStorageFlag(key: string = CATEGORIZERS_MIGRATED_KEY): Migra
 export async function migrateLegacyFaces(target: DataProvider<CategorizerRecord>, legacy: DataProvider<CategorizerRecord>, flag: MigrationFlag): Promise<number> {
   if (flag.done()) return 0;
   let copied = 0;
-  const have = new Set((await target.getList({})).data.map((r) => r.id));
   for (const raw of (await legacy.getList({})).data) {
     const parsed = FaceModelRecordSchema.safeParse(raw);
-    if (!parsed.success || have.has(parsed.data.id)) continue;
+    if (!parsed.success) continue;
+    // Read the target again before every write: never two records under one id.
+    if ((await target.getList({})).data.some((r) => r.id === parsed.data.id)) continue;
     const rec = parsed.data;
     const categorizer = rec.model.categorizer.modality ? rec.model.categorizer : { ...rec.model.categorizer, modality: 'face' };
     await target.create({ ...rec, model: { ...rec.model, categorizer } });
-    have.add(rec.id);
     copied++;
   }
   flag.mark();
   return copied;
 }
+
+/** The copy under way, per collection (its storage key, or an injected provider): shared by every
+ *  view of it that asks while it runs. */
+const copies = new Map<unknown, Promise<unknown>>();
 
 export interface CategorizerStoreOptions {
   /** Where the one collection lives (localStorage under {@link CATEGORIZERS_STORAGE_KEY} by default). */
@@ -113,22 +120,45 @@ export function createCategorizerStore(modality: Pick<CarveModality, 'id' | 'wor
   const provider = options.provider ?? localStorageCollectionProvider<CategorizerRecord>(CATEGORIZERS_STORAGE_KEY);
   const legacy = options.legacy !== undefined ? options.legacy : defaulted ? localStorageCollectionProvider<CategorizerRecord>(LEGACY_FACE_STORAGE_KEY) : null;
   const flag = options.flag ?? localStorageFlag();
-  let migrated: Promise<unknown> | null = null;
-  const ready = (): Promise<unknown> => (migrated ??= legacy ? migrateLegacyFaces(provider, legacy, flag).catch((e: unknown) => console.warn('categorizers: the face categorizers were not copied:', e)) : Promise.resolve());
-  const mine = (r: CategorizerRecord): boolean => recordModality(r) === modality.id;
-  /** This view's records that validate (a record of another shape is skipped, never thrown). */
+  const copyKey: unknown = defaulted ? CATEGORIZERS_STORAGE_KEY : provider;
+  const ready = (): Promise<unknown> => {
+    if (!legacy) return Promise.resolve();
+    let copy = copies.get(copyKey);
+    if (!copy) {
+      // Shared while it runs; once settled, the flag says whether it is done.
+      copy = migrateLegacyFaces(provider, legacy, flag)
+        .catch((e: unknown) => console.warn('categorizers: the face categorizers were not copied:', e))
+        .finally(() => copies.delete(copyKey));
+      copies.set(copyKey, copy);
+    }
+    return copy;
+  };
+  /** Whether a stored record is this view's, read from its raw shape (so a record that no longer
+   *  validates is still found by the view it belongs to: listed, and deletable). */
+  const mine = (raw: unknown): boolean => {
+    const m = (raw as { model?: { categorizer?: { modality?: unknown } } } | null)?.model?.categorizer?.modality;
+    return (typeof m === 'string' ? m : 'face') === modality.id;
+  };
+  /** This view's records that validate. */
   const all = async (): Promise<CategorizerRecord[]> => {
     await ready();
     const out: CategorizerRecord[] = [];
     for (const raw of (await provider.getList({})).data) {
+      if (!mine(raw)) continue;
       const parsed = FaceModelRecordSchema.safeParse(raw);
-      if (parsed.success && mine(parsed.data)) out.push(parsed.data);
+      if (parsed.success) out.push(parsed.data);
     }
     return out;
   };
   return {
+    /** This view's records, newest first: a record that no longer validates is listed too (it
+     *  cannot be opened, but it can be deleted), as the named collection always listed them. */
     async list(): Promise<NamedSummary[]> {
-      return (await all()).map(({ id, name, createdAt }) => ({ id, name, createdAt })).sort((a, b) => b.createdAt - a.createdAt);
+      await ready();
+      return (await provider.getList({})).data
+        .filter((r) => mine(r) && typeof r.id === 'string')
+        .map(({ id, name, createdAt }) => ({ id, name: typeof name === 'string' ? name : id, createdAt: typeof createdAt === 'number' ? createdAt : 0 }))
+        .sort((a, b) => b.createdAt - a.createdAt);
     },
     async save(name, payload, now) {
       await ready();
@@ -143,8 +173,7 @@ export function createCategorizerStore(modality: Pick<CarveModality, 'id' | 'wor
     },
     async remove(id) {
       await ready();
-      const found = (await all()).some((r) => r.id === id);
-      if (found) await provider.delete(id);
+      if ((await provider.getList({})).data.some((r) => r.id === id && mine(r))) await provider.delete(id);
     },
   };
 }

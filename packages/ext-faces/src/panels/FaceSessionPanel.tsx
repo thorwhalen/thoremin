@@ -462,7 +462,7 @@ function Intro({ s }: { s: FaceSessionState }) {
 }
 
 const HAND_CHOICE_TEXT: Record<HandChoice, string> = {
-  either: 'Either hand (the same shape with whichever is in view)',
+  either: 'Either hand (whichever is in view; the right one when both are)',
   left: 'My left hand only',
   right: 'My right hand only',
 };

@@ -65,6 +65,9 @@ const CategorySchema = z.object({
   radius: z.number(),
   members: z.array(z.number()),
   cues: z.record(z.string(), z.number()).optional(),
+  /** A per-category size (#385 E7: every distance to it multiplied before any comparison), kept
+   *  so a carved categorizer bound to commands reads as its live test does (#385 E8). */
+  scale: z.number().positive().optional(),
 });
 
 /** A {@link TrainedModel} as persisted data (it is plain numbers by construction). */
