@@ -4,16 +4,23 @@
  * npm), the stretcher the conducting research map chose (§6.6, §6.7, D7).
  *
  * Why it, over the media element it falls back to: it plays from the instrument's own
- * `AudioContext`, so a rate is committed on the AUDIO clock and the position it reports
- * is the audio leaving the node now (it compensates its own latency), which is what lets
- * the conductor's beat servo close a tight loop; `HTMLMediaElement.playbackRate` changes
- * the rate at an unobservable moment. It also needs no autoplay unlock (the context is
- * already running), and its time-stretch is better than the browsers' own.
+ * `AudioContext`, so a rate is committed on the AUDIO clock at a known moment, which is
+ * what lets the conductor's beat servo close a tight loop; `HTMLMediaElement.playbackRate`
+ * changes the rate at an unobservable moment. It also needs no autoplay unlock (the
+ * context is already running), and its time-stretch is better than the browsers' own.
+ *
+ * Where the song is comes from the adapter's OWN time map, not from the worklet's reports:
+ * every change is scheduled at `output = currentTime` (the node compensates its own latency
+ * so that the input it names is the audio leaving it then), and between changes the
+ * position is `input + (now - output) * rate`. The worklet's periodic `inputTime` reports
+ * run its internal latency ahead (about 120 ms at rate 1, measured by the adversarial
+ * review); reading them made the servo hold the song 120 to 130 ms late whenever the
+ * engine ticked slower than the report interval.
  *
  * What it costs: about 115 kB of script, loaded the first time a song loads (never in the
  * entry chunk: `vite.lazy-guard.ts` names the package), and the song DECODED in memory at
- * the context's rate (about 90 MB for a four-minute stereo song at 48 kHz), where the
- * media element streams the file.
+ * the context's rate (about 90 MB for a four-minute stereo song at 48 kHz, held twice
+ * while it is handed to the worklet), where the media element streams the file.
  *
  * The package is loaded VERBATIM: its file is emitted as an asset (`?url`) and imported
  * from there, never bundled. It builds its AudioWorklet by stringifying its own processor
@@ -46,12 +53,12 @@ interface StretchNode extends AudioNode {
   schedule(change: { active?: boolean; input?: number; output?: number; rate?: number }): unknown;
   addBuffers(channels: Float32Array[]): Promise<number>;
   dropBuffers(): Promise<unknown>;
-  setUpdateInterval(seconds: number, callback?: (inputTime: number) => void): Promise<unknown>;
 }
 
-/** How often the worklet reports its position, seconds. Between reports it is
- *  extrapolated at the rate. */
-const UPDATE_S = 0.02;
+/** Seconds the worklet gets to say it is ready. Where WebAssembly is refused inside the
+ *  worklet (iOS Lockdown Mode, a policy) its processor dies without a word and the node's
+ *  promise never settles: past this, the media element plays the song instead. */
+const START_TIMEOUT_S = 8;
 /** A position this close to the end is the end. */
 const END_EPS_S = 0.005;
 
@@ -69,37 +76,65 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
   let rate = 1;
   let volume = 1;
   let wanted = false;
-  /** The last reported input time, and the context time it was received at. */
+  let disposed = false;
+  /** The adapter's time map: the input at context time `posAt`, advancing at `rate` while
+   *  wanted (see the header). */
   let pos = 0;
   let posAt = 0;
 
   const now = () => audioContext.currentTime;
-  const position = (): number => {
-    const p = wanted ? pos + (now() - posAt) * rate : pos;
-    return Math.max(0, Math.min(duration, p));
-  };
-  const ended = () => duration > 0 && position() >= duration - END_EPS_S;
-  const report = (p: number) => {
+  const raw = (): number => (wanted ? pos + (now() - posAt) * rate : pos);
+  const anchor = (p: number) => {
     pos = p;
     posAt = now();
   };
-
-  /** The worklet, once; null (and the fallback made) when it cannot start. */
-  const start = async (): Promise<StretchNode | null> => {
-    if (node || fallback) return node;
-    try {
-      const SignalsmithStretch = await load();
-      const n = (await SignalsmithStretch(audioContext)) as unknown as StretchNode;
-      n.connect(gain);
-      await n.setUpdateInterval(UPDATE_S, report);
-      node = n;
-    } catch (e) {
-      console.warn(`[song-player] Signalsmith Stretch could not start, playing through the media element: ${String(e)}`);
-      fallback = createMediaElementStretcher(audio);
-      fallback.setVolume(volume);
-      fallback.setRate(rate);
+  /** A song played to its end stops the worklet (it would keep computing silence). */
+  const settle = (): void => {
+    if (wanted && duration > 0 && raw() >= duration - END_EPS_S) {
+      wanted = false;
+      anchor(duration);
+      node?.schedule({ active: false, output: now() });
     }
-    return node;
+  };
+  const position = (): number => {
+    settle();
+    return Math.max(0, Math.min(duration, raw()));
+  };
+  const ended = () => duration > 0 && position() >= duration - END_EPS_S;
+
+  /** The worklet, made once (concurrent loads share it); null, with the fallback made, when
+   *  it cannot start or does not say it is ready in time. */
+  let starting: Promise<StretchNode | null> | null = null;
+  const start = (): Promise<StretchNode | null> => {
+    starting ??= (async () => {
+      try {
+        const SignalsmithStretch = await load();
+        const made = SignalsmithStretch(audioContext);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`the worklet was not ready within ${START_TIMEOUT_S} s`)), START_TIMEOUT_S * 1000);
+        });
+        // A node that arrives after the timeout is closed, never left running.
+        void made.then((late) => {
+          if (late !== (node as unknown)) late.disconnect();
+        }, () => {});
+        const n = (await Promise.race([made, timeout]).finally(() => clearTimeout(timer))) as unknown as StretchNode;
+        if (disposed) {
+          n.disconnect();
+          return null;
+        }
+        n.connect(gain);
+        node = n;
+      } catch (e) {
+        if (disposed) return null;
+        console.warn(`[song-player] Signalsmith Stretch could not start, playing through the media element: ${String(e)}`);
+        fallback = createMediaElementStretcher(audio);
+        fallback.setVolume(volume);
+        fallback.setRate(rate);
+      }
+      return node;
+    })();
+    return starting;
   };
 
   return {
@@ -120,7 +155,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       await n.addBuffers(channels);
       duration = buffer.duration;
       n.schedule({ active: false, input: 0, output: now() });
-      report(0);
+      anchor(0);
     },
     play() {
       if (fallback) return fallback.play();
@@ -129,7 +164,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       const from = ended() ? 0 : position();
       wanted = true;
       node.schedule({ active: true, input: from, rate, output: now() });
-      report(from);
+      anchor(from);
     },
     pause() {
       if (fallback) return fallback.pause();
@@ -137,7 +172,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       const at = position();
       wanted = false;
       node.schedule({ active: false, output: now() });
-      report(at);
+      anchor(at);
     },
     setRate(r) {
       if (!(Number.isFinite(r) && r > 0) || r === rate) return;
@@ -146,7 +181,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
         return fallback.setRate(r);
       }
       // Re-anchor the extrapolation at the old rate before the new one applies.
-      if (wanted) report(position());
+      if (wanted) anchor(position());
       rate = r;
       if (node && wanted) node.schedule({ rate, output: now() });
     },
@@ -161,13 +196,14 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       if (fallback) return fallback.seek?.(p);
       if (!node || !Number.isFinite(p) || p < 0) return;
       node.schedule({ input: p, output: now() });
-      report(p);
+      anchor(p);
     },
     playing: () => (fallback ? fallback.playing() : wanted && !ended()),
     ended: () => (fallback ? fallback.ended() : ended()),
     blocked: () => fallback?.blocked?.() ?? false,
     unlock: () => fallback?.unlock?.(),
     dispose() {
+      disposed = true;
       loadId++;
       fallback?.dispose();
       if (node) {

@@ -24,7 +24,7 @@ import { Music2, X } from 'lucide-react';
 import { unlockSongPlayback } from '@/nodes/output/song_player';
 import { loadSongFile } from './song/host';
 import { useControls } from './store';
-import { dispatchDialSetIn } from './dispatchDial';
+import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
 import { ConductorControls } from './dials/panels/conductor';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
@@ -175,6 +175,9 @@ export default function ConductorPanel() {
             // Inside the click, before the tick that plays it: the media-element fallback's
             // autoplay policy (the Signalsmith worklet needs none).
             if (!enabled && recording) unlockSongPlayback();
+            // Stopping hands the song back to the Song tool, paused, not to whatever its
+            // transport said before the conductor took it.
+            if (enabled && recording) void dispatchCommand('song.pause', {});
             void dispatchDialSetIn('conductor.enabled', !enabled);
           }}
           className={`w-full rounded-lg px-3 py-2 text-sm font-semibold transition ${

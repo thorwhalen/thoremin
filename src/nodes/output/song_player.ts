@@ -170,8 +170,11 @@ export const songPlayerNode = defineNode<Params>({
     let applied = 1;
     let wasFollowed = false;
     let glide: { from: number; t0: number } | null = null;
-    /** The last cue acted on (by id). */
+    /** The last cue acted on (by id). Forgotten while no cue arrives, so a new leader's
+     *  ids (a fresh servo counts from 1 again) are never mistaken for an old one's. */
     let cuedId: number | null = null;
+    /** Whether a leader held the transport last tick. */
+    let wasLed = false;
 
     /** The stretcher, once there is one; starts the default loading on first need. */
     const stretcherFor = (ctx: NodeContext, audio: StretcherOptions, songId: string): Stretcher | null => {
@@ -241,7 +244,9 @@ export const songPlayerNode = defineNode<Params>({
           s.pause();
           loadedId = song.id;
           wasPlaying = false;
-          cuedId = null;
+          // A cue standing from the previous song is not a request about this one.
+          const standing = inputs.cue as { id?: unknown } | undefined;
+          cuedId = typeof standing?.id === 'number' ? standing.id : null;
           status = { phase: 'loading', message: `Loading ${song.name}...` };
           const id = song.id;
           s.load(song.url).then(
@@ -254,7 +259,15 @@ export const songPlayerNode = defineNode<Params>({
           );
         }
         // The conductor's transport replaces the player's while he leads (#187 PR 7).
-        const playing = typeof inputs.followPlaying === 'boolean' ? inputs.followPlaying : inputs.playing === true;
+        const led = typeof inputs.followPlaying === 'boolean';
+        // When the leader lets go, the song stops and waits for a fresh press of Play: the
+        // Song tool's transport may still read "playing" from before the leader took over.
+        if (wasLed && !led) {
+          s.pause();
+          wasPlaying = inputs.playing === true;
+        }
+        wasLed = led;
+        const playing = led ? (inputs.followPlaying as boolean) : inputs.playing === true;
         // While the song follows the dancer, the pace controller's rate replaces the
         // player's (which is then the controller's base, the centre of its clamp).
         const followed = typeof inputs.followRate === 'number' && Number.isFinite(inputs.followRate);
@@ -276,6 +289,7 @@ export const songPlayerNode = defineNode<Params>({
         // A cue moves the song to a beat; one that arrives while the song is still loading
         // is acted on once it is playable.
         const cue = inputs.cue as { id?: unknown; beat?: unknown } | undefined;
+        if (!cue) cuedId = null;
         if (playable && cue && typeof cue.id === 'number' && cue.id !== cuedId && typeof cue.beat === 'number' && s.seek) {
           const at = songTimeOfBeat(song.grid, cue.beat);
           if (Number.isFinite(at)) s.seek(Math.max(0, Math.min(song.durationS, at)));
@@ -286,7 +300,9 @@ export const songPlayerNode = defineNode<Params>({
           // `playing` after the end does not loop it.
           // A press made while the song was still loading is an edge here, once it is
           // ready (`wasPlaying` only moves while the song is playable).
-          if (playing && !wasPlaying) s.play();
+          // A leader cannot restart a song that has played to its end (a release cue past
+          // the end lands there): the song is over until the player presses Play.
+          if (playing && !wasPlaying && !(led && s.ended())) s.play();
           else if (!playing && s.playing()) s.pause();
           wasPlaying = playing;
           const sounding = s.playing();

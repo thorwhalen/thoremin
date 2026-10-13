@@ -156,3 +156,65 @@ describe('the loop through the real nodes', () => {
     expect(prev.rate as number).toBeCloseTo(102 / song.grid.bpm, 1);
   });
 });
+
+describe('the song player under a leader (the review\'s cases)', () => {
+  function seekingStretcher(durationS = 30) {
+    let pos = 0;
+    let playing = false;
+    const log: string[] = [];
+    const s: Stretcher & { log: string[] } = {
+      log,
+      load: async () => {},
+      play: () => {
+        log.push('play');
+        if (pos >= durationS) pos = 0;
+        playing = true;
+      },
+      pause: () => {
+        if (playing) log.push('pause');
+        playing = false;
+      },
+      setRate: () => {},
+      setVolume: () => {},
+      seek: (p) => {
+        log.push(`seek:${p.toFixed(2)}`);
+        pos = p;
+      },
+      position: () => pos,
+      playing: () => playing,
+      ended: () => pos >= durationS,
+      dispose: () => {},
+    };
+    return s;
+  }
+  const drive = async (frames: PortValues[], st: Stretcher) => {
+    const player = songPlayerNode.make(songPlayerNode.params.parse({}));
+    for (let i = 0; i < frames.length; i++) {
+      player.process(frames[i], { tick: i, time: i / 30, dt: i ? 1 / 30 : 0, resources: { audioContext: {}, masterGain: {}, createStretcher: () => st } });
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+  };
+
+  it('a new leader\'s cue ids, counting from 1 again, are never mistaken for the old one\'s', async () => {
+    const song = handle();
+    const st = seekingStretcher();
+    await drive([{ song }, { song, cue: { id: 1, beat: 2 } }, { song }, { song, cue: { id: 1, beat: 4 } }], st);
+    expect(st.log.filter((l) => l.startsWith('seek'))).toHaveLength(2);
+  });
+
+  it('a song cued past its end is not restarted from the top by the leader', async () => {
+    const song = { ...handle(), durationS: 30 };
+    const st = seekingStretcher(30);
+    await drive([{ song }, { song, followPlaying: false, cue: { id: 1, beat: 999 } }, { song, followPlaying: true, cue: { id: 1, beat: 999 } }], st);
+    expect(st.log).not.toContain('play');
+  });
+
+  it('when the leader lets go, the song pauses and waits for a fresh press of Play', async () => {
+    const song = handle();
+    const st = seekingStretcher();
+    await drive([{ song, playing: true }, { song, playing: true, followPlaying: true }, { song, playing: true }, { song, playing: true }], st);
+    expect(st.log.at(-1)).toBe('pause');
+    expect(st.playing()).toBe(false);
+  });
+});

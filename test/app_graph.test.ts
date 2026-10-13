@@ -259,7 +259,8 @@ describe('production app graph', () => {
     // The score reads ONE beat from ONE node, plus the dynamics and the enable gate.
     expect(has('conductor', 'beat', 'score', 'beat')).toBe(true);
     expect(has('conductor', 'velocityScale', 'score', 'velocityScale')).toBe(true);
-    expect(has('conductor', 'enabled', 'score', 'enabled')).toBe(true);
+    // The enable gate is `leadsScore` (#187 PR 7): silent while the conductor leads a recording.
+    expect(has('conductor', 'leadsScore', 'score', 'enabled')).toBe(true);
     expect(edges.filter((e) => e.to.node === 'score' && e.to.port === 'beat')).toHaveLength(1);
     // The conducted score joins the other producers at the merge (mute + taps cover it).
     expect(has('score', 'params', 'merge', 'score1')).toBe(true);
@@ -273,7 +274,7 @@ describe('production app graph', () => {
     // `config` left unconnected would make the orchestra impossible to switch on.
     expect(has('ui', 'conductor', 'orchestra', 'config')).toBe(true);
     expect(has('conductor', 'time', 'orchestra', 'time')).toBe(true);
-    expect(has('conductor', 'enabled', 'orchestra', 'conducting')).toBe(true);
+    expect(has('conductor', 'leadsScore', 'orchestra', 'conducting')).toBe(true);
     expect(has('conductor', 'velocityScale', 'orchestra', 'velocityScale')).toBe(true);
     expect(has('ui', 'scoreDoc', 'orchestra', 'doc')).toBe(true);
     expect(has('ui', 'claimed', 'orchestra', 'claimed')).toBe(true);

@@ -44,6 +44,7 @@ function fakes(durationS = 10) {
     setUpdateInterval: async (_s: number, cb: (t: number) => void) => {
       report = cb;
     },
+    port: { onmessage: null },
   };
   h.node = node;
   return { ctx, node, schedules, report: (t: number) => report?.(t) };
@@ -69,10 +70,32 @@ describe('the Signalsmith stretcher', () => {
     expect(s.playing()).toBe(true);
     f.ctx.currentTime = 2;
     expect(s.position()).toBeCloseTo(2.5, 9);
-    // A report from the worklet re-anchors the extrapolation.
-    f.report(2.4);
-    f.ctx.currentTime = 2.2;
-    expect(s.position()).toBeCloseTo(2.4 + 0.2 * 1.25, 9);
+    // The worklet's periodic reports run its own latency AHEAD of the audio leaving it:
+    // the position is the adapter's own time map and never reads them.
+    f.report(2.5 + 0.12);
+    expect(s.position()).toBeCloseTo(2.5, 9);
+  });
+
+  it('two loads at once share one worklet', async () => {
+    const f = fakes();
+    let made = 0;
+    const s = createSignalsmithStretcherWith({ audioContext: f.ctx as never, destination: {} as never }, async () => async () => {
+      made++;
+      return f.node as unknown as AudioNode;
+    });
+    await Promise.allSettled([s.load('blob:a'), s.load('blob:b')]);
+    expect(made).toBe(1);
+  });
+
+  it('a song played to its end stops the worklet', async () => {
+    const f = fakes(2);
+    const s = createSignalsmithStretcher({ audioContext: f.ctx as never, destination: {} as never });
+    await s.load('blob:x');
+    s.play();
+    f.ctx.currentTime = 3;
+    expect(s.playing()).toBe(false);
+    expect(f.schedules.at(-1)).toMatchObject({ active: false });
+    expect(s.position()).toBe(2);
   });
 
   it('a rate change re-anchors at the old rate, then schedules the new one', async () => {
@@ -104,6 +127,21 @@ describe('the Signalsmith stretcher', () => {
     expect(s.playing()).toBe(false);
     s.play();
     expect(f.schedules.at(-1)).toMatchObject({ active: true, input: 0 });
+  });
+
+  it('falls back to the media element when the worklet never says it is ready (WebAssembly refused inside it)', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fakes();
+      const s = createSignalsmithStretcherWith({ audioContext: f.ctx as never, destination: {} as never }, async () => () => new Promise<AudioNode>(() => {}));
+      const loading = s.load('blob:x');
+      await vi.advanceTimersByTimeAsync(9000);
+      await loading;
+      expect(h.element).toHaveBeenCalledTimes(1);
+      expect(s.position()).toBe(42);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('falls back to the media element where the worklet cannot start', async () => {
