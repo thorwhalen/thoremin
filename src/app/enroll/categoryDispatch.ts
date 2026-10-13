@@ -44,7 +44,7 @@ import { useControls } from '../store';
 import { useToasts } from '../toasts';
 import { readLiveVector } from './liveVector';
 import { useTools } from '../toolsStore';
-import { CATEGORY_PANEL_TOOL, useCategoryBinding, type SavedCategories } from './categoryBinding';
+import { CATEGORY_PANEL_TOOL, readFor, useCategoryBinding, type SavedCategories } from './categoryBinding';
 
 const FIRE_TOAST_MS = 2500;
 const ERROR_TOAST_MS = 5000;
@@ -106,6 +106,9 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
   const deps: CategoryDispatcherDeps = { ...defaultDeps(), ...overrides };
   let model: TrainedModel | null = null;
   let edge: CategoryEdge | null = null;
+  /** How the active set reads the live vector (#385 E8), kept per set. */
+  let readSet: SavedCategories | null = null;
+  let read: (v: FeatureVector) => FeatureVector = (v) => v;
 
   const fire = (set: SavedCategories, categoryId: string) => {
     // Own keys only: an id such as `constructor` reads as present on any `{}` (#338).
@@ -145,7 +148,12 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
         edge = createCategoryEdge(model);
       }
       edge.setHoldMs(deps.holdMs());
-      const step = edge.push(deps.readVector(), nowMs);
+      if (set !== readSet) {
+        readSet = set;
+        read = readFor(set.categories.read);
+      }
+      const raw = deps.readVector();
+      const step = edge.push(raw ? read(raw) : null, nowMs);
       live = { model, scores: toCategoryScores(model, step.reading), committed: edge.current() };
       // An entry that completes while binding is off (a preview) is spent, not deferred.
       if (step.entered && enabled) fire(set, step.entered);

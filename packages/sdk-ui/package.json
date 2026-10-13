@@ -8,6 +8,7 @@
     "./dials": "./src/dials.ts",
     "./enroll/FeatureBars": "./src/enroll/FeatureBars.tsx",
     "./enroll/HoldRing": "./src/enroll/HoldRing.tsx",
+    "./enroll/binder": "./src/enroll/binder.ts",
     "./enroll/capture": "./src/enroll/capture.ts",
     "./enroll/click": "./src/enroll/click.ts",
     "./enroll/guidance": "./src/enroll/guidance.ts",

@@ -20,23 +20,16 @@
  * shape on either hand. Pure and Node-safe.
  */
 import { buildHandCtx, HAND_SIDE_FEATURES, type FeatureVector } from '@thoremin/sdk/features/catalog';
+import { handShapeFeatureIds, type HandShapeSelection } from '@thoremin/sdk/features/modalities/hand';
 import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 
-const SHAPE_INVARIANCES = ['scale', 'position', 'yaw', 'pitch', 'roll'] as const;
-const ORIENTATION_GROUP = 'hand.palm.orientation';
+export type FeatureSelection = HandShapeSelection;
 
-export interface FeatureSelection {
-  /** Include the palm-orientation group (camera-locked, chirality-signed). Default false. */
-  withOrientation?: boolean;
-}
-
-/** The ordered feature ids a shape model uses, chosen by declared invariance. */
+/** The ordered feature ids a shape model uses, chosen by declared invariance. The selection is
+ *  the SDK's (`handShapeFeatureIds`), shared with the hand categorizer (#385 E8), so a carved
+ *  hand shape and an enrolled chord shape live in one feature space. */
 export function chordShapeFeatureIds(sel: FeatureSelection = {}): string[] {
-  return HAND_SIDE_FEATURES.filter((f) => {
-    const inv = f.invariantTo;
-    const shape = inv !== undefined && SHAPE_INVARIANCES.every((axis) => inv.includes(axis));
-    return shape || (sel.withOrientation === true && f.group === ORIENTATION_GROUP);
-  }).map((f) => f.id);
+  return handShapeFeatureIds(sel);
 }
 
 /**

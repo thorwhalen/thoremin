@@ -21,6 +21,12 @@ export interface PixelBox {
   h: number;
 }
 
+/** A point in video pixels. */
+export interface PixelPoint {
+  x: number;
+  y: number;
+}
+
 /** Where a saved categorizer of a modality can be played. */
 export interface CarveTarget {
   /** `dial`: an instrument dial chooses it (the face's `faceCategorizer`); `command`: a
@@ -38,11 +44,11 @@ export interface CarveModalityUi {
    *  with and the frame's size in video pixels; null for the whole frame (the part's position
    *  is not in the vector, as with a synthetic source). Unmirrored: the still is mirrored after. */
   region(live: { vector: FeatureVector; width: number; height: number }): PixelBox | null;
-  /** An overlay drawn on a still, or as the picture when there is none (a hand skeleton, a
-   *  stick figure), from the sidecar kept with the still. */
-  drawPreview?(ctx: CanvasRenderingContext2D, sidecar: unknown, box: { w: number; h: number }): void;
-  /** What to keep beside a still for {@link drawPreview} (normalised landmarks); never in the file. */
-  sidecar?(): unknown;
+  /** Lines drawn over a still as it is taken (#385 E8: a hand's skeleton), in video pixels, from
+   *  the same live vector as {@link region}: polylines, each a list of points. Burned into the
+   *  still, so a picture shows what the camera read as well as what it saw; nothing is kept
+   *  beside it. Null (or absent): the still alone. */
+  overlay?(live: { vector: FeatureVector; width: number; height: number }): readonly (readonly PixelPoint[])[] | null;
   /** Where a saved categorizer of this modality can be played. */
   readonly targets: readonly CarveTarget[];
   /** The status while the modality's source loads, when it has one to report. */

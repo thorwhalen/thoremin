@@ -43,7 +43,7 @@ import { samplingFor } from '@thoremin/sdk/enroll/cue';
 import { createStillPointSampler, type StillPointSampler } from '@thoremin/sdk/enroll/sampler';
 import { createSession, type Session } from '@thoremin/sdk/enroll/session';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import { keepOnly, type CarveModality } from '@thoremin/sdk/enroll/modality';
+import { keepOnly, sessionSpace, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 /** The rest: the baseline and the noise warm-up. */
@@ -52,7 +52,7 @@ export function restCue(modality: CarveModality): Cue {
   return CueSchema.parse({
     id: `${slug}-rest`,
     name: 'Rest',
-    instruction: `Look at the camera and relax your ${part}.`,
+    instruction: modality.words.rest ?? `Look at the camera and relax your ${part}.`,
     rationale: `Sets what "nothing" looks like, and how much your ${part} wanders when you are not asking for anything.`,
     collects: modality.collects(),
     produces: 'baseline',
@@ -114,7 +114,8 @@ export type HoldState = 'open' | 'settling' | 'taken' | 'latched';
 export interface FaceTakeOptions {
   restMs?: number;
   minRestFrames?: number;
-  /** The session to feed (a fresh `createSession()` by default; a test injects options). */
+  /** The session to feed (a fresh `createSession()` over the modality's space by default; a
+   *  test injects options). Vectors pushed are the modality's PROJECTED ones (`projectVector`). */
   session?: Session;
   /** What is carved (the face by default): its cues, and whether a frame shows it. */
   modality?: CarveModality;
@@ -172,8 +173,9 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   /** The burst under way: where it came from, its name, its frames (the modality in view). */
   let bursting: { label: string; t: number; frames: FeatureVector[] } | null = null;
   const labels = new Map<number, string>();
-  const session = options.session ?? createSession();
   const modality = options.modality ?? faceModality;
+  // A modality with its own keys (a side-relative hand) resolves its cues against its own space.
+  const session = options.session ?? createSession(sessionSpace(modality));
   const cues = { rest: restCue(modality), vocabulary: vocabularyCue(modality) };
   const supportFrames = Math.max(0, Math.floor(options.supportFrames ?? FACE_TAKE_DEFAULTS.supportFrames));
   /** Recent frames (while capturing), trimmed to the support window. */

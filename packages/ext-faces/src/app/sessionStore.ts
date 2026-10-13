@@ -76,7 +76,7 @@ import { carveTake, nameCarve, sortingView, type NameSources, type SortingView }
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '../lib/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
-import { foreignModality, keepOnly, type CarveModality } from '@thoremin/sdk/enroll/modality';
+import { foreignModality, keepOnly, projectVector, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
@@ -128,6 +128,8 @@ export interface FaceSessionDeps {
   frames: FrameOpener;
   /** The crop for a still (the modality's region; the whole frame by default). */
   region?: CarveModalityUi['region'];
+  /** Lines burned into a still as it is taken (the modality's overlay: a hand's skeleton). */
+  overlay?: CarveModalityUi['overlay'];
   models: NamedCollectionStore<FaceModelRecord, SavedFaceModel>;
   /** Engine-clock ms. */
   now: () => number;
@@ -150,10 +152,16 @@ export interface FaceSessionDeps {
 }
 
 export interface FaceSessionState {
+  /** What this store carves (constant): the panels read their words and the live test its
+   *  projection from it. */
+  readonly modality: CarveModality;
   phase: FacePhase;
   /** What a face nobody taught reads as (#385 E5): the working categorizer's, or the next take's
    *  before there is one. */
   strangers: CategorizerStrangers;
+  /** Which hand a hand categorizer reads (#385 E8): the working categorizer's, or the next
+   *  take's before there is one. `either` for every other modality (it reads no hand). */
+  hand: HandChoice;
   k: number;
   /** The sorting grid over {@link FaceSessionState.working} (#385 E4). */
   view: SortingView | null;
@@ -218,6 +226,9 @@ export interface FaceSessionState {
   /** The strangers switch: what a face nobody taught reads as, Neutral or the nearest face. An
    *  edit of the working categorizer (undoable); before a take, the next take's setting. */
   setStrangers(strangers: CategorizerStrangers): void;
+  /** Which hand: an edit of the working categorizer (undoable; no hold moves, but the live test
+   *  and the instrument read that hand from then on); before a take, the next take's setting. */
+  setHand(hand: HandChoice): void;
   /** Train the Neutral holds of an older categorizer (migrated with them untrained). Undoable. */
   teachNeutral(): boolean;
   setK(k: number): void;
@@ -289,6 +300,13 @@ export const FACE_SESSION_DEFAULTS = {
 interface Snapshot {
   working: PersonalCategorizer;
   sources: NameSources;
+}
+
+/** `c` reading `hand` (`either` is written as absent, as a fresh file writes it). */
+function withHand(c: PersonalCategorizer, hand: HandChoice): PersonalCategorizer {
+  const { hand: _h, ...rest } = c;
+  void _h;
+  return hand === 'either' ? rest : { ...rest, hand };
 }
 
 export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSessionState> {
@@ -425,6 +443,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       return createLiveBars(context);
     };
 
+    /** How the source is read: a merge reads with its base's hand, a fresh take with the chosen. */
+    const readOptions = (): ModalityOptions => ({ hand: mergeBase ? (mergeBase.working.hand ?? 'either') : get().hand });
     /** Read the source into the take every `pollMs`, telling the store only what a person can
      *  see change (the phase, the count of held faces, the ring, a coarse elapsed time). */
     const poll = (t0: number) => {
@@ -432,14 +452,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       let lastShown = -1;
       timer = setInterval(() => {
         if (!take || !source) return;
-        const live = source.read();
+        const read = source.read();
+        // The vector the carve works in (#385 E8): one hand made side-relative; the face as is.
+        const live = read ? { ...read, vector: projectVector(modality, read.vector, readOptions()) } : null;
         if (live) {
           take.push(live.vector, live.t);
           bars?.push(modality.read(live.vector), live.t);
           lastVector = live.vector;
           // A burst's still: once a few frames in, from the frame showing now.
           const b = take.burst();
-          if (b && !burstStill && frames && b.frames >= FACE_SESSION_DEFAULTS.burstStillAfter) burstStill = frames.grab(deps.region ? (size) => deps.region!({ vector: live.vector, ...size }) : null).catch(() => null);
+          if (b && !burstStill && frames && b.frames >= FACE_SESSION_DEFAULTS.burstStillAfter) burstStill = grabStill(live.vector);
           stillNewHolds(live.vector);
         }
         const tp = take.phase();
@@ -470,6 +492,14 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       set({ thumbs });
     };
 
+    /** The current frame as a still, cropped to the modality's region and overlaid with its lines,
+     *  both from `vector` (projected). */
+    const grabStill = (vector: FeatureVector): Promise<Blob | null> =>
+      frames
+        ? frames
+            .grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null, deps.overlay ? (size) => deps.overlay!({ vector, ...size }) : null)
+            .catch(() => null)
+        : Promise.resolve(null);
     /** Take a still for each hold the take emitted since the last poll, from the frame showing
      *  now (the hold was just taken, so the face is still held), cropped to the region the live
      *  vector places the part in. */
@@ -482,7 +512,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (!frames) continue;
         const gen = generation;
         // A burst's hold has its still already (taken mid-burst); any other is taken now.
-        const grabbed = burstStill ?? frames.grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null).catch(() => null);
+        const grabbed = burstStill ?? grabStill(vector);
         burstStill = null;
         const job = grabbed
           .then((still) => {
@@ -577,7 +607,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       const range = recutable ? { minK: bounds.minK, maxK, suggestedK: Math.min(suggested, maxK), recutable } : { minK: working.categories.length, maxK: working.categories.length, suggestedK: working.categories.length, recutable };
       const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true, modality });
       shownIds = working.samples.map((x) => x.id);
-      set({ working, view, strangers: working.strangers, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
+      set({ working, view, strangers: working.strangers, hand: working.hand ?? 'either', k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
       const gen = generation;
       void loadThumbs(shownIds).then((found) => {
         if (gen === generation && get().working === working && get().phase === 'saved') set({ hasStills: found });
@@ -663,8 +693,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     };
 
     return {
+      modality,
       phase: 'idle',
       strangers: 'neutral',
+      hand: 'either',
       k: 0,
       view: null,
       thumbs: {},
@@ -869,7 +901,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const rest = myTake.restVectors();
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const strangers = get().strangers;
-        const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, createdAt: deps.isoNow() });
+        const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, hand: get().hand, createdAt: deps.isoNow() });
         // Bursts recorded under a name are pinned to a category of that name before the carve, so
         // the re-cut keeps them together (must-link) at every k (#385 E7).
         const labelled = withLabels(unlabelled, labelledHolds(myTake, takeId!));
@@ -891,6 +923,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // Neutral is taught by example in both settings, so the switch moves no hold and re-cuts
         // nothing: it says only what a face far from every category reads as.
         edit((w) => setStrangersOf(w, strangers, recutOptions()));
+      },
+
+      setHand(hand) {
+        const { phase, working } = get();
+        if (!working || (phase !== 'carved' && phase !== 'saved')) {
+          if (phase === 'idle' || phase === 'empty') set({ hand });
+          return;
+        }
+        if (hand === (working.hand ?? 'either')) return;
+        edit((w) => ({ ok: true, categorizer: withHand(w, hand) }));
       },
 
       teachNeutral() {
