@@ -25,6 +25,10 @@
  * | Sufficiency | `sufficiency.ts` | the strategy seam that says when a cue has ENOUGH |
  * | Runner | `runner.ts` | steps a routine through its cues, driven by the verdicts |
  * | Take | `session.ts` | holds the samples per cue, produces a model, re-cuts cheaply |
+ * | Name | `match.ts` | default names one-to-one from a general model (Hungarian), else a fallback (#330) |
+ * | Show | `exemplars.ts` | each category's medoid, then members toward its edge (#330) |
+ * | Save | `categorizer.ts` | the versioned file: samples as the SSOT, the model derived, migrations (#330) |
+ * | Reuse | `from_model.ts` | merge a new session into a model; carry names to a fresh carve (#330) |
  *
  * ## The one architectural rule
  *
@@ -196,3 +200,48 @@ export type {
   StillPoint,
   TrainedModel,
 } from './types';
+export {
+  LABEL_MATCH_DEFAULTS,
+  applyLabels,
+  assignMax,
+  matchLabels,
+  type LabelMatch,
+  type LabelMatchOptions,
+  type MatchableCategory,
+} from './match';
+export {
+  EXEMPLAR_DEFAULTS,
+  exemplarsByCategory,
+  selectExemplars,
+  type Exemplar,
+  type ExemplarOptions,
+} from './exemplars';
+export {
+  CATEGORIZER_FORMAT,
+  CATEGORIZER_MIGRATIONS,
+  CATEGORIZER_MODES,
+  CATEGORIZER_VERSION,
+  NO_REJECT_RADIUS,
+  PersonalCategorizerSchema,
+  categorizerFromModel,
+  exportCategorizer,
+  importCategorizer,
+  modelFromCategorizer,
+  toSample,
+  type CategorizerMeta,
+  type CategorizerMigration,
+  type CategorizerMode,
+  type CategorizerSample,
+  type ImportOptions,
+  type ImportResult,
+  type PersonalCategorizer,
+} from './categorizer';
+export {
+  MERGE_DEFAULTS,
+  SEED_CUE,
+  carryLabels,
+  mergeSession,
+  type CarryLabelsOptions,
+  type MergeOptions,
+  type MergeResult,
+} from './from_model';
