@@ -13,7 +13,11 @@
  * pulse estimator (PR F) can be scored against a ground truth. As everywhere
  * else in this repo, meta is provenance for a reader, not a staleness guard.
  *
- * Usage: vite-node scripts/build_body_fixture.ts <scenario> <pose.ndjson[.gz]> [--bpm N] [--origin S] [--clip "<desc>"]
+ * `--meta <file.json>` merges more of it (#373): the clip's licence and source URL, and
+ * the reference beat `grid` (`{ source, beatsPerBar, beats }`, beats in the excerpt's
+ * own seconds) that `scripts/body/measure_channels.ts` scores the body channels against.
+ *
+ * Usage: vite-node scripts/build_body_fixture.ts <scenario> <pose.ndjson[.gz]> [--bpm N] [--origin S] [--clip "<desc>"] [--meta extra.json]
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -38,7 +42,7 @@ function arg(name: string): string | undefined {
 async function main(): Promise<void> {
   const [scenario, srcPath] = process.argv.slice(2);
   if (!scenario || !srcPath) {
-    console.error('usage: build_body_fixture.ts <scenario> <pose.ndjson[.gz]> [--bpm N] [--origin S] [--clip "<desc>"]');
+    console.error('usage: build_body_fixture.ts <scenario> <pose.ndjson[.gz]> [--bpm N] [--origin S] [--clip "<desc>"] [--meta extra.json]');
     process.exit(1);
   }
   const raw = readFileSync(srcPath);
@@ -87,6 +91,7 @@ async function main(): Promise<void> {
     // stream re-gzipped would otherwise change the hash.
     srcHash: createHash('sha256').update(text).digest('hex').slice(0, 12),
     recorderVersion: 1,
+    ...(arg('--meta') ? (JSON.parse(readFileSync(arg('--meta')!, 'utf8')) as Record<string, unknown>) : {}),
   };
   writeFileSync(join(dir, 'meta.json'), JSON.stringify(meta, null, 2) + '\n');
   console.log(`built ${scenario}: ${frames.length} frames, ${meta.detectionRate}% body-detected -> ${dir}`);

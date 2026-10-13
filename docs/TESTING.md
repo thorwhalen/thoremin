@@ -272,6 +272,8 @@ project's proof-of-concept clip: 129.2 bpm, routine origin 51.2 s), 600 frames a
 `lite`), replayed by `test/video_body_fixtures.test.ts` as both a verification and a
 regression gate.
 
+`video_body_conducting_{44,34,24}` (a choir conductor beating 4, 3 and 2 patterns) and `video_body_budots` (a bouncing street dance) are the channel-by-level measurement's clips (#373), all from Wikimedia Commons under CC BY 3.0; each `meta.json` carries the licence, author and source page and a reference `grid` (`beats` in the excerpt's seconds, `beatsPerBar`, and its `source`: the conductor's own baton-wrist strokes from ictus's stroke detector, `wrist` naming the reference, or the soundtrack's beats from `scripts/body/audio_beats.py`). They are cut from a whole clip's pose stream by `scripts/body/excerpt.ts`, which takes the grid on the whole clip first, then built by `build_body_fixture.ts --meta`. `scripts/body/measure_channels.ts` prints the tables of `docs/research/body-conducting-and-pose-categories.md` from them; `test/body_channels.test.ts` pins the findings.
+
 **Live capture, in the app.** Recording v2 (#88) ships the feature-JSONL stream: a
 `FeatureJsonlTap` attached via `engine.addTap` writes `{tick,t,key,value}` per edge
 into the take folder. So "record what is actually flowing, from a live session" is a

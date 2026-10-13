@@ -1,0 +1,53 @@
+{
+  "scenario": "video_body_conducting_24",
+  "source": "video",
+  "clip": "Conducting choir - Trisagion (Greek) (Commons), 24.0 s to 48.5 s, 640x360, 30 fps",
+  "frames": 735,
+  "fps": 30,
+  "bodyDetectedFrames": 735,
+  "detectionRate": 100,
+  "music": null,
+  "srcHash": "077c6cbe9ff3",
+  "recorderVersion": 1,
+  "licence": "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)",
+  "author": "OrthodoxMusicOnline (OMIO), with David Drillock",
+  "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Trisagion_(Greek).webm",
+  "description": "David Drillock demonstrates the 2 beat pattern with the Greek Trisagion hymn, sung; the grid is the conductor's own baton hand",
+  "pose": "MediaPipe PoseLandmarker full (Python Tasks API, mediapipe 0.10.14), scripts/video_to_pose.py",
+  "excerpt": {
+    "fromS": 24,
+    "toS": 48.5
+  },
+  "grid": {
+    "source": "the conductor's own strokes: ictus's stroke detector (createIctusDetector, defaults, yDown) on the right wrist over the whole clip",
+    "wrist": "right",
+    "reference": true,
+    "beatsPerBar": 2,
+    "beats": [
+      0.8775,
+      1.7789,
+      2.7833,
+      3.7833,
+      4.7467,
+      5.6789,
+      6.7367,
+      7.69,
+      8.6611,
+      9.6595,
+      10.5474,
+      11.5167,
+      12.5167,
+      13.4318,
+      14.37,
+      15.35,
+      16.2738,
+      17.3833,
+      18.5685,
+      19.55,
+      20.6167,
+      21.6383,
+      22.5747,
+      23.6056
+    ]
+  }
+}
