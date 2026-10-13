@@ -96,6 +96,16 @@ const BLENDSHAPE_GROUPS: Record<string, BsRow[]> = {
   ],
 };
 
+/**
+ * Feature id -> MediaPipe blendshape name, for every raw blendshape feature
+ * (`face.blendshape.mouth.smileLeft` -> `mouthSmileLeft`). The one map between the
+ * catalog's ids and the names the general expression model is written in, so a vector
+ * in catalog ids (a personal category's centroid, #330) can be scored by that model.
+ */
+export const BLENDSHAPE_NAME_BY_FEATURE: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.values(BLENDSHAPE_GROUPS).flatMap((rows) => rows.map(([suffix, bsName]) => [`face.blendshape.${suffix}`, bsName])),
+);
+
 function blendshapeFeatures(): FaceFeature[] {
   const out: FaceFeature[] = [];
   for (const [group, rows] of Object.entries(BLENDSHAPE_GROUPS)) {
