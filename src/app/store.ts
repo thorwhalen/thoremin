@@ -515,14 +515,15 @@ const MIGRATION_CHAIN = Object.entries(CONTROLS_MIGRATIONS)
   .sort((a, b) => a[0] - b[0]);
 
 /**
- * Persist migration: run every step whose read version is at or above the blob's (a
- * version-`version` blob needs each step from `version` up), oldest first. The result is a
- * new object even when no step runs; the caller's blob is never edited. Exported for
- * direct testing.
+ * Persist migration: run every step whose target version (`from + 1`) is above the blob's
+ * (a version-`version` blob needs each step that produces a later version), oldest first.
+ * Written as `version < from + 1`, not `version <= from`, so a non-integer version (1.5)
+ * runs the same steps the original `version < n` chain did. The result is a new object
+ * even when no step runs; the caller's blob is never edited. Exported for direct testing.
  */
 export function migrateControls(persisted: unknown, version: number): ControlState {
   let s = { ...(persisted as Record<string, unknown>) };
-  for (const [from, step] of MIGRATION_CHAIN) if (version <= from) s = step(s);
+  for (const [from, step] of MIGRATION_CHAIN) if (version < from + 1) s = step(s);
   return s as unknown as ControlState;
 }
 
@@ -553,10 +554,11 @@ function heal<T>(stored: unknown, current: T, rule: HealRule<T>): T {
   }
 }
 
-/** Complete a partial stored object from a shipped default before the parse. */
+/** Complete a partial stored object from a shipped default before the parse. Generic in the
+ *  field's type, so a rule pointed at another field's default fails the typecheck. */
 const overDefaults =
-  (defaults: object) =>
-  (stored: unknown): unknown => ({ ...defaults, ...(stored as object) });
+  <T>(defaults: T) =>
+  (stored: unknown, _current: T): unknown => ({ ...defaults, ...(stored as object) });
 
 /** Complete a partial stored object from the current (initializer) value before the parse. */
 const overCurrent = (stored: unknown, current: unknown): unknown => ({ ...(current as object), ...(stored as object) });
@@ -570,7 +572,7 @@ const overCurrent = (stored: unknown, current: unknown): unknown => ({ ...(curre
  * rule keeps the completion its field has always had.
  */
 type CoreHealRules = { [K in keyof ControlState]?: HealRule<ControlState[K]> };
-const HEAL_RULES: CoreHealRules = {
+export const HEAL_RULES: CoreHealRules = {
   // Fills defaults for overlay elements added since the blob was written (e.g. `chordGuide`
   // in #64, whose absence would otherwise throw in `overlay.chordGuide.show`).
   overlay: { schema: OverlayDialSchema },
