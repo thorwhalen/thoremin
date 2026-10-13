@@ -4,13 +4,14 @@
  * command import firewall holds); here a scripted host stands in for the recording
  * module, and the three outcomes of the picker come back as data.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, beforeEach, afterEach } from 'vitest';
 import { createThoreminRegistry } from '@/app/commands/registry';
 import { provideRecordingHost, type ChosenFolder, type RecordingHost } from '@/app/commands/recordingHost';
 import { createJournal } from '@/app/commands/journal';
 import { installMiddleware } from '@/app/commands/middleware';
 import { defaultGetRisk, needsUserActivation } from '@/app/commands/confirmation';
 import { isGestureBindable } from '@/app/gestureDispatch';
+import type { ChooseFolderResult } from '@/app/recording/folder';
 
 const reg = createThoreminRegistry();
 
@@ -107,5 +108,14 @@ describe('recording commands (#257)', () => {
     const r = await reg.dispatch('recording.location.set', { location: 'downloads' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.message).toMatch(/recording host not installed/);
+  });
+});
+
+describe('the host seam restates the folder outcome (#392)', () => {
+  it('ChosenFolder is ChooseFolderResult, copied only to keep the command import firewall', () => {
+    // The commands may not import the recording module, so `recordingHost.ts` restates
+    // the picker's outcome type. This pins the copy: a variant added on one side fails
+    // the typecheck here instead of drifting silently.
+    expectTypeOf<ChosenFolder>().toEqualTypeOf<ChooseFolderResult>();
   });
 });

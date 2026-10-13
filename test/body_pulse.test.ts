@@ -15,6 +15,7 @@ import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { defaultFeatureLab } from '@/features/labConfig';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
+import { PULSE_GATE_CONFIDENCE } from '@thoremin/sdk/features/body_catalog';
 import { loadStream } from './helpers/fixtures';
 
 const BEAT = 60 / 129.2;
@@ -198,5 +199,12 @@ describe('wiring: the pulse rides the body branch', () => {
     expect(ids).toContain('body-source');
     const { spec } = composeInstrumentGraph(ids);
     expect(spec.nodes.some((n) => n.id === 'bodyPulse' && n.type === 'body-pulse')).toBe(true);
+  });
+});
+
+describe('the body gate trusts the pulse where ictus does (#392)', () => {
+  it('PULSE_GATE_CONFIDENCE (sdk, restated) equals PULSE_TRUSTED_CONFIDENCE (ictus)', () => {
+    // The SDK does not depend on the inference package, so the threshold is stated twice.
+    expect(PULSE_GATE_CONFIDENCE).toBe(PULSE_TRUSTED_CONFIDENCE);
   });
 });
