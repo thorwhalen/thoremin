@@ -123,9 +123,11 @@ describe('the body transport: cut-off', () => {
     const stop = firstIndex(outs, (o) => o.transport === 'stopped');
     const cut = sc.starts[4];
     expect(stop / FPS).toBeGreaterThan(cut + 0.65);
-    // The drop lasts until 0.65 s into the cut-off; the stillness counts from when the stroke
-    // is overdue (1.5 periods after the last, the flick's), then a period, plus the filter.
-    expect(stop / FPS - (cut + 0.65)).toBeLessThan(2.5 * P + 0.2);
+    // The drop lasts until 0.65 s into the cut-off; then a period of stillness, plus the filter.
+    expect(stop / FPS - (cut + 0.65)).toBeLessThan(P + 0.5);
+    // No beat the conductor did not give: the six strokes after the downbeat, and the flick
+    // (a cut-off looks like a beat), and the beat waits short of the next one.
+    expect(outs[stop].beat).toBeLessThan(8);
     const stoppedBeat = outs[stop].beat;
     const silent = outs.slice(stop, Math.round(sc.ictus[7] * FPS));
     expect(silent.every((o) => o.time.state === 'ready' && o.time.anchors === 0 && !o.leadsScore && o.bpm === 0 && o.beat === stoppedBeat)).toBe(true);
@@ -148,16 +150,18 @@ describe('the body transport: cut-off', () => {
 });
 
 describe('the adversarial review (#377)', () => {
-  it('a bounce with the arms down starts on its fourth regular stroke (the rhythm start), for the trunk and the default point', async () => {
-    for (const bodyPoint of ['com', 'impact'] as const) {
-      const { sc, outs, at } = await play([{ kind: 'rest', s: 1.5 }, { kind: 'bounce', bpm: 100, beats: 16 }], { bodyPoint, hand: 'auto' });
-      const start = firstIndex(outs, (o) => o.transport === 'running');
-      expect(start).toBeGreaterThan(0);
-      // A steady run of strokes is as deliberate as a ready pose; it starts within six strokes.
-      expect(start / FPS).toBeLessThan(sc.ictus[6]);
+  it('a bounce point (trunk, hips, head) keeps the hand transport: a bounce with the arms down starts on its first stroke', async () => {
+    for (const bodyPoint of ['com', 'hips'] as const) {
+      const { outs } = await play([{ kind: 'rest', s: 1.5 }, { kind: 'bounce', bpm: 100, beats: 16 }], { bodyPoint, hand: 'auto' });
+      expect(outs.every((o) => o.transport === 'off')).toBe(true);
       expect(outs[outs.length - 1].beat).toBeGreaterThan(8);
-      expect(at(sc.ictus[15]).leadsScore).toBe(true);
     }
+  });
+
+  it('with an arm point, a bounce with the arms hanging starts nothing (the status asks for the ready pose), and footsteps do not start it', async () => {
+    const { outs } = await play([{ kind: 'rest', s: 1.5 }, { kind: 'bounce', bpm: 115, beats: 16 }, { kind: 'rest', s: 3 }], { bodyPoint: 'impact', hand: 'auto' });
+    expect(outs.every((o) => o.beat === 0 && !o.leadsScore)).toBe(true);
+    expect(outs.every((o) => o.transport === 'idle')).toBe(true);
   });
 
   it('a player settling in (the whole skeleton shaking) during the meter warm-up still starts on the downbeat', async () => {

@@ -209,7 +209,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           </select>
         </label>
       ) : null}
-      {body ? (
+      {body && (bodyPoint === 'impact' || bodyPoint === 'wrist') ? (
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"

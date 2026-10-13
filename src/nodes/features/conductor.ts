@@ -119,8 +119,9 @@ export const MARK_LEVEL_PERSIST_S = 3;
  *  jitter: a still body reads about 1); durations are in stroke periods, the ready pose's
  *  in seconds (no period is known before the start). */
 export const ConductorTransportSchema = z.object({
-  /** Reading the body, start, hold and stop follow the pose (on), or the hand's transport
-   *  (off: the first stroke starts, the prior's own hold, no stop). */
+  /** Reading the body with an arm (`bodyPoint` impact or wrist), start, hold and stop
+   *  follow the pose (on), or the hand's transport (off: the first stroke starts, the
+   *  prior's own hold, no stop). A bounce point (head, hips, com) always has the latter. */
   rules: z.boolean().default(true),
   /** The beating arm counts as raised (ready, holding) above this height. */
   raisedAbove: z.number().min(-0.5).max(1.5).default(TRANSPORT_DEFAULTS.raisedAbove),
@@ -258,6 +259,11 @@ const FERMATA_RELEASE_PERIODS = 0.5;
  *  (the priors' initial tempo), and how far short of a whole beat the start waits. */
 const START_BPM = 100;
 const START_EPS = 1e-3;
+
+/** The body points the transport rules read (#377): those an ARM beats. A player who
+ *  bounces (the trunk, the hips, the head) may hang the arms still, which is the cut-off
+ *  pose, so those points keep the hand's transport (the first stroke starts). */
+const TRANSPORT_POINTS: ReadonlySet<string> = new Set(['impact', 'wrist']);
 
 /** The transport phases in which the score sounds (#377). */
 const TRANSPORT_SOUNDING: ReadonlySet<TransportPhase> = new Set(['running', 'holding']);
@@ -561,7 +567,7 @@ export const conductorNode = defineNode<Params>({
         // (from the hands to the body, or the rules turned on) while the music runs keeps it
         // running (the next stroke is taken as the next one); otherwise it starts idle and
         // waits for the ready pose.
-        const rulesOn = c.source === 'body' && c.transport.rules;
+        const rulesOn = c.source === 'body' && c.transport.rules && TRANSPORT_POINTS.has(c.bodyPoint);
         if (!rulesOn) {
           transport = null;
           transportReading = 'off';
@@ -570,8 +576,9 @@ export const conductorNode = defineNode<Params>({
             transport = createTransport(c.transport);
             transportCfg = c.transport;
             transportReading = 'idle';
-            // The music is running (on the hands, or on the body with the rules off).
-            if (ictus && ictus.state().anchors > 0) {
+            // The music is running (on the hands, or on the body with the rules off): the
+            // prior is following strokes now, not holding after the last one.
+            if (ictus && ictus.state().state === 'running') {
               transport.run(ctx.time);
               transportReading = 'running';
             }

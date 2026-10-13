@@ -134,11 +134,11 @@ export function bodyQuantityOfMotion(prev: BodyFrame, cur: BodyFrame, dtS: numbe
  *   frame, the median over every seen landmark of the second difference (most landmarks of
  *   a conductor are near still, and a second difference rejects a smooth movement),
  *   converted to a step's jitter (white noise: a second difference has sqrt(3) times the
- *   spread of a first one), and the jitter is a low quantile (`jitterQuantile`) of those
+ *   spread of a first one), and the jitter is the median (`jitterQuantile`) of those
  *   per-frame values over the last `jitterWindowS`. Movement only ever inflates the
- *   per-frame value, so a low quantile ignores an impact, a player settling in front of the
- *   camera, or a whole-body shake while the pose model locks on, as soon as a quarter of
- *   the window is quiet; an exponential average kept such a start several times too large
+ *   per-frame value, so the median ignores an impact, a player settling in front of the
+ *   camera, or a whole-body shake while the pose model locks on, as soon as half the window
+ *   is quiet; an exponential average kept such a start several times too large
  *   for seconds, and the upbeat unseen (the review of #377). A still body reads about 1;
  *   a stroke reads tens.
  */
@@ -164,7 +164,7 @@ export const BODY_MOTION_DEFAULTS: Required<BodyMotionMeterOptions> = {
   minVisibility: 0.5,
   motionTauS: 0.15,
   jitterWindowS: 4,
-  jitterQuantile: 0.25,
+  jitterQuantile: 0.5,
   minJitter: 5e-4,
 };
 
