@@ -54,15 +54,18 @@ export const STRANGERS_TEXT: Record<CategorizerStrangers, { title: string; says:
   },
 };
 
-/** One line saying what k counts and what Neutral holds. */
+/** One line saying how many categories there are and what Neutral holds. */
 export function strangersSummary(view: SortingView): string {
   const held = view.neutral.count === 1 ? '1 held face' : `${view.neutral.count} held faces`;
-  const neutral = !view.neutralTrained
-    ? `Neutral (${held}) is not trained on: this categorizer was made before Neutral was taught.`
-    : view.neutralKnown || view.neutral.count > 0
-      ? `Neutral (${held}) plays nothing.`
-      : 'There was no rest to tell neutral by, so Neutral is empty: drag your resting faces into it.';
-  return `${view.k} expressions. ${neutral}`;
+  const neutral =
+    view.neutral.count === 0
+      ? view.neutralKnown
+        ? 'Neutral is empty: drag the faces that should mean nothing into it.'
+        : 'There was no rest to tell neutral by, so Neutral is empty: drag your resting faces into it.'
+      : view.neutralTrained
+        ? `Neutral (${held}) plays nothing.`
+        : `Neutral (${held}) is not trained on: this categorizer was made before Neutral was taught.`;
+  return `${view.k} ${view.k === 1 ? 'category' : 'categories'}. ${neutral}`;
 }
 
 function StrangersSwitch({ strangers, setStrangers }: { strangers: CategorizerStrangers; setStrangers: (m: CategorizerStrangers) => void }) {

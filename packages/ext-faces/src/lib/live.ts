@@ -12,12 +12,12 @@
  *   or Neutral is taught (#385 E5), else the category named `neutral` (an older file whose
  *   every face was a category). A categorizer with neither has no rest to scale from, and the
  *   dial says so ({@link LiveModel.rest} is null).
- * - **Reject radius** (`reject` mode only) scales the distance beyond which a face is "none of
- *   these". It scales a FLOORED base: the stored radius, raised to the distance that accepts
+ * - **Reject radius** (only when a face never taught reads as Neutral) scales the distance
+ *   beyond which a face is "none of these". It scales a FLOORED base: the stored radius, raised to the distance that accepts
  *   {@link LIVE_DEFAULTS.acceptQuantile} of the categorizer's own samples (the `trainModel`
  *   floor), because a file can carry a radius so small that the model would reject the faces
- *   it was made from (P1's adversarial review). In `partition` mode nothing is rejected and the
- *   dial is CLAMPED out: the radius stays `NO_REJECT_RADIUS`, never `MAX_VALUE x scale`
+ *   it was made from (P1's adversarial review). When strangers read as the nearest face nothing is
+ *   rejected and the dial is CLAMPED out: the radius stays `NO_REJECT_RADIUS`, never `MAX_VALUE x scale`
  *   (`Infinity`, which the model schema refuses).
  * - **Distance** subtracts what camera distance does to each feature, learned from the
  *   categorizer's own samples: within each category, the slope of the feature against the
@@ -107,7 +107,8 @@ export function flooredRejectRadius(categorizer: PersonalCategorizer, model: Tra
   return Math.max(model.rejectRadius, floor, LIVE_DEFAULTS.minRadius);
 }
 
-/** The radius the reject dial gives: a scale on the floored base; partition mode is clamped out. */
+/** The radius the reject dial gives: a scale on the floored base; clamped out when strangers
+ *  read as the nearest face. */
 export function tunedRejectRadius(base: number, strangers: PersonalCategorizer['strangers'], rejectScale: number): number {
   if (strangers !== 'neutral' || base >= NO_REJECT_RADIUS) return NO_REJECT_RADIUS;
   const scale = clampTuning({ rejectScale }).rejectScale;
@@ -220,7 +221,8 @@ export interface LiveModel {
   /** The derived model with the tuned reject radius. */
   model: TrainedModel;
   tuning: Tuning;
-  /** The floored, untuned reject radius (`NO_REJECT_RADIUS` in partition mode). */
+  /** The floored, untuned reject radius (`NO_REJECT_RADIUS` when strangers read as the nearest
+   *  face). */
   baseRadius: number;
   /** The resting face sensitivity scales from, or null (the dial does nothing). */
   rest: FeatureVector | null;
@@ -285,7 +287,7 @@ export interface LiveReading {
   memberships: readonly { id: string; label: string; value: number }[];
   /** This frame's distance to the nearest category (noise units). */
   distance: number;
-  /** The tuned reject radius, or null in partition mode. */
+  /** The tuned reject radius, or null when strangers read as the nearest face. */
   radius: number | null;
 }
 
@@ -309,7 +311,9 @@ export function createLiveReader(live: LiveModel): LiveReader {
     live,
     push(vector) {
       const r = tracker.push(tuneVector(live, vector));
-      const neutral = r.neutral === true;
+      // Neutral once the tracker has settled on it (while it is entering, the held category is
+      // still the reading, and the readout must not say both).
+      const neutral = r.neutral === true && r.categoryId === null;
       const rejected = !neutral && radius !== null && r.distance > radius;
       return {
         categoryId: r.categoryId,

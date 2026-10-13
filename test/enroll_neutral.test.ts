@@ -80,6 +80,14 @@ describe('the tracker treats Neutral as a class', () => {
     }
   });
 
+  it('a face alternating Neutral and rejected frames still leaves its category (review of #426)', () => {
+    const alternating = Array.from({ length: 12 }, (_, i) => (i % 2 === 0 ? v(0, 0) : v(30, 30)));
+    for (const hold of [true, false]) {
+      const out = run(hold, [...Array(4).fill(v(4, 0)), ...alternating]);
+      expect(out.at(-1)).toBeNull();
+    }
+  });
+
   it('a single Neutral frame inside a held category changes nothing', () => {
     const out = run(true, [...Array(4).fill(v(4, 0)), v(0, 0), ...Array(3).fill(v(4, 0))]);
     expect(out.slice(2)).toEqual(Array(6).fill('cat-1'));
@@ -100,12 +108,32 @@ describe('trainNeutral', () => {
     expect(protos.map((p) => p.members)).toEqual([[0, 1, 2], [3, 4, 5]]);
   });
 
-  it('is bounded: at most maxPrototypes, one above splitUpTo, none without holds', () => {
+  it('is bounded: at most maxPrototypes, none without holds', () => {
     const vs = Array.from({ length: 12 }, (_, i) => v(i * 10, 0));
     const idx = vs.map((_, i) => i);
     expect(trainNeutral(vs, idx, F, W, cats, { maxPrototypes: 3 })).toHaveLength(3);
-    expect(trainNeutral(vs, idx, F, W, cats, { splitUpTo: 5 })).toHaveLength(1);
     expect(trainNeutral(vs, [], F, W, cats)).toEqual([]);
+  });
+
+  it('has no cliff: the split is decided on a strided sample, and one more hold does not reshape the class', () => {
+    const cloud = (n: number) => Array.from({ length: n }, (_, i) => (i % 2 === 0 ? v((i % 7) * 0.01, 0) : v((i % 5) * 0.01, -6)));
+    for (const n of [119, 120, 121, 400, 401]) {
+      const vs = cloud(n);
+      const protos = trainNeutral(vs, vs.map((_, i) => i), F, W, cats);
+      expect(protos).toHaveLength(2);
+      expect(protos.reduce((a, p) => a + p.size, 0)).toBe(n);
+    }
+  });
+
+  it('a stray hold or two is never a prototype of its own (review of #426)', () => {
+    const vs = [v(0, 0), v(0.1, 0), v(0, 0.1), v(0.1, 0.1), v(-0.1, 0), v(3.5, 0)];
+    const protos = trainNeutral(vs, vs.map((_, i) => i), F, W, [{ radius: 1 }]);
+    expect(protos.map((p) => p.members)).toEqual([[0, 1, 2, 3, 4, 5]]);
+  });
+
+  it('categories of radius 0 do not split a tight cloud', () => {
+    const vs = Array.from({ length: 10 }, (_, i) => v((i % 3) * 0.05, (i % 4) * 0.05));
+    expect(trainNeutral(vs, vs.map((_, i) => i), F, W, [{ radius: 0 }, { radius: 0 }])).toHaveLength(1);
   });
 });
 

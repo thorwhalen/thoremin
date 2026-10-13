@@ -158,20 +158,34 @@ export const NEUTRAL_DEFAULTS = {
    *  different "nothings" (a resting face, a look at the keyboard), and one centroid between
    *  them would sit where neither is. */
   splitScale: 2,
-  /** Above this many Neutral holds the null class is one prototype (the split is quadratic). */
-  splitUpTo: 400,
+  /** ...and never closer than this (noise units, as a session's distances are): categories of
+   *  one hold each have radius 0, which would otherwise split even a tight cloud. */
+  minSplitHeight: 1,
+  /** The split is decided on at most this many Neutral holds, evenly strided (the hierarchy is
+   *  cubic in them); every hold then joins its nearest group. So the cost is bounded and one
+   *  more hold never changes the shape of the class. */
+  splitSample: 120,
+  /** A group with fewer holds than this, or than {@link minShare} of Neutral, is folded into
+   *  the nearest larger one: a single face dragged into Neutral by mistake must not become a
+   *  prototype of its own, which would silence every face nearer to it than to its category. */
+  minHolds: 2,
+  minShare: 0.1,
 } as const;
 
 export interface NeutralOptions {
   maxPrototypes?: number;
   splitScale?: number;
-  splitUpTo?: number;
+  minSplitHeight?: number;
+  splitSample?: number;
+  minHolds?: number;
+  minShare?: number;
 }
 
 /**
  * The taught null class: the Neutral holds `idxs` (into `vectors`) as up to
  * {@link NEUTRAL_DEFAULTS.maxPrototypes} prototypes, split where the holds sit farther apart
- * than the `categories` are wide. Ids `neutral-1..n`; empty when `idxs` is.
+ * than the `categories` are wide, with no prototype made of a stray hold or two. Ids
+ * `neutral-1..n`, ordered by their first member; empty when `idxs` is.
  */
 export function trainNeutral(
   vectors: readonly FeatureVector[],
@@ -183,22 +197,44 @@ export function trainNeutral(
 ): Category[] {
   const o = { ...NEUTRAL_DEFAULTS, ...options };
   if (idxs.length === 0) return [];
+  const dist = (a: FeatureVector, b: FeatureVector) => weightedDistance(a, b, features, weights);
   let groups: number[][] = [[...idxs]];
-  if (idxs.length > 1 && idxs.length <= o.splitUpTo && categories.length > 0 && o.maxPrototypes > 1) {
+  const smallest = Math.max(o.minHolds, Math.ceil(o.minShare * idxs.length));
+  if (idxs.length >= 2 * smallest && categories.length > 0 && o.maxPrototypes > 1) {
     const radii = categories.map((c) => c.radius).sort((a, b) => a - b);
-    const height = o.splitScale * radii[Math.floor((radii.length - 1) / 2)];
-    const hierarchy = buildHierarchy(idxs.map((j) => vectors[j]), features, weights);
+    const height = Math.max(o.minSplitHeight, o.splitScale * radii[Math.floor((radii.length - 1) / 2)]);
+    const stride = Math.max(1, idxs.length / Math.max(1, o.splitSample));
+    const sample = Array.from({ length: Math.min(idxs.length, o.splitSample) }, (_, i) => idxs[Math.floor(i * stride)]);
+    const hierarchy = buildHierarchy(sample.map((j) => vectors[j]), features, weights);
     // Cutting at `height` leaves one cluster per merge above it (heights are ascending).
     const k = Math.min(o.maxPrototypes, 1 + hierarchy.heights.filter((h) => h > height).length);
-    if (k > 1) groups = cutAt(hierarchy, k).map((g) => g.map((j) => idxs[j]));
+    if (k > 1) {
+      let centres = cutAt(hierarchy, k).map((g) => meanVector(g.map((j) => vectors[sample[j]]), features));
+      // Every hold joins its nearest group; then groups too small to be a "nothing" of their own
+      // are folded into the nearest remaining one, until every group is big enough.
+      for (;;) {
+        const assigned: number[][] = centres.map(() => []);
+        for (const j of idxs) {
+          let best = 0;
+          for (let c = 1; c < centres.length; c++) if (dist(vectors[j], centres[c]) < dist(vectors[j], centres[best])) best = c;
+          assigned[best].push(j);
+        }
+        const sizes = assigned.map((g) => g.length);
+        const worst = sizes.indexOf(Math.min(...sizes));
+        if (centres.length === 1 || sizes[worst] >= smallest) {
+          groups = assigned.filter((g) => g.length > 0);
+          break;
+        }
+        centres = centres.filter((_, c) => c !== worst);
+      }
+    }
   }
   return groups
-    .filter((g) => g.length > 0)
     .map((g) => [...g].sort((a, b) => a - b))
     .sort((a, b) => a[0] - b[0])
     .map((members, i) => {
       const centroid = meanVector(members.map((j) => vectors[j]), features);
-      const radius = members.reduce((acc, j) => acc + weightedDistance(vectors[j], centroid, features, weights), 0) / members.length;
+      const radius = members.reduce((acc, j) => acc + dist(vectors[j], centroid), 0) / members.length;
       return { id: `neutral-${i + 1}`, label: '', centroid, size: members.length, radius, members };
     });
 }
@@ -320,8 +356,12 @@ export function createCategoryTracker(
       const c = classify(model, vector, o);
       if (c.rejected) {
         rejectRun += 1;
-        candidate = null;
-        candidateRun = 0;
+        // A rejected frame does not interrupt a run toward Neutral: both are "none of these",
+        // so a face alternating between them still leaves its category.
+        if (candidate !== NEUTRAL_CANDIDATE) {
+          candidate = null;
+          candidateRun = 0;
+        }
         if (rejectRun >= o.exitFrames) {
           if (!o.holdOnReject) committed = null;
           return { ...c, categoryId: o.holdOnReject ? committed : null, held: o.holdOnReject && committed !== null };
@@ -330,7 +370,8 @@ export function createCategoryTracker(
         return { ...c, categoryId: committed, rejected: false, held: committed !== null };
       }
 
-      rejectRun = 0;
+      // A Neutral frame does not reset the run toward rejection either (see above).
+      if (!c.neutral) rejectRun = 0;
       // The taught Neutral class is a reading like a category's: it is entered through the same
       // hysteresis and commits as null (nothing), and it is never held through.
       const key = c.neutral ? NEUTRAL_CANDIDATE : c.categoryId;

@@ -21,6 +21,7 @@ import { importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enrol
 import { classify } from '@thoremin/sdk/enroll/classify';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { createLiveReader, liveModel, tuneVector } from '@thoremin/ext-faces/lib/live';
+import { FaceModelRecordSchema } from '@thoremin/ext-faces/app/models';
 import { recordedCategorizer, recordedFrames, vectorOf } from '../helpers/faceRecording';
 
 const FIXTURES = join(__dirname, 'fixtures');
@@ -109,4 +110,12 @@ describe('old categorizer files classify as before Neutral was a modelled class 
       expect(now[name]).toEqual(golden[name]);
     });
   }
+
+  it('a version-2 SAVED record (the tool\'s collection, migrated on load) reads as the golden too', () => {
+    const doc = JSON.parse(readFileSync(join(FIXTURES, 'demo_smile.v2.categorizer.json'), 'utf8'));
+    const record = FaceModelRecordSchema.parse({ id: 'r1', name: 'Old', createdAt: 0, model: { categorizer: doc } });
+    expect(record.model.categorizer.neutralTrained).toBe(false);
+    const extra = recordedFrames().map(vectorOf);
+    expect(readings(record.model.categorizer, extra)).toEqual(golden['demo-smile (shipped v2)']);
+  });
 });

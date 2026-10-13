@@ -2,6 +2,12 @@
  * What the category grid shows for one carve of a face take (#330 P2), computed purely: the
  * model at k in the chosen mode, a name per category, and the exemplar samples to show.
  *
+ * The tool itself no longer carves this way: since #385 E4 a fresh take is carved by
+ * {@link carveTake} (the rest cloud in Neutral, in either setting of the strangers switch, #385
+ * E5) and shown by {@link sortingView}, and names come from {@link nameCarve}. `carveView` and
+ * its `partition` / `reject` modes below are the P2 path, kept for its tests until #422 retires
+ * it.
+ *
  * - **Carving** is `createCarver` (the SDK): `partition` carves every held face, so k counts
  *   neutral too; `reject` sets the faces inside the rest cloud aside first, so k counts the
  *   expressions and neutral is "none of these". A carver is built once per mode and re-cut at
