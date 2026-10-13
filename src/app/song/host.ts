@@ -12,6 +12,8 @@ import type { SongHandle } from '@/nodes/output/song_player';
 provideSongHost({
   loaded: () => useControls.getState().songHandle?.name ?? null,
   setPlaying: (playing) => useControls.getState().setSongPlaying(playing),
+  setVolume: (volume) => useControls.getState().setSongPrefs({ volume }),
+  setRate: (rate) => useControls.getState().setSongPrefs({ rate }),
 });
 
 /** Decode and track `file`, then make it the loaded song (stopping the previous one). */

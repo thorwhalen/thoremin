@@ -14,8 +14,8 @@
  * and the good C++ ones are GPL. The pipeline:
  *
  *  1. **Onset strength**: per hop, the half-wave-rectified increase in log energy of the
- *     signal and of its first difference, a two-band spectral-flux proxy (low: kicks and
- *     snares; high: hi-hats) without an FFT.
+ *     signal through a one-pole low-pass (kicks and bass) and of its first difference
+ *     (hi-hats), a two-band spectral-flux proxy without an FFT.
  *  2. **Tempo**: the autocorrelation of the mean-removed envelope over the lags between
  *     `minBpm` and `maxBpm`, weighted by a broad log-normal tempo prior (the octave
  *     tie-break: a 129 bpm click repeats at 64.6 bpm just as strongly), parabolically
@@ -73,6 +73,11 @@ export interface SongGridOptions {
   combSteps?: number;
   /** How far a comb beat may move to the strongest onset, as a fraction of the period. */
   snap?: number;
+  /** The low band's cutoff, Hz (the phase comb's band). */
+  lowCutHz?: number;
+  /** Below this autocorrelation strength there is no beat to report (white noise reaches
+   *  about 0.1): the empty grid rather than a "faint beat" a consumer would lock onto. */
+  minConfidence?: number;
 }
 
 export const SONG_GRID_DEFAULTS = {
@@ -84,11 +89,13 @@ export const SONG_GRID_DEFAULTS = {
   priorOctaves: 1,
   combSteps: 64,
   snap: 0.1,
+  lowCutHz: 200,
+  minConfidence: 0.15,
 } as const;
 
 export const SONG_GRID_SOURCE = 'ictus/flux-acf';
 
-/** The grid of a song with no usable periodicity (silence, too short): no beats, NaN
+/** The grid of a song with no usable periodicity (silence, noise, too short): no beats, NaN
  *  tempo, never a zero tempo a consumer would divide by. */
 export const EMPTY_SONG_GRID: SongGrid = Object.freeze({
   periodS: NaN,
@@ -102,9 +109,20 @@ export const EMPTY_SONG_GRID: SongGrid = Object.freeze({
 }) as SongGrid;
 
 /** The onset envelopes, one value per hop: total (for the tempo) and low band (for the
- *  phase). */
-export function onsetEnvelopes(x: Float32Array, hop: number, win: number): { env: Float32Array; low: Float32Array } {
+ *  phase). The low band is the signal through a one-pole low-pass of coefficient
+ *  `lowAlpha` (1 = no filtering); the high band is the first difference. */
+export function onsetEnvelopes(x: Float32Array, hop: number, win: number, lowAlpha = 1): { env: Float32Array; low: Float32Array } {
   const nF = Math.max(0, Math.floor((x.length - win) / hop) + 1);
+  // The low-passed signal (kicks and bass), so a hi-hat as loud as the kick cannot move
+  // the phase comb.
+  const y = lowAlpha >= 1 ? x : new Float32Array(x.length);
+  if (lowAlpha < 1) {
+    let acc = 0;
+    for (let i = 0; i < x.length; i++) {
+      acc += lowAlpha * (x[i] - acc);
+      y[i] = acc;
+    }
+  }
   const env = new Float32Array(nF);
   const low = new Float32Array(nF);
   let prevLo = NaN;
@@ -114,9 +132,9 @@ export function onsetEnvelopes(x: Float32Array, hop: number, win: number): { env
     let hi = 0;
     const o = f * hop;
     for (let i = 1; i < win; i++) {
-      const v = x[o + i];
-      lo += v * v;
-      const d = v - x[o + i - 1];
+      const l = y[o + i];
+      lo += l * l;
+      const d = x[o + i] - x[o + i - 1];
       hi += d * d;
     }
     lo = Math.log1p(lo * 1000);
@@ -166,7 +184,8 @@ export function toMono(channels: readonly Float32Array[]): Float32Array {
 export function trackSongGrid(x: Float32Array, opts: SongGridOptions): SongGrid {
   const o = { ...SONG_GRID_DEFAULTS, ...opts };
   const fps = o.sampleRate / o.hop;
-  const { env, low } = onsetEnvelopes(x, o.hop, o.win);
+  const lowAlpha = 1 - Math.exp((-2 * Math.PI * o.lowCutHz) / o.sampleRate);
+  const { env, low } = onsetEnvelopes(x, o.hop, o.win, lowAlpha);
   const nF = env.length;
   if (!(fps > 0) || nF < fps * 2) return EMPTY_SONG_GRID;
 
@@ -210,7 +229,7 @@ export function trackSongGrid(x: Float32Array, opts: SongGridOptions): SongGrid 
       bestLag = lag;
     }
   }
-  if (bestLag < 0 || !(r[bestLag] > 0)) return EMPTY_SONG_GRID;
+  if (bestLag < 0 || !(r[bestLag] >= o.minConfidence)) return EMPTY_SONG_GRID;
   const [l, c, rr] = [r[bestLag - 1], r[bestLag], r[bestLag + 1]];
   const denom = l - 2 * c + rr;
   const dl = denom !== 0 ? (0.5 * (l - rr)) / denom : 0;

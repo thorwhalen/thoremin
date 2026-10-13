@@ -17,7 +17,8 @@
  * first tap), and it says where it is on `status` in the shared lazy-loading vocabulary:
  * `off` with no song, `unavailable` before the audio starts, `loading` while the element
  * buffers, `ready` when playable (reason `ended` once it has played to the end), `active`
- * while playing.
+ * while playing, and `error` with reason `autoplay` when the browser refused to start it
+ * (see {@link unlockSongPlayback}).
  *
  * `songTime` is the song's {@link MusicalTime} read off its beat grid at the playback
  * position, with tempo and the next beat in ENGINE time (so a song at 1.1x has a 10 %
@@ -58,7 +59,27 @@ export interface Stretcher {
   position(): number;
   playing(): boolean;
   ended(): boolean;
+  /** True after the browser refused the last `play()` (an autoplay policy: WebKit wants
+   *  a gesture per media element); cleared by the next `play()`. */
+  blocked?(): boolean;
+  /** Called from inside a user gesture (the Play button's click) so a later `play()`
+   *  from the engine tick is allowed; a no-op where nothing needs unlocking. */
+  unlock?(): void;
   dispose(): void;
+}
+
+/** The live stretchers, so a click can unlock them (see {@link unlockSongPlayback}). */
+const LIVE = new Set<Stretcher>();
+
+/**
+ * Unlock song playback from inside a user gesture. The node calls `play()` from the
+ * engine tick, not from a click, and WebKit's autoplay policy refuses that for a media
+ * element that was never played in a gesture; the Song tool's Play button calls this in
+ * its click handler first. Commands from the palette, the assistant or a hand gesture are
+ * not clicks: on WebKit those report `reason: 'autoplay'` until the button is pressed.
+ */
+export function unlockSongPlayback(): void {
+  for (const s of LIVE) s.unlock?.();
 }
 
 export interface StretcherOptions {
@@ -111,23 +132,30 @@ export const songPlayerNode = defineNode<Params>({
     let loadedId: string | null = null;
     let status: LoadStatus = OFF;
     let wasPlaying = false;
+    let disposed = false;
+    let failedFor: string | null = null;
 
     /** The stretcher, once there is one; starts the default loading on first need. */
-    const stretcherFor = (ctx: NodeContext, audio: StretcherOptions): Stretcher | null => {
+    const stretcherFor = (ctx: NodeContext, audio: StretcherOptions, songId: string): Stretcher | null => {
       if (stretcher || starting || failed) return stretcher;
       const injected = ctx.resources.createStretcher as StretcherFactory | undefined;
       if (injected) {
         stretcher = injected(audio);
+        LIVE.add(stretcher);
         return stretcher;
       }
       // The default is browser-only (a DOM audio element): loaded once, on first need.
       starting = true;
       void import('./song_stretcher')
         .then(({ createMediaElementStretcher }) => {
+          // A node disposed while the module loaded must not leave an element behind.
+          if (disposed) return;
           stretcher = createMediaElementStretcher(audio);
+          LIVE.add(stretcher);
         })
         .catch((e) => {
           failed = true;
+          failedFor = songId;
           (ctx.log ?? console.warn)(`[song-player] the stretcher failed to load: ${String(e)}`);
         })
         .finally(() => {
@@ -156,7 +184,9 @@ export const songPlayerNode = defineNode<Params>({
         if (!audio) {
           return idle(ctx, { phase: 'unavailable', reason: 'no-audio', message: 'Tap to play to start the audio, then play the song' }, song.grid);
         }
-        const s = stretcherFor(ctx, audio);
+        // A new song retries a stretcher that failed to load (a chunk lost to a redeploy).
+        if (failed && song.id !== failedFor) failed = false;
+        const s = stretcherFor(ctx, audio, song.id);
         if (!s) {
           return idle(
             ctx,
@@ -184,7 +214,7 @@ export const songPlayerNode = defineNode<Params>({
         const volume = inputs.claimed === true ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
         s.setVolume(volume);
         s.setRate(rate);
-        if (status.phase === 'ready' || status.phase === 'active') {
+        if (status.phase === 'ready' || status.phase === 'active' || status.reason === 'autoplay') {
           // A rising edge plays (from the start when the song had ended); holding
           // `playing` after the end does not loop it.
           // A press made while the song was still loading is an edge here, once it is
@@ -195,7 +225,9 @@ export const songPlayerNode = defineNode<Params>({
           const sounding = s.playing();
           status = sounding
             ? { phase: 'active', message: `Playing ${song.name}` }
-            : s.ended()
+            : s.blocked?.()
+              ? { phase: 'error', reason: 'autoplay', message: 'The browser blocked the song: press Play in the Song tool' }
+              : s.ended()
               ? { phase: 'ready', reason: 'ended', message: `${song.name} has finished` }
               : { phase: 'ready', message: `${song.name} is ready` };
         }
@@ -207,6 +239,8 @@ export const songPlayerNode = defineNode<Params>({
         };
       },
       dispose() {
+        disposed = true;
+        if (stretcher) LIVE.delete(stretcher);
         stretcher?.dispose();
         stretcher = null;
         loadedId = null;

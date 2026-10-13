@@ -107,8 +107,9 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
   graphElements?: string[] | null;
-  /** The song's level and rate (#186 PR G) → `song-player`'s `volume` / `rate`. */
-  song?: { volume: number; rate: number };
+  /** The song's level and rate (#186 PR G, a per-device pref) → `song-player`'s
+   *  `volume` / `rate`. */
+  songPrefs?: { volume: number; rate: number };
   /** The loaded song (transient), emitted as the SAME object until another loads, so
    *  `song-player` tells a new song by identity. */
   songHandle?: SongHandle | null;
@@ -217,7 +218,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
     // The song (#186 PR G) → `song-player`: the loaded song (transient, by identity), its
-    // transport (transient), and its level and rate (dials).
+    // transport (transient), and its level and rate (a per-device pref).
     { name: 'songHandle', kind: 'song-handle' },
     { name: 'songPlaying', kind: 'boolean' },
     { name: 'songVolume', kind: 'number' },
@@ -302,8 +303,8 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         // Always emitted, null included: unloading a song must reach the player.
         out.songHandle = c.songHandle ?? null;
         out.songPlaying = c.songPlaying ?? false;
-        out.songVolume = c.song?.volume ?? DEFAULT_SONG.volume;
-        out.songRate = c.song?.rate ?? DEFAULT_SONG.rate;
+        out.songVolume = c.songPrefs?.volume ?? DEFAULT_SONG.volume;
+        out.songRate = c.songPrefs?.rate ?? DEFAULT_SONG.rate;
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {
           out.chordConfig = {

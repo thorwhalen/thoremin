@@ -11,7 +11,16 @@
  * bar), and the dancer's anchors land at one place in the song's bar: the integer
  * relation PR H's pace controller is built on.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// The browser stretcher, replaced: every test here injects its own except the lazy-load one.
+const defaultStretcher = vi.hoisted(() => vi.fn());
+vi.mock('@/nodes/output/song_stretcher', () => ({
+  createMediaElementStretcher: (...a: unknown[]) => {
+    defaultStretcher(...a);
+    return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, position: () => 0, playing: () => false, ended: () => false, dispose() {} };
+  },
+}));
 import type { NodeContext, NodeHandlers, PortValues } from '@thoremin/dag';
 import { trackSongGrid, PULSE_TRUSTED_CONFIDENCE, type MusicalTime, type PulseState, type SongGrid } from '@thoremin/ictus';
 import type { LoadStatus } from '@thoremin/lazy';
@@ -162,6 +171,46 @@ describe('song-player', () => {
     expect(statusOf(out[1]).message).toMatch(/bad\.mp3/);
   });
 
+  it('a play the browser refuses is an autoplay error, not a silent "playing"; the next press retries', async () => {
+    const st = fakeStretcher();
+    let refuse = true;
+    let ticks = 0;
+    const play = st.play;
+    let blocked = false;
+    st.play = () => {
+      play();
+      blocked = refuse;
+      if (refuse) st.pause();
+    };
+    st.blocked = () => blocked;
+    const s = song();
+    const out = await drive(make(), [{ song: s }, { song: s, playing: true }, { song: s, playing: false }, { song: s, playing: true }], {
+      resources: { ...AUDIO, createStretcher: () => st },
+      // The press on tick 1 is refused; by tick 3 the player has pressed Play in a click.
+      onTick: () => {
+        refuse = ++ticks < 3;
+      },
+    });
+    expect(statusOf(out[1])).toMatchObject({ phase: 'error', reason: 'autoplay' });
+    expect(statusOf(out[3]).phase).toBe('active');
+  });
+
+  it('a node disposed while its default stretcher loads creates no player', async () => {
+    defaultStretcher.mockClear();
+    const h = make();
+    // No injected factory: the default is imported lazily; dispose before it resolves.
+    h.process({ song: song() }, { tick: 0, time: 0, dt: 0, resources: AUDIO });
+    h.dispose?.();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(defaultStretcher).not.toHaveBeenCalled();
+    // A live node does create it once the import resolves.
+    const live = make();
+    live.process({ song: song() }, { tick: 0, time: 0, dt: 0, resources: AUDIO });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(defaultStretcher).toHaveBeenCalledTimes(1);
+    live.dispose?.();
+  });
+
   it('plays nothing in a replay that is not real time', async () => {
     const st = fakeStretcher();
     const out = await drive(make(), [{ song: song(), playing: true }], { resources: { ...AUDIO, createStretcher: () => st, timeScale: 0 } });
@@ -197,7 +246,12 @@ describe('the trunk wires the song player to the store and the claim (a structur
   });
 });
 
-describe('the real dancer against the song beat tracked from audio (video_body_que_calor)', () => {
+describe('the real dancer against a tracked song grid (video_body_que_calor)', () => {
+  // What this does and does not show: the song is a click track at the clip's STATED
+  // tempo (the fixture has no audio), so it checks that the tracker, the player's
+  // songTime and the pulse share one timeline and relate by an integer ratio. The bar
+  // resultant is invariant to a constant offset, so it does not check the dancer's
+  // phase against the real recording's downbeat.
   it('the dancer repeats every FOUR song beats, at one place in the song bar', async () => {
     const frames = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
     const seconds = frames.length / 30;
@@ -235,5 +289,26 @@ describe('the real dancer against the song beat tracked from audio (video_body_q
     expect(barPhases.length).toBeGreaterThanOrEqual(8);
     // The D-Jogger acceptance figure for 30 Hz pose is R > 0.7 (research map §6.2).
     expect(R).toBeGreaterThan(0.8);
+  });
+});
+
+describe('the song reporter', () => {
+  it('turns the transport off once per end or refusal, and writes only on a change', async () => {
+    const { makeSongReporter } = await import('@/app/songStatus');
+    const outputs: Record<string, unknown> = { status: { phase: 'active', message: 'Playing' }, position: 1.2 };
+    const engine = { getOutput: (_n: string, port: string) => outputs[port] };
+    const reports: unknown[] = [];
+    let stopped = 0;
+    const tick = makeSongReporter(engine, { report: (s) => reports.push(s) }, () => stopped++);
+    tick();
+    tick();
+    expect(reports).toHaveLength(1);
+    outputs.status = { phase: 'ready', reason: 'ended', message: 'done' };
+    tick();
+    tick();
+    expect(stopped).toBe(1);
+    outputs.status = { phase: 'error', reason: 'autoplay', message: 'blocked' };
+    tick();
+    expect(stopped).toBe(2);
   });
 });

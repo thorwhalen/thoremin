@@ -8,8 +8,10 @@
  * sure it is, how many beats) and, while the song plays, the beat tracker live: a beat
  * counter that flashes on each beat, the tempo as heard at the current rate, the
  * position. Play and Pause go through the `song.play` / `song.pause` commands (the single
- * write path, #87); the level and the tempo are the `song.volume` / `song.rate` dials,
- * dragged directly (Decision B: a slider drag is the one place latency is audible).
+ * write path, #87); the level and the tempo are a per-device pref (`songPrefs`: the song
+ * plays under any instrument, so they are not instrument settings), dragged directly
+ * (Decision B: a slider drag is the one place latency is audible) and reachable from the
+ * palette and the assistant as `song.volume.set` / `song.rate.set`.
  *
  * The song keeps playing with the panel closed, so the tool runs detached and the bar
  * carries its stop control (`ToolsBar`).
@@ -18,14 +20,13 @@ import { useRef, useState } from 'react';
 import { Disc3, X } from 'lucide-react';
 import { LoadStatusReadout } from './LoadStatusReadout';
 import { dispatchCommand } from './dispatchDial';
-import { useDialsSettings } from './dials/useDialsSettings';
 import { useControls } from './store';
 import { useSongStatus, type SongLive } from './songStatus';
 import { loadSongFile, unloadSong } from './song/host';
 import { toolById } from './tools';
 import { useTools } from './toolsStore';
-import { DEFAULT_SONG, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
-import type { SongHandle } from '@/nodes/output/song_player';
+import { SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
+import { unlockSongPlayback, type SongHandle } from '@/nodes/output/song_player';
 
 export const SONG_TOOL_ID = 'song';
 
@@ -68,15 +69,15 @@ export default function SongPanel() {
   const playing = useControls((s) => s.songPlaying);
   const status = useSongStatus((s) => s.status);
   const live = useSongStatus((s) => s.live);
-  const { state, set } = useDialsSettings();
+  const prefs = useControls((s) => s.songPrefs);
+  const setPrefs = useControls((s) => s.setSongPrefs);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!open) return null;
 
   const tool = toolById(SONG_TOOL_ID);
-  const volume = (state.effective['song.volume'] as number | undefined) ?? DEFAULT_SONG.volume;
-  const rate = (state.effective['song.rate'] as number | undefined) ?? DEFAULT_SONG.rate;
+  const { volume, rate } = prefs;
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -128,7 +129,11 @@ export default function SongPanel() {
               <div className="text-white/60" data-testid="song-grid">{describeGrid(song)}</div>
             </div>
             <button
-              onClick={() => void dispatchCommand(playing ? 'song.pause' : 'song.play', {})}
+              onClick={() => {
+                // Inside the click, before the tick that plays it: the autoplay policy.
+                if (!playing) unlockSongPlayback();
+                void dispatchCommand(playing ? 'song.pause' : 'song.play', {});
+              }}
               className={`w-full rounded-lg px-3 py-2 text-sm font-semibold transition ${
                 playing ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-emerald-500 text-black hover:bg-emerald-400'
               }`}
@@ -139,7 +144,7 @@ export default function SongPanel() {
             <LoadStatusReadout status={status} enabled offMessage="No song loaded" />
             <label className="flex items-center justify-between gap-2 text-xs text-white/80">
               Volume
-              <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => set('song.volume', Number(e.target.value))} />
+              <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => setPrefs({ volume: Number(e.target.value) })} />
             </label>
             <label className="flex items-center justify-between gap-2 text-xs text-white/80">
               <span>
@@ -151,7 +156,7 @@ export default function SongPanel() {
                 max={SONG_RATE_MAX}
                 step={0.01}
                 value={rate}
-                onChange={(e) => set('song.rate', Number(e.target.value))}
+                onChange={(e) => setPrefs({ rate: Number(e.target.value) })}
               />
             </label>
             <button onClick={unloadSong} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white/70">

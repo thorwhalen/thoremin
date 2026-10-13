@@ -15,7 +15,7 @@ import SongPanel, { describeGrid, formatTime } from '@/app/SongPanel';
 import { useTools } from '@/app/toolsStore';
 import { useToolPins } from '@/app/toolPins';
 import { TOOL_PINS_STORAGE_KEY } from '@/app/toolsCollection';
-import { useControls, toSettings } from '@/app/store';
+import { useControls, toSettings, mergeControls } from '@/app/store';
 import { loadSongFile } from '@/app/song/host';
 import { ANALYSIS_SAMPLE_RATE } from '@/app/song/load';
 import { createThoreminRegistry } from '@/app/commands/registry';
@@ -96,14 +96,30 @@ describe('the Song tool', () => {
     expect(useControls.getState().songPlaying).toBe(false);
   });
 
-  it('the song and its transport are never a preset field; its level and tempo are', async () => {
+  it('nothing of the song rides an instrument; its level and tempo persist per device', async () => {
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
     useControls.getState().setSongPlaying(true);
     const settings = toSettings(useControls.getState()) as unknown as Record<string, unknown>;
-    expect(settings.songHandle).toBeUndefined();
-    expect(settings.songPlaying).toBeUndefined();
-    expect(settings.song).toEqual({ volume: 0.8, rate: 1 });
+    for (const k of ['songHandle', 'songPlaying', 'songPrefs', 'song']) expect(settings[k], k).toBeUndefined();
+    const persist = (useControls as unknown as { persist: { getOptions(): { partialize(s: unknown): Record<string, unknown> } } }).persist.getOptions();
+    const saved = persist.partialize(useControls.getState());
+    expect(saved.songPrefs).toEqual({ volume: 0.8, rate: 1 });
+    expect(saved.songHandle).toBeUndefined();
+    expect(saved.songPlaying).toBeUndefined();
+    // A hand-edited blob is healed; the transients never come back from storage.
+    const merged = mergeControls({ songPrefs: { rate: 9 }, songPlaying: true, songHandle: { id: 'x' } } as never, useControls.getState());
+    expect(merged.songPrefs).toEqual(useControls.getState().songPrefs);
+    expect(merged.songHandle).toBe(useControls.getState().songHandle);
+  });
+
+  it('the level and tempo are commands too (the palette, the assistant), clamped by their schema', async () => {
+    const r = createThoreminRegistry();
+    expect((await r.dispatch('song.rate.set', { rate: 0.9 })).ok).toBe(true);
+    expect((await r.dispatch('song.volume.set', { volume: 0.5 })).ok).toBe(true);
+    expect(useControls.getState().songPrefs).toEqual({ volume: 0.5, rate: 0.9 });
+    expect((await r.dispatch('song.rate.set', { rate: 5 })).ok).toBe(false);
+    useControls.getState().setSongPrefs({ volume: 0.8, rate: 1 });
   });
 
   it('song.play refuses with no song loaded, and names the way to load one', async () => {

@@ -3,8 +3,8 @@
  * inversion, the shape of `./recordingHost`.
  *
  * The command import firewall (`test/commands_firewall.test.ts`) keeps a command away
- * from the hot store, and the song (`songHandle`) and its transport (`songPlaying`) are
- * transient hot-store state, not dials. So the song module (`src/app/song/host.ts`)
+ * from the hot store, and the song (`songHandle`), its transport (`songPlaying`) and its
+ * level and tempo (`songPrefs`, a per-device pref) are hot-store state, not dials. So the song module (`src/app/song/host.ts`)
  * installs an implementation when it loads, and a command resolves it at dispatch time:
  * the registry can be built, listed and described (the palette, the AI tool surface)
  * before the host exists, and only DISPATCHING a song command before the app has loaded
@@ -16,6 +16,9 @@ export interface SongHost {
   loaded(): string | null;
   /** Start or stop the transport. */
   setPlaying(playing: boolean): void;
+  /** Set the song's level (0..1) or rate (pitch preserved), a per-device pref. */
+  setVolume(volume: number): void;
+  setRate(rate: number): void;
 }
 
 let host: SongHost | null = null;

@@ -6,8 +6,9 @@
  * `orchestraStatus`; the reporter is change-gated (a new beat, a new status), so it
  * writes a few times a second rather than every frame.
  *
- * It also closes the transport's loop: a song that plays to its end turns `songPlaying`
- * back off, so the next press of Play is a fresh start rather than a no-op.
+ * It also closes the transport's loop: a song that plays to its end, or that the browser
+ * refused to start (`reason: 'autoplay'`), turns `songPlaying` back off, so the next press
+ * of Play is a fresh start rather than a no-op.
  */
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
@@ -54,7 +55,7 @@ export function makeSongReporter(
   onEnded: () => void = () => {},
 ): () => void {
   let lastKey = '';
-  let wasEnded = false;
+  let lastStop: string | null = null;
   return () => {
     const s = engine.getOutput(SONG_NODE_ID, 'status') as LoadStatus | undefined;
     if (!s) return;
@@ -65,9 +66,13 @@ export function makeSongReporter(
       bpm: time && time.state !== 'ready' ? Math.round(time.tempo * 10) / 10 : 0,
       positionS: typeof position === 'number' ? position : 0,
     };
-    const ended = s.reason === 'ended';
-    if (ended && !wasEnded) onEnded();
-    wasEnded = ended;
+    // A song that ended, or one the browser refused to start, is not playing: the
+    // transport goes off so the next Play is a fresh press.
+    // Keyed on the reason, not a flag: a finished song whose replay the browser refuses
+    // goes straight from `ended` to `autoplay`, and that is a second stop.
+    const stop = s.reason === 'ended' || s.reason === 'autoplay' ? s.reason : null;
+    if (stop && stop !== lastStop) onEnded();
+    lastStop = stop;
     // Whole seconds of position are enough for the readout; the beat drives the flash.
     const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${live.beat}|${live.bpm}|${Math.floor(live.positionS)}`;
     if (key === lastKey) return;

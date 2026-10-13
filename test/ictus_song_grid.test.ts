@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { beatIndexAt, songTimeAt, songTimeOfBeat, trackSongGrid, EMPTY_SONG_GRID, type SongGrid } from '@thoremin/ictus';
 import { renderClickTrack, SR } from './helpers/clicks';
+import { seeded } from './helpers/random';
 
 /** The fraction of `truth` beats with a tracked beat within `tol` seconds. */
 function hitRate(beats: readonly number[], truth: readonly number[], tol: number): number {
@@ -22,10 +23,11 @@ describe('trackSongGrid on synthetic click tracks', () => {
     { name: '120 bpm with hi-hat eighths', bpm: 120, offset: 0.2, hats: true },
     { name: '100 bpm, swung hi-hats', bpm: 100, offset: 0.4, hats: true, swing: 0.62 },
     { name: '150 bpm', bpm: 150, offset: 0.12 },
+    { name: '110 bpm, swung hi-hats as loud as the kick', bpm: 110, offset: 0.25, hats: true, swing: 0.62, hatLevel: 1.6 },
   ];
   for (const c of cases) {
     it(`${c.name}: the tempo within 0.2 bpm and 95 % of beats within 50 ms`, () => {
-      const { samples, beats: truth } = renderClickTrack({ bpm: c.bpm, seconds: 30, offset: c.offset, hats: c.hats, swing: c.swing });
+      const { samples, beats: truth } = renderClickTrack({ bpm: c.bpm, seconds: 30, offset: c.offset, hats: c.hats, swing: c.swing, hatLevel: c.hatLevel });
       const g = trackSongGrid(samples, { sampleRate: SR });
       expect(Math.abs(g.bpm - c.bpm)).toBeLessThan(0.2);
       expect(hitRate(g.beats, truth.slice(1, -1), 0.05)).toBeGreaterThan(0.95);
@@ -35,6 +37,12 @@ describe('trackSongGrid on synthetic click tracks', () => {
       expect(g.phaseS).toBeLessThan(g.periodS);
     });
   }
+
+  it('white noise has no beat: the empty grid, not a faint one', () => {
+    const rnd = seeded(3);
+    const noise = Float32Array.from({ length: SR * 20 }, () => rnd() - 0.5);
+    expect(trackSongGrid(noise, { sampleRate: SR })).toEqual(EMPTY_SONG_GRID);
+  });
 
   it('silence and a too-short buffer give the empty grid, never a zero tempo', () => {
     expect(trackSongGrid(new Float32Array(SR * 10), { sampleRate: SR })).toEqual(EMPTY_SONG_GRID);

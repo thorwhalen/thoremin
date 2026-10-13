@@ -20,6 +20,8 @@ export interface ClickTrackOptions {
   hats?: boolean;
   /** Where the off-beat eighth falls, as a fraction of the beat (0.5 = straight). */
   swing?: number;
+  /** The hi-hat's peak amplitude (the kick's is 0.8). */
+  hatLevel?: number;
   seed?: number;
 }
 
@@ -36,7 +38,7 @@ export function renderClickTrack(o: ClickTrackOptions): { samples: Float32Array;
     const bpm = o.bpm + (end - o.bpm) * (t / o.seconds);
     const period = 60 / bpm;
     addBurst(x, t, 0.12, (k) => Math.sin((2 * Math.PI * 60 * k) / SR) * 0.8, 30);
-    if (o.hats) addBurst(x, t + period * (o.swing ?? 0.5), 0.03, () => (rnd() - 0.5) * 0.5, 150);
+    if (o.hats) addBurst(x, t + period * (o.swing ?? 0.5), 0.03, () => (rnd() - 0.5) * 2 * (o.hatLevel ?? 0.25), 150);
     t += period;
   }
   return { samples: x, beats };

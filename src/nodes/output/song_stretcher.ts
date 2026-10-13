@@ -21,6 +21,9 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
   source.connect(gain);
   let pending: (() => void) | null = null;
   let volume = 1;
+  /** What the node last asked for, and whether the browser refused it. */
+  let wanted = false;
+  let blocked = false;
 
   return {
     load(url) {
@@ -30,6 +33,7 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
       return new Promise<void>((resolve, reject) => {
         const done = () => {
           el.removeEventListener('canplay', ok);
+          el.removeEventListener('loadedmetadata', ok);
           el.removeEventListener('error', bad);
           pending = null;
         };
@@ -43,19 +47,43 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
         };
         // A superseded load settles as a failure its caller ignores (it checks the id).
         pending = bad;
+        // `loadedmetadata` too: iOS may not buffer (`canplay`) before a gesture, and a song
+        // whose duration is known is playable enough to press Play on.
         el.addEventListener('canplay', ok);
+        el.addEventListener('loadedmetadata', ok);
         el.addEventListener('error', bad);
         el.load();
       });
     },
     play() {
-      // An ended element restarts from the beginning on play() (the HTML spec).
-      void el.play().catch(() => {
-        /* the autoplay policy: the audio was started on a tap, so this is rare */
+      wanted = true;
+      blocked = false;
+      // An ended element restarts from the beginning on play() (the HTML spec). A refusal
+      // (the autoplay policy: this runs on the engine tick, not in a click) is reported
+      // through `blocked()`, never swallowed.
+      void el.play().catch((e: unknown) => {
+        if (wanted && e instanceof DOMException && e.name === 'NotAllowedError') blocked = true;
       });
     },
     pause() {
+      wanted = false;
       el.pause();
+    },
+    blocked: () => blocked,
+    unlock() {
+      // Inside the click: a muted play makes this element playable from the tick later;
+      // it pauses again unless the node has asked for playback meanwhile.
+      if (!el.paused || !el.src) return;
+      el.muted = true;
+      el.play().then(
+        () => {
+          if (!wanted) el.pause();
+          el.muted = false;
+        },
+        () => {
+          el.muted = false;
+        },
+      );
     },
     setRate(rate) {
       if (Number.isFinite(rate) && rate > 0 && el.playbackRate !== rate) el.playbackRate = rate;

@@ -606,6 +606,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       timing = null;
       // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
       useControls.getState().setSteerPlaying(false);
+      // Nor start the song by itself on the next tap (#186 PR G): the new player has no
+      // memory of the press that started the old one.
+      useControls.getState().setSongPlaying(false);
       sessionRecRef.current?.dispose();
       sessionRecRef.current = null;
       cameraStreamRef.current = null;

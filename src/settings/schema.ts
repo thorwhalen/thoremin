@@ -226,11 +226,12 @@ export const SONG_RATE_MIN = 0.5;
 export const SONG_RATE_MAX = 2;
 /**
  * The song the player dances to (#186 PR G): its level and the rate it plays at, pitch
- * preserved. Scalar dials, so the Song tool's sliders, the palette and the assistant
- * reach them. The song ITSELF is not here: a decoded song is transient hot-store state
- * (`songHandle`), never a preset field, and so is the transport (`songPlaying`), for the
- * reason the generative transport is not one (a saved instrument must not start playing
- * on load).
+ * preserved. A per-DEVICE tooling pref like `audioPrefs`, NOT a preset field: the song
+ * plays under whatever instrument is loaded, so switching instrument must not change its
+ * tempo, and moving its slider must not mark the instrument edited. Persisted through
+ * the store's `partialize`; the palette and the assistant reach it through the
+ * `song.volume.set` / `song.rate.set` commands. The song ITSELF (`songHandle`) and its
+ * transport (`songPlaying`) are transient and never persisted.
  */
 export const SongSettingsSchema = z.object({
   volume: z.number().min(0).max(1),
@@ -310,8 +311,6 @@ export const CoreSettingsSchema = z.object({
   hands: HandsSettingsSchema.default(DEFAULT_HANDS),
   // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
   body: BodySettingsSchema.default(DEFAULT_BODY),
-  // The song's level and rate (#186 PR G). `.default(...)` keeps pre-song presets valid.
-  song: SongSettingsSchema.default(DEFAULT_SONG),
   // The body→sound routing (#186 PR E): four route slots over the catalog. `.default`
   // keeps pre-routing presets valid (no routes = byte-identical sound).
   bodyMap: BodyMapSchema.default(() => structuredClone(DEFAULT_BODY_MAP)),
