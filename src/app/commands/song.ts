@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { defineCommand, ok, err } from 'acture';
-import { SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
+import { SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
 import { songHost } from './songHost';
 
 const CATEGORY = 'Song';
@@ -72,5 +72,34 @@ export const setSongRateCmd = defineCommand({
   },
 });
 
+/** Make the song follow the dancer, or stop it following (#186 PR H). */
+export const setSongFollowCmd = defineCommand({
+  id: 'song.follow.set',
+  title: 'Follow the dancer',
+  description:
+    "Whether the song's tempo follows the dancer's pulse (the body camera starts while a song is loaded); off plays it at its own tempo.",
+  category: CATEGORY,
+  params: z.object({ follow: z.boolean().describe('true = the song follows the dancer') }),
+  execute: async ({ follow }) => {
+    songHost().setFollow(follow);
+    return ok({ follow });
+  },
+});
+
+/** How far following may pull the song from its tempo. */
+export const setSongFollowRangeCmd = defineCommand({
+  id: 'song.followRange.set',
+  title: 'Set the follow range',
+  description: "How far from the song's set tempo following the dancer may pull it: 0.1 is +-10 %.",
+  category: CATEGORY,
+  params: z.object({
+    range: z.number().min(SONG_FOLLOW_RANGE_MIN).max(SONG_FOLLOW_RANGE_MAX).describe('A fraction of the tempo; 0.1 = +-10 %'),
+  }),
+  execute: async ({ range }) => {
+    songHost().setFollowRange(range);
+    return ok({ range });
+  },
+});
+
 /** All song commands, registered together. */
-export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd] as const;
+export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd] as const;

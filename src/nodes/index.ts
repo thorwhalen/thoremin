@@ -43,6 +43,7 @@ import { progressionNode } from './music/progression';
 import { transportNode } from './music/transport';
 import { scoreNode } from './music/score';
 import { performanceNode } from './music/performance';
+import { paceControllerNode } from './music/pace_controller';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
@@ -110,6 +111,7 @@ export { progressionNode } from './music/progression';
 export { transportNode } from './music/transport';
 export { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES } from './music/score';
 export { performanceNode } from './music/performance';
+export { paceControllerNode } from './music/pace_controller';
 export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt, GenerativeEngineFactory, GenerativeEngineOpts } from './output/generative';
 export type { GenerativeStatus } from './output/lyria';
 export * from '@thoremin/sdk/nodes/domain';
@@ -144,6 +146,7 @@ export const CORE_NODES = [
   lyriaNode,
   orchestraNode,
   songPlayerNode,
+  paceControllerNode,
   chordNode,
   expressionChordNode,
   poseChordNode,

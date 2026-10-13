@@ -19,6 +19,10 @@ export interface SongHost {
   /** Set the song's level (0..1) or rate (pitch preserved), a per-device pref. */
   setVolume(volume: number): void;
   setRate(rate: number): void;
+  /** Whether the song follows the dancer, and how far it may be pulled (#186 PR H), also
+   *  per-device prefs. */
+  setFollow(follow: boolean): void;
+  setFollowRange(range: number): void;
 }
 
 let host: SongHost | null = null;

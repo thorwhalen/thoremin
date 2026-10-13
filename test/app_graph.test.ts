@@ -78,10 +78,14 @@ describe('production app graph', () => {
     // its pluck scheduler + the air guitar and its pluck scheduler + the air flute.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    // Without the air extension: the 28 core nodes (the 7 air nodes come with it); the
-    // dance pulse (#186 PR F) is the 27th, the song player (#186 PR G) the 28th. The ASL
-    // extension adds its reader and its chord node.
-    expect(order).toHaveLength((AIR ? 35 : 28) + (ASL ? 2 : 0));
+    // Without the air extension: the 29 core nodes (the 7 air nodes come with it); the
+    // dance pulse (#186 PR F) is the 27th, the song player (#186 PR G) the 28th, the pace
+    // controller (#186 PR H) the 29th. The ASL extension adds its reader and its chord node.
+    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0));
+    // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
+    // from the player are delayed, so the loop is not a cycle.
+    expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
+    expect(order.indexOf('pace')).toBeLessThan(order.indexOf('songPlayer'));
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {

@@ -6,8 +6,9 @@
  * The song arrives on the `song` port as the stable {@link SongHandle} the hot store
  * carries (research map §9.5): the same object every tick until another song loads, so a
  * new song is detected by identity and loaded once. The transport (`playing`), the rate
- * and the level are live inputs, so the Song tool, the palette and (PR H) the pace
- * controller drive it without a graph rebuild.
+ * and the level are live inputs, so the Song tool, the palette and the pace controller
+ * (PR H, on `followRate`, which replaces `rate` while the song follows the dancer) drive
+ * it without a graph rebuild.
  *
  * Playback is behind the {@link Stretcher} seam: the browser's own media element
  * (`playbackRate` with `preservesPitch`, `./song_stretcher`) by default, loaded the first
@@ -116,12 +117,18 @@ export const songPlayerNode = defineNode<Params>({
     { name: 'song', kind: 'song-handle', description: 'The loaded song (the Song tool, through the store); absent = nothing to play' },
     { name: 'playing', kind: 'boolean', default: false, description: 'The transport: song.play / song.pause' },
     { name: 'rate', kind: 'number', default: 1, description: 'Playback rate, pitch preserved (clamped to minRate..maxRate)' },
+    {
+      name: 'followRate',
+      kind: 'number',
+      description: 'The pace controller\'s rate while the song follows the dancer (PR H); replaces `rate` when present',
+    },
     { name: 'volume', kind: 'number', default: 0.8 },
     { name: 'claimed', kind: 'boolean', default: false, description: 'A tool holds the instrument quiet (the Trainer)' },
   ],
   outputs: [
     { name: 'status', kind: 'load-status' },
     { name: 'position', kind: 'number', description: 'Seconds into the song, on its own timeline' },
+    { name: 'rate', kind: 'number', description: 'The rate the song is played at, after the clamp (what the pace controller reads back)' },
     { name: 'songTime', kind: 'musical-time', description: 'The song\'s beat at the playback position, tempo in engine time' },
   ],
   params: Params,
@@ -167,6 +174,7 @@ export const songPlayerNode = defineNode<Params>({
     const idle = (ctx: NodeContext, s: LoadStatus, grid: SongGrid = EMPTY_SONG_GRID) => ({
       status: s,
       position: 0,
+      rate: 1,
       songTime: songTimeAt(grid, 0, { t: ctx.time, playing: false }) as MusicalTime,
     });
 
@@ -210,7 +218,9 @@ export const songPlayerNode = defineNode<Params>({
           );
         }
         const playing = inputs.playing === true;
-        const rate = Math.max(p.minRate, Math.min(p.maxRate, finite(inputs.rate, 1)));
+        // While the song follows the dancer, the pace controller's rate replaces the
+        // player's (which is then the controller's base, the centre of its clamp).
+        const rate = Math.max(p.minRate, Math.min(p.maxRate, finite(inputs.followRate, finite(inputs.rate, 1))));
         const volume = inputs.claimed === true ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
         s.setVolume(volume);
         s.setRate(rate);
@@ -235,6 +245,7 @@ export const songPlayerNode = defineNode<Params>({
         return {
           status,
           position,
+          rate,
           songTime: songTimeAt(song.grid, position, { t: ctx.time, rate, playing: s.playing() }),
         };
       },

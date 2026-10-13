@@ -186,7 +186,7 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** The body→sound routing (#186 PR E). A preset field; flows to `body-route` through
    *  `store-controls` as the `bodyMap` port, so a route edit is live without a rebuild. */
   bodyMap: BodyMap;
-  /** The song's level and rate (#186 PR G): a per-DEVICE tooling pref like
+  /** The song's level and rate, and whether it follows the dancer (#186 PR G, H): a per-DEVICE tooling pref like
    *  {@link audioPrefs}, persisted via `partialize`, NOT a preset field (the song plays
    *  under any instrument; loading one must not change its tempo). Flows to
    *  `song-player`'s `volume` / `rate` inputs through `store-controls`. */
@@ -853,7 +853,10 @@ export const useControls = create<ControlState>()(
       // field): the song's level and rate, defaults 0.8 / 1. ADDITIVE, healed by
       // mergeControls' schema parse; the bump marks the growth. The song itself and its
       // transport are transient and never persisted.
-      version: 25,
+      // v26 (#186 PR H): `songPrefs` gained `follow` (default off: the song plays at its
+      // own tempo, as every earlier blob did) and `followRange` (0.1). ADDITIVE, healed
+      // by mergeControls' schema parse over DEFAULT_SONG; the bump marks the growth.
+      version: 26,
       migrate: migrateControls,
       merge: mergeControls,
       storage: createJSONStorage(controlsStorage),
