@@ -97,12 +97,20 @@ export interface ImpactDetectorOptions {
   initialPeriod?: number;
   /** Refractory window after a peak, as a fraction of the period. */
   refractoryFraction?: number;
-  /** A peak must clear the envelope's median by this many median absolute deviations
-   *  (A1's `PEAK_MADS`). */
+  /** A peak must rise this many median absolute deviations of the envelope above the
+   *  lowest value since the previous peak (its prominence; A1's offline picker used a
+   *  level, median plus `PEAK_MADS`, which misses a 4-pattern's small strokes). */
   peakMads?: number;
+  /** A peak is confirmed once the envelope has fallen this many MADs below it. */
+  confirmMads?: number;
+  /** ... and at least this many multiples of the envelope's own frame-to-frame jitter
+   *  (a sigma from the median third difference), so tracker noise on a small bounce
+   *  cannot confirm a peak early. */
+  confirmJitter?: number;
   /** Seconds of envelope the median and MAD are taken over. */
   noiseWindowS?: number;
-  /** Seconds of the trailing mean subtracted from each position (A1's `DETREND_S`). */
+  /** Seconds of the trailing mean subtracted from each position (A1's `DETREND_S`),
+   *  rounded to a whole number of periods. */
   detrendS?: number;
   /** Seconds of `scale` the body unit is the running median of (A1's `TORSO_SPAN_S`). */
   scaleSpanS?: number;
@@ -146,6 +154,8 @@ export const IMPACT_DEFAULTS: Required<Omit<ImpactDetectorOptions, 'joints'>> = 
   initialPeriod: 0.6,
   refractoryFraction: 0.25,
   peakMads: 1,
+  confirmMads: 0.25,
+  confirmJitter: 2,
   noiseWindowS: 4,
   detrendS: 2,
   scaleSpanS: 1,
@@ -184,13 +194,29 @@ interface Peak {
   z: number;
 }
 
-/** A causal local-maximum picker over one envelope, with a median/MAD threshold over a
- *  trailing window and a refractory gap. */
-function createPeakPicker(windowS: number, peakMads: number, subframe: boolean) {
+/**
+ * A causal peak picker over one envelope: a peak is the highest value of an excursion
+ * that has RISEN `peakMads` MADs (of the trailing window) above the lowest value since
+ * the previous peak (a prominence, not a level, so the small strokes of a beat pattern
+ * count as well as the big one), CONFIRMED
+ * once the envelope has fallen below it by `confirmMads` MADs and by `confirmJitter`
+ * times its own jitter. Tracking the excursion's
+ * maximum until the fall is decisive is what keeps tracker noise near a sharp bottom
+ * from firing twice (A1 saw false doubles at the bottom of slow strokes); the cost is
+ * a frame or two of latency, which the prior's prediction absorbs. The refractory gap
+ * is counted from the last peak emitted.
+ */
+function createPeakPicker(windowS: number, peakMads: number, confirmMads: number, confirmJitter: number, subframe: boolean) {
   let window: TimedValue[] = [];
-  let a: TimedValue | null = null;
-  let b: TimedValue | null = null;
+  /** |third difference| of consecutive values over the window: the jitter estimate. */
+  let d3: TimedValue[] = [];
+  let jitter = NaN;
+  let prev: TimedValue | null = null;
+  /** The excursion's running maximum, its neighbours for the parabola. */
+  let top: { before: TimedValue | null; at: TimedValue; after: TimedValue | null } | null = null;
   let lastPeakT = -Infinity;
+  /** The lowest value since the last peak confirmed: what a rise is measured from. */
+  let valley = Infinity;
   let med = NaN;
   let mad = NaN;
 
@@ -198,7 +224,10 @@ function createPeakPicker(windowS: number, peakMads: number, subframe: boolean) 
     const vs = window.map((p) => p.v);
     med = median(vs);
     mad = median(vs.map((v) => Math.abs(v - med)));
+    jitter = d3.length ? median(d3.map((p) => p.v)) / JITTER_FROM_THIRD_DIFFERENCE : NaN;
   };
+  /** The last four values, for the third difference. */
+  let last4: number[] = [];
 
   return {
     /** The value in noise units against the current window (NaN while unknown). */
@@ -208,37 +237,63 @@ function createPeakPicker(windowS: number, peakMads: number, subframe: boolean) 
     push(t: number, v: number, minGapS: number): Peak | null {
       window.push({ t, v });
       while (window.length && window[0].t < t - windowS) window.shift();
+      last4.push(v);
+      if (last4.length > 4) last4.shift();
+      if (last4.length === 4) d3.push({ t, v: Math.abs(last4[3] - 3 * last4[2] + 3 * last4[1] - last4[0]) });
+      while (d3.length && d3[0].t < t - windowS) d3.shift();
       restat();
       const c = { t, v };
       let peak: Peak | null = null;
-      if (a && b && b.v > a.v && b.v >= c.v && mad > 0) {
-        const z = (b.v - med) / mad;
-        if (z >= peakMads && b.t - lastPeakT >= minGapS) {
-          const off = subframe ? parabolicOffset(a.v, b.v, c.v) : 0;
-          const step = off < 0 ? b.t - a.t : c.t - b.t;
-          peak = { t: b.t + off * step, z };
-          lastPeakT = b.t;
+      if (top && top.after === null) top.after = c;
+      if (top === null) valley = Math.min(valley, v);
+      if (mad > 0) {
+        const noise = Number.isFinite(jitter) ? confirmJitter * jitter : 0;
+        if (top === null) {
+          if (v - valley >= Math.max(peakMads * mad, noise)) top = { before: prev, at: c, after: null };
+        } else if (v > top.at.v) {
+          top = { before: prev, at: c, after: null };
+        } else if (v <= top.at.v - Math.max(confirmMads * mad, noise)) {
+          const { before, at, after } = top;
+          top = null;
+          valley = v;
+          if (at.t - lastPeakT >= minGapS) {
+            let tp = at.t;
+            if (subframe && before && after) {
+              const off = parabolicOffset(before.v, at.v, after.v);
+              tp += off * (off < 0 ? at.t - before.t : after.t - at.t);
+            }
+            peak = { t: tp, z: (at.v - med) / mad };
+            lastPeakT = at.t;
+          }
         }
       }
-      a = b;
-      b = c;
+      prev = c;
       return peak;
     },
-    /** Forget the local triple (a gap), keep the noise window. */
+    /** Forget the excursion in progress (a gap), keep the noise window. */
     break(): void {
-      a = null;
-      b = null;
+      prev = null;
+      top = null;
+      last4 = [];
+      valley = Infinity;
     },
     reset(): void {
       window = [];
-      a = null;
-      b = null;
+      d3 = [];
+      last4 = [];
+      jitter = NaN;
+      prev = null;
+      top = null;
       lastPeakT = -Infinity;
       med = NaN;
       mad = NaN;
     },
   };
 }
+
+/** A white-noise sigma from the median |third difference|: the difference has variance
+ *  20 sigma^2, and a normal's median absolute value is 0.6745 sigma. */
+const JITTER_FROM_THIRD_DIFFERENCE = 0.6745 * Math.sqrt(20);
 
 interface Kin {
   t: number;
@@ -274,7 +329,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
   let envelopeT = NaN;
   let lastAnchorT = -Infinity;
   let selected: number | null = null;
-  const combined = createPeakPicker(o.noiseWindowS, o.peakMads, o.subframe);
+  const combined = createPeakPicker(o.noiseWindowS, o.peakMads, o.confirmMads, o.confirmJitter, o.subframe);
 
   const newJoint = (j: { channel: string; weight: number }) => ({
     ...j,
@@ -286,7 +341,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     pts: [] as Kin[],
     vels: [] as Array<{ t: number; vx: number; vy: number; speed: number }>,
     history: [] as HistoryPoint[],
-    picker: createPeakPicker(o.noiseWindowS, o.peakMads, o.subframe),
+    picker: createPeakPicker(o.noiseWindowS, o.peakMads, o.confirmMads, o.confirmJitter, o.subframe),
     peaks: [] as number[],
     lastAnchorX: NaN,
   });
@@ -327,7 +382,10 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     j.trail.push({ t, x, y });
     j.trailX += x;
     j.trailY += y;
-    while (j.trail.length > 1 && j.trail[0].t < t - o.detrendS) {
+    // The trailing mean spans a whole number of periods, so the beat's own movement
+    // averages out of it instead of rippling into every turning point.
+    const span = Math.max(1, Math.round(o.detrendS / period)) * period;
+    while (j.trail.length > 1 && j.trail[0].t < t - span) {
       const old = j.trail.shift()!;
       j.trailX -= old.x;
       j.trailY -= old.y;
@@ -366,9 +424,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
                 ? planeSpeed
                   ? Math.hypot(ax, ay)
                   : Math.abs(ay)
-                : v1.vy > 0
-                  ? Math.max(0, -ay)
-                  : 0;
+                : Math.max(0, -ay);
           env = { t: v1.t, v: v };
         }
       }
