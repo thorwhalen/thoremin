@@ -7,7 +7,7 @@
  *  1. its deferred halves (`lazy.module`, `lazy.ui`) are in no INITIAL chunk (the entry chunk
  *     and what it imports statically), only in chunks the page fetches with `import()`;
  *  2. no module of a package the extension OWNS is initial, except its stubs' own static
- *     closure inside its package. A package is owned when every module of it that the build
+ *     closure inside its package, which stays in the root of its `src/` (no sub-directory). A package is owned when every module of it that the build
  *     reaches is reached only through the extension (its package, and e.g. a recogniser it
  *     alone depends on, with that recogniser's weights); a package core imports too (the SDK,
  *     zod) is shared, not owned;
@@ -163,7 +163,11 @@ try {
       return mods.every((m) => (graph.importers.get(m) ?? []).every((i) => viaExt.has(i) || under(dir)(i)));
     });
     if (!owned.includes(extDir)) owned.push(extDir);
-    const stubClosure = closure(stubs, (id) => graph.imported.get(id) ?? [], inExt);
+    // A stub's closure stays in the root of the extension's `src/` (the manifest, the dial, its
+    // schema, the branches as data): every sub-directory (`nodes/`, `lib/`, `app/`, `panels/`)
+    // is the deferred side by layout, so a stub importing one fails here, not just on the budget.
+    const deferredOnly = (id: string) => id.startsWith(join(extDir, 'src') + sep) && relative(join(extDir, 'src'), id).includes(sep);
+    const stubClosure = closure(stubs, (id) => graph.imported.get(id) ?? [], (id) => inExt(id) && !deferredOnly(id));
     let stubBytes = 0;
     for (const [id, bytes] of initialModules) {
       if (!owned.some((d) => under(d)(id))) continue;

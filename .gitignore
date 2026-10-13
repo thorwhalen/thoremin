@@ -64,3 +64,6 @@ smoke/playwright-report/
 # Python bytecode from the scripts/ helpers
 __pycache__/
 *.pyc
+
+# An installed extension's own tests, copied in while developing it (its README); never committed here.
+test/ext-asl/

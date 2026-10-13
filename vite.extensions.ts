@@ -121,10 +121,36 @@ declare module 'virtual:thoremin/extensions' {
 `;
 }
 
+/**
+ * The packages an extension shares with the host. An extension installed from `node_modules`
+ * (a git or registry dependency, `docs/design/lazy-extensions.md`) resolves them from the
+ * HOST's `node_modules`, so there is one copy of each: two copies of `@thoremin/sdk-ui` would
+ * leave the extension's half without the host the app installs into the other (`controls()`
+ * would throw), and two Reacts break every hook.
+ */
+export const SHARED_WITH_EXTENSIONS = ['react', 'react-dom', 'zod', 'zustand', '@thoremin/dag', '@thoremin/ictus', '@thoremin/lazy', '@thoremin/sdk', '@thoremin/sdk-ui'];
+
+/** The packages the entries name (`@scope/x/sub` -> `@scope/x`), aliases (`@/...`) left out. */
+export function extensionPackages(entries: readonly ExtensionEntry[]): string[] {
+  const name = (spec: string) => spec.split('/').slice(0, spec.startsWith('@') ? 2 : 1).join('/');
+  return [...new Set(entries.flatMap((e) => [e.module, e.ui]).filter((s) => !s.startsWith('@/')).map(name))];
+}
+
 export function thoreminExtensions(root: string, manifest = process.env.THOREMIN_EXTENSIONS ?? 'extensions.json'): Plugin {
   const file = path.resolve(root, manifest);
   return {
     name: 'thoremin-extensions',
+    // An extension package is TypeScript source with no build step, in `node_modules` once it is
+    // its own repository: never pre-bundled (dev), compiled like the app's own source (tests),
+    // and resolving the shared packages from the host.
+    config() {
+      const packages = extensionPackages(readExtensionEntries(file));
+      return {
+        resolve: { dedupe: SHARED_WITH_EXTENSIONS },
+        optimizeDeps: { exclude: packages },
+        test: { server: { deps: { inline: packages } } },
+      } as Record<string, unknown>;
+    },
     resolveId(id) {
       return id === EXTENSIONS_MODULE || id === EXTENSIONS_UI_MODULE ? `\0${id}` : undefined;
     },

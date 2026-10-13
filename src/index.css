@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
+/* An extension installed from node_modules (its own repository) is not scanned by default:
+   name it so its panels keep their classes (docs/design/lazy-extensions.md). */
+@source "../node_modules/@thoremin/ext-asl/src";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;

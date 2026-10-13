@@ -11,7 +11,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const SYNTHETIC = '?slot.source=synthetic-hands';
-/** In the `asl-signs` node definition only (`packages/ext-asl/src/nodes/asl_signs.ts`). */
+/** In the `asl-signs` node definition only (the plugin repository's `src/nodes/asl_signs.ts`, thorwhalen/thoremin-asl). */
 const DEFERRED_MARKER = 'Hands → ASL signs';
 
 /** Every script the page fetches, with its body, in order of RESPONSE (the slot is taken when

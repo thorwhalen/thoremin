@@ -27,7 +27,7 @@ So which extensions are lazy is data the build reads, the deferred chunk is spli
 
 | Eager (the stub) | Deferred |
 |---|---|
-| `id`, the dial slices (Zod schemas: settings typing, hydration, palette, per-dial commands), the branches as data, the instrument seeds, `derive`, `transient`, `training`, and `provides`: the node types the deferred half defines | the node definitions and every library they import (for ASL: the recogniser `@thoremin/asl`, and through it the weights, a further lazy hop) |
+| `id`, the dial slices (Zod schemas: settings typing, hydration, palette, per-dial commands), the branches as data, the instrument seeds, `derive`, `transient`, `training`, and `provides`: the node types the deferred half defines | the node definitions and every library they import (for ASL: its recogniser library, and through it the weights, a further lazy hop) |
 | the React stub: `{ id, panels: [{ instrumentId, section }] }`, data only (`ExtensionUiStub`) | the React half (`ExtensionUi`): the panels' components, the status hooks, the mount effects |
 
 The stub must not import anything the deferred half needs. For ASL that meant moving the `asl` dial's Zod schema out of the node module into `schema.ts`. Measured: the ASL stubs put 4.6 kB in the initial chunks, and its deferred code is five chunks of 152 kB, weights included.
@@ -74,9 +74,16 @@ The load state of each lazy extension is a `LoadStatus` per id in `useExtensionL
 3. Add both deferred halves to its `package.json` `exports` and a `lazy` key to its `extensions.json` entry; run `npm run extensions`.
 4. `npm run check:lazy` says whether anything of it is still in the initial chunks.
 
-## The plugin repository (next step)
+## The plugin repository
 
-The second PR moves ASL out of this repository into `thorwhalen/thoremin-asl`: one root package (an npm git dependency cannot install a sub-directory, so the recogniser is folded into it), consumed as `github:thorwhalen/thoremin-asl#<sha>`, pinned by the lockfile, public so `npm ci` needs no token on the deploy host or in CI. The packages `packages/asl` and `packages/ext-asl` and their tests leave this repository in that same PR, with `check:lazy` and the smoke already guarding the result. Consuming TypeScript source from `node_modules` needs a few host settings that a workspace link did not (one copy of the shared packages via `resolve.dedupe`, the plugin excluded from dependency pre-bundling, vitest inlining it, Tailwind scanning it, the static guards resolving extension directories through Node rather than `packages/`); they are that PR's to add, where they can be tested.
+> **As built (2026-10-13, PR B):** ASL lives in its own public repository, [`thorwhalen/thoremin-asl`](https://github.com/thorwhalen/thoremin-asl), split from this one with its history.
+
+- **One root package**, `@thoremin/ext-asl`: an npm git dependency cannot install a sub-directory, so the recogniser is folded in as the extension's library (`src/lib/recognizer`, exported as `@thoremin/ext-asl/recognizer`, its weights beside it) and the training pipeline is `training/`. The SDK packages, `react`, `zod` and `zustand` are peer dependencies the host provides.
+- **Pinned by commit**: `package.json` names `github:thorwhalen/thoremin-asl#<sha>` and the lockfile pins it. The repository is public, so `npm ci` fetches it with no token and no SSH key (verified with SSH disabled and an empty cache), on the deploy host and in CI. A new plugin version reaches players only through a thoremin PR that moves the sha (`npm install github:thorwhalen/thoremin-asl#<sha>`) and passes this repository's gates; the plugin's README says how.
+- **Host settings for TypeScript source in `node_modules`**, all derived from `extensions.json` by the extensions Vite plugin, so a second external extension needs none of them by name: the shared packages resolve from the host (`resolve.dedupe`: one `@thoremin/sdk-ui`, one React), extension packages are never pre-bundled (`optimizeDeps.exclude`) and are compiled in tests (`test.server.deps.inline`). Three lines per external extension remain by hand, all naming `node_modules/<package>/src`: Tailwind's `@source` in `src/index.css` (it does not scan `node_modules`), and the `include` entries of `tsconfig.dag.json` (with its `.tsx` exclude) and `tsconfig.react.json`. A missed tsconfig line leaves the extension untypechecked, so add all three together.
+- **The guards follow the plugin**: `test/helpers/extensions.ts` finds an installed extension's source the way Node does, so the write-path, layering, command-firewall and boundary guards scan the plugin in `node_modules`; `test/packages_purity.test.ts` holds it to the packages it declares (its peer dependencies), like a workspace package; the strict typecheck (its pure `.ts`) and the React type ratchet (all of it; `tsconfig.react.json` empties the default `node_modules` exclude for that) include it; `check_core_bundle` flags `node_modules/@thoremin/ext-*`. The boundary guard now allows `.json` data under an extension's pure paths (the recogniser's weights). `check:lazy` keeps a stub's allowed closure to the root of the extension's `src/` (every sub-directory, `nodes/`, `lib/`, `app/`, `panels/`, is the deferred side), so the folded-in recogniser and the React half stay deferred-only (a stub importing one fails, not just the byte budget). The core theory the plugin builds on (`letterDegree`, `keyName`) keeps its own core test (`test/music_letter_degree.test.ts`).
+- **Tests**: the recogniser's parity and replay tests and the chord node's moved with it. The tests that need the host app (`test/asl/instruments.test.ts`, the overlay's `category_overlay.test.ts`) stay here. The plugin's CI runs inside a real thoremin (its commit in place of the pinned one, its tests added to the suite, thoremin's typecheck, suite, build and `check:lazy`).
+- **Recovery after a failed load is a page reload**, as above: a browser never refetches a failed `import()` in the same page. That holds for the plugin's chunks exactly as it did in the monorepo.
 
 ## Alternatives considered
 
@@ -89,7 +96,7 @@ The second PR moves ASL out of this repository into `thorwhalen/thoremin-asl`: o
 
 | # | Seam | Default | Replacement it points at |
 |---|---|---|---|
-| 1 | where an extension's list entry comes from | `extensions.json`, eager unless `lazy` | the same file naming registry or git packages (PR B, then any extension) |
+| 1 | where an extension's list entry comes from | `extensions.json`, eager unless `lazy` | the same file naming registry or git packages (ASL since PR B; then any extension) |
 | 2 | when a lazy extension loads | when a composed graph names a pending node type | none needed: every request path reaches the graph |
 | 3 | how its node code arrives | `registry.declareLazy` + the build's `import()` | the same, for any extension that opts in |
 

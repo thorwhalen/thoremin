@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, normalize, dirname } from 'node:path';
 import ts from 'typescript';
+import { SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
 
 const PACKAGES_ROOT = 'packages';
 
@@ -40,13 +41,25 @@ const packages = readdirSync(PACKAGES_ROOT, { withFileTypes: true })
   .filter((d) => d.isDirectory() && existsSync(join(PACKAGES_ROOT, d.name, 'package.json')))
   .map((d) => d.name);
 
+/** The package roots held to the rule: every workspace package, and every shipped extension
+ *  installed from outside the workspace (its own repository, in `node_modules`), which must
+ *  declare what it imports (its peer dependencies) just the same. */
+const roots: string[] = [
+  ...packages.map((name) => join(PACKAGES_ROOT, name)),
+  ...SHIPPED_EXTENSION_DIRS.filter((e) => e.dir.split(/[\\/]/).includes('node_modules')).map((e) => dirname(e.dir)),
+];
+
 describe('a workspace package imports only itself and its declared dependencies', () => {
   it('finds the packages', () => {
     expect(packages).toEqual(expect.arrayContaining(['dag', 'ictus', 'lazy', 'taglog']));
   });
 
-  for (const name of packages) {
-    const root = join(PACKAGES_ROOT, name);
+  it('checks every installed extension the manifest ships', () => {
+    const installed = SHIPPED_EXTENSION_DIRS.filter((e) => e.dir.split(/[\\/]/).includes('node_modules')).length;
+    expect(roots.length, 'one root per workspace package and per installed extension').toBe(packages.length + installed);
+  });
+
+  for (const root of roots) {
     const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
       name: string;
       dependencies?: Record<string, string>;

@@ -15,8 +15,7 @@
     "packages/sdk/src",
     "packages/sdk-ui/src",
     "packages/ext-air/src",
-    "packages/asl/src",
-    "packages/ext-asl/src",
+    "node_modules/@thoremin/ext-asl/src",
     "src/instruments",
     "src/extensions",
     "packages/ictus/src",
@@ -43,6 +42,6 @@
     "packages/sdk-ui/src/**/*.tsx",
     "packages/sdk-ui/src/types.ts",
     "packages/ext-air/src/**/*.tsx",
-    "packages/ext-asl/src/**/*.tsx"
+    "node_modules/@thoremin/ext-asl/src/**/*.tsx"
   ]
 }

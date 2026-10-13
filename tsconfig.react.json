@@ -21,7 +21,9 @@
     "src/extensions/virtual.d.ts",
     "packages/sdk-ui/src",
     "packages/ext-air/src",
-    "packages/ext-asl/src",
+    "node_modules/@thoremin/ext-asl/src",
     "test/**/*.test.tsx"
-  ]
+  ],
+  "//exclude": "Empty on purpose: TypeScript's default exclude drops node_modules, and an installed extension (its own repository, node_modules/@thoremin/ext-asl) is React source this ratchet must check.",
+  "exclude": []
 }

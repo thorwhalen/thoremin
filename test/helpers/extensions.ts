@@ -8,7 +8,8 @@
  */
 import { EXTENSIONS } from '@/extensions';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join, relative, resolve } from 'node:path';
 import { readExtensionEntries } from '../../vite.extensions';
 
 export const hasExtension = (id: string): boolean => EXTENSIONS.some((e) => e.id === id);
@@ -31,15 +32,21 @@ const ROOT = ((): string => {
 })();
 
 /** Where an extension's source lives, found from its manifest specifier: an in-tree alias
- *  (`@/extensions/x` → `src/extensions/x`) or a workspace package (`@thoremin/ext-x` →
- *  `packages/<dir>/src`). */
+ *  (`@/extensions/x` → `src/extensions/x`), a workspace package (`@thoremin/ext-x` →
+ *  `packages/<dir>/src`), or an installed one, its own repository (`@thoremin/ext-asl` →
+ *  `node_modules/@thoremin/ext-asl/src`, found the way Node finds it). */
 export function extensionSourceDir(moduleSpec: string): string {
   if (moduleSpec.startsWith('@/')) return join('src', moduleSpec.slice(2));
   for (const d of readdirSync(join(ROOT, 'packages'), { withFileTypes: true })) {
     const pj = join(ROOT, 'packages', d.name, 'package.json');
     if (d.isDirectory() && existsSync(pj) && (JSON.parse(readFileSync(pj, 'utf8')) as { name: string }).name === moduleSpec) return join('packages', d.name, 'src');
   }
-  throw new Error(`no source directory for the extension module "${moduleSpec}"`);
+  try {
+    const pj = createRequire(join(ROOT, 'package.json')).resolve(`${moduleSpec}/package.json`);
+    return relative(ROOT, join(dirname(pj), 'src'));
+  } catch {
+    throw new Error(`no source directory for the extension module "${moduleSpec}" (not in src/extensions, not a workspace package, and it does not export ./package.json)`);
+  }
 }
 
 /**
