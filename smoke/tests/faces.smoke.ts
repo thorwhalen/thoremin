@@ -113,6 +113,19 @@ test('the face session loads only when opened, and records, carves, names and sa
   await panel.getByLabel('Number of categories').fill(String(k - 1));
   await expect(cats).toHaveCount(k - 1);
 
+  // Sorting (#385 E4): select a hold, N sends it to Neutral (a pin), Ctrl-Z inside the grid undoes.
+  // The bin's count, from its header ("(3, key N)"): the strip itself collapses past 8.
+  const neutralCount = async () => Number(/\((\d+), key N\)/.exec((await panel.locator('[data-face-neutral] p').first().textContent()) ?? '')?.[1] ?? NaN);
+  const before = await neutralCount();
+  await panel.locator('[data-face-category] [data-face-hold] button').first().click();
+  await expect(panel.locator('[data-faces-selection]')).toBeVisible();
+  await page.keyboard.press('n');
+  await expect.poll(neutralCount).toBe(before + 1);
+  await expect(panel.locator('[data-face-neutral] [data-face-hold]').filter({ hasText: 'pin' })).toHaveCount(1);
+  await panel.locator('[data-faces-sorting]').focus();
+  await page.keyboard.press('Control+z');
+  await expect.poll(neutralCount).toBe(before);
+
   // One click to name a category.
   const name = panel.locator('[data-face-category] input').first();
   await name.fill('my grin');
