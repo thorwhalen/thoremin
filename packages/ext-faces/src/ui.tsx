@@ -6,7 +6,7 @@
  * React import: it is data.
  */
 import type { ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import type { ExtensionToolDecl } from '@thoremin/sdk-ui/tools';
+import type { ExtensionToolDecl, ToolEntryPointDecl } from '@thoremin/sdk-ui/tools';
 import { chordModalityOf, isPersonal, playsPoses, type CategorizerChordsDial, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
 
 /** The chosen row shows which categorizer the face chords read while one of the player's plays
@@ -45,6 +45,17 @@ export const POSES_TOOL: ExtensionToolDecl = {
   defaultPinned: false,
 };
 
+/** The Conductor tool's way into "Your poses" with the conductor's default names (#383): shown
+ *  while the conductor reads the body. */
+export const CONDUCTOR_POSES_ENTRY: ToolEntryPointDecl = {
+  id: 'conductor-poses',
+  from: 'conductor',
+  tool: POSES_TOOL.id,
+  label: 'Teach my conducting poses (ready, fermata, cut-off)...',
+  when: { 'conductor.source': 'body' },
+  carve: { modality: 'body', vocabulary: 'conductor' },
+};
+
 export const FACES_UI_STUB: ExtensionUiStub = {
   id: 'faces',
   // The instrument editor's section (#330 P4): which categorizer the face chords read.
@@ -55,6 +66,7 @@ export const FACES_UI_STUB: ExtensionUiStub = {
     { instrumentId: 'faces', section: 'Categorizer chords', readoutOn: chordsReadoutOn },
   ],
   tools: [FACES_TOOL, HANDS_TOOL, POSES_TOOL],
+  entryPoints: [CONDUCTOR_POSES_ENTRY],
 };
 
 export default FACES_UI_STUB;

@@ -8,7 +8,7 @@
  * that load that half when first rendered ({@link lazyPanel}), its status hooks join
  * {@link extensionStatusHooks} once loaded, and its mount effects run when it loads.
  */
-import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ExtensionUi, ExtensionUiStub, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
+import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ToolEntryPointDecl, ExtensionUi, ExtensionUiStub, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
 import listed from 'virtual:thoremin/extensions-ui';
 import { lazyPanel, lazyToolPanel } from './lazyPanel';
 
@@ -88,6 +88,9 @@ export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
 export const EXTENSION_TOOL_DECLS: readonly ExtensionToolDecl[] = LISTED.flatMap((u) =>
   (u.tools ?? []).map(({ id, label, description, group, defaultPinned }) => ({ id, label, description, group, defaultPinned })),
 );
+
+/** Every extension's entry points into a tool from another tool's panel (#465), as data. */
+export const EXTENSION_ENTRY_POINTS: readonly ToolEntryPointDecl[] = LISTED.flatMap((u) => u.entryPoints ?? []);
 
 /** Every extension tool's panel content, by tool id: an eager one's component, a lazy one's
  *  placeholder that loads the extension's React half when the tool first opens. */
