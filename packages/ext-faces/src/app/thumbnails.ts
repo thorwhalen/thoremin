@@ -23,6 +23,8 @@ export interface ThumbStore {
   put(key: string, blob: Blob): Promise<void>;
   /** Remove these keys (absent ones are ignored). */
   remove(keys: readonly string[]): Promise<void>;
+  /** Every key filed (the orphan sweep of #569 reads it). */
+  keys(): Promise<string[]>;
 }
 
 /** Hold `n` of take `takeId`: its sample id, and its still's key. */
@@ -37,6 +39,7 @@ export function memoryThumbStore(): ThumbStore {
     remove: async (keys) => {
       for (const k of keys) m.delete(k);
     },
+    keys: async () => [...m.keys()],
   };
 }
 
@@ -80,6 +83,7 @@ export function idbThumbStore(): ThumbStore {
         },
         (m) => m.remove(keys),
       ),
+    keys: async () => ((await run<IDBValidKey[]>('readonly', (s) => s.getAllKeys(), (m) => m.keys())) ?? []).filter((k): k is string => typeof k === 'string'),
   };
 }
 

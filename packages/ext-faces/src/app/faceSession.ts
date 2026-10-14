@@ -18,6 +18,7 @@ import { withChangeNotice } from './models';
 import { createFaceSessionStore, FACE_SESSION_DEFAULTS, type FaceSessionDeps, type FaceSessionState } from './sessionStore';
 import { FACE_SCRIPT, sourceFromUrl, type SyntheticScript } from './sources';
 import { createFaceTestStore, FACE_TEST_DEFAULTS, type FaceTestState } from './testStore';
+import { sweepOrphanStillsOnce } from './orphanStills';
 import { idbThumbStore, openLiveFrames } from './thumbnails';
 
 const { modality } = faceModalityUi;
@@ -33,9 +34,12 @@ export const FACES_TEST_CLAIMER = OWNERS.test;
  *  one categorizer collection, its crop and overlay, its claim owner, its scripted source. */
 export function browserDepsFor(ui: CarveModalityUi, script: SyntheticScript): FaceSessionDeps {
   const owner = carveOwners(ui.modality).carve;
+  const thumbs = idbThumbStore();
+  // Stills no saved categorizer names (#569): listed once per page; deleted only behind a flag.
+  if (typeof indexedDB !== 'undefined') void sweepOrphanStillsOnce(thumbs);
   return {
     source: () => sourceFromUrl(undefined, script),
-    thumbs: idbThumbStore(),
+    thumbs,
     frames: openLiveFrames,
     region: ui.region,
     ...(ui.overlay ? { overlay: ui.overlay } : {}),

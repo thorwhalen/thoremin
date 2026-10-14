@@ -15,6 +15,7 @@
     "./app/sources": "./src/app/sources.ts",
     "./app/testStore": "./src/app/testStore.ts",
     "./app/thumbnails": "./src/app/thumbnails.ts",
+    "./app/orphanStills": "./src/app/orphanStills.ts",
     "./app/bodyModality": "./src/app/bodyModality.ts",
     "./app/bodySession": "./src/app/bodySession.ts",
     "./app/handModality": "./src/app/handModality.ts",
