@@ -1,6 +1,6 @@
 # @thoremin/ext-faces
 
-Personal facial-expression categorizers for thoremin ([#330](https://github.com/thorwhalen/thoremin/issues/330)). A player records a take of their own faces; the take is carved into categories (as many as they choose); each category is shown by its faces and named, with defaults from the general expression model matched one-to-one; several categorizers are saved, and an instrument's face chords read one in place of the general model.
+Personal categorizers for thoremin: faces, hand shapes (#385 E8) and body poses (#382) ([#330](https://github.com/thorwhalen/thoremin/issues/330)). A player records a take of their own faces; the take is carved into categories (as many as they choose); each category is shown by its faces and named, with defaults from the general expression model matched one-to-one; several categorizers are saved, and an instrument's face chords read one in place of the general model.
 
 This package is phases P2 (the session), P3 (test, correct, tune, import and export), P4 (an instrument chooses its categorizer and the chord each category plays), P5 (shared categorizers) and P6 (the general model is one categorizer) of #330.
 
@@ -99,9 +99,23 @@ The same tool over one hand's SHAPE: Tools, then **Your hand shapes**, then **Re
 
 `?carve.source=synthetic` runs it on a scripted hand (`src/lib/synthetic_hand.ts`: an articulated right hand going through open, fist, point and pinch with a relaxed hand between), with no camera and no hand model; `?faces.source=synthetic` is still read as the same switch.
 
+### Your poses (#382 = #385 E9)
+
+The same tool over held body POSES (#387 B8: static poses; a wave or a clap is a different classifier): Tools, then **Your poses**, then **Record my poses**, then **Start capturing** (four clicks from a cold load, as for faces and hand shapes). Everything above is the same code, in the body's words (`bodyModality` in `@thoremin/sdk/features/modalities/body`).
+
+- **What it reads**: B1's pose space (`bodyPoseCollects()`: joint angles, segment directions in the torso's own frame, body-relative positions, shape ratios; nothing that says where the player stands). The tool claims those groups through feature demand under its own owner (`poses`, and `poses-test` for the live test), which is what composes the body branch: the pose model runs only while a pose tool reads it.
+- **The setup**: the rest ("stand or sit facing the camera, relaxed, arms at your sides"), then three short nuisance demonstrations, each about four seconds and each skippable: closer and further, a step aside, a slight turn. Whatever moves during them is down-weighted (`weightsFromNuisance`), so where the player stands is not what they do. A take replayed from a recording that never demonstrated them skips them.
+- **Cannot see you**: a body counts as in view only when it shows `BODY_POSE_MIN_COVERAGE` (80 %) of the features its categorizer was TRAINED on (`CarveModality.minCoverage`, `inView`); the visibility mask drops a hidden joint's features, so a player half out of frame reads *Cannot see you* in the live test instead of a guess. The category dispatcher's own presence bar (90 %) applies to a bound set.
+- **The mirror** (#387 B10): off by default, chosen before the take (*Left and right are the same pose*), kept on the file (`mirror: true`) and on a bound set's `read`. With it on, every vector is read on a canonical side (of a pose and its mirror image, the one whose left side is the more raised and outward), so "left arm out" and "right arm out" are one pose in the take, the live test and the bindings. It cannot be changed after the take: the holds were read on that side.
+- **Pictures** (#387 C7): each hold is a STICK FIGURE drawn from its segment directions (`poseSkeleton`: what the carve measured, no picture of anyone), kept per sample in the file (`skeleton`), so an imported or shared categorizer shows what each category looks like. Camera stills are opt-in (*Also keep camera pictures*) and are the whole frame.
+- **Names**: no general model yet, so categories are `pose n`; the default vocabulary by context (#387 B9) is B3 ([#383](https://github.com/thorwhalen/thoremin/issues/383)).
+- **Play it: Bind to commands**, as a hand categorizer (three clicks from a cold load). The conductor's transport from pose categories is B4 ([#384](https://github.com/thorwhalen/thoremin/issues/384)).
+
+`?carve.source=synthetic` runs it on a scripted body (`src/lib/synthetic_body.ts`: the graph's synthetic skeleton at rest, the three nuisances, then arms up, left arm out, right arm out and a crouch with the rest between), with no camera and no pose model.
+
 ### One collection for every categorizer (#385 E8, #387 C5)
 
-Every saved categorizer, face or hand, is a record of ONE zodal named collection, `thoremin.categorizers`, carrying its file's `modality` (`src/app/categorizers.ts`). Each tool, the editor section and the instrument's resolver read a view of one modality. A face categorizer keeps the id it had (the slug of its name, which an instrument's `faceCategorizer` dial names); another modality's ids are prefixed (`hand:fist`), so a hand shape and a face may share a name.
+Every saved categorizer, face, hand or body, is a record of ONE zodal named collection, `thoremin.categorizers`, carrying its file's `modality` (`src/app/categorizers.ts`). Each tool, the editor section and the instrument's resolver read a view of one modality. A face categorizer keeps the id it had (the slug of its name, which an instrument's `faceCategorizer` dial names); another modality's ids are prefixed (`hand:fist`), so a hand shape and a face may share a name.
 
 This is the EXPAND step: the first time a view is used on a device, the old face collection (`thoremin.faceCategorizers`) is copied in (migrated as a saved record always is) and a flag (`thoremin.categorizers.migrated`) says so, so a categorizer deleted later is never copied back. The old key is left untouched for a rollback; #385 E10 removes it. Stills stay in the IndexedDB store they were in (`thoremin-faces`), keyed by hold id, which every modality shares.
 
@@ -114,6 +128,9 @@ A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-
 | `src/app/modality.ts` | which modality the tool carves: `faceModality` and its app half (#385 E1) |
 | `src/app/handModality.ts` | the hand's app half (#385 E8): the crop and the skeleton drawn on a still |
 | `src/app/handSession.ts` | the hand-shape session and test stores over the browser's dependencies |
+| `src/app/bodyModality.ts` | the body's app half (#382): the stick figure as an SVG picture, stills opt-in |
+| `src/app/bodySession.ts` | the pose session and test stores over the browser's dependencies |
+| `src/lib/synthetic_body.ts` | the scripted body |
 | `src/app/categorizers.ts` | the one collection of every modality's categorizers, its per-modality views and the one-time copy of the old face collection |
 | `src/lib/synthetic_hand.ts` | the scripted hand |
 | `src/panels/words.tsx` | the modality's words for the panels (a React context) |
