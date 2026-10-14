@@ -82,7 +82,7 @@ describe.runIf(FACES)('"Your poses" is reachable from the shell', () => {
     expect(appFeatureDemand.owners()).toContain('poses');
     for (const g of BODY_POSE_GROUPS) expect(appFeatureDemand.groups()).toContain(g);
     expect(branchIdsFor({}, { demanded: appFeatureDemand.groups() })).toContain('body-source');
-    expect(screen.getByText(/Try your poses/)).toBeTruthy();
+    expect(await screen.findByText(/Try your poses/)).toBeTruthy();
     act(() => useTools.getState().close());
     expect(bodySessionStore().getState().phase).toBe('idle');
     expect(appFeatureDemand.owners()).not.toContain('poses');
