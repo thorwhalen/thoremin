@@ -32,6 +32,17 @@
  * a carried stick's descent is dropped at the predictor, so the stroke the arm was
  * carrying it to is still heard.
  *
+ * Each pad has its own floor (#353, `../lib/pad_floors.ts`). The predictor learns one
+ * floor per hand, so a stroke after a change of pad was extrapolated to the last pad's
+ * depth: where two pads are stacked (the kick under the snare) nearly every snare after a
+ * kick read as the kick. Every stroke that stood teaches the pad it TURNED on (read at the
+ * predictor's depth of the turn) the depth it stopped at and the top it fell from, and
+ * before each sample the predictor is told the floor of the pad the stroke is heading
+ * for (`ImpactPredictor.setFloor`): of the pads its way down crosses at their floor, the
+ * one whose strokes start nearest where this one did. A pad never struck has no floor
+ * yet, so the first stroke on it is read as before. With no pad on nothing is named, and
+ * the node is what it was.
+ *
  * What comes out is a list of {@link DrumHit}s on the `hits` port — each with the
  * time it should SOUND, in engine seconds, possibly in the future — which the
  * `drum-out` node schedules on the audio clock (the two-clock discipline: this node
@@ -621,8 +632,9 @@ export function landingAt(samples: readonly TrackSample[], t: number, eps: numbe
   // high pad to a low one commits against the high pad's floor, well short of the low
   // pad), so a falling stroke's runs to the frame's bottom. A stroke that turned ends
   // where it stopped (#355): one stopped in the air above a pad does not play it. A
-  // predicted stroke cannot be told from one about to stop until it has (both are still
-  // falling near a floor learned on another pad); per-pad floors (#353) are its fix.
+  // predicted stroke cannot be told from one about to stop until it has; since #353 its
+  // landing point is at the floor of the pad it is heading for, so the path matters only
+  // for a pad no floor describes yet.
   const yTo = turned ? Math.max(last.y, y) : FRAME_BOTTOM;
   return { x: xAt(y), y, speed, path: { yFrom: last.y, yTo, xAt } };
 }

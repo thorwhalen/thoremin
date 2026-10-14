@@ -80,25 +80,65 @@ describe.runIf(AIR)('the pads demo take (#261): every stroke on its pad, no fals
   it('overlapping pads: the pad under the landing point wins, the later slot on top (kick over snare, floor tom over tom)', async () => {
     // p6 (kick) overlaps p1 (snare) and p7 (floor tom) overlaps p3 (tom): a stroke into
     // the later slot must not be read as the earlier one just because its path crossed
-    // that one's top edge first. Each pad is struck four times: a stroke after a change
-    // of pad is predicted against the previous pad's floor, which follows at half a stroke
-    // per stroke, and the overlap here (the kick's centre 0.08 below the snare's) is
-    // within that depth error for up to three strokes (the snare after the kick: since
-    // #234 the prediction is no longer about 20 ms early, and the earlier, shallower
-    // reach used to favour the shallower pad; per-pad floors would make a change of pad
-    // immediate, #353). So what is pinned is the fourth stroke on each pad, at most four
-    // strokes off their pad in all (the pre-#234 reference: five), and no false hit.
-    const pads = starterKitPads();
-    for (const id of ['p6', 'p7'] as PadId[]) pads[id] = { ...pads[id], on: true };
+    // that one's top edge first. Each pad is struck four times. Since #353 each pad has
+    // its own floor, so a change of pad is predicted against the new pad's depth at once;
+    // the one stroke left off its pad is the first ever on the kick, which no floor
+    // describes yet (before #353: four off, the strokes after each change of pad).
+    const pads = kitWithLowPads();
     const order = ['p1', 'p6', 'p1', 'p7', 'p3', 'p6', 'p7', 'p5'] as PadId[];
-    const stroke = (pad: PadId): DrumStroke => ({ pad, where: 'centre', force: 'hard' });
-    const script: DrumStroke[] = order.flatMap((pad) => [stroke(pad), stroke(pad), stroke(pad), stroke(pad)]);
+    const script: DrumStroke[] = order.flatMap((pad) => [hard(pad), hard(pad), hard(pad), hard(pad)]);
     const { score } = await playTake(pads, { script });
-    expect(score.perStroke.filter((_, k) => k % 4 === 3).map(({ stroke: s, hit }) => `${s.pad}:${hit?.pad ?? 'none'}`)).toEqual(order.map((pad) => `${pad}:${pad}`));
-    expect(score.off).toBeLessThanOrEqual(4);
+    expect(offPadAfterFirst(score)).toEqual([]);
+    expect(score.off).toBeLessThanOrEqual(1);
     expect(score.false).toBe(0);
     expect(score.missed).toBe(0);
   });
+});
+
+/** The starter kit with the kick (p6, stacked under the snare) and the floor tom (p7,
+ *  overlapping the tom) switched on. */
+function kitWithLowPads(): Pads {
+  const pads = starterKitPads();
+  for (const id of ['p6', 'p7'] as PadId[]) pads[id] = { ...pads[id], on: true };
+  return pads;
+}
+const hard = (pad: PadId): DrumStroke => ({ pad, where: 'centre', force: 'hard' });
+/** The strokes off their pad, other than the first stroke on a pad never struck before
+ *  (no floor describes it yet), as `index:pad->hit`. */
+function offPadAfterFirst(score: ReturnType<typeof scoreTake>): string[] {
+  const struck = new Set<PadId>();
+  const off: string[] = [];
+  score.perStroke.forEach(({ stroke, hit }, k) => {
+    if (hit?.pad !== stroke.pad && struck.has(stroke.pad)) off.push(`${k}:${stroke.pad}->${hit?.pad ?? 'none'}`);
+    struck.add(stroke.pad);
+  });
+  return off;
+}
+
+describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)', () => {
+  // Sixteen strokes each, through the production graph. Before #353 (one floor per hand,
+  // following the last pad at half a stroke per stroke): the kick/snare alternation put 7
+  // of 16 off their pad (every snare after a kick read as the kick), 8 with landmark noise
+  // and 8 with soft and hard strokes mixed; tom/floor tom 8. Now the only stroke off its
+  // pad is the first on the kick.
+  const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard'): DrumStroke[] =>
+    Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k) }));
+  const cases: [string, DrumStroke[], DrumTakeOptions][] = [
+    ['kick and snare (stacked) alternating', alternate('p1', 'p6'), {}],
+    ['kick and snare alternating under landmark noise', alternate('p1', 'p6'), { noise: 0.02, seed: 3 }],
+    ['kick and snare, soft and hard strokes mixed', alternate('p1', 'p6', (k) => (k % 4 < 2 ? 'soft' : 'hard')), {}],
+    ['tom and floor tom (overlapping) alternating', alternate('p3', 'p7'), {}],
+  ];
+  for (const [name, script, options] of cases) {
+    it(name, async () => {
+      const { score } = await playTake(kitWithLowPads(), { ...options, script });
+      expect(offPadAfterFirst(score)).toEqual([]);
+      expect(score.off).toBeLessThanOrEqual(1);
+      expect({ missed: score.missed, false: score.false }).toEqual({ missed: 0, false: 0 });
+      // Predicted ahead of the frame that shows the impact, not sounded late on confirmation.
+      expect(score.perStroke.filter((p) => p.hit?.predicted).length).toBeGreaterThanOrEqual(14);
+    });
+  }
 });
 
 describe.runIf(AIR)('a full swing with the arm on top of it is a stroke (#261 review)', () => {

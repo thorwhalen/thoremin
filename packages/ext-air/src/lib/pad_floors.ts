@@ -23,8 +23,10 @@
  * higher than usual on the same pad is the case this reads wrong (its start is nearer
  * a higher pad's), and it is the cost the test pins.
  *
- * Nothing changes until two pads have floors: with one pad, or none, the predictor's own
- * floor is used (NaN), bit for bit what it did before.
+ * A floor is named from the first pad that has one (the stroke's own top, not the least
+ * depth since the last pad, is what the rule and the predictor's restart need from the
+ * first change of pad on). With no pad on, nothing is named: the predictor is bit for bit
+ * what it was (the bench and the anchor scorer, which run without pads, do not move).
  */
 import type { PadId, Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { padDistance } from '@thoremin/sdk/nodes/music/drum_pads';
@@ -42,7 +44,7 @@ export type PadFloors = Partial<Record<PadId, PadFloor>>;
 /** How fast a pad's floor and top follow its strokes, per stroke: the predictor's own
  *  `levelGain`, so a pad's floor moves exactly as the one shared floor did. */
 export const PAD_FLOOR_GAIN = 0.5;
-/** Pads with a learned floor before any is named to the predictor. */
+/** Pads with a learned floor before one is named to the predictor. */
 export const MIN_FLOOR_PADS = 1;
 
 /** The table with one confirmed stroke on `pad` learned: it stopped at `floor` and started

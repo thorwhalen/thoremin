@@ -61,6 +61,15 @@
  * few confirmations can say "camera too slow for prediction"
  * ({@link ImpactPredictor.unlearnedConfirmations}).
  *
+ * One floor or several (#353). The learned floor is one depth, the right model for
+ * strokes that stop at one place. A consumer whose strokes stop at several (an air
+ * drum's pads at different heights) names the floor of each stroke in progress
+ * (`setFloor`): the prediction and the confirmation's crossing are taken against it, the
+ * events carry it (`floor`) and the stroke's top (`top`), and while one is named a point
+ * that stops descending before its descent is a stroke starts the stroke there (an arm
+ * that carried the stick down to a lower pad and waits), not at the least depth since
+ * the last confirmation. Named nothing, the predictor is unchanged bit for bit.
+ *
  * What it does NOT do: decide where the beat is, or snap anything to a grid. Those
  * are the rhythm prior's job (`oscillator.ts`) and the magnet's (`magnet.ts`); a
  * confirmation is an {@link Anchor} for the prior, a prediction is what the magnet
