@@ -20,6 +20,7 @@ import {
   fMeasure,
   parabolicOffset,
   parabolicVertex,
+  quadraticCurvature,
   sampleFrame,
   type Anchor,
   type AnchorDetector,
@@ -192,6 +193,52 @@ describe('createImpactDetector (synthetic multi-joint bounces)', () => {
     // The same bounce read at its top is half a beat away from every beat.
     const top = run(b.frames, createImpactDetector({ joints: ['trunk'], polarity: 'top' })).times;
     expect(fMeasure(top, b.beats, F_WINDOW)).toBeLessThan(0.1);
+  });
+
+  it('a small, noisy bounce: the impact event fits a parabola, not a second difference (#425)', () => {
+    const b = bounce({ trunkPx: 10, noisePx: 1, seconds: 30 });
+    const fit = run(b.frames, createImpactDetector({ joints: ['trunk'], event: 'impact' })).times;
+    const diff = run(b.frames, createImpactDetector({ joints: ['trunk'], event: 'impact', impactSpan: 0 })).times;
+    expect(fMeasure(fit, b.beats, F_WINDOW)).toBeGreaterThan(0.9);
+    expect(fMeasure(diff, b.beats, F_WINDOW)).toBeLessThan(0.7);
+    // Slow, too: the window grows with the follower's period.
+    const slow = bounce({ trunkPx: 10, noisePx: 1, seconds: 30, bpm: () => 70 });
+    expect(fMeasure(run(slow.frames, createImpactDetector({ joints: ['trunk'], event: 'impact' })).times, slow.beats, F_WINDOW)).toBeGreaterThan(0.85);
+  });
+
+  it('quadraticCurvature is exact on a parabola at uneven spacing', () => {
+    const ts = [0, 0.03, 0.07, 0.1, 0.13, 0.2];
+    expect(quadraticCurvature(ts.map((t) => ({ t, y: 4 + 3 * t - 5 * t * t })))).toBeCloseTo(-10, 9);
+    expect(quadraticCurvature(ts.slice(0, 2).map((t) => ({ t, y: t })))).toBeNaN();
+  });
+
+  it('a joint that stops moving loses the beat after a period of stillness, not three (#425)', () => {
+    const b = bounce({ seconds: 14 });
+    // The wrist freezes at 8 s (visible, jittering by the tracker's noise only).
+    const frozen = b.frames.map((f) => (f.t < 8 ? f : { ...f, channels: { ...f.channels, wrist: { ...f.channels.wrist, x: 400, y: 330 + 0.5 * Math.sin(97 * f.t) } } }));
+    const switchTime = (stillIntervals?: number) => {
+      const d = createImpactDetector(stillIntervals === undefined ? {} : { stillIntervals });
+      const ictus = createIctus({ detector: d });
+      let switchedAt = NaN;
+      for (const f of frozen) {
+        ictus.feedFrame(f);
+        if (f.t > 8 && Number.isNaN(switchedAt) && d.selected() !== 'wrist') switchedAt = f.t;
+      }
+      return switchedAt;
+    };
+    const quick = switchTime();
+    const slow = switchTime(99);
+    expect(quick).toBeLessThan(slow - 0.4);
+    expect(quick).toBeLessThan(9.3);
+  });
+
+  it('the weighted mode never steps its picker back when a joint misses a frame (#425)', () => {
+    const b = bounce({ seconds: 20 });
+    const missed = (c: string, t: number) => (c === 'wrist' && Math.round(t * 30) % 4 === 0 ? 0 : 0.99);
+    const gappy = bounce({ seconds: 20, visibility: missed });
+    const { times } = run(gappy.frames, createImpactDetector({ combine: 'weighted' }));
+    for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThan(times[i - 1]);
+    expect(fMeasure(times, b.beats, F_WINDOW)).toBeGreaterThan(0.5);
   });
 
   it('lateral is the followed joint’s horizontal travel, mirrored on request', () => {

@@ -19,6 +19,9 @@
  *    bounce); either way they fire at BOTH ends of a stroke or a bounce (about two
  *    anchors a beat), because the speed brakes into the top as well as the bottom.
  *    Only `extremum` and `impact` are directional, once a beat.
+ *    `impact` reads the curvature of a parabola fitted over `impactSpan` periods (at least
+ *    `impactMinSpanS`), not a difference of three frames (#425: F 0.58 to 0.99 on a 10 px
+ *    bounce with 1 px of noise).
  * 3. **Peaks in noise units.** Each envelope is counted in multiples of its own
  *    median absolute deviation over the last `noiseWindowS`, so a wrist and a trunk
  *    compare; a peak must clear `peakMads` and a refractory of a quarter period.
@@ -31,7 +34,9 @@
  *    joint's anchors set it, so a level confirms itself: a wrist at the half-bar that is
  *    followed first keeps the follower at the half-bar. Telling the follower the beat
  *    from elsewhere (the score's tempo, A3) is what makes the level match bite. Before
- *    any joint has shown a rhythm, the stated `weight`s order them.
+ *    any joint has shown a rhythm, the stated `weight`s order them. A joint that has stopped (its envelope
+ *    has not risen a peak's prominence for a period) loses its rhythm after `stillIntervals`
+ *    periods without a peak, not `staleIntervals` (#425).
  * 5. **Select, do not sum (by default).** A1 found the summed envelope below the best
  *    single channel on every clip: joints in one body move at different levels and
  *    lags, so a sum mixes them. `combine: 'select'` follows the joint with the best
@@ -130,6 +135,10 @@ export interface ImpactDetectorOptions {
   minRegularityIntervals?: number;
   /** A joint whose last peak is older than this many periods has stopped. */
   staleIntervals?: number;
+  /** A joint that has stopped (its envelope has not risen a peak's prominence for a whole
+   *  period) loses its rhythm once its last peak is older than this many periods, instead
+   *  of `staleIntervals`. */
+  stillIntervals?: number;
   /** Added to every joint's periodicity before weighting, so the stated weights order
    *  the joints while none has a rhythm. */
   lockFloor?: number;
@@ -148,6 +157,14 @@ export interface ImpactDetectorOptions {
   /** The amplitude envelope (the `strength` reference) decays by this factor per
    *  second, as the stroke detector's. */
   envelopeDecayPerSecond?: number;
+  /** The `impact` event's acceleration is the curvature of a local quadratic fitted over
+   *  this many periods of the follower's, so a small, noisy bounce is not drowned by the
+   *  second derivative's noise gain (the two-stage difference averages nothing: F 0.58 on a
+   *  10 px bounce with 1 px of tracker noise, 0.97 fitted). 0 = the difference. */
+  impactSpan?: number;
+  /** ... but never over less than this many seconds: a follower whose period collapsed on
+   *  noisy anchors (0.2 s on that bounce) would shrink its own window and stay collapsed. */
+  impactMinSpanS?: number;
   /** Refine anchor times below the frame period. Default true. */
   subframe?: boolean;
 }
@@ -172,12 +189,15 @@ export const IMPACT_DEFAULTS: Required<Omit<ImpactDetectorOptions, 'joints'>> = 
   regularityIntervals: 8,
   minRegularityIntervals: 3,
   staleIntervals: 3,
+  stillIntervals: 1.5,
   lockFloor: 0.1,
   lockExponent: 4,
   switchMargin: 1.25,
   switchPeriodicityGain: 0.2,
   switchPeriodicityTie: 0.05,
   envelopeDecayPerSecond: 0.9,
+  impactSpan: 0.4,
+  impactMinSpanS: 0.3,
   subframe: true,
 };
 
@@ -280,6 +300,18 @@ function createPeakPicker(windowS: number, peakMads: number, confirmMads: number
       prev = c;
       return peak;
     },
+    /** True once the envelope covers `spanS` and has not risen `peakMads` MADs within it:
+     *  no excursion a peak could be made of (the joint has stopped). */
+    quiet(t: number, spanS: number): boolean {
+      if (!(mad > 0) || !window.length || window[0].t > t - spanS) return false;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = window.length - 1; i >= 0 && window[i].t >= t - spanS; i--) {
+        lo = Math.min(lo, window[i].v);
+        hi = Math.max(hi, window[i].v);
+      }
+      return hi - lo < peakMads * mad;
+    },
     /** Forget the excursion in progress (a gap), keep the noise window. */
     break(): void {
       prev = null;
@@ -323,6 +355,34 @@ export function parabolicVertex(a: TimedValue, b: TimedValue, c: TimedValue): nu
   return b.t + Math.max(-h1 / 2, Math.min(h2 / 2, off));
 }
 
+/**
+ * The curvature (2c of y = a + b u + c u^2, u = t - t_mid) of the least-squares parabola
+ * through the points, at any spacing; NaN for fewer than three or a degenerate window.
+ * The second derivative of a window of frames, with a noise gain far under a difference's.
+ */
+export function quadraticCurvature(pts: ReadonlyArray<{ t: number; y: number }>): number {
+  const n = pts.length;
+  if (n < 3) return NaN;
+  const tm = (pts[0].t + pts[n - 1].t) / 2;
+  let s1 = 0, s2 = 0, s3 = 0, s4 = 0, t0 = 0, t1 = 0, t2 = 0;
+  for (const p of pts) {
+    const u = p.t - tm;
+    const u2 = u * u;
+    s1 += u;
+    s2 += u2;
+    s3 += u2 * u;
+    s4 += u2 * u2;
+    t0 += p.y;
+    t1 += u * p.y;
+    t2 += u2 * p.y;
+  }
+  // Normal equations [n s1 s2; s1 s2 s3; s2 s3 s4] [a b c]' = [t0 t1 t2]', c by Cramer.
+  const det = n * (s2 * s4 - s3 * s3) - s1 * (s1 * s4 - s3 * s2) + s2 * (s1 * s3 - s2 * s2);
+  if (!(Math.abs(det) > 1e-18)) return NaN;
+  const detC = n * (s2 * t2 - t1 * s3) - s1 * (s1 * t2 - t1 * s2) + t0 * (s1 * s3 - s2 * s2);
+  return (2 * detC) / det;
+}
+
 /** An interval under this many periods marks the follower's level (see `periodicity`). */
 const LEVEL_INTERVALS = 1.5;
 
@@ -360,6 +420,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
   const ySign = (o.yDown ? 1 : -1) * (o.polarity === 'bottom' ? 1 : -1);
   const xSign = o.mirrorX ? -1 : 1;
   const derivativeEvent = o.event !== 'extremum';
+  const windowed = o.event === 'impact' && o.impactSpan > 0;
   const planeSpeed = o.axis === 'plane' && (o.event === 'deceleration' || o.event === 'acceleration');
 
   let period = o.initialPeriod;
@@ -377,10 +438,14 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     trailX: 0,
     trailY: 0,
     pts: [] as Kin[],
+    /** The detrended points within `impactSpan` periods, for the `impact` event's curvature. */
+    fit: [] as Array<{ t: number; y: number }>,
     vels: [] as Array<{ t: number; vx: number; vy: number; speed: number }>,
     history: [] as HistoryPoint[],
     picker: createPeakPicker(o.noiseWindowS, o.peakMads, o.confirmMads, o.confirmJitter, o.subframe),
     peaks: [] as number[],
+    /** The envelope has not risen a peak's prominence over the last period. */
+    still: false,
     lastAnchorX: NaN,
     /** This joint's recent largest excursion (decaying): its own strength reference,
      *  since a wrist travels several times as far as a trunk. */
@@ -394,9 +459,11 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     j.trailX = 0;
     j.trailY = 0;
     j.pts = [];
+    j.fit = [];
     j.vels = [];
     j.history = [];
     j.picker.reset();
+    j.still = false;
     j.envelope = 0;
     j.envelopeT = NaN;
     j.lastAnchorX = NaN;
@@ -424,7 +491,8 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
   const periodicity = (j: Joint, t: number): number => {
     const n = j.peaks.length - 1;
     if (n < o.minRegularityIntervals) return 0;
-    if (t - j.peaks[n] > o.staleIntervals * period) return 0;
+    const age = t - j.peaks[n];
+    if (age > o.staleIntervals * period || (j.still && age > o.stillIntervals * period)) return 0;
     // Each interval's phase in the follower's period: one period (or two, a missed
     // peak) is in phase, half a period (a doubled peak) is out of phase. The mean
     // cosine is the locking; the share of intervals under 1.5 periods says the joint
@@ -448,6 +516,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
   const ingest = (j: Joint, t: number, px: number, py: number, unit: number): TimedValue | null => {
     if (t - j.lastSeenT > o.maxGapS) {
       j.pts = [];
+      j.fit = [];
       j.vels = [];
       j.picker.break();
     }
@@ -469,6 +538,11 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     const dy = y - j.trailY / j.trail.length;
     j.pts.push({ t, x: dx, y: dy });
     if (j.pts.length > 3) j.pts.shift();
+    if (o.event === 'impact') {
+      j.fit.push({ t, y: dy });
+      const span = Math.max(o.impactMinSpanS, o.impactSpan * period);
+      while (j.fit.length > 3 && j.fit[1].t <= t - span) j.fit.shift();
+    }
 
     let speed = NaN;
     let speedT = NaN;
@@ -495,7 +569,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
         const ay = (v2.vy - v0.vy) / dt;
         decel = Math.max(0, -(v2.speed - v0.speed) / dt);
         decelT = v1.t;
-        if (derivativeEvent) {
+        if (derivativeEvent && !windowed) {
           const v =
             o.event === 'deceleration'
               ? decel
@@ -508,6 +582,9 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
         }
       }
     }
+    // The windowed impact: the parabola's curvature over the last `impactSpan` periods,
+    // timed at the window's middle.
+    if (windowed && j.fit.length >= 5) env = { t: j.fit[j.fit.length >> 1].t, v: Math.max(0, -quadraticCurvature(j.fit)) };
     j.history.push({ t, x, y: dy, dx, speed, speedT, decel, decelT });
     while (j.history.length > 1 && j.history[0].t < t - Math.max(2 * period, o.detrendS)) j.history.shift();
     return env;
@@ -570,6 +647,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
         const env = ingest(j, t, p.x, p.y, unit);
         envs.push(env);
         const pk = env ? j.picker.push(env.t, env.v, gap) : null;
+        if (env) j.still = j.picker.quiet(env.t, period);
         if (pk) {
           j.peaks.push(pk.t);
           if (j.peaks.length > o.regularityIntervals + 1) j.peaks.shift();
@@ -614,7 +692,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
       // Weighted: Σ w·z / Σ w over the joints with an envelope sample this frame.
       let num = 0;
       let den = 0;
-      let envT = NaN;
+      let envT = -Infinity;
       let dominant = -1;
       let dominantShare = -Infinity;
       for (let i = 0; i < state.length; i++) {
@@ -624,7 +702,9 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
         if (!Number.isFinite(z)) continue;
         num += w[i] * z;
         den += w[i];
-        envT = e.t;
+        // The latest of the contributing times: a joint that missed a frame has an envelope a
+        // frame old, and the combined picker's time must not step back to it.
+        envT = Math.max(envT, e.t);
         if (w[i] * z > dominantShare) {
           dominantShare = w[i] * z;
           dominant = i;
