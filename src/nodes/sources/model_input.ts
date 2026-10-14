@@ -25,9 +25,10 @@
  * (0.46, 0.70); with the copy, both, in place.
  *
  * So on the CPU delegate a RESCALED camera frame is drawn into one reusable canvas first:
- * the 2D path scales correctly. The copy is not free (on SwiftShader at 1280x720 it adds
- * about 12 ms to a 85 ms detect, the canvas asked for `willReadFrequently`, which is 4 ms
- * cheaper than a GPU-backed one there), so a frame at the camera's native size, which the
+ * the 2D path scales correctly. The copy is not free: on SwiftShader at 1280x720 it adds
+ * about 12 ms per model to a hand detect of 85 to 110 ms (the canvas asks for
+ * `willReadFrequently`, which is 4 ms cheaper than a GPU-backed one there; each model makes
+ * its own copy, so hands with face or body pay it two or three times). So a frame at the camera's native size, which the
  * element reads correctly, keeps the element; a browser that does not report `resizeMode`
  * gets the copy (correct over cheap). The GPU delegate keeps the element (its upload is
  * right, and a copy would cost it a readback). The worker runner already hands the model
@@ -101,6 +102,7 @@ export function createFrameCopier(
     if (canvas === undefined) {
       canvas = makeCanvas();
       ctx = canvas?.getContext('2d', COPY_CONTEXT) ?? null;
+      if (!ctx) console.warn('[thoremin] no 2D canvas for the camera model; it reads the video element (#324)');
     }
     if (!canvas || !ctx) return image;
     if (canvas.width !== w) canvas.width = w;
@@ -113,7 +115,7 @@ export function createFrameCopier(
 /** The one method this module changes; every landmarker (hand, face, pose) has it. */
 interface DetectsForVideo {
   // `any`: each landmarker types its own image and result.
-  detectForVideo(image: any, timestampMs: number): any;
+  detectForVideo(image: any, timestampMs: number, ...rest: any[]): any;
 }
 
 /**
@@ -128,7 +130,9 @@ export function copyFramesOnCpu<L extends DetectsForVideo>(
   copy: <T>(image: T) => unknown = createFrameCopier(),
 ): L {
   if (delegate !== 'CPU') return landmarker;
-  const detectForVideo = (image: unknown, timestampMs: number) => landmarker.detectForVideo(copy(image), timestampMs);
+  // Any further arguments (image-processing options, a callback) go through unchanged.
+  const detectForVideo = (image: unknown, timestampMs: number, ...rest: unknown[]) =>
+    landmarker.detectForVideo(copy(image), timestampMs, ...rest);
   return new Proxy(landmarker, {
     get(target, key) {
       if (key === 'detectForVideo') return detectForVideo;

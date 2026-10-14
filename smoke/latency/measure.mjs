@@ -173,8 +173,9 @@ async function measureInference(page, args) {
             // wrong picture on a software renderer. The copy's cost is in the time.
             let input = video;
             if (delegate === 'CPU' && stream.getVideoTracks()[0]?.getSettings().resizeMode !== 'none') {
-              copy.width = video.videoWidth;
-              copy.height = video.videoHeight;
+              // Resized only when the size changes, as in the app (a resize clears the canvas).
+              if (copy.width !== video.videoWidth) copy.width = video.videoWidth;
+              if (copy.height !== video.videoHeight) copy.height = video.videoHeight;
               copyCtx.drawImage(video, 0, 0, copy.width, copy.height);
               input = copy;
             }

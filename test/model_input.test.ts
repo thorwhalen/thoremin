@@ -118,22 +118,31 @@ describe('copyFramesOnCpu', () => {
 });
 
 describe('every main-thread camera model loader copies frames on the CPU delegate', () => {
-  const dir = join(__dirname, '..', 'src', 'nodes', 'sources');
+  const root = join(__dirname, '..');
   // The worker is handed ImageBitmaps made by `createImageBitmap(video)`, which are right.
-  const EXEMPT = new Set(['hands.worker.ts']);
-  const loaders = readdirSync(dir).filter(
-    (f) => f.endsWith('.ts') && !EXEMPT.has(f) && /\.createFromOptions\(fileset/.test(readFileSync(join(dir, f), 'utf8')),
-  );
+  const EXEMPT = new Set(['src/nodes/sources/hands.worker.ts']);
+  const walk = (dir: string): string[] =>
+    readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(`${dir}/${e.name}`)) : /\.tsx?$/.test(e.name) ? [`${dir}/${e.name}`] : [],
+    );
+  // Any tasks-vision factory (`createFromOptions`, `createFromModelPath`, ...) called on a
+  // landmarker class, wherever its arguments wrap to.
+  const CREATE = /\.\w+Landmarker\s*\.\s*createFrom\w+\s*\(/;
+  const files = [...walk('src'), ...walk('packages')].filter((f) => !EXEMPT.has(f) && !f.includes('.test.'));
+  const loaders = files.filter((f) => CREATE.test(readFileSync(join(root, f), 'utf8')));
 
   it('finds the loaders', () => {
-    expect(loaders.sort()).toEqual(['webcam_body.ts', 'webcam_face.ts', 'webcam_hands.ts']);
+    expect(loaders.sort()).toEqual(['src/nodes/sources/webcam_body.ts', 'src/nodes/sources/webcam_face.ts', 'src/nodes/sources/webcam_hands.ts']);
   });
 
-  it.each(loaders)('%s wraps every landmarker it creates', (f) => {
-    const calls = readFileSync(join(dir, f), 'utf8')
-      .split('\n')
-      .filter((line) => /\.createFromOptions\(fileset/.test(line));
-    expect(calls.length).toBeGreaterThan(0);
-    for (const line of calls) expect(line).toMatch(/copyFramesOnCpu\(await \w+\.\w+\.createFromOptions\(fileset/);
+  it.each(loaders)('%s wraps every landmarker it creates, with the delegate it was created with', (f) => {
+    const text = readFileSync(join(root, f), 'utf8').replace(/\s+/g, ' ');
+    const creates = text.match(/\.\w+Landmarker \. createFrom\w+ \(|\.\w+Landmarker\.createFrom\w+\(/g) ?? [];
+    // Each creation is the first argument of `copyFramesOnCpu`, whose second argument is the
+    // delegate the options were built with (`optionsFor(d)` / `options(d)` ... `, d)`).
+    const wrapped = [...text.matchAll(/copyFramesOnCpu\(await \w+\.\w+Landmarker\.createFrom\w+\(fileset, \w+\(([^()]+)\)\), ([^()]+?)\)/g)];
+    expect(creates.length).toBeGreaterThan(0);
+    expect(wrapped).toHaveLength(creates.length);
+    for (const m of wrapped) expect(m[2].trim()).toBe(m[1].trim());
   });
 });
