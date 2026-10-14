@@ -21,6 +21,13 @@
  *    score's bars start on their cycles from the first one.
  * 3. **The tempo** follows the matching tempo, smoothed (`smoothS`), and never leaves
  *    `marked * (1 +- range)`: the score keeps its own character, the dancer only bends it.
+ *    It follows the dancer's PERIOD only once the pulse is sure of it (`tempoConfidence`)
+ *    or the piece has followed `tempoAfterCycles` cycles; until then it plays the marked
+ *    tempo and the phase law alone keeps the cycle on the grid (#464). A trusted pulse is
+ *    not yet a settled one: on the Que Calor replay the follower's first period is 1.75 s
+ *    at confidence 0.3 and settles to 1.95 s two cycles after the start, and a score that
+ *    followed the first estimate ran 7 % fast for those cycles and landed up to 0.6 beat
+ *    off the dancer's steps (`test/dance_orchestra.test.ts`); the marked tempo was nearer.
  * 4. **The phase.** The cycle start should stay on the grid: the error, in score beats,
  *    is taken modulo `k` (so a 4-beat cycle keeps the BARS aligned, not just the beats)
  *    and corrected by a tempo factor of `-error / horizonBeats`, at most `maxCorrection`,
@@ -52,6 +59,12 @@ export interface DanceLeadOptions {
   maxRatio?: number;
   /** Pulse confidence below which the tempo holds. */
   trustedConfidence?: number;
+  /** Pulse confidence from which the tempo follows the dancer's period (below it, and
+   *  before `tempoAfterCycles`, the marked tempo plays, bent by the phase law only). */
+  tempoConfidence?: number;
+  /** Followed cycles after which the tempo follows the dancer's period whatever the
+   *  confidence (a dancer the follower never grows sure of still bends the score). */
+  tempoAfterCycles?: number;
   /** Seconds a relation must persist before it is followed (the first and every change). */
   persistS?: number;
   /** Time constant of the tempo's smoothing, seconds. */
@@ -74,6 +87,8 @@ export const DANCE_LEAD_DEFAULTS = {
   captureRange: 0.15,
   maxRatio: 8,
   trustedConfidence: PULSE_TRUSTED_CONFIDENCE,
+  tempoConfidence: 0.4,
+  tempoAfterCycles: 3,
   persistS: 3,
   smoothS: 1,
   horizonBeats: 4,
@@ -201,7 +216,9 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
           last = { t, mode: rel.mode as DanceLeadMode, started: false, beat, tempo: 0, ratio: rel.match?.ratio ?? NaN, rate: NaN, phaseError: NaN, cycles: 0 };
           return last;
         }
-        if (rel.match && rel.mode === 'following') smoothed = clampTo(rel.match.rate, lo, hi);
+        // The tempo the piece starts at: the dancer's, once the pulse is sure of its period;
+        // the marked one before (rule 3).
+        if (rel.match && rel.mode === 'following') smoothed = pulse.confidence >= o.tempoConfidence ? clampTo(rel.match.rate, lo, hi) : 1;
         // Armed on the cycle the dancer is in; the start is the NEXT one, exactly one on. An
         // unknown phase (a pause) disarms, and any other change of count (the follower
         // starting over after a gap) re-arms there: the start is never mid-cycle.
@@ -224,7 +241,10 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       let phaseError = NaN;
       let factor: number;
       if (rel.mode === 'following' && rel.match && Number.isFinite(cyc) && k !== null) {
-        const target = clampTo(rel.match.rate, lo, hi);
+        // The dancer's period sets the tempo once it is settled (rule 3); before, the tempo
+        // stays where it is and the phase law below does the following.
+        const settled = pulse.confidence >= o.tempoConfidence || cycles > o.tempoAfterCycles;
+        const target = settled ? clampTo(rel.match.rate, lo, hi) : smoothed;
         smoothed = clampTo(smoothed + (target - smoothed) * (1 - Math.exp(-dt / o.smoothS)), lo, hi);
         // Modulo k: the cycle start belongs on a grid beat, so a bar-long cycle keeps the bars.
         phaseError = wrapPhase((beat - ref) / k - cyc) * k;

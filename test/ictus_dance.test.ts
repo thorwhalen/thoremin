@@ -162,3 +162,36 @@ describe('createDanceLead', () => {
     expect(first.beat).toBeLessThan(8.1);
   });
 });
+
+describe('the tempo follows a settled period only (#464)', () => {
+  // A dancer stepping a bar every 2.1 s against 120 bpm (2 s bars): 5 % slow.
+  const P = 2.1;
+  const tempoAt = (states: DanceLeadState[], t: number) => states.find((s) => s.t >= t - 1e-9)!.tempo;
+
+  it('a sure pulse: the tempo follows the dancer from the start (as before)', () => {
+    const states = run(20, (t) => pulseAt(t, P, 0.3, 0.8));
+    const start = states.find((s) => s.started)!;
+    expect(start.tempo).toBeLessThan(120 * 0.97);
+    expect(tempoAt(states, 18)).toBeCloseTo((4 * 60) / P, 0);
+  });
+
+  it('a trusted but unsure pulse: the marked tempo, bent by the phase law only, until three cycles are followed', () => {
+    const states = run(30, (t) => pulseAt(t, P, 0.3, 0.3));
+    const start = states.findIndex((s) => s.started);
+    const t0 = states[start].t;
+    // Until the fourth cycle start, the tempo is the marked one times the phase correction
+    // (at most 5 %), never the smoothed dancer's rate on its own.
+    const early = states.filter((s) => s.started && s.t < t0 + 3 * P - 0.1);
+    expect(early.every((s) => Math.abs(s.rate - 1) < 1e-9)).toBe(true);
+    // ...and then it follows the dancer.
+    expect(tempoAt(states, 28)).toBeCloseTo((4 * 60) / P, 0);
+  });
+
+  it('the confidence reaching the threshold hands the tempo to the dancer at once', () => {
+    const states = run(20, (t) => pulseAt(t, P, 0.3, t < 9 ? 0.3 : 0.5));
+    const at = states.filter((s) => s.started && s.t > 9);
+    expect(at.some((s) => s.rate < 0.99)).toBe(true);
+    const before = states.filter((s) => s.started && s.t < 9);
+    expect(before.every((s) => s.rate === 1)).toBe(true);
+  });
+});
