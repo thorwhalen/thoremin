@@ -11,6 +11,7 @@ import { defineNode, NodeRegistry, type NodeDef } from '@thoremin/dag';
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { ensureLazyTypes, useExtensionLoad } from '@/app/extensionLoad';
 import { lazyPanel } from '@/app/extensions/lazyPanel';
+import { EXTENSION_PANELS, EXTENSION_UI_IDS, EXTENSION_UIS, loadExtensionUi } from '@/app/extensions';
 import { ASL } from './helpers/extensions';
 
 afterEach(cleanup);
@@ -123,5 +124,18 @@ describe('the panel placeholder of a lazy extension (src/app/extensions/lazyPane
     });
     await waitFor(() => expect(screen.getByText('opened controls')).toBeTruthy());
     expect(calls).toBe(1);
+  });
+});
+
+describe("a lazy extension's stub and its deferred half declare the same sections (the review of #367)", () => {
+  // A lazy section's placeholder finds its panel by instrument id AND section label, written
+  // twice (the eager stub, the deferred half): a label renamed in one would leave the section
+  // unable to load.
+  it('every section of this build, as the shell lists it, is a panel of the loaded extensions, and back', async () => {
+    const key = (p: { instrumentId: string; section: string }) => `${p.instrumentId}:${p.section}`;
+    const loaded = await Promise.all(
+      EXTENSION_UI_IDS.map((id) => loadExtensionUi(id).catch(() => EXTENSION_UIS.find((u) => u.id === id)!)),
+    );
+    expect(loaded.flatMap((u) => u.panels.map(key)).sort()).toEqual(EXTENSION_PANELS.map(key).sort());
   });
 });
