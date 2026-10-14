@@ -11,9 +11,9 @@
  * not fixed in the detector.
  *
  * How it is learned. The player conducts a few bars against a click; every joint of the
- * set gets a detector of its own (`createImpactDetector` with that joint alone, its
- * period told from the click, so each joint's peaks are what the live detector would see
- * when it follows that joint), and each joint's anchors are read against the clicks
+ * set gets a follower of its own (`createImpactDetector` with that joint alone and a
+ * rhythm prior setting its period, seeded at the click's tempo, so each joint's peaks are
+ * what the live conductor would see when it follows that joint), and each joint's anchors are read against the clicks
  * (`measureLeadLag`): the phase of every anchor inside its click interval, their trimmed
  * circular mean (so an anchor just before a click and one just after average to the click,
  * not to half a beat), turned into seconds by the median click interval.
@@ -36,6 +36,7 @@
  */
 import { median } from '@thoremin/stats';
 import { createImpactDetector, BODY_IMPACT_JOINTS, type ImpactDetectorOptions, type ImpactJoint } from './visual_impact';
+import { createRhythmPrior, DEFAULT_RHYTHM_PRIOR, type RhythmPriorKind, type RhythmPriorOptions } from './priors';
 import type { Anchor, ChannelFrame } from './types';
 
 /** A joint's anchors read against a click. */
@@ -49,6 +50,8 @@ export interface LeadLag {
   /** The standard error of `lagS`, seconds: the kept anchors' circular spread over the
    *  square root of their count (Infinity with fewer than two). */
   seS: number;
+  /** Anchors the trim kept (within `trimBeats` of the mean of all). */
+  kept: number;
   /** The lag over the first and the second half of the clicks, seconds (NaN when a half
    *  has no anchor). */
   halves: readonly [number, number];
@@ -123,7 +126,7 @@ function trimmedMean(phases: readonly number[], trim: number): { mean: number; r
  */
 export function measureLeadLag(anchors: readonly number[], clicks: readonly number[], { trimBeats = 0.25 }: { trimBeats?: number } = {}): LeadLag {
   const c = [...clicks].sort((a, b) => a - b);
-  const none: LeadLag = { lagS: NaN, r: 0, n: 0, seS: Infinity, halves: [NaN, NaN] };
+  const none: LeadLag = { lagS: NaN, r: 0, n: 0, seS: Infinity, kept: 0, halves: [NaN, NaN] };
   if (c.length < 2) return none;
   const ibis = c.slice(1).map((x, i) => x - c[i]);
   const beat = median(ibis);
@@ -144,7 +147,7 @@ export function measureLeadLag(anchors: readonly number[], clicks: readonly numb
     const ps = read.filter((x) => (x.t < mid) === first).map((x) => x.p);
     return ps.length ? trimmedMean(ps, trimBeats).mean * beat : NaN;
   };
-  return { lagS: m.mean * beat, r: circularMean(phases).r, n: read.length, seS: m.n >= 2 ? sd / Math.sqrt(m.n) : Infinity, halves: [half(true), half(false)] };
+  return { lagS: m.mean * beat, r: circularMean(phases).r, n: read.length, seS: m.n >= 2 ? sd / Math.sqrt(m.n) : Infinity, kept: m.n, halves: [half(true), half(false)] };
 }
 
 /** Why the take did not measure this joint's lag well enough to keep it (null: kept). */
@@ -154,7 +157,9 @@ export function leadRefusal(l: LeadLag, clickInterval: number, options: LeadOffs
   if (l.n < o.minAnchors) return 'anchors';
   if (l.r < o.minR || !Number.isFinite(l.lagS)) return 'lock';
   if (Math.abs(l.lagS) > o.maxLagFraction * clickInterval) return 'level';
-  if (!(l.seS <= o.maxStandardErrorS)) return 'loose';
+  // The spread is the kept anchors' (the trim's strays left out), so a joint the trim had
+  // to cut a quarter of is as loose as its spread would say if they counted.
+  if (!(l.seS <= o.maxStandardErrorS) || l.kept < 0.75 * l.n) return 'loose';
   const [a, b] = l.halves;
   if (!Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) > o.maxHalfGapS) return 'drift';
   return null;
@@ -239,6 +244,10 @@ export function createLeadCorrector(offsets?: LeadOffsets): LeadCorrector {
 export interface LeadCalibrationOptions extends Omit<ImpactDetectorOptions, 'joints' | 'combine'>, LeadOffsetOptions {
   /** The joints to calibrate. Default the body conductor's set ({@link BODY_IMPACT_JOINTS}). */
   joints?: ReadonlyArray<ImpactJoint | string>;
+  /** The prior each joint's follower runs (the conductor's), and its options. Default the
+   *  default prior. */
+  prior?: RhythmPriorKind;
+  priorOptions?: RhythmPriorOptions;
 }
 
 /** The calibration's result: every joint's lag (by channel) and why it was not kept, and
@@ -255,7 +264,8 @@ export interface LeadCalibrationResult {
 export interface LeadCalibration {
   /** Feed one frame (in time order). */
   push(frame: ChannelFrame): void;
-  /** Tell the detectors the beat's period (the click interval), seconds. */
+  /** Seed every joint's follower at the beat's period (the click interval), seconds;
+   *  before the first frame (it starts the take over). */
   setPeriod(period: number): void;
   /** Each joint's anchors so far (channel to times). */
   anchors(): Record<string, number[]>;
@@ -266,20 +276,36 @@ export interface LeadCalibration {
 }
 
 export function createLeadCalibration(options: LeadCalibrationOptions = {}): LeadCalibration {
-  const { joints = BODY_IMPACT_JOINTS, minAnchors, minR, maxLagFraction, maxStandardErrorS, maxHalfGapS, ...detector } = options;
+  const { joints = BODY_IMPACT_JOINTS, minAnchors, minR, maxLagFraction, maxStandardErrorS, maxHalfGapS, prior = DEFAULT_RHYTHM_PRIOR, priorOptions = {}, ...detector } = options;
   const gates = { minAnchors, minR, maxLagFraction, maxStandardErrorS, maxHalfGapS };
   const names = joints.map((j) => (typeof j === 'string' ? j : j.channel));
-  const make = () => names.map((channel) => ({ channel, detector: createImpactDetector({ ...detector, joints: [channel] }), anchors: [] as number[] }));
-  let per = make();
+  // Each joint is followed as the conductor would follow it alone: its detector's period
+  // comes from a prior of its own (`createIctus`'s loop), seeded at the click's tempo. A
+  // detector with its period pinned to the click finds other peaks than the live one (the
+  // 4-pattern elbow: +11 ms against the follower's -7 ms), and the offset is for the live one.
+  const make = (period: number) =>
+    names.map((channel) => {
+      const tempo = Number.isFinite(period) && period > 0 ? { initialTempo: 60 / period } : {};
+      const d = createImpactDetector({ ...detector, joints: [channel], ...(Number.isFinite(period) && period > 0 ? { initialPeriod: period } : {}) });
+      const p = createRhythmPrior(prior, { ...priorOptions, oscillator: { ...priorOptions.oscillator, ...tempo }, trend: { ...priorOptions.trend, ...tempo } });
+      return { channel, detector: d, prior: p, anchors: [] as number[] };
+    });
+  let period = NaN;
+  let per = make(period);
   return {
     push(frame) {
       for (const j of per) {
         const a = j.detector.push(frame);
-        if (a) j.anchors.push(a.t);
+        if (a) {
+          j.anchors.push(a.t);
+          j.prior.update(a);
+          j.detector.setPeriod(j.prior.state().period);
+        } else j.prior.advance(frame.t);
       }
     },
-    setPeriod(period) {
-      for (const j of per) j.detector.setPeriod(period);
+    setPeriod(p) {
+      period = p;
+      per = make(period);
     },
     anchors: () => Object.fromEntries(per.map((j) => [j.channel, [...j.anchors]])),
     result(clicks) {
@@ -295,7 +321,7 @@ export function createLeadCalibration(options: LeadCalibrationOptions = {}): Lea
       return { lags, refused, offsets: leadOffsetsFrom(lags, clickInterval, gates), clickInterval };
     },
     reset() {
-      per = make();
+      per = make(period);
     },
   };
 }

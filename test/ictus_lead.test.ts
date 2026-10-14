@@ -42,13 +42,15 @@ describe('measureLeadLag', () => {
 });
 
 describe('leadRefusal and leadOffsetsFrom', () => {
-  const ok = { lagS: 0.09, r: 0.9, n: 16, seS: 0.01, halves: [0.08, 0.1] as const };
+  const ok = { lagS: 0.09, r: 0.9, n: 16, seS: 0.01, kept: 16, halves: [0.08, 0.1] as const };
   it('keeps a joint the take measured; says why it refuses the others', () => {
     expect(leadRefusal(ok, P)).toBeNull();
     expect(leadRefusal({ ...ok, n: 4 }, P)).toBe('anchors');
     expect(leadRefusal({ ...ok, r: 0.3 }, P)).toBe('lock');
     expect(leadRefusal({ ...ok, lagS: 0.35 }, P)).toBe('level');
     expect(leadRefusal({ ...ok, seS: 0.025 }, P)).toBe('loose');
+    // A quarter of the anchors cut by the trim: as loose as their spread would make it.
+    expect(leadRefusal({ ...ok, kept: 11 }, P)).toBe('loose');
     expect(leadRefusal({ ...ok, halves: [0.05, 0.13] }, P)).toBe('drift');
     expect(leadRefusal({ ...ok, halves: [0.05, NaN] }, P)).toBe('drift');
   });

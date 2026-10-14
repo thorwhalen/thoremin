@@ -12,8 +12,9 @@
  *   between the take's halves (`drift`), on the 3- and 2-pattern it does not keep the
  *   beat (`lock`). Kept on the 4-pattern's first half, it moved the second half by as much
  *   as it corrected (3 ms became -84 ms) before the gates.
- * - Whatever the take keeps, on any clip and any split, never moves the held-out half
- *   more than 15 ms further from the grid (the gates' purpose).
+ * - What the take keeps never moves its own joint further from the grid in-sample, and
+ *   never moves a held-out half more than 15 ms further (the gates' purpose; the take's
+ *   followers mirror the live one, a prior setting each detector's period).
  */
 import { describe, expect, it } from 'vitest';
 import { replayNode } from '@thoremin/dag';
@@ -34,6 +35,8 @@ function whole(name: string) {
 }
 
 describe('the lead offset on the conductor clips', () => {
+  // The subtraction itself, with the lag the take measured but did not keep (below): the
+  // issue's check, met in-sample only.
   it("the 4-pattern trunk: its measured lag, subtracted, lands it on the grid (within 20 ms)", () => {
     const { clip, dur, cal } = whole(C44);
     const lag = cal.lags.trunk.lagS;
@@ -51,6 +54,17 @@ describe('the lead offset on the conductor clips', () => {
 
   it('the wrist (the reference) is kept, and needs under 15 ms on every clip', () => {
     for (const name of CLIPS) expect(Math.abs(whole(name).cal.offsets.wrist)).toBeLessThan(0.015);
+  });
+
+  it('what the whole take keeps never moves its own joint further from the grid (in-sample)', () => {
+    for (const name of CLIPS) {
+      const { clip, dur, cal } = whole(name);
+      for (const joint of Object.keys(cal.offsets)) {
+        const before = scoreLevel(followAnchors(clip, [joint]), clip.grid, 1, [[0, dur]]);
+        const after = scoreLevel(followAnchors(clip, [joint], cal.offsets), clip.grid, 1, [[0, dur]]);
+        expect(Math.abs(after.lagS), `${name} ${joint}`).toBeLessThanOrEqual(Math.abs(before.lagS) + 0.002);
+      }
+    }
   });
 
   it('what a half keeps never moves the other half more than 15 ms further from the grid', () => {

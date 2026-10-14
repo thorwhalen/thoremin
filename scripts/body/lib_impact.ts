@@ -59,7 +59,9 @@ export function followAnchors(clip: BodyClip, joints: string[], offsets?: LeadOf
   const lead = createLeadCorrector(offsets);
   const out: number[] = [];
   for (const f of clipFrames(clip)) {
-    const a = lead.push(ictus.detector.push(f), f.t);
+    // The node's refractory on the corrected anchors (conductor.ts): a quarter period.
+    const period = ictus.state().period;
+    const a = lead.push(ictus.detector.push(f), f.t, Number.isFinite(period) && period > 0 ? 0.25 * period : 0);
     if (a) {
       ictus.feedAnchor(a);
       out.push(a.t);

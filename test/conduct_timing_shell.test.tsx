@@ -68,6 +68,13 @@ describe('Learn my timing', () => {
     await waitFor(() => expect((screen.getByText('Learn my timing...') as HTMLButtonElement).disabled).toBe(true));
     expect(screen.getByText(/Stop conducting to learn it/)).toBeTruthy();
     await dispatchDialSetIn('conductor.enabled', false);
+    // Started mid-take: the take is cancelled, not scored.
+    await waitFor(() => expect((screen.getByText('Learn my timing...') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByText('Learn my timing...'));
+    expect(useLeadCalibration.getState().phase).toBe('listening');
+    await dispatchDialSetIn('conductor.enabled', true);
+    await waitFor(() => expect(useLeadCalibration.getState().phase).toBe('idle'));
+    await dispatchDialSetIn('conductor.enabled', false);
   });
 
   it('a take that measured nothing offers no Keep', async () => {

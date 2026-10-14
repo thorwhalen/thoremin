@@ -9,6 +9,7 @@
  * joint was measured) or Discard, through the `conductor.timing.*` commands. From a cold
  * load: the bar's Conductor, Conduct with body, Learn my timing (three clicks).
  */
+import { useEffect } from 'react';
 import { dispatchCommand } from './dispatchDial';
 import { useControls } from './store';
 import { cancelLeadTake, formatLag, jointLabel, leadTakeBpm, startLeadTake, useLeadCalibration, LEAD_TAKE, REFUSAL_WORDS } from './conductorLead';
@@ -23,6 +24,11 @@ export default function ConductorTiming({ dial }: { dial: Partial<ConductorSetti
   const keptList = Object.entries(kept);
   const conducting = dial.enabled === true;
   const measured = result ? Object.keys(result.offsets).length > 0 : false;
+  // Conducting started mid-take (the Start button, the palette): the score would sound over
+  // the click, so the take is cancelled rather than scored.
+  useEffect(() => {
+    if (conducting && phase === 'listening') cancelLeadTake();
+  }, [conducting, phase]);
 
   return (
     <div className="space-y-1.5 rounded-lg bg-white/5 p-2 text-xs text-white/80" data-conductor-timing>

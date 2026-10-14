@@ -388,45 +388,45 @@ The override seam (B4, #387 choice B5): the node's `transportPose` input takes `
 
 ### 5.2 The lead offset per joint (#427)
 
-The body conductor plays the turning point of the joint its detector follows as the beat, so a joint that rides the stroke late (or early) moves the beat. "Learn my timing" in the Conductor tool measures each joint's lag against the trainer's click (a bar's count-in, 16 clicks; each joint of the conductor's set with a detector of its own, the period from the click) as the trimmed circular mean of its anchors' phase in the click interval, and the conductor subtracts it from that joint's anchors (a joint that leads has its anchor held until its corrected time). A joint's lag is kept only when the take measured it: at least 8 anchors, R at least 0.5 (`lock`), the lag under 0.35 of a beat (`level`), a standard error under 20 ms (`loose`), and the take's two halves within 40 ms of each other (`drift`). The offsets are a per-device pref, never an instrument setting, and a later take only replaces the joints it measured.
+The body conductor plays the turning point of the joint its detector follows as the beat, so a joint that rides the stroke late (or early) moves the beat. "Learn my timing" in the Conductor tool measures each joint's lag against the trainer's click (a bar's count-in, 16 clicks; each joint of the conductor's set followed alone, as the conductor would follow it: a detector of its own whose period a rhythm prior sets, seeded at the click's tempo) as the trimmed circular mean of its anchors' phase in the click interval, and the conductor subtracts it from that joint's anchors (a joint that leads has its anchor held until its corrected time). A joint's lag is kept only when the take measured it: at least 8 anchors, R at least 0.5 (`lock`), the lag under 0.35 of a beat (`level`), a standard error under 20 ms with at least three quarters of the anchors inside the trim (`loose`), and the take's two halves within 40 ms of each other (`drift`). The offsets are a per-device pref, never an instrument setting, and a later take only replaces the joints it measured.
 
 Replayed on the three conductor clips (`npx vite-node scripts/body/measure_lead_offset.ts`; the grid, the beating wrist's strokes, stands in for the click), with each joint ALONE followed. Each row gives the follower's lag behind the grid in ms on the test span, before and after the correction. The offset is learned on the whole clip (in-sample) or on the other half (held out). The fifth column is the calibrated lag, R, the anchor count, the standard error and the two halves' lags.
 
 | clip | joint | test span | calibrated on | lag, R, n, SE, halves (ms) | offset or refusal | lag before | lag after | F before | F after |
 |---|---|---|---|---|---|---|---|---|---|
-| conducting_44 | trunk | whole | whole | 50, 0.62, 29, 15, 85/17 | drift | 45 | 45 | 0.43 | 0.43 |
-| conducting_44 | trunk | 2nd half | 1st half | 94, 0.65, 16, 21, 52/137 | loose | 3 | 3 | 0.47 | 0.47 |
-| conducting_44 | trunk | 1st half | 2nd half | 27, 0.64, 12, 22, 56/-7 | loose | 75 | 75 | 0.40 | 0.40 |
-| conducting_44 | elbow | whole | whole | 11, 0.68, 29, 14, 9/13 | 11 | -13 | -24 | 0.45 | 0.42 |
-| conducting_44 | elbow | 2nd half | 1st half | 6, 0.70, 16, 18, -24/31 | drift | -27 | -27 | 0.67 | 0.67 |
-| conducting_44 | elbow | 1st half | 2nd half | 9, 0.72, 14, 18, 18/-2 | 9 | 4 | -5 | 0.25 | 0.25 |
-| conducting_44 | wrist | whole | whole | 6, 0.98, 31, 4, 8/4 | 6 | 8 | 2 | 0.95 | 0.95 |
-| conducting_44 | wrist | 2nd half | 1st half | 8, 0.98, 15, 6, -4/19 | 8 | 4 | -4 | 0.94 | 1.00 |
-| conducting_44 | wrist | 1st half | 2nd half | 4, 0.98, 15, 6, 7/2 | 4 | 13 | 9 | 0.97 | 0.97 |
-| conducting_34 | trunk | whole | whole | -81, 0.15, 32, 29, -42/-153 | lock | -3 | -3 | 0.23 | 0.23 |
-| conducting_34 | trunk | 2nd half | 1st half | 29, 0.34, 11, 39, -48/99 | lock | -25 | -25 | 0.17 | 0.17 |
-| conducting_34 | trunk | 1st half | 2nd half | -187, 0.14, 21, 34, -167/402 | lock | -1 | -1 | 0.31 | 0.31 |
-| conducting_34 | elbow | whole | whole | -57, 0.41, 38, 20, -56/-72 | lock | -89 | -89 | 0.41 | 0.41 |
-| conducting_34 | elbow | 2nd half | 1st half | -72, 0.50, 19, 28, -135/-35 | lock | -91 | -91 | 0.46 | 0.46 |
-| conducting_34 | elbow | 1st half | 2nd half | -68, 0.35, 19, 27, -39/-96 | lock | -88 | -88 | 0.35 | 0.35 |
-| conducting_34 | wrist | whole | whole | 13, 0.80, 34, 12, 16/11 | 13 | 5 | -8 | 0.78 | 0.81 |
-| conducting_34 | wrist | 2nd half | 1st half | 12, 0.76, 16, 19, -28/50 | drift | 9 | 9 | 0.79 | 0.79 |
-| conducting_34 | wrist | 1st half | 2nd half | 7, 0.91, 16, 15, 5/8 | 7 | 0 | -6 | 0.77 | 0.77 |
-| conducting_24 | trunk | whole | whole | -88, 0.25, 31, 29, -96/-78 | lock | -67 | -67 | 0.27 | 0.27 |
-| conducting_24 | trunk | 2nd half | 1st half | -95, 0.35, 16, 43, -45/-95 | lock | -90 | -90 | 0.36 | 0.36 |
-| conducting_24 | trunk | 1st half | 2nd half | -79, 0.13, 15, 35, -100/-65 | lock | -58 | -58 | 0.19 | 0.19 |
-| conducting_24 | elbow | whole | whole | -82, 0.61, 25, 25, -91/-73 | loose | -107 | -107 | 0.38 | 0.38 |
-| conducting_24 | elbow | 2nd half | 1st half | -90, 0.55, 13, 39, -137/-51 | loose | -125 | -125 | 0.33 | 0.33 |
-| conducting_24 | elbow | 1st half | 2nd half | -75, 0.68, 12, 31, -112/-47 | loose | -84 | -84 | 0.43 | 0.43 |
-| conducting_24 | wrist | whole | whole | 2, 0.98, 24, 6, -6/10 | 2 | 7 | 5 | 0.98 | 0.98 |
-| conducting_24 | wrist | 2nd half | 1st half | -6, 0.98, 12, 9, -19/6 | -6 | 10 | 16 | 1.00 | 1.00 |
-| conducting_24 | wrist | 1st half | 2nd half | 4, 0.98, 12, 8, -4/12 | 4 | 3 | -1 | 0.96 | 0.88 |
+| conducting_44 | trunk | whole | whole | 53, 0.66, 30, 15, 81/18 | drift | 45 | 45 | 0.43 | 0.43 |
+| conducting_44 | trunk | 2nd half | 1st half | 89, 0.69, 16, 19, 50/125 | drift | 3 | 3 | 0.47 | 0.47 |
+| conducting_44 | trunk | 1st half | 2nd half | 31, 0.67, 13, 20, 56/6 | loose | 75 | 75 | 0.40 | 0.40 |
+| conducting_44 | elbow | whole | whole | -7, 0.68, 30, 14, 5/-18 | -7 | -13 | -6 | 0.45 | 0.52 |
+| conducting_44 | elbow | 2nd half | 1st half | 5, 0.62, 15, 23, -25/40 | loose | -27 | -27 | 0.67 | 0.67 |
+| conducting_44 | elbow | 1st half | 2nd half | -13, 0.69, 14, 21, -11/-15 | loose | 4 | 4 | 0.25 | 0.25 |
+| conducting_44 | wrist | whole | whole | 5, 0.98, 31, 4, 7/4 | 5 | 8 | 3 | 0.95 | 0.95 |
+| conducting_44 | wrist | 2nd half | 1st half | 7, 0.98, 15, 6, -4/18 | 7 | 4 | -4 | 0.94 | 0.94 |
+| conducting_44 | wrist | 1st half | 2nd half | -1, 0.99, 15, 4, -6/3 | -1 | 13 | 14 | 0.97 | 0.97 |
+| conducting_34 | trunk | whole | whole | 19, 0.13, 32, 27, 28/11 | lock | -3 | -3 | 0.23 | 0.23 |
+| conducting_34 | trunk | 2nd half | 1st half | 30, 0.34, 11, 39, -47/100 | lock | -25 | -25 | 0.17 | 0.17 |
+| conducting_34 | trunk | 1st half | 2nd half | -187, 0.09, 22, 34, -89/-298 | lock | -1 | -1 | 0.31 | 0.31 |
+| conducting_34 | elbow | whole | whole | -69, 0.41, 39, 19, -75/-63 | lock | -89 | -89 | 0.41 | 0.41 |
+| conducting_34 | elbow | 2nd half | 1st half | -80, 0.53, 19, 26, -133/-50 | loose | -91 | -91 | 0.46 | 0.46 |
+| conducting_34 | elbow | 1st half | 2nd half | -76, 0.51, 17, 26, -55/-99 | loose | -88 | -88 | 0.35 | 0.35 |
+| conducting_34 | wrist | whole | whole | 7, 0.77, 34, 11, -6/10 | 7 | 5 | -2 | 0.78 | 0.78 |
+| conducting_34 | wrist | 2nd half | 1st half | 7, 0.79, 16, 17, -18/32 | drift | 9 | 9 | 0.79 | 0.79 |
+| conducting_34 | wrist | 1st half | 2nd half | 8, 0.78, 18, 18, 15/3 | 8 | 0 | -7 | 0.77 | 0.84 |
+| conducting_24 | trunk | whole | whole | -74, 0.25, 32, 28, -51/-98 | lock | -67 | -67 | 0.27 | 0.27 |
+| conducting_24 | trunk | 2nd half | 1st half | -51, 0.36, 17, 42, 45/-95 | lock | -90 | -90 | 0.36 | 0.36 |
+| conducting_24 | trunk | 1st half | 2nd half | -99, 0.14, 15, 33, -100/-99 | lock | -58 | -58 | 0.19 | 0.19 |
+| conducting_24 | elbow | whole | whole | -101, 0.60, 27, 23, -91/-110 | loose | -107 | -107 | 0.38 | 0.38 |
+| conducting_24 | elbow | 2nd half | 1st half | -90, 0.49, 15, 36, -125/-52 | lock | -125 | -125 | 0.33 | 0.33 |
+| conducting_24 | elbow | 1st half | 2nd half | -108, 0.62, 13, 37, -153/-24 | loose | -84 | -84 | 0.43 | 0.43 |
+| conducting_24 | wrist | whole | whole | 1, 0.98, 24, 6, -7/10 | 1 | 7 | 5 | 0.98 | 0.98 |
+| conducting_24 | wrist | 2nd half | 1st half | -7, 0.98, 12, 9, -20/6 | -7 | 10 | 17 | 1.00 | 0.92 |
+| conducting_24 | wrist | 1st half | 2nd half | 4, 0.98, 12, 9, -4/12 | 4 | 3 | 0 | 0.96 | 0.96 |
 
 What it says:
 
-1. **The subtraction itself works.** The 4-pattern trunk's lag (50 ms over the clip) subtracted from its anchors lands the trunk-alone follower within 4 ms of the grid on the same clip (`test/conductor_lead.test.ts`; scripted strokes move the conductor node's beat by an 80 ms offset within a frame, either way).
-2. **The trunk's lag is not a constant of this conductor, and a take cannot measure it.** On the one clip where the trunk keeps the beat, its lag is 85 ms over the first half and 17 ms over the second. Its anchors scatter about ±100 ms, so 16 strokes measure the mean to about ±25 ms at best. Before the standard-error and half gates, the resultant alone accepted it, and an offset learned on one half moved the other half by as much as it corrected (3 ms became -84 ms, 75 ms became 51 ms). With the gates, the take refuses the trunk on every clip and split: `drift` or `loose` on the 4-pattern, `lock` on the 3- and 2-pattern.
-3. **What the take keeps does no harm.** Under the gates, what one half keeps never moves the other half more than 15 ms further from the grid. The wrist's offset is under 15 ms on every clip, which is the reference's own noise. The 2-pattern elbow, the one joint the ungated correction helped held out, is refused as `loose` (standard error 25 to 39 ms).
+1. **The subtraction itself works.** The 4-pattern trunk's lag (53 ms over the clip) subtracted from its anchors lands the trunk-alone follower within 2 ms of the grid on the same clip (`test/conductor_lead.test.ts`; scripted strokes move the conductor node's beat by an 80 ms offset within a frame, either way).
+2. **The trunk's lag is not a constant of this conductor, and a take cannot measure it.** On the one clip where the trunk keeps the beat, its lag is 81 ms over the first half and 18 ms over the second. Its anchors scatter about ±100 ms, so 16 strokes measure the mean to about ±25 ms at best. A first version gated on the resultant alone and accepted it, and an offset learned on one half then moved the other half by as much as it corrected (3 ms became -84 ms, 75 ms became 51 ms). With the gates, the take refuses the trunk on every clip and split: `drift` or `loose` on the 4-pattern, `lock` on the 3- and 2-pattern.
+3. **What the take keeps does no harm.** In-sample a kept offset never moves its joint further from the grid, and what one half keeps never moves the other half more than 15 ms further (the worst: the 2-pattern wrist, 10 to 17 ms). The wrist's offset is under 15 ms on every clip, which is the reference's own noise; the 4-pattern elbow is kept over the whole clip (-7 ms: -13 to -6). The 2-pattern elbow, the one joint the ungated correction helped held out, is refused as `loose` or `lock` (standard error 23 to 37 ms). A first version pinned each joint's detector to the click's period; it found other peaks than the live follower (the 4-pattern elbow +11 ms against -7) and its kept offset moved that elbow from -13 to -24 ms in-sample, which is why the take now follows each joint as the conductor does.
 
 So the issue's check (the trunk alone within ±20 ms of the grid after calibration) is met only in-sample, by the subtraction. A take does not reach it, because the take refuses the trunk. Whether a real player's trunk holds a lag from one take to the next, and whether a longer take would measure it, is a live check (#146) and its own follow-up issue.
 
