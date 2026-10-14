@@ -342,6 +342,8 @@ export interface FaceSessionState {
 export const FACE_SESSION_DEFAULTS = {
   /** How often the paused ghost card (#404) carves the forming hold again, ms. */
   ghostMs: 250,
+  /** The most holds the ghost re-carves with (the carve is cubic); past it there is no ghost. */
+  ghostUpTo: 150,
   /** The name a fresh face carve is exported under when it has none yet (another modality's:
    *  "My <many>"). */
   exportName: 'My faces',
@@ -612,15 +614,29 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         return;
       }
       const tid = takeId;
-      const clusters = bars.carve().map((c) => c.map((p) => keptIdx[p]).filter((i) => i !== undefined));
-      const { cards, once } = liveStrip(clusters);
       const labels = take.labels();
-      const strip: StripCardView[] = cards.map((c) => {
-        const named = holdNames.get(c.index) ?? labels.get(c.index) ?? '';
-        return { n: c.index + 1, like: c.like === null ? null : c.like + 1, name: named.trim() || null, thumb: stripThumb(c.index, holdId(tid, c.index)) };
-      });
+      const nameOf = (i: number): string => (holdNames.get(i) ?? labels.get(i) ?? '').trim();
+      // A named hold goes where Stop puts it: with the holds of its name (pinned there), whatever
+      // the carve says; the carve's groups keep the unnamed ones.
+      const byName = new Map<string, number[]>();
+      const clusters = bars
+        .carve()
+        .map((c) =>
+          c.flatMap((p) => {
+            const i = keptIdx[p];
+            if (i === undefined) return [];
+            const name = nameOf(i).toLowerCase();
+            if (!name) return [i];
+            byName.set(name, [...(byName.get(name) ?? []), i]);
+            return [];
+          }),
+        )
+        .concat([...byName.values()]);
+      const { cards, once } = liveStrip(clusters);
+      const strip: StripCardView[] = cards.map((c) => ({ n: c.index + 1, like: c.like === null ? null : c.like + 1, name: nameOf(c.index) || null, thumb: stripThumb(c.index, holdId(tid, c.index)) }));
       const stripOnce = once.map((i) => i + 1);
-      const key = JSON.stringify([strip, stripOnce]);
+      // The change key without the pictures' text (a stick figure is a data URL of kilobytes).
+      const key = `${strip.map((c) => `${c.n}:${c.like ?? ''}:${c.name ?? ''}:${c.thumb ? c.thumb.length : 0}`).join('|')}/${stripOnce.join(',')}`;
       if (key === stripKey) return;
       stripKey = key;
       set({ strip, stripOnce });
@@ -629,7 +645,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
      *  `ghostMs`; null otherwise. */
     const refreshGhost = (vector: FeatureVector | null, tMs: number) => {
       const s = get();
-      const forming = s.phase === 'paused' && (s.hold === 'settling' || s.hold === 'taken') && vector !== null && bars !== null && keptIdx.length > 0;
+      const forming =
+        s.phase === 'paused' && (s.hold === 'settling' || s.hold === 'taken') && vector !== null && bars !== null && keptIdx.length > 0 && keptIdx.length <= FACE_SESSION_DEFAULTS.ghostUpTo;
       if (!forming) {
         if (s.ghost !== null) set({ ghost: null });
         ghostAt = Number.NEGATIVE_INFINITY;
@@ -638,7 +655,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       if (tMs - ghostAt < FACE_SESSION_DEFAULTS.ghostMs && s.ghost !== null) return;
       ghostAt = tMs;
       const joins = bars!.wouldBe(vector!);
-      const like = joins ? Math.min(...joins.map((p) => keptIdx[p])) + 1 : null;
+      // Said in the strip's terms: the card it would join, by that card's group leader (one more
+      // point can split a group, and the ghost must not contradict the cards).
+      const first = joins ? Math.min(...joins.map((p) => keptIdx[p])) + 1 : null;
+      const card = first === null ? undefined : s.strip.find((c) => c.n === first);
+      const like = first === null ? null : (card?.like ?? first);
       if (s.ghost?.like !== like || s.ghost === null) set({ ghost: { like } });
     };
     const show = (gen: number) => {

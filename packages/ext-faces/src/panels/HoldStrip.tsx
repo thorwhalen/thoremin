@@ -44,35 +44,38 @@ export function HoldStrip({ s }: { s: FaceSessionState }) {
     setOpen(card.n);
     setDraft(card.name ?? '');
   };
+  /** Only a changed name is given: opening a card and leaving keeps a named burst's name. */
   const commitName = () => {
-    if (selected) s.nameHold(selected.n, draft);
+    if (selected && draft.trim() !== (selected.name ?? '')) s.nameHold(selected.n, draft);
   };
   return (
     <div className="space-y-1" data-faces-strip>
-      <div className="flex gap-1.5 overflow-x-auto pb-1" role="list" aria-label={`Held ${many} so far`}>
-        {s.strip.map((card) => (
-          <button
-            key={card.n}
-            type="button"
-            role="listitem"
-            aria-pressed={open === card.n}
-            aria-label={`#${card.n}: ${cardWords(card, one)}${card.name ? `, named ${card.name}` : ''}. Tap to name or delete it.`}
-            className={`flex w-[68px] shrink-0 flex-col items-center gap-0.5 rounded-md border p-1 text-center text-[10px] leading-tight transition ${
-              open === card.n ? 'border-emerald-300/70 bg-emerald-500/15' : card.like === null ? 'border-sky-300/40 bg-white/5' : 'border-white/15 bg-white/5'
-            }`}
-            onClick={() => choose(card)}
-            data-faces-strip-card={card.n}
-          >
-            {card.thumb ? (
-              <img src={card.thumb} alt="" className="h-10 w-10 rounded object-cover" />
-            ) : (
-              <span className="flex h-10 w-10 items-center justify-center rounded bg-white/10 font-bold text-white/70">{`#${card.n}`}</span>
-            )}
-            <span className="font-semibold text-white/90">{`#${card.n}`}</span>
-            <span className={card.like === null ? 'text-sky-200' : 'text-white/60'}>{cardWords(card, one)}</span>
-            {card.name && <span className="max-w-full truncate text-emerald-200">{card.name}</span>}
-          </button>
-        ))}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <ul className="flex gap-1.5" aria-label={`Held ${many} so far`}>
+          {s.strip.map((card) => (
+            <li key={card.n} className="shrink-0">
+              <button
+                type="button"
+                aria-pressed={open === card.n}
+                aria-label={`#${card.n}: ${cardWords(card, one)}${card.name ? `, named ${card.name}` : ''}. Tap to name or delete it.`}
+                className={`flex w-[68px] shrink-0 flex-col items-center gap-0.5 rounded-md border p-1 text-center text-[10px] leading-tight transition ${
+                  open === card.n ? 'border-emerald-300/70 bg-emerald-500/15' : card.like === null ? 'border-sky-300/40 bg-white/5' : 'border-white/15 bg-white/5'
+                }`}
+                onClick={() => choose(card)}
+                data-faces-strip-card={card.n}
+              >
+                {card.thumb ? (
+                  <img src={card.thumb} alt="" className="h-10 w-10 rounded object-cover" />
+                ) : (
+                  <span className="flex h-10 w-10 items-center justify-center rounded bg-white/10 font-bold text-white/70">{`#${card.n}`}</span>
+                )}
+                <span className="font-semibold text-white/90">{`#${card.n}`}</span>
+                <span className={card.like === null ? 'text-sky-200' : 'text-white/60'}>{cardWords(card, one)}</span>
+                {card.name && <span className="max-w-full truncate text-emerald-200">{card.name}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
         {s.ghost && (
           <div
             className="flex w-[68px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-amber-200/60 p-1 text-center text-[10px] leading-tight text-amber-100"
@@ -100,8 +103,6 @@ export function HoldStrip({ s }: { s: FaceSessionState }) {
                 commitName();
                 setOpen(null);
               }
-              // Typing a name never toggles the capture or starts a burst.
-              e.stopPropagation();
             }}
             className="w-32 rounded border border-white/15 bg-black/30 px-1.5 py-0.5 text-[11px] text-white placeholder:text-white/40"
           />

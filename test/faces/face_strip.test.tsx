@@ -134,6 +134,36 @@ describe.runIf(FACES)('the strip in the store (the synthetic face)', () => {
     expect(working!.pins?.['take-strip:0']).toBe(grin!.id);
   });
 
+  it('holds given one name are one group in the strip, as Stop will pin them', async () => {
+    const store = await capture(4);
+    expect(store.getState().strip[2].like).toBeNull();
+    store.getState().nameHold(1, 'Mine');
+    store.getState().nameHold(3, 'mine');
+    const { strip, stripOnce } = store.getState();
+    expect(strip.find((c) => c.n === 3)?.like).toBe(1);
+    expect(stripOnce).not.toContain(1);
+    expect(stripOnce).not.toContain(3);
+    store.getState().cancelRecording();
+  });
+
+  it('"Add more" of a saved one: a deleted hold is not merged, the others are', async () => {
+    const store = await capture(4);
+    await store.getState().stop();
+    expect(await store.getState().save('Mine')).toBe(true);
+    await store.getState().open(store.getState().saved[0].id);
+    store.getState().startMerge('samples');
+    await run(SYNTHETIC_TIMELINE.restMs + 300 + 3 * FACE_MS);
+    expect(store.getState().strip.length).toBeGreaterThanOrEqual(2);
+    store.getState().dropHold(2);
+    await store.getState().stop();
+    expect(store.getState().phase).toBe('saved');
+    const ids = store.getState().working!.samples.map((x) => x.id);
+    const merged = ids.filter((id) => id.startsWith('take-strip-'));
+    expect(merged.length).toBeGreaterThan(0);
+    expect(merged.some((id) => id.endsWith(':1'))).toBe(false);
+    expect(merged.some((id) => id.endsWith(':0'))).toBe(true);
+  });
+
   it('every hold deleted: nothing to carve, said plainly', async () => {
     const store = await capture(3);
     for (const c of [...store.getState().strip]) store.getState().dropHold(c.n);
@@ -147,6 +177,8 @@ describe.runIf(FACES)('the strip in the store (the synthetic face)', () => {
     // Paused as the fourth face (relaxed) begins: a face held at Pause is not a hold to show (the
     // watching sampler waits for a movement first).
     const store = await capture(3);
+    // Three holds carve as two groups so far: smile and relaxed together (card 2: like #1).
+    expect(store.getState().strip.map((c) => c.like)).toEqual([null, 1, null]);
     store.getState().pause();
     let ghosts: (number | null)[] = [];
     const unsub = store.subscribe((s) => {
@@ -154,8 +186,10 @@ describe.runIf(FACES)('the strip in the store (the synthetic face)', () => {
     });
     await run(4 * FACE_MS);
     unsub();
-    // Then the third expression (never held: new), relaxed (like #2), smile again (like #1), relaxed.
-    expect(ghosts).toEqual([null, 2, 1, 2]);
+    // Then the third expression (never held: new), then relaxed and smile, said as the strip says
+    // them: the group of #1 (a re-carve with one more point would split it, and the ghost must
+    // not contradict the cards).
+    expect(ghosts).toEqual([null, 1]);
     store.getState().resume();
     await run(100);
     expect(store.getState().ghost).toBeNull();
