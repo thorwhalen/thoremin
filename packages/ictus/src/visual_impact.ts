@@ -36,7 +36,7 @@
  *    from elsewhere (the score's tempo, A3) is what makes the level match bite. Before
  *    any joint has shown a rhythm, the stated `weight`s order them. A joint that has stopped (its envelope
  *    has not risen a peak's prominence for a period) loses its rhythm after `stillIntervals`
- *    periods without a peak, not `staleIntervals` (#425).
+ *    (2.25) periods without a peak, not `staleIntervals` (3) (#425).
  * 5. **Select, do not sum (by default).** A1 found the summed envelope below the best
  *    single channel on every clip: joints in one body move at different levels and
  *    lags, so a sum mixes them. `combine: 'select'` follows the joint with the best
@@ -137,7 +137,8 @@ export interface ImpactDetectorOptions {
   staleIntervals?: number;
   /** A joint that has stopped (its envelope has not risen a peak's prominence for a whole
    *  period) loses its rhythm once its last peak is older than this many periods, instead
-   *  of `staleIntervals`. */
+   *  of `staleIntervals`. Above 2: a missed beat is a two-period interval the periodicity
+   *  accepts, and a joint that is still cannot be told from one until the next beat is due. */
   stillIntervals?: number;
   /** Added to every joint's periodicity before weighting, so the stated weights order
    *  the joints while none has a rhythm. */
@@ -189,7 +190,7 @@ export const IMPACT_DEFAULTS: Required<Omit<ImpactDetectorOptions, 'joints'>> = 
   regularityIntervals: 8,
   minRegularityIntervals: 3,
   staleIntervals: 3,
-  stillIntervals: 1.5,
+  stillIntervals: 2.25,
   lockFloor: 0.1,
   lockExponent: 4,
   switchMargin: 1.25,
@@ -420,6 +421,9 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
   const ySign = (o.yDown ? 1 : -1) * (o.polarity === 'bottom' ? 1 : -1);
   const xSign = o.mirrorX ? -1 : 1;
   const derivativeEvent = o.event !== 'extremum';
+  // The still rule is for `select`: a stopped joint in the weighted envelope contributes noise-level z
+  // already, and cutting its weight early cost the slow 3/4 hymn (F 0.67 to 0.59).
+  const selecting = o.combine === 'select';
   const windowed = o.event === 'impact' && o.impactSpan > 0;
   const planeSpeed = o.axis === 'plane' && (o.event === 'deceleration' || o.event === 'acceleration');
 
@@ -492,7 +496,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     const n = j.peaks.length - 1;
     if (n < o.minRegularityIntervals) return 0;
     const age = t - j.peaks[n];
-    if (age > o.staleIntervals * period || (j.still && age > o.stillIntervals * period)) return 0;
+    if (age > o.staleIntervals * period || (selecting && j.still && age > o.stillIntervals * period)) return 0;
     // Each interval's phase in the follower's period: one period (or two, a missed
     // peak) is in phase, half a period (a doubled peak) is out of phase. The mean
     // cosine is the locking; the share of intervals under 1.5 periods says the joint
@@ -584,7 +588,12 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     }
     // The windowed impact: the parabola's curvature over the last `impactSpan` periods,
     // timed at the window's middle.
-    if (windowed && j.fit.length >= 5) env = { t: j.fit[j.fit.length >> 1].t, v: Math.max(0, -quadraticCurvature(j.fit)) };
+    if (windowed && j.fit.length >= 5) {
+      // Timed at the window's centre, not at a frame: with an even number of frames the later
+      // middle frame is half a frame (+17 ms at 30 fps) late.
+      const curvature = quadraticCurvature(j.fit);
+      if (Number.isFinite(curvature)) env = { t: (j.fit[0].t + j.fit[j.fit.length - 1].t) / 2, v: Math.max(0, -curvature) };
+    }
     j.history.push({ t, x, y: dy, dx, speed, speedT, decel, decelT });
     while (j.history.length > 1 && j.history[0].t < t - Math.max(2 * period, o.detrendS)) j.history.shift();
     return env;
