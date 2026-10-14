@@ -10,6 +10,7 @@
  * Override the root with `THOREMIN_DATA_DIR` (tests point it at a temp dir).
  */
 import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const AIR_DATA_KINDS = ['videos', 'landmarks', 'labels', 'datasets', 'models', 'results'] as const;
@@ -28,9 +29,29 @@ export function airDir(kind: AirDataKind, instrument: AirInstrument, env?: NodeJ
   return join(dataRoot(env), kind, 'air', instrument);
 }
 
-/** Landmark stream for one source video, in the shape `scripts/video_to_landmarks.py` writes. */
+/** The landmark streams `scripts/air/extract.py` keeps per video (the video-data rule). */
+export type AirStream = 'pose' | 'hands' | 'face' | 'face.landmarks';
+
+/** The names before the rule, still read where an old extraction was not migrated. */
+const LEGACY_STREAM_NAMES: Partial<Record<AirStream, string[]>> = {
+  hands: ['src.hands.ndjson', 'src.hands.ndjson.gz'],
+  face: ['face.ndjson'],
+  pose: ['pose.ndjson'],
+};
+
+/** One stream of one source video: `<id>.<stream>.ndjson.gz`, or the pre-rule name when
+ *  only that exists (so a dataset built before #513 still reads). */
+export function streamPath(instrument: AirInstrument, videoId: string, stream: AirStream, env?: NodeJS.ProcessEnv): string {
+  const dir = airDir('landmarks', instrument, env);
+  const current = join(dir, `${videoId}.${stream}.ndjson.gz`);
+  if (existsSync(current)) return current;
+  const legacy = (LEGACY_STREAM_NAMES[stream] ?? []).map((n) => join(dir, `${videoId}.${n}`)).find((p) => existsSync(p));
+  return legacy ?? current;
+}
+
+/** Hand landmark stream for one source video, in the shape `scripts/video_to_landmarks.py` writes. */
 export function landmarksPath(instrument: AirInstrument, videoId: string, env?: NodeJS.ProcessEnv): string {
-  return join(airDir('landmarks', instrument, env), `${videoId}.src.hands.ndjson`);
+  return streamPath(instrument, videoId, 'hands', env);
 }
 
 /** Chord-segment labels for one source video, in the shape `scripts/air/label_chords.py` writes. */

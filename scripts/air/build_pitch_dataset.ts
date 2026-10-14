@@ -18,7 +18,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { airDir, landmarksPath } from './lib_air_paths';
+import { airDir, landmarksPath, streamPath } from './lib_air_paths';
 import {
   bundleStreams,
   joinLabelledFrames,
@@ -64,7 +64,7 @@ for (const src of sources) {
   let result: { samples: Sample[]; stats: JoinStats };
   if (instrument === 'flute') {
     const s = src as Extract<typeof src, { leftHand: 'min' | 'max' }>;
-    const facePath = join(airDir('landmarks', 'flute'), `${src.id}.face.ndjson`);
+    const facePath = streamPath('flute', src.id, 'face');
     const face = withFace && existsSync(facePath) ? readLandmarks(facePath) : undefined;
     const records = bundleStreams({ hands: readLandmarks(hands), face });
     result = joinLabelledFrames<FrameBundle>(records, { group: src.player, featurize: fluteFeaturizer({ leftHand: s.leftHand, withFace: withFace && !!face }), labelOf });
