@@ -10,6 +10,7 @@
  */
 import type { StoreApi } from 'zustand/vanilla';
 import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
+import { onCarveRequest, takeCarveRequest } from '@thoremin/sdk-ui/enroll/carveRequest';
 import { carveOwners, claimCarve, type CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
 import { faceModalityUi } from './modality';
 import { createCategorizerStore } from './categorizers';
@@ -61,6 +62,30 @@ export function browserTestStoreFor(ui: CarveModalityUi, script: SyntheticScript
     pollMs: FACE_TEST_DEFAULTS.pollMs,
     publishMs: FACE_TEST_DEFAULTS.publishMs,
   });
+}
+
+/**
+ * Apply the host's requests for this session's modality (#383: the Conductor tool asks "Your
+ * poses" for the conductor's names): the pending one now, later ones as they come, including
+ * during a take (the vocabulary is read when the take becomes a categorizer). A request that
+ * arrives while a categorizer is open waits until it is closed. Returns the store, for chaining.
+ */
+export function withCarveRequests(store: StoreApi<FaceSessionState>): StoreApi<FaceSessionState> {
+  const id = store.getState().modality.id;
+  let waiting: { vocabulary: string | null } | null = null;
+  const apply = () => {
+    waiting = takeCarveRequest(id) ?? waiting;
+    if (!waiting) return;
+    if (store.getState().working) return;
+    store.getState().setVocabulary(waiting.vocabulary);
+    waiting = null;
+  };
+  apply();
+  onCarveRequest((m) => m === id && apply());
+  store.subscribe((s, prev) => {
+    if (waiting && s.working !== prev.working) apply();
+  });
+  return store;
 }
 
 export function browserDeps(): FaceSessionDeps {

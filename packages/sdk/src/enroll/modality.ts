@@ -65,6 +65,19 @@ export interface FeatureWords {
 /** A general model as the matcher's inputs (P1's `matchLabels` options, minus the fallback). */
 export type GeneralLabeling = Omit<LabelMatchOptions, 'fallback' | 'keepExisting'>;
 
+/** What a general model may name by (#383): the categorizer it names. A modality with one
+ *  vocabulary ignores it; the body chooses among its vocabularies by it. */
+export interface GeneralContext {
+  /** The categorizer's trained features (what the take saw: a seated take has no leg feature). */
+  features?: readonly string[];
+  /** The mirror (a pose and its mirror image are one category: sided names merge). */
+  mirror?: boolean;
+  /** A vocabulary the categorizer was made for, by id (the body's `conductor`). */
+  vocabulary?: string;
+  /** The mean of its rest (Neutral) holds, when it has them (a seated rest bends the knees). */
+  rest?: FeatureVector;
+}
+
 /** Which hand a hand categorizer reads (#385 E8, #387 C4): one hand's shape, side-relative, so
  *  `either` makes the same category with whichever hand is in view. Stored on the categorizer. */
 export const HAND_CHOICES = ['either', 'left', 'right'] as const;
@@ -143,7 +156,10 @@ export interface CarveModality {
    *  {@link project}, the keys are the projected ones. */
   keep(key: string): boolean;
   /** The general model that proposes names, if the modality has one. */
-  general?(): GeneralLabeling;
+  general?(context?: GeneralContext): GeneralLabeling;
+  /** The default-name vocabularies a take may ask for by id (null: the modality's own choice),
+   *  each with the words a picker shows. Absent: one vocabulary, nothing to choose. */
+  vocabularies?: readonly { id: string | null; name: string }[];
   /** Nuisance proxies for the live tuning: camera distance, in order of preference. */
   readonly nuisance: { readonly distance?: readonly string[] };
   /** A feature in plain words, for the quality hints (#385 E6): undefined for a feature the

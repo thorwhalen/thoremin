@@ -22,6 +22,10 @@
  * "Conduct with" (#375): hands or body, the `conductor.source` dial. Body composes the
  * pose camera branch and the conductor reads it; from a cold load that is three clicks:
  * Conductor, Conduct with body, Start conducting.
+ *
+ * "Teach my conducting poses" (#383): with the body, the panel opens "Your poses" (an extension's
+ * tool, so only when the build ships it) asking for the conductor's default names, `ready`,
+ * `fermata`, `cut-off` and `rest`: two clicks from the Conductor to a take in that vocabulary.
  */
 import { useRef, useState } from 'react';
 import { Music2, X } from 'lucide-react';
@@ -34,10 +38,14 @@ import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
 import { toolById } from './tools';
+import { shellToolById } from './shellTools';
+import { requestCarve } from '@thoremin/sdk-ui/enroll/carveRequest';
 import { useTools } from './toolsStore';
 import type { ConductorSettings } from '@/settings/schema';
 
 export const CONDUCTOR_TOOL_ID = 'conductor';
+/** "Your poses" (the faces extension's pose tool, #382). */
+const POSES_TOOL_ID = 'poses';
 
 /** What to tell the player, per follower state (and what they conduct with, #375). */
 export function describeLive(live: ConductorLive, source: ConductorSettings['source'] = 'hands'): string {
@@ -217,6 +225,18 @@ export default function ConductorPanel() {
         >
           {enabled ? 'Stop conducting' : 'Start conducting'}
         </button>
+        {source === 'body' && shellToolById(POSES_TOOL_ID) && (
+          <button
+            data-conductor-teach-poses
+            onClick={() => {
+              requestCarve('body', { vocabulary: 'conductor' });
+              useTools.getState().openTool(POSES_TOOL_ID);
+            }}
+            className="w-full rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+          >
+            Teach my conducting poses (ready, fermata, cut-off)...
+          </button>
+        )}
         <LiveReadout live={live} source={source} />
         <p className="text-[10px] leading-relaxed text-white/50">
           {source === 'body'

@@ -173,6 +173,10 @@ export interface FaceSessionState {
   /** A pose and its mirror image read as one (#382, #387 B10): the working categorizer's, or the
    *  next take's before there is one. False for every modality without a mirror. */
   mirror: boolean;
+  /** The default-name vocabulary (#383): the working categorizer's, or the next take's before
+   *  there is one (the body's `conductor` when the Conductor tool asked for it); null: chosen by
+   *  coverage. */
+  vocabulary: string | null;
   /** Whether the next take keeps camera stills (#387 C7: opt-in for a body). */
   keepStills: boolean;
   /** Whether holds have a stick figure for a picture (constant: the modality draws one). */
@@ -250,6 +254,10 @@ export interface FaceSessionState {
   /** The mirror, for the next take only (#382): a take's holds are read on its side, so a carve
    *  keeps the setting it was recorded with. */
   setMirror(on: boolean): void;
+  /** The default-name vocabulary of the take under way or the next one (#383; null: chosen by
+   *  coverage). It applies to ONE take: once that take is a categorizer (which keeps it), the
+   *  choice returns to null. Refused while a categorizer is open. */
+  setVocabulary(vocabulary: string | null): void;
   /** Keep camera stills on the next take (#387 C7). */
   setKeepStills(on: boolean): void;
   /** Skip the setup step under way (a nuisance demonstration), on to the next. */
@@ -403,6 +411,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** The mirror the player chose for the next take (#382): the state shows an open categorizer's,
    *  and a reset returns to this. */
   let chosenMirror = false;
+  /** The vocabulary chosen for the next take (#383): a reset returns to it. */
+  let chosenVocabulary: string | null = null;
   /** The shown samples' stick-figure pictures, by hold id (#382): where a hold has no still. */
   const figureUrls = new Map<string, string>();
   /** The stills taken this session, by hold id: in memory until a save files them in
@@ -658,7 +668,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           if (url) figureUrls.set(x.id, url);
         }
       }
-      set({ working, view, strangers: working.strangers, hand: working.hand ?? 'either', mirror: working.mirror === true, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
+      set({ working, view, strangers: working.strangers, hand: working.hand ?? 'either', mirror: working.mirror === true, vocabulary: working.vocabulary ?? null, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
       const gen = generation;
       void loadThumbs(shownIds).then((found) => {
         if (gen === generation && get().working === working && get().phase === 'saved') set({ hasStills: found });
@@ -749,6 +759,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       strangers: 'neutral',
       hand: 'either',
       mirror: false,
+      vocabulary: null,
       keepStills: deps.stillsByDefault ?? true,
       figures: deps.figure !== undefined && modality.skeleton !== undefined,
       setupStep: 0,
@@ -957,7 +968,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const rest = myTake.restVectors();
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const strangers = get().strangers;
-        const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, hand: get().hand, mirror: get().mirror, createdAt: deps.isoNow() });
+        const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, hand: get().hand, mirror: get().mirror, vocabulary: get().vocabulary ?? undefined, createdAt: deps.isoNow() });
+        // One take's choice: the categorizer keeps it, the next take starts from coverage again.
+        chosenVocabulary = null;
         // Bursts recorded under a name are pinned to a category of that name before the carve, so
         // the re-cut keeps them together (must-link) at every k (#385 E7).
         const labelled = withLabels(unlabelled, labelledHolds(myTake, takeId!));
@@ -996,6 +1009,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (phase !== 'idle' && phase !== 'empty') return;
         chosenMirror = on;
         set({ mirror: on });
+      },
+
+      setVocabulary(vocabulary) {
+        // Read when a take becomes a categorizer, so any time before that is in time.
+        if (get().working) return;
+        chosenVocabulary = vocabulary;
+        set({ vocabulary });
       },
 
       setKeepStills(on) {
@@ -1186,7 +1206,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         stills.clear();
         pending.clear();
         dropUrls();
-        set({ phase: 'idle', mirror: chosenMirror, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
+        set({ phase: 'idle', mirror: chosenMirror, vocabulary: chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
       },
 
       cancelRecording() {

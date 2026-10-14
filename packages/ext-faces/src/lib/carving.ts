@@ -35,7 +35,7 @@ import { carveQuality, qualityHint, type CarveQuality, type QualityHint } from '
 import { exemplarsByCategory, selectExemplars, type Exemplar } from '@thoremin/sdk/enroll/exemplars';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
 import type { Session } from '@thoremin/sdk/enroll/session';
-import { isNeutralLabel, type CarveModality, type GeneralLabeling } from '@thoremin/sdk/enroll/modality';
+import { isNeutralLabel, type CarveModality, type GeneralContext, type GeneralLabeling } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 /** The default name of the category that is mostly the player's resting face (partition mode). */
@@ -92,6 +92,22 @@ export interface CarveInput {
   exemplarCount?: number;
   /** What was carved (the face by default): its neutral name, general model and fallback names. */
   modality?: CarveModality;
+  /** What the general model names by beyond the take's features (#383: the mirror, a vocabulary). */
+  context?: Omit<GeneralContext, 'features'>;
+}
+
+/** What a categorizer's general model names by (#383): its trained features, its mirror, the
+ *  vocabulary it was made for and the mean of its Neutral (rest) holds. */
+export function generalContextOf(c: Pick<PersonalCategorizer, 'features' | 'mirror' | 'vocabulary' | 'samples' | 'neutral'>): GeneralContext {
+  const at = new Map(c.samples.map((s, i) => [s.id, i]));
+  const rest = c.neutral.flatMap((id) => (at.has(id) ? [at.get(id)!] : []));
+  const vectors = c.samples.map((s) => s.vector);
+  return {
+    features: c.features,
+    ...(c.mirror ? { mirror: true } : {}),
+    ...(c.vocabulary ? { vocabulary: c.vocabulary } : {}),
+    ...(rest.length > 0 ? { rest: fullMean(vectors, rest) } : {}),
+  };
 }
 
 /** A carver for a built take, one per mode. */
@@ -155,7 +171,8 @@ export function carveView(input: CarveInput): CarveView {
   }
 
   // 3. The modality's general model names the rest, one-to-one, on full-space means.
-  const labeling = modality.general?.() ?? NO_GENERAL;
+  const rest = restVectors.length > 0 ? fullMean(restVectors, restVectors.map((_, i) => i)) : undefined;
+  const labeling = modality.general?.({ features: session.features(), ...(rest ? { rest } : {}), ...input.context }) ?? NO_GENERAL;
   const scored = model.categories.map((c) => ({ id: c.id, label: c.label, centroid: fullMean(vectors, c.members) }));
   const matches = matchLabels(scored, { ...labeling, fallback: modality.words.fallback });
   model = applyLabels(model, matches);
@@ -254,7 +271,7 @@ export function nameCarve(c: PersonalCategorizer, input: NameCarveInput = {}): {
       sources.set(best.id, { source: 'neutral', matched: null });
     }
   }
-  const labeling = modality.general?.() ?? NO_GENERAL;
+  const labeling = modality.general?.(generalContextOf(c)) ?? NO_GENERAL;
   const scored = c.categories.map((cat) => ({ id: cat.id, label: labels.get(cat.id)!, centroid: fullMean(vectors, cat.members.map((m) => at.get(m)!)) }));
   for (const m of matchLabels(scored, { ...labeling, fallback: modality.words.fallback })) {
     if (sources.has(m.id)) continue;

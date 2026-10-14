@@ -164,6 +164,9 @@ export const PersonalCategorizerSchema = z
      *  were taken, and live poses are read, on a canonical side. Absent: left and right differ (the
      *  default). Optional and additive, like `hand`. */
     mirror: z.literal(true).optional(),
+    /** The default-name vocabulary it was made for (#383): the body's `conductor` when made from
+     *  the Conductor tool. Absent: chosen by coverage. Optional and additive, like `hand`. */
+    vocabulary: z.string().min(1).optional(),
     /** ISO time of creation. Informational. */
     createdAt: z.string().optional(),
     /** The feature space: the ids distances use, in order. */
@@ -297,6 +300,8 @@ export interface CategorizerMeta {
   hand?: HandChoice;
   /** A pose and its mirror image read as one (a body categorizer; false is written as absent). */
   mirror?: boolean;
+  /** The default-name vocabulary it was made for (absent: chosen by coverage). */
+  vocabulary?: string;
   createdAt?: string;
 }
 
@@ -324,6 +329,7 @@ export function categorizerFromModel(
     ...(meta.modality ? { modality: meta.modality } : {}),
     ...(meta.hand && meta.hand !== 'either' ? { hand: meta.hand } : {}),
     ...(meta.mirror ? { mirror: true } : {}),
+    ...(meta.vocabulary ? { vocabulary: meta.vocabulary } : {}),
     ...(meta.createdAt ? { createdAt: meta.createdAt } : {}),
     features: [...model.features],
     weights: { ...model.weights },

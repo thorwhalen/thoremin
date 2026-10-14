@@ -10,6 +10,7 @@
     "./enroll/HoldRing": "./src/enroll/HoldRing.tsx",
     "./enroll/binder": "./src/enroll/binder.ts",
     "./enroll/capture": "./src/enroll/capture.ts",
+    "./enroll/carveRequest": "./src/enroll/carveRequest.ts",
     "./enroll/click": "./src/enroll/click.ts",
     "./enroll/guidance": "./src/enroll/guidance.ts",
     "./enroll/liveVector": "./src/enroll/liveVector.ts",
