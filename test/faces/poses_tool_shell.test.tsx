@@ -25,7 +25,7 @@ import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { BODY_POSE_GROUPS } from '@thoremin/sdk/features/body_groups';
 import { bodySessionStore } from '@thoremin/ext-faces/app/bodySession';
 import { handSessionStore } from '@thoremin/ext-faces/app/handSession';
-import { createCategorizerStore } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { CATEGORY_PANEL_TOOL, createSavedCategoriesStore, setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';
 import { FACES } from '../helpers/extensions';
 import { dialsStore } from '@/app/dials/settingsStore';
@@ -89,7 +89,8 @@ describe.runIf(FACES)('"Your poses" is reachable from the shell', () => {
   });
 
   it('a saved pose categorizer: Bind to commands carries its mirror to the bound set and opens the Gestures tool', async () => {
-    setSavedCategoriesStore(createSavedCategoriesStore(createInMemoryProvider([], { idField: 'id', searchFields: ['name'] })));
+    // One collection (#371): the host's bindings read the records the tool saves (localStorage here).
+    setSavedCategoriesStore(null);
     const file = importCategorizer(readFileSync(join(process.cwd(), 'public/categorizers/demo-smile.json'), 'utf8'));
     if (!file.ok) throw new Error(file.error);
     await createCategorizerStore(bodyModality).save('Arms', { categorizer: { ...file.categorizer, modality: 'body', mirror: true } });

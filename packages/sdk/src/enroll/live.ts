@@ -37,14 +37,17 @@
  *   the id to another face; a rename makes it another category, as the quiz's results do).
  *
  * Pure: no timers, no React. The test store polls a source and feeds {@link LiveReader.push}.
+ *
+ * In the SDK since #371 (it was the faces extension's `lib/live.ts`): the host's category
+ * dispatcher reads a bound categorizer through the same live model the tool tests it with.
  */
 import { z } from 'zod';
-import { createCategoryTracker, trainModel, type CategoryTracker } from '@thoremin/sdk/enroll/classify';
-import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
-import { liveMargin, type LiveMargin } from '@thoremin/sdk/enroll/quality';
-import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
-import { createReader, inView, isNeutralLabel, type CarveModality } from '@thoremin/sdk/enroll/modality';
-import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { createCategoryTracker, trainModel, type CategoryTracker } from './classify';
+import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, type PersonalCategorizer } from './categorizer';
+import { liveMargin, type LiveMargin } from './quality';
+import type { FeatureVector, TrainedModel } from './types';
+import { createReader, inView, isNeutralLabel, type CarveModality } from './modality';
+import { faceModality } from '../features/modalities/face';
 
 /** The face's proxies of camera distance, in order of preference (both bigger when closer). */
 export const DISTANCE_PROXIES: readonly string[] = faceModality.nuisance.distance ?? [];

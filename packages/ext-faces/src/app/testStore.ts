@@ -21,7 +21,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { createQuiz, quizOrder, type Quiz, type QuizOptions, type QuizStep, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { createEverydayCheck, EVERYDAY_DEFAULTS, type EverydayCheck } from '@thoremin/sdk/enroll/everyday';
-import { createLiveReader, type LiveModel, type LiveReader, type LiveReading } from '../lib/live';
+import { createLiveReader, type LiveModel, type LiveReader, type LiveReading } from '@thoremin/sdk/enroll/live';
 import type { FaceSource } from './sources';
 
 export interface FaceTestDeps {

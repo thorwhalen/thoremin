@@ -25,7 +25,7 @@ import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { posePlay, transportRolesOf, type PoseCategorizerPlay, type PoseTransport } from '@thoremin/ext-faces/lib/posePlay';
-import { liveModel } from '@thoremin/ext-faces/lib/live';
+import { liveModel } from '@thoremin/sdk/enroll/live';
 import { poseCategorizerNode } from '@thoremin/ext-faces/nodes/pose_categorizer';
 import { startPosePlay, usePosePlay, POSE_PLAY_DEMAND_OWNER, type PosePlayDeps } from '@thoremin/ext-faces/app/posePlay';
 import { DEFAULT_POSE_CATEGORIZER, type PoseCategorizerDial } from '@thoremin/ext-faces/schema';
@@ -307,6 +307,27 @@ describe('the host resolves the pose dial off the tick', () => {
     releaseB!();
     await settle();
     expect(usePosePlay.getState()).toMatchObject({ phase: 'ready', id: 'A', name: 'A' });
+    expect(published.filter((p) => p !== null)).toHaveLength(1);
+    stop();
+  });
+
+  it('a binding edit on the playing record does not republish it (the reading is not reset, #371)', async () => {
+    let rec = ({ id: 'A', name: 'A', createdAt: 0, model: { categorizer: scriptedPoseCategorizer(['ready', 'fermata']) } }) as FaceModelRecord;
+    let changed: (() => void) | null = null;
+    const published: unknown[] = [];
+    const stop = startPosePlay({
+      load: async () => rec,
+      dial: () => ({ id: 'A' }),
+      subscribe: () => () => {},
+      onModelsChanged: (l) => ((changed = l), () => {}),
+      publish: (p) => published.push(p),
+      claim: () => {},
+    });
+    await settle();
+    expect(published.filter((p) => p !== null)).toHaveLength(1);
+    rec = { ...rec, model: { ...rec.model, bindings: { 'cat-1': { command: 'transport.toggle' } } } };
+    changed!();
+    await settle();
     expect(published.filter((p) => p !== null)).toHaveLength(1);
     stop();
   });

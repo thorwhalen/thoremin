@@ -22,11 +22,11 @@ import {
   migrateLegacyFaces,
   type CategorizerRecord,
   type MigrationFlag,
-} from '@thoremin/ext-faces/app/categorizers';
+} from '@thoremin/sdk-ui/enroll/categorizers';
 import { createFaceModelStore } from '@thoremin/ext-faces/app/models';
 import { browserPlayDeps } from '@thoremin/ext-faces/app/categorizerPlay';
 import { categorizerPlay } from '@thoremin/ext-faces/lib/play';
-import { liveModel } from '@thoremin/ext-faces/lib/live';
+import { liveModel } from '@thoremin/sdk/enroll/live';
 import { BoundCategoriesSchema } from '@thoremin/sdk/enroll/bind';
 
 const demo = (): PersonalCategorizer => {

@@ -24,7 +24,7 @@ import { expressionChordNode } from '@/nodes/music/expression_chord';
 import { RECORDING_FPS, recordedCategorizer, recordedFrames, SEGMENTS, vectorOf } from '../helpers/faceRecording';
 import { classify } from '@thoremin/sdk/enroll/classify';
 import { setStrangers } from '@thoremin/sdk/enroll/sorting';
-import { liveModel, tuneVector } from '@thoremin/ext-faces/lib/live';
+import { liveModel, tuneVector } from '@thoremin/sdk/enroll/live';
 
 const FPS = RECORDING_FPS;
 const cMajor: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };

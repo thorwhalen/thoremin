@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest';
 import { importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { classify } from '@thoremin/sdk/enroll/classify';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import { createLiveReader, liveModel, tuneVector } from '@thoremin/ext-faces/lib/live';
+import { createLiveReader, liveModel, tuneVector } from '@thoremin/sdk/enroll/live';
 import { FaceModelRecordSchema } from '@thoremin/ext-faces/app/models';
 import { recordedCategorizer, recordedFrames, vectorOf } from '../helpers/faceRecording';
 

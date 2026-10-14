@@ -1,28 +1,40 @@
 /**
- * Saved categories and their bindings (#160) — the trainer's model made durable and
- * playable.
+ * Saved categories and their bindings (#160), over the ONE collection of categorizers (#371).
  *
- * Until this module the trainer's model lived in one in-memory zustand field that a
- * reload erased and no sound path read. Now a model the player keeps is SAVED under a name
- * in a zodal collection (the {@link createNamedCollectionStore} facade: localStorage by
- * default, any `DataProvider` in tests or later), together with what each of its
- * categories does: a command binding per category id, the gesture binding's shape.
+ * A model the player keeps is a record of `thoremin.categorizers` (`@thoremin/sdk-ui/enroll/
+ * categorizers`): a carved categorizer of any modality (Your faces, Your hand shapes, Your poses)
+ * or a trained model kept as it is (the Trainer's "Save and bind"). What each of its categories
+ * does, a command binding per category id (the gesture binding's shape), rides the same record.
+ * This store is the host's view of that collection: every kind is listed, one is ACTIVE, and the
+ * dispatcher (`categoryDispatch.ts`) plays the active one.
+ *
+ * ## Bindings are keyed by categorizer id
+ *
+ * Before #371 a carved categorizer was bound by handing a COPY of its model to a second
+ * collection (`thoremin-categories`), so an edit in its tool needed a re-bind. Now the bindings
+ * sit on the categorizer's own record and the playable model is DERIVED from the record (its
+ * samples, its tuning, its modality and hand; `playable`), so a correction, a re-cut or a tuning
+ * change in the tool reaches the bindings at once, carried by name across a re-cut by the
+ * collection. A carved categorizer is played through the same live model its tool tests it with
+ * (`@thoremin/sdk/enroll/live`), sensitivity and distance included (#453).
+ *
+ * The old collection is migrated once per device (`./boundSets.ts`) and kept readable; the
+ * contract step (#385 E10) removes it.
  *
  * ## Where a binding lives, and why there
  *
- * On the saved set, not on an instrument. A model is a per-player, per-device artefact
- * like a keymap (the trainer panel's own rule), and a binding means nothing without the
- * model whose ids it names, so the two travel together. Whether a trained model should
- * ride an instrument profile (#82's configuration calculus) is left open; moving the
- * bindings into a dial later is a migration of this one record, not a redesign.
+ * On the categorizer's record, on this device, never in its exported file. A model is a
+ * per-player, per-device artefact like a keymap, and a binding means nothing without the model
+ * whose ids it names, so the two travel together. Whether a trained model should ride an
+ * instrument profile (#82's configuration calculus) is left open.
  *
  * ## Hot path
  *
- * The dispatcher (`categoryDispatch.ts`) reads `active` SYNCHRONOUSLY each tick from this
- * store. The provider is only awaited on human actions (save, activate, remove), never in
- * the frame loop. A binding edit updates `active` in memory first, keeping the same MODEL
- * object (the dispatcher keys its tracker on it, so editing a binding never resets what
- * the player is holding), then persists.
+ * The dispatcher reads `active` SYNCHRONOUSLY each tick from this store. The collection is only
+ * awaited on human actions (save, activate, remove, a tool's edit), never in the frame loop. A
+ * binding edit updates `active` in memory first, keeping the same MODEL object (the dispatcher
+ * keys its tracker on it, so editing a binding never resets what the player is holding), then
+ * persists; a tool's edit that leaves the model as it was does not replace it either.
  *
  * The per-device prefs (which set is active, whether binding is on, the hold) persist on
  * their own key, like the trainer's prefs, so the main store's version is untouched.
@@ -30,15 +42,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { z } from 'zod';
-import { createNamedCollectionStore, type NamedCollectionStore, type NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
-import { slugId } from '@thoremin/sdk/util/ids';
 import { modalityById } from '@thoremin/sdk/features/modalities';
 import { provideCategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
+import { createCategorizerIndex, onCategorizersChanged, type CategorizerIndex, type CategorizerStoreOptions, type CategorizerSummary } from '@thoremin/sdk-ui/enroll/categorizers';
+import { TRAINED_KIND, isTrainedRecord, recordBindings, trainedId, type AnyCategorizerRecord } from '@thoremin/sdk/enroll/record';
+import { liveModel, tuneVector } from '@thoremin/sdk/enroll/live';
 import { useTools } from '../toolsStore';
+import { useToasts } from '../toasts';
 import {
-  BoundCategoriesSchema,
   CATEGORY_EDGE_DEFAULTS,
   carryBindings,
   type BoundCategories,
@@ -48,38 +61,87 @@ import {
   type FeatureVector,
 } from '@thoremin/sdk/enroll';
 import { createReader } from '@thoremin/sdk/enroll/modality';
+import { migrateBoundSetsOnce, resetBoundSetsMigration, type BoundSetsMigrationOptions } from './boundSets';
 
-export const SavedCategoriesSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  createdAt: z.number(),
-  categories: BoundCategoriesSchema,
-});
-export type SavedCategories = z.infer<typeof SavedCategoriesSchema>;
-export type SavedCategoriesStore = NamedCollectionStore<SavedCategories, BoundCategories>;
+/** One saved categorizer, ready to play: its model (derived from a carved categorizer's record,
+ *  or kept as is), its bindings and how it reads the live vector. */
+export interface SavedCategories {
+  id: string;
+  name: string;
+  createdAt: number;
+  /** The record's kind: a modality (`face`, `hand`, `body`) or `trained` (absent: `trained`). */
+  kind?: string;
+  categories: BoundCategories;
+  /** A carved categorizer's live tuning (sensitivity, distance), applied to the vector `read`
+   *  gives before it is classified; absent when the tuning leaves the vector as it is. */
+  tune?: (vector: FeatureVector) => FeatureVector;
+}
 
-/** localStorage keys (the browser default target, and the per-device prefs). */
-export const SAVED_CATEGORIES_STORAGE_KEY = 'thoremin-categories';
+/** The host's view of the one collection (every kind). */
+export type SavedCategoriesStore = CategorizerIndex;
+
+/** The per-device prefs' localStorage key. */
 export const CATEGORY_PREFS_STORAGE_KEY = 'thoremin-category-binding';
 
-const CATEGORIES_ID_FALLBACK = 'categories';
+/** The id a model the Trainer saves under `name` gets (`trained:<slug>`). */
+export const savedCategoriesId = (name: string): string => trainedId(name);
 
-/** The id a set saved under `name` gets (the collection slugs names into ids). */
-export const savedCategoriesId = (name: string): string => slugId(name, CATEGORIES_ID_FALLBACK);
-
-export const createSavedCategoriesStore = createNamedCollectionStore<SavedCategories, 'categories'>({
-  schema: SavedCategoriesSchema,
-  storageKey: SAVED_CATEGORIES_STORAGE_KEY,
-  payloadKey: 'categories',
-  idFallback: CATEGORIES_ID_FALLBACK,
-});
+/** The host's index over the collection (`provider`: where it lives; localStorage by default). */
+export function createSavedCategoriesStore(provider?: CategorizerStoreOptions['provider']): SavedCategoriesStore {
+  return createCategorizerIndex(provider ? { provider } : {});
+}
 
 let collection: SavedCategoriesStore | null = null;
+let migration: BoundSetsMigrationOptions = {};
 const getCollection = (): SavedCategoriesStore => (collection ??= createSavedCategoriesStore());
-/** Retarget storage (tests pass an in-memory provider's store). */
-export function setSavedCategoriesStore(store: SavedCategoriesStore | null): void {
+/** Retarget storage (tests pass an index over an in-memory provider; null: the default). The old
+ *  bound sets are migrated into it from `options.legacy` (none for an injected index, unless given). */
+export function setSavedCategoriesStore(store: SavedCategoriesStore | null, options: BoundSetsMigrationOptions = {}): void {
   collection = store;
+  migration = store ? { legacy: null, ...options } : options;
+  resetBoundSetsMigration();
 }
+
+/**
+ * The playable view of a record. A carved categorizer is read the way its tool reads it: the live
+ * model of its samples under its tuning (per-category sizes, the floored reject radius), through
+ * its modality with its hand and mirror, the sensitivity and distance tuning applied to each
+ * frame. A trained model is played as kept. Throws if a carved categorizer cannot be derived.
+ */
+export function playable(record: AnyCategorizerRecord): SavedCategories {
+  const base = { id: record.id, name: record.name, createdAt: record.createdAt };
+  const bindings = recordBindings(record);
+  if (isTrainedRecord(record)) {
+    const { trained, read } = record.model;
+    return { ...base, kind: TRAINED_KIND, categories: { model: trained, bindings, ...(read ? { read } : {}) } };
+  }
+  const { categorizer, tuning } = record.model;
+  const kind = categorizer.modality ?? 'face';
+  const modality = modalityById(kind);
+  const live = liveModel(categorizer, tuning ?? {}, modality ? { modality } : {});
+  const read: CategoryRead = { modality: kind, ...(categorizer.hand && categorizer.hand !== 'either' ? { hand: categorizer.hand } : {}), ...(categorizer.mirror ? { mirror: true } : {}) };
+  const tunes = live.tuning.sensitivity !== 1 || live.tuning.distance > 0;
+  return { ...base, kind, categories: { model: live.model, bindings, read }, ...(tunes ? { tune: (v: FeatureVector) => tuneVector(live, v) } : {}) };
+}
+
+/** What the playable model is made of: a record whose key is unchanged plays the same model. */
+function modelKey(record: AnyCategorizerRecord): string {
+  return JSON.stringify(isTrainedRecord(record) ? [record.model.trained, record.model.read] : [record.model.categorizer, record.model.tuning]);
+}
+
+/** The playable view of `record`, or null (with a warning) when it cannot be derived. */
+function tryPlayable(record: AnyCategorizerRecord | null): SavedCategories | null {
+  if (!record) return null;
+  try {
+    return playable(record);
+  } catch (e) {
+    console.warn(`category bindings: "${record.name}" cannot be played:`, e);
+    return null;
+  }
+}
+
+/** How long a binding that could not be saved is announced (ms). */
+const BINDING_ERROR_TOAST_MS = 5000;
 
 /** The tool whose panel holds the bindings (the readout runs while it is open). */
 export const CATEGORY_PANEL_TOOL = 'gestures';
@@ -112,26 +174,29 @@ function healPrefs(
 }
 
 interface CategoryBindingState {
-  /** Saved sets (metadata), newest first. */
-  saved: NamedSummary[];
-  /** The loaded active set, or null. What the dispatcher reads each tick. */
+  /** Every saved categorizer (metadata and kind), newest first. */
+  saved: CategorizerSummary[];
+  /** The active one, ready to play, or null. What the dispatcher reads each tick. */
   active: SavedCategories | null;
-  /** Persisted: the active set's id. */
+  /** Persisted: the active one's id. */
   activeId: string | null;
   /** Persisted: whether entering a category dispatches its binding. */
   enabled: boolean;
   /** Persisted: how long a new category must be held before its entry fires. */
   holdMs: number;
 
-  /** Read the collection and the active set (idempotent; the panel and the engine call it). */
+  /** Read the collection and the active one (idempotent; the panel and the engine call it). The
+   *  old bound sets are migrated first, once. */
   load(): Promise<void>;
-  /** Save a trained model under `name`, carry bindings over by category name, make it active.
-   *  `read`: how it reads the live vector (a carved categorizer's modality, #385 E8). */
-  saveModel(name: string, model: TrainedModel, read?: CategoryRead): Promise<SavedCategories>;
-  /** Make a saved set active (null: none). */
+  /** Keep a trained model (the Trainer's) under `name`, carry bindings over by category name
+   *  (from the trained model of that name, else the active one), make it active. */
+  saveModel(name: string, model: TrainedModel): Promise<SavedCategories>;
+  /** Make a saved categorizer active (null: none). */
   activate(id: string | null): Promise<void>;
+  /** Delete a saved record (the panel offers it for a trained model only: a carved categorizer
+   *  is deleted in its own tool). */
   remove(id: string): Promise<void>;
-  /** Bind (or, with undefined, unbind) one category of the active set. */
+  /** Bind (or, with undefined, unbind) one category of the active one. */
   setBinding(categoryId: string, binding: CategoryBinding | undefined): Promise<void>;
   setEnabled(on: boolean): void;
   setHoldMs(ms: number): void;
@@ -147,6 +212,34 @@ export const useCategoryBinding = create<CategoryBindingState>()(
       // switch (activate, save) takes a ticket, and a load that returns after a newer
       // ticket was taken is dropped (a slow read of A must not undo a later pick of B).
       let ticket = 0;
+      /** The record key the active model was derived from (a re-read that finds it unchanged keeps
+       *  the model object, so the dispatcher's tracker survives). */
+      let activeKey = '';
+      const show = (record: AnyCategorizerRecord | null): void => {
+        const next = tryPlayable(record);
+        activeKey = record && next ? modelKey(record) : '';
+        set(next ? { active: next, activeId: next.id } : { active: null, activeId: null });
+      };
+
+      // A tool saved or deleted a categorizer: list again, and re-read the active one. Same model:
+      // keep it, take the stored bindings (a re-cut moved them by name); deleted: none is active.
+      onCategorizersChanged(() => {
+        void (async () => {
+          await refreshList();
+          const active = get().active;
+          if (!active) return;
+          const mine = ticket;
+          const record = await getCollection().load(active.id);
+          if (mine !== ticket || get().active?.id !== active.id) return;
+          if (record && modelKey(record) === activeKey) {
+            const bindings = recordBindings(record);
+            if (JSON.stringify(bindings) !== JSON.stringify(active.categories.bindings)) set({ active: { ...active, categories: { ...active.categories, bindings } } });
+            return;
+          }
+          show(record);
+        })().catch((e: unknown) => console.warn('category bindings: could not re-read the active categorizer:', e));
+      });
+
       return {
         saved: [],
         active: null,
@@ -155,6 +248,9 @@ export const useCategoryBinding = create<CategoryBindingState>()(
         holdMs: CATEGORY_EDGE_DEFAULTS.holdMs as number,
 
         async load() {
+          const remap = await migrateBoundSetsOnce(getCollection(), migration);
+          const persisted = get().activeId;
+          if (persisted && remap.has(persisted) && !get().active) set({ activeId: remap.get(persisted)! });
           await refreshList();
           const id = get().activeId;
           if (!id) {
@@ -162,41 +258,47 @@ export const useCategoryBinding = create<CategoryBindingState>()(
             return;
           }
           if (get().active?.id === id) return;
-          const rec = await getCollection().load(id);
+          const store = getCollection();
+          // An id kept from before #371 that no migration remapped (another tab ran it): the
+          // Trainer's sets are `trained:<id>` now.
+          const rec = (await store.load(id)) ?? (id.includes(':') ? null : await store.load(trainedId(id)));
           // A save or a switch that landed while this read was in flight wins.
           if (get().activeId !== id || get().active?.id === id) return;
-          set(rec ? { active: rec } : { active: null, activeId: null });
+          show(rec);
         },
 
-        async saveModel(name, model, read) {
+        async saveModel(name, model) {
           const store = getCollection();
+          const mine = ++ticket;
           // The record this save overwrites is the one with the same SLUG (the collection's
           // id), not the same spelling: "faces" replaces "Faces".
-          const mine = ++ticket;
-          const id = savedCategoriesId(name);
-          const slugTwin = (await store.list()).find((s) => s.id === id);
-          const previous = (slugTwin ? await store.load(slugTwin.id) : null) ?? get().active;
-          const rec = await store.save(name, { model, bindings: carryBindings(previous?.categories, model), ...(read ? { read } : {}) });
+          const previous = tryPlayable(await store.load(savedCategoriesId(name))) ?? get().active;
+          const rec = await store.saveTrained(name, { trained: model, bindings: carryBindings(previous?.categories, model) });
+          const out = playable(rec);
           // Saved either way; it becomes active only if no newer switch was asked for.
-          if (mine === ticket) set({ active: rec, activeId: rec.id });
+          if (mine === ticket) show(rec);
           await refreshList();
-          return rec;
+          return out;
         },
 
         async activate(id) {
           const mine = ++ticket;
           if (!id) {
+            activeKey = '';
             set({ active: null, activeId: null });
             return;
           }
           const rec = await getCollection().load(id);
           if (mine !== ticket) return;
-          set({ active: rec, activeId: rec ? rec.id : null });
+          show(rec);
         },
 
         async remove(id) {
           await getCollection().remove(id);
-          if (get().activeId === id) set({ active: null, activeId: null });
+          if (get().activeId === id) {
+            activeKey = '';
+            set({ active: null, activeId: null });
+          }
           await refreshList();
         },
 
@@ -207,9 +309,16 @@ export const useCategoryBinding = create<CategoryBindingState>()(
           if (binding) bindings[categoryId] = binding;
           else delete bindings[categoryId];
           // Same `model` object: the dispatcher's tracker survives a binding edit.
-          const next: SavedCategories = { ...active, categories: { ...active.categories, bindings } };
-          set({ active: next });
-          await getCollection().save(active.name, next.categories, active.createdAt);
+          set({ active: { ...active, categories: { ...active.categories, bindings } } });
+          const saved = await getCollection().setBindings(active.id, bindings).catch((e: unknown) => {
+            console.warn('category bindings: the binding was not saved:', e);
+            return null;
+          });
+          if (saved) return;
+          // Not kept (the record was deleted, or a newer build wrote it): show what is stored, and say so.
+          const now = get().active;
+          if (now?.id === active.id) set({ active: { ...now, categories: { ...now.categories, bindings: active.categories.bindings } } });
+          useToasts.getState().push(`"${active.name}" could not be saved: the binding was not kept`, BINDING_ERROR_TOAST_MS, 'error');
         },
 
         setEnabled(on) {
@@ -285,11 +394,14 @@ export function presenceFor(read: CategoryRead | undefined): number | undefined 
   return read ? modalityById(read.modality)?.minCoverage : undefined;
 }
 
-// The host's binder (#385 E8): an extension's carve tool binds its categorizer here, and the
-// Gestures tool shows the set for the player to give each category a command.
+// The host's binder (#385 E8; by id since #371): an extension's carve tool binds one of its saved
+// categorizers here, and the Gestures tool shows it for the player to give each category a command.
 provideCategoryBinder({
-  async bind({ name, model, read }) {
-    await useCategoryBinding.getState().saveModel(name, model, read);
+  async bind({ id }) {
+    const state = useCategoryBinding.getState();
+    await state.load();
+    await state.activate(id);
+    if (useCategoryBinding.getState().activeId !== id) throw new Error('that categorizer is not in the collection');
     useTools.getState().openTool(CATEGORY_PANEL_TOOL);
   },
 });

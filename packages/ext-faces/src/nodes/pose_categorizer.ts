@@ -19,7 +19,7 @@ import { z } from 'zod';
 import { defineNode, type NodeContext } from '@thoremin/dag';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
-import { createLiveReader, type LiveReader } from '../lib/live';
+import { createLiveReader, type LiveReader } from '@thoremin/sdk/enroll/live';
 import { absentPoseScores, poseTransport, toPoseScores, type PoseCategorizerPlay, type PoseTransport } from '../lib/posePlay';
 import type { PoseCategorizerDial } from '../schema';
 

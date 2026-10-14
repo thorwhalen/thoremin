@@ -13,7 +13,7 @@ import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
 import { onCarveRequest, takeCarveRequest } from '@thoremin/sdk-ui/enroll/carveRequest';
 import { carveOwners, claimCarve, type CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
 import { faceModalityUi } from './modality';
-import { createCategorizerStore } from './categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { withChangeNotice } from './models';
 import { createFaceSessionStore, FACE_SESSION_DEFAULTS, type FaceSessionDeps, type FaceSessionState } from './sessionStore';
 import { FACE_SCRIPT, sourceFromUrl, type SyntheticScript } from './sources';

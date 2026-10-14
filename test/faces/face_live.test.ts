@@ -13,7 +13,7 @@ import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { createFaceTake } from '@thoremin/ext-faces/lib/take';
 import { carveView, carverFor } from '@thoremin/ext-faces/lib/carving';
 import { SYNTHETIC_TIMELINE, syntheticFaceVector } from '@thoremin/ext-faces/lib/synthetic';
-import { clampTuning, createLiveReader, DEFAULT_TUNING, fitDistance, flooredRejectRadius, liveModel, restOf, tunedRejectRadius, tuneVector } from '@thoremin/ext-faces/lib/live';
+import { clampTuning, createLiveReader, DEFAULT_TUNING, fitDistance, flooredRejectRadius, liveModel, restOf, tunedRejectRadius, tuneVector } from '@thoremin/sdk/enroll/live';
 import { addSample, categoryOf, CORRECTION_CUE, moveSample } from '@thoremin/ext-faces/lib/corrections';
 
 /** A categorizer carved from the synthetic face, in `mode`. */

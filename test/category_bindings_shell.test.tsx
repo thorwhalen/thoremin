@@ -71,7 +71,7 @@ describe('category binding is reachable from the shell (#160)', () => {
     const section = await screen.findByRole('region', { name: 'Your categories' });
     await waitFor(() => expect(within(section).getByText('category 1')).toBeTruthy());
     expect(within(section).getByText('category 2')).toBeTruthy();
-    expect((within(section).getByLabelText('Active categories') as HTMLSelectElement).value).toBe('faces');
+    expect((within(section).getByLabelText('Active categories') as HTMLSelectElement).value).toBe('trained:faces'); // the Trainer's ids in the one collection (#371)
 
     const picker = within(section).getByLabelText('Command for category 2') as HTMLSelectElement;
     expect([...picker.querySelectorAll('option')].some((o) => o.value.startsWith('instrument.'))).toBe(false);

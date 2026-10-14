@@ -6,7 +6,7 @@ Measured 2026-10-13, before deciding which live dials the personal face categori
 
 **Lighting: no dial.** Ordinary lighting changes move the mean vector by about as much as sensor noise does with no lighting change, below a still face's own frame-to-frame jitter, and about a tenth of the distance between two of one person's expressions. Only a dim, noisy room moves it a lot, and that movement differs by feature, by person and by frame: subtracting the best possible constant per-feature offset (the most any dial could do) removes 14-19 % of it. The right response to a dark room is a warning ("too dark: add light, or record again"), not a dial.
 
-**Distance: a dial, learned per player, gated per feature.** Moving the camera alone can carry a held face out of its category's reject radius. The effect is concentrated in about a dozen features (eyes look wider and brows higher as the camera gets closer), it is only roughly linear in log face scale, and the slope differs between moving in and moving out by 1.3x to 6x within one take. So the categorizer learns the slope from its own samples (within each category, against log `face.head.scale`), keeps it only for features distance explains well (r² at least 0.5), and the dial subtracts it live. One global slope for everyone would not be sound. This is what `packages/ext-faces/src/lib/live.ts` does.
+**Distance: a dial, learned per player, gated per feature.** Moving the camera alone can carry a held face out of its category's reject radius. The effect is concentrated in about a dozen features (eyes look wider and brows higher as the camera gets closer), it is only roughly linear in log face scale, and the slope differs between moving in and moving out by 1.3x to 6x within one take. So the categorizer learns the slope from its own samples (within each category, against log `face.head.scale`), keeps it only for features distance explains well (r² at least 0.5), and the dial subtracts it live. One global slope for everyone would not be sound. This is what `packages/sdk/src/enroll/live.ts` does.
 
 ## Lighting
 
@@ -59,7 +59,7 @@ A negative slope means the feature grows as the camera gets closer.
 ## What this decided
 
 - No lighting dial. Follow-up: a "too dark" warning from face luminance or a jump in live jitter.
-- The distance dial (`fitDistance` in `packages/ext-faces/src/lib/live.ts`): per categorizer, the pooled within-category slope of each feature against log `face.head.scale` (else `face.head.distanceProxy`), kept only where r² is at least 0.5, subtracted live in proportion to the dial, toward the samples' mean scale. A take recorded at one distance teaches nothing, and the dial says so. A take that leans in and out while holding each face is what teaches it; a dedicated distance cue in the take would make that deliberate (follow-up).
+- The distance dial (`fitDistance` in `packages/sdk/src/enroll/live.ts`): per categorizer, the pooled within-category slope of each feature against log `face.head.scale` (else `face.head.distanceProxy`), kept only where r² is at least 0.5, subtracted live in proportion to the dial, toward the samples' mean scale. A take recorded at one distance teaches nothing, and the dial says so. A take that leans in and out while holding each face is what teaches it; a dedicated distance cue in the take would make that deliberate (follow-up).
 
 ## Caveats
 

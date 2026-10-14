@@ -22,7 +22,7 @@
 import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
-import { liveModel, type LiveModel, type LiveReading, type Tuning } from './live';
+import { liveModel, type LiveModel, type LiveReading, type Tuning } from '@thoremin/sdk/enroll/live';
 
 /** The conductor's transport predicates (A5's `transportPose` input): a stated one replaces its
  *  rule's geometry, an absent one leaves the rule in charge. */

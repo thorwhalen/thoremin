@@ -191,6 +191,7 @@ export {
   CategoryReadSchema,
   TrainedModelSchema,
   carryBindings,
+  rekeyBindings,
   categoryName,
   createCategoryEdge,
   hasReading,
@@ -202,6 +203,7 @@ export {
   type CategoryEdgeOptions,
   type CategoryReading,
   type CategoryStep,
+  type NamedCategory,
 } from './bind';
 export { categoryKey } from './types';
 export type {

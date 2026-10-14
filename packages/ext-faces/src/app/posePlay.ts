@@ -21,7 +21,7 @@ import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { posePlay, transportRolesOf, type PoseCategorizerPlay, type TransportRole } from '../lib/posePlay';
 import { playsPoses, type PoseCategorizerDial } from '../schema';
-import { createCategorizerStore } from './categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { onFaceModelsChanged, type FaceModelRecord } from './models';
 
 /** The transient field the node reads (declared by the manifest, `../index.ts`). */
@@ -108,7 +108,9 @@ export function startPosePlay(deps: PosePlayDeps = browserPosePlayDeps()): () =>
       usePosePlay.setState({ ...IDLE, phase: 'missing', id });
       return;
     }
-    const key = JSON.stringify([record.id, record.name, record.model]);
+    // What the play is made of: the bindings and the checks ride the record too (#371) but change
+    // nothing about the reading, so an edit of them must not reset it.
+    const key = JSON.stringify([record.id, record.name, record.model.categorizer, record.model.tuning]);
     // The same record as the graph already has (a save of something else): keep its model, so
     // the reading is not reset; the state still says it plays.
     const play = key === publishedKey ? null : posePlay({ id: record.id, name: record.name, categorizer: record.model.categorizer, tuning: record.model.tuning });

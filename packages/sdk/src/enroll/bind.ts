@@ -117,8 +117,8 @@ export function categoryName(model: Pick<TrainedModel, 'categories'>, id: string
  * than attaching it to a stranger.
  */
 export function carryBindings(
-  from: Pick<BoundCategories, 'model' | 'bindings'> | null | undefined,
-  to: Pick<TrainedModel, 'categories'>,
+  from: { model: { categories: readonly NamedCategory[] }; bindings: Record<string, CategoryBinding> } | null | undefined,
+  to: { categories: readonly NamedCategory[] },
 ): Record<string, CategoryBinding> {
   if (!from) return {};
   // A name worn by two categories (on either side) is ambiguous: it carries nothing.
@@ -142,6 +142,32 @@ export function carryBindings(
     const label = c.label.trim();
     const b = newUnique(label) ? byName.get(label) : undefined;
     if (b) out[c.id] = b;
+  }
+  return out;
+}
+
+/** What a binding is keyed by: a category's id, and the name it is carried by. */
+export interface NamedCategory {
+  id: string;
+  label: string;
+}
+
+/**
+ * Bindings kept across an EDIT of the categories they name (#371): a categorizer re-saved after
+ * a correction, a re-cut or a rename. A category that keeps its id and its name keeps its binding
+ * (so an unnamed category, which {@link carryBindings} cannot carry, survives an edit that did not
+ * touch it); any other binding moves by name as {@link carryBindings} moves it, or is dropped.
+ */
+export function rekeyBindings(
+  from: { categories: readonly NamedCategory[] },
+  bindings: Record<string, CategoryBinding>,
+  to: { categories: readonly NamedCategory[] },
+): Record<string, CategoryBinding> {
+  const out = carryBindings({ model: from, bindings }, to);
+  const before = new Map(from.categories.map((c) => [c.id, c.label.trim()]));
+  for (const c of to.categories) {
+    if (Object.hasOwn(out, c.id) || !Object.hasOwn(bindings, c.id)) continue;
+    if (before.get(c.id) === c.label.trim()) out[c.id] = bindings[c.id];
   }
   return out;
 }

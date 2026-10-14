@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { ok, type Result } from 'acture';
 import { createFaceSessionStore, type FaceSessionDeps } from '@thoremin/ext-faces/app/sessionStore';
-import { createCategorizerStore, type CategorizerRecord } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore, type CategorizerRecord } from '@thoremin/sdk-ui/enroll/categorizers';
 import { memoryThumbStore, type FrameOpener } from '@thoremin/ext-faces/app/thumbnails';
 import { HAND_SCRIPT, sourceFromUrl, type FaceSource } from '@thoremin/ext-faces/app/sources';
 import { handModalityUi } from '@thoremin/ext-faces/app/handModality';
@@ -42,7 +42,8 @@ const frames: FrameOpener = () => ({
 });
 const STREAM = {} as MediaStream;
 
-const models = () => createCategorizerStore(handModality, { provider: createInMemoryProvider<CategorizerRecord>([], { idField: 'id', searchFields: ['name'] }) });
+const memory = () => createInMemoryProvider<CategorizerRecord>([], { idField: 'id', searchFields: ['name'] });
+const models = (provider = memory()) => createCategorizerStore(handModality, { provider });
 
 function deps(source: () => FaceSource, over: Partial<FaceSessionDeps> = {}): FaceSessionDeps {
   return {
@@ -91,8 +92,8 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 /** Record the scripted hand and save it: the saved record. */
-async function carveScripted(name = 'My shapes'): Promise<{ record: CategorizerRecord; store: ReturnType<typeof createFaceSessionStore>; d: FaceSessionDeps }> {
-  const d = deps(scriptedHand);
+async function carveScripted(name = 'My shapes', provider = memory()): Promise<{ record: CategorizerRecord; store: ReturnType<typeof createFaceSessionStore>; d: FaceSessionDeps }> {
+  const d = deps(scriptedHand, { models: models(provider) });
   const store = createFaceSessionStore(d);
   store.getState().start();
   await run(SHAPES_MS);
@@ -209,8 +210,10 @@ describe('Your hand shapes: a recorded hands fixture through the session store',
 
 describe('Your hand shapes: a bound command', () => {
   it('a carved hand categorizer fires the command bound to a shape', async () => {
-    setSavedCategoriesStore(createSavedCategoriesStore(createInMemoryProvider([], { idField: 'id', searchFields: ['name'] })));
-    const { record, store } = await carveScripted('Hand commands');
+    // One collection (#371): the tool saves the categorizer, the host binds it by id from the same records.
+    const provider = memory();
+    setSavedCategoriesStore(createSavedCategoriesStore(provider));
+    const { record, store } = await carveScripted('Hand commands', provider);
     const binder = categoryBinder();
     expect(binder).not.toBeNull(); // installed by the host's bindings module
     expect(await store.getState().bindSaved(record.id, binder!)).toBe(true);

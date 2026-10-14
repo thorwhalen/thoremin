@@ -19,7 +19,7 @@ import { branchIdsFor } from '@/app/graph';
 import { useControls } from '@/app/store';
 import { scriptedPoseCategorizer } from '../helpers/body_poses';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
-import { createCategorizerStore } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { bodySessionStore } from '@thoremin/ext-faces/app/bodySession';
 import type { PoseCategorizerDial } from '@thoremin/ext-faces/schema';
 import type { DerivationSettings } from '@/instruments/derive';

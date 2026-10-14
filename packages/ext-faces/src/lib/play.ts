@@ -31,7 +31,7 @@ import { ABSENT_EXPRESSION, EMOTIONS, type Emotion, type ExpressionLabel, type E
 import { isNeutralLabel } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { fullMean } from './carving';
-import { liveModel, type LiveModel, type Tuning } from './live';
+import { liveModel, type LiveModel, type Tuning } from '@thoremin/sdk/enroll/live';
 
 /** A categorizer resolved for the DAG: what the `face-categorizer` node reads (a transient). */
 export interface FaceCategorizerPlay {

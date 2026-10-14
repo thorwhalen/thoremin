@@ -75,7 +75,7 @@ import {
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { carveTake, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
-import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, liveModel, sameTuning, type Tuning } from '../lib/live';
+import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '@thoremin/sdk/enroll/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
 import { createReader, foreignModality, keepOnly, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
@@ -308,9 +308,8 @@ export interface FaceSessionState {
    *  unsaved edits on it while it is open. Null (and a notice) if it cannot be read. */
   exportSaved(id: string): Promise<{ name: string; text: string } | null>;
   /** Hand the SAVED categorizer `id` to the host's category bindings (#385 E8: a command per
-   *  category): its live model (the saved tuning's per-category sizes and reject radius; not the
-   *  sensitivity, which tunes the live vector, #453), read through this
-   *  modality with its hand. Returns whether it was bound. */
+   *  category), by id (#371): the host plays it from its record, tuning and all, so a later edit
+   *  needs no re-bind. Returns whether it was bound. */
   bindSaved(id: string, binder: CategoryBinder): Promise<boolean>;
 }
 
@@ -1311,11 +1310,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           set({ notice: 'That categorizer could not be read.' });
           return false;
         }
-        const { categorizer, tuning } = record.model;
-        const { model } = liveModel(categorizer, tuning ?? {}, { modality });
-        const hand = categorizer.hand;
         try {
-          await binder.bind({ name: record.name, model, read: { modality: modality.id, ...(hand && hand !== 'either' ? { hand } : {}), ...(categorizer.mirror ? { mirror: true } : {}) } });
+          // By id (#371): the host reads the record itself, with its tuning, its modality and its hand.
+          await binder.bind({ id: record.id });
           return true;
         } catch (e) {
           set({ notice: `Not bound: ${e instanceof Error ? e.message : String(e)}.` });

@@ -15,7 +15,7 @@ import { memoryThumbStore } from '@thoremin/ext-faces/app/thumbnails';
 import type { FaceSource } from '@thoremin/ext-faces/app/sources';
 import { syntheticSource } from '@thoremin/ext-faces/app/sources';
 import { SYNTHETIC_TIMELINE, syntheticExpressionVector } from '@thoremin/ext-faces/lib/synthetic';
-import { createLiveReader, liveModel } from '@thoremin/ext-faces/lib/live';
+import { createLiveReader, liveModel } from '@thoremin/sdk/enroll/live';
 import { placeOf } from '@thoremin/sdk/enroll/sorting';
 import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayResult } from '@thoremin/sdk/enroll/everyday';
