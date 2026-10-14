@@ -260,8 +260,16 @@ def commons_source(page_url: str, *, user_agent: str = "thoremin-video-streams/1
     }
 
 
+def subtitle_files(info_json: Path) -> list[str]:
+    """The subtitle files (``.vtt`` / ``.srt``, uploaded and auto) yt-dlp wrote beside
+    ``<id>.info.json``, as names relative to it, sorted."""
+    stem = info_json.name.removesuffix(".info.json")
+    return sorted(f.name for f in info_json.parent.glob(f"{stem}.*") if f.suffix in (".vtt", ".srt"))
+
+
 def ytdlp_source(info_json: Path) -> dict:
-    """The same fields from a yt-dlp ``.info.json`` (the platform's own text, verbatim)."""
+    """The same fields from a yt-dlp ``.info.json`` (the platform's own text, verbatim),
+    and the subtitle files beside it (``subtitles``)."""
     info = json.loads(info_json.read_text())
     return {
         "platform": info.get("extractor_key", info.get("extractor")),
@@ -274,6 +282,7 @@ def ytdlp_source(info_json: Path) -> dict:
         "tags": info.get("tags") or [],
         "dateOriginal": info.get("upload_date"),
         "infoJson": info_json.name,
+        "subtitles": subtitle_files(info_json),
     }
 
 
