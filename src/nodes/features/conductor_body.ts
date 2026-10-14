@@ -296,8 +296,11 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
  *   unit, so neither the camera's distance nor the player's size enters. The catalog's
  *   `body.shape.extension` (head, hands and feet from the hips) is not used: a waist-up
  *   conductor has no feet in frame, and the arm is what reaches out on a loud beat.
- * - `jerk`: the beating wrist's third difference over the frame times cubed, in torso
- *   lengths (Laban flow, the catalog's `body.effort.flow` idea on the one point that beats).
+ * - `jerk`: the beating wrist's third derivative through its last four positions at their
+ *   own frame times (a dropped frame is not a jolt), in torso lengths (Laban flow, the
+ *   catalog's `body.effort.flow` idea on the one point that beats). Not a median: a sharp
+ *   stroke's jerk IS a one- or two-frame spike at the impact, which a median removes; so a
+ *   single tracker glitch also reads as a jolt for about the blend's smoothing (#146 A6.3).
  *
  * The beating arm is the named side, or with `auto` the arm whose wrist is higher (the
  * transport's choice). A landmark below `minVisibility` is unseen; an unseen channel is
@@ -306,6 +309,28 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
 export interface BodyExpressionMeter {
   push(f: BodyFrame, t: number, side: BodySide): { t: number; motion?: number; extension?: number; jerk?: number };
   reset(): void;
+}
+
+/** The third derivative's magnitude through four samples at their OWN times (Newton's
+ *  divided differences, times 6): zero for any constant velocity or acceleration however
+ *  the frames are spaced, so a dropped frame is not a jolt. Undefined for a repeated time. */
+function thirdDerivative(p: readonly { t: number; x: number; y: number }[]): number | undefined {
+  const axis = (k: 'x' | 'y'): number | undefined => {
+    let d = p.map((q) => q[k]);
+    for (let order = 1; order <= 3; order++) {
+      const next: number[] = [];
+      for (let i = 0; i + order < p.length; i++) {
+        const dt = p[i + order].t - p[i].t;
+        if (!(dt > 0)) return undefined;
+        next.push((d[i + 1] - d[i]) / dt);
+      }
+      d = next;
+    }
+    return 6 * d[0];
+  };
+  const jx = axis('x');
+  const jy = axis('y');
+  return jx === undefined || jy === undefined ? undefined : Math.hypot(jx, jy);
 }
 
 export function createBodyExpressionMeter({ minVisibility = BODY_MOTION_DEFAULTS.minVisibility } = {}): BodyExpressionMeter {
@@ -347,9 +372,7 @@ export function createBodyExpressionMeter({ minVisibility = BODY_MOTION_DEFAULTS
         wrists.push({ t, x: w.x / torso, y: w.y / torso, side: beating });
         if (wrists.length > 4) wrists.shift();
         if (wrists.length === 4) {
-          const [a, b, c, e] = wrists;
-          const dt = (e.t - a.t) / 3;
-          if (dt > 0) jerk = Math.hypot(e.x - 3 * c.x + 3 * b.x - a.x, e.y - 3 * c.y + 3 * b.y - a.y) / dt ** 3;
+          jerk = thirdDerivative(wrists);
         }
       } else wrists = [];
       return { t, motion, extension, jerk };

@@ -2,8 +2,7 @@
  * Expression from the body (#378, body-movement A6): dynamics and articulation from more
  * than the strokes, each channel relative to the player's own recent range.
  *
- * Why a blend. A conductor's stroke size (`dynamics.ts`, the anchors' excursion over the
- * recent envelope) is the universal loudness cue, but a body says loud with more than the
+ * Why a blend. A conductor's stroke size (the anchors' excursion) is the universal loudness cue, but a body says loud with more than the
  * stroke: the whole body moves more (quantity of motion) and the arm reaches further (arm
  * extension). The design (§3.6 of the 2026-10-13 body-movement design) blends the three,
  * and makes the stroke the larger share because it is the one cue a conductor is taught.
@@ -21,6 +20,17 @@
  * would read as the player's usual stroke before it ended. `flow` reads Laban flow instead: the beating wrist's mean jerk, normalised the same
  * way, low (smooth, free) toward legato, high (bound, abrupt) toward staccato. The e-baton
  * found acceleration alone misses slow fluid gestures and jerk fixes it (design ref [21]).
+ *
+ * The excursion is the stroke's own amplitude (`Anchor.amplitude`, torso lengths from the
+ * body's impact detector) against the same 20 s window, per channel. `dynamics.ts` reads it
+ * against a fast-decaying maximum instead, so a steady stroke reads near 1 there while the
+ * other channels read a steady player at 0.5; blended, a change after a change was lost.
+ * Where a detector reports no amplitude, `dynamics.ts`'s reading stands in.
+ *
+ * Per stroke. The body's channels are read once per stroke, as the mean of its frames
+ * since the previous one, the way `dynamics.ts` reads the excursion: the loudness is the
+ * stroke's, a still body between strokes or in a fermata changes nothing, and the ripple
+ * inside a stroke averages out.
  *
  * Pure and causal: frames in, numbers out, no DAG or DOM. A missing channel (a wrist the
  * tracker lost, no body in frame) drops out of the blend rather than reading as zero.
@@ -89,7 +99,12 @@ export function createRangeNormalizer(options: RangeNormalizerOptions = {}): Ran
   return {
     push(t, x) {
       if (Number.isFinite(x)) {
-        if (!Number.isFinite(binStart)) binStart = t;
+        // Time that went backwards (a replay from the top) starts a new bin there.
+        if (!Number.isFinite(binStart) || t < binStart) {
+          binStart = t;
+          binSum = 0;
+          binCount = 0;
+        }
         if (t - binStart >= o.binS && binCount > 0) {
           bins.push({ t: binStart, v: binSum / binCount });
           while (bins.length && bins[0].t < t - o.windowS) bins.shift();
@@ -133,9 +148,10 @@ export type ArticulationSource = (typeof ARTICULATION_SOURCES)[number];
 export interface ExpressionBlendOptions {
   /** The share of each cue in the dynamics (renormalised over the cues present). */
   weights?: { excursion?: number; motion?: number; extension?: number };
-  /** Each channel is smoothed over this many seconds before it is normalised (about a
-   *  stroke: a level, not the ripple inside a stroke). */
-  smoothS?: number;
+  /** A stroke's channels are the means of its frames since the previous stroke, but over
+   *  no more than this many seconds (the first stroke after a pause is not averaged with
+   *  the stillness before it). */
+  maxSpanS?: number;
   /** The per-player range of every channel (`createRangeNormalizer`). */
   range?: RangeNormalizerOptions;
   articulation?: ArticulationSource;
@@ -143,18 +159,22 @@ export interface ExpressionBlendOptions {
 
 export const EXPRESSION_BLEND_DEFAULTS = {
   weights: { excursion: 0.5, motion: 0.25, extension: 0.25 },
-  smoothS: 0.75,
+  maxSpanS: 1.5,
   articulation: 'sharpness' as ArticulationSource,
 };
 
 export interface ExpressionBlend {
-  /** Fold one body frame in. */
+  /** Fold one body frame in (read at the next stroke). */
   push(frame: BodyExpressionFrame): void;
+  /** Close a stroke: its time, braking sharpness (NaN = unmeasurable) and, where the
+   *  detector reports it, its excursion and channel (`Anchor.amplitude`). The body's
+   *  channels are read per stroke, as `dynamics.ts` reads the excursion: between strokes,
+   *  and through a hold or a fermata, nothing changes (a still body in a fermata is not a
+   *  diminuendo). */
+  pushStroke(stroke: { t: number; sharpness: number; amplitude?: number; channel?: string }): void;
   /** The blended estimate, given the strokes' own (`dynamics.ts`; null when no stroke
    *  source is followed, and the excursion drops out). */
   read(strokes: DynamicsEstimate | null): DynamicsEstimate;
-  /** Fold one stroke in (its time and braking sharpness; NaN = unmeasurable, ignored). */
-  pushStroke(stroke: { t: number; sharpness: number }): void;
   /** The normalised channels, for a readout (0.5 = the player's median, NaN = not seen). */
   channels(): { motion: number; extension: number; flow: number };
   setArticulation(source: ArticulationSource): void;
@@ -163,37 +183,48 @@ export interface ExpressionBlend {
 
 export function createExpressionBlend(options: ExpressionBlendOptions = {}): ExpressionBlend {
   const weights = { ...EXPRESSION_BLEND_DEFAULTS.weights, ...options.weights };
-  const smoothS = options.smoothS ?? EXPRESSION_BLEND_DEFAULTS.smoothS;
+  const maxSpanS = options.maxSpanS ?? EXPRESSION_BLEND_DEFAULTS.maxSpanS;
   let articulation = options.articulation ?? EXPRESSION_BLEND_DEFAULTS.articulation;
   const names = ['motion', 'extension', 'jerk'] as const;
   type Name = (typeof names)[number];
   const norm = Object.fromEntries(names.map((n) => [n, createRangeNormalizer(options.range)])) as Record<Name, RangeNormalizer>;
-  let smooth: Record<Name, { t: number; v: number } | null> = { motion: null, extension: null, jerk: null };
+  /** The frames since the last stroke (trimmed to `maxSpanS`). */
+  let frames: BodyExpressionFrame[] = [];
   let read: Record<Name, number> = { motion: NaN, extension: NaN, jerk: NaN };
   // Sharpness is a ratio: its log, with a spread of at least a doubling either side.
   const sharpNorm = createRangeNormalizer({ ...options.range, minSpread: Math.max(options.range?.minSpread ?? 0, 2 * Math.LN2) });
   let sharp = NaN;
+  // The stroke's excursion, a ratio too, per channel (a wrist travels several times as far
+  // as a trunk, and the detector may follow either).
+  const excNorm = new Map<string, RangeNormalizer>();
+  let excursion = NaN;
   return {
-    pushStroke({ t, sharpness }) {
-      if (Number.isFinite(sharpness) && sharpness > 0) sharp = sharpNorm.push(t, Math.log(sharpness));
-    },
     push(f) {
-      for (const n of names) {
-        const x = f[n];
-        if (x === undefined || !Number.isFinite(x)) {
-          // A channel unseen for longer than its smoothing drops out of the blend.
-          const s = smooth[n];
-          if (s && f.t - s.t > smoothS) {
-            smooth[n] = null;
-            read[n] = NaN;
-          }
-          continue;
-        }
-        const s = smooth[n];
-        const v = s ? s.v + (1 - Math.exp(-Math.max(0, f.t - s.t) / smoothS)) * (x - s.v) : x;
-        smooth[n] = { t: f.t, v };
-        read[n] = norm[n].push(f.t, v);
+      frames.push(f);
+      while (frames.length && frames[0].t < f.t - maxSpanS) frames.shift();
+    },
+    pushStroke({ t, sharpness, amplitude, channel }) {
+      if (Number.isFinite(sharpness) && sharpness > 0) sharp = sharpNorm.push(t, Math.log(sharpness));
+      if (amplitude !== undefined && Number.isFinite(amplitude) && amplitude > 0) {
+        const key = channel ?? '';
+        let n = excNorm.get(key);
+        if (!n) excNorm.set(key, (n = createRangeNormalizer({ ...options.range, minSpread: Math.max(options.range?.minSpread ?? 0, Math.LN2) })));
+        excursion = n.push(t, Math.log(amplitude));
       }
+      for (const n of names) {
+        let sum = 0;
+        let count = 0;
+        for (const f of frames) {
+          const x = f[n];
+          if (f.t >= t - maxSpanS && x !== undefined && Number.isFinite(x)) {
+            sum += x;
+            count++;
+          }
+        }
+        // A channel unseen through the whole stroke drops out of the blend.
+        read[n] = count ? norm[n].push(t, sum / count) : NaN;
+      }
+      frames = [];
     },
     read(strokes) {
       let num = 0;
@@ -204,7 +235,9 @@ export function createExpressionBlend(options: ExpressionBlendOptions = {}): Exp
           den += w;
         }
       };
-      if (strokes) add(weights.excursion, strokes.dynamics);
+      // The excursion: the strokes' own amplitude against the player's range when the
+      // detector reports it, else `dynamics.ts`'s reading (against the recent envelope).
+      add(weights.excursion, Number.isFinite(excursion) ? excursion : (strokes?.dynamics ?? NaN));
       add(weights.motion, read.motion);
       add(weights.extension, read.extension);
       const dynamics = den > 0 ? num / den : (strokes?.dynamics ?? 0.5);
@@ -218,9 +251,11 @@ export function createExpressionBlend(options: ExpressionBlendOptions = {}): Exp
     reset() {
       for (const n of names) norm[n].reset();
       sharpNorm.reset();
-      sharp = NaN;
-      smooth = { motion: null, extension: null, jerk: null };
+      excNorm.clear();
+      excursion = NaN;
+      frames = [];
       read = { motion: NaN, extension: NaN, jerk: NaN };
+      sharp = NaN;
     },
   };
 }

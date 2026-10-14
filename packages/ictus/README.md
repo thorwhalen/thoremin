@@ -73,7 +73,7 @@ On A1's conductor clips, through the follower, the default marks the beat with F
 
 ## Expression from the body: more than the strokes
 
-`createExpressionBlend` (`expression.ts`, #378) blends the strokes' dynamics (`dynamics.ts`, unchanged) with a body's quantity of motion and its beating arm's extension, each read against the player's own last 20 s by `createRangeNormalizer` (0.5 at their median, a spread floor so a player who never varies stays at 0.5). Articulation is the strokes' braking sharpness against the same window (`pushStroke`), or Laban flow (the beating wrist's jerk) with `articulation: 'flow'`. A channel the tracker loses drops out of the blend rather than reading as zero. The conductor node feeds it per pose frame (`createBodyExpressionMeter` in the app's `conductor_body.ts`).
+`createExpressionBlend` (`expression.ts`, #378) blends the strokes' own excursion (`Anchor.amplitude`, which the body's impact detector reports with its `channel`) with a body's quantity of motion and its beating arm's extension, each read against the player's own last 20 s by `createRangeNormalizer` (0.5 at their median, a spread floor so a player who never varies stays at 0.5), once per stroke (`pushStroke`: the mean of the frames since the previous one, so a hold or a fermata changes nothing). Articulation is the strokes' braking sharpness against the same window, or Laban flow (the beating wrist's jerk) with `articulation: 'flow'`. A channel the tracker loses drops out of the blend rather than reading as zero; a detector with no amplitude falls back on `dynamics.ts`, which is unchanged. The conductor node feeds it per pose frame (`createBodyExpressionMeter` in the app's `conductor_body.ts`).
 
 ## Scheduling a score on the follower's time
 

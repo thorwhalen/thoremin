@@ -82,11 +82,13 @@
  * own source by default (`expression: same`), or from the other one: `hands` lets a hand
  * keep the dynamics while the body beats (a bounce of the trunk with a hand shaping, the
  * conducting literature's split role), `body` the reverse. The other source gets a
- * follower of its own whose strokes only shape (its tempo goes nowhere). Reading the
- * body, the strokes' dynamics (`dynamics.ts`, unchanged) are blended with the body's
+ * follower of its own whose strokes only shape (its tempo goes nowhere; until it shows a
+ * stroke, the beat's own expression stands); while an arm beats on a named side, the
+ * OTHER hand shapes. Reading the body, the strokes' excursion is blended with the body's
  * quantity of motion and the beating arm's extension, each read against the player's
- * own last 20 s (ictus `createExpressionBlend`); articulation is the strokes' braking
- * sharpness, or Laban flow (the beating wrist's jerk) with `articulationFrom: flow`.
+ * own last 20 s and once per stroke (ictus `createExpressionBlend`); articulation is the
+ * strokes' braking sharpness, or Laban flow (the beating wrist's jerk) with
+ * `articulationFrom: flow`.
  *
  * Pure and Node-safe: no DOM, no clock (it reads `ctx.time` / `ctx.dt`), and the
  * recorded conducting fixtures drive it headlessly.
@@ -263,6 +265,17 @@ function labelFor(hand: Exclude<ConductorHand, 'auto'>, mirrorHandedness: boolea
   const raw = hand === 'right' ? 'Right' : 'Left';
   if (!mirrorHandedness) return raw;
   return raw === 'Right' ? 'Left' : 'Right';
+}
+
+/** The hand that shapes the expression (#378): while an ARM of the body beats on a named
+ *  side, the other hand (the conducting literature's expressive hand); otherwise the
+ *  conductor's hand choice (#457 tracks a continuous, non-stroke reading of it). */
+function shapingHand(frame: HandsFrame, cfg: Params): Hand | undefined {
+  if (cfg.source === 'body' && (cfg.bodyPoint === 'impact' || cfg.bodyPoint === 'wrist') && cfg.hand !== 'auto') {
+    const label = labelFor(cfg.hand === 'right' ? 'left' : 'right', cfg.mirrorHandedness);
+    return frame.hands.find((h) => h.handedness === label);
+  }
+  return pickHand(frame, cfg);
 }
 
 function pickHand(frame: HandsFrame, cfg: Params): Hand | undefined {
@@ -473,6 +486,9 @@ export const conductorNode = defineNode<Params>({
     };
     const resetFollower = (): void => {
       ictus = null;
+      // The expression's own frame clocks restart with the follower's (a replay from the top).
+      lastExprBodyT = -Infinity;
+      lastExprPtT = -Infinity;
       lastPt = null;
       lastBody = null;
       seededBpm = null;
@@ -590,11 +606,12 @@ export const conductorNode = defineNode<Params>({
     /** The dynamics and articulation for this tick (#378; see `expression`). */
     const shapeExpression = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: IctusState): DynamicsEstimate => {
       const source = c.expression === 'same' ? c.source : c.expression;
-      let strokes: DynamicsEstimate = { dynamics: s.dynamics, articulation: s.articulation };
+      const beat: DynamicsEstimate = { dynamics: s.dynamics, articulation: s.articulation };
+      let strokes = beat;
       if (source === c.source) exprIctus = null;
       else {
         // The other source's follower: its prior only paces its detector.
-        const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.mirrorX}`;
+        const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.mirrorX}:${c.mirrorHandedness}`;
         if (!exprIctus || key !== exprKey) {
           exprIctus = createIctus({
             detector: source === 'body' ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX }) : { mirrorX: c.mirrorX },
@@ -607,7 +624,7 @@ export const conductorNode = defineNode<Params>({
           const frame = inputs.hands as HandsFrame | undefined;
           const fresh = isFresh(frame, lastExprHands);
           lastExprHands = frame;
-          const hand = frame && fresh ? pickHand(frame, c) : undefined;
+          const hand = frame && fresh ? shapingHand(frame, c) : undefined;
           const t = frameTime(frame, ctx);
           if (hand && frame && frame.height > 0 && t >= lastExprPtT + MIN_SAMPLE_SPACING) {
             exprIctus.feed(handPoint(hand, frame, c, t));
@@ -615,30 +632,38 @@ export const conductorNode = defineNode<Params>({
           }
         }
       }
+      // The shaping source's strokes, once it has shown one; until then (the pose model
+      // loading, nobody's other hand in frame) the beat's own.
+      const shaped = (): DynamicsEstimate => {
+        const e = exprIctus?.state();
+        return e && e.anchors > 0 ? e : beat;
+      };
       if (source !== 'body') {
         exprMeter = null;
         blend = null;
-        return exprIctus ? exprIctus.state() : strokes;
-      }
-      exprMeter ??= createBodyExpressionMeter();
-      blend ??= createExpressionBlend({ articulation: c.articulationFrom });
-      blend.setArticulation(c.articulationFrom);
-      const body = inputs.body as BodyFrame | undefined;
-      const fresh = isFresh(body, lastExprBody);
-      lastExprBody = body;
-      const t = frameTime(body, ctx);
-      if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
-        lastExprBodyT = t;
-        blend.push(exprMeter.push(body, t, c.hand));
-        if (exprIctus) {
-          const a = exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand)).anchor;
-          if (a) blend.pushStroke(a);
+        strokes = shaped();
+      } else {
+        exprMeter ??= createBodyExpressionMeter();
+        blend ??= createExpressionBlend({ articulation: c.articulationFrom });
+        blend.setArticulation(c.articulationFrom);
+        const body = inputs.body as BodyFrame | undefined;
+        const fresh = isFresh(body, lastExprBody);
+        lastExprBody = body;
+        const t = frameTime(body, ctx);
+        if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
+          lastExprBodyT = t;
+          // The channels are read per stroke (a hold or a fermata changes nothing).
+          blend.push(exprMeter.push(body, t, c.hand));
+          if (exprIctus) {
+            const a = exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand)).anchor;
+            if (a) blend.pushStroke(a);
+          }
         }
+        // The beat's own stroke this tick, when the body both beats and shapes.
+        if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
+        strokes = blend.read(shaped());
       }
-      // The beat's own stroke this tick, when the body both beats and shapes.
-      if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
-      if (exprIctus) strokes = exprIctus.state();
-      return blend.read(strokes);
+      return strokes;
     };
 
     return {

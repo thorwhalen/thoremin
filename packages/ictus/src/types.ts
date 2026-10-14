@@ -47,6 +47,11 @@ export interface Anchor {
    *  ictus), in the caller's units, mirrored so positive means the player's right.
    *  The beat-pattern recogniser reads this; 0 for the first anchor. */
   lateral: number;
+  /** The stroke's own excursion in the detector's unit (torso lengths for the body's impact
+   *  detector), and the channel it was measured on; absent where a detector does not
+   *  report them. The body's expression reads it against the player's last 20 s (#378). */
+  amplitude?: number;
+  channel?: string;
 }
 
 /** What the prior expects next. */
