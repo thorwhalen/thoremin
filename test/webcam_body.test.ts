@@ -196,4 +196,36 @@ describe('webcam-body lifecycle (injected loader)', () => {
     expect(phase(out).phase).toBe('active');
     h.dispose?.();
   });
+
+  it('hands out ONE frame object per video frame, however often the engine ticks (#492)', async () => {
+    // The pose categorizer counts camera frames by this identity (through the body vector node's
+    // dedupe): a new object per tick would make its hysteresis count ticks.
+    const detecting: BodyLandmarkerFactory = async ({ model }) => ({
+      resource: {
+        model,
+        landmarker: {
+          detectForVideo: () => ({ landmarks: [Array.from({ length: BODY_LANDMARK_COUNT }, () => ({ x: 0.5, y: 0.5, visibility: 1 }))] }),
+          close: () => {},
+        },
+      },
+    });
+    const loop: (() => void)[] = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: () => void) => loop.push(cb));
+    const runLoop = () => loop.splice(0).forEach((cb) => cb());
+    const h = webcamBodyNode.make(webcamBodyNode.params.parse({}));
+    const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { video: { ...liveVideo, currentTime: 1 }, controls: () => ({ body: { enabled: true } }), createBodyLandmarker: detecting } };
+    await h.init?.(ctx);
+    h.process({}, ctx);
+    await flush();
+    h.process({}, ctx); // starts the pump
+    runLoop(); // the video frame at currentTime 1 is delivered
+    const first = h.process({}, ctx).body as BodyFrame;
+    expect(first.present).toBe(true);
+    // More engine ticks, and more animation frames, with no new video frame: the same object.
+    for (let i = 0; i < 3; i++) {
+      runLoop();
+      expect(h.process({}, ctx).body).toBe(first);
+    }
+    h.dispose?.();
+  });
 });

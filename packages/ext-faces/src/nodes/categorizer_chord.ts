@@ -14,7 +14,8 @@
  * own `chordCategories` input) and the un-voiced triad. The model is a transient the host resolves
  * off the tick; only the model the dial names plays. The engine ticks faster than the camera, so a
  * camera frame seen already is not a new reading (the hysteresis counts camera frames; `frame` is
- * the frame, since the vector node builds a new vector every tick), while the chord renderer runs
+ * the frame, since the hand vector node builds a new vector every tick; the body's keeps its vector
+ * per frame, #492, and the pose-chords edge is there for one wiring), while the chord renderer runs
  * every tick (its beat clock).
  */
 import { z } from 'zod';
