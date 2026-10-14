@@ -2,8 +2,9 @@
 /**
  * A large categorizer re-cuts (#420). The re-cut was offered up to 600 holds, since its forest
  * was cubic; it is quadratic now, so the offer runs to the file's bound. Here a 1500-hold file is
- * imported (the tool's "Import file" button), and the grid offers "How many" with a
- * suggestion, where it used to say "Too many holds to re-cut here", and a re-cut honours a pin.
+ * imported (the tool's "Import file" button), and the grid offers "How many", where it used to
+ * say "Too many holds to re-cut here", and a re-cut honours a pin; a 600-hold one (past the old
+ * 250 cap on the suggestion) is shown the forest's suggested k.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -16,11 +17,10 @@ import { SYNTHETIC_TIMELINE } from '@thoremin/ext-faces/lib/synthetic';
 import { faceTestStore } from '@thoremin/ext-faces/app/faceSession';
 import { FaceSessionView } from '@thoremin/ext-faces/panels/FaceSessionPanel';
 import { MAX_CATEGORIZER_SAMPLES, exportCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
-import { placeOf } from '@thoremin/sdk/enroll/sorting';
+import { placeOf, recutRange } from '@thoremin/sdk/enroll/sorting';
 import '@/app/dials/useDialsSettings'; // the dials host the panel's "Play it" reads
 
 const TAKE_MS = SYNTHETIC_TIMELINE.restMs + 12 * (SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs);
-const HOLDS = 1500;
 let clock = 0;
 
 function deps(): FaceSessionDeps {
@@ -37,8 +37,8 @@ function deps(): FaceSessionDeps {
   };
 }
 
-/** A face categorizer file of `HOLDS` holds: the synthetic take's holds, jittered, in one category. */
-async function largeFile(): Promise<string> {
+/** A face categorizer file of `holds` holds: the synthetic take's holds, jittered, in one category. */
+async function largeFile(holds: number): Promise<string> {
   vi.useFakeTimers();
   const store = createFaceSessionStore(deps());
   store.getState().start();
@@ -51,7 +51,7 @@ async function largeFile(): Promise<string> {
   const w = store.getState().working!;
   let seed = 1;
   const jitter = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 0.02;
-  const samples = Array.from({ length: HOLDS }, (_, i) => {
+  const samples = Array.from({ length: holds }, (_, i) => {
     const from = w.samples[i % w.samples.length];
     const vector = Object.fromEntries(Object.entries(from.vector).map(([f, x]) => [f, Number.isFinite(x) ? x + jitter() : x]));
     return { ...from, id: `big:${i}`, vector, t: i };
@@ -71,12 +71,21 @@ describe('a large categorizer re-cuts (#420)', () => {
     expect(FACE_SESSION_DEFAULTS.suggestUpTo).toBeGreaterThanOrEqual(800);
   });
 
-  it('a 1500-hold import offers "How many" with a suggestion, and a re-cut honours a pin', async () => {
-    const text = await largeFile();
+  it("a 600-hold import is shown the forest's suggested k", async () => {
+    const store = createFaceSessionStore(deps());
+    const s = () => store.getState();
+    expect(s().importFile(await largeFile(600))).toBe(true);
+    const want = Math.min(recutRange(s().working!).suggestedK, s().view!.maxK);
+    expect(want).toBeGreaterThan(1);
+    expect(s().view!.suggestedK).toBe(want);
+  }, 60_000);
+
+  it('a 1500-hold import offers "How many", and a re-cut honours a pin', async () => {
+    const text = await largeFile(1500);
     const store = createFaceSessionStore(deps());
     const s = () => store.getState();
     expect(s().importFile(text)).toBe(true);
-    expect(s().working!.samples).toHaveLength(HOLDS);
+    expect(s().working!.samples).toHaveLength(1500);
     expect(s().view!.recutable).toBe(true);
     expect(s().view!.maxK).toBeGreaterThan(1);
 

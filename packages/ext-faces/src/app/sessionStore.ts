@@ -352,9 +352,10 @@ export interface FaceSessionState {
 export const FACE_SESSION_DEFAULTS = {
   /** How often the paused ghost card (#404) carves the forming hold again, ms. */
   ghostMs: 250,
-  /** The most holds the ghost re-carves with, four times a second (about 17 ms at 300 over 52
-   *  features since #420); past it there is no ghost. */
-  ghostUpTo: 300,
+  /** The most holds the ghost re-carves with, four times a second inside the poll loop, so it
+   *  must fit a frame on a slow device: about 12 ms at 200 over 52 features since #420 (was 150,
+   *  as fast before); past it there is no ghost. */
+  ghostUpTo: 200,
   /** The name a fresh face carve is exported under when it has none yet (another modality's:
    *  "My <many>"). */
   exportName: 'My faces',

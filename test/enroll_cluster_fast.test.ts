@@ -85,6 +85,8 @@ function referenceForest(vectors: readonly FeatureVector[], features: readonly s
 }
 
 const FEATURES = ['x', 'y', 'z'];
+/** Weights that are hard for it: zero, odd, negative, non-finite (a NaN or Infinity row). */
+const WEIGHTS: Record<string, number>[] = [{ x: 2, y: 0 }, { z: 0.5 }, {}, { x: -2 }, { y: Infinity }, { z: NaN }, { x: 0, y: 0, z: 0 }];
 
 /** Integer coordinates in [0, span), so many pairs tie; some features not measurable. */
 function tieHeavy(rand: () => number, n: number, span: number): FeatureVector[] {
@@ -112,10 +114,10 @@ describe('the fast agglomeration (#420)', () => {
   it('builds the full scan forest exactly, ties and Infinity pairs included', () => {
     const rand = rng(420);
     for (let run = 0; run < 150; run++) {
-      const n = 1 + Math.floor(rand() * 45);
+      const n = run === 0 ? 0 : 1 + Math.floor(rand() * 45);
       const vs = tieHeavy(rand, n, 2 + Math.floor(rand() * 4));
-      const weights = run % 3 === 0 ? { x: 2, y: 0 } : run % 3 === 1 ? { z: 0.5 } : {};
-      const mustLink = groups(rand, n, Math.floor(rand() * 5));
+      const weights = WEIGHTS[run % WEIGHTS.length];
+      const mustLink = [...groups(rand, n, Math.floor(rand() * 5)), ...(run % 4 === 0 ? [[]] : [])];
       expect(buildConstrainedForest(vs, FEATURES, weights, { mustLink })).toEqual(referenceForest(vs, FEATURES, weights, mustLink));
     }
   });
@@ -137,7 +139,7 @@ describe('the fast agglomeration (#420)', () => {
       const vs = tieHeavy(rand, 2 + Math.floor(rand() * 30), 3);
       const members = vs.map((_, i) => i).filter(() => rand() < 0.8);
       if (members.length === 0) continue;
-      const model = { features: FEATURES, weights: { x: 1.5 } };
+      const model = { features: FEATURES, weights: WEIGHTS[run % 4] };
       let medoid = members[0];
       let best = Infinity;
       for (const j of members) {
