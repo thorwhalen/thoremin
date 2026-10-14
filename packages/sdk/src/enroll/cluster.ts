@@ -88,7 +88,9 @@ export function weightedDistance(
  * is scaled by `possible / present`. Without it a reading with a few features masked is CLOSER to
  * every category than the same reading in full, and a reject radius lets it in more easily. The
  * weights put every feature in noise units, which is what makes "the mean of the present ones" a
- * fair stand-in. Asymmetric on purpose: `b` (a centroid) says which features a full reading has.
+ * fair stand-in, in EXPECTATION: a pose that differs from a category only in features still
+ * present reads a little farther from it masked than in full, since the masked ones would have
+ * added only noise. Asymmetric on purpose: `b` (a centroid) says which features a full reading has.
  * Nothing present: the plain sum (0), since there is nothing to scale; a coverage bar
  * (`inView`) is what keeps such a reading out.
  */

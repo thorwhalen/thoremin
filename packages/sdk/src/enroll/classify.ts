@@ -31,7 +31,7 @@
  * any other (entry hysteresis, then null), never as a rejection to hold through. The reject
  * radius stays what it was: the open-set rule for a face nobody taught.
  */
-import { buildHierarchy, cutAt, modelDistance, weightedDistance } from './cluster';
+import { buildHierarchy, cutAt, modelDistance, presentDistance, weightedDistance } from './cluster';
 import type {
   Category,
   Classification,
@@ -76,6 +76,13 @@ export interface TrainOptions {
    * allowed to be tighter than this, whatever the rest take says — see `trainModel`.
    */
   acceptQuantile?: number;
+  /**
+   * Measure the radii (each category's, the rest spread, the floor) at the distance the model is
+   * READ at: renormalised over the features present (#458, the body's poses). The model then
+   * carries `renormalize`, so a live reading is compared with radii of the same kind and a model
+   * still never rejects the holds it was trained on, a hold with features missing included.
+   */
+  renormalize?: boolean;
 }
 
 /** What `trainModel` uses when not told otherwise (a re-cut with no rest take starts from the
@@ -96,13 +103,14 @@ export function trainModel(
   options: TrainOptions = {},
 ): TrainedModel {
   const o = { ...TRAIN_DEFAULTS, ...options };
+  const measure = o.renormalize ? presentDistance : weightedDistance;
   const categories: Category[] = [];
   clusters.forEach((idxs, i) => {
     if (idxs.length === 0) return;
     const members = idxs.map((j) => vectors[j]);
     const centroid = meanVector(members, features);
     const radius =
-      members.reduce((s, m) => s + weightedDistance(m, centroid, features, weights), 0) /
+      members.reduce((s, m) => s + measure(m, centroid, features, weights), 0) /
       members.length;
     categories.push({
       id: `cat-${i + 1}`,
@@ -119,7 +127,7 @@ export function trainModel(
   if (rest.length >= 5) {
     const restCentroid = meanVector(rest, features);
     const spread =
-      rest.reduce((s, v) => s + weightedDistance(v, restCentroid, features, weights), 0) /
+      rest.reduce((s, v) => s + measure(v, restCentroid, features, weights), 0) /
       rest.length;
     rejectRadius = Math.max(spread * o.rejectScale, 1e-3);
   }
@@ -135,7 +143,7 @@ export function trainModel(
   clusters.forEach((idxs, i) => {
     const c = categories.find((x) => x.id === `cat-${i + 1}`);
     if (!c) return;
-    for (const j of idxs) memberDistances.push(weightedDistance(vectors[j], c.centroid, features, weights));
+    for (const j of idxs) memberDistances.push(measure(vectors[j], c.centroid, features, weights));
   });
   if (memberDistances.length > 0) {
     memberDistances.sort((a, b) => a - b);
@@ -146,7 +154,7 @@ export function trainModel(
     rejectRadius = Math.max(rejectRadius, memberDistances[q] * 1.05);
   }
 
-  return { categories, weights, features: [...features], rejectRadius };
+  return { categories, weights, features: [...features], rejectRadius, ...(o.renormalize ? { renormalize: true } : {}) };
 }
 
 /** How {@link trainNeutral} shapes the null class. */

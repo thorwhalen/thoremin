@@ -142,7 +142,7 @@ export function flooredRejectRadius(categorizer: PersonalCategorizer, model: Tra
     memberIndices(categorizer),
     model.features,
     model.weights,
-    { defaultRejectRadius: LIVE_DEFAULTS.minRadius, acceptQuantile: LIVE_DEFAULTS.acceptQuantile },
+    { defaultRejectRadius: LIVE_DEFAULTS.minRadius, acceptQuantile: LIVE_DEFAULTS.acceptQuantile, renormalize: model.renormalize === true },
   ).rejectRadius;
   return Math.max(model.rejectRadius, floor, LIVE_DEFAULTS.minRadius);
 }
@@ -279,17 +279,16 @@ export interface LiveModel {
 
 export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuning> = {}, options: ModalityOption = {}): LiveModel {
   const t = clampTuning(tuning);
-  const derived = modelFromCategorizer(categorizer);
+  const modality = options.modality ?? faceModality;
+  // A modality that renormalises (#458, the body) derives its model so, radii included; faces and
+  // hands keep a model with no such key, so they classify bit for bit as before.
+  const derived = modelFromCategorizer(categorizer, { renormalize: modality.renormalize === true });
   const baseRadius = flooredRejectRadius(categorizer, derived);
   const sized = derived.categories.map((c) => {
     const scale = sizeOf(t, c);
     return scale !== 1 ? { ...c, scale } : c;
   });
-  const modality = options.modality ?? faceModality;
-  // A modality that renormalises (#458, the body) says so on the model; faces and hands keep a
-  // model with no such key, so they classify bit for bit as before.
-  const reading: TrainedModel = modality.renormalize ? { ...derived, renormalize: true } : derived;
-  const model: TrainedModel = { ...reading, categories: sized, rejectRadius: tunedRejectRadius(baseRadius, categorizer.strangers, t.rejectScale) };
+  const model: TrainedModel = { ...derived, categories: sized, rejectRadius: tunedRejectRadius(baseRadius, categorizer.strangers, t.rejectScale) };
   const meanRadius = derived.categories.reduce((a, c) => a + c.radius, 0) / Math.max(1, derived.categories.length);
   return {
     model,
@@ -299,7 +298,7 @@ export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuni
     distance: fitDistance(categorizer, derived.features, options),
     temperature: Math.max(LIVE_DEFAULTS.minRadius, LIVE_DEFAULTS.softness * meanRadius),
     // A mirrored categorizer reads each frame on the side nearer its categories (#382).
-    project: createReader(modality, { hand: categorizer.hand ?? 'either', mirror: categorizer.mirror === true }, reading),
+    project: createReader(modality, { hand: categorizer.hand ?? 'either', mirror: categorizer.mirror === true }, derived),
     inView: (vector) => inView(modality, vector, derived.features),
   };
 }

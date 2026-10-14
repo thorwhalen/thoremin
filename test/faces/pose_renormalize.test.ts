@@ -7,9 +7,9 @@ import { describe, expect, it } from 'vitest';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { createNoiseEstimator, scaleWeights } from '@thoremin/sdk/enroll/noise';
 import { modelDistance, presentDistance, weightedDistance } from '@thoremin/sdk/enroll/cluster';
-import { classify } from '@thoremin/sdk/enroll/classify';
-import { liveModel } from '@thoremin/sdk/enroll/live';
-import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { classify, trainModel } from '@thoremin/sdk/enroll/classify';
+import { liveModel, LIVE_DEFAULTS } from '@thoremin/sdk/enroll/live';
+import { categorizerFromModel, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { POSES, poseVector, scriptedPoseCategorizer } from '../helpers/body_poses';
 
@@ -64,5 +64,33 @@ describe('pose distance over the features present (#458)', () => {
     const asFace = liveModel(c, {});
     expect('renormalize' in asFace.model).toBe(false);
     expect(modelDistance(asFace.model, mask(v), centroid)).toBe(weightedDistance(mask(v), centroid, asFace.model.features, asFace.model.weights));
+  });
+
+  it('never rejects the holds it was trained on, a hold with features missing included (the radii read as the model does)', () => {
+    // Every other hold read with the lower legs masked; a reject radius (strangers: neutral).
+    const names = ['rest', 'arms up', 'arms out'] as const;
+    const vectors: FeatureVector[] = [];
+    const clusters: number[][] = names.map(() => []);
+    names.forEach((n, k) => {
+      for (let f = 0; f < 12; f++) {
+        const v = bodyModality.read(poseVector(POSES[n], 5000 + 100 * k + f))!;
+        clusters[k].push(vectors.length);
+        vectors.push(f % 2 ? mask(v) : v);
+      }
+    });
+    const model = trainModel(vectors, clusters, c.features, c.weights);
+    const masked = categorizerFromModel(model, vectors.map((vector, i) => ({ vector, t: i * 33, cue: 'poses-yours' })), { name: 'masked', strangers: 'neutral', modality: 'body' });
+    const body = liveModel(masked, {}, { modality: bodyModality });
+    const rejected = vectors.filter((v) => classify(body.model, v).rejected).length;
+    expect(rejected / vectors.length).toBeLessThanOrEqual(1 - LIVE_DEFAULTS.acceptQuantile);
+    // Each radius and the floor are measured as a live reading is: a category's radius is its
+    // members' mean renormalised distance, and the reject radius accepts the quantile of them.
+    const own = body.model.categories.flatMap((k) => k.members.map((j) => modelDistance(body.model, vectors[j], k.centroid)));
+    body.model.categories.forEach((k) => {
+      const mean = k.members.reduce((a, j) => a + modelDistance(body.model, vectors[j], k.centroid), 0) / k.members.length;
+      expect(k.radius).toBeCloseTo(mean, 9);
+    });
+    own.sort((a, b) => a - b);
+    expect(body.model.rejectRadius).toBeGreaterThanOrEqual(own[Math.floor(LIVE_DEFAULTS.acceptQuantile * (own.length - 1))] * 1.05 - 1e-9);
   });
 });
