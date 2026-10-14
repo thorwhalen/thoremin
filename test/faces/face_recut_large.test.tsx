@@ -2,7 +2,7 @@
 /**
  * A large categorizer re-cuts (#420). The re-cut was offered up to 600 holds, since its forest
  * was cubic; it is quadratic now, so the offer runs to the file's bound. Here a 1500-hold file is
- * imported (the "Import a file" button of the tool), and the grid offers "How many" with a
+ * imported (the tool's "Import file" button), and the grid offers "How many" with a
  * suggestion, where it used to say "Too many holds to re-cut here", and a re-cut honours a pin.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
