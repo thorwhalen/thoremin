@@ -52,8 +52,8 @@ export interface StatusHook {
 }
 
 /** A shell tool an extension contributes, as data (React-free, so a pure stub can name it). */
-export type { ExtensionToolDecl } from './tools';
-import type { ExtensionToolDecl } from './tools';
+export type { ExtensionToolDecl, ToolEntryPointDecl } from './tools';
+import type { ExtensionToolDecl, ToolEntryPointDecl } from './tools';
 
 /** What the host hands a tool's panel. */
 export interface ExtensionToolPanelProps {
@@ -73,6 +73,8 @@ export interface ExtensionUi {
   statusHooks: readonly StatusHook[];
   onMount: readonly (() => void | (() => void))[];
   tools?: readonly ExtensionTool[];
+  /** Ways into a tool from another tool's panel (#465), as data. */
+  entryPoints?: readonly ToolEntryPointDecl[];
 }
 
 /** An editor section a LAZY extension will contribute: where it goes and its label, with no
@@ -91,4 +93,6 @@ export interface ExtensionUiStub {
   /** The shell tools it will contribute, as data; their panels load with the deferred half
    *  the first time the player opens one. */
   tools?: readonly ExtensionToolDecl[];
+  /** Ways into a tool from another tool's panel (#465), as data. */
+  entryPoints?: readonly ToolEntryPointDecl[];
 }

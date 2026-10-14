@@ -23,7 +23,7 @@
  * pose camera branch and the conductor reads it; from a cold load that is three clicks:
  * Conductor, Conduct with body, Start conducting.
  *
- * "Teach my conducting poses" (#383): with the body, the panel opens "Your poses" (an extension's
+ * "Teach my conducting poses" (#383, an extension's entry point since #465): with the body, the panel opens "Your poses" (an extension's
  * tool, so only when the build ships it) asking for the conductor's default names, `ready`,
  * `fermata`, `cut-off` and `rest`: two clicks from the Conductor to a take in that vocabulary.
  * "Start, hold and cut off with my poses" (#384) then lets those categories replace the body
@@ -48,14 +48,14 @@ import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
 import { toolById } from './tools';
-import { shellToolById } from './shellTools';
-import { requestCarve } from '@thoremin/sdk-ui/enroll/carveRequest';
+import { entryPointsFrom, openEntryPoint } from './entryPoints';
 import { useTools } from './toolsStore';
 import type { ConductorSettings } from '@/settings/schema';
 
 export const CONDUCTOR_TOOL_ID = 'conductor';
-/** "Your poses" (the faces extension's pose tool, #382). */
-const POSES_TOOL_ID = 'poses';
+/** The entry point an extension declares for choosing the poses to play (#465): the checkbox below
+ *  opens its tool when none is chosen yet. Absent from the build: it opens nothing. */
+const POSES_ENTRY_ID = 'conductor-poses';
 
 /** The leader choice's buttons (#375, #380). */
 const SOURCE_BUTTON: Record<ConductorSettings['source'], string> = {
@@ -203,6 +203,7 @@ export default function ConductorPanel() {
   const enabled = conductorDial.enabled === true;
   const recording = conductorDial.conducts === 'recording';
   const source = CONDUCTOR_SOURCES.find((s) => s === conductorDial.source) ?? 'hands';
+  const entryPoints = entryPointsFrom(CONDUCTOR_TOOL_ID, { 'conductor.source': source });
   // The faces extension's pose categorizer (#384), when the build ships it: its ready, fermata
   // and cut-off poses may replace the body conductor's rules (#387 B5).
   const poseDial = (state.effective as Record<string, unknown>).poseCategorizer as { id?: string; transport?: boolean } | undefined;
@@ -273,18 +274,16 @@ export default function ConductorPanel() {
         >
           {enabled ? 'Stop conducting' : 'Start conducting'}
         </button>
-        {source === 'body' && shellToolById(POSES_TOOL_ID) && (
+        {entryPoints.map((e) => (
           <button
-            data-conductor-teach-poses
-            onClick={() => {
-              requestCarve('body', { vocabulary: 'conductor' });
-              useTools.getState().openTool(POSES_TOOL_ID);
-            }}
+            key={e.id}
+            data-conductor-entry-point={e.id}
+            onClick={() => openEntryPoint(e)}
             className="w-full rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
           >
-            Teach my conducting poses (ready, fermata, cut-off)...
+            {e.label}
           </button>
-        )}
+        ))}
         {source === 'body' && poseDial && (
           <label className="flex items-center gap-2 text-xs text-white/80" data-conductor-pose-transport>
             <input
@@ -293,7 +292,8 @@ export default function ConductorPanel() {
               onChange={(e) => {
                 void dispatchDialSetIn('poseCategorizer.transport', e.target.checked);
                 // No poses chosen yet: Your poses is where one is played ("Play it").
-                if (e.target.checked && !poseDial.id && shellToolById(POSES_TOOL_ID)) useTools.getState().openTool(POSES_TOOL_ID);
+                const choose = entryPoints.find((x) => x.id === POSES_ENTRY_ID);
+                if (e.target.checked && !poseDial.id && choose) useTools.getState().openTool(choose.tool);
               }}
             />
             <span>{poseDial.id ? 'Start, hold and cut off with my poses' : 'Start, hold and cut off with my poses (choose them in Your poses)'}</span>

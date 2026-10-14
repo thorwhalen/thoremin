@@ -20,3 +20,25 @@ export interface ExtensionToolDecl {
   /** Whether it has its own bar button until the player says otherwise. */
   defaultPinned: boolean;
 }
+
+/**
+ * A way into one tool from another tool's panel, an extension's contribution as data (#465): the
+ * Conductor panel lists the entry points `from: 'conductor'` instead of naming an extension's
+ * tool and carve modality by literal. The host shows one only while its `tool` is in the shell
+ * (an extension left out of a build takes its entry points with it) and its `when` matches the
+ * panel's context.
+ */
+export interface ToolEntryPointDecl {
+  /** Stable id, unique across every extension's entry points. */
+  id: string;
+  /** The host tool whose panel lists it (`conductor`). */
+  from: string;
+  /** The tool it opens. */
+  tool: string;
+  label: string;
+  /** Shown only while every key equals the host panel's context value of that name (the
+   *  Conductor's is `conductor.source`); absent, always. */
+  when?: Readonly<Record<string, string | number | boolean>>;
+  /** Before opening, ask the tool's carve session for this context (`requestCarve`). */
+  carve?: { modality: string; vocabulary: string | null };
+}
