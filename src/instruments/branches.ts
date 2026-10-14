@@ -273,6 +273,8 @@ export const songPace = defineBranch({
     { from: { node: 'songPlayer', port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
     to(ui('songRate'), { node: 'pace', port: 'base' }),
     to(ui('songFollowRange'), { node: 'pace', port: 'range' }),
+    // A new song restarts the laws (#439): the handle's identity, not its time.
+    to(ui('songHandle'), { node: 'pace', port: 'songHandle' }),
     to({ node: 'pace', port: 'rate' }, { node: 'songPlayer', port: 'followRate' }),
     to({ node: 'pace', port: 'playing' }, { node: 'songPlayer', port: 'followPlaying' }),
     to({ node: 'pace', port: 'cue' }, { node: 'songPlayer', port: 'cue' }),

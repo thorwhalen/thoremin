@@ -218,3 +218,56 @@ describe('the song player under a leader (the review\'s cases)', () => {
     expect(st.playing()).toBe(false);
   });
 });
+
+describe('a song replaced by another restarts the beat servo (#439)', () => {
+  // The pace node alone, over a song that obeys it: its beat advances at the rate the node
+  // asks while it says play, and jumps to a new cue, as the song player does. Song A is at
+  // 120 bpm under a conductor at 240, so the servo settles on a level ratio other than 1;
+  // song B is at the conductor's own 240, so its ratio is 1.
+  const HZ = 60;
+  const dt = 1 / HZ;
+  const SWAP = 8;
+  const leadAt = (t: number): MusicalTime => {
+    const beat = t * 4;
+    return { t, beat, phase: beat % 1, tempo: 240, period: 0.25, confidence: 0.9, nextBeatAt: Infinity, beatsPerBar: 4, beatInBar: Math.floor(beat) % 4, state: 'running', anchors: Math.floor(beat) + 1 };
+  };
+  const run = (swapId: string) => {
+    const pace = paceControllerNode.make(paceControllerNode.params.parse({}));
+    let bpm = 120;
+    let pos = 0;
+    let prev: PortValues = {};
+    let cueId: number | null = null;
+    const states: ServoState[] = [];
+    for (let i = 0; i <= 14 * HZ; i++) {
+      const t = i * dt;
+      if (i === SWAP * HZ) {
+        bpm = 240;
+        pos = 0;
+      }
+      const handle = { id: t < SWAP ? 'a' : swapId };
+      const song: MusicalTime = { t, beat: pos, phase: pos % 1, tempo: bpm * ((prev.rate as number) ?? 1), period: 60 / bpm, confidence: 1, nextBeatAt: Infinity, beatsPerBar: 4, beatInBar: Math.floor(pos) % 4, state: 'running', anchors: 1 };
+      const ctx: NodeContext = { tick: i, time: t, dt: i ? dt : 0, resources: {} };
+      prev = pace.process({ lead: leadAt(t), song, rate: (prev.rate as number) ?? 1, base: 1, range: 0.1, songHandle: handle }, ctx);
+      states.push(prev.servo as ServoState);
+      const cue = prev.cue as { id: number; beat: number } | undefined;
+      if (cue && cue.id !== cueId) {
+        cueId = cue.id;
+        pos = cue.beat;
+      } else if (prev.playing) pos += ((bpm * (prev.rate as number)) / 60) * dt;
+    }
+    return states;
+  };
+
+  it('the old song\'s level ratio is dropped at once, not after it has stopped persisting', () => {
+    const swapped = run('b');
+    // Under song A the servo had settled on a level ratio other than 1.
+    expect(swapped[Math.round((SWAP - 0.5) * HZ)].ratio).not.toBe(1);
+    // From the swap on, song B (at the conductor's own tempo) is followed at 1, never at A's.
+    for (let t = SWAP; t <= SWAP + 2.5; t += 0.25) expect(swapped[Math.round(t * HZ)].ratio, `t=${t}`).toBe(1);
+  });
+
+  it('the same song (same id) keeps what the servo learned (the control)', () => {
+    const same = run('a');
+    expect(same[Math.round((SWAP + 0.5) * HZ)].ratio).toBe(same[Math.round((SWAP - 0.5) * HZ)].ratio);
+  });
+});

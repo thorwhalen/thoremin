@@ -83,6 +83,8 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'songPlayer', port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
   { from: { node: 'ui', port: 'songRate' }, to: { node: 'pace', port: 'base' } },
   { from: { node: 'ui', port: 'songFollowRange' }, to: { node: 'pace', port: 'range' } },
+  // #439: a new song restarts the pace controller's laws (the handle's identity).
+  { from: { node: 'ui', port: 'songHandle' }, to: { node: 'pace', port: 'songHandle' } },
   { from: { node: 'pace', port: 'rate' }, to: { node: 'songPlayer', port: 'followRate' } },
   // #187 PR 7: the conductor leads the recording through the same pace controller, and the
   // score (and the orchestra) play only while he leads the score.

@@ -2342,6 +2342,11 @@
         "kind": "number",
         "description": "The song's beat on which the conductor's first beat lands",
         "default": 0
+      },
+      {
+        "name": "songHandle",
+        "kind": "song-handle",
+        "description": "The loaded song (the store's handle): a new one restarts both laws (#439)"
       }
     ],
     "outputs": [
