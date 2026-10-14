@@ -1054,6 +1054,10 @@
       {
         "name": "transportPose",
         "kind": "transport-pose"
+      },
+      {
+        "name": "pulse",
+        "kind": "pulse-state"
       }
     ],
     "outputs": [
@@ -1127,7 +1131,7 @@
       },
       {
         "name": "source",
-        "type": "enum(hands | body)",
+        "type": "enum(hands | body | dancer)",
         "default": "hands"
       },
       {
@@ -1182,6 +1186,15 @@
           "readyS": 0.4,
           "holdAfterPeriods": 1.5,
           "stopAfterPeriods": 1
+        }
+      },
+      {
+        "name": "dancer",
+        "type": "object",
+        "default": {
+          "range": 0.1,
+          "phaseOffset": 0,
+          "bpm": 120
         }
       },
       {
