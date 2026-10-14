@@ -49,15 +49,19 @@
  *    changed step and the new one has not persisted) HOLDS the tempo: the beat goes on at
  *    the tempo it had. Only switching the conductor off stops the piece.
  * 6. **A written fermata holds for one of the dancer's cycles** (#463): the beat stops on
- *    it for `ratio` beats at the tempo it had (a bar for a dancer stepping once a bar), then
- *    goes on at that tempo. A dancer has no release gesture, and a hold of exactly one cycle
+ *    it for the dancer's period while the pulse is trusted (else `ratio` beats at the tempo
+ *    it had; a bar for a dancer stepping once a bar), then goes on at that tempo. A dancer has no release gesture, and a hold of exactly one cycle
  *    is the one length that leaves the score's bars where they were on the dancer's cycles
  *    (the phase law has nothing to walk back). While it holds the lead reports tempo 0 and
  *    mode `fermata`, so a scheduler projecting ahead from the tempo plays nothing past it.
- * 7. **The end of the piece loops** (#463): past `end` (the last note-off), rounded up to
- *    whole cycles, the beat wraps by that many beats, so the piece starts again from the top
- *    on a dancer cycle start, its bars still on the dancer. A dancer does not cut off, and a
- *    score left running in silence past its last note gave the dancer nothing.
+ * 7. **The end of the piece loops while the dancer dances** (#463): past `end` (the last
+ *    note-off), rounded up to whole cycles on the grid in force there, the beat goes back to
+ *    the top (`top`) by the same fraction, so the piece starts again on a dancer cycle start,
+ *    its bars still on the dancer. A dancer does not cut off, and a score left running in
+ *    silence past its last note gave the dancer nothing. If the dancer is not followed when
+ *    the piece runs out (they stopped, or left), it ENDS there instead (`ended`, silent) and
+ *    starts from the top on their next cycle start once they are followed again: a piece
+ *    repeating for nobody is not the dancer's loose law, it is a jukebox.
  *
  * Pure, causal and clock-free like the rest of ictus: the caller passes the time.
  */
@@ -134,6 +138,9 @@ export interface DanceLeadInput {
   fermatas?: readonly number[];
   /** The piece's length in beats (its last note-off): the loop (rule 7). Absent or 0: none. */
   end?: number;
+  /** The grid's origin at the top of the piece (the first time signature's start, 0 by
+   *  default): where the loop lands. */
+  top?: number;
 }
 
 /**
@@ -144,8 +151,10 @@ export interface DanceLeadInput {
  * - `switching`: following, and a different ratio is persisting; the tempo holds.
  * - `holding`: started, and the pulse is untrusted or unrelated; the tempo holds.
  * - `fermata`: started, holding a written fermata for one dancer cycle; tempo 0.
+ * - `ended`: the piece ran out while the dancer was not followed; silent at its end, and
+ *   from the top on the dancer's next cycle start once they are followed again.
  */
-export type DanceLeadMode = 'waiting' | 'locking' | 'armed' | 'following' | 'switching' | 'holding' | 'fermata';
+export type DanceLeadMode = 'waiting' | 'locking' | 'armed' | 'following' | 'switching' | 'holding' | 'fermata' | 'ended';
 
 export interface DanceLeadState {
   t: number;
@@ -205,6 +214,10 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
   let settled = false;
   /** A written fermata held (rule 6): the beat it holds on and until when. */
   let hold: { beat: number; until: number } | null = null;
+  /** Fermatas after this beat are still to come (the start, a wrap, the last one held). */
+  let pendingFrom = -Infinity;
+  /** The piece ran out while the dancer was not followed (rule 7): silent at the end. */
+  let ended = false;
   let loops = 0;
   let last: DanceLeadState = { t: 0, mode: 'waiting', started: false, beat: 0, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
 
@@ -220,42 +233,67 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
     cycles = 0;
     settled = false;
     hold = null;
+    pendingFrom = -Infinity;
+    ended = false;
     loops = 0;
     last = { t: 0, mode: 'waiting', started: false, beat, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
   };
 
   return {
-    step({ t, pulse, marked, ref = 0, range, phaseOffset, fermatas, end }) {
+    step({ t, pulse, marked, ref = 0, top = 0, range, phaseOffset, fermatas, end }) {
       const dt = Number.isFinite(lastT) ? Math.max(0, t - lastT) : 0;
       lastT = t;
-      // The beat at `t`, at the tempo set last step: stopped on a written fermata for one
-      // cycle (rule 6), wrapped at the piece's end (rule 7), otherwise never backwards.
+      // The beat at `t`, at the tempo set last step: stopped on every written fermata on the
+      // way for one dancer cycle (rule 6), wrapped at the piece's end (rule 7), otherwise
+      // never backwards.
       const cycleBeats = Number.isFinite(last.ratio) && last.ratio > 0 ? last.ratio : 1;
+      // One cycle of the dancer's, in seconds: their own period while the pulse is trusted (a
+      // hold that long leaves the phase where it was even when the tempo is clamped), else
+      // a cycle's beats at the tempo held.
+      const pulseCycle = pulse.state === 'running' && pulse.confidence >= o.trustedConfidence && pulse.period > 0 && Number.isFinite(pulse.period) ? pulse.period : NaN;
       let holdingFermata = false;
-      if (started) {
+      if (started && !ended) {
+        /** The time `beat` corresponds to. */
+        let tb = t - dt;
         if (hold && t < hold.until) holdingFermata = true;
         else if (hold) {
-          beat = hold.beat + (tempo / 60) * (t - hold.until);
+          tb = hold.until;
           hold = null;
-        } else {
-          const next = beat + (tempo / 60) * dt;
-          const f = tempo > 0 ? fermatas?.find((x) => x > beat + START_EPS && x <= next) : undefined;
-          if (f !== undefined) {
-            // The hold starts when the beat reached the fermata, between two steps.
-            const reached = t - ((next - f) * 60) / tempo;
-            hold = { beat: f, until: reached + (cycleBeats * 60) / tempo };
-            beat = f;
-            if (t < hold.until) holdingFermata = true;
-            else {
-              beat = f + (tempo / 60) * (t - hold.until);
-              hold = null;
-            }
-          } else beat = next;
         }
-        const loopAt = end !== undefined && end > 0 && Number.isFinite(end) ? cycleBeats * Math.ceil(end / cycleBeats - START_EPS) : NaN;
+        while (!holdingFermata) {
+          const next = beat + (tempo / 60) * Math.max(0, t - tb);
+          const f = tempo > 0 ? fermatas?.find((x) => x > pendingFrom && x <= next) : undefined;
+          if (f === undefined) {
+            beat = next;
+            break;
+          }
+          // The hold starts when the beat reached the fermata, between two steps (never
+          // behind the beat: a fermata at the top, passed by the wrap's fraction, holds there).
+          const at = Math.max(f, beat);
+          const reached = tb + ((at - beat) * 60) / tempo;
+          hold = { beat: at, until: reached + (Number.isFinite(pulseCycle) ? pulseCycle : (cycleBeats * 60) / tempo) };
+          beat = at;
+          pendingFrom = f;
+          if (t < hold.until) holdingFermata = true;
+          else {
+            tb = hold.until;
+            hold = null;
+          }
+        }
+        // The loop point: the end rounded up to whole cycles on the grid in force there; the
+        // wrap lands on the top's grid (`top`), so the dancer's cycle start is a cycle start
+        // of the piece again. Only while the dancer is followed: otherwise the piece ends.
+        const loopAt = end !== undefined && end > 0 && Number.isFinite(end) ? ref + cycleBeats * Math.ceil((end - ref) / cycleBeats - START_EPS) : NaN;
         if (!holdingFermata && loopAt > 0 && beat >= loopAt) {
-          beat -= loopAt;
-          loops++;
+          // Followed (or just released from a fermata the dancer was followed through).
+          if (last.mode === 'following' || last.mode === 'fermata') {
+            beat = top + (beat - loopAt);
+            pendingFrom = top - START_EPS;
+            loops++;
+          } else {
+            beat = loopAt;
+            ended = true;
+          }
         }
       }
       const r = range !== undefined && range >= 0 && range < 1 ? range : o.range;
@@ -273,6 +311,20 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       const newCycle = Number.isFinite(cycleIndex) && Number.isFinite(lastCycle) && cycleIndex !== lastCycle;
       if (Number.isFinite(cycleIndex)) lastCycle = cycleIndex;
 
+      // The piece ended with nobody followed (rule 7): silent at its end until the dancer is
+      // followed again, and then from the top on their next cycle start, like a first start.
+      if (ended) {
+        if (rel.mode === 'following' && k !== null && Number.isFinite(cyc)) {
+          ended = false;
+          started = false;
+          armedCycle = null;
+          beat = top;
+          loops++;
+        } else {
+          last = { t, mode: 'ended', started: true, beat, tempo: 0, ratio: k ?? last.ratio, rate: smoothed, phaseError: NaN, cycles, loops };
+          return last;
+        }
+      }
       if (!started) {
         if (k === null || !markedOk) {
           armedCycle = null;
@@ -295,6 +347,8 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
           cycles = 1;
           const grid = ref + k * Math.ceil((beat - ref) / k - START_EPS);
           beat = grid + (cyc - cycleIndex) * k;
+          // A fermata at the beat the piece starts on is held (rule 6).
+          pendingFrom = grid - START_EPS;
           if (!Number.isFinite(smoothed)) smoothed = 1;
         } else {
           last = { t, mode: 'armed', started: false, beat, tempo: 0, ratio: k, rate: NaN, phaseError: NaN, cycles: 0, loops };

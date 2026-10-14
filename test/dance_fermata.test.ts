@@ -1,6 +1,7 @@
 /**
  * A dancer leading a piece with written fermatas and an end (#463), through the conductor
- * node: the fermata reads as a hold (state `hold`, bpm 0, the panel's "A fermata" line)
+ * node: the fermata reads as a hold (state `hold`, bpm 0; the panel's line is pinned in
+ * `test/conduct_dance_shell.test.tsx`)
  * for one of the dancer's cycles, and past the piece's last note-off the beat returns to
  * the top on a cycle start, so the piece plays again with its bars on the dancer.
  */
@@ -8,8 +9,6 @@ import { describe, expect, it } from 'vitest';
 import { replayNode } from '@thoremin/dag';
 import { UNKNOWN_PULSE, type MusicalTime, type PulseState } from '@thoremin/ictus';
 import { conductorNode, DEFAULT_CONDUCTOR_DIAL } from '@/nodes';
-import { describeLive } from '@/app/ConductorPanel';
-import { ABSENT_CONDUCTOR_LIVE } from '@/app/conductorStatus';
 
 const HZ = 30;
 const P = 2;
@@ -29,13 +28,12 @@ async function run(seconds: number, d: ReturnType<typeof doc>) {
 }
 
 describe('a dancer and the written score (#463)', () => {
-  it('a fermata is a hold for one cycle: state hold, bpm 0, the panel says so; then it goes on', async () => {
+  it('a fermata is a hold for one cycle: state hold, bpm 0; then it goes on', async () => {
     const outs = await run(40, doc([14.5], 256));
     const holds = outs.filter((o) => (o.time as MusicalTime).state === 'hold');
     expect(holds.length / HZ).toBeGreaterThan(P - 0.1);
     expect(holds.length / HZ).toBeLessThan(P + 0.1);
     expect(holds.every((o) => o.bpm === 0 && (o.time as MusicalTime).beat === 14.5 && o.dance === 'fermata')).toBe(true);
-    expect(describeLive({ ...ABSENT_CONDUCTOR_LIVE, enabled: true, state: 'hold', dance: 'fermata' }, 'dancer')).toBe('A fermata: holding it for one of your steps.');
     expect((outs.at(-1)!.time as MusicalTime).beat).toBeGreaterThan(20);
   });
 
