@@ -419,6 +419,23 @@ describe('classification — soft membership, reject, hysteresis', () => {
     expect(t.current()).toBe('cat-1');
   });
 
+  it('tracker exposes the run toward a new reading until it takes over (#437)', () => {
+    const t = createCategoryTracker(model, { enterFrames: 3 });
+    expect(t.entering()).toBeNull();
+    t.push(v({ x: 0 }));
+    expect(t.entering()).toEqual({ toward: 'cat-1', neutral: false, run: 1, of: 3 });
+    t.push(v({ x: 0 }));
+    expect(t.entering()).toMatchObject({ run: 2 });
+    t.push(v({ x: 0 }));
+    expect(t.entering()).toBeNull(); // committed
+    t.push(v({ x: 1 }));
+    expect(t.entering()).toEqual({ toward: 'cat-2', neutral: false, run: 1, of: 3 });
+    t.push(v({ x: 0 })); // back to the settled one: the run is dropped
+    expect(t.entering()).toBeNull();
+    t.reset();
+    expect(t.entering()).toBeNull();
+  });
+
   it('HOLDS the last category through no-man\'s-land rather than falling silent', () => {
     const t = createCategoryTracker(model, { enterFrames: 1, exitFrames: 5 });
     t.push(v({ x: 0 }));

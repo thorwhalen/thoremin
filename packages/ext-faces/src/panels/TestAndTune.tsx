@@ -66,14 +66,18 @@ function MarginMeter({ r, live }: { r: LiveReading; live: LiveModel }) {
           ? `at the outer edge of ${name(m.nearest)}`
           : `on the edge with ${name(m.second)}`
         : `safely inside ${name(m.nearest)}`;
+  // The meter is this frame's; the headline is the tracker's settled reading. While the tracker is
+  // still entering a new one they differ, so the meter is dimmed and the run shown (#437).
+  const entering = r.entering;
+  const run = entering ? `switching to ${entering.neutral ? 'Neutral' : entering.label || entering.toward} (${entering.run}/${entering.of})` : null;
   const colour = m.state === 'inside' ? 'bg-emerald-400' : m.state === 'edge' ? 'bg-amber-400' : 'bg-white/25';
   return (
-    <div className="flex items-center gap-2 text-[10px]" data-faces-margin={m.state}>
+    <div className={`flex items-center gap-2 text-[10px] ${entering ? 'opacity-60' : ''}`} data-faces-margin={m.state} data-faces-entering={entering ? `${entering.run}/${entering.of}` : undefined}>
       <span className="w-24 shrink-0 text-white/60">margin</span>
       <span className="h-1.5 flex-1 overflow-hidden rounded bg-white/10" title={`Distance to ${name(m.nearest)}: ${m.d1.toFixed(1)}; to ${m.second ? name(m.second) : 'nothing else'}: ${Number.isFinite(m.d2) ? m.d2.toFixed(1) : '-'}`}>
         <span className={`block h-full ${colour}`} style={{ width: `${Math.round(Math.min(1, m.depth) * 100)}%` }} />
       </span>
-      <span className="w-32 shrink-0 truncate text-right text-white/60">{says}</span>
+      <span className="w-32 shrink-0 truncate text-right text-white/60" title={run ? `${says}; the headline stays on the settled reading until the new one has won ${entering!.of} frames in a row` : undefined}>{run ?? says}</span>
     </div>
   );
 }

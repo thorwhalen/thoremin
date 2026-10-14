@@ -348,6 +348,9 @@ export interface LiveReading {
   /** How deep inside its nearest category (or Neutral) this frame is, against the runner-up and
    *  the reject radius: the margin meter (#385 E6). Per frame, before the hysteresis. */
   margin: LiveMargin;
+  /** The tracker's run toward a new reading that has not taken over yet (the entry hysteresis, #437):
+   *  while set, `margin` (this frame) can disagree with `categoryId` (the settled one). Null otherwise. */
+  entering: { toward: string | null; label: string | null; neutral: boolean; run: number; of: number } | null;
 }
 
 export interface LiveReader {
@@ -371,6 +374,7 @@ export function createLiveReader(live: LiveModel): LiveReader {
     push(vector) {
       const tuned = tuneVector(live, vector);
       const r = tracker.push(tuned);
+      const entering = tracker.entering();
       // Neutral once the tracker has settled on it (while it is entering, the held category is
       // still the reading, and the readout must not say both).
       const neutral = r.neutral === true && r.categoryId === null;
@@ -385,6 +389,7 @@ export function createLiveReader(live: LiveModel): LiveReader {
         distance: r.distance,
         radius,
         margin: liveMargin(live.model, tuned, { noRejectRadius: NO_REJECT_RADIUS }),
+        entering: entering ? { ...entering, label: entering.toward ? (labels.get(entering.toward) ?? null) : null } : null,
       };
     },
     reset: () => tracker.reset(),
