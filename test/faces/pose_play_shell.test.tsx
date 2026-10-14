@@ -6,8 +6,6 @@
  * with it: Conductor, Conduct with body, "Start, hold and cut off with my poses" = three more
  * (the checkbox opens Your poses when no categorizer is chosen yet).
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
@@ -19,7 +17,7 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
 import { branchIdsFor } from '@/app/graph';
 import { useControls } from '@/app/store';
-import { importCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { scriptedPoseCategorizer } from '../helpers/body_poses';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { createCategorizerStore } from '@thoremin/ext-faces/app/categorizers';
 import { bodySessionStore } from '@thoremin/ext-faces/app/bodySession';
@@ -47,9 +45,7 @@ afterEach(async () => {
 });
 
 async function savePoses(name: string): Promise<string> {
-  const file = importCategorizer(readFileSync(join(process.cwd(), 'public/categorizers/demo-smile.json'), 'utf8'));
-  if (!file.ok) throw new Error(file.error);
-  const saved = await createCategorizerStore(bodyModality).save(name, { categorizer: { ...file.categorizer, modality: 'body' } });
+  const saved = await createCategorizerStore(bodyModality).save(name, { categorizer: scriptedPoseCategorizer(['ready', 'fermata', 'cut-off']) });
   return saved.id;
 }
 
@@ -71,7 +67,8 @@ describe.runIf(FACES)('a saved pose categorizer plays in the instrument', () => 
     fireEvent.click(await screen.findByRole('button', { name: 'Play Conducting' }));
     await waitFor(() => expect(poseDial().id).toBe(id));
     expect(branchIdsFor(useControls.getState() as unknown as DerivationSettings)).toContain('pose-categorizer');
-    await screen.findByText(/Playing|Loading/);
+    // The instrument resolves it off the tick: "Playing" only once the model is in the graph.
+    await screen.findByText('Playing', undefined, { timeout: 3000 });
   });
 
   it('Conductor, Conduct with body, with my poses: the transport override is on, and Your poses opens to choose them', async () => {

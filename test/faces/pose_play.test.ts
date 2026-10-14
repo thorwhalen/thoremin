@@ -10,7 +10,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ok, type Result } from 'acture';
-import { Engine, replayNode, StreamRecorder } from '@thoremin/dag';
+import { defineNode, Engine, replayNode, StreamRecorder } from '@thoremin/dag';
+import { z } from 'zod';
+import { createTransport } from '@thoremin/ictus';
+import { createFeatureDemand } from '@thoremin/sdk/features/demand';
 import { createAppRegistry } from '@/nodes/browser';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { pickCategories } from '@/nodes/output/canvas_overlay';
@@ -24,11 +27,11 @@ import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { posePlay, transportRolesOf, type PoseCategorizerPlay, type PoseTransport } from '@thoremin/ext-faces/lib/posePlay';
 import { liveModel } from '@thoremin/ext-faces/lib/live';
 import { poseCategorizerNode } from '@thoremin/ext-faces/nodes/pose_categorizer';
-import { startPosePlay, usePosePlay, type PosePlayDeps } from '@thoremin/ext-faces/app/posePlay';
+import { startPosePlay, usePosePlay, POSE_PLAY_DEMAND_OWNER, type PosePlayDeps } from '@thoremin/ext-faces/app/posePlay';
 import { DEFAULT_POSE_CATEGORIZER, type PoseCategorizerDial } from '@thoremin/ext-faces/schema';
 import type { FaceModelRecord } from '@thoremin/ext-faces/app/models';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
-import { POSES, poseVector, type PoseName } from '../helpers/body_poses';
+import { POSES, poseFrame, poseVector, type PoseName } from '../helpers/body_poses';
 import { resetPoseClock, take } from '../helpers/pose_take';
 import { FACES } from '../helpers/extensions';
 
@@ -132,17 +135,31 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     for (const o of out) expect(o.transport).toBeUndefined();
   });
 
-  it('with transport on: ready, fermata and cut-off state the conductor\'s predicates; the rest states all false', async () => {
+  it('with transport on: the held ready, fermata or cut-off states its role true; the rest states nothing (the rules decide)', async () => {
     const out = await replay({ id: 'mine', transport: true });
-    expect(ends(out).map((o) => o.transport)).toEqual([
-      { ready: false, hold: false, cutoff: false },
-      { ready: true, hold: false, cutoff: false },
-      { ready: false, hold: false, cutoff: false },
-      { ready: false, hold: true, cutoff: false },
-      { ready: false, hold: false, cutoff: false },
-      { ready: false, hold: false, cutoff: true },
-      { ready: false, hold: false, cutoff: false },
-    ]);
+    expect(ends(out).map((o) => o.transport)).toEqual([undefined, { ready: true }, undefined, { hold: true }, undefined, { cutoff: true }, undefined]);
+    // Never a stated false: A5 reads one as a veto (ready: false disarms a prepared start).
+    for (const o of out) for (const v of Object.values(o.transport ?? {})) expect(v).toBe(true);
+  });
+
+  it("through A5's transport: the ready pose arms it, the upbeat leaves the pose, and the downbeat starts the piece", async () => {
+    const out = await replay({ id: 'mine', transport: true });
+    // The player's arm, as the conductor measures it: raised (not by the rule's geometry: the
+    // pose says ready), still while posed, then the upbeat (moving) and a downbeat anchor.
+    const t = createTransport({ raisedAbove: 0.99 });
+    const readyEnd = SCRIPT[0][1] + SCRIPT[1][1];
+    let started = false;
+    for (let i = 0; i < readyEnd + 10; i++) {
+      const upbeat = i >= readyEnd;
+      const step = t.step({ t: i / 30, raise: 0.6, motion: upbeat ? 20 : 2, anchor: i === readyEnd + 8 ? i / 30 : undefined, pose: upbeat ? out[SCRIPT[0][1] + SCRIPT[1][1] + 2].transport : out[i].transport });
+      if (step.started) started = true;
+    }
+    expect(started).toBe(true);
+    // Without the pose, the same arm never arms (it is not raised by the rule's measure).
+    const rules = createTransport({ raisedAbove: 0.99 });
+    let ruled = false;
+    for (let i = 0; i < readyEnd + 10; i++) if (rules.step({ t: i / 30, raise: 0.6, motion: i >= readyEnd ? 20 : 2, anchor: i === readyEnd + 8 ? i / 30 : undefined }).started) ruled = true;
+    expect(ruled).toBe(false);
   });
 
   it('a role no category is named for stays unstated (its rule keeps it)', () => {
@@ -160,7 +177,75 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     const node = poseCategorizerNode.make(poseCategorizerNode.params.parse({}));
     const hidden = await replayNode(node, { vector: [{}, {}], model: [play, play], config: [{ id: 'mine', transport: true }, { id: 'mine', transport: true }] }, { dt: 1 / 30 });
     expect((hidden[1].category as CategoryScores).present).toBe(false);
-    expect(hidden[1].transportPose).toEqual({ ready: false, hold: false, cutoff: false });
+    // Out of view states nothing: A5's stop when the player leaves needs the cut-off unstated.
+    expect(hidden[1].transportPose).toBeUndefined();
+  });
+
+  it('in a graph with the Lab hidden, the node sees the body only through the pose-play claim', async () => {
+    // The scripted body as a camera (one pose frame per tick), and the host's transient and dial
+    // as the store-controls node gives them.
+    const script = frames();
+    const camera = defineNode({
+      type: 'test-pose-camera',
+      roles: ['source'],
+      inputs: [],
+      outputs: [
+        { name: 'body', kind: 'body-frame' },
+        { name: 'model', kind: 'pose-categorizer-model' },
+        { name: 'config', kind: 'pose-categorizer-config' },
+      ],
+      params: z.object({}),
+      make: () => ({
+        process: (_in, ctx) => ({
+          body: poseFrame(POSES[script[Math.min(ctx.tick, script.length - 1)].pose], 20_000 + ctx.tick),
+          model: play,
+          config: { id: 'mine', transport: true },
+        }),
+      }),
+    });
+    const reg = createAppRegistry().register(camera);
+    const spec = {
+      nodes: [
+        { id: 'b', type: 'test-pose-camera', params: {} },
+        { id: 'bodyVec', type: 'body-feature-vector', params: {} },
+        { id: 'poseCat', type: 'pose-categorizer', params: {} },
+      ],
+      edges: [
+        { from: { node: 'b', port: 'body' }, to: { node: 'bodyVec', port: 'body' } },
+        { from: { node: 'bodyVec', port: 'vector' }, to: { node: 'poseCat', port: 'vector' } },
+        { from: { node: 'b', port: 'model' }, to: { node: 'poseCat', port: 'model' } },
+        { from: { node: 'b', port: 'config' }, to: { node: 'poseCat', port: 'config' } },
+      ],
+    };
+    const controls = { featureLab: { show: false, groups: [] as string[] } };
+    const run = (groups: () => readonly string[] | null) => {
+      const engine = new Engine(spec, reg, { resources: { controls: () => controls, featureDemand: groups } });
+      const out: { label: string | null; present: boolean }[] = [];
+      for (let i = 0; i < script.length; i++) {
+        engine.tick(i / 30);
+        const c = engine.getOutput('poseCat', 'category') as CategoryScores;
+        out.push({ label: c.label, present: c.present });
+      }
+      engine.dispose();
+      return out;
+    };
+    // The host's claim, as startPosePlay makes it while the dial names a categorizer.
+    const demand = createFeatureDemand();
+    const stop = startPosePlay({
+      load: async () => ({ id: 'mine', name: 'Conducting', createdAt: 0, model: { categorizer } }) as FaceModelRecord,
+      dial: () => ({ id: 'mine', transport: true }),
+      subscribe: () => () => {},
+      onModelsChanged: () => () => {},
+      publish: () => {},
+      claim: (on) => (on ? demand.claim(POSE_PLAY_DEMAND_OWNER, bodyModality.groups) : demand.release(POSE_PLAY_DEMAND_OWNER)),
+    });
+    const claimed = run(() => demand.groups());
+    expect(ends(claimed).map((o) => o.label)).toEqual([null, 'ready', null, 'fermata', null, 'cut-off', null]);
+    stop();
+    expect(demand.groups() ?? []).toEqual([]);
+    // Without the claim the vector is empty: nobody is seen (the failure the claim exists for).
+    const silent = run(() => demand.groups());
+    for (const o of silent) expect(o.present).toBe(false);
   });
 
   it('a bound command dispatches on entry through the existing dispatcher, from the same replay', async () => {
@@ -203,16 +288,19 @@ describe('the host resolves the pose dial off the tick', () => {
     let dial: Partial<PoseCategorizerDial> = { ...DEFAULT_POSE_CATEGORIZER };
     const listeners = new Set<() => void>();
     const published: (PoseCategorizerPlay | null | 'some')[] = [];
+    const claims: boolean[] = [];
     const deps: PosePlayDeps = {
       load: async (id) => records[id] ?? null,
       dial: () => dial,
       subscribe: (l) => (listeners.add(l), () => listeners.delete(l)),
       onModelsChanged: () => () => {},
       publish: (p) => published.push(p === null ? null : 'some'),
+      claim: (on) => claims.push(on),
     };
     return {
       deps,
       published,
+      claims,
       set(id: string) {
         dial = { ...dial, id };
         for (const l of listeners) l();
@@ -233,6 +321,9 @@ describe('the host resolves the pose dial off the tick', () => {
     await settle();
     expect(usePosePlay.getState().phase).toBe('missing');
     expect(h.published.every((p) => p === null)).toBe(true);
+    // The pose groups are claimed while the dial names one, released with none and on stop.
+    expect(h.claims).toEqual([false, true, true]);
     stop();
+    expect(h.claims.at(-1)).toBe(false);
   });
 });

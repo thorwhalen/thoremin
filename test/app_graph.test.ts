@@ -82,7 +82,7 @@ describe('production app graph', () => {
     // dance pulse (#186 PR F) is the 27th, the song player (#186 PR G) the 28th, the pace
     // controller (#186 PR H) the 29th. The ASL extension adds its reader and its chord node,
     // the faces extension its personal categorizer (#330 P4).
-    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0) + (FACES ? 1 : 0));
+    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0) + (FACES ? 2 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));

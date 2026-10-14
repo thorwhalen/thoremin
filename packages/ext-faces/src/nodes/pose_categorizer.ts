@@ -6,9 +6,10 @@
  *
  * - `category`: the reading as `CategoryScores`, which the overlay's category cues draw (its
  *   `learnedCategories` input) and a take records;
- * - `transportPose`: the conductor's start / hold / cut-off predicates from the categories named
- *   `ready`, `fermata` and `cut-off` (`../lib/posePlay.ts`), only while the dial's `transport` is
- *   on; otherwise nothing, and the conductor's rules decide.
+ * - `transportPose`: while the dial's `transport` is on and one of the categories named `ready`,
+ *   `fermata` or `cut-off` is the settled one, that role stated true (`../lib/posePlay.ts`);
+ *   otherwise nothing, and the conductor's rules decide (out of view too: A5's stop when the
+ *   player leaves needs the cut-off unstated).
  *
  * The model is a transient the host resolves off the tick (`../app/posePlay.ts`); only the model
  * the dial names plays. The engine ticks faster than the camera, so a vector seen already is not a
@@ -52,6 +53,8 @@ export const poseCategorizerNode = defineNode<Params>({
     let lastVector: FeatureVector | undefined;
     let lastCategory: CategoryScores = NOTHING;
     let lastId: string | null = null;
+    /** The body is in view (a stale id never states a role while it is not). */
+    let seen = false;
 
     const bind = (play: PoseCategorizerPlay | null): void => {
       if (play === current) return;
@@ -59,6 +62,7 @@ export const poseCategorizerNode = defineNode<Params>({
       reader = play ? createLiveReader(play.live) : null;
       lastVector = undefined;
       lastId = null;
+      seen = false;
       lastCategory = play ? absentPoseScores(play) : NOTHING;
     };
 
@@ -69,9 +73,11 @@ export const poseCategorizerNode = defineNode<Params>({
       if (!projected || !current.live.inView(projected)) {
         reader.reset();
         lastId = null;
+        seen = false;
         lastCategory = absentPoseScores(current);
         return;
       }
+      seen = true;
       const reading = reader.push(projected);
       lastId = reading.categoryId;
       lastCategory = toPoseScores(current, reading);
@@ -88,7 +94,7 @@ export const poseCategorizerNode = defineNode<Params>({
           lastVector = vector;
           read(vector);
         }
-        const transportPose: PoseTransport | undefined = config?.transport === true ? poseTransport(current, lastId) : undefined;
+        const transportPose: PoseTransport | undefined = config?.transport === true && seen ? poseTransport(current, lastId) : undefined;
         return { category: lastCategory, transportPose };
       },
     };

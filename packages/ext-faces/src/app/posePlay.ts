@@ -9,9 +9,15 @@
  * (a correction saved in Your poses), and drops the answer to a request a later one has
  * overtaken. A record this device does not have publishes null: nothing plays, and the panel
  * says why.
+ *
+ * While the dial names a categorizer it CLAIMS the pose feature groups (#163's feature demand,
+ * owner {@link POSE_PLAY_DEMAND_OWNER}): `body-feature-vector` computes only what something
+ * claims, and in the app the Lab is closed, so without the claim the node would read an empty
+ * vector and see nobody, every unit test green.
  */
 import { create } from 'zustand';
 import { controls } from '@thoremin/sdk-ui/host';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { posePlay, type PoseCategorizerPlay, type TransportRole } from '../lib/posePlay';
 import { playsPoses, type PoseCategorizerDial } from '../schema';
@@ -20,6 +26,9 @@ import { onFaceModelsChanged, type FaceModelRecord } from './models';
 
 /** The transient field the node reads (declared by the manifest, `../index.ts`). */
 export const POSE_CATEGORIZER_MODEL_FIELD = 'poseCategorizerModel';
+
+/** The feature-demand owner of the playing instrument's pose groups. */
+export const POSE_PLAY_DEMAND_OWNER = 'poses-play';
 
 export interface PosePlayState {
   /** `none`: the dial names no categorizer. `loading`: reading the record. `ready`: it is in the
@@ -43,6 +52,8 @@ export interface PosePlayDeps {
   subscribe(listener: () => void): () => void;
   onModelsChanged(listener: () => void): () => void;
   publish(play: PoseCategorizerPlay | null): void;
+  /** Claim (`on`) or release the pose feature groups the node reads. */
+  claim(on: boolean): void;
 }
 
 /** The browser's dependencies: the hot store through the SDK host and the body view of the one
@@ -55,6 +66,7 @@ export function browserPosePlayDeps(): PosePlayDeps {
     subscribe: (l) => controls().subscribe(l),
     onModelsChanged: onFaceModelsChanged,
     publish: (play) => controls().setTransient(POSE_CATEGORIZER_MODEL_FIELD, play),
+    claim: (on) => (on ? appFeatureDemand.claim(POSE_PLAY_DEMAND_OWNER, bodyModality.groups) : appFeatureDemand.release(POSE_PLAY_DEMAND_OWNER)),
   };
 }
 
@@ -63,6 +75,13 @@ export function startPosePlay(deps: PosePlayDeps = browserPosePlayDeps()): () =>
   let wanted: string | null | undefined;
   let seq = 0;
   let stopped = false;
+  /** What was last published, by record (a save of something else must not reset the reading). */
+  let publishedKey: string | null = null;
+  const publish = (play: PoseCategorizerPlay | null, key: string | null) => {
+    if (key !== null && key === publishedKey) return;
+    publishedKey = key;
+    deps.publish(play);
+  };
 
   const resolve = async (force: boolean): Promise<void> => {
     const dial = deps.dial();
@@ -70,8 +89,9 @@ export function startPosePlay(deps: PosePlayDeps = browserPosePlayDeps()): () =>
     if (!force && id === wanted) return;
     wanted = id;
     const mine = ++seq;
+    deps.claim(id !== null);
     if (id === null) {
-      deps.publish(null);
+      publish(null, null);
       usePosePlay.setState(IDLE);
       return;
     }
@@ -84,12 +104,14 @@ export function startPosePlay(deps: PosePlayDeps = browserPosePlayDeps()): () =>
     }
     if (stopped || mine !== seq) return;
     if (!record || (record.model.categorizer.modality ?? 'face') !== bodyModality.id) {
-      deps.publish(null);
+      publish(null, null);
       usePosePlay.setState({ ...IDLE, phase: 'missing', id });
       return;
     }
+    const key = JSON.stringify([record.id, record.name, record.model]);
+    if (key === publishedKey) return;
     const play = posePlay({ id: record.id, name: record.name, categorizer: record.model.categorizer, tuning: record.model.tuning });
-    deps.publish(play);
+    publish(play, key);
     usePosePlay.setState({
       phase: 'ready',
       id,
@@ -106,5 +128,6 @@ export function startPosePlay(deps: PosePlayDeps = browserPosePlayDeps()): () =>
     stopped = true;
     unsubscribe();
     unwatch();
+    deps.claim(false);
   };
 }

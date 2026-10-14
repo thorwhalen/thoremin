@@ -212,7 +212,7 @@ function PosePlayButton({ id, name, unsaved }: { id: string; name: string; unsav
   if (chosen) {
     return (
       <span className="shrink-0 text-[10px] text-emerald-300/80" data-poses-playing={id}>
-        {play.id === id && play.phase === 'ready' ? `Playing${note}` : 'Loading…'}
+        {play.id !== id || play.phase === 'loading' ? 'Loading…' : play.phase === 'ready' ? `Playing${note}` : 'Not found'}
       </span>
     );
   }

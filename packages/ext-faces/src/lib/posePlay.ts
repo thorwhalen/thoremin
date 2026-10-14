@@ -9,10 +9,13 @@
  *   trained features' coverage, the classifier and its hysteresis.
  * - **Transport** (#387 B5: the conductor's rules by default, a pose category as the player's
  *   override): the categories named `ready`, `fermata` and `cut-off` (#383's conductor
- *   vocabulary; case-insensitive, with `hold` and `cutoff` too) state the conductor's `ready`,
- *   `hold` and `cutoff` predicates (A5's `transportPose` seam). A role no category is named for
- *   stays unstated, so its rule's geometry keeps it. Neutral (the rest) is none of them. A body
- *   out of view states every named role false.
+ *   vocabulary; case-insensitive, with `hold` and `cutoff` too) ADD their role to the
+ *   conductor's rules (A5's `transportPose` seam): while one of them is the settled category its
+ *   role is stated TRUE, and nothing else is ever stated. A stated false would not mean "not in
+ *   that pose" to A5's machine: `ready: false` disarms a prepared start (the upbeat leaves the
+ *   ready pose before the downbeat), and any stated `cutoff` switches off the stop when the
+ *   player leaves the camera. So outside a named pose (the rest, an unnamed category, out of
+ *   view) the rules decide, as without poses.
  *
  * Pure: no store, no DOM.
  */
@@ -86,10 +89,10 @@ export function toPoseScores(play: PoseCategorizerPlay, reading: Pick<LiveReadin
   };
 }
 
-/** The transport predicates of one reading: each role a category is named for, true while that
- *  category is the settled one (all false when nothing is read). */
-export function poseTransport(play: PoseCategorizerPlay, categoryId: string | null): PoseTransport {
-  const out: PoseTransport = {};
-  for (const [role, id] of Object.entries(play.roles) as [TransportRole, string][]) out[role] = categoryId !== null && categoryId === id;
-  return out;
+/** The transport predicate of one reading: the role whose category is the settled one, stated
+ *  true; undefined (nothing stated: the rules decide) otherwise. */
+export function poseTransport(play: PoseCategorizerPlay, categoryId: string | null): PoseTransport | undefined {
+  if (categoryId === null) return undefined;
+  for (const [role, id] of Object.entries(play.roles) as [TransportRole, string][]) if (id === categoryId) return { [role]: true };
+  return undefined;
 }

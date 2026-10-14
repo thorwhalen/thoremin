@@ -1036,7 +1036,6 @@ function categoryText(view: OverlayView): string | null {
 const CATEGORY_CHAR_W = 0.62; // bold monospace glyph width per px of font size
 const categoryLabelPx = (view: OverlayView): number => Math.round(40 + 160 * clamp01(view.params.categoryLabel.size));
 
-/** A classifier's named class, written large (the ASL reader's letter or word). */
 /**
  * The category reading the cues draw (#384): the classifier's (`categories`, the ASL reader) while
  * it reads, else the player's own learned categories (`learnedCategories`); captions belong to the
@@ -1051,6 +1050,7 @@ export function pickCategories(
   return { categories: learned, categoryCaptions: null };
 }
 
+/** A classifier's named class, written large (the ASL reader's letter or word). */
 const categoryLabelCue: OverlayElement = {
   name: 'categoryLabel',
   category: 'output',
