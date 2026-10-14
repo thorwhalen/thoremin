@@ -82,6 +82,12 @@ export type BodyVocabularyId = keyof typeof BODY_VOCABULARIES;
  *  chosen by coverage. */
 export const BODY_VOCABULARY_CONTEXTS = ['conductor'] as const;
 
+/** The choices a pose take offers for its default names, in order (null: by coverage). */
+export const BODY_VOCABULARY_CHOICES: readonly { id: (typeof BODY_VOCABULARY_CONTEXTS)[number] | null; name: string }[] = [
+  { id: null, name: 'Everyday poses (arms up, lean left, crouch...; no crouch when your legs are hidden)' },
+  { id: 'conductor', name: "A conductor's: ready, fermata, cut-off, rest" },
+];
+
 /** The sided names that merge under the mirror, and the side-free name they become. */
 const MIRRORED: Readonly<Record<string, string>> = {
   'left arm up': 'one arm up',
