@@ -156,7 +156,8 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
     // beats (modulo the bar), over the first pass: the lead plays the marked tempo until the
     // pulse is sure of its period (rule 3 of ictus's dance lead), against the same lead
     // following the first estimate at once (the law before #464, replayed on the same pulse).
-    // Measured: mean 0.38 beat (up to 0.59) before, 0.20 after; the start is not moved.
+    // Measured: mean 0.38 beat (up to 0.59) before, 0.20 (up to 0.33) after; the start is not
+    // moved.
     const run = await dance(frames.slice(0, Math.round(PASS * HZ)));
     const start = run.leads.findIndex(Boolean);
     expect(start / HZ).toBeLessThan(12);
