@@ -80,7 +80,7 @@ import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '..
 import { createReader, foreignModality, keepOnly, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
-import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
+import { createLiveBars, liveStrip, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
 import type { CaptureState, CarveCaptureControl } from '@thoremin/sdk-ui/enroll/capture';
 import type { CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
 import type { CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
@@ -159,6 +159,18 @@ export interface FaceSessionDeps {
   stillsByDefault?: boolean;
 }
 
+/** One card of the live strip (#404). */
+export interface StripCardView {
+  /** The card's number: the hold's place in the take, from 1 (kept when an earlier one goes). */
+  n: number;
+  /** The card number of the first hold of its group, or null: the first of its group (new). */
+  like: number | null;
+  /** The name given to it (in the strip, or as a named burst), or null. */
+  name: string | null;
+  /** Its picture (a still, else a stick figure), or null. */
+  thumb: string | null;
+}
+
 export interface FaceSessionState {
   /** What this store carves (constant): the panels read their words and the live test its
    *  projection from it. */
@@ -192,6 +204,14 @@ export interface FaceSessionState {
   thumbs: Readonly<Record<number, string>>;
   /** Held faces captured so far (while recording). */
   points: number;
+  /** The live strip (#404): a card per hold of the take so far (capturing or paused), the ones
+   *  deleted from it left out. */
+  strip: readonly StripCardView[];
+  /** The strip's groups held only once so far, by card number ("#3: do it again"). */
+  stripOnce: readonly number[];
+  /** While paused and holding: what that hold would be, by the strip's carve (`like` a card
+   *  number, null: a new one); null otherwise. */
+  ghost: { like: number | null } | null;
   /** The hold ring's state (exploring, capturing or paused). */
   hold: HoldState;
   /** Seconds since Record (while recording). */
@@ -227,6 +247,12 @@ export interface FaceSessionState {
 
   /** Read the camera without recording (#385 E2): the bars and the ring run; Start captures. */
   explore(): void;
+  /** Delete a hold of the take being recorded from the strip (#404), by card number: it is
+   *  left out of the carve (or the merge). */
+  dropHold(n: number): void;
+  /** Name a hold of the take being recorded (#404), by card number: like a named burst, it is
+   *  placed and pinned in the category of that name. '' takes the name off. */
+  nameHold(n: number, name: string): void;
   /** Record: the rest, then the faces. From Explore it goes on with the same reading. */
   start(): void;
   /** Stop collecting faces; the camera is still read (from `faces`). */
@@ -314,6 +340,10 @@ export interface FaceSessionState {
 }
 
 export const FACE_SESSION_DEFAULTS = {
+  /** How often the paused ghost card (#404) carves the forming hold again, ms. */
+  ghostMs: 250,
+  /** The most holds the ghost re-carves with (the carve is cubic); past it there is no ghost. */
+  ghostUpTo: 150,
   /** The name a fresh face carve is exported under when it has none yet (another modality's:
    *  "My <many>"). */
   exportName: 'My faces',
@@ -368,6 +398,17 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let burstStill: Promise<Blob | null> | null = null;
   /** The latest live vector (where a still is cropped). */
   let lastVector: FeatureVector | null = null;
+  /** Holds of the take deleted from the strip (#404), by index: left out of the carve. */
+  const dropped = new Set<number>();
+  /** Names given to holds in the strip (#404), by index ('' takes a burst's name off). */
+  const holdNames = new Map<number, string>();
+  /** The take's indices of the holds the bars carve (the ones not deleted), by position. */
+  let keptIdx: readonly number[] = [];
+  /** The strip as last shown (a key), and the stick figures drawn for it, by hold id. */
+  let stripKey = '';
+  const stripFigures = new Map<string, string>();
+  /** When the paused ghost was last carved (engine ms). */
+  let ghostAt = Number.NEGATIVE_INFINITY;
   let timer: ReturnType<typeof setInterval> | null = null;
   /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
    *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
@@ -476,11 +517,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     const barsFor = (t: FaceTake): LiveBarsModel => {
       const session = t.session();
       const ids = session.featuresFor(vocabularyCue(modality));
-      let holds: { n: number; vectors: FeatureVector[] } = { n: 0, vectors: [] };
+      let holds: { n: number; gone: number; vectors: FeatureVector[] } = { n: 0, gone: 0, vectors: [] };
       let rest: { mean: FeatureVector; spread: Record<string, number> } | null = null;
       const context = (): LiveBarsContext => {
         const points = session.points();
-        if (points.length !== holds.n) holds = { n: points.length, vectors: points.map((p) => p.vector) };
+        if (points.length !== holds.n || dropped.size !== holds.gone) {
+          // The holds deleted from the strip are not carved (#404): the cards say what Stop will.
+          keptIdx = points.flatMap((_, i) => (dropped.has(i) ? [] : [i]));
+          holds = { n: points.length, gone: dropped.size, vectors: keptIdx.map((i) => points[i].vector) };
+        }
         if (!rest && t.facesStartedAt() !== null) rest = restStats(t.restVectors(), ids);
         const noise = session.noise();
         return { ids, sigma: (id) => (noise.isWarm(id) ? noise.sigma(id) : Number.NaN), rest: rest?.mean ?? null, restSpread: rest?.spread ?? null, holds: holds.vectors };
@@ -528,7 +573,94 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           lastShown = elapsed;
           set({ phase: phaseNow, points, elapsed, hold, ...(burstChanged ? { burst } : {}) });
         }
+        refreshStrip();
+        refreshGhost(live?.vector ?? null, live?.t ?? deps.now());
       }, deps.pollMs);
+    };
+    /** A new take's strip: nothing deleted, named or shown yet. */
+    const clearStrip = () => {
+      dropped.clear();
+      holdNames.clear();
+      keptIdx = [];
+      stripKey = '';
+      stripFigures.clear();
+      ghostAt = Number.NEGATIVE_INFINITY;
+      set({ strip: [], stripOnce: [], ghost: null });
+    };
+    /** A hold's picture for the strip: its still once encoded, else its stick figure. */
+    const stripThumb = (index: number, id: string): string | null => {
+      let url = urls.get(id);
+      const still = url ? undefined : stills.get(id);
+      if (still) urls.set(id, (url = URL.createObjectURL(still)));
+      if (url) return url;
+      if (!deps.figure || !modality.skeleton || !take) return null;
+      if (!stripFigures.has(id)) {
+        const point = take.session().points()[index];
+        const skeleton = point ? modality.skeleton(point.vector) : null;
+        const fig = skeleton ? deps.figure(skeleton) : null;
+        if (!fig) return null;
+        stripFigures.set(id, fig);
+      }
+      return stripFigures.get(id) ?? null;
+    };
+    /** The live strip (#404) from the bars' online carve, set only when what it shows changed. */
+    const refreshStrip = () => {
+      const phase = get().phase;
+      if (!take || !bars || !takeId || (phase !== 'faces' && phase !== 'paused')) {
+        if (stripKey !== '') {
+          stripKey = '';
+          set({ strip: [], stripOnce: [] });
+        }
+        return;
+      }
+      const tid = takeId;
+      const labels = take.labels();
+      const nameOf = (i: number): string => (holdNames.get(i) ?? labels.get(i) ?? '').trim();
+      // A named hold goes where Stop puts it: with the holds of its name (pinned there), whatever
+      // the carve says; the carve's groups keep the unnamed ones.
+      const byName = new Map<string, number[]>();
+      const clusters = bars
+        .carve()
+        .map((c) =>
+          c.flatMap((p) => {
+            const i = keptIdx[p];
+            if (i === undefined) return [];
+            const name = nameOf(i).toLowerCase();
+            if (!name) return [i];
+            byName.set(name, [...(byName.get(name) ?? []), i]);
+            return [];
+          }),
+        )
+        .concat([...byName.values()]);
+      const { cards, once } = liveStrip(clusters);
+      const strip: StripCardView[] = cards.map((c) => ({ n: c.index + 1, like: c.like === null ? null : c.like + 1, name: nameOf(c.index) || null, thumb: stripThumb(c.index, holdId(tid, c.index)) }));
+      const stripOnce = once.map((i) => i + 1);
+      // The change key without the pictures' text (a stick figure is a data URL of kilobytes).
+      const key = `${strip.map((c) => `${c.n}:${c.like ?? ''}:${c.name ?? ''}:${c.thumb ? c.thumb.length : 0}`).join('|')}/${stripOnce.join(',')}`;
+      if (key === stripKey) return;
+      stripKey = key;
+      set({ strip, stripOnce });
+    };
+    /** While paused and a hold is forming, what it would be (#404), carved at most every
+     *  `ghostMs`; null otherwise. */
+    const refreshGhost = (vector: FeatureVector | null, tMs: number) => {
+      const s = get();
+      const forming =
+        s.phase === 'paused' && (s.hold === 'settling' || s.hold === 'taken') && vector !== null && bars !== null && keptIdx.length > 0 && keptIdx.length <= FACE_SESSION_DEFAULTS.ghostUpTo;
+      if (!forming) {
+        if (s.ghost !== null) set({ ghost: null });
+        ghostAt = Number.NEGATIVE_INFINITY;
+        return;
+      }
+      if (tMs - ghostAt < FACE_SESSION_DEFAULTS.ghostMs && s.ghost !== null) return;
+      ghostAt = tMs;
+      const joins = bars!.wouldBe(vector!);
+      // Said in the strip's terms: the card it would join, by that card's group leader (one more
+      // point can split a group, and the ghost must not contradict the cards).
+      const first = joins ? Math.min(...joins.map((p) => keptIdx[p])) + 1 : null;
+      const card = first === null ? undefined : s.strip.find((c) => c.n === first);
+      const like = first === null ? null : (card?.like ?? first);
+      if (s.ghost?.like !== like || s.ghost === null) set({ ghost: { like } });
     };
     const show = (gen: number) => {
       if (gen !== generation) return;
@@ -572,6 +704,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
             if (!still || stills.has(id)) return;
             stills.set(id, still);
             show(gen);
+            if (gen === generation) refreshStrip();
           })
           .finally(() => pending.delete(job));
         pending.add(job);
@@ -618,7 +751,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     /** The take's labelled holds (#385 E7: bursts under a typed name), by name, as sample ids. */
     const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => {
       const by = new Map<string, { label: string; ids: string[] }>();
-      for (const [i, label] of t.labels()) {
+      // A name given in the strip (#404) is a burst's name given afterwards: it wins over one.
+      const names = new Map(t.labels());
+      for (const [i, name] of holdNames) names.set(i, name);
+      for (const [i, raw] of names) {
+        const label = raw.trim();
+        if (!label || dropped.has(i)) continue;
         const key = label.toLowerCase();
         const g = by.get(key) ?? { label, ids: [] };
         g.ids.push(holdId(tid, i));
@@ -766,6 +904,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       view: null,
       thumbs: {},
       points: 0,
+      strip: [],
+      stripOnce: [],
+      ghost: null,
       hold: 'open',
       elapsed: 0,
       hasStills: false,
@@ -797,6 +938,22 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         poll(deps.now());
       },
 
+      dropHold(n) {
+        const phase = get().phase;
+        const i = n - 1;
+        if (!take || (phase !== 'faces' && phase !== 'paused') || !Number.isInteger(i) || i < 0 || i >= take.pointCount() || dropped.has(i)) return;
+        dropped.add(i);
+        refreshStrip();
+      },
+
+      nameHold(n, name) {
+        const phase = get().phase;
+        const i = n - 1;
+        if (!take || (phase !== 'faces' && phase !== 'paused') || !Number.isInteger(i) || i < 0 || i >= take.pointCount() || dropped.has(i)) return;
+        holdNames.set(i, name.trim());
+        refreshStrip();
+      },
+
       start() {
         const exploring = get().phase === 'explore' && take !== null && source !== null;
         if (isRecording(get().phase)) return;
@@ -820,6 +977,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         takeId = freshTakeId(merge?.working.samples ?? []);
         stilled = 0;
+        clearStrip();
         const stream = get().keepStills ? source!.video() : null;
         frames = stream ? deps.frames(stream) : null;
         const t0 = deps.now();
@@ -911,7 +1069,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
             set({ notice: `No ${modality.words.one} was held long enough to add. Nothing was merged.` });
             return;
           }
-          const added = takeSamples(myTake, takeId!);
+          // The holds deleted from the strip (#404) are not merged.
+          const added = takeSamples(myTake, takeId!).filter((_, i) => !dropped.has(i));
+          if (added.length === 0) {
+            set({ notice: `Every held ${modality.words.one} was deleted. Nothing was merged.` });
+            return;
+          }
           // New faces are sorted with the FLOORED radius the readout uses (a file's tiny stored
           // radius would set every new face aside); not with the dial's scale, which stays a live
           // setting rather than being written into the samples' radius.
@@ -973,11 +1136,18 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // Bursts recorded under a name are pinned to a category of that name before the carve, so
         // the re-cut keeps them together (must-link) at every k (#385 E7).
         const labelled = withLabels(unlabelled, labelledHolds(myTake, takeId!));
-        fresh = { rest, cloud: cloud ? new Set(cloud.map((i) => samples[i].id)) : null };
+        // The holds deleted from the strip (#404) go before the carve, so it never sees them.
+        const gone = samples.flatMap((x, i) => (dropped.has(i) ? [x.id] : []));
+        const kept = gone.length > 0 ? deleteHoldsFrom(labelled.categorizer, gone) : { ok: true as const, categorizer: labelled.categorizer };
+        if (!kept.ok) {
+          set({ phase: 'empty', burst: null, notice: `Every held ${modality.words.one} was deleted, so there is nothing to carve. Record again.` });
+          return;
+        }
+        fresh = { rest, cloud: cloud ? new Set(cloud.flatMap((i) => (dropped.has(i) ? [] : [samples[i].id]))) : null };
         // The typed names are the player's: kept as theirs (the general model never renames them).
         for (const id of labelled.named) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
         set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true, burst: null });
-        carveFresh(labelled.categorizer);
+        carveFresh(kept.categorizer);
         if (labelled.error) set({ notice: `The named holds were carved like the others: ${labelled.error}.` });
       },
 
@@ -1205,6 +1375,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         stills.clear();
         pending.clear();
         dropUrls();
+        clearStrip();
         set({ phase: 'idle', mirror: chosenMirror, vocabulary: chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
       },
 

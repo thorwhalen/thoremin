@@ -106,6 +106,51 @@ export function liveCarve(
   return clusters.map((c) => [...c].sort((a, b) => a - b)).sort((a, b) => a[0] - b[0]);
 }
 
+/** One hold in the live strip (#404): its index, and the earliest hold of the group the online
+ *  carve puts it in (null: it is that earliest hold, a new category so far). */
+export interface StripCard {
+  index: number;
+  like: number | null;
+}
+
+/** The live strip over the online carve's `clusters` (hold indices): a card per hold in the
+ *  order they were made ("new #5" / "again: like #2"), and the groups held only once so far
+ *  (their one hold's index: "#3: do it again"), since a category needs two holds to be learned. */
+export function liveStrip(clusters: readonly (readonly number[])[]): { cards: StripCard[]; once: number[] } {
+  const cards: StripCard[] = [];
+  const once: number[] = [];
+  for (const c of clusters) {
+    if (c.length === 0) continue;
+    const first = Math.min(...c);
+    for (const i of c) cards.push({ index: i, like: i === first ? null : first });
+    if (c.length === 1) once.push(first);
+  }
+  cards.sort((a, b) => a.index - b.index);
+  once.sort((a, b) => a - b);
+  return { cards, once };
+}
+
+/**
+ * What a hold of `vector` would be (#404, the paused ghost card): carved online with `holds` by
+ * {@link liveCarve}, the hold indices of the group it joins, or null when it would be a group of
+ * its own (a new category). The same carve as the strip's, so the ghost says what a hold would
+ * show as once taken.
+ */
+export function wouldJoin(
+  holds: readonly FeatureVector[],
+  vector: FeatureVector,
+  ids: readonly string[],
+  sigma: (id: string) => number,
+  maxK: number = BARS_DEFAULTS.maxK,
+  minGap: number = BARS_DEFAULTS.minGap,
+): number[] | null {
+  if (holds.length === 0) return null;
+  const n = holds.length;
+  const group = liveCarve([...holds, vector], ids, sigma, maxK, minGap).find((c) => c.includes(n)) ?? [n];
+  const others = group.filter((i) => i !== n);
+  return others.length > 0 ? others : null;
+}
+
 /**
  * Per feature, how well it separates `clusters` of `holds`: the between-cluster variance over
  * the within-cluster variance, in noise units, the within floored at 1 (one jitter squared).
@@ -219,6 +264,11 @@ export interface LiveBarsModel {
   push(vector: FeatureVector | null, tMs: number): void;
   /** The bars now, `count` of them (pinned first). */
   snapshot(options?: { count?: number; pinned?: readonly string[] }): LiveBars;
+  /** The online carve of the context's holds now (cached; the same array until it is redone):
+   *  clusters of indices into those holds, ordered by their earliest hold. */
+  carve(): readonly (readonly number[])[];
+  /** What a hold of `vector` would join (indices into the context's holds), or null: a new one. */
+  wouldBe(vector: FeatureVector): number[] | null;
   reset(): void;
 }
 
@@ -296,6 +346,13 @@ export function createLiveBars(context: () => LiveBarsContext, options: LiveBars
         };
       });
       return { reference: ctx.rest ? 'rest' : 'running', ranking, categories: clusters.length, bars };
+    },
+    carve() {
+      return clustersOf(context());
+    },
+    wouldBe(vector) {
+      const ctx = context();
+      return wouldJoin(ctx.holds, vector, ctx.ids, ctx.sigma, maxK, minGap);
     },
     reset() {
       baseline = {};

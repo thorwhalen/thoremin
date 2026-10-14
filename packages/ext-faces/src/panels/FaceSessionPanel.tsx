@@ -43,6 +43,7 @@ import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
 import { setupCues, vocabularyCue } from '../lib/take';
 import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
+import { HoldStrip } from './HoldStrip';
 import { chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
 import { usePosePlay } from '../app/posePlay';
@@ -424,6 +425,7 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
       </div>
       {(phase === 'faces' || phase === 'paused') && <BurstControls s={s} />}
       {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase, modality.words)} />}
+      {(phase === 'faces' || phase === 'paused') && <HoldStrip s={s} />}
       <FeatureBars read={read} part={modality.words.part} one={one} />
     </div>
   );
