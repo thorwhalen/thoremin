@@ -22,7 +22,7 @@ import type { SavedCategories } from '@/app/enroll/categoryBinding';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
-import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
+import { EMPTY_BODY_FRAME, type CategoryScores } from '@thoremin/sdk/nodes/domain';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { posePlay, transportRolesOf, type PoseCategorizerPlay, type PoseTransport } from '@thoremin/ext-faces/lib/posePlay';
 import { liveModel } from '@thoremin/sdk/enroll/live';
@@ -185,6 +185,17 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     // The scripted body as a camera (one pose frame per tick), and the host's transient and dial
     // as the store-controls node gives them.
     const script = frames();
+    /** Engine ticks per camera frame: the webcam source hands out its cached frame (the same
+     *  object) until the next video frame (#492). */
+    let ticksPerFrame = 1;
+    /** Camera frames with nobody in them (a frame object each, as the webcam source gives). */
+    let gone: (n: number) => boolean = () => false;
+    let shown: { n: number; frame: ReturnType<typeof poseFrame> } | null = null;
+    const frameAt = (tick: number) => {
+      const n = Math.min(Math.floor(tick / ticksPerFrame), script.length - 1);
+      if (shown?.n !== n) shown = { n, frame: gone(n) ? { ...EMPTY_BODY_FRAME } : poseFrame(POSES[script[n].pose], 20_000 + n) };
+      return shown.frame;
+    };
     const camera = defineNode({
       type: 'test-pose-camera',
       roles: ['source'],
@@ -197,7 +208,7 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
       params: z.object({}),
       make: () => ({
         process: (_in, ctx) => ({
-          body: poseFrame(POSES[script[Math.min(ctx.tick, script.length - 1)].pose], 20_000 + ctx.tick),
+          body: frameAt(ctx.tick),
           model: play,
           config: { id: 'mine', transport: true },
         }),
@@ -221,11 +232,16 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     const demand = createFeatureDemand();
     const run = (groups: () => ReturnType<typeof demand.groups>) => {
       const engine = new Engine(spec, reg, { resources: { controls: () => controls, featureDemand: groups } });
+      shown = null;
       const out: { label: string | null; present: boolean }[] = [];
-      for (let i = 0; i < script.length; i++) {
-        engine.tick(i / 30);
+      // One reading per camera frame, at the frame's last tick; every tick of a frame must read
+      // the same (a reading per tick would differ from one tick to the next).
+      for (let i = 0; i < script.length * ticksPerFrame; i++) {
+        engine.tick(i / (30 * ticksPerFrame));
         const c = engine.getOutput('poseCat', 'category') as CategoryScores;
-        out.push({ label: c.label, present: c.present });
+        const reading = { label: c.label, present: c.present };
+        if (i % ticksPerFrame > 0) expect(reading).toEqual(out.at(-1));
+        else out.push(reading);
       }
       engine.dispose();
       return out;
@@ -241,6 +257,17 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     });
     const claimed = run(() => demand.groups());
     expect(ends(claimed).map((o) => o.label)).toEqual([null, 'ready', null, 'fermata', null, 'cut-off', null]);
+    // The engine ticking twice per camera frame reads the same, frame by frame (#492): the vector
+    // node keeps its vector for a frame it has seen, so the hysteresis counts camera frames.
+    ticksPerFrame = 2;
+    expect(run(() => demand.groups())).toEqual(claimed);
+    // And through a stretch out of view in the middle of a pose (a new empty vector every tick).
+    gone = (n) => n >= SCRIPT[0][1] + 4 && n < SCRIPT[0][1] + 10;
+    const lost = run(() => demand.groups());
+    expect(lost.some((o) => !o.present)).toBe(true);
+    ticksPerFrame = 1;
+    expect(run(() => demand.groups())).toEqual(lost);
+    gone = () => false;
     stop();
     expect(demand.groups() ?? []).toEqual([]);
     // Without the claim the vector is empty: nobody is seen (the failure the claim exists for).
