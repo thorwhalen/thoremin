@@ -10,7 +10,8 @@ second MediaPipe pipeline to drift from the fixtures):
 - pose   -> ``landmarks/air/<instrument>/<id>.pose.ndjson.gz``
 - hands  -> ``landmarks/air/<instrument>/<id>.hands.ndjson.gz``
 - face   -> ``landmarks/air/<instrument>/<id>.face.ndjson.gz`` (blendshapes) and
-  ``<id>.face.landmarks.ndjson.gz`` (the 478 landmarks with z and the transform matrix)
+  ``<id>.face.landmarks.ndjson.gz`` (the 478 landmarks with z and the transform matrix),
+  on a pose-guided head crop when the pose stream exists (``video_streams``' default)
 - meta   -> ``landmarks/air/<instrument>/<id>.meta.json``: the yt-dlp ``.info.json``'s
   title, channel, licence and description verbatim, the curated source entry (why,
   player, chord vocabulary: the labels and where they came from), the video's sha256,
@@ -162,8 +163,10 @@ def main() -> int:
         meta["video"] = vs.video_facts(video)
         note = f"{decode.name}: the source's windows cut and concatenated (ffmpeg, libx264, native rate)" if decode != video else None
         meta_path = out_dir / f"{vid}.meta.json"
+        known = vs.known_streams(meta_path)
+        vs.write_meta(meta_path, meta)  # the source's fields first: a run cut short keeps them
         streams = vs.extract_streams(decode, out_dir, vid, python=py, streams=args.streams, params={"pose_model": args.pose_model},
-                                     log=log, input_note=note, known=vs.known_streams(meta_path))
+                                     log=log, input_note=note, known=known, meta_path=meta_path)
         meta["streams"] = streams
         if moved:
             meta.setdefault("notes", []).append(f"migrated to the video-data rule's names: {', '.join(moved)}")

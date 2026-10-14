@@ -179,12 +179,12 @@ for (const src of doc.sources) {
   const mouthPath = join(airDir('landmarks', 'flute'), `${src.id}.mouth.ndjson.gz`);
   const facePath = streamPath('flute', src.id, 'face');
   const onsetsPath = join(airDir('labels', 'flute'), `${src.id}.note_onsets.json`);
-  const streamPath = existsSync(mouthPath) ? mouthPath : facePath;
-  if (!existsSync(streamPath) || !existsSync(onsetsPath)) {
+  const mouthOrFace = existsSync(mouthPath) ? mouthPath : facePath;
+  if (!existsSync(mouthOrFace) || !existsSync(onsetsPath)) {
     console.error(`skip ${src.id}: no face stream or no note onsets`);
     continue;
   }
-  const frames: MouthFrame[] = readMouthFrames(streamPath);
+  const frames: MouthFrame[] = readMouthFrames(mouthOrFace);
   const faceFrames = frames.filter((f) => f.present).length;
   const MIN_FACE_FRAMES = 100;
   const onsets = (JSON.parse(readFileSync(onsetsPath, 'utf8')) as { onsets: NoteOnset[] }).onsets.map((o) => ({ ...o, t: o[REF] ?? o.t }));
