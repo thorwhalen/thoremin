@@ -182,6 +182,9 @@ export interface DanceLeadState {
 export interface DanceLead {
   step(input: DanceLeadInput): DanceLeadState;
   state(): DanceLeadState;
+  /** The relation actually followed (persisted, or resumed), or null: never a candidate
+   *  still persisting (the state's `ratio` is that candidate while `locking`). */
+  followed(): number | null;
   /** Forget the dancer and stop; the next start is from `beat` (0 by default). `resume`
    *  is the relation a previous lead followed (#506: the leader switched away from the
    *  dancer and back): when the dancer is first related the SAME way again, it is followed
@@ -407,5 +410,6 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
     },
     state: () => last,
     reset,
+    followed: () => level.ratio(),
   };
 }

@@ -116,6 +116,15 @@ describe('ictus DanceLead.reset(beat, { ratio }): the relation resumed (#506)', 
     expect(resumed).toBeLessThan(2.1);
   });
 
+  it('a candidate never followed is not resumed: a flick away while locking persists again', async () => {
+    // Away at 6.4 s (the relation of a bar per cycle is then persisting, not yet followed),
+    // back at 6.5 s: the conductor has nothing to resume, so the score waits for the
+    // persistence as a first start does (it led at 7.63 s when the candidate was resumed).
+    const clip = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
+    const flick = await switchBack(clip, 'body', 6.4, 6.5);
+    expect(flick.again + 6.5).toBeGreaterThan(9);
+  });
+
   it('a different relation persists as a first one does', () => {
     expect(firstLead({ ratio: 2 })).toBeCloseTo(firstLead(), 6);
   });

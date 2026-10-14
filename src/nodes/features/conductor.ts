@@ -871,13 +871,14 @@ export const conductorNode = defineNode<Params>({
      *  movement can swell a held chord); the transport rules are a conductor's. The beat
      *  goes on from where the last leader left it. */
     let dance: DanceLead | null = null;
-    /** The relation the last dance lead followed, kept across a switch of leader so that
-     *  the dancer, chosen again, re-starts on its next cycle (#506). Forgotten when the
-     *  conductor is switched off. */
+    /** The relation the last dance lead FOLLOWED (never a candidate still persisting),
+     *  kept across a switch of leader so that the dancer, chosen again and related the same
+     *  way, re-starts on its next cycle (#506). Checked against the marked tempo in force on
+     *  return (a new piece relates afresh); forgotten when the conductor is switched off. */
     let danceRatio: number | null = null;
     const leaveDance = (): void => {
-      const r = dance?.state().ratio;
-      if (r !== undefined && Number.isFinite(r) && r > 0) danceRatio = r;
+      const r = dance?.followed();
+      if (r !== undefined && r !== null && Number.isFinite(r) && r > 0) danceRatio = r;
       dance = null;
     };
     let lastCycleAt: number | undefined;
