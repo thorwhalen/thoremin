@@ -35,6 +35,7 @@
     "./lib/guitar": "./src/lib/guitar.ts",
     "./lib/hand_shape": "./src/lib/hand_shape.ts",
     "./lib/notes": "./src/lib/notes.ts",
+    "./lib/pad_floors": "./src/lib/pad_floors.ts",
     "./lib/pattern_fit": "./src/lib/pattern_fit.ts",
     "./lib/pattern_play": "./src/lib/pattern_play.ts",
     "./lib/vocabulary": "./src/lib/vocabulary.ts",

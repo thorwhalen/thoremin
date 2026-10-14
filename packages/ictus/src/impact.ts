@@ -164,6 +164,9 @@ export interface ImpactPredictorOptions {
   initialPeriod?: number;
   /** Refractory window after a confirmation, as a fraction of the period. */
   refractoryFraction?: number;
+  /** A point that stops descending before its descent was a stroke, nothing committed,
+   *  starts a new stroke there (#353), as a new least depth does. */
+  holdRestarts?: boolean;
 }
 
 const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
@@ -190,6 +193,7 @@ const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
   maxGap: 0.5,
   initialPeriod: 0.6,
   refractoryFraction: 0.25,
+  holdRestarts: true,
 };
 
 export interface ImpactPrediction {
@@ -211,6 +215,9 @@ export interface ImpactPrediction {
    *  have left too little lead (the stability check's bypass). A slow camera makes
    *  most predictions provisional; the harness counts them. */
   provisional: boolean;
+  /** The floor the prediction was extrapolated to: the stroke's own when the consumer
+   *  named one ({@link ImpactPredictor.setFloor}), else the learned or given one. */
+  floor: number;
 }
 
 export interface ImpactConfirmation {
@@ -229,8 +236,14 @@ export interface ImpactConfirmation {
   vertex: number;
   /** The approach's extrapolated crossing of the floor (NaN without a usable approach). */
   crossing: number;
+  /** The floor that crossing was taken against: the stroke's own
+   *  ({@link ImpactPredictor.setFloor}), else the learned or given one, else (before any)
+   *  the stroke's own depth. */
+  floor: number;
   /** The depth the stroke reached (the vertex depth, caller's units). */
   depth: number;
+  /** The depth it started from ({@link ImpactPredictor.top}). */
+  top: number;
   /** Diagnostics of the approach fit at confirmation: how many samples it used, the
    *  velocity it extrapolated at the bottom, and the crossing offset it found (τ from
    *  the bottom sample; `reaches` false = it turned above the floor). Null when
@@ -248,6 +261,18 @@ export interface ImpactPredictor {
   /** The lead the next prediction must leave from its sample's time, seconds (see
    *  the option): a consumer whose samples are older than "now" adds their age. */
   setMinLead(lead: number): void;
+  /** The floor the stroke in progress is heading for (depth, caller's units), when the
+   *  consumer knows more than one depth strokes stop at (an air drum's pads, #353): the
+   *  prediction extrapolates to it and the confirmation's crossing is taken against it,
+   *  in place of the one learned floor. NaN (the default) = the learned or given floor.
+   *  It stays until changed, so a consumer sets it before each push, as with
+   *  {@link setMinLead}. The learned floor keeps learning from every stroke: a consumer
+   *  that names floors learns its own from the confirmations' `depth`. */
+  setFloor(floor: number): void;
+  /** The depth the stroke in progress started from (caller's units): the least depth
+   *  since the last confirmation, or where the point last stopped descending before its
+   *  descent was a stroke (`holdRestarts`). NaN between strokes. */
+  top(): number;
   /** The learned floor (depth, caller's units); NaN until learned. */
   level(): number;
   /** The learned lag (seconds). */
@@ -486,6 +511,10 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   /** The fastest downward step of the stroke in progress (depth units per second). */
   let peakSpeed = 0;
   let level = levelKnown ? (options.level as number) : NaN;
+  /** The consumer's floor for the stroke in progress (`setFloor`), NaN for none. */
+  let strokeFloor = NaN;
+  /** The floor a stroke is predicted against and confirmed against. */
+  const floorNow = () => (Number.isFinite(strokeFloor) ? strokeFloor : level);
   let lag = 0;
   let lagN = 0;
   let envelope = 0;
@@ -539,6 +568,18 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     if (Number.isFinite(jitter) && amplitude < o.minAmplitudeNoiseUnits * jitter) return false;
     if (envelope > 0 && amplitude < o.minAmplitudeFraction * envelope) return false;
     return true;
+  };
+  /** The point stopped descending (still or rising, against the last sample) before the
+   *  descent since the top was a stroke, with nothing committed: the stroke starts here,
+   *  whatever the least depth since the last confirmation was. An arm that carried the
+   *  stick DOWN to a lower pad and waits there (#353) has its stroke begin at the wait,
+   *  not at the last pad's top, so the approach fit holds this stroke's fall and not the
+   *  carry, and the stroke's top is its own. A stroke's dwell at its bottom comes after a
+   *  stroke-sized, stroke-fast descent and never restarts. */
+  const restartsHere = (d: number): boolean => {
+    if (!o.holdRestarts || committed || !Number.isFinite(prevD) || d > prevD) return false;
+    const strokeLike = passesAmplitude(maxD - topD) && (!(o.minApproachSpeed > 0) || peakSpeed >= o.minApproachSpeed);
+    return !strokeLike;
   };
   const strengthOf = (amplitude: number) => (envelope > 0 ? amplitude / envelope : 1);
 
@@ -667,7 +708,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
           // sit on the surface or be blurred across it), origin at the bottom.
           const from = approachStart(iMax);
           const approach = iMax - from >= o.minApproachSamples ? fitQuadratic(ts.slice(from, iMax), ds.slice(from, iMax), maxT) : null;
-          const floor = Number.isFinite(level) ? level : v.d;
+          const floor = Number.isFinite(floorNow()) ? floorNow() : v.d;
           let crossing = NaN;
           let approachSpeed = NaN;
           let fit: ImpactConfirmation['fit'] = null;
@@ -698,7 +739,9 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
             confidence: clamp01(strength),
             vertex: v.t,
             crossing,
+            floor,
             depth: v.d,
+            top: topD,
             fit,
           });
           learning = {
@@ -724,10 +767,11 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
 
       // 2. Track the stroke: at (or within noise of) the least depth since the last
       //    confirmation, the approach has not started — the history begins here.
-      if (d <= topD + margin) {
+      const fresh = d <= topD + margin;
+      if (fresh || restartsHere(d)) {
         ts.length = 0;
         ds.length = 0;
-        topD = Math.min(topD, d);
+        topD = fresh ? Math.min(topD, d) : d;
         maxD = -Infinity;
         maxT = NaN;
         peakSpeed = 0;
@@ -749,11 +793,12 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
 
       // 3. Predict, while descending toward a known or learned floor and not yet
       //    committed for this stroke.
-      if (!committed && Number.isFinite(level) && d > prevD && ts.length >= o.minApproachSamples) {
+      const floor = floorNow();
+      if (!committed && Number.isFinite(floor) && d > prevD && ts.length >= o.minApproachSamples) {
         const from = approachStart(ts.length);
         const f = ts.length - from >= o.minApproachSamples ? fitQuadratic(ts.slice(from), ds.slice(from), t) : null;
         if (f && f.b > 0) {
-          const x = crossingTau(f, level);
+          const x = crossingTau(f, floor);
           // The speed gate for a prediction is the speed the fit EXPECTS at the crossing
           // (a stroke speeds up into its hit; gating on the speed now would wait until
           // the hand is already fast, and cost a soft stroke its lead).
@@ -761,7 +806,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
           if (Number.isFinite(x.tau) && Math.max(expectedSpeed, peakSpeed) >= o.minApproachSpeed) {
             const crossing = t + x.tau;
             const tPred = crossing + lag;
-            const amplitude = level - topD;
+            const amplitude = floor - topD;
             // The point must have actually come part of the way down: a fit through a
             // few noise samples at rest can "reach" a floor a stroke away. The
             // tentative prediction only starts counting once it has (a fit from before
@@ -787,7 +832,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
             const stable = !Number.isFinite(o.stabilityTolerance) || agrees || provisional;
             if (stable && lastChance && descended && passesAmplitude(amplitude) && t - lastConfirmT >= o.refractoryFraction * period) {
               const strength = strengthOf(amplitude);
-              committed = { kind: 'predict', t: tPred, at: t, lead, strength, confidence: clamp01(strength), crossing, provisional };
+              committed = { kind: 'predict', t: tPred, at: t, lead, strength, confidence: clamp01(strength), crossing, provisional, floor };
               events.push(committed);
             }
           }
@@ -805,6 +850,10 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     setMinLead(lead) {
       if (Number.isFinite(lead)) minLead = Math.max(0, lead);
     },
+    setFloor(floor) {
+      strokeFloor = Number.isFinite(floor) ? floor : NaN;
+    },
+    top: () => (Number.isFinite(topD) ? topD : NaN),
     level: () => level,
     lag: () => lag,
     envelope: () => envelope,
@@ -827,6 +876,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
       unlearned = 0;
       lastT = -Infinity;
       level = levelKnown ? (options.level as number) : NaN;
+      strokeFloor = NaN;
       lag = 0;
       lagN = 0;
       envelope = 0;

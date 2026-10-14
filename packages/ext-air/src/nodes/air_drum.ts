@@ -84,6 +84,7 @@ import { createPatternFollower, type PatternFollower, type PatternPlay } from '.
 import { DRUM_SOUND } from '../lib/gm_drums';
 import { isClockDerived, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
+import { MIN_FLOOR_PADS, learnPadFloor, padFloorFor, type PadFloors } from '../lib/pad_floors';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type FallPath, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
 import { timingFrom, sampleTime, CAPTURE_LAG_PRIOR_S, type TimingView } from '@thoremin/sdk/timing/tracker';
 
@@ -677,6 +678,10 @@ interface Stick {
    *  prediction was not decided, so a standing that changes mid-stroke (#318) neither
    *  loses the stroke nor plays it twice. */
   handled: number | null;
+  /** What this stick's strokes did on each pad (#353): the floor each pad's strokes stop
+   *  at, named to the predictor per stroke once two pads have one. Rebuilt with the
+   *  predictor (it is in the same units). */
+  floors: PadFloors;
 }
 
 /** One tick's reading of the grid, shared by every stroke decided in it. */
@@ -802,6 +807,7 @@ export const airDrumNode = defineNode<Params>({
       recent: [],
       committed: null,
       handled: null,
+      floors: {},
     });
     /** Keep a grip-gated stick's predictor set for the hand's current size. */
     const regate = (stick: Stick, c: Params, gripFh: number, t: number) => {
@@ -816,6 +822,7 @@ export const airDrumNode = defineNode<Params>({
       if (!stick.predictor || Math.abs(Math.log(stick.grip / stick.gateScale)) > Math.log(GRIP_REGATE)) {
         stick.predictor = makePredictor(c, stick.grip);
         stick.gateScale = stick.grip;
+        stick.floors = {};
       }
     };
     /** The config fields that shape a stick: a change rebuilds both sticks (a switched
@@ -987,20 +994,20 @@ export const airDrumNode = defineNode<Params>({
     };
 
     /** A confirmation while the stamps cannot carry a sub-frame fit (#318). */
-    const onSnapped = (f: FrameTick, st: StickTick, e: ImpactConfirmation, decided: boolean) => {
+    const onSnapped = (f: FrameTick, st: StickTick, e: ImpactConfirmation, decided: boolean): boolean => {
       const { c, ctx } = f;
       const { stick } = st;
       stick.committed = null;
       stick.handled = null;
-      if (decided) return;
+      if (decided) return true;
       // The frame-snapped onset (#318): the deepest sample's own time, sounded
       // now. A full hit, not a ghost: every stroke is reactive here, and it is the
       // stamps, not the stroke, that ruled prediction out. No magnet outcome: the
       // magnet can pull nothing it was never offered, and the status says why.
-      if (carried(st, e.t, NaN)) return;
+      if (carried(st, e.t, NaN)) return false;
       const snappedT = deepestSampleTime(stick.recent, e.t);
       const s = strike(c, st, landingAt(stick.recent, snappedT, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect }), e.strength);
-      if (s.silent) return;
+      if (s.silent) return true;
       // Pattern mode keeps following (its drum names the sound); the time stays now.
       let sound = s.sound;
       if (follower) {
@@ -1023,20 +1030,21 @@ export const airDrumNode = defineNode<Params>({
         ...standing(snappedT, ctx.time, f.outputStage),
         pull: 0,
       });
+      return true;
     };
 
     /** A predicted impact: sounded ahead of the frame that shows it, pulled toward the
      *  pattern's grid or by the magnet. */
     const onPredict = (f: FrameTick, st: StickTick, e: ImpactPrediction) => {
       const { c, ctx, time, engaged, gate } = f;
-      const { stick, predictor } = st;
+      const { stick } = st;
       // The grid this stroke is committed against, before anything can skip it:
       // its confirmation measures the grid's lag (rule a), whether or not the
       // magnet is on, so the gate is warm when the player turns it up.
       stick.committed = f.running ? { t: e.t, grid: nearestExpectedBeat(time!, e.t) } : null;
       stick.handled = e.t;
-      if (carried(st, e.t, predictor.level())) return;
-      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect: f.aspect }), e.strength);
+      if (carried(st, e.t, e.floor)) return;
+      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { floor: e.floor, aspect: f.aspect }), e.strength);
       if (s.silent) return;
       /** The INTENDED sounding time: the impact, pulled toward the grid. */
       let intended = e.t;
@@ -1117,14 +1125,14 @@ export const airDrumNode = defineNode<Params>({
 
     /** Unpredicted (or predicted while prediction was off, #318): a ghost note,
      *  now; its lead is how late that is. It landed where the deepest sample was. */
-    const onGhost = (f: FrameTick, st: StickTick, e: ImpactConfirmation) => {
+    const onGhost = (f: FrameTick, st: StickTick, e: ImpactConfirmation): boolean => {
       const { c, ctx } = f;
       const { stick } = st;
       stick.committed = null;
       stick.handled = null;
-      if (carried(st, e.t, NaN)) return;
+      if (carried(st, e.t, NaN)) return false;
       const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect }), e.strength);
-      if (s.silent) return;
+      if (s.silent) return true;
       // A stroke the pipeline could not predict cannot be pulled.
       if (f.engaged) noteOutcome('pipeline');
       f.hits.push({
@@ -1142,6 +1150,35 @@ export const airDrumNode = defineNode<Params>({
         ...standing(e.t, ctx.time, f.outputStage),
         pull: 0,
       });
+      return true;
+    };
+
+    /** #353: a stroke that stood (not a carry) teaches the floor of the pad it STOPPED on
+     *  (its path ends where it turned, so a stroke stopped above a pad is not on it): the
+     *  depth it turned at and the top it fell from. Off every pad, nothing. */
+    const learnFloor = (f: FrameTick, st: StickTick, e: ImpactConfirmation) => {
+      const { c } = f;
+      if (!anyPadOn(c.pads)) return;
+      const { stick } = st;
+      const eps = st.gates.minAmplitude * FALL_JITTER;
+      // Where it turned: the predictor's depth of the turn (the three-sample vertex), not
+      // the fall's fit read at the turn's time, which overshoots by the landmark noise.
+      const { xAt } = landingAt(stick.recent, e.t, eps, { turned: true, aspect: f.aspect }).path;
+      const hit = hitPad(c.pads, { x: xAt(e.depth), y: e.depth }, 'silent');
+      if (hit) stick.floors = learnPadFloor(stick.floors, hit.id, { floor: e.depth, top: e.top });
+    };
+
+    /** #353: name the predictor the floor of the pad the stroke in progress is heading for
+     *  (NaN, its own floor, until two pads have one). */
+    const nameFloor = (f: FrameTick, st: StickTick) => {
+      const { c } = f;
+      const { stick, predictor } = st;
+      let floor = NaN;
+      if (anyPadOn(c.pads) && Object.keys(stick.floors).length >= MIN_FLOOR_PADS) {
+        const top = predictor.top();
+        if (Number.isFinite(top)) floor = padFloorFor(stick.floors, c.pads, { top, xAt: landingAt(stick.recent, f.t, st.gates.minAmplitude * FALL_JITTER, { aspect: f.aspect }).path.xAt });
+      }
+      predictor.setFloor(floor);
     };
 
     /** One predictor event, routed by kind and by the sub-frame standing. */
@@ -1155,9 +1192,11 @@ export const airDrumNode = defineNode<Params>({
       }
       /** A confirmation whose prediction was already decided (while predicting). */
       const decided = e.predicted !== null && st.stick.handled === e.predicted;
-      if (f.subframe === 'off-stamps') onSnapped(f, st, e, decided);
+      let stood = true;
+      if (f.subframe === 'off-stamps') stood = onSnapped(f, st, e, decided);
       else if (decided) onConfirm(st.stick, e);
-      else onGhost(f, st, e);
+      else stood = onGhost(f, st, e);
+      if (stood) learnFloor(f, st, e);
     };
 
     /** Play one fresh frame: every stick the config names takes its sample and its events. */
@@ -1168,6 +1207,7 @@ export const airDrumNode = defineNode<Params>({
         const st = trackStick(f, frame, which, live[which]);
         if (!st) continue;
         const { predictor, anchor } = st;
+        nameFloor(f, st);
         for (const e of predictor.push({ t: f.t, x: anchor.x / frame.height, y: anchor.y / frame.height })) onEvent(f, st, e);
         if (!status.ready[which] && Number.isFinite(predictor.level())) status = { ...status, ready: { ...status.ready, [which]: true } };
       }
