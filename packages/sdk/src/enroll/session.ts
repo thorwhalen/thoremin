@@ -248,7 +248,10 @@ export function createSession(options: SessionOptions = {}): Session {
     },
 
     push(vector, tMs) {
-      noise.push(vector, tMs);
+      // A nuisance demonstration is deliberate motion (closer and further, a step aside, a
+      // turn): it sets the nuisance profile and never the noise every distance is measured
+      // in (#460). Its frames are a gap to the estimator, which re-anchors after it.
+      if (active?.produces !== 'nuisance') noise.push(vector, tMs);
       if (!active) {
         idle?.push(vector, tMs);
         lastIdle = { v: vector, t: tMs };
