@@ -73,6 +73,9 @@ export const POSES = {
   'left arm up': { left: ARM.up, right: ARM.down },
   'right arm up': { left: ARM.down, right: ARM.up },
   'arms out': { left: ARM.out, right: ARM.out },
+  /** One arm out to the side: each the other's mirror image (#459). */
+  'left arm out': { left: ARM.out, right: ARM.down },
+  'right arm out': { left: ARM.down, right: ARM.out },
   'hands together': { left: ARM.together, right: ARM.together },
   'lean left': { left: ARM.down, right: ARM.down, lean: 18 },
   'lean right': { left: ARM.down, right: ARM.down, lean: -18 },

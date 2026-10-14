@@ -39,10 +39,13 @@ import {
   memberIndices,
   neutralSampleIndices,
   sampleIndex,
+  toSample,
+  type CategorizerSample,
   type CategorizerStrangers,
   type PersonalCategorizer,
 } from './categorizer';
 import type { FeatureVector } from './types';
+import type { Skeleton } from './modality';
 
 /** Where a hold can be put: a category id, or one of the two bins. */
 export type Place = string;
@@ -531,3 +534,123 @@ export function pinsHold(c: PersonalCategorizer): boolean {
   return Object.entries(c.pins ?? {}).every(([id, to]) => placeOf(c, id) === to);
 }
 
+/** What turning the mirror on needs of a modality (#459): its mirror image, which side a vector
+ *  leans to (the mirror image has the opposite sign), and its stick figure, if it draws one. */
+export interface MirrorTools {
+  image(vector: FeatureVector): FeatureVector;
+  side(vector: FeatureVector): number;
+  skeleton?(vector: FeatureVector): Skeleton | null;
+}
+
+export interface MirrorOnOptions extends RecutOptions {
+  /** Which named categories' names a merged cut may carry (the player's own; default every
+   *  named one). A name not carried is left empty, for the host to name in the mirror's words. */
+  carry?: (category: PersonalCategorizer['categories'][number]) => boolean;
+  /** The most categories the cut may make (default: no bound beyond the forest's). */
+  maxCategories?: number;
+}
+
+/** A feature's mirror twin (one-to-one: the mirror image of a vector with only that feature has
+ *  only the twin's key); the feature itself when the image keeps or drops it. */
+function twinOf(tools: MirrorTools, feature: string): string {
+  const keys = Object.keys(tools.image({ [feature]: 0.25 }));
+  return keys.length === 1 ? keys[0] : feature;
+}
+
+/** A sample's supporting rows as vectors over `features` (null cells left out). */
+function supportVectors(s: CategorizerSample, features: readonly string[]): FeatureVector[] | undefined {
+  return s.support?.map((row) => {
+    const v: FeatureVector = {};
+    features.forEach((f, i) => {
+      if (row[i] !== null && row[i] !== undefined) v[f] = row[i]!;
+    });
+    return v;
+  });
+}
+
+/** A hold over the mirrored feature list `features`, read on the other side when `flip`: its
+ *  vector, its supporting frames (rows over `features`) and its stick figure. */
+function remappedSample(c: PersonalCategorizer, s: CategorizerSample, tools: MirrorTools, features: readonly string[], flip: boolean): CategorizerSample {
+  const rows = supportVectors(s, c.features);
+  if (!flip) return toSample({ id: s.id, vector: s.vector, t: s.t, cue: s.cue, support: rows, skeleton: s.skeleton ?? null }, features);
+  const vector = tools.image(s.vector);
+  const skeleton = s.skeleton ? tools.skeleton?.(vector) ?? null : null;
+  return toSample({ id: s.id, vector, t: s.t, cue: s.cue, support: rows?.map((r) => tools.image(r)), skeleton }, features);
+}
+
+/**
+ * Turn the mirror on after the take (#459): left and right become one pose, as if the take had been
+ * recorded with the mirror on, which reads every hold on ONE side (`canonicalPose`): each hold that leans the other
+ * way (`side < 0`) is replaced by its mirror image (vector, supporting frames, stick figure), the
+ * feature list gains each feature's mirror twin, and the categorizer re-cut at the k its merge gaps suggest, so "left arm out" and "right arm out"
+ * fall together. The bins (Neutral, set aside) keep their pins; the category pins are released,
+ * since they kept apart the very sides that are now one (that is what a merge needs). A name
+ * comes along only where it is unambiguous: a new category takes the name of the one named
+ * category (`carry`) most of whose holds it now holds and that is most of it; a merged pair's
+ * category is left unnamed, for the host to name (its general model then speaks of one side).
+ * Turning it back off is not offered: which side each hold was on is not kept.
+ */
+export function mirrorOn(c: PersonalCategorizer, tools: MirrorTools, options: MirrorOnOptions = {}): SortResult {
+  if (c.mirror) return fail('left and right are already the same pose');
+  const { carry = (x) => x.label.trim() !== '', maxCategories = Infinity, ...recutOptions } = options;
+  // The feature list gains each feature's twin: a feature picked on one
+  // side (the moving arm's) would otherwise see only the still arm once its holds are mirrored,
+  // and the categories would collapse onto each other (#459 review). Rows are kept over it.
+  const features = [...c.features];
+  const weights = { ...c.weights };
+  for (const f of c.features) {
+    const t = twinOf(tools, f);
+    if (features.includes(t)) continue;
+    features.push(t);
+    // Its own noise weight when the take measured one, else its partner's.
+    if (!Object.hasOwn(c.weights, t) && Object.hasOwn(c.weights, f)) weights[t] = c.weights[f];
+  }
+  const samples = c.samples.map((s) => remappedSample(c, s, tools, features, tools.side(s.vector) < 0));
+  const binPins = Object.fromEntries(Object.entries(c.pins ?? {}).filter(([, to]) => isBin(to)));
+  const { pins: _p, ...rest } = c;
+  void _p;
+  let base: PersonalCategorizer;
+  try {
+    base = PersonalCategorizerSchema.parse({ ...rest, features, weights, samples, mirror: true, ...(Object.keys(binPins).length > 0 ? { pins: binPins } : {}) });
+  } catch (e) {
+    return fail(e instanceof Error ? e.message.split('\n')[0] : String(e));
+  }
+  const { suggestedK } = recutRange(base, recutOptions);
+  const cut = recut(base, Math.min(suggestedK, maxCategories), recutOptions);
+  if (!cut.ok) return cut;
+  // Names, one-to-one: old category -> the new one holding most of its holds, and back.
+  const oldOf = placement(c);
+  const named = c.categories.filter(carry);
+  const home = new Map<string, string>();
+  for (const old of named) {
+    const counts = new Map<string, number>();
+    for (const id of old.members) {
+      const to = placeOf(cut.categorizer, id);
+      if (to && !isBin(to)) counts.set(to, (counts.get(to) ?? 0) + 1);
+    }
+    const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (best && best[1] * 2 > old.members.length) home.set(old.id, best[0]);
+  }
+  const carried = cut.categorizer.categories.map((cat) => {
+    const claims = named.filter((o) => home.get(o.id) === cat.id);
+    if (claims.length !== 1) return { cat, from: null };
+    const from = claims[0];
+    const share = cat.members.filter((id) => oldOf.get(id) === from.id).length;
+    return { cat, from: share * 2 > cat.members.length ? from : null };
+  });
+  // A carried name keeps its old category id too (what a host keys a name's origin and a size
+  // by); a new category that happens to have that id makes way.
+  const keptIds = new Set(carried.flatMap((x) => (x.from ? [x.from.id] : [])));
+  const taken = new Set(keptIds);
+  const categories = carried.map(({ cat, from }) => {
+    if (from) return { ...cat, id: from.id, label: from.label };
+    if (!keptIds.has(cat.id)) {
+      taken.add(cat.id);
+      return cat;
+    }
+    const id = freshCategoryId({ categories: cut.categorizer.categories }, taken);
+    taken.add(id);
+    return { ...cat, id };
+  });
+  return done(() => PersonalCategorizerSchema.parse({ ...cut.categorizer, categories }));
+}

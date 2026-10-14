@@ -117,9 +117,19 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
       <StrangersSwitch strangers={view.strangers} setStrangers={s.setStrangers} words={words} />
       {s.modality.id === 'hand' && <HandChoiceSelect value={s.hand} onChange={s.setHand} />}
       {s.modality.id === 'body' && (
-        <p className={hint} data-poses-mirror>
-          {s.mirror ? 'Left and right are the same pose (chosen before recording).' : 'Left and right are different poses (chosen before recording).'}
-        </p>
+        <div className="space-y-0.5" data-poses-mirror>
+          {/* #459: turning the mirror on after the take is an edit (Undo puts the sides back);
+              turning it off again is not offered, since no hold kept its side. */}
+          <label className="flex items-center gap-2 text-[11px] text-white/80">
+            <input type="checkbox" checked={s.mirror} disabled={s.mirror} onChange={(e) => e.target.checked && s.setMirror(true)} data-poses-mirror-after />
+            <span>Left and right are the same pose (one arm up is one pose, whichever arm)</span>
+          </label>
+          <p className={hint}>
+            {s.mirror
+              ? 'Every pose is read on one side. To tell left from right again, undo the change or record a new take.'
+              : 'Turning this on reads every pose on one side and sorts the poses again, so a left and a right version fall together. Undo puts them back.'}
+          </p>
+        </div>
       )}
       <p data-faces-summary className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/80">
         <span className="font-semibold text-emerald-200">{`A ${words.one} you never taught reads as: ${strangersText(words)[view.strangers].title.toLowerCase()}.`}</span> {strangersSummary(view, words)}
