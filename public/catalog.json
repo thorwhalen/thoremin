@@ -2347,6 +2347,11 @@
         "name": "songHandle",
         "kind": "song-handle",
         "description": "The loaded song (the store's handle): a new one restarts both laws (#439)"
+      },
+      {
+        "name": "songStatus",
+        "kind": "load-status",
+        "description": "The song player's status, a tick old: neither law leads a song that is not playable yet (#500)"
       }
     ],
     "outputs": [

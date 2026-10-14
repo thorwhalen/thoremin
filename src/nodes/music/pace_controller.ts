@@ -34,6 +34,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { createBeatServo, createPaceController, PACE_DEFAULTS, SERVO_DEFAULTS, UNKNOWN_PULSE, type MusicalTime, type PaceState, type PulseState, type ServoState } from '@thoremin/ictus';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
+import type { LoadStatus } from '@thoremin/lazy';
+import { songPlayable } from '../output/song_player';
 
 const Params = z.object({
   /** Seconds a ratio must persist before it is followed (the red-noise guard, #339). */
@@ -80,6 +82,7 @@ export const paceControllerNode = defineNode<Params>({
     { name: 'lead', kind: 'musical-time', description: "A conductor's time (#187 PR 7): while present, the song follows it beat for beat (the beat servo) instead of the dancer" },
     { name: 'offset', kind: 'number', default: 0, description: "The song's beat on which the conductor's first beat lands" },
     { name: 'songHandle', kind: 'song-handle', description: 'The loaded song (the store\'s handle): a new one restarts both laws (#439)' },
+    { name: 'songStatus', kind: 'load-status', description: "The song player's status, a tick old: neither law leads a song that is not playable yet (#500)" },
   ],
   outputs: [
     { name: 'rate', kind: 'number', description: 'The rate to play the song at' },
@@ -109,7 +112,11 @@ export const paceControllerNode = defineNode<Params>({
           servo.reset();
           controller.reset();
         }
-        const song = swapped ? undefined : (inputs.song as MusicalTime | undefined);
+        // A song still loading is not led (#500): the player's `songTime` is then the new
+        // song's grid at the OLD position, and a cue made from it would be stale by the time
+        // the song plays. Unwired (`songStatus` absent), the song is taken as playable.
+        const loading = inputs.songStatus !== undefined && !songPlayable(inputs.songStatus as LoadStatus | null);
+        const song = swapped || loading ? undefined : (inputs.song as MusicalTime | undefined);
         const base = finite(inputs.base, 1);
         const lead = inputs.lead as MusicalTime | undefined;
         if (lead && !led) controller.reset();

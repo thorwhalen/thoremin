@@ -279,3 +279,102 @@ describe('a song replaced by another restarts the beat servo (#439)', () => {
     expect(states[Math.round((SWAP + 0.5) * HZ)].ratio).toBe(states[Math.round((SWAP - 0.5) * HZ)].ratio);
   });
 });
+
+describe('a song still loading is not led (#500)', () => {
+  // The real pace node and song player under a running conductor. Song A plays; at SWAP the
+  // player is given song B, whose load resolves only at LOADED. Until then the stretcher
+  // keeps song A's position (as Signalsmith does while it fetches and decodes), so the
+  // player's songTime is B's grid read at A's position. A cue computed from that would be
+  // stale by the time B plays.
+  const HZ = 60;
+  const dt = 1 / HZ;
+  const SWAP = 4;
+  const LOADED = 6;
+  const leadAt = (t: number): MusicalTime => {
+    const on = t > 0.5;
+    const beat = on ? (t - 0.5) * 1.7 : 0;
+    return { t, beat, phase: beat % 1, tempo: on ? 102 : 0, period: on ? 1 / 1.7 : Infinity, confidence: 0.9, nextBeatAt: Infinity, beatsPerBar: 4, beatInBar: 0, state: on ? 'running' : 'ready', anchors: on ? 1 : 0 };
+  };
+  /** The integrating stretcher, whose loads resolve when the test says so; until then the
+   *  position is the previous song's. */
+  function slowStretcher() {
+    let pos = 0;
+    let playing = false;
+    let rate = 1;
+    const seeks: Array<{ t: number; p: number }> = [];
+    let now = 0;
+    let release: (() => void) | null = null;
+    const s: Stretcher & { advance(dt: number): void; seeks: typeof seeks; finish(): void; at(t: number): void } = {
+      seeks,
+      load: () => new Promise<void>((resolve) => {
+        if (now < SWAP) return resolve();
+        release = () => {
+          pos = 0;
+          resolve();
+        };
+      }),
+      play: () => void (playing = true),
+      pause: () => void (playing = false),
+      setRate: (r) => void (rate = r),
+      setVolume: () => {},
+      seek: (p) => {
+        seeks.push({ t: now, p });
+        pos = p;
+      },
+      position: () => pos,
+      playing: () => playing,
+      ended: () => false,
+      dispose: () => {},
+      advance(d) {
+        if (playing) pos += rate * d;
+      },
+      finish() {
+        release?.();
+        release = null;
+      },
+      at(t) {
+        now = t;
+      },
+    };
+    return s;
+  }
+
+  it('no cue while song B loads, and its first cue is the conductor\'s beat once it can play', async () => {
+    const a = handle();
+    const b = { ...handle(), id: 'take-b', name: 'b.wav', url: 'blob:b' };
+    const st = slowStretcher();
+    const pace = paceControllerNode.make(paceControllerNode.params.parse({}));
+    const player = songPlayerNode.make(songPlayerNode.params.parse({}));
+    const timing = { outputStage: { value: 0, source: 'measured' } };
+    const resources = { audioContext: {}, masterGain: {}, createStretcher: () => st, timing };
+    let prev: PortValues = {};
+    const cues: Array<{ t: number; id: number; beat: number }> = [];
+    let lastCue: number | null = null;
+    for (let i = 0; i <= 10 * HZ; i++) {
+      const t = i * dt;
+      st.at(t);
+      if (i === LOADED * HZ) st.finish();
+      const song = t < SWAP ? a : b;
+      const ctx: NodeContext = { tick: i, time: t, dt: i ? dt : 0, resources };
+      const p = pace.process({ lead: leadAt(t), song: prev.songTime, rate: prev.rate, base: 1, range: 0.1, songHandle: song, songStatus: prev.status }, ctx);
+      const cue = p.cue as { id: number; beat: number } | undefined;
+      if (cue && cue.id !== lastCue) {
+        lastCue = cue.id;
+        cues.push({ t, id: cue.id, beat: cue.beat });
+      }
+      prev = player.process({ song, playing: false, rate: 1, followRate: p.rate, followPlaying: p.playing, cue: p.cue, volume: 0.8 }, ctx);
+      await Promise.resolve();
+      await Promise.resolve();
+      st.advance(dt);
+    }
+    // Nothing is cued while B loads.
+    expect(cues.filter((c) => c.t > SWAP && c.t < LOADED)).toEqual([]);
+    // Once B can play, its first cue is where the conductor is then (song beat = conductor beat).
+    const first = cues.find((c) => c.t >= LOADED);
+    expect(first).toBeDefined();
+    expect(Math.abs(first!.beat - leadAt(first!.t).beat)).toBeLessThan(0.25);
+    // And the song then follows the conductor: by the end, the beat played is his.
+    const end = 10;
+    expect(Math.abs(beatIndexAt(b.grid, st.position()) - leadAt(end).beat)).toBeLessThan(0.1);
+  });
+});
