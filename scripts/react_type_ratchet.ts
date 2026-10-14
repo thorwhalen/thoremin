@@ -23,6 +23,11 @@
  *     closes that window to the one PR that fixed it;
  *   - a shrink and a growth that are the same codes and counts at different paths, with the
  *     total unchanged, is a RENAME: the advice is to re-baseline, not to fix;
+ *   - in CI, `--against-config=<file>` compares the committed `tsconfig.react.json` with the one
+ *     on main: a file main's config covers, that still exists, and that this one no longer
+ *     covers FAILS the run (dropping a failing file from `include` would otherwise remove its
+ *     errors from the live set and the baseline together, and stay green). A deleted file may
+ *     leave; a still-present one may not (#389);
  *   - in CI, `--against=<file>` compares the committed baseline with the one on main (no tsc
  *     run), so a re-baseline that moves a count UP cannot slip in with a PR.
  *
@@ -40,6 +45,7 @@
  *   npm run typecheck:react                 # compare against the baseline
  *   npm run typecheck:react -- --update     # rewrite the baseline from the current run
  *   npm run typecheck:react -- --against=main-baseline.json   # the committed baseline never grew past that one
+ *   npm run typecheck:react -- --against-config=main-tsconfig.react.json   # no file main's config covers is dropped
  *   npm run typecheck:react -- --config=tsconfig.react.json --baseline=tsconfig.react.baseline.json
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -79,6 +85,7 @@ const { values: options } = parseArgs({
     config: { type: 'string', default: DEFAULT_CONFIG },
     baseline: { type: 'string', default: DEFAULT_BASELINE },
     against: { type: 'string' },
+    'against-config': { type: 'string' },
   },
 });
 
@@ -197,7 +204,40 @@ function checkAgainst(reference: string): number {
   return 0;
 }
 
+/** The files a tsconfig covers, as the PR's filesystem resolves its globs (a deleted file matches nothing). */
+function coveredFiles(configFile: string): Set<string> {
+  const configPath = path.resolve(root, configFile);
+  const read = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (read.error) throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, '\n'));
+  // Parsed as if it sat at the repo root, not in the reference file's directory: the reference
+  // is main's config written to a scratch path, but its globs and its `extends` mean "relative
+  // to the repo".
+  const asAtRoot = path.join(root, path.basename(configFile));
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, root, { noEmit: true }, asAtRoot);
+  if (parsed.fileNames.length === 0) throw new Error(`${configFile}: covers no files (${parsed.errors.map((e) => ts.flattenDiagnosticMessageText(e.messageText, ' ')).join('; ')})`);
+  return new Set(parsed.fileNames.map((f) => path.relative(root, f).split(path.sep).join('/')));
+}
+
+/** `--against-config`: the committed config may not stop covering a still-present file the reference covers. */
+function checkAgainstConfig(reference: string): number {
+  if (!existsSync(path.resolve(root, reference))) {
+    console.log(`typecheck:react: no reference config at ${reference}; nothing to compare the committed one with`);
+    return 0;
+  }
+  const now = coveredFiles(options.config);
+  const dropped = [...coveredFiles(reference)].filter((f) => !now.has(f) && existsSync(path.resolve(root, f))).sort();
+  if (dropped.length) {
+    console.error(`typecheck:react: FAIL: ${options.config} no longer covers ${dropped.length} file(s) ${reference} covers, and they still exist:`);
+    for (const f of dropped) console.error(`  ${f}`);
+    console.error('Dropping a file from the include hides its errors from the ratchet. Put it back; delete the file to retire it.');
+    return 1;
+  }
+  console.log(`typecheck:react: OK: ${options.config} covers every still-present file ${reference} covers (${now.size} files).`);
+  return 0;
+}
+
 function main(): number {
+  if (options['against-config'] !== undefined) return checkAgainstConfig(options['against-config']);
   if (options.against !== undefined) return checkAgainst(options.against);
 
   const diagnostics = collectDiagnostics(options.config);
