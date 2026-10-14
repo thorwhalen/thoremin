@@ -152,6 +152,23 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
   }
 });
 
+describe.runIf(AIR)('the pad a stroke heads for, against the #530 reviews\' takes', () => {
+  // A never-struck pad must not take the played pad's strokes, and a lower pad reached by
+  // tilting the stick (the hand where it was) is still told apart under landmark noise.
+  // Main: 16 and 15; the first versions of #530/#533: 13 and 11.
+  it('the snare struck with the hand raised 0 to 0.09 in turn, the kick on and never struck', async () => {
+    const script: DrumStroke[] = Array.from({ length: 16 }, (_, k) => ({ ...hard('p1'), hand: -[0, 0.03, 0.06, 0.09][k % 4] }));
+    const { score } = await playTake(kitWithLowPads(), { script });
+    expect({ on: score.on, missed: score.missed, false: score.false }).toEqual({ on: 16, missed: 0, false: 0 });
+  });
+  it('the kick reached by a 0.23 rad tilt, alternating with the snare, landmark noise 0.03', async () => {
+    const script: DrumStroke[] = Array.from({ length: 16 }, (_, k) => (k % 2 ? { ...hard('p6'), tilt: 0.232 } : hard('p1')));
+    const { score } = await playTake(kitWithLowPads(), { script, noise: 0.03, seed: 7 });
+    expect(score.on).toBeGreaterThanOrEqual(15);
+    expect({ missed: score.missed, false: score.false }).toEqual({ missed: 0, false: 0 });
+  });
+});
+
 describe.runIf(AIR)('a full swing with the arm on top of it is a stroke (#261 review)', () => {
   it('hears every stroke of the synthetic grip when the arm carries up to three times the swing', async () => {
     const dir = join(FIXTURES, 'subframe_stick_air_30');

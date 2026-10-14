@@ -30,6 +30,14 @@ export interface DrumStroke {
   /** How far the stick is raised (radians), in place of the force's own lift: a player
    *  whose stroke heights vary (#533). The fall's duration stays the force's. */
   lift?: number;
+  /** The hand's depth at the top over its depth at contact, frame heights (negative =
+   *  raised), dropped back to contact during the fall: a hand that moves with the swing. */
+  hand?: number;
+  /** A downward tilt of the stick at contact, radians, the hand held that much higher: a
+   *  lower pad reached by the stick's angle, not the hand's depth. */
+  tilt?: number;
+  /** The wait at the top before the fall, seconds, in place of the take's own. */
+  holdS?: number;
 }
 
 /** A scripted stroke with the frame time its tip reaches the bottom. */
@@ -112,7 +120,7 @@ export function drumTake(pads: Pads, options: DrumTakeOptions = {}): DrumTake {
     return { x: (1 - (p.x + dx)) * W, y: p.y * H };
   };
   // The stick turns about the hand: tip = pivot + STICK * (cos a, sin a).
-  const pivotFor = (tip: { x: number; y: number }) => ({ x: tip.x - STICK * Math.cos(LAND_ANGLE), y: tip.y - STICK * Math.sin(LAND_ANGLE) });
+  const pivotFor = (tip: { x: number; y: number }, land = LAND_ANGLE) => ({ x: tip.x - STICK * Math.cos(land), y: tip.y - STICK * Math.sin(land) });
   const poses: StickPose[] = [];
   const overlay: DrumTake['overlay'] = [];
   const script: ScriptedStroke[] = [];
@@ -137,23 +145,27 @@ export function drumTake(pads: Pads, options: DrumTakeOptions = {}): DrumTake {
   for (const s of strokes) {
     const f = { ...FORCE[s.force], ...(s.lift !== undefined ? { lift: s.lift } : {}) };
     const from = { ...pivot };
-    const to = pivotFor(target(s));
+    const land = LAND_ANGLE - (s.tilt ?? 0);
+    const base = pivotFor(target(s), land);
+    const dh = (s.hand ?? 0) * H;
+    const to = { x: base.x, y: base.y + dh };
     const a0 = angle;
-    const up = LAND_ANGLE + f.lift;
+    const up = land + f.lift;
     // Move the arm to the pad with the stick raised (smoothstep, no dip).
     phase(MOVE_S, (u) => {
       const e = u * u * (3 - 2 * u);
       pivot = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e };
       angle = a0 + (up - a0) * e;
     });
-    phase(HOLD_S, () => {});
+    phase(s.holdS ?? HOLD_S, () => {});
     // The stroke: a braked fall (fastest mid-way, still at the bottom), then back up.
     phase(f.fall, (u) => {
       angle = up - (f.lift * (1 - Math.cos(Math.PI * u))) / 2;
+      pivot = { x: base.x, y: base.y + dh * (1 - (1 - Math.cos(Math.PI * u)) / 2) };
     });
     script.push({ ...s, tLand: t - 1 / FPS });
     phase(RETURN_S, (u) => {
-      angle = LAND_ANGLE + (f.lift * (1 - Math.cos(Math.PI * u))) / 2;
+      angle = land + (f.lift * (1 - Math.cos(Math.PI * u))) / 2;
     });
   }
   phase(TAIL_S, () => {});

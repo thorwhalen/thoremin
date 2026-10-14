@@ -21,7 +21,7 @@ describe('per-pad floors (#353)', () => {
   it('follows each pad at the predictor\'s own gain, and a non-finite reading teaches nothing', () => {
     let f: PadFloors = {};
     f = learnPadFloor(f, 'p1', { floor: 0.72, top: 0.48 });
-    expect(f.p1).toEqual({ floor: 0.72, top: 0.48, grip: NaN });
+    expect(f.p1).toEqual({ floor: 0.72, top: 0.48, grip: NaN, spread: NaN });
     f = learnPadFloor(f, 'p1', { floor: 0.74, top: 0.5 });
     expect(f.p1!.floor).toBeCloseTo(0.72 + PAD_FLOOR_GAIN * 0.02, 12);
     expect(learnPadFloor(f, 'p6', { floor: NaN, top: 0.5 })).toBe(f);
@@ -78,15 +78,31 @@ describe('per-pad floors (#353)', () => {
     expect(padFloorFor(f, pads, { top: 0.08, xAt: straightDown(0.14) })).toBeCloseTo(0.32, 12);
   });
 
-  it('tells stacked pads apart by the hand, not the top, for a stick tip (#533)', () => {
+  it('tells stacked pads apart by where the stroke starts, top and hand, for a stick tip (#533)', () => {
     let f: PadFloors = {};
     f = learnPadFloor(f, 'p1', { floor: 0.72, top: 0.48, grip: 0.62 });
     f = learnPadFloor(f, 'p6', { floor: 0.8, top: 0.56, grip: 0.7 });
-    // A snare stroke raised low (its top nearer the kick's) is still the snare's: the hand
-    // is where the snare's strokes hold it.
-    expect(padFloorFor(f, pads, { top: 0.56, grip: 0.62, xAt: straightDown(0.5) })).toBe(0.72);
-    expect(padFloorFor(f, pads, { top: 0.48, grip: 0.7, xAt: straightDown(0.5) })).toBe(0.8);
-    // A pad that learned with no grip (another point) makes the rule read the top.
-    expect(padFloorFor(learnPadFloor(f, 'p4', { floor: 0.3, top: 0.1 }), pads, { top: 0.56, grip: 0.62, xAt: straightDown(0.5) })).toBe(0.8);
+    // A snare stroke swung lower (its top 0.06 down, nearer the kick's than the snare's)
+    // is still the snare's: the hand is where the snare's strokes hold it.
+    expect(padFloorFor(f, pads, { top: 0.54, grip: 0.62, xAt: straightDown(0.5) })).toBe(0.72);
+    expect(padFloorFor(f, pads, { top: 0.54, xAt: straightDown(0.5) })).toBe(0.8);
+    expect(padFloorFor(f, pads, { top: 0.56, grip: 0.7, xAt: straightDown(0.5) })).toBe(0.8);
+    // A grip missing from one reading keeps the pad's own (it never turns the cue off).
+    expect(learnPadFloor(f, 'p1', { floor: 0.72, top: 0.48 }).p1!.grip).toBeCloseTo(0.62, 12);
+  });
+
+  it('names a never-struck pad only by a margin, and only for a stroke unlike the learned pad\'s own (the #530 reviews)', () => {
+    // The snare struck twice with the hand 0.04 apart: its strokes scatter.
+    let f = learnPadFloor({}, 'p1', { floor: 0.72, top: 0.48, grip: 0.62 });
+    f = learnPadFloor(f, 'p1', { floor: 0.72, top: 0.44, grip: 0.58 });
+    expect(f.p1!.spread).toBeCloseTo(Math.hypot(0.04, 0.04), 12);
+    // The kick (never struck) is expected 0.08 lower. A stroke 0.065 under the snare's usual
+    // start is within the snare's scatter x PRIOR_SPREADS: the snare's.
+    const usual = f.p1!;
+    // (nearer the kick's expected start by the margin, but the snare's own strokes scatter that much)
+    expect(padFloorFor(f, pads, { top: usual.top + 0.065, grip: usual.grip! + 0.065, xAt: straightDown(0.5) })).toBe(0.72);
+    // A stroke started where the kick's strokes are expected, far from the snare's: the kick.
+    const kick = priorPadFloor(f, pads, 'p6')!;
+    expect(padFloorFor(f, pads, { top: kick.top, grip: kick.grip, xAt: straightDown(0.5) })).toBeCloseTo(kick.floor, 12);
   });
 });

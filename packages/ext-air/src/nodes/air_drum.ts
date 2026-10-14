@@ -485,10 +485,24 @@ export function fallingSegment(samples: readonly TrackSample[], tEnd: number, ep
   return samples.slice(j, i + 1);
 }
 
+/** Samples of the hold at the top a departure's hand depth is averaged over. */
+const GRIP_HOLD_SAMPLES = 3;
+
 /** The depth of the hand gripping the stick where the fall up to `tEnd` departed (#533:
- *  the pad a stroke heads for, by where the hand is held), NaN for a point with no grip. */
+ *  the pad a stroke heads for, by where the hand is held), averaged over the departure
+ *  and the samples held at the top just before it (up to {@link GRIP_HOLD_SAMPLES}, so
+ *  one frame's landmark noise does not decide); NaN for a point with no grip. The same
+ *  read when a stroke is named and when it is learned, except that a slow fall longer
+ *  than the approach window is read a little way down it at learning. */
 export function gripAtDeparture(samples: readonly TrackSample[], tEnd: number, eps: number): number {
-  return fallingSegment(samples, tEnd, eps)[0]?.grip?.y ?? NaN;
+  const seg = fallingSegment(samples, tEnd, eps);
+  const dep = seg[0];
+  if (!dep?.grip) return NaN;
+  let i = samples.indexOf(dep);
+  let sum = 0;
+  let n = 0;
+  for (; i >= 0 && n < GRIP_HOLD_SAMPLES && samples[i].grip && Math.abs(samples[i].y - dep.y) <= eps; i--, n++) sum += samples[i].grip!.y;
+  return n ? sum / n : dep.grip.y;
 }
 
 export interface Landing {

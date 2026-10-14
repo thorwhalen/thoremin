@@ -12,6 +12,7 @@
  *
  *   npx vite-node scripts/air/eval_pad_floors.ts            # the table
  *   npx vite-node scripts/air/eval_pad_floors.ts --strokes  # and every stroke off its pad
+ *   ROW=tilt npx vite-node scripts/air/eval_pad_floors.ts   # only the rows whose name has "tilt"
  */
 import { runHeadless } from '@thoremin/dag';
 import { loadedAppRegistry } from '@/nodes/browser';
@@ -83,7 +84,7 @@ const ROWS: Row[] = [
   // #533: the review's varied lifts on the stacked pads.
   { name: '#533 snare lift 0.45 / kick 0.7', script: alternate('p1', 'p6', 16, (pad) => s(pad, 'hard', pad === 'p1' ? 0.45 : 0.7)) },
   { name: '#533 snare lift 0.5 / kick 0.7', script: alternate('p1', 'p6', 16, (pad) => s(pad, 'hard', pad === 'p1' ? 0.5 : 0.7)) },
-  { name: '#533 kick kick snare, snare 0.5|0.9', script: Array.from({ length: 4 }, (_, k) => [s('p6'), s('p6'), s('p1', 'hard', k % 2 ? 0.9 : 0.5)]).flat().slice(0, 10) },
+  { name: '#533 kick kick snare, snare 0.5 or 0.9', script: Array.from({ length: 4 }, (_, k) => [s('p6'), s('p6'), s('p1', 'hard', k % 2 ? 0.9 : 0.5)]).flat().slice(0, 10) },
   { name: '#533 snare lifts 0.5..0.9 / kick 0.7', script: alternate('p1', 'p6', 16, (pad, k) => s(pad, 'hard', pad === 'p1' ? [0.5, 0.9, 0.6, 0.8][(k >> 1) % 4] : 0.7)) },
   // The #530 review: one pad played at varied heights with a stacked pad on and never struck.
   { name: 'snare only (kick on), lifts 0.7 / 0.5', script: alternate('p1', 'p1', 16, (pad, k) => s(pad, 'hard', k % 2 ? 0.5 : 0.7)) },
@@ -93,6 +94,16 @@ const ROWS: Row[] = [
   { name: 'kick only (snare on), lifts 0.7 / 0.9', script: alternate('p6', 'p6', 16, (pad, k) => s(pad, 'hard', k % 2 ? 0.9 : 0.7)) },
   { name: 'snare soft 0.5 / hard (kick on)', script: alternate('p1', 'p1', 16, (pad, k) => (k % 2 ? s(pad, 'soft', 0.5) : s(pad))) },
   { name: 'snare soft 0.5 / kick hard', script: alternate('p1', 'p6', 16, (pad) => (pad === 'p1' ? s(pad, 'soft', 0.5) : s(pad))) },
+  // The second review: the hand moving with the swing, and a lower pad reached by tilting.
+  { name: 'kick only (snare on), hand raised 0.05 every 4th', script: alternate('p6', 'p6', 16, (pad, k) => ({ ...s(pad), ...(k % 4 === 3 ? { hand: -0.05 } : {}) })) },
+  { name: 'kick only (snare on), hand raised 0..0.09', script: alternate('p6', 'p6', 16, (pad, k) => ({ ...s(pad), hand: -[0, 0.03, 0.06, 0.09][k % 4] })) },
+  { name: 'snare only (kick on), hand raised 0..0.09', script: alternate('p1', 'p1', 16, (pad, k) => ({ ...s(pad), hand: -[0, 0.03, 0.06, 0.09][k % 4] })) },
+  ...([[0.02, 3], [0.02, 7], [0.03, 3], [0.03, 7], [0.05, 1], [0.05, 3], [0.05, 5]] as const).map(([noise, seed]) => ({
+    name: `kick by a 0.23 rad tilt / snare, noise ${noise} seed ${seed}`,
+    script: alternate('p1', 'p6', 16, (pad) => ({ ...s(pad), ...(pad === 'p6' ? { tilt: 0.232 } : {}) })),
+    options: { noise, seed },
+  })),
+  { name: 'snare / kick, no wait at the top', script: alternate('p1', 'p6', 16, (pad) => ({ ...s(pad), holdS: 0 })) },
   // #531 / #530: from a high pad down to a low one never struck.
   { name: 'crash then snare (starter kit)', script: [s('p4'), s('p4'), s('p1'), s('p1'), s('p4'), s('p1')], pads: starterKitPads() },
   { name: 'ride then floor tom', script: [s('p5'), s('p5'), s('p7'), s('p7'), s('p5'), s('p7')] },
@@ -103,7 +114,7 @@ const showStrokes = process.argv.includes('--strokes');
 const fmt = (x: number) => (Number.isFinite(x) ? x.toFixed(1) : '-');
 console.log('| take | n | on pad | first-on-pad off | predicted | missed | false | sounding MAE (ms) |');
 console.log('|---|---|---|---|---|---|---|---|');
-for (const row of ROWS) {
+for (const row of ROWS.filter((r) => !process.env.ROW || r.name.includes(process.env.ROW))) {
   const { score } = await play(row.pads ?? kit(), { ...row.options, script: row.script });
   const struck = new Set<PadId>();
   let firstOff = 0;
