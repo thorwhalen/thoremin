@@ -50,7 +50,7 @@ export function PartsControls() {
             onChange={(e) => toggle(p.id, e.target.checked)}
           />
           <span>{p.name || p.id}</span>
-          {p.percussion && <span className="text-white/40">(drums: the orchestra does not play these yet)</span>}
+          {p.percussion && <span className="text-white/40">(drums: the orchestra has no drum kit yet; with only drums selected the oscillator score plays them)</span>}
         </label>
       ))}
     </fieldset>

@@ -173,6 +173,23 @@ describe('orchestra node: playing the piece', () => {
     expect(synth.calls.at(-1)?.op).toBe('allNotesOff');
   });
 
+  it('does not claim the piece when the selected parts are all percussion (#556)', async () => {
+    const { step } = harness();
+    const doc = {
+      v: 1, title: 't', source: 'midi',
+      parts: [
+        { id: 'v', name: 'Violin', program: 40, percussion: false, notes: [{ midi: 67, start: 0, duration: 1, velocity: 0.8 }] },
+        { id: 'd', name: 'Drums', program: 0, percussion: true, notes: [{ midi: 36, start: 0, duration: 0.1, velocity: 0.8 }] },
+      ],
+      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], lengthBeats: 1,
+    };
+    step({ config: ON, doc });
+    await flush();
+    expect(step({ config: ON, doc, conducting: true, time: time(0, 60) }).playing).toBe(true);
+    const drumsOnly = { orchestra: ON.orchestra, parts: 'd' };
+    expect(step({ config: drumsOnly, doc, conducting: true, time: time(0.1, 60) }).playing).toBe(false);
+  });
+
   it('stopping the conductor releases what sounds', async () => {
     const { step, synth } = harness();
     step({ config: ON });
