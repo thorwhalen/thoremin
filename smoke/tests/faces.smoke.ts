@@ -153,6 +153,17 @@ test('the face session loads only when opened, and records, carves, names and sa
   await name.press('Enter');
   await expect(panel.locator('[data-face-category] input[value="my grin"]')).toHaveCount(1);
 
+  // "Add more" before saving (#421): a short take into the same carve, its names kept.
+  const kNow = await cats.count();
+  await panel.getByRole('button', { name: 'Add more of my faces' }).click();
+  await expect(panel.getByText(/Adding to this carve/)).toBeVisible();
+  await expect(panel.locator('[data-faces-recording="faces"]')).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(3_500);
+  await panel.getByRole('button', { name: 'Stop and carve' }).click();
+  await expect(panel.getByText(/Merged: \d+ of \d+ new faces/)).toBeVisible({ timeout: 15_000 });
+  await expect(cats).toHaveCount(kNow);
+  await expect(panel.locator('[data-face-category] input[value="my grin"]')).toHaveCount(1);
+
   // Save, and it is listed.
   await panel.getByLabel('Categorizer name').fill('Smoke faces');
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
