@@ -30,8 +30,8 @@ const BODY = { enabled: true, source: 'body', hand: 'right', mirrorX: false, mir
 
 type Out = Record<string, unknown> & { beat: number; time: { state: string; anchors: number }; transport: string; leadsScore: boolean; bpm: number };
 
-async function play(gestures: Gesture[], params: Record<string, unknown> = {}, extra: Record<string, unknown[]> = {}) {
-  const sc = conduct(gestures, { fps: FPS });
+async function play(gestures: Gesture[], params: Record<string, unknown> = {}, extra: Record<string, unknown[]> = {}, script: Parameters<typeof conduct>[1] = {}) {
+  const sc = conduct(gestures, { fps: FPS, ...script });
   const h = conductorNode.make(conductorNode.params.parse({ ...BODY, ...params }));
   const outs = (await replayNode(h, { body: sc.frames, ...extra }, { dt: 1 / FPS })) as Out[];
   const at = (t: number) => outs[Math.min(outs.length - 1, Math.round(t * FPS))];
@@ -77,6 +77,25 @@ describe('the body transport: start', () => {
   it('the downbeat plays beat 0 with the auto side too', async () => {
     const { sc, at } = await play([...START, { kind: 'beat', bpm: BPM, beats: 6 }], { hand: 'auto' });
     sc.ictus.forEach((t, i) => expect(Math.abs(at(t).beat - i)).toBeLessThan(0.25));
+  });
+});
+
+describe('the body transport at a noisier tracker (#461)', () => {
+  // About 1 px of jitter on a 150 px torso is a webcam's; the upbeat must still be seen
+  // (it is read from the arm's travel over a lag, which averages the noise away), and the
+  // walk-in must still start nothing.
+  const cases = [1, 2].flatMap((noisePx) => (['fixed', 'jointed'] as const).map((arm) => ({ noisePx, arm })));
+  it.each(cases)('$noisePx px, $arm arm: ready, upbeat, then beat 0 on the downbeat', async ({ noisePx, arm }) => {
+    const { sc, outs } = await play([...START, { kind: 'beat', bpm: BPM, beats: 8 }], {}, {}, { noisePx, arm });
+    const start = firstIndex(outs, (o) => o.beat > 0);
+    expect(start / FPS - sc.ictus[0]).toBeGreaterThanOrEqual(0);
+    expect(start / FPS - sc.ictus[0]).toBeLessThanOrEqual(2 / FPS + 1e-9);
+    expect(phases(outs.slice(0, start + 1))).toEqual(['idle', 'armed', 'prepared', 'running']);
+  });
+  it.each(cases)('$noisePx px, $arm arm: strokes before any ready pose start nothing', async ({ noisePx, arm }) => {
+    const { sc, outs } = await play([{ kind: 'fidget', s: 3 }, { kind: 'rest', s: 0.5 }, ...START, { kind: 'beat', bpm: BPM, beats: 4 }], {}, {}, { noisePx, arm });
+    expect(outs.slice(0, 3 * FPS).every((o) => o.beat === 0 && !o.leadsScore)).toBe(true);
+    expect(firstIndex(outs, (o) => o.beat > 0) / FPS).toBeGreaterThanOrEqual(sc.ictus[0]);
   });
 });
 

@@ -67,6 +67,11 @@ export interface TransportInput {
   raise?: number;
   /** The arms' motion in noise units; undefined when unseen. */
   motion?: number;
+  /** The arms' travel over a short lag in noise units (#461): what the upbeat is read from
+   *  when present, `motion` otherwise. A still arm reads about 1 on both; a sustained
+   *  movement reads several times more on `travel`, whose vector displacement cancels the
+   *  tracker's noise where a smoothed per-frame magnitude cannot. */
+  travel?: number;
   /** The own (refined) time of an anchor delivered on this frame, if one was; its
    *  acceptance is in the result. The periods are counted from it, not from the frame
    *  that confirmed it: a stroke that ends in a stop is confirmed late. */
@@ -192,7 +197,7 @@ export function createTransport(options: TransportOptions = {}): Transport {
       phase = 'running';
       lastAnchorT = t;
     },
-    step({ t, raise, motion, anchor, period = Infinity, pose = {} }) {
+    step({ t, raise, motion, travel, anchor, period = Infinity, pose = {} }) {
       const P = Number.isFinite(period) && period > 0 ? period : o.fallbackPeriodS;
       const still = motion !== undefined && motion < o.stillBelow;
       const raised = raise !== undefined && raise > o.raisedAbove;
@@ -201,7 +206,8 @@ export function createTransport(options: TransportOptions = {}): Transport {
       const readyPose = pose.ready ?? (pose.cutoff !== true && raised && still);
       const holdPose = pose.hold ?? (pose.cutoff !== true && raised && still);
       const cutoffPose = pose.cutoff ?? (dropped && still);
-      const moving = motion !== undefined && motion > o.moveAbove;
+      const upbeat = travel ?? motion;
+      const moving = upbeat !== undefined && upbeat > o.moveAbove;
 
       readySince = readyPose ? (Number.isNaN(readySince) ? t : readySince) : NaN;
       cutoffSince = cutoffPose ? (Number.isNaN(cutoffSince) ? t : cutoffSince) : NaN;
