@@ -92,7 +92,8 @@ describe('the expand/migrate step (#412)', () => {
     expect(pose.model.categorizer.samples.some((s) => s.support?.length)).toBe(true);
     // Nothing is deleted from the old store, and the flag says it was done.
     expect(localStorage.getItem(KEY)).toBe(before);
-    expect(localStorage.getItem(m.CATEGORIZERS_IDB_MIGRATED_KEY)).toBe('1');
+    expect(idb.meta.has('migrated')).toBe(true); // the marker is in IndexedDB itself
+    expect(localStorage.getItem(m.CATEGORIZERS_IDB_MIGRATED_KEY)).toBe('1'); // and a hint beside the old key
   });
 
   it('after the copy IndexedDB is the store: saves and deletes land there, the old key never changes, and nothing is copied back', async () => {
@@ -109,13 +110,43 @@ describe('the expand/migrate step (#412)', () => {
     expect(localStorage.getItem(KEY)).toBe(before);
   });
 
-  it('a record already in IndexedDB is never overwritten by the copy (a second tab, a retried copy)', async () => {
+  it('a copy another tab already made is never repeated or overwritten', async () => {
     idb = installFakeIndexedDb();
     const [face] = records();
     seedLocalStorage([face]);
     idb.data.set('my-faces', { ...face, name: 'Edited in IndexedDB' });
+    idb.meta.set('migrated', 1);
     const { faces } = await pageLoad();
     expect((await faces.list()).map((r) => r.name)).toEqual(['Edited in IndexedDB']);
+  });
+
+  it('two tabs opening at once copy once: no error, no duplicate, one marker', async () => {
+    idb = installFakeIndexedDb();
+    seedLocalStorage(records());
+    const [a, b] = await Promise.all([pageLoad(), pageLoad()]);
+    const [la, lb] = await Promise.all([a.index.list(), b.index.list()]);
+    expect(la.map((r) => r.id).sort()).toEqual(['body:my-poses', 'hand:my-fist', 'my-faces']);
+    expect(lb).toEqual(la);
+    expect(storedIds()).toHaveLength(3);
+  });
+
+  it('a delete sticks even when the hint beside the old key cannot be written (a full localStorage)', async () => {
+    idb = installFakeIndexedDb();
+    seedLocalStorage(records());
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+    const first = await pageLoad();
+    await first.faces.remove('my-faces');
+    const second = await pageLoad(); // the copy is not repeated: the marker is in IndexedDB
+    expect(await second.faces.list()).toEqual([]);
+  });
+
+  it('two saves of one name at once both resolve and leave one record', async () => {
+    idb = installFakeIndexedDb();
+    const { faces } = await pageLoad();
+    await Promise.all([faces.save('Wink', { categorizer: demo() }), faces.save('Wink', { categorizer: demo() })]);
+    expect((await faces.list()).map((r) => r.id)).toEqual(['wink']);
   });
 
   it('a record that no longer validates is copied too (a migration drops nothing), listed, and deletable', async () => {
@@ -158,6 +189,17 @@ describe('where IndexedDB cannot be used (#412)', () => {
     expect(localStorage.getItem(m.CATEGORIZERS_IDB_MIGRATED_KEY)).toBeNull(); // retried on the next load
   });
 
+  it('IndexedDB lost after the copy: the records are shown, read-only, and a save says why (no writes to a store IndexedDB will never see)', async () => {
+    idb = installFakeIndexedDb();
+    seedLocalStorage(records());
+    await (await pageLoad()).faces.list(); // the copy completes
+    idb.uninstall(); // this load, IndexedDB cannot be opened
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { faces } = await pageLoad();
+    expect((await faces.list()).map((r) => r.id)).toEqual(['my-faces']);
+    await expect(faces.save('Wink', { categorizer: demo() })).rejects.toThrow(/read-only/);
+  });
+
   it('a copy that fails (a full disk): localStorage keeps serving, nothing is lost, the flag is not set', async () => {
     idb = installFakeIndexedDb({ failWrites: true });
     seedLocalStorage(records());
@@ -167,11 +209,13 @@ describe('where IndexedDB cannot be used (#412)', () => {
     expect((await faces.list()).map((r) => r.id)).toEqual(['my-faces']);
     expect(localStorage.getItem(KEY)).toBe(before);
     expect(localStorage.getItem(m.CATEGORIZERS_IDB_MIGRATED_KEY)).toBeNull();
+    expect(idb.data.size + idb.meta.size).toBe(0); // all or nothing: no stale half-copy is left behind
+    await faces.save('Wink', { categorizer: demo() }); // an edit made while serving from localStorage
 
-    idb.failWrites = false; // the disk has room on the next load: the copy completes
+    idb.failWrites = false; // the disk has room on the next load: the copy completes, edit included
     const { faces: next } = await pageLoad();
-    expect((await next.list()).map((r) => r.id)).toEqual(['my-faces']);
-    expect(storedIds()).toEqual(['body:my-poses', 'hand:my-fist', 'my-faces']);
+    expect((await next.list()).map((r) => r.id).sort()).toEqual(['my-faces', 'wink']);
+    expect(storedIds()).toEqual(['body:my-poses', 'hand:my-fist', 'my-faces', 'wink']);
   });
 });
 
@@ -182,11 +226,17 @@ describe('the IndexedDB DataProvider', () => {
     await p.create({ id: 'a', name: 'A' });
     expect(await p.getOne('a')).toEqual({ id: 'a', name: 'A' });
     expect(await p.update('a', { n: 2 })).toEqual({ id: 'a', name: 'A', n: 2 });
-    expect(await p.addIfAbsent({ id: 'a', name: 'other' })).toBe(false);
-    expect(await p.addIfAbsent({ id: 'b', name: 'B' })).toBe(true);
+    await expect(p.create({ id: 'a', name: 'other' })).rejects.toMatchObject({ name: 'ConstraintError' });
+    await p.create({ id: 'b', name: 'B' });
     expect((await p.getList({ search: 'b' })).data.map((r) => r.id)).toEqual(['b']);
+    await expect(p.update('zzz', { name: 'x' })).rejects.toThrow(/not found/);
+    expect(await p.imported()).toBe(false);
+    expect(await p.importOnce([{ id: 'c', name: 'C' }])).toBe(true);
+    expect(await p.importOnce([{ id: 'd', name: 'D' }])).toBe(false); // once
+    expect(await p.imported()).toBe(true);
+    await p.delete('c');
     await p.delete('a');
     await expect(p.getOne('a')).rejects.toThrow(/not found/);
-    expect((await p.getList({})).total).toBe(1);
+    expect((await p.getList({})).total).toBe(1); // b
   });
 });
