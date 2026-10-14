@@ -74,7 +74,9 @@
  * once that relation has persisted, the tempo follows inside `dancer.range` of the marked
  * one, the cycle start is kept on the grid modulo the ratio (so bars stay on the dancer's
  * cycles), and an untrusted pulse HOLDS the tempo: the piece never stops because the
- * dancer paused. No transport rules, no fermata holds (a dancer has no release gesture),
+ * dancer paused. No transport rules; a written fermata holds for one dancer cycle (a dancer
+ * has no release gesture, and one cycle keeps the bars on the dancer), and past its end the
+ * piece loops to the top on a cycle start while the dancer is followed, else ends (#463);
  * `markLevel` unused (the relation finds the level). Expression `same` is the body's
  * motion and reach, read once per pulse cycle, its articulation the body's flow (a fitted
  * cycle has no braking sharpness). The `dance` output is the lead's mode. One leader per
@@ -503,6 +505,8 @@ export const conductorNode = defineNode<Params>({
     /** The last note onset of the loaded piece (null without one): a cut-off at or past it
      *  ends the piece, and the next start is from the top. */
     let docLastOnset: number | null = null;
+    /** The document's length in beats (its last note-off): where a dancer's piece loops (#463). */
+    let docLength: number | null = null;
     /** The beat the body's transport started on (its downbeat), until the prior has a
      *  period: meanwhile the beat moves at the marked tempo and waits just short of the
      *  next stroke's beat for the second stroke (see `process`). */
@@ -569,6 +573,7 @@ export const conductorNode = defineNode<Params>({
       docSigStart = null;
       docBpm = null;
       docLastOnset = null;
+      docLength = null;
       fermataAt = null;
       fermataReleased = null;
       const doc = readScoreDoc(raw);
@@ -581,6 +586,7 @@ export const conductorNode = defineNode<Params>({
       let last = -Infinity;
       for (const part of doc.parts) for (const n of part.notes) last = Math.max(last, n.start);
       docLastOnset = Number.isFinite(last) ? last : null;
+      docLength = doc.lengthBeats > 0 ? doc.lengthBeats : null;
     };
 
     const resolveConfig = (raw: unknown): Params => {
@@ -739,9 +745,11 @@ export const conductorNode = defineNode<Params>({
     };
 
     /** A dancer leads (#380): ictus's dance lead owns the beat (the loose law: it starts on
-     *  a cycle, follows inside the clamp, holds and never stops). Written fermatas are
-     *  played through (a dancer has no release gesture); the transport rules are a
-     *  conductor's. The beat goes on from where the last leader left it. */
+     *  a cycle, follows inside the clamp, holds and never stops while the dancer dances).
+     *  A written fermata holds for one dancer cycle and the piece loops at its end (#463;
+     *  the expression keeps reading the dancer's cycles through a hold, so a dancer's
+     *  movement can swell a held chord); the transport rules are a conductor's. The beat
+     *  goes on from where the last leader left it. */
     let dance: DanceLead | null = null;
     let lastCycleAt: number | undefined;
     const danceTick = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params) => {
@@ -762,7 +770,9 @@ export const conductorNode = defineNode<Params>({
       const raw = inputs.pulse as PulseState | undefined;
       const pulse = raw && typeof raw === 'object' && typeof raw.period === 'number' ? raw : UNKNOWN_PULSE;
       const marked = docTempo?.(beatOut) ?? c.dancer.bpm;
-      const d = dance.step({ t: ctx.time, pulse, marked, ref: docSigStart ? docSigStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset });
+      // The piece's written fermatas hold for one dancer cycle, and its end loops to the top
+      // on a cycle start (#463): the dance lead's rules 6 and 7.
+      const d = dance.step({ t: ctx.time, pulse, marked, ref: docSigStart ? docSigStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset, fermatas, top: docSigStart ? docSigStart(0) : 0, ...(docLength !== null ? { end: docLength } : {}) });
       beatOut = d.beat;
       // A cycle the follower fitted is the dancer's "stroke" for the expression (A6's note).
       let cycle: Anchor | null = null;
@@ -784,7 +794,8 @@ export const conductorNode = defineNode<Params>({
         nextBeatAt: bpm > 0 ? ctx.time + ((1 - (beatOut - wholeBeat)) * 60) / bpm : Infinity,
         beatsPerBar: bpb,
         beatInBar: ((wholeBeat % bpb) + bpb) % bpb,
-        state: d.started ? 'running' : 'ready',
+        // A held fermata reads as a hold to every consumer, as the conductor's does.
+        state: d.mode === 'fermata' || d.mode === 'ended' ? 'hold' : d.started ? 'running' : 'ready',
         anchors: d.cycles,
         ...(pulse.lastAnchorAt !== undefined ? { lastAnchorAt: pulse.lastAnchorAt } : {}),
       };

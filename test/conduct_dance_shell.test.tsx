@@ -79,6 +79,9 @@ describe('Dance the orchestra', () => {
     const live = { enabled: true, state: 'ready', tempo: 0, beat: 0, beatInBar: 0, beatsPerBar: 4, confidence: 0, dynamics: 0.5, anchors: 0 } as const;
     expect(describeLive(live, 'dancer')).toMatch(/starts on your step once your rhythm holds/);
     expect(describeLive({ ...live, state: 'running', tempo: 123.6 }, 'dancer')).toBe('Following your dance at 124 bpm.');
+    // A written fermata and the end of the piece under a dancer (#463).
+    expect(describeLive({ ...live, state: 'hold', dance: 'fermata' }, 'dancer')).toBe('A fermata: holding it for one of your steps.');
+    expect(describeLive({ ...live, state: 'hold', dance: 'ended' }, 'dancer')).toBe('The piece is over: dance again and it starts from the top on your step.');
     // The lead's mode (the conductor's `dance` output): a paused dancer is held, not followed.
     expect(describeLive({ ...live, state: 'running', tempo: 121.2, dance: 'holding' }, 'dancer')).toBe('Holding 121 bpm until your rhythm is clear again.');
     expect(describeLive({ ...live, dance: 'armed' }, 'dancer')).toMatch(/starts on your next step/);

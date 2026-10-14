@@ -211,3 +211,146 @@ describe('the tempo follows a settled period only (#464)', () => {
     expect(before.every((s) => s.rate === 1)).toBe(true);
   });
 });
+
+describe('written fermatas and the end of the piece under a dancer (#463)', () => {
+  // 2 s cycles against 120 bpm: one cycle is a bar (k = 4), at the marked tempo.
+  const P = 2;
+  const steps = (seconds: number, input: { fermatas?: number[]; end?: number }) => {
+    const lead = createDanceLead();
+    const out: DanceLeadState[] = [];
+    for (let i = 0; i < Math.round(seconds * HZ); i++) out.push(lead.step({ t: i / HZ, pulse: pulseAt(i / HZ, P, 0.3), marked: 120, ...input }));
+    return out;
+  };
+  /** Beats off the bar line at each of the dancer's cycle starts once started (not during a
+   *  fermata, where the beat is frozen on the fermata by design). */
+  const offBar = (states: DanceLeadState[]) =>
+    Array.from({ length: 30 }, (_, j) => 0.3 + j * P)
+      .filter((t) => t < states.at(-1)!.t && states[Math.floor(t * HZ)].started && states[Math.floor(t * HZ)].mode !== 'fermata')
+      .map((t) => {
+        const s = states[Math.floor(t * HZ)];
+        const x = (s.beat + ((t - s.t) * s.tempo) / 60) / 4;
+        return Math.abs(x - Math.round(x)) * 4;
+      });
+
+  it('a fermata holds for one dancer cycle (k beats), reports tempo 0, then goes on; the bars stay on the dancer', () => {
+    const plain = steps(40, {});
+    const start = plain.find((s) => s.started)!.beat;
+    const f = Math.ceil(start) + 10.5;
+    const held = steps(40, { fermatas: [f] });
+    const holding = held.filter((s) => s.mode === 'fermata');
+    expect(holding.length).toBeGreaterThan(0);
+    expect(holding.every((s) => s.beat === f && s.tempo === 0 && s.started)).toBe(true);
+    // One cycle long, at the tempo it had (120 bpm, k = 4: 2 s), within a frame.
+    expect(Math.abs(holding.length / HZ - P)).toBeLessThan(1.5 / HZ);
+    // After it, the beat is k beats behind where it would have been: the bars are kept.
+    const later = 36;
+    const i = Math.round(later * HZ);
+    expect(plain[i].beat - held[i].beat).toBeCloseTo(4, 1);
+    expect(Math.max(...offBar(held))).toBeLessThan(0.05);
+    // Never backwards.
+    for (let j = 1; j < held.length; j++) expect(held[j].beat).toBeGreaterThanOrEqual(held[j - 1].beat);
+  });
+
+  it('two fermatas in a row each hold; one at the start beat is not re-held after its release', () => {
+    const plain = steps(40, {});
+    const start = Math.ceil(plain.find((s) => s.started)!.beat);
+    const held = steps(40, { fermatas: [start + 3, start + 9] });
+    const runs = held.reduce((n, s, j) => n + (s.mode === 'fermata' && held[j - 1]?.mode !== 'fermata' ? 1 : 0), 0);
+    expect(runs).toBe(2);
+  });
+
+  it('the end loops to the top on a dancer cycle start: the bars stay on the dancer', () => {
+    // A 30-beat piece loops at 32 (whole cycles of 4 beats).
+    const states = steps(60, { end: 30 });
+    const wraps = states.filter((s, j) => j > 0 && s.beat < states[j - 1].beat);
+    expect(wraps.length).toBeGreaterThanOrEqual(2);
+    for (const w of wraps) expect(w.beat).toBeLessThan(0.2);
+    expect(states.at(-1)!.loops).toBe(wraps.length);
+    expect(states.every((s) => s.beat < 32)).toBe(true);
+    expect(Math.max(...offBar(states))).toBeLessThan(0.05);
+  });
+
+  it('no end, or an end of 0: no loop', () => {
+    expect(steps(40, {}).at(-1)!.loops).toBe(0);
+    expect(steps(40, { end: 0 }).at(-1)!.loops).toBe(0);
+  });
+});
+
+describe('the fermata and loop edges (#463 review)', () => {
+  const P = 2;
+  const go = (seconds: number, input: { fermatas?: number[]; end?: number; ref?: number; top?: number }, pulse: (t: number) => PulseState = (t) => pulseAt(t, P, 0.3)) => {
+    const lead = createDanceLead();
+    const out: DanceLeadState[] = [];
+    for (let i = 0; i < Math.round(seconds * HZ); i++) out.push(lead.step({ t: i / HZ, pulse: pulse(i / HZ), marked: 120, ...input }));
+    return out;
+  };
+  const offGrid = (states: DanceLeadState[], ref: number, fromT = 0, period = P, t0 = 0.3) =>
+    Array.from({ length: 40 }, (_, j) => t0 + j * period)
+      .filter((t) => t >= fromT && t < states.at(-1)!.t && states[Math.floor(t * HZ)].started && states[Math.floor(t * HZ)].mode === 'following')
+      .map((t) => {
+        const s = states[Math.floor(t * HZ)];
+        const x = (s.beat + ((t - s.t) * s.tempo) / 60 - ref) / 4;
+        return Math.abs(x - Math.round(x)) * 4;
+      });
+
+  it('a grid that starts at beat 2: the loop lands on the grid, not two beats off it', () => {
+    const states = go(60, { end: 29, ref: 2, top: 2 });
+    expect(states.at(-1)!.loops).toBeGreaterThanOrEqual(2);
+    expect(Math.max(...offGrid(states, 2))).toBeLessThan(0.05);
+  });
+
+  it('the dancer gone when the piece runs out: it ends, silent, and starts from the top on their next cycle once back', () => {
+    // Untrusted from 10 s to 30 s (the piece, 24 beats, runs out meanwhile), then back.
+    const states = go(50, { end: 24 }, (t) => (t > 10 && t < 30 ? { ...UNKNOWN_PULSE, t } : pulseAt(t, P, 0.3)));
+    const ended = states.filter((s) => s.mode === 'ended');
+    expect(ended.length).toBeGreaterThan(0);
+    expect(ended.every((s) => s.tempo === 0 && s.beat === 24)).toBe(true);
+    const back = states.findIndex((s, j) => j > 0 && states[j - 1].mode !== 'following' && s.mode === 'following' && s.t > 30);
+    expect(back).toBeGreaterThan(0);
+    expect(states[back].beat).toBeLessThan(0.2);
+    expect(offGrid(states, 0, states[back].t).length).toBeGreaterThan(3);
+    expect(Math.max(...offGrid(states, 0, states[back].t))).toBeLessThan(0.05);
+  });
+
+  it('a moment\'s dip in the pulse at the loop point does not end the piece (the review\'s probe)', () => {
+    // 24 beats loop at 24 s after the start; the pulse untrusted for 0.3 s around each loop.
+    const plain = go(60, { end: 24 });
+    const wrapsAt = plain.filter((s, j) => j > 0 && s.beat < plain[j - 1].beat).map((s) => s.t);
+    expect(wrapsAt.length).toBeGreaterThanOrEqual(2);
+    const dips = (t: number) => wrapsAt.some((w) => t > w - 0.25 && t < w + 0.05);
+    const states = go(60, { end: 24 }, (t) => (dips(t) ? { ...pulseAt(t, P, 0.3), confidence: 0.1 } : pulseAt(t, P, 0.3)));
+    // The dips do reach the lead (it holds through them)...
+    expect(states.some((s) => s.mode === 'holding' && dips(s.t))).toBe(true);
+    expect(states.some((s) => s.mode === 'ended')).toBe(false);
+    expect(states.at(-1)!.loops).toBe(plain.at(-1)!.loops);
+  });
+
+  it('a fermata on the start beat, and two a fraction of a beat apart, are each held', () => {
+    const plain = go(20, {});
+    const start = plain.find((s) => s.started)!.beat;
+    const atStart = go(20, { fermatas: [start] });
+    // Held from the step after the start (the start step places the beat).
+    const first = atStart.findIndex((s) => s.started);
+    expect(atStart[first + 1].mode).toBe('fermata');
+    const g = Math.ceil(start) + 4;
+    const two = go(30, { fermatas: [g, g + 0.01] });
+    const runs = two.reduce((n, s, j) => n + (s.mode === 'fermata' && two[j - 1]?.mode !== 'fermata' ? 1 : 0), 0);
+    // Back to back (at most a frame apart): two holds, two cycles in all.
+    expect(runs).toBe(2);
+    expect(Math.abs(two.filter((s) => s.mode === 'fermata').length / HZ - 2 * P)).toBeLessThan(2 / HZ);
+  });
+
+  it("a dancer outside the follow range: the fermata lasts the dancer's own cycle, so their phase is where it was", () => {
+    // 15 % fast against a 10 % clamp: the tempo is pinned at 132 bpm while the dancer's bar is 1.74 s.
+    const fast = 2 / 1.15;
+    const pulse = (t: number) => pulseAt(t, fast, 0.3);
+    const plain = go(30, {}, pulse);
+    const f = Math.ceil(plain.find((s) => s.started)!.beat) + 6;
+    const held = go(30, { fermatas: [f] }, pulse);
+    expect(held.filter((s) => s.mode === 'fermata').length / HZ).toBeCloseTo(fast, 1);
+    // The phase error right after the hold equals the one right before it.
+    const i0 = held.findIndex((s) => s.mode === 'fermata');
+    const i1 = held.findIndex((s, j) => j > i0 && s.mode !== 'fermata');
+    expect(Math.abs(held[i1 + 1].phaseError - held[i0 - 1].phaseError)).toBeLessThan(0.1);
+  });
+});
