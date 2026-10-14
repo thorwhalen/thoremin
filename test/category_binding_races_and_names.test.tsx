@@ -38,7 +38,8 @@ function gatedStore(inner: SavedCategoriesStore, slow: string[]) {
   const gate = new Promise<void>((r) => (release = r));
   const store: SavedCategoriesStore = {
     list: () => inner.list(),
-    save: (name, payload, now) => inner.save(name, payload, now),
+    saveTrained: (name, payload, now) => inner.saveTrained(name, payload, now),
+    setBindings: (id, bindings) => inner.setBindings(id, bindings),
     remove: (id) => inner.remove(id),
     load: async (id) => {
       if (slow.includes(id)) await gate;
