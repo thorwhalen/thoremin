@@ -45,6 +45,8 @@ import { createSession, type Session } from '@thoremin/sdk/enroll/session';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { keepOnly, sessionSpace, type CarveModality, type NuisanceCueSpec } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { median } from '@thoremin/stats';
+import { effectiveSigma, NOISE_DEFAULTS } from '@thoremin/sdk/enroll/noise';
 
 /** The rest: the baseline and the noise warm-up. */
 export function restCue(modality: CarveModality): Cue {
@@ -118,9 +120,15 @@ export const FACE_TAKE_DEFAULTS = {
   supportFrames: 4,
   /** How far back the take remembers frames for a hold's support (the dwell is 220 ms). */
   supportWindowMs: 1000,
+  /** Rest frames in view before the rest's motion is judged (#403; about half a second). */
+  motionMinFrames: 15,
   /** Frames of the modality a burst needs to be a hold (#385 E7; about 0.17 s at 30 fps). */
   minBurstFrames: 5,
 } as const;
+
+/** A median absolute deviation as a frame-to-frame jitter: the normal's 1.4826 (MAD to a
+ *  standard deviation) times the square root of 2 (the difference of two independent frames). */
+const MAD_TO_JITTER = 1.4826 * Math.SQRT2;
 
 export type FaceTakePhase = 'idle' | 'explore' | 'rest' | 'faces' | 'paused' | 'done';
 
@@ -162,6 +170,18 @@ export interface FaceTake {
   /** End the setup step under way (a nuisance, never the rest, which sets the units), on to the
    *  next or to the capture. */
   skipSetup(tMs: number): void;
+  /** The rest's progress toward its end (#403), 0..1: the lesser of its time over `restMs` and
+   *  its frames in view over `minRestFrames` (both must be met), at the last frame pushed; null
+   *  outside the rest (setup step 0). */
+  restProgress(): number | null;
+  /** How far the last frame of the rest is from the rest so far (#403: "stay relaxed"): its
+   *  largest feature (of the rest cue's, the ones the carve uses) off the rest frames' median,
+   *  over their median absolute deviation scaled to a frame-to-frame jitter, so in noise units,
+   *  any sign. Null outside the rest (setup step 0), with no face in the last frame, or before
+   *  `motionMinFrames`. Median and MAD, not a running mean and the noise estimate: a brief
+   *  movement moves neither, and settling into the rest (the noise estimate's warm-up, which
+   *  it inflates for seconds) does not blunt it. */
+  restMotion(): number | null;
   /** Capture segments begun so far (0 before the faces). */
   segments(): number;
   /** The hold indicator's state now: the capture's sampler while collecting, a watching
@@ -218,6 +238,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   let facesAt: number | null = null;
   let segment = 0;
   const rest: FeatureVector[] = [];
+  /** The features the rest is measured in (the rest cue's), once asked for. */
+  let restIds: readonly string[] | null = null;
+  /** When the last rest frame (one in view) was pushed. */
+  let restAt = Number.NEGATIVE_INFINITY;
   /** Exploring or paused: what WOULD be held, judged as the capture judges it (the vocabulary
    *  cue's features, the session's shared noise), never collected. */
   let watch: StillPointSampler | null = null;
@@ -278,6 +302,31 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   return {
     phase: () => phase,
     setupStep: () => (phase === 'rest' ? step : 0),
+    restProgress() {
+      if (phase !== 'rest' || step !== 0) return null;
+      const time = Number.isFinite(lastT) ? Math.max(0, lastT - t0) / restMs : 0;
+      return Math.min(1, time, rest.length / minRestFrames);
+    },
+    restMotion() {
+      if (phase !== 'rest' || step !== 0 || rest.length < FACE_TAKE_DEFAULTS.motionMinFrames) return null;
+      if (lastT !== restAt) return null; // the last frame had no face in it
+      const last = rest[rest.length - 1];
+      restIds ??= session.featuresFor(cues.rest);
+      // The estimator's floors (a feature's resolution, 1 % of its range) keep a pinned channel's
+      // rounding flip from reading as a movement, as they do for its own unit.
+      const { range, step: resolution } = session.noise().snapshot();
+      let most: number | null = null;
+      for (const id of restIds) {
+        const x = last[id];
+        if (!Number.isFinite(x)) continue;
+        const xs = rest.map((v) => v[id]).filter(Number.isFinite);
+        const m = median(xs);
+        const unit = effectiveSigma(median(xs.map((v) => Math.abs(v - m))) * MAD_TO_JITTER, range[id] ?? 0, NOISE_DEFAULTS.rangeFloor, resolution[id]);
+        if (!(unit > 0)) continue; // a feature that never moved cannot be judged
+        most = Math.max(most ?? 0, Math.abs(x - m) / unit);
+      }
+      return most;
+    },
     skipSetup(tMs) {
       if (phase === 'rest' && step > 0) nextStep(tMs);
     },
@@ -350,7 +399,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       if (points.length > before) justTaken = true;
       if (phase === 'rest') {
         if (step === 0) {
-          if (modality.read(vector) !== null) rest.push(vector);
+          if (modality.read(vector) !== null) {
+            rest.push(vector);
+            restAt = tMs;
+          }
           if (tMs - t0 >= restMs && rest.length >= minRestFrames) nextStep(tMs);
         } else if (tMs - stepAt >= nuisances[step - 1].ms) nextStep(tMs);
       }

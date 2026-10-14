@@ -29,6 +29,7 @@ import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
 import { FeatureBars } from '@thoremin/sdk-ui/enroll/FeatureBars';
 import { BAR_PINS_DEFAULTS, pinsOf, useBarPins } from '@thoremin/sdk-ui/enroll/barPins';
 import { HoldRing, type HoldRingState } from '@thoremin/sdk-ui/enroll/HoldRing';
+import { ProgressRing } from '@thoremin/sdk-ui/enroll/ProgressRing';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
@@ -523,6 +524,15 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
       </div>
       {(phase === 'faces' || phase === 'paused') && <BurstControls s={s} />}
       {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase, modality.words)} />}
+      {phase === 'rest' && s.setupStep === 0 && s.restProgress !== null && (
+        // The rest ends by itself once it has its time and its frames (#403); moving spoils it.
+        <ProgressRing
+          value={s.restProgress}
+          label="Rest progress"
+          tone={s.restMoving ? 'warn' : 'normal'}
+          words={s.restMoving ? 'Stay relaxed: you moved' : 'Learning your rest'}
+        />
+      )}
       {(phase === 'faces' || phase === 'paused') && <HoldStrip s={s} />}
       <FeatureBars read={read} part={modality.words.part} one={one} pinned={pinned} onPinnedChange={setPinned} maxPins={BAR_PINS_DEFAULTS.max} />
     </div>

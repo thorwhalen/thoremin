@@ -90,6 +90,8 @@ export interface NoiseOptions {
 }
 
 const DEFAULTS = { tauMs: 10000, clip: 2, rangeFloor: 0.01, warmupFrames: 30, maxGapMs: 500 };
+/** The estimator's defaults (a caller applying {@link effectiveSigma} to a unit of its own uses its `rangeFloor`). */
+export const NOISE_DEFAULTS: Readonly<typeof DEFAULTS> = DEFAULTS;
 
 /** A point-in-time, serializable snapshot of the estimator. */
 export interface NoiseSnapshot {

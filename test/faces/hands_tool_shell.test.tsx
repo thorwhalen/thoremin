@@ -73,7 +73,11 @@ describe.runIf(FACES)('"Your hand shapes" is reachable from the shell', () => {
     expect(appFeatureDemand.owners()).toContain('hand-shapes');
     expect(appFeatureDemand.owners()).not.toContain('faces');
     for (const g of HAND_CLAIM_GROUPS) expect(appFeatureDemand.groups()).toContain(g);
-    expect(screen.getByText(/Try your hand shapes/)).toBeTruthy();
+    // Waited for: CI once found no Explore text here (unexplained; not reproduced locally).
+    expect(await screen.findByText(/Try your hand shapes/)).toBeTruthy();
+    // Start capturing: the rest's progress ring (#403), click 4 from a cold load.
+    fireEvent.click(screen.getByRole('button', { name: /Start capturing/ }));
+    expect(await screen.findByRole('progressbar', { name: 'Rest progress' })).toBeTruthy();
     act(() => useTools.getState().close());
     expect(handSessionStore().getState().phase).toBe('idle');
     expect(appFeatureDemand.owners()).not.toContain('hand-shapes');
