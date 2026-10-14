@@ -106,6 +106,20 @@ describe('Follow the dancer', () => {
     expect((await r.dispatch('song.followRange.set', { range: 0.9 })).ok).toBe(false);
   });
 
+  it('the hold fade is a command and a slider in the Song tool, off (a cut) by default (#366)', async () => {
+    const r = createThoreminRegistry();
+    expect(useControls.getState().songPrefs.holdFadeS).toBe(0);
+    expect((await r.dispatch('song.holdFade.set', { seconds: 0.8 })).ok).toBe(true);
+    expect(useControls.getState().songPrefs.holdFadeS).toBe(0.8);
+    expect((await r.dispatch('song.holdFade.set', { seconds: 9 })).ok).toBe(false);
+    useTools.setState({ open: 'song' });
+    const { file, opts } = clickFile();
+    await loadSongFile(file, opts);
+    render(<Shell />);
+    expect(screen.getByTestId('song-hold-fade').textContent).toMatch(/0\.8 s/);
+    act(() => useControls.getState().setSongPrefs({ holdFadeS: 0 }));
+  });
+
   it('describes the relation in words', () => {
     expect(describeRatio(4)).toBe('4 song beats per step');
     expect(describeRatio(1)).toBe('one song beat per step');

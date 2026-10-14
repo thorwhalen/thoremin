@@ -9,6 +9,7 @@
  * first need and Node tests inject their own stretcher instead.
  */
 import type { Stretcher, StretcherFactory } from './song_player';
+import { rampGain } from './gain_ramp';
 
 export const createMediaElementStretcher: StretcherFactory = ({ audioContext, destination }): Stretcher => {
   const el = document.createElement('audio');
@@ -17,9 +18,12 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
   (el as HTMLMediaElement & { preservesPitch: boolean }).preservesPitch = true;
   const gain = audioContext.createGain();
   gain.connect(destination);
+  // The hold fade's fader (#366), between the element and the volume.
+  const fader = audioContext.createGain();
+  fader.connect(gain);
   // A media element may feed exactly one source node for its lifetime: made once.
   const source = audioContext.createMediaElementSource(el);
-  source.connect(gain);
+  source.connect(fader);
   let pending: (() => void) | null = null;
   let volume = 1;
   /** What the node last asked for, and whether the browser refused it. */
@@ -89,6 +93,9 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
     setRate(rate) {
       if (Number.isFinite(rate) && rate > 0 && el.playbackRate !== rate) el.playbackRate = rate;
     },
+    fade(level, seconds) {
+      rampGain(fader.gain, level, seconds, audioContext.currentTime);
+    },
     setVolume(v) {
       if (v === volume) return;
       volume = v;
@@ -106,6 +113,7 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
       el.removeAttribute('src');
       el.load();
       source.disconnect();
+      fader.disconnect();
       gain.disconnect();
     },
   };

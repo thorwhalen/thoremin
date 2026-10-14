@@ -88,6 +88,7 @@ export const trunk = defineBranch({
     to(ui('songPlays'), { node: 'songPlayer', port: 'play' }),
     to(ui('songRate'), { node: 'songPlayer', port: 'rate' }),
     to(ui('songVolume'), { node: 'songPlayer', port: 'volume' }),
+    to(ui('songHoldFade'), { node: 'songPlayer', port: 'holdFade' }),
     to(ui('claimed'), { node: 'songPlayer', port: 'claimed' }),
   ],
   overlay: ['video', 'landmarks', 'featureLab', 'featureCorrelation', 'tagHud', 'trainerHud'],

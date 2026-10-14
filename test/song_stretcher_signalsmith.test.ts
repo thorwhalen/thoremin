@@ -28,9 +28,15 @@ const load = async (): Promise<SignalsmithFactory> => async () => {
 const createSignalsmithStretcher = (audio: Parameters<typeof createSignalsmithStretcherWith>[0]) => createSignalsmithStretcherWith(audio, load);
 
 function fakes(durationS = 10) {
+  const gains: Array<{ gain: Record<string, ReturnType<typeof vi.fn> | number> }> = [];
   const ctx = {
     currentTime: 0,
-    createGain: () => ({ gain: { setTargetAtTime: vi.fn() }, connect: vi.fn(), disconnect: vi.fn() }),
+    createGain: () => {
+      const gain = { value: 1, setTargetAtTime: vi.fn(), setValueAtTime: vi.fn(), cancelScheduledValues: vi.fn(), linearRampToValueAtTime: vi.fn() };
+      const g = { gain, connect: vi.fn(), disconnect: vi.fn() };
+      gains.push(g);
+      return g;
+    },
     decodeAudioData: async () => ({ numberOfChannels: 2, duration: durationS, getChannelData: () => new Float32Array(4) }),
   };
   const schedules: Array<Record<string, unknown>> = [];
@@ -47,7 +53,7 @@ function fakes(durationS = 10) {
     port: { onmessage: null },
   };
   h.node = node;
-  return { ctx, node, schedules, report: (t: number) => report?.(t) };
+  return { ctx, node, gains, schedules, report: (t: number) => report?.(t) };
 }
 
 beforeEach(() => {
@@ -74,6 +80,20 @@ describe('the Signalsmith stretcher', () => {
     // the position is the adapter's own time map and never reads them.
     f.report(2.5 + 0.12);
     expect(s.position()).toBeCloseTo(2.5, 9);
+  });
+
+  it('fades through a fader of its own, from where it is, and cuts when the length is 0 (#366)', async () => {
+    const f = fakes();
+    const s = createSignalsmithStretcher({ audioContext: f.ctx as never, destination: {} as never });
+    await s.load('blob:x');
+    // gains[0] is the volume, gains[1] the fader between the worklet and it.
+    const fader = f.gains[1].gain as Record<string, ReturnType<typeof vi.fn>>;
+    f.ctx.currentTime = 3;
+    s.fade!(0, 1.5);
+    expect(fader.linearRampToValueAtTime).toHaveBeenCalledWith(0, 4.5);
+    s.fade!(1, 0);
+    expect(fader.setValueAtTime).toHaveBeenLastCalledWith(1, 3);
+    expect((f.gains[0].gain.linearRampToValueAtTime as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
   });
 
   it('two loads at once share one worklet', async () => {
