@@ -306,3 +306,19 @@ export function foreignModality(
   }
   return null;
 }
+
+/**
+ * Why a categorizer's `vocabulary` is not one this modality offers, or null when it is (or there
+ * is none): the schema takes any string, so a typo or another modality's id would otherwise fall
+ * back to choosing names by coverage without a word (#465).
+ */
+export function unknownVocabulary(
+  modality: Pick<CarveModality, 'id' | 'vocabularies'>,
+  categorizer: { vocabulary?: string },
+): string | null {
+  const id = categorizer.vocabulary;
+  if (!id) return null;
+  const known = (modality.vocabularies ?? []).flatMap((v) => (v.id ? [v.id] : []));
+  if (known.includes(id)) return null;
+  return `its name vocabulary "${id}" is not one ${modality.id} categorizers have${known.length ? ` (${known.join(', ')})` : ''}, so default names are chosen by coverage`;
+}
