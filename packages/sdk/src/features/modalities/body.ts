@@ -212,6 +212,7 @@ export const bodyModality: CarveModality = {
   nuisance: {},
   describe: bodyWords,
   minCoverage: BODY_POSE_MIN_COVERAGE,
+  renormalize: true,
   nuisanceCues: BODY_NUISANCE_CUES,
   skeleton: (vector) => poseSkeleton(vector),
   mirrorImage: mirrorBodyVector,

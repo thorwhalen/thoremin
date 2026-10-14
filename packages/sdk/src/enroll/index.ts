@@ -66,6 +66,8 @@ export {
   suggestForestK,
   suggestK,
   weightedDistance,
+  presentDistance,
+  modelDistance,
   type ConstraintOptions,
   type Forest,
   type Hierarchy,

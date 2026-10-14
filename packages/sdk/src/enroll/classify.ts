@@ -31,7 +31,7 @@
  * any other (entry hysteresis, then null), never as a rejection to hold through. The reject
  * radius stays what it was: the open-set rule for a face nobody taught.
  */
-import { buildHierarchy, cutAt, weightedDistance } from './cluster';
+import { buildHierarchy, cutAt, modelDistance, weightedDistance } from './cluster';
 import type {
   Category,
   Classification,
@@ -271,12 +271,12 @@ export function classify(
     return { categoryId: null, memberships, distance: Infinity, rejected: true };
   }
 
-  const dists = model.categories.map((c) => scaledDistance(c, weightedDistance(vector, c.centroid, model.features, model.weights)));
+  const dists = model.categories.map((c) => scaledDistance(c, modelDistance(model, vector, c.centroid)));
   let best = 0;
   for (let i = 1; i < dists.length; i++) if (dists[i] < dists[best]) best = i;
   const minD = dists[best];
   const neutral = model.neutral ?? [];
-  const nDists = neutral.map((c) => weightedDistance(vector, c.centroid, model.features, model.weights));
+  const nDists = neutral.map((c) => modelDistance(model, vector, c.centroid));
   const minN = nDists.reduce((a, d) => Math.min(a, d), Infinity);
 
   // Softmax over negative distance. Subtracting the minimum first keeps the exponent in

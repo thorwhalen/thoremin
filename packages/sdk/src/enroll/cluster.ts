@@ -82,6 +82,53 @@ export function weightedDistance(
 }
 
 /**
+ * {@link weightedDistance} renormalised over the features PRESENT (#458, design §4.3 of the
+ * body-movement write-up): a feature the reference `b` has but the live `a` lacks (a masked
+ * landmark) is counted as if it had contributed the mean of the present ones, so the squared sum
+ * is scaled by `possible / present`. Without it a reading with a few features masked is CLOSER to
+ * every category than the same reading in full, and a reject radius lets it in more easily. The
+ * weights put every feature in noise units, which is what makes "the mean of the present ones" a
+ * fair stand-in. Asymmetric on purpose: `b` (a centroid) says which features a full reading has.
+ * Nothing present: the plain sum (0), since there is nothing to scale; a coverage bar
+ * (`inView`) is what keeps such a reading out.
+ */
+export function presentDistance(
+  a: FeatureVector,
+  b: FeatureVector,
+  features: readonly string[],
+  weights: Record<string, number>,
+): number {
+  let sum = 0;
+  let possible = 0;
+  let present = 0;
+  for (const f of features) {
+    const w = Object.hasOwn(weights, f) ? weights[f] : 1;
+    if (w === 0) continue;
+    const y = b[f];
+    if (!Number.isFinite(y)) continue;
+    possible += 1;
+    const x = a[f];
+    if (!Number.isFinite(x)) continue;
+    present += 1;
+    const d = (x - y) * w;
+    sum += d * d;
+  }
+  return present === 0 || present === possible ? Math.sqrt(sum) : Math.sqrt((sum * possible) / present);
+}
+
+/** The distance a model reads a live vector at: {@link presentDistance} when the model says
+ *  `renormalize` (#458, the body's poses), else {@link weightedDistance} (faces and hands, bit for
+ *  bit as before). */
+export function modelDistance(
+  model: { readonly features: readonly string[]; readonly weights: Readonly<Record<string, number>>; readonly renormalize?: boolean },
+  vector: FeatureVector,
+  centroid: FeatureVector,
+): number {
+  const weights = model.weights as Record<string, number>;
+  return model.renormalize ? presentDistance(vector, centroid, model.features, weights) : weightedDistance(vector, centroid, model.features, weights);
+}
+
+/**
  * Build the agglomerative hierarchy over `vectors` with average linkage: the unconstrained
  * {@link buildConstrainedForest}, whose one root (when every distance is finite) is the tree.
  *
