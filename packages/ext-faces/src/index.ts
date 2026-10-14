@@ -17,14 +17,15 @@
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
 import type { FaceCategorizerPlay } from './lib/play';
 import type { PoseCategorizerPlay } from './lib/posePlay';
-import { FACES_BRANCHES, FACE_CATEGORIZER_BRANCH_ID, POSE_CATEGORIZER_BRANCH_ID } from './branches';
+import type { CategorizerChordPlay } from './lib/categorizerChord';
+import { FACES_BRANCHES, FACE_CATEGORIZER_BRANCH_ID, HAND_CHORDS_BRANCH_ID, POSE_CATEGORIZER_BRANCH_ID, POSE_CHORDS_BRANCH_ID } from './branches';
 import { FACES_DIAL_SLICES } from './dials';
-import { isPersonal, playsPoses, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
+import { chordModalityOf, isPersonal, playsPoses, type CategorizerChordsDial, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
 
 export const FACES_EXTENSION = defineExtension({
   id: 'faces',
   // The node type `./lazy.ts` defines (the registry checks the two lists agree on load).
-  provides: ['face-categorizer', 'pose-categorizer'],
+  provides: ['face-categorizer', 'pose-categorizer', 'categorizer-chord'],
   branches: FACES_BRANCHES,
   dials: FACES_DIAL_SLICES,
   // The resolved categorizer, set by the React half off the tick; null until then (and for the
@@ -32,15 +33,19 @@ export const FACES_EXTENSION = defineExtension({
   transient: [
     transientPort<FaceCategorizerPlay>()('faceCategorizerModel', 'face-categorizer-model'),
     transientPort<PoseCategorizerPlay>()('poseCategorizerModel', 'pose-categorizer-model'),
+    transientPort<CategorizerChordPlay>()('categorizerChordsModel', 'categorizer-chords-model'),
   ],
   // A personal face categorizer matters only where the face plays chords; a pose categorizer
   // whenever the instrument names one (it composes the body camera).
   derive: (s) => {
     const dial = (s as { faceCategorizer?: Partial<FaceCategorizerDial> }).faceCategorizer;
     const poses = (s as { poseCategorizer?: Partial<PoseCategorizerDial> }).poseCategorizer;
+    // The categorizer chords (#450): the branch of the modality the dial's categorizer is.
+    const chords = chordModalityOf((s as { categorizerChords?: Partial<CategorizerChordsDial> }).categorizerChords?.id);
     return [
       ...((s as { faceMapping?: string }).faceMapping === 'chord' && isPersonal(dial) ? [FACE_CATEGORIZER_BRANCH_ID] : []),
       ...(playsPoses(poses) ? [POSE_CATEGORIZER_BRANCH_ID] : []),
+      ...(chords === 'hand' ? [HAND_CHORDS_BRANCH_ID] : chords === 'body' ? [POSE_CHORDS_BRANCH_ID] : []),
     ];
   },
 });

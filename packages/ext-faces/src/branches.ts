@@ -66,4 +66,44 @@ export const poseCategorizer = defineBranch({
   overlay: ['categoryLabel', 'categoryBars'],
 });
 
-export const FACES_BRANCHES = [faceCategorizer, poseCategorizer] as const;
+export const CATEGORIZER_CHORD_NODE_ID = 'catChord';
+export const HAND_CHORDS_BRANCH_ID = 'hand-chords';
+export const POSE_CHORDS_BRANCH_ID = 'pose-chords';
+
+/** The categorizer chord's edges, but for the vector it reads (#450). */
+const chordEdges = (vector: { node: string; port: string }) => [
+  to(vector, { node: CATEGORIZER_CHORD_NODE_ID, port: 'vector' }),
+  to(ui('categorizerChordsModel'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'model' }),
+  to(ui('categorizerChords'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'config' }),
+  to(ui('chordSpec'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'spec' }),
+  to(ui('chordConfig'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'chordConfig' }),
+  to(ui('octaveShift'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'octaveShift' }),
+  // Its own overlay input: never a fan-in with the pose categorizer's or ASL's categories.
+  to({ node: CATEGORIZER_CHORD_NODE_ID, port: 'category' }, overlay('chordCategories')),
+];
+
+/**
+ * A saved hand-shape categorizer plays chords (#450): the trunk's hand feature vector to one of
+ * the player's hand shapes, a chord per category, drawn by the overlay's category cues.
+ */
+export const handChords = defineBranch({
+  id: HAND_CHORDS_BRANCH_ID,
+  description: 'Your own hand shapes play chords: each category of a saved hand-shape categorizer a chord on the chord-source scale.',
+  nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
+  edges: chordEdges({ node: 'handVec', port: 'vector' }),
+  voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
+  overlay: ['categoryLabel', 'categoryBars'],
+});
+
+/** A saved pose categorizer plays chords (#450, and #468): the body source's vector, the same node. */
+export const poseChords = defineBranch({
+  id: POSE_CHORDS_BRANCH_ID,
+  description: 'Your own poses play chords: each category of a saved pose categorizer a chord on the chord-source scale.',
+  requires: ['body-source'],
+  nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
+  edges: chordEdges({ node: BODY_VECTOR, port: 'vector' }),
+  voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
+  overlay: ['categoryLabel', 'categoryBars'],
+});
+
+export const FACES_BRANCHES = [faceCategorizer, poseCategorizer, handChords, poseChords] as const;
