@@ -83,7 +83,8 @@ def keep(src: dict, *, corpus: dict, root: Path, py: Path) -> dict:
             decode = vs.transcode(video, root / "videos" / corpus["corpus"] / f"{cid}.decoded.mp4")
             note = f"videos/{corpus['corpus']}/{cid}.decoded.mp4: native size and rate, H.264 CRF 18 (OpenCV cannot read the original)"
             meta["video"]["decodedVia"] = note
-        meta["streams"] = vs.extract_streams(decode, out_dir, cid, python=py, log=out_dir / "extract.log", input_note=note)
+        meta["streams"] = vs.extract_streams(decode, out_dir, cid, python=py, log=out_dir / "extract.log", input_note=note,
+                                              known=vs.known_streams(meta_path))
     merged = vs.write_meta(meta_path, meta)
     return {"clip": cid, "failed": [s for s, e in merged.get("streams", {}).items() if "error" in e],
             "missing": vs.missing_fields(merged)}

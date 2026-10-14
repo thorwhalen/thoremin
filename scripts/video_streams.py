@@ -161,12 +161,19 @@ def _summary(stdout: str) -> dict:
     return out
 
 
+def known_streams(meta_path: Path) -> set[str]:
+    """The streams a clip's existing meta already describes."""
+    return set(json.loads(meta_path.read_text()).get("streams", {})) if meta_path.exists() else set()
+
+
 def extract_streams(video: Path, out_dir: Path, clip_id: str, *, python: Path, streams=ALL_STREAMS,
-                    params: dict | None = None, log: Path | None = None, input_note: str | None = None) -> dict:
+                    params: dict | None = None, log: Path | None = None, input_note: str | None = None,
+                    known: set[str] = frozenset()) -> dict:
     """Run each extractor once; return ``{stream: provenance}`` (``error`` on a failure).
 
-    A stream whose outputs all exist is not re-run; its provenance is then read back from
-    the clip's existing meta by the caller (``write_meta`` merges)."""
+    A stream whose outputs all exist is not re-run. Its provenance is the clip's existing
+    meta's (``write_meta`` merges); a stream not in ``known`` (made before any meta, e.g.
+    by an older script) gets an entry that says so, so the meta never omits a stream."""
     p = {**DEFAULT_PARAMS, **(params or {})}
     out_dir.mkdir(parents=True, exist_ok=True)
     mp_version = mediapipe_version(python)
@@ -175,6 +182,9 @@ def extract_streams(video: Path, out_dir: Path, clip_id: str, *, python: Path, s
         spec = STREAMS[name]
         outs = [out_dir / f.format(id=clip_id) for f in spec["files"]]
         if all(o.exists() for o in outs):
+            if name not in known:
+                result[name] = {"files": [o.name for o in outs], "extractor": f"scripts/{spec['script']}",
+                                "note": "present before this meta was written: extracted by an earlier run, model and thresholds not recorded"}
             continue
         cmd = [str(python), str(SCRIPTS / spec["script"]), str(video), *spec["args"]([str(o) for o in outs], p)]
         print(f"extract {clip_id} {name}", file=sys.stderr)
@@ -301,8 +311,10 @@ def main() -> int:
     if not decodable(video, py):
         decode = transcode(video, data_root() / "videos" / "decoded" / f"{args.id}.mp4")
         meta["video"]["decodedVia"] = "a native-size H.264 copy (OpenCV cannot read the original), ffmpeg libx264 CRF 18"
-    meta["streams"] = extract_streams(decode, out_dir, args.id, python=py, streams=args.streams, log=out_dir / "extract.log")
-    merged = write_meta(out_dir / f"{args.id}.meta.json", meta)
+    meta_path = out_dir / f"{args.id}.meta.json"
+    meta["streams"] = extract_streams(decode, out_dir, args.id, python=py, streams=args.streams,
+                                      log=out_dir / "extract.log", known=known_streams(meta_path))
+    merged = write_meta(meta_path, meta)
     failed = [s for s, e in merged.get("streams", {}).items() if "error" in e]
     print(json.dumps({"clip": args.id, "failed": failed, "missing": missing_fields(merged, streams=args.streams)}))
     return 1 if failed else 0
