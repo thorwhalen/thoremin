@@ -6,8 +6,10 @@
  * `dancer` (the body source, its `body-pulse`, the conductor branch), cut to the nodes the
  * loop runs through: the store bridge, the body source (a replay of the Que Calor dancer,
  * 129.2 bpm, whose stride repeats once a bar), the dancer's pulse, the conductor and the
- * score. The score is a 4/4 demo marked at 120 bpm, so the dancer is about 3 to 8 % fast
- * of it: inside the default 10 % clamp, a relation of four beats (a bar) per cycle.
+ * score. The score is a 4/4 demo marked at 128 bpm, so the dancer (about 121 bpm on
+ * average, cycles of 1.75 s at first and 1.95 s once settled) is 4 to 6 % slow of it:
+ * inside the default 10 % clamp, a relation of four beats (a bar) per cycle, and far
+ * enough off that a score held at its marked tempo drifts through the bar (the control).
  *
  * The acceptance figures: the score's tempo never leaves the clamp; its bars stay on the
  * dancer's cycles, measured as the circular R of the score's position in its bar at each
@@ -27,7 +29,7 @@ import { loadStream } from './helpers/fixtures';
 const HZ = 30;
 const REGISTRY = createAppRegistry();
 const LOOP = ['ui', 'camBody', 'bodyPulse', 'conductor', 'score'];
-const MARKED = 120;
+const MARKED = 128;
 const DEMO_44 = { v: 1, title: 'demo 4/4', source: 'builtin', parts: [], tempoMap: [{ beat: 0, bpm: MARKED }], timeSignatures: [{ beat: 0, numerator: 4, denominator: 4 }], dynamics: [], fermatas: [], lengthBeats: 1024 };
 const DANCER = { ...DEFAULT_CONDUCTOR_DIAL, enabled: true, source: 'dancer' as const };
 
@@ -81,10 +83,11 @@ function barR(ts: number[], beatAt: (t: number) => number): number {
 }
 
 describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 120 bpm)', () => {
-  // The clip is 20 s, played twice through (as in the pace test); the seam is a jump in
-  // the dance, which the follower answers by dropping its pulse: the piece holds its tempo.
+  // The clip is 20 s, played four times through; each seam is a jump in the dance, which
+  // the follower answers by dropping its pulse: the piece holds its tempo.
   const clip = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
-  const frames = [...clip, ...clip];
+  const frames = [...clip, ...clip, ...clip, ...clip];
+  const PASS = clip.length / HZ;
 
   it('starts on a cycle, stays in the clamp, never stops, and keeps its bars on the dancer', async () => {
     const run = await dance(frames);
@@ -102,40 +105,44 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
     for (let i = start + 1; i < run.time.length; i++) expect(run.time[i].beat).toBeGreaterThan(run.time[i - 1].beat);
     // One cycle is a bar.
     expect(new Set(run.level.slice(start))).toEqual(new Set([4]));
-    // Faster than marked: the dancer's cycles are about 1.94 s (4 beats at 124 bpm).
+    // The dancer's tempo, not the marked one: the cycles settle near 1.94 s (four beats
+    // at about 121 to 124 bpm).
     const late = run.bpm.slice(15 * HZ);
     const mean = late.reduce((a, b) => a + b, 0) / late.length;
-    expect(mean).toBeGreaterThan(121);
-    expect(mean).toBeLessThan(129);
+    expect(mean).toBeGreaterThan(117);
+    expect(mean).toBeLessThan(126);
 
     // The bars on the dancer's cycles: R of the score's place in its bar at each fitted
-    // cycle start. Per pass, because the seam is a jump in the dance (the follower drops
-    // the pulse there, the piece holds its tempo, and the next pass re-locks with the
-    // dancer's bar somewhere else, which the phase law then walks the score onto).
-    // Measured: the first pass 0.72 (5 cycles; the dancer's cycles go from 1.75 s to
-    // 1.95 s two cycles after the start), the second pass 0.96 (5 cycles from 30 s), the
-    // whole run from 15 s 0.68 (the seam); the score at its marked tempo from the same
-    // start, the control, 0.75 over the whole run (this dancer averages near 120 bpm).
+    // cycle start, against the control (the score at its marked tempo from the same start,
+    // which this dancer, 4 to 6 % slower, drifts through). Each seam is a jump in the dance:
+    // the follower drops the pulse, the piece holds its tempo, the next pass re-locks with
+    // the dancer's bar elsewhere and the phase law walks the score back onto it, so a pass
+    // reads high only once that has happened. Measured:
+    //                 from 25 s (n 23)   passes 2 to 4, from 9 s in (n 6 each)
+    //   following     0.75               0.96, 0.95, 0.96
+    //   marked tempo  0.04               0.92, 0.92, 0.92
+    // Six cycles cannot tell a follower from a metronome within one pass (the control
+    // drifts less than a beat in eleven seconds); the whole run can. That the PHASE law,
+    // not only the tempo, does the walking is the seam test in `test/ictus_dance.test.ts`.
     const beatAt = (t: number) => {
       const m = run.time[Math.min(run.time.length - 1, Math.max(0, Math.floor(t * HZ)))];
       return m.beat + (t - m.t) * (m.tempo / 60);
     };
     const t0 = start / HZ;
     const fixed = (t: number) => ((t - t0) * MARKED) / 60;
-    const pass1 = cycleStarts(run, 12).filter((t) => t < 20.5);
-    const pass2 = cycleStarts(run, 30);
-    const whole = cycleStarts(run, 15);
-    expect(pass2.length).toBeGreaterThanOrEqual(4);
-    const r1 = barR(pass1, beatAt);
-    const r2 = barR(pass2, beatAt);
-    const rAll = barR(whole, beatAt);
-    const rFixed = barR(whole, fixed);
+    const r = (from: number, to: number) => {
+      const ts = cycleStarts(run, from).filter((t) => t < to);
+      return { n: ts.length, on: barR(ts, beatAt), off: barR(ts, fixed) };
+    };
+    const whole = r(25, PASS * 4);
+    const passes = [2, 3, 4].map((k) => r(PASS * (k - 1) + 9, PASS * k));
     console.info(
-      `[#380] Que Calor vs a 4/4 demo at ${MARKED} bpm: bar R ${r1.toFixed(2)} first pass (n ${pass1.length}), ${r2.toFixed(2)} second (n ${pass2.length}), ${rAll.toFixed(2)} whole (n ${whole.length}); at the marked tempo ${rFixed.toFixed(2)}; mean ${mean.toFixed(1)} bpm`,
+      `[#380] Que Calor x4 vs a 4/4 demo at ${MARKED} bpm, bar R following / at the marked tempo: from 25 s ${whole.on.toFixed(2)} / ${whole.off.toFixed(2)} (n ${whole.n}); passes 2-4 ${passes.map((p) => `${p.on.toFixed(2)} / ${p.off.toFixed(2)} (n ${p.n})`).join(', ')}; mean ${mean.toFixed(1)} bpm`,
     );
-    expect(r2).toBeGreaterThan(0.9);
-    expect(r1).toBeGreaterThan(0.6);
-    expect(rAll).toBeGreaterThan(0.6);
+    expect(whole.n).toBeGreaterThanOrEqual(20);
+    expect(whole.on).toBeGreaterThan(0.7);
+    expect(whole.on).toBeGreaterThan(whole.off + 0.4);
+    expect(passes[2].on).toBeGreaterThan(0.9);
   });
 
   it('a narrower clamp holds the score inside it', async () => {

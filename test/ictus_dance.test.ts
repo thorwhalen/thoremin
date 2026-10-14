@@ -22,7 +22,9 @@ function pulseAt(t: number, period: number, t0 = 0, confidence = 0.8): PulseStat
     confidence,
     nextBeatAt: t + (whole + 1 - beat) * period,
     state: 'running',
-    anchors: 10,
+    // The fitted cycles: one at every phase 0 (the count, and the last one's time).
+    anchors: whole,
+    lastAnchorAt: t0 + whole * period,
     level: period,
     strength: 0.7,
     candidates: [{ period, r: 0.7 }],
@@ -106,6 +108,46 @@ describe('createDanceLead', () => {
       const s = states.find((x) => x.t >= t - 1e-9)!;
       expect(((s.beat % 4) + 4) % 4).toBeCloseTo(1, 1);
     }
+  });
+
+  it('a pause while armed disarms: the start is on a cycle start after the dancer resumes, never mid-cycle', () => {
+    const lead = createDanceLead();
+    // Armed once the relation has persisted (3 s), then a pause before the next cycle.
+    run(3.5, (t) => pulseAt(t, 2, 0.05), 120, 0, lead);
+    expect(lead.state().mode).toBe('armed');
+    run(8, (t) => ({ ...pulseAt(t, 2, 0.05), confidence: 0.05 }), 120, 3.5, lead);
+    expect(lead.state().started).toBe(false);
+    // The dancer resumes 0.6 of a cycle into a cycle (the follower re-anchored elsewhere).
+    const resumed = run(14, (t) => pulseAt(t, 2, 2.8), 120, 8, lead);
+    const first = resumed.find((s) => s.started)!;
+    expect(first.t).toBeGreaterThan(8.7);
+    expect(first.beat).toBeLessThan(0.1);
+    // Started on a cycle start of the resumed dance (2.8 + 2n).
+    expect(Math.abs(((first.t - 2.8) / 2) % 1)).toBeLessThan(0.05);
+  });
+
+  it("after the dancer's bar jumps, the phase law walks the score back onto the cycles (none: the offset stays)", () => {
+    // 2.06 s cycles (a dancer 3 % slow); at 20 s the dance jumps half a cycle (a seam).
+    const period = 2.06;
+    const pulse = (t: number) => pulseAt(t, period, t < 20 ? 0.2 : 0.2 + period / 2);
+    const barAt = (states: DanceLeadState[], t: number) => {
+      const s = states.find((x) => x.t >= t - 1e-9)!;
+      return ((s.beat % 4) + 4) % 4;
+    };
+    const starts = (from: number, to: number) => {
+      const out: number[] = [];
+      for (let n = 0; 0.2 + period / 2 + n * period < to; n++) if (0.2 + period / 2 + n * period >= from) out.push(0.2 + period / 2 + n * period);
+      return out;
+    };
+    const law = run(70, pulse);
+    const none = run(70, pulse, 120, 0, createDanceLead({ maxCorrection: 0 }));
+    expect(barR(law, starts(50, 70))).toBeGreaterThan(0.99);
+    // Back on the bar: the cycle start reads the first beat again.
+    const b = barAt(law, starts(60, 70)[0]);
+    expect(Math.min(b, 4 - b)).toBeLessThan(0.1);
+    // Without the phase law the tempo still follows, but the bar stays half off.
+    const off = barAt(none, starts(60, 70)[0]);
+    expect(Math.abs(off - 2)).toBeLessThan(0.3);
   });
 
   it('reset stops the piece and starts again from the beat given', () => {

@@ -24,7 +24,14 @@
  * 4. **The phase.** The cycle start should stay on the grid: the error, in score beats,
  *    is taken modulo `k` (so a 4-beat cycle keeps the BARS aligned, not just the beats)
  *    and corrected by a tempo factor of `-error / horizonBeats`, at most `maxCorrection`,
- *    inside the clamp. The beat never goes backwards.
+ *    inside the clamp. The beat never goes backwards. The dancer's phase is read from the
+ *    last cycle the follower FITTED (`lastAnchorAt`, its count `anchors`), carried forward
+ *    at the pulse's period (`phaseFrom: anchor`, the default), not from the pulse prior's
+ *    phase: on the Que Calor replay the prior's phase wanders a few tenths of a beat
+ *    against the fitted cycles, and correcting onto it lost to no correction at all
+ *    (`test/dance_orchestra.test.ts`). Carried forward, the next cycle start is predicted
+ *    at the last one plus a period, so the piece still starts on time, not when the next
+ *    cycle is confirmed (about half a second late).
  * 5. **Never stop.** Once started, an untrusted pulse (the dancer paused, stepped out, or
  *    changed step and the new one has not persisted) HOLDS the tempo: the beat goes on at
  *    the tempo it had. Only switching the conductor off stops the piece.
@@ -55,7 +62,12 @@ export interface DanceLeadOptions {
   maxCorrection?: number;
   /** Where the dancer's cycle start lands, in score beats after a grid beat. */
   phaseOffset?: number;
+  /** What the dancer's phase is read from: the last fitted cycle carried forward at the
+   *  pulse's period (`anchor`), or the pulse prior's own phase (`prior`). */
+  phaseFrom?: DancePhaseSource;
 }
+
+export type DancePhaseSource = 'anchor' | 'prior';
 
 export const DANCE_LEAD_DEFAULTS = {
   range: 0.1,
@@ -67,6 +79,7 @@ export const DANCE_LEAD_DEFAULTS = {
   horizonBeats: 4,
   maxCorrection: 0.05,
   phaseOffset: 0,
+  phaseFrom: 'anchor',
 } as const satisfies Required<DanceLeadOptions>;
 
 /** One step's observation. */
@@ -122,6 +135,15 @@ export interface DanceLead {
   reset(beat?: number): void;
 }
 
+/** The dancer's position in cycles at `t` (its fractional part is the phase), or NaN when
+ *  it is not known: reading `anchor`, no fitted cycle within the last two periods. */
+function cyclesAt(pulse: PulseState, t: number, from: DancePhaseSource): number {
+  if (from === 'prior') return beatAt(pulse, t);
+  const a = pulse.lastAnchorAt;
+  if (a === undefined || !Number.isFinite(a) || t - a >= 2 * pulse.period) return NaN;
+  return pulse.anchors + Math.max(0, t - a) / pulse.period;
+}
+
 const clampTo = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
 const START_EPS = 1e-6;
 
@@ -168,9 +190,9 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       const k = level.ratio();
       // The dancer's position in cycles, shifted so that an integer is where a grid beat
       // should be (`phaseOffset` beats after one).
-      const cyc = trusted && k !== null ? beatAt(pulse, t) + off / k : NaN;
+      const cyc = trusted && k !== null ? cyclesAt(pulse, t, o.phaseFrom) + off / k : NaN;
       const cycleIndex = Number.isFinite(cyc) ? Math.floor(cyc) : NaN;
-      const newCycle = Number.isFinite(cycleIndex) && Number.isFinite(lastCycle) && cycleIndex > lastCycle;
+      const newCycle = Number.isFinite(cycleIndex) && Number.isFinite(lastCycle) && cycleIndex !== lastCycle;
       if (Number.isFinite(cycleIndex)) lastCycle = cycleIndex;
 
       if (!started) {
@@ -180,8 +202,12 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
           return last;
         }
         if (rel.match && rel.mode === 'following') smoothed = clampTo(rel.match.rate, lo, hi);
-        if (armedCycle === null && Number.isFinite(cycleIndex)) armedCycle = cycleIndex;
-        if (armedCycle !== null && Number.isFinite(cycleIndex) && cycleIndex > armedCycle) {
+        // Armed on the cycle the dancer is in; the start is the NEXT one, exactly one on. An
+        // unknown phase (a pause) disarms, and any other change of count (the follower
+        // starting over after a gap) re-arms there: the start is never mid-cycle.
+        if (!Number.isFinite(cycleIndex)) armedCycle = null;
+        else if (armedCycle === null || (cycleIndex !== armedCycle && cycleIndex !== armedCycle + 1)) armedCycle = cycleIndex;
+        if (armedCycle !== null && cycleIndex === armedCycle + 1) {
           // The start: on the grid (a multiple of k from `ref`), as far into it as the
           // dancer already is into their cycle.
           started = true;
