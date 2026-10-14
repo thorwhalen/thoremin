@@ -42,6 +42,8 @@
     "./features/handedness": "./src/features/handedness.ts",
     "./features/landmarks": "./src/features/landmarks.ts",
     "./features/math": "./src/features/math.ts",
+    "./features/modalities/body": "./src/features/modalities/body.ts",
+    "./features/modalities/body_words": "./src/features/modalities/body_words.ts",
     "./features/modalities/face": "./src/features/modalities/face.ts",
     "./features/modalities/face_words": "./src/features/modalities/face_words.ts",
     "./features/modalities": "./src/features/modalities/index.ts",

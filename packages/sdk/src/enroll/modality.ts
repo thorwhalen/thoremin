@@ -14,6 +14,7 @@
  * (`../features/modalities/`). The DOM half (crop region, preview, play targets) is
  * `@thoremin/sdk-ui/enroll/modality`.
  */
+import type { Invariance } from '../features/types';
 import type { LabelMatchOptions } from './match';
 import type { FeatureVector } from './types';
 
@@ -70,6 +71,34 @@ export interface ModalityOptions {
   /** A hand modality's side: `left`, `right`, `either` (ignored by the face). `both` (one joint
    *  vector, two-hand shapes) is reserved for later. */
   hand?: HandChoice | 'both';
+  /** Read a pose and its mirror image as one (#382, #387 B10): a body categorizer with the mirror
+   *  on reads "left arm up" and "right arm up" as the same pose. Off by default. */
+  mirror?: boolean;
+}
+
+/**
+ * A stick figure of one hold (#382): named joints, each `[x, y]` in torso lengths from the hip
+ * midpoint, x to the player's right as a mirror shows it, y up. Drawn from the features the carve
+ * measures, so it shows what was read and no one's picture; kept in the categorizer file, so an
+ * imported or shared categorizer still shows what each category looks like.
+ */
+export type Skeleton = Readonly<Record<string, readonly [number, number]>>;
+
+/**
+ * A nuisance the take asks the player to demonstrate after the rest (#382): "hold any one pose and
+ * move closer and further". Whatever moves meanwhile is down-weighted (`weightsFromNuisance`), so
+ * where the player stands is not what they do.
+ */
+export interface NuisanceCueSpec {
+  /** Id-safe, unique within the modality: the cue id is `<slug>-<key>`. */
+  key: string;
+  name: string;
+  instruction: string;
+  rationale: string;
+  /** The confounds it demonstrates. */
+  axes: readonly Invariance[];
+  /** How long it lasts. */
+  ms: number;
 }
 
 /**
@@ -116,6 +145,25 @@ export interface CarveModality {
   /** A feature in plain words, for the quality hints (#385 E6): undefined for a feature the
    *  modality has no words for (the hint then names the id). */
   describe(featureId: string): FeatureWords | undefined;
+  /** The share (0..1) of a categorizer's TRAINED features a vector must have for the part to
+   *  count as in view (#382: a body half out of frame "cannot be seen" rather than guessed at).
+   *  Absent: any one trained feature will do (a face, a hand). */
+  readonly minCoverage?: number;
+  /** The nuisances the take demonstrates after the rest, in order (#382); none when absent. */
+  readonly nuisanceCues?: readonly NuisanceCueSpec[];
+  /** A stick figure of a vector (#382), kept with each sample; absent: the modality has none. */
+  skeleton?(vector: FeatureVector): Skeleton | null;
+}
+
+/** Whether `vector` shows the part well enough to read it with `features` (a categorizer's): its
+ *  `minCoverage` of them finite, or any one of them when it states none. */
+export function inView(modality: Pick<CarveModality, 'minCoverage'>, vector: FeatureVector, features: readonly string[]): boolean {
+  const bar = modality.minCoverage;
+  if (bar === undefined) return features.some((f) => Number.isFinite(vector[f]));
+  if (!features.length) return false;
+  let present = 0;
+  for (const f of features) if (Number.isFinite(vector[f])) present += 1;
+  return present / features.length >= bar;
 }
 
 /** The vector the carve works in: the modality's projection, or the merged vector as is. */
