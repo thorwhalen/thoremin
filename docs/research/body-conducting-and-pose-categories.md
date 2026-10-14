@@ -337,7 +337,7 @@ The strongest vertical channel's ACF period within 0.6 to 1.6 beats, the stronge
 
 ## 4. What the numbers say
 
-1. **A conductor's trunk marks the beat the conductor's hand gives**, on the 4-pattern (`com.y` R 0.77, p < 10⁻⁶; `hips.y` 0.83) and the 2-pattern (`com.y` 0.68, p < 10⁻⁴; `hips.y` 0.58), at the bottom of its travel in both. It does not on the slow 3-pattern hymn (`com.y` 0.35, p 0.08). The trunk's F is modest (0.34 and 0.23 raw, 0.49 and 0.37 after the lag, against chance levels of 0.33 and 0.30), so it is a channel to correct a prediction with, which is all design §3.8 asks of it, not a beat tracker by itself. Its lag relative to the hand's stroke is +85 ms on one clip and -112 ms on the other, so the lag must be learned per player and per piece (the `leadOffset` the design leaves unset until a trainer cue measures it). The hips alone lock too (0.83 and 0.58), so the trunk's beat is not only the beating arm moving the shoulders.
+1. **A conductor's trunk marks the beat the conductor's hand gives**, on the 4-pattern (`com.y` R 0.77, p < 10⁻⁶; `hips.y` 0.83) and the 2-pattern (`com.y` 0.68, p < 10⁻⁴; `hips.y` 0.58), at the bottom of its travel in both. It does not on the slow 3-pattern hymn (`com.y` 0.35, p 0.08). The trunk's F is modest (0.34 and 0.23 raw, 0.49 and 0.37 after the lag, against chance levels of 0.33 and 0.30), so it is a channel to correct a prediction with, which is all design §3.8 asks of it, not a beat tracker by itself. Its lag relative to the hand's stroke is +85 ms on one clip and -112 ms on the other, so the lag must be learned per player and per piece (#427 measures it against a click, §5.2, and finds it moves within one take too). The hips alone lock too (0.83 and 0.58), so the trunk's beat is not only the beating arm moving the shoulders.
 2. **The head is not the body's beat.** On the conductor clips the head is weaker than the trunk every time (R 0.31, 0.15, 0.47, none significant at the beat). Head nods count for observers [14], but the trunk carries more of the beat in these clips.
 3. **The torso's rotation marks the bar, partly through the beating arm.** `torso.yaw` at the bar: 0.98 (4-pattern, 8 anchors, p < 10⁻⁴), 0.84 (2-pattern, p < 10⁻⁴); for a conductor it is the pattern's left-right excursion seen in the torso. The pelvis's rotation, which the arm moves less, locks less (0.68, not significant; 0.65, p < 0.01), and the lateral sway agrees on the 2-pattern (0.73). A downbeat from the torso is plausible for a conductor (#187 PR 6, #364 item 3), but these clips cannot separate it from the arm that drives it; a body conductor who keeps the arms still is the test (#415).
 4. **Dancers: the stride carries the bar, the sway can carry the beat, the height does not.** Que Calor's stride is periodic at 3.95 beats (ACF r 0.65) and leans toward a lock at the bar (R 0.74 on only 7 anchors, p 0.017: suggestive, not significant once the choice among eight event variants is counted); its torso rotation locks at the bar (0.77, p 0.002) and its lateral sway at the beat (0.59, 21 anchors, p 0.0004; F after the lag 0.47 against a chance level of 0.40): the weight shifting from foot to foot with every step. Budots' stride is periodic at 4.07 beats (r 0.76), but its ankles are often off screen, so the pulse follower never trusts it; both dancers' arms repeat at about 4 beats. Neither dancer's head, hips or trunk height locks at the beat (best p 0.03, 33 anchors). Budots is a bouncing dance, so this does not show that dancers fail to bounce on the beat. It shows that a bounce did not survive the pose model and 30 fps with three tracked dancers switching identities, at 143 bpm (0.42 s per beat, 12.6 frames). A single dancer bouncing to a known tempo is still missing (§5).
@@ -385,6 +385,50 @@ Three consequences found while building it:
 3. **A hold never freezes the beat between two strokes.** The release of a beat frozen at three quarters of a stroke has no right answer: the phase servo picks a side by rounding, and the `half` and `beat` levels then disagreed by a stroke on the same clip.
 
 The override seam (B4, #387 choice B5): the node's `transportPose` input takes `{ ready?, hold?, cutoff? }`, and a stated predicate replaces its rule's geometry while the timing stays. Nothing feeds it yet; a personal pose category will.
+
+### 5.2 The lead offset per joint (#427)
+
+The body conductor plays the turning point of the joint its detector follows as the beat, so a joint that rides the stroke late (or early) moves the beat. "Learn my timing" in the Conductor tool measures each joint's lag against the trainer's click (a bar's count-in, 16 clicks; each joint of the conductor's set with a detector of its own, the period from the click) as the trimmed circular mean of its anchors' phase in the click interval; a joint is given an offset only when it keeps the click (16 anchors, R 0.5 at least, the lag under 0.35 of a beat), and the conductor subtracts it from that joint's anchors (a joint that leads has its anchor held until its corrected time). The offsets are a per-device pref, never an instrument setting.
+
+Replayed on the three conductor clips (`npx vite-node scripts/body/measure_lead_offset.ts`; the grid, the beating wrist's strokes, stands in for the click), with each joint ALONE followed: the lag in ms behind the grid, before and after the correction, on the span the row names, with the offset learned on the whole clip (in-sample) or on the other half (held out).
+
+|---|---|---|---|---|---|---|---|---|---|
+| conducting_44 | trunk | whole | whole | 50, 0.62, 29 | 50 | 45 | 4 | 0.43 | 0.41 |
+| conducting_44 | trunk | 2nd half | 1st half | 94, 0.65, 16 | 94 | 3 | -84 | 0.47 | 0.27 |
+| conducting_44 | trunk | 1st half | 2nd half | 27, 0.64, 12 | 27 | 75 | 51 | 0.40 | 0.46 |
+| conducting_44 | elbow | whole | whole | 11, 0.68, 29 | 11 | -13 | -24 | 0.45 | 0.42 |
+| conducting_44 | elbow | 2nd half | 1st half | 6, 0.70, 16 | 6 | -27 | -33 | 0.67 | 0.67 |
+| conducting_44 | elbow | 1st half | 2nd half | 9, 0.72, 14 | 9 | 4 | -5 | 0.25 | 0.25 |
+| conducting_44 | wrist | whole | whole | 6, 0.98, 31 | 6 | 8 | 2 | 0.95 | 0.95 |
+| conducting_44 | wrist | 2nd half | 1st half | 8, 0.98, 15 | 8 | 4 | -4 | 0.94 | 1.00 |
+| conducting_44 | wrist | 1st half | 2nd half | 4, 0.98, 15 | 4 | 13 | 9 | 0.97 | 0.97 |
+| conducting_34 | trunk | whole | whole | -81, 0.15, 32 | none | -3 | -3 | 0.23 | 0.23 |
+| conducting_34 | trunk | 2nd half | 1st half | 29, 0.34, 11 | none | -25 | -25 | 0.17 | 0.17 |
+| conducting_34 | trunk | 1st half | 2nd half | -187, 0.14, 21 | none | -1 | -1 | 0.31 | 0.31 |
+| conducting_34 | elbow | whole | whole | -57, 0.41, 38 | none | -89 | -89 | 0.41 | 0.41 |
+| conducting_34 | elbow | 2nd half | 1st half | -72, 0.50, 19 | none | -91 | -91 | 0.46 | 0.46 |
+| conducting_34 | elbow | 1st half | 2nd half | -68, 0.35, 19 | none | -88 | -88 | 0.35 | 0.35 |
+| conducting_34 | wrist | whole | whole | 13, 0.80, 34 | 13 | 5 | -8 | 0.78 | 0.81 |
+| conducting_34 | wrist | 2nd half | 1st half | 12, 0.76, 16 | 12 | 9 | -3 | 0.79 | 0.79 |
+| conducting_34 | wrist | 1st half | 2nd half | 7, 0.91, 16 | 7 | 0 | -6 | 0.77 | 0.77 |
+| conducting_24 | trunk | whole | whole | -88, 0.25, 31 | none | -67 | -67 | 0.27 | 0.27 |
+| conducting_24 | trunk | 2nd half | 1st half | -95, 0.35, 16 | none | -90 | -90 | 0.36 | 0.36 |
+| conducting_24 | trunk | 1st half | 2nd half | -79, 0.13, 15 | none | -58 | -58 | 0.19 | 0.19 |
+| conducting_24 | elbow | whole | whole | -82, 0.61, 25 | -82 | -107 | -26 | 0.38 | 0.31 |
+| conducting_24 | elbow | 2nd half | 1st half | -90, 0.55, 13 | -90 | -125 | -38 | 0.33 | 0.42 |
+| conducting_24 | elbow | 1st half | 2nd half | -75, 0.68, 12 | -75 | -84 | -8 | 0.43 | 0.21 |
+| conducting_24 | wrist | whole | whole | 2, 0.98, 24 | 2 | 7 | 5 | 0.98 | 0.98 |
+| conducting_24 | wrist | 2nd half | 1st half | -6, 0.98, 12 | -6 | 10 | 16 | 1.00 | 1.00 |
+| conducting_24 | wrist | 1st half | 2nd half | 4, 0.98, 12 | 4 | 3 | -1 | 0.96 | 0.88 |
+
+What it says:
+
+1. **The mechanism lands the trunk on the click on the take it learned from** (the 4-pattern clip: 45 ms before, 4 ms after; the wrist and the elbow move by their own offsets the same way). That is the issue's check, and it is in-sample.
+2. **The trunk's lag is not a constant of this conductor.** On the one clip where the trunk keeps the beat, its lag is 94 ms over the first half and 27 ms over the second (3 ms and 75 ms through the follower), so an offset learned on one half moves the other half by as much as it corrects: held out, 3 ms becomes -84 ms and 75 ms becomes 51 ms. The anchors scatter about ±150 ms around their mean, so 16 strokes measure the mean to about ±25 ms at best.
+3. **Where the trunk does not keep the beat, nothing changes**: the 3- and 2-pattern trunks are refused (R 0.15 to 0.35), and so is the 3-pattern elbow. The 2-pattern elbow is the one joint the correction helps held out (-125 to -38 ms, -84 to -8 ms).
+4. **The wrist needs none**: its offset is under 15 ms on every clip, which is the reference's own noise.
+
+So the take is opt-in and shows how well each joint kept the click, and whether a learned trunk offset carries from one take to the next is a live check (#146), not a claim of these clips.
 
 ## 6. Reproducing
 
