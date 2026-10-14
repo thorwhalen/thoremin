@@ -1268,6 +1268,21 @@
         "default": "same"
       },
       {
+        "name": "expressionHand",
+        "type": "enum(auto | right | left)",
+        "default": "auto"
+      },
+      {
+        "name": "handGesture",
+        "type": "object",
+        "default": {
+          "height": 0.6,
+          "palm": 0.4,
+          "quietS": 2,
+          "minStroke": 0.02
+        }
+      },
+      {
         "name": "articulationFrom",
         "type": "enum(sharpness | flow)",
         "default": "sharpness"

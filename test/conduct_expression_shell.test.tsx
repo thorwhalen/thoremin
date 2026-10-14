@@ -27,6 +27,7 @@ const reset = async () => {
   await dispatchDialSetIn('conductor.source', 'hands');
   await dispatchDialSetIn('conductor.expression', 'same');
   await dispatchDialSetIn('conductor.articulationFrom', 'sharpness');
+  await dispatchDialSetIn('conductor.expressionHand', 'auto');
 };
 beforeEach(async () => {
   useTools.setState({ open: null, independentOpen: {}, launcherOpen: false });
@@ -89,6 +90,30 @@ describe('Loudness from (the split role)', () => {
     await waitFor(() => expect(conductor().expression).toBe('hands'));
     expect(screen.queryByTestId('conductor-articulation-from')).toBeNull();
     // The body still beats: the pose camera stays.
+    expect(derived()).toContain('body-source');
+  });
+
+  it('a hand shapes: the shaping hand is a choice (#457), written through the dial', async () => {
+    render(
+      <>
+        <ToolsBar />
+        <ConductorPanel />
+      </>,
+    );
+    fireEvent.click(screen.getByText('Conductor'));
+    fireEvent.click(screen.getByText('Conduct with body'));
+    await waitFor(() => expect(conductor().source).toBe('body'));
+    fireEvent.click(screen.getByText('Start conducting'));
+    await waitFor(() => expect(conductor().enabled).toBe(true));
+    // The body shapes (same as the beat): no hand to choose.
+    expect(screen.queryByTestId('conductor-expression-hand')).toBeNull();
+    fireEvent.change(screen.getByTestId('conductor-expression'), { target: { value: 'hands' } });
+    await waitFor(() => expect(conductor().expression).toBe('hands'));
+    const hand = screen.getByTestId('conductor-expression-hand') as HTMLSelectElement;
+    expect(hand.value).toBe('auto');
+    fireEvent.change(hand, { target: { value: 'left' } });
+    await waitFor(() => expect(conductor().expressionHand).toBe('left'));
+    // The left hand's gesture needs no pose camera of its own beyond the beating body's.
     expect(derived()).toContain('body-source');
   });
 });

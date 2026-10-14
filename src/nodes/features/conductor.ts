@@ -110,15 +110,24 @@
  * strokes' braking sharpness, or Laban flow (the beating wrist's jerk) with
  * `articulationFrom: flow`.
  *
+ * The shaping hand's gesture (#457). `expressionHand` names the hand that shapes (`auto`:
+ * the free hand while an arm beats on a named side); naming the hand a hand conductor
+ * does not beat with splits the role with the hands alone. While the shaping hand makes
+ * no stroke (two strokes in a row, each within `handGesture.quietS`, are stroking; a
+ * stroke is at least `minStroke` frame heights, so a still hand's tremor is none), its
+ * height and its palm say the loudness, continuously (ictus `createHandGesture`,
+ * `conductor_gesture.ts`); its strokes' articulation, or the beat's, stands.
+ *
  * Pure and Node-safe: no DOM, no clock (it reads `ctx.time` / `ctx.dt`), and the
  * recorded conducting fixtures drive it headlessly.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, conductorRatios, createDanceLead, createExpressionBlend, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type DynamicsEstimate, type ExpressionBlend, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
+import { beatAt, conductorRatios, createDanceLead, createExpressionBlend, createHandGesture, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type DynamicsEstimate, type ExpressionBlend, type HandGesture, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
 import { LM, frameTime, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import { handGestureFrame } from './conductor_gesture';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
 import { beatsPerBarAt, timeSignatureAt } from '@thoremin/sdk/score/schema';
 import { readScoreDoc } from '@thoremin/sdk/score/prepare';
@@ -191,6 +200,24 @@ export const ConductorDancerSchema = z.object({
 });
 export type ConductorDancer = z.infer<typeof ConductorDancerSchema>;
 export const DEFAULT_CONDUCTOR_DANCER: ConductorDancer = ConductorDancerSchema.parse({});
+
+/** The shaping hand's gesture (#457; ictus `createHandGesture`): while the hand that shapes
+ *  the dynamics makes no stroke, how high it is held and which way its palm faces say the
+ *  loudness, each against the player's own last 20 s. */
+export const ConductorHandGestureSchema = z.object({
+  /** The share of the hand's height (on the torso when the body is seen). */
+  height: z.number().min(0).max(1).default(HAND_GESTURE_DEFAULTS.weights.height),
+  /** The share of the palm's direction (up to rise, down to hush). */
+  palm: z.number().min(0).max(1).default(HAND_GESTURE_DEFAULTS.weights.palm),
+  /** The hand counts as stroking (its strokes shape, as before) until it has made no
+   *  stroke for this many seconds. */
+  quietS: z.number().min(0.25).max(10).default(2),
+  /** The smallest stroke of the shaping hand, in frame heights: below it a movement is
+   *  the hand's tremor or a slow lift, not a stroke. */
+  minStroke: z.number().min(0).max(0.2).default(0.02),
+});
+export type ConductorHandGesture = z.infer<typeof ConductorHandGestureSchema>;
+export const DEFAULT_CONDUCTOR_HAND_GESTURE: ConductorHandGesture = ConductorHandGestureSchema.parse({});
 export const DEFAULT_CONDUCTOR_TRANSPORT: ConductorTransport = ConductorTransportSchema.parse({});
 /** What the `transport` output reads: the body transport's phase, `stopped` on the frame a
  *  cut-off lands, or `off` (reading the hands, or the rules off). */
@@ -235,6 +262,13 @@ const Params = z.object({
    *  default), `hands` (a hand shapes while the body beats) or `body` (the body shapes:
    *  its strokes blended with its motion and its arm's reach, per player). */
   expression: z.enum(CONDUCTOR_EXPRESSION_SOURCES).default('same'),
+  /** Which hand shapes while the hands shape the dynamics (#457): `auto` (the other hand
+   *  while an arm beats on a named side, else the conductor's hand) or a named one. Naming
+   *  the hand that does not beat (the left, while the right beats) is the classic split
+   *  with the hands alone. */
+  expressionHand: z.enum(CONDUCTOR_HANDS).default('auto'),
+  /** The shaping hand's gesture, read while it is not stroking (#457). */
+  handGesture: ConductorHandGestureSchema.default(() => ({ ...DEFAULT_CONDUCTOR_HAND_GESTURE })),
   /** Reading the body's expression: articulation from each stroke's braking `sharpness`
    *  (the default, as for the hand), or from Laban `flow` (the beating wrist's jerk). */
   articulationFrom: z.enum(ARTICULATION_SOURCES).default('sharpness'),
@@ -306,10 +340,14 @@ function labelFor(hand: Exclude<ConductorHand, 'auto'>, mirrorHandedness: boolea
   return raw === 'Right' ? 'Left' : 'Right';
 }
 
-/** The hand that shapes the expression (#378): while an ARM of the body beats on a named
- *  side, the other hand (the conducting literature's expressive hand); otherwise the
- *  conductor's hand choice (#457 tracks a continuous, non-stroke reading of it). */
+/** The hand that shapes the expression (#378): the one `expressionHand` names (#457);
+ *  with `auto`, while an ARM of the body beats on a named side, the other hand (the
+ *  conducting literature's expressive hand), otherwise the conductor's hand choice. */
 function shapingHand(frame: HandsFrame, cfg: Params): Hand | undefined {
+  if (cfg.expressionHand !== 'auto') {
+    const label = labelFor(cfg.expressionHand, cfg.mirrorHandedness);
+    return frame.hands.find((h) => h.handedness === label);
+  }
   if (cfg.source === 'body' && (cfg.bodyPoint === 'impact' || cfg.bodyPoint === 'wrist') && cfg.hand !== 'auto') {
     const label = labelFor(cfg.hand === 'right' ? 'left' : 'right', cfg.mirrorHandedness);
     return frame.hands.find((h) => h.handedness === label);
@@ -534,13 +572,21 @@ export const conductorNode = defineNode<Params>({
     let lastExprBodyT = -Infinity;
     let lastExprHands: HandsFrame | undefined;
     let lastExprPtT = -Infinity;
+    /** The shaping hand's gesture (#457) and the time of its last stroke: while it makes
+     *  none, the gesture shapes. */
+    let gesture: HandGesture | null = null;
+    let lastShapeStrokeT = -Infinity;
+    let prevShapeStrokeT = -Infinity;
     const resetExpression = (): void => {
       exprIctus = null;
       exprKey = '';
       exprMeter = null;
       blend = null;
+      gesture = null;
       lastExprBodyT = -Infinity;
       lastExprPtT = -Infinity;
+      lastShapeStrokeT = -Infinity;
+      prevShapeStrokeT = -Infinity;
     };
     // Speed-based fallback: EW speed of the tracked point (or the body's quantity of
     // motion) and a decaying envelope of it.
@@ -556,6 +602,8 @@ export const conductorNode = defineNode<Params>({
       // The expression's own frame clocks restart with the follower's (a replay from the top).
       lastExprBodyT = -Infinity;
       lastExprPtT = -Infinity;
+      lastShapeStrokeT = -Infinity;
+      prevShapeStrokeT = -Infinity;
       lastPt = null;
       lastBody = null;
       lead.reset();
@@ -684,17 +732,26 @@ export const conductorNode = defineNode<Params>({
       const beat: DynamicsEstimate = { dynamics: s.dynamics, articulation: s.articulation };
       let strokes = beat;
       const ownBody = c.source === 'dancer' && source === 'body';
-      if (source === c.source || ownBody) exprIctus = null;
+      // The hand conductor's other hand, named to shape (#457): the hands alone split the role.
+      const beatingHand = c.hand === 'auto' ? 'right' : c.hand;
+      const otherHand = source === 'hands' && c.source === 'hands' && c.expressionHand !== 'auto' && c.expressionHand !== beatingHand;
+      let now = ctx.time;
+      if ((source === c.source && !otherHand) || ownBody) exprIctus = null;
       else {
         // The other source's follower: its prior only paces its detector.
-        const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.mirrorX}:${c.mirrorHandedness}`;
+        const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.expressionHand}:${c.handGesture.minStroke}:${c.mirrorX}:${c.mirrorHandedness}`;
         if (!exprIctus || key !== exprKey) {
           exprIctus = createIctus({
-            detector: source === 'body' ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX }) : { mirrorX: c.mirrorX },
+            // A shaping hand's stroke is at least `minStroke` frame heights: a hand held
+            // still is quiet (its tremor is no stroke), so its gesture shapes (#457).
+            detector: source === 'body' ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX }) : { mirrorX: c.mirrorX, minAmplitude: c.handGesture.minStroke },
             prior: c.prior,
           });
           exprKey = key;
           lastExprPtT = -Infinity;
+          lastShapeStrokeT = -Infinity;
+          prevShapeStrokeT = -Infinity;
+          gesture = null;
         }
         if (source === 'hands') {
           const frame = inputs.hands as HandsFrame | undefined;
@@ -702,8 +759,14 @@ export const conductorNode = defineNode<Params>({
           lastExprHands = frame;
           const hand = frame && fresh ? shapingHand(frame, c) : undefined;
           const t = frameTime(frame, ctx);
+          now = t;
           if (hand && frame && frame.height > 0 && t >= lastExprPtT + MIN_SAMPLE_SPACING) {
-            exprIctus.feed(handPoint(hand, frame, c, t));
+            if (exprIctus.feed(handPoint(hand, frame, c, t)).anchor) {
+              prevShapeStrokeT = lastShapeStrokeT;
+              lastShapeStrokeT = t;
+            }
+            gesture ??= createHandGesture();
+            gesture.push(handGestureFrame(hand, frame, inputs.body as BodyFrame | undefined, t));
             lastExprPtT = t;
           }
         }
@@ -718,6 +781,17 @@ export const conductorNode = defineNode<Params>({
         exprMeter = null;
         blend = null;
         strokes = shaped();
+        // A shaping hand that makes no stroke (#457): its height and palm say the loudness,
+        // continuously; its strokes' articulation (or the beat's) stands. A hand not seen for
+        // a moment reads as before.
+        // Stroking is two strokes in a row, each within `quietS` of the next (and of now):
+        // one turn, a hand lowered to hush and stopping, is not a beat.
+        const stroking = lastShapeStrokeT - prevShapeStrokeT <= c.handGesture.quietS && now - lastShapeStrokeT <= c.handGesture.quietS;
+        if (exprIctus && gesture && !stroking) {
+          gesture.setWeights({ height: c.handGesture.height, palm: c.handGesture.palm });
+          const g = gesture.read(now);
+          if (Number.isFinite(g)) strokes = { dynamics: g, articulation: strokes.articulation };
+        }
       } else {
         exprMeter ??= createBodyExpressionMeter();
         // A dancer's cycle has no braking sharpness: its articulation is the body's flow.

@@ -259,3 +259,113 @@ export function createExpressionBlend(options: ExpressionBlendOptions = {}): Exp
     },
   };
 }
+
+/** What a shaping hand that is not stroking says about loudness in one frame (#457). Any
+ *  field may be missing (the hand unseen, no body to measure its height against). */
+export interface HandGestureFrame {
+  t: number;
+  /** The hand's height: on the torso (0 at the hips, 1 at the shoulders) when the body is
+   *  seen, else on the image (frame heights, up-positive). */
+  height?: number;
+  /** Which of the two the height is (each has its own range: they differ in scale). */
+  heightOn?: 'torso' | 'image';
+  /** How far the palm faces up: 1 up (rise), -1 down (hush), 0 toward the camera. */
+  palmUp?: number;
+}
+
+export interface HandGestureOptions {
+  /** The share of each cue in the dynamics (renormalised over the cues present). */
+  weights?: { height?: number; palm?: number };
+  /** Each raw channel is smoothed with this time constant (seconds) before it is read: a
+   *  tracker's jitter is not a swell. */
+  smoothS?: number;
+  /** A channel not seen for this long (seconds) drops out of the reading. */
+  holdS?: number;
+  /** The per-player range of every channel (`createRangeNormalizer`). */
+  range?: RangeNormalizerOptions;
+  /** The smallest spread each channel's range is read with, in its own unit: a hand held
+   *  still is not magnified into dynamics. */
+  minSpread?: { torso?: number; image?: number; palm?: number };
+}
+
+export const HAND_GESTURE_DEFAULTS = {
+  weights: { height: 0.6, palm: 0.4 },
+  smoothS: 0.15,
+  holdS: 1,
+  /** A conductor's expressive hand travels about a torso, waist to above the shoulder, and
+   *  the palm turns through its whole range: a still hand reads the middle, half of this
+   *  above it reads full. Torso lengths; frame heights (a torso is about a third of the
+   *  frame); the palm's unit (1 = facing the camera to facing up). */
+  minSpread: { torso: 1, image: 0.3, palm: 1 },
+};
+
+export interface HandGesture {
+  /** Fold one frame in. */
+  push(frame: HandGestureFrame): void;
+  /** The dynamics the gesture says at `t`, 0..1, or NaN while no channel is fresh. */
+  read(t: number): number;
+  /** Change the cues' shares (a live dial), keeping the player's ranges. */
+  setWeights(w: { height?: number; palm?: number }): void;
+  reset(): void;
+}
+
+/**
+ * The conducting literature's expressive hand (#457; Kolesnik and Wanderley): loudness from
+ * how high the hand is held and which way the palm faces (up to rise, down to hush), not
+ * from strokes. Continuous, so a hand rising slowly is a crescendo with no stroke at all.
+ * Each channel is read against the player's own recent range (`createRangeNormalizer`, the
+ * same 20 s as the body's expression), so "high" is this player's high.
+ */
+export function createHandGesture(options: HandGestureOptions = {}): HandGesture {
+  let weights = { ...HAND_GESTURE_DEFAULTS.weights, ...options.weights };
+  const smoothS = options.smoothS ?? HAND_GESTURE_DEFAULTS.smoothS;
+  const holdS = options.holdS ?? HAND_GESTURE_DEFAULTS.holdS;
+  const minSpread = { ...HAND_GESTURE_DEFAULTS.minSpread, ...options.minSpread };
+  type Channel = 'torso' | 'image' | 'palm';
+  const mk = (c: Channel) => createRangeNormalizer({ ...options.range, minSpread: Math.max(options.range?.minSpread ?? 0, minSpread[c]) });
+  let norm: Record<Channel, RangeNormalizer> = { torso: mk('torso'), image: mk('image'), palm: mk('palm') };
+  /** Per channel: the smoothed raw value, its time, and its last normalised reading. */
+  type Track = { t: number; ew: number; read: number };
+  let tracks: Partial<Record<Channel, Track>> = {};
+  const fold = (c: Channel, t: number, x: number | undefined) => {
+    if (x === undefined || !Number.isFinite(x)) return;
+    const prev = tracks[c];
+    // Time that went backwards (a replay from the top) or a long gap starts the channel afresh.
+    const fresh = !prev || t < prev.t || t - prev.t > holdS;
+    const ew = fresh ? x : prev.ew + (1 - Math.exp(-(t - prev.t) / Math.max(smoothS, 1e-6))) * (x - prev.ew);
+    tracks[c] = { t, ew, read: norm[c].push(t, ew) };
+  };
+  return {
+    push(f) {
+      fold(f.heightOn === 'image' ? 'image' : 'torso', f.t, f.height);
+      fold('palm', f.t, f.palmUp);
+    },
+    read(t) {
+      let num = 0;
+      let den = 0;
+      const live = (c: Channel) => {
+        const k = tracks[c];
+        return k && t - k.t <= holdS && t >= k.t - holdS ? k : undefined;
+      };
+      // The height on the torso when it is fresh, else on the image.
+      const h = live('torso') ?? live('image');
+      const p = live('palm');
+      if (h && weights.height > 0) {
+        num += weights.height * h.read;
+        den += weights.height;
+      }
+      if (p && weights.palm > 0) {
+        num += weights.palm * p.read;
+        den += weights.palm;
+      }
+      return den > 0 ? clamp01(num / den) : NaN;
+    },
+    setWeights(w) {
+      weights = { ...weights, ...w };
+    },
+    reset() {
+      norm = { torso: mk('torso'), image: mk('image'), palm: mk('palm') };
+      tracks = {};
+    },
+  };
+}
