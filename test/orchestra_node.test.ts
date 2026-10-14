@@ -13,6 +13,7 @@ import { replayNode, type NodeContext } from '@thoremin/dag';
 import type { LoadStatus } from '@thoremin/lazy';
 import { conductorNode, orchestraNode, type HandsFrame, type OrchestraEngineFactory, type OrchestraSynth } from '@/nodes';
 import { CC, durationScaleFor, dynamicsControllers, planPiece } from '@/nodes/output/orchestra';
+import { preparePiece } from '@thoremin/sdk/score/prepare';
 import { loadScore } from '@/score/load';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { loadStream } from './helpers/fixtures';
@@ -54,7 +55,7 @@ const fakeAc = (offset = 100) => {
 const ON = { orchestra: { enabled: true } };
 const ENGINE0 = 1000;
 
-function harness(synth = new FakeSynth()) {
+function harness(synth = new FakeSynth(), params: Record<string, unknown> = {}) {
   let loads = 0;
   const factory: OrchestraEngineFactory = async ({ progress }) => {
     loads++;
@@ -63,7 +64,7 @@ function harness(synth = new FakeSynth()) {
   };
   const ac = fakeAc();
   const resources: Record<string, unknown> = { createOrchestraEngine: factory, audioContext: ac, masterGain: {} };
-  const h = orchestraNode.make(orchestraNode.params.parse({}));
+  const h = orchestraNode.make(orchestraNode.params.parse(params));
   let tick = 0;
   const dt = 1 / 30;
   // As in the app, engine time (performance.now) runs AHEAD of the context's clock (the
@@ -348,5 +349,56 @@ describe('orchestra node: conducting Beethoven 5 from the 4/4 fixture', () => {
     // Measured: 48 onsets, median 0.003 beat, p90 0.017 (the tempo moving between commit and onset).
     expect(median).toBeLessThan(0.02);
     expect(p90).toBeLessThan(0.05);
+  });
+});
+
+describe('orchestra: the score\'s part selection (#407)', () => {
+  const haydn = () => loadScore(new Uint8Array(readFileSync('public/scores/haydn-op76-3.mxl')), 'haydn-op76-3.mxl');
+
+  it('planPiece plays only the selected parts, the notes the score node plays', async () => {
+    const doc = await haydn();
+    expect(doc.parts.length).toBeGreaterThanOrEqual(2);
+    const [first, second] = doc.parts;
+    const all = planPiece(doc);
+    const one = planPiece(doc, { parts: [first.id] });
+    expect(one.channels).toHaveLength(1);
+    expect(one.events.map((e) => e.key)).toEqual(preparePiece(doc, [first.id], { dynamics: 'raw' }).notes.map((n) => n.midi));
+    expect(one.events.length).toBeLessThan(all.events.length);
+    // Two of the parts: both, and only them.
+    const two = planPiece(doc, { parts: [first.id, second.id] });
+    expect(two.events.length).toBe(first.notes.length + second.notes.length);
+    // Empty = every part, as before.
+    expect(planPiece(doc, { parts: [] }).events).toEqual(all.events);
+  });
+
+  it('the node with `parts` sends notes of the selected part only', async () => {
+    const doc = await haydn();
+    const first = doc.parts[0];
+    const pitches = new Set(first.notes.map((n) => n.midi));
+    const run = async (params: Record<string, unknown>) => {
+      const { step, synth } = harness(new FakeSynth(), params);
+      step({ config: ON });
+      await flush();
+      for (let i = 0; i < 240; i++) step({ config: ON, doc, conducting: true, time: time(i / 30, 120) });
+      return synth.ons();
+    };
+    const narrowed = await run({ parts: [first.id] });
+    const full = await run({});
+    expect(narrowed.length).toBeGreaterThan(0);
+    expect(new Set(narrowed.map((c) => c.args[0])).size).toBe(1);
+    for (const c of narrowed) expect(pitches.has(c.args[1])).toBe(true);
+    expect(new Set(full.map((c) => c.args[0])).size).toBeGreaterThan(1);
+    expect(narrowed.length).toBeLessThan(full.length);
+  });
+});
+
+describe('orchestra: the conductor branch gives both players one part selection (#407)', () => {
+  it('the score node and the orchestra carry the same `parts`', async () => {
+    const { conductor, ORCHESTRA_NODE_ID } = await import('@/instruments/branches');
+    const partsOf = (id: string) => {
+      const n = conductor.nodes.find((x) => x.id === id)!;
+      return (n.params as { parts?: string[] } | undefined)?.parts ?? [];
+    };
+    expect(partsOf(ORCHESTRA_NODE_ID)).toEqual(partsOf('score'));
   });
 });

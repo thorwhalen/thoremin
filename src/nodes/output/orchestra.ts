@@ -125,6 +125,9 @@ export const DEFAULT_ORCHESTRA_DYNAMICS: OrchestraDynamics = 'raw';
 export interface PlanPieceOptions {
   /** {@link OrchestraDynamics}; {@link DEFAULT_ORCHESTRA_DYNAMICS} when absent. */
   dynamics?: OrchestraDynamics;
+  /** Which parts of the document to play (ids), the `score` node's `parts` selection;
+   *  empty or absent = every part. */
+  parts?: readonly string[];
 }
 
 const Params = z.object({
@@ -141,6 +144,10 @@ const Params = z.object({
   /** Note velocities as recorded (`raw`) or shaped by the score's dynamics marks
    *  (`written`, as the score node plays them); see {@link OrchestraDynamics}. */
   dynamics: z.enum(ORCHESTRA_DYNAMICS).default(DEFAULT_ORCHESTRA_DYNAMICS),
+  /** Which parts of a loaded document to play (ids); empty = all. The same selection as
+   *  the `score` node's `parts`, so the oscillators and the orchestra play the same
+   *  parts (#407). */
+  parts: z.array(z.string()).default([]),
 });
 type Params = z.infer<typeof Params>;
 /** The node's params, which are also the {@link createOrchestraPlayer} options. */
@@ -182,7 +189,7 @@ const DEMO_CHANNEL = { channel: 0, program: DEFAULT_PROGRAM, section: 'strings' 
 /** Plan a document (or, with none, the built-in demo scale, looped like the `score`
  *  node loops it). The notes come from `preparePiece`, the derivation the `score` node
  *  plays from too, so the two players cannot disagree about a piece. */
-export function planPiece(doc: ScoreDoc | null, { dynamics = DEFAULT_ORCHESTRA_DYNAMICS }: PlanPieceOptions = {}): OrchestraPlan {
+export function planPiece(doc: ScoreDoc | null, { dynamics = DEFAULT_ORCHESTRA_DYNAMICS, parts = [] }: PlanPieceOptions = {}): OrchestraPlan {
   if (!doc) {
     const demo: PreparedPiece = pieceFromNotes(DEMO_SCALE_NOTES, DEMO_LOOP_BEATS);
     return {
@@ -191,7 +198,7 @@ export function planPiece(doc: ScoreDoc | null, { dynamics = DEFAULT_ORCHESTRA_D
       channels: [{ ...DEMO_CHANNEL }],
     };
   }
-  const piece = preparePiece(doc, [], { dynamics });
+  const piece = preparePiece(doc, parts, { dynamics });
   const alloc = allocateChannels(piece.parts.map((p) => p.part));
   const events: ScoreEvent[] = [];
   const channels = new Map<number, { channel: number; program: number; section: Section }>();
@@ -302,7 +309,7 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
       if (rawDoc === docRef && plan) return;
       silence(at);
       docRef = rawDoc;
-      plan = planPiece(readScoreDoc(rawDoc), { dynamics: p.dynamics });
+      plan = planPiece(readScoreDoc(rawDoc), { dynamics: p.dynamics, parts: p.parts });
       scheduler = createScheduler(plan.events, { loopBeats: plan.loopBeats });
       sentCC.clear();
       lastDynamicsAt = -Infinity;
