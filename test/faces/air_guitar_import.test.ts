@@ -11,8 +11,8 @@
  *   renamed G, Am and C, saved, then imported. The air guitar's classifier, trained from those
  *   samples (its own training), reads each scripted shape as its chord: a carved hand sample IS a
  *   vocabulary vector (#385 E8).
- * - **The seam**: the air extension's UI mount provides the importer; "Use as air guitar chords"
- *   asks before replacing, and says what it did.
+ * - "Use as air guitar chords" asks before replacing, and says what it did. (The seam, the air
+ *   extension's UI mount providing the importer, is tested with the shell: `..._shell.test.tsx`.)
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
@@ -21,14 +21,13 @@ import { classify } from '@thoremin/sdk/enroll/classify';
 import type { TrainedModel } from '@thoremin/sdk/enroll';
 import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import { createCategorizerStore, type CategorizerRecord } from '@thoremin/sdk-ui/enroll/categorizers';
-import { vocabularyImporters } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 import { createFaceSessionStore } from '@thoremin/ext-faces/app/sessionStore';
 import { memoryThumbStore } from '@thoremin/ext-faces/app/thumbnails';
 import { HAND_SCRIPT, type FaceSource } from '@thoremin/ext-faces/app/sources';
 import { SYNTHETIC_HAND_TIMELINE, syntheticHandVector, syntheticHandShapeAt } from '@thoremin/ext-faces/lib/synthetic_hand';
 import { categoryEntries } from '@thoremin/ext-faces/lib/vocabularyEntries';
 import { createVocabularyState, useVocabularyStore, type VocabularyRecord } from '@thoremin/ext-air/app/vocabularyStore';
-import { guitarVocabularyImporter, AIR_GUITAR_IMPORTER_ID } from '@thoremin/ext-air/app/guitarImport';
+import { guitarVocabularyImporter } from '@thoremin/ext-air/app/guitarImport';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { AIR, FACES } from '../helpers/extensions';
 
@@ -60,28 +59,46 @@ afterEach(() => useVocabularyStore(null));
 describe.runIf(AIR)('the air guitar importer', () => {
   it('takes chord names, skips other names and thin entries, and replaces an entry of the same name', async () => {
     const state = freshState();
-    const importer = guitarVocabularyImporter(state);
+    const importer = guitarVocabularyImporter({ state, frettingHand: () => 'left' });
     const f = chordShapeFeatureIds();
     const shape = (x: number): FeatureVector => Object.fromEntries(f.map((k, j) => [k, x + j * 0.01]));
     const many = (x: number) => Array.from({ length: 8 }, (_, i) => shape(x + i * 0.001));
-    expect(importer.accepts('G')).toBe(true);
-    expect(importer.accepts('Am7')).toBe(true);
-    expect(importer.accepts('fist')).toBe(false);
+    expect(importer.canonical('G')).toBe('G');
+    expect(importer.canonical(' g ')).toBe('G');
+    expect(importer.canonical('Am7')).not.toBeNull();
+    expect(importer.canonical('fist')).toBeNull();
     const r = await importer.import([
       { label: 'G', samples: many(0) },
       { label: 'fist', samples: many(1) },
       { label: 'Am', samples: many(2).slice(0, 2) },
       { label: 'C', samples: [...many(3), { unrelated: 1 }] },
     ]);
-    expect(r).toEqual({ imported: ['G', 'C'], skipped: ['fist', 'Am'] });
+    expect(r).toEqual({ imported: ['G', 'C'], skipped: ['fist', 'Am'], warnings: [] });
     expect(state.getState().vocab.entries.map((e) => e.label)).toEqual(['G', 'C']);
     // Only the guitar's features are kept (an empty vector is dropped).
     for (const e of state.getState().vocab.entries) for (const s of e.samples) expect(Object.keys(s).every((k) => f.includes(k))).toBe(true);
     expect(importer.has('G')).toBe(true);
+    expect(importer.has('g')).toBe(true); // canonical: no second entry for one chord
     await importer.import([{ label: 'G', samples: many(5) }]);
     expect(state.getState().vocab.entries).toHaveLength(2);
     expect(state.getState().vocab.entries[0].samples[0][f[0]]).toBeCloseTo(5);
     expect(published.at(-1)).not.toBeNull();
+  });
+});
+
+describe.runIf(AIR)('the air guitar importer: names and hands', () => {
+  it('keeps the canonical chord name, pools categories with one name, and says when the hand differs', async () => {
+    const state = freshState();
+    const importer = guitarVocabularyImporter({ state, frettingHand: () => 'left' });
+    const f = chordShapeFeatureIds();
+    const many = (x: number) => Array.from({ length: 4 }, (_, i) => Object.fromEntries(f.map((k) => [k, x + i * 0.001])) as FeatureVector);
+    const r = await importer.import([{ label: 'g', samples: many(0) }, { label: 'G', samples: many(0.1) }], { hand: 'right' });
+    expect(r.imported).toEqual(['G']);
+    expect(state.getState().vocab.entries.map((e) => e.label)).toEqual(['G']);
+    expect(state.getState().vocab.entries[0].samples).toHaveLength(8); // pooled (each alone is too few)
+    expect(r.warnings.join(' ')).toMatch(/carved from your right hand; the air guitar reads your left hand/);
+    const ok = await importer.import([{ label: 'C', samples: many(1).concat(many(1.1)) }], { hand: 'left' });
+    expect(ok.warnings).toEqual([]);
   });
 });
 
@@ -122,7 +139,7 @@ describe.runIf(AIR && FACES)('a carved hand categorizer becomes the air guitar\'
 
   it('imports the chord-named categories with their supporting frames, and the guitar reads each shape as its chord', async () => {
     const state = freshState();
-    const importer = guitarVocabularyImporter(state);
+    const importer = guitarVocabularyImporter({ state, frettingHand: () => 'left' });
     const asked: string[] = [];
     expect(await store.getState().importSaved(saved.id, importer, (q) => (asked.push(q), true))).toBe(true);
     expect(asked).toEqual([]); // nothing replaced
@@ -151,7 +168,7 @@ describe.runIf(AIR && FACES)('a carved hand categorizer becomes the air guitar\'
 
   it('asks before replacing an entry the guitar already has; a no keeps it', async () => {
     const state = freshState();
-    const importer = guitarVocabularyImporter(state);
+    const importer = guitarVocabularyImporter({ state, frettingHand: () => 'left' });
     await importer.import([{ label: 'G', samples: Array.from({ length: 6 }, () => Object.fromEntries(chordShapeFeatureIds().map((k) => [k, 0.5]))) }]);
     const before = state.getState().vocab;
     const asked: string[] = [];
@@ -162,31 +179,12 @@ describe.runIf(AIR && FACES)('a carved hand categorizer becomes the air guitar\'
 
   it('a categorizer with no chord names says so and imports nothing', async () => {
     const state = freshState();
-    const importer = guitarVocabularyImporter(state);
+    const importer = guitarVocabularyImporter({ state, frettingHand: () => 'left' });
     const models = createCategorizerStore(handModality, { provider: createInMemoryProvider<CategorizerRecord>([], { idField: 'id', searchFields: ['name'] }) });
     const plain = await models.save('Plain', { categorizer: { ...saved.model.categorizer, categories: saved.model.categorizer.categories.map((c, i) => ({ ...c, label: `shape ${i + 1}` })) } });
     const s2 = createFaceSessionStore({ source: () => ({ kind: 'synthetic', read: () => null, video: () => null, dispose: () => {} }) as FaceSource, thumbs: memoryThumbStore(), frames: () => null, models, modality: handModality, now: () => 0, pollMs: 33, claim: () => {}, newTakeId: () => 't', isoNow: () => '' });
     expect(await s2.getState().importSaved(plain.id, importer, () => true)).toBe(false);
     expect(s2.getState().notice).toMatch(/None of the categories .* is named as one of the air guitar chords/);
     expect(state.getState().vocab.entries).toHaveLength(0);
-  });
-});
-
-describe.runIf(AIR)('the seam: the air extension provides the importer when its UI mounts', () => {
-  it('AIR_UI\'s mount effects register the air guitar importer for hand categorizers, and withdraw it', async () => {
-    await import('@/app/store'); // the hot store's host, which the other mount effects read
-    const { default: AIR_UI } = await import('@thoremin/ext-air/ui');
-    // Each effect on its own: one that needs a browser (storage) must not hide this one.
-    const cleanups = (AIR_UI.onMount ?? []).map((m) => {
-      try {
-        return m();
-      } catch {
-        return undefined;
-      }
-    });
-    expect(vocabularyImporters('hand').map((i) => i.id)).toContain(AIR_GUITAR_IMPORTER_ID);
-    expect(vocabularyImporters('body')).toEqual([]);
-    for (const c of cleanups) if (typeof c === 'function') c();
-    expect(vocabularyImporters('hand').map((i) => i.id)).not.toContain(AIR_GUITAR_IMPORTER_ID);
   });
 });

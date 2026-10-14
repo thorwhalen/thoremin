@@ -18,10 +18,10 @@ import { useTools } from '@/app/toolsStore';
 import { importCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
-import { provideVocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
+import { provideVocabularyImporter, vocabularyImporters } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 import { handSessionStore } from '@thoremin/ext-faces/app/handSession';
 import { createVocabularyState, useVocabularyStore, type VocabularyRecord } from '@thoremin/ext-air/app/vocabularyStore';
-import { guitarVocabularyImporter } from '@thoremin/ext-air/app/guitarImport';
+import { guitarVocabularyImporter, AIR_GUITAR_IMPORTER_ID } from '@thoremin/ext-air/app/guitarImport';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { AIR, FACES } from '../helpers/extensions';
 import '@/app/dials/useDialsSettings';
@@ -56,7 +56,7 @@ describe.runIf(AIR && FACES)('Use as air guitar chords, from the shell', () => {
     await createCategorizerStore(handModality).save('Shapes', { categorizer });
     useVocabularyStore(createInMemoryProvider<VocabularyRecord>([], { idField: 'id', searchFields: ['name'] }));
     const state = createVocabularyState({ name: 'guitar', features: f, publish: () => {} });
-    withdraw = provideVocabularyImporter(guitarVocabularyImporter(state));
+    withdraw = provideVocabularyImporter(guitarVocabularyImporter({ state, frettingHand: () => 'left' }));
     render(
       <>
         <ToolsBar />
@@ -72,6 +72,35 @@ describe.runIf(AIR && FACES)('Use as air guitar chords, from the shell', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Use Shapes as air guitar chords' }, { timeout: 5000 }));
     await screen.findByText(/^Now in the air guitar chords: G/, undefined, { timeout: 3000 });
     expect(state.getState().vocab.entries.map((e) => e.label)).toContain('G');
+  });
+
+  it('a categorizer with no chord names gets no button', async () => {
+    const file = importCategorizer(readFileSync(join(process.cwd(), 'public/categorizers/demo-smile.json'), 'utf8'));
+    if (!file.ok) throw new Error(file.error);
+    await createCategorizerStore(handModality).save('Plain', { categorizer: file.categorizer });
+    useVocabularyStore(createInMemoryProvider<VocabularyRecord>([], { idField: 'id', searchFields: ['name'] }));
+    withdraw = provideVocabularyImporter(guitarVocabularyImporter({ state: createVocabularyState({ name: 'guitar', features: chordShapeFeatureIds(), publish: () => {} }) }));
+    render(<ExtensionToolPanels />);
+    act(() => useTools.getState().toggleTool('hand-shapes'));
+    await screen.findByRole('button', { name: 'Open Plain' }, { timeout: 5000 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByRole('button', { name: 'Use Plain as air guitar chords' })).toBeNull();
+  });
+
+  it('the air extension\'s UI mount provides the importer for hand categorizers, and withdraws it', async () => {
+    const { default: AIR_UI } = await import('@thoremin/ext-air/ui');
+    // Each effect on its own: one that needs more of the app must not hide this one.
+    const cleanups = (AIR_UI.onMount ?? []).map((m) => {
+      try {
+        return m();
+      } catch {
+        return undefined;
+      }
+    });
+    expect(vocabularyImporters('hand').map((i) => i.id)).toContain(AIR_GUITAR_IMPORTER_ID);
+    expect(vocabularyImporters('body')).toEqual([]);
+    for (const c of cleanups) if (typeof c === 'function') c();
+    expect(vocabularyImporters('hand').map((i) => i.id)).not.toContain(AIR_GUITAR_IMPORTER_ID);
   });
 
   it('no importer, no button', async () => {

@@ -345,6 +345,8 @@ export interface FaceSessionState {
    *  that vocabulary provides. `confirm` is asked before entries of the same name are replaced.
    *  Says what was imported and skipped; returns whether anything was. */
   importSaved(id: string, importer: VocabularyImporter, confirm: (question: string) => boolean): Promise<boolean>;
+  /** The SAVED categorizer `id`'s category names (null when it cannot be read). */
+  savedLabels(id: string): Promise<string[] | null>;
 }
 
 export const FACE_SESSION_DEFAULTS = {
@@ -1495,6 +1497,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         return { name: record.name, text: exportCategorizer({ ...record.model.categorizer, name: record.name }) };
       },
 
+      async savedLabels(id) {
+        const record = await deps.models.load(id).catch(() => null);
+        return record ? record.model.categorizer.categories.map((c) => c.label) : null;
+      },
+
       async importSaved(id, importer, confirm) {
         const record = await deps.models.load(id).catch(() => null);
         if (!record) {
@@ -1502,17 +1509,18 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return false;
         }
         const entries = categoryEntries(record.model.categorizer);
-        const taken = entries.filter((e) => importer.accepts(e.label));
+        const taken = entries.filter((e) => importer.canonical(e.label) !== null);
         if (taken.length === 0) {
           set({ notice: `None of the categories of "${record.name}" is named as one of the ${importer.label} (${entries.map((e) => `"${e.label}"`).join(', ')}). Rename them first.` });
           return false;
         }
-        const replaced = taken.filter((e) => importer.has(e.label)).map((e) => e.label);
-        if (replaced.length > 0 && !confirm(`The ${importer.label} already have ${replaced.join(', ')}. Replace ${replaced.length === 1 ? 'it' : 'them'} with "${record.name}"'s?`)) return false;
+        const replaced = [...new Set(taken.filter((e) => importer.has(e.label)).map((e) => importer.canonical(e.label)!))];
+        if (replaced.length > 0 && !confirm(`The ${importer.label} already have ${replaced.join(', ')}. Replace ${replaced.length === 1 ? 'it' : 'them'} with the ones from "${record.name}"?`)) return false;
         try {
-          const r = await importer.import(entries);
+          const r = await importer.import(entries, { hand: record.model.categorizer.hand ?? 'either' });
           const skipped = r.skipped.length > 0 ? ` Skipped ${r.skipped.map((l) => `"${l}"`).join(', ')} (not a name the ${importer.label} take, or too few samples).` : '';
-          set({ notice: r.imported.length > 0 ? `Now in the ${importer.label}: ${r.imported.join(', ')}.${skipped}` : `Nothing was imported.${skipped}` });
+          const warned = r.warnings.length > 0 ? ` Note: ${r.warnings.join('; ')}.` : '';
+          set({ notice: r.imported.length > 0 ? `Now in the ${importer.label}: ${r.imported.join(', ')}.${skipped}${warned}` : `Nothing was imported.${skipped}` });
           return r.imported.length > 0;
         } catch (err) {
           set({ notice: `Could not import: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });

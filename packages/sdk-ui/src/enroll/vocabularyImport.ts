@@ -23,6 +23,14 @@ export interface VocabularyImportResult {
   imported: string[];
   /** Entries the vocabulary does not take (not a name it understands, or too few samples). */
   skipped: string[];
+  /** Anything the player should know (the entries come from the other hand; a save failed). */
+  warnings: string[];
+}
+
+/** What the import knows about where the entries come from. */
+export interface VocabularyImportOptions {
+  /** The hand the categorizer read (`either`: whichever was in view). */
+  hand?: 'left' | 'right' | 'either';
 }
 
 /** A vocabulary that takes imports. */
@@ -33,12 +41,12 @@ export interface VocabularyImporter {
   modality: string;
   /** What the button says after "Use as" (`air guitar chords`). */
   label: string;
-  /** Whether an entry of this name would be taken (`G`, `Am`: a chord name). */
-  accepts(label: string): boolean;
-  /** Whether the vocabulary already has an entry of this name (an import replaces it). */
+  /** The name an entry would be kept under (`g`, `Gmaj` -> `G`), or null when it is not taken. */
+  canonical(label: string): string | null;
+  /** Whether the vocabulary already has an entry of this name (canonical; an import replaces it). */
   has(label: string): boolean;
-  /** Import the entries it accepts; the rest are skipped. */
-  import(entries: readonly VocabularyImportEntry[]): Promise<VocabularyImportResult>;
+  /** Import the entries it takes (entries with one canonical name are pooled); the rest are skipped. */
+  import(entries: readonly VocabularyImportEntry[], options?: VocabularyImportOptions): Promise<VocabularyImportResult>;
 }
 
 const importers = new Map<string, VocabularyImporter>();

@@ -287,9 +287,23 @@ function useVocabularyImporters(modality: string): VocabularyImporter[] {
  */
 function ImportButtons({ s, id, name }: { s: FaceSessionState; id: string; name: string }) {
   const importers = useVocabularyImporters(s.modality.id);
+  // Offered only where it would take something: a category named as one of its entries. Read
+  // again whenever the saved list changes (a rename saved).
+  const [labels, setLabels] = useState<string[] | null>(null);
+  const { savedLabels, saved } = s;
+  useEffect(() => {
+    if (importers.length === 0) return;
+    let live = true;
+    void savedLabels(id).then((l) => live && setLabels(l));
+    return () => {
+      live = false;
+    };
+  }, [id, importers.length, savedLabels, saved]);
   return (
     <>
-      {importers.map((importer) => (
+      {importers
+        .filter((importer) => labels?.some((l) => importer.canonical(l) !== null))
+        .map((importer) => (
         <button
           key={importer.id}
           type="button"

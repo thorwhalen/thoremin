@@ -47,6 +47,12 @@ test('Your hand shapes records, carves, saves and binds the scripted hand', asyn
   // The rule poses name the scripted fist (other rows may mention it: "close to fist").
   await expect(panel.locator('[data-face-category]', { hasText: 'fist' }).first()).toBeVisible();
 
+  // A shape named as a chord, for the air guitar (#451).
+  const pinch = panel.getByRole('textbox', { name: 'Name of pinch' });
+  await pinch.fill('G');
+  await pinch.press('Enter');
+  await expect(panel.locator('[data-face-category] input[value="G"]')).toHaveCount(1);
+
   await panel.getByRole('textbox', { name: 'Categorizer name' }).fill('My shapes');
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
   const bind = panel.getByRole('button', { name: 'Bind My shapes to commands' });
@@ -54,10 +60,10 @@ test('Your hand shapes records, carves, saves and binds the scripted hand', asyn
   // Play chords (#450): the instrument composes the hand-chords branch and resolves the categorizer.
   await panel.getByRole('button', { name: 'Play chords with My shapes' }).click();
   await expect(panel.locator('[data-chords-playing]')).toHaveText('Chords', { timeout: 10_000 });
-  // Use as air guitar chords (#451): the air extension's importer is in the app; the scripted
-  // shapes are not named as chords, so it says so and imports nothing.
+  // Use as air guitar chords (#451): the air extension's importer is in the app; the shape named G
+  // goes into the air guitar's chords, the others are skipped.
   await panel.getByRole('button', { name: 'Use My shapes as air guitar chords' }).click();
-  await expect(panel.getByText(/is named as one of the air guitar chords/)).toBeVisible({ timeout: 10_000 });
+  await expect(panel.getByText(/Now in the air guitar chords: G\./)).toBeVisible({ timeout: 10_000 });
   await bind.click();
   // The Gestures tool opens on the bound set: its categories, ready for a command each.
   const yours = page.getByRole('region', { name: 'Your categories' });
