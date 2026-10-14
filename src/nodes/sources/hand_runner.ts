@@ -1,0 +1,335 @@
+/**
+ * Where the hand model runs (#326, step 5 of the 2026-10-05 timing plan): on the main
+ * thread, as it always did, or in a Web Worker, so the engine's tick is not blocked for the
+ * length of an inference.
+ *
+ * What the worker buys is a REGULAR tick, not lead. `detectForVideo` is synchronous: on the
+ * main thread it blocks every animation frame it overlaps (21 ms a hand frame on an M1's GPU,
+ * about 100 ms on the CPU delegate), so the overlay, the tick and everything else on the page
+ * wait for it. In a worker it overlaps them instead.
+ *
+ * The frame and its stamp. The capture time does not travel with a frame (a `VideoFrame`'s
+ * metadata has no `captureTime`, and a worker's `performance.now()` has its own origin), so
+ * the main thread's frame pump stays the clock: inside its callback, `createImageBitmap`
+ * snapshots the frame the element shows NOW, which is the frame the pump stamped, so frame
+ * and stamp are paired by construction. The bitmap is transferred to the worker, which
+ * infers on it with the stamp's own time and posts the landmarks back. While the worker is
+ * busy only the newest frame waits (older ones are closed, or the capture pool starves), and
+ * the frames it drops are added to the next result's `skipped`, as the main thread's own
+ * busy frames are.
+ *
+ * The seam. A {@link HandRunner} takes frames and says what it found; `webcam-hands` does
+ * not know which one it has. {@link createHandRunner} picks: the worker where the browser can
+ * host one (a `Worker`, `createImageBitmap`, and an `OffscreenCanvas` with WebGL2 inside the
+ * worker for the GPU delegate), the main thread otherwise, and the main thread again if the
+ * worker fails to start or dies later. The fallback is automatic and says so once.
+ *
+ * Not done here (later rungs of the plan's frame-transport ladder): Chromium's
+ * `MediaStreamTrackProcessor`, which hands the worker frames without a main-thread copy, and
+ * Safari's in-worker track. Both need the frame-to-stamp pairing measured first.
+ */
+import { z } from 'zod';
+import type { FrameStamp } from './frame_pump';
+import type { HandLandmarkerResultLike } from './webcam_hands';
+import type { Delegate } from './delegate';
+
+export const HandRunnerChoiceSchema = z.enum(['auto', 'worker', 'main']);
+/** `auto`: the worker where the browser can host it, else the main thread. */
+export type HandRunnerChoice = z.infer<typeof HandRunnerChoiceSchema>;
+
+/** What a runner found in one frame, with the stamp of the frame it ran on. */
+export interface HandResult {
+  result: HandLandmarkerResultLike;
+  width: number;
+  height: number;
+  stamp: FrameStamp;
+}
+
+export interface HandRunner {
+  /** Which thread this runner infers on. */
+  readonly where: 'main' | 'worker';
+  /** Offer the frame the element shows now, with its stamp. `false`: not consumed (not ready
+   *  yet), offer again. A result arrives through the runner's `onResult`, now or later. */
+  offer(video: HTMLVideoElement, stamp: FrameStamp): boolean;
+  /** Look for `n` hands from the next frame on (#325). Rejects if the model could not change. */
+  setNumHands(n: number): Promise<void>;
+  close(): void;
+}
+
+/** How a runner reaches MediaPipe: what the hand node's own loader would create. */
+export interface LandmarkerOptions {
+  wasmBase: string;
+  modelUrl: string;
+  delegate: Delegate;
+  numHands: number;
+}
+
+/** The minimal runtime surface of tasks-vision's `HandLandmarker` used by a runner. */
+export interface HandLandmarkerLike {
+  detectForVideo(image: TexImageSource | ImageBitmap, timestampMs: number): HandLandmarkerResultLike;
+  /** Reconfigures the live landmarker; a `numHands` change rebuilds its graph, not the model. */
+  setOptions(options: { numHands?: number }): Promise<void>;
+  close(): void;
+}
+
+/** Loads a landmarker on THIS thread (the main-thread runner's loader). */
+export type LoadLandmarker = (options: LandmarkerOptions) => Promise<HandLandmarkerLike>;
+
+/** The main thread: today's path, `detectForVideo` on the element itself. */
+export function mainHandRunner(landmarker: HandLandmarkerLike, onResult: (r: HandResult) => void): HandRunner {
+  return {
+    where: 'main',
+    offer(video, stamp) {
+      try {
+        const result = landmarker.detectForVideo(video, stamp.tMs);
+        onResult({ result, width: video.videoWidth, height: video.videoHeight, stamp });
+      } catch {
+        /* transient inference error; the node keeps its last frame */
+      }
+      return true;
+    },
+    setNumHands: (n) => Promise.resolve().then(() => landmarker.setOptions({ numHands: n })),
+    close: () => landmarker.close(),
+  };
+}
+
+// ---- The worker's protocol (both sides import these types) ---------------------------
+
+export type ToWorker =
+  | { type: 'init'; options: LandmarkerOptions }
+  | { type: 'frame'; id: number; bitmap: ImageBitmap; tMs: number }
+  | { type: 'numHands'; id: number; n: number }
+  | { type: 'close' };
+
+export type FromWorker =
+  | { type: 'ready'; delegate: Delegate }
+  | { type: 'init-error'; message: string }
+  | { type: 'result'; id: number; result: HandLandmarkerResultLike }
+  | { type: 'frame-error'; id: number }
+  | { type: 'numHands-done'; id: number; error?: string };
+
+/** The part of a `Worker` the client uses (a seam for tests). */
+export interface WorkerLike {
+  postMessage(message: ToWorker, transfer?: Transferable[]): void;
+  terminate(): void;
+  onmessage: ((ev: MessageEvent<FromWorker>) => void) | null;
+  onerror: ((ev: ErrorEvent | Event) => void) | null;
+  onmessageerror?: ((ev: MessageEvent) => void) | null;
+}
+
+/** Everything the worker runner takes from the browser, injectable for tests. */
+export interface WorkerRunnerDeps {
+  createWorker: () => WorkerLike;
+  createImageBitmap: (video: HTMLVideoElement) => Promise<ImageBitmap>;
+}
+
+/** One frame on its way to the worker, or waiting for it. */
+interface Queued {
+  bitmap: ImageBitmap;
+  width: number;
+  height: number;
+  stamp: FrameStamp;
+}
+
+/**
+ * The worker runner. Resolves once the worker's landmarker is loaded, rejects if it cannot
+ * start (the caller falls back to the main thread). `onDead` is called once if the worker
+ * dies afterwards; the runner then takes no more frames.
+ */
+export function workerHandRunner(
+  options: LandmarkerOptions,
+  onResult: (r: HandResult) => void,
+  deps: WorkerRunnerDeps,
+  onDead: (reason: unknown) => void = () => {},
+): Promise<HandRunner> {
+  const worker = deps.createWorker();
+  let ready = false;
+  let dead = false;
+  let closed = false;
+  let seq = 0; // offers made
+  let newestSent = 0; // the newest offer handed to the worker or queued
+  let inflight: (Queued & { id: number }) | null = null;
+  let waiting: (Queued & { id: number }) | null = null;
+  /** Frames dropped since the last one sent: added to its `skipped`. */
+  let dropped = 0;
+  const changes = new Map<number, { resolve: () => void; reject: (e: Error) => void }>();
+  let changeId = 0;
+
+  const send = (q: Queued & { id: number }): void => {
+    const stamp = dropped ? { ...q.stamp, skipped: q.stamp.skipped + dropped } : q.stamp;
+    dropped = 0;
+    inflight = { ...q, stamp };
+    worker.postMessage({ type: 'frame', id: q.id, bitmap: q.bitmap, tMs: q.stamp.tMs }, [q.bitmap]);
+  };
+  const drop = (q: Queued): void => {
+    dropped += 1 + q.stamp.skipped;
+    q.bitmap.close();
+  };
+  const next = (): void => {
+    inflight = null;
+    if (waiting && !dead && !closed) {
+      const w = waiting;
+      waiting = null;
+      send(w);
+    }
+  };
+  const die = (reason: unknown): void => {
+    if (dead || closed) return;
+    dead = true;
+    if (waiting) waiting.bitmap.close();
+    waiting = null;
+    for (const c of changes.values()) c.reject(new Error('the hand worker stopped'));
+    changes.clear();
+    worker.terminate();
+    if (ready) onDead(reason);
+  };
+
+  const runner: HandRunner = {
+    where: 'worker',
+    offer(video, stamp) {
+      if (!ready || dead || closed) return false;
+      const id = ++seq;
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      deps
+        .createImageBitmap(video)
+        .then((bitmap) => {
+          // A later frame already went ahead (bitmaps can resolve out of order), or the
+          // runner stopped: this one is stale.
+          if (id < newestSent || dead || closed) {
+            bitmap.close();
+            if (!dead && !closed) dropped += 1 + stamp.skipped;
+            return;
+          }
+          newestSent = id;
+          const q = { id, bitmap, width, height, stamp };
+          if (inflight) {
+            if (waiting) drop(waiting);
+            waiting = q;
+          } else send(q);
+        })
+        .catch(() => {
+          /* the element had no frame to give (a resize, a stall): nothing to infer */
+        });
+      return true;
+    },
+    setNumHands(n) {
+      if (dead || closed) return Promise.reject(new Error('the hand worker stopped'));
+      const id = ++changeId;
+      return new Promise<void>((resolve, reject) => {
+        changes.set(id, { resolve, reject });
+        worker.postMessage({ type: 'numHands', id, n });
+      });
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      if (waiting) waiting.bitmap.close();
+      waiting = null;
+      for (const c of changes.values()) c.reject(new Error('the hand runner closed'));
+      changes.clear();
+      try {
+        worker.postMessage({ type: 'close' });
+      } finally {
+        worker.terminate();
+      }
+    },
+  };
+
+  return new Promise<HandRunner>((resolve, reject) => {
+    worker.onmessage = (ev) => {
+      const m = ev.data;
+      if (m.type === 'ready') {
+        ready = true;
+        resolve(runner);
+      } else if (m.type === 'init-error') {
+        die(new Error(m.message));
+        reject(new Error(m.message));
+      } else if (m.type === 'result' || m.type === 'frame-error') {
+        const done = inflight && inflight.id === m.id ? inflight : null;
+        if (m.type === 'result' && done && !closed) onResult({ result: m.result, width: done.width, height: done.height, stamp: done.stamp });
+        next();
+      } else if (m.type === 'numHands-done') {
+        const c = changes.get(m.id);
+        changes.delete(m.id);
+        if (m.error === undefined) c?.resolve();
+        else c?.reject(new Error(m.error));
+      }
+    };
+    const fail = (ev: unknown): void => {
+      const reason = typeof ErrorEvent !== 'undefined' && ev instanceof ErrorEvent ? ev.error ?? ev.message : ev;
+      if (!ready) reject(reason instanceof Error ? reason : new Error('the hand worker could not start'));
+      die(reason);
+    };
+    worker.onerror = fail;
+    worker.onmessageerror = fail;
+    worker.postMessage({ type: 'init', options });
+  });
+}
+
+/** Whether this browser can host the worker runner at all (WebGL2 is checked inside it). */
+export function canHostHandWorker(g: typeof globalThis = globalThis): boolean {
+  return typeof g.Worker === 'function' && typeof g.createImageBitmap === 'function' && typeof g.OffscreenCanvas === 'function';
+}
+
+export interface CreateHandRunnerDeps {
+  /** Loads a landmarker on the main thread (the fallback, and `main`). */
+  loadMain: LoadLandmarker;
+  /** The worker runner's browser dependencies; absent where the browser has none. */
+  worker?: WorkerRunnerDeps;
+}
+
+/**
+ * The runner for `choice`: the worker when chosen (or `auto` and possible) and it starts,
+ * the main thread otherwise. A worker that dies later is replaced by the main thread, with the
+ * same `onResult`, without the caller noticing (beyond a console line).
+ */
+export async function createHandRunner(
+  choice: HandRunnerChoice,
+  options: LandmarkerOptions,
+  onResult: (r: HandResult) => void,
+  deps: CreateHandRunnerDeps,
+): Promise<HandRunner> {
+  const main = async (): Promise<HandRunner> => mainHandRunner(await deps.loadMain(options), onResult);
+  if (choice === 'main' || !deps.worker) return main();
+
+  // The live runner behind a stable facade, so a worker that dies is swapped for the main
+  // thread in place. `numHands` follows the facade, so the replacement looks for the same count.
+  let current: HandRunner | null = null;
+  let closed = false;
+  let numHands = options.numHands;
+  const facade: HandRunner = {
+    get where() {
+      return current?.where ?? 'main';
+    },
+    offer: (video, stamp) => current?.offer(video, stamp) ?? false,
+    setNumHands: async (n) => {
+      if (!current) throw new Error('the hand runner is not running');
+      await current.setNumHands(n);
+      numHands = n;
+    },
+    close: () => {
+      closed = true;
+      current?.close();
+      current = null;
+    },
+  };
+  const onDead = (reason: unknown): void => {
+    console.warn('[thoremin] the hand worker stopped; the hand model moves to the main thread', reason);
+    current = null;
+    void deps
+      .loadMain({ ...options, numHands })
+      .then((lm) => {
+        if (closed) lm.close();
+        else current = mainHandRunner(lm, onResult);
+      })
+      .catch((err) => console.error('[thoremin] the hand model could not load on the main thread either', err));
+  };
+  try {
+    current = await workerHandRunner(options, onResult, deps.worker, onDead);
+  } catch (err) {
+    console.warn('[thoremin] the hand worker could not start; the hand model runs on the main thread', err);
+    current = await main();
+  }
+  return facade;
+}
