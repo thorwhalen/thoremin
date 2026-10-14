@@ -824,6 +824,10 @@
         "kind": "string[]"
       },
       {
+        "name": "learnedCategories",
+        "kind": "category-scores"
+      },
+      {
         "name": "elements",
         "kind": "string[]"
       },
@@ -2467,6 +2471,39 @@
     ]
   },
   {
+    "type": "pose-categorizer",
+    "title": "Pose Categorizer",
+    "description": "Your own pose categorizer (#384), read live: the body to one of your saved poses, drawn on the video, and optionally the body conductor's start, hold and cut-off from your ready, fermata and cut-off poses.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "vector",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "model",
+        "kind": "pose-categorizer-model"
+      },
+      {
+        "name": "config",
+        "kind": "pose-categorizer-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "category",
+        "kind": "category-scores"
+      },
+      {
+        "name": "transportPose",
+        "kind": "transport-pose"
+      }
+    ],
+    "params": []
+  },
+  {
     "type": "pose-chord",
     "title": "Pose Chord",
     "description": "Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pitch→octave, jaw-open→gate, smile→timbre, brow→7th). Active only in face \"controls\" mode.",
@@ -3121,6 +3158,10 @@
         "kind": "face-categorizer-config"
       },
       {
+        "name": "poseCategorizer",
+        "kind": "pose-categorizer-config"
+      },
+      {
         "name": "airGuitarModel",
         "kind": "shape-model"
       },
@@ -3139,6 +3180,10 @@
       {
         "name": "faceCategorizerModel",
         "kind": "face-categorizer-model"
+      },
+      {
+        "name": "poseCategorizerModel",
+        "kind": "pose-categorizer-model"
       }
     ],
     "params": []

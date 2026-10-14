@@ -19,6 +19,9 @@ export const FACE_CATEGORIZER_BRANCH_ID = 'face-categorizer';
 const CAM_FACE = 'camFace';
 const GENERAL = 'faceExpr';
 const CHORD = 'exprChord';
+// Core's body and conductor nodes the pose branch reads and feeds.
+const BODY_VECTOR = 'bodyVec';
+const CONDUCTOR = 'conductor';
 
 export const faceCategorizer = defineBranch({
   id: FACE_CATEGORIZER_BRANCH_ID,
@@ -39,4 +42,28 @@ export const faceCategorizer = defineBranch({
   overlay: ['faceLandmarks', 'faceExpression', 'chordGuide', 'chordName'],
 });
 
-export const FACES_BRANCHES = [faceCategorizer] as const;
+export const POSE_CATEGORIZER_NODE_ID = 'poseCat';
+export const POSE_CATEGORIZER_BRANCH_ID = 'pose-categorizer';
+
+/**
+ * A saved pose categorizer, read live (#384): the body source's vector to one of the player's
+ * poses, drawn by the overlay's category cues (its own `learnedCategories` input, so it never
+ * fans in with the ASL reader's `categories`), and, when the conductor is composed, its
+ * transport override (`conductor.transportPose`, optional: absent without the conductor).
+ */
+export const poseCategorizer = defineBranch({
+  id: POSE_CATEGORIZER_BRANCH_ID,
+  description: 'Your own pose categorizer reads the body: its category drawn on the video, and optionally the body conductor\'s start, hold and cut-off.',
+  requires: ['body-source'],
+  nodes: [{ id: POSE_CATEGORIZER_NODE_ID, type: 'pose-categorizer', params: {} }],
+  edges: [
+    to({ node: BODY_VECTOR, port: 'vector' }, { node: POSE_CATEGORIZER_NODE_ID, port: 'vector' }),
+    to(ui('poseCategorizerModel'), { node: POSE_CATEGORIZER_NODE_ID, port: 'model' }),
+    to(ui('poseCategorizer'), { node: POSE_CATEGORIZER_NODE_ID, port: 'config' }),
+    to({ node: POSE_CATEGORIZER_NODE_ID, port: 'category' }, overlay('learnedCategories')),
+    { ...to({ node: POSE_CATEGORIZER_NODE_ID, port: 'transportPose' }, { node: CONDUCTOR, port: 'transportPose' }), optional: true },
+  ],
+  overlay: ['categoryLabel', 'categoryBars'],
+});
+
+export const FACES_BRANCHES = [faceCategorizer, poseCategorizer] as const;

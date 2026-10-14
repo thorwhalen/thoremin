@@ -65,3 +65,21 @@ export function chooseCategorizerWrites(id: string, faceMapping: string): [strin
   if (id !== GENERAL_CATEGORIZER && faceMapping === 'none') writes.push(['face.mapping', 'chord']);
   return writes;
 }
+
+/**
+ * The pose categorizer an instrument plays (#384, body-movement B4): the id of one of the player's
+ * saved pose categorizers ('' = none, the default: nothing changes for an existing instrument),
+ * and whether its `ready` / `fermata` / `cut-off` categories start, hold and cut off the body
+ * conductor in place of the rules (#387 B5: rules by default, a pose category as the player's
+ * override). The instrument keeps the id, not the model, as `faceCategorizer` does; an id this
+ * device does not have plays nothing.
+ */
+export const PoseCategorizerDialSchema = z.object({
+  id: z.string().default(''),
+  transport: z.boolean().default(false),
+});
+export type PoseCategorizerDial = z.infer<typeof PoseCategorizerDialSchema>;
+export const DEFAULT_POSE_CATEGORIZER: PoseCategorizerDial = PoseCategorizerDialSchema.parse({});
+
+/** Whether the dial names a pose categorizer to play. */
+export const playsPoses = (dial: Partial<PoseCategorizerDial> | null | undefined): boolean => typeof dial?.id === 'string' && dial.id !== '';

@@ -11,6 +11,8 @@ import { useDialsSettings } from '@thoremin/sdk-ui/dials';
 import FaceSessionPanel, { HandSessionPanel, PoseSessionPanel } from './panels/FaceSessionPanel';
 import CategorizerSection from './panels/CategorizerSection';
 import { startCategorizerPlay, useCategorizerPlay } from './app/categorizerPlay';
+import { startPosePlay } from './app/posePlay';
+import PoseCategorizerSection, { PoseCategorizerReadout } from './panels/PoseCategorizerSection';
 import { FACES_TOOL, HANDS_TOOL, POSES_TOOL } from './ui';
 
 /** One line: which categorizer the face chords read right now. */
@@ -36,7 +38,10 @@ function CategorizerControls() {
 
 export const FACES_UI: ExtensionUi = {
   id: 'faces',
-  panels: [{ instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerControls, Readout: CategorizerReadout }],
+  panels: [
+    { instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerControls, Readout: CategorizerReadout },
+    { instrumentId: 'faces', section: 'Pose categorizer', Controls: PoseCategorizerSection, Readout: PoseCategorizerReadout },
+  ],
   statusHooks: [],
   // Resolve the categorizer the instrument names and hand it to the DAG, for the app's lifetime.
   // A host with no hot store (a headless test that loads this half) has nothing to resolve.
@@ -46,6 +51,15 @@ export const FACES_UI: ExtensionUi = {
         return startCategorizerPlay();
       } catch (err) {
         console.warn('faces: the categorizer is not resolved (no hot store):', err);
+        return undefined;
+      }
+    },
+    // The pose categorizer the instrument names (#384), the same way.
+    () => {
+      try {
+        return startPosePlay();
+      } catch (err) {
+        console.warn('faces: the pose categorizer is not resolved (no hot store):', err);
         return undefined;
       }
     },
