@@ -217,6 +217,32 @@ describe('a tempo step (#339 item 1): the step detector follows the new tempo fr
     expect(on.map((s) => s.confidence)).toEqual(off.map((s) => s.confidence));
   });
 
+  it('a steady noisy fast cycle is not jumped to its octave by the detector (the review case: 0.45 to 0.6 s, noise 0.35 to 0.45)', () => {
+    // Box-Muller on a fixed LCG, so the seeds are the same everywhere.
+    const wrongSeconds = (P: number, sd: number, seed: number, opts: object) => {
+      let z = seed;
+      const u = () => ((z = (z * 16807) % 2147483647) / 2147483647);
+      const gauss = () => Math.sqrt(-2 * Math.log(u() + 1e-12)) * Math.cos(2 * Math.PI * u());
+      const f = createPulseFollower(opts);
+      let bad = 0;
+      for (let i = 0; i < 45 * HZ; i++) {
+        const st = f.feed(i / HZ, Math.cos((2 * Math.PI * i) / HZ / P) + sd * gauss());
+        if (i > 15 * HZ && Number.isFinite(st.level) && Math.abs(st.level / P - 1) > 0.1) bad++;
+      }
+      return bad / HZ;
+    };
+    let on = 0;
+    let off = 0;
+    for (const [P, sd] of [[0.6, 0.45], [0.5, 0.35], [0.45, 0.4]] as const) {
+      for (let seed = 1; seed <= 12; seed++) {
+        on += wrongSeconds(P, sd, seed, {});
+        off += wrongSeconds(P, sd, seed, { fastWindowS: 0 });
+      }
+    }
+    // Measured before the guard: 45 s wrong on 20 seeds of the 0.6 case alone, against 1.4 s with the detector off.
+    expect(on).toBeLessThanOrEqual(off + 3);
+  });
+
   it('a level longer than the detector can see (a 1.9 s bar) is left to the full window', () => {
     const f = (t: number) => Math.cos((2 * Math.PI * t) / 1.9);
     expect(run(f, 30).map((s) => s.period)).toEqual(run(f, 30, { fastWindowS: 0 }).map((s) => s.period));

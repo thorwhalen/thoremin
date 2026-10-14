@@ -447,6 +447,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       if (!Number.isFinite(level)) {
         level = top.period;
         strength = top.r;
+        fastChallenger = null;
       } else {
         // The same level is a peak within tolerance of it: never a multiple of it.
         const near = peaks.find((c) => Math.abs(c.period / level - 1) < o.levelTolerance);
@@ -505,10 +506,15 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     const found = fundamental(peaks);
     const locked = Number.isFinite(level);
     const near = locked ? peaks.find((q) => Math.abs(q.period / level - 1) < o.levelTolerance) : undefined;
-    const here = found && found.r >= o.fastMinStrength && (!locked || Math.abs(found.period / level - 1) >= o.fastMinChange);
-    // The current level must be gone from the recent past, not merely beaten by its own
-    // harmonic: no peak near it that is nearly as strong.
-    const stillThere = locked && peaks.some((q) => Math.abs(q.period / level - 1) < o.levelTolerance && q.r >= o.nearTop * (found?.r ?? 0));
+    // A SHORTER fundamental is the lock sitting on a multiple (the slow path's rule, and
+    // how a wrong octave is corrected). A LONGER one is a new level only if it is not a
+    // multiple of the current one, which noise raises to within `nearTop` of the level's
+    // own peak, and it beats the level's peak outright: the current level must be gone
+    // from the recent past, not merely tied by its own multiple.
+    const longer = locked && found !== undefined && found.period > level;
+    const multiple = longer && [2, 3, 4].some((k) => Math.abs(found.period / (k * level) - 1) < o.levelTolerance);
+    const here = found && found.r >= o.fastMinStrength && (!locked || (Math.abs(found.period / level - 1) >= o.fastMinChange && !multiple));
+    const stillThere = longer && near !== undefined && near.r + o.switchMargin >= found.r;
     if (!here || stillThere) {
       fastChallenger = null;
       if (recent) {
@@ -516,6 +522,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
         if (near && near.r >= o.minStrength) {
           level += (refinePeriod(x, near.period, { t0, hz: o.gridHz }) - level) * o.levelGain;
           strength = near.r;
+          challenger = null;
           return true;
         }
       }
