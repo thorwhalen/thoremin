@@ -48,6 +48,16 @@
  * 5. **Never stop.** Once started, an untrusted pulse (the dancer paused, stepped out, or
  *    changed step and the new one has not persisted) HOLDS the tempo: the beat goes on at
  *    the tempo it had. Only switching the conductor off stops the piece.
+ * 6. **A written fermata holds for one of the dancer's cycles** (#463): the beat stops on
+ *    it for `ratio` beats at the tempo it had (a bar for a dancer stepping once a bar), then
+ *    goes on at that tempo. A dancer has no release gesture, and a hold of exactly one cycle
+ *    is the one length that leaves the score's bars where they were on the dancer's cycles
+ *    (the phase law has nothing to walk back). While it holds the lead reports tempo 0 and
+ *    mode `fermata`, so a scheduler projecting ahead from the tempo plays nothing past it.
+ * 7. **The end of the piece loops** (#463): past `end` (the last note-off), rounded up to
+ *    whole cycles, the beat wraps by that many beats, so the piece starts again from the top
+ *    on a dancer cycle start, its bars still on the dancer. A dancer does not cut off, and a
+ *    score left running in silence past its last note gave the dancer nothing.
  *
  * Pure, causal and clock-free like the rest of ictus: the caller passes the time.
  */
@@ -120,6 +130,10 @@ export interface DanceLeadInput {
   /** Live overrides of the options (the player's dial). */
   range?: number;
   phaseOffset?: number;
+  /** The piece's written fermatas, in beats, sorted (rule 6). */
+  fermatas?: readonly number[];
+  /** The piece's length in beats (its last note-off): the loop (rule 7). Absent or 0: none. */
+  end?: number;
 }
 
 /**
@@ -129,8 +143,9 @@ export interface DanceLeadInput {
  * - `following`: the beat follows the dancer.
  * - `switching`: following, and a different ratio is persisting; the tempo holds.
  * - `holding`: started, and the pulse is untrusted or unrelated; the tempo holds.
+ * - `fermata`: started, holding a written fermata for one dancer cycle; tempo 0.
  */
-export type DanceLeadMode = 'waiting' | 'locking' | 'armed' | 'following' | 'switching' | 'holding';
+export type DanceLeadMode = 'waiting' | 'locking' | 'armed' | 'following' | 'switching' | 'holding' | 'fermata';
 
 export interface DanceLeadState {
   t: number;
@@ -151,6 +166,8 @@ export interface DanceLeadState {
   phaseError: number;
   /** Dancer cycle starts since the piece started (the start's included). */
   cycles: number;
+  /** Times the piece has looped to the top (rule 7). */
+  loops: number;
 }
 
 export interface DanceLead {
@@ -186,7 +203,10 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
   let cycles = 0;
   /** The tempo follows the dancer's period (rule 3); sticky until a reset. */
   let settled = false;
-  let last: DanceLeadState = { t: 0, mode: 'waiting', started: false, beat: 0, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0 };
+  /** A written fermata held (rule 6): the beat it holds on and until when. */
+  let hold: { beat: number; until: number } | null = null;
+  let loops = 0;
+  let last: DanceLeadState = { t: 0, mode: 'waiting', started: false, beat: 0, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
 
   const reset = (from = 0): void => {
     level.reset();
@@ -199,15 +219,45 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
     lastCycle = NaN;
     cycles = 0;
     settled = false;
-    last = { t: 0, mode: 'waiting', started: false, beat, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0 };
+    hold = null;
+    loops = 0;
+    last = { t: 0, mode: 'waiting', started: false, beat, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
   };
 
   return {
-    step({ t, pulse, marked, ref = 0, range, phaseOffset }) {
+    step({ t, pulse, marked, ref = 0, range, phaseOffset, fermatas, end }) {
       const dt = Number.isFinite(lastT) ? Math.max(0, t - lastT) : 0;
       lastT = t;
-      // The beat at `t`, at the tempo set last step (never backwards).
-      if (started) beat += (tempo / 60) * dt;
+      // The beat at `t`, at the tempo set last step: stopped on a written fermata for one
+      // cycle (rule 6), wrapped at the piece's end (rule 7), otherwise never backwards.
+      const cycleBeats = Number.isFinite(last.ratio) && last.ratio > 0 ? last.ratio : 1;
+      let holdingFermata = false;
+      if (started) {
+        if (hold && t < hold.until) holdingFermata = true;
+        else if (hold) {
+          beat = hold.beat + (tempo / 60) * (t - hold.until);
+          hold = null;
+        } else {
+          const next = beat + (tempo / 60) * dt;
+          const f = tempo > 0 ? fermatas?.find((x) => x > beat + START_EPS && x <= next) : undefined;
+          if (f !== undefined) {
+            // The hold starts when the beat reached the fermata, between two steps.
+            const reached = t - ((next - f) * 60) / tempo;
+            hold = { beat: f, until: reached + (cycleBeats * 60) / tempo };
+            beat = f;
+            if (t < hold.until) holdingFermata = true;
+            else {
+              beat = f + (tempo / 60) * (t - hold.until);
+              hold = null;
+            }
+          } else beat = next;
+        }
+        const loopAt = end !== undefined && end > 0 && Number.isFinite(end) ? cycleBeats * Math.ceil(end / cycleBeats - START_EPS) : NaN;
+        if (!holdingFermata && loopAt > 0 && beat >= loopAt) {
+          beat -= loopAt;
+          loops++;
+        }
+      }
       const r = range !== undefined && range >= 0 && range < 1 ? range : o.range;
       const off = phaseOffset !== undefined && Number.isFinite(phaseOffset) ? phaseOffset : o.phaseOffset;
       const lo = 1 - r;
@@ -226,7 +276,7 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       if (!started) {
         if (k === null || !markedOk) {
           armedCycle = null;
-          last = { t, mode: rel.mode as DanceLeadMode, started: false, beat, tempo: 0, ratio: rel.match?.ratio ?? NaN, rate: NaN, phaseError: NaN, cycles: 0 };
+          last = { t, mode: rel.mode as DanceLeadMode, started: false, beat, tempo: 0, ratio: rel.match?.ratio ?? NaN, rate: NaN, phaseError: NaN, cycles: 0, loops };
           return last;
         }
         // The tempo the piece starts at: the dancer's, once the pulse is sure of its period;
@@ -247,10 +297,16 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
           beat = grid + (cyc - cycleIndex) * k;
           if (!Number.isFinite(smoothed)) smoothed = 1;
         } else {
-          last = { t, mode: 'armed', started: false, beat, tempo: 0, ratio: k, rate: NaN, phaseError: NaN, cycles: 0 };
+          last = { t, mode: 'armed', started: false, beat, tempo: 0, ratio: k, rate: NaN, phaseError: NaN, cycles: 0, loops };
           return last;
         }
       } else if (newCycle) cycles++;
+
+      // A fermata held: nothing moves, the tempo it had is kept for the release (rule 6).
+      if (holdingFermata) {
+        last = { t, mode: 'fermata', started: true, beat, tempo: 0, ratio: k ?? last.ratio, rate: smoothed, phaseError: NaN, cycles, loops };
+        return last;
+      }
 
       let phaseError = NaN;
       let factor: number;
@@ -271,7 +327,7 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       // A score that marks no tempo here (the caller states one) keeps the tempo it had.
       if (markedOk) tempo = marked * factor;
       const mode: DanceLeadMode = rel.mode === 'following' ? (Number.isFinite(phaseError) ? 'following' : 'holding') : rel.mode === 'switching' ? 'switching' : 'holding';
-      last = { t, mode, started: true, beat, tempo, ratio: k ?? NaN, rate: smoothed, phaseError, cycles };
+      last = { t, mode, started: true, beat, tempo, ratio: k ?? NaN, rate: smoothed, phaseError, cycles, loops };
       return last;
     },
     state: () => last,

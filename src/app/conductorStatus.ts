@@ -119,7 +119,7 @@ export function makeConductorReporter(
   };
 }
 
-const DANCE_MODES: readonly DanceLeadMode[] = ['waiting', 'locking', 'armed', 'following', 'switching', 'holding'];
+const DANCE_MODES: readonly DanceLeadMode[] = ['waiting', 'locking', 'armed', 'following', 'switching', 'holding', 'fermata'];
 /** The dance lead's mode (absent when no dancer leads, or unknown). */
 function danceOf(raw: unknown): DanceLeadMode | undefined {
   return DANCE_MODES.find((m) => m === raw);

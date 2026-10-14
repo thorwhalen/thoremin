@@ -211,3 +211,67 @@ describe('the tempo follows a settled period only (#464)', () => {
     expect(before.every((s) => s.rate === 1)).toBe(true);
   });
 });
+
+describe('written fermatas and the end of the piece under a dancer (#463)', () => {
+  // 2 s cycles against 120 bpm: one cycle is a bar (k = 4), at the marked tempo.
+  const P = 2;
+  const steps = (seconds: number, input: { fermatas?: number[]; end?: number }) => {
+    const lead = createDanceLead();
+    const out: DanceLeadState[] = [];
+    for (let i = 0; i < Math.round(seconds * HZ); i++) out.push(lead.step({ t: i / HZ, pulse: pulseAt(i / HZ, P, 0.3), marked: 120, ...input }));
+    return out;
+  };
+  /** Beats off the bar line at each of the dancer's cycle starts once started (not during a
+   *  fermata, where the beat is frozen on the fermata by design). */
+  const offBar = (states: DanceLeadState[]) =>
+    Array.from({ length: 30 }, (_, j) => 0.3 + j * P)
+      .filter((t) => t < states.at(-1)!.t && states[Math.floor(t * HZ)].started && states[Math.floor(t * HZ)].mode !== 'fermata')
+      .map((t) => {
+        const s = states[Math.floor(t * HZ)];
+        const x = (s.beat + ((t - s.t) * s.tempo) / 60) / 4;
+        return Math.abs(x - Math.round(x)) * 4;
+      });
+
+  it('a fermata holds for one dancer cycle (k beats), reports tempo 0, then goes on; the bars stay on the dancer', () => {
+    const plain = steps(40, {});
+    const start = plain.find((s) => s.started)!.beat;
+    const f = Math.ceil(start) + 10.5;
+    const held = steps(40, { fermatas: [f] });
+    const holding = held.filter((s) => s.mode === 'fermata');
+    expect(holding.length).toBeGreaterThan(0);
+    expect(holding.every((s) => s.beat === f && s.tempo === 0 && s.started)).toBe(true);
+    // One cycle long, at the tempo it had (120 bpm, k = 4: 2 s), within a frame.
+    expect(Math.abs(holding.length / HZ - P)).toBeLessThan(1.5 / HZ);
+    // After it, the beat is k beats behind where it would have been: the bars are kept.
+    const later = 36;
+    const i = Math.round(later * HZ);
+    expect(plain[i].beat - held[i].beat).toBeCloseTo(4, 1);
+    expect(Math.max(...offBar(held))).toBeLessThan(0.05);
+    // Never backwards.
+    for (let j = 1; j < held.length; j++) expect(held[j].beat).toBeGreaterThanOrEqual(held[j - 1].beat);
+  });
+
+  it('two fermatas in a row each hold; one at the start beat is not re-held after its release', () => {
+    const plain = steps(40, {});
+    const start = Math.ceil(plain.find((s) => s.started)!.beat);
+    const held = steps(40, { fermatas: [start + 3, start + 9] });
+    const runs = held.reduce((n, s, j) => n + (s.mode === 'fermata' && held[j - 1]?.mode !== 'fermata' ? 1 : 0), 0);
+    expect(runs).toBe(2);
+  });
+
+  it('the end loops to the top on a dancer cycle start: the bars stay on the dancer', () => {
+    // A 30-beat piece loops at 32 (whole cycles of 4 beats).
+    const states = steps(60, { end: 30 });
+    const wraps = states.filter((s, j) => j > 0 && s.beat < states[j - 1].beat);
+    expect(wraps.length).toBeGreaterThanOrEqual(2);
+    for (const w of wraps) expect(w.beat).toBeLessThan(0.2);
+    expect(states.at(-1)!.loops).toBe(wraps.length);
+    expect(states.every((s) => s.beat < 32)).toBe(true);
+    expect(Math.max(...offBar(states))).toBeLessThan(0.05);
+  });
+
+  it('no end, or an end of 0: no loop', () => {
+    expect(steps(40, {}).at(-1)!.loops).toBe(0);
+    expect(steps(40, { end: 0 }).at(-1)!.loops).toBe(0);
+  });
+});

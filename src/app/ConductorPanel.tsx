@@ -75,6 +75,8 @@ export function describeLive(live: ConductorLive, source: ConductorSettings['sou
         return `Holding ${Math.round(live.tempo)} bpm until your rhythm is clear again.`;
       case 'switching':
         return 'Your step changed: following it once it holds.';
+      case 'fermata':
+        return 'A fermata: holding it for one of your steps.';
     }
     if (live.state !== 'running') return 'Dance: the piece starts on your step once your rhythm holds for a few seconds.';
     return `Following your dance at ${Math.round(live.tempo)} bpm.`;
