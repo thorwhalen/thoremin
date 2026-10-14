@@ -8,6 +8,7 @@
  * `failWrites` makes every `put` and `delete` fail the way a full disk or a private
  * window does (`QuotaExceededError` on the request, then the transaction), so a test
  * can pin what the app reports when the browser could not keep what it was given.
+ * `add` / `getAll` and a `put` keyed by the value's `id` stand in for a `keyPath: 'id'` store.
  * Values are kept by reference, not structured-cloned: enough for a handle-shaped
  * object whose identity a test checks.
  */
@@ -55,10 +56,10 @@ export function installFakeIndexedDb({ failWrites = false }: { failWrites?: bool
     },
   };
 
-  const settle = (req: FakeRequest, run: () => unknown, fail: boolean, tx?: FakeTransaction): FakeRequest => {
+  const settle = (req: FakeRequest, run: () => unknown, fail: boolean | DOMException, tx?: FakeTransaction): FakeRequest => {
     setTimeout(() => {
       if (fail) {
-        req.error = new DOMException('the write could not be kept', 'QuotaExceededError');
+        req.error = fail instanceof DOMException ? fail : new DOMException('the write could not be kept', 'QuotaExceededError');
         req.onerror?.();
         if (tx) {
           tx.error = req.error;
@@ -86,9 +87,23 @@ export function installFakeIndexedDb({ failWrites = false }: { failWrites?: bool
         onabort: null,
         error: null,
         objectStore: () => ({
-          put: (value: unknown, key: IDBValidKey) =>
-            settle(newRequest(), () => (data.set(key, value), key), state.failWrites, tx),
+          put: (value: unknown, key?: IDBValidKey) => {
+            const k = key ?? (value as { id: IDBValidKey }).id;
+            return settle(newRequest(), () => (data.set(k, value), k), state.failWrites, tx);
+          },
           get: (key: IDBValidKey) => settle(newRequest(), () => data.get(key), false, tx),
+          getAll: () => settle(newRequest(), () => [...data.values()], false, tx),
+          // `add` refuses a key that is taken (a ConstraintError), as a real store does; the
+          // key is the value's `id` (the collection stores use `keyPath: 'id'`).
+          add: (value: { id: IDBValidKey }) => {
+            const taken = data.has(value.id);
+            return settle(
+              newRequest(),
+              () => (data.set(value.id, value), value.id),
+              taken ? new DOMException('key exists', 'ConstraintError') : state.failWrites,
+              tx,
+            );
+          },
           delete: (key: IDBValidKey) => settle(newRequest(), () => void data.delete(key), state.failWrites, tx),
         }),
       };

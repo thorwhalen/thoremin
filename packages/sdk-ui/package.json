@@ -23,6 +23,7 @@
     "./featureDemand": "./src/featureDemand.ts",
     "./host": "./src/host.ts",
     "./namedCollection": "./src/namedCollection.ts",
+    "./idbCollection": "./src/idbCollection.ts",
     "./primitives": "./src/primitives.tsx",
     "./tools": "./src/tools.ts",
     "./types": "./src/types.ts"
