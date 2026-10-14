@@ -111,6 +111,23 @@ describe('the loop through the real nodes', () => {
     return s;
   }
 
+  it('waits cued on the chosen song beat, not the first (#364)', async () => {
+    const song = handle();
+    const st = integratingStretcher();
+    const pace = paceControllerNode.make(paceControllerNode.params.parse({}));
+    const player = songPlayerNode.make(songPlayerNode.params.parse({}));
+    const resources = { audioContext: {}, masterGain: {}, createStretcher: () => st, timing: { outputStage: { value: 0.05, source: 'measured' } } };
+    const ready: MusicalTime = { t: 0, beat: 0, phase: 0, tempo: 0, period: Infinity, confidence: 0, nextBeatAt: Infinity, beatsPerBar: 4, beatInBar: 0, state: 'ready', anchors: 0 };
+    let prev: PortValues = {};
+    for (let i = 0; i < 30; i++) {
+      const ctx: NodeContext = { tick: i, time: i / 60, dt: i ? 1 / 60 : 0, resources };
+      const p = pace.process({ lead: ready, song: prev.songTime, rate: prev.rate, base: 1, range: 0.1, offset: 8 }, ctx);
+      prev = player.process({ song, playing: false, rate: 1, followRate: p.rate, followPlaying: p.playing, cue: p.cue, volume: 0.8 }, ctx);
+      await Promise.resolve();
+    }
+    expect(st.seeks[0]).toBeCloseTo(song.grid.beats[8], 3);
+  });
+
   it('waits cued on the first beat, starts on the first stroke and holds the heard beat to the conductor', async () => {
     const song = handle();
     const st = integratingStretcher();

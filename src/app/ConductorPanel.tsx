@@ -50,7 +50,7 @@ import { useConductorStatus, type ConductorLive } from './conductorStatus';
 import { toolById } from './tools';
 import { entryPointsFrom, openEntryPoint } from './entryPoints';
 import { useTools } from './toolsStore';
-import type { ConductorSettings } from '@/settings/schema';
+import { SONG_START_BEAT_MAX, type ConductorSettings } from '@/settings/schema';
 
 export const CONDUCTOR_TOOL_ID = 'conductor';
 /** The entry point an extension declares for choosing the poses to play (#465): the checkbox below
@@ -121,6 +121,8 @@ export function describeRecording(rec: ConductorLive['recording'], status?: Load
 function RecordingChooser({ live }: { live: ConductorLive }) {
   const song = useControls((s) => s.songHandle);
   const songLoad = useSongStatus((s) => s.status);
+  const songBeat = useSongStatus((s) => s.live.beat);
+  const startBeat = useControls((s) => s.songStartBeat);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +153,28 @@ function RecordingChooser({ live }: { live: ConductorLive }) {
       {song ? (
         <>
           <div className="truncate text-white/80" title={song.name}>{song.name}</div>
+          <div className="flex items-center justify-between gap-2 text-white/80" data-testid="conductor-start-beat">
+            <label className="flex items-center gap-1.5">
+              My first beat lands on song beat
+              <input
+                type="number"
+                min={0}
+                max={SONG_START_BEAT_MAX}
+                step={1}
+                value={startBeat}
+                aria-label="Song beat the conductor's first beat lands on"
+                className="w-16 rounded bg-white/10 px-1 py-0.5 text-right font-mono"
+                onChange={(e) => void dispatchCommand('song.startBeat.set', { beat: Math.min(SONG_START_BEAT_MAX, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+              />
+            </label>
+            <button
+              onClick={() => void dispatchCommand('song.startBeat.set', { beat: Math.max(0, songBeat) })}
+              title="Play the song in the Song tool and press this where the piece starts"
+              className="rounded bg-white/10 px-2 py-0.5 font-semibold text-white/80 transition hover:bg-white/20"
+            >
+              Here
+            </button>
+          </div>
           {live.enabled && <div className="text-white/60" data-testid="conductor-recording-live">{describeRecording(live.recording, songLoad)}</div>}
         </>
       ) : (

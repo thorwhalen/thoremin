@@ -215,6 +215,10 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  `song-player` reads a change as a press even when the level never fell (a Play made
    *  in the frame the song ended, before the player saw the transport go off). */
   songPlays: number;
+  /** The song beat (a whole tracked beat, 0 = the first) on which the conductor's first
+   *  beat lands when he conducts the recording (#364): the way past an intro or a pickup.
+   *  Transient: it belongs to THIS song, so loading another resets it to 0. */
+  songStartBeat: number;
   /** The generative layer (#141 / #188): on/off, level, and what the gestures mean
    *  (`config`). A preset field (in {@link SETTINGS_KEYS}); read live by `indirect-map`
    *  / `lyria` via `store-controls` → their `steerConfig` / `enabled` / `volume` inputs. */
@@ -299,6 +303,8 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** Start or stop the song (transient, see {@link songPlaying}); a start also counts a
    *  press ({@link songPlays}). */
   setSongPlaying(v: boolean): void;
+  /** Set {@link songStartBeat}; a negative or non-finite value is ignored, a fraction rounds. */
+  setSongStartBeat(beat: number): void;
   /** Patch the song's level / rate (see {@link songPrefs}); an out-of-range value is
    *  clamped by the schema's bounds, an invalid one ignored. */
   setSongPrefs(patch: Partial<SongSettings>): void;
@@ -709,7 +715,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   const midi = healMidi(p.midi, current.midi);
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, ...healed, faceMapping, midi, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, midi, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, songStartBeat: current.songStartBeat, ...keptTransients(current) };
 }
 
 /** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
@@ -762,6 +768,7 @@ export const useControls = create<ControlState>()(
       songHandle: null,
       songPlaying: false,
       songPlays: 0,
+      songStartBeat: 0,
       bodyMap: structuredClone(DEFAULT_BODY_MAP),
       steer: defaultSteer(),
       steerPlaying: false,
@@ -805,9 +812,10 @@ export const useControls = create<ControlState>()(
         set((s) => {
           if (s.songHandle === song) return s;
           releaseSongUrl(s.songHandle);
-          return { songHandle: song, songPlaying: false };
+          return { songHandle: song, songPlaying: false, songStartBeat: 0 };
         }),
       setSongPlaying: (v) => set((s) => (v ? { songPlaying: true, songPlays: s.songPlays + 1 } : { songPlaying: false })),
+      setSongStartBeat: (beat) => set((s) => (Number.isFinite(beat) && beat >= 0 && Math.round(beat) !== s.songStartBeat ? { songStartBeat: Math.round(beat) } : s)),
       setSongPrefs: (patch) =>
         set((s) => {
           const r = SongSettingsSchema.safeParse({ ...s.songPrefs, ...patch });
