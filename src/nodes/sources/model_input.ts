@@ -26,9 +26,10 @@
  *
  * So on the CPU delegate a RESCALED camera frame is drawn into one reusable canvas first:
  * the 2D path scales correctly. The copy is not free: on SwiftShader at 1280x720 it adds
- * about 12 ms per model to a hand detect of 85 to 110 ms (the canvas asks for
- * `willReadFrequently`, which is 4 ms cheaper than a GPU-backed one there; each model makes
- * its own copy, so hands with face or body pay it two or three times). So a frame at the camera's native size, which the
+ * about 12 ms to a hand detect of 85 to 110 ms (the canvas asks for `willReadFrequently`,
+ * which is 4 ms cheaper than a GPU-backed one there). The models share ONE copy per camera
+ * frame (#495): before, each model made its own, so hands with face or body paid it two or
+ * three times. So a frame at the camera's native size, which the
  * element reads correctly, keeps the element; a browser that does not report `resizeMode`
  * gets the copy (correct over cheap). The GPU delegate keeps the element (its upload is
  * right, and a copy would cost it a readback). The worker runner already hands the model
@@ -87,14 +88,25 @@ export function isRescaledCamera(video: unknown): boolean {
  * size; anything else (an `ImageBitmap`, a canvas, a native-size camera) passes through.
  * Where no 2D canvas can be had, the element passes through too: the behaviour before
  * #324, never a lost frame.
+ *
+ * `frame` names the camera frame (#495): a call for the element and frame the canvas
+ * already holds returns it without drawing again, so the models of one camera share one
+ * copy. The key is the frame's timestamp each model is handed by its pump: the pumps run
+ * in separate `requestVideoFrameCallback`s, but for one camera frame they read the same
+ * capture (or presentation) time, so the same frame gets the same key and the next frame
+ * another. A stamp with no such source (the clock at the moment a pump noticed the frame,
+ * WebKit) differs between pumps, so those frames are copied once per model, as before:
+ * never shared wrongly, only not shared. With no `frame`, every call draws.
  */
 export function createFrameCopier(
   makeCanvas: () => CopyCanvas | null = defaultCanvas,
   needsCopy: (video: unknown) => boolean = isRescaledCamera,
-): <T>(image: T) => T | CopyCanvas {
+): <T>(image: T, frame?: number) => T | CopyCanvas {
   let canvas: CopyCanvas | null | undefined;
   let ctx: ReturnType<CopyCanvas['getContext']> = null;
-  return <T>(image: T): T | CopyCanvas => {
+  /** What the canvas holds: the element and the frame key it was drawn for. */
+  let held: { image: unknown; frame: number; w: number; h: number } | null = null;
+  return <T>(image: T, frame: number = NaN): T | CopyCanvas => {
     if (!isVideo(image) || !needsCopy(image)) return image;
     const w = image.videoWidth;
     const h = image.videoHeight;
@@ -105,9 +117,12 @@ export function createFrameCopier(
       if (!ctx) console.warn('[thoremin] no 2D canvas for the camera model; it reads the video element (#324)');
     }
     if (!canvas || !ctx) return image;
+    // The same frame of the same element, already drawn (another model's call): reuse it.
+    if (held && held.image === image && held.frame === frame && held.w === w && held.h === h) return canvas;
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
     ctx.drawImage(image, 0, 0, w, h);
+    held = Number.isFinite(frame) ? { image, frame, w, h } : null;
     return canvas;
   };
 }
@@ -118,21 +133,27 @@ interface DetectsForVideo {
   detectForVideo(image: any, timestampMs: number, ...rest: any[]): any;
 }
 
+/** The copier every landmarker shares by default: one canvas, one copy per camera frame
+ *  (#495). Sharing it is safe because `detectForVideo` on the CPU delegate reads its image
+ *  before it returns, and the models run one after another on the main thread. */
+const SHARED_COPY = createFrameCopier();
+
 /**
  * The landmarker a loader returns: on the CPU delegate, one whose `detectForVideo` is
- * handed a copy of each video frame; on the GPU delegate, the landmarker itself. Every other
+ * handed a copy of each video frame (the shared one, keyed by the frame's timestamp); on
+ * the GPU delegate, the landmarker itself. Every other
  * member is the landmarker's own, called on the landmarker (so `close`, `setOptions` and
  * MediaPipe's private state are untouched).
  */
 export function copyFramesOnCpu<L extends DetectsForVideo>(
   landmarker: L,
   delegate: Delegate,
-  copy: <T>(image: T) => unknown = createFrameCopier(),
+  copy: <T>(image: T, frame?: number) => unknown = SHARED_COPY,
 ): L {
   if (delegate !== 'CPU') return landmarker;
   // Any further arguments (image-processing options, a callback) go through unchanged.
   const detectForVideo = (image: unknown, timestampMs: number, ...rest: unknown[]) =>
-    landmarker.detectForVideo(copy(image), timestampMs, ...rest);
+    landmarker.detectForVideo(copy(image, timestampMs), timestampMs, ...rest);
   return new Proxy(landmarker, {
     get(target, key) {
       if (key === 'detectForVideo') return detectForVideo;

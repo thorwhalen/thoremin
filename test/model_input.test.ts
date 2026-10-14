@@ -77,6 +77,49 @@ describe('createFrameCopier', () => {
   });
 });
 
+describe('one copy per camera frame, shared by the models (#495)', () => {
+  it('draws a frame once for every model that reads it, and again for the next frame', () => {
+    const canvas = fakeCanvas();
+    const copy = createFrameCopier(() => canvas);
+    const v = video(640, 360);
+    // The hand and body models read frame 1000 ms: one draw.
+    expect(copy(v, 1000)).toBe(canvas);
+    expect(copy(v, 1000)).toBe(canvas);
+    expect(canvas.draws).toHaveLength(1);
+    // The next frame is drawn, then shared again.
+    copy(v, 1033.3);
+    copy(v, 1033.3);
+    expect(canvas.draws).toHaveLength(2);
+    // Another element, or the same one at another size (the camera changed mode), is drawn.
+    const other = video(640, 360);
+    copy(other, 1033.3);
+    expect(canvas.draws).toHaveLength(3);
+    copy(v, 1033.3);
+    expect(canvas.draws).toHaveLength(4);
+    const resized = Object.assign(v, { videoWidth: 1280, videoHeight: 720 });
+    copy(resized, 1033.3);
+    expect(canvas.draws).toHaveLength(5);
+    // No frame key: every call draws (never served stale).
+    copy(v);
+    copy(v);
+    expect(canvas.draws).toHaveLength(7);
+  });
+
+  it('is what every CPU landmarker gets by default: two models on one frame make one copy', () => {
+    const seen: unknown[][] = [];
+    const lm = (name: string) => ({ detectForVideo: (image: unknown, t: number) => (seen.push([name, image, t]), name) });
+    const copy = createFrameCopier(() => fakeCanvas());
+    const hands = copyFramesOnCpu(lm('hands'), 'CPU', copy);
+    const body = copyFramesOnCpu(lm('body'), 'CPU', copy);
+    const v = video(640, 360);
+    hands.detectForVideo(v, 2000);
+    body.detectForVideo(v, 2000);
+    // Both read the same canvas, stamped with their own timestamp.
+    expect(seen[0][1]).toBe(seen[1][1]);
+    expect((seen[0][1] as ReturnType<typeof fakeCanvas>).draws).toHaveLength(1);
+  });
+});
+
 describe('copyFramesOnCpu', () => {
   class FakeLandmarker {
     #closed = false;
