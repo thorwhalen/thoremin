@@ -43,7 +43,7 @@ export type PadFloors = Partial<Record<PadId, PadFloor>>;
  *  `levelGain`, so a pad's floor moves exactly as the one shared floor did. */
 export const PAD_FLOOR_GAIN = 0.5;
 /** Pads with a learned floor before any is named to the predictor. */
-export const MIN_FLOOR_PADS = 2;
+export const MIN_FLOOR_PADS = 1;
 
 /** The table with one confirmed stroke on `pad` learned: it stopped at `floor` and started
  *  from `top`. A non-finite reading teaches nothing. */

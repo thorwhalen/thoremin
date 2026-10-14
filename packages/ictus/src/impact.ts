@@ -164,9 +164,6 @@ export interface ImpactPredictorOptions {
   initialPeriod?: number;
   /** Refractory window after a confirmation, as a fraction of the period. */
   refractoryFraction?: number;
-  /** A point that stops descending before its descent was a stroke, nothing committed,
-   *  starts a new stroke there (#353), as a new least depth does. */
-  holdRestarts?: boolean;
 }
 
 const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
@@ -193,7 +190,6 @@ const DEFAULTS: Required<Omit<ImpactPredictorOptions, 'level'>> = {
   maxGap: 0.5,
   initialPeriod: 0.6,
   refractoryFraction: 0.25,
-  holdRestarts: true,
 };
 
 export interface ImpactPrediction {
@@ -267,11 +263,15 @@ export interface ImpactPredictor {
    *  in place of the one learned floor. NaN (the default) = the learned or given floor.
    *  It stays until changed, so a consumer sets it before each push, as with
    *  {@link setMinLead}. The learned floor keeps learning from every stroke: a consumer
-   *  that names floors learns its own from the confirmations' `depth`. */
+   *  that names floors learns its own from the confirmations' `depth` and `top`. While
+   *  one is named, a stroke also starts where the point stops descending short of a
+   *  stroke (an arm carrying the stick down to a lower pad and waiting there), not only
+   *  at the least depth since the last confirmation. */
   setFloor(floor: number): void;
   /** The depth the stroke in progress started from (caller's units): the least depth
-   *  since the last confirmation, or where the point last stopped descending before its
-   *  descent was a stroke (`holdRestarts`). NaN between strokes. */
+   *  since the last confirmation, or, while a floor is named ({@link setFloor}), where
+   *  the point last stopped descending before its descent was a stroke. NaN between
+   *  strokes. */
   top(): number;
   /** The learned floor (depth, caller's units); NaN until learned. */
   level(): number;
@@ -569,15 +569,18 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
     if (envelope > 0 && amplitude < o.minAmplitudeFraction * envelope) return false;
     return true;
   };
-  /** The point stopped descending (still or rising, against the last sample) before the
-   *  descent since the top was a stroke, with nothing committed: the stroke starts here,
-   *  whatever the least depth since the last confirmation was. An arm that carried the
-   *  stick DOWN to a lower pad and waits there (#353) has its stroke begin at the wait,
-   *  not at the last pad's top, so the approach fit holds this stroke's fall and not the
-   *  carry, and the stroke's top is its own. A stroke's dwell at its bottom comes after a
-   *  stroke-sized, stroke-fast descent and never restarts. */
+  /** While the consumer names the stroke's floor (strokes stop at more than one depth),
+   *  the point stopping its descent (still or rising, against the last sample) before
+   *  that descent was a stroke, nothing committed, starts the stroke here, whatever the
+   *  least depth since the last confirmation was. With one floor every stroke starts
+   *  from about the same top and the least depth is it; with several it is not: an arm
+   *  that carried the stick DOWN to a lower pad and waits there (#353) begins its stroke
+   *  at the wait, not at the last pad's top, so the approach fit holds this stroke's fall
+   *  and not the carry, and the top (`top()`, and so the stroke's amplitude) is its own.
+   *  A stroke's dwell at its bottom comes after a stroke-sized, stroke-fast descent and
+   *  never restarts. */
   const restartsHere = (d: number): boolean => {
-    if (!o.holdRestarts || committed || !Number.isFinite(prevD) || d > prevD) return false;
+    if (!Number.isFinite(strokeFloor) || committed || !Number.isFinite(prevD) || d > prevD) return false;
     const strokeLike = passesAmplitude(maxD - topD) && (!(o.minApproachSpeed > 0) || peakSpeed >= o.minApproachSpeed);
     return !strokeLike;
   };

@@ -571,6 +571,10 @@ export interface LandingOptions {
   /** The frame's width over its height, which makes display fractions isotropic for the
    *  stick's arc. Default 1. */
   aspect?: number;
+  /** The depth the stroke turned at, when it has (the impact predictor's three-sample
+   *  vertex): the landing point's depth in place of the fall's fit read at `t`, which
+   *  overshoots the turn by the landmark noise. Default none. */
+  depth?: number;
 }
 
 /**
@@ -587,7 +591,7 @@ export interface LandingOptions {
  * the impact: that one is mostly landmark jitter. With a single falling sample, the last
  * sample and no speed.
  */
-export function landingAt(samples: readonly TrackSample[], t: number, eps: number, { floor = Infinity, turned = false, aspect = 1 }: LandingOptions = {}): Landing {
+export function landingAt(samples: readonly TrackSample[], t: number, eps: number, { floor = Infinity, turned = false, aspect = 1, depth = NaN }: LandingOptions = {}): Landing {
   const seg = fallingSegment(samples, t, eps);
   const last = seg[seg.length - 1] ?? samples[samples.length - 1];
   const at = Math.min(t, last.t + MAX_EXTRAPOLATION);
@@ -606,7 +610,7 @@ export function landingAt(samples: readonly TrackSample[], t: number, eps: numbe
   };
   const reach = depthBy(tau);
   const xAt = arcShape(seg, last, aspect) ?? timeShape(seg, last, fy);
-  const y = Math.min(reach, Math.max(floor, last.y));
+  const y = Number.isFinite(depth) ? depth : Math.min(reach, Math.max(floor, last.y));
   // How fast the fall came down so far: its mean speed, departure to the latest sample.
   // Not a fitted derivative: differentiating three noisy samples and extrapolating them
   // ahead makes the speed mostly jitter (an adversarial review measured it).
@@ -1006,7 +1010,7 @@ export const airDrumNode = defineNode<Params>({
       // magnet can pull nothing it was never offered, and the status says why.
       if (carried(st, e.t, NaN)) return false;
       const snappedT = deepestSampleTime(stick.recent, e.t);
-      const s = strike(c, st, landingAt(stick.recent, snappedT, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect }), e.strength);
+      const s = strike(c, st, landingAt(stick.recent, snappedT, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect, depth: e.depth }), e.strength);
       if (s.silent) return true;
       // Pattern mode keeps following (its drum names the sound); the time stays now.
       let sound = s.sound;
@@ -1131,7 +1135,7 @@ export const airDrumNode = defineNode<Params>({
       stick.committed = null;
       stick.handled = null;
       if (carried(st, e.t, NaN)) return false;
-      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect }), e.strength);
+      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect, depth: e.depth }), e.strength);
       if (s.silent) return true;
       // A stroke the pipeline could not predict cannot be pulled.
       if (f.engaged) noteOutcome('pipeline');
@@ -1161,10 +1165,9 @@ export const airDrumNode = defineNode<Params>({
       if (!anyPadOn(c.pads)) return;
       const { stick } = st;
       const eps = st.gates.minAmplitude * FALL_JITTER;
-      // Where it turned: the predictor's depth of the turn (the three-sample vertex), not
-      // the fall's fit read at the turn's time, which overshoots by the landmark noise.
-      const { xAt } = landingAt(stick.recent, e.t, eps, { turned: true, aspect: f.aspect }).path;
-      const hit = hitPad(c.pads, { x: xAt(e.depth), y: e.depth }, 'silent');
+      // Where it turned (the predictor's depth of the turn, not the fall's fit read at its
+      // time), on the pad under that point.
+      const hit = hitPad(c.pads, landingAt(stick.recent, e.t, eps, { turned: true, aspect: f.aspect, depth: e.depth }), 'silent');
       if (hit) stick.floors = learnPadFloor(stick.floors, hit.id, { floor: e.depth, top: e.top });
     };
 
