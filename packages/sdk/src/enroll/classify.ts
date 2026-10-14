@@ -340,6 +340,12 @@ export interface CategoryTracker {
   push(vector: FeatureVector): Classification & { held: boolean };
   /** The currently-committed category id. */
   current(): string | null;
+  /**
+   * The run toward a new reading that has not taken over yet (the entry hysteresis made visible,
+   * #437): what it is entering (a category id, or the taught Neutral), how many consecutive
+   * frames it has won and how many it needs. Null when no new reading is being entered.
+   */
+  entering(): { toward: string | null; neutral: boolean; run: number; of: number } | null;
   reset(): void;
 }
 
@@ -408,6 +414,10 @@ export function createCategoryTracker(
       return { ...c, categoryId: committed, held: committed !== null };
     },
     current: () => committed,
+    entering: () =>
+      candidate === null || candidateRun === 0
+        ? null
+        : { toward: candidate === NEUTRAL_CANDIDATE ? null : candidate, neutral: candidate === NEUTRAL_CANDIDATE, run: candidateRun, of: o.enterFrames },
     reset() {
       committed = null;
       candidate = null;
