@@ -114,7 +114,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, conductorRatios, createDanceLead, createExpressionBlend, createIctus, createImpactDetector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type DynamicsEstimate, type ExpressionBlend, type Ictus, type IctusState, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
+import { beatAt, conductorRatios, createDanceLead, createExpressionBlend, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type DynamicsEstimate, type ExpressionBlend, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
 import { LM, frameTime, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
@@ -341,6 +341,23 @@ const TRANSPORT_POINTS: ReadonlySet<string> = new Set(['impact', 'wrist']);
 /** The transport phases in which the score sounds (#377). */
 const TRANSPORT_SOUNDING: ReadonlySet<TransportPhase> = new Set(['running', 'holding']);
 
+/**
+ * The body conductor's per-player lead offsets (#427): per joint (the impact detector's
+ * channel: `wrist`, `trunk`, `elbow`, ...), the seconds that joint's anchors land after
+ * the beat the player means, learned against a click (`createLeadCalibration`) and kept
+ * per device, never with an instrument (the lag is the player's body, not a sound). An
+ * offset is bounded to half a second either way; anything else on the port is no offset.
+ */
+export const LeadOffsetsSchema = z.record(z.string(), z.number().finite().min(-0.5).max(0.5));
+
+/** The `leadOffsets` input as {@link LeadOffsets}: the valid entries only. */
+export function readLeadOffsets(raw: unknown): LeadOffsets | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 0.5) out[k] = v;
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** The `transportPose` input as a {@link TransportPose}: booleans only, anything else unstated. */
 function readTransportPose(raw: unknown): TransportPose | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -407,6 +424,9 @@ export const conductorNode = defineNode<Params>({
     // The dancer's pulse (#380): read while `source` is `dancer`; composed (the body source
     // branch's `body-pulse`) only then.
     { name: 'pulse', kind: 'pulse-state' },
+    // The player's lead offsets per joint (#427), a per-device pref: subtracted from the
+    // body detector's anchors by the joint each came from. Unconnected = none.
+    { name: 'leadOffsets', kind: 'lead-offsets' },
   ],
   outputs: [
     { name: 'time', kind: 'musical-time', schema: MusicalTimeSchema },
@@ -463,6 +483,10 @@ export const conductorNode = defineNode<Params>({
     /** The body frame seen on the previous tick, and the last one fed (with its time). */
     let lastBodyFrame: BodyFrame | undefined;
     let lastBody: { t: number; frame: BodyFrame } | null = null;
+    /** The player's lead offsets applied to the body detector's anchors (#427): a joint
+     *  that lags the beat has its anchor moved earlier; one that leads it is held until
+     *  its corrected time comes. */
+    const lead = createLeadCorrector();
     /** What the follower was built for: a change re-creates it (the body's joints are
      *  fixed at construction), keeping the beat where it is. */
     let coreKey = '';
@@ -530,6 +554,7 @@ export const conductorNode = defineNode<Params>({
       lastExprPtT = -Infinity;
       lastPt = null;
       lastBody = null;
+      lead.reset();
       seededBpm = null;
       speedEw = 0;
       speedEnv = 0;
@@ -873,7 +898,9 @@ export const conductorNode = defineNode<Params>({
             lastBody = { t, frame: body };
             // The detector always sees the frame; whether its anchor reaches the prior is
             // the transport's call (no anchor before the downbeat).
-            const a = ictus.detector.push(bodyChannelFrame(body, t, c.hand));
+            // The player's lead offset (#427): the anchor moved by its joint's learned lag.
+            lead.setOffsets(readLeadOffsets(inputs.leadOffsets));
+            const a = lead.push(ictus.detector.push(bodyChannelFrame(body, t, c.hand)), t);
             let accept = a !== null;
             const cues = meter ? meter.push(body, t, c.hand) : {};
             if (transport) {

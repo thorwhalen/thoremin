@@ -28,6 +28,8 @@ export { asAnchorDetector, createStrokeDetector, isAnchorDetector, sampleFrame, 
 export type { StrokeDetector, StrokeDetectorOptions } from './anchor';
 export { createImpactDetector, parabolicVertex, BODY_IMPACT_JOINTS, IMPACT_DEFAULTS, IMPACT_EVENTS } from './visual_impact';
 export type { ImpactDetector, ImpactDetectorOptions, ImpactEventKind, ImpactJoint } from './visual_impact';
+export { createLeadCalibration, createLeadCorrector, leadOffsetsFrom, measureLeadLag, shiftAnchor, LEAD_OFFSET_DEFAULTS } from './lead';
+export type { LeadCalibration, LeadCalibrationOptions, LeadCalibrationResult, LeadCorrector, LeadLag, LeadOffsetOptions, LeadOffsets } from './lead';
 export { createAdaptiveOscillator, kappaFromResultant } from './oscillator';
 export type { AdaptiveOscillator, OscillatorOptions } from './oscillator';
 export { createDynamicsEstimator } from './dynamics';

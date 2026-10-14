@@ -48,6 +48,9 @@ import {
   SongSettingsSchema,
   DEFAULT_SONG,
   type SongSettings,
+  ConductorPrefsSchema,
+  DEFAULT_CONDUCTOR_PREFS,
+  type ConductorPrefs,
 } from '@/settings/schema';
 import { BodyMapSchema, DEFAULT_BODY_MAP, type BodyMap } from '@/nodes/mapping/body_map';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
@@ -191,6 +194,11 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  under any instrument; loading one must not change its tempo). Flows to
    *  `song-player`'s `volume` / `rate` inputs through `store-controls`. */
   songPrefs: SongSettings;
+  /** The body conductor's per-DEVICE prefs (#427): the player's lead offset per joint,
+   *  learned in the Conductor tool. Persisted via `partialize` like {@link songPrefs}, NOT
+   *  a preset field. Flows to the `conductor` node's `leadOffsets` input through
+   *  `store-controls`. */
+  conductorPrefs: ConductorPrefs;
   /**
    * The loaded song (#186 PR G, research map §9.5): the stable {@link SongHandle} the
    * Song tool writes after decoding a file and tracking its beats. TRANSIENT, like
@@ -294,6 +302,9 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** Patch the song's level / rate (see {@link songPrefs}); an out-of-range value is
    *  clamped by the schema's bounds, an invalid one ignored. */
   setSongPrefs(patch: Partial<SongSettings>): void;
+  /** Replace the player's lead offsets (see {@link conductorPrefs}); `{}` clears them. An
+   *  invalid set is ignored. */
+  setConductorLeadOffsets(offsets: Record<string, number>): void;
   /** Replace the loaded score (transient, see {@link scoreDoc}). */
   setScoreDoc: (doc: ScoreDoc | null) => void;
   /** Replace the composed graph's overlay element set (transient, see {@link graphElements}). */
@@ -458,6 +469,9 @@ type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>
  *   `conductor.transport` (the body's start / hold / stop rules, `rules` on), additive and
  *   nested like `conductor.orchestra`; it acts only while the source is `body` (#375, the
  *   day before), so no earlier blob's hand conductor changes and no transform is owed.
+ *   And, WITHOUT a bump (#427): `conductorPrefs` (the body conductor's lead offsets, a
+ *   per-device pref like `songPrefs`), healed over DEFAULT_CONDUCTOR_PREFS: an earlier blob
+ *   has none, which is no offset, what every earlier conductor played.
  *
  * Bump this and, if the change needs a transform, add `CONTROLS_MIGRATIONS[old]` together.
  */
@@ -617,6 +631,8 @@ export const HEAL_RULES: CoreHealRules = {
   body: { schema: BodySettingsSchema, complete: overDefaults(DEFAULT_BODY) },
   // The per-device song pref (#186 PR G): a pre-song blob has none → the defaults.
   songPrefs: { schema: SongSettingsSchema, complete: overDefaults(DEFAULT_SONG) },
+  // The body conductor's lead offsets (#427): a pre-#427 blob has none → no offset.
+  conductorPrefs: { schema: ConductorPrefsSchema, complete: overDefaults(DEFAULT_CONDUCTOR_PREFS) },
   // The body map (#186): a pre-routing blob has none → no routes.
   bodyMap: { schema: BodyMapSchema },
   // The generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter strains; a
@@ -742,6 +758,7 @@ export const useControls = create<ControlState>()(
       hands: { ...DEFAULT_HANDS },
       body: { ...DEFAULT_BODY },
       songPrefs: { ...DEFAULT_SONG },
+      conductorPrefs: { leadOffsets: {} },
       songHandle: null,
       songPlaying: false,
       songPlays: 0,
@@ -795,6 +812,11 @@ export const useControls = create<ControlState>()(
         set((s) => {
           const r = SongSettingsSchema.safeParse({ ...s.songPrefs, ...patch });
           return r.success ? { songPrefs: r.data } : s;
+        }),
+      setConductorLeadOffsets: (offsets) =>
+        set((s) => {
+          const r = ConductorPrefsSchema.safeParse({ ...s.conductorPrefs, leadOffsets: offsets });
+          return r.success ? { conductorPrefs: r.data } : s;
         }),
       setScoreDoc: (doc) => set({ scoreDoc: doc }),
       setGraphElements: (elements) => set({ graphElements: elements }),
@@ -850,6 +872,7 @@ export const useControls = create<ControlState>()(
         trainerHud: s.trainerHud,
         audioPrefs: s.audioPrefs,
         songPrefs: s.songPrefs,
+        conductorPrefs: s.conductorPrefs,
       }),
     },
   ),

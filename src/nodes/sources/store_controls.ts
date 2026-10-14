@@ -110,6 +110,9 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   /** The song's level and rate (#186 PR G, a per-device pref) → `song-player`'s
    *  `volume` / `rate`. */
   songPrefs?: { volume: number; rate: number; followRange?: number };
+  /** The body conductor's lead offsets (#427, a per-device pref) → `conductor`'s
+   *  `leadOffsets`. */
+  conductorPrefs?: { leadOffsets: Record<string, number> };
   /** The loaded song (transient), emitted as the SAME object until another loads, so
    *  `song-player` tells a new song by identity. */
   songHandle?: SongHandle | null;
@@ -219,6 +222,8 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
     { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
+    // The body conductor's lead offsets per joint (#427, a per-device pref) → `conductor`.
+    { name: 'conductorLeadOffsets', kind: 'lead-offsets' },
     // The song (#186 PR G) → `song-player`: the loaded song (transient, by identity), its
     // transport (transient), and its level and rate (a per-device pref).
     { name: 'songHandle', kind: 'song-handle' },
@@ -306,6 +311,8 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         }
         for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
+        // Always emitted, `{}` included: clearing the offsets must reach the conductor.
+        out.conductorLeadOffsets = c.conductorPrefs?.leadOffsets ?? {};
         // Always emitted, null included: unloading a song must reach the player.
         out.songHandle = c.songHandle ?? null;
         out.songPlaying = c.songPlaying ?? false;

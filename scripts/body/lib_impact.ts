@@ -12,7 +12,8 @@
  * The frame builder is the conductor's own (`src/nodes/features/conductor_body.ts`, A3),
  * so what these scorers print is what the body conductor plays from.
  */
-import { createIctus, type AnchorDetector, type ChannelFrame } from '@thoremin/ictus';
+import { createIctus, createImpactDetector, createLeadCalibration, createLeadCorrector, type AnchorDetector, type ChannelFrame, type LeadOffsets } from '@thoremin/ictus';
+import { median } from '@thoremin/stats';
 import { bodyChannelFrame } from '@/nodes/features/conductor_body';
 import { scoreLevel, scoringSpans, type LevelScore } from './lib_channels';
 import { beatingWrist, type BodyClip } from './lib_clips';
@@ -39,4 +40,30 @@ export function replayAnchors(frames: readonly ChannelFrame[], detector: AnchorD
 export function scoreBeat(clip: BodyClip, anchors: readonly number[]): LevelScore {
   const spans = scoringSpans(clip.grid, 0, clip.frames.length / clip.fps);
   return scoreLevel(anchors, clip.grid, 1, spans);
+}
+
+/** The lead-offset calibration (#427) over the clip from `from` to `until`, the grid as the
+ *  click (on the conductor clips, the beating wrist's strokes). */
+export function calibrate(clip: BodyClip, from: number, until: number) {
+  const frames = clipFrames(clip).filter((f) => f.t >= from && f.t < until);
+  const clicks = clip.grid.filter((g) => g >= from && g < until);
+  const cal = createLeadCalibration();
+  cal.setPeriod(median(clicks.slice(1).map((g, i) => g - clicks[i])));
+  for (const f of frames) cal.push(f);
+  return cal.result(clicks);
+}
+
+/** The follower's anchors with `joints` followed, corrected by `offsets`. */
+export function followAnchors(clip: BodyClip, joints: string[], offsets?: LeadOffsets): number[] {
+  const ictus = createIctus({ detector: createImpactDetector({ joints }) });
+  const lead = createLeadCorrector(offsets);
+  const out: number[] = [];
+  for (const f of clipFrames(clip)) {
+    const a = lead.push(ictus.detector.push(f), f.t);
+    if (a) {
+      ictus.feedAnchor(a);
+      out.push(a.t);
+    } else ictus.advance(f.t);
+  }
+  return out;
 }

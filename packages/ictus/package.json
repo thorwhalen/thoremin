@@ -12,6 +12,7 @@
     "./dynamics": "./src/dynamics.ts",
     "./expression": "./src/expression.ts",
     "./impact": "./src/impact.ts",
+    "./lead": "./src/lead.ts",
     "./level": "./src/level.ts",
     "./magnet": "./src/magnet.ts",
     "./metrics": "./src/metrics.ts",
