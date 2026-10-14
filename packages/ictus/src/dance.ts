@@ -182,8 +182,12 @@ export interface DanceLeadState {
 export interface DanceLead {
   step(input: DanceLeadInput): DanceLeadState;
   state(): DanceLeadState;
-  /** Forget the dancer and stop; the next start is from `beat` (0 by default). */
-  reset(beat?: number): void;
+  /** Forget the dancer and stop; the next start is from `beat` (0 by default). `resume`
+   *  is the relation a previous lead followed (#506: the leader switched away from the
+   *  dancer and back): when the dancer is first related the SAME way again, it is followed
+   *  at once, with no new persistence, so the piece re-starts on the dancer's next cycle;
+   *  a different relation persists as a first one does. */
+  reset(beat?: number, resume?: { ratio: number }): void;
 }
 
 /** The dancer's position in cycles at `t` (its fractional part is the phase), or NaN when
@@ -223,8 +227,11 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
   let loops = 0;
   let last: DanceLeadState = { t: 0, mode: 'waiting', started: false, beat: 0, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
 
-  const reset = (from = 0): void => {
+  /** The relation a previous lead followed (see `reset`), until the first relation. */
+  let resumeRatio: number | null = null;
+  const reset = (from = 0, resume?: { ratio: number }): void => {
     level.reset();
+    resumeRatio = resume && Number.isFinite(resume.ratio) && resume.ratio > 0 ? resume.ratio : null;
     beat = from;
     started = false;
     tempo = 0;
@@ -307,7 +314,15 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       const hi = 1 + r;
       const trusted = pulse.state === 'running' && pulse.confidence >= o.trustedConfidence && pulse.period > 0 && Number.isFinite(pulse.period);
       const markedOk = marked > 0 && Number.isFinite(marked);
-      const rel = level.step(t, trusted && markedOk ? pulse.period : NaN, markedOk ? 60 / marked : NaN, { base: 1, captureRange: Math.max(o.captureRange, r) });
+      let rel = level.step(t, trusted && markedOk ? pulse.period : NaN, markedOk ? 60 / marked : NaN, { base: 1, captureRange: Math.max(o.captureRange, r) });
+      // Back from another leader (#506): the dancer related as before is followed at once.
+      if (resumeRatio !== null && rel.match) {
+        if (level.ratio() === null && Math.abs(rel.match.ratio - resumeRatio) < 1e-9) {
+          level.set(resumeRatio);
+          rel = { ...rel, mode: 'following', ratio: resumeRatio };
+        }
+        resumeRatio = null;
+      }
       const k = level.ratio();
       // The dancer's position in cycles, shifted so that an integer is where a grid beat
       // should be (`phaseOffset` beats after one).
