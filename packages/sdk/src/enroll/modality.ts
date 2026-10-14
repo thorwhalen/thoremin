@@ -17,7 +17,7 @@
 import type { Invariance } from '../features/types';
 import { weightedDistance } from './cluster';
 import type { LabelMatchOptions } from './match';
-import type { FeatureVector, TrainedModel } from './types';
+import type { FeatureVector } from './types';
 
 /** The words a modality's tool uses, so copy is written once with the noun filled in. */
 export interface ModalityWords {
@@ -174,7 +174,12 @@ export const MIRROR_DEFAULTS = { band: 0.25 } as const;
 
 /** What a mirrored reading is compared with to choose its side: a model's categories (and its
  *  taught Neutral), under its features and weights. */
-export type MirrorReference = Pick<TrainedModel, 'features' | 'weights' | 'categories' | 'neutral'>;
+export interface MirrorReference {
+  readonly features: readonly string[];
+  readonly weights: Readonly<Record<string, number>>;
+  readonly categories: readonly { readonly centroid: FeatureVector }[];
+  readonly neutral?: readonly { readonly centroid: FeatureVector }[];
+}
 
 /**
  * A reader of a stream of merged live vectors as the carve works in them: the modality's

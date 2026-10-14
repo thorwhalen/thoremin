@@ -225,7 +225,7 @@ describe('Your poses: the scripted body through the session store', () => {
     expect(store.getState().mirror).toBe(false);
   });
 
-  it('a bound pose set needs the modality's own share of its features (the live test's bar)', async () => {
+  it("a bound pose set needs the modality's own share of its features (the live test's bar)", async () => {
     const { presenceFor } = await import('@/app/enroll/categoryBinding');
     expect(presenceFor({ modality: 'body' })).toBe(bodyModality.minCoverage);
     expect(presenceFor({ modality: 'hand' })).toBeUndefined();
