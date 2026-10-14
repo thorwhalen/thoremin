@@ -43,6 +43,13 @@ export default defineConfig(({mode}) => {
       include: ['test/**/*.test.{ts,tsx}'],
       // The lazy extensions' nodes, preloaded per file (test/setup/lazy_extensions.ts says why).
       setupFiles: ['test/setup/lazy_extensions.ts'],
+      // Off CI, at most this many test workers: each holds about 2 GB, and on a shared
+      // server several agents' full runs at the default (one per core) exhausted the
+      // machine's memory (2026-10-14). CI keeps vitest's default; override locally with
+      // THOREMIN_VITEST_MAX_WORKERS.
+      ...(process.env.CI
+        ? {}
+        : { maxWorkers: Number(process.env.THOREMIN_VITEST_MAX_WORKERS) || 3, minWorkers: 1 }),
     },
   };
 });
