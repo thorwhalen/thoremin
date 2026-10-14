@@ -1,0 +1,122 @@
+/**
+ * ictus `createDanceLead` (#380, body-movement A8): a score's beat following a dancer's
+ * pulse, by the dancer's loose law. Known answers from scripted pulses; the real dancer
+ * is `test/dance_orchestra.test.ts`.
+ */
+import { describe, it, expect } from 'vitest';
+import { createDanceLead, UNKNOWN_PULSE, type DanceLeadState, type PulseState } from '@thoremin/ictus';
+
+const HZ = 30;
+
+/** A steady dancer: one cycle every `period` s, phase 0 at `t0`. */
+function pulseAt(t: number, period: number, t0 = 0, confidence = 0.8): PulseState {
+  const beat = (t - t0) / period;
+  const whole = Math.floor(beat);
+  return {
+    ...UNKNOWN_PULSE,
+    t,
+    beat,
+    phase: beat - whole,
+    tempo: 60 / period,
+    period,
+    confidence,
+    nextBeatAt: t + (whole + 1 - beat) * period,
+    state: 'running',
+    anchors: 10,
+    level: period,
+    strength: 0.7,
+    candidates: [{ period, r: 0.7 }],
+  };
+}
+
+function run(seconds: number, pulse: (t: number) => PulseState, marked = 120, from = 0, lead = createDanceLead()): DanceLeadState[] {
+  const out: DanceLeadState[] = [];
+  for (let i = Math.round(from * HZ); i < Math.round(seconds * HZ); i++) out.push(lead.step({ t: i / HZ, pulse: pulse(i / HZ), marked }));
+  return out;
+}
+
+/** The score's position in its 4-beat bar at each dancer cycle start: R of those phases. */
+function barR(states: DanceLeadState[], cycleStarts: number[]): number {
+  const ph = cycleStarts.map((t) => {
+    const s = states.find((x) => x.t >= t - 1e-9)!;
+    return (2 * Math.PI * (((s.beat % 4) + 4) % 4)) / 4;
+  });
+  return Math.hypot(ph.reduce((a, x) => a + Math.cos(x), 0), ph.reduce((a, x) => a + Math.sin(x), 0)) / ph.length;
+}
+
+describe('createDanceLead', () => {
+  it('stays silent until the relation has persisted, then starts on the next cycle, on a downbeat', () => {
+    // 2 s cycles against 120 bpm: one cycle is a bar (k = 4), at the marked tempo.
+    const states = run(12, (t) => pulseAt(t, 2, 0.3));
+    expect(states.filter((s) => s.t < 2.9).every((s) => !s.started && s.tempo === 0)).toBe(true);
+    const start = states.findIndex((s) => s.started);
+    // Followed at 3 s (persisted), then armed until the cycle start at 4.3 s.
+    expect(states[start].t).toBeGreaterThan(4.29);
+    expect(states[start].t).toBeLessThan(4.3 + 1.5 / HZ);
+    expect(states[start].beat).toBeLessThan(0.1);
+    expect(states[start].ratio).toBe(4);
+    expect(states.at(-1)!.tempo).toBeCloseTo(120, 0);
+  });
+
+  it('follows a dancer 3 % off the marked tempo, keeping the bars on the cycles', () => {
+    const period = 2 / 1.03;
+    const states = run(40, (t) => pulseAt(t, period, 0.7));
+    const late = states.filter((s) => s.t >= 15);
+    const mean = late.reduce((a, s) => a + s.tempo, 0) / late.length;
+    expect(mean).toBeCloseTo(123.6, 0);
+    expect(late.every((s) => s.mode === 'following' && Math.abs(s.phaseError) < 0.05)).toBe(true);
+    const starts: number[] = [];
+    for (let c = 0.7; c < 40; c += period) if (c >= 15) starts.push(c);
+    expect(barR(states, starts)).toBeGreaterThan(0.99);
+  });
+
+  it('never leaves the clamp: a dancer 12 % fast plays the score 10 % fast', () => {
+    const states = run(30, (t) => pulseAt(t, 2 / 1.12, 0.2));
+    const started = states.filter((s) => s.started);
+    expect(started.length).toBeGreaterThan(0);
+    expect(started.every((s) => s.tempo >= 108 - 1e-9 && s.tempo <= 132 + 1e-9)).toBe(true);
+    expect(started.at(-1)!.tempo).toBeCloseTo(132, 6);
+  });
+
+  it('a dancer who pauses does not stop the piece: the tempo holds, and is followed again', () => {
+    const lead = createDanceLead();
+    const period = 2 / 1.04;
+    const moving = (t: number) => pulseAt(t, period, 0.1);
+    const before = run(20, moving, 120, 0, lead);
+    const held = before.at(-1)!.tempo;
+    const paused = run(30, (t) => ({ ...moving(t), confidence: 0.05 }), 120, 20, lead);
+    expect(paused.every((s) => s.started && s.mode === 'holding' && Math.abs(s.tempo - held) < 0.5)).toBe(true);
+    for (let i = 1; i < paused.length; i++) expect(paused[i].beat).toBeGreaterThan(paused[i - 1].beat);
+    const after = run(45, moving, 120, 30, lead);
+    expect(after.at(-1)!.mode).toBe('following');
+    expect(Math.abs(after.at(-1)!.phaseError)).toBeLessThan(0.1);
+  });
+
+  it('a dancer far from the marked tempo is not followed: the piece never starts', () => {
+    // 1.25 s cycles are 2.5 beats at 120 bpm: two beats is 20 % slow, three 20 % fast.
+    const states = run(20, (t) => pulseAt(t, 1.25));
+    expect(states.every((s) => !s.started)).toBe(true);
+  });
+
+  it('the phase offset puts the cycle start that many beats after a grid beat', () => {
+    const lead = createDanceLead({ phaseOffset: 1 });
+    const states = run(30, (t) => pulseAt(t, 2, 0.5), 120, 0, lead);
+    // Cycle starts at 0.5 + 2n: the score should read beat 1 of its bar there.
+    for (const t of [20.5, 24.5, 28.5]) {
+      const s = states.find((x) => x.t >= t - 1e-9)!;
+      expect(((s.beat % 4) + 4) % 4).toBeCloseTo(1, 1);
+    }
+  });
+
+  it('reset stops the piece and starts again from the beat given', () => {
+    const lead = createDanceLead();
+    run(10, (t) => pulseAt(t, 2), 120, 0, lead);
+    expect(lead.state().started).toBe(true);
+    lead.reset(8);
+    expect(lead.state().started).toBe(false);
+    const again = run(20, (t) => pulseAt(t, 2), 120, 10, lead);
+    const first = again.find((s) => s.started)!;
+    expect(first.beat).toBeGreaterThanOrEqual(8);
+    expect(first.beat).toBeLessThan(8.1);
+  });
+});
