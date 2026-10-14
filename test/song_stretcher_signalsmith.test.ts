@@ -69,6 +69,8 @@ describe('the Signalsmith stretcher', () => {
     await s.load('blob:x');
     expect(f.node.addBuffers).toHaveBeenCalledTimes(1);
     expect((f.node.addBuffers.mock.calls[0] as unknown[])[0]).toHaveLength(2);
+    // Transferred, not cloned (#365): the second argument lists the channels' buffers.
+    expect((f.node.addBuffers.mock.calls[0] as unknown[])[1]).toHaveLength(2);
     expect(s.playing()).toBe(false);
     s.setRate(1.25);
     s.play();
