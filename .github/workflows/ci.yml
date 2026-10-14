@@ -100,7 +100,8 @@ jobs:
   # (tsconfig.react.baseline.json): a new error is named, and a fixed one asks for the baseline
   # to be tightened in the same PR. The second step keeps the baseline honest the other way:
   # the committed file may never list MORE than main's does, so a re-baseline cannot carry a
-  # new error in with a PR. Its own job, like core, so its verdict is visible beside the
+  # new error in with a PR; the third that the config may not drop a still-present file
+  # main's covers (that would hide its errors from the ratchet: #389). Its own job, like core, so its verdict is visible beside the
   # gate's and never hides it. See docs/TESTING.md.
   react-types:
     name: React layer type ratchet
@@ -125,3 +126,9 @@ jobs:
           git fetch --no-tags --depth=1 origin main
           git show FETCH_HEAD:tsconfig.react.baseline.json > "$RUNNER_TEMP/main-baseline.json" || rm -f "$RUNNER_TEMP/main-baseline.json"
           npm run typecheck:react -- --against="$RUNNER_TEMP/main-baseline.json"
+
+      - name: The config never stops covering a file main's covers
+        run: |
+          git fetch --no-tags --depth=1 origin main
+          git show FETCH_HEAD:tsconfig.react.json > "$RUNNER_TEMP/main-tsconfig.react.json" || rm -f "$RUNNER_TEMP/main-tsconfig.react.json"
+          npm run typecheck:react -- --against-config="$RUNNER_TEMP/main-tsconfig.react.json"
