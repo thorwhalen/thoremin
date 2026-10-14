@@ -95,7 +95,7 @@ The same tool over one hand's SHAPE: Tools, then **Your hand shapes**, then **Re
 - **The rest** is a relaxed hand held up to the camera; it seeds Neutral as the resting face does.
 - **Names**: the general model is the hand's three rule poses (*open*, *fist*, *pinch*: openness, the index finger's bend and the thumb-index distance), matched one-to-one; the others are `shape n`.
 - **Pictures**: each held shape's still is cropped to the hand (a square around the wrist and the five fingertips) with a skeleton drawn over it (the wrist through the palm to each fingertip), so it shows what the camera read.
-- **Play it: Bind to commands**. A saved hand categorizer's row has **Bind to commands** (no *Play it*: the face chords read faces). It hands the saved version to the host's category bindings (the Gestures tool's *Your categories*, through the SDK-UI seam `categoryBinder()`), as a set that reads the live vector through the hand (`read: { modality: 'hand', hand }`), and opens the Gestures tool on it, where each category gets a command. Three clicks from a cold load: Tools, Your hand shapes, Bind to commands. Binding again under the same name replaces the set and keeps its commands by category name. The bound set is a copy: re-bind after an edit (#385 E10 keys bindings by categorizer id).
+- **Play it: Bind to commands**. A saved hand categorizer's row has **Bind to commands** (no *Play it*: the face chords read faces). It makes the saved categorizer the active set of the host's category bindings (the Gestures tool's *Your categories*, through the SDK-UI seam `categoryBinder()`, BY ID since #371) and opens the Gestures tool on it, where each category gets a command. The host plays it from its own record (its live model under its saved tuning, read through the hand), and the bindings ride that record, so an edit here reaches them with no re-bind: a re-cut keeps each binding on the category of the same name. Three clicks from a cold load: Tools, Your hand shapes, Bind to commands.
 
 `?carve.source=synthetic` runs it on a scripted hand (`src/lib/synthetic_hand.ts`: an articulated right hand going through open, fist, point and pinch with a relaxed hand between), with no camera and no hand model; `?faces.source=synthetic` is still read as the same switch.
 
@@ -116,7 +116,7 @@ The same tool over held body POSES (#387 B8: static poses; a wave or a clap is a
 
 ### One collection for every categorizer (#385 E8, #387 C5)
 
-Every saved categorizer, face, hand or body, is a record of ONE zodal named collection, `thoremin.categorizers`, carrying its file's `modality` (`src/app/categorizers.ts`). Each tool, the editor section and the instrument's resolver read a view of one modality. A face categorizer keeps the id it had (the slug of its name, which an instrument's `faceCategorizer` dial names); another modality's ids are prefixed (`hand:fist`), so a hand shape and a face may share a name.
+Every saved categorizer, face, hand or body, is a record of ONE zodal named collection, `thoremin.categorizers`, carrying its file's `modality` (`@thoremin/sdk-ui/enroll/categorizers`; the record shapes are `@thoremin/sdk/enroll/record`, both moved out of this extension by #371 because the host's command bindings read and write the same records). The Trainer's saved models are records of it too (kind `trained`, ids `trained:<slug>`), and every record carries its categories' command bindings (local, never in the exported file). Each tool, the editor section and the instrument's resolver read a view of one modality. A face categorizer keeps the id it had (the slug of its name, which an instrument's `faceCategorizer` dial names); another modality's ids are prefixed (`hand:fist`), so a hand shape and a face may share a name.
 
 This is the EXPAND step: the first time a view is used on a device, the old face collection (`thoremin.faceCategorizers`) is copied in (migrated as a saved record always is) and a flag (`thoremin.categorizers.migrated`) says so, so a categorizer deleted later is never copied back. The old key is left untouched for a rollback; #385 E10 removes it. Stills stay in the IndexedDB store they were in (`thoremin-faces`), keyed by hold id, which every modality shares.
 
@@ -132,7 +132,6 @@ A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-
 | `src/app/bodyModality.ts` | the body's app half (#382): the stick figure as an SVG picture, stills opt-in |
 | `src/app/bodySession.ts` | the pose session and test stores over the browser's dependencies |
 | `src/lib/synthetic_body.ts` | the scripted body |
-| `src/app/categorizers.ts` | the one collection of every modality's categorizers, its per-modality views and the one-time copy of the old face collection |
 | `src/lib/synthetic_hand.ts` | the scripted hand |
 | `src/panels/words.tsx` | the modality's words for the panels (a React context) |
 | `src/lib/take.ts` | the take as a pure state machine (rest, then faces, then a built session); the cue factories `restCue` / `vocabularyCue` |
