@@ -21,7 +21,11 @@ let landmarker: HandLandmarkerLike | null = null;
 /** Whether this worker can give the GPU delegate a WebGL2 context. */
 function hasWebGl2(): boolean {
   try {
-    return typeof OffscreenCanvas === 'function' && new OffscreenCanvas(1, 1).getContext('webgl2') !== null;
+    if (typeof OffscreenCanvas !== 'function') return false;
+    const gl = new OffscreenCanvas(1, 1).getContext('webgl2');
+    // The probe's context is given back: the model needs one of its own.
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return gl !== null;
   } catch {
     return false;
   }

@@ -23,6 +23,10 @@
  * worker for the GPU delegate), the main thread otherwise, and the main thread again if the
  * worker fails to start or dies later. The fallback is automatic and says so once.
  *
+ * Dev mode (`vite dev`) cannot run the worker: Vite serves a classic worker unbundled, and
+ * its `import` is a syntax error there, so `?hands.runner=worker` falls back to the main
+ * thread (and says so). Measure the worker on a build (`npm run build`, `vite preview`).
+ *
  * Not done here (later rungs of the plan's frame-transport ladder): Chromium's
  * `MediaStreamTrackProcessor`, which hands the worker frames without a main-thread copy, and
  * Safari's in-worker track. Both need the frame-to-stamp pairing measured first.
@@ -120,7 +124,21 @@ export interface WorkerLike {
 export interface WorkerRunnerDeps {
   createWorker: () => WorkerLike;
   createImageBitmap: (video: HTMLVideoElement) => Promise<ImageBitmap>;
+  /** How long a frame may go unanswered before the worker counts as hung (ms). */
+  frameTimeoutMs?: number;
+  /** How many frames in a row may fail before the worker counts as broken. */
+  maxFrameErrors?: number;
+  setTimeout?: (cb: () => void, ms: number) => unknown;
+  clearTimeout?: (handle: unknown) => void;
 }
+
+/** A frame unanswered this long means a hung worker (a stuck GPU process, a bitmap that never
+ *  came): it is treated as dead, so the main thread takes over rather than the instrument
+ *  holding its last pose in silence. Far above any inference seen (about 1 s, 4x throttled). */
+export const WORKER_FRAME_TIMEOUT_MS = 5000;
+/** This many failed frames in a row (a lost WebGL context in the worker fails every one)
+ *  means a broken worker: the main thread takes over. About a second of camera frames. */
+export const WORKER_MAX_FRAME_ERRORS = 30;
 
 /** The one frame in the worker. */
 interface InFlight {
@@ -159,12 +177,26 @@ export function workerHandRunner(
   let dropped = 0;
   const changes = new Map<number, { resolve: () => void; reject: (e: Error) => void }>();
   let changeId = 0;
+  /** Failed frames in a row. */
+  let frameErrors = 0;
+  const frameTimeoutMs = deps.frameTimeoutMs ?? WORKER_FRAME_TIMEOUT_MS;
+  const maxFrameErrors = deps.maxFrameErrors ?? WORKER_MAX_FRAME_ERRORS;
+  const setTimer = deps.setTimeout ?? ((cb, ms) => setTimeout(cb, ms));
+  const clearTimer = deps.clearTimeout ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
+  /** The watchdog on the frame in flight. */
+  let watchdog: unknown = null;
   const stopped = (): boolean => dead || closed;
+  /** The worker is free again: the frame in flight is over, answered or not. */
+  const free = (): void => {
+    busy = null;
+    if (watchdog !== null) clearTimer(watchdog);
+    watchdog = null;
+  };
 
   const die = (reason: unknown): void => {
     if (stopped()) return;
     dead = true;
-    busy = null;
+    free();
     for (const c of changes.values()) c.reject(new Error('the hand worker stopped'));
     changes.clear();
     worker.terminate();
@@ -183,6 +215,9 @@ export function workerHandRunner(
       const frame: InFlight = { id: ++seq, width: video.videoWidth, height: video.videoHeight, stamp: dropped ? { ...stamp, skipped: stamp.skipped + dropped } : stamp };
       dropped = 0;
       busy = frame;
+      watchdog = setTimer(() => {
+        if (busy === frame) die(new Error(`the hand worker did not answer a frame in ${frameTimeoutMs} ms`));
+      }, frameTimeoutMs);
       // Snapshotted NOW, inside the pump's callback: the frame the element shows is the one
       // the pump stamped.
       deps
@@ -196,7 +231,7 @@ export function workerHandRunner(
         })
         .catch(() => {
           // The element had no frame to give (a resize, a stall): nothing to infer.
-          if (busy === frame) busy = null;
+          if (busy === frame) free();
         });
       return true;
     },
@@ -211,7 +246,7 @@ export function workerHandRunner(
     close() {
       if (closed) return;
       closed = true;
-      busy = null;
+      free();
       for (const c of changes.values()) c.reject(new Error('the hand runner closed'));
       changes.clear();
       try {
@@ -234,8 +269,11 @@ export function workerHandRunner(
       } else if (m.type === 'result' || m.type === 'frame-error') {
         const done = busy && busy.id === m.id ? busy : null;
         if (!done) return;
-        busy = null;
-        if (m.type === 'result' && !stopped()) onResult({ result: m.result, width: done.width, height: done.height, stamp: done.stamp });
+        free();
+        if (m.type === 'result') {
+          frameErrors = 0;
+          if (!stopped()) onResult({ result: m.result, width: done.width, height: done.height, stamp: done.stamp });
+        } else if (++frameErrors >= maxFrameErrors) die(new Error(`${frameErrors} hand frames in a row failed in the worker`));
       } else if (m.type === 'numHands-done') {
         const c = changes.get(m.id);
         changes.delete(m.id);
@@ -244,6 +282,8 @@ export function workerHandRunner(
       }
     };
     const fail = (ev: unknown): void => {
+      // Handled here: not re-reported as an uncaught error of the page.
+      (ev as Event | undefined)?.preventDefault?.();
       const reason = typeof ErrorEvent !== 'undefined' && ev instanceof ErrorEvent ? ev.error ?? ev.message : ev;
       if (!ready) reject(reason instanceof Error ? reason : new Error('the hand worker could not start'));
       die(reason);
@@ -291,9 +331,20 @@ export async function createHandRunner(
     },
     offer: (video, stamp) => current?.offer(video, stamp) ?? false,
     setNumHands: async (n) => {
-      if (!current) throw new Error('the hand runner is not running');
-      await current.setNumHands(n);
-      numHands = n;
+      const r = current;
+      // Between a dead worker and its replacement: the replacement is made with this count.
+      if (!r) {
+        numHands = n;
+        return;
+      }
+      try {
+        await r.setNumHands(n);
+        numHands = n;
+      } catch (err) {
+        // The worker died during the change: the same, the replacement takes the count.
+        if (current === r) throw err;
+        numHands = n;
+      }
     },
     close: () => {
       closed = true;
@@ -304,11 +355,19 @@ export async function createHandRunner(
   const onDead = (reason: unknown): void => {
     console.warn('[thoremin] the hand worker stopped; the hand model moves to the main thread', reason);
     current = null;
+    const loading = numHands;
     void deps
-      .loadMain({ ...options, numHands })
+      .loadMain({ ...options, numHands: loading })
       .then((lm) => {
-        if (closed) lm.close();
-        else current = mainHandRunner(lm, onResult);
+        if (closed) {
+          lm.close();
+          return;
+        }
+        const replacement = mainHandRunner(lm, onResult);
+        current = replacement;
+        // The count changed while the main thread was loading.
+        if (numHands !== loading)
+          void replacement.setNumHands(numHands).catch((err) => console.warn('[thoremin] the hand model could not change its hand count', err));
       })
       .catch((err) => console.error('[thoremin] the hand model could not load on the main thread either', err));
   };

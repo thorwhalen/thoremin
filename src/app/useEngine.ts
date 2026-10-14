@@ -273,8 +273,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         timing.noteCamera(stream);
         resources[TIMING_RESOURCE_KEY] = () => timing!.reading();
         resources[HAND_COUNT_RESOURCE_KEY] = () => handCountRef.current;
-        // Where the hand model runs (#326): `?hands.runner=main|worker` overrides the node's
-        // `auto`, so both paths can be measured and compared on one machine.
+        // Where the hand model runs (#326): `?hands.runner=main|worker|auto` overrides the
+        // node's `runner` param, so both paths can be measured and compared on one machine.
         resources[HAND_RUNNER_RESOURCE_KEY] = new URLSearchParams(window.location.search).get('hands.runner') ?? undefined;
 
         // `defaultGraph` validates the selection against the registry and falls

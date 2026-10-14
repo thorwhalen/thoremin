@@ -1,8 +1,8 @@
 /**
- * The hand-model runner seam (#326): the worker runner's frame handling (paired stamps, only
- * the newest frame waits, dropped frames counted as skipped, results routed to their own
- * frame), its hand-count changes, and the automatic fallback to the main thread when the
- * worker cannot start or dies. The worker is a fake that answers like `hands.worker.ts`.
+ * The hand-model runner seam (#326): the worker runner's frame handling (paired stamps, one
+ * frame at a time and never a queued one, dropped frames counted as skipped, results routed
+ * to their own frame), its hand-count changes, and the automatic fallback to the main thread
+ * when the worker cannot start, dies, hangs on a frame or fails frame after frame. The worker is a fake that answers like `hands.worker.ts`.
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -62,7 +62,7 @@ function deps(worker: FakeWorker): WorkerRunnerDeps & { bitmaps: { close: Return
 }
 
 describe('the worker runner', () => {
-  it('starts when the worker loads, and refuses frames before', async () => {
+  it('starts when the worker loads', async () => {
     const w = new FakeWorker('silent');
     const pending = workerHandRunner(OPTIONS, () => {}, deps(w));
     expect(w.sent[0]).toEqual({ type: 'init', options: OPTIONS });
@@ -227,6 +227,97 @@ describe('createHandRunner', () => {
     expect(runner.offer(video, stamp(133))).toBe(true);
     expect(lm.detectForVideo).toHaveBeenCalledWith(video, 133);
     expect(results.map((r) => r.stamp.tMs)).toEqual([133]);
+    warn.mockRestore();
+  });
+});
+
+describe('the worker runner gives up on a broken worker', () => {
+  it('treats a frame unanswered past the timeout as a hung worker', async () => {
+    const timers: (() => void)[] = [];
+    const w = new FakeWorker();
+    const onDead = vi.fn();
+    const runner = await workerHandRunner(OPTIONS, () => {}, { ...deps(w), setTimeout: (cb) => timers.push(cb), clearTimeout: () => {} }, onDead);
+    runner.offer(video, stamp(100));
+    await flush();
+    timers[0]!(); // the watchdog fires with the frame still in the worker
+    expect(onDead).toHaveBeenCalledTimes(1);
+    expect(w.terminated).toBe(true);
+  });
+
+  it('does not fire for a frame that was answered', async () => {
+    const timers: (() => void)[] = [];
+    const w = new FakeWorker();
+    const onDead = vi.fn();
+    const runner = await workerHandRunner(OPTIONS, () => {}, { ...deps(w), setTimeout: (cb) => timers.push(cb), clearTimeout: () => {} }, onDead);
+    runner.offer(video, stamp(100));
+    await flush();
+    w.reply({ type: 'result', id: w.frames()[0]!.id, result: HAND });
+    timers[0]!();
+    expect(onDead).not.toHaveBeenCalled();
+  });
+
+  it('treats frame after frame failing as a broken worker; a good frame resets the count', async () => {
+    const w = new FakeWorker();
+    const onDead = vi.fn();
+    const runner = await workerHandRunner(OPTIONS, () => {}, { ...deps(w), maxFrameErrors: 3 }, onDead);
+    const failNext = async (t: number, ok = false): Promise<void> => {
+      runner.offer(video, stamp(t));
+      await flush();
+      const id = w.frames().pop()!.id;
+      w.reply(ok ? { type: 'result', id, result: HAND } : { type: 'frame-error', id });
+    };
+    await failNext(100);
+    await failNext(133);
+    await failNext(166, true);
+    await failNext(200);
+    await failNext(233);
+    expect(onDead).not.toHaveBeenCalled();
+    await failNext(266);
+    expect(onDead).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a worker error from reaching the page as an uncaught one', async () => {
+    const w = new FakeWorker();
+    await workerHandRunner(OPTIONS, () => {}, deps(w), () => {});
+    const ev = { preventDefault: vi.fn() } as unknown as Event;
+    w.onerror!(ev);
+    expect((ev.preventDefault as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+  });
+});
+
+describe('the hand count across a worker death (#325 x #326)', () => {
+  const lmWith = () => ({ detectForVideo: vi.fn(() => HAND), setOptions: vi.fn(async () => {}), close: vi.fn() });
+
+  it('takes a change made while the main thread loads, and applies it to the replacement', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const lm = lmWith();
+    let finishLoad: (v: HandLandmarkerLike) => void = () => {};
+    const loadMain = vi.fn((_o: LandmarkerOptions) => new Promise<HandLandmarkerLike>((r) => (finishLoad = r)));
+    const w = new FakeWorker();
+    const runner = await createHandRunner('auto', OPTIONS, () => {}, { loadMain, worker: deps(w) });
+    w.onerror!(new Event('error'));
+    await expect(runner.setNumHands(1)).resolves.toBeUndefined(); // no throw while loading
+    finishLoad(lm);
+    await flush();
+    expect(loadMain.mock.calls[0]![0].numHands).toBe(2); // loading began at the old count...
+    expect(lm.setOptions).toHaveBeenCalledWith({ numHands: 1 }); // ...and the change follows it
+    warn.mockRestore();
+  });
+
+  it('resolves a change the worker death cut short, and the replacement is made with it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const lm = lmWith();
+    const loadMain = vi.fn(async (_o: LandmarkerOptions) => lm as HandLandmarkerLike);
+    const w = new FakeWorker();
+    const runner = await createHandRunner('auto', OPTIONS, () => {}, { loadMain, worker: deps(w) });
+    const change = runner.setNumHands(1); // in flight in the worker...
+    w.onerror!(new Event('error')); // ...when it dies
+    await expect(change).resolves.toBeUndefined();
+    await flush();
+    expect(runner.where).toBe('main');
+    // The replacement ends at the count asked for: loaded with it, or moved to it after.
+    const last = (lm.setOptions.mock.calls.at(-1) as [{ numHands: number }] | undefined)?.[0].numHands ?? loadMain.mock.calls[0]![0].numHands;
+    expect(last).toBe(1);
     warn.mockRestore();
   });
 });
