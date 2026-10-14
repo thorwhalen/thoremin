@@ -993,9 +993,10 @@ export const conductorNode = defineNode<Params>({
         // 2. Blend the inferred tempo with the speed fallback by confidence; integrate.
         const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
         let bpm: number;
-        // A fermata releases on the NEXT stroke after it was reached.
-        // Reading the body, the stroke that landed on it does not release it (`fermataT`).
-        const landedOnIt = c.source === 'body' && s.lastAnchorAt !== undefined && s.lastAnchorAt < fermataT + FERMATA_RELEASE_PERIODS * fermataPeriod;
+        // A fermata releases on the NEXT stroke after it was reached. The stroke that landed
+        // on it does not (`fermataT`): its anchor is confirmed a few frames after the beat got
+        // there, hands and body alike (#449).
+        const landedOnIt = s.lastAnchorAt !== undefined && s.lastAnchorAt < fermataT + FERMATA_RELEASE_PERIODS * fermataPeriod;
         if (fermataAt !== null && s.anchors > fermataAnchors && !landedOnIt) {
           fermataReleased = fermataAt;
           fermataAt = null;

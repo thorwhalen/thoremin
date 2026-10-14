@@ -127,6 +127,33 @@ describe('conductor node on the 4/4 fixture (stated 70 bpm)', () => {
     expect(beats[beats.length - 1]).toBeGreaterThan(4);
   });
 
+  it('a fermata is held until the stroke after the one that landed on it, on every beat of both fixtures (#449)', async () => {
+    // A stroke ending in a stop is confirmed 2 to 6 frames after the beat reaches the fermata;
+    // that late anchor is the stroke that LANDED on it, not its release. Before #449 the hand
+    // path released on it: 7 of the reached fermatas on conducting_44 and 5 on conducting_34
+    // held for a few frames only.
+    for (const clip of ['conducting_44', 'conducting_34']) {
+      const hands = clip === 'conducting_44' ? frames : (loadStream(clip, 'src.hands') as HandsFrame[]);
+      let reached = 0;
+      for (let f = 2; f <= 30; f++) {
+        const doc = { v: 1, title: 'f', source: 'builtin', parts: [], tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [f], lengthBeats: 64 };
+        const h = conductorNode.make(conductorNode.params.parse({ enabled: true, ...RECORDED }));
+        const outs = await replayNode(h, { hands, doc: hands.map(() => doc) }, { dt: 1 / FPS });
+        const beats = outs.map((o) => o.beat as number);
+        const at = beats.findIndex((b) => b >= f);
+        if (at <= 0 || beats[at] !== f) continue;
+        let k = at;
+        while (k < beats.length && beats[k] === f) k++;
+        if (k >= beats.length) continue;
+        reached++;
+        const period = (outs[at - 1].time as { period: number }).period;
+        // Held for at least half a beat: the next stroke, not the landing one, released it.
+        expect((k - at) / FPS, `${clip}, fermata at beat ${f}`).toBeGreaterThanOrEqual(0.5 * period);
+      }
+      expect(reached, clip).toBeGreaterThanOrEqual(9);
+    }
+  });
+
   it('disabled: the beat is frozen, enabled is false and velocityScale is 0', async () => {
     const h = conductorNode.make(conductorNode.params.parse({ enabled: false, ...RECORDED }));
     const outs = await replayNode(h, { hands: frames.slice(0, 120) }, { dt: 1 / FPS });
