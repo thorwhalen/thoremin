@@ -82,7 +82,7 @@ describe('Learn my timing', () => {
     useTools.getState().openTool('conductor');
     render(<ConductorPanel />);
     useLeadCalibration.getState().start({ beats: [1, 2], startT: 0, endT: 3, bpm: 60, joints: ['trunk'], side: 'auto', droppedAtStart: 0 });
-    useLeadCalibration.getState().finish({ lags: { trunk: { lagS: 0.05, r: 0.6, n: 16, seS: 0.03, halves: [0, 0.1] } }, refused: { trunk: 'loose' }, offsets: {}, clickInterval: 1 });
+    useLeadCalibration.getState().finish({ lags: { trunk: { lagS: 0.05, r: 0.6, n: 16, seS: 0.03, kept: 16, halves: [0, 0.1] } }, refused: { trunk: 'loose' }, offsets: {}, clickInterval: 1 });
     await waitFor(() => expect(screen.getByText(/trunk: too uneven to measure, not corrected/)).toBeTruthy());
     expect(screen.queryByText('Keep')).toBeNull();
     expect(screen.getByText(/nothing changes/)).toBeTruthy();
@@ -95,7 +95,7 @@ describe('Learn my timing', () => {
     useControls.getState().setConductorLeadOffsets({ elbow: -0.03 });
     useLeadCalibration.getState().start({ beats: [1, 2], startT: 0, endT: 3, bpm: 60, joints: ['trunk', 'wrist.right'], side: 'right', droppedAtStart: 0 });
     useLeadCalibration.getState().finish({
-      lags: { trunk: { lagS: 0.05, r: 0.7, n: 16, seS: 0.012, halves: [0.04, 0.06] }, 'wrist.right': { lagS: 0.2, r: 0.2, n: 9, seS: 0.05, halves: [0.1, 0.3] } },
+      lags: { trunk: { lagS: 0.05, r: 0.7, n: 16, seS: 0.012, kept: 16, halves: [0.04, 0.06] }, 'wrist.right': { lagS: 0.2, r: 0.2, n: 9, seS: 0.05, kept: 9, halves: [0.1, 0.3] } },
       refused: { 'wrist.right': 'lock' },
       offsets: { trunk: 0.05 },
       clickInterval: 1,
