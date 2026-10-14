@@ -497,7 +497,7 @@ Plays the song loaded in the Song tool at a live rate with the pitch preserved, 
 Makes the song follow the dancer: relates the dancer's pulse to the song's beat by an integer ratio and sets the song's rate (clamped around the player's tempo, nudged into phase, held when the dancer stops).
 
 - **roles:** music, control
-- **in:** pulse:pulse-state, song:musical-time, rate:number, base:number, range:number, lead:musical-time, offset:number, songHandle:song-handle
+- **in:** pulse:pulse-state, song:musical-time, rate:number, base:number, range:number, lead:musical-time, offset:number, songHandle:song-handle, songStatus:load-status
 - **out:** rate:number, pace:pace-state, playing:boolean, cue:song-cue, servo:servo-state
 - **params:** persistS (number=3), smoothS (number=1), nudge (number=0.03), phaseThreshold (number=0.08333333333333333), maxRatio (number=8), phaseOffset (number=0), songPeriodS (number=8), minRate (number=0.5), maxRate (number=2), horizonBeats (number=1), maxCorrection (number=0.25), seekBeyondBeats (number=2)
 

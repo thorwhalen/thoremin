@@ -271,6 +271,8 @@ export const songPace = defineBranch({
     to({ node: 'conductor', port: 'recordingTime' }, { node: 'pace', port: 'lead' }, true),
     { from: { node: 'songPlayer', port: 'songTime' }, to: { node: 'pace', port: 'song' }, delayed: true },
     { from: { node: 'songPlayer', port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
+    // Neither law leads a song still loading (#500).
+    { from: { node: 'songPlayer', port: 'status' }, to: { node: 'pace', port: 'songStatus' }, delayed: true },
     to(ui('songRate'), { node: 'pace', port: 'base' }),
     to(ui('songFollowRange'), { node: 'pace', port: 'range' }),
     // A new song restarts the laws (#439): the handle's identity, not its time.

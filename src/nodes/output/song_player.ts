@@ -125,6 +125,14 @@ function audioOf(ctx: NodeContext): StretcherOptions | null {
 
 const finite = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 
+/** Whether the song can be played and moved now: loaded (`ready`, `active`), or loaded and
+ *  only waiting for the browser to allow audio. The player acts on a cue or a press only
+ *  then; the pace controller leads only then (#500), since while a new song loads the
+ *  player's `songTime` is that song's grid read at the previous song's position. */
+export function songPlayable(status: LoadStatus | undefined | null): boolean {
+  return !!status && (status.phase === 'ready' || status.phase === 'active' || status.reason === 'autoplay');
+}
+
 export const songPlayerNode = defineNode<Params>({
   type: 'song-player',
   roles: ['synth'],
@@ -297,7 +305,7 @@ export const songPlayerNode = defineNode<Params>({
         const volume = inputs.claimed === true ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
         s.setVolume(volume);
         s.setRate(rate);
-        const playable = status.phase === 'ready' || status.phase === 'active' || status.reason === 'autoplay';
+        const playable = songPlayable(status);
         // A cue moves the song to a beat; one that arrives while the song is still loading
         // is acted on once it is playable.
         const cue = inputs.cue as { id?: unknown; beat?: unknown } | undefined;
