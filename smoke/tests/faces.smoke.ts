@@ -88,6 +88,9 @@ test('the face session loads only when opened, and records, carves, names and sa
   await page.waitForTimeout(2_000);
   expect(await heldCount()).toBe(held);
   await expect(panel.locator('[data-feature-bar-tick]').first()).toBeVisible();
+  // The live strip (#404): a card per held face, the relaxed face held again saying so.
+  await expect(panel.locator('[data-faces-strip-card]')).toHaveCount(held);
+  await expect(panel.locator('[data-faces-strip-card]').filter({ hasText: 'again: like #' }).first()).toBeVisible();
   // A burst while paused (#385 E7): named "grin", the button held; one more held face, which the
   // carve puts in a category called grin.
   await panel.getByRole('textbox', { name: 'Name for the next burst' }).fill('grin');
@@ -98,6 +101,7 @@ test('the face session loads only when opened, and records, carves, names and sa
   await page.mouse.up();
   await expect(panel.locator('[data-faces-burst="off"]')).toBeVisible();
   await expect.poll(heldCount).toBe(held + 1);
+  await expect(panel.locator(`[data-faces-strip-card="${held + 1}"]`)).toContainText('grin');
   await page.keyboard.press('Space');
   await expect(panel.locator('[data-faces-recording="faces"]')).toBeVisible();
   await page.waitForTimeout(7_000);
