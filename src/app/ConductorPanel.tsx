@@ -38,6 +38,8 @@ import { useRef, useState } from 'react';
 import { Music2, X } from 'lucide-react';
 import { unlockSongPlayback } from '@/nodes/output/song_player';
 import { loadSongFile } from './song/host';
+import { useSongStatus } from './songStatus';
+import type { LoadStatus } from '@thoremin/lazy';
 import { useControls } from './store';
 import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
 import { ConductorControls } from './dials/panels/conductor';
@@ -102,8 +104,13 @@ export function describeLive(live: ConductorLive, source: ConductorSettings['sou
 }
 
 /** What the recording is doing while the beat leads it (#187 PR 7). */
-export function describeRecording(rec: ConductorLive['recording']): string {
-  if (!rec || rec.mode === 'idle') return 'The recording has no beat to follow.';
+export function describeRecording(rec: ConductorLive['recording'], status?: LoadStatus): string {
+  if (!rec || rec.mode === 'idle') {
+    // The servo leads no song that is not playable yet (#500): say why, from the player's own status (#502).
+    if (status?.phase === 'loading' || status?.phase === 'error') return status.message;
+    if (status?.phase === 'unavailable' && status.reason === 'no-audio') return 'Tap to play, then beat.';
+    return 'The recording has no beat to follow.';
+  }
   if (rec.mode === 'cueing') return 'The recording waits on its first beat for yours.';
   if (rec.mode === 'holding') return 'The recording waits for your next beat.';
   const off = Math.round(rec.error * 100);
@@ -113,6 +120,7 @@ export function describeRecording(rec: ConductorLive['recording']): string {
 /** The second mode: the beat leads a recording (#187 PR 7). */
 function RecordingChooser({ live }: { live: ConductorLive }) {
   const song = useControls((s) => s.songHandle);
+  const songLoad = useSongStatus((s) => s.status);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +151,7 @@ function RecordingChooser({ live }: { live: ConductorLive }) {
       {song ? (
         <>
           <div className="truncate text-white/80" title={song.name}>{song.name}</div>
-          {live.enabled && <div className="text-white/60" data-testid="conductor-recording-live">{describeRecording(live.recording)}</div>}
+          {live.enabled && <div className="text-white/60" data-testid="conductor-recording-live">{describeRecording(live.recording, songLoad)}</div>}
         </>
       ) : (
         <p className="text-white/50">Any song: its beat is found when it loads, and it follows yours.</p>

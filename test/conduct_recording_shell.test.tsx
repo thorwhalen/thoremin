@@ -114,4 +114,13 @@ describe('Conduct a recording', () => {
     expect(describeRecording({ mode: 'following', rate: 1.1, error: 0.001 })).toBe('Playing at 110 % speed, on your beat.');
     expect(describeRecording({ mode: 'following', rate: 1, error: 0.12 })).toBe('Playing at 100 % speed, 12 % of a beat ahead.');
   });
+
+  it('says the song is loading, or waits for a tap, instead of "no beat" (#502)', () => {
+    const idle = { mode: 'idle', rate: 1, error: 0 } as const;
+    expect(describeRecording(idle, { phase: 'loading', message: 'Loading a.mp3...' })).toBe('Loading a.mp3...');
+    expect(describeRecording(null, { phase: 'unavailable', reason: 'no-audio', message: 'x' })).toBe('Tap to play, then beat.');
+    expect(describeRecording(idle, { phase: 'error', reason: 'decode', message: 'a.mp3 could not be played' })).toBe('a.mp3 could not be played');
+    expect(describeRecording(idle, { phase: 'ready', message: 'a.mp3 is ready' })).toMatch(/no beat/);
+    expect(describeRecording({ mode: 'cueing', rate: 1, error: 0 }, { phase: 'loading', message: 'Loading...' })).toMatch(/first beat/);
+  });
 });
