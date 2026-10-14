@@ -19,6 +19,10 @@ import { createLiveReader, liveModel } from '@thoremin/sdk/enroll/live';
 import { placeOf } from '@thoremin/sdk/enroll/sorting';
 import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayResult } from '@thoremin/sdk/enroll/everyday';
+import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
+import { registry } from '@/app/commands/registry';
+import '@/app/carveCapture';
+import { isGestureBindable } from '@/app/gestureDispatch';
 
 let clock = 0;
 const models = () => createFaceModelStore(createInMemoryProvider<FaceModelRecord>([], { idField: 'id', searchFields: ['name'] }));
@@ -105,6 +109,35 @@ describe('labelled bursts (#385 E7)', () => {
       expect(places.size, `k=${k}`).toBe(1);
       expect(at.categories.find((c) => c.id === [...places][0])?.label, `k=${k}`).toBe('grin');
     }
+  });
+
+  it('a burst is held by the commands carve.burst.begin / carve.burst.end, the seam the pedal, a MIDI note or a gesture reach (#443)', async () => {
+    // Registered, and so offered to gestures, categories, the palette and the assistant.
+    const ids = registry.list().map((c) => c.id);
+    expect(ids).toEqual(expect.arrayContaining(['carve.burst.begin', 'carve.burst.end']));
+    expect(isGestureBindable('carve.burst.begin') && isGestureBindable('carve.burst.end')).toBe(true);
+    expect((await registry.dispatch('carve.burst.begin', {})).ok).toBe(false); // nothing live
+    const store = createFaceSessionStore(sessionDeps({ capture: provideCarveCapture }));
+    const s = () => store.getState();
+    s().start();
+    const t0 = clock;
+    expect((await registry.dispatch('carve.burst.begin', {})).ok).toBe(false); // the rest: no burst yet
+    await until(t0, smileAt(0));
+    expect(s().phase).toBe('faces');
+    s().setBurstName('grin');
+    const begun = await registry.dispatch('carve.burst.begin', {});
+    expect(begun.ok).toBe(true);
+    expect(s().burst).toMatchObject({ label: 'grin' });
+    await run(800);
+    const before = s().points;
+    const ended = await registry.dispatch('carve.burst.end', {});
+    expect(ended.ok && ended.value).toMatchObject({ ended: true });
+    expect(s().burst).toBeNull();
+    expect(s().points).toBe(before + 1);
+    // Ending when none is held is a harmless no-op.
+    const again = await registry.dispatch('carve.burst.end', {});
+    expect(again.ok && again.value).toMatchObject({ ended: false });
+    await s().stop();
   });
 
   it('a burst from Pause stays paused; a named burst merged into a saved one joins that category', async () => {

@@ -262,7 +262,7 @@ describe('Explore, Space and pause in the store', () => {
     expect(claims).toEqual([true, false]);
     expect(carveCapture()).toBeNull();
     // A store that is not live never withdraws another's control.
-    const other = { what: 'x', state: () => 'explore' as const, toggle: () => undefined };
+    const other = { what: 'x', state: () => 'explore' as const, toggle: () => undefined, beginBurst: () => false, endBurst: () => false };
     const withdraw = provideCarveCapture(other);
     store.getState().reset();
     expect(carveCapture()).toBe(other);
