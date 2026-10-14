@@ -45,7 +45,6 @@ import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
 import { chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
-import { BODY_VOCABULARY_CHOICES } from '@thoremin/sdk/features/modalities/body_names';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -496,20 +495,22 @@ function PoseOptions({ s }: { s: FaceSessionState }) {
         <input type="checkbox" checked={s.mirror} onChange={(e) => s.setMirror(e.target.checked)} />
         <span>Left and right are the same pose (one arm up is one pose, whichever arm)</span>
       </label>
-      <label className="flex items-center gap-2" data-poses-vocabulary-choice>
-        <span>Default names</span>
-        <select
-          className="rounded bg-white/10 px-1 py-0.5"
-          value={s.vocabulary ?? ''}
-          onChange={(e) => s.setVocabulary(e.target.value === '' ? null : e.target.value)}
-        >
-          {BODY_VOCABULARY_CHOICES.map((c) => (
-            <option key={c.id ?? ''} value={c.id ?? ''}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      {s.modality.vocabularies && (
+        <label className="flex items-center gap-2" data-poses-vocabulary-choice>
+          <span>Default names</span>
+          <select
+            className="rounded bg-white/10 px-1 py-0.5"
+            value={s.vocabulary ?? ''}
+            onChange={(e) => s.setVocabulary(e.target.value === '' ? null : e.target.value)}
+          >
+            {s.modality.vocabularies.map((c) => (
+              <option key={c.id ?? ''} value={c.id ?? ''}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="flex items-center gap-2" data-poses-stills-choice>
         <input type="checkbox" checked={s.keepStills} onChange={(e) => s.setKeepStills(e.target.checked)} />
         <span>Also keep camera pictures (they show you and the room; kept in this browser only)</span>

@@ -10,7 +10,7 @@ import { matchLabels } from '@thoremin/sdk/enroll/match';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { BODY_VOCABULARIES, bodyLabels, bodyPoseScores, bodyVocabulary, isLegFeature } from '@thoremin/sdk/features/modalities/body_names';
 import { BODY_POSE_FEATURE_IDS } from '@thoremin/sdk/features/body_groups';
-import type { GeneralContext } from '@thoremin/sdk/enroll/modality';
+import { createReader, type GeneralContext } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { POSES, poseVector, type PoseName, type PoseSpec } from './helpers/body_poses';
 
@@ -55,6 +55,43 @@ describe('the body vocabularies by context', () => {
 
   it('a missing feature scores 0 and names nothing', () => {
     for (const s of Object.values(bodyPoseScores({}))) expect(s).toBe(0);
+  });
+});
+
+describe('the rules on the poses other players hold (the review of #383)', () => {
+  it("a conductor's ready with one hand or level forearms, and a wide fermata", () => {
+    expect(labels(name(['ready (one hand)', 'fermata (wide)', 'cut-off'], { vocabulary: 'conductor' }))).toEqual(['ready', 'fermata', 'cut-off']);
+    expect(labels(name(['ready (level)', 'fermata', 'rest'], { vocabulary: 'conductor' }))).toEqual(['ready', 'fermata', 'rest']);
+  });
+
+  it('a slight lean is still the rest; a lean too small to name does not take the rest', () => {
+    expect(labels(name(['rest (slight lean)']))).toEqual(['rest']);
+    expect(labels(name(['small lean']))).toEqual(['pose 1']);
+  });
+
+  it('sitting with the legs in view: the seated set (the rest bends the knees), no crouch, the rest named', () => {
+    const sit = (p: PoseName): PoseSpec => ({ ...POSES[p], seated: true });
+    const rest = centroid(sit('rest'));
+    expect(rest['body.angle.knee.left']).toBeLessThan(120);
+    expect(bodyVocabulary({ features: Object.keys(rest), rest })).toBe('seated');
+    const poses: PoseName[] = ['rest', 'arms up', 'hands together', 'lean left', 'arms forward'];
+    const m = name(poses.map(sit), { features: Object.keys(rest), rest });
+    expect(labels(m)).toEqual(['rest', 'arms up', 'hands together', 'lean left', 'pose 5']);
+    // Without the rest to tell, every bent-knee category would read as a crouch.
+    expect(labels(name(poses.map(sit)))).toContain('crouch');
+  });
+
+  it('the mirror through the reader: either arm up is one arm up', () => {
+    const read = createReader(bodyModality, { mirror: true });
+    const mirrored = (p: PoseName) => {
+      const sum: Record<string, number> = {};
+      for (let f = 0; f < 8; f++) for (const [k, x] of Object.entries(read(poseVector(POSES[p], f))!)) if (Number.isFinite(x)) sum[k] = (sum[k] ?? 0) + x / 8;
+      return sum;
+    };
+    for (const p of ['left arm up', 'right arm up'] as const) {
+      const m = matchLabels([{ id: 'c', label: '', centroid: mirrored(p) }], { ...bodyModality.general!({ mirror: true }), fallback: bodyModality.words.fallback });
+      expect(m[0].label).toBe('one arm up');
+    }
   });
 });
 

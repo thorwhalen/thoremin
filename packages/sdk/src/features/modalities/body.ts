@@ -31,7 +31,7 @@ import { BODY_MIRROR, mirrorBodyVector } from '../body_mirror';
 import { buildBodyCtx } from '../catalog';
 import type { BodyFrame } from '../../nodes/domain';
 import { bodyWords } from './body_words';
-import { generalBodyLabeling } from './body_names';
+import { BODY_VOCABULARY_CHOICES, generalBodyLabeling } from './body_names';
 
 const POSE = new Set(BODY_POSE_FEATURE_IDS);
 const keep = (key: string): boolean => POSE.has(key);
@@ -207,6 +207,7 @@ export const bodyModality: CarveModality = {
   },
   keep,
   general: (context) => generalBodyLabeling(context),
+  vocabularies: BODY_VOCABULARY_CHOICES,
   // Torso-normalised and torso-framed already: no distance proxy to learn.
   nuisance: {},
   describe: bodyWords,

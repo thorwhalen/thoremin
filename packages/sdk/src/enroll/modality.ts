@@ -74,6 +74,8 @@ export interface GeneralContext {
   mirror?: boolean;
   /** A vocabulary the categorizer was made for, by id (the body's `conductor`). */
   vocabulary?: string;
+  /** The mean of its rest (Neutral) holds, when it has them (a seated rest bends the knees). */
+  rest?: FeatureVector;
 }
 
 /** Which hand a hand categorizer reads (#385 E8, #387 C4): one hand's shape, side-relative, so
@@ -155,6 +157,9 @@ export interface CarveModality {
   keep(key: string): boolean;
   /** The general model that proposes names, if the modality has one. */
   general?(context?: GeneralContext): GeneralLabeling;
+  /** The default-name vocabularies a take may ask for by id (null: the modality's own choice),
+   *  each with the words a picker shows. Absent: one vocabulary, nothing to choose. */
+  vocabularies?: readonly { id: string | null; name: string }[];
   /** Nuisance proxies for the live tuning: camera distance, in order of preference. */
   readonly nuisance: { readonly distance?: readonly string[] };
   /** A feature in plain words, for the quality hints (#385 E6): undefined for a feature the

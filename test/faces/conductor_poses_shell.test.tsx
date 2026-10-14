@@ -65,8 +65,8 @@ describe.runIf(FACES)('Teach my conducting poses', () => {
 
   it('a request that arrives while a categorizer is open waits for the next take', () => {
     const store = bodySessionStore();
-    // Not idle: the request waits.
-    store.setState({ phase: 'carved' });
+    // A categorizer is open: the request waits.
+    store.setState({ phase: 'carved', working: { categories: [] } as unknown as NonNullable<ReturnType<typeof store.getState>['working']> });
     requestCarve('body', { vocabulary: 'conductor' });
     expect(store.getState().vocabulary).toBeNull();
     store.getState().reset();

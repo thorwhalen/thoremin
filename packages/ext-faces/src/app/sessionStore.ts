@@ -254,7 +254,9 @@ export interface FaceSessionState {
   /** The mirror, for the next take only (#382): a take's holds are read on its side, so a carve
    *  keeps the setting it was recorded with. */
   setMirror(on: boolean): void;
-  /** The default-name vocabulary, for the next take (#383; null: chosen by coverage). */
+  /** The default-name vocabulary of the take under way or the next one (#383; null: chosen by
+   *  coverage). It applies to ONE take: once that take is a categorizer (which keeps it), the
+   *  choice returns to null. Refused while a categorizer is open. */
   setVocabulary(vocabulary: string | null): void;
   /** Keep camera stills on the next take (#387 C7). */
   setKeepStills(on: boolean): void;
@@ -967,6 +969,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const strangers = get().strangers;
         const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, hand: get().hand, mirror: get().mirror, vocabulary: get().vocabulary ?? undefined, createdAt: deps.isoNow() });
+        // One take's choice: the categorizer keeps it, the next take starts from coverage again.
+        chosenVocabulary = null;
         // Bursts recorded under a name are pinned to a category of that name before the carve, so
         // the re-cut keeps them together (must-link) at every k (#385 E7).
         const labelled = withLabels(unlabelled, labelledHolds(myTake, takeId!));
@@ -1008,8 +1012,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       setVocabulary(vocabulary) {
-        const { phase } = get();
-        if (phase !== 'idle' && phase !== 'empty') return;
+        // Read when a take becomes a categorizer, so any time before that is in time.
+        if (get().working) return;
         chosenVocabulary = vocabulary;
         set({ vocabulary });
       },

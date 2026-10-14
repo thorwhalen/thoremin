@@ -168,6 +168,9 @@ describe('Your poses names its categories from the vocabulary of its context', (
     expect(store.getState().working!.categories.map((x) => x.label).sort()).toEqual(['cut-off', 'fermata', 'ready']);
     const back = importCategorizer(exportCategorizer(store.getState().working!));
     expect(back.ok && back.categorizer.vocabulary).toBe('conductor');
+    // The choice was this take's: the next one starts from coverage again.
+    store.getState().reset();
+    expect(store.getState().vocabulary).toBeNull();
   }, 60_000);
 
   it('the vocabulary is chosen before the take, and a reset returns to the choice', async () => {

@@ -36,6 +36,8 @@ export interface PoseSpec {
   kneeBend?: number;
   /** Whether the legs are in view (false: a seated player's legs hidden). Default true. */
   legs?: boolean;
+  /** Sitting on a chair, legs in view: thighs forward, shins down (knees at about 90 degrees). */
+  seated?: boolean;
 }
 
 const d = (out: number, up: number, fwd: number): SegmentDir => ({ out, up, fwd });
@@ -54,6 +56,10 @@ export const ARM = {
   raised: straight(d(0.2, 0.8, 0.55)),
   /** Swept out to the side at shoulder height, a little behind (the end of a cut-off). */
   swept: straight(d(1, -0.1, -0.15)),
+  /** A conductor's ready with the forearms level, pointing ahead. */
+  readyLevel: { upper: d(0.3, -0.85, 0.4), fore: d(0.1, 0.05, 1) },
+  /** Held high, wide and forward (a broad fermata). */
+  raisedWide: straight(d(0.7, 0.5, 0.5)),
   /** Pointing straight ahead at shoulder height (outside every vocabulary). */
   forward: straight(d(0.05, 0, 1)),
 } as const satisfies Record<string, ArmPose>;
@@ -72,6 +78,13 @@ export const POSES = {
   ready: { left: ARM.ready, right: ARM.ready },
   fermata: { left: ARM.raised, right: ARM.raised },
   'cut-off': { left: ARM.swept, right: ARM.swept },
+  /** The conductor's poses as other players hold them. */
+  'ready (one hand)': { left: ARM.down, right: ARM.ready },
+  'ready (level)': { left: ARM.readyLevel, right: ARM.readyLevel },
+  'fermata (wide)': { left: ARM.raisedWide, right: ARM.raisedWide },
+  /** A rest with a slight lean (still a rest), and a lean too small to name. */
+  'rest (slight lean)': { left: ARM.down, right: ARM.down, lean: 3 },
+  'small lean': { left: ARM.down, right: ARM.down, lean: 10 },
   /** Outside every vocabulary: both arms pointing at the camera. */
   'arms forward': { left: ARM.forward, right: ARM.forward },
   /** Outside every vocabulary: one arm up, the other out. */
@@ -128,6 +141,18 @@ export function poseFrame(spec: PoseSpec, frame = 0): BodyFrame {
     w[wr] = wrist;
     hand.forEach((i, n) => (w[i] = add(wrist, fd, 0.04 + 0.01 * n)));
   };
+  if (spec.seated) {
+    const leg = (hip: number, knee: number, ankle: number, heel: number, foot: number) => {
+      const k = add(w[hip], fwd, 0.75 * torsoM);
+      const a = add(k, up, -0.72 * torsoM);
+      w[knee] = k;
+      w[ankle] = a;
+      w[heel] = add(a, fwd, -0.04);
+      w[foot] = add(a, fwd, 0.1);
+    };
+    leg(BLM.left_hip, BLM.left_knee, BLM.left_ankle, BLM.left_heel, BLM.left_foot_index);
+    leg(BLM.right_hip, BLM.right_knee, BLM.right_ankle, BLM.right_heel, BLM.right_foot_index);
+  }
   arm(spec.left, 1, BLM.left_shoulder, BLM.left_elbow, BLM.left_wrist, [BLM.left_pinky, BLM.left_index, BLM.left_thumb]);
   arm(spec.right, -1, BLM.right_shoulder, BLM.right_elbow, BLM.right_wrist, [BLM.right_pinky, BLM.right_index, BLM.right_thumb]);
   const j = JITTER;

@@ -96,10 +96,18 @@ export interface CarveInput {
   context?: Omit<GeneralContext, 'features'>;
 }
 
-/** What a categorizer's general model names by (#383): its trained features, its mirror and the
- *  vocabulary it was made for. */
-export function generalContextOf(c: Pick<PersonalCategorizer, 'features' | 'mirror' | 'vocabulary'>): GeneralContext {
-  return { features: c.features, ...(c.mirror ? { mirror: true } : {}), ...(c.vocabulary ? { vocabulary: c.vocabulary } : {}) };
+/** What a categorizer's general model names by (#383): its trained features, its mirror, the
+ *  vocabulary it was made for and the mean of its Neutral (rest) holds. */
+export function generalContextOf(c: Pick<PersonalCategorizer, 'features' | 'mirror' | 'vocabulary' | 'samples' | 'neutral'>): GeneralContext {
+  const at = new Map(c.samples.map((s, i) => [s.id, i]));
+  const rest = c.neutral.flatMap((id) => (at.has(id) ? [at.get(id)!] : []));
+  const vectors = c.samples.map((s) => s.vector);
+  return {
+    features: c.features,
+    ...(c.mirror ? { mirror: true } : {}),
+    ...(c.vocabulary ? { vocabulary: c.vocabulary } : {}),
+    ...(rest.length > 0 ? { rest: fullMean(vectors, rest) } : {}),
+  };
 }
 
 /** A carver for a built take, one per mode. */
@@ -163,7 +171,8 @@ export function carveView(input: CarveInput): CarveView {
   }
 
   // 3. The modality's general model names the rest, one-to-one, on full-space means.
-  const labeling = modality.general?.({ features: session.features(), ...input.context }) ?? NO_GENERAL;
+  const rest = restVectors.length > 0 ? fullMean(restVectors, restVectors.map((_, i) => i)) : undefined;
+  const labeling = modality.general?.({ features: session.features(), ...(rest ? { rest } : {}), ...input.context }) ?? NO_GENERAL;
   const scored = model.categories.map((c) => ({ id: c.id, label: c.label, centroid: fullMean(vectors, c.members) }));
   const matches = matchLabels(scored, { ...labeling, fallback: modality.words.fallback });
   model = applyLabels(model, matches);

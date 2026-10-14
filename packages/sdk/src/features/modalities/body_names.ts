@@ -9,10 +9,15 @@
  * - **standing**: `rest`, `arms up`, `left arm up`, `right arm up`, `arms out`, `hands together`,
  *   `lean left`, `lean right`, `crouch`;
  * - **seated**: the same minus `crouch`, chosen when the categorizer's trained features have no
- *   leg feature (the visibility mask dropped the legs for the whole take, as under a desk);
+ *   leg feature (the visibility mask dropped the legs for the whole take, as under a desk) or its
+ *   rest has both knees bent (a chair with the legs in view);
  * - **conductor**: `ready`, `fermata`, `cut-off`, `rest`, when the categorizer was made for the
  *   conductor (the Conductor tool's "Teach my conducting poses"; `vocabulary: 'conductor'` on the
  *   file). These are the names the conductor's transport override reads (#384).
+ *
+ * `rest` is in every pool, but a take's rest holds are usually the Neutral bin (the default
+ * strangers setting), or the category the neutral rule names `neutral` (`nearest`): Neutral IS the
+ * rest, and a reader of pose names (#384) treats it so.
  *
  * With the mirror on (#387 B10) a pose and its mirror image are one category, so the sided names
  * merge: `one arm up`, `lean`.
@@ -52,16 +57,24 @@ export const BODY_POSE_RULES = {
   /** A crouch: the straighter knee bent below this (degrees; 180 = straight). */
   crouchFrom: 160,
   crouchFull: 135,
-  /** A conductor's ready: the forearm raised in front while the upper arm stays down. */
-  readyForeFrom: 15,
-  readyForeFull: 35,
+  /** A conductor's ready: the forearm level or raised in front while the upper arm stays down,
+   *  the wrist between the waist and the shoulder (one hand is enough). */
+  readyForeFrom: -10,
+  readyForeFull: 10,
   readyUpperFrom: 0,
   readyUpperFull: -25,
-  /** A fermata: an arm held high (wrist above the shoulder, upper arm raised). */
-  fermataRiseFrom: 0.2,
-  fermataRiseFull: 0.6,
-  fermataElevFrom: 25,
-  fermataElevFull: 45,
+  readyLowFrom: -0.8,
+  readyLowFull: -0.6,
+  readyHighFrom: 0.3,
+  readyHighFull: 0.1,
+  /** A fermata: an arm held high (wrist above the shoulder, upper arm raised), however wide. */
+  fermataRiseFrom: 0.1,
+  fermataRiseFull: 0.4,
+  fermataElevFrom: 15,
+  fermataElevFull: 35,
+  /** The rest tolerates a lean only up to here (a slight lean is not a rest, nor a lean). */
+  restLeanFrom: 8,
+  restLeanFull: 4,
   /** The bar a rule's score must reach to give its name. */
   minScore: 0.5,
 } as const;
@@ -101,12 +114,21 @@ export function isLegFeature(id: string): boolean {
   return /^body\.dir\.(thigh|shank)\./.test(id) || /^body\.angle\.(knee|hip)\./.test(id) || id === 'body.shape.stance' || id === 'body.shape.height';
 }
 
+/** Whether the player sits: the take never saw the legs (no leg feature trained), or its rest
+ *  pose has both knees bent (a chair with the legs in view). */
+export function isSeated(context: GeneralContext = {}, rules: BodyPoseRules = BODY_POSE_RULES): boolean {
+  if (context.features && context.features.length > 0 && !context.features.some(isLegFeature)) return true;
+  const r = context.rest;
+  if (!r) return false;
+  const knees = [r['body.angle.knee.left'], r['body.angle.knee.right']].filter((x) => Number.isFinite(x));
+  return knees.length > 0 && Math.max(...knees) < rules.crouchFrom;
+}
+
 /** Which vocabulary names a categorizer with this context: the one it asks for, else seated when
- *  its features are known and none reads the legs, else standing. */
+ *  the player sits ({@link isSeated}), else standing. */
 export function bodyVocabulary(context: GeneralContext = {}): BodyVocabularyId {
   if (context.vocabulary === 'conductor') return 'conductor';
-  if (context.features && context.features.length > 0 && !context.features.some(isLegFeature)) return 'seated';
-  return 'standing';
+  return isSeated(context) ? 'seated' : 'standing';
 }
 
 /** The labels a context names with (the mirror merges the sided ones), in pool order. */
@@ -126,7 +148,7 @@ const ramp = (x: number | undefined, from: number, full: number): number => {
  * Every prototype's score for a pose centroid, by name (the sided names and their mirrored
  * merges both). Pure; a feature the centroid lacks scores its rules 0.
  */
-export function bodyPoseScores(c: FeatureVector, rules: BodyPoseRules = BODY_POSE_RULES): Record<string, number> {
+export function bodyPoseScores(c: FeatureVector, rules: BodyPoseRules = BODY_POSE_RULES, options: { seated?: boolean } = {}): Record<string, number> {
   const side = (s: 'left' | 'right') => {
     const rise = c[`body.pos.wrist.${s}.rise`];
     const up = c[`body.dir.upperArm.${s}.up`];
@@ -136,7 +158,11 @@ export function bodyPoseScores(c: FeatureVector, rules: BodyPoseRules = BODY_POS
       up: ramp(rise, rules.upRiseFrom, rules.upRiseFull) * ramp(up, rules.upElevFrom, rules.upElevFull),
       down: ramp(rise, rules.downRiseFrom, rules.downRiseFull),
       out: ramp(out, rules.outElevFrom, rules.outElevFull) * ramp(Number.isFinite(rise) ? Math.abs(rise) : NaN, rules.outLevelFrom, rules.outLevelFull),
-      ready: ramp(fore, rules.readyForeFrom, rules.readyForeFull) * ramp(up, rules.readyUpperFrom, rules.readyUpperFull),
+      ready:
+        ramp(fore, rules.readyForeFrom, rules.readyForeFull) *
+        ramp(up, rules.readyUpperFrom, rules.readyUpperFull) *
+        ramp(rise, rules.readyLowFrom, rules.readyLowFull) *
+        ramp(rise, rules.readyHighFrom, rules.readyHighFull),
       fermata: ramp(rise, rules.fermataRiseFrom, rules.fermataRiseFull) * ramp(up, rules.fermataElevFrom, rules.fermataElevFull),
     };
   };
@@ -146,13 +172,14 @@ export function bodyPoseScores(c: FeatureVector, rules: BodyPoseRules = BODY_POS
   const leanLeft = ramp(lean, rules.leanFrom, rules.leanFull);
   const leanRight = ramp(Number.isFinite(lean) ? -lean : NaN, rules.leanFrom, rules.leanFull);
   const knees = [c['body.angle.knee.left'], c['body.angle.knee.right']].filter((x) => Number.isFinite(x));
-  const crouch = knees.length > 0 ? ramp(Math.max(...knees), rules.crouchFrom, rules.crouchFull) : 0;
+  // Seated, bent knees are the rest of the legs, not a crouch.
+  const crouch = !options.seated && knees.length > 0 ? ramp(Math.max(...knees), rules.crouchFrom, rules.crouchFull) : 0;
   const bothUp = L.up * R.up;
   const leftUp = L.up * (1 - R.up) * (1 - R.out);
   const rightUp = R.up * (1 - L.up) * (1 - L.out);
   const anyLean = Math.max(leanLeft, leanRight);
   return {
-    rest: L.down * R.down * (1 - anyLean) * (1 - crouch),
+    rest: L.down * R.down * ramp(Number.isFinite(lean) ? Math.abs(lean) : 0, rules.restLeanFrom, rules.restLeanFull) * (1 - crouch),
     'arms up': bothUp,
     'left arm up': leftUp,
     'right arm up': rightUp,
@@ -163,7 +190,7 @@ export function bodyPoseScores(c: FeatureVector, rules: BodyPoseRules = BODY_POS
     'lean right': leanRight,
     lean: anyLean,
     crouch,
-    ready: L.ready * R.ready,
+    ready: Math.max(L.ready, R.ready),
     fermata: Math.max(L.fermata, R.fermata),
     'cut-off': Math.max(L.out, R.out),
   };
@@ -173,10 +200,11 @@ export function bodyPoseScores(c: FeatureVector, rules: BodyPoseRules = BODY_POS
  *  centroid (the names a fresh carve proposes, one-to-one). */
 export function generalBodyLabeling(context: GeneralContext = {}, rules: BodyPoseRules = BODY_POSE_RULES): GeneralLabeling {
   const labels = bodyLabels(context);
+  const seated = isSeated(context, rules);
   return {
     labels,
     score: (centroid) => {
-      const all = bodyPoseScores(centroid, rules);
+      const all = bodyPoseScores(centroid, rules, { seated });
       return Object.fromEntries(labels.map((l) => [l, all[l] ?? 0]));
     },
     minScore: rules.minScore,
