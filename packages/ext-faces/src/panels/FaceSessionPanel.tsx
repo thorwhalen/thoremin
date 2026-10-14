@@ -32,6 +32,7 @@ import { HoldRing, type HoldRingState } from '@thoremin/sdk-ui/enroll/HoldRing';
 import { ProgressRing } from '@thoremin/sdk-ui/enroll/ProgressRing';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
+import { mirrorOffable } from '@thoremin/sdk/enroll/sorting';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isLive, type FaceSessionState } from '../app/sessionStore';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
@@ -110,6 +111,8 @@ function StrangersSwitch({ strangers, setStrangers, words }: { strangers: Catego
 function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
   const view = s.view!;
   const words = s.modality.words;
+  // Whether the mirror can go off again (#529): every hold kept the side it was read on.
+  const offable = s.working !== null && mirrorOffable(s.working);
   const [name, setName] = useState(s.name);
   useEffect(() => setName(s.name), [s.name]);
   return (
@@ -119,14 +122,16 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
       {s.modality.id === 'body' && (
         <div className="space-y-0.5" data-poses-mirror>
           {/* #459: turning the mirror on after the take is an edit (Undo puts the sides back);
-              turning it off again is not offered, since no hold kept its side. */}
+              #529: off again too, where every hold kept the side it was read on. */}
           <label className="flex items-center gap-2 text-[11px] text-white/80">
-            <input type="checkbox" checked={s.mirror} disabled={s.mirror} onChange={(e) => e.target.checked && s.setMirror(true)} data-poses-mirror-after />
+            <input type="checkbox" checked={s.mirror} disabled={s.mirror && !offable} onChange={(e) => s.setMirror(e.target.checked)} data-poses-mirror-after />
             <span>Left and right are the same pose (one arm up is one pose, whichever arm)</span>
           </label>
           <p className={hint}>
-            {s.mirror
-              ? 'Every pose is read on one side. To tell left from right again, undo the change or record a new take.'
+            {s.mirror && offable
+              ? 'Every pose is read on one side. Turning this off puts each pose back on the side it was read on and sorts the poses again. Undo puts them back.'
+              : s.mirror
+              ? 'Every pose is read on one side. Some poses did not keep the side they were read on (recorded before this was kept, or added from Trying), so to tell left from right again, undo the change or record a new take.'
               : 'Turning this on reads every pose on one side and sorts the poses again, so a left and a right version fall together. Undo puts them back.'}
           </p>
         </div>

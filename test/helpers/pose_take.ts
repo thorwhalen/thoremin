@@ -78,7 +78,7 @@ async function run(ms: number) {
 }
 
 /** Record a take of `poses` (names), carve it at one category per pose, return the store. */
-export async function take(names: readonly PoseName[], opts: { legs?: boolean; vocabulary?: string } = {}) {
+export async function take(names: readonly PoseName[], opts: { legs?: boolean; vocabulary?: string; mirror?: boolean; k?: number } = {}) {
   const s = script(
     names.map((n) => POSES[n]),
     opts.legs ?? true,
@@ -88,12 +88,14 @@ export async function take(names: readonly PoseName[], opts: { legs?: boolean; v
   const source = (): FaceSource => ({ kind: 'synthetic', read: () => ({ vector: s.vectorAt(clock - start, frame++), t: clock }), video: () => STREAM, dispose: () => {} });
   const store = createFaceSessionStore(deps(source));
   if (opts.vocabulary) store.getState().setVocabulary(opts.vocabulary);
+  if (opts.mirror) store.getState().setMirror(true);
   store.getState().start();
   await run(s.ms);
   await store.getState().stop();
   await vi.advanceTimersByTimeAsync(0);
   expect(store.getState().phase).toBe('carved');
-  if (store.getState().working!.categories.length !== names.length) store.getState().setK(names.length);
+  const k = opts.k ?? names.length;
+  if (store.getState().working!.categories.length !== k) store.getState().setK(k);
   return store;
 }
 

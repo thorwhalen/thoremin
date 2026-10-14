@@ -135,6 +135,11 @@ const SampleSchema = z.object({
    *  vector at capture by the modality and kept here so an imported or shared file still shows
    *  what each category looks like. Optional and additive: a build before it drops the field. */
   skeleton: SkeletonSchema.optional(),
+  /** In a mirrored categorizer (#529): whether this hold was read as its mirror image (`true`) or
+   *  as shown (`false`), so turning the mirror off can put each hold back on its own side. Written
+   *  only where the side is known (a take or merge read with the mirror on, `mirrorOn`); a hold
+   *  without it (an older file, a live correction) keeps the mirror on. Optional and additive. */
+  mirrored: z.boolean().optional(),
 });
 
 const CategorizerCategorySchema = z.object({
@@ -258,7 +263,7 @@ function finiteOnly(v: FeatureVector): FeatureVector {
 }
 
 /** What a sample is made from: a still-point with its id, and its supporting frames. */
-export type SampleInput = Pick<StillPoint, 'vector' | 't' | 'cue'> & { id: string; support?: readonly FeatureVector[]; skeleton?: Skeleton | null };
+export type SampleInput = Pick<StillPoint, 'vector' | 't' | 'cue'> & { id: string; support?: readonly FeatureVector[]; skeleton?: Skeleton | null; mirrored?: boolean };
 
 const roundSupport = (x: number | undefined): number | null => (x !== undefined && Number.isFinite(x) ? Number(x.toFixed(SUPPORT_DECIMALS)) : null);
 
@@ -275,6 +280,7 @@ export function toSample(p: SampleInput, features?: readonly string[]): Categori
     cue: p.cue,
     ...(support && support.length > 0 ? { support } : {}),
     ...(skeleton ? { skeleton } : {}),
+    ...(typeof p.mirrored === 'boolean' ? { mirrored: p.mirrored } : {}),
   };
 }
 
