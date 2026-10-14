@@ -270,8 +270,7 @@ export interface AirDrumStatus {
   stampNoise: number;
 }
 
-export const SUBFRAME_STANDINGS = ['on', 'off-stamps'] as const;
-export type SubframeStanding = (typeof SUBFRAME_STANDINGS)[number];
+export type SubframeStanding = 'on' | 'off-stamps';
 /** Clock-derived stamps noisier than this (seconds) switch sub-frame prediction off: the
  *  bench's 4 ms, where the learned-plane prediction is no better than the frame-snapped
  *  detector (`subframe-impact-prediction.md` §3.4). */
@@ -312,8 +311,7 @@ export const IDLE_STATUS: AirDrumStatus = { enabled: false, hits: 0, predicted: 
  *   from the strokes than their own scatter explains (a lagging follower), so pulling
  *   toward it would make the timing worse.
  */
-export const MAGNET_STANDINGS = ['off', 'on', 'too-slow', 'grid-lag'] as const;
-export type MagnetStanding = (typeof MAGNET_STANDINGS)[number];
+export type MagnetStanding = 'off' | 'on' | 'too-slow' | 'grid-lag';
 
 /** What became of the magnet's pull for one engaged stroke. */
 type MagnetOutcome = 'pulled' | 'quiet' | 'warming' | 'gated' | 'pipeline';
