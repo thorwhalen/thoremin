@@ -8,6 +8,10 @@
  * recognised thing, hands-free, firing a command through the same picker
  * ({@link CommandBindingFields}). The Trainer's "Save and bind" button lands here.
  *
+ * It lists EVERY saved categorizer of the one collection (#371), grouped by kind: the Trainer's
+ * models and the faces, hand shapes and poses carved in their own tools, whose bindings ride
+ * their records. A Trainer's model is deleted here; a carved one in its own tool.
+ *
  * The section sits at the TOP of the panel, so *Save and bind* lands on it with no scroll.
  * The live readout polls `readCategoryLive()` at UI rate while the section is mounted,
  * like the trainer polls the live vector: the dispatcher computes it per tick (with binding
@@ -17,6 +21,9 @@ import { useEffect, useState } from 'react';
 import { categoryName } from '@thoremin/sdk/enroll';
 import CommandBindingFields from '../CommandBindingFields';
 import { useTools } from '../toolsStore';
+import { modalityById } from '@thoremin/sdk/features/modalities';
+import { TRAINED_KIND } from '@thoremin/sdk/enroll/record';
+import type { CategorizerSummary } from '@thoremin/sdk-ui/enroll/categorizers';
 import { MAX_CATEGORY_HOLD_MS, useCategoryBinding } from './categoryBinding';
 import { readCategoryLive, type CategoryLive } from './categoryDispatch';
 
@@ -30,6 +37,25 @@ function useCategoryLive(): CategoryLive | null {
     return () => clearInterval(id);
   }, []);
   return live;
+}
+
+/** What a kind of categorizer is called in the picker: the Trainer's, or the carve tool's
+ *  ("Your faces", "Your hand shapes", "Your poses"). */
+export function kindLabel(kind: string): string {
+  if (kind === TRAINED_KIND) return 'From the Trainer';
+  const words = modalityById(kind)?.words;
+  return words ? `Your ${words.many}` : kind;
+}
+
+/** The order the kinds are listed in (any other kind after them, by first appearance). */
+const KIND_ORDER: readonly string[] = [TRAINED_KIND, 'face', 'hand', 'body'];
+
+/** The saved categorizers grouped by kind, in {@link KIND_ORDER}; newest first inside a kind. */
+function byKind(saved: readonly CategorizerSummary[]): [string, CategorizerSummary[]][] {
+  const groups = new Map<string, CategorizerSummary[]>();
+  for (const s of saved) groups.set(s.kind, [...(groups.get(s.kind) ?? []), s]);
+  const rank = (k: string) => (KIND_ORDER.includes(k) ? KIND_ORDER.indexOf(k) : KIND_ORDER.length);
+  return [...groups].sort((a, b) => rank(a[0]) - rank(b[0]));
 }
 
 export default function CategoryBindings() {
@@ -65,7 +91,8 @@ export default function CategoryBindings() {
           <button type="button" onClick={openTrainer} className="underline decoration-white/30 hover:text-white">
             Trainer
           </button>
-          , press <em>Save and bind</em>, and they appear here to bind like a gesture.
+          , press <em>Save and bind</em>, and they appear here to bind like a gesture. The faces, hand shapes and
+          poses you save in their own tools appear here too.
         </p>
       ) : (
         <>
@@ -82,13 +109,17 @@ export default function CategoryBindings() {
               className="min-w-0 flex-1 rounded border border-white/10 bg-black/40 px-2 py-1 text-[11px] text-white/80"
             >
               <option value="">(none)</option>
-              {saved.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
+              {byKind(saved).map(([kind, items]) => (
+                <optgroup key={kind} label={kindLabel(kind)}>
+                  {items.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
-            {active && (
+            {active && (active.kind ?? TRAINED_KIND) === TRAINED_KIND && (
               <button
                 type="button"
                 aria-label={`Delete the saved categories ${active.name}`}
@@ -101,6 +132,11 @@ export default function CategoryBindings() {
               </button>
             )}
           </div>
+          {active && (active.kind ?? TRAINED_KIND) !== TRAINED_KIND && (
+            <p className="text-[10px] leading-snug text-white/45">
+              Made in {kindLabel(active.kind!)}: edit or delete it there. Its bindings follow its categories by name.
+            </p>
+          )}
           <label className="flex items-center gap-2 text-[11px] text-white/80">
             <input
               type="checkbox"

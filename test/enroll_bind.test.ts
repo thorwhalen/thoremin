@@ -9,6 +9,7 @@ import { replayNode } from '@thoremin/dag';
 import {
   BoundCategoriesSchema,
   carryBindings,
+  rekeyBindings,
   categoryName,
   createCategoryEdge,
   hasReading,
@@ -195,5 +196,18 @@ describe('fixture replay (video_hand_open_close): an open/closed hand fires an e
     // Entries alternate: a category never fires twice in a row (one entry, one fire).
     for (let i = 1; i < fired.length; i++) expect(fired[i].id).not.toBe(fired[i - 1].id);
     expect(new Set(fired.map((f) => f.id))).toEqual(new Set(['cat-1', 'cat-2']));
+  });
+});
+
+describe('rekeyBindings: an edit keeps bindings by id-and-name, then by name (#371)', () => {
+  const cats = (...xs: [string, string][]) => ({ categories: xs.map(([id, label]) => ({ id, label })) });
+  it('an unnamed category keeps its binding while the edit leaves it as it was', () => {
+    const before = cats(['c1', ''], ['c2', 'fist']);
+    expect(rekeyBindings(before, { c1: { command: 'a' }, c2: { command: 'b' } }, before)).toEqual({ c1: { command: 'a' }, c2: { command: 'b' } });
+  });
+  it('a renumbered category keeps its binding by name; a renamed one loses it', () => {
+    const before = cats(['c1', 'open'], ['c2', 'fist']);
+    const after = cats(['c1', 'fist'], ['c2', 'flat']);
+    expect(rekeyBindings(before, { c1: { command: 'a' }, c2: { command: 'b' } }, after)).toEqual({ c1: { command: 'b' } });
   });
 });

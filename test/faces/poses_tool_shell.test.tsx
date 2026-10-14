@@ -89,7 +89,8 @@ describe.runIf(FACES)('"Your poses" is reachable from the shell', () => {
   });
 
   it('a saved pose categorizer: Bind to commands carries its mirror to the bound set and opens the Gestures tool', async () => {
-    setSavedCategoriesStore(createSavedCategoriesStore(createInMemoryProvider([], { idField: 'id', searchFields: ['name'] })));
+    // One collection (#371): the host's bindings read the records the tool saves (localStorage here).
+    setSavedCategoriesStore(null);
     const file = importCategorizer(readFileSync(join(process.cwd(), 'public/categorizers/demo-smile.json'), 'utf8'));
     if (!file.ok) throw new Error(file.error);
     await createCategorizerStore(bodyModality).save('Arms', { categorizer: { ...file.categorizer, modality: 'body', mirror: true } });

@@ -55,6 +55,7 @@ import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enr
 import { readLiveVector } from './enroll/liveVector';
 import { useTrainer } from './enroll/store';
 import { savedCategoriesId, useCategoryBinding } from './enroll/categoryBinding';
+import { TRAINED_KIND } from '@thoremin/sdk/enroll/record';
 import RoutinePicker from './enroll/RoutinePicker';
 import ProjectionView from './enroll/ProjectionView';
 import { installVoice, unlockVoice, useVoice } from './enroll/voiceRuntime';
@@ -123,7 +124,11 @@ const DEFAULT_CATEGORIES_NAME = 'My categories';
 function KeepCategories({ model, labels, cueNames }: { model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
   // Default to the active set's name: retraining the same vocabulary is the common case,
   // and a re-save under its name carries its bindings over by category name.
-  const [name, setName] = useState(() => useCategoryBinding.getState().active?.name ?? DEFAULT_CATEGORIES_NAME);
+  // Only a Trainer's set: a carved categorizer's name would save a second record beside it.
+  const [name, setName] = useState(() => {
+    const active = useCategoryBinding.getState().active;
+    return active && (active.kind ?? TRAINED_KIND) === TRAINED_KIND ? active.name : DEFAULT_CATEGORIES_NAME;
+  });
   const saved = useCategoryBinding((s) => s.saved);
   // The name the save will use: the warning must name what a blank field overwrites too.
   const saveName = name.trim() || DEFAULT_CATEGORIES_NAME;
