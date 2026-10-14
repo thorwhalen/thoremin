@@ -660,6 +660,11 @@
         "default": "oscillator"
       },
       {
+        "name": "fastWindowS",
+        "type": "number",
+        "default": 4.5
+      },
+      {
         "name": "minVisibility",
         "type": "number",
         "default": 0.5

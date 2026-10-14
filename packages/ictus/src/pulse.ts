@@ -113,6 +113,9 @@ export interface PulseOptions {
   fastWindowS?: number;
   fastMinStrength?: number;
   fastSwitchAfterS?: number;
+  /** The least relative change of period the step detector acts on: a smaller change
+   *  is the prior's to follow, and a switch costs it its lock for a moment. */
+  fastMinChange?: number;
 }
 
 export const PULSE_DEFAULTS = {
@@ -134,6 +137,7 @@ export const PULSE_DEFAULTS = {
   fastWindowS: 4.5,
   fastMinStrength: 0.6,
   fastSwitchAfterS: 1,
+  fastMinChange: 0.06,
 } as const;
 
 /** The confidence from which a consumer should act on the pulse (follow it, gate on
@@ -470,8 +474,8 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       return true;
     };
     if (recent) {
-      fastStep(t, true);
-      if (!Number.isFinite(level)) return;
+      // The tail alone, unless it does not see the level: then the full window decides.
+      if (!fastStep(t, true) && !slowPath()) return;
     } else {
       if (!slowPath()) return;
       if (Number.isFinite(level) && level <= fastReach) fastStep(t, false);
@@ -488,33 +492,34 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   };
 
   /** The step detector: the last `fastWindowS` seconds alone (see {@link PulseOptions.fastWindowS}). */
-  const fastStep = (t: number, recent: boolean) => {
+  const fastStep = (t: number, recent: boolean): boolean => {
     const last = samples[samples.length - 1].t;
     const tail = samples.filter((q) => q.t >= last - o.fastWindowS);
-    if (tail[tail.length - 1].t - tail[0].t < 0.9 * o.fastWindowS) return;
+    if (tail[tail.length - 1].t - tail[0].t < 0.9 * o.fastWindowS) return false;
     const n = Math.floor(o.fastWindowS * o.gridHz);
     const { t0, x } = resample(tail, o.gridHz, n);
     const maxLag = Math.min(o.maxPeriodS, o.fastWindowS / 3); // the span holds three cycles of the longest period seen
-    if (maxLag <= o.minPeriodS) return;
+    if (maxLag <= o.minPeriodS) return false;
     const d = detrend(x, Math.min(o.detrendS, o.fastWindowS / 2) * o.gridHz);
     const peaks = acfPeaks(d, { minLag: Math.round(o.minPeriodS * o.gridHz), maxLag: Math.round(maxLag * o.gridHz) }).map((p) => ({ period: p.lag / o.gridHz, r: p.r }));
     const found = fundamental(peaks);
     const locked = Number.isFinite(level);
     const near = locked ? peaks.find((q) => Math.abs(q.period / level - 1) < o.levelTolerance) : undefined;
-    const here = found && found.r >= o.fastMinStrength && (!locked || Math.abs(found.period / level - 1) >= o.levelTolerance);
+    const here = found && found.r >= o.fastMinStrength && (!locked || Math.abs(found.period / level - 1) >= o.fastMinChange);
     // The current level must be gone from the recent past, not merely beaten by its own
     // harmonic: no peak near it that is nearly as strong.
     const stillThere = locked && peaks.some((q) => Math.abs(q.period / level - 1) < o.levelTolerance && q.r >= o.nearTop * (found?.r ?? 0));
     if (!here || stillThere) {
       fastChallenger = null;
       if (recent) {
-        // Following the new level from the tail alone: refine it, or lose it.
+        // Following the new level from the tail alone: refine it.
         if (near && near.r >= o.minStrength) {
           level += (refinePeriod(x, near.period, { t0, hz: o.gridHz }) - level) * o.levelGain;
           strength = near.r;
-        } else forgetLevel();
+          return true;
+        }
       }
-      return;
+      return false;
     }
     const next = refinePeriod(x, found.period, { t0, hz: o.gridHz });
     if (!fastChallenger || Math.abs(next / fastChallenger.period - 1) >= o.levelTolerance) fastChallenger = { period: next, since: t };
@@ -524,7 +529,9 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       level = next;
       strength = found.r;
       switchedAt = t;
+      return true;
     }
+    return false;
   };
 
   /** The latest fitted maximum that has settled, or NaN. */

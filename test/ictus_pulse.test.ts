@@ -174,6 +174,55 @@ describe('no octave is assumed: the level is the period the channel repeats at',
   });
 });
 
+describe('a tempo step (#339 item 1): the step detector follows the new tempo from the recent past', () => {
+  /** A cosine of period `p0` that steps to `p1` at t = 20 s, phase-continuous, 50 s long. */
+  const stepped = (p0: number, p1: number, opts = {}) => {
+    const p = createPulseFollower(opts);
+    let phase = 0;
+    const out: Array<{ t: number; s: PulseState }> = [];
+    for (let i = 0; i < 50 * HZ; i++) {
+      const t = i / HZ;
+      phase += (2 * Math.PI) / HZ / (t < 20 ? p0 : p1);
+      out.push({ t: t - 20, s: p.feed(t, Math.cos(phase)) });
+    }
+    return out.filter((o) => o.t >= 0);
+  };
+  /** Seconds after the step from which every later tick is within 5 % of `p1` in period and trusted. */
+  const settledAt = (out: ReturnType<typeof stepped>, p1: number) => {
+    let bad = -1;
+    out.forEach((o, i) => {
+      if (!(Math.abs(o.s.period / p1 - 1) < 0.05 && o.s.confidence >= PULSE_TRUSTED_CONFIDENCE)) bad = i;
+    });
+    return bad + 1 >= out.length ? Infinity : out[bad + 1].t;
+  };
+
+  for (const [p0, p1] of [[1.2, 1.0], [1.0, 1.2], [0.8, 0.64]] as const) {
+    it(`${p0} s -> ${p1} s: period and trust settle within 5 s (measured 3.6, 3.8, 2.8 s; without the detector 9 to 12 s), no undershoot beyond 5 %`, () => {
+      const out = stepped(p0, p1);
+      expect(settledAt(out, p1)).toBeLessThan(5);
+      const slow = settledAt(stepped(p0, p1, { fastWindowS: 0 }), p1);
+      expect(slow).toBeGreaterThan(8);
+      const lo = Math.min(p0, p1);
+      expect(Math.min(...out.map((o) => o.s.period).filter(Number.isFinite))).toBeGreaterThan(lo * 0.95);
+      // the lock is not lost for long on the way (the old follower was untrusted for 3 to 5 s)
+      expect(out.filter((o) => o.s.confidence < PULSE_TRUSTED_CONFIDENCE).length / HZ).toBeLessThan(1.5);
+    });
+  }
+
+  it('a steady cycle is untouched by the detector: the same states with it off', () => {
+    const f = (t: number) => Math.cos((2 * Math.PI * t) / 1.1);
+    const on = run(f, 30);
+    const off = run(f, 30, { fastWindowS: 0 });
+    expect(on.map((s) => s.period)).toEqual(off.map((s) => s.period));
+    expect(on.map((s) => s.confidence)).toEqual(off.map((s) => s.confidence));
+  });
+
+  it('a level longer than the detector can see (a 1.9 s bar) is left to the full window', () => {
+    const f = (t: number) => Math.cos((2 * Math.PI * t) / 1.9);
+    expect(run(f, 30).map((s) => s.period)).toEqual(run(f, 30, { fastWindowS: 0 }).map((s) => s.period));
+  });
+});
+
 describe('the parts', () => {
   it('acfPeaks: the per-lag normalisation does not crush a slow, perfectly regular cycle', () => {
     for (const P of [0.5, 1.5, 2.4]) {

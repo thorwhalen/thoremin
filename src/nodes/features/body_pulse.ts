@@ -28,7 +28,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { createPulseFollower, createPulseSelector, PULSE_TRUSTED_CONFIDENCE, RHYTHM_PRIOR_KINDS, UNKNOWN_PULSE, type PulseFollower, type PulseState } from '@thoremin/ictus';
+import { createPulseFollower, createPulseSelector, PULSE_DEFAULTS, PULSE_TRUSTED_CONFIDENCE, RHYTHM_PRIOR_KINDS, UNKNOWN_PULSE, type PulseFollower, type PulseState } from '@thoremin/ictus';
 import { BLM, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 
@@ -66,6 +66,11 @@ const Params = z
      *  bar in 98 % of confident ticks against the blend's 69 % (its trend half chases
      *  the fit's slow drift). */
     prior: z.enum(RHYTHM_PRIOR_KINDS).default('oscillator'),
+    /** The tempo-step detector's span, seconds (#339): a second estimate over only the
+     *  recent past, so a dancer who changes tempo is followed in about 4 s instead of 10
+     *  (it sees levels up to a third of this span: a 1.2 s step, not a 1.9 s bar). 0 =
+     *  off, the full window alone. */
+    fastWindowS: z.number().min(0).max(8).default(PULSE_DEFAULTS.fastWindowS),
     /** Landmarks below this visibility are treated as unobserved. */
     minVisibility: z.number().min(0).max(1).default(0.5),
   })
@@ -146,7 +151,7 @@ export const bodyPulseNode = defineNode<Params>({
   ],
   params: Params,
   make(p) {
-    const opts = { windowS: p.windowS, minPeriodS: p.minPeriodS, maxPeriodS: p.maxPeriodS, prior: p.prior };
+    const opts = { windowS: p.windowS, minPeriodS: p.minPeriodS, maxPeriodS: p.maxPeriodS, prior: p.prior, fastWindowS: p.fastWindowS };
     const channels: readonly PulseChannel[] = p.channel === 'auto' ? AUTO_PULSE_CHANNELS : [p.channel];
     // One follower and one yaw unwrapper per channel; `auto` runs them all, so a
     // challenger that takes over is already warm.
