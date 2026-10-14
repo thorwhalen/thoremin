@@ -72,6 +72,7 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   // #186 PR G: the song player, in the trunk, fed by the store and a tool's claim.
   { from: { node: 'ui', port: 'songHandle' }, to: { node: 'songPlayer', port: 'song' } },
   { from: { node: 'ui', port: 'songPlaying' }, to: { node: 'songPlayer', port: 'playing' } },
+  { from: { node: 'ui', port: 'songPlays' }, to: { node: 'songPlayer', port: 'play' } },
   { from: { node: 'ui', port: 'songRate' }, to: { node: 'songPlayer', port: 'rate' } },
   { from: { node: 'ui', port: 'songVolume' }, to: { node: 'songPlayer', port: 'volume' } },
   { from: { node: 'ui', port: 'claimed' }, to: { node: 'songPlayer', port: 'claimed' } },

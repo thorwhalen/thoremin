@@ -203,6 +203,10 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  never start playing on load. Written by the `song.play` / `song.pause` commands
    *  (through the song host), and back to false when the song plays to its end. */
   songPlaying: boolean;
+  /** How many times Play was pressed (#344), transient with {@link songPlaying}: the
+   *  `song-player` reads a change as a press even when the level never fell (a Play made
+   *  in the frame the song ended, before the player saw the transport go off). */
+  songPlays: number;
   /** The generative layer (#141 / #188): on/off, level, and what the gestures mean
    *  (`config`). A preset field (in {@link SETTINGS_KEYS}); read live by `indirect-map`
    *  / `lyria` via `store-controls` → their `steerConfig` / `enabled` / `volume` inputs. */
@@ -284,7 +288,8 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** Replace the loaded song (transient, see {@link songHandle}); releases the previous
    *  song's object URL and stops the transport. */
   setSongHandle(song: SongHandle | null): void;
-  /** Start or stop the song (transient, see {@link songPlaying}). */
+  /** Start or stop the song (transient, see {@link songPlaying}); a start also counts a
+   *  press ({@link songPlays}). */
   setSongPlaying(v: boolean): void;
   /** Patch the song's level / rate (see {@link songPrefs}); an out-of-range value is
    *  clamped by the schema's bounds, an invalid one ignored. */
@@ -688,7 +693,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   const midi = healMidi(p.midi, current.midi);
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, ...healed, faceMapping, midi, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, midi, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, ...keptTransients(current) };
 }
 
 /** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
@@ -739,6 +744,7 @@ export const useControls = create<ControlState>()(
       songPrefs: { ...DEFAULT_SONG },
       songHandle: null,
       songPlaying: false,
+      songPlays: 0,
       bodyMap: structuredClone(DEFAULT_BODY_MAP),
       steer: defaultSteer(),
       steerPlaying: false,
@@ -784,7 +790,7 @@ export const useControls = create<ControlState>()(
           releaseSongUrl(s.songHandle);
           return { songHandle: song, songPlaying: false };
         }),
-      setSongPlaying: (v) => set({ songPlaying: v }),
+      setSongPlaying: (v) => set((s) => (v ? { songPlaying: true, songPlays: s.songPlays + 1 } : { songPlaying: false })),
       setSongPrefs: (patch) =>
         set((s) => {
           const r = SongSettingsSchema.safeParse({ ...s.songPrefs, ...patch });

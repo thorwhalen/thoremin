@@ -85,6 +85,7 @@ export const trunk = defineBranch({
     // a tool's claim, which silences it like every other voice.
     to(ui('songHandle'), { node: 'songPlayer', port: 'song' }),
     to(ui('songPlaying'), { node: 'songPlayer', port: 'playing' }),
+    to(ui('songPlays'), { node: 'songPlayer', port: 'play' }),
     to(ui('songRate'), { node: 'songPlayer', port: 'rate' }),
     to(ui('songVolume'), { node: 'songPlayer', port: 'volume' }),
     to(ui('claimed'), { node: 'songPlayer', port: 'claimed' }),

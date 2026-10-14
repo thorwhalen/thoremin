@@ -164,6 +164,55 @@ describe('song-player', () => {
     expect(statusOf(out[8]).phase).toBe('active');
   });
 
+  it('a Play pressed in the frame the song ends is not lost: the press counter is an edge whatever the level did (#344)', async () => {
+    const st = fakeStretcher({ durationS: 0.1 });
+    const s = song();
+    // The song plays to its end with the transport held on; the reporter's "off" and the
+    // player's next press both land before the next tick, so the LEVEL never falls. Only
+    // the press counter (`play`) says a press happened.
+    const held = Array.from({ length: 6 }, () => ({ song: s, playing: true, play: 1 }));
+    const frames: PortValues[] = [{ song: s, play: 0 }, ...held, { song: s, playing: true, play: 2 }, { song: s, playing: true, play: 2 }];
+    const out = await drive(make(), frames, { resources: { ...AUDIO, createStretcher: () => st }, onTick: (dt) => st.advance(dt) });
+    expect(statusOf(out[6])).toMatchObject({ phase: 'ready', reason: 'ended' });
+    expect(st.log.filter((l) => l === 'play')).toHaveLength(2);
+    expect(statusOf(out[7]).phase).toBe('active');
+  });
+
+  it('a held transport with an unchanged press counter does not loop a finished song (#344)', async () => {
+    const st = fakeStretcher({ durationS: 0.1 });
+    const s = song();
+    const frames: PortValues[] = [{ song: s, play: 0 }, ...Array.from({ length: 10 }, () => ({ song: s, playing: true, play: 1 }))];
+    const out = await drive(make(), frames, { resources: { ...AUDIO, createStretcher: () => st }, onTick: (dt) => st.advance(dt) });
+    expect(st.log.filter((l) => l === 'play')).toHaveLength(1);
+    expect(statusOf(out[10])).toMatchObject({ phase: 'ready', reason: 'ended' });
+  });
+
+  it('a press made while the song is playing does not restart it (#344)', async () => {
+    const st = fakeStretcher();
+    const frames: PortValues[] = [{ song: song('a'), play: 5 }, { song: song('a'), playing: true, play: 6 }, { song: song('a'), playing: true, play: 7 }];
+    await drive(make(), frames, { resources: { ...AUDIO, createStretcher: () => st } });
+    expect(st.log.filter((l) => l === 'play')).toHaveLength(1);
+  });
+
+  it('a press counted while a leader held the transport does not play when he lets go (#344)', async () => {
+    const st = fakeStretcher();
+    const s = song();
+    // The player pressed Play (level up, counter 1 -> 2) while the conductor led and kept the
+    // song paused; once the leader lets go the song waits for a FRESH press, as with the level.
+    const frames: PortValues[] = [
+      { song: s, play: 1 },
+      { song: s, playing: true, play: 1, followPlaying: false },
+      { song: s, playing: true, play: 2, followPlaying: false },
+      { song: s, playing: true, play: 2 },
+      { song: s, playing: true, play: 2 },
+      { song: s, playing: true, play: 3 },
+    ];
+    await drive(make(), frames, { resources: { ...AUDIO, createStretcher: () => st } });
+    const plays = st.log.filter((l) => l === 'play').length;
+    expect(plays).toBe(1);
+    expect(st.playing()).toBe(true);
+  });
+
   it('a new song is loaded; an unloaded one is paused and the player goes off', async () => {
     const st = fakeStretcher();
     const frames = [{ song: song('a') }, { song: song('a'), playing: true }, { song: song('b'), playing: true }, { song: null }];
@@ -253,12 +302,13 @@ describe('the trunk wires the song player to the store and the claim (a structur
     const into = (port: string) => g.edges.filter((e) => e.to.node === 'songPlayer' && e.to.port === port).map((e) => `${e.from.node}.${e.from.port}`);
     expect(into('song')).toEqual(['ui.songHandle']);
     expect(into('playing')).toEqual(['ui.songPlaying']);
+    expect(into('play')).toEqual(['ui.songPlays']);
     expect(into('rate')).toEqual(['ui.songRate']);
     expect(into('volume')).toEqual(['ui.songVolume']);
     expect(into('claimed')).toEqual(['ui.claimed']);
     // The ports exist on store-controls (a dangling edge would fail validation, not silently).
     const ui = createAppRegistry().get('store-controls')!;
-    for (const p of ['songHandle', 'songPlaying', 'songRate', 'songVolume']) expect(ui.outputs.map((o) => o.name)).toContain(p);
+    for (const p of ['songHandle', 'songPlaying', 'songPlays', 'songRate', 'songVolume']) expect(ui.outputs.map((o) => o.name)).toContain(p);
   });
 });
 
