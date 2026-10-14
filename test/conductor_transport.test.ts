@@ -110,7 +110,7 @@ describe('a slowly moving ready arm is no upbeat (the review of #461)', () => {
   ];
   // 0.25 px is the scripted default; at 0.1 px the cases main's per-frame motion rule also
   // passes (on a cleaner camera it reads a quicker adjustment as an upbeat before this
-  // change too: the follow-up issue on #461).
+  // change too: #485).
   const cases = [
     ...slow.map(([name, g]) => ({ noisePx: 0.25, name, g })),
     ...slow.filter(([name]) => name.startsWith('repositioned down') || name.startsWith('a slight')).map(([name, g]) => ({ noisePx: 0.1, name, g })),
