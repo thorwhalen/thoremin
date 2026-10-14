@@ -149,6 +149,18 @@ export function sampleTime(frame: FrameTiming | undefined, ctx: { time: number; 
   const stampT = frameTime(frame, ctx);
   return frame?.tSource === 'clock' && stampT === frame.t ? stampT - captureLagS : stampT;
 }
+/**
+ * {@link sampleTime} with the capture lag the timing resource has learned (the prior
+ * where none is installed): the one call every reader of a camera frame's time makes
+ * (the conductor, the pluck and strum nodes, the body pulse), so a `clock` stamp is
+ * moved back to the capture the same way in all of them and in the tracker's frame age
+ * (#337 item 1). A `capture`, `presentation` or `estimated` stamp, and a stamp that is
+ * not honoured, pass through unchanged.
+ */
+export function captureTime(frame: FrameTiming | undefined, ctx: { time: number; resources: Record<string, unknown> }): number {
+  return sampleTime(frame, ctx, timingFrom(ctx.resources).captureLag.value);
+}
+
 /** Gain of the exponentially weighted capture lag. */
 export const CAPTURE_LAG_EW_GAIN = 0.1;
 /** The stamp noise is judged once this many clock-derived frames are in the window. */
