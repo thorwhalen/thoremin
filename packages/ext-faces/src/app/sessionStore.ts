@@ -62,6 +62,7 @@ import {
   placeLabelled,
   type LabelledHolds,
   consistentPins,
+  mirrorOn,
   recut,
   recutBounds,
   recutRange,
@@ -283,8 +284,9 @@ export interface FaceSessionState {
   /** Which hand: an edit of the working categorizer (undoable; no hold moves, but the live test
    *  and the instrument read that hand from then on); before a take, the next take's setting. */
   setHand(hand: HandChoice): void;
-  /** The mirror, for the next take only (#382): a take's holds are read on its side, so a carve
-   *  keeps the setting it was recorded with. */
+  /** The mirror: before a take, the next take's setting (#382); on a carved or saved categorizer
+   *  (#459), turning it ON is an undoable edit (`mirrorOn`: every hold read on one side, then a
+   *  re-cut at the suggested k), and turning it off is refused (no hold kept its side). */
   setMirror(on: boolean): void;
   /** The default-name vocabulary of the take under way or the next one (#383; null: chosen by
    *  coverage). It applies to ONE take: once that take is a categorizer (which keeps it), the
@@ -1237,7 +1239,19 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       setMirror(on) {
-        const { phase } = get();
+        const { phase, working } = get();
+        if (working && (phase === 'carved' || phase === 'saved')) {
+          // After the take (#459): ON is one undoable edit (every hold on one side, re-cut at the
+          // suggested k); OFF cannot be undone that way, since no hold kept its side.
+          if (!on || working.mirror || !modality.mirrorImage || !modality.mirrorSide) return;
+          const image = modality.mirrorImage;
+          const side = modality.mirrorSide;
+          const kept = (cat: PersonalCategorizer['categories'][number]) => ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '';
+          edit((w) =>
+            mirrorOn(w, { image, side, skeleton: modality.skeleton ? (v) => modality.skeleton!(v) : undefined }, { ...recutOptions(), carry: kept, maxCategories: FACE_SESSION_DEFAULTS.maxCategories }),
+          );
+          return;
+        }
         if (phase !== 'idle' && phase !== 'empty') return;
         chosenMirror = on;
         set({ mirror: on });

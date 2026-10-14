@@ -28,6 +28,7 @@ import { handSessionStore } from '@thoremin/ext-faces/app/handSession';
 import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { CATEGORY_PANEL_TOOL, createSavedCategoriesStore, setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';
 import { FACES } from '../helpers/extensions';
+import { scriptedPoseCategorizer } from '../helpers/body_poses';
 import { dialsStore } from '@/app/dials/settingsStore';
 import '@/app/dials/useDialsSettings';
 import '@/app/dispatchDial';
@@ -103,6 +104,25 @@ describe.runIf(FACES)('"Your poses" is reachable from the shell', () => {
     await waitFor(() => expect(useCategoryBinding.getState().active?.name).toBe('Arms'));
     expect(useCategoryBinding.getState().active!.categories.read).toEqual({ modality: 'body', mirror: true });
     expect(useTools.getState().open).toBe(CATEGORY_PANEL_TOOL);
+    setSavedCategoriesStore(null);
+  });
+
+  it('a saved pose categorizer: Tools, Your poses, Open, "Left and right are the same pose" turns the mirror on after the take (#459)', async () => {
+    setSavedCategoriesStore(null);
+    await createCategorizerStore(bodyModality).save('Sides', { categorizer: scriptedPoseCategorizer(['rest', 'left arm out', 'right arm out']) });
+    render(<Shell />);
+    act(() => useTools.getState().toggleTool('poses'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Sides' }));
+    await waitFor(() => expect(bodySessionStore().getState().phase).toBe('saved'));
+    const mirror = document.querySelector<HTMLInputElement>('[data-poses-mirror-after]')!;
+    expect(mirror.checked).toBe(false);
+    expect(mirror.disabled).toBe(false);
+    fireEvent.click(mirror);
+    await waitFor(() => expect(bodySessionStore().getState().working!.mirror).toBe(true));
+    expect(bodySessionStore().getState().working!.categories).toHaveLength(2);
+    const after = document.querySelector<HTMLInputElement>('[data-poses-mirror-after]')!;
+    expect(after.checked).toBe(true);
+    expect(after.disabled).toBe(true);
     setSavedCategoriesStore(null);
   });
 });
