@@ -381,10 +381,12 @@ export const FACE_SESSION_DEFAULTS = {
   burstStillAfter: 3,
   /** The rest ring (#403) moves in steps of this much (0..1). */
   restProgressStep: 0.05,
-  /** During the rest, a frame this far from the rest so far (noise units, its largest feature
-   *  off the rest frames' median: `FaceTake.restMotion`) is movement: "stay relaxed". The frame
-   *  jitter alone stays near 3 over a face's features. */
-  restMovingAt: 6,
+  /** During the rest, a frame this far from the rest so far (`FaceTake.restMotion`: noise units,
+   *  its largest feature off the rest frames' median) is movement: "stay relaxed". The recorded
+   *  face's still rest reaches about 12, its smile 100 (the range floor's ceiling). */
+  restMovingAt: 20,
+  /** A movement in the rest must last this long to say "stay relaxed", ms (a blink is shorter). */
+  restMovingForMs: 300,
   /** "Stay relaxed" stays up this long after the last movement, ms, so it does not flicker. */
   restMovingHoldMs: 1000,
 } as const;
@@ -565,13 +567,24 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       return createLiveBars(context);
     };
 
-    /** The rest ring and "stay relaxed" (#403), told to the store only when they change. */
+    /** The rest ring and "stay relaxed" (#403), told to the store only when they change. A
+     *  movement counts once it has lasted `restMovingForMs` (a blink is not one), and shows for
+     *  `restMovingHoldMs` after it ends. */
+    let overSince: number | null = null;
     let movedAt = Number.NEGATIVE_INFINITY;
+    const resetRestWatch = () => {
+      overSince = null;
+      movedAt = Number.NEGATIVE_INFINITY;
+    };
     const restWatch = (progress: number | null, motion: number | null, tMs: number) => {
       const step = FACE_SESSION_DEFAULTS.restProgressStep;
       const shown = progress === null ? null : Math.floor(progress / step + 1e-9) * step;
-      if (motion !== null && motion >= FACE_SESSION_DEFAULTS.restMovingAt) movedAt = tMs;
-      if (progress === null) movedAt = Number.NEGATIVE_INFINITY;
+      if (progress === null) resetRestWatch();
+      else if (motion === null || motion < FACE_SESSION_DEFAULTS.restMovingAt) overSince = null;
+      else {
+        overSince ??= tMs;
+        if (tMs - overSince >= FACE_SESSION_DEFAULTS.restMovingForMs) movedAt = tMs;
+      }
       const moving = tMs - movedAt < FACE_SESSION_DEFAULTS.restMovingHoldMs;
       const s = get();
       if (s.restProgress !== shown || s.restMoving !== moving) set({ restProgress: shown, restMoving: moving });
@@ -1030,6 +1043,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         frames = stream ? deps.frames(stream) : null;
         const t0 = deps.now();
         take!.start(t0);
+        resetRestWatch();
         set({ phase: 'rest', setupStep: 0, restProgress: 0, restMoving: false, points: 0, elapsed: 0, hold: 'open', hasStills: frames !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
         provideCapture();
         poll(t0);

@@ -16,6 +16,9 @@ import { faceTestStore } from '@thoremin/ext-faces/app/faceSession';
 import { FaceSessionView } from '@thoremin/ext-faces/panels/FaceSessionPanel';
 import { createFaceTake, FACE_TAKE_DEFAULTS } from '@thoremin/ext-faces/lib/take';
 import { syntheticExpressionVector } from '@thoremin/ext-faces/lib/synthetic';
+import { syntheticBodyVector } from '@thoremin/ext-faces/lib/synthetic_body';
+import { bodyModality } from '@thoremin/sdk/features/modalities/body';
+import { recordedFrames, SEGMENTS, vectorOf } from '../helpers/faceRecording';
 import '@/app/dials/useDialsSettings'; // the dials host the panel's "Play it" reads
 
 const FRAME_MS = 33;
@@ -102,7 +105,7 @@ describe("the take's rest motion", () => {
     const still = take.restMotion()!;
     expect(still).toBeLessThan(FACE_SESSION_DEFAULTS.restMovingAt);
     take.push(syntheticExpressionVector('smile', f++), (t += FRAME_MS));
-    expect(take.restMotion()!).toBeGreaterThan(10 * FACE_SESSION_DEFAULTS.restMovingAt);
+    expect(take.restMotion()!).toBeGreaterThan(FACE_SESSION_DEFAULTS.restMovingAt);
     take.push(syntheticExpressionVector('rest', f++), (t += FRAME_MS));
     expect(take.restMotion()!).toBeLessThan(FACE_SESSION_DEFAULTS.restMovingAt);
     take.push({}, (t += FRAME_MS));
@@ -110,17 +113,83 @@ describe("the take's rest motion", () => {
   });
 });
 
+describe('what the rest motion measures (#403 review)', () => {
+  /** A take `n` frames into a still synthetic rest. */
+  function restingTake(n = 45) {
+    const take = createFaceTake();
+    take.start(0);
+    for (let f = 0; f < n; f++) take.push(syntheticExpressionVector('rest', f), (f + 1) * FRAME_MS);
+    return take;
+  }
+
+  it('reads only the features the carve uses: a glance or a lean is not a movement', () => {
+    const take = restingTake();
+    expect(take.restMotion()!).toBeLessThan(FACE_SESSION_DEFAULTS.restMovingAt);
+    const t = 46 * FRAME_MS;
+    take.push({ ...syntheticExpressionVector('rest', 46), 'face.gaze.x': 0.3, 'face.head.x': 0.2 }, t);
+    expect(take.restMotion()!).toBeLessThan(FACE_SESSION_DEFAULTS.restMovingAt);
+  });
+
+  it('settling into the rest does not blunt it: a smile after a moving first second still reads', () => {
+    const take = createFaceTake();
+    take.start(0);
+    let f = 0;
+    for (; f < 30; f++) take.push(syntheticExpressionVector(f % 6 < 3 ? 'smile' : 'surprise', f), (f + 1) * FRAME_MS);
+    for (; f < 80; f++) take.push(syntheticExpressionVector('rest', f), (f + 1) * FRAME_MS);
+    expect(take.restMotion()!).toBeLessThan(FACE_SESSION_DEFAULTS.restMovingAt);
+    take.push(syntheticExpressionVector('smile', f), (f + 1) * FRAME_MS);
+    expect(take.restMotion()!).toBeGreaterThan(FACE_SESSION_DEFAULTS.restMovingAt);
+  });
+
+  it('the recorded face: still through its rest, moving at its smile', () => {
+    const frames = recordedFrames();
+    // The recording's first frames settle in (the mouth moves; that is a movement, and reads as
+    // one); from frame 9 to 14 the face is still (the smile begins to show from 15). Those frames played back and forth,
+    // their own jitter, for 3 s.
+    const rest = frames.slice(9, 15).map(vectorOf);
+    expect(15).toBeLessThan(SEGMENTS.smile[0]);
+    const loop = [...rest, ...rest.slice(1, -1).reverse()];
+    const take = createFaceTake();
+    take.start(0);
+    let t = 0;
+    let most = 0;
+    for (let f = 0; f < 60; f++) {
+      take.push(loop[f % loop.length], (t += FRAME_MS));
+      most = Math.max(most, take.restMotion() ?? 0);
+    }
+    expect(take.phase()).toBe('rest');
+    expect(most).toBeLessThan(FACE_SESSION_DEFAULTS.restMovingAt);
+    take.push(vectorOf(frames[18]), (t += FRAME_MS));
+    expect(take.restMotion()!).toBeGreaterThan(FACE_SESSION_DEFAULTS.restMovingAt);
+  });
+
+  it('a body take: the ring is the rest only, never the nuisance steps after it', () => {
+    const take = createFaceTake({ modality: bodyModality });
+    take.start(0);
+    let t = 0;
+    let f = 0;
+    while (take.setupStep() === 0 && f < 300) {
+      expect(take.restProgress()).not.toBeNull();
+      take.push(syntheticBodyVector(0, f++), (t += FRAME_MS));
+    }
+    expect(take.phase()).toBe('rest');
+    expect(take.setupStep()).toBe(1);
+    expect(take.restProgress()).toBeNull();
+    expect(take.restMotion()).toBeNull();
+  });
+});
+
 describe('the rest ring in the panel', () => {
   it('fills during the rest, says "stay relaxed" when the face moves, and gives way to the hold ring', async () => {
     vi.useFakeTimers();
-    // The face smiles from 1.5 s to 1.8 s into the rest.
-    const store = createFaceSessionStore(deps(restingSource((ms) => ms >= 1500 && ms < 1800)));
+    // The face smiles for half a second, from about 1.1 s into the rest.
+    const store = createFaceSessionStore(deps(restingSource((ms) => ms >= 1200 && ms < 1700)));
     render(<FaceSessionView store={store} test={faceTestStore()} />);
     act(() => store.getState().explore());
     await run(100);
     // Click 3 from a cold load (Tools, Your faces, Record my faces, then this).
     fireEvent.click(screen.getByRole('button', { name: /Start capturing/ }));
-    const ring = () => screen.queryByRole('progressbar', { name: 'The rest' });
+    const ring = () => screen.queryByRole('progressbar', { name: 'Rest progress' });
     expect(ring()).not.toBeNull();
     expect(screen.queryByText(/Stay relaxed/)).toBeNull();
 
@@ -128,12 +197,13 @@ describe('the rest ring in the panel', () => {
     const early = Number(ring()!.getAttribute('aria-valuenow'));
     expect(early).toBeGreaterThan(20);
     expect(early).toBeLessThan(45);
-    expect(ring()!.getAttribute('data-progress-tone')).toBe('normal');
+    const tone = () => ring()!.closest('[data-progress-tone]')!.getAttribute('data-progress-tone');
+    expect(tone()).toBe('normal');
 
-    // Into the smile: "stay relaxed", held a second past it, then calm again.
-    await run(600);
+    // Into the smile (past its 0.3 s): "stay relaxed", held a second past it, then calm again.
+    await run(500);
     expect(screen.getByText(/Stay relaxed/)).toBeTruthy();
-    expect(ring()!.getAttribute('data-progress-tone')).toBe('warn');
+    expect(tone()).toBe('warn');
     await run(FACE_SESSION_DEFAULTS.restMovingHoldMs + 200);
     expect(screen.queryByText(/Stay relaxed/)).toBeNull();
     expect(Number(ring()!.getAttribute('aria-valuenow'))).toBeGreaterThan(early);
@@ -146,9 +216,17 @@ describe('the rest ring in the panel', () => {
     store.getState().cancelRecording();
   });
 
-  it('a still rest never says "stay relaxed"', async () => {
+  it('a still rest, a blink in it, never says "stay relaxed"', async () => {
     vi.useFakeTimers();
-    const store = createFaceSessionStore(deps());
+    const blink = (ms: number) => ms >= 1600 && ms < 1660; // two frames
+    const source = syntheticSource(() => clock, {
+      ...FACE_SCRIPT,
+      vectorAt: (ms, frame) => {
+        const v = syntheticExpressionVector('rest', frame);
+        return blink(ms) ? { ...v, 'face.blendshape.eye.blinkLeft': 1, 'face.blendshape.eye.blinkRight': 1 } : v;
+      },
+    });
+    const store = createFaceSessionStore(deps(source));
     store.getState().explore();
     await run(100);
     store.getState().start();

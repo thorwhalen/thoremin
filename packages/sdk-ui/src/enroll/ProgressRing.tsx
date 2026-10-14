@@ -2,7 +2,7 @@
  * A progress ring (#403): the hold ring's shape (`HoldRing.tsx`), filled to a fraction, for a
  * step that ends by itself, such as the take's rest toward its 3 s and 60 frames. A `warn` tone
  * says that what the step needs is not happening ("stay relaxed"); the words come from the host.
- * Purely presentational, and announced as a progress bar.
+ * Purely presentational: the ring is a progress bar, the words a polite live region beside it.
  */
 import { HOLD_RING_DEFAULTS } from './HoldRing';
 
@@ -30,18 +30,17 @@ export function ProgressRing({ value, words, label, tone = 'normal' }: ProgressR
   const color = tone === 'warn' ? '#fbbf24' : '#e5e7eb';
   const percent = Math.round(v * 100);
   return (
-    <span
-      className="inline-flex items-center gap-1.5"
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={percent}
-      aria-valuetext={`${percent} %: ${words}`}
-      data-progress-ring={percent}
-      data-progress-tone={tone}
-    >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+    <span className="inline-flex items-center gap-1.5" data-progress-ring={percent} data-progress-tone={tone}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={3} />
         <circle
           cx={size / 2}
@@ -57,7 +56,10 @@ export function ProgressRing({ value, words, label, tone = 'normal' }: ProgressR
           style={{ transition: `stroke-dashoffset ${PROGRESS_RING_DEFAULTS.easeMs}ms linear` }}
         />
       </svg>
-      <span className={`text-[11px] ${tone === 'warn' ? 'font-semibold text-amber-200' : 'text-white/75'}`}>{words}</span>
+      {/* Outside the progress bar (whose children are presentational), so a change is announced. */}
+      <span className={`text-[11px] ${tone === 'warn' ? 'font-semibold text-amber-200' : 'text-white/75'}`} aria-live="polite">
+        {words}
+      </span>
     </span>
   );
 }

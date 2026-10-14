@@ -528,9 +528,9 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
         // The rest ends by itself once it has its time and its frames (#403); moving spoils it.
         <ProgressRing
           value={s.restProgress}
-          label="The rest"
+          label="Rest progress"
           tone={s.restMoving ? 'warn' : 'normal'}
-          words={s.restMoving ? 'Stay relaxed: you moved' : s.restProgress >= 1 ? 'Rest learned' : 'Learning your rest'}
+          words={s.restMoving ? 'Stay relaxed: you moved' : 'Learning your rest'}
         />
       )}
       {(phase === 'faces' || phase === 'paused') && <HoldStrip s={s} />}
