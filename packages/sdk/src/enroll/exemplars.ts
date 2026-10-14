@@ -9,6 +9,12 @@
  * of a broad category can sit between two sub-poses no frame actually shows, while the
  * medoid is always a real, typical held pose.
  *
+ * Exact is quadratic in the category's size, so past {@link EXEMPLAR_DEFAULTS}`.exactUpTo`
+ * members the medoid is estimated (#398): every member's total distance is taken against an
+ * evenly strided subsample of `references` members (the same members every run, in member
+ * order), which is linear in the size, and the smallest total wins. A category that small
+ * shows no difference; a larger one gets a typical member, not necessarily the exact medoid.
+ *
  * The rest are chosen to show the category's EXTENT, not to repeat its centre: members
  * sorted by distance from the centroid, sampled at evenly spaced ranks from just past the
  * centre to `edge` (a quantile, 0.9 by default). The most eccentric few percent are left
@@ -30,9 +36,13 @@ export interface ExemplarOptions {
   count?: number;
   /** The distance quantile the spread reaches (0..1); see the module doc. */
   edge?: number;
+  /** The largest category whose medoid is exact (all pairs); a larger one is estimated. */
+  exactUpTo?: number;
+  /** How many members an estimated medoid is measured against. */
+  references?: number;
 }
 
-export const EXEMPLAR_DEFAULTS = { count: 4, edge: 0.9 } as const;
+export const EXEMPLAR_DEFAULTS = { count: 4, edge: 0.9, exactUpTo: 300, references: 64 } as const;
 
 export interface Exemplar {
   /** Index into the vectors the category's `members` index. */
@@ -64,25 +74,18 @@ export function selectExemplars(
 
   // Medoid: smallest total distance to the other members; ties to the lower index. Each pair
   // is measured once (the distance is symmetric bit for bit) and summed in member order (#420).
+  // Past `exactUpTo` members it is estimated against a strided subsample instead (#398).
   const L = members.length;
   const between = pointDistance(members.map((j) => vectors[j]), model.features, model.weights);
-  const pair = new Float64Array(L * L);
-  for (let a = 0; a < L; a++) {
-    for (let b = a + 1; b < L; b++) {
-      const d = between(a, b);
-      pair[a * L + b] = d;
-      pair[b * L + a] = d;
-    }
-  }
+  const exactUpTo = Math.max(0, Math.floor(finiteOr(options.exactUpTo, EXEMPLAR_DEFAULTS.exactUpTo)));
+  const references = Math.max(1, Math.floor(finiteOr(options.references, EXEMPLAR_DEFAULTS.references)));
+  const totals = L <= exactUpTo ? exactTotals(L, between) : sampledTotals(L, between, references);
   let medoid = members[0];
   let best = Infinity;
   for (let a = 0; a < L; a++) {
-    const j = members[a];
-    let total = 0;
-    for (let b = 0; b < L; b++) if (members[b] !== j) total += pair[a * L + b];
-    if (total < best - 1e-12) {
-      best = total;
-      medoid = j;
+    if (totals[a] < best - 1e-12) {
+      best = totals[a];
+      medoid = members[a];
     }
   }
   const out: Exemplar[] = [{ index: medoid, distance: fromCentre.get(medoid)!, role: 'medoid' }];
@@ -103,6 +106,37 @@ export function selectExemplars(
     out.push({ index: j, distance: fromCentre.get(j)!, role: 'spread' });
   }
   return out;
+}
+
+/** Each member's total distance to every other member (all pairs, each measured once). */
+function exactTotals(L: number, between: (a: number, b: number) => number): Float64Array {
+  const pair = new Float64Array(L * L);
+  for (let a = 0; a < L; a++) {
+    for (let b = a + 1; b < L; b++) {
+      const d = between(a, b);
+      pair[a * L + b] = d;
+      pair[b * L + a] = d;
+    }
+  }
+  const totals = new Float64Array(L);
+  for (let a = 0; a < L; a++) {
+    let total = 0;
+    for (let b = 0; b < L; b++) if (b !== a) total += pair[a * L + b];
+    totals[a] = total;
+  }
+  return totals;
+}
+
+/** Each member's total distance to `references` evenly strided members (itself contributes 0). */
+function sampledTotals(L: number, between: (a: number, b: number) => number, references: number): Float64Array {
+  const refs = Array.from({ length: Math.min(references, L) }, (_, i) => Math.floor((i * L) / Math.min(references, L)));
+  const totals = new Float64Array(L);
+  for (let a = 0; a < L; a++) {
+    let total = 0;
+    for (const r of refs) if (r !== a) total += between(a, r);
+    totals[a] = total;
+  }
+  return totals;
 }
 
 /** Exemplars for every category of a model, by category id. */
