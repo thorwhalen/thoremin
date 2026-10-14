@@ -23,7 +23,20 @@
  * onto the saved categories by id-and-name, then by name (`rekeyBindings`). The host writes them
  * with {@link CategorizerIndex.setBindings}, which touches nothing else on the record.
  *
- * ## Expand, migrate, contract
+ * ## Where the records live (#412)
+ *
+ * In IndexedDB (`thoremin-categorizers`, a record per key; `../idbCollection`), not localStorage:
+ * a record may hold two thousand samples of ~2 KB each, past the ~5 MB budget the whole app
+ * shares. EXPAND/MIGRATE: the first time the collection is used on a device every record under
+ * the localStorage key is copied into IndexedDB as stored, never over one already there, and a
+ * flag says so. The localStorage key is left exactly as it was (nothing is deleted; the contract
+ * step is later); it is also the store used where IndexedDB cannot be opened. A build from before
+ * #412 reads that key on a rollback, so it sees the records as of the copy; what such a build
+ * saves meanwhile is not copied forward (the copy is done once), so rolling forward again does
+ * not show it. The stills were
+ * already in IndexedDB (`thoremin-faces`, `ext-faces/app/thumbnails.ts`) and do not move.
+ *
+ * ## Expand, migrate, contract (the old face collection)
  *
  * This is the EXPAND step (design D.4): the first time a view is used on a device, every record of
  * the old face collection (`thoremin.faceCategorizers`) is copied into this one, migrated as a
@@ -56,12 +69,18 @@ import {
   type TrainedRecord,
 } from '@thoremin/sdk/enroll/record';
 import { localStorageCollectionProvider, type DataProvider, type NamedCollectionStore, type NamedSummary } from '../namedCollection';
+import { createIdbProvider, createMigratingProvider, type MigrationFlag } from '../idbCollection';
 
 export { categorizerId, type CategorizerRecord, type SavedCategorizer };
 export type CategorizerStore = NamedCollectionStore<CategorizerRecord, SavedCategorizer>;
 
-/** The one collection's localStorage key. */
+/** The one collection's localStorage key: where it lived until #412, and the fallback where
+ *  IndexedDB is not usable. */
 export const CATEGORIZERS_STORAGE_KEY = 'thoremin.categorizers';
+/** The IndexedDB database the records live in since #412 (one object store, a record per key). */
+export const CATEGORIZERS_IDB_NAME = 'thoremin-categorizers';
+/** Set once the localStorage records have been copied into IndexedDB on this device (#412). */
+export const CATEGORIZERS_IDB_MIGRATED_KEY = 'thoremin.categorizers.idbMigrated';
 /** The face collection before #385 E8: read once, copied, then left alone until E10. */
 export const LEGACY_FACE_STORAGE_KEY = 'thoremin.faceCategorizers';
 /** Set once the legacy face records have been copied on this device. */
@@ -107,11 +126,7 @@ export function withChangeNotice<T extends NamedSummary, P>(store: NamedCollecti
 
 // --- the one-time copy of the old face collection ------------------------------------------------
 
-/** Whether a one-time copy has run on this device. */
-export interface MigrationFlag {
-  done(): boolean;
-  mark(): void;
-}
+export type { MigrationFlag };
 
 /** The flag in localStorage (always "done" where there is no localStorage: nothing to copy). */
 export function localStorageFlag(key: string = CATEGORIZERS_MIGRATED_KEY): MigrationFlag {
@@ -147,7 +162,7 @@ export async function migrateLegacyFaces(target: DataProvider<CategorizerRecord>
     const parsed = CategorizerRecordSchema.safeParse(raw);
     if (!parsed.success) continue;
     // Read the target again before every write: never two records under one id.
-    if ((await target.getList({})).data.some((r) => r.id === parsed.data.id)) continue;
+    if (await rawById(target, parsed.data.id)) continue;
     const rec = parsed.data;
     const categorizer = rec.model.categorizer.modality ? rec.model.categorizer : { ...rec.model.categorizer, modality: 'face' };
     await target.create({ ...rec, model: { ...rec.model, categorizer } });
@@ -155,6 +170,21 @@ export async function migrateLegacyFaces(target: DataProvider<CategorizerRecord>
   }
   flag.mark();
   return copied;
+}
+
+let defaultProvider: DataProvider<CategorizerRecord> | null = null;
+
+/**
+ * The browser's provider of the one collection (#412): IndexedDB, with the localStorage records
+ * copied in once and left alone (`createMigratingProvider`), and localStorage itself where
+ * IndexedDB is not usable. One per page, so every view settles the question once.
+ */
+export function defaultCategorizerProvider(): DataProvider<CategorizerRecord> {
+  return (defaultProvider ??= createMigratingProvider<CategorizerRecord>({
+    primary: createIdbProvider<CategorizerRecord>({ dbName: CATEGORIZERS_IDB_NAME }),
+    legacy: localStorageCollectionProvider<CategorizerRecord>(CATEGORIZERS_STORAGE_KEY),
+    flag: localStorageFlag(CATEGORIZERS_IDB_MIGRATED_KEY),
+  }));
 }
 
 /** The copy under way, per collection (its storage key, or an injected provider): shared by every
@@ -173,7 +203,7 @@ export interface CategorizerStoreOptions {
 /** The collection behind a view or the index: its provider, and the wait for the legacy copy. */
 function openCollection(options: CategorizerStoreOptions): { provider: DataProvider<CategorizerRecord>; ready: () => Promise<unknown> } {
   const defaulted = options.provider === undefined;
-  const provider = options.provider ?? localStorageCollectionProvider<CategorizerRecord>(CATEGORIZERS_STORAGE_KEY);
+  const provider = options.provider ?? defaultCategorizerProvider();
   const legacy = options.legacy !== undefined ? options.legacy : defaulted ? localStorageCollectionProvider<CategorizerRecord>(LEGACY_FACE_STORAGE_KEY) : null;
   const flag = options.flag ?? localStorageFlag();
   const copyKey: unknown = defaulted ? CATEGORIZERS_STORAGE_KEY : provider;
@@ -207,16 +237,34 @@ function withoutBindings<P extends { bindings?: unknown }>(payload: P): Omit<P, 
   return rest;
 }
 
+/** The stored record under `id` as stored (undefined when absent). One read of that record, not
+ *  of the collection (a record may hold two thousand samples). Both providers throw `Item not
+ *  found` for an absent id; any other failure is not an absence and is thrown on. */
+async function rawById(provider: DataProvider<CategorizerRecord>, id: string): Promise<CategorizerRecord | undefined> {
+  try {
+    return await provider.getOne(id);
+  } catch (e) {
+    if (/not found/i.test((e as { message?: string })?.message ?? '')) return undefined;
+    throw e;
+  }
+}
+
 /** Write `record` under its id (an update when one is there, else a create). */
 async function put<T extends AnyCategorizerRecord>(provider: DataProvider<CategorizerRecord>, record: T): Promise<T> {
   const p = provider as unknown as DataProvider<T>;
-  const exists = (await provider.getList({})).data.some((r) => r.id === record.id);
-  return exists ? p.update(record.id, record) : p.create(record);
+  if (await rawById(provider, record.id)) return p.update(record.id, record);
+  try {
+    return await p.create(record);
+  } catch (e) {
+    // A save of the same id (another tab, a double click) got in between: this one replaces it.
+    if ((e as { name?: string })?.name === 'ConstraintError') return p.update(record.id, record);
+    throw e;
+  }
 }
 
 /** The stored record under `id`, validated (null when absent or invalid). */
 async function stored(provider: DataProvider<CategorizerRecord>, id: string): Promise<AnyCategorizerRecord | null> {
-  const raw = (await provider.getList({})).data.find((r) => r.id === id);
+  const raw = await rawById(provider, id);
   return raw ? parseRecord(raw) : null;
 }
 
@@ -228,17 +276,6 @@ async function stored(provider: DataProvider<CategorizerRecord>, id: string): Pr
 export function createCategorizerStore(modality: Pick<CarveModality, 'id' | 'words'>, options: CategorizerStoreOptions = {}): CategorizerStore {
   const { provider, ready } = openCollection(options);
   const mine = (raw: unknown): boolean => recordKind(raw) === modality.id;
-  /** This view's records that validate. */
-  const all = async (): Promise<CategorizerRecord[]> => {
-    await ready();
-    const out: CategorizerRecord[] = [];
-    for (const raw of (await provider.getList({})).data) {
-      if (!mine(raw)) continue;
-      const parsed = CategorizerRecordSchema.safeParse(raw);
-      if (parsed.success) out.push(parsed.data);
-    }
-    return out;
-  };
   return {
     async list(): Promise<NamedSummary[]> {
       await ready();
@@ -260,11 +297,16 @@ export function createCategorizerStore(modality: Pick<CarveModality, 'id' | 'wor
       return put(provider, record);
     },
     async load(id) {
-      return (await all()).find((r) => r.id === id) ?? null;
+      await ready();
+      const raw = await rawById(provider, id);
+      if (!raw || !mine(raw)) return null;
+      const parsed = CategorizerRecordSchema.safeParse(raw);
+      return parsed.success ? parsed.data : null;
     },
     async remove(id) {
       await ready();
-      if ((await provider.getList({})).data.some((r) => r.id === id && mine(r))) await provider.delete(id);
+      const raw = await rawById(provider, id);
+      if (raw && mine(raw)) await provider.delete(id);
     },
   };
 }
@@ -310,7 +352,7 @@ export function createCategorizerIndex(options: CategorizerStoreOptions = {}): C
     },
     async setBindings(id, bindings) {
       await ready();
-      const raw = (await provider.getList({})).data.find((r) => r.id === id);
+      const raw = await rawById(provider, id);
       if (!raw || !parseRecord(raw)) return null;
       // Only `model.bindings` changes: the stored record is patched as read, never rebuilt from a
       // parse (which would drop what a newer build added to it).
@@ -319,7 +361,7 @@ export function createCategorizerIndex(options: CategorizerStoreOptions = {}): C
     },
     async remove(id) {
       await ready();
-      const raw = (await provider.getList({})).data.find((r) => r.id === id);
+      const raw = await rawById(provider, id);
       if (!raw) return;
       await provider.delete(id);
       // A carved categorizer may be playing in an instrument; a trained model never is.
