@@ -108,6 +108,8 @@ One that did: `numHands: 1` cuts the hand model's cost by 40 % on the CPU delega
 
 The glitch counter reads Chromium's `AudioContext.playbackStats` (`underrunEvents`, present in Chromium 153) and, elsewhere, steps in the output timestamp pair's clock offset (`packages/sdk/src/timing/glitches.ts`). Headless Chromium's fake audio device reported no underruns under any hint, including 0 under 4x CPU throttling, so whether hint 0 glitches on real hardware is still a question for a real machine; the status line will say so when it does.
 
+**The clock stamp's capture-lag shift on the animation-frame path (#545).** A `clock` stamp is the moment the animation loop noticed a frame, and `captureTime` moves it back by the lag learned from the video frame callback's frames (delivery minus `captureTime`). The two noticing moments differ, so the shift could be short by up to a display period. `smoke/latency/clock_stamp_shortfall.mjs` times both over the same frames in a real Chromium (fake camera, 16.7 ms display period): the callback's lag is 8.3 ms, the animation loop's 9.0 ms, so the shift is short by **0.7 ms** (p5 0.5, p95 0.9; 160 frames at 30 fps, 90 at 15 fps, the same). Both fire in the same rendering update, so on Chromium the premise (a display period of shortfall) does not hold and nothing is changed. A browser where the callback and the animation loop notice a frame in different updates (WebKit, where the pump uses the animation loop) is not measured here: that needs a Safari on real hardware (the script runs on Chromium only).
+
 ## 5. How to measure on your own machine
 
 ### 5.1 The probe, with your webcam
