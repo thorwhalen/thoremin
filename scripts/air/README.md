@@ -59,6 +59,7 @@ npx vite-node scripts/air/train_air_model.ts flute pitch_class
 npx vite-node scripts/air/train_air_model.ts bass pitch_class
 npx vite-node scripts/air/eval_drum_strokes.ts --file <stem of a local clip>   # strokes vs audio onsets per tracked point, drums by clustering
 npx vite-node scripts/air/eval_drum_anchors.ts    # which point to track, on the an.impacts stick clips (exact truth)
+npx vite-node scripts/air/eval_pad_floors.ts      # the pads on the synthetic stick takes: on pad, predicted, sounding MAE (#353, #530)
 ```
 
 Results per instrument are in the research doc §6.3 (guitar) and §7 (bass, flute, drums).
@@ -93,7 +94,7 @@ The face stream `video_to_face.py` writes carries blendshapes only; `extract_mou
 | `fetch.py`, `extract.py`, `extract_mouth.py` | download; every stream and the meta per source through `scripts/video_streams.py` (which runs `video_to_pose.py` / `video_to_landmarks.py` / `video_to_face.py --landmarks-out`), pre-rule names migrated; the streamed mouth stream (blendshapes + lip landmarks) |
 | `lib_embouchure_onset.ts`, `eval_embouchure_onset.ts` | mouth signals (blendshapes + lip geometry), the oracle onset profile, the causal embouchure detector (ictus anchors), one-to-one matching and lead statistics; the flute CLI that scores them |
 | `build_chord_shape_dataset.ts`, `train_chord_shape.ts`, `enrol_chord_shape.ts` | the guitar CLIs: join, held-out training, enrolment budget |
-| `build_pitch_dataset.ts`, `train_air_model.ts`, `eval_drum_strokes.ts`, `eval_drum_anchors.ts` | flute/bass join, the generic held-out trainer, the drum stroke evaluation on footage, the tracked-point comparison on synthetic strokes |
+| `build_pitch_dataset.ts`, `train_air_model.ts`, `eval_drum_strokes.ts`, `eval_drum_anchors.ts`, `eval_pad_floors.ts` | flute/bass join, the generic held-out trainer, the drum stroke evaluation on footage, the tracked-point comparison on synthetic strokes, the pads on the synthetic stick takes |
 
 ## Adding a source
 

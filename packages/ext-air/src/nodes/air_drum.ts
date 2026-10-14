@@ -39,9 +39,10 @@
  * predictor's depth of the turn) the depth it stopped at and the top it fell from, and
  * before each sample the predictor is told the floor of the pad the stroke is heading
  * for (`ImpactPredictor.setFloor`): of the pads its way down crosses at their floor, the
- * one whose strokes start nearest where this one did. A pad never struck has no floor
- * yet, so the first stroke on it is read as before. With no pad on nothing is named, and
- * the node is what it was.
+ * one whose strokes start nearest where this one did. A pad never struck is expected
+ * at its centre's depth, moved and topped by the player's strokes on the other pads
+ * (#530), until its own first stroke teaches it. With no pad on nothing is named, and the
+ * node is what it was.
  *
  * What comes out is a list of {@link DrumHit}s on the `hits` port — each with the
  * time it should SOUND, in engine seconds, possibly in the future — which the
@@ -1195,7 +1196,7 @@ export const airDrumNode = defineNode<Params>({
     };
 
     /** #353: name the predictor the floor of the pad the stroke in progress is heading for
-     *  (NaN, its own floor, until two pads have one). */
+     *  (NaN, its own floor, until a pad has one). */
     const nameFloor = (f: FrameTick, st: StickTick) => {
       const { c } = f;
       const { stick, predictor } = st;

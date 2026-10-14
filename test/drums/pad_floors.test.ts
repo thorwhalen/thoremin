@@ -5,7 +5,7 @@
  * The production-graph takes are in `landing_arc.test.ts`.
  */
 import { describe, it, expect } from 'vitest';
-import { MIN_FLOOR_PADS, PAD_FLOOR_GAIN, learnPadFloor, padFloorFor, type PadFloors } from '@thoremin/ext-air/lib/pad_floors';
+import { MIN_FLOOR_PADS, PAD_FLOOR_GAIN, learnPadFloor, padFloorFor, priorPadFloor, type PadFloors } from '@thoremin/ext-air/lib/pad_floors';
 import { DEFAULT_PADS, DEFAULT_PADS_SET, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 
 /** The snare (p1, 0.5, 0.72) and the kick stacked under it (p6, 0.5, 0.80), and the crash (p4). */
@@ -32,8 +32,8 @@ describe('per-pad floors (#353)', () => {
     expect(padFloorFor({}, pads, { top: 0.5, xAt: straightDown(0.5) })).toBeNaN();
     const f = learnPadFloor({}, 'p1', { floor: 0.72, top: 0.48 });
     expect(padFloorFor(f, pads, { top: 0.48, xAt: straightDown(0.5) })).toBe(0.72);
-    // A stroke at the crash's x crosses no learned pad: the predictor's own floor.
-    expect(padFloorFor(f, pads, { top: 0.1, xAt: straightDown(0.14) })).toBeNaN();
+    // A stroke whose way crosses no pad at all: the predictor's own floor.
+    expect(padFloorFor(f, pads, { top: 0.1, xAt: straightDown(0.99) })).toBeNaN();
     // A switched-off pad is no candidate, whatever it learned.
     expect(padFloorFor(f, { ...pads, p1: { ...pads.p1, on: false } }, { top: 0.48, xAt: straightDown(0.5) })).toBeNaN();
   });
@@ -47,5 +47,22 @@ describe('per-pad floors (#353)', () => {
     expect(padFloorFor(f, pads, { top: 0.55, xAt: straightDown(0.5) })).toBe(0.8);
     // A stroke whose way leaves the snare's width before its floor goes to the wider kick.
     expect(padFloorFor(f, pads, { top: 0.49, xAt: straightDown(0.37) })).toBe(0.8);
+  });
+
+  it('reads a pad never struck from its geometry and the player\'s habits on the others (#530)', () => {
+    // The player's snare strokes stop 0.02 below its centre and fall 0.24.
+    const f = learnPadFloor({}, 'p1', { floor: 0.74, top: 0.5 });
+    expect(priorPadFloor({}, pads, 'p6')).toBeUndefined();
+    const kick = priorPadFloor(f, pads, 'p6')!;
+    expect(kick.floor).toBeCloseTo(0.8 + 0.02, 12);
+    expect(kick.top).toBeCloseTo(0.82 - 0.24, 12);
+    // The first stroke on the kick (started at its expected top) is named the kick's
+    // expected floor; a snare stroke keeps the snare's.
+    expect(padFloorFor(f, pads, { top: 0.58, xAt: straightDown(0.5) })).toBeCloseTo(0.82, 12);
+    expect(padFloorFor(f, pads, { top: 0.5, xAt: straightDown(0.5) })).toBe(0.74);
+    // The crash, high and to the left, is reached at its own expected depth.
+    expect(padFloorFor(f, pads, { top: 0.08, xAt: straightDown(0.14) })).toBeCloseTo(0.32, 12);
+    // Once struck, the learned floor replaces the prior.
+    expect(padFloorFor(learnPadFloor(f, 'p6', { floor: 0.79, top: 0.6 }), pads, { top: 0.6, xAt: straightDown(0.5) })).toBe(0.79);
   });
 });

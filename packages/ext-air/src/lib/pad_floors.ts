@@ -23,6 +23,11 @@
  * higher than usual on the same pad is the case this reads wrong (its start is nearer
  * a higher pad's), and it is the cost the test pins.
  *
+ * A pad never struck has nothing learned, so it gets a prior (#530): its centre's depth
+ * moved by how far the player's strokes stop from a pad's centre, and a top one usual
+ * stroke above that. Without it the first stroke on a new pad was named the floor of
+ * whatever learned pad it crossed (the kick's first stroke read as the snare).
+ *
  * A floor is named from the first pad that has one (the stroke's own top, not the least
  * depth since the last pad, is what the rule and the predictor's restart need from the
  * first change of pad on). With no pad on, nothing is named: the predictor is bit for bit
@@ -64,19 +69,39 @@ export interface StrokeSoFar {
 }
 
 /**
+ * What a pad never struck is expected to do (#530), from the pads that have been: its
+ * floor at its centre's depth moved by how far the player's strokes stop from a pad's
+ * centre, and its top one stroke above that floor (the mean of the learned pads' fall).
+ * Both are the player's own habits read on the other pads, so the prior carries no
+ * constant of its own. Undefined with no pad learned.
+ */
+export function priorPadFloor(floors: PadFloors, pads: Pads, pad: PadId): PadFloor | undefined {
+  const learned = (Object.keys(floors) as PadId[]).filter((id) => floors[id]);
+  if (!learned.length) return undefined;
+  const mean = (f: (id: PadId) => number) => learned.reduce((a, id) => a + f(id), 0) / learned.length;
+  const floor = pads[pad].y + mean((id) => floors[id]!.floor - pads[id].y);
+  return { floor, top: floor - mean((id) => floors[id]!.floor - floors[id]!.top) };
+}
+
+/**
  * The floor the stroke in progress is heading for, or NaN for "the predictor's own"
- * (fewer than {@link MIN_FLOOR_PADS} pads learned, or no learned pad on the stroke's way).
- * A candidate is a switched-on pad with a learned floor whose shape the stroke's way
- * crosses AT that floor (the point the stroke would stop at is on the pad); the one
- * chosen is the candidate whose strokes start nearest where this one did.
+ * (fewer than {@link MIN_FLOOR_PADS} pads learned, or no pad on the stroke's way).
+ * A candidate is a switched-on pad whose shape the stroke's way crosses AT that pad's
+ * floor (the point the stroke would stop at is on the pad): its learned floor, or for a
+ * pad never struck its {@link priorPadFloor} (#530: the first stroke on a new pad was
+ * read against the last pad's floor). The one chosen is the candidate whose strokes
+ * start nearest where this one did.
  */
 export function padFloorFor(floors: PadFloors, pads: Pads, stroke: StrokeSoFar): number {
   const learned = (Object.keys(floors) as PadId[]).filter((id) => pads[id]?.on && floors[id]);
   if (learned.length < MIN_FLOOR_PADS || !Number.isFinite(stroke.top)) return NaN;
   let best = NaN;
   let bestCost = Infinity;
-  for (const id of learned) {
-    const { floor, top } = floors[id]!;
+  for (const id of Object.keys(pads) as PadId[]) {
+    if (!pads[id].on) continue;
+    const expected = floors[id] ?? priorPadFloor(floors, pads, id);
+    if (!expected) continue;
+    const { floor, top } = expected;
     if (padDistance(pads[id], { x: stroke.xAt(floor), y: floor }) > 1) continue;
     const cost = Math.abs(stroke.top - top);
     if (cost < bestCost) {

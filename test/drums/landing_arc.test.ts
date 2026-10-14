@@ -82,14 +82,14 @@ describe.runIf(AIR)('the pads demo take (#261): every stroke on its pad, no fals
     // the later slot must not be read as the earlier one just because its path crossed
     // that one's top edge first. Each pad is struck four times. Since #353 each pad has
     // its own floor, so a change of pad is predicted against the new pad's depth at once;
-    // the one stroke left off its pad is the first ever on the kick, which no floor
-    // describes yet (before #353: four off, the strokes after each change of pad).
+    // and since #530 a pad never struck is expected at its own depth, so the first kick is
+    // on it too (before #353: four off; before #530: one, the first ever on the kick).
     const pads = kitWithLowPads();
     const order = ['p1', 'p6', 'p1', 'p7', 'p3', 'p6', 'p7', 'p5'] as PadId[];
     const script: DrumStroke[] = order.flatMap((pad) => [hard(pad), hard(pad), hard(pad), hard(pad)]);
     const { score } = await playTake(pads, { script });
     expect(offPadAfterFirst(score)).toEqual([]);
-    expect(score.off).toBeLessThanOrEqual(1);
+    expect(score.off).toBe(0);
     expect(score.false).toBe(0);
     expect(score.missed).toBe(0);
   });
@@ -119,8 +119,9 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
   // Sixteen strokes each, through the production graph. Before #353 (one floor per hand,
   // following the last pad at half a stroke per stroke): the kick/snare alternation put 7
   // of 16 off their pad (every snare after a kick read as the kick), 8 with landmark noise
-  // and 8 with soft and hard strokes mixed; tom/floor tom 8. Now the only stroke off its
-  // pad is the first on the kick.
+  // and 8 with soft and hard strokes mixed; tom/floor tom 8. After #353 the only stroke
+  // off its pad was the first on the kick; since #530 (a never-struck pad's expected
+  // floor) none is.
   const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard'): DrumStroke[] =>
     Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k) }));
   /** The kick moved down so that it no longer overlaps the snare (0.82 to 0.94; the snare
@@ -138,7 +139,7 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
     it(name, async () => {
       const { score } = await playTake(layout(kitWithLowPads()), { ...options, script });
       expect(offPadAfterFirst(score)).toEqual([]);
-      expect(score.off).toBeLessThanOrEqual(1);
+      expect(score.off).toBe(0);
       expect({ missed: score.missed, false: score.false }).toEqual({ missed: 0, false: 0 });
       // Predicted ahead of the frame that shows the impact, not sounded late on confirmation.
       expect(score.perStroke.filter((p) => p.hit?.predicted).length).toBeGreaterThanOrEqual(14);

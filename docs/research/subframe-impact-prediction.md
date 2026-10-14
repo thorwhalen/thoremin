@@ -197,6 +197,34 @@ The stroke left off its pad is, in every row, the first ever on the kick: no flo
 
 What the rule does not do, from the adversarial review. It reads where a stroke started, so a stroke raised much lower (or higher) than that pad's usual can be sent to the stacked neighbour: snare strokes at a lift of 0.45 against hard kicks at 0.7 put 7 of 16 off (8 before #353), at 0.5 two; the limit is a pad whose stroke heights vary by more than half the depth gap to its stacked neighbour ([#533](https://github.com/thorwhalen/thoremin/issues/533)). The first stroke on a pad never struck can now go either way: on the kick / snare alternation the old single floor got the first kick right by a late commit (its bad fits made it wait until the stroke was already below the snare), and the restart's better fit commits earlier, against the snare's floor. The floors start over whenever the predictor is rebuilt (the hand's size drifting by 1.5x, a changed tracked point), and a pad moved while its floor is learned keeps the old floor until its strokes pull it over at half a stroke per stroke. With no pad on nothing is named: `scripts/subframe/score.ts` on `bench-v2` (noise 0 and 1 px, leads 30 and 77 ms) and `scripts/air/eval_drum_anchors.ts` (arm 0 and 25 %, noise 0 and 0.02) print byte-identical tables before and after, and no hit's time, sound, velocity or position changes (a ghost note's landing is read at the turn's depth only with a pad on).
 
+#### 3.1.4 A pad never struck (#530, measured 2026-10-14)
+
+After #353 the one stroke off its pad was, in every row, the first ever on a pad: nothing describes a pad before a stroke has turned on it, so the stroke was named the floor of whatever learned pad its way crossed (the first kick, under the snare, read as the snare). A pad never struck now gets a prior from its geometry and the player's own habits on the pads already struck (`priorPadFloor` in `packages/ext-air/src/lib/pad_floors.ts`): its floor is its centre's depth moved by the mean distance between a learned pad's floor and its centre, its top one mean fall (learned floor minus learned top) above that, and it competes with the learned pads under the same rule (its way must cross it at that floor; the nearest top wins). Its first confirmed stroke replaces the prior with what it did. The prior has no constant of its own; with no pad learned, nothing is named, as before.
+
+`npx vite-node scripts/air/eval_pad_floors.ts` (the production graph on the synthetic stick takes, 30 fps; the rows of §3.1.3 plus the follow-ups' cases), main after #353 → with the prior: strokes on their own pad, strokes predicted, sounding MAE (ms).
+
+| take | n | on pad | predicted | sounding MAE |
+|---|---|---|---|---|
+| kick / snare alternating (stacked) | 16 | 15 → 16 | 15 → 15 | 13.2 → 12.6 |
+| the same, noise 0.02 | 16 | 15 → 16 | 15 → 15 | 12.8 → 11.9 |
+| the same, noise 0.05 | 16 | 14 → 14 | 15 → 15 | 8.8 → 8.8 |
+| soft and hard mixed | 16 | 16 → 16 | 14 → 15 | 17.8 → 17.8 |
+| snare / kick / tom groove | 16 | 15 → 16 | 15 → 15 | 13.2 → 12.6 |
+| the same, noise 0.02 | 16 | 15 → 16 | 15 → 15 | 13.1 → 12.1 |
+| kick / snare in pairs | 16 | 15 → 16 | 15 → 15 | 12.6 → 12.6 |
+| tom / floor tom alternating | 16 | 16 → 16 | 14 → 15 | 16.3 → 12.6 |
+| four strokes per pad | 32 | 31 → 32 | 31 → 31 | 13.2 → 11.9 |
+| the same, noise 0.02 | 32 | 31 → 32 | 31 → 31 | 13.5 → 11.3 |
+| the demo take, starter kit | 13 | 13 → 13 | 11 → 12 | 20.5 → 15.3 |
+| the same, noise 0.02 | 13 | 13 → 13 | 11 → 12 | 18.4 → 14.6 |
+| snare lifted 0.45, kick 0.7 (#533) | 16 | 9 → 10 | 15 → 15 | 14.1 → 13.0 |
+| snare lifted 0.5, kick 0.7 (#533) | 16 | 14 → 15 | 15 → 15 | 12.9 → 11.8 |
+| snare lifts 0.5 to 0.9, kick 0.7 (#533) | 16 | 14 → 15 | 15 → 15 | 13.0 → 11.9 |
+| crash, snare, kick, hihat, tom | 10 | 8 → 9 | 7 → 8 | 19.2 → 15.7 |
+| ride then floor tom | 6 | 6 → 6 | 3 → 3 | 22.2 → 14.6 |
+
+No row loses anything. The noise-0.05 row's two strokes off are the first stroke of the take (no pad learned at all) and one snare read as the kick under heavy noise. What is left off in the #533 rows is #533's own limit (a pad's stroke heights varying by more than half the gap to its stacked neighbour), not the first stroke. The synthetic player's strokes stop at the pad's centre, so here the moved centre is exact; a real player who strikes a pad's near edge is expected there on a new pad too, which is the reason for the offset. With no pad on, `scripts/air/eval_drum_anchors.ts` on `bench-v2` prints a byte-identical table (the change is inside the pad rule only).
+
 ### 3.2 By frame rate
 
 | estimator | 24 fps | 30 fps | 60 fps |
