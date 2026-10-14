@@ -67,9 +67,14 @@ STREAMS: dict[str, dict] = {
     "hands": {
         "script": "video_to_landmarks.py",
         "files": ["{id}.hands.ndjson.gz"],
-        "args": lambda o, p: [o[0], "--max-hands", str(p["max_hands"]), "--min-confidence", str(p["hands_confidence"])],
+        "args": lambda o, p: [o[0], "--max-hands", str(p["max_hands"]), "--min-confidence", str(p["hands_confidence"]),
+                              *(["--crop-from-pose", p["hands_pose_stream"], "--crop-scale", str(p["hand_crop_scale"])] if p.get("hands_pose_stream") else [])],
         "model": lambda p: {"name": "HandLandmarker", "url": _HAND_LANDMARKER, "numHands": p["max_hands"],
-                            "minConfidence": p["hands_confidence"]},
+                            "minConfidence": p["hands_confidence"],
+                            "crop": (f"whole frame first; then, for a pose wrist no whole-frame hand covers, a pose-guided crop "
+                                     f"(--crop-from-pose, scale {p['hand_crop_scale']}, 256 px, one hand per crop); keypoints mapped "
+                                     "back to the whole frame, a cropped hand's `crop` is [x0, y0, side] px and `poseSide` the pose "
+                                     "wrist it was cut around; handedness is the model's raw label") if p.get("hands_pose_stream") else "whole frame"},
         "shape": "HandsFrame: 21 pixel keypoints per hand with the raw z, worldKeypoints, handedness as the model reported it",
     },
     "face": {
@@ -89,7 +94,7 @@ STREAMS: dict[str, dict] = {
 ALL_STREAMS = tuple(STREAMS)
 
 DEFAULT_PARAMS = {"pose_model": "full", "pose_confidence": 0.5, "max_hands": 2, "hands_confidence": 0.4,
-                  "face_crop": True, "face_crop_scale": 3.0}
+                  "face_crop": True, "face_crop_scale": 3.0, "hands_crop": True, "hand_crop_scale": 3.0}
 
 
 def data_root() -> Path:
@@ -180,6 +185,8 @@ def extract_streams(video: Path, out_dir: Path, clip_id: str, *, python: Path, s
     meta's (``write_meta`` merges); a stream not in ``known`` (made before any meta, e.g.
     by an older script) gets an entry that says so, so the meta never omits a stream.
 
+    The hands also run on pose-guided wrist crops (``hands_crop``, on by default) where the
+    whole-frame model finds none: it misses hands under a few tens of pixels.
     The face runs on a pose-guided head crop when the clip's pose stream exists
     (``face_crop``, on by default): the face detector misses a face much under a tenth of
     the frame, which is every body clip. With ``meta_path`` each stream's provenance is
@@ -194,6 +201,10 @@ def extract_streams(video: Path, out_dir: Path, clip_id: str, *, python: Path, s
         outs = [out_dir / f.format(id=clip_id) for f in spec["files"]]
         if name == "face" and p["face_crop"] and pose_out.exists():
             p["pose_stream"] = str(pose_out)
+        if name == "hands" and p["hands_crop"] and pose_out.exists():
+            p["hands_pose_stream"] = str(pose_out)
+        elif name == "hands":
+            p.pop("hands_pose_stream", None)
         if all(o.exists() for o in outs):
             if name not in known:
                 result[name] = {"files": [o.name for o in outs], "extractor": f"scripts/{spec['script']}",
