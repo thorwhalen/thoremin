@@ -64,11 +64,13 @@ export interface InvarianceSelection {
 /**
  * Split the catalog's features by whether they declare invariance to every axis in
  * `axes`. With no axes requested everything is kept — asking for nothing excludes
- * nothing.
+ * nothing. `world: false` (an image-only source) withholds what a feature claims only on
+ * world landmarks (`FeatureDef.worldOnly`).
  */
 export function selectByInvariance(
   axes: readonly Invariance[],
   featureIds?: readonly string[],
+  { world = true }: { world?: boolean } = {},
 ): InvarianceSelection {
   const ids = featureIds ?? ALL_FEATURES.map((f) => f.id);
   const keep: string[] = [];
@@ -79,7 +81,9 @@ export function selectByInvariance(
       keep.push(id);
       continue;
     }
-    const declared = FEATURE_BY_ID[id]?.invariantTo;
+    const def = FEATURE_BY_ID[id];
+    // An image-only source: what a feature claims only on world landmarks is not claimed (#432).
+    const declared = world || !def?.worldOnly ? def?.invariantTo : def.invariantTo?.filter((a) => !def.worldOnly!.includes(a));
     if (declared === undefined) unassessed.push(id);
     else if (axes.every((a) => declared.includes(a))) keep.push(id);
     else drop.push(id);
