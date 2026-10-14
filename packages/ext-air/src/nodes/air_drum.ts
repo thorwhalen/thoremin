@@ -698,6 +698,9 @@ interface Stick {
    *  at, named to the predictor per stroke once two pads have one. Rebuilt with the
    *  predictor (it is in the same units). */
   floors: PadFloors;
+  /** The floor last named to the predictor (NaN: none): a prediction taken against it is
+   *  read on the pad under its landing point. */
+  named: number;
 }
 
 /** One tick's reading of the grid, shared by every stroke decided in it. */
@@ -824,6 +827,7 @@ export const airDrumNode = defineNode<Params>({
       committed: null,
       handled: null,
       floors: {},
+      named: NaN,
     });
     /** Keep a grip-gated stick's predictor set for the hand's current size. */
     const regate = (stick: Stick, c: Params, gripFh: number, t: number) => {
@@ -980,9 +984,16 @@ export const airDrumNode = defineNode<Params>({
     /** What a stroke landing at `at` plays, and how hard (#245): the pad under the
      *  landing point (or the hand's own sound), the centre-to-rim position, and the
      *  stroke's hardness (`velocityOf`) as the velocity before the volume dial. */
-    const strike = (c: Params, st: StickTick, landing: Landing, strength: number): Strike => {
+    const strike = (c: Params, st: StickTick, landing: Landing, strength: number, { named = false } = {}): Strike => {
       const speed = landing.speed;
-      const padHit = anyPadOn(c.pads) ? hitPad(c.pads, landing, c.offPad, landing.path) : null;
+      const alongPath = anyPadOn(c.pads) ? hitPad(c.pads, landing, c.offPad, landing.path) : null;
+      // A stroke predicted against the floor of the pad it is heading for (#353) lands at
+      // that pad's depth. The path walks down from the stroke and takes the first pad it
+      // crosses, which is right for a pad no floor describes yet (the stroke may be going
+      // there) but not for one with a floor the rule already weighed and passed over (the
+      // snare above a kick that does not overlap it): then the pad under the landing point.
+      const under = named && alongPath && st.stick.floors[alongPath.id] ? hitPad(c.pads, landing, 'silent') : null;
+      const padHit = under ?? alongPath;
       const silent = !padHit && anyPadOn(c.pads) && c.offPad === 'silent';
       return {
         silent,
@@ -1022,7 +1033,7 @@ export const airDrumNode = defineNode<Params>({
       // magnet can pull nothing it was never offered, and the status says why.
       if (carried(st, e.t, NaN)) return false;
       const snappedT = deepestSampleTime(stick.recent, e.t);
-      const s = strike(c, st, landingAt(stick.recent, snappedT, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect, depth: e.depth }), e.strength);
+      const s = strike(c, st, landingAt(stick.recent, snappedT, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect, depth: anyPadOn(c.pads) ? e.depth : NaN }), e.strength);
       if (s.silent) return true;
       // Pattern mode keeps following (its drum names the sound); the time stays now.
       let sound = s.sound;
@@ -1060,7 +1071,7 @@ export const airDrumNode = defineNode<Params>({
       stick.committed = f.running ? { t: e.t, grid: nearestExpectedBeat(time!, e.t) } : null;
       stick.handled = e.t;
       if (carried(st, e.t, e.floor)) return;
-      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { floor: e.floor, aspect: f.aspect }), e.strength);
+      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { floor: e.floor, aspect: f.aspect }), e.strength, { named: stick.named === e.floor });
       if (s.silent) return;
       /** The INTENDED sounding time: the impact, pulled toward the grid. */
       let intended = e.t;
@@ -1147,7 +1158,7 @@ export const airDrumNode = defineNode<Params>({
       stick.committed = null;
       stick.handled = null;
       if (carried(st, e.t, NaN)) return false;
-      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect, depth: e.depth }), e.strength);
+      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect, depth: anyPadOn(c.pads) ? e.depth : NaN }), e.strength);
       if (s.silent) return true;
       // A stroke the pipeline could not predict cannot be pulled.
       if (f.engaged) noteOutcome('pipeline');
@@ -1194,6 +1205,7 @@ export const airDrumNode = defineNode<Params>({
         if (Number.isFinite(top)) floor = padFloorFor(stick.floors, c.pads, { top, xAt: landingAt(stick.recent, f.t, st.gates.minAmplitude * FALL_JITTER, { aspect: f.aspect }).path.xAt });
       }
       predictor.setFloor(floor);
+      stick.named = floor;
     };
 
     /** One predictor event, routed by kind and by the sub-frame standing. */

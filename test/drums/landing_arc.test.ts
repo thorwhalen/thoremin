@@ -123,15 +123,20 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
   // pad is the first on the kick.
   const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard'): DrumStroke[] =>
     Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k) }));
-  const cases: [string, DrumStroke[], DrumTakeOptions][] = [
+  /** The kick moved down so that it no longer overlaps the snare (0.82 to 0.94; the snare
+   *  ends at 0.84 only at its centre's x): a prediction at the kick's floor is read on the
+   *  kick, not on the snare its path crosses first (the #353 review). */
+  const kickBelow = (pads: Pads): Pads => ({ ...pads, p6: { ...pads.p6, y: 0.88 } });
+  const cases: [string, DrumStroke[], DrumTakeOptions, ((p: Pads) => Pads)?][] = [
     ['kick and snare (stacked) alternating', alternate('p1', 'p6'), {}],
+    ['kick and snare alternating, the kick below the snare', alternate('p1', 'p6'), {}, kickBelow],
     ['kick and snare alternating under landmark noise', alternate('p1', 'p6'), { noise: 0.02, seed: 3 }],
     ['kick and snare, soft and hard strokes mixed', alternate('p1', 'p6', (k) => (k % 4 < 2 ? 'soft' : 'hard')), {}],
     ['tom and floor tom (overlapping) alternating', alternate('p3', 'p7'), {}],
   ];
-  for (const [name, script, options] of cases) {
+  for (const [name, script, options, layout = (p: Pads) => p] of cases) {
     it(name, async () => {
-      const { score } = await playTake(kitWithLowPads(), { ...options, script });
+      const { score } = await playTake(layout(kitWithLowPads()), { ...options, script });
       expect(offPadAfterFirst(score)).toEqual([]);
       expect(score.off).toBeLessThanOrEqual(1);
       expect({ missed: score.missed, false: score.false }).toEqual({ missed: 0, false: 0 });
