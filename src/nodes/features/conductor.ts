@@ -128,14 +128,17 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, conductorRatios, createDanceLead, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
+import { beatAt, conductorRatios, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState } from '@thoremin/ictus';
 import type { BodyFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { handPoint, isFresh, MIN_SAMPLE_SPACING, pickHand } from './conductor_hands';
 import { createExpressionShaper } from './conductor_shaping';
 import { createDocContext } from './conductor_doc';
+import { createDanceState } from './conductor_dance';
+import { createBodyTransport, rulesOn, START_BPM, START_EPS, type Grid, type StartFlags } from './conductor_transport';
+export type { ConductorTransportReading } from './conductor_transport';
 export { firstTempo } from './conductor_doc';
-import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyMotionMeter } from './conductor_body';
+import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, CONDUCTOR_BODY_POINTS } from './conductor_body';
 import { clamp01 } from '@thoremin/sdk/features/math';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
@@ -227,9 +230,6 @@ export const ConductorHandGestureSchema = z.object({
 export type ConductorHandGesture = z.infer<typeof ConductorHandGestureSchema>;
 export const DEFAULT_CONDUCTOR_HAND_GESTURE: ConductorHandGesture = ConductorHandGestureSchema.parse({});
 export const DEFAULT_CONDUCTOR_TRANSPORT: ConductorTransport = ConductorTransportSchema.parse({});
-/** What the `transport` output reads: the body transport's phase, `stopped` on the frame a
- *  cut-off lands, or `off` (reading the hands, or the rules off). */
-export type ConductorTransportReading = TransportPhase | 'stopped' | 'off';
 
 const Params = z.object({
   /** Off by default: conducting replaces the score's fixed tempo, and a player who
@@ -354,17 +354,6 @@ export function conductorReadsTwoHands(c: Partial<Params> | undefined): boolean 
 /** The release of a fermata is a stroke at least this many periods after it was reached. */
 const FERMATA_RELEASE_PERIODS = 0.5;
 
-/** The body's start (#377): the tempo before the second stroke when the score marks none
- *  (the priors' initial tempo), and how far short of a whole beat the start waits. */
-const START_BPM = 100;
-const START_EPS = 1e-3;
-
-/** The body points the transport rules read (#377): those an ARM beats. A player who
- *  bounces (the trunk, the hips, the head) may hang the arms still, which is the cut-off
- *  pose, so those points keep the hand's transport (the first stroke starts). */
-const TRANSPORT_POINTS: ReadonlySet<string> = new Set(['impact', 'wrist']);
-
-/** The transport phases in which the score sounds (#377). */
 /** What one tick's output is built from (`emit`): the time, the tempo it advanced at, the
  *  expression, and the few facts that decide `leadsScore` / `recordingTime` / `level`. */
 interface EmitArgs {
@@ -382,17 +371,9 @@ interface EmitArgs {
 
 /** What feeding the follower one tick produced: its state, and what the body's transport
  *  called (a cut-off, a start, the release of a hold). */
-interface Fed {
+interface Fed extends StartFlags {
   s: IctusState;
-  stopped: boolean;
-  started: boolean;
-  released: boolean;
 }
-
-/** The beat a stroke lands on at or near `b`, given a rounding (`placeStart`, `runBeat`). */
-type Grid = (b: number, snap: (x: number) => number) => number;
-
-const TRANSPORT_SOUNDING: ReadonlySet<TransportPhase> = new Set(['running', 'holding']);
 
 /**
  * The body conductor's per-player lead offsets (#427): per joint (the impact detector's
@@ -409,15 +390,6 @@ export function readLeadOffsets(raw: unknown): LeadOffsets | undefined {
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 0.5) out[k] = v;
   return Object.keys(out).length ? out : undefined;
-}
-
-/** The `transportPose` input as a {@link TransportPose}: booleans only, anything else unstated. */
-function readTransportPose(raw: unknown): TransportPose | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const r = raw as Record<string, unknown>;
-  const pose: TransportPose = {};
-  for (const k of ['ready', 'hold', 'cutoff'] as const) if (typeof r[k] === 'boolean') pose[k] = r[k] as boolean;
-  return pose;
 }
 
 export const conductorNode = defineNode<Params>({
@@ -496,30 +468,9 @@ export const conductorNode = defineNode<Params>({
     let coreKey = '';
     /** The score tempo (bpm) the body follower was built at (null: the priors' default). */
     let seededBpm: number | null = null;
-    /** The body's transport (#377): present while reading the body with the rules on. The
-     *  meter measures the arms' height and motion from the pose stream; it lives as long
-     *  as the stream (a rebuild of the follower does not reset it: its jitter estimate is
-     *  the camera's). */
-    let transport: Transport | null = null;
-    let transportCfg: unknown = null;
-    let meter: BodyMotionMeter | null = null;
-    let transportReading: ConductorTransportReading = 'off';
-    /** The beat the body's transport started on (its downbeat), until the prior has a
-     *  period: meanwhile the beat moves at the marked tempo and waits just short of the
-     *  next stroke's beat for the second stroke (see `process`). */
-    let startBeat: number | null = null;
-    /** The tempo of that interval when it is a release (the tempo before the hold); null at
-     *  a start (the marked tempo then). */
-    let startBpm: number | null = null;
-    /** A cut-off left the beat where it stopped (not at the top): the next start moves on. */
-    let afterStop = false;
-    /** The beat at the last stroke the body's transport accepted, and whether the
-     *  transport says the next stroke is overdue with the body still (`waiting`). */
-    let strokeBeat: number | null = null;
-    let waiting = false;
-    /** The tempo the beat last advanced at: the body's hold runs up to its stop at it, and
-     *  the release moves at it until the next stroke. */
-    let holdBpm = 0;
+    /** The body's transport (#377) and the start it leaves behind (`conductor_transport.ts`):
+     *  present while reading the body with the rules on. */
+    const tp = createBodyTransport();
     /** The expression's state (#378, #457) lives in its own factory (`conductor_shaping.ts`). */
     const expr = createExpressionShaper();
     // Speed-based fallback: EW speed of the tracked point (or the body's quantity of
@@ -590,12 +541,12 @@ export const conductorNode = defineNode<Params>({
       enabled,
       // Before the body's transport has started, and after a cut-off, the score is silent.
       // A dancer's piece is silent until it starts (#380).
-      leadsScore: enabled && sounding && c.conducts === 'score' && !(transport && (!TRANSPORT_SOUNDING.has(transport.phase()) || time.anchors === 0)),
+      leadsScore: enabled && sounding && c.conducts === 'score' && !tp.silences(time.anchors),
       // A dancer leading the recording is the song following the dancer's pulse (the pace
       // law, `song-pace`), not the beat servo on a time derived from it.
       recordingTime: enabled && c.conducts === 'recording' && c.source !== 'dancer' ? time : undefined,
       level,
-      transport: enabled ? transportReading : 'off',
+      transport: enabled ? tp.reading : 'off',
     });
 
     /** The piece's beats per stroke `k` (see the header). `auto` relates the strokes to
@@ -649,47 +600,26 @@ export const conductorNode = defineNode<Params>({
      *  the expression keeps reading the dancer's cycles through a hold, so a dancer's
      *  movement can swell a held chord); the transport rules are a conductor's. The beat
      *  goes on from where the last leader left it. */
-    let dance: DanceLead | null = null;
-    /** The relation the last dance lead FOLLOWED (never a candidate still persisting),
-     *  kept across a switch of leader so that the dancer, chosen again and related the same
-     *  way, re-starts on its next cycle (#506). Checked against the marked tempo in force on
-     *  return (a new piece relates afresh); forgotten when the conductor is switched off. */
-    let danceRatio: number | null = null;
-    const leaveDance = (): void => {
-      const r = dance?.followed();
-      if (r !== undefined && r !== null && Number.isFinite(r) && r > 0) danceRatio = r;
-      dance = null;
-    };
-    let lastCycleAt: number | undefined;
+    const dance = createDanceState();
     const danceTick = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params) => {
-      transport = null;
-      transportReading = 'off';
+      tp.drop();
       levelHold = null;
-      startBeat = null;
+      tp.startBeat = null;
       fermata.at = null;
       // The hand's or the body's follower is not kept across a dancer: back to it, it
       // starts fresh and waits for a first stroke.
       if (ictus) resetFollower();
-      if (!dance) {
-        dance = createDanceLead();
-        dance.reset(beatOut, danceRatio !== null ? { ratio: danceRatio } : undefined);
-        lastCycleAt = undefined;
-      }
+      const lead = dance.enter(beatOut);
       wasEnabled = true;
       const raw = inputs.pulse as PulseState | undefined;
       const pulse = raw && typeof raw === 'object' && typeof raw.period === 'number' ? raw : UNKNOWN_PULSE;
       const marked = doc.tempo?.(beatOut) ?? c.dancer.bpm;
       // The piece's written fermatas hold for one dancer cycle, and its end loops to the top
       // on a cycle start (#463): the dance lead's rules 6 and 7.
-      const d = dance.step({ t: ctx.time, pulse, marked, ref: doc.barStart ? doc.barStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset, fermatas: doc.fermatas, top: doc.sigStart ? doc.sigStart(0) : 0, ...(doc.length !== null ? { end: doc.length } : {}) });
+      const d = lead.step({ t: ctx.time, pulse, marked, ref: doc.barStart ? doc.barStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset, fermatas: doc.fermatas, top: doc.sigStart ? doc.sigStart(0) : 0, ...(doc.length !== null ? { end: doc.length } : {}) });
       beatOut = d.beat;
       // A cycle the follower fitted is the dancer's "stroke" for the expression (A6's note).
-      let cycle: Anchor | null = null;
-      if (pulse.lastAnchorAt !== undefined && pulse.lastAnchorAt !== lastCycleAt) {
-        lastCycleAt = pulse.lastAnchorAt;
-        cycle = { t: pulse.lastAnchorAt, confidence: pulse.confidence, strength: 1, sharpness: NaN, lateral: 0 };
-      }
-      const expression = expr.shape(inputs, ctx, c, { dynamics: 0.5, articulation: 0.5, anchor: cycle });
+      const expression = expr.shape(inputs, ctx, c, { dynamics: 0.5, articulation: 0.5, anchor: dance.cycle(pulse) });
       const bpm = d.started ? d.tempo : 0;
       const wholeBeat = Math.floor(beatOut);
       const bpb = doc.meter ? doc.meter(beatOut) : c.beatsPerBar;
@@ -708,7 +638,7 @@ export const conductorNode = defineNode<Params>({
         anchors: d.cycles,
         ...(pulse.lastAnchorAt !== undefined ? { lastAnchorAt: pulse.lastAnchorAt } : {}),
         // The piece's next loop, so a scheduler commits the top's first notes ahead (#508).
-        ...(d.started && dance.wrap() ? { wrap: dance.wrap()! } : {}),
+        ...(d.started && lead.wrap() ? { wrap: lead.wrap()! } : {}),
       };
       return { ...emit({ time, bpm, dynamics: expression.dynamics, articulation: expression.articulation, enabled: true, c, level: Number.isFinite(d.ratio) ? d.ratio : 1, sounding: d.started }), dance: d.mode };
     };
@@ -724,43 +654,10 @@ export const conductorNode = defineNode<Params>({
         wasEnabled = false;
       }
       levelHold = null;
-      transport = null;
-      meter = null;
-      dance = null;
-      danceRatio = null;
+      tp.idle();
+      dance.forget();
       expr.reset();
-      transportReading = 'off';
-      afterStop = false;
-      startBeat = null;
       return emit({ time: idleTime(ctx.time, beatsPerBar), bpm: 0, dynamics: 0, articulation: 0.5, enabled: false, c });
-    };
-
-    /** The body's transport: made when the body is read with the rules on. A live change
-     *  (from the hands to the body, or the rules turned on) while the music runs keeps it
-     *  running (the next stroke is taken as the next one); otherwise it starts idle and
-     *  waits for the ready pose. */
-    const prepareTransport = (c: Params, ctx: NodeContext): void => {
-      const rulesOn = c.source === 'body' && c.transport.rules && TRANSPORT_POINTS.has(c.bodyPoint);
-      if (!rulesOn) {
-        transport = null;
-        transportReading = 'off';
-        return;
-      }
-      if (!transport) {
-        transport = createTransport(c.transport);
-        transportCfg = c.transport;
-        transportReading = 'idle';
-        // The music is running (on the hands, or on the body with the rules off): the
-        // prior is following strokes now, not holding after the last one.
-        if (ictus && ictus.state().state === 'running') {
-          transport.run(ctx.time);
-          transportReading = 'running';
-        }
-      } else if (c.transport !== transportCfg) {
-        transport.configure(c.transport);
-        transportCfg = c.transport;
-      }
-      meter ??= createBodyMotionMeter();
     };
 
     /** The follower for this tick, re-created when the source, the point or the side
@@ -773,7 +670,7 @@ export const conductorNode = defineNode<Params>({
       // both priors'. The piece loads only once conducting is on, so it usually arrives
       // after the follower was built; until the first stroke, a new tempo rebuilds it.
       if (ictus && c.source === 'body' && bodySeed(c) !== seededBpm && ictus.state().anchors === 0) resetFollower();
-      prepareTransport(c, ctx);
+      tp.prepare(rulesOn(c.source, c.transport.rules, c.bodyPoint), c.transport, ctx.time, () => ictus !== null && ictus.state().state === 'running');
       if (ictus && key !== coreKey) {
         resetFollower();
         // A held fermata stays held, and the new follower's first stroke releases it
@@ -797,34 +694,6 @@ export const conductorNode = defineNode<Params>({
         wasEnabled = true;
       }
       return ictus;
-    };
-
-    /** One body-frame step of the transport: whether the detector's anchor reaches the
-     *  prior, and the start / cut-off / release it called. */
-    const stepTransport = (tp: Transport, inputs: Record<string, unknown>, ic: Ictus, t: number, a: Anchor | null, cues: object) => {
-      const wasHolding = tp.phase() === 'holding';
-      const now = ic.state();
-      const tr = tp.step({
-        t,
-        ...cues,
-        anchor: a?.t,
-        period: (now.state === 'running' || now.state === 'hold') && Number.isFinite(now.period) ? now.period : Infinity,
-        pose: readTransportPose(inputs.transportPose),
-      });
-      transportReading = tr.stopped ? 'stopped' : tr.phase;
-      waiting = tr.waiting;
-      let released = false;
-      // The stroke that releases the body's hold restarts the prior, like a start:
-      // the release and the stroke after it set the tempo again (a conductor's
-      // tempo after a fermata is a new one), and the beat moves at the old tempo
-      // in between. Feeding it to a prior whose confidence decayed through the hold
-      // would hand the beat to the speed fallback for a few strokes.
-      if (wasHolding && tr.accept) {
-        ic.prior.reset();
-        fermata.anchors = 0;
-        released = true;
-      }
-      return { accept: tr.accept, stopped: tr.stopped, started: tr.started, released };
     };
 
     // 1. Feed the tracked point (or free-run when no hand is in frame).
@@ -855,10 +724,11 @@ export const conductorNode = defineNode<Params>({
       const period = ic.state().period;
       const a = lead.push(ic.detector.push(bodyChannelFrame(body, t, c.hand)), t, Number.isFinite(period) && period > 0 ? 0.25 * period : 0);
       let accept = a !== null;
-      const cues = meter ? meter.push(body, t, c.hand) : {};
+      const cues = tp.cues(body, t, c.hand);
       let flags = { stopped: false, started: false, released: false };
-      if (transport) {
-        const tr = stepTransport(transport, inputs, ic, t, a, cues);
+      if (tp.active()) {
+        const tr = tp.step(inputs, ic, t, a, cues);
+        if (tr.released) fermata.anchors = 0;
         accept = tr.accept;
         flags = { stopped: tr.stopped, started: tr.started, released: tr.released };
       }
@@ -903,8 +773,8 @@ export const conductorNode = defineNode<Params>({
         beatOut = 0;
         fermata.at = null;
         fermata.released = null;
-        afterStop = false;
-      } else afterStop = true;
+        tp.afterStop = false;
+      } else tp.afterStop = true;
       return s;
     };
 
@@ -914,42 +784,6 @@ export const conductorNode = defineNode<Params>({
     const gridFor = (k: number) => (b: number, snap: (x: number) => number): number => {
       const ref = k === 1 || !doc.barStart ? 0 : doc.barStart(b);
       return ref + k * snap((b - ref) / k);
-    };
-
-    /** The downbeat (#377): the first stroke after the upbeat plays a whole beat (the next
-     *  one when a cut-off left the beat between two). Until the second stroke gives the
-     *  prior a period, the beat moves at the score's marked tempo (or the priors' initial
-     *  one) rather than the speed fallback, and never reaches the next stroke's beat on
-     *  its own: the second stroke plays it. Also keeps `startBeat` and `strokeBeat`. */
-    const placeStart = (fed: Fed, s: IctusState, grid: Grid): void => {
-      const { started, released, stopped } = fed;
-      if (started && afterStop) {
-        // After a cut-off the note at the stop has sounded (a fermata's too): the restart
-        // plays the next stroke's beat strictly after it.
-        const from = beatOut;
-        beatOut = grid(beatOut + START_EPS / 2, Math.ceil);
-        if (fermata.at !== null && fermata.at <= from) {
-          fermata.released = fermata.at;
-          fermata.at = null;
-        }
-        afterStop = false;
-      } else if (started) beatOut = grid(beatOut - START_EPS, Math.ceil);
-      else if (released) {
-        // A body hold waits just short of a stroke's beat: the release plays it. A fermata
-        // is not on the stroke grid at every level (beat 3 marking half bars): the beat
-        // goes on from it rather than jumping to the next stroke's beat.
-        const g = grid(beatOut - 2 * START_EPS, Math.ceil);
-        if (g - beatOut <= 2 * START_EPS) beatOut = Math.max(beatOut, g);
-      }
-      if (started || released) {
-        startBeat = beatOut;
-        startBpm = released && holdBpm > 0 ? holdBpm : null;
-      }
-      if (startBeat !== null && (!transport || s.state !== 'ready' || s.anchors === 0)) startBeat = null;
-      if (!transport || stopped) {
-        strokeBeat = null;
-        waiting = false;
-      } else if (s.anchor) strokeBeat = grid(beatOut, Math.round);
     };
 
     /** The beat reached a written fermata: stop on it and hold there. */
@@ -967,14 +801,14 @@ export const conductorNode = defineNode<Params>({
      *  last gave is the one that sustains. Returns the tempo it advanced at. */
     const holdBeat = (ctx: NodeContext, s: IctusState, grid: Grid): number => {
       const cap = grid(beatOut, Math.ceil) - START_EPS;
-      let next = Math.min(beatOut + (holdBpm / 60) * ctx.dt, Math.max(beatOut, cap));
+      let next = Math.min(beatOut + (tp.holdBpm / 60) * ctx.dt, Math.max(beatOut, cap));
       // A written fermata on the way stops it there, as when running.
       const f = doc.fermatas.find((x) => x > beatOut && x <= next);
       if (f !== undefined) {
         next = f;
         stopAtFermata(f, s, ctx);
       }
-      const bpm = next > beatOut && f === undefined ? holdBpm : 0;
+      const bpm = next > beatOut && f === undefined ? tp.holdBpm : 0;
       beatOut = next;
       return bpm;
     };
@@ -984,7 +818,7 @@ export const conductorNode = defineNode<Params>({
      *  cross. Returns the tempo it advanced at. */
     const runBeat = (c: Params, ctx: NodeContext, s: IctusState, k: number, grid: Grid, fallbackBpm: number): number => {
       const w = s.state === 'running' && c.fallbackBelowConfidence > 0 ? clamp01(s.confidence / c.fallbackBelowConfidence) : s.state === 'running' ? 1 : 0;
-      let bpm = startBeat !== null ? (startBpm ?? doc.tempo?.(beatOut) ?? START_BPM) : w * s.tempo * k + (1 - w) * fallbackBpm;
+      let bpm = tp.startBeat !== null ? (tp.startBpm ?? doc.tempo?.(beatOut) ?? START_BPM) : w * s.tempo * k + (1 - w) * fallbackBpm;
       const advanced = beatOut + (bpm / 60) * ctx.dt;
       // 3. Phase servo: converge onto the inferred beat over `servoBeats`, never
       //    below where the beat already was (a rewind would retrigger a note).
@@ -997,9 +831,9 @@ export const conductorNode = defineNode<Params>({
         corrected = advanced - w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
       }
       let next = Math.max(beatOut, corrected);
-      if (startBeat !== null) next = Math.max(beatOut, Math.min(next, grid(startBeat + START_EPS, Math.ceil) - START_EPS));
+      if (tp.startBeat !== null) next = Math.max(beatOut, Math.min(next, grid(tp.startBeat + START_EPS, Math.ceil) - START_EPS));
       // The stroke overdue and the body still: the next stroke's beat waits for it.
-      if (waiting && strokeBeat !== null) next = Math.max(beatOut, Math.min(next, strokeBeat + k - START_EPS));
+      if (tp.waiting && tp.strokeBeat !== null) next = Math.max(beatOut, Math.min(next, tp.strokeBeat + k - START_EPS));
       // 4. Fermatas: stop exactly on one the beat would cross, and hold there.
       for (const f of doc.fermatas) {
         // One the beat sits on counts too (a fermata at beat 0, #393), unless just released.
@@ -1011,7 +845,7 @@ export const conductorNode = defineNode<Params>({
         }
       }
       beatOut = next;
-      if (bpm > 0) holdBpm = bpm;
+      if (bpm > 0) tp.holdBpm = bpm;
       return bpm;
     };
 
@@ -1064,7 +898,7 @@ export const conductorNode = defineNode<Params>({
         const beatsPerBar = doc.meter ? doc.meter(beatOut) : c.beatsPerBar;
         if (!c.enabled) return idleTick(ctx, c, beatsPerBar);
         if (c.source === 'dancer') return danceTick(inputs, ctx, c);
-        leaveDance();
+        dance.leave();
         const ic = prepareFollower(c, ctx);
         const fed = c.source === 'body' ? feedBody(inputs, ctx, c, ic) : feedHands(inputs, ctx, c, ic);
         // 1b. Expression (#378): from the beat's source, or from the other one through a
@@ -1075,8 +909,8 @@ export const conductorNode = defineNode<Params>({
         // The strokes' tempo and phase are scaled to the piece's beats by the level `k`.
         const k = markRatio(c, s, ctx.time, beatsPerBar);
         const grid = gridFor(k);
-        const bodyHold = transport?.phase() === 'holding';
-        placeStart(fed, s, grid);
+        const bodyHold = tp.phase() === 'holding';
+        beatOut = tp.place(fed, s, grid, beatOut, fermata);
         const bpm = advanceBeat(c, ctx, s, k, grid, bodyHold);
         return emit({ time: timeOf(ctx, c, s, bpm, bodyHold), bpm, dynamics: expression.dynamics, articulation: expression.articulation, enabled: true, c, level: k });
       },
