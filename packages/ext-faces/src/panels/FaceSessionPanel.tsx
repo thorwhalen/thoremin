@@ -44,9 +44,10 @@ import { setupCues, vocabularyCue } from '../lib/take';
 import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
 import { HoldStrip } from './HoldStrip';
-import { chooseCategorizerWrites } from '../schema';
+import { chooseCategorizerChordsWrites, chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
 import { usePosePlay } from '../app/posePlay';
+import { useCategorizerChords } from '../app/categorizerChords';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -238,6 +239,36 @@ function PosePlayButton({ id, name, unsaved }: { id: string; name: string; unsav
   );
 }
 
+/**
+ * "Play chords" for a hand-shape or pose categorizer (#450): the current instrument's categorizer
+ * chords read it (the `categorizerChords` dial, one `dial.patch`: the id, every category's chord
+ * back to Auto). Unsaved, like any edit.
+ */
+function ChordsPlayButton({ id, name, unsaved }: { id: string; name: string; unsaved: boolean }) {
+  const { state } = useDialsSettings();
+  const play = useCategorizerChords();
+  const chosen = ((state.effective as Record<string, unknown>).categorizerChords as { id?: string } | undefined)?.id === id;
+  const note = unsaved ? ' (the saved version)' : '';
+  if (chosen) {
+    return (
+      <span className="shrink-0 text-[10px] text-emerald-300/80" data-chords-playing={id}>
+        {play.id !== id || play.phase === 'loading' ? 'Loading…' : play.phase === 'ready' ? `Chords${note}` : 'Not found'}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={btn}
+      aria-label={`Play chords with ${name}`}
+      title={`Each category${note} plays a chord in the current instrument (unsaved, like any edit)`}
+      onClick={() => dispatchDialPatch(chooseCategorizerChordsWrites(id))}
+    >
+      Play chords
+    </button>
+  );
+}
+
 function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard: () => boolean }) {
   if (s.saved.length === 0) return <p className={hint}>No saved categorizers yet.</p>;
   return (
@@ -254,6 +285,7 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
           ) : (
             <>
               {s.modality.id === 'body' && <PosePlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />}
+              <ChordsPlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
               <BindButton s={s} id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
             </>
           )}

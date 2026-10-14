@@ -75,7 +75,7 @@ describe('the registry folds over the extensions', () => {
     // declaration carries each manifest's type, so these hold with no import of air in core.
     expectTypeOf<Settings['airDrum']>().toEqualTypeOf<AirDrumSettings>();
     expectTypeOf<Settings['airFlute']>().toEqualTypeOf<AirFluteSettings>();
-    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'asl' | 'faceCategorizer' | 'poseCategorizer'>();
+    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'asl' | 'faceCategorizer' | 'poseCategorizer' | 'categorizerChords'>();
     // @ts-expect-error a key no listed extension declares is not a settings key
     expectTypeOf<Settings['airKazoo']>().toBeNever();
     // A manifest typed loosely (`const x: Extension = ...`) widens its keys to `string`; the fold

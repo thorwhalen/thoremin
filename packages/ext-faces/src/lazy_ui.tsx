@@ -12,8 +12,10 @@ import FaceSessionPanel, { HandSessionPanel, PoseSessionPanel } from './panels/F
 import CategorizerSection from './panels/CategorizerSection';
 import { startCategorizerPlay, useCategorizerPlay } from './app/categorizerPlay';
 import { startPosePlay } from './app/posePlay';
+import { startCategorizerChords } from './app/categorizerChords';
+import CategorizerChordsSection, { CategorizerChordsReadout } from './panels/CategorizerChordsSection';
 import PoseCategorizerSection, { PoseCategorizerReadout } from './panels/PoseCategorizerSection';
-import { FACES_TOOL, HANDS_TOOL, POSES_TOOL, faceReadoutOn, poseReadoutOn } from './ui';
+import { FACES_TOOL, HANDS_TOOL, POSES_TOOL, chordsReadoutOn, faceReadoutOn, poseReadoutOn } from './ui';
 
 /** One line: which categorizer the face chords read right now. */
 function CategorizerReadout() {
@@ -35,11 +37,22 @@ function CategorizerControls() {
   );
 }
 
+/** The section, with its readout under it, as the face categorizer's (#359, #367). */
+function CategorizerChordsControls() {
+  return (
+    <div className="space-y-1">
+      <CategorizerChordsSection />
+      <CategorizerChordsReadout />
+    </div>
+  );
+}
+
 export const FACES_UI: ExtensionUi = {
   id: 'faces',
   panels: [
     { instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerControls, Readout: CategorizerReadout, readoutOn: faceReadoutOn },
     { instrumentId: 'faces', section: 'Pose categorizer', Controls: PoseCategorizerSection, Readout: PoseCategorizerReadout, readoutOn: poseReadoutOn },
+    { instrumentId: 'faces', section: 'Categorizer chords', Controls: CategorizerChordsControls, Readout: CategorizerChordsReadout, readoutOn: chordsReadoutOn },
   ],
   statusHooks: [],
   // Resolve the categorizer the instrument names and hand it to the DAG, for the app's lifetime.
@@ -59,6 +72,15 @@ export const FACES_UI: ExtensionUi = {
         return startPosePlay();
       } catch (err) {
         console.warn('faces: the pose categorizer is not resolved (no hot store):', err);
+        return undefined;
+      }
+    },
+    // The hand-shape or pose categorizer whose categories play chords (#450), the same way.
+    () => {
+      try {
+        return startCategorizerChords();
+      } catch (err) {
+        console.warn('faces: the categorizer chords are not resolved (no hot store):', err);
         return undefined;
       }
     },

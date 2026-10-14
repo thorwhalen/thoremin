@@ -1038,15 +1038,19 @@ const categoryLabelPx = (view: OverlayView): number => Math.round(40 + 160 * cla
 
 /**
  * The category reading the cues draw (#384): the classifier's (`categories`, the ASL reader) while
- * it reads, else the player's own learned categories (`learnedCategories`); captions belong to the
- * classifier's only.
+ * it reads, else the player's own learned categories (`learnedCategories`) while they read, else
+ * the categorizer that plays chords (`chordCategories`, #450); captions belong to the classifier's
+ * only. With nothing reading, the first one wired is drawn (its categories at rest).
  */
 export function pickCategories(
   classifier: CategoryScores | null | undefined,
   captions: readonly string[] | null | undefined,
   learned: CategoryScores | null | undefined,
+  chords?: CategoryScores | null | undefined,
 ): { categories: CategoryScores | null | undefined; categoryCaptions: readonly string[] | null | undefined } {
-  if (classifier?.present || !learned) return { categories: classifier, categoryCaptions: captions };
+  if (classifier?.present || (!learned && !chords)) return { categories: classifier, categoryCaptions: captions };
+  if (learned?.present || !chords) return { categories: learned, categoryCaptions: null };
+  if (chords.present || !learned) return { categories: chords, categoryCaptions: null };
   return { categories: learned, categoryCaptions: null };
 }
 
@@ -2124,6 +2128,9 @@ export const canvasOverlayNode = defineNode<Params>({
     // A player's own learned categories (#384: a saved pose categorizer), drawn by the same cues
     // while the classifier above is not reading. Its own port: two branches can never feed one.
     { name: 'learnedCategories', kind: 'category-scores' },
+    // The categorizer that plays chords (#450: a hand-shape or pose categorizer), drawn while
+    // neither above is reading. Its own port, for the same reason.
+    { name: 'chordCategories', kind: 'category-scores' },
     // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
     // the current instrument. Absent → every element (headless tests, pre-composition).
     { name: 'elements', kind: 'string[]' },
@@ -2227,6 +2234,7 @@ export const canvasOverlayNode = defineNode<Params>({
               inputs.categories as CategoryScores | null | undefined,
               inputs.categoryCaptions as readonly string[] | null | undefined,
               inputs.learnedCategories as CategoryScores | null | undefined,
+              inputs.chordCategories as CategoryScores | null | undefined,
             ),
           },
         };
