@@ -37,12 +37,14 @@ vi.mock('@thoremin/ictus', async (importOriginal) => {
       const steps = script.byFrame.get(script.frame++) ?? [];
       return steps.map((s): ImpactEvent =>
         s.kind === 'predict'
-          ? { kind: 'predict', t: s.t, at: sample.t, lead: s.t - sample.t, strength: 1, confidence: 1, crossing: s.t, provisional: false }
-          : { kind: 'confirm', t: s.t, at: sample.t, predicted: s.predicted, correction: s.predicted === null ? null : s.t - s.predicted, strength: 1, confidence: 1, vertex: s.t, crossing: s.t, depth: 0.6, fit: null },
+          ? { kind: 'predict', t: s.t, at: sample.t, lead: s.t - sample.t, strength: 1, confidence: 1, crossing: s.t, provisional: false, floor: 0.6 }
+          : { kind: 'confirm', t: s.t, at: sample.t, predicted: s.predicted, correction: s.predicted === null ? null : s.t - s.predicted, strength: 1, confidence: 1, vertex: s.t, crossing: s.t, floor: 0.6, depth: 0.6, top: 0.4, fit: null },
       );
     },
     setPeriod() {},
     setMinLead() {},
+    setFloor() {},
+    top: () => NaN,
     level: () => 0.6,
     lag: () => 0,
     envelope: () => 0.1,
