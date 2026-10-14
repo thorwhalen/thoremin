@@ -992,13 +992,19 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     /** Carve the fresh take `base` (`carveTake`: the rest cloud in Neutral) and show it. */
     const carveFresh = (base: PersonalCategorizer) => {
       if (!fresh) return;
-      const { result, allNearRest } = carveTake(base, { ...fresh, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius, maxCategories: FACE_SESSION_DEFAULTS.maxCategories });
+      const { result, allNearRest, movedToNeutral } = carveTake(
+        base,
+        { ...fresh, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius, maxCategories: FACE_SESSION_DEFAULTS.maxCategories },
+        { neutralLabel: modality.words.neutral },
+      );
       if (!result.ok) {
         set({ notice: `Nothing to carve: ${result.error}.` });
         return;
       }
       const { one, many } = modality.words;
-      const notice = allNearRest
+      const notice = allNearRest && movedToNeutral > 0
+        ? `Every held ${one} was close to your resting ${one}. The category that was mostly your resting ${one} (${movedToNeutral} ${movedToNeutral === 1 ? 'hold' : 'holds'}) is in Neutral; check the rest, and move any other resting ones to Neutral too, or record again with stronger ${many}.`
+        : allNearRest
         ? `Every held ${one} was close to your resting ${one}, so none was put in Neutral: all are carved. Move the resting ones to Neutral, or record again with stronger ${many}.`
         : null;
       const named = nameCarve(result.categorizer, { modality, sources, restCloud: fresh.cloud ?? undefined });
