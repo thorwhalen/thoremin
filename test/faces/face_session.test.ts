@@ -11,7 +11,12 @@ import { describe, expect, it } from 'vitest';
 import { BLENDSHAPE_NAME_BY_FEATURE } from '@thoremin/sdk/features/face_catalog';
 import { categorizerFromModel, categorizerMode, classify, modelFromCategorizer, NO_REJECT_RADIUS, type FeatureVector } from '@thoremin/sdk/enroll';
 import { createFaceTake, FACE_TAKE_DEFAULTS } from '@thoremin/ext-faces/lib/take';
-import { carveView, carverFor, NEUTRAL_LABEL, withTypedName, type TypedName } from '@thoremin/ext-faces/lib/carving';
+import { carveTake, carveView, carverFor, nameCarve, NEUTRAL_LABEL } from '@thoremin/ext-faces/lib/carving';
+import { neutralIndices } from '@thoremin/sdk/enroll/carve';
+import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { isNeutralLabel } from '@thoremin/sdk/enroll/modality';
+import { nameCategory, recut, recutRange, type SortResult } from '@thoremin/sdk/enroll/sorting';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { SYNTHETIC_EXPRESSIONS, SYNTHETIC_TIMELINE, syntheticExpressionAt, syntheticFaceVector } from '@thoremin/ext-faces/lib/synthetic';
 import { loadStream } from '../helpers/fixtures';
 
@@ -111,39 +116,55 @@ describe('carving the synthetic take', () => {
     expect(view.model.rejectRadius).toBeLessThan(NO_REJECT_RADIUS);
   });
 
-  it('re-cutting k keeps the names the player typed, even through a dip to a small k, and never proposes one twice', () => {
-    const carver = carverFor(session, take.restVectors(), 'reject');
+  it('re-cutting k keeps the names the player gave (pins, #385 E4), never gives a name twice, and cannot go below the named categories', () => {
+    // The document path the tool edits: the take as one working categorizer, carved with the
+    // rest cloud in Neutral, named; a name pins its category's medoid, so a re-cut keeps it.
     const rest = take.restVectors();
-    const at = (k: number, typed: TypedName[]) => carveView({ session, restVectors: rest, carver, k, typed });
-    const v3 = at(3, []);
-    const smile = v3.categories.find((c) => c.label === 'happy')!;
-    // The player renames the smile "grin", and another category "happy" (taking the default).
-    let typed = withTypedName([], v3, smile.id, 'grin')!;
-    const named = at(3, typed);
-    const other = named.categories.find((c) => c.label !== 'grin')!;
-    typed = withTypedName(typed, named, other.id, 'happy')!;
-    const same = at(3, typed);
-    expect(same.categories.find((c) => c.label === 'grin')!.source).toBe('edited');
-    expect(same.categories.filter((c) => c.label === 'happy')).toHaveLength(1);
-    expect(same.categories.find((c) => c.label === 'happy')!.source).toBe('edited');
-    // A third name, then down to k = 1 and back up: every typed name comes back.
-    const third = same.categories.find((c) => c.source !== 'edited')!;
-    typed = withTypedName(typed, same, third.id, 'wow')!;
-    const one = at(1, typed);
-    expect(one.categories).toHaveLength(1);
-    const back = at(3, typed);
-    expect(back.categories.map((c) => c.label).sort()).toEqual(['grin', 'happy', 'wow']);
-    expect(back.categories.every((c) => c.source === 'edited')).toBe(true);
+    const samples = points.map((pt, i) => ({ ...pt, id: `take:${i}` }));
+    const base = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers: 'neutral' });
+    const cloudIdx = neutralIndices(points.map((pt) => pt.vector), rest, session.features(), session.weights());
+    const cloud = cloudIdx ? new Set(cloudIdx.map((i) => samples[i].id)) : null;
+    const carved = carveTake(base, { cloud, rest, maxCategories: 8 }).result;
+    if (!carved.ok) throw new Error(carved.error);
+    const named = (c: PersonalCategorizer) => nameCarve(c, { restCloud: cloud ?? undefined }).categorizer;
+    const ok = (r: SortResult): PersonalCategorizer => {
+      if (!r.ok) throw new Error(r.error);
+      return r.categorizer;
+    };
+    const at = (c: PersonalCategorizer, k: number) => named(ok(recut(c, k, { rest })));
+    const labels = (c: PersonalCategorizer) => c.categories.map((x) => x.label);
+    let doc = named(carved.categorizer);
+    expect(doc.categories).toHaveLength(3);
+    // The player renames the smile "grin", and another category "happy" (the default it freed).
+    const smile = doc.categories.find((c) => c.label === 'happy')!;
+    doc = ok(nameCategory(doc, smile.id, 'grin'));
+    const other = doc.categories.find((c) => c.id !== smile.id && !isNeutralLabel(faceModality, c.label))!;
+    doc = ok(nameCategory(doc, other.id, 'happy'));
+    // A re-cut at the same k keeps both, on the same categories.
+    doc = at(doc, 3);
+    expect(doc.categories.find((c) => c.id === smile.id)!.label).toBe('grin');
+    expect(doc.categories.find((c) => c.id === other.id)!.label).toBe('happy');
+    expect(labels(doc).filter((l) => l === 'happy')).toHaveLength(1);
+    // A third name; then k cannot go below the named categories (E4's clamp, where the older
+    // path dipped to k = 1 and carried the names back by centroid).
+    const third = doc.categories.find((c) => c.id !== smile.id && c.id !== other.id)!;
+    doc = ok(nameCategory(doc, third.id, 'wow'));
+    expect(recutRange(doc, { rest }).minK).toBe(3);
+    const low = at(doc, 1);
+    expect(low.categories).toHaveLength(3);
+    expect(labels(low).sort()).toEqual(['grin', 'happy', 'wow']);
     // At a larger k the names survive, and no name is given twice.
-    const labels = at(5, typed).categories.map((c) => c.label);
-    expect(labels).toEqual(expect.arrayContaining(['grin', 'happy', 'wow']));
-    expect(new Set(labels.map((l) => l.toLowerCase())).size).toBe(labels.length);
-    // Two categories never share a typed name: refused.
-    const grin = back.categories.find((c) => c.label === 'grin')!;
-    const notGrin = back.categories.find((c) => c.id !== grin.id)!;
-    expect(withTypedName(typed, back, notGrin.id, 'Grin')).toBeNull();
-    // Renaming a category replaces its own typed name rather than adding one.
-    expect(withTypedName(typed, back, grin.id, 'beam')!.map((t) => t.label).sort()).toEqual(['beam', 'happy', 'wow']);
+    const wide = at(doc, 5);
+    expect(labels(wide)).toEqual(expect.arrayContaining(['grin', 'happy', 'wow']));
+    // The player's names stay theirs: naming keeps them, it never re-proposes a general name over one.
+    const sources = nameCarve(ok(recut(doc, 5, { rest })), { restCloud: cloud ?? undefined }).sources;
+    for (const id of [smile.id, other.id, third.id]) expect(sources.get(id)?.source).toBe('kept');
+    expect(new Set(labels(wide).map((l) => l.toLowerCase())).size).toBe(wide.categories.length);
+    // Two categories never share a name: refused, case-insensitively.
+    const notGrin = doc.categories.find((c) => c.id !== smile.id)!;
+    expect(nameCategory(doc, notGrin.id, 'Grin').ok).toBe(false);
+    // Renaming a category replaces its own name rather than adding one.
+    expect(labels(ok(nameCategory(doc, smile.id, 'beam'))).sort()).toEqual(['beam', 'happy', 'wow']);
   });
 
   it('reject mode: the saved model reads most of the neutral faces as none of these', () => {
