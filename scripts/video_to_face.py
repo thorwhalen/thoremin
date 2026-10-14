@@ -25,9 +25,18 @@ Two output streams:
 
 Both streams replay headlessly (no camera). Run from the isolated media/.venv.
 
+``--crop-from-pose <pose stream>`` is for a face too small for the detector (a body in a
+wide shot: a conductor's face 60 px across a 1280 px frame is found in 1 frame of 1166).
+Each frame's model input is then a square around that frame's head (the pose's nose,
+eyes, ears and mouth, ``--crop-scale`` times their spread), resized to ``--crop-size``;
+landmarks are mapped back to the whole frame and each landmark record carries its
+``crop`` (``[x0, y0, side]`` in pixels). Blendshapes do not depend on the crop; the
+``transformMatrix`` is the crop's (rotation as seen, translation in the crop's camera).
+A frame with no pose is run whole.
+
 Usage:
     media/.venv/bin/python scripts/video_to_face.py <video> <out.ndjson> \
-        [--landmarks-out <out.landmarks.ndjson[.gz]>]
+        [--landmarks-out <out.landmarks.ndjson[.gz]>] [--crop-from-pose <pose.ndjson.gz>]
 """
 import argparse
 import gzip
@@ -71,6 +80,68 @@ def write_ndjson(path: str, records: list) -> None:
             f.write(payload)
 
 
+# The BlazePose head points (nose, eyes, ears, mouth corners): `BLM` 0..10.
+_HEAD = range(11)
+
+
+def read_pose_heads(path: str) -> dict:
+    """``{tick: [(x, y), ...]}``: the visible head points of each frame of a pose stream."""
+    opener = gzip.open if path.endswith(".gz") else open
+    heads = {}
+    with opener(path, "rt") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            v = rec["value"]
+            if not v.get("present"):
+                continue
+            vis = v.get("visibility") or [1.0] * len(v["landmarks"])
+            pts = [(v["landmarks"][j]["x"], v["landmarks"][j]["y"]) for j in _HEAD if vis[j] >= 0.3]
+            if len(pts) >= 3:
+                heads[rec["tick"]] = pts
+    return heads
+
+
+def head_crop(pts, shape, scale: float):
+    """``(x0, y0, side)`` in pixels: a square ``scale`` times the head points' spread."""
+    if not pts:
+        return None
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    side = max(48.0, scale * max(max(xs) - min(xs), max(ys) - min(ys)))
+    if side >= max(shape[0], shape[1]):
+        return None  # the face already fills the frame
+    cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    return (cx - side / 2, cy - side / 2, side)
+
+
+def cut_square(rgb, crop, size: int):
+    """The crop (zero-padded where it leaves the frame), resized to ``size``."""
+    import numpy as np
+
+    x0, y0, side = (int(round(v)) for v in crop)
+    out = np.zeros((side, side, 3), dtype=rgb.dtype)
+    h, w = rgb.shape[:2]
+    sx0, sy0, sx1, sy1 = max(0, x0), max(0, y0), min(w, x0 + side), min(h, y0 + side)
+    if sx1 > sx0 and sy1 > sy0:
+        out[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = rgb[sy0:sy1, sx0:sx1]
+    return np.ascontiguousarray(cv2.resize(out, (size, size), interpolation=cv2.INTER_CUBIC))
+
+
+class _Pt:
+    __slots__ = ("x", "y", "z")
+
+    def __init__(self, x, y, z):
+        self.x, self.y, self.z = x, y, z
+
+
+def to_frame(p, crop, width: int, height: int):
+    """A crop-normalised landmark in the whole frame's normalised coordinates (z scales
+    with x, MediaPipe's convention)."""
+    x0, y0, side = (int(round(v)) for v in crop)
+    return _Pt((x0 + p.x * side) / width, (y0 + p.y * side) / height, p.z * side / width)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("video")
@@ -81,13 +152,25 @@ def main() -> int:
         help="also emit the full FaceFrame stream (478 landmarks + transform matrix); "
         "a .gz suffix gzips it (the committed-fixture form)",
     )
+    ap.add_argument(
+        "--crop-from-pose",
+        default=None,
+        help="a pose stream of the same video (video_to_pose.py): run the model on a square "
+        "around each frame's head instead of the whole frame, for a face too small for the "
+        "detector (a body in a wide shot); landmarks are mapped back to the whole frame",
+    )
+    ap.add_argument("--crop-scale", type=float, default=3.0, help="crop side over the head landmarks' spread")
+    ap.add_argument("--crop-size", type=int, default=256, help="the crop is resized to this square for the model")
     args = ap.parse_args()
+    heads = read_pose_heads(args.crop_from_pose) if args.crop_from_pose else None
 
     cap = cv2.VideoCapture(args.video)
     if not cap.isOpened():
         print(f"ERROR: cannot open {args.video}", file=sys.stderr)
         return 1
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     options = vision.FaceLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=ensure_model()),
@@ -110,6 +193,9 @@ def main() -> int:
         if not ok:
             break
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        crop = head_crop(heads.get(tick), rgb.shape, args.crop_scale) if heads is not None else None
+        if crop is not None:
+            rgb = cut_square(rgb, crop, args.crop_size)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         res = landmarker.detect_for_video(mp_image, int(tick / fps * 1000))
 
@@ -131,9 +217,13 @@ def main() -> int:
             value = {"present": present, "blendshapes": blendshapes}
             if res.face_landmarks:
                 # All 478 normalized points, x/y/z each preserved (z included).
+                pts = res.face_landmarks[0]
+                if crop is not None:
+                    pts = [to_frame(p, crop, width, height) for p in pts]
+                    value["crop"] = [int(round(v)) for v in crop]
                 value["landmarks"] = [
                     {"x": round(p.x, 5), "y": round(p.y, 5), "z": round(p.z, 5)}
-                    for p in res.face_landmarks[0]
+                    for p in pts
                 ]
             matrixes = getattr(res, "facial_transformation_matrixes", None)
             if matrixes is not None and len(matrixes) > 0:

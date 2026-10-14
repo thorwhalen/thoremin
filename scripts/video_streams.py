@@ -75,16 +75,21 @@ STREAMS: dict[str, dict] = {
     "face": {
         "script": "video_to_face.py",
         "files": ["{id}.face.ndjson.gz", "{id}.face.landmarks.ndjson.gz"],
-        "args": lambda o, p: [o[0], "--landmarks-out", o[1]],
+        "args": lambda o, p: [o[0], "--landmarks-out", o[1],
+                              *(["--crop-from-pose", p["pose_stream"], "--crop-scale", str(p["face_crop_scale"])] if p.get("pose_stream") else [])],
         "model": lambda p: {"name": "FaceLandmarker", "url": _FACE_LANDMARKER, "numFaces": 1,
-                            "minConfidence": "mediapipe default (0.5)"},
+                            "minConfidence": "mediapipe default (0.5)",
+                            "crop": (f"pose-guided head crop (--crop-from-pose, scale {p['face_crop_scale']}, 256 px); "
+                                     "landmarks mapped back to the whole frame, each record's `crop` is [x0, y0, side] px; "
+                                     "the transformMatrix is the crop's") if p.get("pose_stream") else "whole frame"},
         "shape": "face: blendshapes per frame; face.landmarks: FaceFrame superset (blendshapes, 478 landmarks with z, transformMatrix column-major)",
     },
 }
 
 ALL_STREAMS = tuple(STREAMS)
 
-DEFAULT_PARAMS = {"pose_model": "full", "pose_confidence": 0.5, "max_hands": 2, "hands_confidence": 0.4}
+DEFAULT_PARAMS = {"pose_model": "full", "pose_confidence": 0.5, "max_hands": 2, "hands_confidence": 0.4,
+                  "face_crop": True, "face_crop_scale": 3.0}
 
 
 def data_root() -> Path:
@@ -168,19 +173,27 @@ def known_streams(meta_path: Path) -> set[str]:
 
 def extract_streams(video: Path, out_dir: Path, clip_id: str, *, python: Path, streams=ALL_STREAMS,
                     params: dict | None = None, log: Path | None = None, input_note: str | None = None,
-                    known: set[str] = frozenset()) -> dict:
+                    known: set[str] = frozenset(), meta_path: Path | None = None) -> dict:
     """Run each extractor once; return ``{stream: provenance}`` (``error`` on a failure).
 
     A stream whose outputs all exist is not re-run. Its provenance is the clip's existing
     meta's (``write_meta`` merges); a stream not in ``known`` (made before any meta, e.g.
-    by an older script) gets an entry that says so, so the meta never omits a stream."""
+    by an older script) gets an entry that says so, so the meta never omits a stream.
+
+    The face runs on a pose-guided head crop when the clip's pose stream exists
+    (``face_crop``, on by default): the face detector misses a face much under a tenth of
+    the frame, which is every body clip. With ``meta_path`` each stream's provenance is
+    written as soon as it is made, so an interrupted run loses no record."""
     p = {**DEFAULT_PARAMS, **(params or {})}
     out_dir.mkdir(parents=True, exist_ok=True)
     mp_version = mediapipe_version(python)
     result: dict = {}
-    for name in streams:
+    pose_out = out_dir / STREAMS["pose"]["files"][0].format(id=clip_id)
+    for name in sorted(streams, key=list(STREAMS).index):  # pose first: the face crop reads it
         spec = STREAMS[name]
         outs = [out_dir / f.format(id=clip_id) for f in spec["files"]]
+        if name == "face" and p["face_crop"] and pose_out.exists():
+            p["pose_stream"] = str(pose_out)
         if all(o.exists() for o in outs):
             if name not in known:
                 result[name] = {"files": [o.name for o in outs], "extractor": f"scripts/{spec['script']}",
@@ -207,6 +220,8 @@ def extract_streams(video: Path, out_dir: Path, clip_id: str, *, python: Path, s
                 o.unlink(missing_ok=True)
             entry["error"] = (res.stderr.strip().splitlines() or [f"rc={res.returncode}"])[-1]
         result[name] = entry
+        if meta_path:
+            write_meta(meta_path, {"streams": {name: entry}})
     return result
 
 
@@ -312,8 +327,9 @@ def main() -> int:
         decode = transcode(video, data_root() / "videos" / "decoded" / f"{args.id}.mp4")
         meta["video"]["decodedVia"] = "a native-size H.264 copy (OpenCV cannot read the original), ffmpeg libx264 CRF 18"
     meta_path = out_dir / f"{args.id}.meta.json"
+    write_meta(meta_path, meta)
     meta["streams"] = extract_streams(decode, out_dir, args.id, python=py, streams=args.streams,
-                                      log=out_dir / "extract.log", known=known_streams(meta_path))
+                                      log=out_dir / "extract.log", known=known_streams(meta_path), meta_path=meta_path)
     merged = write_meta(meta_path, meta)
     failed = [s for s, e in merged.get("streams", {}).items() if "error" in e]
     print(json.dumps({"clip": args.id, "failed": failed, "missing": missing_fields(merged, streams=args.streams)}))

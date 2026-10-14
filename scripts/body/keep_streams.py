@@ -64,7 +64,8 @@ def keep(src: dict, *, corpus: dict, root: Path, py: Path) -> dict:
     copied = []
     for b in w.get("beats", []):
         if (work / b).exists():
-            dest = out_dir / f"{cid}.{b.split('.', 1)[0]}.beats.json"
+            stem = b.split(".", 1)[0]  # allelulias_full -> allelulias.full.beats.json
+            dest = out_dir / f"{cid}.{stem.split('_', 1)[1] if '_' in stem else stem}.beats.json"
             shutil.copyfile(work / b, dest)
             copied.append(dest.name)
     if copied:
@@ -83,8 +84,10 @@ def keep(src: dict, *, corpus: dict, root: Path, py: Path) -> dict:
             decode = vs.transcode(video, root / "videos" / corpus["corpus"] / f"{cid}.decoded.mp4")
             note = f"videos/{corpus['corpus']}/{cid}.decoded.mp4: native size and rate, H.264 CRF 18 (OpenCV cannot read the original)"
             meta["video"]["decodedVia"] = note
+        known = vs.known_streams(meta_path)
+        vs.write_meta(meta_path, meta)  # the source's fields first: a run cut short keeps them
         meta["streams"] = vs.extract_streams(decode, out_dir, cid, python=py, log=out_dir / "extract.log", input_note=note,
-                                              known=vs.known_streams(meta_path))
+                                              known=known, meta_path=meta_path)
     merged = vs.write_meta(meta_path, meta)
     return {"clip": cid, "failed": [s for s, e in merged.get("streams", {}).items() if "error" in e],
             "missing": vs.missing_fields(merged)}
