@@ -2904,6 +2904,11 @@
         "default": false
       },
       {
+        "name": "play",
+        "kind": "number",
+        "description": "The press counter (song.play increments it): a change while `playing` is a press, so a Play made in the frame the song ends is not lost to a level that never fell (#344)"
+      },
+      {
         "name": "rate",
         "kind": "number",
         "description": "Playback rate, pitch preserved (clamped to minRate..maxRate)",
@@ -3116,6 +3121,10 @@
       {
         "name": "songPlaying",
         "kind": "boolean"
+      },
+      {
+        "name": "songPlays",
+        "kind": "number"
       },
       {
         "name": "songVolume",

@@ -115,6 +115,8 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   songHandle?: SongHandle | null;
   /** The song's transport (transient). */
   songPlaying?: boolean;
+  /** The press counter (transient, #344). */
+  songPlays?: number;
 }
 
 const Params = z.object({});
@@ -221,6 +223,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     // transport (transient), and its level and rate (a per-device pref).
     { name: 'songHandle', kind: 'song-handle' },
     { name: 'songPlaying', kind: 'boolean' },
+    { name: 'songPlays', kind: 'number' },
     { name: 'songVolume', kind: 'number' },
     { name: 'songRate', kind: 'number' },
     // How far the pace controller may pull the song (#186 PR H; `follow` itself composes
@@ -306,6 +309,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         // Always emitted, null included: unloading a song must reach the player.
         out.songHandle = c.songHandle ?? null;
         out.songPlaying = c.songPlaying ?? false;
+        out.songPlays = c.songPlays ?? 0;
         out.songVolume = c.songPrefs?.volume ?? DEFAULT_SONG.volume;
         out.songRate = c.songPrefs?.rate ?? DEFAULT_SONG.rate;
         out.songFollowRange = c.songPrefs?.followRange ?? DEFAULT_SONG.followRange;

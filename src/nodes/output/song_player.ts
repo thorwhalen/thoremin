@@ -134,6 +134,12 @@ export const songPlayerNode = defineNode<Params>({
   inputs: [
     { name: 'song', kind: 'song-handle', description: 'The loaded song (the Song tool, through the store); absent = nothing to play' },
     { name: 'playing', kind: 'boolean', default: false, description: 'The transport: song.play / song.pause' },
+    {
+      name: 'play',
+      kind: 'number',
+      description:
+        'The press counter (song.play increments it): a change while `playing` is a press, so a Play made in the frame the song ends is not lost to a level that never fell (#344)',
+    },
     { name: 'rate', kind: 'number', default: 1, description: 'Playback rate, pitch preserved (clamped to minRate..maxRate)' },
     {
       name: 'followRate',
@@ -175,6 +181,9 @@ export const songPlayerNode = defineNode<Params>({
     let cuedId: number | null = null;
     /** Whether a leader held the transport last tick. */
     let wasLed = false;
+    /** The press counter last honoured (#344): a change is a press even while the
+     *  `playing` level stayed up. Moves only while the song is playable, like `wasPlaying`. */
+    let pressed: unknown = undefined;
 
     /** The stretcher, once there is one; starts the default loading on first need. */
     const stretcherFor = (ctx: NodeContext, audio: StretcherOptions, songId: string): Stretcher | null => {
@@ -244,6 +253,8 @@ export const songPlayerNode = defineNode<Params>({
           s.pause();
           loadedId = song.id;
           wasPlaying = false;
+          // Nor is a press counted before this song loaded.
+          pressed = inputs.play;
           // A cue standing from the previous song is not a request about this one.
           const standing = inputs.cue as { id?: unknown } | undefined;
           cuedId = typeof standing?.id === 'number' ? standing.id : null;
@@ -265,6 +276,7 @@ export const songPlayerNode = defineNode<Params>({
         if (wasLed && !led) {
           s.pause();
           wasPlaying = inputs.playing === true;
+          pressed = inputs.play;
         }
         wasLed = led;
         const playing = led ? (inputs.followPlaying as boolean) : inputs.playing === true;
@@ -302,9 +314,14 @@ export const songPlayerNode = defineNode<Params>({
           // ready (`wasPlaying` only moves while the song is playable).
           // A leader cannot restart a song that has played to its end (a release cue past
           // the end lands there): the song is over until the player presses Play.
-          if (playing && !wasPlaying && !(led && s.ended())) s.play();
+          // A press is also an edge when the counter moved while the level stayed up (the
+          // song ended and was pressed again between two ticks, #344); a press while the
+          // song sounds changes nothing. The counter is the player's, so a leader ignores it.
+          const press = !led && playing && inputs.play !== pressed && !s.playing();
+          if ((playing && !wasPlaying && !(led && s.ended())) || press) s.play();
           else if (!playing && s.playing()) s.pause();
           wasPlaying = playing;
+          pressed = inputs.play;
           const sounding = s.playing();
           status = sounding
             ? { phase: 'active', message: `Playing ${song.name}` }

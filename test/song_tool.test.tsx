@@ -87,6 +87,15 @@ describe('the Song tool', () => {
     await waitFor(() => expect(useControls.getState().songPlaying).toBe(false));
   });
 
+  it('every Play counts a press, even when the transport already reads playing (#344)', () => {
+    const before = useControls.getState().songPlays;
+    useControls.getState().setSongPlaying(true);
+    useControls.getState().setSongPlaying(true);
+    useControls.getState().setSongPlaying(false);
+    expect(useControls.getState().songPlays).toBe(before + 2);
+    expect(useControls.getState().songPlaying).toBe(false);
+  });
+
   it('a new song stops the transport and replaces the old one', async () => {
     useControls.getState().setSongHandle({ id: 'a', name: 'a.mp3', url: 'a.mp3', durationS: 1, grid: EMPTY_SONG_GRID });
     useControls.getState().setSongPlaying(true);
