@@ -53,21 +53,18 @@ describe('the transport rules', () => {
     expect(accepted.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('reads the upbeat from `travel` when present, and stillness from `motion` (#461)', () => {
-    // A noisier tracker: the per-frame motion of the upbeat stays under moveAbove, its travel
-    // over a lag does not.
-    const tr = createTransport();
-    const steps = run(tr, [
-      [0.6, { raise: RAISED, motion: STILL, travel: STILL }],
-      [0.2, { raise: RAISED, motion: 5, travel: MOVING }],
-    ]);
-    expect(phases(steps)).toEqual(['idle', 'armed', 'prepared']);
-    // A travel that reads still is no upbeat, whatever the per-frame motion says.
-    const still = run(createTransport(), [
-      [0.6, { raise: RAISED, motion: STILL, travel: STILL }],
-      [0.2, { raise: RAISED, motion: 5, travel: STILL }],
-    ]);
-    expect(phases(still)).toEqual(['idle', 'armed']);
+  it('the upbeat is the motion, or the travel at an upbeat speed; stillness is the motion (#461)', () => {
+    const upbeat = (frame: Frame) => phases(run(createTransport(), [[0.6, { raise: RAISED, motion: STILL, travel: STILL, speed: 0 }], [0.2, { raise: RAISED, ...frame }]]));
+    const fast = TRANSPORT_DEFAULTS.upbeatSpeedAbove * 2;
+    const slow = TRANSPORT_DEFAULTS.upbeatSpeedAbove / 2;
+    // A noisier tracker: the per-frame motion of the upbeat stays under moveAbove, its travel does not.
+    expect(upbeat({ motion: 5, travel: MOVING, speed: fast })).toEqual(['idle', 'armed', 'prepared']);
+    // A slow adjustment of the ready arm, far above the noise on a clean camera, is no upbeat.
+    expect(upbeat({ motion: 5, travel: MOVING, speed: slow })).toEqual(['idle', 'armed']);
+    // A travel that reads still is none either.
+    expect(upbeat({ motion: 5, travel: STILL, speed: fast })).toEqual(['idle', 'armed']);
+    // The per-frame motion alone still is (the rule before #461, quick on a clean camera).
+    expect(upbeat({ motion: MOVING, travel: STILL, speed: slow })).toEqual(['idle', 'armed', 'prepared']);
   });
 
   it('the ready pose must last readyS, and a dropped arm disarms before the upbeat', () => {

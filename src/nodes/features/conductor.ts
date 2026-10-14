@@ -167,7 +167,8 @@ export const ConductorTransportSchema = z.object({
   droppedBelow: z.number().min(-0.5).max(1.5).default(TRANSPORT_DEFAULTS.droppedBelow),
   /** Still below this motion, noise units. */
   stillBelow: z.number().min(1).max(50).default(TRANSPORT_DEFAULTS.stillBelow),
-  /** The upbeat after the ready pose: motion above this, noise units. */
+  /** The upbeat after the ready pose: motion above this, noise units, or the arm's travel
+   *  over a short lag above it at an upbeat's speed (#461, ictus's `upbeatSpeedAbove`). */
   moveAbove: z.number().min(1).max(100).default(TRANSPORT_DEFAULTS.moveAbove),
   /** The ready pose (raised and still) must last this long, seconds. */
   readyS: z.number().min(0).max(5).default(TRANSPORT_DEFAULTS.readyS),

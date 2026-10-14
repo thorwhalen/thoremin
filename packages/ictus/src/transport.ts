@@ -7,12 +7,16 @@
  * front of a webcam, which is either beating or out of frame. A body is always in frame:
  * walking up to the camera, lifting the arms and settling all produce impacts, and a
  * conductor who stops has stopped moving, not left. So the body's transport reads the
- * pose itself, with three rules over two numbers the caller measures per frame:
+ * pose itself, with three rules over the numbers the caller measures per frame:
  *
  * - `raise`, how high the beating arm is (0 at the hips, 1 at the shoulders, torso units);
  * - `motion`, how much the arms move, in NOISE UNITS (displacement over the tracker's own
  *   jitter, so a still body reads about 1 whatever the camera, and every threshold here
- *   means the same thing for every player and camera).
+ *   means the same thing for every player and camera);
+ * - optionally `travel` and `speed` (#461), the arm's displacement over a short lag, in the
+ *   lag's own noise units and in torso lengths per second: the upbeat is read from them
+ *   too (see {@link TransportInput.travel}).
+
  *
  * The rules (the closest MediaPipe-pose precedent's start-on-an-upbeat machine, and the
  * conducting literature's fermata and cut-off, design §3.6):
@@ -67,11 +71,16 @@ export interface TransportInput {
   raise?: number;
   /** The arms' motion in noise units; undefined when unseen. */
   motion?: number;
-  /** The arms' travel over a short lag in noise units (#461): what the upbeat is read from
-   *  when present, `motion` otherwise. A still arm reads about 1 on both; a sustained
-   *  movement reads several times more on `travel`, whose vector displacement cancels the
-   *  tracker's noise where a smoothed per-frame magnitude cannot. */
+  /** The beating arm's travel over a short lag, in the LAG's own noise units (#461): the
+   *  upbeat is either `motion` or this above `moveAbove`. A still arm reads about 1 on
+   *  both. `motion` is a smoothed per-frame magnitude, which cannot average the tracker's
+   *  noise away, so on a noisier camera a real upbeat stays under `moveAbove` on it; over a
+   *  lag a sustained movement adds up while the noise does not. */
   travel?: number;
+  /** The same travel in torso lengths per second: with `travel`, the upbeat must also be
+   *  faster than `upbeatSpeedAbove`, so on a clean camera (where a slow adjustment of the
+   *  ready arm is far above the noise) only an upbeat's speed starts the piece. */
+  speed?: number;
   /** The own (refined) time of an anchor delivered on this frame, if one was; its
    *  acceptance is in the result. The periods are counted from it, not from the frame
    *  that confirmed it: a stroke that ends in a stop is confirmed late. */
@@ -106,8 +115,12 @@ export interface TransportOptions {
   droppedBelow?: number;
   /** The body counts as still below this motion, noise units. */
   stillBelow?: number;
-  /** The upbeat: motion above this, noise units. */
+  /** The upbeat: motion, or travel at an upbeat's speed, above this, noise units. */
   moveAbove?: number;
+  /** The upbeat read from `travel` must also be faster than this, torso lengths per
+   *  second (#461): a scripted upbeat peaks at about 1.35, A1's conductor at about 2, a
+   *  slow adjustment of a raised arm under 0.4. */
+  upbeatSpeedAbove?: number;
   /** The ready pose must persist this long, seconds. */
   readyS?: number;
   /** Past the upbeat, no downbeat within this long returns to waiting, seconds. */
@@ -132,6 +145,7 @@ export const TRANSPORT_DEFAULTS: Required<TransportOptions> = {
   droppedBelow: 0.2,
   stillBelow: 8,
   moveAbove: 9,
+  upbeatSpeedAbove: 0.6,
   readyS: 0.4,
   prepareTimeoutS: 2,
   waitAfterPeriods: 0.9,
@@ -197,7 +211,7 @@ export function createTransport(options: TransportOptions = {}): Transport {
       phase = 'running';
       lastAnchorT = t;
     },
-    step({ t, raise, motion, travel, anchor, period = Infinity, pose = {} }) {
+    step({ t, raise, motion, travel, speed, anchor, period = Infinity, pose = {} }) {
       const P = Number.isFinite(period) && period > 0 ? period : o.fallbackPeriodS;
       const still = motion !== undefined && motion < o.stillBelow;
       const raised = raise !== undefined && raise > o.raisedAbove;
@@ -206,8 +220,11 @@ export function createTransport(options: TransportOptions = {}): Transport {
       const readyPose = pose.ready ?? (pose.cutoff !== true && raised && still);
       const holdPose = pose.hold ?? (pose.cutoff !== true && raised && still);
       const cutoffPose = pose.cutoff ?? (dropped && still);
-      const upbeat = travel ?? motion;
-      const moving = upbeat !== undefined && upbeat > o.moveAbove;
+      // The upbeat: the per-frame motion (enough on a clean camera, and quick to rise), or
+      // the travel over a lag at an upbeat's speed (what a noisier camera leaves of it).
+      const moving =
+        (motion !== undefined && motion > o.moveAbove) ||
+        (travel !== undefined && travel > o.moveAbove && (speed === undefined || speed > o.upbeatSpeedAbove));
 
       readySince = readyPose ? (Number.isNaN(readySince) ? t : readySince) : NaN;
       cutoffSince = cutoffPose ? (Number.isNaN(cutoffSince) ? t : cutoffSince) : NaN;

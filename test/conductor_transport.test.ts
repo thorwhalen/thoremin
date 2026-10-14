@@ -99,6 +99,30 @@ describe('the body transport at a noisier tracker (#461)', () => {
   });
 });
 
+describe('a slowly moving ready arm is no upbeat (the review of #461)', () => {
+  // On a clean camera the arm's travel over a lag reads a slow adjustment far above the
+  // noise; the upbeat also needs the speed of one, so none of these starts before the downbeat.
+  const slow: [string, Gesture][] = [
+    ['repositioned up 0.2 torso over 0.6 s', { kind: 'drift', s: 0.6, by: 0.2 }],
+    ['repositioned down 0.15 torso over 1 s', { kind: 'drift', s: 1, by: -0.15 }],
+    ['a slight sway, 0.05 torso at 0.7 Hz', { kind: 'sway', s: 1.3, amp: 0.05, hz: 0.7 }],
+    ['a sway, 0.08 torso at 1.2 Hz', { kind: 'sway', s: 1.3, amp: 0.08, hz: 1.2 }],
+  ];
+  // 0.25 px is the scripted default; at 0.1 px the cases main's per-frame motion rule also
+  // passes (on a cleaner camera it reads a quicker adjustment as an upbeat before this
+  // change too: the follow-up issue on #461).
+  const cases = [
+    ...slow.map(([name, g]) => ({ noisePx: 0.25, name, g })),
+    ...slow.filter(([name]) => name.startsWith('repositioned down') || name.startsWith('a slight')).map(([name, g]) => ({ noisePx: 0.1, name, g })),
+  ];
+  it.each(cases)('$noisePx px, $name: the piece starts on the downbeat, not before', async ({ noisePx, g }) => {
+    const { sc, outs } = await play([{ kind: 'rest', s: 1.5 }, { kind: 'ready', s: 1.2 }, g, { kind: 'ready', s: 0.6 }, { kind: 'upbeat', s: P }, { kind: 'beat', bpm: BPM, beats: 6 }], {}, {}, { noisePx });
+    const start = firstIndex(outs, (o) => o.beat > 0);
+    expect(start / FPS - sc.ictus[0]).toBeGreaterThanOrEqual(0);
+    expect(start / FPS - sc.ictus[0]).toBeLessThanOrEqual(2 / FPS + 1e-9);
+  });
+});
+
 describe('the body transport: hold and fermata', () => {
   it('a held fermata: hold within holdAfterPeriods of the last stroke, the given beat sustained, the next stroke releases', async () => {
     const { sc, outs, at } = await play([...START, { kind: 'beat', bpm: BPM, beats: 6 }, { kind: 'hold', s: 3 }, { kind: 'beat', bpm: BPM, beats: 4 }]);
