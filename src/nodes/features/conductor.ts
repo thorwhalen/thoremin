@@ -64,6 +64,22 @@
  * relate to and stays at the beat: the song's pace controller relates the conducted beat
  * to the song's tracked one ({1/2, 1, 2}, the servo's level). The `level` output is `k`.
  *
+ * A dancer (#380, body-movement A8, "Dance the orchestra"). With `source` = `dancer` the
+ * beat is not integrated from strokes at all: ictus's dance lead (`createDanceLead`)
+ * owns it, fed the dancer's `PulseState` on the `pulse` input (`body-pulse`, composed
+ * with the body source while the source is `dancer`). Its law is the dancer's loose one,
+ * not a conductor's: the dancer's cycle is related to the score's MARKED tempo at the
+ * position by ictus's level relation over the dancer's integer ratios (a stride that
+ * repeats once a bar is four beats in 4/4), the piece starts on the dancer's next cycle
+ * once that relation has persisted, the tempo follows inside `dancer.range` of the marked
+ * one, the cycle start is kept on the grid modulo the ratio (so bars stay on the dancer's
+ * cycles), and an untrusted pulse HOLDS the tempo: the piece never stops because the
+ * dancer paused. No transport rules, no fermata holds (a dancer has no release gesture),
+ * `markLevel` unused (the relation finds the level). Expression `same` is the body's
+ * motion and reach, read once per pulse cycle. One leader per consumer (#387 B2): this
+ * dial picks the score's; a dancer "conducting the recording" is the song's pace law on
+ * the pulse (the derivation's `songDanced`), so `recordingTime` stays empty.
+ *
  * The dial. {@link ConductorDialSchema} IS this node's params (the `faceControls`
  * pattern): the `conductor` dial re-exports it, the `config` input overrides the
  * build-time params live per tick, and `commands/paths.ts` derives a `dial.setIn`
@@ -96,7 +112,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, conductorRatios, createExpressionBlend, createIctus, createImpactDetector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, type DynamicsEstimate, type ExpressionBlend, type Ictus, type IctusState, type LevelHold, type MusicalTime, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
+import { beatAt, conductorRatios, createDanceLead, createExpressionBlend, createIctus, createImpactDetector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type DynamicsEstimate, type ExpressionBlend, type Ictus, type IctusState, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
 import { LM, frameTime, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
@@ -111,9 +127,10 @@ export type ConductorPoint = (typeof CONDUCTOR_POINTS)[number];
  *  loaded in the Song tool ("Conduct a recording"). */
 export const CONDUCTOR_TARGETS = ['score', 'recording'] as const;
 export type ConductorTarget = (typeof CONDUCTOR_TARGETS)[number];
-/** What the conductor reads (#375): the beating hand (the hand model), or the body (the
- *  pose model, a second camera branch the derivation composes while this is `body`). */
-export const CONDUCTOR_SOURCES = ['hands', 'body'] as const;
+/** Who leads (#375, #380): the beating hand (the hand model), the body conducting (the pose
+ *  model, a second camera branch the derivation composes while this is `body`), or a
+ *  DANCER (the same pose branch, read as the dancer's pulse by the dancer's loose law). */
+export const CONDUCTOR_SOURCES = ['hands', 'body', 'dancer'] as const;
 export type ConductorSource = (typeof CONDUCTOR_SOURCES)[number];
 export { CONDUCTOR_BODY_POINTS, type ConductorBodyPoint } from './conductor_body';
 /** Which level a stroke marks (#376): every beat, every other beat, every bar, or found
@@ -157,6 +174,18 @@ export const ConductorTransportSchema = z.object({
   stopAfterPeriods: z.number().min(0.25).max(8).default(TRANSPORT_DEFAULTS.stopAfterPeriods),
 });
 export type ConductorTransport = z.infer<typeof ConductorTransportSchema>;
+
+/** The dancer leading the score (#380, body-movement A8; ictus `createDanceLead`). */
+export const ConductorDancerSchema = z.object({
+  /** The score's tempo stays within this fraction of its marked tempo (0.1 = +-10 %). */
+  range: z.number().min(0.02).max(0.3).default(DANCE_LEAD_DEFAULTS.range),
+  /** Where the dancer's cycle start lands, in beats after a bar's (or the cycle's) start. */
+  phaseOffset: z.number().min(-4).max(4).default(DANCE_LEAD_DEFAULTS.phaseOffset),
+  /** The marked tempo, bpm, where the piece marks none (the built-in demo scale). */
+  bpm: z.number().min(30).max(240).default(120),
+});
+export type ConductorDancer = z.infer<typeof ConductorDancerSchema>;
+export const DEFAULT_CONDUCTOR_DANCER: ConductorDancer = ConductorDancerSchema.parse({});
 export const DEFAULT_CONDUCTOR_TRANSPORT: ConductorTransport = ConductorTransportSchema.parse({});
 /** What the `transport` output reads: the body transport's phase, `stopped` on the frame a
  *  cut-off lands, or `off` (reading the hands, or the rules off). */
@@ -170,9 +199,11 @@ const Params = z.object({
    *  tempo then follows the beat through the song's pacer (#187 PR 7). While it leads the
    *  recording the score and the orchestra stay silent. */
   conducts: z.enum(CONDUCTOR_TARGETS).default('score'),
-  /** What beats time (#375): the hand (the hand model's wrist or fingertip) or the body
-   *  (the pose model: an arm, the trunk, the head, the hips). Everything after the
-   *  anchors (the prior, the beat, the score, the orchestra, a recording) is the same. */
+  /** Who leads (#375, #380; #387 B2: one leader per instrument, by this dial): the hand
+   *  (the hand model's wrist or fingertip), the body conducting (the pose model: an arm,
+   *  the trunk, the head, the hips), or a `dancer` (the dancer's pulse, by the loose law
+   *  of `dancer`). Everything after the beat (the score, the orchestra) is the same; a
+   *  dancer "conducting the recording" is the song following the dancer (the pace law). */
   source: z.enum(CONDUCTOR_SOURCES).default('hands'),
   /** Which of the player's hands (or, reading the body, arms) beats time. `auto` takes
    *  whichever hand is in frame, preferring the right; reading the body, whichever arm
@@ -204,6 +235,9 @@ const Params = z.object({
   articulationFrom: z.enum(ARTICULATION_SOURCES).default('sharpness'),
   /** Reading the body: start, hold and stop from the pose (#377). */
   transport: ConductorTransportSchema.default(() => ({ ...DEFAULT_CONDUCTOR_TRANSPORT })),
+  /** A dancer leading the score (#380): the clamp, the phase offset, the tempo a piece
+   *  that marks none is played at. */
+  dancer: ConductorDancerSchema.default(() => ({ ...DEFAULT_CONDUCTOR_DANCER })),
   /** Beats per bar, for `beatInBar` (the meter recogniser is a later PR). */
   beatsPerBar: z.number().int().min(1).max(12).default(4),
   /** The phase servo's convergence horizon in beats: how long the score takes to catch
@@ -369,6 +403,9 @@ export const conductorNode = defineNode<Params>({
     // The override seam of the body's transport (#377; B4 later): a pose category stating
     // `ready` / `hold` / `cutoff` replaces that rule's geometry. Unconnected = the rules.
     { name: 'transportPose', kind: 'transport-pose' },
+    // The dancer's pulse (#380): read while `source` is `dancer`; composed (the body source
+    // branch's `body-pulse`) only then.
+    { name: 'pulse', kind: 'pulse-state' },
   ],
   outputs: [
     { name: 'time', kind: 'musical-time', schema: MusicalTimeSchema },
@@ -548,7 +585,7 @@ export const conductorNode = defineNode<Params>({
       anchors: 0,
     });
 
-    const emit = (time: MusicalTime, bpm: number, dyn: number, art: number, enabled: boolean, c: Params, level = 1) => ({
+    const emit = (time: MusicalTime, bpm: number, dyn: number, art: number, enabled: boolean, c: Params, level = 1, sounding = true) => ({
       time,
       beat: beatOut,
       bpm,
@@ -559,8 +596,11 @@ export const conductorNode = defineNode<Params>({
       confidence: time.confidence,
       enabled,
       // Before the body's transport has started, and after a cut-off, the score is silent.
-      leadsScore: enabled && c.conducts === 'score' && !(transport && (!TRANSPORT_SOUNDING.has(transport.phase()) || time.anchors === 0)),
-      recordingTime: enabled && c.conducts === 'recording' ? time : undefined,
+      // A dancer's piece is silent until it starts (#380).
+      leadsScore: enabled && sounding && c.conducts === 'score' && !(transport && (!TRANSPORT_SOUNDING.has(transport.phase()) || time.anchors === 0)),
+      // A dancer leading the recording is the song following the dancer's pulse (the pace
+      // law, `song-pace`), not the beat servo on a time derived from it.
+      recordingTime: enabled && c.conducts === 'recording' && c.source !== 'dancer' ? time : undefined,
       level,
       transport: enabled ? transportReading : 'off',
     });
@@ -603,12 +643,15 @@ export const conductorNode = defineNode<Params>({
       return docBpm / k;
     };
 
-    /** The dynamics and articulation for this tick (#378; see `expression`). */
-    const shapeExpression = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: IctusState): DynamicsEstimate => {
-      const source = c.expression === 'same' ? c.source : c.expression;
+    /** The dynamics and articulation for this tick (#378; see `expression`). A dancer's own
+     *  expression is the body's (#380): its motion and reach, read once per pulse cycle
+     *  (`s.anchor` is the cycle), with no stroke excursion. */
+    const shapeExpression = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: Pick<IctusState, 'dynamics' | 'articulation' | 'anchor'>): DynamicsEstimate => {
+      const source = c.expression === 'same' ? (c.source === 'dancer' ? 'body' : c.source) : c.expression;
       const beat: DynamicsEstimate = { dynamics: s.dynamics, articulation: s.articulation };
       let strokes = beat;
-      if (source === c.source) exprIctus = null;
+      const ownBody = c.source === 'dancer' && source === 'body';
+      if (source === c.source || ownBody) exprIctus = null;
       else {
         // The other source's follower: its prior only paces its detector.
         const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.mirrorX}:${c.mirrorHandedness}`;
@@ -661,9 +704,62 @@ export const conductorNode = defineNode<Params>({
         }
         // The beat's own stroke this tick, when the body both beats and shapes.
         if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
-        strokes = blend.read(shaped());
+        strokes = blend.read(ownBody ? null : shaped());
       }
       return strokes;
+    };
+
+    /** A dancer leads (#380): ictus's dance lead owns the beat (the loose law: it starts on
+     *  a cycle, follows inside the clamp, holds and never stops). Written fermatas are
+     *  played through (a dancer has no release gesture); the transport rules are a
+     *  conductor's. The beat goes on from where the last leader left it. */
+    let dance: DanceLead | null = null;
+    let lastCycleAt: number | undefined;
+    const danceTick = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params) => {
+      transport = null;
+      transportReading = 'off';
+      levelHold = null;
+      startBeat = null;
+      fermataAt = null;
+      // The hand's or the body's follower is not kept across a dancer: back to it, it
+      // starts fresh and waits for a first stroke.
+      if (ictus) resetFollower();
+      if (!dance) {
+        dance = createDanceLead();
+        dance.reset(beatOut);
+        lastCycleAt = undefined;
+      }
+      wasEnabled = true;
+      const raw = inputs.pulse as PulseState | undefined;
+      const pulse = raw && typeof raw === 'object' && typeof raw.period === 'number' ? raw : UNKNOWN_PULSE;
+      const marked = docTempo?.(beatOut) ?? c.dancer.bpm;
+      const d = dance.step({ t: ctx.time, pulse, marked, ref: docSigStart ? docSigStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset });
+      beatOut = d.beat;
+      // A cycle the follower fitted is the dancer's "stroke" for the expression (A6's note).
+      let cycle: Anchor | null = null;
+      if (pulse.lastAnchorAt !== undefined && pulse.lastAnchorAt !== lastCycleAt) {
+        lastCycleAt = pulse.lastAnchorAt;
+        cycle = { t: pulse.lastAnchorAt, confidence: pulse.confidence, strength: 1, sharpness: NaN, lateral: 0 };
+      }
+      const expression = shapeExpression(inputs, ctx, c, { dynamics: 0.5, articulation: 0.5, anchor: cycle });
+      const bpm = d.started ? d.tempo : 0;
+      const wholeBeat = Math.floor(beatOut);
+      const bpb = docMeter ? docMeter(beatOut) : c.beatsPerBar;
+      const time: MusicalTime = {
+        t: ctx.time,
+        beat: beatOut,
+        phase: beatOut - wholeBeat,
+        tempo: bpm,
+        period: bpm > 0 ? 60 / bpm : Infinity,
+        confidence: d.started ? pulse.confidence : 0,
+        nextBeatAt: bpm > 0 ? ctx.time + ((1 - (beatOut - wholeBeat)) * 60) / bpm : Infinity,
+        beatsPerBar: bpb,
+        beatInBar: ((wholeBeat % bpb) + bpb) % bpb,
+        state: d.started ? 'running' : 'ready',
+        anchors: d.cycles,
+        ...(pulse.lastAnchorAt !== undefined ? { lastAnchorAt: pulse.lastAnchorAt } : {}),
+      };
+      return emit(time, bpm, expression.dynamics, expression.articulation, true, c, Number.isFinite(d.ratio) ? d.ratio : 1, d.started);
     };
 
     return {
@@ -682,12 +778,15 @@ export const conductorNode = defineNode<Params>({
           levelHold = null;
           transport = null;
           meter = null;
+          dance = null;
           resetExpression();
           transportReading = 'off';
           afterStop = false;
           startBeat = null;
           return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
         }
+        if (c.source === 'dancer') return danceTick(inputs, ctx, c);
+        dance = null;
         // The hand's follower reads `hand` and `point` live; the body's detector fixes its
         // joints when built, so a change of side or point (or of source) re-creates it.
         // The beat stays where it is: the new follower waits for its first stroke.

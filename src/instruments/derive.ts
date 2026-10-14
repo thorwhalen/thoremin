@@ -104,10 +104,25 @@ export function songFollows(settings: Pick<DerivationSettings, 'songPrefs' | 'so
   return settings.songPrefs?.follow === true && settings.songHandle != null;
 }
 
-/** Whether the conductor leads the recording (#187 PR 7): conducting is on, it conducts
- *  the recording, and a song is loaded. It replaces following the dancer meanwhile. */
-export function songConducted(settings: Pick<DerivationSettings, 'conductor' | 'songHandle'>): boolean {
+/** Whether the conductor is on and leads the loaded recording, whoever leads him. */
+function conductsRecording(settings: Pick<DerivationSettings, 'conductor' | 'songHandle'>): boolean {
   return settings.conductor?.enabled === true && settings.conductor.conducts === 'recording' && settings.songHandle != null;
+}
+
+/** Whether the conductor's BEAT leads the recording (#187 PR 7): conducting is on, it
+ *  conducts the recording, a song is loaded, and a hand or the body beats (a dancer
+ *  leading the recording is {@link songDanced}). It replaces following the dancer. */
+export function songConducted(settings: Pick<DerivationSettings, 'conductor' | 'songHandle'>): boolean {
+  return conductsRecording(settings) && settings.conductor?.source !== 'dancer';
+}
+
+/** Whether the song follows the dancer's pulse (#380: one leader per consumer): the Song
+ *  tool's "Follow the dancer", or the conductor led by a dancer and leading the recording.
+ *  Either way the pace law follows the pulse, and a conductor's beat leading the recording
+ *  wins over the Song tool's pref. */
+export function songDanced(settings: Pick<DerivationSettings, 'conductor' | 'songPrefs' | 'songHandle'>): boolean {
+  if (songConducted(settings)) return false;
+  return songFollows(settings) || conductsRecording(settings);
 }
 
 /** Whether the conductor reads the body (#375): its source is `body`, or the body shapes its
@@ -115,7 +130,8 @@ export function songConducted(settings: Pick<DerivationSettings, 'conductor' | '
  *  then composed with the conductor branch, whenever that branch is (so the pose model
  *  loads before the first beat, as the orchestra's soundfont does). */
 export function conductorReadsBody(settings: Pick<DerivationSettings, 'conductor'>): boolean {
-  return settings.conductor?.source === 'body' || settings.conductor?.expression === 'body';
+  const source = settings.conductor?.source;
+  return source === 'body' || source === 'dancer' || settings.conductor?.expression === 'body';
 }
 
 /**
@@ -137,8 +153,10 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
     // The conductor is the instrument's (an explicit set lists it); the recording it leads
     // is the player's, like the dancer's song.
-    const conducted = songConducted(settings) && ids.includes('conductor');
-    const dancerLeads = songFollows(settings) && !conducted;
+    const listed = ids.includes('conductor');
+    const conducted = songConducted(settings) && listed;
+    // A dancer leads the song from the Song tool's pref, or through a listed conductor.
+    const dancerLeads = !conducted && (songFollows(settings) || (songDanced(settings) && listed));
     // As below: only while the conductor (or its orchestra) is on, not for a saved set
     // that merely lists an idle conductor.
     const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor') && (on(settings.conductor) || on(settings.conductor?.orchestra));
@@ -165,7 +183,7 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   // anything onto the voices, so `bodyWanted` (which gates the router) leaves it out.
   // A conductor leading the song replaces the dancer (one leader for one song): the pace
   // node prefers his time, and the body is not started for a dancer nobody follows.
-  const dancerLeads = songFollows(settings) && !songConducted(settings);
+  const dancerLeads = songDanced(settings);
   add('body-source', bodyWanted || dancerLeads);
   add('song-pace', dancerLeads || songConducted(settings));
   // The router modulates the hand voices: it needs the body AND the voices.

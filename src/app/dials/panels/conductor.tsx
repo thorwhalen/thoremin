@@ -76,6 +76,7 @@ const ARTICULATION_LABEL: Record<ConductorDialParams['articulationFrom'], string
 const SOURCE_LABEL: Record<ConductorDialParams['source'], string> = {
   hands: 'a beating hand',
   body: 'the body (an arm, or a bounce)',
+  dancer: 'a dancer (your steps lead)',
 };
 /** The rhythm prior (#232), in the player's terms: what kind of tempo it follows best. */
 const PRIOR_LABEL: Record<RhythmPriorKind, string> = {
@@ -94,6 +95,11 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
   const c = (state.effective.conductor ?? {}) as Partial<ConductorSettings>;
   const enabled = c.enabled === true;
   const body = c.source === 'body';
+  // A dancer leads (#380): the dancer's own controls replace the conductor's beat ones.
+  const dancer = c.source === 'dancer';
+  const danceRange = c.dancer?.range ?? 0.1;
+  const dancePhase = c.dancer?.phaseOffset ?? 0;
+  const danceBpm = c.dancer?.bpm ?? 120;
   const hand = c.hand ?? 'auto';
   const point = c.point ?? 'wrist';
   const bodyPoint = c.bodyPoint ?? 'impact';
@@ -181,7 +187,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           Conduct with
           <select
             className={selectCls}
-            value={body ? 'body' : 'hands'}
+            value={dancer ? 'dancer' : body ? 'body' : 'hands'}
             onChange={(e) => dispatchDialSetIn('conductor.source', e.target.value)}
           >
             {CONDUCTOR_SOURCES.map((s) => (
@@ -192,87 +198,140 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           </select>
         </label>
       )}
-      <label className="flex items-center justify-between gap-2 text-xs">
-        {body ? 'Beating arm' : 'Beating hand'}
-        <select
-          className={selectCls}
-          value={hand}
-          disabled={!enabled}
-          onChange={(e) => dispatchDialSetIn('conductor.hand', e.target.value)}
-        >
-          {CONDUCTOR_HANDS.map((h) => (
-            <option key={h} value={h}>
-              {(body ? ARM_LABEL : HAND_LABEL)[h]}
-            </option>
-          ))}
-        </select>
-      </label>
-      {body ? (
-        <label className="flex items-center justify-between gap-2 text-xs">
-          Follow
-          <select
-            className={selectCls}
-            value={bodyPoint}
-            disabled={!enabled}
-            data-testid="conductor-body-point"
-            onChange={(e) => dispatchDialSetIn('conductor.bodyPoint', e.target.value)}
-          >
-            {CONDUCTOR_BODY_POINTS.map((p) => (
-              <option key={p} value={p}>
-                {BODY_POINT_LABEL[p]}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      {body && (bodyPoint === 'impact' || bodyPoint === 'wrist') ? (
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={transportRules}
-            disabled={!enabled}
-            data-testid="conductor-transport-rules"
-            aria-label="Start, hold and stop from the pose"
-            onChange={(e) => dispatchDialSetIn('conductor.transport.rules', e.target.checked)}
-          />
-          <span>
-            Start, hold and stop from the pose{' '}
-            <span className="text-white/40">(raise the arm and hold still, then give an upbeat; hold still to sustain; drop the arm to stop)</span>
-          </span>
-        </label>
-      ) : (
-        <label className="flex items-center justify-between gap-2 text-xs">
-          Follow
-          <select
-            className={selectCls}
-            value={point}
-            disabled={!enabled}
-            onChange={(e) => dispatchDialSetIn('conductor.point', e.target.value)}
-          >
-            {CONDUCTOR_POINTS.map((p) => (
-              <option key={p} value={p}>
-                {POINT_LABEL[p]}
-              </option>
-            ))}
-          </select>
-        </label>
+      {!dancer && (
+        <>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            {body ? 'Beating arm' : 'Beating hand'}
+            <select
+              className={selectCls}
+              value={hand}
+              disabled={!enabled}
+              onChange={(e) => dispatchDialSetIn('conductor.hand', e.target.value)}
+            >
+              {CONDUCTOR_HANDS.map((h) => (
+                <option key={h} value={h}>
+                  {(body ? ARM_LABEL : HAND_LABEL)[h]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {body ? (
+            <label className="flex items-center justify-between gap-2 text-xs">
+              Follow
+              <select
+                className={selectCls}
+                value={bodyPoint}
+                disabled={!enabled}
+                data-testid="conductor-body-point"
+                onChange={(e) => dispatchDialSetIn('conductor.bodyPoint', e.target.value)}
+              >
+                {CONDUCTOR_BODY_POINTS.map((p) => (
+                  <option key={p} value={p}>
+                    {BODY_POINT_LABEL[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {body && (bodyPoint === 'impact' || bodyPoint === 'wrist') ? (
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={transportRules}
+                disabled={!enabled}
+                data-testid="conductor-transport-rules"
+                aria-label="Start, hold and stop from the pose"
+                onChange={(e) => dispatchDialSetIn('conductor.transport.rules', e.target.checked)}
+              />
+              <span>
+                Start, hold and stop from the pose{' '}
+                <span className="text-white/40">(raise the arm and hold still, then give an upbeat; hold still to sustain; drop the arm to stop)</span>
+              </span>
+            </label>
+          ) : (
+            <label className="flex items-center justify-between gap-2 text-xs">
+              Follow
+              <select
+                className={selectCls}
+                value={point}
+                disabled={!enabled}
+                onChange={(e) => dispatchDialSetIn('conductor.point', e.target.value)}
+              >
+                {CONDUCTOR_POINTS.map((p) => (
+                  <option key={p} value={p}>
+                    {POINT_LABEL[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="flex items-center justify-between gap-2 text-xs">
+            Each stroke marks
+            <select
+              className={selectCls}
+              value={markLevel}
+              disabled={!enabled}
+              data-testid="conductor-mark-level"
+              onChange={(e) => dispatchDialSetIn('conductor.markLevel', e.target.value)}
+            >
+              {CONDUCTOR_MARK_LEVELS.map((m) => (
+                <option key={m} value={m}>
+                  {MARK_LEVEL_LABEL[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
       )}
-      <label className="flex items-center justify-between gap-2 text-xs">
-        Each stroke marks
-        <select
-          className={selectCls}
-          value={markLevel}
-          disabled={!enabled}
-          data-testid="conductor-mark-level"
-          onChange={(e) => dispatchDialSetIn('conductor.markLevel', e.target.value)}
-        >
-          {CONDUCTOR_MARK_LEVELS.map((m) => (
-            <option key={m} value={m}>
-              {MARK_LEVEL_LABEL[m]}
-            </option>
-          ))}
-        </select>
-      </label>
+      {dancer && (
+        <>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            <span>
+              Follow within <span className="text-white/40">(+-{Math.round(danceRange * 100)} % of the marked tempo)</span>
+            </span>
+            <input
+              type="range"
+              min={0.02}
+              max={0.3}
+              step={0.01}
+              value={danceRange}
+              disabled={!enabled}
+              data-testid="conductor-dancer-range"
+              onChange={(e) => dispatchDialSetIn('conductor.dancer.range', Number(e.target.value))}
+            />
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            Your step lands on
+            <select
+              className={selectCls}
+              value={dancePhase}
+              disabled={!enabled}
+              data-testid="conductor-dancer-phase"
+              onChange={(e) => dispatchDialSetIn('conductor.dancer.phaseOffset', Number(e.target.value))}
+            >
+              {[0, 1, 2, 3].map((b) => (
+                <option key={b} value={b}>
+                  {b === 0 ? 'the first beat (default)' : `beat ${b + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            <span>
+              Tempo of an unmarked piece <span className="text-white/40">({danceBpm} bpm)</span>
+            </span>
+            <input
+              type="range"
+              min={60}
+              max={180}
+              step={1}
+              value={danceBpm}
+              disabled={!enabled}
+              onChange={(e) => dispatchDialSetIn('conductor.dancer.bpm', Number(e.target.value))}
+            />
+          </label>
+        </>
+      )}
       <label className="flex items-center justify-between gap-2 text-xs">
         Loudness from
         <select
@@ -307,35 +366,39 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           </select>
         </label>
       )}
-      <label className="flex items-center justify-between gap-2 text-xs">
-        <span>
-          Catch-up <span className="text-white/40">({servo.toFixed(2)} beats)</span>
-        </span>
-        <input
-          type="range"
-          min={0.25}
-          max={4}
-          step={0.25}
-          value={servo}
-          disabled={!enabled}
-          onChange={(e) => dispatchDialSetIn('conductor.servoBeats', Number(e.target.value))}
-        />
-      </label>
-      <label className="flex items-center justify-between gap-2 text-xs">
-        Tempo sense
-        <select
-          className={selectCls}
-          value={prior}
-          disabled={!enabled}
-          onChange={(e) => dispatchDialSetIn('conductor.prior', e.target.value)}
-        >
-          {RHYTHM_PRIOR_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {PRIOR_LABEL[k]}
-            </option>
-          ))}
-        </select>
-      </label>
+      {!dancer && (
+        <>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            <span>
+              Catch-up <span className="text-white/40">({servo.toFixed(2)} beats)</span>
+            </span>
+            <input
+              type="range"
+              min={0.25}
+              max={4}
+              step={0.25}
+              value={servo}
+              disabled={!enabled}
+              onChange={(e) => dispatchDialSetIn('conductor.servoBeats', Number(e.target.value))}
+            />
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            Tempo sense
+            <select
+              className={selectCls}
+              value={prior}
+              disabled={!enabled}
+              onChange={(e) => dispatchDialSetIn('conductor.prior', e.target.value)}
+            >
+              {RHYTHM_PRIOR_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {PRIOR_LABEL[k]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
       <p className="text-[10px] leading-relaxed text-white/40">
         Beat time with your hand (or, conducting with the body, your arm or a bounce of
         the trunk, with the camera seeing you from head to hips): the bottom of each
