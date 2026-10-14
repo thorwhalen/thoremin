@@ -550,25 +550,39 @@ export interface MirrorOnOptions extends RecutOptions {
   maxCategories?: number;
 }
 
-/** A hold read on the other side: its vector, its supporting frames and its stick figure. */
-function mirroredSample(c: PersonalCategorizer, s: CategorizerSample, tools: MirrorTools): CategorizerSample {
-  const vector = tools.image(s.vector);
-  const rows = s.support?.map((row) => {
+/** A feature's mirror twin (one-to-one: the mirror image of a vector with only that feature has
+ *  only the twin's key); the feature itself when the image keeps or drops it. */
+function twinOf(tools: MirrorTools, feature: string): string {
+  const keys = Object.keys(tools.image({ [feature]: 0.25 }));
+  return keys.length === 1 ? keys[0] : feature;
+}
+
+/** A sample's supporting rows as vectors over `features` (null cells left out). */
+function supportVectors(s: CategorizerSample, features: readonly string[]): FeatureVector[] | undefined {
+  return s.support?.map((row) => {
     const v: FeatureVector = {};
-    c.features.forEach((f, i) => {
-      if (row[i] !== null) v[f] = row[i]!;
+    features.forEach((f, i) => {
+      if (row[i] !== null && row[i] !== undefined) v[f] = row[i]!;
     });
-    return tools.image(v);
+    return v;
   });
+}
+
+/** A hold over the mirrored feature list `features`, read on the other side when `flip`: its
+ *  vector, its supporting frames (rows over `features`) and its stick figure. */
+function remappedSample(c: PersonalCategorizer, s: CategorizerSample, tools: MirrorTools, features: readonly string[], flip: boolean): CategorizerSample {
+  const rows = supportVectors(s, c.features);
+  if (!flip) return toSample({ id: s.id, vector: s.vector, t: s.t, cue: s.cue, support: rows, skeleton: s.skeleton ?? null }, features);
+  const vector = tools.image(s.vector);
   const skeleton = s.skeleton ? tools.skeleton?.(vector) ?? null : null;
-  return toSample({ id: s.id, vector, t: s.t, cue: s.cue, support: rows, skeleton }, c.features);
+  return toSample({ id: s.id, vector, t: s.t, cue: s.cue, support: rows?.map((r) => tools.image(r)), skeleton }, features);
 }
 
 /**
- * Turn the mirror on after the take (#459): left and right become one pose. Lossless, because a
- * mirrored take reads every hold on ONE side (`canonicalPose`): each hold that leans the other
- * way (`side < 0`) is replaced by its mirror image (vector, supporting frames, stick figure), and
- * the categorizer re-cut at the k its merge gaps suggest, so "left arm out" and "right arm out"
+ * Turn the mirror on after the take (#459): left and right become one pose, as if the take had been
+ * recorded with the mirror on, which reads every hold on ONE side (`canonicalPose`): each hold that leans the other
+ * way (`side < 0`) is replaced by its mirror image (vector, supporting frames, stick figure), the
+ * feature list gains each feature's mirror twin, and the categorizer re-cut at the k its merge gaps suggest, so "left arm out" and "right arm out"
  * fall together. The bins (Neutral, set aside) keep their pins; the category pins are released,
  * since they kept apart the very sides that are now one (that is what a merge needs). A name
  * comes along only where it is unambiguous: a new category takes the name of the one named
@@ -579,13 +593,25 @@ function mirroredSample(c: PersonalCategorizer, s: CategorizerSample, tools: Mir
 export function mirrorOn(c: PersonalCategorizer, tools: MirrorTools, options: MirrorOnOptions = {}): SortResult {
   if (c.mirror) return fail('left and right are already the same pose');
   const { carry = (x) => x.label.trim() !== '', maxCategories = Infinity, ...recutOptions } = options;
-  const samples = c.samples.map((s) => (tools.side(s.vector) < 0 ? mirroredSample(c, s, tools) : s));
+  // The feature list gains each feature's twin: a feature picked on one
+  // side (the moving arm's) would otherwise see only the still arm once its holds are mirrored,
+  // and the categories would collapse onto each other (#459 review). Rows are kept over it.
+  const features = [...c.features];
+  const weights = { ...c.weights };
+  for (const f of c.features) {
+    const t = twinOf(tools, f);
+    if (features.includes(t)) continue;
+    features.push(t);
+    // Its own noise weight when the take measured one, else its partner's.
+    if (!Object.hasOwn(c.weights, t) && Object.hasOwn(c.weights, f)) weights[t] = c.weights[f];
+  }
+  const samples = c.samples.map((s) => remappedSample(c, s, tools, features, tools.side(s.vector) < 0));
   const binPins = Object.fromEntries(Object.entries(c.pins ?? {}).filter(([, to]) => isBin(to)));
   const { pins: _p, ...rest } = c;
   void _p;
   let base: PersonalCategorizer;
   try {
-    base = PersonalCategorizerSchema.parse({ ...rest, samples, mirror: true, ...(Object.keys(binPins).length > 0 ? { pins: binPins } : {}) });
+    base = PersonalCategorizerSchema.parse({ ...rest, features, weights, samples, mirror: true, ...(Object.keys(binPins).length > 0 ? { pins: binPins } : {}) });
   } catch (e) {
     return fail(e instanceof Error ? e.message.split('\n')[0] : String(e));
   }

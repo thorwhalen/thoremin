@@ -74,7 +74,7 @@ import {
   type SortResult,
 } from '@thoremin/sdk/enroll/sorting';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
-import { carveTake, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
+import { carveTake, generalContextOf, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '@thoremin/sdk/enroll/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
@@ -1244,12 +1244,23 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // After the take (#459): ON is one undoable edit (every hold on one side, re-cut at the
           // suggested k); OFF cannot be undone that way, since no hold kept its side.
           if (!on || working.mirror || !modality.mirrorImage || !modality.mirrorSide) return;
+          if (!get().view?.recutable) {
+            set({ notice: `Not changed: ${working.samples.length} ${modality.words.many} are too many to sort again here; merge categories or delete some first.` });
+            return;
+          }
           const image = modality.mirrorImage;
           const side = modality.mirrorSide;
-          const kept = (cat: PersonalCategorizer['categories'][number]) => ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '';
-          edit((w) =>
-            mirrorOn(w, { image, side, skeleton: modality.skeleton ? (v) => modality.skeleton!(v) : undefined }, { ...recutOptions(), carry: kept, maxCategories: FACE_SESSION_DEFAULTS.maxCategories }),
-          );
+          // A name carries when it is the player's, and never a SIDED default name ("right arm up":
+          // the general model's without the mirror and not with it), which a reopened categorizer
+          // cannot tell from a typed one: the mirror's words name that category afresh.
+          const labelsOf = (c: PersonalCategorizer) => new Set((modality.general?.(generalContextOf(c))?.labels ?? []).map((l) => l.toLowerCase()));
+          const unsided = labelsOf({ ...working, mirror: true });
+          const { mirror: _mirror, ...unmirrored } = working;
+          void _mirror;
+          const sided = [...labelsOf(unmirrored)].filter((l) => !unsided.has(l));
+          const carry = (cat: PersonalCategorizer['categories'][number]) =>
+            ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '' && !sided.includes(cat.label.trim().toLowerCase());
+          edit((w) => mirrorOn(w, { image, side, skeleton: modality.skeleton ? (v) => modality.skeleton!(v) : undefined }, { ...recutOptions(), carry, maxCategories: FACE_SESSION_DEFAULTS.maxCategories }));
           return;
         }
         if (phase !== 'idle' && phase !== 'empty') return;

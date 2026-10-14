@@ -76,4 +76,34 @@ describe('the mirror after the take (#459)', () => {
       expect(mirrorOn(r.categorizer, tools)).toEqual({ ok: false, error: 'left and right are already the same pose' });
     }
   });
+
+  it('a reopened categorizer: the feature list gains each twin, two same-side poses stay apart, and a sided default name is not kept', async () => {
+    const store = await take(['right arm up', 'right arm out']);
+    expect(await store.getState().save('right')).toBe(true);
+    const id = store.getState().saved[0].id;
+    store.getState().reset();
+    await store.getState().open(id);
+    await vi.advanceTimersByTimeAsync(0);
+    const before = store.getState().working!;
+    expect(before.categories.map((c) => c.label)).toContain('right arm up');
+
+    store.getState().setMirror(true);
+    const after = store.getState().working!;
+    expect(after.mirror).toBe(true);
+    for (const f of before.features) {
+      const twin = Object.keys(bodyModality.mirrorImage!({ [f]: 0.25 }))[0];
+      expect(after.features).toContain(twin);
+      expect(after.weights[twin]).toBe(Object.hasOwn(before.weights, twin) ? before.weights[twin] : before.weights[f]);
+    }
+    // Both poses lean the same way: still two categories, the same holds, far apart.
+    expect(after.categories).toHaveLength(2);
+    expect(new Set(after.categories.map((c) => [...c.members].sort().join()))).toEqual(new Set(before.categories.map((c) => [...c.members].sort().join())));
+    const model = modelFromCategorizer(after);
+    const [a, b] = model.categories;
+    let d2 = 0;
+    for (const f of model.features) if (Number.isFinite(a.centroid[f]) && Number.isFinite(b.centroid[f])) d2 += ((a.centroid[f] - b.centroid[f]) * (model.weights[f] ?? 1)) ** 2;
+    expect(Math.sqrt(d2)).toBeGreaterThan(4 * Math.max(a.radius, b.radius));
+    // "right arm up" was the general model's sided name: the mirror's words replace it.
+    expect(after.categories.map((c) => c.label).join(' ')).not.toMatch(/right|left/);
+  });
 });
