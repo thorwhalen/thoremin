@@ -134,13 +134,41 @@ The air rows above were the one place the prediction was no tighter than the fra
 
 The spread target of #234's acceptance (30 fps, truthful stamps, effective lead, at most 6.5 ms) is met on this bench: 7.6 → 5.3. The rest of that acceptance is not: it asked for a clip set with brake and fall variability (bench-v2's are constants), for `missed` not to rise (it rises, below), and for a real-hand take better than `lowest` (none was measured). The change is unvalidated on real hands; #234 stays open for that. What it costs, stated plainly:
 
-- **A late mean.** The three-sample vertex is 2 to 4 ms late on this asymmetric turn, and the prediction's mean moves from early to late: −4.8 → +2.2 ms over all rates at 30 ms of lead, growing with the lead and with a slower camera (at the effective lead +6.1 at 30 fps and +9.0 at 24; `--fps 20` +8.2). That is why the MAE gains less than the spread wherever the bias is largest (24 fps at the effective lead: sd 13.3 → 7.7, MAE 10.6 → 10.5; `--fps 20`: MAE 9.9 → 10.0). A constant is what a latency calibration removes, but this one depends on the frame rate and the lead, so it is not free; no correction is shipped for it ([#352](https://github.com/thorwhalen/thoremin/issues/352)).
+- **A late mean.** The three-sample vertex is 2 to 4 ms late on this asymmetric turn, and the prediction's mean moves from early to late: −4.8 → +2.2 ms over all rates at 30 ms of lead, growing with the lead and with a slower camera (at the effective lead +6.1 at 30 fps and +9.0 at 24; `--fps 20` +8.2). That is why the MAE gains less than the spread wherever the bias is largest (24 fps at the effective lead: sd 13.3 → 7.7, MAE 10.6 → 10.5; `--fps 20`: MAE 9.9 → 10.0). A constant is what a latency calibration removes, but this one depends on the frame rate and the lead, so it is not free; no correction is shipped for it ([#352](https://github.com/thorwhalen/thoremin/issues/352)). *Update 2026-10-14:* decomposed and one correction tried in §3.1.2; still none shipped.
 - **More strokes unpredicted, and a shorter lead.** Air misses rise in most columns: +2 to +20 of 3456 in the table's, +33 at a zero lead (316 → 349), and up to +51 with tracker noise in the slow column (`--infer 0.045`, noise 2: 630 → 681; `--fps 20`, noise 2: 754 → 790); none with `--dejitter line`, at 15 fps, or in the two truthful-stamp regimes. The mean lead of an air prediction drops by about 6 ms (59.8 → 53.2 at the 30 ms lead). Every extra one is a stroke with no prediction at all, not a wrong one (at the 60 ms lead, 24 and 30 fps: 25 → 43 of 2304, in the `capture-jitter` and `stamp-noise` regimes): the later lag moves the commit deadline a sample later, and on noisy stamps that sample is sometimes past the bottom. Those strokes are sounded on confirmation, as before.
 - **What the player hears.** `sounded` / air (the prediction, else the late confirmation) improves at the native rates, sd / MAE 20.6 / 12.4 → 18.1 / 9.7, but its mean moves +1.0 → +7.1 ms, and on a slow camera its MAE gets slightly worse: `--fps 20` 16.3 → 16.7, 24.1 → 24.7, 27.2 → 27.8 ms at noise 0 / 1 / 2; `--infer 0.045` 17.8 → 17.2 at noise 0 and 21.5 → 21.6 at noise 1 (mean +8.9 → +16.1).
 - **`--poll 60`** (sample-and-hold at a 60 Hz vsync, measured by the review): at noise 0 only `predict` / air changes, sd 20.3 → 11.2; at noise 2 and a 60 ms lead the spread and the misses fall for both kinds (air 26.4 / 1389 → 22.4 / 1207, surface 26.2 / 1468 → 23.6 / 1325), but spurious predictions rise (air 67 → 118, surface 50 → 81): false sounds, on a regime the pump no longer produces.
 - `confirm` / air moves 6.9 → 7.1 ms sd (the strokes classified as surfaces use the lag).
 
 The air drum, bass and guitar take the new default through `createImpactPredictor`. On the air drum's own synthetic pads take (`test/air/synthetic_drums.ts`, a stick on an arc with a cosine ease, through the production graph) the hit timing improves: MAE 33.6 → 22.6 ms on the default take, 38.9 → 23.1 with landmark noise, 24.1 → 15.8 on the overlapping-pads script (four strokes per pad). One thing got slower: the snare struck after the kick (whose centre is 0.08 below it) lands on the snare from its fourth stroke instead of its second, because the pad is read at the depth the fall reaches by the predicted time, capped at the floor learned on the previous pad, and the old ~20 ms early prediction read a shallower depth that happened to favour the shallower pad. Over that script 4 strokes land off their pad against 5 before, but that count depends on the pattern: on 16-stroke kick / snare alternation, groove and pairs patterns the review counted 7 / 7 / 4 off-pad with the old reference and 8 / 7 / 5 with the new, and under either nearly every snare after a kick reads as the kick; `test/drums/landing_arc.test.ts` now pins the fourth stroke per pad, and per-pad floors, which would make a change of pad immediate, are [#353](https://github.com/thorwhalen/thoremin/issues/353). The predictor's fixture tests are unchanged and green.
+
+#### 3.1.2 The late mean, decomposed (#352, measured 2026-10-14)
+
+A prediction is the crossing extrapolated at the commit plus the learned lag, and the lag is learned as the reference (the three-sample vertex) minus the crossing the confirmation fits. So the air error splits into three parts that add up to it: how far the commit's crossing sits from the confirmation's (`commitX − confX`), the reference's own bias (`ref − T`), and how far the learned lag trails this stroke's reference offset. `npx vite-node scripts/subframe/decompose.ts` prints the table (bench-v2, noise 0, native rates, mean ± sd in ms):
+
+| fps | minLead | error | commitX − confX | ref − T | lag trail | lead |
+|---|---|---|---|---|---|---|
+| 24 | 30 ms | +5.0 ± 8.2 | −0.2 ± 5.7 | +3.4 ± 6.7 | +1.7 ± 7.1 | 58 |
+| 30 | 30 ms | +2.8 ± 5.8 | −1.1 ± 4.1 | +3.0 ± 5.4 | +0.9 ± 4.6 | 57 |
+| 60 | 30 ms | −1.1 ± 2.7 | −3.1 ± 2.1 | +1.6 ± 2.7 | +0.4 ± 2.5 | 52 |
+| 24 | 77 ms | +9.0 ± 10.8 | +4.0 ± 10.7 | +3.4 ± 6.8 | +1.6 ± 7.2 | 106 |
+| 30 | 77 ms | +6.1 ± 7.2 | +2.2 ± 7.1 | +3.0 ± 5.4 | +0.9 ± 4.6 | 100 |
+| 60 | 77 ms | +0.1 ± 4.2 | −1.9 ± 4.4 | +1.6 ± 2.7 | +0.4 ± 2.5 | 98 |
+
+The reference's bias is constant in the lead and grows with the sample period (the three-sample parabola on an asymmetric turn). The commit offset is what moves with the lead: −3 to −1 ms at a 30 ms lead, +2 to +4 at 77 ms, because the commit's quadratic is extrapolated further across a brake it does not model. At 60 fps and at the short lead the two have opposite signs and partly cancel.
+
+**Tried: learning the commit offset** (an exponentially weighted mean of `confX − commitX` per air stroke, gain 0.1 or 0.3, a running mean for the first strokes, added to the prediction). It removes the lead-dependent part and leaves the reference's bias: the mean becomes a near-constant +2 to +5 ms. `predict`, mean / sd / MAE in ms, misses of 3456 where shown:
+
+| column | air before | air, gain 0.1 | surface before | surface, gain 0.1 |
+|---|---|---|---|---|
+| all rates, 30 ms | +2.2 / 6.5 / 4.9, 263 | +3.5 / 6.2 / 5.2, 266 | −3.1 / 7.3 / 5.6, 209 | −3.2 / 7.4 / 5.8, 210 |
+| all rates, 77 ms | +5.0 / 8.7 / 7.3, 150 | +3.8 / 8.8 / 7.0, 153 | +0.6 / 9.3 / 6.5, 146 | −0.5 / 10.5 / 7.3, 146 |
+| 24 fps, 77 ms | +9.0 / 10.8 / 11.3 | +5.2 / 12.1 / 10.0 | +1.1 / 12.5 / 9.2 | −0.6 / 14.1 / 10.4 |
+| 30 fps, 77 ms | +6.1 / 7.2 / 7.6 | +3.9 / 7.9 / 7.0 | +1.1 / 8.8 / 6.7 | −0.2 / 10.0 / 7.5 |
+| 60 fps, 30 ms | −1.1 / 2.7 / 2.4 | +1.9 / 2.9 / 2.7 | −1.6 / 3.5 / 3.1 | −1.7 / 3.7 / 3.2 |
+| 30 fps, 77 ms, `capture-jitter-actual` | +6.6 / 5.3 / 7.0 | +3.7 / 6.2 / 6.0 | +1.8 / 6.0 / 5.0 | +0.4 / 7.5 / 5.8 |
+
+It helps where the bias was largest (the app's effective lead at 24 and 30 fps: MAE 11.3 → 10.0, 7.6 → 7.0) and costs everywhere else: the spread rises, the MAE gets worse at the 30 ms lead and at 60 fps (where removing the negative commit offset uncovers the vertex's bias), and surface strokes get worse, because in `auto` mode some of a surface clip's strokes are taken as air and the offset applies to them. Gain 0.3 is the same or slightly worse; applying it to every kind moves surface to −3.2 to −4.8 ms. Not shipped: it is not better everywhere, and what is left after it (the reference's +2 to +4 ms) is the generator's turn shape, which only a real-hand take can say anything about ([#351](https://github.com/thorwhalen/thoremin/issues/351)).
 
 ### 3.2 By frame rate
 
