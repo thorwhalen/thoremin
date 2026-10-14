@@ -29,7 +29,7 @@ import {
   type PersonalCategorizer,
 } from '@thoremin/sdk/enroll/categorizer';
 import { moveHolds } from '@thoremin/sdk/enroll/sorting';
-import type { CarveModality } from '@thoremin/sdk/enroll/modality';
+import { inView, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
@@ -56,8 +56,8 @@ export function addSample(
     return { ok: false, error: `this categorizer is full (${MAX_CATEGORIZER_SAMPLES} ${modality.words.many}); no more can be added` };
   }
   if (categorizer.samples.some((s) => s.id === sampleId)) return { ok: false, error: `sample id "${sampleId}" is taken` };
-  const sample = toSample({ id: sampleId, vector, t, cue });
-  if (!categorizer.features.some((f) => Number.isFinite(sample.vector[f]))) return { ok: false, error: `no ${modality.words.one} in view` };
+  const sample = toSample({ id: sampleId, vector, t, cue, skeleton: modality.skeleton?.(vector) ?? null });
+  if (!inView(modality, sample.vector, categorizer.features)) return { ok: false, error: `no ${modality.words.one} in view` };
   return {
     ok: true,
     categorizer: PersonalCategorizerSchema.parse({

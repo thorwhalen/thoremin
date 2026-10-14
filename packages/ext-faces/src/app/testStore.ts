@@ -93,8 +93,6 @@ export interface FaceTestState {
   stopCheck(): void;
 }
 
-/** Whether `v` carries any of the model's features (a frame with no face carries none). */
-const hasFace = (v: FeatureVector, features: readonly string[]) => features.some((f) => Number.isFinite(v[f]));
 
 function meanOf(vectors: readonly FeatureVector[]): FeatureVector {
   const sum: Record<string, number> = {};
@@ -124,9 +122,8 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
       const read = source.read();
       // As the categorizer reads it (#385 E8: a hand categorizer's one hand, side-relative).
       const live = read ? { ...read, vector: reader.live.project(read.vector) } : null;
-      const features = reader.live.model.features;
       const now = deps.now();
-      if (!live || !hasFace(live.vector, features)) {
+      if (!live || !reader.live.inView(live.vector)) {
         if (!get().noFace) set({ noFace: true, reading: null });
         recent.length = 0;
         feedChecks(null, now);

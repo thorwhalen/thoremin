@@ -38,6 +38,8 @@ export function browserDepsFor(ui: CarveModalityUi, script: SyntheticScript): Fa
     frames: openLiveFrames,
     region: ui.region,
     ...(ui.overlay ? { overlay: ui.overlay } : {}),
+    ...(ui.figure ? { figure: ui.figure } : {}),
+    stillsByDefault: ui.stills !== 'opt-in',
     models: withChangeNotice(createCategorizerStore(ui.modality)),
     modality: ui.modality,
     now: () => performance.now(),

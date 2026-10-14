@@ -36,10 +36,11 @@ import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { HAND_CHOICES, type HandChoice, type ModalityWords } from '@thoremin/sdk/enroll/modality';
 import { categoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import { handSessionStore, handTestStore } from '../app/handSession';
+import { bodySessionStore, bodyTestStore } from '../app/bodySession';
 import { WordsContext } from './words';
 import type { FaceTestState } from '../app/testStore';
 import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
-import { restCue, vocabularyCue } from '../lib/take';
+import { setupCues, vocabularyCue } from '../lib/take';
 import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
 import { chooseCategorizerWrites } from '../schema';
@@ -109,10 +110,16 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
     <div className="space-y-3">
       <StrangersSwitch strangers={view.strangers} setStrangers={s.setStrangers} words={words} />
       {s.modality.id === 'hand' && <HandChoiceSelect value={s.hand} onChange={s.setHand} />}
+      {s.modality.id === 'body' && (
+        <p className={hint} data-poses-mirror>
+          {s.mirror ? 'Left and right are the same pose (chosen before recording).' : 'Left and right are different poses (chosen before recording).'}
+        </p>
+      )}
       <p data-faces-summary className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/80">
         <span className="font-semibold text-emerald-200">{`A ${words.one} you never taught reads as: ${strangersText(words)[view.strangers].title.toLowerCase()}.`}</span> {strangersSummary(view, words)}
       </p>
-      {!s.hasStills && <p className={hint}>No pictures were taken, so the categories have none.</p>}
+      {!s.hasStills && !s.figures && <p className={hint}>No pictures were taken, so the categories have none.</p>}
+      {!s.hasStills && s.figures && <p className={hint}>Each {words.one} is drawn as a stick figure of what the camera read: no picture of you is kept.</p>}
       <Sorting s={s} />
       <form
         className="flex items-center gap-2"
@@ -324,7 +331,8 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
   const { modality } = s;
   const { one, many } = modality.words;
   const read = useCallback((o: { count: number }) => store.getState().live(o), [store]);
-  const cue = phase === 'rest' ? restCue(modality) : vocabularyCue(modality);
+  const setup = setupCues(modality);
+  const cue = phase === 'rest' ? (setup[s.setupStep] ?? setup[0]) : vocabularyCue(modality);
   const instruction =
     phase === 'explore'
       ? `Try your ${many}: the bars show what the camera reads, and the ring when a ${one} is held. Nothing is recorded yet.`
@@ -337,11 +345,11 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
       <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-white/70" role="status" aria-live="polite">
         <span className={`font-bold uppercase tracking-widest ${phase === 'faces' ? 'text-rose-300' : phase === 'paused' ? 'text-amber-200' : 'text-white/60'}`} data-faces-state>
           {phase === 'faces' ? '● ' : ''}
-          {STATE_TEXT[phase]}
+          {phase === 'rest' && s.setupStep > 0 ? cue.name : STATE_TEXT[phase]}
         </span>
         {phase !== 'explore' && <span>{`${s.elapsed.toFixed(0)} s`}</span>}
         {(phase === 'faces' || phase === 'paused') && <span>{`${s.points} held ${s.points === 1 ? one : many}`}</span>}
-        {phase !== 'explore' && <span>{s.hasStills ? 'pictures kept in this page only' : 'no pictures'}</span>}
+        {phase !== 'explore' && <span>{s.hasStills ? 'pictures kept in this page only' : s.figures ? 'stick figures only, no pictures' : 'no pictures'}</span>}
       </p>
       <p className="text-sm font-semibold text-white">{instruction}</p>
       {phase !== 'explore' && phase !== 'paused' && <p className={hint}>{cue.rationale}</p>}
@@ -349,6 +357,11 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
         {phase === 'explore' && (
           <button type="button" className={primary} onClick={() => s.start()}>
             Start capturing (Space)
+          </button>
+        )}
+        {phase === 'rest' && s.setupStep > 0 && (
+          <button type="button" className={btn} onClick={() => s.skipSetup()}>
+            Skip this step
           </button>
         )}
         {phase === 'faces' && (
@@ -453,11 +466,40 @@ function Intro({ s }: { s: FaceSessionState }) {
       </div>
     );
   }
+  if (s.modality.id === 'body') {
+    return (
+      <div className="space-y-2">
+        <p className={hint}>
+          Record a couple of minutes of your own poses: a few seconds standing (or sitting) at rest, three short moves the instrument learns to ignore (closer
+          and further, a step aside, a slight turn), then each pose you want to use (arms up, one arm out, a crouch, any pose you like), held for a moment.
+          They are carved into categories you can name and keep, and each one can fire a command. Only the pose counts, not where you stand. Stand back far
+          enough for the camera to see the whole pose. Each pose is kept as a stick figure; camera pictures only if you ask. Everything stays in this browser.
+        </p>
+        <PoseOptions s={s} />
+      </div>
+    );
+  }
   return (
     <p className={hint}>
       Record a minute of your own faces: a few seconds of rest, then each face you want the instrument to know. They are carved into categories you can
       name and keep. First you see what the camera reads; nothing is recorded until you start. Everything stays in this browser.
     </p>
+  );
+}
+
+/** A pose take's two choices (#387 B10, C7), made before recording. */
+function PoseOptions({ s }: { s: FaceSessionState }) {
+  return (
+    <div className="space-y-1 text-[11px] text-white/80">
+      <label className="flex items-center gap-2" data-poses-mirror-choice>
+        <input type="checkbox" checked={s.mirror} onChange={(e) => s.setMirror(e.target.checked)} />
+        <span>Left and right are the same pose (one arm up is one pose, whichever arm)</span>
+      </label>
+      <label className="flex items-center gap-2" data-poses-stills-choice>
+        <input type="checkbox" checked={s.keepStills} onChange={(e) => s.setKeepStills(e.target.checked)} />
+        <span>Also keep camera pictures (they show you and the room; kept in this browser only)</span>
+      </label>
+    </div>
   );
 }
 
@@ -509,4 +551,9 @@ export default function FaceSessionPanel(_props: ExtensionToolPanelProps) {
 /** "Your hand shapes" (#385 E8): the same view over the page's hand-shape stores. */
 export function HandSessionPanel(_props: ExtensionToolPanelProps) {
   return <FaceSessionView store={handSessionStore()} test={handTestStore()} />;
+}
+
+/** The pose session tool's panel (#382 = #385 E9): the same view over the body's stores. */
+export function PoseSessionPanel(_props: ExtensionToolPanelProps) {
+  return <FaceSessionView store={bodySessionStore()} test={bodyTestStore()} />;
 }

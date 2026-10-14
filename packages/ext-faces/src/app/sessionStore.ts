@@ -42,6 +42,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import {
   MAX_CATEGORIZER_SAMPLES,
   categorizerFromModel,
+  modelFromCategorizer,
   exportCategorizer,
   importCategorizer,
   type CategorizerStrangers,
@@ -76,7 +77,7 @@ import { carveTake, nameCarve, sortingView, type NameSources, type SortingView }
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, liveModel, sameTuning, type Tuning } from '../lib/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
-import { foreignModality, keepOnly, projectVector, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
+import { createReader, foreignModality, keepOnly, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
@@ -150,6 +151,12 @@ export interface FaceSessionDeps {
    *  (`@thoremin/sdk-ui/enroll/capture`'s `provideCarveCapture`); returns its withdrawal. None
    *  by default. */
   capture?: (control: CarveCaptureControl) => () => void;
+  /** A hold's picture drawn from its stick figure (#382: the modality's `figure`, a URL), shown
+   *  where it has no camera still. None by default. */
+  figure?: CarveModalityUi['figure'];
+  /** Whether a take keeps camera stills unless the player says otherwise (#387 C7: yes for a face
+   *  or a hand, no for a body, whose stick figure is its picture). Default true. */
+  stillsByDefault?: boolean;
 }
 
 export interface FaceSessionState {
@@ -163,6 +170,16 @@ export interface FaceSessionState {
   /** Which hand a hand categorizer reads (#385 E8): the working categorizer's, or the next
    *  take's before there is one. `either` for every other modality (it reads no hand). */
   hand: HandChoice;
+  /** A pose and its mirror image read as one (#382, #387 B10): the working categorizer's, or the
+   *  next take's before there is one. False for every modality without a mirror. */
+  mirror: boolean;
+  /** Whether the next take keeps camera stills (#387 C7: opt-in for a body). */
+  keepStills: boolean;
+  /** Whether holds have a stick figure for a picture (constant: the modality draws one). */
+  figures: boolean;
+  /** Which setup step the rest is at (#382): 0 the rest itself, then the modality's nuisance
+   *  cues in order. */
+  setupStep: number;
   k: number;
   /** The sorting grid over {@link FaceSessionState.working} (#385 E4). */
   view: SortingView | null;
@@ -230,6 +247,13 @@ export interface FaceSessionState {
   /** Which hand: an edit of the working categorizer (undoable; no hold moves, but the live test
    *  and the instrument read that hand from then on); before a take, the next take's setting. */
   setHand(hand: HandChoice): void;
+  /** The mirror, for the next take only (#382): a take's holds are read on its side, so a carve
+   *  keeps the setting it was recorded with. */
+  setMirror(on: boolean): void;
+  /** Keep camera stills on the next take (#387 C7). */
+  setKeepStills(on: boolean): void;
+  /** Skip the setup step under way (a nuisance demonstration), on to the next. */
+  skipSetup(): void;
   /** Train the Neutral holds of an older categorizer (migrated with them untrained). Undoable. */
   teachNeutral(): boolean;
   setK(k: number): void;
@@ -376,6 +400,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let generation = 0;
   /** Object URLs of the stills in hand, by hold id. */
   const urls = new Map<string, string>();
+  /** The mirror the player chose for the next take (#382): the state shows an open categorizer's,
+   *  and a reset returns to this. */
+  let chosenMirror = false;
+  /** The shown samples' stick-figure pictures, by hold id (#382): where a hold has no still. */
+  const figureUrls = new Map<string, string>();
   /** The stills taken this session, by hold id: in memory until a save files them in
    *  IndexedDB, so a take nobody saves leaves nothing behind. Kept across a merge's take (the
    *  base's in-memory stills stay shown) until `reset`. */
@@ -451,17 +480,20 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     };
 
     /** How the source is read: a merge reads with its base's hand, a fresh take with the chosen. */
-    const readOptions = (): ModalityOptions => ({ hand: mergeBase ? (mergeBase.working.hand ?? 'either') : get().hand });
+    const readOptions = (): ModalityOptions =>
+      mergeBase ? { hand: mergeBase.working.hand ?? 'either', mirror: mergeBase.working.mirror === true } : { hand: get().hand, mirror: get().mirror };
     /** Read the source into the take every `pollMs`, telling the store only what a person can
      *  see change (the phase, the count of held faces, the ring, a coarse elapsed time). */
     const poll = (t0: number) => {
       stopPolling();
       let lastShown = -1;
+      // The vector the carve works in (#385 E8): one hand made side-relative; the face as is. A
+      // mirrored body take holds its side (#382), a merge chooses the side nearer its base.
+      const readLive = createReader(modality, readOptions(), mergeBase?.working.mirror ? modelFromCategorizer(mergeBase.working) : undefined);
       timer = setInterval(() => {
         if (!take || !source) return;
         const read = source.read();
-        // The vector the carve works in (#385 E8): one hand made side-relative; the face as is.
-        const live = read ? { ...read, vector: projectVector(modality, read.vector, readOptions()) } : null;
+        const live = read ? { ...read, vector: readLive(read.vector) } : null;
         if (live) {
           take.push(live.vector, live.t);
           bars?.push(modality.read(live.vector), live.t);
@@ -476,6 +508,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const elapsed = phaseNow === 'explore' ? 0 : Math.floor((deps.now() - t0) / 250) / 4;
         const points = take.pointCount();
         const hold = take.hold();
+        const step = take.setupStep();
+        if (step !== get().setupStep) set({ setupStep: step });
         const b = take.burst();
         // The burst's frames coarsely (a person sees it grow, not every frame).
         const burst = b ? { label: b.label, frames: b.frames - (b.frames % FACE_SESSION_DEFAULTS.burstShowStep) } : null;
@@ -494,6 +528,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         let url = urls.get(id);
         const still = url ? undefined : stills.get(id);
         if (still) urls.set(id, (url = URL.createObjectURL(still)));
+        url ??= figureUrls.get(id);
         if (url) thumbs[i] = url;
       });
       set({ thumbs });
@@ -569,7 +604,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       t
         .session()
         .points()
-        .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i) }));
+        .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i), skeleton: modality.skeleton?.(p.vector) ?? null }));
 
     /** The take's labelled holds (#385 E7: bursts under a typed name), by name, as sample ids. */
     const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => {
@@ -614,7 +649,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       const range = recutable ? { minK: bounds.minK, maxK, suggestedK: Math.min(suggested, maxK), recutable } : { minK: working.categories.length, maxK: working.categories.length, suggestedK: working.categories.length, recutable };
       const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true, modality });
       shownIds = working.samples.map((x) => x.id);
-      set({ working, view, strangers: working.strangers, hand: working.hand ?? 'either', k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
+      figureUrls.clear();
+      if (deps.figure) {
+        for (const x of working.samples) {
+          // The figure kept with the sample, else drawn from its vector (a file made without one).
+          const skeleton = x.skeleton ?? modality.skeleton?.(x.vector) ?? null;
+          const url = skeleton ? deps.figure(skeleton) : null;
+          if (url) figureUrls.set(x.id, url);
+        }
+      }
+      set({ working, view, strangers: working.strangers, hand: working.hand ?? 'either', mirror: working.mirror === true, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
       const gen = generation;
       void loadThumbs(shownIds).then((found) => {
         if (gen === generation && get().working === working && get().phase === 'saved') set({ hasStills: found });
@@ -704,6 +748,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       phase: 'idle',
       strangers: 'neutral',
       hand: 'either',
+      mirror: false,
+      keepStills: deps.stillsByDefault ?? true,
+      figures: deps.figure !== undefined && modality.skeleton !== undefined,
+      setupStep: 0,
       k: 0,
       view: null,
       thumbs: {},
@@ -748,7 +796,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           else get().reset();
           mergeBase = merge;
           source = deps.source();
-          take = createFaceTake({ modality });
+          // A merge keeps its base's features and weights, so it has no use for the nuisances.
+          take = createFaceTake({ modality, nuisance: !merge });
           bars = barsFor(take);
           deps.claim(true);
           claimed = true;
@@ -761,11 +810,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         takeId = freshTakeId(merge?.working.samples ?? []);
         stilled = 0;
-        const stream = source!.video();
+        const stream = get().keepStills ? source!.video() : null;
         frames = stream ? deps.frames(stream) : null;
         const t0 = deps.now();
         take!.start(t0);
-        set({ phase: 'rest', points: 0, elapsed: 0, hold: 'open', hasStills: frames !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
+        set({ phase: 'rest', setupStep: 0, points: 0, elapsed: 0, hold: 'open', hasStills: frames !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
         provideCapture();
         poll(t0);
       },
@@ -908,7 +957,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const rest = myTake.restVectors();
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const strangers = get().strangers;
-        const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, hand: get().hand, createdAt: deps.isoNow() });
+        const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, hand: get().hand, mirror: get().mirror, createdAt: deps.isoNow() });
         // Bursts recorded under a name are pinned to a category of that name before the carve, so
         // the re-cut keeps them together (must-link) at every k (#385 E7).
         const labelled = withLabels(unlabelled, labelledHolds(myTake, takeId!));
@@ -940,6 +989,23 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         if (hand === (working.hand ?? 'either')) return;
         edit((w) => ({ ok: true, categorizer: withHand(w, hand) }));
+      },
+
+      setMirror(on) {
+        const { phase } = get();
+        if (phase !== 'idle' && phase !== 'empty') return;
+        chosenMirror = on;
+        set({ mirror: on });
+      },
+
+      setKeepStills(on) {
+        if (!isLive(get().phase)) set({ keepStills: on });
+      },
+
+      skipSetup() {
+        if (get().phase !== 'rest' || !take) return;
+        take.skipSetup(deps.now());
+        set({ setupStep: take.setupStep() });
       },
 
       teachNeutral() {
@@ -1116,10 +1182,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         openRecord = null;
         mergeBase = null;
         shownIds = [];
+        figureUrls.clear();
         stills.clear();
         pending.clear();
         dropUrls();
-        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
+        set({ phase: 'idle', mirror: chosenMirror, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
       },
 
       cancelRecording() {
@@ -1228,7 +1295,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const { model } = liveModel(categorizer, tuning ?? {}, { modality });
         const hand = categorizer.hand;
         try {
-          await binder.bind({ name: record.name, model, read: { modality: modality.id, ...(hand && hand !== 'either' ? { hand } : {}) } });
+          await binder.bind({ name: record.name, model, read: { modality: modality.id, ...(hand && hand !== 'either' ? { hand } : {}), ...(categorizer.mirror ? { mirror: true } : {}) } });
           return true;
         } catch (e) {
           set({ notice: `Not bound: ${e instanceof Error ? e.message : String(e)}.` });

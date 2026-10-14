@@ -4,12 +4,14 @@
  * categorizer (the category dispatcher) reads the live vector as the tool that carved it did.
  */
 import type { CarveModality } from '../../enroll/modality';
+import { bodyModality } from './body';
 import { faceModality } from './face';
 import { handModality } from './hand';
 
 export const CARVE_MODALITIES: Readonly<Record<string, CarveModality>> = {
   [faceModality.id]: faceModality,
   [handModality.id]: handModality,
+  [bodyModality.id]: bodyModality,
 };
 
 /** The modality stored as `id`, or undefined for one this build does not know. */

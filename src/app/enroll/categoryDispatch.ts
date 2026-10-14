@@ -44,7 +44,7 @@ import { useControls } from '../store';
 import { useToasts } from '../toasts';
 import { readLiveVector } from './liveVector';
 import { useTools } from '../toolsStore';
-import { CATEGORY_PANEL_TOOL, readFor, useCategoryBinding, type SavedCategories } from './categoryBinding';
+import { CATEGORY_PANEL_TOOL, presenceFor, readFor, useCategoryBinding, type SavedCategories } from './categoryBinding';
 
 const FIRE_TOAST_MS = 2500;
 const ERROR_TOAST_MS = 5000;
@@ -145,12 +145,13 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       }
       if (set.categories.model !== model || !edge) {
         model = set.categories.model;
-        edge = createCategoryEdge(model);
+        const minPresent = presenceFor(set.categories.read);
+        edge = createCategoryEdge(model, minPresent !== undefined ? { minPresent } : {});
       }
       edge.setHoldMs(deps.holdMs());
       if (set !== readSet) {
         readSet = set;
-        read = readFor(set.categories.read);
+        read = readFor(set.categories.read, set.categories.model);
       }
       const raw = deps.readVector();
       const step = edge.push(raw ? read(raw) : null, nowMs);

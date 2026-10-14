@@ -17,6 +17,7 @@ import { readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
 import { camera } from '@thoremin/sdk-ui/host';
 import { syntheticExpressionAt, syntheticFaceVector } from '../lib/synthetic';
 import { syntheticHandShapeAt, syntheticHandVector } from '../lib/synthetic_hand';
+import { syntheticBodyAt, syntheticBodyVector } from '../lib/synthetic_body';
 
 export interface FaceSource {
   readonly kind: 'live' | 'synthetic';
@@ -44,6 +45,8 @@ export interface SyntheticScript {
 export const FACE_SCRIPT: SyntheticScript = { vectorAt: syntheticFaceVector, labelAt: syntheticExpressionAt };
 /** The scripted hand (`../lib/synthetic_hand.ts`). */
 export const HAND_SCRIPT: SyntheticScript = { vectorAt: syntheticHandVector, labelAt: syntheticHandShapeAt };
+/** The scripted body (`../lib/synthetic_body.ts`): the rest, the three nuisances, four poses. */
+export const BODY_SCRIPT: SyntheticScript = { vectorAt: syntheticBodyVector, labelAt: syntheticBodyAt };
 
 export function liveSource(): FaceSource {
   return { kind: 'live', read: readLiveVector, video: () => camera().stream(), dispose: () => {} };

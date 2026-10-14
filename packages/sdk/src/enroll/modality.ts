@@ -14,6 +14,8 @@
  * (`../features/modalities/`). The DOM half (crop region, preview, play targets) is
  * `@thoremin/sdk-ui/enroll/modality`.
  */
+import type { Invariance } from '../features/types';
+import { weightedDistance } from './cluster';
 import type { LabelMatchOptions } from './match';
 import type { FeatureVector } from './types';
 
@@ -35,6 +37,9 @@ export interface ModalityWords {
   fallback(index: number): string;
   /** What the rest asks for, when "relax your <part>" is not it (a hand is held up, relaxed). */
   rest?: string;
+  /** What the live test says when the part is not in view, when "No <part> in view" is not it
+   *  (#382: a body half out of frame is "cannot see you"). */
+  unseen?: string;
 }
 
 /**
@@ -70,6 +75,34 @@ export interface ModalityOptions {
   /** A hand modality's side: `left`, `right`, `either` (ignored by the face). `both` (one joint
    *  vector, two-hand shapes) is reserved for later. */
   hand?: HandChoice | 'both';
+  /** Read a pose and its mirror image as one (#382, #387 B10): a body categorizer with the mirror
+   *  on reads "left arm up" and "right arm up" as the same pose. Off by default. */
+  mirror?: boolean;
+}
+
+/**
+ * A stick figure of one hold (#382): named joints, each `[x, y]` in torso lengths from the hip
+ * midpoint, x to the player's right as a mirror shows it, y up. Drawn from the features the carve
+ * measures, so it shows what was read and no one's picture; kept in the categorizer file, so an
+ * imported or shared categorizer still shows what each category looks like.
+ */
+export type Skeleton = Readonly<Record<string, readonly [number, number]>>;
+
+/**
+ * A nuisance the take asks the player to demonstrate after the rest (#382): "hold any one pose and
+ * move closer and further". Whatever moves meanwhile is down-weighted (`weightsFromNuisance`), so
+ * where the player stands is not what they do.
+ */
+export interface NuisanceCueSpec {
+  /** Id-safe, unique within the modality: the cue id is `<slug>-<key>`. */
+  key: string;
+  name: string;
+  instruction: string;
+  rationale: string;
+  /** The confounds it demonstrates. */
+  axes: readonly Invariance[];
+  /** How long it lasts. */
+  ms: number;
 }
 
 /**
@@ -116,6 +149,92 @@ export interface CarveModality {
   /** A feature in plain words, for the quality hints (#385 E6): undefined for a feature the
    *  modality has no words for (the hint then names the id). */
   describe(featureId: string): FeatureWords | undefined;
+  /** The share (0..1) of a categorizer's TRAINED features a vector must have for the part to
+   *  count as in view (#382: a body half out of frame "cannot be seen" rather than guessed at).
+   *  Absent: any one trained feature will do (a face, a hand). */
+  readonly minCoverage?: number;
+  /** The nuisances the take demonstrates after the rest, in order (#382); none when absent. */
+  readonly nuisanceCues?: readonly NuisanceCueSpec[];
+  /** A stick figure of a vector (#382), kept with each sample; absent: the modality has none. */
+  skeleton?(vector: FeatureVector): Skeleton | null;
+  /** The vector of the part's mirror image (#382: left and right swapped), for a modality that can
+   *  read a pose and its mirror image as one ({@link ModalityOptions.mirror}). Absent: the option
+   *  does nothing. */
+  mirrorImage?(vector: FeatureVector): FeatureVector;
+  /** Which side a vector leans to, signed, in the modality's own units: the mirror image has the
+   *  opposite sign, and a symmetric vector reads 0. What a stream with no model yet picks its side
+   *  by ({@link createReader}). */
+  mirrorSide?(vector: FeatureVector): number;
+}
+
+/** How a stream with no model yet holds its mirror side (#382): it changes side only once the
+ *  vector leans past `band` the other way (in `mirrorSide`'s units), so a pose near the line
+ *  between the two sides keeps one side frame after frame instead of flickering. */
+export const MIRROR_DEFAULTS = { band: 0.25 } as const;
+
+/** What a mirrored reading is compared with to choose its side: a model's categories (and its
+ *  taught Neutral), under its features and weights. */
+export interface MirrorReference {
+  readonly features: readonly string[];
+  readonly weights: Readonly<Record<string, number>>;
+  readonly categories: readonly { readonly centroid: FeatureVector }[];
+  readonly neutral?: readonly { readonly centroid: FeatureVector }[];
+}
+
+/**
+ * A reader of a stream of merged live vectors as the carve works in them: the modality's
+ * projection with `options`, and, when `options.mirror` is on and the modality has a mirror image,
+ * the SIDE (#382). A single global rule ("the side whose left is higher") cannot do that: any pose
+ * whose two sides balance sits on its line, and frame noise would send it from one side to the
+ * other. So the side is chosen:
+ *
+ * - against a model when there is one (the live test, a bound set, a take merged into a saved
+ *   categorizer): the vector or its mirror image, whichever is nearer a category or the taught
+ *   Neutral. Stateless, and as good a reading either way when the two are equally near;
+ * - with hysteresis otherwise (a fresh take): the first frame's side by `mirrorSide`, then a change
+ *   only past `band` the other way.
+ *
+ * Without the mirror it is the plain projection, stateless.
+ */
+export function createReader(
+  modality: Pick<CarveModality, 'project' | 'mirrorImage' | 'mirrorSide'>,
+  options: ModalityOptions = {},
+  reference?: MirrorReference,
+  { band = MIRROR_DEFAULTS.band }: { band?: number } = {},
+): (merged: FeatureVector) => FeatureVector {
+  const plain = (v: FeatureVector) => projectVector(modality, v, options);
+  const image = modality.mirrorImage;
+  if (!options.mirror || !image) return plain;
+  if (reference) {
+    const targets = [...reference.categories, ...(reference.neutral ?? [])].map((c) => c.centroid);
+    const nearest = (v: FeatureVector) => Math.min(...targets.map((c) => weightedDistance(v, c, reference.features, reference.weights)));
+    return (merged) => {
+      const v = plain(merged);
+      const m = image(v);
+      return nearest(m) < nearest(v) ? m : v;
+    };
+  }
+  const side = modality.mirrorSide ?? (() => 0);
+  let mirrored: boolean | null = null;
+  return (merged) => {
+    const v = plain(merged);
+    const a = side(v);
+    if (mirrored === null) mirrored = a < 0;
+    else if (mirrored && a > band) mirrored = false;
+    else if (!mirrored && a < -band) mirrored = true;
+    return mirrored ? image(v) : v;
+  };
+}
+
+/** Whether `vector` shows the part well enough to read it with `features` (a categorizer's): its
+ *  `minCoverage` of them finite, or any one of them when it states none. */
+export function inView(modality: Pick<CarveModality, 'minCoverage'>, vector: FeatureVector, features: readonly string[]): boolean {
+  const bar = modality.minCoverage;
+  if (bar === undefined) return features.some((f) => Number.isFinite(vector[f]));
+  if (!features.length) return false;
+  let present = 0;
+  for (const f of features) if (Number.isFinite(vector[f])) present += 1;
+  return present / features.length >= bar;
 }
 
 /** The vector the carve works in: the modality's projection, or the merged vector as is. */

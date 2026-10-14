@@ -84,11 +84,13 @@ export const TrainedModelSchema = z.object({
 /**
  * How a bound set reads the live vector (#385 E8): the carve modality its model was made in (its
  * features are that modality's keys, e.g. a hand categorizer's side-relative `index.curl`) and,
- * for a hand, which one. Absent: the merged vector as is (the trainer's models, the face's).
+ * for a hand, which one; for a body, whether its mirror image is the same pose. Absent: the merged vector as is (the trainer's models, the face's).
  */
 export const CategoryReadSchema = z.object({
   modality: z.string().min(1),
   hand: z.enum(HAND_CHOICES).optional(),
+  /** A body categorizer reads a pose and its mirror image as one (#382). */
+  mirror: z.literal(true).optional(),
 });
 export type CategoryRead = z.infer<typeof CategoryReadSchema>;
 

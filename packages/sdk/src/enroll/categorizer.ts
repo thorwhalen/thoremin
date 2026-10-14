@@ -56,7 +56,7 @@
  * in: JSON cannot carry NaN, and a missing key is exactly how every distance in `enroll/`
  * already treats a non-finite value.
  */
-import { HAND_CHOICES, type HandChoice } from './modality';
+import { HAND_CHOICES, type HandChoice, type Skeleton } from './modality';
 import { z } from 'zod';
 import { trainModel, trainNeutral } from './classify';
 import type { FeatureVector, StillPoint, TrainedModel } from './types';
@@ -105,6 +105,18 @@ export const SUPPORT_DECIMALS = 5;
 
 const VectorSchema = z.record(z.string(), z.number());
 
+/** The most joints a sample's stick figure may name (the body's has 15). */
+export const MAX_SKELETON_POINTS = 64;
+
+/** A hold's stick figure (#382): named `[x, y]` joints in torso lengths (`Skeleton`). */
+/** The largest joint coordinate, in torso lengths (a figure spans a few). */
+export const MAX_SKELETON_COORD = 100;
+
+const SkeletonCoord = z.number().min(-MAX_SKELETON_COORD).max(MAX_SKELETON_COORD);
+const SkeletonSchema = z
+  .record(z.string().min(1), z.tuple([SkeletonCoord, SkeletonCoord]))
+  .refine((s) => Object.keys(s).length >= 1 && Object.keys(s).length <= MAX_SKELETON_POINTS, { message: `a skeleton names between 1 and ${MAX_SKELETON_POINTS} joints` });
+
 const SampleSchema = z.object({
   /** Stable id (#385 E3): what a category, a bin, a pin and a still refer to. A hold's id is
    *  `<takeId>:<n>`, unique across takes, so stills are keyed by it and never re-filed. */
@@ -119,6 +131,10 @@ const SampleSchema = z.object({
    *  and multiply a saved record's size for evidence. An edit that changes `features` must
    *  re-project or drop them. Evidence only: the derived model does not read them yet. */
   support: z.array(z.array(z.number().nullable())).max(MAX_SAMPLE_SUPPORT).optional(),
+  /** The hold's stick figure (#382: a body pose's picture, which shows no one), drawn from its
+   *  vector at capture by the modality and kept here so an imported or shared file still shows
+   *  what each category looks like. Optional and additive: a build before it drops the field. */
+  skeleton: SkeletonSchema.optional(),
 });
 
 const CategorizerCategorySchema = z.object({
@@ -144,6 +160,10 @@ export const PersonalCategorizerSchema = z
      *  with whichever hand is in view; `left` / `right` read only that one. Ignored otherwise.
      *  Optional and additive: a build before it ignores the field and reads either hand. */
     hand: z.enum(HAND_CHOICES).optional(),
+    /** A body categorizer reads a pose and its mirror image as one (#382, #387 B10): its samples
+     *  were taken, and live poses are read, on a canonical side. Absent: left and right differ (the
+     *  default). Optional and additive, like `hand`. */
+    mirror: z.literal(true).optional(),
     /** ISO time of creation. Informational. */
     createdAt: z.string().optional(),
     /** The feature space: the ids distances use, in order. */
@@ -235,7 +255,7 @@ function finiteOnly(v: FeatureVector): FeatureVector {
 }
 
 /** What a sample is made from: a still-point with its id, and its supporting frames. */
-export type SampleInput = Pick<StillPoint, 'vector' | 't' | 'cue'> & { id: string; support?: readonly FeatureVector[] };
+export type SampleInput = Pick<StillPoint, 'vector' | 't' | 'cue'> & { id: string; support?: readonly FeatureVector[]; skeleton?: Skeleton | null };
 
 const roundSupport = (x: number | undefined): number | null => (x !== undefined && Number.isFinite(x) ? Number(x.toFixed(SUPPORT_DECIMALS)) : null);
 
@@ -244,7 +264,22 @@ const roundSupport = (x: number | undefined): number | null => (x !== undefined 
  *  {@link MAX_SAMPLE_SUPPORT}. */
 export function toSample(p: SampleInput, features?: readonly string[]): CategorizerSample {
   const support = features ? p.support?.slice(0, MAX_SAMPLE_SUPPORT).map((f) => features.map((k) => roundSupport(f[k]))) : undefined;
-  return { id: p.id, vector: finiteOnly(p.vector), t: Number.isFinite(p.t) ? p.t : 0, cue: p.cue, ...(support && support.length > 0 ? { support } : {}) };
+  const skeleton = p.skeleton ? finiteSkeleton(p.skeleton) : null;
+  return {
+    id: p.id,
+    vector: finiteOnly(p.vector),
+    t: Number.isFinite(p.t) ? p.t : 0,
+    cue: p.cue,
+    ...(support && support.length > 0 ? { support } : {}),
+    ...(skeleton ? { skeleton } : {}),
+  };
+}
+
+/** The skeleton's finite joints (JSON cannot carry the others), or null when none is. */
+function finiteSkeleton(s: Skeleton): Record<string, [number, number]> | null {
+  const out: Record<string, [number, number]> = {};
+  for (const [k, [x, y]] of Object.entries(s)) if (Number.isFinite(x) && Number.isFinite(y)) out[k] = [x, y];
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 export interface CategorizerMeta {
@@ -260,6 +295,8 @@ export interface CategorizerMeta {
   modality?: string;
   /** Which hand (a hand categorizer only; `either` is written as absent). */
   hand?: HandChoice;
+  /** A pose and its mirror image read as one (a body categorizer; false is written as absent). */
+  mirror?: boolean;
   createdAt?: string;
 }
 
@@ -286,6 +323,7 @@ export function categorizerFromModel(
     name: meta.name,
     ...(meta.modality ? { modality: meta.modality } : {}),
     ...(meta.hand && meta.hand !== 'either' ? { hand: meta.hand } : {}),
+    ...(meta.mirror ? { mirror: true } : {}),
     ...(meta.createdAt ? { createdAt: meta.createdAt } : {}),
     features: [...model.features],
     weights: { ...model.weights },

@@ -81,7 +81,7 @@ function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
   const w = useWords();
   const r = test.reading;
   const none = r !== null && (r.rejected || r.neutral);
-  const headline = test.noFace ? `No ${w.part} in view` : !r ? 'Reading...' : r.label ? r.label : none ? 'None of these' : 'Settling...';
+  const headline = test.noFace ? (w.unseen ?? `No ${w.part} in view`) : !r ? 'Reading...' : r.label ? r.label : none ? 'None of these' : 'Settling...';
   const taught = (live.model.neutral?.length ?? 0) > 0;
   return (
     <div className="space-y-1.5" data-faces-readout>
