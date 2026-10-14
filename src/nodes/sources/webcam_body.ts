@@ -48,6 +48,7 @@ import {
 import { BODY_SLOT_OUTPUT } from './body_contract';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import { DelegateChoiceSchema, resolveDelegate } from './delegate';
+import { copyFramesOnCpu } from './model_input';
 
 export function bodyModelUrl(model: BodyModel): string {
   return `${MEDIAPIPE_MODELS_BASE}/pose_landmarker/pose_landmarker_${model}/float16/latest/pose_landmarker_${model}.task`;
@@ -139,15 +140,16 @@ const defaultFactory: BodyLandmarkerFactory = async (opts, lctx) => {
     runningMode: 'VIDEO' as const,
   });
   let landmarker: PoseLandmarkerLike;
+  // The CPU delegate is handed a copy of each frame, never the element (#324, `model_input.ts`).
   try {
-    landmarker = await vision.PoseLandmarker.createFromOptions(fileset, options(opts.delegate));
+    landmarker = copyFramesOnCpu(await vision.PoseLandmarker.createFromOptions(fileset, options(opts.delegate)), opts.delegate);
   } catch (gpuErr) {
     // GPU/WebGL unavailable on this client → the CPU delegate (the float16 model runs
     // on CPU). If CPU was already chosen, the failure stands.
     if (opts.delegate !== 'GPU') throw gpuErr;
     if (lctx.signal.aborted) return { resource: null, reason: 'aborted' };
     console.warn('[thoremin] body model GPU delegate failed; falling back to CPU', gpuErr);
-    landmarker = await vision.PoseLandmarker.createFromOptions(fileset, options('CPU'));
+    landmarker = copyFramesOnCpu(await vision.PoseLandmarker.createFromOptions(fileset, options('CPU')), 'CPU');
   }
   return { resource: { landmarker, model: opts.model }, message: `Body model (${opts.model}) ready` };
 };

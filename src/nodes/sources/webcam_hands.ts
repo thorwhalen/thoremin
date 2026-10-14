@@ -37,6 +37,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
 import { DelegateChoiceSchema, resolveDelegate } from './delegate';
+import { copyFramesOnCpu } from './model_input';
 import {
   canHostHandWorker,
   createHandRunner,
@@ -153,13 +154,14 @@ const loadOnMain: LoadLandmarker = async (o) => {
     runningMode: 'VIDEO' as const,
   });
   try {
-    return await vision.HandLandmarker.createFromOptions(fileset, optionsFor(o.delegate));
+    // The CPU delegate is handed a copy of each frame, never the element (#324, `model_input.ts`).
+    return copyFramesOnCpu(await vision.HandLandmarker.createFromOptions(fileset, optionsFor(o.delegate)), o.delegate);
   } catch (gpuErr) {
     // GPU/WebGL unavailable on this client → fall back to the CPU delegate. If CPU
     // was already chosen, the failure stands.
     if (o.delegate !== 'GPU') throw gpuErr;
     console.warn('[thoremin] hand model GPU delegate failed; falling back to CPU', gpuErr);
-    return vision.HandLandmarker.createFromOptions(fileset, optionsFor('CPU'));
+    return copyFramesOnCpu(await vision.HandLandmarker.createFromOptions(fileset, optionsFor('CPU')), 'CPU');
   }
 };
 

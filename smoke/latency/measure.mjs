@@ -146,6 +146,8 @@ async function measureInference(page, args) {
         video.playsInline = true;
         video.srcObject = stream;
         await video.play();
+        const copy = document.createElement('canvas');
+        const copyCtx = copy.getContext('2d', { willReadFrequently: true });
         for (const delegate of delegates) for (const numHands of numHandsList) {
           const key = `${delegate} ${capture} numHands=${numHands}`;
           let lm;
@@ -166,7 +168,18 @@ async function measureInference(page, args) {
             lastTime = video.currentTime;
             ts = Math.max(ts + 1, Math.floor(performance.now()));
             const t0 = performance.now();
-            const res = lm.detectForVideo(video, ts);
+            // As the app does (#324, `src/nodes/sources/model_input.ts`): the CPU delegate is
+            // handed a 2D copy of a RESCALED camera frame, never the element, whose upload is the
+            // wrong picture on a software renderer. The copy's cost is in the time.
+            let input = video;
+            if (delegate === 'CPU' && stream.getVideoTracks()[0]?.getSettings().resizeMode !== 'none') {
+              // Resized only when the size changes, as in the app (a resize clears the canvas).
+              if (copy.width !== video.videoWidth) copy.width = video.videoWidth;
+              if (copy.height !== video.videoHeight) copy.height = video.videoHeight;
+              copyCtx.drawImage(video, 0, 0, copy.width, copy.height);
+              input = copy;
+            }
+            const res = lm.detectForVideo(input, ts);
             ms.push(performance.now() - t0);
             if (res.landmarks.length) withHands++;
           }
