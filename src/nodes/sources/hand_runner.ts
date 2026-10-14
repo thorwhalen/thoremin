@@ -14,9 +14,8 @@
  * snapshots the frame the element shows NOW, which is the frame the pump stamped, so frame
  * and stamp are paired by construction. The bitmap is transferred to the worker, which
  * infers on it with the stamp's own time and posts the landmarks back. While the worker is
- * busy only the newest frame waits (older ones are closed, or the capture pool starves), and
- * the frames it drops are added to the next result's `skipped`, as the main thread's own
- * busy frames are.
+ * busy the frames offered are dropped, not queued (see {@link workerHandRunner}), and counted
+ * in the next result's `skipped`, as the main thread's own busy frames are.
  *
  * The seam. A {@link HandRunner} takes frames and says what it found; `webcam-hands` does
  * not know which one it has. {@link createHandRunner} picks: the worker where the browser can
@@ -123,9 +122,9 @@ export interface WorkerRunnerDeps {
   createImageBitmap: (video: HTMLVideoElement) => Promise<ImageBitmap>;
 }
 
-/** One frame on its way to the worker, or waiting for it. */
-interface Queued {
-  bitmap: ImageBitmap;
+/** The one frame in the worker. */
+interface InFlight {
+  id: number;
   width: number;
   height: number;
   stamp: FrameStamp;
@@ -135,6 +134,13 @@ interface Queued {
  * The worker runner. Resolves once the worker's landmarker is loaded, rejects if it cannot
  * start (the caller falls back to the main thread). `onDead` is called once if the worker
  * dies afterwards; the runner then takes no more frames.
+ *
+ * One frame at a time, and never a queued one: a frame offered while the worker is busy is
+ * dropped (and counted in the next result's `skipped`), and the worker takes the first frame
+ * offered after it frees. A frame held for the worker would be up to a camera period old by
+ * the time it ran: measured on the CPU delegate, holding the newest frame added 19 ms (p50)
+ * to capture-to-tick for a few more frames a second. Dropping it also spares the main thread
+ * a bitmap for every frame the worker never sees.
  */
 export function workerHandRunner(
   options: LandmarkerOptions,
@@ -146,38 +152,19 @@ export function workerHandRunner(
   let ready = false;
   let dead = false;
   let closed = false;
-  let seq = 0; // offers made
-  let newestSent = 0; // the newest offer handed to the worker or queued
-  let inflight: (Queued & { id: number }) | null = null;
-  let waiting: (Queued & { id: number }) | null = null;
+  let seq = 0;
+  /** The frame being snapshotted or inferred; null when the worker is free. */
+  let busy: InFlight | null = null;
   /** Frames dropped since the last one sent: added to its `skipped`. */
   let dropped = 0;
   const changes = new Map<number, { resolve: () => void; reject: (e: Error) => void }>();
   let changeId = 0;
+  const stopped = (): boolean => dead || closed;
 
-  const send = (q: Queued & { id: number }): void => {
-    const stamp = dropped ? { ...q.stamp, skipped: q.stamp.skipped + dropped } : q.stamp;
-    dropped = 0;
-    inflight = { ...q, stamp };
-    worker.postMessage({ type: 'frame', id: q.id, bitmap: q.bitmap, tMs: q.stamp.tMs }, [q.bitmap]);
-  };
-  const drop = (q: Queued): void => {
-    dropped += 1 + q.stamp.skipped;
-    q.bitmap.close();
-  };
-  const next = (): void => {
-    inflight = null;
-    if (waiting && !dead && !closed) {
-      const w = waiting;
-      waiting = null;
-      send(w);
-    }
-  };
   const die = (reason: unknown): void => {
-    if (dead || closed) return;
+    if (stopped()) return;
     dead = true;
-    if (waiting) waiting.bitmap.close();
-    waiting = null;
+    busy = null;
     for (const c of changes.values()) c.reject(new Error('the hand worker stopped'));
     changes.clear();
     worker.terminate();
@@ -187,29 +174,29 @@ export function workerHandRunner(
   const runner: HandRunner = {
     where: 'worker',
     offer(video, stamp) {
-      if (!ready || dead || closed) return false;
-      const id = ++seq;
-      const width = video.videoWidth;
-      const height = video.videoHeight;
+      if (!ready || stopped()) return false;
+      if (busy) {
+        dropped += 1 + stamp.skipped;
+        return true;
+      }
+      // The pump's stamp, with the frames dropped since the last one sent.
+      const frame: InFlight = { id: ++seq, width: video.videoWidth, height: video.videoHeight, stamp: dropped ? { ...stamp, skipped: stamp.skipped + dropped } : stamp };
+      dropped = 0;
+      busy = frame;
+      // Snapshotted NOW, inside the pump's callback: the frame the element shows is the one
+      // the pump stamped.
       deps
         .createImageBitmap(video)
         .then((bitmap) => {
-          // A later frame already went ahead (bitmaps can resolve out of order), or the
-          // runner stopped: this one is stale.
-          if (id < newestSent || dead || closed) {
+          if (stopped() || busy !== frame) {
             bitmap.close();
-            if (!dead && !closed) dropped += 1 + stamp.skipped;
             return;
           }
-          newestSent = id;
-          const q = { id, bitmap, width, height, stamp };
-          if (inflight) {
-            if (waiting) drop(waiting);
-            waiting = q;
-          } else send(q);
+          worker.postMessage({ type: 'frame', id: frame.id, bitmap, tMs: frame.stamp.tMs }, [bitmap]);
         })
         .catch(() => {
-          /* the element had no frame to give (a resize, a stall): nothing to infer */
+          // The element had no frame to give (a resize, a stall): nothing to infer.
+          if (busy === frame) busy = null;
         });
       return true;
     },
@@ -224,8 +211,7 @@ export function workerHandRunner(
     close() {
       if (closed) return;
       closed = true;
-      if (waiting) waiting.bitmap.close();
-      waiting = null;
+      busy = null;
       for (const c of changes.values()) c.reject(new Error('the hand runner closed'));
       changes.clear();
       try {
@@ -246,9 +232,10 @@ export function workerHandRunner(
         die(new Error(m.message));
         reject(new Error(m.message));
       } else if (m.type === 'result' || m.type === 'frame-error') {
-        const done = inflight && inflight.id === m.id ? inflight : null;
-        if (m.type === 'result' && done && !closed) onResult({ result: m.result, width: done.width, height: done.height, stamp: done.stamp });
-        next();
+        const done = busy && busy.id === m.id ? busy : null;
+        if (!done) return;
+        busy = null;
+        if (m.type === 'result' && !stopped()) onResult({ result: m.result, width: done.width, height: done.height, stamp: done.stamp });
       } else if (m.type === 'numHands-done') {
         const c = changes.get(m.id);
         changes.delete(m.id);
@@ -327,6 +314,7 @@ export async function createHandRunner(
   };
   try {
     current = await workerHandRunner(options, onResult, deps.worker, onDead);
+    console.info('[thoremin] the hand model runs in a Web Worker');
   } catch (err) {
     console.warn('[thoremin] the hand worker could not start; the hand model runs on the main thread', err);
     current = await main();

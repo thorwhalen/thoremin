@@ -22,6 +22,12 @@
  * of the model's cost, and the count changes on the LIVE landmarker (`setOptions`, no model
  * reload), so switching instrument never reloads MediaPipe. Without the resource (a host
  * that does not say) it looks for `maxHands`, as it always did.
+ *
+ * Where the model runs is a seam (#326, `hand_runner.ts`): the main thread, as it always did
+ * (the default, `runner: 'main'`), or a Web Worker that leaves the tick free, with the main
+ * thread as its automatic fallback. The host may override the param through
+ * `ctx.resources.handRunner` (`?hands.runner=`). Either way the frame pump on this thread
+ * stamps every frame, so a result always carries its own frame's capture time.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
@@ -59,10 +65,11 @@ const Params = z.object({
   /** Which delegate runs the model: `auto` (the default) picks the CPU on a software
    *  WebGL renderer and the GPU otherwise (`delegate.ts`, #240); `GPU` / `CPU` force one. */
   delegate: DelegateChoiceSchema.default('auto'),
-  /** Where the model runs (#326): `auto` (the default) in a Web Worker where the browser can
-   *  host one, else the main thread; `worker` / `main` force one (a worker that cannot start
-   *  still falls back to the main thread). `hand_runner.ts` says why. */
-  runner: HandRunnerChoiceSchema.default('auto'),
+  /** Where the model runs (#326): `main` (the default, as before), `worker` (a Web Worker,
+   *  falling back to the main thread by itself where it cannot start), or `auto` (the worker
+   *  where the browser can host one). The worker trades a little lead for a regular tick, so
+   *  the default waits on the maintainer (#168 D14); `hand_runner.ts` has the numbers. */
+  runner: HandRunnerChoiceSchema.default('main'),
 });
 type Params = z.infer<typeof Params>;
 
@@ -167,7 +174,7 @@ function browserWorkerDeps(): WorkerRunnerDeps | undefined {
 }
 
 /** Where to run: the host's override when it gives a valid one, else the param. */
-function runnerChoice(resources: Record<string, unknown>, param: HandRunnerChoice): HandRunnerChoice {
+export function runnerChoice(resources: Record<string, unknown>, param: HandRunnerChoice): HandRunnerChoice {
   const parsed = HandRunnerChoiceSchema.safeParse(resources[HAND_RUNNER_RESOURCE_KEY]);
   return parsed.success ? parsed.data : param;
 }

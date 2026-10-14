@@ -20,7 +20,7 @@ vi.mock('@mediapipe/tasks-vision', () => ({
   HandLandmarker: { createFromOptions },
 }));
 
-import { HAND_COUNT_RESOURCE_KEY, wantedHands, webcamHandsNode } from '@/nodes/sources/webcam_hands';
+import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY, runnerChoice, wantedHands, webcamHandsNode } from '@/nodes/sources/webcam_hands';
 
 const g = globalThis as Record<string, unknown>;
 let saved: { raf: unknown; caf: unknown };
@@ -139,5 +139,25 @@ describe('webcam-hands follows the host hand count', () => {
     node.dispose!();
     await flush();
     expect(setOptions).not.toHaveBeenCalled();
+  });
+});
+
+describe('where the hand model runs (#326)', () => {
+  it('defaults to the main thread, and the host override wins when it is valid', () => {
+    expect(webcamHandsNode.params.parse({}).runner).toBe('main');
+    expect(runnerChoice({}, 'main')).toBe('main');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: 'worker' }, 'main')).toBe('worker');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: 'auto' }, 'main')).toBe('auto');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: 'gpu' }, 'worker')).toBe('worker');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: undefined }, 'main')).toBe('main');
+  });
+
+  it('runs on the main thread when asked for a worker the platform cannot host', async () => {
+    const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU', runner: 'worker' }));
+    await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+    expect(createFromOptions).toHaveBeenCalledTimes(1); // the main thread's landmarker
+    step();
+    expect(landmarker.detectForVideo).toHaveBeenCalledTimes(1);
+    node.dispose!();
   });
 });

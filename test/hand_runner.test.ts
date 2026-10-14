@@ -91,21 +91,21 @@ describe('the worker runner', () => {
     expect(results[0]).toMatchObject({ width: 1280, height: 720, result: HAND });
   });
 
-  it('keeps only the newest frame while busy, and counts the dropped ones as skipped', async () => {
+  it('drops the frames offered while busy, takes the next fresh one, and counts the drops as skipped', async () => {
     const w = new FakeWorker();
     const d = deps(w);
     const results: HandResult[] = [];
     const runner = await workerHandRunner(OPTIONS, (r) => results.push(r), d);
     runner.offer(video, stamp(100));
     await flush();
-    runner.offer(video, stamp(133));
-    runner.offer(video, stamp(166, 1)); // the pump itself skipped one before this
-    runner.offer(video, stamp(200));
+    expect(runner.offer(video, stamp(133))).toBe(true); // consumed: dropped, not refused
+    expect(runner.offer(video, stamp(166, 1))).toBe(true); // the pump itself skipped one before this
     await flush();
     expect(w.frames()).toHaveLength(1); // one at a time
-    expect(d.bitmaps[1]!.close).toHaveBeenCalled(); // replaced while waiting
-    expect(d.bitmaps[2]!.close).toHaveBeenCalled();
+    expect(d.bitmaps).toHaveLength(1); // no bitmap for a frame the worker never sees
     w.reply({ type: 'result', id: w.frames()[0]!.id, result: HAND });
+    runner.offer(video, stamp(200));
+    await flush();
     const second = w.frames()[1]!;
     expect(second.tMs).toBe(200);
     w.reply({ type: 'result', id: second.id, result: HAND });
@@ -122,9 +122,9 @@ describe('the worker runner', () => {
     const runner = await workerHandRunner(OPTIONS, (r) => results.push(r), deps(w));
     runner.offer(video, stamp(100));
     await flush();
+    w.reply({ type: 'frame-error', id: w.frames()[0]!.id });
     runner.offer(video, stamp(133));
     await flush();
-    w.reply({ type: 'frame-error', id: w.frames()[0]!.id });
     expect(w.frames()).toHaveLength(2);
     w.reply({ type: 'result', id: w.frames()[1]!.id, result: HAND });
     expect(results.map((r) => r.stamp.tMs)).toEqual([133]);
@@ -144,18 +144,36 @@ describe('the worker runner', () => {
     await expect(bad).rejects.toThrow('rebuild failed');
   });
 
-  it('closes what is waiting and terminates on close', async () => {
+  it('terminates on close, closes a bitmap that resolves after, and takes no more frames', async () => {
     const w = new FakeWorker();
     const d = deps(w);
     const runner = await workerHandRunner(OPTIONS, () => {}, d);
     runner.offer(video, stamp(100));
+    runner.close(); // before the bitmap resolves
     await flush();
+    expect(d.bitmaps[0]!.close).toHaveBeenCalled();
+    expect(w.frames()).toHaveLength(0);
+    expect(w.terminated).toBe(true);
+    expect(runner.offer(video, stamp(133))).toBe(false);
+  });
+
+  it('frees the worker when a snapshot fails', async () => {
+    const w = new FakeWorker();
+    const d = deps(w);
+    let fail = true;
+    const runner = await workerHandRunner(OPTIONS, () => {}, {
+      ...d,
+      createImageBitmap: async (v) => {
+        if (fail) throw new Error('no frame');
+        return d.createImageBitmap(v);
+      },
+    });
+    runner.offer(video, stamp(100));
+    await flush();
+    fail = false;
     runner.offer(video, stamp(133));
     await flush();
-    runner.close();
-    expect(d.bitmaps[1]!.close).toHaveBeenCalled();
-    expect(w.terminated).toBe(true);
-    expect(runner.offer(video, stamp(166))).toBe(false);
+    expect(w.frames().map((f) => f.tMs)).toEqual([133]);
   });
 });
 

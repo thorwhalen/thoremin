@@ -280,6 +280,11 @@ async function main() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     page.on('pageerror', (e) => console.error('[page error]', e.message));
+    // The app's own notes (where the hand model runs, a fallback it took), for the report.
+    const notes = [];
+    page.on('console', (m) => {
+      if (m.text().startsWith('[thoremin]') && notes.length < 50) notes.push(`${m.type()}: ${m.text().slice(0, 300)}`);
+    });
     if (args.cpuThrottle > 1) {
       const cdp = await context.newCDPSession(page);
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: args.cpuThrottle });
@@ -287,6 +292,7 @@ async function main() {
     // No local paths in the report: it is meant to be shareable.
     const report = { measuredAt: new Date().toISOString(), options: { ...args, video: args.video ? '(local file)' : null, out: args.out ? '(local file)' : null } };
     report.app = await measureApp(page, url, args);
+    report.app.notes = [...notes];
     await page.goto(url + 'manual.html'); // a light static page on the same origin
     report.env = await measureEnv(page);
     report.audio = await measureAudio(page, args.toneSeconds);
