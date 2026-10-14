@@ -79,6 +79,7 @@ export const paceControllerNode = defineNode<Params>({
     { name: 'range', kind: 'number', default: PACE_DEFAULTS.range, description: 'How far from the player\'s tempo the song may be pulled, a fraction' },
     { name: 'lead', kind: 'musical-time', description: "A conductor's time (#187 PR 7): while present, the song follows it beat for beat (the beat servo) instead of the dancer" },
     { name: 'offset', kind: 'number', default: 0, description: "The song's beat on which the conductor's first beat lands" },
+    { name: 'songHandle', kind: 'song-handle', description: 'The loaded song (the store\'s handle): a new one restarts both laws (#439)' },
   ],
   outputs: [
     { name: 'rate', kind: 'number', description: 'The rate to play the song at' },
@@ -93,9 +94,22 @@ export const paceControllerNode = defineNode<Params>({
     const servo = createBeatServo(p);
     /** Which law ran last tick: a change of leader starts the other law afresh. */
     let led = false;
+    /** The loaded song's id, last seen (`SongHandle.id`, fresh per load). */
+    let songId: unknown;
     return {
       process(inputs, ctx) {
-        const song = inputs.song as MusicalTime | undefined;
+        // A song replaced by another (#439): what either law learned about the old one (the
+        // level ratio, the re-anchoring shift, the beat period) does not hold for the new one,
+        // so both start afresh. For this one tick the song's time on the delayed edge is
+        // still the old song's, so neither law steps on it.
+        const id = (inputs.songHandle as { id?: unknown } | undefined)?.id;
+        const swapped = id !== undefined && songId !== undefined && id !== songId;
+        if (id !== undefined) songId = id;
+        if (swapped) {
+          servo.reset();
+          controller.reset();
+        }
+        const song = swapped ? undefined : (inputs.song as MusicalTime | undefined);
         const base = finite(inputs.base, 1);
         const lead = inputs.lead as MusicalTime | undefined;
         if (lead && !led) controller.reset();
