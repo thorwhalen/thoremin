@@ -130,6 +130,10 @@ export const PULSE_DEFAULTS = {
  *  that acts on a NEW level should want it to persist. */
 export const PULSE_TRUSTED_CONFIDENCE = 0.2;
 
+/** The least spacing between two anchors, in levels (periods): a settled maximum closer
+ *  than this to the last anchor is the same cycle seen again, not a new one. */
+const MIN_ANCHOR_SPACING_LEVELS = 0.5;
+
 /** The state before anything is known: no level, no phase, zero confidence. */
 export const UNKNOWN_PULSE: PulseState = {
   t: NaN,
@@ -197,6 +201,20 @@ function detrend(x: readonly number[], span: number): number[] {
   return out;
 }
 
+/** The lag range {@link acfPeaks} searches, in samples, and how many peaks it keeps. */
+export interface AcfPeaksOptions {
+  minLag: number;
+  maxLag: number;
+  /** The strongest `k` peaks; all of them when absent. */
+  k?: number;
+}
+
+/** Where a regularly sampled window sits in time: sample `i` is at `t0 + i / hz`. */
+export interface SampleGrid {
+  t0: number;
+  hz: number;
+}
+
 /**
  * Normalised autocorrelation peaks with lags in [minLag, maxLag] (samples), strongest
  * first (all of them unless `k` says otherwise), each refined by a parabola through
@@ -204,7 +222,7 @@ function detrend(x: readonly number[], span: number): number[] {
  * the geometric mean of the two overlapping segments' energies, so a long lag with a
  * short overlap is not penalised for the overlap it lacks.
  */
-export function acfPeaks(x: readonly number[], minLag: number, maxLag: number, k = Infinity): Array<{ lag: number; r: number }> {
+export function acfPeaks(x: readonly number[], { minLag, maxLag, k = Infinity }: AcfPeaksOptions): Array<{ lag: number; r: number }> {
   const n = x.length;
   let mean = 0;
   for (const v of x) mean += v;
@@ -245,7 +263,7 @@ export function acfPeaks(x: readonly number[], minLag: number, maxLag: number, k
  * RAW window: a moving-average detrend distorts the window's ends, which is where the
  * newest cycle, the one an anchor comes from, sits.
  */
-export function fitSine(x: readonly number[], t0: number, hz: number, period: number): { phi: number; amp: number } {
+export function fitSine(x: readonly number[], period: number, { t0, hz }: SampleGrid): { phi: number; amp: number } {
   const w = (2 * Math.PI) / period;
   const N = 4;
   const tMid = t0 + (x.length - 1) / (2 * hz);
@@ -290,15 +308,21 @@ export function fitSine(x: readonly number[], t0: number, hz: number, period: nu
   return { phi: Math.atan2(b, a), amp: Math.hypot(a, b) };
 }
 
+/** {@link refinePeriod}'s window and search: relative `step`, `+-span` steps. */
+export interface RefinePeriodOptions extends SampleGrid {
+  step?: number;
+  span?: number;
+}
+
 /**
  * Sharpen an ACF period by maximising the fitted sinusoid's amplitude around it (the
  * least-squares frequency estimate): the ACF chooses the LEVEL, this measures it.
  * Steps of `step` (relative) over `+-span` steps, then a parabola through the best
  * three. Stays within the searched span, so it never moves to another level.
  */
-export function refinePeriod(x: readonly number[], t0: number, hz: number, period: number, step = 0.004, span = 6): number {
+export function refinePeriod(x: readonly number[], period: number, { t0, hz, step = 0.004, span = 6 }: RefinePeriodOptions): number {
   const amps: number[] = [];
-  for (let k = -span; k <= span; k++) amps.push(fitSine(x, t0, hz, period * (1 + k * step)).amp);
+  for (let k = -span; k <= span; k++) amps.push(fitSine(x, period * (1 + k * step), { t0, hz }).amp);
   let best = 0;
   for (let i = 1; i < amps.length; i++) if (amps[i] > amps[best]) best = i;
   if (best === 0 || best === amps.length - 1) return period * (1 + (best - span) * step);
@@ -373,10 +397,10 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     const n = Math.max(4, Math.floor(Math.min(o.windowS, span) * o.gridHz));
     const { t0, x } = resample(samples, o.gridHz, n);
     const d = detrend(x, o.detrendS * o.gridHz);
-    const peaks: PulseLevel[] = acfPeaks(d, Math.round(o.minPeriodS * o.gridHz), Math.round(o.maxPeriodS * o.gridHz)).map((p) => ({ period: p.lag / o.gridHz, r: p.r }));
+    const peaks: PulseLevel[] = acfPeaks(d, { minLag: Math.round(o.minPeriodS * o.gridHz), maxLag: Math.round(o.maxPeriodS * o.gridHz) }).map((p) => ({ period: p.lag / o.gridHz, r: p.r }));
     candidates = peaks.slice(0, o.topK);
     // Only the levels in play are measured by the sine fit (the costly part).
-    const measure = (p: PulseLevel): PulseLevel => ({ period: refinePeriod(x, t0, o.gridHz, p.period), r: p.r });
+    const measure = (p: PulseLevel): PulseLevel => ({ period: refinePeriod(x, p.period, { t0, hz: o.gridHz }), r: p.r });
     const found = fundamental(peaks);
     const top = found && measure(found);
     if (!top || top.r < o.minStrength) {
@@ -414,7 +438,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       phi = NaN;
       return;
     }
-    phi = fitSine(x, t0, o.gridHz, level).phi;
+    phi = fitSine(x, level, { t0, hz: o.gridHz }).phi;
   };
 
   /** The latest fitted maximum that has settled, or NaN. */
@@ -502,7 +526,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
         estimate(t);
       }
       const tau = settledMaximum(t);
-      if (Number.isFinite(tau) && !(tau - lastAnchorT < 0.5 * level)) {
+      if (Number.isFinite(tau) && !(tau - lastAnchorT < MIN_ANCHOR_SPACING_LEVELS * level)) {
         lastAnchorT = tau;
         const anchor: Anchor = { t: tau, confidence: Math.min(1, strength / o.anchorTrustAt), strength, sharpness: NaN, lateral: 0 };
         prior.update(anchor);

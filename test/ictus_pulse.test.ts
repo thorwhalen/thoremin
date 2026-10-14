@@ -179,7 +179,7 @@ describe('the parts', () => {
     for (const P of [0.5, 1.5, 2.4]) {
       const x = Array.from({ length: 8 * HZ }, (_, i) => Math.sin((2 * Math.PI * i) / HZ / P));
       // (Its multiples tie with it: choosing among them is the follower's job.)
-      const at = acfPeaks(x, 8, 90).find((p) => Math.abs(p.lag / HZ / P - 1) < 0.03);
+      const at = acfPeaks(x, { minLag: 8, maxLag: 90 }).find((p) => Math.abs(p.lag / HZ / P - 1) < 0.03);
       expect(at, `period ${P}`).toBeDefined();
       expect(at!.r, `strength at ${P}`).toBeGreaterThan(0.9);
     }
@@ -188,9 +188,9 @@ describe('the parts', () => {
   it('fitSine recovers phase and amplitude over a span that is not a whole number of periods, on a drift; refinePeriod sharpens a period', () => {
     const P = 1.3;
     const x = Array.from({ length: 200 }, (_, i) => 2 * Math.cos((2 * Math.PI * (i / HZ - 0.4)) / P) + 0.05 * i);
-    const { phi, amp } = fitSine(x, 0, HZ, P);
+    const { phi, amp } = fitSine(x, P, { t0: 0, hz: HZ });
     expect(amp).toBeCloseTo(2, 3);
     expect((phi / (2 * Math.PI)) * P).toBeCloseTo(0.4, 3);
-    expect(Math.abs(refinePeriod(x, 0, HZ, P * 1.015) / P - 1)).toBeLessThan(0.002);
+    expect(Math.abs(refinePeriod(x, P * 1.015, { t0: 0, hz: HZ }) / P - 1)).toBeLessThan(0.002);
   });
 });

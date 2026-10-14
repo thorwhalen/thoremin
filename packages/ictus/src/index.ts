@@ -45,6 +45,7 @@ export type { TrendPriorOptions } from './trend_prior';
 export { createBlendPrior, TREND_DEFAULTS } from './blend_prior';
 export type { BlendPrior, BlendPriorOptions } from './blend_prior';
 export { createPulseFollower, acfPeaks, fitSine, refinePeriod, PULSE_DEFAULTS, PULSE_TRUSTED_CONFIDENCE, UNKNOWN_PULSE } from './pulse';
+export type { AcfPeaksOptions, RefinePeriodOptions, SampleGrid } from './pulse';
 export type { PulseFollower, PulseLevel, PulseOptions, PulseState } from './pulse';
 export { createLevelHold, relateLevel, inCapture, paceRatios, conductorRatios, LEVEL_HOLD_DEFAULTS } from './level';
 export type { LevelHold, LevelHoldOptions, LevelHoldState, LevelMatch, LevelMode, RelateLevelOptions } from './level';
