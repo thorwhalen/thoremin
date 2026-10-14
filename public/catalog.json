@@ -828,6 +828,10 @@
         "kind": "category-scores"
       },
       {
+        "name": "chordCategories",
+        "kind": "category-scores"
+      },
+      {
         "name": "elements",
         "kind": "string[]"
       },
@@ -955,6 +959,87 @@
         "name": "trainerHud",
         "type": "object",
         "default": {}
+      }
+    ]
+  },
+  {
+    "type": "categorizer-chord",
+    "title": "Categorizer Chord",
+    "description": "Your own hand-shape or pose categorizer (#450), read live: each of your categories plays a chord on the chord-source scale.",
+    "roles": [
+      "feature",
+      "music"
+    ],
+    "inputs": [
+      {
+        "name": "vector",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "frame",
+        "kind": "any"
+      },
+      {
+        "name": "model",
+        "kind": "categorizer-chords-model"
+      },
+      {
+        "name": "config",
+        "kind": "categorizer-chords-config"
+      },
+      {
+        "name": "spec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "category",
+        "kind": "category-scores"
+      },
+      {
+        "name": "triad",
+        "kind": "number[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 0.22
+      },
+      {
+        "name": "sound",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "triangle"
+      },
+      {
+        "name": "voicing",
+        "type": "enum(spread | bassTriad | close | shell | power)",
+        "default": "spread"
+      },
+      {
+        "name": "rendering",
+        "type": "enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)",
+        "default": "sustained"
+      },
+      {
+        "name": "bpm",
+        "type": "number",
+        "default": 100
       }
     ]
   },
@@ -3171,6 +3256,10 @@
         "kind": "pose-categorizer-config"
       },
       {
+        "name": "categorizerChords",
+        "kind": "categorizer-chords-config"
+      },
+      {
         "name": "airGuitarModel",
         "kind": "shape-model"
       },
@@ -3193,6 +3282,10 @@
       {
         "name": "poseCategorizerModel",
         "kind": "pose-categorizer-model"
+      },
+      {
+        "name": "categorizerChordsModel",
+        "kind": "categorizer-chords-model"
       }
     ],
     "params": []

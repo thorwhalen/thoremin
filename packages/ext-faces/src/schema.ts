@@ -83,3 +83,51 @@ export const DEFAULT_POSE_CATEGORIZER: PoseCategorizerDial = PoseCategorizerDial
 
 /** Whether the dial names a pose categorizer to play. */
 export const playsPoses = (dial: Partial<PoseCategorizerDial> | null | undefined): boolean => typeof dial?.id === 'string' && dial.id !== '';
+
+/**
+ * The categorizer whose categories play chords (#450): a saved hand-shape (`hand:...`) or pose
+ * (`body:...`) categorizer, '' (none, the default: nothing changes for an existing instrument),
+ * and the scale degree each of its categories plays, by slot, as `faceCategorizer` has. A hand
+ * shape or a pose stands in for no general expression, so Auto is the slot's place in
+ * {@link ORDER_DEGREES} (I, IV, V, vi, ii, iii, vii°, again); "none of these" is silence. The
+ * instrument keeps the id, not the model; an id this device does not have plays nothing.
+ */
+export const CategorizerChordsDialSchema = z.object({
+  id: z.string().default(''),
+  degrees: z.object(Object.fromEntries(CATEGORY_SLOTS.map((s) => [s, DegreeSchema.default(AUTO_DEGREE)])) as Record<string, z.ZodDefault<typeof DegreeSchema>>).prefault({}),
+});
+export type CategorizerChordsDial = z.infer<typeof CategorizerChordsDialSchema>;
+export const DEFAULT_CATEGORIZER_CHORDS: CategorizerChordsDial = CategorizerChordsDialSchema.parse({ degrees: {} });
+
+/** Auto's degree by category position: the strongest diatonic chords first, then the rest. */
+export const ORDER_DEGREES: readonly number[] = [0, 3, 4, 5, 1, 2, 6];
+
+/** The modalities whose categorizers can play chords (the prefix of their record ids). */
+export const CHORD_MODALITIES = ['hand', 'body'] as const;
+export type ChordModality = (typeof CHORD_MODALITIES)[number];
+
+/** The modality a categorizer id names (`hand:fist` -> `hand`), or null (none, a face's, a
+ *  trained model's, or anything else). */
+export function chordModalityOf(id: string | null | undefined): ChordModality | null {
+  if (typeof id !== 'string') return null;
+  const at = id.indexOf(':');
+  const kind = at > 0 ? id.slice(0, at) : '';
+  return (CHORD_MODALITIES as readonly string[]).includes(kind) && id.length > at + 1 ? (kind as ChordModality) : null;
+}
+
+/** The degree a category plays under `dial`: its own (by category id, the slot `createCarver`
+ *  gave it), else Auto by its position `index` (0-based); none of these (null) is silence. */
+export function chordDegreeOf(dial: Partial<CategorizerChordsDial> | null | undefined, categoryId: string | null, index: number | null): number {
+  if (categoryId === null || index === null || index < 0) return -1;
+  const own = (dial?.degrees as Record<string, number> | undefined)?.[categoryId];
+  if (typeof own === 'number' && Number.isInteger(own) && own > AUTO_DEGREE) return own;
+  return ORDER_DEGREES[index % ORDER_DEGREES.length];
+}
+
+/** The dial writes that point an instrument's categorizer chords at `id` ('' turns them off), as
+ *  one `dial.patch`: the id and every slot back to Auto. */
+export function chooseCategorizerChordsWrites(id: string): [string, unknown][] {
+  const writes: [string, unknown][] = [['categorizerChords.id', id]];
+  for (const slot of CATEGORY_SLOTS) writes.push([`categorizerChords.degrees.${slot}`, AUTO_DEGREE]);
+  return writes;
+}

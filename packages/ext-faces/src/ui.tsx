@@ -7,7 +7,7 @@
  */
 import type { ExtensionUiStub } from '@thoremin/sdk-ui/types';
 import type { ExtensionToolDecl } from '@thoremin/sdk-ui/tools';
-import { isPersonal, playsPoses, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
+import { chordModalityOf, isPersonal, playsPoses, type CategorizerChordsDial, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
 
 /** The chosen row shows which categorizer the face chords read while one of the player's plays
  *  them (#367); the general model needs no line. */
@@ -15,6 +15,8 @@ export const faceReadoutOn = (s: Readonly<Record<string, unknown>>): boolean =>
   s.faceMapping === 'chord' && isPersonal(s.faceCategorizer as Partial<FaceCategorizerDial> | undefined);
 /** And which pose categorizer the instrument reads, while it reads one (#367). */
 export const poseReadoutOn = (s: Readonly<Record<string, unknown>>): boolean => playsPoses(s.poseCategorizer as Partial<PoseCategorizerDial> | undefined);
+/** And which categorizer plays the categorizer chords, while one does (#450). */
+export const chordsReadoutOn = (s: Readonly<Record<string, unknown>>): boolean => chordModalityOf((s.categorizerChords as Partial<CategorizerChordsDial> | undefined)?.id) !== null;
 
 /** The face session's shell tool, as data (the deferred half `./lazy_ui.tsx` adds its panel). */
 export const FACES_TOOL: ExtensionToolDecl = {
@@ -50,6 +52,7 @@ export const FACES_UI_STUB: ExtensionUiStub = {
   panels: [
     { instrumentId: 'faces', section: 'Face categorizer', readoutOn: faceReadoutOn },
     { instrumentId: 'faces', section: 'Pose categorizer', readoutOn: poseReadoutOn },
+    { instrumentId: 'faces', section: 'Categorizer chords', readoutOn: chordsReadoutOn },
   ],
   tools: [FACES_TOOL, HANDS_TOOL, POSES_TOOL],
 };

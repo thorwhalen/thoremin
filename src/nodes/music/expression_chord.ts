@@ -38,7 +38,8 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { diatonicTriad, midiToFreq, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import type { ScaleSpec } from '@thoremin/sdk/music/theory';
+import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import {
   DEFAULT_EXPRESSION_TO_DEGREE,
@@ -48,7 +49,7 @@ import {
   type ExpressionScores,
   type ExpressionLabel,
 } from '@/music/expression';
-import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';
+import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import type { VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 /** Chord voices start at this id, above the two hand voices (0 = right, 1 = left). */
@@ -110,28 +111,11 @@ export const expressionChordNode = defineNode<Params>({
   ],
   params: Params,
   make(p) {
-    let beat = 0;
-    let timeSinceChange = 0;
-    let lastKey = '';
-
-    const silent = (): VoiceParams[] =>
-      Array.from({ length: MAX_CHORD_VOICES }, (_, i) => ({
-        id: CHORD_VOICE_ID_BASE + i,
-        present: false,
-        freq: midiToFreq(60),
-        gain: 0,
-        sound: p.sound,
-      }));
+    const renderer = createChordRenderer({ idBase: CHORD_VOICE_ID_BASE, maxVoices: MAX_CHORD_VOICES });
 
     return {
       process(inputs, ctx: NodeContext) {
         const cfg = (inputs.chordConfig as ChordConfig | undefined) ?? {};
-        const sound = cfg.sound ?? p.sound;
-        const gain = cfg.gain ?? p.gain;
-        const voicing = cfg.voicing ?? p.voicing;
-        const rendering = cfg.rendering ?? p.rendering;
-        const bpm = cfg.bpm ?? p.bpm;
-
         const expr = inputs.expression as ExpressionScores | undefined;
         const spec = inputs.spec as ScaleSpec | undefined;
         const shift = typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0;
@@ -148,46 +132,20 @@ export const expressionChordNode = defineNode<Params>({
         const degree = !reading
           ? SILENCE_DEGREE
           : personalDegree(reading, reading.id === null ? null : reading.ids.indexOf(reading.id), categoryDegrees, degreeFor);
-        // The un-voiced scale triad (3 tones) for the overlay highlight; [] when
-        // idle or when the expression maps to silence (a non-seven-note chord source
-        // now yields a generalized chord rather than [], per #75).
-        const triad = degree >= 0 ? diatonicTriad(spec!, degree) : [];
-        // Voice the chord, then sort ascending by pitch so arpeggios traverse
-        // low→high by actual pitch (some voicings stack out of pitch order). The
-        // ids stay stable (one per array slot), so the synth still releases all.
-        const voiced = (triad.length ? voiceTriad(triad, voicing, shift) : []).sort((a, b) => a - b);
-
-        // Beat clock (NaN-guarded so a degenerate dt can't poison it) + chord-change
-        // detection. The key is the actual sounding pitches, so ANY genuine chord
-        // change (expression, scale root/type/baseOctave, octave shift, voicing)
-        // restarts the strum. (Switching rendering mid-chord does NOT re-roll — a
-        // live strum re-rolls on a new chord, not on a control tweak.)
-        const dt = typeof ctx?.dt === 'number' && Number.isFinite(ctx.dt) ? ctx.dt : 0;
-        beat += (bpm / 60) * dt;
-        const key = voiced.length ? voiced.join(',') : '';
-        if (key !== lastKey) {
-          timeSinceChange = 0;
-          lastKey = key;
-        } else {
-          timeSinceChange += dt;
-        }
-
-        if (voiced.length === 0) return { params: { voices: silent() }, triad: [], played: expr };
-
-        const gains = renderGains(voiced.length, rendering, beat, timeSinceChange);
-        const voices: VoiceParams[] = [];
-        for (let i = 0; i < MAX_CHORD_VOICES; i++) {
-          const midi = voiced[i];
-          const raw = gains[i];
-          const g = midi !== undefined && Number.isFinite(raw) ? gain * raw : 0;
-          voices.push({
-            id: CHORD_VOICE_ID_BASE + i,
-            present: g > 0,
-            freq: midiToFreq(midi ?? 60),
-            gain: g,
-            sound,
-          });
-        }
+        // Voiced, rendered and articulated by the shared chord renderer (the SDK's), so every
+        // categorizer's chords sound alike; the triad is [] when idle or silent.
+        const { voices, triad } = renderer.render({
+          degree,
+          spec,
+          voicing: cfg.voicing ?? p.voicing,
+          rendering: cfg.rendering ?? p.rendering,
+          bpm: cfg.bpm ?? p.bpm,
+          octaveShift: shift,
+          gain: cfg.gain ?? p.gain,
+          sound: cfg.sound ?? p.sound,
+          silentSound: p.sound,
+          dt: typeof ctx?.dt === 'number' ? ctx.dt : 0,
+        });
         return { params: { voices }, triad, played: expr };
       },
     };

@@ -51,6 +51,9 @@ test('Your hand shapes records, carves, saves and binds the scripted hand', asyn
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
   const bind = panel.getByRole('button', { name: 'Bind My shapes to commands' });
   await expect(bind).toBeVisible({ timeout: 10_000 });
+  // Play chords (#450): the instrument composes the hand-chords branch and resolves the categorizer.
+  await panel.getByRole('button', { name: 'Play chords with My shapes' }).click();
+  await expect(panel.locator('[data-chords-playing]')).toHaveText('Chords', { timeout: 10_000 });
   await bind.click();
   // The Gestures tool opens on the bound set: its categories, ready for a command each.
   const yours = page.getByRole('region', { name: 'Your categories' });
