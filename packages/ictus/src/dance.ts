@@ -218,6 +218,8 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
   let pendingFrom = -Infinity;
   /** The piece ran out while the dancer was not followed (rule 7): silent at the end. */
   let ended = false;
+  /** When the dancer was last followed: the loop needs them followed within a cycle. */
+  let followedAt = -Infinity;
   let loops = 0;
   let last: DanceLeadState = { t: 0, mode: 'waiting', started: false, beat: 0, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
 
@@ -235,6 +237,7 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
     hold = null;
     pendingFrom = -Infinity;
     ended = false;
+    followedAt = -Infinity;
     loops = 0;
     last = { t: 0, mode: 'waiting', started: false, beat, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
   };
@@ -285,8 +288,10 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
         // of the piece again. Only while the dancer is followed: otherwise the piece ends.
         const loopAt = end !== undefined && end > 0 && Number.isFinite(end) ? ref + cycleBeats * Math.ceil((end - ref) / cycleBeats - START_EPS) : NaN;
         if (!holdingFermata && loopAt > 0 && beat >= loopAt) {
-          // Followed (or just released from a fermata the dancer was followed through).
-          if (last.mode === 'following' || last.mode === 'fermata') {
+          // Followed within the last cycle: a moment's dip in the pulse (a step held, a
+          // switch persisting) at the loop point is not the dancer leaving.
+          const cycleS = Number.isFinite(pulseCycle) ? pulseCycle : tempo > 0 ? (cycleBeats * 60) / tempo : 0;
+          if (t - followedAt <= cycleS || last.mode === 'fermata') {
             beat = top + (beat - loopAt);
             pendingFrom = top - START_EPS;
             loops++;
@@ -381,6 +386,7 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       // A score that marks no tempo here (the caller states one) keeps the tempo it had.
       if (markedOk) tempo = marked * factor;
       const mode: DanceLeadMode = rel.mode === 'following' ? (Number.isFinite(phaseError) ? 'following' : 'holding') : rel.mode === 'switching' ? 'switching' : 'holding';
+      if (mode === 'following') followedAt = t;
       last = { t, mode, started: true, beat, tempo, ratio: k ?? NaN, rate: smoothed, phaseError, cycles, loops };
       return last;
     },

@@ -312,6 +312,19 @@ describe('the fermata and loop edges (#463 review)', () => {
     expect(Math.max(...offGrid(states, 0, states[back].t))).toBeLessThan(0.05);
   });
 
+  it('a moment\'s dip in the pulse at the loop point does not end the piece (the review\'s probe)', () => {
+    // 24 beats loop at 24 s after the start; the pulse untrusted for 0.3 s around each loop.
+    const plain = go(60, { end: 24 });
+    const wrapsAt = plain.filter((s, j) => j > 0 && s.beat < plain[j - 1].beat).map((s) => s.t);
+    expect(wrapsAt.length).toBeGreaterThanOrEqual(2);
+    const dips = (t: number) => wrapsAt.some((w) => t > w - 0.25 && t < w + 0.05);
+    const states = go(60, { end: 24 }, (t) => (dips(t) ? { ...pulseAt(t, P, 0.3), confidence: 0.1 } : pulseAt(t, P, 0.3)));
+    // The dips do reach the lead (it holds through them)...
+    expect(states.some((s) => s.mode === 'holding' && dips(s.t))).toBe(true);
+    expect(states.some((s) => s.mode === 'ended')).toBe(false);
+    expect(states.at(-1)!.loops).toBe(plain.at(-1)!.loops);
+  });
+
   it('a fermata on the start beat, and two a fraction of a beat apart, are each held', () => {
     const plain = go(20, {});
     const start = plain.find((s) => s.started)!.beat;
