@@ -281,11 +281,18 @@ export interface HandGestureOptions {
   smoothS?: number;
   /** A channel not seen for this long (seconds) drops out of the reading. */
   holdS?: number;
-  /** The per-player range of every channel (`createRangeNormalizer`). */
+  /** The per-player range of every channel (`createRangeNormalizer`), over seconds of
+   *  MOVEMENT (see `minMove`). */
   range?: RangeNormalizerOptions;
   /** The smallest spread each channel's range is read with, in its own unit: a hand held
    *  still is not magnified into dynamics. */
   minSpread?: { torso?: number; image?: number; palm?: number };
+  /** A channel is moving while its smoothed value has changed by at least this much over
+   *  the last `moveWindowS`; only moving samples teach the range, so a posture held still
+   *  (a hand raised and kept up through a long forte) keeps its reading instead of
+   *  becoming the player's new middle. In each channel's unit. */
+  minMove?: { torso?: number; image?: number; palm?: number };
+  moveWindowS?: number;
 }
 
 export const HAND_GESTURE_DEFAULTS = {
@@ -297,12 +304,17 @@ export const HAND_GESTURE_DEFAULTS = {
    *  above it reads full. Torso lengths; frame heights (a torso is about a third of the
    *  frame); the palm's unit (1 = facing the camera to facing up). */
   minSpread: { torso: 1, image: 0.3, palm: 1 },
+  /** About five times a webcam wrist's smoothed jitter over half a second, and under the
+   *  slowest deliberate swell (a torso over six seconds moves 0.075 in 0.5 s). */
+  minMove: { torso: 0.05, image: 0.015, palm: 0.1 },
+  moveWindowS: 0.5,
 };
 
 export interface HandGesture {
   /** Fold one frame in. */
   push(frame: HandGestureFrame): void;
-  /** The dynamics the gesture says at `t`, 0..1, or NaN while no channel is fresh. */
+  /** The dynamics the gesture says at `t`, 0..1, or NaN while no channel is fresh and
+   *  taught (a channel that has not yet moved for the range's warm-up drops out). */
   read(t: number): number;
   /** Change the cues' shares (a live dial), keeping the player's ranges. */
   setWeights(w: { height?: number; palm?: number }): void;
@@ -313,27 +325,48 @@ export interface HandGesture {
  * The conducting literature's expressive hand (#457; Kolesnik and Wanderley): loudness from
  * how high the hand is held and which way the palm faces (up to rise, down to hush), not
  * from strokes. Continuous, so a hand rising slowly is a crescendo with no stroke at all.
- * Each channel is read against the player's own recent range (`createRangeNormalizer`, the
- * same 20 s as the body's expression), so "high" is this player's high.
+ * Each channel is read against the player's own range (`createRangeNormalizer`, the same
+ * 20 s as the body's expression), so "high" is this player's high. The range is learned
+ * from the hand's MOVEMENT only, on a clock that runs while it moves: a stroke-based
+ * channel never sits still, a posture does, and a held posture must not drift back to
+ * the middle. A channel that has not moved yet (a palm that never turns) says nothing.
  */
 export function createHandGesture(options: HandGestureOptions = {}): HandGesture {
   let weights = { ...HAND_GESTURE_DEFAULTS.weights, ...options.weights };
   const smoothS = options.smoothS ?? HAND_GESTURE_DEFAULTS.smoothS;
   const holdS = options.holdS ?? HAND_GESTURE_DEFAULTS.holdS;
   const minSpread = { ...HAND_GESTURE_DEFAULTS.minSpread, ...options.minSpread };
+  const minMove = { ...HAND_GESTURE_DEFAULTS.minMove, ...options.minMove };
+  const moveWindowS = options.moveWindowS ?? HAND_GESTURE_DEFAULTS.moveWindowS;
+  const warmupS = options.range?.warmupS ?? RANGE_NORMALIZER_DEFAULTS.warmupS;
   type Channel = 'torso' | 'image' | 'palm';
   const mk = (c: Channel) => createRangeNormalizer({ ...options.range, minSpread: Math.max(options.range?.minSpread ?? 0, minSpread[c]) });
-  let norm: Record<Channel, RangeNormalizer> = { torso: mk('torso'), image: mk('image'), palm: mk('palm') };
-  /** Per channel: the smoothed raw value, its time, and its last normalised reading. */
-  type Track = { t: number; ew: number; read: number };
+  /** Per channel: the smoothed raw value and its time, the recent smoothed values (for
+   *  the movement test), the movement clock, and the range. */
+  type Track = { t: number; ew: number; recent: { t: number; ew: number }[]; moveT: number; norm: RangeNormalizer };
   let tracks: Partial<Record<Channel, Track>> = {};
   const fold = (c: Channel, t: number, x: number | undefined) => {
     if (x === undefined || !Number.isFinite(x)) return;
-    const prev = tracks[c];
-    // Time that went backwards (a replay from the top) or a long gap starts the channel afresh.
-    const fresh = !prev || t < prev.t || t - prev.t > holdS;
-    const ew = fresh ? x : prev.ew + (1 - Math.exp(-(t - prev.t) / Math.max(smoothS, 1e-6))) * (x - prev.ew);
-    tracks[c] = { t, ew, read: norm[c].push(t, ew) };
+    let k = tracks[c];
+    // Time that went backwards (a replay from the top) starts the channel afresh; a long
+    // gap restarts its smoothing and its movement test, not the range it learned.
+    if (k && t < k.t) k = undefined;
+    if (!k) {
+      tracks[c] = { t, ew: x, recent: [{ t, ew: x }], moveT: 0, norm: mk(c) };
+      return;
+    }
+    const gap = t - k.t > holdS;
+    const ew = gap ? x : k.ew + (1 - Math.exp(-(t - k.t) / Math.max(smoothS, 1e-6))) * (x - k.ew);
+    if (gap) k.recent = [];
+    k.recent.push({ t, ew });
+    while (k.recent.length > 1 && k.recent[1].t <= t - moveWindowS) k.recent.shift();
+    const moving = k.recent.length > 1 && k.recent[0].t <= t - moveWindowS + 1e-9 && Math.abs(ew - k.recent[0].ew) >= minMove[c];
+    if (moving && !gap) {
+      k.moveT += t - k.t;
+      k.norm.push(k.moveT, ew);
+    }
+    k.t = t;
+    k.ew = ew;
   };
   return {
     push(f) {
@@ -345,17 +378,17 @@ export function createHandGesture(options: HandGestureOptions = {}): HandGesture
       let den = 0;
       const live = (c: Channel) => {
         const k = tracks[c];
-        return k && t - k.t <= holdS && t >= k.t - holdS ? k : undefined;
+        return k && Math.abs(t - k.t) <= holdS && k.moveT >= warmupS ? k : undefined;
       };
       // The height on the torso when it is fresh, else on the image.
       const h = live('torso') ?? live('image');
       const p = live('palm');
       if (h && weights.height > 0) {
-        num += weights.height * h.read;
+        num += weights.height * h.norm.normalize(h.ew);
         den += weights.height;
       }
       if (p && weights.palm > 0) {
-        num += weights.palm * p.read;
+        num += weights.palm * p.norm.normalize(p.ew);
         den += weights.palm;
       }
       return den > 0 ? clamp01(num / den) : NaN;
@@ -364,7 +397,6 @@ export function createHandGesture(options: HandGestureOptions = {}): HandGesture
       weights = { ...weights, ...w };
     },
     reset() {
-      norm = { torso: mk('torso'), image: mk('image'), palm: mk('palm') };
       tracks = {};
     },
   };

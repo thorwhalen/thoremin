@@ -328,6 +328,8 @@ export const conductor = defineBranch({
   overlay: ['conductorHud'],
   // One hand at a time: the beating hand (`pickHand`), or the shaping hand while the body
   // beats. Which one depends on the hands in view, so `HAND_COUNT_POLICY` decides (#325).
+  // The split with the hands alone (#457) reads two at once: a dial, so the host says so
+  // (`HandCountContext.twoHandsRead`, from `conductorReadsTwoHands`).
   hands: 1,
 });
 

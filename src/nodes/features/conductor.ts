@@ -116,7 +116,11 @@
  * no stroke (two strokes in a row, each within `handGesture.quietS`, are stroking; a
  * stroke is at least `minStroke` frame heights, so a still hand's tremor is none), its
  * height and its palm say the loudness, continuously (ictus `createHandGesture`,
- * `conductor_gesture.ts`); its strokes' articulation, or the beat's, stands.
+ * `conductor_gesture.ts`; each channel's range is learned while the hand MOVES, so a
+ * posture held up stays loud, and a channel that never moved says nothing); its strokes'
+ * articulation, or the beat's, stands. A change between the two readings crossfades over
+ * `handGesture.fadeS`. The split with the hands alone reads two hands at once, which the
+ * host's hand count is told (`conductorReadsTwoHands`).
  *
  * Pure and Node-safe: no DOM, no clock (it reads `ctx.time` / `ctx.dt`), and the
  * recorded conducting fixtures drive it headlessly.
@@ -215,6 +219,9 @@ export const ConductorHandGestureSchema = z.object({
   /** The smallest stroke of the shaping hand, in frame heights: below it a movement is
    *  the hand's tremor or a slow lift, not a stroke. */
   minStroke: z.number().min(0).max(0.2).default(0.02),
+  /** A change between the strokes' reading and the gesture's (the hand starts or stops
+   *  stroking, its gesture is first taught) crossfades over this many seconds. */
+  fadeS: z.number().min(0).max(3).default(0.5),
 });
 export type ConductorHandGesture = z.infer<typeof ConductorHandGestureSchema>;
 export const DEFAULT_CONDUCTOR_HAND_GESTURE: ConductorHandGesture = ConductorHandGestureSchema.parse({});
@@ -332,6 +339,16 @@ export const MusicalTimeSchema = z.object({
 
 /** The live `config` port: a partial override of the params (the dial's value). */
 const ConfigOverride = Params.partial();
+
+/** Whether the conductor reads two hands at once (#457): a hand conductor whose named
+ *  shaping hand is not the beating one. The host counts it in the hand model's hands. */
+export function conductorReadsTwoHands(c: Partial<Params> | undefined): boolean {
+  if (!c || c.enabled !== true || (c.source ?? 'hands') !== 'hands') return false;
+  const shaping = c.expressionHand ?? 'auto';
+  const beating = (c.hand ?? 'auto') === 'auto' ? 'right' : c.hand;
+  const handsShape = (c.expression ?? 'same') !== 'body';
+  return handsShape && shaping !== 'auto' && shaping !== beating;
+}
 
 /** MediaPipe's label for the player's hand, given the mirror convention. */
 function labelFor(hand: Exclude<ConductorHand, 'auto'>, mirrorHandedness: boolean): Hand['handedness'] {
@@ -577,12 +594,24 @@ export const conductorNode = defineNode<Params>({
     let gesture: HandGesture | null = null;
     let lastShapeStrokeT = -Infinity;
     let prevShapeStrokeT = -Infinity;
+    /** The crossfade between the strokes' reading and the gesture's (`handGesture.fadeS`). */
+    let shapeMode: 'strokes' | 'gesture' | null = null;
+    let fadeFrom = NaN;
+    let fadeT0 = -Infinity;
+    let lastShapedDyn = NaN;
+    const resetFade = (): void => {
+      shapeMode = null;
+      fadeFrom = NaN;
+      fadeT0 = -Infinity;
+      lastShapedDyn = NaN;
+    };
     const resetExpression = (): void => {
       exprIctus = null;
       exprKey = '';
       exprMeter = null;
       blend = null;
       gesture = null;
+      resetFade();
       lastExprBodyT = -Infinity;
       lastExprPtT = -Infinity;
       lastShapeStrokeT = -Infinity;
@@ -604,6 +633,7 @@ export const conductorNode = defineNode<Params>({
       lastExprPtT = -Infinity;
       lastShapeStrokeT = -Infinity;
       prevShapeStrokeT = -Infinity;
+      resetFade();
       lastPt = null;
       lastBody = null;
       lead.reset();
@@ -752,6 +782,7 @@ export const conductorNode = defineNode<Params>({
           lastShapeStrokeT = -Infinity;
           prevShapeStrokeT = -Infinity;
           gesture = null;
+          resetFade();
         }
         if (source === 'hands') {
           const frame = inputs.hands as HandsFrame | undefined;
@@ -787,10 +818,25 @@ export const conductorNode = defineNode<Params>({
         // Stroking is two strokes in a row, each within `quietS` of the next (and of now):
         // one turn, a hand lowered to hush and stopping, is not a beat.
         const stroking = lastShapeStrokeT - prevShapeStrokeT <= c.handGesture.quietS && now - lastShapeStrokeT <= c.handGesture.quietS;
-        if (exprIctus && gesture && !stroking) {
-          gesture.setWeights({ height: c.handGesture.height, palm: c.handGesture.palm });
-          const g = gesture.read(now);
-          if (Number.isFinite(g)) strokes = { dynamics: g, articulation: strokes.articulation };
+        if (exprIctus) {
+          let mode: 'strokes' | 'gesture' = 'strokes';
+          if (gesture && !stroking) {
+            gesture.setWeights({ height: c.handGesture.height, palm: c.handGesture.palm });
+            const g = gesture.read(now);
+            if (Number.isFinite(g)) {
+              strokes = { dynamics: g, articulation: strokes.articulation };
+              mode = 'gesture';
+            }
+          }
+          // A change of reading crossfades from where the dynamics were (no step in CC11).
+          if (shapeMode !== null && mode !== shapeMode) {
+            fadeFrom = lastShapedDyn;
+            fadeT0 = now;
+          }
+          shapeMode = mode;
+          const u = c.handGesture.fadeS > 0 ? Math.min(1, Math.max(0, (now - fadeT0) / c.handGesture.fadeS)) : 1;
+          if (Number.isFinite(fadeFrom) && u < 1) strokes = { dynamics: fadeFrom + (strokes.dynamics - fadeFrom) * u, articulation: strokes.articulation };
+          lastShapedDyn = strokes.dynamics;
         }
       } else {
         exprMeter ??= createBodyExpressionMeter();
