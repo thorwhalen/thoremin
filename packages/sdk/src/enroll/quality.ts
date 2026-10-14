@@ -61,7 +61,15 @@ export const QUALITY_DEFAULTS = {
   edgeMargin: 0.15,
 } as const;
 
-export type QualityOptions = Partial<typeof QUALITY_DEFAULTS>;
+export type QualityOptions = Partial<typeof QUALITY_DEFAULTS> & {
+  /**
+   * Each hold's supporting frames (the dwell the still-point was averaged from), aligned with
+   * `vectors`. A hold is a dwell average, so a category of near-identical holds has a tiny spread
+   * and reads distinct even when the jitter of frames in play would make it flip: a category's
+   * spread is the larger of its holds' spread and its frames' mean distance from the centre (#436).
+   */
+  supports?: readonly (readonly FeatureVector[] | undefined)[];
+};
 
 /** A chip's grade, best last. `thin`: too few holds to say. */
 export type QualityGrade = 'thin' | 'close' | 'ok' | 'distinct';
@@ -73,7 +81,8 @@ export interface CategoryQuality {
   nearest: string | null;
   /** Centre to the nearest neighbour's centre (noise units). */
   distance: number;
-  /** Its own spread: the mean distance of its holds from its centre (noise units). */
+  /** Its own spread: the mean distance of its holds from its centre, or of their supporting
+   *  frames when larger (noise units). */
   spread: number;
   /** `distance / spread`: Infinity for a category with no spread or no neighbour. */
   ratio: number;
@@ -212,9 +221,22 @@ export function carveQuality(model: TrainedModel, vectors: readonly FeatureVecto
     return { misses, tested };
   };
 
+  /** The mean distance of a category's holds' supporting frames from its centre; 0 without any. */
+  const frameSpread = (c: Category): number => {
+    let sum = 0;
+    let n = 0;
+    for (const j of c.members) {
+      for (const f of o.supports?.[j] ?? []) {
+        sum += weightedDistance(f, c.centroid, features, model.weights);
+        n += 1;
+      }
+    }
+    return n > 0 ? sum / n : 0;
+  };
+
   const categories = model.categories.map((c): CategoryQuality => {
     const near = nearestOf(model, c.centroid, targets, c.id);
-    const spread = c.radius;
+    const spread = Math.max(c.radius, frameSpread(c));
     const ratio = near.id === null || !(spread > 0) ? Infinity : near.d / spread;
     const { misses, tested } = holdsOf(c.id, [c], c.id);
     const missed = [...misses.values()].reduce((a, b) => a + b, 0);

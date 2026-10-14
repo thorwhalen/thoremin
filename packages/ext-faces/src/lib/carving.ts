@@ -319,7 +319,9 @@ export function sortingView(
 ): SortingView {
   const model = modelFromCategorizer(c);
   const vectors = c.samples.map((s) => s.vector);
-  const quality = carveQuality(model, vectors);
+  // The holds' supporting frames (#436): the chip speaks about frames, as the player plays.
+  const supports = c.samples.map((smp) => smp.support?.map((row) => Object.fromEntries(c.features.flatMap((f, k) => (Number.isFinite(row[k]) ? [[f, row[k] as number]] : [])))));
+  const quality = carveQuality(model, vectors, { supports });
   // As the grid names a category with no label: its id.
   const label = (id: string): string => model.categories.find((x) => x.id === id)?.label || id;
   const hints = new Map<string, QualityHint>();
