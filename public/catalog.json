@@ -3058,6 +3058,12 @@
         "default": 0.8
       },
       {
+        "name": "holdFade",
+        "kind": "number",
+        "description": "Seconds the song fades out on a conductor's hold and in on the release (#366); 0 = a cut",
+        "default": 0
+      },
+      {
         "name": "claimed",
         "kind": "boolean",
         "description": "A tool holds the instrument quiet (the Trainer)",
@@ -3259,6 +3265,10 @@
       },
       {
         "name": "songRate",
+        "kind": "number"
+      },
+      {
+        "name": "songHoldFade",
         "kind": "number"
       },
       {

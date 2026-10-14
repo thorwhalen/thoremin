@@ -219,6 +219,86 @@ describe('the song player under a leader (the review\'s cases)', () => {
   });
 });
 
+describe('a conductor\'s hold fades the song instead of cutting it (#366)', () => {
+  function fadingStretcher() {
+    let playing = false;
+    let pos = 0;
+    const log: string[] = [];
+    const s: Stretcher & { log: string[] } = {
+      log,
+      load: async () => {},
+      play: () => {
+        log.push('play');
+        playing = true;
+      },
+      pause: () => {
+        if (playing) log.push('pause');
+        playing = false;
+      },
+      fade: (level, seconds) => log.push(`fade:${level}:${seconds}`),
+      setRate: () => {},
+      setVolume: () => {},
+      seek: (p) => {
+        log.push(`seek:${p.toFixed(1)}`);
+        pos = p;
+      },
+      position: () => pos,
+      playing: () => playing,
+      ended: () => false,
+      dispose: () => {},
+    };
+    return s;
+  }
+  /** One tick per `dt`; frames are [followPlaying, cue?]. */
+  const run = async (st: Stretcher, holdFade: number, frames: [boolean, number?][], dt = 0.25) => {
+    const song = handle();
+    const player = songPlayerNode.make(songPlayerNode.params.parse({}));
+    for (let i = 0; i < frames.length; i++) {
+      const [followPlaying, cue] = frames[i];
+      player.process(
+        { song, followPlaying, holdFade, ...(cue ? { cue: { id: cue, beat: 2 } } : {}) },
+        { tick: i, time: i * dt, dt: i ? dt : 0, resources: { audioContext: {}, masterGain: {}, createStretcher: () => st } },
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+  };
+
+  it('with no fade a hold pauses at once (today\'s behaviour)', async () => {
+    const st = fadingStretcher();
+    await run(st, 0, [[false], [true], [true], [false]]);
+    expect(st.log).toEqual(['play', 'pause']);
+  });
+
+  it('fades out over the length, pauses once silent, and fades back in from silence on the release', async () => {
+    const st = fadingStretcher();
+    // dt 0.25 s: sounds, then holds for 1.2 s of a 1 s fade, then releases.
+    await run(st, 1, [[false], [true], [true], [false], [false], [false], [false], [false], [false], [true]]);
+    expect(st.log).toEqual(['play', 'fade:0:1', 'pause', 'fade:1:1', 'play']);
+  });
+
+  it('a release before the ramp ends climbs back without a pause or a restart', async () => {
+    const st = fadingStretcher();
+    await run(st, 1, [[false], [true], [false], [false], [true], [true]]);
+    expect(st.log).toEqual(['play', 'fade:0:1', 'fade:1:1']);
+  });
+
+  it('a cue waits out the ramp, then the song seeks and plays', async () => {
+    const st = fadingStretcher();
+    await run(st, 1, [[false], [true], [false, 1], [false, 1], [false, 1], [false, 1], [false, 1], [true, 1]]);
+    const seek = st.log.findIndex((l) => l.startsWith('seek'));
+    expect(st.log.indexOf('pause')).toBeGreaterThan(-1);
+    expect(seek).toBeGreaterThan(st.log.indexOf('pause'));
+  });
+
+  it('a stretcher with no fader cuts, as before', async () => {
+    const st = fadingStretcher();
+    delete (st as { fade?: unknown }).fade;
+    await run(st, 1, [[false], [true], [false], [false]]);
+    expect(st.log).toEqual(['play', 'pause']);
+  });
+});
+
 describe('a song replaced by another restarts the beat servo (#439)', () => {
   // The pace node alone, over a song that obeys it: its beat advances at the rate the node
   // asks while it says play, and jumps to a new cue, as the song player does. Song A is at

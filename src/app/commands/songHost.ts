@@ -23,6 +23,8 @@ export interface SongHost {
    *  per-device prefs. */
   setFollow(follow: boolean): void;
   setFollowRange(range: number): void;
+  /** Seconds the song fades out on a conductor's hold and back in on the release (#366). */
+  setHoldFade(seconds: number): void;
 }
 
 let host: SongHost | null = null;

@@ -32,7 +32,7 @@ import { useSongStatus, type PaceReadout, type SongLive } from './songStatus';
 import { loadSongFile, unloadSong } from './song/host';
 import { toolById } from './tools';
 import { useTools } from './toolsStore';
-import { SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
+import { SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
 import { unlockSongPlayback, type SongHandle } from '@/nodes/output/song_player';
 import { songConducted, songDanced, songFollows, type DerivationSettings } from '@/instruments/derive';
 
@@ -118,7 +118,7 @@ export default function SongPanel() {
   if (!open) return null;
 
   const tool = toolById(SONG_TOOL_ID);
-  const { volume, rate, follow, followRange } = prefs;
+  const { volume, rate, follow, followRange, holdFadeS } = prefs;
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -233,6 +233,21 @@ export default function SongPanel() {
                 </>
               )}
             </div>
+            <label className="flex items-center justify-between gap-2 text-xs text-white/80" data-testid="song-hold-fade">
+              <span>
+                Fade on a conductor's hold{' '}
+                <span className="font-mono text-white/50">{holdFadeS === 0 ? 'cut' : `${holdFadeS.toFixed(1)} s`}</span>
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={SONG_HOLD_FADE_MAX}
+                step={0.1}
+                value={holdFadeS}
+                aria-label="Fade on a conductor's hold"
+                onChange={(e) => setPrefs({ holdFadeS: Number(e.target.value) })}
+              />
+            </label>
             <button onClick={unloadSong} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white/70">
               Unload the song
             </button>

@@ -239,6 +239,7 @@ export const SONG_RATE_MAX = 2;
  */
 export const SONG_FOLLOW_RANGE_MIN = 0.02;
 export const SONG_FOLLOW_RANGE_MAX = 0.3;
+export const SONG_HOLD_FADE_MAX = 2;
 export const SongSettingsSchema = z.object({
   volume: z.number().min(0).max(1),
   rate: z.number().min(SONG_RATE_MIN).max(SONG_RATE_MAX),
@@ -250,9 +251,13 @@ export const SongSettingsSchema = z.object({
   /** How far from `rate` following may pull the song, a fraction (0.1 = +-10 %, the
    *  D-Jogger default; the native element sounds clean well past it). */
   followRange: z.number().min(SONG_FOLLOW_RANGE_MIN).max(SONG_FOLLOW_RANGE_MAX).default(0.1),
+  /** Seconds the song fades out when the conductor holds it and back in on the release
+   *  (#366). 0 = a cut, what every earlier version did (the default until the length is
+   *  decided on #168). Per device like the rest; additive, so no store bump. */
+  holdFadeS: z.number().min(0).max(SONG_HOLD_FADE_MAX).default(0),
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;
-export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1 };
+export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1, holdFadeS: 0 };
 /**
  * The body conductor's per-device prefs (#427): the player's lead offset per joint,
  * learned against a click in the Conductor tool ("Learn my timing"). Per DEVICE like

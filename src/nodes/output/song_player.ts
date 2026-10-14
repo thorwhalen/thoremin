@@ -31,6 +31,10 @@
  * replaces `playing` (the conductor's beat servo pauses the song while he waits or
  * holds), and `cue` moves the song to a beat (seeking to its time on the grid) whenever
  * its id changes.
+ * A hold under a conductor fades instead of cutting (#366): with `holdFade` > 0 the
+ * stretcher's fader ramps to silence over that many seconds, the song keeps sounding
+ * meanwhile and pauses once it is silent; a release before the end of the ramp climbs
+ * back from where it was, one after it fades in from silence. A cue waits out the ramp.
  * A tool's claim (the Trainer) silences the song like every other voice; the player's
  * mute acts on the master gain the song is mixed into.
  */
@@ -63,6 +67,9 @@ export interface Stretcher {
   /** Playback rate, pitch preserved; 1 = the song's own tempo. */
   setRate(rate: number): void;
   setVolume(volume: number): void;
+  /** Ramp the fader (separate from the volume) to `level` (0..1) over `seconds`; 0 seconds
+   *  is immediate (#366: the conductor's hold fades the song). Absent = cuts only. */
+  fade?(level: number, seconds: number): void;
   /** Position on the SONG's timeline, seconds: the audio leaving the stretcher now. */
   position(): number;
   /** Move to a position on the song's timeline, seconds (#187 PR 7: the conductor's cue). */
@@ -161,6 +168,12 @@ export const songPlayerNode = defineNode<Params>({
     },
     { name: 'cue', kind: 'song-cue', description: "Move the song to a beat (the conductor's cue): seeks whenever its id changes" },
     { name: 'volume', kind: 'number', default: 0.8 },
+    {
+      name: 'holdFade',
+      kind: 'number',
+      default: 0,
+      description: "Seconds the song fades out on a conductor's hold and in on the release (#366); 0 = a cut",
+    },
     { name: 'claimed', kind: 'boolean', default: false, description: 'A tool holds the instrument quiet (the Trainer)' },
   ],
   outputs: [
@@ -192,6 +205,9 @@ export const songPlayerNode = defineNode<Params>({
     /** The press counter last honoured (#344): a change is a press even while the
      *  `playing` level stayed up. Moves only while the song is playable, like `wasPlaying`. */
     let pressed: unknown = undefined;
+    /** A hold's fade-out under way (engine time it began), and whether the fader is down. */
+    let fading: { t0: number } | null = null;
+    let faded = false;
 
     /** The stretcher, once there is one; starts the default loading on first need. */
     const stretcherFor = (ctx: NodeContext, audio: StretcherOptions, songId: string): Stretcher | null => {
@@ -239,6 +255,9 @@ export const songPlayerNode = defineNode<Params>({
         const audio = realtimeOutputAllowed(ctx) ? audioOf(ctx) : null;
         if (!song) {
           if (stretcher && loadedId) stretcher.pause();
+          if (faded) stretcher?.fade?.(1, 0);
+          fading = null;
+          faded = false;
           loadedId = null;
           wasPlaying = false;
           status = OFF;
@@ -259,6 +278,9 @@ export const songPlayerNode = defineNode<Params>({
         }
         if (loadedId !== song.id) {
           s.pause();
+          if (faded) s.fade?.(1, 0);
+          fading = null;
+          faded = false;
           loadedId = song.id;
           wasPlaying = false;
           // Nor is a press counted before this song loaded.
@@ -283,6 +305,9 @@ export const songPlayerNode = defineNode<Params>({
         // Song tool's transport may still read "playing" from before the leader took over.
         if (wasLed && !led) {
           s.pause();
+          fading = null;
+          if (faded) s.fade?.(1, 0);
+          faded = false;
           wasPlaying = inputs.playing === true;
           pressed = inputs.play;
         }
@@ -310,7 +335,10 @@ export const songPlayerNode = defineNode<Params>({
         // is acted on once it is playable.
         const cue = inputs.cue as { id?: unknown; beat?: unknown } | undefined;
         if (!cue) cuedId = null;
-        if (playable && cue && typeof cue.id === 'number' && cue.id !== cuedId && typeof cue.beat === 'number' && s.seek) {
+        // A cue waits out a fade-out: the jump would be heard mid-ramp.
+        const fadeS = led && s.fade ? Math.max(0, finite(inputs.holdFade, 0)) : 0;
+        const fadingOut = fading !== null || (fadeS > 0 && !playing && s.playing());
+        if (playable && !fadingOut && cue && typeof cue.id === 'number' && cue.id !== cuedId && typeof cue.beat === 'number' && s.seek) {
           const at = songTimeOfBeat(song.grid, cue.beat);
           if (Number.isFinite(at)) s.seek(Math.max(0, Math.min(song.durationS, at)));
           cuedId = cue.id;
@@ -326,9 +354,34 @@ export const songPlayerNode = defineNode<Params>({
           // song ended and was pressed again between two ticks, #344); a press while the
           // song sounds changes nothing. The counter is the player's, so a leader ignores it.
           const press = !led && playing && inputs.play !== pressed && !s.playing();
-          if ((playing && !wasPlaying && !(led && s.ended())) || press) s.play();
-          else if (!playing && s.playing()) s.pause();
-          wasPlaying = playing;
+          if (playing && fading) {
+            // Released mid-ramp: back up from where the fader is, no pause, no restart.
+            fading = null;
+            s.fade?.(1, fadeS);
+            faded = false;
+          } else if ((playing && !wasPlaying && !(led && s.ended())) || press) {
+            if (faded) s.fade?.(1, fadeS);
+            faded = false;
+            s.play();
+          } else if (!playing && s.playing()) {
+            if (fadeS > 0) {
+              if (!fading) {
+                fading = { t0: ctx.time };
+                faded = true;
+                s.fade?.(0, fadeS);
+              }
+              if (ctx.time - fading.t0 >= fadeS) {
+                s.pause();
+                fading = null;
+              }
+            } else {
+              s.pause();
+            }
+          } else if (!playing && fading) {
+            // The song ended under the ramp.
+            fading = null;
+          }
+          wasPlaying = playing || fading !== null;
           pressed = inputs.play;
           const sounding = s.playing();
           status = sounding

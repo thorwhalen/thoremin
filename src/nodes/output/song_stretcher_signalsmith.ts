@@ -37,6 +37,7 @@
  */
 import type { Stretcher, StretcherFactory, StretcherOptions } from './song_player';
 import { createMediaElementStretcher } from './song_stretcher';
+import { rampGain } from './gain_ramp';
 
 /** Signalsmith's entry: a node factory resolving once its worklet says it is ready. */
 export type SignalsmithFactory = (audioContext: BaseAudioContext) => Promise<AudioNode>;
@@ -69,6 +70,9 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
   const { audioContext, destination } = audio;
   const gain = audioContext.createGain();
   gain.connect(destination);
+  // The hold fade's fader (#366), between the worklet and the volume.
+  const fader = audioContext.createGain();
+  fader.connect(gain);
   let node: StretchNode | null = null;
   let fallback: Stretcher | null = null;
   let loadId = 0;
@@ -123,7 +127,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
           n.disconnect();
           return null;
         }
-        n.connect(gain);
+        n.connect(fader);
         node = n;
       } catch (e) {
         if (disposed) return null;
@@ -185,6 +189,10 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       rate = r;
       if (node && wanted) node.schedule({ rate, output: now() });
     },
+    fade(level, seconds) {
+      if (fallback) return fallback.fade?.(level, seconds);
+      rampGain(fader.gain, level, seconds, now());
+    },
     setVolume(v) {
       if (fallback) return fallback.setVolume(v);
       if (v === volume) return;
@@ -212,6 +220,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
         node.disconnect();
         node = null;
       }
+      fader.disconnect();
       gain.disconnect();
     },
   };

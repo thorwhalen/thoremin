@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { defineCommand, ok, err } from 'acture';
-import { SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
+import { SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
 import { songHost } from './songHost';
 
 const CATEGORY = 'Song';
@@ -101,5 +101,18 @@ export const setSongFollowRangeCmd = defineCommand({
   },
 });
 
+/** How long the song fades when the conductor holds it (#366). */
+export const setSongHoldFadeCmd = defineCommand({
+  id: 'song.holdFade.set',
+  title: 'Set the hold fade',
+  description: 'Seconds the song fades out when the conductor holds or stops, and back in on the release; 0 cuts it.',
+  category: CATEGORY,
+  params: z.object({ seconds: z.number().min(0).max(SONG_HOLD_FADE_MAX).describe('Fade length in seconds; 0 = a cut') }),
+  execute: async ({ seconds }) => {
+    songHost().setHoldFade(seconds);
+    return ok({ seconds });
+  },
+});
+
 /** All song commands, registered together. */
-export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd] as const;
+export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd, setSongHoldFadeCmd] as const;

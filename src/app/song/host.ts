@@ -16,6 +16,7 @@ provideSongHost({
   setRate: (rate) => useControls.getState().setSongPrefs({ rate }),
   setFollow: (follow) => useControls.getState().setSongPrefs({ follow }),
   setFollowRange: (followRange) => useControls.getState().setSongPrefs({ followRange }),
+  setHoldFade: (holdFadeS) => useControls.getState().setSongPrefs({ holdFadeS }),
 });
 
 /** Decode and track `file`, then make it the loaded song (stopping the previous one). */
