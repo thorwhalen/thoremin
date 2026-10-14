@@ -120,6 +120,7 @@ import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
 import { beatsPerBarAt, timeSignatureAt } from '@thoremin/sdk/score/schema';
 import { readScoreDoc } from '@thoremin/sdk/score/prepare';
+import { clamp01 } from '@thoremin/sdk/features/math';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
 export type ConductorHand = (typeof CONDUCTOR_HANDS)[number];
@@ -348,8 +349,6 @@ function readTransportPose(raw: unknown): TransportPose | undefined {
   for (const k of ['ready', 'hold', 'cutoff'] as const) if (typeof r[k] === 'boolean') pose[k] = r[k] as boolean;
   return pose;
 }
-
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** The score's first marked tempo (bpm), if it marks one. */
 function firstTempo(doc: ScoreDoc): number | null {
