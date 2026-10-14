@@ -393,7 +393,9 @@ describe('orchestra: the score\'s part selection (#407)', () => {
 });
 
 describe('orchestra: the conductor branch gives both players one part selection (#407)', () => {
-  it('the score node and the orchestra carry the same `parts`', async () => {
+  // A guard: nothing sets `parts` yet (#471), so this holds on the defaults today; it fails
+  // the day one node of the branch is given a selection and the other is not.
+  it('the score node and the orchestra carry the same `parts` (a guard for #471)', async () => {
     const { conductor, ORCHESTRA_NODE_ID } = await import('@/instruments/branches');
     const partsOf = (id: string) => {
       const n = conductor.nodes.find((x) => x.id === id)!;
