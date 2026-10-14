@@ -33,7 +33,8 @@ import { clamp01 } from '@thoremin/stats';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '../lib/hand_shape';
 import { guitarVoicing, parseChordName } from '../lib/guitar';
-import { LM, frameTime, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { LM, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
 
@@ -219,7 +220,7 @@ export const airGuitarNode = defineNode<Params>({
         const fresh = frame !== lastFrame && !sameStamp;
         lastFrame = frame;
         if (frame && fresh && frame.height > 0) {
-          const t = frameTime(frame, ctx);
+          const t = captureTime(frame, ctx);
           const fretHand: PlayerHand = c.strumHand === 'right' ? 'left' : 'right';
           const fret = frame.hands.find((h) => h.handedness === labelFor(fretHand, c.mirrorHandedness));
           const strum = frame.hands.find((h) => h.handedness === labelFor(c.strumHand, c.mirrorHandedness));

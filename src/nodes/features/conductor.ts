@@ -129,7 +129,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { beatAt, conductorRatios, createDanceLead, createExpressionBlend, createHandGesture, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type DynamicsEstimate, type ExpressionBlend, type HandGesture, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
-import { LM, frameTime, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { LM, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { captureTime } from '@thoremin/sdk/timing/tracker';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { handGestureFrame } from './conductor_gesture';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
@@ -789,7 +790,7 @@ export const conductorNode = defineNode<Params>({
           const fresh = isFresh(frame, lastExprHands);
           lastExprHands = frame;
           const hand = frame && fresh ? shapingHand(frame, c) : undefined;
-          const t = frameTime(frame, ctx);
+          const t = captureTime(frame, ctx);
           now = t;
           if (hand && frame && frame.height > 0 && t >= lastExprPtT + MIN_SAMPLE_SPACING) {
             if (exprIctus.feed(handPoint(hand, frame, c, t)).anchor) {
@@ -847,7 +848,7 @@ export const conductorNode = defineNode<Params>({
         const body = inputs.body as BodyFrame | undefined;
         const fresh = isFresh(body, lastExprBody);
         lastExprBody = body;
-        const t = frameTime(body, ctx);
+        const t = captureTime(body, ctx);
         if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
           lastExprBodyT = t;
           // The channels are read per stroke (a hold or a fermata changes nothing).
@@ -1029,7 +1030,7 @@ export const conductorNode = defineNode<Params>({
           const body = inputs.body as BodyFrame | undefined;
           const fresh = isFresh(body, lastBodyFrame);
           lastBodyFrame = body;
-          const t = frameTime(body, ctx);
+          const t = captureTime(body, ctx);
           if (body && fresh && !(lastBody && t < lastBody.t + MIN_SAMPLE_SPACING)) {
             // A frame with nobody in it is fed too (no channels): the detector needs to
             // see the time pass to call a joint lost.
@@ -1087,7 +1088,7 @@ export const conductorNode = defineNode<Params>({
           // tick. A sample that would not advance the detector (a stamped frame arriving
           // behind the last tick-timed one, right after a slot swap) is skipped rather
           // than given an invented time.
-          const t = frameTime(frame, ctx);
+          const t = captureTime(frame, ctx);
           if (hand && frame && frame.height > 0 && !(lastPt && t < lastPt.t + MIN_SAMPLE_SPACING)) {
             const pt = handPoint(hand, frame, c, t);
             if (lastPt && pt.t > lastPt.t) noteSpeed(Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) / (pt.t - lastPt.t), pt.t - lastPt.t);

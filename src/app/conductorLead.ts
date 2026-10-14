@@ -37,7 +37,8 @@
 import { create } from 'zustand';
 import { createLeadCalibration, type LeadCalibration, type LeadCalibrationResult } from '@thoremin/ictus';
 import { clickPlan, type Click } from '@thoremin/sdk/enroll';
-import { frameTime, type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { BODY_GROUP_IDS } from '@/features/labConfig';
@@ -175,7 +176,7 @@ export function makeLeadCalibrationSink(
     const body = engine.getOutput(nodeId, 'body') as BodyFrame | undefined;
     if (body && body !== lastFrame && cal) {
       lastFrame = body;
-      const t = frameTime(body, { time: now, resources: resources() });
+      const t = captureTime(body, { time: now, resources: resources() });
       if (t >= take.startT) cal.push(bodyChannelFrame(body, t, take.side));
     }
     const past = take.beats.filter((b) => b <= now).length;

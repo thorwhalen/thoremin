@@ -27,7 +27,8 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
 import { clamp01 } from '@thoremin/stats';
-import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
+import { LM, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
+import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
 
 export const PLAYER_HANDS = ['right', 'left'] as const;
@@ -264,7 +265,7 @@ export const airBassNode = defineNode<Params>({
         const fresh = frame !== lastFrame && !sameStamp;
         lastFrame = frame;
         if (frame && fresh && frame.height > 0) {
-          const t = frameTime(frame, ctx);
+          const t = captureTime(frame, ctx);
           const fretHand: PlayerHand = c.pluckHand === 'right' ? 'left' : 'right';
           const pluck = frame.hands.find((h) => h.handedness === labelFor(c.pluckHand, c.mirrorHandedness));
           const fret = frame.hands.find((h) => h.handedness === labelFor(fretHand, c.mirrorHandedness));

@@ -29,7 +29,8 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { createPulseFollower, RHYTHM_PRIOR_KINDS, UNKNOWN_PULSE, type PulseFollower, type PulseState } from '@thoremin/ictus';
-import { BLM, frameTime, type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { BLM, type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { captureTime } from '@thoremin/sdk/timing/tracker';
 
 export const PULSE_CHANNELS = ['stride', 'head', 'hip'] as const;
 export type PulseChannel = (typeof PULSE_CHANNELS)[number];
@@ -108,7 +109,7 @@ export const bodyPulseNode = defineNode<Params>({
         }
         if (frame === lastFrame) return { pulse: last };
         lastFrame = frame;
-        last = follower.feed(frameTime(frame, ctx), pulseChannelValue(frame, p.channel, p.minVisibility));
+        last = follower.feed(captureTime(frame, ctx), pulseChannelValue(frame, p.channel, p.minVisibility));
         return { pulse: last };
       },
     };
