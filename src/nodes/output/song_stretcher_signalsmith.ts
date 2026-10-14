@@ -19,8 +19,9 @@
  *
  * What it costs: about 115 kB of script, loaded the first time a song loads (never in the
  * entry chunk: `vite.lazy-guard.ts` names the package), and the song DECODED in memory at
- * the context's rate (about 90 MB for a four-minute stereo song at 48 kHz, held twice
- * while it is handed to the worklet), where the media element streams the file.
+ * the context's rate (about 90 MB for a four-minute stereo song at 48 kHz; at the peak the
+ * decoded buffer and the copies handed over by TRANSFER are held, two, not three, #365),
+ * where the media element streams the file.
  *
  * The package is loaded VERBATIM: its file is emitted as an asset (`?url`) and imported
  * from there, never bundled. It builds its AudioWorklet by stringifying its own processor
@@ -52,7 +53,8 @@ async function loadSignalsmith(): Promise<SignalsmithFactory> {
 /** The slice of Signalsmith's node this adapter uses (the package ships no types). */
 interface StretchNode extends AudioNode {
   schedule(change: { active?: boolean; input?: number; output?: number; rate?: number }): unknown;
-  addBuffers(channels: Float32Array[]): Promise<number>;
+  /** The trailing array is a transfer list: the package posts those buffers instead of copying them. */
+  addBuffers(channels: Float32Array[], transfer?: ArrayBufferLike[]): Promise<number>;
   dropBuffers(): Promise<unknown>;
 }
 
@@ -154,9 +156,11 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       // A superseded load settles as a failure its caller ignores (it checks the id).
       if (id !== loadId) throw new Error('superseded');
       await n.dropBuffers();
+      // Own copies, TRANSFERRED to the worklet (#365): handing it the AudioBuffer's own
+      // views would make the message a structured clone, a third copy at the peak.
       const channels: Float32Array[] = [];
-      for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
-      await n.addBuffers(channels);
+      for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c).slice());
+      await n.addBuffers(channels, channels.map((ch) => ch.buffer));
       duration = buffer.duration;
       n.schedule({ active: false, input: 0, output: now() });
       anchor(0);
