@@ -38,10 +38,14 @@ export interface SinkResult {
   /** True if the user dismissed the final Save-As dialog — nothing was written, so
    * callers must report a cancellation, not a success. */
   cancelled?: boolean;
+  /** Set when the folder stopped accepting writes mid-take (#308) and the whole take
+   * was saved as a zip instead: the player must be told it is not in the folder. */
+  fellBack?: { from: 'directory'; reason: string };
 }
 
 export interface RecordingSink {
-  /** The concrete backend, for the manifest/HUD and tests. */
+  /** The concrete backend, for the manifest/HUD and tests (a directory sink that fell
+   *  back to a zip reads `zip` from then on). */
   readonly kind: SinkKind;
   /** The folder the take is written into: the name asked for, or (directory sink) that
    *  name with a `-2`, `-3` ... suffix when a folder of that name already exists. */
@@ -122,18 +126,38 @@ async function createDirectorySink(folderName: string): Promise<RecordingSink> {
 
   const { dir, name: label } = made;
   let count = 0;
+  // Every file added so far, kept by reference until close: if the folder fails
+  // mid-take the zip must hold the files already written too (#308), and the folder
+  // itself may be gone, so they cannot be read back from it. Blobs, not copies.
+  const added: [string, Blob | string][] = [];
+  let zip: RecordingSink | null = null;
+  let reason = '';
   return {
-    kind: 'directory',
+    get kind() {
+      return zip ? 'zip' : 'directory';
+    },
     folderName: label,
     async add(name, data) {
-      const fh = await dir.getFileHandle(name, { create: true });
-      const w = await fh.createWritable();
-      await w.write(data);
-      await w.close();
-      count++;
+      if (zip) return zip.add(name, data);
+      added.push([name, data]);
+      try {
+        const fh = await dir.getFileHandle(name, { create: true });
+        const w = await fh.createWritable();
+        await w.write(data);
+        await w.close();
+        count++;
+      } catch (e) {
+        // The folder was deleted, its permission revoked, the disk full: the rest of
+        // the take (and the manifest, the alignment SSOT) goes to a zip with
+        // everything added so far, rather than being dropped.
+        reason = (e as { message?: string })?.message || (e as { name?: string })?.name || 'write failed';
+        zip = createZipSink(label);
+        for (const [n, d] of added) await zip.add(n, d);
+      }
     },
     async close() {
-      return { label, count, viaPicker: true };
+      if (!zip) return { label, count, viaPicker: true };
+      return { ...(await zip.close()), fellBack: { from: 'directory' as const, reason } };
     },
   };
 }
