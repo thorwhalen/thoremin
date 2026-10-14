@@ -299,6 +299,7 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
           {others.map((o) => (
             <option key={o.id} value={`merge:${o.id}`}>{`Merge into ${o.label || o.id}`}</option>
           ))}
+          {others.length > 0 && <option value={`merge:${NEUTRAL_BIN}`}>Merge into Neutral</option>}
         </select>
       </div>
       <p className="text-[10px] text-white/40">{sourceText(c, w.one)}</p>

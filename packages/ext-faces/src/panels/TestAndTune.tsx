@@ -21,6 +21,7 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { FaceSessionState, MergeSeed } from '../app/sessionStore';
 import type { FaceTestState } from '../app/testStore';
 import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
+import { NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
 import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags, everydayResult } from '@thoremin/sdk/enroll/everyday';
 import { liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '@thoremin/sdk/enroll/live';
@@ -290,11 +291,16 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
                   {`Record more ${c.label || c.id}`}
                 </button>
               )}
+              {r.misses > 0 && live.model.categories.length > 1 && (
+                <button type="button" className={btn} onClick={() => s.merge(c.id, NEUTRAL_BIN)} data-faces-quiz-neutral={c.id}>
+                  {`Merge ${c.label || c.id} into Neutral`}
+                </button>
+              )}
             </li>
           );
         })}
       </ul>
-      <p className={hint}>{`Kept with this categorizer when you save. A ${w.one} you missed: record more of it (hold B with its name), make it bigger, or merge it.`}</p>
+      <p className={hint}>{`Kept with this categorizer when you save. A ${w.one} you missed: record more of it (hold B with its name), make it bigger, or merge it into Neutral (it is then none of your ${w.many}).`}</p>
       <div className="flex flex-wrap gap-2">
         {hits.length > 0 && (
           <button

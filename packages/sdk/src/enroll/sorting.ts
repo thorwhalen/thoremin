@@ -228,9 +228,25 @@ export function deleteHolds(c: PersonalCategorizer, ids: readonly string[]): Sor
 }
 
 /** Merge category `from` into `into`: one category with both's holds, every one pinned to it (a
- *  merged pair stays merged at every k). `into` keeps its id and label. */
+ *  merged pair stays merged at every k). `into` keeps its id and label. `into` may be the Neutral
+ *  bin (#444, a face the quiz keeps missing given up as "none of these"): every hold of `from`
+ *  goes to Neutral, pinned there, and the category is dropped; refused for the last category. */
 export function mergeCategories(c: PersonalCategorizer, from: string, into: string): SortResult {
   if (from === into) return fail('a category cannot merge with itself');
+  if (into === NEUTRAL_BIN) {
+    const gone = c.categories.find((x) => x.id === from);
+    if (!gone) return fail(`no category "${from}"`);
+    if (c.categories.length === 1) return fail('that would leave no category; a categorizer keeps at least one');
+    return done(() => {
+      const place = placement(c);
+      const pins = { ...(c.pins ?? {}) };
+      for (const id of gone.members) {
+        place.set(id, NEUTRAL_BIN);
+        pins[id] = NEUTRAL_BIN;
+      }
+      return rebuild(c, c.categories.filter((x) => x.id !== from), place, pins);
+    });
+  }
   const a = c.categories.find((x) => x.id === from);
   const b = c.categories.find((x) => x.id === into);
   if (!a || !b) return fail(`no category "${!a ? from : into}"`);

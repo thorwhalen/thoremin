@@ -144,6 +144,30 @@ describe("an open categorizer's checks", () => {
     act(() => test.getState().stop());
   });
 
+  it('a quiz miss offers "Merge X into Neutral" (#444): the category goes, its holds pinned in Neutral; undo brings it back', () => {
+    const { s, test } = opened();
+    const smile = s().working!.categories.find((c) => c.id === 'cat-1')!;
+    act(() => {
+      s().setChecks({ quiz: { at: 'now', categories: { 'cat-1': { label: smile.label, asked: 2, hits: 0, slow: 0, misses: 2, medianTimeMs: null, confusedWith: null }, 'cat-2': { label: 'b', asked: 2, hits: 2, slow: 0, misses: 0, medianTimeMs: 400, confusedWith: null } } } });
+      test.setState({ quiz: { step: { kind: 'done', total: 4 }, trials: [] } });
+    });
+    expect(document.querySelector('[data-faces-quiz-neutral="cat-2"]')).toBeNull();
+    const merge = document.querySelector('[data-faces-quiz-neutral="cat-1"]') as HTMLButtonElement;
+    expect(merge.textContent).toBe(`Merge ${smile.label} into Neutral`);
+    act(() => {
+      fireEvent.click(merge);
+    });
+    const w = s().working!;
+    expect(w.categories.map((c) => c.id)).not.toContain('cat-1');
+    for (const id of smile.members) {
+      expect(w.neutral).toContain(id);
+      expect(w.pins?.[id]).toBe('neutral');
+    }
+    expect(document.querySelector('[data-faces-quiz-result="cat-1"]')).toBeNull();
+    act(() => s().undo());
+    expect(s().working!.categories.map((c) => c.id)).toContain('cat-1');
+  });
+
   it('a kept quiz result shows beside the chip, and not once the category is renamed', () => {
     const { s } = opened();
     act(() =>

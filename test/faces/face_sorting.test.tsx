@@ -277,4 +277,15 @@ describe('one editable carve: the grid', () => {
     fireEvent.change(screen.getByRole('combobox', { name: `Change ${big.label}` }), { target: { value: 'split' } });
     expect(s().view!.k).toBe(k);
   });
+
+  it('a category menu merges it into Neutral (#444): its holds land in the Neutral bin', async () => {
+    const store = await carved();
+    const s = () => store.getState();
+    render(<FaceSessionView store={store} test={faceTestStore()} />);
+    const gone = s().view!.categories[0];
+    const members = s().working!.categories.find((c) => c.id === gone.id)!.members;
+    fireEvent.change(screen.getByRole('combobox', { name: `Change ${gone.label}` }), { target: { value: 'merge:neutral' } });
+    expect(s().working!.categories.map((c) => c.id)).not.toContain(gone.id);
+    for (const id of members) expect(s().working!.neutral).toContain(id);
+  });
 });
