@@ -81,6 +81,13 @@ export const GraphBranchSchema = z.object({
   overlay: z.array(z.string()).default([]),
   /** Feature-catalog group ids whose live demand implies this branch at runtime. */
   demands: z.array(z.string()).optional(),
+  /**
+   * How many of the player's hands this branch reads (#325): `0` none, `1` one hand (it
+   * picks one, whichever rule it uses), `2` both. It sets how many hands the hand model
+   * looks for, which is most of its cost (`src/instruments/hands.ts`). Undeclared, a branch
+   * with an edge out of the hand stream counts as reading both, and one without as none.
+   */
+  hands: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
 });
 export type GraphBranch = z.infer<typeof GraphBranchSchema>;
 export type GraphBranchInput = z.input<typeof GraphBranchSchema>;
