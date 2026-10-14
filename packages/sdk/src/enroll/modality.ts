@@ -36,6 +36,9 @@ export interface ModalityWords {
   fallback(index: number): string;
   /** What the rest asks for, when "relax your <part>" is not it (a hand is held up, relaxed). */
   rest?: string;
+  /** What the live test says when the part is not in view, when "No <part> in view" is not it
+   *  (#382: a body half out of frame is "cannot see you"). */
+  unseen?: string;
 }
 
 /**

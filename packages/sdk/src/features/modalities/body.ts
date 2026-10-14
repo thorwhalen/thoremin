@@ -43,6 +43,7 @@ const BODY_WORDS: ModalityWords = {
   neutral: 'neutral',
   fallback: (i) => `pose ${i + 1}`,
   rest: 'Stand (or sit) facing the camera, relaxed, arms at your sides, and keep still.',
+  unseen: 'Cannot see you: step back until the camera sees the whole pose',
 };
 
 /** The nuisances a pose take demonstrates, in order (design §4.3). Each lasts long enough for a

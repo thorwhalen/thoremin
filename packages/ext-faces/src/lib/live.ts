@@ -43,7 +43,7 @@ import { createCategoryTracker, trainModel, type CategoryTracker } from '@thorem
 import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { liveMargin, type LiveMargin } from '@thoremin/sdk/enroll/quality';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
-import { isNeutralLabel, projectVector, type CarveModality } from '@thoremin/sdk/enroll/modality';
+import { inView, isNeutralLabel, projectVector, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 /** The face's proxies of camera distance, in order of preference (both bigger when closer). */
@@ -269,6 +269,9 @@ export interface LiveModel {
   /** The merged live vector as this categorizer reads it (#385 E8): its modality's projection
    *  with its hand (a hand categorizer's one hand, side-relative); the face's is the identity. */
   project(merged: FeatureVector): FeatureVector;
+  /** Whether a projected vector shows the part well enough to read (#382: a body needs most of
+   *  the features its categories were taught on; a face or a hand, any one). */
+  inView(vector: FeatureVector): boolean;
 }
 
 export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuning> = {}, options: ModalityOption = {}): LiveModel {
@@ -288,7 +291,8 @@ export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuni
     rest: restOf(categorizer, derived.features, options),
     distance: fitDistance(categorizer, derived.features, options),
     temperature: Math.max(LIVE_DEFAULTS.minRadius, LIVE_DEFAULTS.softness * meanRadius),
-    project: (merged) => projectVector(options.modality ?? faceModality, merged, { hand: categorizer.hand ?? 'either' }),
+    project: (merged) => projectVector(options.modality ?? faceModality, merged, { hand: categorizer.hand ?? 'either', mirror: categorizer.mirror === true }),
+    inView: (vector) => inView(options.modality ?? faceModality, vector, derived.features),
   };
 }
 

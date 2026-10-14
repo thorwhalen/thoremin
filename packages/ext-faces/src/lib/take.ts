@@ -43,7 +43,7 @@ import { samplingFor } from '@thoremin/sdk/enroll/cue';
 import { createStillPointSampler, type StillPointSampler } from '@thoremin/sdk/enroll/sampler';
 import { createSession, type Session } from '@thoremin/sdk/enroll/session';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import { keepOnly, sessionSpace, type CarveModality } from '@thoremin/sdk/enroll/modality';
+import { keepOnly, sessionSpace, type CarveModality, type NuisanceCueSpec } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 /** The rest: the baseline and the noise warm-up. */
@@ -59,6 +59,25 @@ export function restCue(modality: CarveModality): Cue {
     sufficiency: { kind: 'frames', minFrames: 60 },
     tags: [modality.id, 'setup'],
   } satisfies CueSpecInput & { id: string; name: string });
+}
+
+/** A nuisance demonstration (#382): every frame, whatever moves is down-weighted. */
+export function nuisanceCue(modality: CarveModality, spec: NuisanceCueSpec): Cue {
+  return CueSchema.parse({
+    id: `${modality.words.slug}-${spec.key}`,
+    name: spec.name,
+    instruction: spec.instruction,
+    rationale: spec.rationale,
+    collects: { ...modality.collects(), axes: [...spec.axes] },
+    produces: 'nuisance',
+    sufficiency: { kind: 'frames', minFrames: 1 },
+    tags: [modality.id, 'setup'],
+  } satisfies CueSpecInput & { id: string; name: string });
+}
+
+/** The setup before the capture, in order: the rest, then the modality's nuisances (#382). */
+export function setupCues(modality: CarveModality): Cue[] {
+  return [restCue(modality), ...(modality.nuisanceCues ?? []).map((spec) => nuisanceCue(modality, spec))];
 }
 
 /** The player's own categories in the making: the pool the categories are carved from. */
@@ -123,6 +142,9 @@ export interface FaceTakeOptions {
   supportFrames?: number;
   /** Frames a burst needs to be a hold. */
   minBurstFrames?: number;
+  /** Run the modality's nuisance demonstrations after the rest (#382). Default true; a replay of
+   *  a recording that never demonstrated them turns them off. */
+  nuisance?: boolean;
 }
 
 export interface FaceTake {
@@ -135,6 +157,11 @@ export interface FaceTake {
   pause(tMs: number): void;
   /** Collect faces again, in a new cue segment (from `paused`). */
   resume(tMs: number): void;
+  /** The setup step under way (#382): 0 the rest, then each nuisance in turn (`setupCues`). */
+  setupStep(): number;
+  /** End the setup step under way (a nuisance, never the rest, which sets the units), on to the
+   *  next or to the capture. */
+  skipSetup(tMs: number): void;
   /** Capture segments begun so far (0 before the faces). */
   segments(): number;
   /** The hold indicator's state now: the capture's sampler while collecting, a watching
@@ -177,6 +204,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   // A modality with its own keys (a side-relative hand) resolves its cues against its own space.
   const session = options.session ?? createSession(sessionSpace(modality));
   const cues = { rest: restCue(modality), vocabulary: vocabularyCue(modality) };
+  const nuisances = options.nuisance === false ? [] : (modality.nuisanceCues ?? []).map((spec) => ({ cue: nuisanceCue(modality, spec), ms: spec.ms }));
+  /** The setup step (0 the rest) and when it began. */
+  let step = 0;
+  let stepAt = 0;
   const supportFrames = Math.max(0, Math.floor(options.supportFrames ?? FACE_TAKE_DEFAULTS.supportFrames));
   /** Recent frames (while capturing), trimmed to the support window. */
   const recent: { vector: FeatureVector; t: number }[] = [];
@@ -228,8 +259,28 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     return took;
   };
 
+  /** The next setup step after the one under way (a nuisance, or the capture). */
+  const nextStep = (tMs: number) => {
+    session.endCue();
+    step += 1;
+    stepAt = tMs;
+    if (step <= nuisances.length) {
+      session.beginCue(nuisances[step - 1].cue);
+      return;
+    }
+    segment = 1;
+    session.beginCue(segmentCue(modality, segment));
+    phase = 'faces';
+    justTaken = false;
+    facesAt = tMs;
+  };
+
   return {
     phase: () => phase,
+    setupStep: () => (phase === 'rest' ? step : 0),
+    skipSetup(tMs) {
+      if (phase === 'rest' && step > 0) nextStep(tMs);
+    },
     explore() {
       if (phase !== 'idle') return;
       phase = 'explore';
@@ -244,6 +295,8 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       watch = null;
       justTaken = false;
       t0 = tMs;
+      step = 0;
+      stepAt = tMs;
       session.beginCue(cues.rest);
     },
     pause() {
@@ -296,15 +349,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       for (let i = before; i < points.length; i++) supports[i] = thin(recent.filter((f) => f.t >= points[i].t && modality.read(f.vector) !== null).map((f) => keepOnly(modality, f.vector)), supportFrames);
       if (points.length > before) justTaken = true;
       if (phase === 'rest') {
-        if (modality.read(vector) !== null) rest.push(vector);
-        if (tMs - t0 >= restMs && rest.length >= minRestFrames) {
-          session.endCue();
-          segment = 1;
-          session.beginCue(segmentCue(modality, segment));
-          phase = 'faces';
-          justTaken = false;
-          facesAt = tMs;
-        }
+        if (step === 0) {
+          if (modality.read(vector) !== null) rest.push(vector);
+          if (tMs - t0 >= restMs && rest.length >= minRestFrames) nextStep(tMs);
+        } else if (tMs - stepAt >= nuisances[step - 1].ms) nextStep(tMs);
       }
     },
     stop() {

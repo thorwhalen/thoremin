@@ -275,7 +275,7 @@ export function installCategoryDemand(): () => void {
 export function readFor(read: CategoryRead | undefined): (vector: FeatureVector) => FeatureVector {
   const modality = read ? modalityById(read.modality) : undefined;
   if (!modality) return (v) => v;
-  return (v) => projectVector(modality, v, { hand: read!.hand ?? 'either' });
+  return (v) => projectVector(modality, v, { hand: read!.hand ?? 'either', mirror: read!.mirror === true });
 }
 
 // The host's binder (#385 E8): an extension's carve tool binds its categorizer here, and the

@@ -8,7 +8,7 @@
  *   camera (the modality's feature groups, through feature demand) and the hush it holds so
  *   making faces at the camera does not play the instrument. Each owner releases only its own.
  */
-import type { CarveModality } from '@thoremin/sdk/enroll/modality';
+import type { CarveModality, Skeleton } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { appFeatureDemand } from '../featureDemand';
 import { controls } from '../host';
@@ -49,6 +49,13 @@ export interface CarveModalityUi {
    *  still, so a picture shows what the camera read as well as what it saw; nothing is kept
    *  beside it. Null (or absent): the still alone. */
   overlay?(live: { vector: FeatureVector; width: number; height: number }): readonly (readonly PixelPoint[])[] | null;
+  /** A hold's stick figure as a picture URL (#382: a body pose's, an SVG data URL), shown where
+   *  the hold has no camera still. Absent: a hold without a still has no picture. */
+  figure?(skeleton: Skeleton): string | null;
+  /** Camera stills are taken unless the player turns them off (`default`, a face or a hand), or
+   *  only when the player asks (`opt-in`, #387 C7: a body, whose still shows the room and the
+   *  person while the stick figure carries what sorting needs). Absent: `default`. */
+  readonly stills?: 'default' | 'opt-in';
   /** Where a saved categorizer of this modality can be played. */
   readonly targets: readonly CarveTarget[];
   /** The status while the modality's source loads, when it has one to report. */

@@ -1,6 +1,5 @@
 /**
- * The faces extension's React half, EAGER STUB: the shell tools (Your faces, and since #385 E8
- * Your hand shapes) and the editor section it
+ * The faces extension's React half, EAGER STUB: the shell tools (Your faces, since #385 E8 Your hand shapes, since #382 Your poses) and the editor section it
  * contributes, as data, so the Tools launcher and the instrument editor list them before
  * anything loads. Their components are `./lazy_ui.tsx`, loaded the first time the tool or the
  * section opens, or a graph names the categorizer node (`docs/design/lazy-extensions.md`). No
@@ -27,11 +26,20 @@ export const HANDS_TOOL: ExtensionToolDecl = {
   defaultPinned: false,
 };
 
+/** The pose session's shell tool (#382 = #385 E9): the same carve over held body poses. */
+export const POSES_TOOL: ExtensionToolDecl = {
+  id: 'poses',
+  label: 'Your poses',
+  description: 'Record your own body poses and carve them into categories you name and keep; each one can fire a command.',
+  group: 'mode',
+  defaultPinned: false,
+};
+
 export const FACES_UI_STUB: ExtensionUiStub = {
   id: 'faces',
   // The instrument editor's section (#330 P4): which categorizer the face chords read.
   panels: [{ instrumentId: 'faces', section: 'Face categorizer' }],
-  tools: [FACES_TOOL, HANDS_TOOL],
+  tools: [FACES_TOOL, HANDS_TOOL, POSES_TOOL],
 };
 
 export default FACES_UI_STUB;
