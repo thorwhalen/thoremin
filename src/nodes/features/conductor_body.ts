@@ -284,3 +284,98 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
     },
   };
 }
+
+/**
+ * What the body says about expression, per pose frame (#378, body-movement A6): the
+ * channels `createExpressionBlend` (ictus) normalises per player and blends with the
+ * strokes' own dynamics.
+ *
+ * - `motion`: the quantity of motion ({@link bodyQuantityOfMotion}, torso lengths per second).
+ * - `extension`: how straight the beating arm is, the shoulder-to-wrist distance over the
+ *   upper arm plus the forearm (0 folded .. 1 straight). The arm's own segments are the
+ *   unit, so neither the camera's distance nor the player's size enters. The catalog's
+ *   `body.shape.extension` (head, hands and feet from the hips) is not used: a waist-up
+ *   conductor has no feet in frame, and the arm is what reaches out on a loud beat.
+ * - `jerk`: the beating wrist's third derivative through its last four positions at their
+ *   own frame times (a dropped frame is not a jolt), in torso lengths (Laban flow, the
+ *   catalog's `body.effort.flow` idea on the one point that beats). Not a median: a sharp
+ *   stroke's jerk IS a one- or two-frame spike at the impact, which a median removes; so a
+ *   single tracker glitch also reads as a jolt for about the blend's smoothing (#146 A6.3).
+ *
+ * The beating arm is the named side, or with `auto` the arm whose wrist is higher (the
+ * transport's choice). A landmark below `minVisibility` is unseen; an unseen channel is
+ * absent rather than zero.
+ */
+export interface BodyExpressionMeter {
+  push(f: BodyFrame, t: number, side: BodySide): { t: number; motion?: number; extension?: number; jerk?: number };
+  reset(): void;
+}
+
+/** The third derivative's magnitude through four samples at their OWN times (Newton's
+ *  divided differences, times 6): zero for any constant velocity or acceleration however
+ *  the frames are spaced, so a dropped frame is not a jolt. Undefined for a repeated time. */
+function thirdDerivative(p: readonly { t: number; x: number; y: number }[]): number | undefined {
+  const axis = (k: 'x' | 'y'): number | undefined => {
+    let d = p.map((q) => q[k]);
+    for (let order = 1; order <= 3; order++) {
+      const next: number[] = [];
+      for (let i = 0; i + order < p.length; i++) {
+        const dt = p[i + order].t - p[i].t;
+        if (!(dt > 0)) return undefined;
+        next.push((d[i + 1] - d[i]) / dt);
+      }
+      d = next;
+    }
+    return 6 * d[0];
+  };
+  const jx = axis('x');
+  const jy = axis('y');
+  return jx === undefined || jy === undefined ? undefined : Math.hypot(jx, jy);
+}
+
+export function createBodyExpressionMeter({ minVisibility = BODY_MOTION_DEFAULTS.minVisibility } = {}): BodyExpressionMeter {
+  let prev: { t: number; f: BodyFrame } | null = null;
+  /** The beating wrist's last positions (torso lengths) and times, newest last. */
+  let wrists: { t: number; x: number; y: number; side: 'left' | 'right' }[] = [];
+  return {
+    reset() {
+      prev = null;
+      wrists = [];
+    },
+    push(f, t, side) {
+      if (!f.present) {
+        prev = null;
+        wrists = [];
+        return { t };
+      }
+      const motion = prev ? bodyQuantityOfMotion(prev.f, f, t - prev.t) : undefined;
+      prev = { t, f };
+      const torso = torsoPx(f);
+      let beating: 'left' | 'right' = side === 'auto' ? 'right' : side;
+      if (side === 'auto') {
+        const r = armRaise(f, 'right', minVisibility);
+        const l = armRaise(f, 'left', minVisibility);
+        if (r === undefined || (l !== undefined && l > r)) beating = 'left';
+      }
+      const [sh, el, wr] = beating === 'right' ? [BLM.right_shoulder, BLM.right_elbow, BLM.right_wrist] : [BLM.left_shoulder, BLM.left_elbow, BLM.left_wrist];
+      const seen = (j: number) => !!f.landmarks[j] && (f.visibility[j] ?? 1) >= minVisibility;
+      const d = (a: number, b: number) => Math.hypot(f.landmarks[a].x - f.landmarks[b].x, f.landmarks[a].y - f.landmarks[b].y);
+      let extension: number | undefined;
+      if (seen(sh) && seen(el) && seen(wr)) {
+        const limb = d(sh, el) + d(el, wr);
+        if (limb > 1e-9) extension = Math.min(1, d(sh, wr) / limb);
+      }
+      let jerk: number | undefined;
+      if (torso && seen(wr)) {
+        const w = f.landmarks[wr];
+        if (wrists.length && wrists[wrists.length - 1].side !== beating) wrists = [];
+        wrists.push({ t, x: w.x / torso, y: w.y / torso, side: beating });
+        if (wrists.length > 4) wrists.shift();
+        if (wrists.length === 4) {
+          jerk = thirdDerivative(wrists);
+        }
+      } else wrists = [];
+      return { t, motion, extension, jerk };
+    },
+  };
+}

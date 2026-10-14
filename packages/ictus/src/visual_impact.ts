@@ -543,7 +543,7 @@ export function createImpactDetector(options: ImpactDetectorOptions = {}): Impac
     j.lastAnchorX = x;
     lastAnchorT = t;
     const confidence = Math.min(1, Math.max(0, strength)) * (0.5 + 0.5 * lock);
-    return { t, confidence, strength, sharpness, lateral };
+    return { t, confidence, strength, sharpness, lateral, amplitude, channel: j.channel };
   };
 
   return {

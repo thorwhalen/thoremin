@@ -1161,6 +1161,16 @@
         "default": "beat"
       },
       {
+        "name": "expression",
+        "type": "enum(same | hands | body)",
+        "default": "same"
+      },
+      {
+        "name": "articulationFrom",
+        "type": "enum(sharpness | flow)",
+        "default": "sharpness"
+      },
+      {
         "name": "transport",
         "type": "object",
         "default": {

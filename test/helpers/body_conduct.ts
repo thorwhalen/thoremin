@@ -18,8 +18,12 @@ export type Gesture =
   | { kind: 'ready'; s: number }
   /** The preparatory beat: up from the ready height, then down onto the first ictus (its end). */
   | { kind: 'upbeat'; s: number }
-  /** Strokes at `bpm`; each starts and ends on an ictus (the first is the previous gesture's end). */
-  | { kind: 'beat'; bpm: number; beats: number }
+  /** Strokes at `bpm`; each starts and ends on an ictus (the first is the previous gesture's end).
+   *  `size` scales the stroke (1 = the default height, and the wrist reaches out further from
+   *  the body as it grows, #378); `shape` is a `sharp` bottom (an |sin| cusp, the default) or a
+   *  `smooth` one (a rounded, legato turn); `reach` overrides how far out the wrist is
+   *  (torso lengths), independently of the size. */
+  | { kind: 'beat'; bpm: number; beats: number; size?: number; shape?: 'sharp' | 'smooth'; reach?: number }
   /** Stays where it is (raised after a stroke), still: a fermata. */
   | { kind: 'hold'; s: number }
   /** A short flick, the arm dropped to the side, then still. */
@@ -38,6 +42,8 @@ export const STROKE_BOTTOM = 0.55;
 export const STROKE_TOP = 1.1;
 export const READY_RAISE = 0.9;
 export const HANGING = -0.05;
+/** How far out from the shoulder the wrist is, torso lengths. */
+export const REACH = 0.25;
 
 export interface ConductScript {
   frames: BodyFrame[];
@@ -49,19 +55,24 @@ export interface ConductScript {
   seconds: number;
 }
 
-export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso = 150, seed = 377 } = {}): ConductScript {
+/** `arm`: `fixed` (the default, #377) puts the elbow at a fixed offset from the
+ *  shoulder-wrist midpoint; `jointed` (#378) solves it from the upper arm's and forearm's
+ *  lengths, so the arm's straightness follows the wrist's reach, as the expression reads it. */
+export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso = 150, seed = 377, arm = 'fixed' as 'fixed' | 'jointed' } = {}): ConductScript {
   const rnd = seeded(seed);
   // The wrist's height as a function of time, piecewise.
-  type Piece = { t0: number; t1: number; raise: (u: number) => number; dip?: (u: number) => number; shake?: number; absent?: boolean };
+  type Piece = { t0: number; t1: number; raise: (u: number) => number; dip?: (u: number) => number; shake?: number; absent?: boolean; reach?: number; reach0?: number };
   const pieces: Piece[] = [];
   const ictus: number[] = [];
   const starts: number[] = [];
   let t = 0;
   let r = HANGING;
+  let reach = REACH;
   const add = (s: number, f: (u: number) => number, extra: Partial<Piece> = {}) => {
-    pieces.push({ t0: t, t1: t + s, raise: f, ...extra });
+    pieces.push({ t0: t, t1: t + s, raise: f, reach0: reach, ...extra });
     t += s;
     r = f(1);
+    reach = extra.reach ?? REACH;
   };
   for (const g of gestures) {
     starts.push(t);
@@ -80,7 +91,9 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
         break;
       case 'beat': {
         const p = 60 / g.bpm;
-        add(g.beats * p, (u) => STROKE_BOTTOM + (STROKE_TOP - STROKE_BOTTOM) * Math.abs(Math.sin(Math.PI * u * g.beats)));
+        const size = g.size ?? 1;
+        const wave = g.shape === 'smooth' ? (x: number) => (1 - Math.cos(2 * Math.PI * x)) / 2 : (x: number) => Math.abs(Math.sin(Math.PI * x));
+        add(g.beats * p, (u) => STROKE_BOTTOM + size * (STROKE_TOP - STROKE_BOTTOM) * wave(u * g.beats), { reach: g.reach ?? REACH * size * size });
         for (let i = 1; i <= g.beats; i++) ictus.push(starts[starts.length - 1] + i * p);
         break;
       }
@@ -150,8 +163,10 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
     const { landmarks, world } = makeBodyKeypoints({ width, height, cx: 0.5, cy: 0.7 + dip / height, torso, leftArm: 0, rightArm: 0, kneeBend: 0, lean: 0 });
     const sh = landmarks[BLM.right_shoulder];
     const hipY = (landmarks[BLM.left_hip].y + landmarks[BLM.right_hip].y) / 2;
-    const wrist = { x: sh.x - 0.25 * torso, y: hipY - raiseAt(ft) * torso };
-    const elbow = { x: (sh.x + wrist.x) / 2 - 0.15 * torso, y: (sh.y + wrist.y) / 2 + 0.1 * torso };
+    // The reach moves to a new gesture's over its first 0.3 s (no jump).
+    const reachNow = piece ? (piece.reach0 ?? REACH) + ((piece.reach ?? REACH) - (piece.reach0 ?? REACH)) * smooth((ft - piece.t0) / 0.3) : reach;
+    const wrist = { x: sh.x - reachNow * torso, y: hipY - raiseAt(ft) * torso };
+    const elbow = arm === 'jointed' ? elbowOf(sh, wrist, torso) : { x: (sh.x + wrist.x) / 2 - 0.15 * torso, y: (sh.y + wrist.y) / 2 + 0.1 * torso };
     landmarks[BLM.right_wrist] = wrist;
     landmarks[BLM.right_elbow] = elbow;
     for (const j of [BLM.right_pinky, BLM.right_index, BLM.right_thumb]) landmarks[j] = { x: wrist.x - 0.05 * torso, y: wrist.y - 0.08 * torso };
@@ -160,6 +175,31 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
     frames.push({ t: ft, width, height, present: true, landmarks: noisy, world, visibility: new Array(BODY_LANDMARK_COUNT).fill(0.99) });
   }
   return { frames, ictus, starts, seconds: t };
+}
+
+/** The upper arm and the forearm, torso lengths: the elbow is where they meet (a two-link
+ *  arm, bent outward and down), so a wrist further from the shoulder is a straighter arm. */
+const UPPER_ARM = 0.6;
+const FOREARM = 0.6;
+function elbowOf(sh: { x: number; y: number }, wr: { x: number; y: number }, torso: number): { x: number; y: number } {
+  const u = UPPER_ARM * torso;
+  const f = FOREARM * torso;
+  const dx = wr.x - sh.x;
+  const dy = wr.y - sh.y;
+  const d = Math.min(Math.hypot(dx, dy), (u + f) * 0.999);
+  const ux = dx / (Math.hypot(dx, dy) || 1);
+  const uy = dy / (Math.hypot(dx, dy) || 1);
+  // Along the shoulder-wrist line to the foot of the elbow, then out to the side away from
+  // the body (the right arm is on the image's left: -x) and down.
+  const along = (u * u - f * f + d * d) / (2 * d);
+  const off = Math.sqrt(Math.max(0, u * u - along * along));
+  let nx = -uy;
+  let ny = ux;
+  if (nx > 0 || (nx === 0 && ny < 0)) {
+    nx = -nx;
+    ny = -ny;
+  }
+  return { x: sh.x + ux * along + nx * off, y: sh.y + uy * along + ny * off };
 }
 
 const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));

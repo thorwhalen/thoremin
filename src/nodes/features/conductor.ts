@@ -77,16 +77,29 @@
  * oscillator's gains (`phaseGain`, `periodGain`); a live change to them takes effect
  * at the next enable (the node re-creates its core when it is switched off and on).
  *
+ * Expression (#378, body-movement A6). `dynamics` and `articulation` (hence
+ * `velocityScale`, the orchestra's CC11/CC74, and its note lengths) come from the beat's
+ * own source by default (`expression: same`), or from the other one: `hands` lets a hand
+ * keep the dynamics while the body beats (a bounce of the trunk with a hand shaping, the
+ * conducting literature's split role), `body` the reverse. The other source gets a
+ * follower of its own whose strokes only shape (its tempo goes nowhere; until it shows a
+ * stroke, the beat's own expression stands); while an arm beats on a named side, the
+ * OTHER hand shapes. Reading the body, the strokes' excursion is blended with the body's
+ * quantity of motion and the beating arm's extension, each read against the player's
+ * own last 20 s and once per stroke (ictus `createExpressionBlend`); articulation is the
+ * strokes' braking sharpness, or Laban flow (the beating wrist's jerk) with
+ * `articulationFrom: flow`.
+ *
  * Pure and Node-safe: no DOM, no clock (it reads `ctx.time` / `ctx.dt`), and the
  * recorded conducting fixtures drive it headlessly.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, conductorRatios, createIctus, createImpactDetector, createLevelHold, createTransport, wrapPhase, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, type Ictus, type IctusState, type LevelHold, type MusicalTime, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
+import { beatAt, conductorRatios, createExpressionBlend, createIctus, createImpactDetector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, type DynamicsEstimate, type ExpressionBlend, type Ictus, type IctusState, type LevelHold, type MusicalTime, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
 import { LM, frameTime, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
-import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyMotionMeter } from './conductor_body';
+import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
 import { beatsPerBarAt, timeSignatureAt } from '@thoremin/sdk/score/schema';
 import { readScoreDoc } from '@thoremin/sdk/score/prepare';
 
@@ -107,6 +120,11 @@ export { CONDUCTOR_BODY_POINTS, type ConductorBodyPoint } from './conductor_body
  *  by relating the strokes to the score's marked tempo. */
 export const CONDUCTOR_MARK_LEVELS = ['beat', 'half', 'bar', 'auto'] as const;
 export type ConductorMarkLevel = (typeof CONDUCTOR_MARK_LEVELS)[number];
+/** Where the dynamics and the articulation come from (#378): the same source as the beat
+ *  (the default), or the other one (the split role: the body beats, a hand shapes). */
+export const CONDUCTOR_EXPRESSION_SOURCES = ['same', 'hands', 'body'] as const;
+export type ConductorExpressionSource = (typeof CONDUCTOR_EXPRESSION_SOURCES)[number];
+export { ARTICULATION_SOURCES, type ArticulationSource } from '@thoremin/ictus';
 /** `markLevel: auto`: how far (a fraction, in log terms) the player's tempo may be from
  *  the marked tempo at the level followed before another level is tried, and how long a
  *  different level must persist before it is followed. */
@@ -177,6 +195,13 @@ const Params = z.object({
   /** Which level a stroke marks (#376): `beat` (default), `half` (every other beat),
    *  `bar`, or `auto` (related to the score's marked tempo, held once chosen). */
   markLevel: z.enum(CONDUCTOR_MARK_LEVELS).default('beat'),
+  /** Where the dynamics and the articulation come from (#378): `same` as the beat (the
+   *  default), `hands` (a hand shapes while the body beats) or `body` (the body shapes:
+   *  its strokes blended with its motion and its arm's reach, per player). */
+  expression: z.enum(CONDUCTOR_EXPRESSION_SOURCES).default('same'),
+  /** Reading the body's expression: articulation from each stroke's braking `sharpness`
+   *  (the default, as for the hand), or from Laban `flow` (the beating wrist's jerk). */
+  articulationFrom: z.enum(ARTICULATION_SOURCES).default('sharpness'),
   /** Reading the body: start, hold and stop from the pose (#377). */
   transport: ConductorTransportSchema.default(() => ({ ...DEFAULT_CONDUCTOR_TRANSPORT })),
   /** Beats per bar, for `beatInBar` (the meter recogniser is a later PR). */
@@ -242,6 +267,17 @@ function labelFor(hand: Exclude<ConductorHand, 'auto'>, mirrorHandedness: boolea
   return raw === 'Right' ? 'Left' : 'Right';
 }
 
+/** The hand that shapes the expression (#378): while an ARM of the body beats on a named
+ *  side, the other hand (the conducting literature's expressive hand); otherwise the
+ *  conductor's hand choice (#457 tracks a continuous, non-stroke reading of it). */
+function shapingHand(frame: HandsFrame, cfg: Params): Hand | undefined {
+  if (cfg.source === 'body' && (cfg.bodyPoint === 'impact' || cfg.bodyPoint === 'wrist') && cfg.hand !== 'auto') {
+    const label = labelFor(cfg.hand === 'right' ? 'left' : 'right', cfg.mirrorHandedness);
+    return frame.hands.find((h) => h.handedness === label);
+  }
+  return pickHand(frame, cfg);
+}
+
 function pickHand(frame: HandsFrame, cfg: Params): Hand | undefined {
   if (!frame.hands.length) return undefined;
   if (cfg.hand === 'auto') {
@@ -303,6 +339,18 @@ function tempoAt(doc: ScoreDoc, beat: number): number | null {
  *  increasing) can put them a millisecond apart, and a backward difference over that
  *  would latch the speed fallback. No camera this app meets exceeds 240 fps. */
 const MIN_SAMPLE_SPACING = 0.004;
+
+/** Whether a frame is a new observation: the same object again, or a distinct copy
+ *  carrying the same stamp (a replayed recording stores every tick, so a camera frame
+ *  comes back as two parsed copies), is not. */
+const isFresh = (f: { t?: number } | undefined, prev: { t?: number } | undefined): boolean =>
+  f !== prev && !(!!f && !!prev && f.t !== undefined && f.t === prev.t);
+
+/** The tracked point of a hand, in frame heights (the hand detector's unit). */
+function handPoint(hand: Hand, frame: HandsFrame, c: Params, t: number): { t: number; x: number; y: number } {
+  const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
+  return { t, x: kp.x / frame.height, y: kp.y / frame.height };
+}
 
 export const conductorNode = defineNode<Params>({
   type: 'conductor',
@@ -408,6 +456,25 @@ export const conductorNode = defineNode<Params>({
     /** The tempo the beat last advanced at: the body's hold runs up to its stop at it, and
      *  the release moves at it until the next stroke. */
     let holdBpm = 0;
+    /** Expression (#378). A follower of the OTHER source when the expression is not the
+     *  beat's (only its strokes' dynamics and articulation are read), the body's
+     *  per-frame channels, and their per-player blend while the body shapes. */
+    let exprIctus: Ictus | null = null;
+    let exprKey = '';
+    let exprMeter: BodyExpressionMeter | null = null;
+    let blend: ExpressionBlend | null = null;
+    let lastExprBody: BodyFrame | undefined;
+    let lastExprBodyT = -Infinity;
+    let lastExprHands: HandsFrame | undefined;
+    let lastExprPtT = -Infinity;
+    const resetExpression = (): void => {
+      exprIctus = null;
+      exprKey = '';
+      exprMeter = null;
+      blend = null;
+      lastExprBodyT = -Infinity;
+      lastExprPtT = -Infinity;
+    };
     // Speed-based fallback: EW speed of the tracked point (or the body's quantity of
     // motion) and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
@@ -419,6 +486,9 @@ export const conductorNode = defineNode<Params>({
     };
     const resetFollower = (): void => {
       ictus = null;
+      // The expression's own frame clocks restart with the follower's (a replay from the top).
+      lastExprBodyT = -Infinity;
+      lastExprPtT = -Infinity;
       lastPt = null;
       lastBody = null;
       seededBpm = null;
@@ -533,6 +603,69 @@ export const conductorNode = defineNode<Params>({
       return docBpm / k;
     };
 
+    /** The dynamics and articulation for this tick (#378; see `expression`). */
+    const shapeExpression = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: IctusState): DynamicsEstimate => {
+      const source = c.expression === 'same' ? c.source : c.expression;
+      const beat: DynamicsEstimate = { dynamics: s.dynamics, articulation: s.articulation };
+      let strokes = beat;
+      if (source === c.source) exprIctus = null;
+      else {
+        // The other source's follower: its prior only paces its detector.
+        const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.mirrorX}:${c.mirrorHandedness}`;
+        if (!exprIctus || key !== exprKey) {
+          exprIctus = createIctus({
+            detector: source === 'body' ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX }) : { mirrorX: c.mirrorX },
+            prior: c.prior,
+          });
+          exprKey = key;
+          lastExprPtT = -Infinity;
+        }
+        if (source === 'hands') {
+          const frame = inputs.hands as HandsFrame | undefined;
+          const fresh = isFresh(frame, lastExprHands);
+          lastExprHands = frame;
+          const hand = frame && fresh ? shapingHand(frame, c) : undefined;
+          const t = frameTime(frame, ctx);
+          if (hand && frame && frame.height > 0 && t >= lastExprPtT + MIN_SAMPLE_SPACING) {
+            exprIctus.feed(handPoint(hand, frame, c, t));
+            lastExprPtT = t;
+          }
+        }
+      }
+      // The shaping source's strokes, once it has shown one; until then (the pose model
+      // loading, nobody's other hand in frame) the beat's own.
+      const shaped = (): DynamicsEstimate => {
+        const e = exprIctus?.state();
+        return e && e.anchors > 0 ? e : beat;
+      };
+      if (source !== 'body') {
+        exprMeter = null;
+        blend = null;
+        strokes = shaped();
+      } else {
+        exprMeter ??= createBodyExpressionMeter();
+        blend ??= createExpressionBlend({ articulation: c.articulationFrom });
+        blend.setArticulation(c.articulationFrom);
+        const body = inputs.body as BodyFrame | undefined;
+        const fresh = isFresh(body, lastExprBody);
+        lastExprBody = body;
+        const t = frameTime(body, ctx);
+        if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
+          lastExprBodyT = t;
+          // The channels are read per stroke (a hold or a fermata changes nothing).
+          blend.push(exprMeter.push(body, t, c.hand));
+          if (exprIctus) {
+            const a = exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand)).anchor;
+            if (a) blend.pushStroke(a);
+          }
+        }
+        // The beat's own stroke this tick, when the body both beats and shapes.
+        if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
+        strokes = blend.read(shaped());
+      }
+      return strokes;
+    };
+
     return {
       process(inputs, ctx: NodeContext) {
         const c = resolveConfig(inputs.config);
@@ -549,6 +682,7 @@ export const conductorNode = defineNode<Params>({
           levelHold = null;
           transport = null;
           meter = null;
+          resetExpression();
           transportReading = 'off';
           afterStop = false;
           startBeat = null;
@@ -617,11 +751,6 @@ export const conductorNode = defineNode<Params>({
         //    tick times flattens the detector's parabolic fit and biases the ictus. The
         //    sample time is the frame's capture time when the source stamped one
         //    (#226), else the tick time.
-        // The same object again, or a distinct copy carrying the same stamp (a replayed
-        // recording stores every tick, so a camera frame comes back as two parsed
-        // copies), is not a new observation.
-        const isFresh = (f: { t?: number } | undefined, prev: { t?: number } | undefined): boolean =>
-          f !== prev && !(!!f && !!prev && f.t !== undefined && f.t === prev.t);
         let s: IctusState;
         let stopped = false;
         let started = false;
@@ -685,8 +814,7 @@ export const conductorNode = defineNode<Params>({
           // than given an invented time.
           const t = frameTime(frame, ctx);
           if (hand && frame && frame.height > 0 && !(lastPt && t < lastPt.t + MIN_SAMPLE_SPACING)) {
-            const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
-            const pt = { t, x: kp.x / frame.height, y: kp.y / frame.height };
+            const pt = handPoint(hand, frame, c, t);
             if (lastPt && pt.t > lastPt.t) noteSpeed(Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) / (pt.t - lastPt.t), pt.t - lastPt.t);
             lastPt = pt;
             s = ictus.feed(pt);
@@ -694,6 +822,11 @@ export const conductorNode = defineNode<Params>({
             s = ictus.advance(ctx.time);
           }
         }
+
+        // 1b. Expression (#378): from the beat's source, or from the other one through a
+        //     follower of its own whose strokes only shape; reading the body, the strokes'
+        //     dynamics are blended with its motion and its arm's reach, each per player.
+        const expression = shapeExpression(inputs, ctx, c, s);
 
         // A cut-off (#377): the prior forgets the piece's tempo and waits for the next
         // ready pose; the beat stays where it stopped (a held fermata is released by the
@@ -841,7 +974,7 @@ export const conductorNode = defineNode<Params>({
           lastAnchorAt: s.lastAnchorAt,
           leadOffset: s.leadOffset,
         };
-        return emit(time, bpm, s.dynamics, s.articulation, true, c, k);
+        return emit(time, bpm, expression.dynamics, expression.articulation, true, c, k);
       },
       dispose() {
         ictus = null;
