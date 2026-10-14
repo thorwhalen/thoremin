@@ -75,6 +75,7 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'songPlays' }, to: { node: 'songPlayer', port: 'play' } },
   { from: { node: 'ui', port: 'songRate' }, to: { node: 'songPlayer', port: 'rate' } },
   { from: { node: 'ui', port: 'songHoldFade' }, to: { node: 'songPlayer', port: 'holdFade' } },
+  { from: { node: 'ui', port: 'songHoldSlow' }, to: { node: 'songPlayer', port: 'holdSlow' } },
   { from: { node: 'ui', port: 'songVolume' }, to: { node: 'songPlayer', port: 'volume' } },
   { from: { node: 'ui', port: 'claimed' }, to: { node: 'songPlayer', port: 'claimed' } },
   // #186 PR H: the song follows the dancer; the pace controller reads the player back on

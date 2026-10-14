@@ -120,6 +120,22 @@ describe('Follow the dancer', () => {
     act(() => useControls.getState().setSongPrefs({ holdFadeS: 0 }));
   });
 
+  it('the hold slowdown is a command, off by default, and its slider shows only with a fade (#573)', async () => {
+    const r = createThoreminRegistry();
+    expect(useControls.getState().songPrefs.holdSlow).toBe(0);
+    expect((await r.dispatch('song.holdSlow.set', { fraction: 0.6 })).ok).toBe(true);
+    expect(useControls.getState().songPrefs.holdSlow).toBe(0.6);
+    expect((await r.dispatch('song.holdSlow.set', { fraction: 2 })).ok).toBe(false);
+    useTools.setState({ open: 'song' });
+    const { file, opts } = clickFile();
+    await loadSongFile(file, opts);
+    render(<Shell />);
+    expect(screen.queryByTestId('song-hold-slow')).toBeNull();
+    act(() => useControls.getState().setSongPrefs({ holdFadeS: 0.8 }));
+    expect(screen.getByTestId('song-hold-slow').textContent).toMatch(/60 %/);
+    act(() => useControls.getState().setSongPrefs({ holdFadeS: 0, holdSlow: 0 }));
+  });
+
   it('describes the relation in words', () => {
     expect(describeRatio(4)).toBe('4 song beats per step');
     expect(describeRatio(1)).toBe('one song beat per step');

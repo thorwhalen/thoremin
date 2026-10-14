@@ -257,9 +257,13 @@ export const SongSettingsSchema = z.object({
    *  (#366). 0 = a cut, what every earlier version did (the default until the length is
    *  decided on #168). Per device like the rest; additive, so no store bump. */
   holdFadeS: z.number().min(0).max(SONG_HOLD_FADE_MAX).default(0),
+  /** How far toward the slowest rate the song slows during that fade-out, a fraction, so
+   *  the held note stretches instead of ending (#573). 0 = the rate holds, what every
+   *  earlier version did (the default until ears decide it on #168). Needs `holdFadeS` > 0. */
+  holdSlow: z.number().min(0).max(1).default(0),
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;
-export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1, holdFadeS: 0 };
+export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1, holdFadeS: 0, holdSlow: 0 };
 /**
  * The body conductor's per-device prefs (#427): the player's lead offset per joint,
  * learned against a click in the Conductor tool ("Learn my timing"). Per DEVICE like
