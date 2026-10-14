@@ -2198,6 +2198,11 @@
         "name": "dynamics",
         "type": "enum(raw | written)",
         "default": "raw"
+      },
+      {
+        "name": "parts",
+        "type": "array",
+        "default": []
       }
     ]
   },
