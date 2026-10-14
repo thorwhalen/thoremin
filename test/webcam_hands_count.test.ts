@@ -20,7 +20,7 @@ vi.mock('@mediapipe/tasks-vision', () => ({
   HandLandmarker: { createFromOptions },
 }));
 
-import { HAND_COUNT_RESOURCE_KEY, wantedHands, webcamHandsNode } from '@/nodes/sources/webcam_hands';
+import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY, runnerChoice, wantedHands, webcamHandsNode } from '@/nodes/sources/webcam_hands';
 
 const g = globalThis as Record<string, unknown>;
 let saved: { raf: unknown; caf: unknown };
@@ -139,5 +139,66 @@ describe('webcam-hands follows the host hand count', () => {
     node.dispose!();
     await flush();
     expect(setOptions).not.toHaveBeenCalled();
+  });
+});
+
+describe('where the hand model runs (#326)', () => {
+  it('defaults to the main thread, and the host override wins when it is valid', () => {
+    expect(webcamHandsNode.params.parse({}).runner).toBe('main');
+    expect(runnerChoice({}, 'main')).toBe('main');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: 'worker' }, 'main')).toBe('worker');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: 'auto' }, 'main')).toBe('auto');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: 'gpu' }, 'worker')).toBe('worker');
+    expect(runnerChoice({ [HAND_RUNNER_RESOURCE_KEY]: undefined }, 'main')).toBe('main');
+  });
+
+  it('runs on the main thread when asked for a worker the platform cannot host', async () => {
+    const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU', runner: 'worker' }));
+    await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+    expect(createFromOptions).toHaveBeenCalledTimes(1); // the main thread's landmarker
+    step();
+    expect(landmarker.detectForVideo).toHaveBeenCalledTimes(1);
+    node.dispose!();
+  });
+});
+
+describe('webcam-hands on the worker path, end to end (#326)', () => {
+  it('infers in the worker and keeps the result with its own frame\'s capture time', async () => {
+    const sent: { type: string; id?: number; tMs?: number }[] = [];
+    const fake = {
+      onmessage: null as ((ev: { data: unknown }) => void) | null,
+      onerror: null,
+      postMessage(m: { type: string; id?: number; tMs?: number }) {
+        sent.push(m);
+        if (m.type === 'init') queueMicrotask(() => fake.onmessage?.({ data: { type: 'ready', delegate: 'CPU' } }));
+      },
+      terminate: vi.fn(),
+    };
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const saved = { Worker: g.Worker, createImageBitmap: g.createImageBitmap, OffscreenCanvas: g.OffscreenCanvas };
+    g.Worker = function Worker() {
+      return fake;
+    };
+    g.createImageBitmap = async () => ({ close: vi.fn() });
+    g.OffscreenCanvas = function OffscreenCanvas() {};
+    try {
+      const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU', runner: 'worker' }));
+      await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+      expect(createFromOptions).not.toHaveBeenCalled(); // nothing loads on the main thread
+      step();
+      await flush();
+      const frame = sent.find((m) => m.type === 'frame')!;
+      const hand = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+      fake.onmessage!({ data: { type: 'result', id: frame.id, result: { landmarks: [hand], handedness: [[{ categoryName: 'Left' }]] } } });
+      const out = node.process!({}, { tick: 1, time: 0, dt: 0, resources: {} } as unknown as NodeContext) as { hands: { hands: unknown[]; t?: number; width: number } };
+      expect(out.hands.hands).toHaveLength(1);
+      expect(out.hands.width).toBe(1280);
+      expect(out.hands.t! * 1000).toBeCloseTo(frame.tMs!, 6); // the frame's own stamp, not the arrival time
+      node.dispose!();
+      expect(fake.terminate).toHaveBeenCalled();
+    } finally {
+      Object.assign(g, saved);
+      info.mockRestore();
+    }
   });
 });

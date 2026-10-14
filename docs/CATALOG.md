@@ -86,7 +86,7 @@ MediaPipe hand landmark detection from a webcam video element.
 - **roles:** source
 - **in:** —
 - **out:** hands:hands-frame
-- **params:** modelType (enum(lite | full)="full"), maxHands (number=2), delegate (enum(auto | GPU | CPU)="auto")
+- **params:** modelType (enum(lite | full)="full"), maxHands (number=2), delegate (enum(auto | GPU | CPU)="auto"), runner (enum(auto | worker | main)="main")
 
 #### `webcam-face` — Webcam Face
 MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).

@@ -3663,6 +3663,11 @@
         "name": "delegate",
         "type": "enum(auto | GPU | CPU)",
         "default": "auto"
+      },
+      {
+        "name": "runner",
+        "type": "enum(auto | worker | main)",
+        "default": "main"
       }
     ]
   }

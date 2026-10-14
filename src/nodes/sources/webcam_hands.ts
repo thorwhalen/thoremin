@@ -22,6 +22,12 @@
  * of the model's cost, and the count changes on the LIVE landmarker (`setOptions`, no model
  * reload), so switching instrument never reloads MediaPipe. Without the resource (a host
  * that does not say) it looks for `maxHands`, as it always did.
+ *
+ * Where the model runs is a seam (#326, `hand_runner.ts`): the main thread, as it always did
+ * (the default, `runner: 'main'`), or a Web Worker that leaves the tick free, with the main
+ * thread as its automatic fallback. The host may override the param through
+ * `ctx.resources.handRunner` (`?hands.runner=`). Either way the frame pump on this thread
+ * stamps every frame, so a result always carries its own frame's capture time.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
@@ -31,6 +37,18 @@ import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
 import { DelegateChoiceSchema, resolveDelegate } from './delegate';
+import {
+  canHostHandWorker,
+  createHandRunner,
+  HandRunnerChoiceSchema,
+  type HandLandmarkerLike,
+  type HandResult,
+  type HandRunner,
+  type HandRunnerChoice,
+  type LoadLandmarker,
+  type WorkerLike,
+  type WorkerRunnerDeps,
+} from './hand_runner';
 
 // tasks-vision assets, loaded from a CDN on demand. The wasm fileset is pinned to
 // the installed `@mediapipe/tasks-vision` version (shared with `webcam-face`), and
@@ -47,6 +65,11 @@ const Params = z.object({
   /** Which delegate runs the model: `auto` (the default) picks the CPU on a software
    *  WebGL renderer and the GPU otherwise (`delegate.ts`, #240); `GPU` / `CPU` force one. */
   delegate: DelegateChoiceSchema.default('auto'),
+  /** Where the model runs (#326): `main` (the default, as before), `worker` (a Web Worker,
+   *  falling back to the main thread by itself where it cannot start), or `auto` (the worker
+   *  where the browser can host one). The worker trades a little lead for a regular tick, so
+   *  the default waits on the maintainer (#168 D14); `hand_runner.ts` has the numbers. */
+  runner: HandRunnerChoiceSchema.default('main'),
 });
 type Params = z.infer<typeof Params>;
 
@@ -101,13 +124,11 @@ export function wantedHands(resources: Record<string, unknown>, maxHands: number
   return typeof n === 'number' && Number.isInteger(n) && n >= 1 ? Math.min(n, maxHands) : maxHands;
 }
 
-/** The minimal runtime surface of tasks-vision used here (browser-only, lazy). */
-export interface HandLandmarkerLike {
-  detectForVideo(video: HTMLVideoElement, timestampMs: number): HandLandmarkerResultLike;
-  /** Reconfigures the live landmarker; a `numHands` change rebuilds its graph, not the model. */
-  setOptions(options: { numHands?: number }): Promise<void>;
-  close(): void;
-}
+export type { HandLandmarkerLike } from './hand_runner';
+
+/** The host resource that may override where the model runs (`?hands.runner=`, #326). */
+export const HAND_RUNNER_RESOURCE_KEY = 'handRunner';
+
 interface TasksVisionModule {
   FilesetResolver: { forVisionTasks(wasmBase: string): Promise<unknown> };
   HandLandmarker: {
@@ -122,6 +143,42 @@ interface TasksVisionModule {
   };
 }
 
+/** The main thread's loader: today's, with its GPU-to-CPU fallback. */
+const loadOnMain: LoadLandmarker = async (o) => {
+  const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
+  const fileset = await vision.FilesetResolver.forVisionTasks(o.wasmBase);
+  const optionsFor = (delegate: 'GPU' | 'CPU') => ({
+    baseOptions: { modelAssetPath: o.modelUrl, delegate },
+    numHands: o.numHands,
+    runningMode: 'VIDEO' as const,
+  });
+  try {
+    return await vision.HandLandmarker.createFromOptions(fileset, optionsFor(o.delegate));
+  } catch (gpuErr) {
+    // GPU/WebGL unavailable on this client → fall back to the CPU delegate. If CPU
+    // was already chosen, the failure stands.
+    if (o.delegate !== 'GPU') throw gpuErr;
+    console.warn('[thoremin] hand model GPU delegate failed; falling back to CPU', gpuErr);
+    return vision.HandLandmarker.createFromOptions(fileset, optionsFor('CPU'));
+  }
+};
+
+/** The worker runner's browser dependencies, where this browser can host it. */
+function browserWorkerDeps(): WorkerRunnerDeps | undefined {
+  if (!canHostHandWorker()) return undefined;
+  return {
+    // Written inline so Vite finds and bundles the worker (a classic one: see the worker).
+    createWorker: () => new Worker(new URL('./hands.worker.ts', import.meta.url)) as unknown as WorkerLike,
+    createImageBitmap: (video) => createImageBitmap(video),
+  };
+}
+
+/** Where to run: the host's override when it gives a valid one, else the param. */
+export function runnerChoice(resources: Record<string, unknown>, param: HandRunnerChoice): HandRunnerChoice {
+  const parsed = HandRunnerChoiceSchema.safeParse(resources[HAND_RUNNER_RESOURCE_KEY]);
+  return parsed.success ? parsed.data : param;
+}
+
 export const webcamHandsNode = defineNode<Params>({
   type: 'webcam-hands',
   roles: ['source'],
@@ -131,7 +188,7 @@ export const webcamHandsNode = defineNode<Params>({
   outputs: [SOURCE_SLOT_OUTPUT],
   params: Params,
   make(p) {
-    let landmarker: HandLandmarkerLike | null = null;
+    let runner: HandRunner | null = null;
     let latest: HandsFrame = EMPTY;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
@@ -143,7 +200,7 @@ export const webcamHandsNode = defineNode<Params>({
 
     /** Follow the host's count on the live landmarker. True while a change is in flight
      *  (the frame is then offered again on the next animation frame). */
-    const followHandCount = (lm: HandLandmarkerLike): boolean => {
+    const followHandCount = (lm: HandRunner): boolean => {
       if (reconfiguring) return true;
       if (countFixed) return false;
       const want = wantedHands(resources, p.maxHands);
@@ -152,10 +209,10 @@ export const webcamHandsNode = defineNode<Params>({
       const before = numHands;
       // A landmarker closed (or replaced) before the change runs is left alone: `setOptions`
       // would rebuild a graph on it that nothing ever frees.
-      const live = (): boolean => !disposed && landmarker === lm;
+      const live = (): boolean => !disposed && runner === lm;
       // Through a resolved promise, so a synchronous throw lands in the same catch.
       Promise.resolve()
-        .then(() => (live() ? lm.setOptions({ numHands: want }) : undefined))
+        .then(() => (live() ? lm.setNumHands(want) : undefined))
         .then(() => {
           numHands = want;
         })
@@ -165,7 +222,7 @@ export const webcamHandsNode = defineNode<Params>({
           countFixed = true;
           console.warn('[thoremin] hand model could not change its hand count; keeping', before, err);
           try {
-            if (live()) await lm.setOptions({ numHands: before });
+            if (live()) await lm.setNumHands(before);
           } catch (restoreErr) {
             console.error('[thoremin] hand model could not restore its hand count; hands may stop', restoreErr);
           }
@@ -183,21 +240,16 @@ export const webcamHandsNode = defineNode<Params>({
     const pump = createFramePump(
       () => video,
       (stamp, v) => {
-        if (!landmarker || followHandCount(landmarker)) return false;
-        try {
-          const res = landmarker.detectForVideo(v, stamp.tMs);
-          latest = { ...resultToHandsFrame(res, v.videoWidth, v.videoHeight), ...stampToTiming(stamp) };
-        } catch {
-          /* transient inference error; keep last frame */
-        }
+        if (!runner || followHandCount(runner)) return false;
+        return runner.offer(v, stamp);
       },
     );
 
-    const optionsFor = (delegate: 'GPU' | 'CPU') => ({
-      baseOptions: { modelAssetPath: MODEL_URL, delegate },
-      numHands,
-      runningMode: 'VIDEO' as const,
-    });
+    /** A runner's result, now (main thread) or when the worker answers: the latest frame,
+     *  with the timing of the frame it ran on. */
+    const onResult = ({ result, width, height, stamp }: HandResult): void => {
+      if (!disposed) latest = { ...resultToHandsFrame(result, width, height), ...stampToTiming(stamp) };
+    };
 
     return {
       async init(ctx: NodeContext) {
@@ -205,24 +257,17 @@ export const webcamHandsNode = defineNode<Params>({
         resources = ctx.resources;
         // Created looking for what the host wants now, so the first frames reconfigure nothing.
         numHands = wantedHands(resources, p.maxHands);
-        const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
-        const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
-        const delegate = resolveDelegate(p.delegate);
-        try {
-          landmarker = await vision.HandLandmarker.createFromOptions(fileset, optionsFor(delegate));
-        } catch (gpuErr) {
-          // GPU/WebGL unavailable on this client → fall back to the CPU delegate. If CPU
-          // was already chosen, the failure stands.
-          if (delegate !== 'GPU') throw gpuErr;
-          console.warn('[thoremin] hand model GPU delegate failed; falling back to CPU', gpuErr);
-          landmarker = await vision.HandLandmarker.createFromOptions(fileset, optionsFor('CPU'));
-        }
+        const options = { wasmBase: TASKS_VISION_WASM_BASE, modelUrl: MODEL_URL, delegate: resolveDelegate(p.delegate), numHands };
+        const loaded = await createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
+          loadMain: loadOnMain,
+          worker: browserWorkerDeps(),
+        });
         if (disposed) {
           // Unmounted while loading — don't resurrect.
-          landmarker.close();
-          landmarker = null;
+          loaded.close();
           return;
         }
+        runner = loaded;
         pump.start();
       },
       process() {
@@ -231,8 +276,8 @@ export const webcamHandsNode = defineNode<Params>({
       dispose() {
         disposed = true;
         pump.stop();
-        landmarker?.close();
-        landmarker = null;
+        runner?.close();
+        runner = null;
       },
     };
   },
