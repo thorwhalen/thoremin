@@ -85,7 +85,7 @@ export type { Pose, GestureEvent } from './features/gesture_classifier';
 export { faceFeatureVectorNode } from './features/face_feature_vector';
 export { handFeatureVectorNode } from './features/hand_feature_vector';
 export { bodyFeatureVectorNode } from './features/body_feature_vector';
-export { bodyPulseNode, pulseChannelValue, PULSE_CHANNELS } from './features/body_pulse';
+export { bodyPulseNode, pulseChannelValue, createYawUnwrapper, PULSE_CHANNELS, AUTO_PULSE_CHANNELS } from './features/body_pulse';
 export type { PulseChannel } from './features/body_pulse';
 export type { FeatureVector } from '@thoremin/sdk/features/catalog';
 export { voiceMappingNode } from './mapping/voice_mapping';

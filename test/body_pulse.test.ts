@@ -8,8 +8,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
-import { PULSE_TRUSTED_CONFIDENCE, type PulseState } from '@thoremin/ictus';
-import { bodyPulseNode, bodyFeatureVectorNode, createCoreRegistry, pulseChannelValue, type BodyFrame } from '@/nodes';
+import { PULSE_TRUSTED_CONFIDENCE, createPulseSelector, type PulseState } from '@thoremin/ictus';
+import { bodyPulseNode, bodyFeatureVectorNode, createCoreRegistry, pulseChannelValue, createYawUnwrapper, AUTO_PULSE_CHANNELS, type BodyFrame } from '@/nodes';
 import { defaultGraph, branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
@@ -206,5 +206,112 @@ describe('the body gate trusts the pulse where ictus does (#392)', () => {
   it('PULSE_GATE_CONFIDENCE (sdk, restated) equals PULSE_TRUSTED_CONFIDENCE (ictus)', () => {
     // The SDK does not depend on the inference package, so the threshold is stated twice.
     expect(PULSE_GATE_CONFIDENCE).toBe(PULSE_TRUSTED_CONFIDENCE);
+  });
+});
+
+describe('channel: auto (#416)', () => {
+  const trusted = (outs: Array<Record<string, unknown>>) => outs.filter((o) => (o.pulse as PulseState).confidence >= PULSE_TRUSTED_CONFIDENCE);
+  const run = async (clip: string, mask?: (f: BodyFrame) => BodyFrame, params: Record<string, unknown> = { channel: 'auto' }) => {
+    const raw = loadStream(clip, 'camBody.body') as BodyFrame[];
+    const frames = mask ? raw.map(mask) : raw;
+    const out = await replayNode(bodyPulseNode.make(bodyPulseNode.params.parse(params)), { body: frames }, { dt: 1 / 30 });
+    return out.slice(6 * 30) as Array<Record<string, unknown>>;
+  };
+  /** The feet out of frame: the tracker's ankle visibility drops. */
+  const noFeet = (f: BodyFrame): BodyFrame => ({ ...f, visibility: f.visibility.map((v, i) => (i >= 27 ? 0.05 : v)) });
+
+  it('on the real dancer it follows the stride, as the stride channel alone does', async () => {
+    // Measured (shipped defaults): stride trusted in 98 % of late ticks at strength 0.76;
+    // the other three never overtake it by the margin for 3 s, so `auto` is the stride.
+    const auto = await run('video_body_que_calor');
+    const stride = await run('video_body_que_calor', undefined, { channel: 'stride' });
+    expect(new Set(trusted(auto).map((o) => o.channel))).toEqual(new Set(['stride']));
+    expect(trusted(auto).length).toBe(trusted(stride).length);
+    const last = auto.at(-1)!.pulse as PulseState;
+    expect(near(last.level, BAR)).toBe(true);
+  });
+
+  it('with the feet out of frame it never names a feet channel, and does not invent a pulse where there is none (Que Calor, then Budots)', async () => {
+    // Measured: with the ankles hidden the trunk and the sway (over the feet) are
+    // untrusted and the yaw is trusted in 14 % of Que Calor's late ticks; Budots'
+    // ankles are mostly out of frame already and nothing is trusted in more than a few
+    // percent of ticks (the trunk's ACF reaches 0.26 at its bar of 1.66 s: under the floor).
+    for (const [clip, mask] of [['video_body_que_calor', noFeet], ['video_body_budots', undefined]] as const) {
+      const out = await run(clip, mask);
+      const names = new Set(trusted(out).map((o) => o.channel));
+      expect(names.has('stride'), clip).toBe(false);
+      expect(names.has('sway'), clip).toBe(false);
+      expect(trusted(out).length / out.length, clip).toBeLessThan(0.2);
+    }
+  });
+
+  it('switches to a channel that carries the pulse when the stride does not (a synthetic dancer who bounces in place)', () => {
+    const base = (dy: number): BodyFrame => {
+      const landmarks = Array.from({ length: 33 }, () => ({ x: 320, y: 240, z: 0 }));
+      landmarks[11] = { x: 300, y: 100 + dy, z: 0 };
+      landmarks[12] = { x: 340, y: 100 + dy, z: 0 };
+      landmarks[23] = { x: 305, y: 200 + dy, z: 0 };
+      landmarks[24] = { x: 335, y: 200 + dy, z: 0 };
+      landmarks[27] = { x: 270, y: 350, z: 0 };
+      landmarks[28] = { x: 370, y: 350, z: 0 };
+      return { width: 640, height: 480, present: true, landmarks, visibility: new Array(33).fill(1) };
+    };
+    const h = bodyPulseNode.make(bodyPulseNode.params.parse({ channel: 'auto' }));
+    let o!: { pulse: PulseState; channel: string };
+    for (let i = 0; i < 14 * 30; i++) o = h.process({ body: base(8 * Math.sin((2 * Math.PI * i) / 30 / 0.9)) }, { time: i / 30, dt: 1 / 30, tick: i, resources: {} } as never) as typeof o;
+    expect(o.channel).toBe('trunk');
+    expect(near(o.pulse.level, 0.9, 0.04)).toBe(true);
+    expect(o.pulse.confidence).toBeGreaterThan(PULSE_TRUSTED_CONFIDENCE);
+  });
+
+  it('the stride stays the default channel, and the auto set leaves out the head and the hips', () => {
+    expect(bodyPulseNode.params.parse({}).channel).toBe('stride');
+    expect([...AUTO_PULSE_CHANNELS]).toEqual(['stride', 'sway', 'yaw', 'trunk']);
+  });
+
+  it('the new channels: sway over the feet, trunk centroid height, shoulder yaw (unwrapped by the node)', () => {
+    const landmarks = Array.from({ length: 33 }, () => ({ x: 320, y: 240, z: 0 }));
+    landmarks[11] = { x: 300, y: 100, z: 0 };
+    landmarks[12] = { x: 340, y: 100, z: 0 };
+    landmarks[23] = { x: 300, y: 200, z: 0 };
+    landmarks[24] = { x: 340, y: 200, z: 0 };
+    landmarks[27] = { x: 290, y: 350, z: 0 };
+    landmarks[28] = { x: 310, y: 350, z: 0 };
+    const world = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
+    world[11] = { x: -0.2, y: 0, z: 0 };
+    world[12] = { x: 0.2, y: 0, z: 0.2 };
+    const f: BodyFrame = { width: 640, height: 480, present: true, landmarks, world, visibility: new Array(33).fill(1) };
+    expect(pulseChannelValue(f, 'sway')).toBeCloseTo(0.2, 9); // trunk x 320, ankles' mid 300, torso 100
+    expect(pulseChannelValue(f, 'trunk')).toBeCloseTo(1.5, 9);
+    expect(pulseChannelValue(f, 'yaw')).toBeCloseTo((Math.atan2(0.2, 0.4) * 180) / Math.PI, 9);
+    expect(pulseChannelValue({ ...f, world: undefined }, 'yaw')).toBeNaN();
+    const u = createYawUnwrapper();
+    expect([170, -170, -150, NaN, -130].map(u)).toEqual([170, 190, 210, NaN, 230]);
+  });
+});
+
+describe('createPulseSelector (the persistence behind auto)', () => {
+  it('takes the first trusted channel at once, keeps the leader against a challenger shorter than the persistence, and switches after it', () => {
+    const sel = createPulseSelector<'a' | 'b'>({ switchAfterS: 3, margin: 0.05 });
+    expect(sel.update(0, { a: 0, b: 0 })).toBeNull();
+    expect(sel.update(0.1, { a: 0.5, b: 0 })).toBe('a');
+    // b leads by more than the margin, but for 2.9 s only, then a is back on top: no switch.
+    for (let t = 1; t <= 3.9; t += 0.1) expect(sel.update(t, { a: 0.5, b: 0.7 })).toBe('a');
+    expect(sel.update(4, { a: 0.7, b: 0.7 })).toBe('a');
+    // the clock restarts: 3 s of leading is needed again.
+    expect(sel.update(5, { a: 0.5, b: 0.7 })).toBe('a');
+    expect(sel.update(7.9, { a: 0.5, b: 0.7 })).toBe('a');
+    expect(sel.update(8.1, { a: 0.5, b: 0.7 })).toBe('b');
+  });
+
+  it('a leader that stops being trusted is replaced by a trusted challenger only after the persistence; a lead inside the margin never counts', () => {
+    const sel = createPulseSelector<'a' | 'b'>({ switchAfterS: 3, margin: 0.05 });
+    sel.update(0, { a: 0.6, b: 0 });
+    expect(sel.update(1, { a: 0, b: 0 })).toBe('a');
+    expect(sel.update(2, { a: 0, b: 0.5 })).toBe('a');
+    expect(sel.update(5.1, { a: 0, b: 0.5 })).toBe('b');
+    const sel2 = createPulseSelector<'a' | 'b'>();
+    sel2.update(0, { a: 0.6, b: 0 });
+    for (let t = 0.5; t < 20; t += 0.5) expect(sel2.update(t, { a: 0.6, b: 0.64 })).toBe('a');
   });
 });

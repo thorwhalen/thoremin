@@ -256,8 +256,8 @@ The dancer's pulse: the period, phase and confidence of the body's repeating mov
 
 - **roles:** feature
 - **in:** body:body-frame
-- **out:** pulse:pulse-state
-- **params:** channel (enum(stride | head | hip)="stride"), windowS (number=8), minPeriodS (number=0.3), maxPeriodS (number=3), prior (enum(oscillator | trend | blend)="oscillator"), minVisibility (number=0.5)
+- **out:** pulse:pulse-state, channel:string
+- **params:** channel (enum(stride | head | hip | sway | yaw | trunk | auto)="stride"), autoSwitchAfterS (number=3), windowS (number=8), minPeriodS (number=0.3), maxPeriodS (number=3), prior (enum(oscillator | trend | blend)="oscillator"), minVisibility (number=0.5)
 
 ### Mapping (direct ↔ indirect)
 _Features → engine parameters, across the expression spectrum._
