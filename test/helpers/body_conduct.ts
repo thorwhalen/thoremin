@@ -36,7 +36,12 @@ export type Gesture =
    *  model locking on). */
   | { kind: 'shake'; s: number; px: number }
   /** Nobody in frame. */
-  | { kind: 'absent'; s: number };
+  | { kind: 'absent'; s: number }
+  /** The raised arm repositioned by `by` torso lengths (up when positive), smoothly over `s`:
+   *  a slow adjustment in the ready pose, not an upbeat (#461). */
+  | { kind: 'drift'; s: number; by: number }
+  /** The raised arm swaying by `amp` torso lengths at `hz` about where it is (#461). */
+  | { kind: 'sway'; s: number; amp: number; hz: number };
 
 export const STROKE_BOTTOM = 0.55;
 export const STROKE_TOP = 1.1;
@@ -137,6 +142,12 @@ export function conduct(gestures: Gesture[], { fps = 30, noisePx = 0.25, torso =
         break;
       case 'absent':
         add(g.s, () => from, { absent: true });
+        break;
+      case 'drift':
+        add(g.s, (u) => from + g.by * smooth(u));
+        break;
+      case 'sway':
+        add(g.s, (u) => from + g.amp * Math.sin(2 * Math.PI * g.hz * u * g.s));
         break;
     }
   }
