@@ -159,7 +159,7 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
       )}
       {s.phase === 'carved' && (
         <div className="flex items-start gap-2" data-faces-add-more>
-          <button type="button" className={btn} disabled={view.k === 0} onClick={() => s.startMerge('samples')}>
+          <button type="button" className={btn} disabled={view.k === 0 || s.saving} onClick={() => s.startMerge('samples', { name })}>
             {mergeText(words).samples.button}
           </button>
           <p className="text-[10px] leading-snug text-white/45">{`Record a short take before saving; each new ${words.one} joins its nearest category. The categories and the ${words.many} you moved stay where they are.`}</p>

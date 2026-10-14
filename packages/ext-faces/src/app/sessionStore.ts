@@ -323,8 +323,8 @@ export interface FaceSessionState {
   redo(): void;
   /** Record a new take and merge it into the working categorizer (P1's `mergeSession`): the open
    *  one, or a fresh carve before it is saved (#421); `burstName` names its bursts ("Record more
-   *  frown"). */
-  startMerge(seed: MergeSeed, options?: { burstName?: string }): void;
+   *  frown"); `name` is the Save field's text, there again when the take returns. */
+  startMerge(seed: MergeSeed, options?: { burstName?: string; name?: string }): void;
   /** Open a categorizer from a file's text (validated, older versions migrated); not saved yet. */
   importFile(text: string): boolean;
   /** The categorizer shown, as a file's text (P1's versioned format): an open one, or a fresh
@@ -1071,7 +1071,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, burst: null, burstName: '' };
           // Back to the categorizer the take was adding to, its edit history and all.
           restoreEdits(merge.edits);
-          showDoc(merge.working, { phase: merge.phase, ...restore, ...(merge.phase === 'carved' ? { hasStills: merge.hasStills } : {}), dirty: merge.dirty });
+          // A fresh carve has pictures when either take took them (an open one finds its own).
+          showDoc(merge.working, { phase: merge.phase, ...restore, ...(merge.phase === 'carved' ? { hasStills: merge.hasStills || hadStills } : {}), dirty: merge.dirty });
           // A merge needs no carve of its own, so one hold (a single burst: "Record more frown")
           // is enough; a fresh take needs two to carve.
           if (!built && myTake.pointCount() === 0) {
@@ -1439,7 +1440,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // A fresh carve too (#421): the same document, so the new holds are added to it, its
         // pins kept, and its first take's rest kept for the reject radius.
         if ((phase !== 'saved' && phase !== 'carved') || !working) return;
-        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name, tuning, checks, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
+        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name: options.name ?? name, tuning, checks, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
         get().start();
         // After the start (which resets): the take's bursts carry this name.
         set({ burstName: options.burstName ?? '' });

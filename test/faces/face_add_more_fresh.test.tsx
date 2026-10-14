@@ -51,7 +51,11 @@ async function run(ms: number) {
 
 const FACE_MS = SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs;
 
+let made = 0;
 beforeEach(() => {
+  // jsdom has no object URLs; the store makes one per still it shows.
+  URL.createObjectURL = () => `blob:still-${++made}`;
+  URL.revokeObjectURL = () => undefined;
   vi.useFakeTimers();
   clock = 1000;
   takes = 0;
@@ -104,19 +108,51 @@ describe.runIf(FACES)('"Add more" from a fresh carve (#421)', () => {
     for (const x of added) expect(placed.has(x.id)).toBe(true);
     expect(s().notice).toMatch(/Merged/);
 
-    // The first take's rest is kept: a re-cut still seeds Neutral from its rest cloud.
-    s().setK(s().k);
-    expect(s().working!.neutral.length).toBeGreaterThanOrEqual(Math.min(1, neutralBefore));
+    // The first take's rest is kept: a re-cut still seeds Neutral from its rest cloud (the
+    // first take's holds in Neutral before stay there).
+    const restCloud = before.neutral.filter((id) => !before.pins?.[id]);
+    expect(neutralBefore).toBeGreaterThan(0);
+    s().setK(s().k + 1);
+    for (const id of restCloud) expect(s().working!.neutral).toContain(id);
 
-    // Undo: the document before the take.
+    // Undo (the re-cut, then the merge): the document before the take.
+    s().undo();
     s().undo();
     expect(s().working).toEqual(before);
     expect(s().phase).toBe('carved');
     // And it saves like any fresh carve.
     s().redo();
+    s().redo();
     expect(await s().save('Mine')).toBe(true);
     expect(s().dirty).toBe(false);
     expect(s().saved.map((x) => x.name)).toEqual(['Mine']);
+  });
+
+  it('the first take\'s pictures (in memory only) survive the take, and both takes\' are filed on Save; the typed name comes back', async () => {
+    const puts: string[] = [];
+    const memory = memoryThumbStore();
+    const thumbs = { ...memory, put: async (k: string, b: Blob) => (puts.push(k), memory.put(k, b)) };
+    const frames = () => ({ grab: async () => new Blob(['still']), close: () => {} });
+    const store = createFaceSessionStore(deps({ thumbs, frames, source: () => ({ ...syntheticSource(() => clock), video: () => ({}) as MediaStream }) }));
+    const s = () => store.getState();
+    s().start();
+    await run(SYNTHETIC_TIMELINE.restMs + 300 + 6 * FACE_MS);
+    await s().stop();
+    expect(s().hasStills).toBe(true);
+    const first = s().working!.samples.length;
+    s().startMerge('samples', { name: 'Typed' });
+    await run(SYNTHETIC_TIMELINE.restMs + 300 + 3 * FACE_MS);
+    await s().stop();
+    expect(s().phase).toBe('carved');
+    expect(s().name).toBe('Typed');
+    expect(s().hasStills).toBe(true);
+    const all = s().working!.samples.map((x) => x.id);
+    expect(all.length).toBeGreaterThan(first);
+    await vi.advanceTimersByTimeAsync(0);
+    // Every hold shown has its picture, the first take's included.
+    expect(Object.keys(s().thumbs).length).toBe(all.length);
+    expect(await s().save('Typed')).toBe(true);
+    expect(puts.sort()).toEqual([...all].sort());
   });
 
   it('Cancel during the take returns to the fresh carve, unchanged', async () => {
