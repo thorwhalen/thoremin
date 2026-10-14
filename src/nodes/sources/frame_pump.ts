@@ -84,7 +84,7 @@
  * a replayed recording. The sources put all of it on the frame, so the recorder
  * keeps it. A capture time in the future, or more than a second old, is not trusted.
  */
-import type { FrameTiming } from '@thoremin/sdk/nodes/domain';
+import { isClockDerived, type FrameTiming } from '@thoremin/sdk/nodes/domain';
 import { createStampDejitter } from '@thoremin/sdk/timing/stamp_dejitter';
 
 /** The subset of `VideoFrameCallbackMetadata` this module reads. */
@@ -328,9 +328,8 @@ export function createFramePump(
   };
   const rafMayDeliver = (nowMs: number) => !Number.isFinite(lastDeliveryMs) || nowMs - lastDeliveryMs >= rafSpacingMs(nowMs);
 
-  /** Hand a frame to inference; false when the consumer refused it. */
-  const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined, skipped: number): boolean => {
-    const nowMs = now();
+  /** The stamp of a frame read at `nowMs`: the picker's choice, then the gated de-jitter. */
+  const stampFor = (nowMs: number, meta: VideoFrameMetadataLike | undefined, skipped: number): FrameStamp => {
     // The learned lag describes the pipeline, not the channel: once known it is used
     // even after the callbacks go quiet (a hidden tab), so a return does not start
     // again from a clock stamp.
@@ -342,7 +341,7 @@ export function createFramePump(
     // byte. A capture or presentation stamp is never touched; it ends the run.
     let tMs = picked.tMs;
     if (dejitter) {
-      const clockDerived = picked.source === 'clock' || picked.source === 'estimated';
+      const clockDerived = isClockDerived(picked.source);
       const smoothed = dejitter.push(clockDerived ? nowMs : picked.tMs, picked.source);
       // The run's offset is one constant (the learned lag for `estimated`, none for
       // `clock`), never this frame's own `nowMs - picked.tMs`: a stamp the picker pushed
@@ -350,17 +349,28 @@ export function createFramePump(
       const offset = picked.source === 'estimated' && Number.isFinite(lagEw) ? lagEw : 0;
       if (smoothed.engaged) tMs = Math.max(smoothed.tMs - offset, lastMs + MIN_STAMP_STEP_MS);
     }
-    const stamp: FrameStamp = { tMs, source: picked.source, lagMs: nowMs - tMs, skipped };
+    return { tMs, source: picked.source, lagMs: nowMs - tMs, skipped };
+  };
+
+  /** A consumed frame: the stamps' floor, the frame seen, when, and the lag it teaches. */
+  const accepted = (stamp: FrameStamp, v: HTMLVideoElement, nowMs: number) => {
+    lastMs = stamp.tMs;
+    lastVideoTime = v.currentTime;
+    lastDeliveryMs = nowMs;
+    if (stamp.source === 'capture') learnLag(stamp.lagMs);
+  };
+
+  /** Hand a frame to inference; false when the consumer refused it. */
+  const deliver = (v: HTMLVideoElement, meta: VideoFrameMetadataLike | undefined, skipped: number): boolean => {
+    const nowMs = now();
+    const stamp = stampFor(nowMs, meta, skipped);
     if (onFrame(stamp, v) === false) {
       // Offered again later with a later clock reading: that is the same frame, not
       // the next one on the grid.
       dejitter?.retract();
       return false;
     }
-    lastMs = stamp.tMs;
-    lastVideoTime = v.currentTime;
-    lastDeliveryMs = nowMs;
-    if (stamp.source === 'capture') learnLag(stamp.lagMs);
+    accepted(stamp, v, nowMs);
     return true;
   };
 
@@ -396,17 +406,14 @@ export function createFramePump(
     dejitter?.reset();
   };
 
-  /** The callback: the driver where it reports `presentedFrames`, a side channel elsewhere. */
-  const onVideoFrame = (v: HTMLVideoElement & VideoFrameCallbackTarget, meta: VideoFrameMetadataLike) => {
-    latestMeta = meta;
-    vfcAliveMs = now();
-    const presented = typeof meta.presentedFrames === 'number' && Number.isFinite(meta.presentedFrames) ? meta.presentedFrames : NaN;
-    vfcCounted = Number.isFinite(presented);
-    if (!vfcCounted) {
-      learnFromLate(meta);
-      return;
-    }
-    const nowMs = vfcAliveMs;
+  /** One more interval between counted callbacks, into the callback period. */
+  const learnVfcPeriod = (nowMs: number) => {
+    vfcPeriodEw = Number.isFinite(vfcPeriodEw) ? vfcPeriodEw + VFC_PERIOD_EW_GAIN * (nowMs - lastVfcMs - vfcPeriodEw) : nowMs - lastVfcMs;
+  };
+
+  /** A callback that carries `presentedFrames` (`presented`), heard at `nowMs`: the
+   *  driver's frame, unless the counter froze or the animation loop delivered it already. */
+  const onCountedFrame = (v: HTMLVideoElement & VideoFrameCallbackTarget, meta: VideoFrameMetadataLike, presented: number, nowMs: number) => {
     const rise = Number.isFinite(lastPresented) ? presented - lastPresented : 1;
     if (rise === 0) {
       // A frozen counter: the callback fired and counted nothing. It is not a sign of
@@ -424,7 +431,7 @@ export function createFramePump(
     // delivered this very frame already (its mediaTime then matches), and the frames
     // presented meanwhile were its to deliver, not skipped.
     const resumed = !vfcDriving(nowMs);
-    if (!resumed && !reset) vfcPeriodEw = Number.isFinite(vfcPeriodEw) ? vfcPeriodEw + VFC_PERIOD_EW_GAIN * (nowMs - lastVfcMs - vfcPeriodEw) : nowMs - lastVfcMs;
+    if (!resumed && !reset) learnVfcPeriod(nowMs);
     lastVfcMs = nowMs;
     if (resumed && !reset && metadataMatches(meta, lastVideoTime)) {
       learnFromLate(meta);
@@ -435,6 +442,16 @@ export function createFramePump(
     lastPresented = presented;
     pending = null;
     if (!ready(v) || !deliver(v, meta, skipped)) pending = { meta, skipped };
+  };
+
+  /** The callback: the driver where it reports `presentedFrames`, a side channel elsewhere. */
+  const onVideoFrame = (v: HTMLVideoElement & VideoFrameCallbackTarget, meta: VideoFrameMetadataLike) => {
+    latestMeta = meta;
+    vfcAliveMs = now();
+    const presented = typeof meta.presentedFrames === 'number' && Number.isFinite(meta.presentedFrames) ? meta.presentedFrames : NaN;
+    vfcCounted = Number.isFinite(presented);
+    if (!vfcCounted) learnFromLate(meta);
+    else onCountedFrame(v, meta, presented, vfcAliveMs);
   };
 
   /** Keep the callback registered on the element the pump is looking at. */
@@ -460,19 +477,23 @@ export function createFramePump(
     });
   };
 
+  /** The animation loop's delivery on a ready element: a refused frame again, else a new
+   *  frame while the callback is not driving and the spacing allows one. */
+  const rafDeliver = (v: HTMLVideoElement) => {
+    if (pending) {
+      if (deliver(v, pending.meta, pending.skipped)) pending = null;
+    } else if (!vfcDriving(now()) && v.currentTime !== lastVideoTime && rafMayDeliver(now())) {
+      deliver(v, metadataMatches(latestMeta, v.currentTime) ? latestMeta! : undefined, 0);
+    }
+  };
+
   const tick = () => {
     rafId = null;
     if (!running) return;
     const v = getVideo() as (HTMLVideoElement & VideoFrameCallbackTarget) | undefined;
     if (v) {
       ensureVfc(v);
-      if (ready(v)) {
-        if (pending) {
-          if (deliver(v, pending.meta, pending.skipped)) pending = null;
-        } else if (!vfcDriving(now()) && v.currentTime !== lastVideoTime && rafMayDeliver(now())) {
-          deliver(v, metadataMatches(latestMeta, v.currentTime) ? latestMeta! : undefined, 0);
-        }
-      }
+      if (ready(v)) rafDeliver(v);
     }
     rafId = raf(tick);
   };

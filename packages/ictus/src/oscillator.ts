@@ -137,8 +137,30 @@ const DEFAULTS: Required<OscillatorOptions> = {
   beatsPerBar: 4,
 };
 
-/** Agreement test for two intervals (within 20%). */
-const agrees = (a: number, b: number) => Number.isFinite(a) && Number.isFinite(b) && b > 0 && Math.abs(a - b) / b < 0.2;
+/** Two intervals agree when they differ by less than this share of the second: the
+ *  lost-lock, octave and halved-tempo tests all ask "is this the same interval again?". */
+const INTERVAL_AGREEMENT = 0.2;
+/** The confidence a lock re-seeded from a NEW interval starts at (a lost lock, an octave
+ *  re-seed, a halved tempo out of hold): the interval is two or three anchors old. */
+const RESEED_CONFIDENCE = 0.3;
+/** The confidence a lock starts at when it keeps a period it already trusted (the first
+ *  lock out of `ready`, a preparatory beat after a hold). */
+const LOCK_CONFIDENCE = 0.5;
+/** How much of the new confidence is the old one (the rest is the resultant length `r`
+ *  of recent errors). */
+const CONFIDENCE_MEMORY = 0.5;
+/** The prediction window's half-width, as a share of the period: never narrower than
+ *  this (a perfectly regular player still has a frame of jitter)... */
+const WINDOW_MIN_PERIODS = 0.05;
+/** ...and never wider than this (half a period either side covers every phase). */
+const WINDOW_MAX_PERIODS = 0.5;
+/** The resultant length the window is read from stays inside (0, 1): `log(0)` and
+ *  `log(1)` are an infinite and a zero spread. */
+const WINDOW_R_MIN = 1e-6;
+const WINDOW_R_MAX = 0.999;
+
+/** Agreement test for two intervals (within {@link INTERVAL_AGREEMENT}). */
+const agrees = (a: number, b: number) => Number.isFinite(a) && Number.isFinite(b) && b > 0 && Math.abs(a - b) / b < INTERVAL_AGREEMENT;
 
 /**
  * Inverse of A(κ) = I1(κ)/I0(κ) — the maximum-likelihood von Mises concentration for a
@@ -252,6 +274,115 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
     }
   };
 
+  /**
+   * Bring the state to an anchor's own (refined) time: catch up if it is ahead of the
+   * last advance (the normal case for a free-running caller), or rewind the free-run if
+   * it is behind (the detector delivers an anchor one frame after the sample that
+   * confirmed it), so the phase error is measured where the beat was. `update`
+   * re-advances to where the caller had got to.
+   */
+  const bringToAnchor = (at: number) => {
+    if (at > t) advanceTo(at);
+    else if (at < t) {
+      if (state === 'hold' && !(at - lastAnchorT > o.holdAfterPeriods * period)) {
+        // Delivered after an advance crossed the hold threshold, but timed before
+        // it: the beat was on time, so the hold never happened. Judge the anchor on
+        // its own time: resume the lock and rewind the frozen free-run to it, rather
+        // than restart from it as a preparatory beat (a restart would count a re-seed
+        // and wipe the blend's trend for a beat that was where it was expected).
+        state = 'running';
+        consecutive = consecutiveAtHold;
+        freeRun(at - holdAt);
+      } else if (state === 'running') freeRun(at - t);
+      t = at;
+    }
+  };
+
+  /** An anchor while `ready` (seeding the first lock) or in `hold` (a preparatory beat). */
+  const readyOrHold = (at: number, iai: number) => {
+    lastAnchorT = at;
+    misses = 0;
+    if (state === 'hold') {
+      // A preparatory beat after a hold: restart the phase at 0 with the kept
+      // period; the beat count continues (the score does not rewind on a fermata).
+      // Recurring holds that end at the same long interval mean the tempo really
+      // halved (or the anchors come at half density): re-seed from that interval.
+      if (holdRestarts >= 1 && agrees(iai, holdRestartIai)) {
+        restartLock(iai, RESEED_CONFIDENCE);
+      } else {
+        restartLock(period, LOCK_CONFIDENCE);
+      }
+      holdRestarts++;
+      holdRestartIai = iai;
+      return;
+    }
+    holdRestarts = 0;
+    if (Number.isFinite(iai) && iai >= o.minPeriod && iai <= o.maxPeriod) {
+      seed(iai);
+      consecutive++;
+    } else {
+      consecutive = 1;
+    }
+    phase = 0;
+    beat = anchors === 1 ? 0 : Math.round(beat) + (consecutive >= 2 ? 1 : 0);
+    if (consecutive >= 2) {
+      state = 'running';
+      confidence = LOCK_CONFIDENCE;
+    }
+  };
+
+  /**
+   * The two guards of a running lock (see the header), for an anchor `iai` after the
+   * last: whether the interval is odd (near half or double the period), and whether the
+   * lock must restart (lost: consecutive misses at agreeing intervals; or the octave
+   * guard's re-seed). `e` is the anchor's phase error.
+   */
+  const octaveAndLost = (iai: number): { e: number; odd: boolean; restart: boolean } => {
+    const e = wrapPhase(phase);
+    const ratio = iai / period;
+    const odd = Math.abs(ratio - 0.5) < o.octaveTolerance * 0.5 || Math.abs(ratio - 2) < o.octaveTolerance * 2;
+    if (odd && agrees(iai, lastOdd)) oddCount++;
+    else oddCount = odd ? 1 : 0;
+    lastOdd = odd ? iai : NaN;
+    // A miss: the beat was not where the anchor is. Consecutive misses at agreeing
+    // intervals are a new tempo (lost lock); at disagreeing ones, an uneven pattern
+    // the running mean already averages, so the count restarts from this miss.
+    let lost = false;
+    if (Math.abs(e) > o.lostPhaseError) {
+      if (o.lostIfIntervalsAgree && misses > 0 && !agrees(iai, lastMissIai)) misses = 0;
+      lost = ++misses >= o.lostAfterMisses;
+      lastMissIai = iai;
+    } else {
+      misses = 0;
+      lastMissIai = NaN;
+    }
+    const reseed = oddCount >= o.octaveAfterOdd && iai >= o.minPeriod && iai <= o.maxPeriod;
+    return { e, odd, restart: lost || reseed };
+  };
+
+  /** The circle-map correction (see the header) for an anchor at `at` with confidence
+   *  `c`, phase error `e`, `iai` after the last; an `odd` interval is not folded into the
+   *  running mean. */
+  const correct = (at: number, iai: number, c: number, e: number, odd: boolean) => {
+    const g = Math.exp(kappa * (Math.cos(2 * Math.PI * e) - 1));
+    const step = c * e * g;
+    const dPhase = o.phaseGain * step;
+    phase -= dPhase;
+    beat -= dPhase;
+    // The period is corrected from the running mean of accepted intervals (odd ones —
+    // octave candidates, rebounds and dropped beats — are not folded in).
+    if (!odd) pAvg += o.periodMemory * c * (iai - pAvg);
+    period = Math.max(o.minPeriod, Math.min(o.maxPeriod, pAvg * (1 + o.periodGain * step)));
+    phase -= Math.floor(phase);
+    if (phase > 1 - 1e-9) phase = 0; // numerical hygiene: an exact hit is 0, not 0.999…
+    r += o.dispersionGain * (Math.cos(2 * Math.PI * e) - r);
+    kappa = Math.max(o.kappaMin, Math.min(o.kappaMax, kappaFromResultant(Math.max(0, r))));
+    // Confidence rises with agreement (r is the resultant length of recent errors).
+    confidence = clamp01(CONFIDENCE_MEMORY * confidence + (1 - CONFIDENCE_MEMORY) * Math.max(0, r));
+    lastAnchorT = at;
+    consecutive++;
+  };
+
   const snapshot = (): MusicalTime => {
     const wholeBeat = Math.floor(beat);
     return {
@@ -280,118 +411,30 @@ export function createAdaptiveOscillator(options: OscillatorOptions = {}): Adapt
       const iai = a.t - lastAnchorT;
       // Out-of-order anchor: not usable as an interval; ignore it.
       if (Number.isFinite(lastAnchorT) && !(iai > 0)) return;
-      // Bring the state to the anchor's own (refined) time: catch up if it is ahead of
-      // the last advance (the normal case for a free-running caller), or rewind the
-      // free-run if it is behind (the detector delivers an anchor one frame after the
-      // sample that confirmed it), so the phase error is measured where the beat was.
-      // The end of `update` re-advances to where the caller had got to.
-      if (a.t > t) advanceTo(a.t);
-      else if (a.t < t) {
-        if (state === 'hold' && !(a.t - lastAnchorT > o.holdAfterPeriods * period)) {
-          // Delivered after an advance crossed the hold threshold, but timed before
-          // it: the beat was on time, so the hold never happened. Judge the anchor on
-          // its own time: resume the lock and rewind the frozen free-run to it, rather
-          // than restart from it as a preparatory beat (a restart would count a re-seed
-          // and wipe the blend's trend for a beat that was where it was expected).
-          state = 'running';
-          consecutive = consecutiveAtHold;
-          freeRun(a.t - holdAt);
-        } else if (state === 'running') freeRun(a.t - t);
-        t = a.t;
-      }
+      bringToAnchor(a.t);
       anchors++;
-
-      if (state === 'ready' || state === 'hold') {
-        lastAnchorT = a.t;
-        misses = 0;
-        if (state === 'hold') {
-          // A preparatory beat after a hold: restart the phase at 0 with the kept
-          // period; the beat count continues (the score does not rewind on a fermata).
-          // Recurring holds that end at the same long interval mean the tempo really
-          // halved (or the anchors come at half density): re-seed from that interval.
-          if (holdRestarts >= 1 && agrees(iai, holdRestartIai)) {
-            restartLock(iai, 0.3);
-          } else {
-            restartLock(period, 0.5);
-          }
-          holdRestarts++;
-          holdRestartIai = iai;
-          advanceTo(tNow);
-          return;
-        }
+      if (state === 'ready' || state === 'hold') readyOrHold(a.t, iai);
+      else {
+        // Running: the circle-map correction, unless the lock is lost or re-seeded.
         holdRestarts = 0;
-        if (Number.isFinite(iai) && iai >= o.minPeriod && iai <= o.maxPeriod) {
-          seed(iai);
-          consecutive++;
-        } else {
-          consecutive = 1;
-        }
-        phase = 0;
-        beat = anchors === 1 ? 0 : Math.round(beat) + (consecutive >= 2 ? 1 : 0);
-        if (consecutive >= 2) {
-          state = 'running';
-          confidence = 0.5;
-        }
-        advanceTo(tNow);
-        return;
+        const { e, odd, restart } = octaveAndLost(iai);
+        if (restart) {
+          // Lost (anchors in a row where the beat was not) or re-seeded (three odd
+          // intervals that agree): restart from the interval the last two anchors came
+          // at, which is the tempo the misses agree on.
+          restartLock(iai, RESEED_CONFIDENCE);
+          lastAnchorT = a.t;
+        } else correct(a.t, iai, c, e, odd);
       }
-
-      // Running: the circle-map correction.
-      holdRestarts = 0;
-      const e = wrapPhase(phase);
-      const ratio = iai / period;
-      const odd = Math.abs(ratio - 0.5) < o.octaveTolerance * 0.5 || Math.abs(ratio - 2) < o.octaveTolerance * 2;
-      if (odd && agrees(iai, lastOdd)) oddCount++;
-      else oddCount = odd ? 1 : 0;
-      lastOdd = odd ? iai : NaN;
-      // A miss: the beat was not where the anchor is. Consecutive misses at agreeing
-      // intervals are a new tempo (lost lock); at disagreeing ones, an uneven pattern
-      // the running mean already averages, so the count restarts from this miss.
-      let lost = false;
-      if (Math.abs(e) > o.lostPhaseError) {
-        if (o.lostIfIntervalsAgree && misses > 0 && !agrees(iai, lastMissIai)) misses = 0;
-        lost = ++misses >= o.lostAfterMisses;
-        lastMissIai = iai;
-      } else {
-        misses = 0;
-        lastMissIai = NaN;
-      }
-      const reseed = oddCount >= o.octaveAfterOdd && iai >= o.minPeriod && iai <= o.maxPeriod;
-      if (lost || reseed) {
-        // Lost (anchors in a row where the beat was not) or re-seeded (three odd
-        // intervals that agree): restart from the interval the last two anchors came
-        // at, which is the tempo the misses agree on.
-        restartLock(iai, 0.3);
-        lastAnchorT = a.t;
-        advanceTo(tNow);
-        return;
-      }
-
-      const g = Math.exp(kappa * (Math.cos(2 * Math.PI * e) - 1));
-      const step = c * e * g;
-      const dPhase = o.phaseGain * step;
-      phase -= dPhase;
-      beat -= dPhase;
-      // The period is corrected from the running mean of accepted intervals (odd ones —
-      // octave candidates, rebounds and dropped beats — are not folded in).
-      if (!odd) pAvg += o.periodMemory * c * (iai - pAvg);
-      period = Math.max(o.minPeriod, Math.min(o.maxPeriod, pAvg * (1 + o.periodGain * step)));
-      phase -= Math.floor(phase);
-      if (phase > 1 - 1e-9) phase = 0; // numerical hygiene: an exact hit is 0, not 0.999…
-      r += o.dispersionGain * (Math.cos(2 * Math.PI * e) - r);
-      kappa = Math.max(o.kappaMin, Math.min(o.kappaMax, kappaFromResultant(Math.max(0, r))));
-      // Confidence rises with agreement (r is the resultant length of recent errors).
-      confidence = clamp01(0.5 * confidence + 0.5 * Math.max(0, r));
-      lastAnchorT = a.t;
-      consecutive++;
+      // Re-advance to where the caller had got to.
       advanceTo(tNow);
     },
     predict(): Prediction {
       const s = snapshot();
       // Window half-width from the dispersion: the pulse's circular standard deviation,
       // in seconds, clamped to a sane range.
-      const circSd = Math.sqrt(-2 * Math.log(Math.min(0.999, Math.max(1e-6, r))));
-      const window = Math.min(0.5, Math.max(0.05, circSd / (2 * Math.PI))) * period;
+      const circSd = Math.sqrt(-2 * Math.log(Math.min(WINDOW_R_MAX, Math.max(WINDOW_R_MIN, r))));
+      const window = Math.min(WINDOW_MAX_PERIODS, Math.max(WINDOW_MIN_PERIODS, circSd / (2 * Math.PI))) * period;
       return { expectedAt: s.nextBeatAt, window, phase };
     },
     state: snapshot,
