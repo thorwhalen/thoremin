@@ -29,6 +29,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import { matrixToHeadPose, type FaceFrame, type FaceStatus } from '@thoremin/sdk/nodes/domain';
 import { DelegateChoiceSchema, resolveDelegate } from './delegate';
+import { copyFramesOnCpu } from './model_input';
 
 // MediaPipe FaceLandmarker assets, loaded from a CDN on demand (mirrors how
 // `webcam-hands` resolves its MediaPipe solution from jsDelivr). The wasm
@@ -180,14 +181,15 @@ export const webcamFaceNode = defineNode<Params>({
           const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
           let lm: FaceLandmarkerLike;
           const delegate = resolveDelegate(p.delegate);
+          // The CPU delegate is handed a copy of each frame, never the element (#324, `model_input.ts`).
           try {
-            lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor(delegate));
+            lm = copyFramesOnCpu(await vision.FaceLandmarker.createFromOptions(fileset, optionsFor(delegate)), delegate);
           } catch (gpuErr) {
             // GPU/WebGL unavailable on this client → fall back to the CPU delegate
             // (the float16 model runs on CPU). If CPU was already chosen, give up.
             if (delegate !== 'GPU') throw gpuErr;
             console.warn('[thoremin] face model GPU delegate failed; falling back to CPU', gpuErr);
-            lm = await vision.FaceLandmarker.createFromOptions(fileset, optionsFor('CPU'));
+            lm = copyFramesOnCpu(await vision.FaceLandmarker.createFromOptions(fileset, optionsFor('CPU')), 'CPU');
           }
           if (disposed || gen !== loadGen) {
             // Toggled off / unmounted while loading — don't resurrect.
