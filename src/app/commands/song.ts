@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { defineCommand, ok, err } from 'acture';
-import { SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
+import { SONG_START_BEAT_MAX, SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
 import { songHost } from './songHost';
 
 const CATEGORY = 'Song';
@@ -114,5 +114,18 @@ export const setSongHoldFadeCmd = defineCommand({
   },
 });
 
+/** Where in the song the conductor's first beat lands (#364). */
+export const setSongStartBeatCmd = defineCommand({
+  id: 'song.startBeat.set',
+  title: 'Set the song beat the conductor starts on',
+  description: "The song's beat (0 = its first tracked beat) on which the conductor's first beat lands when he conducts a recording; skips an intro or a pickup.",
+  category: CATEGORY,
+  params: z.object({ beat: z.number().int().min(0).max(SONG_START_BEAT_MAX).describe('A whole song beat; 0 = the first tracked beat') }),
+  execute: async ({ beat }) => {
+    songHost().setStartBeat(beat);
+    return ok({ beat });
+  },
+});
+
 /** All song commands, registered together. */
-export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd, setSongHoldFadeCmd] as const;
+export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd, setSongHoldFadeCmd, setSongStartBeatCmd] as const;

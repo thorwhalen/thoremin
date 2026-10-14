@@ -240,6 +240,8 @@ export const SONG_RATE_MAX = 2;
 export const SONG_FOLLOW_RANGE_MIN = 0.02;
 export const SONG_FOLLOW_RANGE_MAX = 0.3;
 export const SONG_HOLD_FADE_MAX = 2;
+/** The song beat the conductor may start on (#364): well past any intro. */
+export const SONG_START_BEAT_MAX = 2000;
 export const SongSettingsSchema = z.object({
   volume: z.number().min(0).max(1),
   rate: z.number().min(SONG_RATE_MIN).max(SONG_RATE_MAX),

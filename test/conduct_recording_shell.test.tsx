@@ -16,6 +16,7 @@ import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { loadSongFile } from '@/app/song/host';
+import { useSongStatus } from '@/app/songStatus';
 import { makeConductorReporter, useConductorStatus, SONG_LEAD_NODE_ID } from '@/app/conductorStatus';
 import { branchIdsFor } from '@/app/graph';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
@@ -95,6 +96,27 @@ describe('Conduct a recording', () => {
     const tick = makeConductorReporter({ getOutput: (n, p) => outputs[n]?.[p] }, useConductorStatus.getState());
     act(() => tick());
     expect(screen.getByTestId('conductor-recording-live').textContent).toBe('Playing at 83 % speed, 4 % of a beat behind.');
+  });
+
+  it('chooses the song beat the first beat lands on: typed, or "Here" while the song plays, reset by another song (#364)', async () => {
+    useTools.setState({ open: 'conductor' });
+    await dispatchDialSetIn('conductor.conducts', 'recording');
+    const { file, opts } = clickFile();
+    await loadSongFile(file, opts);
+    render(<ConductorPanel />);
+    expect(useControls.getState().songStartBeat).toBe(0);
+    fireEvent.change(screen.getByLabelText("Song beat the conductor's first beat lands on"), { target: { value: '8' } });
+    await waitFor(() => expect(useControls.getState().songStartBeat).toBe(8));
+    act(() => useSongStatus.setState({ live: { beat: 12, bpm: 120, positionS: 6 } }));
+    fireEvent.click(screen.getByText('Here'));
+    await waitFor(() => expect(useControls.getState().songStartBeat).toBe(12));
+    // Before the first tracked beat, "Here" is beat 0.
+    act(() => useSongStatus.setState({ live: { beat: -2, bpm: 120, positionS: 0 } }));
+    fireEvent.click(screen.getByText('Here'));
+    await waitFor(() => expect(useControls.getState().songStartBeat).toBe(0));
+    act(() => useControls.getState().setSongStartBeat(5));
+    await loadSongFile(file, opts);
+    expect(useControls.getState().songStartBeat).toBe(0);
   });
 
   it('the Song tool says the conductor leads the song', async () => {

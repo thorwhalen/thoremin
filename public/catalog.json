@@ -3269,6 +3269,10 @@
         "kind": "number"
       },
       {
+        "name": "songStartBeat",
+        "kind": "number"
+      },
+      {
         "name": "songVolume",
         "kind": "number"
       },

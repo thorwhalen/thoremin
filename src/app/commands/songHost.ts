@@ -25,6 +25,8 @@ export interface SongHost {
   setFollowRange(range: number): void;
   /** Seconds the song fades out on a conductor's hold and back in on the release (#366). */
   setHoldFade(seconds: number): void;
+  /** The song beat the conductor's first beat lands on (#364), transient per song. */
+  setStartBeat(beat: number): void;
 }
 
 let host: SongHost | null = null;

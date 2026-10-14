@@ -120,6 +120,7 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   songPlaying?: boolean;
   /** The press counter (transient, #344). */
   songPlays?: number;
+  songStartBeat?: number;
 }
 
 const Params = z.object({});
@@ -229,6 +230,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     { name: 'songHandle', kind: 'song-handle' },
     { name: 'songPlaying', kind: 'boolean' },
     { name: 'songPlays', kind: 'number' },
+    { name: 'songStartBeat', kind: 'number' },
     { name: 'songVolume', kind: 'number' },
     { name: 'songRate', kind: 'number' },
     { name: 'songHoldFade', kind: 'number' },
@@ -318,6 +320,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         out.songHandle = c.songHandle ?? null;
         out.songPlaying = c.songPlaying ?? false;
         out.songPlays = c.songPlays ?? 0;
+        out.songStartBeat = c.songStartBeat ?? 0;
         out.songVolume = c.songPrefs?.volume ?? DEFAULT_SONG.volume;
         out.songRate = c.songPrefs?.rate ?? DEFAULT_SONG.rate;
         out.songHoldFade = c.songPrefs?.holdFadeS ?? DEFAULT_SONG.holdFadeS;
