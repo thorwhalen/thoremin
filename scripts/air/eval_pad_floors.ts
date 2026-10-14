@@ -98,6 +98,9 @@ const ROWS: Row[] = [
   { name: 'kick only (snare on), hand raised 0.05 every 4th', script: alternate('p6', 'p6', 16, (pad, k) => ({ ...s(pad), ...(k % 4 === 3 ? { hand: -0.05 } : {}) })) },
   { name: 'kick only (snare on), hand raised 0..0.09', script: alternate('p6', 'p6', 16, (pad, k) => ({ ...s(pad), hand: -[0, 0.03, 0.06, 0.09][k % 4] })) },
   { name: 'snare only (kick on), hand raised 0..0.09', script: alternate('p1', 'p1', 16, (pad, k) => ({ ...s(pad), hand: -[0, 0.03, 0.06, 0.09][k % 4] })) },
+  // The third review: a hand moved by about the pads' gap.
+  { name: 'kick only (snare on), hand raised 0.07 every 4th', script: alternate('p6', 'p6', 16, (pad, k) => ({ ...s(pad), ...(k % 4 === 3 ? { hand: -0.07 } : {}) })) },
+  { name: 'snare only (kick on), hand lowered 0.06 every 4th', script: alternate('p1', 'p1', 16, (pad, k) => ({ ...s(pad), ...(k % 4 === 3 ? { hand: 0.06 } : {}) })) },
   ...([[0.02, 3], [0.02, 7], [0.03, 3], [0.03, 7], [0.05, 1], [0.05, 3], [0.05, 5]] as const).map(([noise, seed]) => ({
     name: `kick by a 0.23 rad tilt / snare, noise ${noise} seed ${seed}`,
     script: alternate('p1', 'p6', 16, (pad) => ({ ...s(pad), ...(pad === 'p6' ? { tilt: 0.232 } : {}) })),

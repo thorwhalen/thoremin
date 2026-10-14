@@ -32,10 +32,10 @@
  * moved by how far the player's strokes stop from a pad's centre, a top one usual fall
  * above that and a hand one usual hand-to-floor drop above it. Without it the first
  * stroke on a new pad was named the floor of whatever learned pad it crossed (the kick's
- * first stroke read as the snare). A prior is one usual stroke from a stacked learned
- * pad's start, so it is trusted only so far: it wins by a margin, for a stroke unlike the
- * learned pad's own (beyond twice their scatter), and read by the top alone only where no
- * learned pad is on the stroke's way.
+ * first stroke read as the snare). It competes only where no learned pad is on the
+ * stroke's way: under a learned stacked pad a prior's start is one pad gap from the
+ * learned pad's, and a stroke whose start varies by that much is the same picture as a
+ * first stroke on the other pad (see {@link padFloorFor}).
  *
  * A floor is named from the first pad that has one (the stroke's own top, not the least
  * depth since the last pad, is what the rule and the predictor's restart need from the
@@ -53,11 +53,6 @@ export interface PadFloor {
   floor: number;
   top: number;
   grip?: number;
-  /** How far its strokes start from where its strokes usually start (the start's
-   *  distance, top and grip as {@link padFloorFor} measures it, from the pad's top and
-   *  grip before each stroke), followed like the rest; absent or NaN until a second
-   *  stroke. */
-  spread?: number;
 }
 
 export type PadFloors = Partial<Record<PadId, PadFloor>>;
@@ -68,29 +63,6 @@ export const PAD_FLOOR_GAIN = 0.5;
 /** Pads with a learned floor before one is named to the predictor. */
 export const MIN_FLOOR_PADS = 1;
 
-/** A never-struck pad's expected start must be this much nearer the stroke's than the
- *  nearest learned pad's start is (a cost under this fraction of it) to be named: a pad
- *  the player has never struck is the less likely target, and its expected start is one
- *  usual stroke from a stacked learned pad's, so a stroke started a little off its own
- *  pad's usual would otherwise go to it (the #530 reviews: a hand raised 0.05 over the
- *  kick read as the never-struck snare). Half: a first stroke on a new pad that starts
- *  where that pad's strokes are expected to is far nearer it than the learned pad. */
-export const PRIOR_MARGIN = 0.5;
-/** And the stroke must be unlike the learned pad's own strokes: its start further from
- *  that pad's usual start than this many times their usual scatter ({@link PadFloor.spread}).
- *  A player whose hand height varies over one pad by about the gap to a stacked pad never
- *  struck would otherwise send that pad's ordinary strokes there once a high one has
- *  pulled its usual start up (the second #530 review: the snare struck with the hand
- *  raised 0 to 0.09 in turn, the kick on and never struck, 16 on the snare on main, 13). */
-export const PRIOR_SPREADS = 2;
-
-/** The distance between two starts: top and grip when both have a grip, else the top. */
-function startDistance(a: { top: number; grip?: number }, b: { top: number; grip?: number }): number {
-  const ga = a.grip ?? NaN;
-  const gb = b.grip ?? NaN;
-  return Number.isFinite(ga) && Number.isFinite(gb) ? Math.hypot(a.top - b.top, ga - gb) : Math.abs(a.top - b.top);
-}
-
 /** The table with one confirmed stroke on `pad` learned: it stopped at `floor`, started
  *  from `top`, the hand at `grip`. A non-finite floor or top teaches nothing; a
  *  non-finite grip leaves the pad's grip as it was. */
@@ -98,8 +70,7 @@ export function learnPadFloor(floors: PadFloors, pad: PadId, { floor, top, grip 
   if (!Number.isFinite(floor) || !Number.isFinite(top)) return floors;
   const was = floors[pad];
   const g = Number.isFinite(grip) ? ewUpdate(was?.grip ?? NaN, grip, gain) : (was?.grip ?? NaN);
-  const spread = was ? ewUpdate(was.spread ?? NaN, startDistance({ top, grip }, was), gain) : NaN;
-  return { ...floors, [pad]: { floor: ewUpdate(was?.floor ?? NaN, floor, gain), top: ewUpdate(was?.top ?? NaN, top, gain), grip: g, spread } };
+  return { ...floors, [pad]: { floor: ewUpdate(was?.floor ?? NaN, floor, gain), top: ewUpdate(was?.top ?? NaN, top, gain), grip: g } };
 }
 
 /** The stroke in progress, as the floor rule reads it. */
@@ -143,32 +114,36 @@ export function priorPadFloor(floors: PadFloors, pads: Pads, pad: PadId): PadFlo
  * where it was, is still told apart by the top), else the top alone.
  *
  * A pad never struck competes through its {@link priorPadFloor} (#530: its first stroke
- * was read against a learned pad's floor), named only when its expected start is
- * {@link PRIOR_MARGIN} nearer than the nearest learned pad's and the stroke is unlike that
- * pad's own strokes ({@link PRIOR_SPREADS}). Read by the top alone the
- * prior is not trusted that far: it competes only where no learned pad is on the way.
+ * was read against a learned pad's floor) only where no learned pad is on the stroke's
+ * way. Where one is (a stacked pad), a stroke whose start varies by about the pads' gap
+ * reads exactly like a first stroke on the unstruck pad, and the three #530 reviews found
+ * every margin breakable: a hand raised 0.07 over the kick sent every fourth stroke to the
+ * snare never struck, and what it then learned there kept it wrong. A first stroke on a
+ * stacked pad read against the learned one happens once (it turns on its own pad and
+ * teaches it); a varied stroke read against an unstruck one recurs.
  */
 export function padFloorFor(floors: PadFloors, pads: Pads, stroke: StrokeSoFar): number {
   const learned = learnedOn(floors, pads);
   if (learned.length < MIN_FLOOR_PADS || !Number.isFinite(stroke.top)) return NaN;
   const byGrip = Number.isFinite(stroke.grip ?? NaN) && learned.every((id) => Number.isFinite(floors[id]!.grip ?? NaN));
-  const cost = (e: PadFloor) => (byGrip ? startDistance(stroke, e) : Math.abs(stroke.top - e.top));
+  const cost = (e: PadFloor) => (byGrip ? Math.hypot(stroke.top - e.top, stroke.grip! - e.grip!) : Math.abs(stroke.top - e.top));
   const onWay = (id: PadId, e: PadFloor) => padDistance(pads[id], { x: stroke.xAt(e.floor), y: e.floor }) <= 1;
-  /** The nearest candidate among `ids`: its floor and cost. */
+  /** The nearest candidate among `ids`: its floor, NaN for none. */
   const nearest = (ids: PadId[], expected: (id: PadId) => PadFloor | undefined) => {
-    let best = { floor: NaN, cost: Infinity, spread: NaN };
+    let best = NaN;
+    let bestCost = Infinity;
     for (const id of ids) {
       const e = expected(id);
       if (!e || !onWay(id, e)) continue;
       const c = cost(e);
-      if (c < best.cost) best = { floor: e.floor, cost: c, spread: e.spread ?? NaN };
+      if (c < bestCost) {
+        bestCost = c;
+        best = e.floor;
+      }
     }
     return best;
   };
   const known = nearest(learned, (id) => floors[id]);
-  if (Number.isFinite(known.floor) && !byGrip) return known.floor;
-  const fresh = nearest((Object.keys(pads) as PadId[]).filter((id) => pads[id].on && !floors[id]), (id) => priorPadFloor(floors, pads, id));
-  if (!Number.isFinite(known.floor)) return fresh.floor;
-  const unlike = !(known.cost <= PRIOR_SPREADS * known.spread);
-  return unlike && fresh.cost < PRIOR_MARGIN * known.cost ? fresh.floor : known.floor;
+  if (Number.isFinite(known)) return known;
+  return nearest((Object.keys(pads) as PadId[]).filter((id) => pads[id].on && !floors[id]), (id) => priorPadFloor(floors, pads, id));
 }

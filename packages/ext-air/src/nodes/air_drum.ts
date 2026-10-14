@@ -39,10 +39,10 @@
  * predictor's depth of the turn) the depth it stopped at and the top it fell from, and
  * before each sample the predictor is told the floor of the pad the stroke is heading
  * for (`ImpactPredictor.setFloor`): of the pads its way down crosses at their floor, the
- * one whose strokes start nearest where this one did, by the hand's depth for a stick
- * tip (#533) and by the fall's top otherwise. A pad never struck is expected at its
- * centre's depth, moved and topped by the player's strokes on the other pads (#530),
- * until its own first stroke teaches it. With no pad on nothing is named, and the
+ * one whose strokes start nearest where this one did, by where it starts for a stick
+ * tip (#533: top and hand) and by the fall's top otherwise. A pad never struck, with no
+ * learned pad on the stroke's way, is expected at its centre's depth, moved and topped by
+ * the player's strokes on the other pads (#530), until its own first stroke teaches it. With no pad on nothing is named, and the
  * node is what it was.
  *
  * What comes out is a list of {@link DrumHit}s on the `hits` port — each with the

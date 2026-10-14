@@ -197,44 +197,46 @@ The stroke left off its pad is, in every row, the first ever on the kick: no flo
 
 What the rule does not do, from the adversarial review. It reads where a stroke started, so a stroke raised much lower (or higher) than that pad's usual can be sent to the stacked neighbour: snare strokes at a lift of 0.45 against hard kicks at 0.7 put 7 of 16 off (8 before #353), at 0.5 two; the limit is a pad whose stroke heights vary by more than half the depth gap to its stacked neighbour ([#533](https://github.com/thorwhalen/thoremin/issues/533)). For a stick tip §3.1.4 reads the hand as well, which removes it on these takes. The first stroke on a pad never struck can now go either way: on the kick / snare alternation the old single floor got the first kick right by a late commit (its bad fits made it wait until the stroke was already below the snare), and the restart's better fit commits earlier, against the snare's floor. The floors start over whenever the predictor is rebuilt (the hand's size drifting by 1.5x, a changed tracked point), and a pad moved while its floor is learned keeps the old floor until its strokes pull it over at half a stroke per stroke. With no pad on nothing is named: `scripts/subframe/score.ts` on `bench-v2` (noise 0 and 1 px, leads 30 and 77 ms) and `scripts/air/eval_drum_anchors.ts` (arm 0 and 25 %, noise 0 and 0.02) print byte-identical tables before and after, and no hit's time, sound, velocity or position changes (a ghost note's landing is read at the turn's depth only with a pad on).
 
-#### 3.1.4 A pad never struck, and stacked pads by the hand (#530, #533, measured 2026-10-14)
+#### 3.1.4 Stacked pads by the hand; a pad never struck (#533, #530, measured 2026-10-14)
 
-After #353 two things were left. The first stroke on a pad never struck was named the floor of whatever learned pad its way crossed (the first kick, under the snare, read as the snare; #530). And the pad a stroke heads for was chosen by the fall's top, which fails on stacked pads once a pad's stroke heights vary (#533): a snare swung 0.45 rad and a kick swung 0.7 start from the same depth, so the top cannot tell them apart, and a stroke named the deeper pad's floor that turns at the shallower one is not always heard at all (soft snare strokes against hard kicks: 7 of 16 silent on main).
+After #353 the pad a stroke heads for was chosen by the fall's top, which fails on stacked pads once a pad's stroke heights vary (#533): a snare swung 0.45 rad and a kick swung 0.7 start from the same depth, so the top cannot tell them apart, and a stroke named the deeper pad's floor that turns at the shallower one is not always heard at all (soft snare strokes against hard kicks: 7 of 16 silent on main). And the first stroke on a pad never struck was named the floor of whatever learned pad its way crossed (#530).
 
-Both are in `packages/ext-air/src/lib/pad_floors.ts`. **The start as a point (#533).** For a stick tip each pad also learns the depth of the hand gripping the stick where the fall departs (`gripAtDeparture`: the departure and the samples held at the top just before it, up to three, so one frame's landmark noise does not decide), and a stroke's start is the point (top, hand), matched by distance: the swing's height varies stroke to stroke where the hand's depth over a pad varies much less, and a lower pad reached by tilting the stick, the hand where it was, still differs by the top. A point with no grip (the wrist, a fingertip) is read by the top. **The prior (#530).** A pad never struck competes with an expected floor (`priorPadFloor`): its centre's depth moved by the mean distance between a learned pad's floor and its centre, a top one mean fall above that and a hand one mean hand-to-floor drop above it, all from the switched-on pads already struck, so it has no constant of its own; its first confirmed stroke replaces it. Because a stacked pad's expected start is one usual stroke from the learned pad's, the prior is trusted only so far: it is named only when its start is less than half the nearest learned pad's distance (`PRIOR_MARGIN`) and the stroke is further from that pad's usual start than twice its strokes' own scatter (`PRIOR_SPREADS`, the scatter followed per pad like the rest); read by the top alone it competes only where no learned pad is on the way.
+**The start as a point (#533).** For a stick tip each pad also learns the depth of the hand gripping the stick where the fall departs (`gripAtDeparture`: the departure and the samples held at the top just before it, up to three, so one frame's landmark noise does not decide; a reading with no grip leaves the pad's as it was), and a stroke's start is the point (top, hand), matched by distance (`packages/ext-air/src/lib/pad_floors.ts`). The swing's height varies stroke to stroke where the hand's depth over a pad varies much less, and a lower pad reached by tilting the stick, the hand where it was, still differs by the top. A point with no grip (the wrist, a fingertip) is read by the top as before.
 
-Two adversarial reviews shaped those limits. The first version read the prior by the top for every point: a snare struck at two heights with the kick on and never struck put 8 of 16 on the kick (main 16). The second read the start by the hand alone, the hand from one frame, and let a prior compete freely: a kick struck with the hand raised 0.05 every fourth stroke put those on the snare never struck (12 of 16), and a kick reached by tilting the stick lost 2 to 7 strokes under landmark noise (the hand ties, and the top that told them apart on main was discarded). The rows below include both reviews' takes (`test/air/synthetic_drums.ts` has the per-stroke `lift`, `hand`, `tilt` and `holdS` they used).
+**A pad never struck (#530), where nothing learned is on the way.** It competes with an expected floor (`priorPadFloor`): its centre's depth moved by the mean distance between a learned pad's floor and its centre, a top one mean fall above that and a hand one mean hand-to-floor drop above it, all from the switched-on pads already struck, so it has no constant of its own; its first confirmed stroke replaces it. It competes only where no learned pad is on the stroke's way (a pad at another x: the crash after the snare). Under a learned stacked pad it does not, and that is the result of three adversarial reviews. Read by the top, a snare struck at two heights with the kick on and never struck put 8 of 16 on the kick (main 16). Read by the hand alone, a kick struck with the hand raised 0.05 every fourth stroke lost those strokes to the snare never struck (12), and a kick reached by tilting tied by the hand and lost 2 to 7 strokes under noise. With the start as a point and the prior allowed only by a margin and against the learned pad's own scatter, a hand raised 0.07 (or lowered 0.06) every fourth stroke still lost 4 of 16, and the never-struck pad then learned from those strokes kept them wrong. Every margin is breakable for the same reason: a prior's start is one pad gap from the learned pad's, so a stroke whose start varies by about that much is the same picture as a first stroke on the other pad. A first stroke on a stacked pad read against the learned one happens once (it turns on its own pad and teaches it); a varied stroke read against an unstruck one recurs. So the first stroke on a stacked pad never struck is still off its pad, as on main; telling it apart needs a cue beyond the start ([#538](https://github.com/thorwhalen/thoremin/issues/538)).
 
-`npx vite-node scripts/air/eval_pad_floors.ts` (the production graph on the synthetic stick takes, 30 fps; the rows of §3.1.3, the follow-ups' cases and the reviews'), main after #353 → now.
+`npx vite-node scripts/air/eval_pad_floors.ts` (the production graph on the synthetic stick takes, 30 fps; the rows of §3.1.3, the follow-ups' cases and the three reviews'; `test/air/synthetic_drums.ts` has the per-stroke `lift`, `hand`, `tilt` and `holdS` they used), main after #353 → now.
 
 | take | n | on pad | missed | predicted | sounding MAE (ms) |
 |---|---|---|---|---|---|
-| kick / snare alternating (stacked) | 16 | 15 → 16 | 0 → 0 | 15 → 15 | 13.2 → 12.6 |
-| the same, noise 0.02 | 16 | 15 → 16 | 0 → 0 | 15 → 15 | 12.8 → 11.9 |
+| kick / snare alternating (stacked) | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 13.2 → 13.2 |
+| the same, noise 0.02 | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 12.8 → 12.9 |
 | the same, noise 0.05 | 16 | 14 → 14 | 0 → 0 | 15 → 15 | 8.8 → 8.8 |
-| soft and hard mixed | 16 | 16 → 16 | 0 → 0 | 14 → 15 | 17.8 → 17.8 |
-| snare / kick / tom groove | 16 | 15 → 16 | 0 → 0 | 15 → 15 | 13.2 → 12.6 |
-| the same, noise 0.02 | 16 | 15 → 16 | 0 → 0 | 15 → 15 | 13.1 → 12.1 |
-| kick / snare in pairs | 16 | 15 → 16 | 0 → 0 | 15 → 15 | 12.6 → 12.6 |
-| tom / floor tom alternating | 16 | 16 → 16 | 0 → 0 | 14 → 15 | 16.3 → 12.6 |
-| four strokes per pad (32) | 32 | 31 → 32 | 0 → 0 | 31 → 31 | 13.2 → 11.9 |
-| the same, noise 0.02 | 32 | 31 → 32 | 0 → 0 | 31 → 31 | 13.5 → 11.3 |
-| demo take (13), starter kit | 13 | 13 → 13 | 0 → 0 | 11 → 12 | 20.5 → 15.3 |
-| the same, noise 0.02 | 13 | 13 → 13 | 0 → 0 | 11 → 12 | 18.4 → 14.6 |
-| #533 snare lift 0.45 / kick 0.7 | 16 | 9 → 16 | 0 → 0 | 15 → 15 | 14.1 → 11.8 |
-| #533 snare lift 0.5 / kick 0.7 | 16 | 14 → 16 | 0 → 0 | 15 → 15 | 12.9 → 11.8 |
+| soft and hard mixed | 16 | 16 → 16 | 0 → 0 | 14 → 14 | 17.8 → 17.8 |
+| snare / kick / tom groove | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 13.2 → 13.2 |
+| the same, noise 0.02 | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 13.1 → 13.2 |
+| kick / snare in pairs | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 12.6 → 12.6 |
+| tom / floor tom alternating | 16 | 16 → 16 | 0 → 0 | 14 → 14 | 16.3 → 16.3 |
+| four strokes per pad (32) | 32 | 31 → 31 | 0 → 0 | 31 → 31 | 13.2 → 12.8 |
+| the same, noise 0.02 | 32 | 31 → 31 | 0 → 0 | 31 → 31 | 13.5 → 13.4 |
+| demo take (13), starter kit | 13 | 13 → 13 | 0 → 0 | 11 → 12 | 20.5 → 17.9 |
+| the same, noise 0.02 | 13 | 13 → 13 | 0 → 0 | 11 → 12 | 18.4 → 17.9 |
+| #533 snare lift 0.45 / kick 0.7 | 16 | 9 → 15 | 0 → 0 | 15 → 15 | 14.1 → 12.9 |
+| #533 snare lift 0.5 / kick 0.7 | 16 | 14 → 15 | 0 → 0 | 15 → 15 | 12.9 → 12.9 |
 | #533 kick kick snare, snare 0.5 or 0.9 | 10 | 8 → 9 | 0 → 0 | 9 → 9 | 14.9 → 13.5 |
-| #533 snare lifts 0.5..0.9 / kick 0.7 | 16 | 14 → 16 | 0 → 0 | 15 → 15 | 13.0 → 11.8 |
+| #533 snare lifts 0.5..0.9 / kick 0.7 | 16 | 14 → 15 | 0 → 0 | 15 → 15 | 13.0 → 12.9 |
 | snare only (kick on), lifts 0.7 / 0.5 | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 12.6 → 12.6 |
 | snare only (kick on), lifts 0.5..0.9 | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 11.8 → 11.8 |
 | snare only (all 8 pads on), 0.7 / 0.5 | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 12.6 → 12.6 |
 | kick only (snare on), lifts 0.7 / 1.0 | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 12.6 → 12.6 |
 | kick only (snare on), lifts 0.7 / 0.9 | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 12.6 → 12.6 |
 | snare soft 0.5 / hard (kick on) | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 18.7 → 18.7 |
-| snare soft 0.5 / kick hard | 16 | 9 → 16 | 0 → 0 | 7 → 15 | 16.3 → 18.6 |
+| snare soft 0.5 / kick hard | 16 | 9 → 16 | 7 → 0 | 7 → 14 | 16.3 → 20.2 |
 | kick only (snare on), hand raised 0.05 every 4th | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 12.7 → 12.7 |
 | kick only (snare on), hand raised 0..0.09 | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 13.1 → 13.1 |
 | snare only (kick on), hand raised 0..0.09 | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 13.1 → 13.1 |
+| kick only (snare on), hand raised 0.07 every 4th | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 12.7 → 12.7 |
+| snare only (kick on), hand lowered 0.06 every 4th | 16 | 16 → 16 | 0 → 0 | 15 → 15 | 12.3 → 12.3 |
 | kick by a 0.23 rad tilt / snare, noise 0.02 seed 3 | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 12.5 → 12.9 |
 | kick by a 0.23 rad tilt / snare, noise 0.02 seed 7 | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 12.5 → 12.5 |
 | kick by a 0.23 rad tilt / snare, noise 0.03 seed 3 | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 10.6 → 11.3 |
@@ -242,12 +244,12 @@ Two adversarial reviews shaped those limits. The first version read the prior by
 | kick by a 0.23 rad tilt / snare, noise 0.05 seed 1 | 16 | 15 → 15 | 0 → 0 | 14 → 14 | 15.5 → 15.5 |
 | kick by a 0.23 rad tilt / snare, noise 0.05 seed 3 | 16 | 14 → 14 | 0 → 0 | 15 → 15 | 9.0 → 9.0 |
 | kick by a 0.23 rad tilt / snare, noise 0.05 seed 5 | 16 | 15 → 15 | 0 → 0 | 14 → 14 | 14.1 → 14.1 |
-| snare / kick, no wait at the top | 16 | 15 → 16 | 0 → 0 | 15 → 15 | 13.2 → 12.6 |
+| snare / kick, no wait at the top | 16 | 15 → 15 | 0 → 0 | 15 → 15 | 13.2 → 13.2 |
 | crash then snare (starter kit) | 6 | 6 → 6 | 0 → 0 | 4 → 4 | 18.6 → 18.1 |
 | ride then floor tom | 6 | 6 → 6 | 0 → 0 | 3 → 3 | 22.2 → 20.2 |
-| crash, snare, kick, hihat, tom | 10 | 8 → 9 | 0 → 0 | 7 → 8 | 19.2 → 15.7 |
+| crash, snare, kick, hihat, tom | 10 | 8 → 8 | 0 → 0 | 7 → 7 | 19.2 → 19.0 |
 
-No row loses a stroke from its pad, a prediction, or a stroke heard. Every #533 varied-height row is 16 of 16, the first stroke on a never-struck pad is on its pad wherever it starts where that pad's strokes are expected, and the soft-snare take main left silent 7 times is heard. The sounding MAE moves the wrong way on two tilt rows (12.5 → 12.9, 10.6 → 11.3 ms). The first stroke of a take, before any pad is learned, is read as before (the noise-0.05 row's stroke off). A first stroke on a new pad that starts unlike that pad's expected start (a hand held 0.05 high, or the pad reached by tilting) is still read against the learned pad, as on main. The synthetic player's strokes stop at the pad's centre, so the prior's moved centre is exact here; a real player who strikes near a pad's edge is expected there on a new pad too, which is what the offset is for. Not measured: a point with no grip, because the synthetic take's wrist is the stick's pivot and does not stroke. With no pad on, `scripts/air/eval_drum_anchors.ts` on `bench-v2` prints a byte-identical table (the change is inside the pad rule only), and `scripts/air/eval_drum_strokes.ts` does not run the node.
+No row loses a stroke from its pad, a prediction, or a stroke heard. Every #533 row is 15 of 16, the one off being the first kick (main 9, 14, 14), and the soft-snare take main left silent 7 times is heard (its MAE rises with the seven strokes it now counts). The sounding MAE moves the wrong way on two tilt rows (12.5 → 12.9, 10.6 → 11.3 ms) and by 0.1 ms on two noisy rows. The synthetic player's strokes stop at the pad's centre, so the prior's moved centre is exact here; a real player who strikes near a pad's edge is expected there on a new pad too, which is what the offset is for. Not measured: a point with no grip, because the synthetic take's wrist is the stick's pivot and does not stroke. With no pad on, `scripts/air/eval_drum_anchors.ts` on `bench-v2` prints a byte-identical table (the change is inside the pad rule only), and `scripts/air/eval_drum_strokes.ts` does not run the node.
 
 ### 3.2 By frame rate
 

@@ -82,14 +82,14 @@ describe.runIf(AIR)('the pads demo take (#261): every stroke on its pad, no fals
     // the later slot must not be read as the earlier one just because its path crossed
     // that one's top edge first. Each pad is struck four times. Since #353 each pad has
     // its own floor, so a change of pad is predicted against the new pad's depth at once;
-    // and since #530 a pad never struck is expected at its own depth, so the first kick is
-    // on it too (before #353: four off; before #530: one, the first ever on the kick).
+    // the one stroke left off its pad is the first ever on the kick, read against the
+    // snare learned above it (before #353: four off; why #530 leaves it, `pad_floors.ts`).
     const pads = kitWithLowPads();
     const order = ['p1', 'p6', 'p1', 'p7', 'p3', 'p6', 'p7', 'p5'] as PadId[];
     const script: DrumStroke[] = order.flatMap((pad) => [hard(pad), hard(pad), hard(pad), hard(pad)]);
     const { score } = await playTake(pads, { script });
     expect(offPadAfterFirst(score)).toEqual([]);
-    expect(score.off).toBe(0);
+    expect(score.off).toBeLessThanOrEqual(1);
     expect(score.false).toBe(0);
     expect(score.missed).toBe(0);
   });
@@ -119,9 +119,10 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
   // Sixteen strokes each, through the production graph. Before #353 (one floor per hand,
   // following the last pad at half a stroke per stroke): the kick/snare alternation put 7
   // of 16 off their pad (every snare after a kick read as the kick), 8 with landmark noise
-  // and 8 with soft and hard strokes mixed; tom/floor tom 8. After #353 the only stroke
-  // off its pad was the first on the kick; since #530 (a never-struck pad's expected
-  // floor) none is.
+  // and 8 with soft and hard strokes mixed; tom/floor tom 8. Now the only stroke off its
+  // pad is the first on the kick. Since #533 the start is read by the hand as well as the
+  // top, so a snare swung lower than the kick is still the snare's (main: 7 of 16 off),
+  // and soft snare strokes against hard kicks are heard (main: 7 of 16 silent).
   const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard', lift: (k: number) => number | undefined = () => undefined): DrumStroke[] =>
     Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k), ...(lift(k) !== undefined ? { lift: lift(k) } : {}) }));
   /** The kick moved down so that it no longer overlaps the snare (0.82 to 0.94; the snare
@@ -144,7 +145,7 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
     it(name, async () => {
       const { score } = await playTake(layout(kitWithLowPads()), { ...options, script });
       expect(offPadAfterFirst(score)).toEqual([]);
-      expect(score.off).toBe(0);
+      expect(score.off).toBeLessThanOrEqual(1);
       expect({ missed: score.missed, false: score.false }).toEqual({ missed: 0, false: 0 });
       // Predicted ahead of the frame that shows the impact, not sounded late on confirmation.
       expect(score.perStroke.filter((p) => p.hit?.predicted).length).toBeGreaterThanOrEqual(14);
@@ -155,7 +156,8 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
 describe.runIf(AIR)('the pad a stroke heads for, against the #530 reviews\' takes', () => {
   // A never-struck pad must not take the played pad's strokes, and a lower pad reached by
   // tilting the stick (the hand where it was) is still told apart under landmark noise.
-  // Main: 16 and 15; the first versions of #530/#533: 13 and 11.
+  // Main: 16 and 15; versions of #530/#533 that let a never-struck stacked pad compete,
+  // or read the hand alone: 13 and 11.
   it('the snare struck with the hand raised 0 to 0.09 in turn, the kick on and never struck', async () => {
     const script: DrumStroke[] = Array.from({ length: 16 }, (_, k) => ({ ...hard('p1'), hand: -[0, 0.03, 0.06, 0.09][k % 4] }));
     const { score } = await playTake(kitWithLowPads(), { script });
