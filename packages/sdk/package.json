@@ -63,6 +63,7 @@
     "./nodes/music/drum_pads": "./src/nodes/music/drum_pads.ts",
     "./score/prepare": "./src/score/prepare.ts",
     "./score/schema": "./src/score/schema.ts",
+    "./timing/audio": "./src/timing/audio.ts",
     "./timing/clock_map": "./src/timing/clock_map.ts",
     "./timing/glitches": "./src/timing/glitches.ts",
     "./timing/output_stage": "./src/timing/output_stage.ts",

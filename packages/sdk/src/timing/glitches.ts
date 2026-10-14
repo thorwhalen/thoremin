@@ -37,6 +37,7 @@
  * it is handed; replayable in Node.
  */
 import { median, quantileSorted, sortedCopy } from '@thoremin/stats';
+import type { AudioView, PlaybackStatsLike } from './audio';
 
 /** A clock step under this (seconds) is jitter, not a dropout. One callback buffer at
  *  48 kHz is 2.7 to 10.7 ms; a median over {@link GLITCH_RECENT_SAMPLES} readings removes
@@ -56,18 +57,10 @@ export const GLITCH_MAX_GAP_S = 0.5;
 /** The "recent" count looks back this far (seconds). */
 export const GLITCH_RECENT_WINDOW_S = 60;
 
-/** Chromium's AudioPlaybackStats, the fields read. */
-export interface PlaybackStatsLike {
-  readonly underrunEvents?: number;
-  readonly underrunDuration?: number;
-}
+export type { PlaybackStatsLike };
 
 /** The slice of an `AudioContext` the counter reads. */
-export interface GlitchAudioLike {
-  readonly state?: string;
-  readonly playbackStats?: PlaybackStatsLike | null;
-  getOutputTimestamp?(): { contextTime?: number; performanceTime?: number };
-}
+export type GlitchAudioLike = AudioView<'playbackStats' | 'getOutputTimestamp', 'state'>;
 
 export type GlitchSource = 'playbackStats' | 'clock' | 'none';
 

@@ -31,6 +31,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
 import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
+import type { AudioView } from '@thoremin/sdk/timing/audio';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import { createEventBatchParser } from '../lib/event_batch';
 import { DRUM_SOUNDS, DrumHitSchema, type DrumSound } from './air_drum';
@@ -119,10 +120,7 @@ export function drumVoice(sound: DrumSound, velocity: number, touch: DrumTouch =
 }
 
 /** The slice of `AudioContext` this node reads. */
-export interface AudioClockLike {
-  currentTime: number;
-  state?: string;
-}
+export type AudioClockLike = AudioView<'currentTime', 'state'>;
 
 /** How a sink is made: injected through `ctx.resources.createDrumSink` (tests, custom
  *  hosts; may be called without WebAudio resources), else the WebAudio one below over
