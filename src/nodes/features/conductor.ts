@@ -871,6 +871,16 @@ export const conductorNode = defineNode<Params>({
      *  movement can swell a held chord); the transport rules are a conductor's. The beat
      *  goes on from where the last leader left it. */
     let dance: DanceLead | null = null;
+    /** The relation the last dance lead FOLLOWED (never a candidate still persisting),
+     *  kept across a switch of leader so that the dancer, chosen again and related the same
+     *  way, re-starts on its next cycle (#506). Checked against the marked tempo in force on
+     *  return (a new piece relates afresh); forgotten when the conductor is switched off. */
+    let danceRatio: number | null = null;
+    const leaveDance = (): void => {
+      const r = dance?.followed();
+      if (r !== undefined && r !== null && Number.isFinite(r) && r > 0) danceRatio = r;
+      dance = null;
+    };
     let lastCycleAt: number | undefined;
     const danceTick = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params) => {
       transport = null;
@@ -883,7 +893,7 @@ export const conductorNode = defineNode<Params>({
       if (ictus) resetFollower();
       if (!dance) {
         dance = createDanceLead();
-        dance.reset(beatOut);
+        dance.reset(beatOut, danceRatio !== null ? { ratio: danceRatio } : undefined);
         lastCycleAt = undefined;
       }
       wasEnabled = true;
@@ -939,6 +949,7 @@ export const conductorNode = defineNode<Params>({
           transport = null;
           meter = null;
           dance = null;
+          danceRatio = null;
           resetExpression();
           transportReading = 'off';
           afterStop = false;
@@ -946,7 +957,7 @@ export const conductorNode = defineNode<Params>({
           return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
         }
         if (c.source === 'dancer') return danceTick(inputs, ctx, c);
-        dance = null;
+        leaveDance();
         // The hand's follower reads `hand` and `point` live; the body's detector fixes its
         // joints when built, so a change of side or point (or of source) re-creates it.
         // The beat stays where it is: the new follower waits for its first stroke.
