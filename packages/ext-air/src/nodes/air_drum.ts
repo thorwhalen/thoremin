@@ -39,9 +39,10 @@
  * predictor's depth of the turn) the depth it stopped at and the top it fell from, and
  * before each sample the predictor is told the floor of the pad the stroke is heading
  * for (`ImpactPredictor.setFloor`): of the pads its way down crosses at their floor, the
- * one whose strokes start nearest where this one did. A pad never struck is expected
- * at its centre's depth, moved and topped by the player's strokes on the other pads
- * (#530), until its own first stroke teaches it. With no pad on nothing is named, and the
+ * one whose strokes start nearest where this one did, by the hand's depth for a stick
+ * tip (#533) and by the fall's top otherwise. A pad never struck is expected at its
+ * centre's depth, moved and topped by the player's strokes on the other pads (#530),
+ * until its own first stroke teaches it. With no pad on nothing is named, and the
  * node is what it was.
  *
  * What comes out is a list of {@link DrumHit}s on the `hits` port — each with the
@@ -482,6 +483,12 @@ export function fallingSegment(samples: readonly TrackSample[], tEnd: number, ep
   // to the next pad while it waits there, and that is not the stroke's path.
   while (j < i - 2 && samples[j + 1].y <= samples[j].y + eps) j++;
   return samples.slice(j, i + 1);
+}
+
+/** The depth of the hand gripping the stick where the fall up to `tEnd` departed (#533:
+ *  the pad a stroke heads for, by where the hand is held), NaN for a point with no grip. */
+export function gripAtDeparture(samples: readonly TrackSample[], tEnd: number, eps: number): number {
+  return fallingSegment(samples, tEnd, eps)[0]?.grip?.y ?? NaN;
 }
 
 export interface Landing {
@@ -1192,7 +1199,7 @@ export const airDrumNode = defineNode<Params>({
       // Where it turned (the predictor's depth of the turn, not the fall's fit read at its
       // time), on the pad under that point.
       const hit = hitPad(c.pads, landingAt(stick.recent, e.t, eps, { turned: true, aspect: f.aspect, depth: e.depth }), 'silent');
-      if (hit) stick.floors = learnPadFloor(stick.floors, hit.id, { floor: e.depth, top: e.top });
+      if (hit) stick.floors = learnPadFloor(stick.floors, hit.id, { floor: e.depth, top: e.top, grip: gripAtDeparture(stick.recent, e.t, eps) });
     };
 
     /** #353: name the predictor the floor of the pad the stroke in progress is heading for
@@ -1203,7 +1210,8 @@ export const airDrumNode = defineNode<Params>({
       let floor = NaN;
       if (anyPadOn(c.pads) && Object.keys(stick.floors).length >= MIN_FLOOR_PADS) {
         const top = predictor.top();
-        if (Number.isFinite(top)) floor = padFloorFor(stick.floors, c.pads, { top, xAt: landingAt(stick.recent, f.t, st.gates.minAmplitude * FALL_JITTER, { aspect: f.aspect }).path.xAt });
+        const eps = st.gates.minAmplitude * FALL_JITTER;
+        if (Number.isFinite(top)) floor = padFloorFor(stick.floors, c.pads, { top, grip: gripAtDeparture(stick.recent, f.t, eps), xAt: landingAt(stick.recent, f.t, eps, { aspect: f.aspect }).path.xAt });
       }
       predictor.setFloor(floor);
       stick.named = floor;

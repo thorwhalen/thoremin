@@ -21,7 +21,7 @@ describe('per-pad floors (#353)', () => {
   it('follows each pad at the predictor\'s own gain, and a non-finite reading teaches nothing', () => {
     let f: PadFloors = {};
     f = learnPadFloor(f, 'p1', { floor: 0.72, top: 0.48 });
-    expect(f.p1).toEqual({ floor: 0.72, top: 0.48 });
+    expect(f.p1).toEqual({ floor: 0.72, top: 0.48, grip: NaN });
     f = learnPadFloor(f, 'p1', { floor: 0.74, top: 0.5 });
     expect(f.p1!.floor).toBeCloseTo(0.72 + PAD_FLOOR_GAIN * 0.02, 12);
     expect(learnPadFloor(f, 'p6', { floor: NaN, top: 0.5 })).toBe(f);
@@ -50,19 +50,43 @@ describe('per-pad floors (#353)', () => {
   });
 
   it('reads a pad never struck from its geometry and the player\'s habits on the others (#530)', () => {
-    // The player's snare strokes stop 0.02 below its centre and fall 0.24.
-    const f = learnPadFloor({}, 'p1', { floor: 0.74, top: 0.5 });
+    // The player's snare strokes stop 0.02 below its centre, fall 0.24, the hand 0.1 above the floor.
+    const f = learnPadFloor({}, 'p1', { floor: 0.74, top: 0.5, grip: 0.64 });
     expect(priorPadFloor({}, pads, 'p6')).toBeUndefined();
     const kick = priorPadFloor(f, pads, 'p6')!;
     expect(kick.floor).toBeCloseTo(0.8 + 0.02, 12);
     expect(kick.top).toBeCloseTo(0.82 - 0.24, 12);
-    // The first stroke on the kick (started at its expected top) is named the kick's
-    // expected floor; a snare stroke keeps the snare's.
-    expect(padFloorFor(f, pads, { top: 0.58, xAt: straightDown(0.5) })).toBeCloseTo(0.82, 12);
-    expect(padFloorFor(f, pads, { top: 0.5, xAt: straightDown(0.5) })).toBe(0.74);
+    expect(kick.grip).toBeCloseTo(0.82 - 0.1, 12);
+    // Only switched-on pads teach the prior.
+    expect(priorPadFloor(f, { ...pads, p1: { ...pads.p1, on: false } }, 'p6')).toBeUndefined();
+    // With the hand read (a stick tip): the first stroke on the kick, the hand held at the
+    // kick's expected grip, is named the kick's expected floor; a snare stroke keeps the
+    // snare's, whatever its height.
+    expect(padFloorFor(f, pads, { top: 0.58, grip: 0.72, xAt: straightDown(0.5) })).toBeCloseTo(0.82, 12);
+    expect(padFloorFor(f, pads, { top: 0.58, grip: 0.64, xAt: straightDown(0.5) })).toBe(0.74);
     // The crash, high and to the left, is reached at its own expected depth.
-    expect(padFloorFor(f, pads, { top: 0.08, xAt: straightDown(0.14) })).toBeCloseTo(0.32, 12);
+    expect(padFloorFor(f, pads, { top: 0.08, grip: 0.22, xAt: straightDown(0.14) })).toBeCloseTo(0.32, 12);
     // Once struck, the learned floor replaces the prior.
-    expect(padFloorFor(learnPadFloor(f, 'p6', { floor: 0.79, top: 0.6 }), pads, { top: 0.6, xAt: straightDown(0.5) })).toBe(0.79);
+    expect(padFloorFor(learnPadFloor(f, 'p6', { floor: 0.79, top: 0.6, grip: 0.7 }), pads, { top: 0.6, grip: 0.7, xAt: straightDown(0.5) })).toBe(0.79);
+  });
+
+  it('with no hand to read, a prior competes only where no learned pad is on the way (the #530 review)', () => {
+    const f = learnPadFloor({}, 'p1', { floor: 0.74, top: 0.5 });
+    // A snare stroke started low, near the kick's expected top: the learned snare keeps it.
+    expect(padFloorFor(f, pads, { top: 0.58, xAt: straightDown(0.5) })).toBe(0.74);
+    // At the crash's x no learned pad is on the way: the crash's expected floor.
+    expect(padFloorFor(f, pads, { top: 0.08, xAt: straightDown(0.14) })).toBeCloseTo(0.32, 12);
+  });
+
+  it('tells stacked pads apart by the hand, not the top, for a stick tip (#533)', () => {
+    let f: PadFloors = {};
+    f = learnPadFloor(f, 'p1', { floor: 0.72, top: 0.48, grip: 0.62 });
+    f = learnPadFloor(f, 'p6', { floor: 0.8, top: 0.56, grip: 0.7 });
+    // A snare stroke raised low (its top nearer the kick's) is still the snare's: the hand
+    // is where the snare's strokes hold it.
+    expect(padFloorFor(f, pads, { top: 0.56, grip: 0.62, xAt: straightDown(0.5) })).toBe(0.72);
+    expect(padFloorFor(f, pads, { top: 0.48, grip: 0.7, xAt: straightDown(0.5) })).toBe(0.8);
+    // A pad that learned with no grip (another point) makes the rule read the top.
+    expect(padFloorFor(learnPadFloor(f, 'p4', { floor: 0.3, top: 0.1 }), pads, { top: 0.56, grip: 0.62, xAt: straightDown(0.5) })).toBe(0.8);
   });
 });

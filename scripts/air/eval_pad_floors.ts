@@ -49,6 +49,12 @@ function kit(): Pads {
   for (const id of ['p6', 'p7'] as PadId[]) pads[id] = { ...pads[id], on: true };
   return pads;
 }
+/** Every slot on. */
+function allPads(): Pads {
+  const pads = kit();
+  for (const id of Object.keys(pads) as PadId[]) pads[id] = { ...pads[id], on: true };
+  return pads;
+}
 const s = (pad: PadId, force: DrumStroke['force'] = 'hard', lift?: number): DrumStroke => ({ pad, where: 'centre', force, ...(lift !== undefined ? { lift } : {}) });
 const alternate = (a: PadId, b: PadId, n = 16, stroke: (pad: PadId, k: number) => DrumStroke = (pad) => s(pad)): DrumStroke[] =>
   Array.from({ length: n }, (_, k) => stroke(k % 2 ? b : a, k));
@@ -79,6 +85,14 @@ const ROWS: Row[] = [
   { name: '#533 snare lift 0.5 / kick 0.7', script: alternate('p1', 'p6', 16, (pad) => s(pad, 'hard', pad === 'p1' ? 0.5 : 0.7)) },
   { name: '#533 kick kick snare, snare 0.5|0.9', script: Array.from({ length: 4 }, (_, k) => [s('p6'), s('p6'), s('p1', 'hard', k % 2 ? 0.9 : 0.5)]).flat().slice(0, 10) },
   { name: '#533 snare lifts 0.5..0.9 / kick 0.7', script: alternate('p1', 'p6', 16, (pad, k) => s(pad, 'hard', pad === 'p1' ? [0.5, 0.9, 0.6, 0.8][(k >> 1) % 4] : 0.7)) },
+  // The #530 review: one pad played at varied heights with a stacked pad on and never struck.
+  { name: 'snare only (kick on), lifts 0.7 / 0.5', script: alternate('p1', 'p1', 16, (pad, k) => s(pad, 'hard', k % 2 ? 0.5 : 0.7)) },
+  { name: 'snare only (kick on), lifts 0.5..0.9', script: alternate('p1', 'p1', 16, (pad, k) => s(pad, 'hard', [0.5, 0.9, 0.6, 0.8][k % 4])) },
+  { name: 'snare only (all 8 pads on), 0.7 / 0.5', script: alternate('p1', 'p1', 16, (pad, k) => s(pad, 'hard', k % 2 ? 0.5 : 0.7)), pads: allPads() },
+  { name: 'kick only (snare on), lifts 0.7 / 1.0', script: alternate('p6', 'p6', 16, (pad, k) => s(pad, 'hard', k % 2 ? 1.0 : 0.7)) },
+  { name: 'kick only (snare on), lifts 0.7 / 0.9', script: alternate('p6', 'p6', 16, (pad, k) => s(pad, 'hard', k % 2 ? 0.9 : 0.7)) },
+  { name: 'snare soft 0.5 / hard (kick on)', script: alternate('p1', 'p1', 16, (pad, k) => (k % 2 ? s(pad, 'soft', 0.5) : s(pad))) },
+  { name: 'snare soft 0.5 / kick hard', script: alternate('p1', 'p6', 16, (pad) => (pad === 'p1' ? s(pad, 'soft', 0.5) : s(pad))) },
   // #531 / #530: from a high pad down to a low one never struck.
   { name: 'crash then snare (starter kit)', script: [s('p4'), s('p4'), s('p1'), s('p1'), s('p4'), s('p1')], pads: starterKitPads() },
   { name: 'ride then floor tom', script: [s('p5'), s('p5'), s('p7'), s('p7'), s('p5'), s('p7')] },

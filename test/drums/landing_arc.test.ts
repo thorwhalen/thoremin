@@ -122,8 +122,8 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
   // and 8 with soft and hard strokes mixed; tom/floor tom 8. After #353 the only stroke
   // off its pad was the first on the kick; since #530 (a never-struck pad's expected
   // floor) none is.
-  const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard'): DrumStroke[] =>
-    Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k) }));
+  const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard', lift: (k: number) => number | undefined = () => undefined): DrumStroke[] =>
+    Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k), ...(lift(k) !== undefined ? { lift: lift(k) } : {}) }));
   /** The kick moved down so that it no longer overlaps the snare (0.82 to 0.94; the snare
    *  ends at 0.84 only at its centre's x): a prediction at the kick's floor is read on the
    *  kick, not on the snare its path crosses first (the #353 review). */
@@ -134,6 +134,11 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
     ['kick and snare alternating under landmark noise', alternate('p1', 'p6'), { noise: 0.02, seed: 3 }],
     ['kick and snare, soft and hard strokes mixed', alternate('p1', 'p6', (k) => (k % 4 < 2 ? 'soft' : 'hard')), {}],
     ['tom and floor tom (overlapping) alternating', alternate('p3', 'p7'), {}],
+    // #533: the snare raised lower than the kick, so its strokes start where the kick's
+    // do (by the top, 7 of 16 off; by the hand, none); and soft snare strokes against
+    // hard kicks, which main named the kick's floor and so never sounded (7 missed).
+    ['the snare raised 0.45 rad, the kick 0.7 (#533)', alternate('p1', 'p6', (k) => 'hard', (k) => (k % 2 ? 0.7 : 0.45)), {}],
+    ['soft snare strokes raised 0.5 rad against hard kicks (#533)', alternate('p1', 'p6', (k) => (k % 2 ? 'hard' : 'soft'), (k) => (k % 2 ? undefined : 0.5)), {}],
   ];
   for (const [name, script, options, layout = (p: Pads) => p] of cases) {
     it(name, async () => {
