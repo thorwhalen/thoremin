@@ -39,7 +39,7 @@ import { handSessionStore, handTestStore } from '../app/handSession';
 import { bodySessionStore, bodyTestStore } from '../app/bodySession';
 import { WordsContext } from './words';
 import type { FaceTestState } from '../app/testStore';
-import { downloadCategorizer, ImportButton, TestAndTune } from './TestAndTune';
+import { downloadCategorizer, ImportButton, mergeText, TestAndTune } from './TestAndTune';
 import { setupCues, vocabularyCue } from '../lib/take';
 import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
@@ -156,6 +156,14 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
         <p className="text-[10px] text-amber-200/80" data-faces-unsaved>
           Not saved yet.
         </p>
+      )}
+      {s.phase === 'carved' && (
+        <div className="flex items-start gap-2" data-faces-add-more>
+          <button type="button" className={btn} disabled={view.k === 0} onClick={() => s.startMerge('samples')}>
+            {mergeText(words).samples.button}
+          </button>
+          <p className="text-[10px] leading-snug text-white/45">{`Record a short take before saving; each new ${words.one} joins its nearest category. The categories and the ${words.many} you moved stay where they are.`}</p>
+        </div>
       )}
       {s.phase === 'saved' && <TestAndTune session={session} test={test} />}
     </div>
@@ -381,7 +389,7 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
         : cue.instruction;
   return (
     <div className="space-y-2" data-faces-recording={phase}>
-      {s.merging && <p className="text-[11px] font-semibold text-emerald-200">{`Adding to "${s.name}": ${s.merging === 'samples' ? `new ${many} join its categories` : 'its categories are learned again from this take'}.`}</p>}
+      {s.merging && <p className="text-[11px] font-semibold text-emerald-200">{`Adding to ${s.name ? `"${s.name}"` : 'this carve'}: ${s.merging === 'samples' ? `new ${many} join its categories` : 'its categories are learned again from this take'}.`}</p>}
       <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-white/70" role="status" aria-live="polite">
         <span className={`font-bold uppercase tracking-widest ${phase === 'faces' ? 'text-rose-300' : phase === 'paused' ? 'text-amber-200' : 'text-white/60'}`} data-faces-state>
           {phase === 'faces' ? '● ' : ''}

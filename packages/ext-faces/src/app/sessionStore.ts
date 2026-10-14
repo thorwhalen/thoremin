@@ -321,8 +321,9 @@ export interface FaceSessionState {
   /** Step the working categorizer back to before the last edit (exactly), or forward again. */
   undo(): void;
   redo(): void;
-  /** Record a new take and merge it into the open categorizer (P1's `mergeSession`); `burstName`
-   *  names its bursts ("Record more frown"). */
+  /** Record a new take and merge it into the working categorizer (P1's `mergeSession`): the open
+   *  one, or a fresh carve before it is saved (#421); `burstName` names its bursts ("Record more
+   *  frown"). */
   startMerge(seed: MergeSeed, options?: { burstName?: string }): void;
   /** Open a categorizer from a file's text (validated, older versions migrated); not saved yet. */
   importFile(text: string): boolean;
@@ -363,6 +364,9 @@ export const FACE_SESSION_DEFAULTS = {
   /** Frames into a burst its still is taken. */
   burstStillAfter: 3,
 } as const;
+
+/** A fresh take's rest while its carve is shown: its frames, and the rest cloud by hold id. */
+type FreshTake = { rest: readonly FeatureVector[]; cloud: ReadonlySet<string> | null };
 
 /** One step of the edit history: the working categorizer and how its names came about. */
 interface Snapshot {
@@ -413,7 +417,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
    *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
    *  say), which seeds Neutral in either setting of the strangers switch (#385 E5). */
-  let fresh: { rest: readonly FeatureVector[]; cloud: ReadonlySet<string> | null } | null = null;
+  let fresh: FreshTake | null = null;
   /** The open categorizer's reject radius as opened: a re-cut floors from it, so k up and down
    *  does not drift. */
   let baseRadius: number | undefined;
@@ -429,6 +433,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** The categorizer a recording is being merged into, and what to restore if it is empty. */
   let mergeBase: {
     seed: MergeSeed;
+    /** Where the take returns: a fresh carve (#421: "Add more" before it is saved) or the open one. */
+    phase: 'carved' | 'saved';
+    /** Whether the carve it returns to has pictures (a fresh carve's are its take's). */
+    hasStills: boolean;
     working: PersonalCategorizer;
     record: FaceModelRecord | null;
     openId: string | null;
@@ -437,7 +445,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     checks: CategorizerChecks;
     dirty: boolean;
     /** The edit state the merge returns to (its history: the merge itself is one undoable edit). */
-    edits: { sources: NameSources; undo: Snapshot[]; redo: Snapshot[]; baseRadius: number | undefined };
+    edits: { sources: NameSources; undo: Snapshot[]; redo: Snapshot[]; baseRadius: number | undefined; fresh: FreshTake | null };
   } | null = null;
   /** The hold ids of the samples shown, by index (the take's holds, or the open categorizer's
    *  samples): what `thumbs` is keyed by. */
@@ -824,7 +832,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     };
     /** Put back the edit state a merge take left (its history, names and radius). */
     const restoreEdits = (e: NonNullable<typeof mergeBase>['edits']) => {
-      fresh = null;
+      // A fresh carve keeps its first take's rest (#421): the reject radius and Neutral's seed.
+      fresh = e.fresh;
       sources = e.sources;
       undoStack = e.undo;
       redoStack = e.redo;
@@ -1062,7 +1071,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, burst: null, burstName: '' };
           // Back to the categorizer the take was adding to, its edit history and all.
           restoreEdits(merge.edits);
-          showDoc(merge.working, { phase: 'saved', ...restore, dirty: merge.dirty });
+          showDoc(merge.working, { phase: merge.phase, ...restore, ...(merge.phase === 'carved' ? { hasStills: merge.hasStills } : {}), dirty: merge.dirty });
           // A merge needs no carve of its own, so one hold (a single burst: "Record more frown")
           // is enough; a fresh take needs two to carve.
           if (!built && myTake.pointCount() === 0) {
@@ -1390,7 +1399,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         openRecord = merge.record;
         restoreEdits(merge.edits);
         showDoc(merge.working, {
-          phase: 'saved',
+          phase: merge.phase,
+          ...(merge.phase === 'carved' ? { hasStills: merge.hasStills } : {}),
           openId: merge.openId,
           name: merge.name,
           tuning: merge.tuning,
@@ -1425,9 +1435,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       startMerge(seed, options = {}) {
-        const { phase, working, openId, name, tuning, checks } = get();
-        if (phase !== 'saved' || !working) return;
-        mergeBase = { seed, working, record: openRecord, openId, name, tuning, checks, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius } };
+        const { phase, working, openId, name, tuning, checks, hasStills } = get();
+        // A fresh carve too (#421): the same document, so the new holds are added to it, its
+        // pins kept, and its first take's rest kept for the reject radius.
+        if ((phase !== 'saved' && phase !== 'carved') || !working) return;
+        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name, tuning, checks, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
         get().start();
         // After the start (which resets): the take's bursts carry this name.
         set({ burstName: options.burstName ?? '' });
