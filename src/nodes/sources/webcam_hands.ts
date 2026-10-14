@@ -149,16 +149,26 @@ export const webcamHandsNode = defineNode<Params>({
       const want = wantedHands(resources, p.maxHands);
       if (want === numHands) return false;
       reconfiguring = true;
+      const before = numHands;
+      // A landmarker closed (or replaced) before the change runs is left alone: `setOptions`
+      // would rebuild a graph on it that nothing ever frees.
+      const live = (): boolean => !disposed && landmarker === lm;
       // Through a resolved promise, so a synchronous throw lands in the same catch.
       Promise.resolve()
-        .then(() => lm.setOptions({ numHands: want }))
+        .then(() => (live() ? lm.setOptions({ numHands: want }) : undefined))
         .then(() => {
           numHands = want;
         })
-        .catch((err: unknown) => {
-          // The old count stands for good: asking again on every frame would spin on the error.
-          console.warn('[thoremin] hand model could not change its hand count', err);
+        .catch(async (err: unknown) => {
+          // A failed rebuild may leave the landmarker without a graph, so the old count is put
+          // back once; either way it stands for good (asking on every frame would spin).
           countFixed = true;
+          console.warn('[thoremin] hand model could not change its hand count; keeping', before, err);
+          try {
+            if (live()) await lm.setOptions({ numHands: before });
+          } catch (restoreErr) {
+            console.error('[thoremin] hand model could not restore its hand count; hands may stop', restoreErr);
+          }
         })
         .finally(() => {
           reconfiguring = false;

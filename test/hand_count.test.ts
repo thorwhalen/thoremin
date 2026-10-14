@@ -44,6 +44,16 @@ describe('branchHands', () => {
   });
 });
 
+describe("the trunk's own hand readers", () => {
+  it('are only the ones the shell context covers (features, the Lab vector, gestures, the overlay)', () => {
+    // `branchHands` counts the trunk as reading no hand because each of its readers is
+    // covered by `HandCountContext`; a new trunk node reading the hands must be added there.
+    const trunk = byId.get('trunk')!;
+    const readers = new Set(trunk.edges.filter((e) => ['cam', 'feat', 'handVec', 'gesture'].includes(e.from.node)).map((e) => e.to.node));
+    expect([...readers].sort()).toEqual(['feat', 'gesture', 'handVec', 'overlay']);
+  });
+});
+
 describe('deriveHandCount', () => {
   it('looks for both hands when a composed branch plays both', () => {
     expect(deriveHandCount(composed({}), HIDDEN, RECOMMENDED)).toBe(2);

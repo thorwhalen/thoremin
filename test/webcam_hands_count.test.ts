@@ -110,6 +110,7 @@ describe('webcam-hands follows the host hand count', () => {
 
   it('keeps the old count for good when a change fails, and never asks again', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     setOptions.mockImplementation(async () => {
       throw new Error('graph rebuild failed');
     });
@@ -118,11 +119,25 @@ describe('webcam-hands follows the host hand count', () => {
     hands.n = 1;
     step();
     await flush();
+    await flush();
     for (let i = 0; i < 5; i++) step();
-    expect(setOptions).toHaveBeenCalledTimes(1);
+    // The change, then one attempt to put the old count back; never asked again after.
+    expect(setOptions.mock.calls.map((c) => c[0])).toEqual([{ numHands: 1 }, { numHands: 2 }]);
     expect(landmarker.detectForVideo).toHaveBeenCalledTimes(5);
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledTimes(1); // the restore failed too (the mock always throws)
     warn.mockRestore();
+    error.mockRestore();
     node.dispose!();
+  });
+
+  it('leaves a landmarker disposed before a change runs alone', async () => {
+    const hands = { n: 2 };
+    const node = await start(hands);
+    hands.n = 1;
+    step();
+    node.dispose!();
+    await flush();
+    expect(setOptions).not.toHaveBeenCalled();
   });
 });
