@@ -73,6 +73,7 @@ export function FeatureBars({
   maxPins = BARS_DEFAULTS.count,
 }: FeatureBarsProps) {
   const [more, setMore] = useState(false);
+  const [choice, setChoice] = useState('');
   const count = more ? BARS_DEFAULTS.more : BARS_DEFAULTS.count;
   const pinKey = pinned.join('\n');
   const [bars, setBars] = useState<LiveBars | null>(() => read({ count, pinned }));
@@ -82,12 +83,20 @@ export function FeatureBars({
     const timer = setInterval(() => setBars(read({ count, pinned: ids })), rateMs);
     return () => clearInterval(timer);
   }, [read, count, rateMs, pinKey]);
+  // A pin no feature answers to any more (a renamed catalog id) has no bar and no entry to
+  // unpin it from, yet would hold a slot: drop it as soon as the features are known.
+  const known = bars?.choices ?? null;
+  useEffect(() => {
+    if (!onPinnedChange || !known || known.length === 0) return;
+    const ids = new Set(known.map((c) => c.id));
+    if (pinned.some((id) => !ids.has(id))) onPinnedChange(pinned.filter((id) => ids.has(id)));
+  }, [known, pinKey, onPinnedChange]);
 
   if (!bars) return null;
   const inView = bars.bars.some((b) => b.value !== null);
   const isPinned = (id: string) => pinned.includes(id);
   const togglePin = (id: string) => onPinnedChange?.(isPinned(id) ? pinned.filter((x) => x !== id) : [...pinned, id]);
-  const full = pinned.length >= maxPins;
+  const full = pinned.filter((id) => (bars.choices ?? []).some((c) => c.id === id)).length >= maxPins;
   const shownIds = new Set(bars.bars.map((b) => b.id));
   const unshown = (bars.choices ?? []).filter((c) => !shownIds.has(c.id)).sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
   return (
@@ -102,12 +111,12 @@ export function FeatureBars({
             {onPinnedChange && (
               <button
                 type="button"
-                aria-label={`${isPinned(b.id) ? 'Unpin' : 'Pin'} ${b.label}`}
+                aria-label={`Pin ${b.label}`}
                 aria-pressed={isPinned(b.id)}
                 title={isPinned(b.id) ? 'Pinned: always shown. Click to unpin.' : full ? `At most ${maxPins} pinned` : 'Pin: always show this one'}
                 disabled={!isPinned(b.id) && full}
                 onClick={() => togglePin(b.id)}
-                className={`shrink-0 ${isPinned(b.id) ? 'text-amber-300' : 'text-white/30 hover:text-white/70'} disabled:opacity-30`}
+                className={`-m-1 shrink-0 p-1 ${isPinned(b.id) ? 'text-amber-300' : 'text-white/30 hover:text-white/70'} disabled:opacity-30`}
               >
                 <PinIcon on={isPinned(b.id)} />
               </button>
@@ -148,26 +157,40 @@ export function FeatureBars({
       </ul>
       <p className="flex items-center gap-2 text-[9px] text-white/40">
         <span className="flex-1">
-          {bars.categories >= 2 ? `The ticks are your ${bars.categories} ${one}s so far; these features tell them apart.` : bars.categories === 1 ? `The tick is your first ${one}.` : 'The features that moved most lately.'}
+          {pinned.length > 0 ? 'Pinned first. ' : ''}
+          {bars.categories >= 2 ? `The ticks are your ${bars.categories} ${one}s so far; ${pinned.length > 0 ? 'the others' : 'these features'} tell them apart.` : bars.categories === 1 ? `The tick is your first ${one}.` : 'The features that moved most lately.'}
         </span>
         {onPinnedChange && unshown.length > 0 && (
-          <select
-            aria-label="Pin a feature"
-            value=""
-            disabled={full}
-            title={full ? `At most ${maxPins} pinned: unpin one first` : 'Always show a feature the bars do not show now'}
-            onChange={(e) => {
-              if (e.target.value) togglePin(e.target.value);
-            }}
-            className="max-w-28 rounded bg-white/5 text-[9px] text-white/60 disabled:opacity-40"
-          >
-            <option value="">Pin a feature...</option>
-            {unshown.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          <span className="flex items-center gap-1">
+            {/* Choosing is not pinning: arrowing through a closed select fires a change per
+                option in some browsers, so the pin is its own button. */}
+            <select
+              aria-label="A feature to pin"
+              value={unshown.some((c) => c.id === choice) ? choice : ''}
+              disabled={full}
+              title={full ? `At most ${maxPins} pinned: unpin one first` : 'Always show a feature the bars do not show now'}
+              onChange={(e) => setChoice(e.target.value)}
+              className="max-w-28 rounded bg-white/5 text-[9px] text-white/60 disabled:opacity-40"
+            >
+              <option value="">Pin a feature...</option>
+              {unshown.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="underline hover:text-white/70 disabled:no-underline disabled:opacity-40"
+              disabled={full || !unshown.some((c) => c.id === choice)}
+              onClick={() => {
+                togglePin(choice);
+                setChoice('');
+              }}
+            >
+              Pin it
+            </button>
+          </span>
         )}
         <button type="button" className="underline hover:text-white/70" onClick={() => setMore((m) => !m)}>
           {more ? 'fewer' : 'more'}

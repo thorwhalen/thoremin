@@ -16,6 +16,8 @@ import { syntheticSource } from '@thoremin/ext-faces/app/sources';
 import { faceTestStore } from '@thoremin/ext-faces/app/faceSession';
 import { FaceSessionView } from '@thoremin/ext-faces/panels/FaceSessionPanel';
 import { BAR_PINS_DEFAULTS, BAR_PINS_STORAGE_KEY, createBarPinsStore, pinsOf, useBarPins, type BarPins } from '@thoremin/sdk-ui/enroll/barPins';
+import { BARS_DEFAULTS, featureLabels } from '@thoremin/sdk/enroll/bars';
+import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import '@/app/dials/useDialsSettings'; // the dials host the panel's "Play it" reads
 
 let clock = 1000;
@@ -59,6 +61,7 @@ describe('the pins store', () => {
     a.getState().setPinned('hand', Array.from({ length: 20 }, (_, i) => `h${i}`));
     expect(pinsOf(a.getState(), 'face')).toEqual(['x', 'y']);
     expect(pinsOf(a.getState(), 'hand')).toHaveLength(BAR_PINS_DEFAULTS.max);
+    expect(BAR_PINS_DEFAULTS.max).toBeLessThan(BARS_DEFAULTS.count); // one bar is always the bars' own
     expect(pinsOf(a.getState(), 'body')).toEqual([]);
     expect(pinsOf(a.getState(), 'body')).toBe(pinsOf(a.getState(), 'pose')); // a stable empty selector
 
@@ -67,6 +70,21 @@ describe('the pins store', () => {
     b.getState().setPinned('body', ['z']); // set before the read resolves: it wins
     await b.getState().hydrate();
     expect(b.getState().pins).toEqual({ face: ['x', 'y'], hand: pinsOf(a.getState(), 'hand'), body: ['z'] });
+  });
+});
+
+describe('the labels a player picks by', () => {
+  it('are unique for the side-relative hand space (five fingers each "curl" without it)', () => {
+    const ids = handModality.space!.ids;
+    const labels = [...featureLabels(ids).values()];
+    expect(new Set(labels).size).toBe(ids.length);
+    expect(featureLabels(['index.curl', 'middle.curl', 'face.head.yaw'])).toEqual(
+      new Map([
+        ['index.curl', 'index curl'],
+        ['middle.curl', 'middle curl'],
+        ['face.head.yaw', 'head yaw'],
+      ]),
+    );
   });
 });
 
@@ -95,10 +113,17 @@ describe('pinned bars in Explore', () => {
     expect(rows()[0]).toBe(last);
     expect(document.querySelector(`[data-feature-bar="${last}"]`)!.getAttribute('data-feature-bar-pinned')).toBe('true');
 
-    // A feature not shown, through "Pin a feature".
-    const picker = screen.getByRole('combobox', { name: 'Pin a feature' }) as HTMLSelectElement;
+    const pin = screen.getByRole('button', { name: `Pin ${lastLabel}` });
+    expect(pin.getAttribute('aria-pressed')).toBe('true');
+
+    // A feature not shown: chosen in the list (choosing alone pins nothing), then "Pin it".
+    const picker = screen.getByRole('combobox', { name: 'A feature to pin' }) as HTMLSelectElement;
+    const labels = [...picker.options].map((o) => o.text);
+    expect(new Set(labels).size).toBe(labels.length);
     const hidden = [...picker.options].map((o) => o.value).find((v) => v !== '' && !rows().includes(v))!;
     fireEvent.change(picker, { target: { value: hidden } });
+    expect(pinnedNow()).toEqual([last]);
+    fireEvent.click(screen.getByRole('button', { name: 'Pin it' }));
     expect(pinnedNow()).toEqual([last, hidden]);
     await run(200);
     expect(rows().slice(0, 2)).toEqual([last, hidden]);
@@ -107,10 +132,22 @@ describe('pinned bars in Explore', () => {
     await vi.waitFor(() => expect(localStorage.getItem(BAR_PINS_STORAGE_KEY) ?? '').toContain(hidden));
 
     // Unpin: the feature is no longer held first.
-    fireEvent.click(screen.getByRole('button', { name: `Unpin ${lastLabel}` }));
+    fireEvent.click(screen.getByRole('button', { name: `Pin ${lastLabel}` }));
     expect(pinnedNow()).toEqual([hidden]);
     await run(200);
     expect(rows()[0]).toBe(hidden);
+    store.getState().cancelRecording();
+  });
+
+  it('drops a pin no feature answers to (a renamed id), so it never holds a slot', async () => {
+    vi.useFakeTimers();
+    useBarPins.setState({ pins: { face: ['face.renamed.gone', 'face.blendshape.mouth.smileLeft'] } });
+    const store = createFaceSessionStore(deps());
+    store.getState().explore();
+    await run(500);
+    render(<FaceSessionView store={store} test={faceTestStore()} />);
+    await run(200);
+    expect(pinsOf(useBarPins.getState(), 'face')).toEqual(['face.blendshape.mouth.smileLeft']);
     store.getState().cancelRecording();
   });
 });

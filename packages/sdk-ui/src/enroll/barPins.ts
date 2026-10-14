@@ -15,9 +15,9 @@ import { createLocalStorageProvider } from '@zodal/store-localstorage';
 import { BARS_DEFAULTS } from '@thoremin/sdk/enroll/bars';
 
 export const BAR_PINS_DEFAULTS = {
-  /** The most features pinned per modality: as many as the bars show, so the pins fill the
-   *  bars at most and "more" still shows chosen ones. */
-  max: BARS_DEFAULTS.count,
+  /** The most features pinned per modality: one fewer than the bars show, so at least one bar
+   *  is always the bars' own choice. */
+  max: BARS_DEFAULTS.count - 1,
 } as const;
 
 /** One modality's pins: the record's id is the modality id (`face`, `hand`, `body`). */
