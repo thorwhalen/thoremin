@@ -38,7 +38,11 @@ export const POSES_TOOL: ExtensionToolDecl = {
 export const FACES_UI_STUB: ExtensionUiStub = {
   id: 'faces',
   // The instrument editor's section (#330 P4): which categorizer the face chords read.
-  panels: [{ instrumentId: 'faces', section: 'Face categorizer' }],
+  // And (#384) which saved pose categorizer the instrument reads and conducts with.
+  panels: [
+    { instrumentId: 'faces', section: 'Face categorizer' },
+    { instrumentId: 'faces', section: 'Pose categorizer' },
+  ],
   tools: [FACES_TOOL, HANDS_TOOL, POSES_TOOL],
 };
 

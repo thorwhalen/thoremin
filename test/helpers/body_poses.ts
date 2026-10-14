@@ -11,7 +11,9 @@
  * vector node's mask then drops every leg feature. Deterministic jitter, as the scripted body's.
  */
 import { BLM, BODY_LANDMARK_COUNT, makeBodyKeypoints, type BodyFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
-import { bodyFrameVector } from '@thoremin/sdk/features/modalities/body';
+import { bodyFrameVector, bodyModality } from '@thoremin/sdk/features/modalities/body';
+import { trainModel } from '@thoremin/sdk/enroll/classify';
+import { categorizerFromModel, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 
 /** A segment's direction in the torso frame (any length; normalised). */
@@ -166,4 +168,26 @@ export function poseFrame(spec: PoseSpec, frame = 0): BodyFrame {
 /** The merged vector's `body.*` keys of a pose (`frame` seeds the jitter). */
 export function poseVector(spec: PoseSpec, frame = 0): FeatureVector {
   return bodyFrameVector(poseFrame(spec, frame));
+}
+
+/**
+ * A small saved-style pose categorizer straight from the scripted poses (no take): `frames`
+ * jittered frames of each, one category per pose named for it, distances in degrees per 90 and
+ * lengths as they are. For the shell tests, which need a real body categorizer to play.
+ */
+export function scriptedPoseCategorizer(names: readonly PoseName[], frames = 6): PersonalCategorizer {
+  const vectors: FeatureVector[] = [];
+  const clusters: number[][] = [];
+  names.forEach((n, c) => {
+    clusters.push([]);
+    for (let f = 0; f < frames; f++) {
+      clusters[c].push(vectors.length);
+      vectors.push(bodyModality.read(poseVector(POSES[n], 1000 * c + f))!);
+    }
+  });
+  const features = Object.keys(vectors[0]).filter((k) => vectors.every((v) => Number.isFinite(v[k])));
+  const weights = Object.fromEntries(features.map((k) => [k, k.startsWith('body.dir.') || k.startsWith('body.angle.') ? 1 / 9 : 10]));
+  const model = trainModel(vectors, clusters, features, weights);
+  model.categories.forEach((c, i) => (c.label = names[i]));
+  return categorizerFromModel(model, vectors.map((vector, i) => ({ vector, t: i * 33, cue: 'poses-yours' })), { name: 'scripted', strangers: 'nearest', modality: 'body' });
 }

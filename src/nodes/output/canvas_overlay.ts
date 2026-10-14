@@ -1036,6 +1036,20 @@ function categoryText(view: OverlayView): string | null {
 const CATEGORY_CHAR_W = 0.62; // bold monospace glyph width per px of font size
 const categoryLabelPx = (view: OverlayView): number => Math.round(40 + 160 * clamp01(view.params.categoryLabel.size));
 
+/**
+ * The category reading the cues draw (#384): the classifier's (`categories`, the ASL reader) while
+ * it reads, else the player's own learned categories (`learnedCategories`); captions belong to the
+ * classifier's only.
+ */
+export function pickCategories(
+  classifier: CategoryScores | null | undefined,
+  captions: readonly string[] | null | undefined,
+  learned: CategoryScores | null | undefined,
+): { categories: CategoryScores | null | undefined; categoryCaptions: readonly string[] | null | undefined } {
+  if (classifier?.present || !learned) return { categories: classifier, categoryCaptions: captions };
+  return { categories: learned, categoryCaptions: null };
+}
+
 /** A classifier's named class, written large (the ASL reader's letter or word). */
 const categoryLabelCue: OverlayElement = {
   name: 'categoryLabel',
@@ -2107,6 +2121,9 @@ export const canvasOverlayNode = defineNode<Params>({
     // A classifier's reading and per-class captions, for the category cues.
     { name: 'categories', kind: 'category-scores' },
     { name: 'categoryCaptions', kind: 'string[]' },
+    // A player's own learned categories (#384: a saved pose categorizer), drawn by the same cues
+    // while the classifier above is not reading. Its own port: two branches can never feed one.
+    { name: 'learnedCategories', kind: 'category-scores' },
     // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
     // the current instrument. Absent → every element (headless tests, pre-composition).
     { name: 'elements', kind: 'string[]' },
@@ -2206,8 +2223,11 @@ export const canvasOverlayNode = defineNode<Params>({
             tagOverlay,
             trainerHud: trainerHudSnapshot,
             airFluteStatus: inputs.airFluteStatus as BreathStatus | undefined,
-            categories: inputs.categories as CategoryScores | null | undefined,
-            categoryCaptions: inputs.categoryCaptions as readonly string[] | null | undefined,
+            ...pickCategories(
+              inputs.categories as CategoryScores | null | undefined,
+              inputs.categoryCaptions as readonly string[] | null | undefined,
+              inputs.learnedCategories as CategoryScores | null | undefined,
+            ),
           },
         };
         if (Array.isArray(inputs.elements)) {

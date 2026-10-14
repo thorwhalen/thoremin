@@ -28,7 +28,7 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
 import { FeatureBars } from '@thoremin/sdk-ui/enroll/FeatureBars';
 import { HoldRing, type HoldRingState } from '@thoremin/sdk-ui/enroll/HoldRing';
-import { dispatchDialPatch, useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isLive, type FaceSessionState } from '../app/sessionStore';
@@ -45,6 +45,7 @@ import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
 import { chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
+import { usePosePlay } from '../app/posePlay';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -197,6 +198,37 @@ function PlayButton({ id, name, unsaved }: { id: string; name: string; unsaved: 
   );
 }
 
+/**
+ * "Play it" for a pose categorizer (#384): the current instrument reads it (the `poseCategorizer`
+ * dial, one `dial.setIn`), its category drawn on the video; the body conductor's start, hold and
+ * cut-off from these poses is the editor's Pose categorizer section's (or the Conductor tool's)
+ * second choice. Unsaved, like any edit.
+ */
+function PosePlayButton({ id, name, unsaved }: { id: string; name: string; unsaved: boolean }) {
+  const { state } = useDialsSettings();
+  const play = usePosePlay();
+  const chosen = ((state.effective as Record<string, unknown>).poseCategorizer as { id?: string } | undefined)?.id === id;
+  const note = unsaved ? ' (the saved version)' : '';
+  if (chosen) {
+    return (
+      <span className="shrink-0 text-[10px] text-emerald-300/80" data-poses-playing={id}>
+        {play.id !== id || play.phase === 'loading' ? 'Loading…' : play.phase === 'ready' ? `Playing${note}` : 'Not found'}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={btn}
+      aria-label={`Play ${name}`}
+      title={`The current instrument reads these poses${note} and draws them on the video (unsaved, like any edit)`}
+      onClick={() => void dispatchDialSetIn('poseCategorizer.id', id)}
+    >
+      Play it
+    </button>
+  );
+}
+
 function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard: () => boolean }) {
   if (s.saved.length === 0) return <p className={hint}>No saved categorizers yet.</p>;
   return (
@@ -208,7 +240,14 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
           <button type="button" className={btn} aria-label={`Open ${m.name}`} onClick={() => confirmDiscard() && void s.open(m.id)}>
             Open
           </button>
-          {s.modality.id === 'face' ? <PlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} /> : <BindButton s={s} id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />}
+          {s.modality.id === 'face' ? (
+            <PlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
+          ) : (
+            <>
+              {s.modality.id === 'body' && <PosePlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />}
+              <BindButton s={s} id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
+            </>
+          )}
           <button type="button" className={btn} aria-label={`Export ${m.name} as a file`} title="Save it as a file, as saved (no pictures)" onClick={() => void s.exportSaved(m.id).then(downloadCategorizer)}>
             Export
           </button>

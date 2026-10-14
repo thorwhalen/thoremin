@@ -26,6 +26,9 @@
  * "Teach my conducting poses" (#383): with the body, the panel opens "Your poses" (an extension's
  * tool, so only when the build ships it) asking for the conductor's default names, `ready`,
  * `fermata`, `cut-off` and `rest`: two clicks from the Conductor to a take in that vocabulary.
+ * "Start, hold and cut off with my poses" (#384) then lets those categories replace the body
+ * conductor's rules (the `poseCategorizer.transport` dial; the categorizer itself is chosen by
+ * "Play it" in Your poses, which the checkbox opens when none is chosen yet).
  *
  * "Dance the orchestra" (#380): the same dial's third leader, a dancer. The pose branch
  * again, read as the dancer's pulse; the score starts on the dancer's step once the
@@ -187,6 +190,12 @@ export default function ConductorPanel() {
   const enabled = conductorDial.enabled === true;
   const recording = conductorDial.conducts === 'recording';
   const source = CONDUCTOR_SOURCES.find((s) => s === conductorDial.source) ?? 'hands';
+  // The faces extension's pose categorizer (#384), when the build ships it: its ready, fermata
+  // and cut-off poses may replace the body conductor's rules (#387 B5).
+  const poseDial = (state.effective as Record<string, unknown>).poseCategorizer as { id?: string; transport?: boolean } | undefined;
+  // The poses add to the body transport's rules (A5), which run only with the rules on and the
+  // beating arm read (`conductor.ts`, `TRANSPORT_POINTS`).
+  const bodyTransportOn = conductorDial.transport?.rules !== false && ['impact', 'wrist'].includes(String(conductorDial.bodyPoint ?? 'impact'));
 
   return (
     <div className="shell-tool-panel absolute left-3 z-40 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur">
@@ -262,6 +271,25 @@ export default function ConductorPanel() {
           >
             Teach my conducting poses (ready, fermata, cut-off)...
           </button>
+        )}
+        {source === 'body' && poseDial && (
+          <label className="flex items-center gap-2 text-xs text-white/80" data-conductor-pose-transport>
+            <input
+              type="checkbox"
+              checked={poseDial.transport === true}
+              onChange={(e) => {
+                void dispatchDialSetIn('poseCategorizer.transport', e.target.checked);
+                // No poses chosen yet: Your poses is where one is played ("Play it").
+                if (e.target.checked && !poseDial.id && shellToolById(POSES_TOOL_ID)) useTools.getState().openTool(POSES_TOOL_ID);
+              }}
+            />
+            <span>{poseDial.id ? 'Start, hold and cut off with my poses' : 'Start, hold and cut off with my poses (choose them in Your poses)'}</span>
+          </label>
+        )}
+        {source === 'body' && poseDial?.transport && !bodyTransportOn && (
+          <p className="text-[10px] text-amber-300/80" data-conductor-pose-transport-off>
+            Your poses start and stop the music only while the body transport is on and the conductor reads the beating arm (the conductor section's transport settings).
+          </p>
         )}
         <LiveReadout live={live} source={source} recording={recording} />
         <p className="text-[10px] leading-relaxed text-white/50">

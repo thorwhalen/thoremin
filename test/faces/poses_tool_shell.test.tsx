@@ -96,7 +96,8 @@ describe.runIf(FACES)('"Your poses" is reachable from the shell', () => {
     render(<Shell />);
     act(() => useTools.getState().toggleTool('poses'));
     const bind = await screen.findByRole('button', { name: 'Bind Arms to commands' });
-    expect(screen.queryByRole('button', { name: 'Play Arms' })).toBeNull();
+    // A pose categorizer also plays in the instrument (#384), beside Bind.
+    expect(screen.getByRole('button', { name: 'Play Arms' })).toBeTruthy();
     fireEvent.click(bind);
     await waitFor(() => expect(useCategoryBinding.getState().active?.name).toBe('Arms'));
     expect(useCategoryBinding.getState().active!.categories.read).toEqual({ modality: 'body', mirror: true });

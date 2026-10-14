@@ -5,6 +5,8 @@
  * expression model, one-to-one), and several are saved (P2, P3: the tool "Your faces"). An
  * instrument's face chords then read one of them in place of the general model (P4): the
  * `faceCategorizer` dial names it, the `face-categorizer` branch replaces core's `face-chord`.
+ * A saved POSE categorizer plays too (#384): the `poseCategorizer` dial names it, and the
+ * `pose-categorizer` branch reads the body for the overlay and, optionally, the conductor.
  *
  * LAZY (`docs/design/lazy-extensions.md`): this file is the eager stub. It carries the dial, the
  * branch as data, the transient the model arrives on, and the derivation, and names its node
@@ -14,23 +16,32 @@
  */
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
 import type { FaceCategorizerPlay } from './lib/play';
-import { FACES_BRANCHES, FACE_CATEGORIZER_BRANCH_ID } from './branches';
+import type { PoseCategorizerPlay } from './lib/posePlay';
+import { FACES_BRANCHES, FACE_CATEGORIZER_BRANCH_ID, POSE_CATEGORIZER_BRANCH_ID } from './branches';
 import { FACES_DIAL_SLICES } from './dials';
-import { isPersonal, type FaceCategorizerDial } from './schema';
+import { isPersonal, playsPoses, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
 
 export const FACES_EXTENSION = defineExtension({
   id: 'faces',
   // The node type `./lazy.ts` defines (the registry checks the two lists agree on load).
-  provides: ['face-categorizer'],
+  provides: ['face-categorizer', 'pose-categorizer'],
   branches: FACES_BRANCHES,
   dials: FACES_DIAL_SLICES,
   // The resolved categorizer, set by the React half off the tick; null until then (and for the
   // general model), when the node passes the general reading through.
-  transient: [transientPort<FaceCategorizerPlay>()('faceCategorizerModel', 'face-categorizer-model')],
-  // A personal categorizer matters only where the face plays chords.
+  transient: [
+    transientPort<FaceCategorizerPlay>()('faceCategorizerModel', 'face-categorizer-model'),
+    transientPort<PoseCategorizerPlay>()('poseCategorizerModel', 'pose-categorizer-model'),
+  ],
+  // A personal face categorizer matters only where the face plays chords; a pose categorizer
+  // whenever the instrument names one (it composes the body camera).
   derive: (s) => {
     const dial = (s as { faceCategorizer?: Partial<FaceCategorizerDial> }).faceCategorizer;
-    return (s as { faceMapping?: string }).faceMapping === 'chord' && isPersonal(dial) ? [FACE_CATEGORIZER_BRANCH_ID] : [];
+    const poses = (s as { poseCategorizer?: Partial<PoseCategorizerDial> }).poseCategorizer;
+    return [
+      ...((s as { faceMapping?: string }).faceMapping === 'chord' && isPersonal(dial) ? [FACE_CATEGORIZER_BRANCH_ID] : []),
+      ...(playsPoses(poses) ? [POSE_CATEGORIZER_BRANCH_ID] : []),
+    ];
   },
 });
 
