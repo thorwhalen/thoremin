@@ -26,6 +26,10 @@
  * "Teach my conducting poses" (#383): with the body, the panel opens "Your poses" (an extension's
  * tool, so only when the build ships it) asking for the conductor's default names, `ready`,
  * `fermata`, `cut-off` and `rest`: two clicks from the Conductor to a take in that vocabulary.
+ *
+ * "Dance the orchestra" (#380): the same dial's third leader, a dancer. The pose branch
+ * again, read as the dancer's pulse; the score starts on the dancer's step once the
+ * rhythm has held for a few seconds. Three clicks: Conductor, Dance the orchestra, Start.
  */
 import { useRef, useState } from 'react';
 import { Music2, X } from 'lucide-react';
@@ -47,8 +51,30 @@ export const CONDUCTOR_TOOL_ID = 'conductor';
 /** "Your poses" (the faces extension's pose tool, #382). */
 const POSES_TOOL_ID = 'poses';
 
+/** The leader choice's buttons (#375, #380). */
+const SOURCE_BUTTON: Record<ConductorSettings['source'], string> = {
+  hands: 'Conduct with hands',
+  body: 'Conduct with body',
+  dancer: 'Dance the orchestra',
+};
+
 /** What to tell the player, per follower state (and what they conduct with, #375). */
-export function describeLive(live: ConductorLive, source: ConductorSettings['source'] = 'hands'): string {
+export function describeLive(live: ConductorLive, source: ConductorSettings['source'] = 'hands', recording = false): string {
+  if (source === 'dancer') {
+    // Leading a recording, the song's pace law follows the dancer (the Song tool's range).
+    if (recording) return live.enabled ? "The song follows your dance (within the Song tool's follow range)." : 'Off. Press Start, then dance: the song follows your steps.';
+    if (!live.enabled) return 'Off. Press Start, then dance: the piece starts on your step.';
+    switch (live.dance) {
+      case 'armed':
+        return 'Got your rhythm: the piece starts on your next step.';
+      case 'holding':
+        return `Holding ${Math.round(live.tempo)} bpm until your rhythm is clear again.`;
+      case 'switching':
+        return 'Your step changed: following it once it holds.';
+    }
+    if (live.state !== 'running') return 'Dance: the piece starts on your step once your rhythm holds for a few seconds.';
+    return `Following your dance at ${Math.round(live.tempo)} bpm.`;
+  }
   if (!live.enabled) return source === 'body' ? 'Off. Press Start, then beat time with your arm or a bounce.' : 'Off. Press Start, then beat time with your hand.';
   // The body's transport (#377): the pose decides when the piece starts, holds and stops.
   switch (live.transport) {
@@ -118,12 +144,12 @@ function RecordingChooser({ live }: { live: ConductorLive }) {
   );
 }
 
-function LiveReadout({ live, source }: { live: ConductorLive; source: ConductorSettings['source'] }) {
+function LiveReadout({ live, source, recording }: { live: ConductorLive; source: ConductorSettings['source']; recording: boolean }) {
   const beat = live.beatInBar + 1;
   return (
     <div className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2 text-xs" data-testid="conductor-live" data-state={live.enabled ? live.state : 'off'}>
       <div className="flex items-center justify-between">
-        <span className="text-white/80">{describeLive(live, source)}</span>
+        <span className="text-white/80">{describeLive(live, source, recording)}</span>
         {live.enabled && live.state === 'running' && (
           <span className="font-mono text-emerald-300">
             {beat}/{live.beatsPerBar}
@@ -160,7 +186,7 @@ export default function ConductorPanel() {
   const conductorDial = (state.effective.conductor ?? {}) as Partial<ConductorSettings>;
   const enabled = conductorDial.enabled === true;
   const recording = conductorDial.conducts === 'recording';
-  const source = conductorDial.source === 'body' ? 'body' : 'hands';
+  const source = CONDUCTOR_SOURCES.find((s) => s === conductorDial.source) ?? 'hands';
 
   return (
     <div className="shell-tool-panel absolute left-3 z-40 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur">
@@ -195,7 +221,7 @@ export default function ConductorPanel() {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-white/5 p-1 text-xs" role="radiogroup" aria-label="Conduct with">
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-white/5 p-1 text-xs" role="radiogroup" aria-label="Conduct with">
           {CONDUCTOR_SOURCES.map((value) => (
             <button
               key={value}
@@ -204,7 +230,7 @@ export default function ConductorPanel() {
               onClick={() => void dispatchDialSetIn('conductor.source', value)}
               className={`rounded px-2 py-1 font-semibold transition ${value === source ? 'bg-emerald-500 text-black' : 'text-white/70 hover:bg-white/10'}`}
             >
-              Conduct with {value}
+              {SOURCE_BUTTON[value]}
             </button>
           ))}
         </div>
@@ -237,12 +263,13 @@ export default function ConductorPanel() {
             Teach my conducting poses (ready, fermata, cut-off)...
           </button>
         )}
-        <LiveReadout live={live} source={source} />
+        <LiveReadout live={live} source={source} recording={recording} />
         <p className="text-[10px] leading-relaxed text-white/50">
-          {source === 'body'
-            ? 'Stand back so the camera sees you from head to hips, and beat time with an arm or bounce with the trunk: the bottom of each bounce is a beat, bigger ones are louder.'
-            : 'Beat time in front of the camera: the bottom of each stroke is a beat, bigger strokes are louder.'}{' '}
-          The score waits for your first stroke, follows your tempo, and holds when you stop.
+          {source === 'dancer'
+            ? 'Stand back so the camera sees all of you, feet included, and dance. The score finds what your steps repeat at (a beat, a bar), starts on your next step, and follows your tempo within a few percent of its own; your movement sets the loudness. It keeps playing when you stop.'
+            : source === 'body'
+              ? 'Stand back so the camera sees you from head to hips, and beat time with an arm or bounce with the trunk: the bottom of each bounce is a beat, bigger ones are louder. The score waits for your first stroke, follows your tempo, and holds when you stop.'
+              : 'Beat time in front of the camera: the bottom of each stroke is a beat, bigger strokes are louder. The score waits for your first stroke, follows your tempo, and holds when you stop.'}
         </p>
         <ConductorControls sourceChooser={false} />
       </div>

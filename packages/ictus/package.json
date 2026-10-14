@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./blend_prior": "./src/blend_prior.ts",
+    "./dance": "./src/dance.ts",
     "./detector": "./src/detector.ts",
     "./dynamics": "./src/dynamics.ts",
     "./expression": "./src/expression.ts",

@@ -297,6 +297,9 @@ export const conductor = defineBranch({
     // The body conductor (#375): the pose stream, present when the derivation composes the
     // body source (it does while `conductor.source` is `body`; a structural test pins that).
     to({ node: 'camBody', port: 'body' }, { node: 'conductor', port: 'body' }, true),
+    // The dancer leading the score (#380): the dancer's pulse, present with the body source
+    // (composed while `conductor.source` is `dancer`).
+    to({ node: 'bodyPulse', port: 'pulse' }, { node: 'conductor', port: 'pulse' }, true),
     to(ui('conductor'), { node: 'conductor', port: 'config' }),
     to({ node: 'conductor', port: 'beat' }, { node: 'score', port: 'beat' }),
     to({ node: 'conductor', port: 'velocityScale' }, { node: 'score', port: 'velocityScale' }),

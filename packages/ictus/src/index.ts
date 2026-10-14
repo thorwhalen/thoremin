@@ -49,6 +49,8 @@ export type { PulseFollower, PulseLevel, PulseOptions, PulseState } from './puls
 export { createLevelHold, relateLevel, inCapture, paceRatios, conductorRatios, LEVEL_HOLD_DEFAULTS } from './level';
 export type { LevelHold, LevelHoldOptions, LevelHoldState, LevelMatch, LevelMode, RelateLevelOptions } from './level';
 export { createPaceController, relatePeriods, PACE_DEFAULTS } from './pace';
+export { createDanceLead, DANCE_LEAD_DEFAULTS } from './dance';
+export type { DanceLead, DanceLeadInput, DanceLeadMode, DanceLeadOptions, DanceLeadState } from './dance';
 export type { PaceController, PaceInput, PaceMode, PaceOptions, PaceState } from './pace';
 export { createBeatServo, servoRate, SERVO_DEFAULTS } from './servo';
 export type { BeatServo, ServoCue, ServoInput, ServoMode, ServoOptions, ServoState } from './servo';
