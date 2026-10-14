@@ -19,7 +19,7 @@ import { create } from 'zustand';
 import { controls } from '@thoremin/sdk-ui/host';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
-import { posePlay, type PoseCategorizerPlay, type TransportRole } from '../lib/posePlay';
+import { posePlay, transportRolesOf, type PoseCategorizerPlay, type TransportRole } from '../lib/posePlay';
 import { playsPoses, type PoseCategorizerDial } from '../schema';
 import { createCategorizerStore } from './categorizers';
 import { onFaceModelsChanged, type FaceModelRecord } from './models';
@@ -109,15 +109,18 @@ export function startPosePlay(deps: PosePlayDeps = browserPosePlayDeps()): () =>
       return;
     }
     const key = JSON.stringify([record.id, record.name, record.model]);
-    if (key === publishedKey) return;
-    const play = posePlay({ id: record.id, name: record.name, categorizer: record.model.categorizer, tuning: record.model.tuning });
-    publish(play, key);
+    // The same record as the graph already has (a save of something else): keep its model, so
+    // the reading is not reset; the state still says it plays.
+    const play = key === publishedKey ? null : posePlay({ id: record.id, name: record.name, categorizer: record.model.categorizer, tuning: record.model.tuning });
+    if (play) publish(play, key);
+    const { categories } = record.model.categorizer;
+    const roles = transportRolesOf(record.model.categorizer);
     usePosePlay.setState({
       phase: 'ready',
       id,
       name: record.name,
-      categories: play.live.model.categories.map((c) => ({ id: c.id, name: c.label })),
-      roles: play.roles,
+      categories: categories.map((c) => ({ id: c.id, name: c.label })),
+      roles,
     });
   };
 

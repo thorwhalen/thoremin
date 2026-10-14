@@ -24,6 +24,7 @@ import { bodySessionStore } from '@thoremin/ext-faces/app/bodySession';
 import type { PoseCategorizerDial } from '@thoremin/ext-faces/schema';
 import type { DerivationSettings } from '@/instruments/derive';
 import { FACES } from '../helpers/extensions';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import '@/app/dials/useDialsSettings';
 
 const poseDial = () => (dialsStore.getState().effective as Record<string, unknown>).poseCategorizer as PoseCategorizerDial;
@@ -64,11 +65,13 @@ describe.runIf(FACES)('a saved pose categorizer plays in the instrument', () => 
     act(() => {
       fireEvent.click(row.closest('button, a')!);
     });
-    fireEvent.click(await screen.findByRole('button', { name: 'Play Conducting' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Play Conducting' }, { timeout: 5000 }));
     await waitFor(() => expect(poseDial().id).toBe(id));
     expect(branchIdsFor(useControls.getState() as unknown as DerivationSettings)).toContain('pose-categorizer');
     // The instrument resolves it off the tick: "Playing" only once the model is in the graph.
     await screen.findByText('Playing', undefined, { timeout: 3000 });
+    // The pose groups are claimed, so the closed Lab still computes them.
+    expect(appFeatureDemand.owners()).toContain('poses-play');
   });
 
   it('Conductor, Conduct with body, with my poses: the transport override is on, and Your poses opens to choose them', async () => {

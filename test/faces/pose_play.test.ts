@@ -31,7 +31,7 @@ import { startPosePlay, usePosePlay, POSE_PLAY_DEMAND_OWNER, type PosePlayDeps }
 import { DEFAULT_POSE_CATEGORIZER, type PoseCategorizerDial } from '@thoremin/ext-faces/schema';
 import type { FaceModelRecord } from '@thoremin/ext-faces/app/models';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
-import { POSES, poseFrame, poseVector, type PoseName } from '../helpers/body_poses';
+import { POSES, poseFrame, poseVector, scriptedPoseCategorizer, type PoseName } from '../helpers/body_poses';
 import { resetPoseClock, take } from '../helpers/pose_take';
 import { FACES } from '../helpers/extensions';
 
@@ -218,7 +218,8 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
       ],
     };
     const controls = { featureLab: { show: false, groups: [] as string[] } };
-    const run = (groups: () => readonly string[] | null) => {
+    const demand = createFeatureDemand();
+    const run = (groups: () => ReturnType<typeof demand.groups>) => {
       const engine = new Engine(spec, reg, { resources: { controls: () => controls, featureDemand: groups } });
       const out: { label: string | null; present: boolean }[] = [];
       for (let i = 0; i < script.length; i++) {
@@ -230,7 +231,6 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
       return out;
     };
     // The host's claim, as startPosePlay makes it while the dial names a categorizer.
-    const demand = createFeatureDemand();
     const stop = startPosePlay({
       load: async () => ({ id: 'mine', name: 'Conducting', createdAt: 0, model: { categorizer } }) as FaceModelRecord,
       dial: () => ({ id: 'mine', transport: true }),
@@ -281,6 +281,36 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
 });
 
 describe('the host resolves the pose dial off the tick', () => {
+  it('A plays, the dial goes to B (still loading) and back to A: the state says A plays, published once', async () => {
+    const real = ({ id: 'A', name: 'A', createdAt: 0, model: { categorizer: scriptedPoseCategorizer(['ready', 'fermata']) } }) as FaceModelRecord;
+    let dial: Partial<PoseCategorizerDial> = { id: 'A' };
+    const listeners = new Set<() => void>();
+    let releaseB: (() => void) | null = null;
+    const published: unknown[] = [];
+    const stop = startPosePlay({
+      load: (id) => (id === 'B' ? new Promise((r) => (releaseB = () => r(null))) : Promise.resolve(real)),
+      dial: () => dial,
+      subscribe: (l) => (listeners.add(l), () => listeners.delete(l)),
+      onModelsChanged: () => () => {},
+      publish: (p) => published.push(p),
+      claim: () => {},
+    });
+    const set = (id: string) => {
+      dial = { id };
+      for (const l of listeners) l();
+    };
+    await settle();
+    expect(usePosePlay.getState()).toMatchObject({ phase: 'ready', id: 'A' });
+    set('B');
+    set('A');
+    await settle();
+    releaseB!();
+    await settle();
+    expect(usePosePlay.getState()).toMatchObject({ phase: 'ready', id: 'A', name: 'A' });
+    expect(published.filter((p) => p !== null)).toHaveLength(1);
+    stop();
+  });
+
   /** A record whose categorizer is of `modality` (the resolver reads nothing else of a refused one). */
   const record = (id: string, modality: string): FaceModelRecord => ({ id, name: id.toUpperCase(), createdAt: 0, model: { categorizer: { modality } } }) as unknown as FaceModelRecord;
 
