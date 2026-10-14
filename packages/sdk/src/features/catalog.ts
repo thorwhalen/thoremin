@@ -37,6 +37,8 @@ export interface FlatFeature {
   /** Declared confound profile (see FeatureDef.invariantTo): absent = unassessed,
    *  [] = invariant to nothing listed. */
   invariantTo?: readonly Invariance[];
+  /** The part of `invariantTo` that holds only on world landmarks (see FeatureDef.worldOnly). */
+  worldOnly?: readonly Invariance[];
   controllability?: Controllability;
   description?: string;
 }
@@ -167,7 +169,7 @@ function buildAllFeatures(): FlatFeature[] {
     out.push({ id: `hand.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
   }
   for (const f of BODY_FEATURES) {
-    out.push({ id: f.id, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
+    out.push({ id: f.id, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, worldOnly: f.worldOnly, controllability: f.controllability, description: f.description });
   }
   return out;
 }
@@ -247,8 +249,23 @@ export interface BodyCtxOptions {
   minVisibility?: number;
 }
 
+
 /** The landmarks the visibility mask never hides: the torso frame's four anchors. */
 export const BODY_TORSO_ANCHORS: readonly number[] = [BLM.left_shoulder, BLM.right_shoulder, BLM.left_hip, BLM.right_hip];
+
+/**
+ * How much of the torso frame is SEEN rather than guessed (#432): the lowest visibility of
+ * the four anchors, 0..1, NaN without a body. The visibility mask never hides these anchors
+ * (they define the frame every geometric feature is measured in), so a seated player whose
+ * hips are below the frame is measured against the model's guessed hips with coverage still
+ * high; this is the reading a caller (the body modality's "cannot see you") can put next to
+ * coverage, or use to down-weight the frame. Deliberately not a catalog feature: it is about
+ * the stream, not the pose, and a new key would change every recorded body vector.
+ */
+export function torsoVisibility(frame: Pick<BodyFrame, 'present' | 'visibility'>): number {
+  if (!frame.present) return NaN;
+  return Math.min(...BODY_TORSO_ANCHORS.map((i) => frame.visibility[i] ?? 1));
+}
 
 /** The torso length (shoulder-mid to hip-mid) of a body frame in the given point set. */
 function torsoLength(get: (i: number) => Vec3 | undefined): number {

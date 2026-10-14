@@ -68,6 +68,13 @@ export interface FeatureDef<Ctx> {
    * confound it is NOT invariant to.
    */
   invariantTo?: readonly Invariance[];
+  /**
+   * The part of {@link invariantTo} that holds ONLY when the source supplies world (metric)
+   * landmarks (#432). A body direction or joint angle is invariant to yaw and pitch on the
+   * world set; on an image-only source a 20 degree yaw still moves it by foreshortening.
+   * Absent = every listed axis holds on any source.
+   */
+  worldOnly?: readonly Invariance[];
   /** True for an ANGULAR feature whose value lives on a circle: the two `range`
    *  endpoints (e.g. -pi and +pi from `atan2`) are the SAME physical pose, so the
    *  single-frame jump between them is a representation artifact, not motion. The

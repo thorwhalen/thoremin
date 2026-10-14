@@ -396,9 +396,17 @@ const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
   'body.rhythm': BODY_RELATIVE,
 };
 
+/** The axes a group's declared invariance holds on only with world landmarks (#432): the
+ *  geometry is measured in 3D, and an image-only source foreshortens it under a turn. */
+const GROUP_WORLD_ONLY: Record<string, readonly Invariance[]> = {
+  'body.angle': ['yaw', 'pitch'],
+  'body.dir': ['yaw', 'pitch'],
+};
+
 function withGroupInvariance(f: BodyFeature): BodyFeature {
   if (f.invariantTo !== undefined || GROUP_INVARIANCE[f.group] === undefined) return f;
-  return { ...f, invariantTo: GROUP_INVARIANCE[f.group] };
+  const worldOnly = GROUP_WORLD_ONLY[f.group];
+  return { ...f, invariantTo: GROUP_INVARIANCE[f.group], ...(worldOnly ? { worldOnly } : {}) };
 }
 
 // ---- The catalog -----------------------------------------------------------------
