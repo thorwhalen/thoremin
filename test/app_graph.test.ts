@@ -82,7 +82,7 @@ describe('production app graph', () => {
     // dance pulse (#186 PR F) is the 27th, the song player (#186 PR G) the 28th, the pace
     // controller (#186 PR H) the 29th. The ASL extension adds its reader and its chord node,
     // the faces extension its personal categorizer (#330 P4).
-    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0) + (FACES ? 2 : 0));
+    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0) + (FACES ? 3 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
@@ -337,8 +337,12 @@ describe('production app graph', () => {
     const merged = recorder.values('merge.params') as SynthParams[];
     const ids = merged[0].voices.map((v) => v.id);
     const core = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    // The ASL chords (ids from 2e6) always carry their four voices, silent here.
-    expect(ids).toEqual([...core, ...(AIR ? [FLUTE_VOICE_ID] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : [])]);
+    // The ASL chords (ids from 2e6) and the categorizer chords (#450, from 3e6) always carry
+    // their four voices, silent here.
+    const catChord = FACES ? [3_000_000, 3_000_001, 3_000_002, 3_000_003] : [];
+    const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord];
+    expect([...ids].sort((a, b) => a - b)).toEqual(merged0.sort((a, b) => a - b));
+    expect(ids.slice(0, 2)).toEqual([0, 1]); // the hand voices lead (the overlay reads them by position)
     expect(new Set(ids).size).toBe(ids.length); // no id collision across hands + both chords + flute
     expect(merged[0].voices.every((v) => !v.present)).toBe(true);
   });

@@ -369,6 +369,14 @@ Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pi
 - **out:** params:synth-params, chord:number[]
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mouthGate (number=0.12), octaveRange (number=1), browSeventhAt (number=0.5)
 
+#### `categorizer-chord` — Categorizer Chord
+Your own hand-shape or pose categorizer (#450), read live: each of your categories plays a chord on the chord-source scale.
+
+- **roles:** feature, music
+- **in:** vector:feature-vector, frame:any, model:categorizer-chords-model, config:categorizer-chords-config, spec:scale-spec, octaveShift:number, chordConfig:chord-config
+- **out:** params:synth-params, category:category-scores, triad:number[]
+- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
+
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._
 
@@ -538,15 +546,4 @@ Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
 - **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, airDrumConfig:air-drum-config, drumHits:drum-hits, expression:face-expression, categoryDegrees:category-degrees, octaveShift:number, overlayConfig:overlay-config, airFluteStatus:air-flute-status, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), drumPads (object={}), timbreLevels (object={}), mouthCue (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
-
-### Other
-
-
-#### `categorizer-chord` — Categorizer Chord
-Your own hand-shape or pose categorizer (#450), read live: each of your categories plays a chord on the chord-source scale.
-
-- **roles:** feature, music
-- **in:** vector:feature-vector, model:categorizer-chords-model, config:categorizer-chords-config, spec:scale-spec, octaveShift:number, chordConfig:chord-config
-- **out:** params:synth-params, category:category-scores, triad:number[]
-- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 

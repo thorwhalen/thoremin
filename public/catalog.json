@@ -976,6 +976,10 @@
         "kind": "feature-vector"
       },
       {
+        "name": "frame",
+        "kind": "any"
+      },
+      {
         "name": "model",
         "kind": "categorizer-chords-model"
       },

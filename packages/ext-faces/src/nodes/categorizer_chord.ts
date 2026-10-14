@@ -13,8 +13,9 @@
  * Outputs: the voices (`params`), the reading for the overlay's category cues (`category`, on its
  * own `chordCategories` input) and the un-voiced triad. The model is a transient the host resolves
  * off the tick; only the model the dial names plays. The engine ticks faster than the camera, so a
- * vector seen already is not a new reading (the hysteresis counts camera frames), while the chord
- * renderer runs every tick (its beat clock).
+ * camera frame seen already is not a new reading (the hysteresis counts camera frames; `frame` is
+ * the frame, since the vector node builds a new vector every tick), while the chord renderer runs
+ * every tick (its beat clock).
  */
 import { z } from 'zod';
 import { defineNode, type NodeContext } from '@thoremin/dag';
@@ -28,9 +29,10 @@ import { createLiveReader, type LiveReader } from '@thoremin/sdk/enroll/live';
 import { absentChordScores, categoryIndex, toChordScores, type CategorizerChordPlay } from '../lib/categorizerChord';
 import { chordDegreeOf, type CategorizerChordsDial } from '../schema';
 
-/** The first voice id of the categorizer chord: a block far from the hand voices, the face and
- *  pose chords and the score (which counts up from 11), as the air flute's voice is. */
-export const CATEGORIZER_CHORD_VOICE_ID_BASE = 2_000_000;
+/** The first voice id of the categorizer chord: a block of its own, far from the hand voices, the
+ *  face and pose chords, the score (which counts up from 11), the air flute (1_000_000) and ASL's
+ *  sign chords (2_000_000). A test keeps the blocks disjoint. */
+export const CATEGORIZER_CHORD_VOICE_ID_BASE = 3_000_000;
 /** The largest voicing is four notes. */
 export const MAX_CATEGORIZER_CHORD_VOICES = 4;
 
@@ -63,6 +65,9 @@ export const categorizerChordNode = defineNode<Params>({
   inputs: [
     // The merged feature vector of the categorizer's part (`hand.*` or `body.*`).
     { name: 'vector', kind: 'feature-vector' },
+    // The camera frame the vector was computed from (its identity marks a new camera frame; the
+    // vector node builds a new object every tick). Absent: the vector's identity is used.
+    { name: 'frame', kind: 'any' },
     // The resolved categorizer (a transient the host sets off the tick), or null.
     { name: 'model', kind: 'categorizer-chords-model' },
     // The instrument's dial: which categorizer, and each category's degree.
@@ -81,7 +86,8 @@ export const categorizerChordNode = defineNode<Params>({
     const renderer = createChordRenderer({ idBase: CATEGORIZER_CHORD_VOICE_ID_BASE, maxVoices: MAX_CATEGORIZER_CHORD_VOICES });
     let current: CategorizerChordPlay | null = null;
     let reader: LiveReader | null = null;
-    let lastVector: FeatureVector | undefined;
+    /** The last camera frame read (or vector, with no frame wired). */
+    let lastClock: unknown;
     let lastCategory: CategoryScores = NOTHING;
     let lastId: string | null = null;
 
@@ -89,7 +95,7 @@ export const categorizerChordNode = defineNode<Params>({
       if (play === current) return;
       current = play;
       reader = play ? createLiveReader(play.live) : null;
-      lastVector = undefined;
+      lastClock = undefined;
       lastId = null;
       lastCategory = play ? absentChordScores(play) : NOTHING;
     };
@@ -115,8 +121,9 @@ export const categorizerChordNode = defineNode<Params>({
         const model = (inputs.model as CategorizerChordPlay | null | undefined) ?? null;
         bind(model && config?.id === model.id ? model : null);
         const vector = inputs.vector as FeatureVector | undefined;
-        if (current && vector !== lastVector) {
-          lastVector = vector;
+        const clock = inputs.frame ?? vector;
+        if (current && clock !== lastClock) {
+          lastClock = clock;
           read(vector);
         }
         const cfg = (inputs.chordConfig as ChordConfig | undefined) ?? {};

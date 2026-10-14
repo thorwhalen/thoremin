@@ -71,8 +71,10 @@ export const HAND_CHORDS_BRANCH_ID = 'hand-chords';
 export const POSE_CHORDS_BRANCH_ID = 'pose-chords';
 
 /** The categorizer chord's edges, but for the vector it reads (#450). */
-const chordEdges = (vector: { node: string; port: string }) => [
+const chordEdges = (vector: { node: string; port: string }, frame: { node: string; port: string }) => [
   to(vector, { node: CATEGORIZER_CHORD_NODE_ID, port: 'vector' }),
+  // The camera frame the vector came from: the hysteresis counts camera frames, not ticks.
+  to(frame, { node: CATEGORIZER_CHORD_NODE_ID, port: 'frame' }),
   to(ui('categorizerChordsModel'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'model' }),
   to(ui('categorizerChords'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'config' }),
   to(ui('chordSpec'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'spec' }),
@@ -90,18 +92,21 @@ export const handChords = defineBranch({
   id: HAND_CHORDS_BRANCH_ID,
   description: 'Your own hand shapes play chords: each category of a saved hand-shape categorizer a chord on the chord-source scale.',
   nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
-  edges: chordEdges({ node: 'handVec', port: 'vector' }),
+  edges: chordEdges({ node: 'handVec', port: 'vector' }, { node: TRUNK.cam, port: 'hands' }),
   voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
   overlay: ['categoryLabel', 'categoryBars'],
 });
 
-/** A saved pose categorizer plays chords (#450, and #468): the body source's vector, the same node. */
+/** A saved pose categorizer plays chords (#450, and #468): the body source's vector, the same node.
+ *  One dial names one categorizer, so only one of the two is ever derived; composing every branch
+ *  (`defaultGraph`) would feed the node twice, so this one replaces the hand branch (rule 5). */
 export const poseChords = defineBranch({
   id: POSE_CHORDS_BRANCH_ID,
   description: 'Your own poses play chords: each category of a saved pose categorizer a chord on the chord-source scale.',
   requires: ['body-source'],
+  replaces: [HAND_CHORDS_BRANCH_ID],
   nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
-  edges: chordEdges({ node: BODY_VECTOR, port: 'vector' }),
+  edges: chordEdges({ node: BODY_VECTOR, port: 'vector' }, { node: 'camBody', port: 'body' }),
   voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
   overlay: ['categoryLabel', 'categoryBars'],
 });

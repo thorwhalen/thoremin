@@ -281,3 +281,28 @@ describe.runIf(FACES)('a saved pose categorizer plays chords (#468: the same nod
     });
   });
 });
+
+describe('voice id blocks stay disjoint (#450: a collision lets one chord silence another)', () => {
+  it('the categorizer chord\'s block overlaps no other producer\'s', async () => {
+    const { CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES, POSE_VOICE_ID_BASE, MAX_POSE_VOICES, SCORE_VOICE_ID_BASE } = await import('@/nodes');
+    const { FLUTE_VOICE_ID } = await import('@thoremin/ext-air/nodes/air_flute');
+    const { MAX_CATEGORIZER_CHORD_VOICES } = await import('@thoremin/ext-faces/nodes/categorizer_chord');
+    const blocks: [string, number, number][] = [
+      ['hands', 0, 2],
+      ['face chord', CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES],
+      ['pose chord', POSE_VOICE_ID_BASE, MAX_POSE_VOICES],
+      // The score counts up from its base, one id per note of the piece: give it a million.
+      ['score', SCORE_VOICE_ID_BASE, 1_000_000 - SCORE_VOICE_ID_BASE],
+      ['air flute', FLUTE_VOICE_ID, 1],
+      ['categorizer chord', CATEGORIZER_CHORD_VOICE_ID_BASE, MAX_CATEGORIZER_CHORD_VOICES],
+    ];
+    try {
+      const asl = await import('@thoremin/ext-asl/nodes/sign_chord');
+      blocks.push(['sign chord', asl.SIGN_CHORD_VOICE_ID_BASE, 4]);
+    } catch {
+      // ASL is a git dependency: absent in a build without it.
+    }
+    for (const [a, sa, na] of blocks)
+      for (const [b, sb, nb] of blocks) if (a !== b) expect(sa + na <= sb || sb + nb <= sa, `${a} vs ${b}`).toBe(true);
+  });
+});
