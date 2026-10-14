@@ -13,7 +13,7 @@ import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import { createCategorizerIndex, createCategorizerStore, type CategorizerRecord } from '@thoremin/sdk-ui/enroll/categorizers';
 import { memoryThumbStore } from '@thoremin/ext-faces/app/thumbnails';
-import { STILL_SWEEP_FLAG_KEY, orphanStillKeys, resetSweepForTests, sweepOrphanStills, sweepOrphanStillsOnce } from '@thoremin/ext-faces/app/orphanStills';
+import { STILL_SWEEP_FLAG_KEY, STILL_SWEEP_SEEN_KEY, orphanStillKeys, resetSweepForTests, sweepOrphanStills, sweepOrphanStillsOnce } from '@thoremin/ext-faces/app/orphanStills';
 
 const demo = (): PersonalCategorizer => {
   const r = importCategorizer(readFileSync(join(process.cwd(), 'public/categorizers/demo-smile.json'), 'utf8'));
@@ -51,44 +51,69 @@ describe('the orphan sweep', () => {
   it('lists the orphans and deletes nothing by default', async () => {
     const { index, thumbs, ids } = await fixture();
     const r = await sweepOrphanStills({ thumbs, index });
-    expect(r).toEqual({ orphans: ['take-old:7', 'take-old:8'], removed: false });
+    expect(r).toEqual({ orphans: ['take-old:7', 'take-old:8'], removed: [] });
     expect((await thumbs.keys()).length).toBe(ids.length + 2);
   });
 
-  it('removes the orphans when asked, and keeps every referenced still', async () => {
+  it('removes only orphans an earlier sweep also found, and keeps every referenced still', async () => {
     const { index, thumbs, ids } = await fixture();
-    const r = await sweepOrphanStills({ thumbs, index, remove: true });
-    expect(r.removed).toBe(true);
-    expect((await thumbs.keys()).sort()).toEqual([...ids].sort());
+    expect((await sweepOrphanStills({ thumbs, index, remove: true })).removed).toEqual([]);
+    const r = await sweepOrphanStills({ thumbs, index, remove: true, seen: new Set(['take-old:7']) });
+    expect(r.removed).toEqual(['take-old:7']);
+    expect((await thumbs.keys()).sort()).toEqual([...ids, 'take-old:8'].sort());
   });
 
   it('keeps a still while ANY record names it (the count spans the collection)', async () => {
     const { provider, index, thumbs, ids } = await fixture();
+    const seen = new Set(await thumbs.keys());
     // Delete the face record: the hand record still names the same holds.
     await provider.delete('smile');
-    await sweepOrphanStills({ thumbs, index, remove: true });
+    await sweepOrphanStills({ thumbs, index, remove: true, seen });
     expect((await thumbs.keys()).sort()).toEqual([...ids].sort());
+  });
+
+  it('never deletes when no record is readable while stills exist (a fallen-back collection)', async () => {
+    const { provider, index, thumbs, ids } = await fixture();
+    const seen = new Set(await thumbs.keys());
+    await provider.delete('smile');
     await provider.delete('hand:smile');
-    await sweepOrphanStills({ thumbs, index, remove: true });
-    expect(await thumbs.keys()).toEqual([]);
+    const r = await sweepOrphanStills({ thumbs, index, remove: true, seen });
+    expect(r.removed).toEqual([]);
+    expect((await thumbs.keys()).length).toBe(ids.length + 2);
+  });
+
+  it('never deletes while a record kept outside the collection is not in it', async () => {
+    const { index, thumbs, ids } = await fixture();
+    const seen = new Set(await thumbs.keys());
+    const r = await sweepOrphanStills({ thumbs, index, remove: true, seen, outside: async () => ['legacy-only'] });
+    expect(r.removed).toEqual([]);
+    expect((await thumbs.keys()).length).toBe(ids.length + 2);
   });
 
   it('does nothing when a record cannot be read', async () => {
     const { provider, index, thumbs, ids } = await fixture();
     await provider.create({ id: 'broken', name: 'broken', createdAt: 1 } as unknown as CategorizerRecord);
-    const r = await sweepOrphanStills({ thumbs, index, remove: true });
-    expect(r).toEqual({ orphans: [], removed: false });
+    const r = await sweepOrphanStills({ thumbs, index, remove: true, seen: new Set(await thumbs.keys()) });
+    expect(r).toEqual({ orphans: [], removed: [] });
     expect((await thumbs.keys()).length).toBe(ids.length + 2);
   });
 
-  it('the once-per-page sweep deletes only behind the localStorage flag', async () => {
+  it('the once-per-page sweep remembers orphans, and deletes them on a later page only behind the flag', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const a = await fixture();
-    expect((await sweepOrphanStillsOnce(a.thumbs, { index: a.index }))?.removed).toBe(false);
-    expect(info).toHaveBeenCalledTimes(1);
+    const opts = { index: a.index, outside: async () => [] as string[] };
+    // Page 1, flag set: the orphans were not seen before, so none goes.
+    localStorage.setItem(STILL_SWEEP_FLAG_KEY, 'delete');
+    expect((await sweepOrphanStillsOnce(a.thumbs, opts))?.removed).toEqual([]);
+    expect(JSON.parse(localStorage.getItem(STILL_SWEEP_SEEN_KEY)!)).toEqual(['take-old:7', 'take-old:8']);
+    // Page 2, flag off: listed, nothing goes.
+    resetSweepForTests();
+    localStorage.removeItem(STILL_SWEEP_FLAG_KEY);
+    expect((await sweepOrphanStillsOnce(a.thumbs, opts))?.removed).toEqual([]);
+    // Page 3, flag set: they go.
     resetSweepForTests();
     localStorage.setItem(STILL_SWEEP_FLAG_KEY, 'delete');
-    expect((await sweepOrphanStillsOnce(a.thumbs, { index: a.index }))?.removed).toBe(true);
+    expect((await sweepOrphanStillsOnce(a.thumbs, opts))?.removed).toEqual(['take-old:7', 'take-old:8']);
     expect((await a.thumbs.keys()).sort()).toEqual([...a.ids].sort());
     info.mockRestore();
   });
