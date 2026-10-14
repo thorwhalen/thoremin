@@ -42,7 +42,7 @@ import { clamp01 } from '@thoremin/sdk/features/math';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { MAX_POSE_VOICES, POSE_VOICE_ID_BASE } from './pose_chord';
 import type { ScoreNote } from '@thoremin/sdk/score/schema';
-import { pieceFromNotes, preparePiece, readScoreDoc, type PreparedPiece } from '@thoremin/sdk/score/prepare';
+import { partsOfConfig, pieceFromNotes, preparePiece, readScoreDoc, type PreparedPiece } from '@thoremin/sdk/score/prepare';
 import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 const Note = z.object({
@@ -117,6 +117,9 @@ export const scoreNode = defineNode<Params>({
     { name: 'velocityScale', kind: 'number', default: 1 },
     { name: 'enabled', kind: 'boolean', default: true },
     { name: 'doc', kind: 'score-doc' },
+    // The conductor dial: its `parts` string selects the parts to play (#471), live, so a
+    // change re-prepares the piece without re-making the node.
+    { name: 'config', kind: 'conductor-config' },
     // Another output plays the piece (the `orchestra` node, #187 PR 5): release every
     // voice and start none, exactly as when disabled.
     { name: 'replaced', kind: 'boolean', default: false },
@@ -127,20 +130,23 @@ export const scoreNode = defineNode<Params>({
     const builtin = pieceFromNotes(p.notes, p.loopBeats);
     let docRef: unknown = null;
     let docPiece: PreparedPiece | null = null;
+    let partsKey = '';
     /** Voice ids (note indices) sounding on the previous tick. */
     let lastSounding = new Set<number>();
     const sounding: number[] = [];
 
-    const pieceFor = (doc: unknown): PreparedPiece => {
+    const pieceFor = (doc: unknown, parts: readonly string[]): PreparedPiece => {
       if (!doc || typeof doc !== 'object') {
         docRef = null;
         docPiece = null;
         return builtin;
       }
-      if (doc !== docRef) {
+      const key = parts.join(',');
+      if (doc !== docRef || key !== partsKey) {
         docRef = doc;
+        partsKey = key;
         const parsed = readScoreDoc(doc);
-        docPiece = parsed ? preparePiece(parsed, p.parts, { dynamics: 'written' }) : null;
+        docPiece = parsed ? preparePiece(parsed, parts, { dynamics: 'written' }) : null;
       }
       return docPiece ?? builtin;
     };
@@ -150,7 +156,7 @@ export const scoreNode = defineNode<Params>({
         const enabled = inputs.enabled !== false && inputs.replaced !== true;
         const rawBeat = typeof inputs.beat === 'number' ? inputs.beat : 0;
         const vScale = typeof inputs.velocityScale === 'number' ? inputs.velocityScale : 1;
-        const piece = pieceFor(inputs.doc);
+        const piece = pieceFor(inputs.doc, partsOfConfig(inputs.config, p.parts));
         const pos = piece.loopBeats > 0 ? ((rawBeat % piece.loopBeats) + piece.loopBeats) % piece.loopBeats : rawBeat;
 
         const voices: VoiceParams[] = [];

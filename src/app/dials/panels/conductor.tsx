@@ -30,6 +30,7 @@ import { useDialsSettings } from '../useDialsSettings';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { OrchestraControls } from './orchestra';
+import { PartsControls } from './parts';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
 import { useConductorStatus } from '../../conductorStatus';
 import { ARTICULATION_SOURCES, CONDUCTOR_BODY_POINTS, CONDUCTOR_EXPRESSION_SOURCES, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
@@ -200,6 +201,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
         />
       </label>
       <LoadStatusReadout status={status} enabled={enabled} offMessage="Turn conducting on to load the piece" />
+      <PartsControls />
       <OrchestraControls />
       {sourceChooser && (
         <label className="flex items-center justify-between gap-2 text-xs">

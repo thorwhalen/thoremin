@@ -77,7 +77,10 @@ export function pieceFromNotes(notes: readonly ScoreNote[], loopBeats: number): 
  * the order a single flatten gives.
  */
 export function preparePiece(doc: ScoreDoc, partIds: readonly string[], { dynamics }: PreparePieceOptions): PreparedPiece {
-  const want = partIds.length ? new Set(partIds) : null;
+  // A selection naming no part of THIS document (a piece switched under a kept selection,
+  // #471) plays every part rather than nothing: both players share this one rule.
+  const known = partIds.filter((id) => doc.parts.some((p) => p.id === id));
+  const want = known.length ? new Set(known) : null;
   const parts: PreparedPart[] = [];
   for (const part of doc.parts) {
     if (want && !want.has(part.id)) continue;
@@ -100,4 +103,23 @@ export function readScoreDoc(raw: unknown): ScoreDoc | null {
     parsedDocs.set(raw, doc);
   }
   return doc;
+}
+
+/** The dial's part selection as ids: a comma-separated list (part ids are slugs, so no id
+ *  holds a comma); empty = every part. One dial leaf stays a scalar string (#471). */
+export function parsePartsSelection(raw: unknown): string[] {
+  if (typeof raw !== 'string') return [];
+  return raw.split(',').map((id) => id.trim()).filter(Boolean);
+}
+
+/** The inverse of {@link parsePartsSelection}: the ids a player left on, as the dial's string. */
+export function formatPartsSelection(ids: readonly string[]): string {
+  return ids.join(',');
+}
+
+/** The part selection a node plays: the conductor dial's `parts` when the `config` input
+ *  carries one (empty = every part), else the node's own build-time `fallback`. */
+export function partsOfConfig(config: unknown, fallback: readonly string[]): readonly string[] {
+  const raw = config && typeof config === 'object' ? (config as { parts?: unknown }).parts : undefined;
+  return typeof raw === 'string' ? parsePartsSelection(raw) : fallback;
 }

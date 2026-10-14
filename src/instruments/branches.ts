@@ -310,6 +310,9 @@ export const conductor = defineBranch({
     to({ node: 'conductor', port: 'velocityScale' }, { node: 'score', port: 'velocityScale' }),
     to({ node: 'conductor', port: 'leadsScore' }, { node: 'score', port: 'enabled' }),
     to(ui('scoreDoc'), { node: 'score', port: 'doc' }),
+    // The part selection (#471): the one dial, `conductor.parts`, read by BOTH players from
+    // the conductor config, so the score node and the orchestra cannot disagree.
+    to(ui('conductor'), { node: 'score', port: 'config' }),
     to(ui('scoreDoc'), { node: 'conductor', port: 'doc' }),
     // The player's lead offsets (#427, a per-device pref): read only on the body's path.
     to(ui('conductorLeadOffsets'), { node: 'conductor', port: 'leadOffsets' }),

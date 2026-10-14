@@ -49,7 +49,7 @@ import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { clamp01 } from '@thoremin/sdk/features/math';
-import { pieceFromNotes, preparePiece, readScoreDoc, SCORE_DYNAMICS, type PreparedPiece, type ScoreDynamics } from '@thoremin/sdk/score/prepare';
+import { partsOfConfig, pieceFromNotes, preparePiece, readScoreDoc, SCORE_DYNAMICS, type PreparedPiece, type ScoreDynamics } from '@thoremin/sdk/score/prepare';
 import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '../music/score';
 import { allocateChannels, DEFAULT_PROGRAM, SECTIONS, type Section } from './orchestra_map';
 
@@ -241,7 +241,7 @@ export interface OrchestraPlayer {
   /** (Re)plan when the piece changed (or on the first call): releases what sounds,
    *  restarts the scheduler, resends the programs. `rawDoc` is the `doc` port's value,
    *  compared by identity. */
-  ensurePlan(rawDoc: unknown, at: TickClock): void;
+  ensurePlan(rawDoc: unknown, at: TickClock, parts?: readonly string[]): void;
   /** Stop what is sounding. */
   silence(at: TickClock): void;
   /** Send scheduler commands (engine times) on the context clock, keeping per-key order. */
@@ -261,6 +261,7 @@ const ORDER_GAP = 0.001;
 export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<OrchestraParams> = {}): OrchestraPlayer {
   const p = Params.parse(options);
   let docRef: unknown = Symbol('unset');
+  let partsKey = '';
   let plan: OrchestraPlan | null = null;
   let scheduler: Scheduler | null = null;
   /** Last controller value sent per `channel:cc`, and when dynamics were last sent. */
@@ -305,11 +306,15 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
     synth,
     deliver,
     silence,
-    ensurePlan(rawDoc, at) {
-      if (rawDoc === docRef && plan) return;
+    ensurePlan(rawDoc, at, parts = p.parts) {
+      // A new selection re-plans (silencing what rings) but keeps the loaded synth: only
+      // the notes and channels change, never the soundfont (#471).
+      const key = parts.join(',');
+      if (rawDoc === docRef && plan && key === partsKey) return;
       silence(at);
       docRef = rawDoc;
-      plan = planPiece(readScoreDoc(rawDoc), { dynamics: p.dynamics, parts: p.parts });
+      partsKey = key;
+      plan = planPiece(readScoreDoc(rawDoc), { dynamics: p.dynamics, parts });
       scheduler = createScheduler(plan.events, { loopBeats: plan.loopBeats });
       sentCC.clear();
       lastDynamicsAt = -Infinity;
@@ -426,7 +431,7 @@ export const orchestraNode = defineNode<Params>({
 
         const ac = resources.audioContext as (AudioContext & { state?: string }) | undefined;
         const at: TickClock = { clock: ac ?? { currentTime: ctx.time }, nowEngine: ctx.time, stage: timingFrom(resources).outputStage.value };
-        player.ensurePlan(inputs.doc, at);
+        player.ensurePlan(inputs.doc, at, partsOfConfig(inputs.config, p.parts));
 
         const conducting = inputs.conducting === true;
         const playing = conducting && inputs.claimed !== true;
