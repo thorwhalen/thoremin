@@ -56,7 +56,7 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
   // this instrument plays first and open, the others after the core sections and closed.
   const airSections = (lead: boolean) =>
     EXTENSION_PANELS.filter((p) => (leadAir as readonly string[]).includes(p.instrumentId) === lead).map((p) => (
-      <TopSection key={p.instrumentId} label={p.section} defaultOpen={lead}>
+      <TopSection key={`${p.instrumentId}:${p.section}`} label={p.section} defaultOpen={lead}>
         <p.Controls />
       </TopSection>
     ));

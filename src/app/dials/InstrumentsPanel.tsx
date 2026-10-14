@@ -67,6 +67,7 @@ import { getSelectedName } from '@/app/dials/instruments';
 const classColour = (id: string): string => INSTRUMENT_CLASSES.find((c) => c.id === id)?.colour ?? 'rgba(255,255,255,0.3)';
 import { layerToSettings } from '@/settings/dials';
 import { EXTENSION_PANELS } from '@/app/extensions';
+import type { ExtensionPanel } from '@thoremin/sdk-ui/types';
 
 const cardFrame =
   'shell-instruments-card absolute right-3 top-3 flex max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
@@ -286,11 +287,18 @@ export default function InstrumentsPanel() {
   }, []);
   const { state } = useDialsSettings();
   const dirty = state.dirty.length > 0;
-  // The air instruments playing right now (the live dials, not a saved instrument): the
-  // chosen row shows their readouts, so a drum left on is never invisible (#249).
-  const liveAir = useMemo(
-    () => airInstrumentsOf(layerToSettings(state.effective as Record<string, unknown>)),
-    [state.effective],
+  // The readouts the chosen row shows, from the live dials (not a saved instrument): the air
+  // instruments playing right now, so a drum left on is never invisible (#249), and any other
+  // extension panel that says its readout is live (`readoutOn`: the faces extension's
+  // categorizers, #367).
+  const liveSettings = useMemo(() => layerToSettings(state.effective as Record<string, unknown>), [state.effective]);
+  const liveAir = useMemo(() => airInstrumentsOf(liveSettings), [liveSettings]);
+  const liveReadouts = useMemo(
+    () =>
+      EXTENSION_PANELS.filter((p) =>
+        p.readoutOn ? p.readoutOn(liveSettings as unknown as Record<string, unknown>) : (liveAir as readonly string[]).includes(p.instrumentId),
+      ),
+    [liveSettings, liveAir],
   );
   // The air instruments whose sections lead the editor — decided when it opens.
   const [editorLead, setEditorLead] = useState<readonly AirInstrumentId[]>([]);
@@ -476,23 +484,19 @@ export default function InstrumentsPanel() {
   // is "strike once to teach each hand".
   /** The live readouts of the air instruments playing now (under the chosen row, or under
    *  its class heading when that class is collapsed: never hidden with the row). */
-  const renderReadouts = (ids: readonly AirInstrumentId[]) =>
-    ids.map((id) => {
-      const Readout = EXTENSION_PANELS.find((p) => p.instrumentId === id)?.Readout;
-      if (!Readout) return null;
-      return (
-        <div key={id} className="px-2 pb-2">
-          <Readout />
-        </div>
-      );
-    });
+  const renderReadouts = (panels: readonly ExtensionPanel[]) =>
+    panels.map(({ instrumentId, section, Readout }) => (
+      <div key={`${instrumentId}:${section}`} className="px-2 pb-2">
+        <Readout />
+      </div>
+    ));
 
   const renderRow = (p: InstrumentSpec) => {
     const isSel = p.name === selected;
     const isDefault = p.name === defaultName;
     const isStar = library.starred(p.name);
     // Under the row, unless its class is collapsed: then under the class heading instead.
-    const readouts = isSel && !isGroupCollapsed(p.class, 1) ? liveAir : [];
+    const readouts = isSel && !isGroupCollapsed(p.class, 1) ? liveReadouts : [];
     const colour = classColour(p.class);
     return (
       <li
@@ -789,7 +793,7 @@ export default function InstrumentsPanel() {
                             )}
                           </button>
                         </h3>
-                        {playing && renderReadouts(liveAir)}
+                        {playing && renderReadouts(liveReadouts)}
                       </>
                     );
                   })()}
@@ -807,7 +811,7 @@ export default function InstrumentsPanel() {
                     )}
                   </ul>
                   {/* In the gallery, the chosen card's live readouts sit under its class's cards. */}
-                  {gallery && !isGroupCollapsed(g.id, g.items.length) && g.items.some((p) => p.name === selected) && renderReadouts(liveAir)}
+                  {gallery && !isGroupCollapsed(g.id, g.items.length) && g.items.some((p) => p.name === selected) && renderReadouts(liveReadouts)}
                 </section>
               ),
             )}

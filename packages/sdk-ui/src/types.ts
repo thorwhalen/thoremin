@@ -30,6 +30,14 @@ export interface ExtensionPanel {
   section: string;
   Controls: ComponentType;
   Readout: ComponentType;
+  /**
+   * When the chosen instrument's row shows this panel's `Readout` (#367), given the live
+   * settings. Absent: while the instrument id is one of the library's air or sign instruments
+   * and on (`AIR_INSTRUMENTS`). A panel that is not such an instrument (the faces extension's
+   * categorizers) says here when its readout is worth a line under the row. Pure and cheap:
+   * it is part of a lazy extension's eager stub, and runs on every settings change.
+   */
+  readoutOn?: (settings: Readonly<Record<string, unknown>>) => boolean;
 }
 
 export interface StatusHook {
@@ -69,7 +77,7 @@ export interface ExtensionUi {
 
 /** An editor section a LAZY extension will contribute: where it goes and its label, with no
  *  component (those load with the extension's deferred UI half). */
-export type ExtensionPanelDecl = Pick<ExtensionPanel, 'instrumentId' | 'section'>;
+export type ExtensionPanelDecl = Pick<ExtensionPanel, 'instrumentId' | 'section' | 'readoutOn'>;
 
 /**
  * The EAGER stub of a lazy extension's React half (`docs/design/lazy-extensions.md`): its
