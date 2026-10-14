@@ -187,11 +187,30 @@ describe('song-player', () => {
     expect(statusOf(out[10])).toMatchObject({ phase: 'ready', reason: 'ended' });
   });
 
-  it('a press made while the song is playing does not restart it, and a press counter standing from before a song loaded is no request (#344)', async () => {
+  it('a press made while the song is playing does not restart it (#344)', async () => {
     const st = fakeStretcher();
     const frames: PortValues[] = [{ song: song('a'), play: 5 }, { song: song('a'), playing: true, play: 6 }, { song: song('a'), playing: true, play: 7 }];
     await drive(make(), frames, { resources: { ...AUDIO, createStretcher: () => st } });
     expect(st.log.filter((l) => l === 'play')).toHaveLength(1);
+  });
+
+  it('a press counted while a leader held the transport does not play when he lets go (#344)', async () => {
+    const st = fakeStretcher();
+    const s = song();
+    // The player pressed Play (level up, counter 1 -> 2) while the conductor led and kept the
+    // song paused; once the leader lets go the song waits for a FRESH press, as with the level.
+    const frames: PortValues[] = [
+      { song: s, play: 1 },
+      { song: s, playing: true, play: 1, followPlaying: false },
+      { song: s, playing: true, play: 2, followPlaying: false },
+      { song: s, playing: true, play: 2 },
+      { song: s, playing: true, play: 2 },
+      { song: s, playing: true, play: 3 },
+    ];
+    await drive(make(), frames, { resources: { ...AUDIO, createStretcher: () => st } });
+    const plays = st.log.filter((l) => l === 'play').length;
+    expect(plays).toBe(1);
+    expect(st.playing()).toBe(true);
   });
 
   it('a new song is loaded; an unloaded one is paused and the player goes off', async () => {
