@@ -15,13 +15,15 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Engine, type GraphSpec } from '@thoremin/dag';
-import { trackSongGrid, type MusicalTime, type PaceState, type PulseState } from '@thoremin/ictus';
+import { trackSongGrid, type MusicalTime, type PaceState, type PulseState, type SongGrid } from '@thoremin/ictus';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeInstrumentGraph, branchIdsFor } from '@/app/graph';
 import { DEFAULT_SONG } from '@/settings/schema';
 import { useControls } from '@/app/store';
 import { songPlayerNode, type BodyFrame, type SongHandle, type Stretcher } from '@/nodes';
-import { loadStream } from './helpers/fixtures';
+import { loadStream, FIXTURES } from './helpers/fixtures';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderClickTrack, SR } from './helpers/clicks';
 
 const HZ = 30;
@@ -164,6 +166,44 @@ describe('the real dancer leads the song (video_body_que_calor)', () => {
       expect(rOn.R).toBeGreaterThan(rMin);
       expect(rOff.R).toBeLessThan(rOffMax);
     });
+  }
+});
+
+describe("a real song's beat jitter (#346 item 4: song_grid_budots, the tracker's own grid of a Commons track)", () => {
+  // The tracker snaps a beat to an onset within a tenth of a period, so the real grid's
+  // intervals have an sd of 2.1 % (single ones 0.90 to 1.11 of the period) where a click
+  // track's are exact. The grid is stretched in time to the click songs' tempos (keeping
+  // its jitter), and the same dancer follows both. Measured (rate sd from 15 s, R):
+  //   song at   click: sd / R      real: sd / R
+  //   121.9     0.021 / 0.71       0.014 / 0.69
+  //   129.2     0.014 / 0.67       0.019 / 0.71
+  //   137.0     0.022 / 0.67       0.015 / 0.71
+  // The 8 s average of the song's period leaves nothing material of the jitter.
+  const real = JSON.parse(readFileSync(join(FIXTURES, 'song_grid_budots', 'grid.json'), 'utf8')) as SongGrid;
+  const stretch = (g: SongGrid, k: number): SongGrid => ({ ...g, beats: g.beats.map((b) => b * k), periodS: g.periodS * k, bpm: g.bpm / k, phaseS: g.phaseS * k });
+  const dance = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
+  const frames = [...dance, ...dance];
+  const seconds = frames.length / HZ;
+
+  for (const bpm of [129.2 / 1.06, 129.2, 129.2 * 1.06]) {
+    it(`at ${bpm.toFixed(1)} bpm the real grid is followed as steadily as a click track's`, async () => {
+      const click = trackSongGrid(renderClickTrack({ bpm, seconds: seconds + 2 }).samples, { sampleRate: SR });
+      const stats = async (name: string, grid: SongGrid) => {
+        const song: SongHandle = { id: `${name}${bpm}`, name, url: `blob:${name}`, durationS: seconds + 2, grid };
+        const run = await runLoop(frames, song);
+        const late = run.rate.slice(15 * HZ);
+        const mean = late.reduce((a, x) => a + x, 0) / late.length;
+        const sd = Math.sqrt(late.reduce((a, x) => a + (x - mean) ** 2, 0) / late.length);
+        return { mean, sd, R: anchorR(run, 15).R, following: run.pace.filter((p) => p.mode === 'following').length / run.pace.length, inClamp: run.rate.every((r) => r >= 0.9 - 1e-9 && r <= 1.1 + 1e-9) };
+      };
+      const c = await stats('click', click);
+      const r = await stats('real', stretch(real, real.bpm / bpm));
+      expect(r.inClamp).toBe(true);
+      expect(Math.abs(r.following - c.following)).toBeLessThan(0.05);
+      expect(Math.abs(r.mean - c.mean)).toBeLessThan(0.02);
+      expect(r.sd).toBeLessThan(0.03);
+      expect(r.R).toBeGreaterThan(0.6);
+    }, 60000);
   }
 });
 

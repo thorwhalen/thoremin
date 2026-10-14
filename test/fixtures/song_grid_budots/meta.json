@@ -1,0 +1,15 @@
+{
+  "scenario": "song_grid_budots",
+  "source": "audio",
+  "clip": "Budots Dance Video (Commons), the soundtrack from 8.8 s to 58.2 s (49 s), a steady electronic track",
+  "music": {
+    "bpm": 139.99764,
+    "note": "the clip's video fixture meta says 143.55 (librosa start-tempo estimate); the tracked beats and an ffmpeg look at the intervals give 140.0"
+  },
+  "licence": "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0)",
+  "author": "Sherwin Tuna (DJ Love)",
+  "sourceUrl": "https://commons.wikimedia.org/wiki/File:Budots_Dance_Video.ogg",
+  "description": "The beat grid thoremin's own tracker (trackSongGrid, ictus/flux-acf, defaults, 22.05 kHz mono) makes of a REAL song: 115 beats, interval sd 2.1 % of the period, single intervals 0.90 to 1.11 of it. It is the tracker's output, not ground truth. The audio is not kept (deletable; the source URL is the way back). Used to measure what a real song's beat jitter leaves in the pace controller (#346 item 4).",
+  "extractor": "@thoremin/ictus trackSongGrid, scripts: ffmpeg -ss 8.8 -t 120 -ac 1 -ar 22050 -f f32le",
+  "kept": "grid.json (SongGrid)"
+}
