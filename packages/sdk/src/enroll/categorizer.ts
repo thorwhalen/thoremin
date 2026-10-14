@@ -351,11 +351,12 @@ export function categorizerFromModel(
  * otherwise shift every later category's id and label onto its neighbour's members. Set-aside
  * holds are never trained on.
  */
-export function modelFromCategorizer(input: PersonalCategorizer): TrainedModel {
+export function modelFromCategorizer(input: PersonalCategorizer, { renormalize = false }: { renormalize?: boolean } = {}): TrainedModel {
   const c = PersonalCategorizerSchema.parse(input);
   const vectors = c.samples.map((s) => s.vector);
   const members = memberIndices(c);
-  const trained = trainModel(vectors, members, c.features, c.weights);
+  // `renormalize` (#458): the radii measured as the live model reads (the body's poses).
+  const trained = trainModel(vectors, members, c.features, c.weights, renormalize ? { renormalize } : {});
   // No category is empty (the schema refuses it), so `trainModel` kept them all, in order.
   const categories = trained.categories.map((cat, i) => {
     // Counted in a Map: a cue named `toString` would read as present on a `{}` (#338).

@@ -78,6 +78,8 @@ export const TrainedModelSchema = z.object({
   rejectRadius: z.number(),
   /** The taught Neutral class's prototypes (#385 E5), when there is one. */
   neutral: z.array(CategorySchema).optional(),
+  /** Distances renormalised over the features present (#458), the body's poses. */
+  renormalize: z.boolean().optional(),
 });
 
 /** What a saved set of categories carries: the model, and what each category does. */

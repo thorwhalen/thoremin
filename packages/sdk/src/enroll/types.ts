@@ -119,6 +119,12 @@ export interface TrainedModel {
    * `neutral-1..n`; `members` index the same pool as the categories'.
    */
   neutral?: Category[];
+  /**
+   * Whether a live distance is renormalised over the trained features present (#458): set from
+   * the modality (`CarveModality.renormalize`, the body's poses), absent for faces and hands,
+   * which classify bit for bit as before. See `presentDistance`.
+   */
+  renormalize?: boolean;
 }
 
 /** The stable key of a category across re-cuts: its member set. */

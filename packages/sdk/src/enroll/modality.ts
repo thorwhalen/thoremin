@@ -15,7 +15,7 @@
  * `@thoremin/sdk-ui/enroll/modality`.
  */
 import type { Invariance } from '../features/types';
-import { weightedDistance } from './cluster';
+import { modelDistance } from './cluster';
 import type { LabelMatchOptions } from './match';
 import type { FeatureVector } from './types';
 
@@ -169,6 +169,11 @@ export interface CarveModality {
    *  count as in view (#382: a body half out of frame "cannot be seen" rather than guessed at).
    *  Absent: any one trained feature will do (a face, a hand). */
   readonly minCoverage?: number;
+  /** Whether a live distance is renormalised over the trained features present (#458): a part
+   *  read with some of them masked (a hidden landmark under {@link minCoverage}) is then as far
+   *  from a category as the same part in full, rather than closer to every one. Absent: a missing
+   *  feature simply contributes nothing (a face, a hand: their classification unchanged). */
+  readonly renormalize?: boolean;
   /** The nuisances the take demonstrates after the rest, in order (#382); none when absent. */
   readonly nuisanceCues?: readonly NuisanceCueSpec[];
   /** A stick figure of a vector (#382), kept with each sample; absent: the modality has none. */
@@ -195,6 +200,8 @@ export interface MirrorReference {
   readonly weights: Readonly<Record<string, number>>;
   readonly categories: readonly { readonly centroid: FeatureVector }[];
   readonly neutral?: readonly { readonly centroid: FeatureVector }[];
+  /** Distances renormalised over the features present (#458), as the model reads them. */
+  readonly renormalize?: boolean;
 }
 
 /**
@@ -223,7 +230,7 @@ export function createReader(
   if (!options.mirror || !image) return plain;
   if (reference) {
     const targets = [...reference.categories, ...(reference.neutral ?? [])].map((c) => c.centroid);
-    const nearest = (v: FeatureVector) => Math.min(...targets.map((c) => weightedDistance(v, c, reference.features, reference.weights)));
+    const nearest = (v: FeatureVector) => Math.min(...targets.map((c) => modelDistance(reference, v, c)));
     return (merged) => {
       const v = plain(merged);
       const m = image(v);
