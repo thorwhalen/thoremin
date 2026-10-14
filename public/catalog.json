@@ -2892,6 +2892,10 @@
         "kind": "score-doc"
       },
       {
+        "name": "config",
+        "kind": "conductor-config"
+      },
+      {
         "name": "replaced",
         "kind": "boolean",
         "default": false

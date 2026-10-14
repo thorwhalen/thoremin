@@ -392,15 +392,56 @@ describe('orchestra: the score\'s part selection (#407)', () => {
   });
 });
 
-describe('orchestra: the conductor branch gives both players one part selection (#407)', () => {
-  // A guard: nothing sets `parts` yet (#471), so this holds on the defaults today; it fails
-  // the day one node of the branch is given a selection and the other is not.
-  it('the score node and the orchestra carry the same `parts` (a guard for #471)', async () => {
-    const { conductor, ORCHESTRA_NODE_ID } = await import('@/instruments/branches');
-    const partsOf = (id: string) => {
-      const n = conductor.nodes.find((x) => x.id === id)!;
-      return (n.params as { parts?: string[] } | undefined)?.parts ?? [];
+describe('orchestra: the live part selection from the conductor dial (#471)', () => {
+  const haydn = () => loadScore(new Uint8Array(readFileSync('public/scores/haydn-op76-3.mxl')), 'haydn-op76-3.mxl');
+
+  it('a deselected part is silent, and changing the selection re-plans without reloading the engine', async () => {
+    const doc = await haydn();
+    const [first, second] = doc.parts;
+    const { step, synth, loads } = harness();
+    step({ config: ON });
+    await flush();
+    const play = (config: Record<string, unknown>, from: number, n: number) => {
+      synth.calls.length = 0;
+      for (let i = from; i < from + n; i++) step({ config, doc, conducting: true, time: time(i / 30, 120) });
+      return synth.ons();
     };
-    expect(partsOf(ORCHESTRA_NODE_ID)).toEqual(partsOf('score'));
+    const channelsOf = (ons: Call[]) => new Set(ons.map((c) => c.args[0]));
+    // Everything on: more than one channel sounds.
+    expect(channelsOf(play({ ...ON, parts: '' }, 0, 240)).size).toBeGreaterThan(1);
+    // Only the first part selected: only its pitches, on one channel.
+    const pitches = new Set(first.notes.map((n) => n.midi));
+    const narrowed = play({ ...ON, parts: first.id }, 0, 240);
+    expect(narrowed.length).toBeGreaterThan(0);
+    expect(channelsOf(narrowed).size).toBe(1);
+    for (const c of narrowed) expect(pitches.has(c.args[1])).toBe(true);
+    // The second part alone: none of the first part's channel.
+    const other = play({ ...ON, parts: second.id }, 0, 240);
+    expect(other.length).toBeGreaterThan(0);
+    const secondPitches = new Set(second.notes.map((n) => n.midi));
+    for (const c of other) expect(secondPitches.has(c.args[1])).toBe(true);
+    expect(other.map((c) => c.args[1])).not.toEqual(narrowed.map((c) => c.args[1]));
+    // The synth was loaded once through all of it.
+    expect(loads()).toBe(1);
+  });
+
+  it('a selection naming no part of the piece plays every part', async () => {
+    const doc = await haydn();
+    const plan = (parts: string[]) => planPiece(doc, { parts });
+    expect(plan(['no-such-part']).events).toEqual(plan([]).events);
+  });
+});
+
+describe('orchestra: the conductor branch gives both players one part selection (#407, #471)', () => {
+  it('the score node and the orchestra read `parts` from the same conductor dial', async () => {
+    const { conductor, ORCHESTRA_NODE_ID } = await import('@/instruments/branches');
+    const configFeeds = (node: string) =>
+      conductor.edges.filter((e) => e.to.node === node && e.to.port === 'config').map((e) => JSON.stringify(e.from));
+    expect(configFeeds('score')).toHaveLength(1);
+    expect(configFeeds('score')).toEqual(configFeeds(ORCHESTRA_NODE_ID));
+    // And neither carries a build-time selection that could disagree with the dial.
+    const partsOf = (id: string) => (conductor.nodes.find((x) => x.id === id)!.params as { parts?: string[] } | undefined)?.parts ?? [];
+    expect(partsOf(ORCHESTRA_NODE_ID)).toEqual([]);
+    expect(partsOf('score')).toEqual([]);
   });
 });

@@ -400,7 +400,7 @@ Beat clock: integrates BPM over time into a running beat position.
 An immutable piece performed live: beat + velocityScale → the sounding synth voices. Plays a loaded ScoreDoc (MIDI / MusicXML) or the built-in demo scale.
 
 - **roles:** music
-- **in:** beat:number, velocityScale:number, enabled:boolean, doc:score-doc, replaced:boolean
+- **in:** beat:number, velocityScale:number, enabled:boolean, doc:score-doc, config:conductor-config, replaced:boolean
 - **out:** params:synth-params
 - **params:** notes (array=[]), loopBeats (number=8), baseGain (number=0.4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), parts (array=[])
 

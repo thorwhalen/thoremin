@@ -100,3 +100,25 @@ describe('score node with a loaded ScoreDoc', () => {
     expect(released(outs[4]).length).toBe(1);
   });
 });
+
+describe('score node: the live part selection from the conductor dial (#471)', () => {
+  it('config.parts narrows the piece to the selected parts, and an empty one plays them all', async () => {
+    await load();
+    expect(doc.parts.length).toBeGreaterThan(1);
+    // A part that sounds within the 12 beats replayed (the first may rest that long).
+    const keep = doc.parts.find((p) => p.notes.some((n) => n.start < 11))!.id;
+    const h = scoreNode.make(scoreNode.params.parse({}));
+    const beats = Array.from({ length: 49 }, (_, i) => i / 4);
+    const run = async (parts: string) =>
+      (await replayNode(h, { beat: beats, doc: beats.map(() => doc), config: beats.map(() => ({ parts })) })).map((o) => o.params as SynthParams);
+    const one = await run(keep);
+    const expectedOne = flattenNotes(doc, [keep]);
+    beats.forEach((pos, k) => {
+      expect(present(one[k]).length).toBe(expectedOne.filter((n) => pos >= n.start && pos < n.start + n.duration).length);
+    });
+    const all = await run('');
+    const total = (outs: SynthParams[]) => outs.reduce((a, o) => a + present(o).length, 0);
+    expect(total(one)).toBeGreaterThan(0);
+    expect(total(all)).toBeGreaterThan(total(one));
+  });
+});

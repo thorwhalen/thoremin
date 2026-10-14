@@ -54,6 +54,10 @@ export const ConductorSettingsSchema = ConductorDialSchema.extend({
    *  `piece`, the conductor node never sees it (its `config` port strips it); the
    *  `orchestra` node reads it from the same dial. */
   orchestra: OrchestraSettingsSchema.default(() => structuredClone(DEFAULT_ORCHESTRA)),
+  /** Which parts of the loaded piece play (#471): the ids, comma-separated, empty = all.
+   *  Read by the `score` node and the `orchestra` from this one dial, so the two players
+   *  cannot disagree (`parsePartsSelection`). A string so the leaf stays a scalar dial path. */
+  parts: z.string().default(''),
 });
 export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
 export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});
