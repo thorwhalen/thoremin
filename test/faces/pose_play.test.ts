@@ -25,7 +25,7 @@ import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { posePlay, transportRolesOf, type PoseCategorizerPlay, type PoseTransport } from '@thoremin/ext-faces/lib/posePlay';
-import { liveModel } from '@thoremin/ext-faces/lib/live';
+import { liveModel } from '@thoremin/sdk/enroll/live';
 import { poseCategorizerNode } from '@thoremin/ext-faces/nodes/pose_categorizer';
 import { startPosePlay, usePosePlay, POSE_PLAY_DEMAND_OWNER, type PosePlayDeps } from '@thoremin/ext-faces/app/posePlay';
 import { DEFAULT_POSE_CATEGORIZER, type PoseCategorizerDial } from '@thoremin/ext-faces/schema';

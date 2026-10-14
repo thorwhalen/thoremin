@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { SHARED_INDEX_FORMAT, type SharedEntry, type SharedIndex } from '@thoremin/ext-faces/lib/shared';
-import { DISTANCE_PROXIES } from '@thoremin/ext-faces/lib/live';
+import { DISTANCE_PROXIES } from '@thoremin/sdk/enroll/live';
 import { recordedCategorizer, recordedFrames } from '../../test/helpers/faceRecording';
 
 export const SHARED_PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'public', 'categorizers');

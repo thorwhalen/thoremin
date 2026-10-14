@@ -7,7 +7,7 @@
 import { expect, vi } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { createFaceSessionStore, type FaceSessionDeps } from '@thoremin/ext-faces/app/sessionStore';
-import { createCategorizerStore, type CategorizerRecord } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore, type CategorizerRecord } from '@thoremin/sdk-ui/enroll/categorizers';
 import { memoryThumbStore, type FrameOpener } from '@thoremin/ext-faces/app/thumbnails';
 import type { FaceSource } from '@thoremin/ext-faces/app/sources';
 import { bodyModalityUi } from '@thoremin/ext-faces/app/bodyModality';

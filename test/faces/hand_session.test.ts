@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { ok, type Result } from 'acture';
 import { createFaceSessionStore, type FaceSessionDeps } from '@thoremin/ext-faces/app/sessionStore';
-import { createCategorizerStore, type CategorizerRecord } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore, type CategorizerRecord } from '@thoremin/sdk-ui/enroll/categorizers';
 import { memoryThumbStore, type FrameOpener } from '@thoremin/ext-faces/app/thumbnails';
 import { HAND_SCRIPT, sourceFromUrl, type FaceSource } from '@thoremin/ext-faces/app/sources';
 import { handModalityUi } from '@thoremin/ext-faces/app/handModality';

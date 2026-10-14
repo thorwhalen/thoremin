@@ -25,7 +25,7 @@ import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { BODY_POSE_GROUPS } from '@thoremin/sdk/features/body_groups';
 import { bodySessionStore } from '@thoremin/ext-faces/app/bodySession';
 import { handSessionStore } from '@thoremin/ext-faces/app/handSession';
-import { createCategorizerStore } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { CATEGORY_PANEL_TOOL, createSavedCategoriesStore, setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';
 import { FACES } from '../helpers/extensions';
 import { dialsStore } from '@/app/dials/settingsStore';

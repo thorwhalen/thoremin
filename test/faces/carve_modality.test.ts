@@ -15,14 +15,14 @@ import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { carveOwners } from '@thoremin/sdk-ui/enroll/modality';
 import { FACE_REST_CUE, FACE_VOCABULARY_CUE } from '@thoremin/ext-faces/lib/take';
 import { fallbackName, NEUTRAL_LABEL } from '@thoremin/ext-faces/lib/carving';
-import { DISTANCE_PROXIES } from '@thoremin/ext-faces/lib/live';
+import { DISTANCE_PROXIES } from '@thoremin/sdk/enroll/live';
 import { FACES_CLAIMER, FACES_TEST_CLAIMER } from '@thoremin/ext-faces/app/faceSession';
 
 const EXT = join(__dirname, '../../packages/ext-faces/src');
 
 describe('the seam: shared modules read no face module directly', () => {
   // The modules a hand or body carve will run through unchanged.
-  const SHARED = ['app/sessionStore.ts', 'app/testStore.ts', 'app/faceSession.ts', 'lib/take.ts', 'lib/carving.ts', 'lib/live.ts', 'lib/corrections.ts'];
+  const SHARED = ['app/sessionStore.ts', 'app/testStore.ts', 'app/faceSession.ts', 'lib/take.ts', 'lib/carving.ts', '../../sdk/src/enroll/live.ts', 'lib/corrections.ts'];
   for (const file of SHARED) {
     it(`${file} imports no features/face_* module`, () => {
       const src = readFileSync(join(EXT, file), 'utf8');

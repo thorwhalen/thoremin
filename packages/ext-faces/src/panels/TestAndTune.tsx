@@ -10,7 +10,7 @@
  * counting accidental fires); and one **size** dial per category.
  *
  * Rendering only: the actions are the session store's (`../app/sessionStore.ts`) and the test
- * store's (`../app/testStore.ts`); what a tuning means is `../lib/live.ts`.
+ * store's (`../app/testStore.ts`); what a tuning means is `@thoremin/sdk/enroll/live`.
  */
 import { useEffect, useMemo, useRef } from 'react';
 import type { ModalityWords } from '@thoremin/sdk/enroll/modality';
@@ -23,7 +23,7 @@ import type { FaceTestState } from '../app/testStore';
 import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
 import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags, everydayResult } from '@thoremin/sdk/enroll/everyday';
-import { liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '../lib/live';
+import { liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '@thoremin/sdk/enroll/live';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';

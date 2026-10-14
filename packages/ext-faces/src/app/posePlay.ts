@@ -21,7 +21,7 @@ import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { posePlay, transportRolesOf, type PoseCategorizerPlay, type TransportRole } from '../lib/posePlay';
 import { playsPoses, type PoseCategorizerDial } from '../schema';
-import { createCategorizerStore } from './categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { onFaceModelsChanged, type FaceModelRecord } from './models';
 
 /** The transient field the node reads (declared by the manifest, `../index.ts`). */

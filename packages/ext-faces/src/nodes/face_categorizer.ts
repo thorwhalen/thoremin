@@ -28,7 +28,7 @@ import { createCategoryTracker, type CategoryTracker } from '@thoremin/sdk/enrol
 import { hasReading } from '@thoremin/sdk/enroll/bind';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { ABSENT_EXPRESSION, type ExpressionScores } from '@thoremin/sdk/music/expression';
-import { DISTANCE_PROXIES, LIVE_DEFAULTS, tuneVector } from '../lib/live';
+import { DISTANCE_PROXIES, LIVE_DEFAULTS, tuneVector } from '@thoremin/sdk/enroll/live';
 import { absentReading, toExpressionScores, type FaceCategorizerPlay } from '../lib/play';
 import { ownDegrees, type FaceCategorizerDial } from '../schema';
 

@@ -26,7 +26,8 @@ export interface ThumbStore {
 }
 
 /** Hold `n` of take `takeId`: its sample id, and its still's key. */
-export const holdId = (takeId: string, n: number): string => `${takeId}:${n}`;
+// The one definition is the record schema's (a v1 record's stills are found by it there).
+export { holdId } from '@thoremin/sdk/enroll/record';
 
 export function memoryThumbStore(): ThumbStore {
   const m = new Map<string, Blob>();

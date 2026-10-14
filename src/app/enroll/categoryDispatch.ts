@@ -106,7 +106,7 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
   const deps: CategoryDispatcherDeps = { ...defaultDeps(), ...overrides };
   let model: TrainedModel | null = null;
   let edge: CategoryEdge | null = null;
-  /** How the active set reads the live vector (#385 E8), kept per set. */
+  /** How the active set reads the live vector (#385 E8; its tuning since #371), kept per set. */
   let readSet: SavedCategories | null = null;
   let read: (v: FeatureVector) => FeatureVector = (v) => v;
 
@@ -151,7 +151,10 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       edge.setHoldMs(deps.holdMs());
       if (set !== readSet) {
         readSet = set;
-        read = readFor(set.categories.read, set.categories.model);
+        const reader = readFor(set.categories.read, set.categories.model);
+        // A carved categorizer's live tuning (#453), after the projection, as its tool applies it.
+        const tune = set.tune;
+        read = tune ? (v) => tune(reader(v)) : reader;
       }
       const raw = deps.readVector();
       const step = edge.push(raw ? read(raw) : null, nowMs);

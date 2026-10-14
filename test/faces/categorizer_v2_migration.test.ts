@@ -26,7 +26,7 @@ import {
 } from '@thoremin/sdk/enroll/categorizer';
 import { trainModel } from '@thoremin/sdk/enroll/classify';
 import type { TrainedModel } from '@thoremin/sdk/enroll/types';
-import { liveModel } from '@thoremin/ext-faces/lib/live';
+import { liveModel } from '@thoremin/sdk/enroll/live';
 import { SHARED_PUBLIC_DIR } from '../../scripts/faces/lib_demo_categorizer';
 
 const FIXTURES = join(__dirname, 'fixtures');

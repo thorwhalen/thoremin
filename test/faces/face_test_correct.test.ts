@@ -14,7 +14,7 @@ import { createFaceModelStore, type FaceModelRecord } from '@thoremin/ext-faces/
 import { memoryThumbStore } from '@thoremin/ext-faces/app/thumbnails';
 import { syntheticSource } from '@thoremin/ext-faces/app/sources';
 import { SYNTHETIC_EXPRESSIONS, SYNTHETIC_TIMELINE, syntheticPhase } from '@thoremin/ext-faces/lib/synthetic';
-import { liveModel } from '@thoremin/ext-faces/lib/live';
+import { liveModel } from '@thoremin/sdk/enroll/live';
 import { categoryOf, CORRECTION_CUE } from '@thoremin/ext-faces/lib/corrections';
 import { CATEGORIZER_VERSION } from '@thoremin/sdk/enroll/categorizer';
 import { SEED_CUE } from '@thoremin/sdk/enroll/from_model';

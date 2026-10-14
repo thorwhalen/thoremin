@@ -14,12 +14,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { createFaceSessionStore, type FaceSessionDeps } from '@thoremin/ext-faces/app/sessionStore';
-import { createCategorizerStore, type CategorizerRecord } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore, type CategorizerRecord } from '@thoremin/sdk-ui/enroll/categorizers';
 import { memoryThumbStore, type FrameOpener } from '@thoremin/ext-faces/app/thumbnails';
 import { BODY_SCRIPT, sourceFromUrl, type FaceSource } from '@thoremin/ext-faces/app/sources';
 import { bodyModalityUi, poseFigureSvg } from '@thoremin/ext-faces/app/bodyModality';
 import { createFaceTestStore } from '@thoremin/ext-faces/app/testStore';
-import { liveModel } from '@thoremin/ext-faces/lib/live';
+import { liveModel } from '@thoremin/sdk/enroll/live';
 import { SYNTHETIC_BODY_TIMELINE } from '@thoremin/ext-faces/lib/synthetic_body';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { exportCategorizer, importCategorizer, modelFromCategorizer } from '@thoremin/sdk/enroll/categorizer';

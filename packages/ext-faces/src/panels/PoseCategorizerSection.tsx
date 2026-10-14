@@ -12,7 +12,7 @@ import { dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { usePosePlay } from '../app/posePlay';
-import { createCategorizerStore } from '../app/categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { onFaceModelsChanged } from '../app/models';
 import { DEFAULT_POSE_CATEGORIZER, type PoseCategorizerDial } from '../schema';
 

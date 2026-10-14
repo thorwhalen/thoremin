@@ -21,7 +21,7 @@ import { importCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { handModality, HAND_CLAIM_GROUPS } from '@thoremin/sdk/features/modalities/hand';
 import { handSessionStore } from '@thoremin/ext-faces/app/handSession';
 import { faceSessionStore } from '@thoremin/ext-faces/app/faceSession';
-import { createCategorizerStore } from '@thoremin/ext-faces/app/categorizers';
+import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { CATEGORY_PANEL_TOOL, createSavedCategoriesStore, setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';
 import { FACES } from '../helpers/extensions';
 import { dialsStore } from '@/app/dials/settingsStore';
